@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import type { DaemonLiveStatus, InteractiveSession } from "#core/daemon/daemon-control.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import { getDaemonTransport } from "#core/server/daemon-transport.js";
 import { type AutonomyMode, isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowActiveRun } from "#core/workflow/run-types.js";
@@ -42,7 +43,11 @@ function buildSessionList(
   return entries.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
 }
 
-export function buildSessionCommand(): Command {
+function buildStatusPath(projectId: string | undefined): string {
+  return projectId ? `/status?projectId=${encodeURIComponent(projectId)}` : "/status";
+}
+
+export function buildSessionCommand(_ctx: ModuleContext): Command {
   const sessionCmd = new Command("session")
     .description("Inspect active sessions tracked by the daemon");
 
@@ -50,7 +55,11 @@ export function buildSessionCommand(): Command {
     .command("list")
     .description("List all active sessions (interactive and workflow)")
     .option("--json", "Output as JSON")
-    .action(async (opts: { json?: boolean }) => {
+    .option(
+      "--project <id>",
+      "Filter to one configured project (default: daemon's active project)",
+    )
+    .action(async (opts: { json?: boolean; project?: string }) => {
       const link = getDaemonTransport();
       if (!link) {
         if (opts.json) {
@@ -61,7 +70,10 @@ export function buildSessionCommand(): Command {
         return;
       }
 
-      const status = await link.request<DaemonLiveStatus>("GET", "/status");
+      const status = await link.request<DaemonLiveStatus>(
+        "GET",
+        buildStatusPath(opts.project),
+      );
       if (!status) {
         if (opts.json) {
           console.log(JSON.stringify({ sessions: [], offline: true }));
@@ -106,14 +118,21 @@ export function buildSessionCommand(): Command {
     .command("inspect <id>")
     .description("Show detail for a single active session")
     .option("--json", "Output as JSON")
-    .action(async (id: string, opts: { json?: boolean }) => {
+    .option(
+      "--project <id>",
+      "Look up the session in one configured project (default: daemon's active project)",
+    )
+    .action(async (id: string, opts: { json?: boolean; project?: string }) => {
       const link = getDaemonTransport();
       if (!link) {
         console.error("Daemon is offline.");
         process.exit(1);
       }
 
-      const status = await link.request<DaemonLiveStatus>("GET", "/status");
+      const status = await link.request<DaemonLiveStatus>(
+        "GET",
+        buildStatusPath(opts.project),
+      );
       if (!status) {
         console.error("Daemon is offline.");
         process.exit(1);

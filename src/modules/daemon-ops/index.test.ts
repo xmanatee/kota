@@ -51,13 +51,14 @@ describe("daemonModule", () => {
     expect(daemonModule.description).toContain("daemon runtime");
   });
 
-  it("registers daemon, events, session, and status CLI commands", () => {
+  it("registers daemon, events, session, status, and project CLI commands", () => {
     const cmds = daemonModule.commands!(stubCtx);
-    expect(cmds).toHaveLength(4);
+    expect(cmds).toHaveLength(5);
     expect(cmds[0].name()).toBe("daemon");
     expect(cmds[1].name()).toBe("events");
     expect(cmds[2].name()).toBe("session");
     expect(cmds[3].name()).toBe("status");
+    expect(cmds[4].name()).toBe("project");
   });
 
   it("daemon command has expected options", () => {

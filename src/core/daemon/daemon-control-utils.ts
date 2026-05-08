@@ -31,12 +31,51 @@ export type ProjectScopeParam =
   | { ok: false; error: UnknownProjectError };
 
 /**
+ * Result of parsing the `PATCH /projects/active` request body. The
+ * `ok` arm carries the validated `projectId` (`null` clears the
+ * selection); the rejection arm names the wire error the route handler
+ * returns as a 400 body.
+ */
+export type ActiveProjectPatchBody =
+  | { ok: true; projectId: string | null }
+  | { ok: false; error: { error: string; reason: "invalid_request" } };
+
+type ActiveProjectPatchInput = { projectId?: string | null };
+
+/**
+ * Parse and validate the JSON body of `PATCH /projects/active`. The
+ * boundary cast lives here so the route handler stays free of raw
+ * `unknown` casts; the stable wire contract is the typed
+ * {@link ActiveProjectPatchBody} sum returned to the route.
+ */
+export function parseActiveProjectPatchBody(raw: string): ActiveProjectPatchBody {
+  let parsed: ActiveProjectPatchInput;
+  try {
+    parsed = JSON.parse(raw || "{}") as ActiveProjectPatchInput;
+  } catch {
+    return { ok: false, error: { error: "Invalid JSON body", reason: "invalid_request" } };
+  }
+  const next = parsed.projectId;
+  if (next !== null && next !== undefined && typeof next !== "string") {
+    return {
+      ok: false,
+      error: {
+        error: "projectId must be a string or null",
+        reason: "invalid_request",
+      },
+    };
+  }
+  return { ok: true, projectId: next ?? null };
+}
+
+/**
  * Read and validate the optional `?projectId=` query parameter for a
  * project-scoped control-API route.
  *
- * - When the parameter is absent or empty, returns
- *   `{ ok: true, projectId: undefined }` so the handle resolves the
- *   registry's default project.
+ * - When the parameter is absent or empty, returns the operator-selected
+ *   active project id from the handle, or `{ projectId: undefined }` when
+ *   no selection is in force so the handle resolves the registry's
+ *   default project.
  * - When the parameter is present, validates against
  *   {@link DaemonControlHandle.hasProject}. Unknown ids return the
  *   typed wire-shape rejection that route handlers translate to a 404.
@@ -47,7 +86,8 @@ export function resolveProjectIdParam(
 ): ProjectScopeParam {
   const raw = url.searchParams.get("projectId");
   if (raw === null || raw === "") {
-    return { ok: true, projectId: undefined };
+    const active = handle.getActiveProjectId();
+    return { ok: true, projectId: active ?? undefined };
   }
   if (!handle.hasProject(raw)) {
     return {

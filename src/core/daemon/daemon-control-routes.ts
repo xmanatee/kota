@@ -25,7 +25,7 @@ import {
 import type { DaemonChatMakeAgent, DaemonChatPool } from "./daemon-chat-pool.js";
 import { handleListSessions, handleRegisterSession, handleUnregisterSession } from "./daemon-control-sessions.js";
 import type { DaemonControlHandle, DaemonLiveStatus } from "./daemon-control-types.js";
-import { jsonResponse, resolveProjectIdParam } from "./daemon-control-utils.js";
+import { jsonResponse, parseActiveProjectPatchBody, readBody, resolveProjectIdParam } from "./daemon-control-utils.js";
 import {
   handleAbortWorkflow,
   handleAbortWorkflowRun,
@@ -115,7 +115,41 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
       method: "GET",
       path: "/projects",
       capabilityScope: "read",
-      handler: (_req, res) => jsonResponse(res, 200, h.getProjectRegistryProjection()),
+      handler: (_req, res) =>
+        jsonResponse(res, 200, {
+          ...h.getProjectRegistryProjection(),
+          activeProjectId: h.getActiveProjectId(),
+        }),
+    },
+    {
+      method: "GET",
+      path: "/projects/active",
+      capabilityScope: "read",
+      handler: (_req, res) =>
+        jsonResponse(res, 200, { activeProjectId: h.getActiveProjectId() }),
+    },
+    {
+      method: "PATCH",
+      path: "/projects/active",
+      capabilityScope: "control",
+      handler: async (req, res) => {
+        const raw = await readBody(req);
+        const next = parseActiveProjectPatchBody(raw.toString("utf8"));
+        if (!next.ok) {
+          jsonResponse(res, 400, next.error);
+          return;
+        }
+        const result = h.setActiveProjectId(next.projectId);
+        if (!result.ok) {
+          jsonResponse(res, 404, {
+            error: "Unknown project",
+            reason: "unknown_project",
+            projectId: result.projectId,
+          });
+          return;
+        }
+        jsonResponse(res, 200, { activeProjectId: result.activeProjectId });
+      },
     },
     {
       method: "GET",

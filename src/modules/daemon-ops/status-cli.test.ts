@@ -137,6 +137,31 @@ describe("formatStatusOutput", () => {
     expect(out).not.toContain("MISMATCH");
   });
 
+  it("shows the active project name and path when the daemon hosts more than one project", () => {
+    const out = formatStatusOutput(makeSnap({
+      daemonRunning: true,
+      daemonPid: 12345,
+      controlFile: { kind: "fresh", pid: 12345, baseURL: "http://127.0.0.1:8765" },
+      scopedProject: {
+        projectId: "p-secondary",
+        projectDir: "/Users/op/Desktop/secondary",
+        displayName: "secondary",
+      },
+    }));
+    expect(out).toContain("Active project");
+    expect(out).toContain("secondary");
+    expect(out).toContain("/Users/op/Desktop/secondary");
+  });
+
+  it("omits the active-project line for single-project daemons", () => {
+    const out = formatStatusOutput(makeSnap({
+      daemonRunning: true,
+      daemonPid: 12345,
+      controlFile: { kind: "fresh", pid: 12345, baseURL: "http://127.0.0.1:8765" },
+    }));
+    expect(out).not.toContain("Active project");
+  });
+
   it("never includes a Bearer token marker in the rendered output", () => {
     const out = formatStatusOutput(makeSnap({
       daemonRunning: true,

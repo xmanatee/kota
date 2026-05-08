@@ -23,6 +23,10 @@ import type {
   DaemonLiveStatus,
   InteractiveSession,
 } from "#core/daemon/daemon-control.js";
+import type {
+  ConfiguredProject,
+  ProjectId,
+} from "#core/daemon/project-registry.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 
 export type SessionsListResult = {
@@ -106,4 +110,48 @@ export interface DaemonOpsClient {
   pid(): Promise<DaemonOpsPidResult>;
   stop(options?: { timeoutSec?: number }): Promise<DaemonOpsStopResult>;
   reload(): Promise<DaemonOpsReloadResult>;
+}
+
+/**
+ * Result of `projects.list()`.
+ *
+ * The daemon-up arm carries the full registry projection plus the
+ * operator-selected `activeProjectId` (or `null` when no selection is in
+ * force — routes fall back to `defaultProjectId` in that case). The
+ * `daemon_required` arm signals the local handler reached this code with
+ * no daemon to ask: there is no project registry to read offline.
+ */
+export type ProjectsListResult =
+  | {
+      ok: true;
+      projects: ConfiguredProject[];
+      defaultProjectId: ProjectId;
+      activeProjectId: ProjectId | null;
+    }
+  | { ok: false; reason: "daemon_required" };
+
+/**
+ * Result of `projects.use(projectId | null)`. The success arm echoes the
+ * new active selection; `not_found` rejects unknown ids; `daemon_required`
+ * surfaces when no daemon is reachable to mutate.
+ */
+export type ProjectsUseResult =
+  | { ok: true; activeProjectId: ProjectId | null }
+  | { ok: false; reason: "not_found"; projectId: string }
+  | { ok: false; reason: "daemon_required" };
+
+/**
+ * Project-selection operations exposed to operator CLIs and clients.
+ *
+ * The daemon owns the configured project registry plus the
+ * operator-selected active project; this namespace is the typed contract
+ * every client (CLI, native app, web dashboard) reaches for both reads
+ * and the typed switch call. Routes that take optional `?projectId=` fall
+ * back to the active selection when the parameter is absent, so a
+ * `kota project use <id>` selection scopes subsequent inspection commands
+ * without each one re-passing `--project`.
+ */
+export interface ProjectsClient {
+  list(): Promise<ProjectsListResult>;
+  use(projectId: string | null): Promise<ProjectsUseResult>;
 }

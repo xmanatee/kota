@@ -4,6 +4,11 @@ import { loadConfig } from "#core/config/config.js";
 import { resolveProjectDir } from "#core/config/project-dir.js";
 import { Daemon, RESTART_EXIT_CODE } from "#core/daemon/daemon.js";
 import type { DaemonLiveStatus, InteractiveSession } from "#core/daemon/daemon-control.js";
+import type {
+  ConfiguredProject,
+  ProjectId,
+  ProjectRegistryProjection,
+} from "#core/daemon/project-registry.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import { daemonManagedHttp } from "#core/server/daemon-client.js";
@@ -26,6 +31,8 @@ import { renderToString } from "#modules/rendering/transport.js";
 import { getRepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type {
   DaemonOpsClient,
+  ProjectsClient,
+  ProjectsUseResult,
   SessionsClient,
   SessionsSetAutonomyModeResult,
 } from "./client.js";
@@ -38,6 +45,8 @@ import {
 import { DaemonDashboard } from "./dashboard.js";
 import { buildEventsCommand } from "./events-cli.js";
 import { abbreviateRunId, formatDuration, formatTimeAgo, formatUptime } from "./format-utils.js";
+import { buildProjectCommand } from "./projects-cli.js";
+import { projectsLocalClient } from "./projects-local.js";
 import { buildQrCommand } from "./qr-cli.js";
 import {
   buildLaunchdPlist,
@@ -498,7 +507,13 @@ const daemonModule: KotaModule = {
       });
 
     cmd.addCommand(buildQrCommand());
-    return [cmd, buildEventsCommand(), buildSessionCommand(), buildStatusCommand()];
+    return [
+      cmd,
+      buildEventsCommand(ctx),
+      buildSessionCommand(ctx),
+      buildStatusCommand(ctx),
+      buildProjectCommand(ctx),
+    ];
   },
 
   /**
@@ -525,11 +540,16 @@ const daemonModule: KotaModule = {
         return localDaemonReload();
       },
     };
-    return { sessions: sessionsLocalClient(), daemonOps };
+    return {
+      sessions: sessionsLocalClient(),
+      daemonOps,
+      projects: projectsLocalClient(),
+    };
   },
   daemonClient: (link) => ({
     sessions: buildSessionsDaemonHandler(link),
     daemonOps: buildDaemonOpsDaemonHandler(link),
+    projects: buildProjectsDaemonHandler(link),
   }),
 };
 
@@ -667,6 +687,84 @@ function buildSessionsDaemonHandler(link: DaemonTransport): SessionsClient {
           source: body.source ?? "daemon",
           serveOwned: body.serveOwned === true,
         };
+      } catch (err) {
+        if (err instanceof Error && /HTTP/.test(err.message)) throw err;
+        return { ok: false, reason: "daemon_required" };
+      }
+    },
+  };
+}
+
+/**
+ * Wire shape returned by `GET /projects`: the registry projection plus
+ * the operator-selected active project id (or `null`).
+ */
+type ProjectsListWireBody = ProjectRegistryProjection & {
+  activeProjectId: ProjectId | null;
+};
+
+/**
+ * Daemon-side `ProjectsClient` backed by the typed `DaemonTransport`.
+ * Calls `GET /projects` to read the registry plus active selection in
+ * one round trip, and `PATCH /projects/active` to switch.
+ *
+ * `list()` throws when the daemon is reachable but returns a non-ok
+ * response (e.g. transport-level error after the selector chose this
+ * branch) and surfaces `daemon_required` on transient transport
+ * failures so the CLI can degrade with the same shape the local handler
+ * uses.
+ *
+ * `use(projectId)` distinguishes:
+ *  - `200 → { ok: true, activeProjectId }`,
+ *  - `404 → { ok: false, reason: "not_found", projectId }`,
+ *  - other non-ok responses → throw the daemon's error message,
+ *  - transport failure → `{ ok: false, reason: "daemon_required" }`.
+ */
+function buildProjectsDaemonHandler(link: DaemonTransport): ProjectsClient {
+  return {
+    list: async () => {
+      try {
+        const res = await link.fetchRaw("/projects", {
+          method: "GET",
+          headers: link.authHeaders(),
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(body.error ?? `HTTP ${res.status}`);
+        }
+        const parsed = (await res.json()) as ProjectsListWireBody;
+        return {
+          ok: true,
+          projects: parsed.projects as ConfiguredProject[],
+          defaultProjectId: parsed.defaultProjectId,
+          activeProjectId: parsed.activeProjectId,
+        };
+      } catch (err) {
+        if (err instanceof Error && /HTTP/.test(err.message)) throw err;
+        return { ok: false, reason: "daemon_required" };
+      }
+    },
+    use: async (projectId: string | null): Promise<ProjectsUseResult> => {
+      try {
+        const res = await link.fetchRaw("/projects/active", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", ...link.authHeaders() },
+          body: JSON.stringify({ projectId }),
+        });
+        if (res.status === 404) {
+          const body = (await res.json().catch(() => ({}))) as { projectId?: string };
+          return {
+            ok: false,
+            reason: "not_found",
+            projectId: body.projectId ?? (projectId ?? ""),
+          };
+        }
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(body.error ?? `HTTP ${res.status}`);
+        }
+        const body = (await res.json()) as { activeProjectId: ProjectId | null };
+        return { ok: true, activeProjectId: body.activeProjectId };
       } catch (err) {
         if (err instanceof Error && /HTTP/.test(err.message)) throw err;
         return { ok: false, reason: "daemon_required" };

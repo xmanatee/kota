@@ -55,6 +55,8 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     setSessionAutonomyMode: vi.fn(() => ({ ok: false, notFound: true })),
     getProjectRegistryProjection: vi.fn(() => ({ defaultProjectId: "test-project-id", projects: [{ projectId: "test-project-id", projectDir: "/tmp/test-project", displayName: "test-project" }] })),
     hasProject: vi.fn((id: string) => id === "test-project-id"),
+    getActiveProjectId: vi.fn(() => null),
+    setActiveProjectId: vi.fn((id: string | null) => (id === null ? { ok: true as const, activeProjectId: null } : id === "test-project-id" ? { ok: true as const, activeProjectId: id } : { ok: false as const, reason: "not_found" as const, projectId: id })),
     reloadConfig: vi.fn(async () => ({ workflows: 3, changedModules: [] as string[] })),
     probeCapabilityReadiness: vi.fn(async () => ({
       capabilities: [],
@@ -188,12 +190,13 @@ describe("DaemonControlServer", () => {
   });
 
   describe("GET /projects", () => {
-    it("returns the typed project registry projection (cross-project shape)", async () => {
+    it("returns the typed project registry projection plus active selection", async () => {
       const res = await fetchWithToken(port, "/projects");
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body).toEqual({
         defaultProjectId: "test-project-id",
+        activeProjectId: null,
         projects: [
           {
             projectId: "test-project-id",
@@ -202,6 +205,76 @@ describe("DaemonControlServer", () => {
           },
         ],
       });
+    });
+  });
+
+  describe("active project selection", () => {
+    it("GET /projects/active returns the current active project (null by default)", async () => {
+      const res = await fetchWithToken(port, "/projects/active");
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toEqual({ activeProjectId: null });
+    });
+
+    it("PATCH /projects/active sets the active project and routes a subsequent omitted-projectId request to it", async () => {
+      const patchRes = await fetchWithToken(port, "/projects/active", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: "test-project-id" }),
+      });
+      expect(patchRes.status).toBe(200);
+      expect(await patchRes.json()).toEqual({ activeProjectId: "test-project-id" });
+      expect(handle.setActiveProjectId).toHaveBeenCalledWith("test-project-id");
+
+      const lookup = handle.getWorkflowLiveStatus as ReturnType<typeof vi.fn>;
+      lookup.mockClear();
+      handle.getActiveProjectId = vi.fn(() => "test-project-id");
+      await fetchWithToken(port, "/workflow/status");
+      expect(lookup).toHaveBeenCalledWith("test-project-id");
+    });
+
+    it("PATCH /projects/active with null clears the selection", async () => {
+      const res = await fetchWithToken(port, "/projects/active", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: null }),
+      });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ activeProjectId: null });
+      expect(handle.setActiveProjectId).toHaveBeenCalledWith(null);
+    });
+
+    it("PATCH /projects/active rejects unknown ids with the typed 404 shape", async () => {
+      const res = await fetchWithToken(port, "/projects/active", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: "ghost" }),
+      });
+      expect(res.status).toBe(404);
+      expect(await res.json()).toEqual({
+        error: "Unknown project",
+        reason: "unknown_project",
+        projectId: "ghost",
+      });
+    });
+
+    it("PATCH /projects/active rejects malformed request bodies", async () => {
+      const res = await fetchWithToken(port, "/projects/active", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: 42 }),
+      });
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.reason).toBe("invalid_request");
+    });
+
+    it("omitted ?projectId= falls back to the registry default when no active selection is set", async () => {
+      handle.getActiveProjectId = vi.fn(() => null);
+      const lookup = handle.getWorkflowLiveStatus as ReturnType<typeof vi.fn>;
+      lookup.mockClear();
+      await fetchWithToken(port, "/workflow/status");
+      expect(lookup).toHaveBeenCalledWith(undefined);
     });
   });
 

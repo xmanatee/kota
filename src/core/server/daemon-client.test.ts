@@ -50,6 +50,7 @@ const STUB_OMITTED_NAMESPACES: ReadonlySet<string> = new Set<string>([
   "voice",
   "sessions",
   "daemonOps",
+  "projects",
   "config",
   "tasks",
   "workflow",
@@ -272,6 +273,13 @@ function makeStubDaemonOps(): DaemonClientHandlers["daemonOps"] {
   };
 }
 
+function makeStubProjects(): DaemonClientHandlers["projects"] {
+  return {
+    list: async () => ({ ok: false, reason: "daemon_required" }),
+    use: async () => ({ ok: false, reason: "daemon_required" }),
+  };
+}
+
 function makeStubConfig(): DaemonClientHandlers["config"] {
   return {
     validate: async () => ({ sources: [], warnings: [], resolved: {} }),
@@ -371,6 +379,7 @@ describe("assembleDaemonClientHandlers", () => {
       voice: makeStubVoice(),
       sessions: makeStubSessions(),
       daemonOps: makeStubDaemonOps(),
+      projects: makeStubProjects(),
       config: makeStubConfig(),
       tasks: makeStubTasks(),
       workflow: makeStubWorkflow(),
@@ -407,6 +416,7 @@ describe("assembleDaemonClientHandlers", () => {
       voice: makeStubVoice(),
       sessions: makeStubSessions(),
       daemonOps: makeStubDaemonOps(),
+      projects: makeStubProjects(),
       config: makeStubConfig(),
       tasks: makeStubTasks(),
       workflow: customWorkflow,
@@ -421,7 +431,7 @@ describe("assembleDaemonClientHandlers", () => {
 
   it("throws naming each migrated namespace when no module contributes it", () => {
     expect(() => assembleDaemonClientHandlers(transport)).toThrow(
-      /missing daemon handler\(s\) for: workflow, approvals, secrets, tasks, memory, ownerQuestions, history, knowledge, sessions, modules, agents, skills, harnessParity, webhook, voice, web, mcpServer, audit, config, modulesAdmin, daemonOps, doctor, evalHarness, recall, answer, capture, retract/,
+      /missing daemon handler\(s\) for: workflow, approvals, secrets, tasks, memory, ownerQuestions, history, knowledge, sessions, modules, agents, skills, harnessParity, webhook, voice, web, mcpServer, audit, config, modulesAdmin, daemonOps, projects, doctor, evalHarness, recall, answer, capture, retract/,
     );
   });
 });

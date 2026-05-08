@@ -37,6 +37,37 @@ CLI commands.
   consume the helpers in `src/core/server/daemon-client.ts` because they
   bridge `kota serve` ⇄ daemon and are not part of the namespace contract.
 
+## Project Scope
+
+Project scope flows through one place — the registry surface — and every
+operator command consumes it through the same paths. Do not reinvent
+project selection per command.
+
+- Reads come through `client.projects.list()`. The daemon's `/projects`
+  route returns the registry projection plus the operator-selected
+  `activeProjectId` (or `null` when no selection is in force) in a single
+  round trip. Other CLIs that need to render a project selector consume
+  this same shape; do not call `getProjectRegistryProjection()` and
+  `/projects/active` separately just to splice them client-side.
+- Writes come through `client.projects.use(id | null)`. The daemon
+  persists the selection in-memory only — restarting the daemon clears
+  the selection back to the registry default — and routes that take
+  `?projectId=` use the active selection when the parameter is omitted.
+  `kota project use` is the canonical entry point; `null` clears the
+  selection, an unknown id surfaces `not_found`.
+- Per-command `--project <id>` flags override the active selection for
+  one call. `daemon-ops` subcommands (`status`, `session`, `events`)
+  pass the flag through as `?projectId=<id>` and otherwise leave the
+  query parameter unset so the daemon resolves to the active selection.
+  Cross-project operations are an explicit opt-in (e.g.
+  `events tail --all-projects`) — never the default. New operator
+  surfaces should follow the same shape rather than introducing a
+  parallel "all projects" or per-project flag set.
+- Single-project setups never render a selector. The presence threshold
+  in `daemon-ops` views (e.g. the `Active project` line in `kota
+  status`) is "registry hosts more than one project," so KOTA-on-itself
+  remains a one-line experience.
+
 ## Presentation Boundaries
 
 - The dashboard owns visual layout. The daemon core must not draw decorative

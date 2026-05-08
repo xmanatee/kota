@@ -19,6 +19,16 @@ export type UnknownProjectError = {
   projectId: string;
 };
 
+/**
+ * Result of {@link DaemonControlHandle.setActiveProjectId}. The success
+ * arm carries the new active selection (echoing the requested value back
+ * so callers don't need a follow-up read); the rejection arm names the
+ * unknown id so route handlers can 404 with the typed shape.
+ */
+export type SetActiveProjectResult =
+  | { ok: true; activeProjectId: ProjectId | null }
+  | { ok: false; reason: "not_found"; projectId: string };
+
 export type { ChannelStatus };
 
 export type WorkflowDefinitionTriggerSummary =
@@ -220,6 +230,22 @@ export type DaemonControlHandle = {
    * 404 with the unknown id surfaced explicitly to the caller.
    */
   hasProject(projectId: string): boolean;
+  /**
+   * Operator-selected active project id, or `null` when no explicit
+   * selection is in force (the daemon falls back to the registry default).
+   * The selection is in-memory daemon state — restarting the daemon clears
+   * it. Routes that resolve `?projectId=` consult this when the query
+   * parameter is absent so a `kota project use` selection scopes every
+   * subsequent CLI call without each command re-passing `--project`.
+   */
+  getActiveProjectId(): ProjectId | null;
+  /**
+   * Update the operator-selected active project id. `null` clears the
+   * selection (routes fall back to the registry default). Unknown ids
+   * surface `{ ok: false, reason: "not_found" }`; route handlers translate
+   * that to a 404 wire response.
+   */
+  setActiveProjectId(projectId: ProjectId | null): SetActiveProjectResult;
   pauseWorkflowDispatch(projectId?: ProjectId): { already: boolean };
   resumeWorkflowDispatch(projectId?: ProjectId): { already: boolean };
   abortActiveRuns(projectId?: ProjectId): { aborted: number };

@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import { getDaemonTransport } from "#core/server/daemon-transport.js";
 
 function formatEventSummary(type: string, payload: Record<string, unknown>): string {
@@ -25,7 +26,62 @@ function formatEventSummary(type: string, payload: Record<string, unknown>): str
   return first != null ? String(first) : "";
 }
 
-export function buildEventsCommand(): Command {
+/**
+ * Resolve the project the events stream filters on. Returns:
+ *  - the explicit `--project` value when provided (validated to be a
+ *    configured id or `null` to opt into cross-project listing),
+ *  - the daemon's currently active selection when no flag is set, or
+ *  - `null` when the daemon hosts a single project (no filter needed).
+ *
+ * `--all-projects` opts into cross-project listing explicitly. The
+ * combined flag set rejects `--project` + `--all-projects`.
+ */
+async function resolveEventsProjectFilter(
+  ctx: ModuleContext,
+  opts: { project?: string; allProjects?: boolean },
+): Promise<{ ok: true; projectId: string | null } | { ok: false; message: string }> {
+  if (opts.project && opts.allProjects) {
+    return { ok: false, message: "--project and --all-projects are mutually exclusive." };
+  }
+  if (opts.allProjects) return { ok: true, projectId: null };
+  const view = await ctx.client.projects.list();
+  if (!view.ok) {
+    if (opts.project) return { ok: true, projectId: opts.project };
+    return { ok: true, projectId: null };
+  }
+  if (opts.project) {
+    if (!view.projects.some((p) => p.projectId === opts.project)) {
+      return { ok: false, message: `Unknown project: "${opts.project}".` };
+    }
+    return { ok: true, projectId: opts.project };
+  }
+  if (view.projects.length <= 1) return { ok: true, projectId: null };
+  const fallback = view.activeProjectId ?? view.defaultProjectId;
+  return { ok: true, projectId: fallback };
+}
+
+/**
+ * Read an optional `projectId` field from any event-bus payload. The
+ * SSE union and the `/api/events` ring-buffer response both carry
+ * heterogeneous payload shapes; payloads that genuinely don't scope to a
+ * project just don't expose the field, and the helper returns
+ * `undefined` so the caller treats the event as cross-project.
+ */
+function readEventProjectId(payload: object): string | undefined {
+  if ("projectId" in payload && typeof payload.projectId === "string") {
+    return payload.projectId;
+  }
+  return undefined;
+}
+
+function eventMatchesProject(payload: object, projectId: string | null): boolean {
+  if (projectId === null) return true;
+  const carried = readEventProjectId(payload);
+  if (carried === undefined) return true;
+  return carried === projectId;
+}
+
+export function buildEventsCommand(ctx: ModuleContext): Command {
   const cmd = new Command("events")
     .description("Inspect the daemon event bus");
 
@@ -37,10 +93,21 @@ export function buildEventsCommand(): Command {
     )
     .option("--json", "Emit raw NDJSON instead of formatted output")
     .option("--filter <prefix>", "Show only events whose type starts with <prefix>")
-    .action(async (opts: { json?: boolean; filter?: string }) => {
+    .option(
+      "--project <id>",
+      "Filter to one configured project (default: daemon's active project)",
+    )
+    .option("--all-projects", "Stream events from every configured project (opt-in)")
+    .action(async (opts: { json?: boolean; filter?: string; project?: string; allProjects?: boolean }) => {
       const link = getDaemonTransport();
       if (!link) {
         console.error("Daemon is not running. Start the daemon with `kota daemon start`.");
+        process.exit(1);
+      }
+
+      const filter = await resolveEventsProjectFilter(ctx, opts);
+      if (!filter.ok) {
+        console.error(filter.message);
         process.exit(1);
       }
 
@@ -52,6 +119,7 @@ export function buildEventsCommand(): Command {
       for await (const event of link.events()) {
         if (done) break;
         if (opts.filter && !event.type.startsWith(opts.filter)) continue;
+        if (!eventMatchesProject(event.payload, filter.projectId)) continue;
 
         if (opts.json) {
           process.stdout.write(`${JSON.stringify({ type: event.type, payload: event.payload })}\n`);
@@ -78,10 +146,22 @@ export function buildEventsCommand(): Command {
     .option("--since <duration>", "Only events within the last duration (e.g. 5m, 1h, 30s)")
     .option("--limit <n>", "Maximum number of events to return", "50")
     .option("--json", "Output raw NDJSON for scripting")
-    .action(async (opts: { type?: string; since?: string; limit: string; json?: boolean }) => {
+    .option(
+      "--project <id>",
+      "Filter to one configured project (default: daemon's active project)",
+    )
+    .option("--all-projects", "Include events from every configured project (opt-in)")
+    .action(async (opts: { type?: string; since?: string; limit: string; json?: boolean; project?: string; allProjects?: boolean }) => {
       const link = getDaemonTransport();
       if (!link) {
         console.error("Daemon is not running. Start the daemon with `kota daemon start`.");
+        process.exitCode = 1;
+        return;
+      }
+
+      const filter = await resolveEventsProjectFilter(ctx, opts);
+      if (!filter.ok) {
+        console.error(filter.message);
         process.exitCode = 1;
         return;
       }
@@ -112,12 +192,13 @@ export function buildEventsCommand(): Command {
         return;
       }
 
-      if (result.events.length === 0) {
+      const filtered = result.events.filter((ev) => eventMatchesProject(ev.payload, filter.projectId));
+      if (filtered.length === 0) {
         if (!opts.json) console.log("No matching events.");
         return;
       }
 
-      for (const ev of result.events) {
+      for (const ev of filtered) {
         if (opts.json) {
           process.stdout.write(`${JSON.stringify(ev)}\n`);
         } else {

@@ -7,6 +7,8 @@ import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { ClientDashboardAvailability, ClientIdentity } from "#core/daemon/client-identity.js";
 import type { DaemonLiveStatus } from "#core/daemon/daemon-control.js";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control-types.js";
+import type { ConfiguredProject } from "#core/daemon/project-registry.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import { getDaemonTransport } from "#core/server/daemon-transport.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
@@ -48,6 +50,13 @@ export type StatusSnapshot = {
    */
   daemonProjectDir?: string;
   daemonProjectName?: string;
+  /**
+   * Multi-project daemon: the project the status snapshot is scoped to,
+   * named alongside its absolute path. Present only when the daemon hosts
+   * more than one configured project. Single-project daemons render the
+   * existing `Project` line and skip this one.
+   */
+  scopedProject?: { projectId: string; projectDir: string; displayName: string };
   /**
    * True when the daemon answered `/identity` but its `projectDir` does
    * not match the CLI-resolved `projectDir`. The classic "wrong project"
@@ -176,6 +185,13 @@ export function buildStatusNode(snap: StatusSnapshot): RenderNode {
       role: "muted" as const,
     });
   }
+  if (snap.scopedProject) {
+    entries.push({
+      label: "Active project",
+      value: `${snap.scopedProject.displayName}  (${snap.scopedProject.projectDir})`,
+      role: "info" as const,
+    });
+  }
   if (snap.dashboard) {
     const dash = describeDashboard(snap.dashboard);
     entries.push({ label: "Dashboard", value: dash.value, role: dash.role });
@@ -230,14 +246,30 @@ export function classifyDaemonControlFile(
   return { kind: "stale", pid: parsed.pid, baseURL };
 }
 
-export async function gatherStatus(projectDir: string): Promise<StatusSnapshot> {
+type StatusGatherOptions = {
+  /**
+   * Explicit `projectId` scope passed via `--project`. When omitted, the
+   * daemon's `?projectId=` resolution falls back to the active selection
+   * (and then to the registry default), so single-project setups behave
+   * exactly as before.
+   */
+  projectId?: string;
+};
+
+export async function gatherStatus(
+  projectDir: string,
+  options: StatusGatherOptions = {},
+): Promise<StatusSnapshot> {
   const stateDir = join(projectDir, ".kota");
   const link = getDaemonTransport(stateDir);
   const controlFile = classifyDaemonControlFile(projectDir);
   const projectName = basename(projectDir) || projectDir;
 
   if (link) {
-    const status = await link.request<DaemonLiveStatus>("GET", "/status");
+    const statusPath = options.projectId
+      ? `/status?projectId=${encodeURIComponent(options.projectId)}`
+      : "/status";
+    const status = await link.request<DaemonLiveStatus>("GET", statusPath);
     if (status) {
       const uptimeMs = status.startedAt
         ? Date.now() - new Date(status.startedAt).getTime()
@@ -251,6 +283,11 @@ export async function gatherStatus(projectDir: string): Promise<StatusSnapshot> 
         : 0;
 
       const identity = await link.request<ClientIdentity>("GET", "/identity");
+      const projectsView = await link.request<{
+        projects: ConfiguredProject[];
+        defaultProjectId: string;
+        activeProjectId: string | null;
+      }>("GET", "/projects");
       const daemonProjectDir = identity?.projectDir;
       const daemonProjectName = identity?.projectName;
       const wrongProject = daemonProjectDir != null && daemonProjectDir !== projectDir;
@@ -262,6 +299,8 @@ export async function gatherStatus(projectDir: string): Promise<StatusSnapshot> 
         identity != null && baseURL != null
           ? resolveDashboardForStatus(identity.dashboard, baseURL)
           : undefined;
+
+      const scopedProject = resolveScopedProject(projectsView, options.projectId);
 
       return {
         daemonRunning: true,
@@ -276,6 +315,7 @@ export async function gatherStatus(projectDir: string): Promise<StatusSnapshot> 
         controlFile,
         ...(daemonProjectDir != null && { daemonProjectDir }),
         ...(daemonProjectName != null && { daemonProjectName }),
+        ...(scopedProject != null && { scopedProject }),
         ...(wrongProject && { wrongProject }),
         ...(dashboard != null && { dashboard }),
       };
@@ -299,12 +339,51 @@ export async function gatherStatus(projectDir: string): Promise<StatusSnapshot> 
   };
 }
 
-export function buildStatusCommand(): Command {
+/**
+ * Resolve the project the snapshot is scoped to in a multi-project daemon.
+ *
+ * Returns `undefined` when the daemon hosts a single project (the existing
+ * `Project` line already captures the only project), when the daemon did
+ * not return a projects projection, or when the resolved id is not in the
+ * registry. When the operator passes `--project <id>` we honor that
+ * verbatim; otherwise we use the daemon's active selection, falling back
+ * to the registry default so the line is always populated for
+ * multi-project hosts.
+ */
+function resolveScopedProject(
+  view:
+    | {
+        projects: ConfiguredProject[];
+        defaultProjectId: string;
+        activeProjectId: string | null;
+      }
+    | null,
+  explicitProjectId: string | undefined,
+): { projectId: string; projectDir: string; displayName: string } | undefined {
+  if (!view || view.projects.length <= 1) return undefined;
+  const target = explicitProjectId ?? view.activeProjectId ?? view.defaultProjectId;
+  const match = view.projects.find((p) => p.projectId === target);
+  if (!match) return undefined;
+  return {
+    projectId: match.projectId,
+    projectDir: match.projectDir,
+    displayName: match.displayName,
+  };
+}
+
+export function buildStatusCommand(_ctx: ModuleContext): Command {
   return new Command("status")
     .description("Show a concise operational snapshot: daemon, active runs, approvals, and cost")
-    .action(async () => {
+    .option(
+      "--project <id>",
+      "Scope the snapshot to one configured project (default: daemon's active project)",
+    )
+    .action(async (opts: { project?: string }) => {
       const projectDir = resolveProjectDir();
-      const snap = await gatherStatus(projectDir);
+      const snap = await gatherStatus(
+        projectDir,
+        opts.project ? { projectId: opts.project } : {},
+      );
       print(buildStatusNode(snap));
       if (snap.pendingApprovals > 0) process.exit(1);
     });

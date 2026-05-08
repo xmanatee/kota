@@ -162,6 +162,10 @@ function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
       stop: stub({ ok: false, reason: "not_running" }),
       reload: stub({ ok: false, reason: "not_running" }),
     },
+    projects: {
+      list: stub({ ok: false, reason: "daemon_required" }),
+      use: stub({ ok: false, reason: "daemon_required" }),
+    },
     doctor: {
       run: stub({ checks: [] }),
       fix: stub({ repairs: [] }),

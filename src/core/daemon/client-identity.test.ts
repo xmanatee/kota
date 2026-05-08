@@ -100,6 +100,8 @@ function makeHandle(
     setSessionAutonomyMode: vi.fn(() => ({ ok: false, notFound: true })),
     getProjectRegistryProjection: vi.fn(() => ({ defaultProjectId: "test-project-id", projects: [{ projectId: "test-project-id", projectDir: "/tmp/test-project", displayName: "test-project" }] })),
     hasProject: vi.fn((id: string) => id === "test-project-id"),
+    getActiveProjectId: vi.fn(() => null),
+    setActiveProjectId: vi.fn((id: string | null) => (id === null ? { ok: true as const, activeProjectId: null } : id === "test-project-id" ? { ok: true as const, activeProjectId: id } : { ok: false as const, reason: "not_found" as const, projectId: id })),
     reloadConfig: vi.fn(async () => ({ workflows: 0, changedModules: [] as string[] })),
     probeCapabilityReadiness: vi.fn(async () => ({
       capabilities: [],

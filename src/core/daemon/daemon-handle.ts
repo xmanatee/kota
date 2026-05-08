@@ -13,6 +13,7 @@ import type {
   DaemonControlHandle,
   InteractiveSession,
   ModuleHealthCheckResult,
+  SetActiveProjectResult,
   WorkflowCostEntry,
   WorkflowDefinitionSummary,
   WorkflowDurationHistogramEntry,
@@ -53,6 +54,14 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
   // so a single global cache would leak rows across projects.
   const metricCountsCache = new Map<ProjectId, { value: WorkflowMetricCounts; at: number }>();
 
+  // Operator-selected active project id. Lives in-memory only — a daemon
+  // restart drops the selection back to the registry default, which matches
+  // the rest of the daemon's "config is durable, runtime selection is not"
+  // posture. Route handlers consult this through `resolveProjectIdParam`
+  // when a request omits `?projectId=`, so a `kota project use <id>` call
+  // implicitly scopes subsequent inspection commands to that project.
+  let activeProjectId: ProjectId | null = null;
+
   // Resolve a project's runtime bundle. `projectId` is optional; when
   // omitted, we fall back to the registry's default. Throws on an unknown
   // id — route handlers gate on `hasProject` first, so a thrown lookup
@@ -80,6 +89,18 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
     getProjectRegistryProjection: (): ProjectRegistryProjection =>
       projectRegistry.toProjection(),
     hasProject: (projectId: string) => projectRegistry.get(projectId) !== undefined,
+    getActiveProjectId: (): ProjectId | null => activeProjectId,
+    setActiveProjectId: (next: ProjectId | null): SetActiveProjectResult => {
+      if (next === null) {
+        activeProjectId = null;
+        return { ok: true, activeProjectId: null };
+      }
+      if (projectRegistry.get(next) === undefined) {
+        return { ok: false, reason: "not_found", projectId: next };
+      }
+      activeProjectId = next;
+      return { ok: true, activeProjectId: next };
+    },
     getWorkflowLiveStatus: (projectId?: ProjectId) => {
       const workflows = lookupRuntime(projectId).workflowRuntime;
       const wfState = workflows.getState();

@@ -167,6 +167,10 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
         reason: "reload_failed" as const,
       }),
     },
+    projects: {
+      list: async () => ({ ok: false as const, reason: "daemon_required" as const }),
+      use: async () => ({ ok: false as const, reason: "daemon_required" as const }),
+    },
     config: {
       validate: async () => ({ sources: [], warnings: [], resolved: {} }),
       get: async () => ({ found: false as const, reason: "not_found" as const }),
