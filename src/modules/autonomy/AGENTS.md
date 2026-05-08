@@ -129,8 +129,7 @@ gating. Detection + body in `fan-out-consolidation.ts`.
 
 ## Empty-Queue Loop Shape
 
-Deliberate workflow gating, not emergent dispatcher → explorer →
-builder thrash:
+Deliberate workflow gating, not emergent thrash:
 
 - **Builder gates on `autonomy.queue.available`** (ready+doing>0).
   Never fires on `runtime.idle`, never auto-consumes backlog.
@@ -138,9 +137,9 @@ builder thrash:
   builder resumes; promotes 1–2 backlog tasks by priority →
   strategic-area → oldest `updated_at`.
 - **`explorer` repair-loop rejects commits without
-  `exploration-rationale.json`** naming the decision (promote |
-  decompose | create-task | noop | watchlist-only). `create-task`
-  must consider every strategic-area blocked task by id.
+  `exploration-rationale.json`**. `create-task` cites every strategic
+  blocked id; `noop` at `actionableCount===0` cites every `movable`
+  one. No `--min-ready 1` gate; a paused queue is a valid noop.
 - **Cooldowns over caps.** Explorer 30-minute refresh; builder paced
   by repair checks and task availability.
 - **Honesty over speculation.** Inaccessible sources block

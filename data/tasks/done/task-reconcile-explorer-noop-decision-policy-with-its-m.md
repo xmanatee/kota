@@ -1,12 +1,12 @@
 ---
 id: task-reconcile-explorer-noop-decision-policy-with-its-m
 title: Reconcile explorer noop-decision policy with its --min-ready 1 repair-loop gate
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Explorer's repair-loop check hard-codes --min-ready 1 but its decision policy lists noop as valid; align the two so legitimately paused queues do not force fabricated work.
 created_at: 2026-05-08T05:40:52.801Z
-updated_at: 2026-05-08T05:40:52.801Z
+updated_at: 2026-05-08T06:00:01.683Z
 ---
 
 ## Problem

@@ -55,6 +55,15 @@ the failing check surfaced. Schema:
   in `inspect-queue.strategicBlockedAlternatives` when your decision is
   `create-task`. Empty array is allowed only when no strategic blocked
   tasks exist.
+- When the decision is `noop` and `inspect-queue.actionableCount === 0`,
+  also cite every strategic alternative whose `movable: true` flag is
+  set on `inspect-queue.strategicBlockedAlternatives` with a
+  `reasonNotChosen` explaining why the task should remain blocked. A
+  movable alternative is one whose precondition currently evaluates as
+  satisfied — leaving it on the floor while declaring noop is the
+  fabricated-busywork shape the gate exists to catch. Either change the
+  decision and act on the alternative, or rescope the blocked task and
+  cite it.
 - `taskIdsTouched` lists every task id the run created, moved, or split.
   Use `[]` for `noop` and `watchlist-only`.
 - `summary` is a substantive paragraph (not "made some changes"); the

@@ -12,14 +12,23 @@
  *   create-task  — open a new task; must list `blockedAlternativesConsidered`
  *                  and a per-alternative `reasonNotChosen`
  *   noop         — explicit no-op with a stated reason (queue is healthy,
- *                  no strong external signal, etc.)
+ *                  no strong external signal, etc.). When
+ *                  `inspect-queue.actionableCount === 0`, every strategic-
+ *                  area blocked alternative whose precondition currently
+ *                  evaluates as satisfied (`movable: true`) must appear in
+ *                  `blockedAlternativesConsidered` with a `reasonNotChosen`,
+ *                  so the explorer cannot silently ignore a task it could
+ *                  have promoted.
  *   watchlist-only — only watchlist updates, no task changes
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { classifyTaskShape } from "#modules/autonomy/report/task-classification.js";
-import { parseBlockedPrecondition } from "#modules/repo-tasks/blocked-precondition.js";
+import {
+  evaluateBlockedPrecondition,
+  parseBlockedPrecondition,
+} from "#modules/repo-tasks/blocked-precondition.js";
 import {
   getRepoTaskStateDir,
   listFullRepoTasks,
@@ -83,6 +92,14 @@ export type StrategicBlockedSummary = {
   area: string;
   preconditionKind: string;
   ageDays: number;
+  /**
+   * The blocked-task precondition currently evaluates as satisfied — so the
+   * autonomy loop could promote this task right now if the explorer chose
+   * to. The explorer's noop gate uses this to distinguish "queue is
+   * legitimately paused" (no movable alternatives) from "explorer punted on
+   * a task it could have moved" (uncited movable alternative).
+   */
+  movable: boolean;
 };
 
 /**
@@ -92,6 +109,10 @@ export type StrategicBlockedSummary = {
  *   - classifyTaskShape result: "strategic"
  *   - precondition section parses (otherwise the task is noise the validator
  *     already flags)
+ *
+ * Each summary's `movable` flag is the live result of
+ * `evaluateBlockedPrecondition` against repo state, so the noop gate can
+ * tell whether the explorer was right to leave this task blocked.
  */
 export function listStrategicBlockedAlternatives(
   projectDir: string,
@@ -108,6 +129,10 @@ export function listStrategicBlockedAlternatives(
     if (shape !== "strategic") continue;
     const parsed = parseBlockedPrecondition(`---\n---\n${record.body}`);
     if (!parsed.ok) continue;
+    const evaluation = evaluateBlockedPrecondition(parsed.precondition, {
+      projectDir,
+      taskBody: record.body,
+    });
     summaries.push({
       id: record.id,
       title: record.title,
@@ -115,6 +140,7 @@ export function listStrategicBlockedAlternatives(
       area: record.area,
       preconditionKind: parsed.precondition.kind,
       ageDays: ageInDays(record.updatedAt, now),
+      movable: evaluation.satisfied,
     });
   }
   return summaries.sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority));
@@ -141,9 +167,21 @@ export type RationaleCheckOptions = {
   /**
    * Strategic-area blocked alternatives that exist in the repo. When this
    * list is non-empty and the rationale's decision is `create-task`, the
-   * rationale must consider every entry by id.
+   * rationale must consider every entry by id. When the decision is
+   * `noop` and `actionableCount === 0`, the rationale must additionally
+   * cite every entry whose `movable` flag is true — leaving a movable
+   * strategic alternative on the floor while declaring noop is the
+   * fabricated-busywork shape this gate exists to catch.
    */
   strategicAlternatives: readonly StrategicBlockedSummary[];
+  /**
+   * `inspect-queue.actionableCount` (ready + doing) at the time the
+   * rationale check runs. Combined with `decision === "noop"`, this
+   * decides whether the noop+movable gate fires: when actionable work
+   * already exists, noop is reasonable regardless of movable blocked
+   * alternatives.
+   */
+  actionableCount: number;
 };
 
 /**
@@ -230,6 +268,19 @@ export function validateExplorationRationale(
     }
   }
 
+  if (decision === "noop" && options.actionableCount === 0) {
+    const consideredIds = new Set(consideredTyped.map((c) => c.id));
+    const uncitedMovable = options.strategicAlternatives
+      .filter((alt) => alt.movable)
+      .map((alt) => alt.id)
+      .filter((id) => !consideredIds.has(id));
+    if (uncitedMovable.length > 0) {
+      throw new Error(
+        `${EXPLORATION_RATIONALE_FILENAME}: decision "noop" with actionableCount=0 cannot leave a movable strategic-area blocked alternative uncited. Movable alternatives currently are: ${uncitedMovable.join(", ")}. Either change the decision to "promote"/"decompose" and act on one, or rescope the blocked task and add it to blockedAlternativesConsidered with a reasonNotChosen explaining why noop is right despite the precondition being satisfied.`,
+      );
+    }
+  }
+
   if ((decision === "promote" || decision === "decompose") && taskIdsTouched.length === 0) {
     throw new Error(
       `${EXPLORATION_RATIONALE_FILENAME}: decision "${decision}" requires taskIdsTouched to name the affected task ids`,
@@ -244,14 +295,29 @@ export function validateExplorationRationale(
   };
 }
 
+export type ExplorationRationaleQueueContext = {
+  /**
+   * `inspect-queue.actionableCount` from the explorer's earlier code step.
+   * Forwarded into the rationale validator so the noop+movable gate can
+   * distinguish "queue genuinely paused" from "explorer punted on a
+   * movable strategic alternative".
+   */
+  actionableCount: number;
+};
+
 /**
  * Repair-loop check entry point. Reads the rationale file from the run
  * directory and validates it. Throws on missing file or invalid content so
  * the explorer's repair loop forces the agent to write a real rationale.
+ *
+ * The caller passes `queueContext.actionableCount` from the explorer
+ * workflow's typed inspect-queue step so the validator can apply the
+ * noop+movable gate without re-reading repo state from a second source.
  */
 export function checkExplorationRationale(
   projectDir: string,
   runDirPath: string,
+  queueContext: ExplorationRationaleQueueContext,
 ): ExplorationRationale {
   const rationalePath = join(runDirPath, EXPLORATION_RATIONALE_FILENAME);
   if (!existsSync(rationalePath)) {
@@ -271,6 +337,7 @@ export function checkExplorationRationale(
   return validateExplorationRationale(parsed, {
     blockedTaskIds: listBlockedTaskIds(projectDir),
     strategicAlternatives: listStrategicBlockedAlternatives(projectDir),
+    actionableCount: queueContext.actionableCount,
   });
 }
 

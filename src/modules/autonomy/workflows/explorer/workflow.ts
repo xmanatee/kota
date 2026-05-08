@@ -213,7 +213,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
           {
             id: "task-queue-valid",
             type: "code" as const,
-            run: (ctx) => runCheck("pnpm run validate-tasks -- --min-ready 1", ctx.projectDir),
+            run: (ctx) => runCheck("pnpm run validate-tasks", ctx.projectDir),
           },
           {
             id: "architecture-ready-coverage",
@@ -231,9 +231,11 @@ const explorerWorkflow: WorkflowDefinitionInput = {
             id: "exploration-rationale",
             type: "code" as const,
             run: (ctx) => {
+              const queue = inspectQueue.outputRequired(ctx);
               const rationale = checkExplorationRationale(
                 ctx.projectDir,
                 ctx.workflow.runDirPath,
+                { actionableCount: queue.actionableCount },
               );
               return `exploration-rationale-ok: decision=${rationale.decision}`;
             },
