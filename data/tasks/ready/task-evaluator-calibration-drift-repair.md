@@ -1,12 +1,12 @@
 ---
 id: task-evaluator-calibration-drift-repair
 title: Repair evaluator calibration drift
-status: done
+status: ready
 priority: p1
 area: autonomy
 summary: Restore the live-run evaluator calibration loop to within threshold by tightening critic guidance, repair-loop checks, or the calibration gate itself.
-created_at: 2026-05-08T00:32:39.860Z
-updated_at: 2026-05-08T00:38:44.184Z
+created_at: 2026-05-08T01:39:21.959Z
+updated_at: 2026-05-08T01:39:21.959Z
 ---
 
 ## Problem
@@ -21,18 +21,18 @@ Drift kind(s): pass-with-warnings-escalation.
 
 Decision reason from the monitor:
 
-> Pass-with-warnings follow-up rate 76.0% exceeds threshold 75.0% (19 of 25 pass_with_warnings verdicts).
+> Pass-with-warnings follow-up rate 77.8% exceeds threshold 75.0% (21 of 27 pass_with_warnings verdicts).
 
 ## Calibration Snapshot
 
-- Window: 2026-05-01T00:32:39.566Z → 2026-05-08T00:32:39.566Z
-- Total runs in window: 99
-- Pass verdicts: 72
-- Pass-with-warnings verdicts: 25
+- Window: 2026-05-01T01:39:21.629Z → 2026-05-08T01:39:21.629Z
+- Total runs in window: 102
+- Pass verdicts: 73
+- Pass-with-warnings verdicts: 27
 - Fail verdicts: 0
 - Absent verdicts: 2
-- Pass-contradiction rate: 2.8% (2 of 72); threshold 25.0%.
-- Pass-with-warnings follow-up rate: 76.0% (19 of 25); threshold 75.0%.
+- Pass-contradiction rate: 2.7% (2 of 73); threshold 25.0%.
+- Pass-with-warnings follow-up rate: 77.8% (21 of 27); threshold 75.0%.
 
 ## Desired Outcome
 
@@ -73,7 +73,7 @@ visible in the run artifact rather than only in attention digests.
 ## Source / Intent
 
 Auto-created by `evaluator-calibration-monitor` after the live calibration
-gate fired at 2026-05-08T00:32:39.860Z. Replaces the previous notification-only
+gate fired at 2026-05-08T01:39:21.959Z. Replaces the previous notification-only
 behavior so calibration drift becomes a deterministic next action in the
 queue rather than a recurring attention item.
 
