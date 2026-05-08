@@ -16,6 +16,7 @@ import type { WorkflowRunDetail, WorkflowRunSummary } from "@/api/types";
 import { RunCompare } from "@/components/run-detail/RunCompare";
 import { RunDetail } from "@/components/run-detail/RunDetail";
 import { WorkflowPanel } from "@/components/sidebar/WorkflowPanel";
+import { TestProjectProvider } from "@/lib/project-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
@@ -50,7 +51,9 @@ function makeWrapper() {
   });
   function Wrapper({ children }: { children: ReactNode }): ReactElement {
     return (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      <QueryClientProvider client={client}>
+        <TestProjectProvider>{children}</TestProjectProvider>
+      </QueryClientProvider>
     );
   }
   return { Wrapper };
@@ -161,7 +164,8 @@ function installFetch(handler: FetchHandler): ReturnType<typeof vi.fn> {
 function panelHandler(): FetchHandler {
   return async (input) => {
     const url = urlOf(input);
-    if (url === "/api/workflow/status") {
+    const path = url.split("?")[0];
+    if (path === "/api/workflow/status") {
       return {
         activeRuns: [],
         pendingRuns: [],
@@ -173,8 +177,8 @@ function panelHandler(): FetchHandler {
         workflows: { builder: { enabled: true }, explorer: { enabled: true } },
       };
     }
-    if (url === "/api/workflow/definitions") return { definitions: [] };
-    if (url.startsWith("/api/workflow/runs?") || url === "/api/workflow/runs") {
+    if (path === "/api/workflow/definitions") return { definitions: [] };
+    if (path === "/api/workflow/runs") {
       return { runs: [RUN_A_SUMMARY, RUN_B_SUMMARY, RUN_C_SUMMARY] };
     }
     throw new Error(`Unexpected fetch ${url}`);
@@ -184,10 +188,11 @@ function panelHandler(): FetchHandler {
 function compareHandler(): FetchHandler {
   return async (input) => {
     const url = urlOf(input);
-    if (url === `/api/workflow/runs/${encodeURIComponent(RUN_A_DETAIL.id)}`) {
+    const path = url.split("?")[0];
+    if (path === `/api/workflow/runs/${encodeURIComponent(RUN_A_DETAIL.id)}`) {
       return RUN_A_DETAIL;
     }
-    if (url === `/api/workflow/runs/${encodeURIComponent(RUN_B_DETAIL.id)}`) {
+    if (path === `/api/workflow/runs/${encodeURIComponent(RUN_B_DETAIL.id)}`) {
       return RUN_B_DETAIL;
     }
     throw new Error(`Unexpected fetch ${url}`);
@@ -331,11 +336,14 @@ describe("RunCompare — render", () => {
   it("rejects runs of different workflows with an explicit message", async () => {
     installFetch(async (input) => {
       const url = urlOf(input);
-      if (url === `/api/workflow/runs/${encodeURIComponent(RUN_A_DETAIL.id)}`) {
+      const path = url.split("?")[0];
+      if (
+        path === `/api/workflow/runs/${encodeURIComponent(RUN_A_DETAIL.id)}`
+      ) {
         return RUN_A_DETAIL;
       }
       if (
-        url === `/api/workflow/runs/${encodeURIComponent(RUN_C_SUMMARY.id)}`
+        path === `/api/workflow/runs/${encodeURIComponent(RUN_C_SUMMARY.id)}`
       ) {
         return { ...RUN_A_DETAIL, id: RUN_C_SUMMARY.id, workflow: "explorer" };
       }

@@ -1,11 +1,13 @@
 import { auditQuery } from "@/api/queries";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
+import { useProjectId } from "@/lib/project-context";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 export function AuditPanel() {
-  const { data } = useQuery(auditQuery);
+  const projectId = useProjectId();
+  const { data } = useQuery(auditQuery(projectId));
   const [riskFilter, setRiskFilter] = useState("");
   const [policyFilter, setPolicyFilter] = useState("");
 

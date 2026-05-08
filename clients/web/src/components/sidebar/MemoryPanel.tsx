@@ -1,10 +1,12 @@
 import { memoryQuery } from "@/api/queries";
 import { Input } from "@/components/ui/input";
+import { useProjectId } from "@/lib/project-context";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 export function MemoryPanel() {
-  const { data } = useQuery(memoryQuery);
+  const projectId = useProjectId();
+  const { data } = useQuery(memoryQuery(projectId));
   const [filter, setFilter] = useState("");
   const entries = (data?.entries ?? []).filter(
     (e) =>

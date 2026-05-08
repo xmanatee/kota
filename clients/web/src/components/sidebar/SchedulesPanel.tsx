@@ -1,8 +1,10 @@
 import { schedulesQuery } from "@/api/queries";
+import { useProjectId } from "@/lib/project-context";
 import { useQuery } from "@tanstack/react-query";
 
 export function SchedulesPanel() {
-  const { data } = useQuery(schedulesQuery);
+  const projectId = useProjectId();
+  const { data } = useQuery(schedulesQuery(projectId));
   const schedules = data?.schedules ?? [];
 
   if (schedules.length === 0) {

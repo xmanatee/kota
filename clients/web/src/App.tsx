@@ -4,6 +4,11 @@ import { RunCompare } from "@/components/run-detail/RunCompare";
 import { RunDetail } from "@/components/run-detail/RunDetail";
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import { useDaemonEvents } from "@/hooks/use-daemon-events";
+import {
+  ProjectProvider,
+  parseProjectHash,
+  useProjectContext,
+} from "@/lib/project-context";
 import { cn } from "@/lib/utils";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
@@ -35,6 +40,7 @@ function AppContent() {
   });
 
   const connectionStatus = useDaemonEvents();
+  const { projectId, buildHash } = useProjectContext();
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
@@ -42,37 +48,68 @@ function AppContent() {
   }, [darkMode]);
 
   useEffect(() => {
-    const hash = window.location.hash.slice(1);
-    if (hash.startsWith("compare/")) {
-      const ids = hash.slice("compare/".length).split("/");
-      if (ids.length === 2 && ids[0] && ids[1]) {
-        setComparingRunIds([ids[0], ids[1]]);
+    const applyHash = () => {
+      const { subRoute } = parseProjectHash(window.location.hash);
+      if (subRoute.startsWith("compare/")) {
+        const ids = subRoute.slice("compare/".length).split("/");
+        if (ids.length === 2 && ids[0] && ids[1]) {
+          setComparingRunIds([ids[0], ids[1]]);
+          setViewingRunId(null);
+          setViewingHistoryId(null);
+          return;
+        }
       }
-    } else if (hash.startsWith("run/")) {
-      setViewingRunId(hash.slice(4));
-    }
+      if (subRoute.startsWith("run/")) {
+        setViewingRunId(subRoute.slice("run/".length));
+        setComparingRunIds(null);
+        setViewingHistoryId(null);
+        return;
+      }
+      setViewingRunId(null);
+      setComparingRunIds(null);
+    };
+    applyHash();
+    window.addEventListener("hashchange", applyHash);
+    return () => window.removeEventListener("hashchange", applyHash);
   }, []);
+
+  // When the active project changes, reset in-project view state — runs and
+  // history ids are project-scoped, so carrying them across a switch would
+  // render a "not found" view in the new project.
+  useEffect(() => {
+    if (projectId === "") return;
+    setSessionId(null);
+    setViewingHistoryId(null);
+    setViewingRunId(null);
+    setComparingRunIds(null);
+  }, [projectId]);
 
   const showChat = useCallback(() => {
     setViewingHistoryId(null);
     setViewingRunId(null);
     setComparingRunIds(null);
-    window.location.hash = "";
-  }, []);
+    window.location.hash = buildHash("");
+  }, [buildHash]);
 
-  const handleRunSelect = useCallback((id: string) => {
-    setViewingRunId(id);
-    setViewingHistoryId(null);
-    setComparingRunIds(null);
-    window.location.hash = `run/${id}`;
-  }, []);
+  const handleRunSelect = useCallback(
+    (id: string) => {
+      setViewingRunId(id);
+      setViewingHistoryId(null);
+      setComparingRunIds(null);
+      window.location.hash = buildHash(`run/${id}`);
+    },
+    [buildHash],
+  );
 
-  const handleCompareRuns = useCallback((idA: string, idB: string) => {
-    setComparingRunIds([idA, idB]);
-    setViewingRunId(null);
-    setViewingHistoryId(null);
-    window.location.hash = `compare/${idA}/${idB}`;
-  }, []);
+  const handleCompareRuns = useCallback(
+    (idA: string, idB: string) => {
+      setComparingRunIds([idA, idB]);
+      setViewingRunId(null);
+      setViewingHistoryId(null);
+      window.location.hash = buildHash(`compare/${idA}/${idB}`);
+    },
+    [buildHash],
+  );
 
   const handleHistorySelect = useCallback((id: string) => {
     setViewingHistoryId(id);
@@ -113,7 +150,7 @@ function AppContent() {
         )}
         onClick={() => setSidebarCollapsed(false)}
       >
-        \u2630
+        ☰
       </button>
       <Sidebar
         collapsed={sidebarCollapsed}
@@ -138,7 +175,9 @@ function AppContent() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AppContent />
+      <ProjectProvider>
+        <AppContent />
+      </ProjectProvider>
     </QueryClientProvider>
   );
 }

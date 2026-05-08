@@ -3,6 +3,7 @@ import { queryKeys, workflowRunQuery } from "@/api/queries";
 import type { WorkflowRunStepSummary } from "@/api/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useProjectId } from "@/lib/project-context";
 import { fmtDuration, renderMarkdown } from "@/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -11,19 +12,20 @@ export function RunDetail({
   onClose,
 }: { runId: string; onClose: () => void }) {
   const queryClient = useQueryClient();
+  const projectId = useProjectId();
   const { data: run, isLoading } = useQuery({
-    ...workflowRunQuery(runId),
+    ...workflowRunQuery(runId, projectId),
     refetchInterval: 5000,
   });
 
   const abortMutation = useMutation({
-    mutationFn: () => api.abortWorkflowRun(runId),
+    mutationFn: () => api.abortWorkflowRun(runId, projectId),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.workflowRun(runId),
+        queryKey: queryKeys.workflowRun(runId, projectId),
       });
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.workflowStatus,
+        queryKey: queryKeys.workflowStatus(projectId),
       });
     },
   });

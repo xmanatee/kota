@@ -4,12 +4,14 @@ import type { PendingOwnerQuestion } from "@/api/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useProjectId } from "@/lib/project-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 export function OwnerQuestionsPanel() {
   const queryClient = useQueryClient();
-  const { data } = useQuery(ownerQuestionsQuery);
+  const projectId = useProjectId();
+  const { data } = useQuery(ownerQuestionsQuery(projectId));
   const questions = data?.questions ?? [];
 
   if (questions.length === 0) {
@@ -28,7 +30,7 @@ export function OwnerQuestionsPanel() {
           question={q}
           onResolved={() =>
             queryClient.invalidateQueries({
-              queryKey: queryKeys.ownerQuestions,
+              queryKey: queryKeys.ownerQuestions(projectId),
             })
           }
         />

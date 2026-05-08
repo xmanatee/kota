@@ -85,6 +85,17 @@ async function apiJson<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 /**
+ * Append `projectId=<id>` to `path`. Used by every project-scoped daemon
+ * route — the daemon's `resolveProjectIdParam` reads this query parameter
+ * and rejects unknown ids with a typed `UnknownProjectError` body.
+ */
+function withProject(path: string, projectId: string): string {
+  if (!projectId) return path;
+  const sep = path.includes("?") ? "&" : "?";
+  return `${path}${sep}projectId=${encodeURIComponent(projectId)}`;
+}
+
+/**
  * Strict-decoded request — fetches `path`, parses the body as JSON, then
  * runs `decode` over the raw value. The decoder mirrors the macOS Swift
  * Codable / mobile parse* boundary contract: unknown discriminator values
@@ -106,54 +117,81 @@ async function apiDecoded<T>(
 export const api = {
   getHealth: () => apiJson<HealthStatus>("/api/health"),
 
-  getDaemonStatus: () =>
-    apiJson<{ daemon: DaemonLiveStatus | null }>("/api/daemon/status"),
+  getDaemonStatus: (projectId: string) =>
+    apiJson<{ daemon: DaemonLiveStatus | null }>(
+      withProject("/api/daemon/status", projectId),
+    ),
 
   getCapabilities: () => apiJson<CapabilityReadinessResponse>("/capabilities"),
 
   getIdentity: () => apiJson<ClientIdentity>("/identity"),
 
-  getWorkflowStatus: () => apiJson<WorkflowLiveStatus>("/api/workflow/status"),
+  getWorkflowStatus: (projectId: string) =>
+    apiJson<WorkflowLiveStatus>(withProject("/api/workflow/status", projectId)),
 
-  getWorkflowDefinitions: () =>
+  getWorkflowDefinitions: (projectId: string) =>
     apiJson<{ definitions: WorkflowDefinitionSummary[] }>(
-      "/api/workflow/definitions",
+      withProject("/api/workflow/definitions", projectId),
     ),
 
-  enableWorkflow: (name: string) =>
+  enableWorkflow: (name: string, projectId: string) =>
     apiJson<{ ok: boolean }>(
-      `/api/workflow/definitions/${encodeURIComponent(name)}/enable`,
+      withProject(
+        `/api/workflow/definitions/${encodeURIComponent(name)}/enable`,
+        projectId,
+      ),
       { method: "POST" },
     ),
 
-  disableWorkflow: (name: string) =>
+  disableWorkflow: (name: string, projectId: string) =>
     apiJson<{ ok: boolean }>(
-      `/api/workflow/definitions/${encodeURIComponent(name)}/disable`,
+      withProject(
+        `/api/workflow/definitions/${encodeURIComponent(name)}/disable`,
+        projectId,
+      ),
       { method: "POST" },
     ),
 
-  pauseWorkflow: () =>
-    apiJson<{ already: boolean }>("/api/workflow/pause", { method: "POST" }),
+  pauseWorkflow: (projectId: string) =>
+    apiJson<{ already: boolean }>(
+      withProject("/api/workflow/pause", projectId),
+      {
+        method: "POST",
+      },
+    ),
 
-  resumeWorkflow: () =>
-    apiJson<{ already: boolean }>("/api/workflow/resume", { method: "POST" }),
+  resumeWorkflow: (projectId: string) =>
+    apiJson<{ already: boolean }>(
+      withProject("/api/workflow/resume", projectId),
+      { method: "POST" },
+    ),
 
-  abortWorkflows: () =>
-    apiJson<{ aborted: number }>("/api/workflow/abort", { method: "POST" }),
+  abortWorkflows: (projectId: string) =>
+    apiJson<{ aborted: number }>(
+      withProject("/api/workflow/abort", projectId),
+      { method: "POST" },
+    ),
 
-  triggerWorkflow: (name: string, payload?: Record<string, unknown>) =>
-    apiJson<{ ok: boolean }>("/api/workflow/trigger", {
+  triggerWorkflow: (
+    name: string,
+    projectId: string,
+    payload?: Record<string, unknown>,
+  ) =>
+    apiJson<{ ok: boolean }>(withProject("/api/workflow/trigger", projectId), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, payload }),
     }),
 
-  listWorkflowRuns: (params?: {
-    limit?: number;
-    offset?: number;
-    workflow?: string;
-    tag?: string;
-  }) => {
+  listWorkflowRuns: (
+    projectId: string,
+    params?: {
+      limit?: number;
+      offset?: number;
+      workflow?: string;
+      tag?: string;
+    },
+  ) => {
     const search = new URLSearchParams();
     if (params?.limit) search.set("limit", String(params.limit));
     if (params?.offset) search.set("offset", String(params.offset));
@@ -161,26 +199,32 @@ export const api = {
     if (params?.tag) search.set("tag", params.tag);
     const qs = search.toString();
     return apiJson<{ runs: WorkflowRunSummary[] }>(
-      `/api/workflow/runs${qs ? `?${qs}` : ""}`,
+      withProject(`/api/workflow/runs${qs ? `?${qs}` : ""}`, projectId),
     );
   },
 
-  getWorkflowRun: (id: string) =>
-    apiJson<WorkflowRunDetail>(`/api/workflow/runs/${encodeURIComponent(id)}`),
+  getWorkflowRun: (id: string, projectId: string) =>
+    apiJson<WorkflowRunDetail>(
+      withProject(`/api/workflow/runs/${encodeURIComponent(id)}`, projectId),
+    ),
 
-  cancelWorkflowRun: (id: string) =>
-    apiJson<{ ok: boolean }>(`/api/workflow/runs/${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    }),
-
-  abortWorkflowRun: (id: string) =>
+  cancelWorkflowRun: (id: string, projectId: string) =>
     apiJson<{ ok: boolean }>(
-      `/api/workflow/runs/${encodeURIComponent(id)}/abort`,
+      withProject(`/api/workflow/runs/${encodeURIComponent(id)}`, projectId),
+      { method: "DELETE" },
+    ),
+
+  abortWorkflowRun: (id: string, projectId: string) =>
+    apiJson<{ ok: boolean }>(
+      withProject(
+        `/api/workflow/runs/${encodeURIComponent(id)}/abort`,
+        projectId,
+      ),
       { method: "POST" },
     ),
 
-  retryWorkflowRun: (runId: string) =>
-    apiJson<{ ok: boolean }>("/api/workflow/retry", {
+  retryWorkflowRun: (runId: string, projectId: string) =>
+    apiJson<{ ok: boolean }>(withProject("/api/workflow/retry", projectId), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ runId }),
@@ -285,12 +329,14 @@ export const api = {
       body: JSON.stringify({ body }),
     }),
 
-  listSessions: () =>
-    apiJson<{ sessions: InteractiveSession[] }>("/api/sessions"),
+  listSessions: (projectId: string) =>
+    apiJson<{ sessions: InteractiveSession[] }>(
+      withProject("/api/sessions", projectId),
+    ),
 
-  createSession: (autonomyMode?: AutonomyMode) =>
+  createSession: (projectId: string, autonomyMode?: AutonomyMode) =>
     apiJson<{ session_id: string; autonomy_mode?: AutonomyMode }>(
-      "/api/sessions",
+      withProject("/api/sessions", projectId),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

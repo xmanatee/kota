@@ -1,9 +1,11 @@
 import { modulesQuery } from "@/api/queries";
 import { Badge } from "@/components/ui/badge";
+import { useProjectId } from "@/lib/project-context";
 import { useQuery } from "@tanstack/react-query";
 
 export function ModulesPanel() {
-  const { data } = useQuery(modulesQuery);
+  const projectId = useProjectId();
+  const { data } = useQuery(modulesQuery(projectId));
   const modules = data?.modules ?? [];
 
   if (modules.length === 0) {

@@ -1,11 +1,15 @@
 import { attentionQuery, queryKeys } from "@/api/queries";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useProjectId } from "@/lib/project-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 export function AttentionPanel() {
   const queryClient = useQueryClient();
-  const { data, error, isLoading, isFetching } = useQuery(attentionQuery);
+  const projectId = useProjectId();
+  const { data, error, isLoading, isFetching } = useQuery(
+    attentionQuery(projectId),
+  );
 
   if (isLoading) {
     return (
@@ -24,7 +28,9 @@ export function AttentionPanel() {
           variant="outline"
           className="h-6 text-xs"
           onClick={() =>
-            queryClient.invalidateQueries({ queryKey: queryKeys.attention })
+            queryClient.invalidateQueries({
+              queryKey: queryKeys.attention(projectId),
+            })
           }
         >
           Retry

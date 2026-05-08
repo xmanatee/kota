@@ -1,8 +1,10 @@
 import { workflowRunsQuery } from "@/api/queries";
+import { useProjectId } from "@/lib/project-context";
 import { useQuery } from "@tanstack/react-query";
 
 export function CostPanel() {
-  const { data } = useQuery(workflowRunsQuery({ limit: 50 }));
+  const projectId = useProjectId();
+  const { data } = useQuery(workflowRunsQuery(projectId, { limit: 50 }));
   const runs = data?.runs ?? [];
 
   const costByWorkflow = new Map<string, number>();

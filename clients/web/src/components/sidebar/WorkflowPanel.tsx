@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { useProjectId } from "@/lib/project-context";
 import { fmtDuration } from "@/lib/utils";
 import { parseTriggerFields } from "@/lib/workflow-trigger-schema";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -35,9 +36,14 @@ export function WorkflowPanel({
   onCompareRuns: (idA: string, idB: string) => void;
 }) {
   const queryClient = useQueryClient();
-  const { data: statusData } = useQuery(workflowStatusQuery);
-  const { data: definitionsData } = useQuery(workflowDefinitionsQuery);
-  const { data: runsData } = useQuery(workflowRunsQuery({ limit: 50 }));
+  const projectId = useProjectId();
+  const { data: statusData } = useQuery(workflowStatusQuery(projectId));
+  const { data: definitionsData } = useQuery(
+    workflowDefinitionsQuery(projectId),
+  );
+  const { data: runsData } = useQuery(
+    workflowRunsQuery(projectId, { limit: 50 }),
+  );
   const [filter, setFilter] = useState<WorkflowFilter>({
     workflow: "",
     status: "",
@@ -67,16 +73,21 @@ export function WorkflowPanel({
   const tagNames = [...tagSet].sort();
 
   const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: queryKeys.workflowStatus });
-    void queryClient.invalidateQueries({ queryKey: ["workflowRuns"] });
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.workflowStatus(projectId),
+    });
+    void queryClient.invalidateQueries({
+      queryKey: ["workflowRuns", projectId],
+    });
   };
 
   const pauseMutation = useMutation({
-    mutationFn: paused ? api.resumeWorkflow : api.pauseWorkflow,
+    mutationFn: () =>
+      paused ? api.resumeWorkflow(projectId) : api.pauseWorkflow(projectId),
     onSuccess: invalidate,
   });
   const abortMutation = useMutation({
-    mutationFn: api.abortWorkflows,
+    mutationFn: () => api.abortWorkflows(projectId),
     onSuccess: invalidate,
   });
   const triggerMutation = useMutation({
@@ -84,7 +95,7 @@ export function WorkflowPanel({
       name,
       payload,
     }: { name: string; payload?: Record<string, string | number | boolean> }) =>
-      api.triggerWorkflow(name, payload),
+      api.triggerWorkflow(name, projectId, payload),
     onSuccess: () => {
       setOpenFormFor(null);
       invalidate();
@@ -106,11 +117,11 @@ export function WorkflowPanel({
     ? parseTriggerFields(openForm.inputSchema)
     : [];
   const cancelMutation = useMutation({
-    mutationFn: (id: string) => api.cancelWorkflowRun(id),
+    mutationFn: (id: string) => api.cancelWorkflowRun(id, projectId),
     onSuccess: invalidate,
   });
   const retryMutation = useMutation({
-    mutationFn: (id: string) => api.retryWorkflowRun(id),
+    mutationFn: (id: string) => api.retryWorkflowRun(id, projectId),
     onSuccess: invalidate,
   });
 

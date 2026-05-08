@@ -4,6 +4,7 @@ import type { DaemonTaskDetail } from "@/api/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useProjectId } from "@/lib/project-context";
 import { renderMarkdown } from "@/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
@@ -36,7 +37,8 @@ const TASK_ACTIONS: Record<
 
 export function TaskPanel() {
   const queryClient = useQueryClient();
-  const { data } = useQuery(tasksQuery);
+  const projectId = useProjectId();
+  const { data } = useQuery(tasksQuery(projectId));
   const tasks = data?.tasks;
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -47,7 +49,7 @@ export function TaskPanel() {
     mutationFn: ({ id, state }: { id: string; state: string }) =>
       api.moveTask(id, state),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.tasks }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks(projectId) }),
   });
 
   const saveMutation = useMutation({
@@ -55,7 +57,9 @@ export function TaskPanel() {
       api.updateTaskBody(id, body),
     onSuccess: (_data, vars) => {
       setEditing((e) => ({ ...e, [vars.id]: false }));
-      void queryClient.invalidateQueries({ queryKey: queryKeys.tasks });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.tasks(projectId),
+      });
     },
   });
 
@@ -63,7 +67,9 @@ export function TaskPanel() {
     mutationFn: ({ title, summary }: { title: string; summary: string }) =>
       api.createTask(title, summary),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.tasks });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.tasks(projectId),
+      });
     },
   });
 

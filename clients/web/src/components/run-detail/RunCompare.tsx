@@ -2,6 +2,7 @@ import { workflowRunQuery } from "@/api/queries";
 import type { WorkflowRunDetail } from "@/api/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useProjectId } from "@/lib/project-context";
 import {
   type RunComparison,
   type StepDiff,
@@ -17,16 +18,17 @@ export function RunCompare({
   runIdB,
   onClose,
 }: { runIdA: string; runIdB: string; onClose: () => void }) {
+  const projectId = useProjectId();
   const {
     data: runA,
     isLoading: loadingA,
     error: errorA,
-  } = useQuery(workflowRunQuery(runIdA));
+  } = useQuery(workflowRunQuery(runIdA, projectId));
   const {
     data: runB,
     isLoading: loadingB,
     error: errorB,
-  } = useQuery(workflowRunQuery(runIdB));
+  } = useQuery(workflowRunQuery(runIdB, projectId));
 
   if (loadingA || loadingB || !runA || !runB) {
     return (

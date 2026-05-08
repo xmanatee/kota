@@ -2,18 +2,22 @@ import { api } from "@/api/client";
 import { queryKeys, sessionsQuery } from "@/api/queries";
 import type { AutonomyMode } from "@/api/types";
 import { AutonomyModeSelect } from "@/components/autonomy/AutonomyModeControl";
+import { useProjectId } from "@/lib/project-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export function ActiveSessionsPanel() {
   const queryClient = useQueryClient();
-  const { data } = useQuery(sessionsQuery);
+  const projectId = useProjectId();
+  const { data } = useQuery(sessionsQuery(projectId));
   const sessions = data?.sessions ?? [];
 
   const setMode = useMutation({
     mutationFn: ({ id, mode }: { id: string; mode: AutonomyMode }) =>
       api.setSessionAutonomyMode(id, mode),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.sessions }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.sessions(projectId),
+      }),
   });
 
   if (sessions.length === 0) {

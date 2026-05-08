@@ -1,8 +1,10 @@
 import { configQuery } from "@/api/queries";
+import { useProjectId } from "@/lib/project-context";
 import { useQuery } from "@tanstack/react-query";
 
 export function ConfigPanel() {
-  const { data } = useQuery(configQuery);
+  const projectId = useProjectId();
+  const { data } = useQuery(configQuery(projectId));
 
   if (!data || Object.keys(data).length === 0) {
     return <div className="text-xs text-muted-foreground">No config</div>;

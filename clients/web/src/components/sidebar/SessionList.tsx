@@ -1,5 +1,6 @@
 import { sessionsQuery } from "@/api/queries";
 import { AutonomyModeBadge } from "@/components/autonomy/AutonomyModeControl";
+import { useProjectId } from "@/lib/project-context";
 import { useQuery } from "@tanstack/react-query";
 
 export function SessionList({
@@ -9,7 +10,8 @@ export function SessionList({
   activeSessionId: string | null;
   onSelect: (id: string) => void;
 }) {
-  const { data } = useQuery(sessionsQuery);
+  const projectId = useProjectId();
+  const { data } = useQuery(sessionsQuery(projectId));
   const sessions = data?.sessions ?? [];
 
   if (sessions.length === 0) {

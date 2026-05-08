@@ -20,6 +20,7 @@ import type {
   WorkflowDefinitionSummary,
   WorkflowLiveStatus,
 } from "@/api/types";
+import { TestProjectProvider } from "@/lib/project-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
@@ -55,7 +56,9 @@ function makeWrapper(): {
   });
   function Wrapper({ children }: { children: ReactNode }): ReactElement {
     return (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      <QueryClientProvider client={client}>
+        <TestProjectProvider>{children}</TestProjectProvider>
+      </QueryClientProvider>
     );
   }
   return { Wrapper, client };
@@ -122,12 +125,13 @@ function defaultHandler(
 ): FetchHandler {
   return async (input, init) => {
     const url = urlOf(input);
-    if (url === "/api/workflow/status") return STATUS;
-    if (url === "/api/workflow/definitions") {
+    const path = url.split("?")[0];
+    if (path === "/api/workflow/status") return STATUS;
+    if (path === "/api/workflow/definitions") {
       return { definitions: [ZERO_INPUT_DEF, PARAMETERIZED_DEF] };
     }
-    if (url.startsWith("/api/workflow/runs")) return { runs: [] };
-    if (url === "/api/workflow/trigger" && init?.method === "POST") {
+    if (path === "/api/workflow/runs") return { runs: [] };
+    if (path === "/api/workflow/trigger" && init?.method === "POST") {
       const parsed = JSON.parse(String(init.body)) as {
         name: string;
         payload?: unknown;
@@ -281,8 +285,9 @@ describe("WorkflowPanel — trigger surface", () => {
     const triggerCalls: Array<{ name: string; payload?: unknown }> = [];
     installFetch(async (input, init) => {
       const url = urlOf(input);
-      if (url === "/api/workflow/status") return STATUS;
-      if (url === "/api/workflow/definitions") {
+      const path = url.split("?")[0];
+      if (path === "/api/workflow/status") return STATUS;
+      if (path === "/api/workflow/definitions") {
         return {
           definitions: [
             {
@@ -293,8 +298,8 @@ describe("WorkflowPanel — trigger surface", () => {
           ],
         };
       }
-      if (url.startsWith("/api/workflow/runs")) return { runs: [] };
-      if (url === "/api/workflow/trigger" && init?.method === "POST") {
+      if (path === "/api/workflow/runs") return { runs: [] };
+      if (path === "/api/workflow/trigger" && init?.method === "POST") {
         const parsed = JSON.parse(String(init.body));
         triggerCalls.push(parsed);
         return { ok: true };

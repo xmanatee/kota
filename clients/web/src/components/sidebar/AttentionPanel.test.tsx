@@ -8,6 +8,7 @@
  */
 
 import type { AttentionResponse } from "@/api/types";
+import { TestProjectProvider } from "@/lib/project-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
@@ -23,7 +24,9 @@ function makeWrapper(): {
   });
   function Wrapper({ children }: { children: ReactNode }): ReactElement {
     return (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      <QueryClientProvider client={client}>
+        <TestProjectProvider>{children}</TestProjectProvider>
+      </QueryClientProvider>
     );
   }
   return { Wrapper, client };

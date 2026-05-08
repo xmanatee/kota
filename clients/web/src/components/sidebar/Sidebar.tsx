@@ -17,6 +17,7 @@ import { MemoryPanel } from "./MemoryPanel";
 import { ModulesPanel } from "./ModulesPanel";
 import { OverviewPanel } from "./OverviewPanel";
 import { OwnerQuestionsPanel } from "./OwnerQuestionsPanel";
+import { ProjectSelector } from "./ProjectSelector";
 import { RecallPanel } from "./RecallPanel";
 import { RetractPanel } from "./RetractPanel";
 import { SchedulesPanel } from "./SchedulesPanel";
@@ -78,6 +79,8 @@ export function Sidebar({
             +
           </Button>
         </div>
+
+        <ProjectSelector />
 
         <div className="flex-1 overflow-y-auto">
           <SidebarSection title="Overview">

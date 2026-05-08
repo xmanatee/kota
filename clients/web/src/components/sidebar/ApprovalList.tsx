@@ -2,11 +2,13 @@ import { api } from "@/api/client";
 import { approvalsQuery, queryKeys } from "@/api/queries";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useProjectId } from "@/lib/project-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export function ApprovalList() {
   const queryClient = useQueryClient();
-  const { data } = useQuery(approvalsQuery);
+  const projectId = useProjectId();
+  const { data } = useQuery(approvalsQuery(projectId));
   const approvals = (data?.approvals ?? []).filter(
     (a) => a.status === "pending",
   );
@@ -14,19 +16,25 @@ export function ApprovalList() {
   const approveMutation = useMutation({
     mutationFn: (id: string) => api.approveApproval(id),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.approvals }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.approvals(projectId),
+      }),
   });
 
   const rejectMutation = useMutation({
     mutationFn: (id: string) => api.rejectApproval(id),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.approvals }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.approvals(projectId),
+      }),
   });
 
   const approveAllMutation = useMutation({
     mutationFn: () => api.approveAll(),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.approvals }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.approvals(projectId),
+      }),
   });
 
   if (approvals.length === 0) {

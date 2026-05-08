@@ -1,12 +1,16 @@
 import { daemonStatusQuery, workflowRunsQuery } from "@/api/queries";
 import { modulesQuery } from "@/api/queries";
+import { useProjectId } from "@/lib/project-context";
 import { fmtUptime } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 
 export function OverviewPanel() {
-  const { data: daemonData } = useQuery(daemonStatusQuery);
-  const { data: runsData } = useQuery(workflowRunsQuery({ limit: 50 }));
-  const { data: modulesData } = useQuery(modulesQuery);
+  const projectId = useProjectId();
+  const { data: daemonData } = useQuery(daemonStatusQuery(projectId));
+  const { data: runsData } = useQuery(
+    workflowRunsQuery(projectId, { limit: 50 }),
+  );
+  const { data: modulesData } = useQuery(modulesQuery(projectId));
 
   const daemon = daemonData?.daemon;
   const runs = runsData?.runs ?? [];

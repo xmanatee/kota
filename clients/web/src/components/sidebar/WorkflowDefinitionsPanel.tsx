@@ -1,19 +1,23 @@
 import { api } from "@/api/client";
 import { queryKeys, workflowDefinitionsQuery } from "@/api/queries";
 import { Badge } from "@/components/ui/badge";
+import { useProjectId } from "@/lib/project-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export function WorkflowDefinitionsPanel() {
   const queryClient = useQueryClient();
-  const { data } = useQuery(workflowDefinitionsQuery);
+  const projectId = useProjectId();
+  const { data } = useQuery(workflowDefinitionsQuery(projectId));
   const definitions = data?.definitions ?? [];
 
   const toggleMutation = useMutation({
     mutationFn: ({ name, enabled }: { name: string; enabled: boolean }) =>
-      enabled ? api.disableWorkflow(name) : api.enableWorkflow(name),
+      enabled
+        ? api.disableWorkflow(name, projectId)
+        : api.enableWorkflow(name, projectId),
     onSuccess: () =>
       queryClient.invalidateQueries({
-        queryKey: queryKeys.workflowDefinitions,
+        queryKey: queryKeys.workflowDefinitions(projectId),
       }),
   });
 
