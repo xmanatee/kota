@@ -1,12 +1,12 @@
 ---
 id: task-evaluator-calibration-drift-repair
 title: Repair evaluator calibration drift
-status: done
+status: ready
 priority: p1
 area: autonomy
 summary: Restore the live-run evaluator calibration loop to within threshold by tightening critic guidance, repair-loop checks, or the calibration gate itself.
-created_at: 2026-05-02T16:53:06.015Z
-updated_at: 2026-05-02T16:59:03.018Z
+created_at: 2026-05-08T00:32:39.860Z
+updated_at: 2026-05-08T00:32:39.860Z
 ---
 
 ## Problem
@@ -17,22 +17,22 @@ event and an attention-digest entry, but it must also turn into a concrete
 repair: the critic, repair-loop checks, prompt guidance, or the gate
 configuration itself need to change so the rate returns within threshold.
 
-Drift kind(s): pass-contradiction, pass-with-warnings-escalation.
+Drift kind(s): pass-with-warnings-escalation.
 
 Decision reason from the monitor:
 
-> Pass-verdict contradiction rate 61.2% exceeds threshold 25.0% (60 of 98 pass verdicts). Pass-with-warnings follow-up rate 95.0% exceeds threshold 40.0% (19 of 20 pass_with_warnings verdicts).
+> Pass-with-warnings follow-up rate 76.0% exceeds threshold 75.0% (19 of 25 pass_with_warnings verdicts).
 
 ## Calibration Snapshot
 
-- Window: 2026-04-25T16:53:05.554Z → 2026-05-02T16:53:05.554Z
-- Total runs in window: 119
-- Pass verdicts: 98
-- Pass-with-warnings verdicts: 20
+- Window: 2026-05-01T00:32:39.566Z → 2026-05-08T00:32:39.566Z
+- Total runs in window: 99
+- Pass verdicts: 72
+- Pass-with-warnings verdicts: 25
 - Fail verdicts: 0
-- Absent verdicts: 1
-- Pass-contradiction rate: 61.2% (60 of 98); threshold 25.0%.
-- Pass-with-warnings follow-up rate: 95.0% (19 of 20); threshold 40.0%.
+- Absent verdicts: 2
+- Pass-contradiction rate: 2.8% (2 of 72); threshold 25.0%.
+- Pass-with-warnings follow-up rate: 76.0% (19 of 25); threshold 75.0%.
 
 ## Desired Outcome
 
@@ -73,7 +73,7 @@ visible in the run artifact rather than only in attention digests.
 ## Source / Intent
 
 Auto-created by `evaluator-calibration-monitor` after the live calibration
-gate fired at 2026-05-02T16:53:06.015Z. Replaces the previous notification-only
+gate fired at 2026-05-08T00:32:39.860Z. Replaces the previous notification-only
 behavior so calibration drift becomes a deterministic next action in the
 queue rather than a recurring attention item.
 
