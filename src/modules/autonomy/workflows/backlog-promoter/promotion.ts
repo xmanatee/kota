@@ -98,6 +98,9 @@ export type PromotionRejection = {
   reason: string;
 };
 
+const ANCHOR_REJECTION_REASON =
+  "strategic anchor: implementation lives in sub-slice tasks; anchor never lands in ready/";
+
 export type PromotionRationale = {
   selected: PromotionSelection[];
   rejected: PromotionRejection[];
@@ -144,26 +147,35 @@ export function buildPromotionRationale(
 ): PromotionRationale {
   const batchLimit = options.batchLimit ?? PROMOTION_BATCH_LIMIT;
   const records = listFullRepoTasks(projectDir, ["backlog", "blocked"]);
-  const backlog = records
+  const allBacklog = records
     .filter((record) => record.state === "backlog")
     .sort(compareBacklogCandidates);
+  const anchorBacklog = allBacklog.filter((record) => record.anchor);
+  const promotableBacklog = allBacklog.filter((record) => !record.anchor);
   const blocked = records
     .filter((record) => record.state === "blocked")
     .sort(compareBacklogCandidates);
 
-  const selected = backlog.slice(0, batchLimit).map((record, index) => ({
+  const selected = promotableBacklog.slice(0, batchLimit).map((record, index) => ({
     id: record.id,
     title: record.title,
     priority: record.priority,
     area: record.area,
     reason: describeReason(record, index),
   }));
-  const rejectedBacklog = backlog.slice(batchLimit).map((record) => ({
+  const rejectedBacklog = promotableBacklog.slice(batchLimit).map((record) => ({
     id: record.id,
     title: record.title,
     priority: record.priority,
     state: "backlog" as const,
     reason: "lower-ranked backlog candidate",
+  }));
+  const rejectedAnchors = anchorBacklog.map((record) => ({
+    id: record.id,
+    title: record.title,
+    priority: record.priority,
+    state: "backlog" as const,
+    reason: ANCHOR_REJECTION_REASON,
   }));
   const rejectedBlocked = blocked.map((record) => ({
     id: record.id,
@@ -174,22 +186,28 @@ export function buildPromotionRationale(
   }));
 
   const candidates = [
-    ...backlog.map(describeCandidate),
+    ...allBacklog.map(describeCandidate),
     ...blocked.map(describeCandidate),
   ];
 
   const summaryLines: string[] = [];
   if (selected.length === 0) {
     summaryLines.push(
-      "No backlog tasks were available to promote (the queue is empty or only blocked work remains).",
+      "No backlog tasks were available to promote (the queue is empty or only blocked/anchor work remains).",
     );
   } else {
     const ids = selected.map((s) => `${s.id} (${s.priority || "no-priority"})`).join(", ");
     summaryLines.push(
-      `Promoted ${selected.length} of ${backlog.length} backlog task(s): ${ids}.`,
+      `Promoted ${selected.length} of ${promotableBacklog.length} promotable backlog task(s): ${ids}.`,
     );
     summaryLines.push(
       "Ranked by priority then strategic area then oldest updated_at; this batch beat the remaining backlog and the higher-priority alternatives are honestly blocked.",
+    );
+  }
+  if (rejectedAnchors.length > 0) {
+    const anchorIds = rejectedAnchors.map((r) => r.id).join(", ");
+    summaryLines.push(
+      `Strategic anchors skipped (never promoted): ${anchorIds}. Their work lands through declared sub-slice tasks.`,
     );
   }
   if (rejectedBlocked.length > 0) {
@@ -201,7 +219,7 @@ export function buildPromotionRationale(
 
   return {
     selected,
-    rejected: [...rejectedBacklog, ...rejectedBlocked],
+    rejected: [...rejectedBacklog, ...rejectedAnchors, ...rejectedBlocked],
     candidates,
     summary: summaryLines.join("\n"),
   };

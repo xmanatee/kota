@@ -1,12 +1,13 @@
 ---
 id: task-surface-project-selection-in-operator-clients-for-
 title: Surface project selection in operator clients for multi-project supervision
-status: ready
+status: backlog
 priority: p2
 area: architecture
 summary: Once the daemon can manage multiple project roots, native/web/CLI clients need a first-class project selector and per-project view so operators can supervise more than one repo at a time
 created_at: 2026-04-18T00:40:56.393Z
-updated_at: 2026-05-08T02:55:25.078Z
+updated_at: 2026-05-08T03:23:37.282Z
+anchor: true
 ---
 
 ## Problem
@@ -72,7 +73,10 @@ runs, questions, and approvals must always be attributable to one project.
 The decision block is cleared and decomposition is complete. The
 implementation lives across four sequenced follow-up tasks; this parent task
 remains the strategic backlog anchor and does not return to the queue as a
-single oversized implementation block.
+single oversized implementation block. The `anchor: true` frontmatter flag
+makes that intent enforceable: the backlog-promoter skips anchor tasks, so
+this file stays in `backlog/` as a tracking record while sub-slices flow
+through ready → doing → done on their own.
 
 ### Follow-up tasks (sequenced)
 

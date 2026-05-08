@@ -35,6 +35,7 @@ function mkRecord(opts: Partial<RepoTaskFullRecord> & {
     summary: opts.summary ?? "",
     updatedAt: opts.updatedAt,
     body: opts.body ?? "",
+    anchor: opts.anchor ?? false,
   };
 }
 

@@ -21,7 +21,12 @@ function writeTask(
   projectDir: string,
   state: string,
   id: string,
-  attrs: { priority?: string; area?: string; updatedAt?: string } = {},
+  attrs: {
+    priority?: string;
+    area?: string;
+    updatedAt?: string;
+    anchor?: boolean;
+  } = {},
 ): void {
   const priority = attrs.priority ?? "p2";
   const area = attrs.area ?? "modules";
@@ -36,9 +41,9 @@ function writeTask(
     `summary: ${id} summary`,
     `created_at: ${updatedAt}`,
     `updated_at: ${updatedAt}`,
-    "---",
-    "",
   ];
+  if (attrs.anchor) lines.push("anchor: true");
+  lines.push("---", "");
   writeFileSync(
     join(projectDir, "data", "tasks", state, `${id}.md`),
     `${lines.join("\n")}\n`,
@@ -59,6 +64,7 @@ describe("compareBacklogCandidates", () => {
         summary: "",
         updatedAt: older,
         body: "",
+        anchor: false,
       },
       {
         id: "task-p1-modules-new",
@@ -69,6 +75,7 @@ describe("compareBacklogCandidates", () => {
         summary: "",
         updatedAt: newer,
         body: "",
+        anchor: false,
       },
     ];
     const sorted = [...records].sort(compareBacklogCandidates);
@@ -88,6 +95,7 @@ describe("compareBacklogCandidates", () => {
         summary: "",
         updatedAt,
         body: "",
+        anchor: false,
       },
       {
         id: "task-p1-autonomy",
@@ -98,6 +106,7 @@ describe("compareBacklogCandidates", () => {
         summary: "",
         updatedAt,
         body: "",
+        anchor: false,
       },
     ];
     const sorted = [...records].sort(compareBacklogCandidates);
@@ -116,6 +125,7 @@ describe("compareBacklogCandidates", () => {
         summary: "",
         updatedAt: "2026-04-30T00:00:00.000Z",
         body: "",
+        anchor: false,
       },
       {
         id: "task-p1-old",
@@ -126,6 +136,7 @@ describe("compareBacklogCandidates", () => {
         summary: "",
         updatedAt: "2026-03-01T00:00:00.000Z",
         body: "",
+        anchor: false,
       },
     ];
     const sorted = [...records].sort(compareBacklogCandidates);
@@ -179,7 +190,7 @@ describe("buildPromotionRationale", () => {
     expect(blockedRejection?.state).toBe("blocked");
 
     expect(rationale.candidates.length).toBe(5);
-    expect(rationale.summary).toMatch(/Promoted 2 of 4 backlog/);
+    expect(rationale.summary).toMatch(/Promoted 2 of 4 promotable backlog/);
     expect(rationale.summary).toMatch(/task-p1-blocked-arch/);
   });
 
@@ -204,5 +215,45 @@ describe("buildPromotionRationale", () => {
 
     expect(rationale.selected).toHaveLength(1);
     expect(rationale.rejected.filter((r) => r.state === "backlog")).toHaveLength(2);
+  });
+
+  it("skips strategic anchor tasks even when they would otherwise rank highest", () => {
+    const projectDir = makeProjectDir();
+    writeTask(projectDir, "backlog", "task-strategic-anchor", {
+      priority: "p1",
+      area: "architecture",
+      updatedAt: "2026-02-01T00:00:00.000Z",
+      anchor: true,
+    });
+    writeTask(projectDir, "backlog", "task-real-work", {
+      priority: "p2",
+      area: "architecture",
+      updatedAt: "2026-04-01T00:00:00.000Z",
+    });
+
+    const rationale = buildPromotionRationale(projectDir);
+
+    expect(rationale.selected.map((s) => s.id)).toEqual(["task-real-work"]);
+    const anchorRejection = rationale.rejected.find(
+      (r) => r.id === "task-strategic-anchor",
+    );
+    expect(anchorRejection?.reason).toMatch(/strategic anchor/);
+    expect(rationale.summary).toMatch(/Strategic anchors skipped/);
+    expect(rationale.summary).toMatch(/task-strategic-anchor/);
+  });
+
+  it("returns empty selection when only anchor tasks remain", () => {
+    const projectDir = makeProjectDir();
+    writeTask(projectDir, "backlog", "task-only-anchor", {
+      priority: "p1",
+      area: "architecture",
+      anchor: true,
+    });
+
+    const rationale = buildPromotionRationale(projectDir);
+
+    expect(rationale.selected).toHaveLength(0);
+    expect(rationale.summary).toMatch(/No backlog tasks were available/);
+    expect(rationale.summary).toMatch(/Strategic anchors skipped/);
   });
 });

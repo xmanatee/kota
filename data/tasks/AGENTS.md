@@ -24,6 +24,16 @@ describes scheduling and lifecycle.
   source access fails, record the blocker honestly instead of treating the task
   as complete.
 
+## Strategic Anchor Tasks
+
+A task may declare itself a strategic anchor by setting `anchor: true` in its
+frontmatter. Anchors track an initiative across a sequenced set of sub-slice
+tasks; their `Done When` is met by completing the sub-slices, not by
+implementing the anchor as a single block. The backlog-promoter skips anchor
+tasks, so they stay in `backlog/` as tracking records and never land in
+`ready/`. Use the anchor flag only when decomposition is complete and the
+sub-slice tasks exist in the queue.
+
 ## Acceptance Evidence For Client And Channel Work
 
 `area: client` and `area: channel` tasks that declare a screenshot, screencast,

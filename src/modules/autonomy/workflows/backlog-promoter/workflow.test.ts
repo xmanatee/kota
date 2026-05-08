@@ -190,7 +190,7 @@ describe("backlog-promoter workflow", () => {
       "task-p1-arch",
     ]);
     expect(artifact.rejected.map((r) => r.id)).toContain("task-p3-cleanup");
-    expect(artifact.summary).toMatch(/Promoted 2 of 3 backlog/);
+    expect(artifact.summary).toMatch(/Promoted 2 of 3 promotable backlog/);
 
     const emitted = result.emitted.find((e) => e.event === "autonomy.backlog.promoted");
     expect(emitted).toBeDefined();

@@ -16,6 +16,10 @@ Runtime contract:
   strategic-area tie-break (architecture/autonomy/core/modules), then oldest
   `updated_at`, then id. The same record set therefore picks the same batch
   every run.
+- Tasks with `anchor: true` in frontmatter are filtered out before ranking and
+  recorded in `rejected` with a strategic-anchor reason. Anchors track an
+  initiative across a sequenced set of sub-slice tasks and never land in
+  `ready/` themselves. See `data/tasks/AGENTS.md` for the convention.
 - Every successful run writes `promotion-rationale.json` to its run directory:
   candidates considered (backlog + blocked, so blocked alternatives are
   visible), selected with per-pick reason, rejected (lower-ranked backlog and

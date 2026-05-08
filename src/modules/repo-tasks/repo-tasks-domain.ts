@@ -140,6 +140,13 @@ export type RepoTaskFullRecord = {
   summary: string;
   updatedAt: string;
   body: string;
+  /**
+   * Strategic backlog anchor. Anchors track an initiative across a sequenced
+   * set of sub-slice tasks; their `Done When` is met by completing the
+   * sub-slices, not by implementing the anchor as a single block. The
+   * backlog-promoter skips anchors so they never land in `ready/`.
+   */
+  anchor: boolean;
 };
 
 /** Indexable body sections: title and summary plus these markdown sections. */
@@ -245,10 +252,20 @@ export function listFullRepoTasks(
         summary: fm.summary ?? "",
         updatedAt: fm.updated_at,
         body: extractBodyAfterFrontmatter(content),
+        anchor: parseAnchorField(fm.anchor),
       });
     }
   }
   return result;
+}
+
+/**
+ * Parse the optional `anchor` frontmatter field. Only the literal `true`
+ * marks a task as a strategic anchor; everything else (absent, `false`,
+ * malformed) is treated as a normal task.
+ */
+function parseAnchorField(raw: string | undefined): boolean {
+  return raw?.trim().toLowerCase() === "true";
 }
 
 function parseFrontmatterBlock(content: string): Record<string, string> | null {
