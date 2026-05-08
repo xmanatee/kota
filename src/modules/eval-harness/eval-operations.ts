@@ -7,7 +7,9 @@
  */
 import { mkdirSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { deriveProjectId } from "#core/daemon/project-registry.js";
 import type { EventBus } from "#core/events/event-bus.js";
+import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { getCriticPromptHash } from "#modules/autonomy/critic.js";
 import {
   aggregateCalibration,
@@ -113,7 +115,8 @@ export async function runEvalHarness(
   });
 
   if (bus) {
-    bus.emit(evalHarnessSetCompleted, {
+    const pbus = new ProjectScopedEventBus(bus, deriveProjectId(projectDir));
+    pbus.emit(evalHarnessSetCompleted, {
       fixtureCount: report.aggregate.fixtureCount,
       repeatCount: report.repeatCount,
       passAtK: report.aggregate.passAtK,

@@ -29,7 +29,7 @@
   "src/core/daemon/task-store.ts": 1,
   "src/core/events/event-bus-types.ts": 3,
   "src/core/events/event-bus.ts": 8,
-  "src/core/events/module-event.ts": 1,
+  "src/core/events/module-event.ts": 3,
   "src/core/events/project-scope.ts": 2,
   "src/core/file-tracking/file-watcher-core.ts": 4,
   "src/core/loop/compaction.ts": 1,

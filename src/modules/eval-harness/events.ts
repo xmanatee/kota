@@ -6,7 +6,7 @@
  * resolves filter field names against `fields` here.
  */
 
-import { defineModuleEvent } from "#core/events/module-event.js";
+import { defineProjectScopedModuleEvent } from "#core/events/project-scope.js";
 
 export type EvalHarnessSetCompletedPayload = {
   fixtureCount: number;
@@ -24,9 +24,16 @@ export type EvalHarnessSetCompletedPayload = {
  * event; the harness intentionally does not maintain a parallel metrics
  * store. Operators wire telemetry exporters to this event to publish
  * `pass@k` / `pass^k` trends.
+ *
+ * Project-scoped: each eval run belongs to exactly one project (the project
+ * directory the runner was invoked against), so subscribers can filter
+ * aggregate telemetry per project. The helper prepends `projectId` to the
+ * declared field set; emitters route through a {@link ProjectScopedEventBus}
+ * (which injects the wrapper's id) or attach `projectId` to the payload
+ * before emitting on the raw bus.
  */
 export const evalHarnessSetCompleted =
-  defineModuleEvent<EvalHarnessSetCompletedPayload>(
+  defineProjectScopedModuleEvent<EvalHarnessSetCompletedPayload>(
     "eval-harness.set.completed",
     [
       "fixtureCount",

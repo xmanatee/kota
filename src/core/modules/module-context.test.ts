@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initSecretStore, resetSecretStore } from "#core/config/secrets.js";
 import { initEventBus, resetEventBus } from "#core/events/event-bus.js";
 import {
-  defineModuleEvent,
+  defineDaemonWideModuleEvent,
   resetModuleEventRegistry,
 } from "#core/events/module-event.js";
 import { legacyEffect } from "#core/tools/effect.js";
@@ -416,7 +416,7 @@ describe("ModuleContext.events", () => {
 
     const onLoad = vi.fn();
     const loader = new ModuleLoader({});
-    const fired = defineModuleEvent<{ value: number }>(
+    const fired = defineDaemonWideModuleEvent<{ value: number }>(
       "module-event-test.fired",
       ["value"],
     );

@@ -12,7 +12,11 @@
 export type { BusEnvelope, BusEventHandler, BusEvents } from "./event-bus-types.js";
 
 import type { BusEnvelope, BusEventHandler, BusEvents } from "./event-bus-types.js";
-import type { ModuleEventDef, ModuleEventPayload } from "./module-event.js";
+import {
+  assertModuleEventPayloadScope,
+  type ModuleEventDef,
+  type ModuleEventPayload,
+} from "./module-event.js";
 
 /**
  * Around-style emit middleware. Fires after the typed overload narrows the
@@ -128,6 +132,9 @@ export class EventBus {
     event: string | ModuleEventDef,
     payload: Record<string, unknown>,
   ): void {
+    if (typeof event !== "string") {
+      assertModuleEventPayloadScope(event, payload);
+    }
     const name = typeof event === "string" ? event : event.name;
 
     if (this.middlewares.length === 0) {

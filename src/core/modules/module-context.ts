@@ -9,7 +9,11 @@ import type { KotaConfig } from "#core/config/config.js";
 import { getSecretStore } from "#core/config/secrets.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { BusEnvelope, BusEvents } from "#core/events/event-bus-types.js";
-import type { ModuleEventDef, ModuleEventPayload } from "#core/events/module-event.js";
+import {
+  assertModuleEventPayloadScope,
+  type ModuleEventDef,
+  type ModuleEventPayload,
+} from "#core/events/module-event.js";
 import { registerCleanupHook } from "#core/loop/cleanup-hooks.js";
 import { registerDynamicStateProvider } from "#core/loop/dynamic-state.js";
 import { registerPreSendHook as registerPreSendHookImpl } from "#core/loop/pre-send-hooks.js";
@@ -74,6 +78,9 @@ class ModuleEventProxyImpl implements ModuleEventProxy {
   emit(event: string | ModuleEventDef, payload: Record<string, unknown>): void {
     const bus = this.getBus();
     if (!bus) return;
+    if (typeof event !== "string") {
+      assertModuleEventPayloadScope(event, payload);
+    }
     const name = typeof event === "string" ? event : event.name;
     bus.emit(name, payload);
   }

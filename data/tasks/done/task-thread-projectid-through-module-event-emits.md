@@ -1,12 +1,12 @@
 ---
 id: task-thread-projectid-through-module-event-emits
 title: Thread projectId through module event emits
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Migrate module-defined events and remaining production/test emit sites onto the typed project-scoped event primitive.
 created_at: 2026-05-08T16:30:00.000Z
-updated_at: 2026-05-08T17:41:43.984Z
+updated_at: 2026-05-08T18:00:19.564Z
 ---
 
 ## Problem

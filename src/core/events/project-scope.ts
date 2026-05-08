@@ -88,7 +88,11 @@ export function defineProjectScopedModuleEvent<TPayload extends Payload>(
     "projectId",
     ...fields,
   ];
-  return defineModuleEvent<ProjectScopedPayload<TPayload>>(name, allFields);
+  return defineModuleEvent<ProjectScopedPayload<TPayload>>(
+    name,
+    allFields,
+    "project",
+  );
 }
 
 /**

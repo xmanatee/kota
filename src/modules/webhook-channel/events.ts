@@ -3,7 +3,7 @@
  */
 
 import type { ChannelUserIdentity } from "#core/channels/channel.js";
-import { defineModuleEvent } from "#core/events/module-event.js";
+import { defineDaemonWideModuleEvent } from "#core/events/module-event.js";
 
 export type WebhookChannelSessionPayload = {
   sessionId: string;
@@ -16,9 +16,14 @@ export type WebhookChannelSessionPayload = {
  * A webhook-channel session was created or resumed in response to an inbound
  * webhook request. Subscribers (operator dashboards, audit log) use this to
  * observe channel session activity without watching every HTTP route.
+ *
+ * Daemon-wide: webhook-channel sessions are session-bound, and core sessions
+ * are still daemon-default until the session-projectId attribution slice
+ * lands. This declaration tracks the same boundary as `BusEvents["session.*"]`;
+ * it migrates to project scope once sessions carry projectId.
  */
 export const webhookChannelSession =
-  defineModuleEvent<WebhookChannelSessionPayload>(
+  defineDaemonWideModuleEvent<WebhookChannelSessionPayload>(
     "webhook-channel.session",
     ["sessionId", "identity", "resumed", "source"],
   );

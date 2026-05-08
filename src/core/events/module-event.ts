@@ -6,20 +6,42 @@
  * `ctx.events.emit(decl, payload)` and `ctx.events.subscribe(decl, handler)`
  * are checked against the declared shape. The `fields` array records the
  * declared payload field names at runtime so workflow trigger validation can
- * reject filters that reference nonexistent fields.
+ * reject filters that reference nonexistent fields. The `scope` field
+ * separates project-scoped events (whose payloads must carry `projectId`)
+ * from daemon-wide events (registry change, daemon lifecycle, session-bound
+ * tool-call events that stay daemon-default until session-projectId
+ * attribution lands).
  *
  * Module-owned events live next to the module that emits them; consumers in
  * other modules import the declaration to get a typed subscriber. Truly
  * external events (inbound webhook surfaces, dynamic third-party event names)
  * use the visibly unsafe `emitExternal` / `subscribeExternal` escape hatch on
  * `ctx.events` and validate at the boundary.
+ *
+ * Module authors declare the scope explicitly through the helper they choose:
+ * - {@link defineProjectScopedModuleEvent} for project-scoped events.
+ * - {@link defineDaemonWideModuleEvent} for daemon-wide events.
+ *
+ * The lower-level {@link defineModuleEvent} primitive both helpers wrap takes
+ * `scope` as a required parameter so no module event can be declared without
+ * picking one or the other.
  */
 
 import type { BusEnvelope } from "./event-bus-types.js";
 
+/**
+ * Scope discriminator for {@link ModuleEventDef}. `project` events carry a
+ * `projectId` field on every payload (the helper prepends it) and the
+ * runtime rejects emits whose payload lacks one; `daemon` events are
+ * delivered without project attribution (registry/daemon lifecycle, or
+ * session-bound events pending session-projectId attribution).
+ */
+export type ModuleEventScope = "project" | "daemon";
+
 export type ModuleEventDef<TPayload = unknown> = {
   readonly name: string;
   readonly fields: ReadonlyArray<string>;
+  readonly scope: ModuleEventScope;
   /**
    * Phantom marker carrying the payload type for inference. Stored as a
    * function return so `ModuleEventDef<TSpecific>` is assignable to the
@@ -33,8 +55,49 @@ export type ModuleEventDef<TPayload = unknown> = {
 export function defineModuleEvent<TPayload extends Record<string, unknown>>(
   name: string,
   fields: ReadonlyArray<keyof TPayload & string>,
+  scope: ModuleEventScope,
 ): ModuleEventDef<TPayload> {
-  return { name, fields };
+  return { name, fields, scope };
+}
+
+/**
+ * Declare a daemon-wide module event. Use for module-owned events that have
+ * no project attribution (daemon-process lifecycle, registry/loader signals)
+ * or that are still session-bound at the boundary and will migrate to a
+ * project-scoped declaration once session-projectId attribution lands.
+ *
+ * Daemon-wide module events bypass the `ProjectScopedEventBus` filter — every
+ * subscriber receives every emit. Document the rationale next to the
+ * declaration so a future migration knows what changes.
+ */
+export function defineDaemonWideModuleEvent<TPayload extends Record<string, unknown>>(
+  name: string,
+  fields: ReadonlyArray<keyof TPayload & string>,
+): ModuleEventDef<TPayload> {
+  return defineModuleEvent<TPayload>(name, fields, "daemon");
+}
+
+/**
+ * Throws if `def` is project-scoped and `payload` does not carry a non-empty
+ * `projectId` string. Used by the lowest-level emit paths
+ * (`EventBus.emit(def, payload)`, `ModuleEventProxy.emit(def, payload)`,
+ * `tryEmit(def, payload)`) so callers cannot accidentally leak a
+ * project-scoped module event onto the bus without identity. Routes that
+ * already inject projectId via {@link ProjectScopedEventBus} pass this check
+ * trivially; bare-`EventBus` callers fail loudly.
+ */
+export function assertModuleEventPayloadScope(
+  def: ModuleEventDef,
+  payload: Record<string, unknown>,
+): void {
+  if (def.scope !== "project") return;
+  const projectId = payload.projectId;
+  if (typeof projectId !== "string" || projectId.length === 0) {
+    throw new Error(
+      `Module event "${def.name}" is project-scoped; emit payload must include a non-empty string projectId. ` +
+        `Emit through a ProjectScopedEventBus to inject it automatically, or set projectId on the payload before emitting.`,
+    );
+  }
 }
 
 export type ModuleEventPayload<E> = E extends ModuleEventDef<infer P> ? P : never;

@@ -23,15 +23,22 @@ This directory contains the project-owned modules.
   payload fields, and subscription lists belong in code and tests, not a shared
   docs catalog.
 - Module-owned events are typed declarations contributed through
-  `KotaModule.events`. Define each event with `defineModuleEvent<TPayload>(name,
-  fields)` in a co-located `events.ts`, register it in the module definition,
-  and import the declaration where another module subscribes. Cross-module
-  subscribers pass the declaration object, not the raw event name. Workflow
-  trigger filters that reference fields not declared on the matching event are
-  rejected at validation time. Use `ctx.events.emitExternal` /
-  `subscribeExternal` only for events whose name and payload arrive at runtime
-  (inbound webhook bridges, dynamic third-party event ids); validate the
-  payload at the boundary.
+  `KotaModule.events`. Pick one of two scope helpers in a co-located
+  `events.ts`: `defineProjectScopedModuleEvent<TPayload>(name, fields)` for
+  events that belong to a single project (the helper prepends `projectId`
+  to the field set and the runtime rejects emits whose payload omits it),
+  or `defineDaemonWideModuleEvent<TPayload>(name, fields)` for daemon-process
+  signals and session-bound events that stay daemon-default until
+  session-projectId attribution lands. Document the rationale next to a
+  daemon-wide declaration so a future migration knows what changes. Register
+  the declaration in the module definition's `events` list and import it
+  where another module subscribes. Cross-module subscribers pass the
+  declaration object, not the raw event name. Workflow trigger filters that
+  reference fields not declared on the matching event are rejected at
+  validation time. Use `ctx.events.emitExternal` / `subscribeExternal` only
+  for events whose name and payload arrive at runtime (inbound webhook
+  bridges, dynamic third-party event ids); validate the payload at the
+  boundary.
 
 ## Workflow contribution precedence
 

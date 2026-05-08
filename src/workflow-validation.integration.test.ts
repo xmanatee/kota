@@ -22,7 +22,7 @@ import "#modules/claude-agent-harness/index.js";
 import "#modules/codex-agent-harness/index.js";
 import "#modules/gemini-agent-harness/index.js";
 import {
-  defineModuleEvent,
+  defineDaemonWideModuleEvent,
   initModuleEventRegistry,
   resetModuleEventRegistry,
 } from "#core/events/module-event.js";
@@ -135,7 +135,7 @@ describe("workflow validation", () => {
     const moduleEvents = initModuleEventRegistry();
     moduleEvents.register(
       "fixture-module",
-      defineModuleEvent<{ fixtureCount: number; passAtK: number }>(
+      defineDaemonWideModuleEvent<{ fixtureCount: number; passAtK: number }>(
         "fixture.module.event",
         ["fixtureCount", "passAtK"],
       ),
@@ -171,7 +171,7 @@ describe("workflow validation", () => {
     const moduleEvents = initModuleEventRegistry();
     moduleEvents.register(
       "fixture-module",
-      defineModuleEvent<{ fixtureCount: number; passAtK: number }>(
+      defineDaemonWideModuleEvent<{ fixtureCount: number; passAtK: number }>(
         "fixture.module.event.ok",
         ["fixtureCount", "passAtK"],
       ),
