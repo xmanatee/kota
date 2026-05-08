@@ -1,10 +1,19 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { DaemonControlHandle } from "./daemon-control-types.js";
-import { jsonResponse, readBody } from "./daemon-control-utils.js";
+import { jsonResponse, readBody, resolveProjectIdParam } from "./daemon-control-utils.js";
 
-export function handleListSessions(handle: DaemonControlHandle, res: ServerResponse): void {
-  jsonResponse(res, 200, { sessions: handle.listSessions() });
+export function handleListSessions(
+  handle: DaemonControlHandle,
+  res: ServerResponse,
+  url?: URL,
+): void {
+  const scope = url ? resolveProjectIdParam(handle, url) : { ok: true as const, projectId: undefined };
+  if (!scope.ok) {
+    jsonResponse(res, 404, scope.error);
+    return;
+  }
+  jsonResponse(res, 200, { sessions: handle.listSessions(scope.projectId) });
 }
 
 export function handleRegisterSession(

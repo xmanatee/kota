@@ -51,9 +51,28 @@ const FIXTURE_PATH = resolve(
   "../../../clients/conformance/contract-fixture.json",
 );
 
+type FixtureProjectEntry = {
+  projectId: string;
+  projectDir: string;
+  displayName: string;
+};
+
+type FixtureProjection = {
+  defaultProjectId: string;
+  projects: FixtureProjectEntry[];
+};
+
+type FixtureUnknownProjectError = {
+  error: string;
+  reason: string;
+  projectId: string;
+};
+
 type Fixture = {
   identity: ClientIdentity;
   identityWithoutDashboard: ClientIdentity;
+  projects: FixtureProjection;
+  unknownProjectError: FixtureUnknownProjectError;
   capabilities: CapabilityReadinessResponse;
   workflowDefinitions: { definitions: WorkflowDefinitionSummary[] };
   errorBodies: {
@@ -62,6 +81,13 @@ type Fixture = {
     voiceFailure: unknown;
     plainText: string;
   };
+};
+
+const FAKE_PROJECTS = {
+  defaultProjectId: "test-project-id",
+  projects: [
+    { projectId: "test-project-id", projectDir: "/tmp/kota", displayName: "kota" },
+  ],
 };
 
 function loadFixture(): Fixture {
@@ -83,6 +109,36 @@ describe("thin-client contract — shared fixture", () => {
         throw new Error("expected dashboard.available=true in fixture");
       }
       expect(id.dashboard.path).toBe("/");
+      expect(id.projects.defaultProjectId).toBe("p-kota-fixture-default");
+      expect(id.projects.projects.map((p) => p.projectId)).toEqual([
+        "p-kota-fixture-default",
+        "p-side-fixture",
+      ]);
+      // Default projectId always names a real entry.
+      expect(
+        id.projects.projects.some(
+          (p) => p.projectId === id.projects.defaultProjectId,
+        ),
+      ).toBe(true);
+    });
+
+    it("exposes the cross-project registry projection as a distinct top-level fixture", () => {
+      const projection = fixture.projects;
+      expect(projection.projects).toHaveLength(2);
+      expect(projection.projects[0].displayName).toBe("kota");
+      expect(projection.projects[1].displayName).toBe("side-project");
+      expect(
+        projection.projects.some(
+          (p) => p.projectId === projection.defaultProjectId,
+        ),
+      ).toBe(true);
+    });
+
+    it("exposes the typed unknown_project rejection envelope", () => {
+      const err = fixture.unknownProjectError;
+      expect(err.error).toBe("Unknown project");
+      expect(err.reason).toBe("unknown_project");
+      expect(err.projectId).toBe("p-not-configured");
     });
 
     it("decodes the dashboard-unavailable identity payload", () => {
@@ -109,8 +165,10 @@ describe("thin-client contract — shared fixture", () => {
           capabilities: [ready],
           summary: { ready: 1, unavailable: 0, init_failed: 0 },
         },
+        projects: FAKE_PROJECTS,
       });
       expect(identity.projectName).toBe("kota");
+      expect(identity.projects.defaultProjectId).toBe("test-project-id");
       if (!identity.dashboard.available) {
         throw new Error("expected dashboard.available=true");
       }
@@ -133,6 +191,7 @@ describe("thin-client contract — shared fixture", () => {
           capabilities: [unavailable],
           summary: { ready: 0, unavailable: 1, init_failed: 0 },
         },
+        projects: FAKE_PROJECTS,
       });
       if (identity.dashboard.available) {
         throw new Error("expected dashboard.available=false");
@@ -150,6 +209,7 @@ describe("thin-client contract — shared fixture", () => {
           capabilities: [],
           summary: { ready: 0, unavailable: 0, init_failed: 0 },
         },
+        projects: FAKE_PROJECTS,
       });
       if (identity.dashboard.available) {
         throw new Error("expected dashboard.available=false");

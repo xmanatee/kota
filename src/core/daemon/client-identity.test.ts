@@ -21,6 +21,17 @@ import {
 
 const TEST_TOKEN = "identity-test-token";
 
+const stubProjects = {
+  defaultProjectId: "test-project-id",
+  projects: [
+    {
+      projectId: "test-project-id",
+      projectDir: "/Users/operator/projects/kota",
+      displayName: "kota",
+    },
+  ],
+};
+
 function makeHandle(
   overrides: Partial<DaemonControlHandle> = {},
 ): DaemonControlHandle {
@@ -48,6 +59,7 @@ function makeHandle(
       ],
       summary: { ready: 1, unavailable: 0, init_failed: 0 },
     },
+    projects: stubProjects,
   });
   return {
     getDaemonLiveState: vi.fn(() => ({
@@ -86,6 +98,8 @@ function makeHandle(
     unregisterSession: vi.fn(),
     listSessions: vi.fn(() => []),
     setSessionAutonomyMode: vi.fn(() => ({ ok: false, notFound: true })),
+    getProjectRegistryProjection: vi.fn(() => ({ defaultProjectId: "test-project-id", projects: [{ projectId: "test-project-id", projectDir: "/tmp/test-project", displayName: "test-project" }] })),
+    hasProject: vi.fn((id: string) => id === "test-project-id"),
     reloadConfig: vi.fn(async () => ({ workflows: 0, changedModules: [] as string[] })),
     probeCapabilityReadiness: vi.fn(async () => ({
       capabilities: [],
@@ -147,6 +161,7 @@ describe("GET /identity", () => {
             ],
             summary: { ready: 0, unavailable: 1, init_failed: 0 },
           },
+          projects: stubProjects,
         }),
       ),
     });

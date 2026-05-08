@@ -119,6 +119,12 @@ final class DaemonConnectionDiagnosticTests: XCTestCase {
         let identity = ClientIdentity(
             projectName: "kota",
             projectDir: "/Users/op/Desktop/mono/apps/kota",
+            projects: ProjectRegistryProjection(
+                defaultProjectId: "p-test",
+                projects: [
+                    ConfiguredProjectEntry(projectId: "p-test", projectDir: "/Users/op/Desktop/mono/apps/kota", displayName: "kota")
+                ]
+            ),
             daemonVersion: "0.1.0",
             pid: 4242,
             startedAt: "2026-04-29T00:00:00Z",
@@ -149,6 +155,10 @@ final class DaemonConnectionDiagnosticTests: XCTestCase {
         let identity = ClientIdentity(
             projectName: "kota",
             projectDir: dir.path,
+            projects: ProjectRegistryProjection(
+                defaultProjectId: "p-test",
+                projects: [ConfiguredProjectEntry(projectId: "p-test", projectDir: dir.path, displayName: "kota")]
+            ),
             daemonVersion: "0.1.0",
             pid: 4242,
             startedAt: "2026-04-29T00:00:00Z",
@@ -207,6 +217,12 @@ final class DaemonConnectionDiagnosticTests: XCTestCase {
         let identity = ClientIdentity(
             projectName: "kota",
             projectDir: "/srv/kota",
+            projects: ProjectRegistryProjection(
+                defaultProjectId: "p-test",
+                projects: [
+                    ConfiguredProjectEntry(projectId: "p-test", projectDir: "/Users/op/Desktop/mono/apps/kota", displayName: "kota")
+                ]
+            ),
             daemonVersion: "0.1.0",
             pid: 1,
             startedAt: "2026-04-29T00:00:00Z",
@@ -299,6 +315,10 @@ final class DaemonConnectionDiagnosticTests: XCTestCase {
         let identity = ClientIdentity(
             projectName: "kota",
             projectDir: dir.path,
+            projects: ProjectRegistryProjection(
+                defaultProjectId: "p-test",
+                projects: [ConfiguredProjectEntry(projectId: "p-test", projectDir: dir.path, displayName: "kota")]
+            ),
             daemonVersion: "0.1.0",
             pid: 4242,
             startedAt: "2026-04-29T00:00:00Z",
@@ -357,6 +377,12 @@ final class DaemonConnectionDiagnosticTests: XCTestCase {
         let identity = ClientIdentity(
             projectName: "kota",
             projectDir: "/Users/op/Desktop/mono/apps/kota",
+            projects: ProjectRegistryProjection(
+                defaultProjectId: "p-test",
+                projects: [
+                    ConfiguredProjectEntry(projectId: "p-test", projectDir: "/Users/op/Desktop/mono/apps/kota", displayName: "kota")
+                ]
+            ),
             daemonVersion: "0.1.0",
             pid: 4242,
             startedAt: "2026-04-29T00:00:00Z",

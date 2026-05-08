@@ -135,8 +135,14 @@ export function handleCancelWorkflowRun(
   handle: DaemonControlHandle,
   res: ServerResponse,
   params: Record<string, string>,
+  url: URL,
 ): void {
-  const result = handle.cancelQueuedRun(params.id);
+  const scope = resolveProjectIdParam(handle, url);
+  if (!scope.ok) {
+    jsonResponse(res, 404, scope.error);
+    return;
+  }
+  const result = handle.cancelQueuedRun(params.id, scope.projectId);
   if (result.notFound) {
     jsonResponse(res, 404, { error: "Run not found" });
     return;
@@ -152,8 +158,14 @@ export function handleDisableWorkflow(
   handle: DaemonControlHandle,
   res: ServerResponse,
   params: Record<string, string>,
+  url: URL,
 ): void {
-  const result = handle.disableWorkflow(params.name);
+  const scope = resolveProjectIdParam(handle, url);
+  if (!scope.ok) {
+    jsonResponse(res, 404, scope.error);
+    return;
+  }
+  const result = handle.disableWorkflow(params.name, scope.projectId);
   if (result.notFound) {
     jsonResponse(res, 404, { error: `Workflow "${params.name}" not found` });
     return;
@@ -165,8 +177,14 @@ export function handleEnableWorkflow(
   handle: DaemonControlHandle,
   res: ServerResponse,
   params: Record<string, string>,
+  url: URL,
 ): void {
-  const result = handle.enableWorkflow(params.name);
+  const scope = resolveProjectIdParam(handle, url);
+  if (!scope.ok) {
+    jsonResponse(res, 404, scope.error);
+    return;
+  }
+  const result = handle.enableWorkflow(params.name, scope.projectId);
   if (result.notFound) {
     jsonResponse(res, 404, { error: `Workflow "${params.name}" not found` });
     return;
@@ -178,7 +196,13 @@ export function handleTriggerWorkflow(
   handle: DaemonControlHandle,
   req: IncomingMessage,
   res: ServerResponse,
+  url: URL,
 ): void {
+  const scope = resolveProjectIdParam(handle, url);
+  if (!scope.ok) {
+    jsonResponse(res, 404, scope.error);
+    return;
+  }
   readBody(req)
     .then((buf) => {
       let body: Record<string, unknown>;
@@ -201,7 +225,7 @@ export function handleTriggerWorkflow(
         body.payload !== undefined && body.payload !== null && typeof body.payload === "object" && !Array.isArray(body.payload)
           ? (body.payload as Record<string, unknown>)
           : undefined;
-      const result = handle.enqueuePendingRun(name, tags, extraPayload);
+      const result = handle.enqueuePendingRun(name, tags, extraPayload, scope.projectId);
       if (result.alreadyQueued) {
         jsonResponse(res, 409, { error: `Workflow "${name}" is already queued` });
         return;

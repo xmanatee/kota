@@ -25,7 +25,7 @@ import {
 import type { DaemonChatMakeAgent, DaemonChatPool } from "./daemon-chat-pool.js";
 import { handleListSessions, handleRegisterSession, handleUnregisterSession } from "./daemon-control-sessions.js";
 import type { DaemonControlHandle, DaemonLiveStatus } from "./daemon-control-types.js";
-import { jsonResponse } from "./daemon-control-utils.js";
+import { jsonResponse, resolveProjectIdParam } from "./daemon-control-utils.js";
 import {
   handleAbortWorkflow,
   handleAbortWorkflowRun,
@@ -91,10 +91,16 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
       method: "GET",
       path: "/status",
       capabilityScope: "read",
-      handler: (_req, res) => {
+      handler: (req, res) => {
+        const url = new URL(req.url ?? "/", "http://127.0.0.1");
+        const scope = resolveProjectIdParam(h, url);
+        if (!scope.ok) {
+          jsonResponse(res, 404, scope.error);
+          return;
+        }
         const daemonState = h.getDaemonLiveState();
-        const workflowStatus = h.getWorkflowLiveStatus();
-        const sessions = h.listSessions();
+        const workflowStatus = h.getWorkflowLiveStatus(scope.projectId);
+        const sessions = h.listSessions(scope.projectId);
         const channels = h.listChannelStatuses();
         const body: DaemonLiveStatus = {
           ...daemonState,
@@ -104,6 +110,12 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
         };
         jsonResponse(res, 200, body);
       },
+    },
+    {
+      method: "GET",
+      path: "/projects",
+      capabilityScope: "read",
+      handler: (_req, res) => jsonResponse(res, 200, h.getProjectRegistryProjection()),
     },
     {
       method: "GET",
@@ -188,25 +200,25 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
       method: "GET",
       path: "/workflow/status",
       capabilityScope: "read",
-      handler: (_req, res) => handleGetWorkflowStatus(h, res),
+      handler: (req, res) => handleGetWorkflowStatus(h, res, new URL(req.url ?? "/", "http://127.0.0.1")),
     },
     {
       method: "GET",
       path: "/workflow/definitions",
       capabilityScope: "read",
-      handler: (_req, res) => handleGetWorkflowDefinitions(h, res),
+      handler: (req, res) => handleGetWorkflowDefinitions(h, res, new URL(req.url ?? "/", "http://127.0.0.1")),
     },
     {
       method: "POST",
       path: "/workflow/definitions/:name/disable",
       capabilityScope: "control",
-      handler: (_req, res, params) => handleDisableWorkflow(h, res, params),
+      handler: (req, res, params) => handleDisableWorkflow(h, res, params, new URL(req.url ?? "/", "http://127.0.0.1")),
     },
     {
       method: "POST",
       path: "/workflow/definitions/:name/enable",
       capabilityScope: "control",
-      handler: (_req, res, params) => handleEnableWorkflow(h, res, params),
+      handler: (req, res, params) => handleEnableWorkflow(h, res, params, new URL(req.url ?? "/", "http://127.0.0.1")),
     },
     {
       method: "GET",
@@ -221,43 +233,43 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
       method: "GET",
       path: "/workflow/runs/:id",
       capabilityScope: "read",
-      handler: (_req, res, params) => handleGetWorkflowRun(h, res, params),
+      handler: (req, res, params) => handleGetWorkflowRun(h, res, params, new URL(req.url ?? "/", "http://127.0.0.1")),
     },
     {
       method: "DELETE",
       path: "/workflow/runs/:id",
       capabilityScope: "control",
-      handler: (_req, res, params) => handleCancelWorkflowRun(h, res, params),
+      handler: (req, res, params) => handleCancelWorkflowRun(h, res, params, new URL(req.url ?? "/", "http://127.0.0.1")),
     },
     {
       method: "POST",
       path: "/workflow/runs/:id/abort",
       capabilityScope: "control",
-      handler: (_req, res, params) => handleAbortWorkflowRun(h, res, params),
+      handler: (req, res, params) => handleAbortWorkflowRun(h, res, params, new URL(req.url ?? "/", "http://127.0.0.1")),
     },
     {
       method: "POST",
       path: "/workflow/pause",
       capabilityScope: "control",
-      handler: (_req, res) => handlePauseWorkflow(h, res),
+      handler: (req, res) => handlePauseWorkflow(h, res, new URL(req.url ?? "/", "http://127.0.0.1")),
     },
     {
       method: "POST",
       path: "/workflow/resume",
       capabilityScope: "control",
-      handler: (_req, res) => handleResumeWorkflow(h, res),
+      handler: (req, res) => handleResumeWorkflow(h, res, new URL(req.url ?? "/", "http://127.0.0.1")),
     },
     {
       method: "POST",
       path: "/workflow/abort",
       capabilityScope: "control",
-      handler: (_req, res) => handleAbortWorkflow(h, res),
+      handler: (req, res) => handleAbortWorkflow(h, res, new URL(req.url ?? "/", "http://127.0.0.1")),
     },
     {
       method: "POST",
       path: "/workflow/reload",
       capabilityScope: "control",
-      handler: (_req, res) => handleReloadWorkflow(h, res),
+      handler: (req, res) => handleReloadWorkflow(h, res, new URL(req.url ?? "/", "http://127.0.0.1")),
     },
     {
       method: "POST",
@@ -269,23 +281,29 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
       method: "POST",
       path: "/workflow/trigger",
       capabilityScope: "control",
-      handler: (req, res) => handleTriggerWorkflow(h, req, res),
+      handler: (req, res) => handleTriggerWorkflow(h, req, res, new URL(req.url ?? "/", "http://127.0.0.1")),
     },
     {
       method: "GET",
       path: "/sessions",
       capabilityScope: "read",
-      handler: (_req, res) => {
+      handler: (req, res) => {
+        const url = new URL(req.url ?? "/", "http://127.0.0.1");
+        const scope = resolveProjectIdParam(h, url);
+        if (!scope.ok) {
+          jsonResponse(res, 404, scope.error);
+          return;
+        }
         if (chatPool) {
           const daemonEntries = chatPool.list();
           const daemonIds = new Set(daemonEntries.map((s) => s.id));
           const serveSessions = h
-            .listSessions()
+            .listSessions(scope.projectId)
             .filter((s) => !daemonIds.has(s.id))
             .map((s) => ({ ...s, source: "serve" as const }));
           jsonResponse(res, 200, { sessions: [...serveSessions, ...daemonEntries] });
         } else {
-          handleListSessions(h, res);
+          handleListSessions(h, res, url);
         }
       },
     },

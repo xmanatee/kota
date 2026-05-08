@@ -38,11 +38,23 @@ gets these affordances for free; an existing client must not invent
 local equivalents.
 
 - **Identity** — `GET /identity` returns the typed `ClientIdentity`
-  payload (project name + absolute path, daemon version, pid, startedAt,
-  dashboard availability). Clients must not derive identity from
-  `.kota/` files; they must not collapse "wrong project" /
+  payload (default project name + absolute path, the typed
+  `projects: ProjectRegistryProjection`, daemon version, pid, startedAt,
+  dashboard availability). Clients render a project selector against
+  `projects` rather than derive it from `.kota/` files; the singular
+  `projectName`/`projectDir` describe the default project for
+  single-project KOTA. Clients must not collapse "wrong project" /
   "no control file" / "remote URL configured" into a single
   "Daemon offline" string.
+- **Project registry** — `GET /projects` returns the typed
+  `ProjectRegistryProjection` directly (default projectId + ordered list
+  of configured projects) as a distinct cross-project shape. Project-
+  scoped control-API routes accept an optional `?projectId=` query
+  parameter; when omitted the daemon resolves the registry's default,
+  and an unknown id returns `404` with the typed
+  `{ "error": "Unknown project", "reason": "unknown_project",
+  "projectId": "<id>" }` envelope. Single-project clients can ignore the
+  parameter entirely and continue to receive default-project state.
 - **Capability readiness** — `GET /capabilities` returns the typed
   `CapabilityReadinessResponse`. Each entry carries a stable id (e.g.
   `dashboard`, `knowledge.search`, `workflow.trigger`), a status

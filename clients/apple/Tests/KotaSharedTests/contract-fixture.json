@@ -2,6 +2,21 @@
   "identity": {
     "projectName": "kota",
     "projectDir": "/Users/operator/projects/kota",
+    "projects": {
+      "defaultProjectId": "p-kota-fixture-default",
+      "projects": [
+        {
+          "projectId": "p-kota-fixture-default",
+          "projectDir": "/Users/operator/projects/kota",
+          "displayName": "kota"
+        },
+        {
+          "projectId": "p-side-fixture",
+          "projectDir": "/Users/operator/projects/side-project",
+          "displayName": "side-project"
+        }
+      ]
+    },
     "daemonVersion": "0.1.0",
     "pid": 12345,
     "startedAt": "2026-04-29T01:00:00.000Z",
@@ -13,6 +28,16 @@
   "identityWithoutDashboard": {
     "projectName": "kota",
     "projectDir": "/Users/operator/projects/kota",
+    "projects": {
+      "defaultProjectId": "p-kota-fixture-default",
+      "projects": [
+        {
+          "projectId": "p-kota-fixture-default",
+          "projectDir": "/Users/operator/projects/kota",
+          "displayName": "kota"
+        }
+      ]
+    },
     "daemonVersion": "0.1.0",
     "pid": 12345,
     "startedAt": "2026-04-29T01:00:00.000Z",
@@ -21,6 +46,26 @@
       "reason": "web_ui_not_built",
       "message": "Web dashboard is unavailable — run `pnpm --filter @kota/web build` to produce clients/web/dist."
     }
+  },
+  "projects": {
+    "defaultProjectId": "p-kota-fixture-default",
+    "projects": [
+      {
+        "projectId": "p-kota-fixture-default",
+        "projectDir": "/Users/operator/projects/kota",
+        "displayName": "kota"
+      },
+      {
+        "projectId": "p-side-fixture",
+        "projectDir": "/Users/operator/projects/side-project",
+        "displayName": "side-project"
+      }
+    ]
+  },
+  "unknownProjectError": {
+    "error": "Unknown project",
+    "reason": "unknown_project",
+    "projectId": "p-not-configured"
   },
   "capabilities": {
     "capabilities": [

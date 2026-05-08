@@ -1,12 +1,12 @@
 ---
 id: task-thread-projectid-through-control-api-routes-and-up
 title: Thread projectId through control-API routes and update conformance decoders
-status: doing
+status: done
 priority: p2
 area: architecture
 summary: Thread projectId scope through every daemon control-API route that lists or mutates project-scoped state, expose ProjectRegistryProjection on GET /identity (or successor), and update contract-fixture + TS + Swift decoders in lockstep.
 created_at: 2026-05-08T00:57:06.775Z
-updated_at: 2026-05-08T03:46:40.001Z
+updated_at: 2026-05-08T04:10:05.991Z
 ---
 
 ## Problem

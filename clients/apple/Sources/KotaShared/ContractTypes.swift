@@ -185,10 +185,110 @@ enum ClientDashboardAvailability: Codable, Equatable {
 struct ClientIdentity: Codable, Equatable {
     let projectName: String
     let projectDir: String
+    let projects: ProjectRegistryProjection
     let daemonVersion: String
     let pid: Int
     let startedAt: String
     let dashboard: ClientDashboardAvailability
+}
+
+/// Mirror of the daemon's `ConfiguredProject` shape exposed through
+/// `ClientIdentity.projects.projects` and the cross-project
+/// `GET /projects` route.
+struct ConfiguredProjectEntry: Codable, Equatable {
+    let projectId: String
+    let projectDir: String
+    let displayName: String
+}
+
+/// Mirror of the daemon's `ProjectRegistryProjection` shape. Clients
+/// render a project selector against this projection rather than parsing
+/// `.kota/` files. Strict decode: an empty `projects` array or a
+/// `defaultProjectId` that does not match any entry fails the suite.
+struct ProjectRegistryProjection: Codable, Equatable {
+    let defaultProjectId: String
+    let projects: [ConfiguredProjectEntry]
+
+    init(defaultProjectId: String, projects: [ConfiguredProjectEntry]) {
+        self.defaultProjectId = defaultProjectId
+        self.projects = projects
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaultProjectId = try container.decode(String.self, forKey: .defaultProjectId)
+        let projects = try container.decode([ConfiguredProjectEntry].self, forKey: .projects)
+        if projects.isEmpty {
+            throw DecodingError.dataCorruptedError(
+                forKey: .projects,
+                in: container,
+                debugDescription: "projects must declare at least one entry"
+            )
+        }
+        if !projects.contains(where: { $0.projectId == defaultProjectId }) {
+            throw DecodingError.dataCorruptedError(
+                forKey: .defaultProjectId,
+                in: container,
+                debugDescription: "defaultProjectId \(defaultProjectId) does not match any registered project"
+            )
+        }
+        self.defaultProjectId = defaultProjectId
+        self.projects = projects
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(defaultProjectId, forKey: .defaultProjectId)
+        try container.encode(projects, forKey: .projects)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case defaultProjectId, projects
+    }
+}
+
+/// Mirror of the daemon's typed `unknown_project` rejection that
+/// project-scoped routes emit when `?projectId=` is set to an
+/// unconfigured id. Strict decode: any other `reason` value fails.
+struct UnknownProjectError: Codable, Equatable {
+    let error: String
+    let reason: String
+    let projectId: String
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let error = try container.decode(String.self, forKey: .error)
+        let reason = try container.decode(String.self, forKey: .reason)
+        let projectId = try container.decode(String.self, forKey: .projectId)
+        if reason != "unknown_project" {
+            throw DecodingError.dataCorruptedError(
+                forKey: .reason,
+                in: container,
+                debugDescription: "unknown reason: \(reason)"
+            )
+        }
+        if error != "Unknown project" {
+            throw DecodingError.dataCorruptedError(
+                forKey: .error,
+                in: container,
+                debugDescription: "unknown error label: \(error)"
+            )
+        }
+        self.error = error
+        self.reason = reason
+        self.projectId = projectId
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(error, forKey: .error)
+        try container.encode(reason, forKey: .reason)
+        try container.encode(projectId, forKey: .projectId)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case error, reason, projectId
+    }
 }
 
 // MARK: Workflow definitions

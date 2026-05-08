@@ -18,9 +18,11 @@ import {
   parseHistorySearchResponse,
   parseKnowledgeSearchResponse,
   parseMemorySearchResponse,
+  parseProjectRegistryProjection,
   parseRecallResult,
   parseRetractResult,
   parseTasksSearchResponse,
+  parseUnknownProjectError,
   parseVoiceFailure,
   parseVoiceTranscribeResult,
 } from "./decoders";
@@ -38,6 +40,38 @@ export type ConformanceCase = {
 };
 
 export const CONFORMANCE_CASES: ConformanceCase[] = [
+  // project registry projection
+  {
+    name: "projects: cross-project registry projection",
+    path: "projects",
+    parse: parseProjectRegistryProjection,
+    assertPositive: (decoded) => {
+      const p = decoded as {
+        defaultProjectId: string;
+        projects: Array<{ projectId: string; displayName: string }>;
+      };
+      if (p.projects.length !== 2) {
+        throw new Error("expected 2 projects in projection");
+      }
+      if (
+        !p.projects.some((entry) => entry.projectId === p.defaultProjectId)
+      ) {
+        throw new Error(
+          "default projectId must match one of the listed projects",
+        );
+      }
+    },
+  },
+  {
+    name: "projects: identity carries projection",
+    path: "identity.projects",
+    parse: parseProjectRegistryProjection,
+  },
+  {
+    name: "projects: typed unknown_project rejection",
+    path: "unknownProjectError",
+    parse: parseUnknownProjectError,
+  },
   // recall
   {
     name: "recall: success across knowledge/memory/history/tasks/answer sources",

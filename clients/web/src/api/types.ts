@@ -38,13 +38,42 @@ export type ClientDashboardAvailability =
   | { available: true; path: string }
   | { available: false; reason: string; message?: string };
 
+/**
+ * Mirror of the daemon's `ProjectRegistryProjection`. Clients render the
+ * project selector against this shape; the singular `projectName` /
+ * `projectDir` on `ClientIdentity` describe the default project.
+ */
+export type ProjectRegistryEntry = {
+  projectId: string;
+  projectDir: string;
+  displayName: string;
+};
+
+export type ProjectRegistryProjection = {
+  defaultProjectId: string;
+  projects: ProjectRegistryEntry[];
+};
+
 export type ClientIdentity = {
   projectName: string;
   projectDir: string;
+  projects: ProjectRegistryProjection;
   daemonVersion: string;
   pid: number;
   startedAt: string;
   dashboard: ClientDashboardAvailability;
+};
+
+/**
+ * Typed wire-shape every project-scoped control-API route returns when
+ * `?projectId=` is set to a value that does not match a configured
+ * project. Mirrors `UnknownProjectError` in
+ * `src/core/daemon/daemon-control-types.ts`.
+ */
+export type UnknownProjectError = {
+  error: "Unknown project";
+  reason: "unknown_project";
+  projectId: string;
 };
 
 /**
@@ -287,7 +316,11 @@ export type CostSummary = {
  * values throw `ContractDecodeError` instead of silently coercing the
  * payload into a typed-but-invalid object.
  */
-export { ContractDecodeError } from "../../../conformance/decoders";
+export {
+  ContractDecodeError,
+  parseProjectRegistryProjection,
+  parseUnknownProjectError,
+} from "../../../conformance/decoders";
 
 export type {
   AnswerCitation,

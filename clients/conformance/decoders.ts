@@ -98,6 +98,78 @@ function asOptionalStringArray(
   );
 }
 
+// MARK: - Project registry projection
+
+export type ProjectRegistryEntry = {
+  projectId: string;
+  projectDir: string;
+  displayName: string;
+};
+
+export type ProjectRegistryProjection = {
+  defaultProjectId: string;
+  projects: ProjectRegistryEntry[];
+};
+
+export function parseProjectRegistryProjection(
+  raw: unknown,
+): ProjectRegistryProjection {
+  const obj = asObject(raw, "projects");
+  const defaultProjectId = asString(
+    obj.defaultProjectId,
+    "projects.defaultProjectId",
+  );
+  const projectsRaw = asArray(obj.projects, "projects.projects");
+  if (projectsRaw.length === 0) {
+    fail("projects.projects must declare at least one entry");
+  }
+  const projects = projectsRaw.map((entry, index) => {
+    const e = asObject(entry, `projects.projects[${index}]`);
+    return {
+      projectId: asString(e.projectId, `projects.projects[${index}].projectId`),
+      projectDir: asString(
+        e.projectDir,
+        `projects.projects[${index}].projectDir`,
+      ),
+      displayName: asString(
+        e.displayName,
+        `projects.projects[${index}].displayName`,
+      ),
+    };
+  });
+  if (!projects.some((p) => p.projectId === defaultProjectId)) {
+    fail(
+      `projects.defaultProjectId ${defaultProjectId} does not match any registered project`,
+    );
+  }
+  return { defaultProjectId, projects };
+}
+
+export type UnknownProjectError = {
+  error: "Unknown project";
+  reason: "unknown_project";
+  projectId: string;
+};
+
+export function parseUnknownProjectError(raw: unknown): UnknownProjectError {
+  const obj = asObject(raw, "unknownProjectError");
+  const error = asString(obj.error, "unknownProjectError.error");
+  if (error !== "Unknown project") {
+    fail(`unknownProjectError.error must be "Unknown project", got ${error}`);
+  }
+  const reason = asString(obj.reason, "unknownProjectError.reason");
+  if (reason !== "unknown_project") {
+    fail(
+      `unknownProjectError.reason must be "unknown_project", got ${reason}`,
+    );
+  }
+  return {
+    error,
+    reason,
+    projectId: asString(obj.projectId, "unknownProjectError.projectId"),
+  };
+}
+
 // MARK: - Recall
 
 export type RecallSource =

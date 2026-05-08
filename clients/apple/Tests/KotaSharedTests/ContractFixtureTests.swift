@@ -69,6 +69,68 @@ final class ContractFixtureTests: XCTestCase {
         XCTAssertEqual(identity.pid, 12345)
         XCTAssertEqual(identity.dashboard.isAvailable, true)
         XCTAssertEqual(identity.dashboard.path, "/")
+        XCTAssertEqual(identity.projects.defaultProjectId, "p-kota-fixture-default")
+        XCTAssertEqual(identity.projects.projects.count, 2)
+        XCTAssertEqual(identity.projects.projects[1].displayName, "side-project")
+    }
+
+    // MARK: - Project registry projection
+
+    func testDecodesProjectRegistryProjection() throws {
+        let data = try Self.sectionData("projects")
+        let projection = try JSONDecoder().decode(ProjectRegistryProjection.self, from: data)
+        XCTAssertEqual(projection.defaultProjectId, "p-kota-fixture-default")
+        XCTAssertEqual(projection.projects.count, 2)
+        XCTAssertEqual(projection.projects.first?.displayName, "kota")
+    }
+
+    func testProjectRegistryProjectionRejectsUnknownDefault() throws {
+        let json = """
+        {
+          "defaultProjectId": "p-missing",
+          "projects": [
+            { "projectId": "p-real", "projectDir": "/tmp", "displayName": "real" }
+          ]
+        }
+        """
+        let data = Data(json.utf8)
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(ProjectRegistryProjection.self, from: data)
+        )
+    }
+
+    func testProjectRegistryProjectionRejectsEmptyProjects() throws {
+        let json = """
+        {
+          "defaultProjectId": "p-real",
+          "projects": []
+        }
+        """
+        let data = Data(json.utf8)
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(ProjectRegistryProjection.self, from: data)
+        )
+    }
+
+    func testDecodesUnknownProjectError() throws {
+        let data = try Self.sectionData("unknownProjectError")
+        let err = try JSONDecoder().decode(UnknownProjectError.self, from: data)
+        XCTAssertEqual(err.reason, "unknown_project")
+        XCTAssertEqual(err.projectId, "p-not-configured")
+    }
+
+    func testUnknownProjectErrorRejectsAlienReason() throws {
+        let json = """
+        {
+          "error": "Unknown project",
+          "reason": "future_reason",
+          "projectId": "p-x"
+        }
+        """
+        let data = Data(json.utf8)
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(UnknownProjectError.self, from: data)
+        )
     }
 
     func testDecodesDashboardUnavailableIdentity() throws {

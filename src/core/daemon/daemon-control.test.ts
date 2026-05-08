@@ -53,6 +53,8 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     unregisterSession: vi.fn(),
     listSessions: vi.fn(() => []),
     setSessionAutonomyMode: vi.fn(() => ({ ok: false, notFound: true })),
+    getProjectRegistryProjection: vi.fn(() => ({ defaultProjectId: "test-project-id", projects: [{ projectId: "test-project-id", projectDir: "/tmp/test-project", displayName: "test-project" }] })),
+    hasProject: vi.fn((id: string) => id === "test-project-id"),
     reloadConfig: vi.fn(async () => ({ workflows: 3, changedModules: [] as string[] })),
     probeCapabilityReadiness: vi.fn(async () => ({
       capabilities: [],
@@ -61,6 +63,7 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     getClientIdentity: vi.fn(async () => ({
       projectName: "test-project",
       projectDir: "/tmp/test-project",
+      projects: { defaultProjectId: "test-project-id", projects: [{ projectId: "test-project-id", projectDir: "/tmp/test-project", displayName: "test-project" }] },
       daemonVersion: "0.1.0",
       pid: 9999,
       startedAt: "2026-01-01T00:00:00.000Z",
@@ -181,6 +184,51 @@ describe("DaemonControlServer", () => {
         { name: "alpha", status: "started" },
         { name: "beta", status: "disabled", reason: "off-by-config" },
       ]);
+    });
+  });
+
+  describe("GET /projects", () => {
+    it("returns the typed project registry projection (cross-project shape)", async () => {
+      const res = await fetchWithToken(port, "/projects");
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toEqual({
+        defaultProjectId: "test-project-id",
+        projects: [
+          {
+            projectId: "test-project-id",
+            projectDir: "/tmp/test-project",
+            displayName: "test-project",
+          },
+        ],
+      });
+    });
+  });
+
+  describe("project-scoped route validation", () => {
+    it("returns 404 with the typed unknown_project shape when ?projectId= names an unconfigured project", async () => {
+      const res = await fetchWithToken(
+        port,
+        "/workflow/status?projectId=p-not-configured",
+      );
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body).toEqual({
+        error: "Unknown project",
+        reason: "unknown_project",
+        projectId: "p-not-configured",
+      });
+    });
+
+    it("forwards a configured projectId through to the handle", async () => {
+      const res = await fetchWithToken(
+        port,
+        "/workflow/status?projectId=test-project-id",
+      );
+      expect(res.status).toBe(200);
+      expect(handle.getWorkflowLiveStatus).toHaveBeenCalledWith(
+        "test-project-id",
+      );
     });
   });
 
@@ -308,7 +356,7 @@ describe("DaemonControlServer", () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body).toMatchObject({ ok: true, queued: "builder", runId: "2026-01-01T00-00-00-000Z-builder-abc123" });
-      expect(handle.enqueuePendingRun).toHaveBeenCalledWith("builder", undefined, undefined);
+      expect(handle.enqueuePendingRun).toHaveBeenCalledWith("builder", undefined, undefined, undefined);
     });
 
     it("returns 400 for invalid JSON body", async () => {
@@ -526,7 +574,7 @@ describe("DaemonControlServer", () => {
       const body = await res.json() as Record<string, unknown>;
       expect(body.ok).toBe(true);
       expect(body.runtimeEnabled).toBe(false);
-      expect(handle.disableWorkflow).toHaveBeenCalledWith("builder");
+      expect(handle.disableWorkflow).toHaveBeenCalledWith("builder", undefined);
     });
 
     it("returns 404 when workflow not found", async () => {
@@ -561,7 +609,7 @@ describe("DaemonControlServer", () => {
       const body = await res.json() as Record<string, unknown>;
       expect(body.ok).toBe(true);
       expect(body.runtimeEnabled).toBe(true);
-      expect(handle.enableWorkflow).toHaveBeenCalledWith("builder");
+      expect(handle.enableWorkflow).toHaveBeenCalledWith("builder", undefined);
     });
 
     it("returns 404 when workflow not found", async () => {
@@ -653,19 +701,19 @@ describe("DaemonControlServer", () => {
     it("passes workflow filter and limit to handle", async () => {
       const res = await fetchWithToken(port, "/workflow/runs?workflow=builder&limit=5");
       expect(res.status).toBe(200);
-      expect(handle.listWorkflowRuns).toHaveBeenCalledWith("builder", 5, undefined, undefined);
+      expect(handle.listWorkflowRuns).toHaveBeenCalledWith({ workflow: "builder", limit: 5, tag: undefined, causedByRunId: undefined, projectId: undefined });
     });
 
     it("passes tag filter to handle", async () => {
       const res = await fetchWithToken(port, "/workflow/runs?tag=my-tag");
       expect(res.status).toBe(200);
-      expect(handle.listWorkflowRuns).toHaveBeenCalledWith(undefined, 20, "my-tag", undefined);
+      expect(handle.listWorkflowRuns).toHaveBeenCalledWith({ workflow: undefined, limit: 20, tag: "my-tag", causedByRunId: undefined, projectId: undefined });
     });
 
     it("passes causedByRunId filter to handle", async () => {
       const res = await fetchWithToken(port, "/workflow/runs?causedByRunId=upstream-run-id");
       expect(res.status).toBe(200);
-      expect(handle.listWorkflowRuns).toHaveBeenCalledWith(undefined, 20, undefined, "upstream-run-id");
+      expect(handle.listWorkflowRuns).toHaveBeenCalledWith({ workflow: undefined, limit: 20, tag: undefined, causedByRunId: "upstream-run-id", projectId: undefined });
     });
 
     it("returns 401 without token", async () => {
@@ -686,7 +734,7 @@ describe("DaemonControlServer", () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.id).toBe("run-1");
-      expect(handle.getWorkflowRun).toHaveBeenCalledWith("run-1");
+      expect(handle.getWorkflowRun).toHaveBeenCalledWith("run-1", undefined);
     });
 
     it("returns 404 when run not found", async () => {
@@ -787,7 +835,7 @@ describe("DaemonControlServer", () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body).toMatchObject({ ok: true });
-      expect(handle.cancelQueuedRun).toHaveBeenCalledWith("2026-01-01T00-00-00-000Z-builder-abc123");
+      expect(handle.cancelQueuedRun).toHaveBeenCalledWith("2026-01-01T00-00-00-000Z-builder-abc123", undefined);
     });
 
     it("returns 404 when run is not found", async () => {
@@ -826,7 +874,7 @@ describe("DaemonControlServer", () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body).toMatchObject({ ok: true });
-      expect(handle.abortActiveRun).toHaveBeenCalledWith("2026-01-01T00-00-00-000Z-builder-abc123");
+      expect(handle.abortActiveRun).toHaveBeenCalledWith("2026-01-01T00-00-00-000Z-builder-abc123", undefined);
     });
 
     it("returns 404 for unknown run ID", async () => {
