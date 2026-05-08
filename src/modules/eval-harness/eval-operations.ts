@@ -8,6 +8,7 @@
 import { mkdirSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { EventBus } from "#core/events/event-bus.js";
+import { getCriticPromptHash } from "#modules/autonomy/critic.js";
 import {
   aggregateCalibration,
   DEFAULT_CALIBRATION_MIN_SAMPLE,
@@ -147,6 +148,7 @@ export function runEvalCalibration(
   const aggregate = aggregateCalibration(runsDir, {
     windowMs: windowDays * DAY_MS,
     followUpWindowMs: followUpDays * DAY_MS,
+    criticPromptHash: getCriticPromptHash(),
   });
   const decision = evaluateCalibrationGate(aggregate, {
     thresholdRate,

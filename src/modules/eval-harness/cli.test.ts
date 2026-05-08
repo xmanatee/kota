@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import type { KotaClient } from "#core/server/kota-client.js";
+import { getCriticPromptHash } from "#modules/autonomy/critic.js";
 import {
   EVALUATOR_CALIBRATION_ARTIFACT,
   type EvaluatorCalibrationArtifact,
@@ -55,6 +56,9 @@ function seedCalibration(
     taskId: null,
     taskFinalState: null,
     sourceFilesChanged,
+    // CLI calibration aggregation runs through the live `getCriticPromptHash`,
+    // so seeded artifacts must declare the same hash to be visible.
+    criticPromptHash: getCriticPromptHash(),
   };
   writeFileSync(
     join(runDir, EVALUATOR_CALIBRATION_ARTIFACT),

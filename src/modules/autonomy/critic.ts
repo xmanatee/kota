@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -85,6 +86,18 @@ Schema:
 
 Example:
 {"verdict":"pass","critical_issues":[],"warnings":[],"summary":"All Done When criteria addressed with tests covering the new code."}`;
+
+/**
+ * Stable identifier for the active critic system prompt. The live calibration
+ * gate aggregates only artifacts whose hash matches the running critic — when
+ * the prompt is tightened (a new class promoted to a critical issue, an old
+ * class softened), the rolling window resets to fresh data instead of letting
+ * historical verdicts drag the rate above threshold for the rest of the
+ * window. 12 hex chars (48 bits) is plenty to distinguish prompt versions.
+ */
+export function getCriticPromptHash(): string {
+  return createHash("sha256").update(CRITIC_SYSTEM_PROMPT).digest("hex").slice(0, 12);
+}
 
 const GIT_MAX_BUFFER = 5 * 1024 * 1024;
 const GIT_DIFF_MAX_BUFFER = 50 * 1024 * 1024;

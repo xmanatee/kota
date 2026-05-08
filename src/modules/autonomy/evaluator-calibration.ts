@@ -23,7 +23,7 @@ import type {
   WorkflowStepContext,
 } from "#core/workflow/run-types.js";
 import { REPO_TASKS_DIR, type RepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
-import type { CriticVerdict } from "./critic.js";
+import { type CriticVerdict, getCriticPromptHash } from "./critic.js";
 
 export const EVALUATOR_CALIBRATION_ARTIFACT = "evaluator-calibration.json";
 
@@ -83,6 +83,13 @@ export type EvaluatorCalibrationArtifact = {
    * bookkeeping). Aggregation uses these as the follow-up fingerprint.
    */
   sourceFilesChanged: string[];
+  /**
+   * Stable hash of the critic system prompt active when this artifact was
+   * written. Aggregation only counts artifacts whose hash matches the running
+   * critic — prompt edits invalidate prior data instead of letting the
+   * rolling window drag the rate above threshold for days after a fix.
+   */
+  criticPromptHash: string;
 };
 
 export type EvaluatorCalibrationAggregate = {
@@ -213,6 +220,12 @@ function defaultFindTaskFinalState(
 export type WriteCalibrationArtifactOptions = {
   agentStepId?: string;
   findTaskFinalState?: FindTaskFinalState;
+  /**
+   * Override the recorded critic prompt hash. Production callers leave this
+   * unset so the artifact captures whichever critic is shipping. Tests use
+   * it to seed deterministic hashes alongside synthetic verdicts.
+   */
+  criticPromptHash?: string;
 };
 
 /**
@@ -282,6 +295,7 @@ export function writeCalibrationArtifact(
     taskId,
     taskFinalState,
     sourceFilesChanged,
+    criticPromptHash: options.criticPromptHash ?? getCriticPromptHash(),
   };
 
   writeJsonFileAtomic(join(runDir, EVALUATOR_CALIBRATION_ARTIFACT), artifact);
@@ -295,6 +309,13 @@ export type AggregateCalibrationOptions = {
   followUpWindowMs?: number;
   /** Deterministic clock override for tests. */
   nowMs?: number;
+  /**
+   * Required prompt hash. Aggregation includes only artifacts whose
+   * `criticPromptHash` equals this value. The default surface lives at the
+   * call site (production: `getCriticPromptHash()`; tests: a fixed value),
+   * keeping `aggregateCalibration` a pure function over its inputs.
+   */
+  criticPromptHash: string;
 };
 
 type LoadedArtifact = {
@@ -303,20 +324,11 @@ type LoadedArtifact = {
   artifact: EvaluatorCalibrationArtifact;
 };
 
-function normalizeLoadedArtifact(
-  raw: EvaluatorCalibrationArtifact,
-): EvaluatorCalibrationArtifact {
-  // Pre-`criticFailureCount` artifacts on disk lack the field. Treat absence
-  // as zero — the metric was previously dominated by mechanical-iteration
-  // noise that the normalized signal intentionally drops.
-  if (typeof raw.criticFailureCount === "number") return raw;
-  return { ...raw, criticFailureCount: 0 };
-}
-
 function loadCalibrationArtifactsInWindow(
   runsDir: string,
   windowMs: number,
   nowMs: number,
+  criticPromptHash: string,
 ): LoadedArtifact[] {
   if (!existsSync(runsDir)) return [];
   const entries = readdirSync(runsDir).sort();
@@ -328,11 +340,16 @@ function loadCalibrationArtifactsInWindow(
       join(runDir, EVALUATOR_CALIBRATION_ARTIFACT),
     );
     if (!raw) continue;
+    // Pre-versioned artifacts (no hash field) drop out here — they were
+    // generated under an unknown critic prompt and cannot be safely compared
+    // against the running prompt's calibration. Mismatched-hash artifacts
+    // drop out for the same reason.
+    if (raw.criticPromptHash !== criticPromptHash) continue;
     const completedAtMs = Date.parse(raw.completedAt);
     if (!Number.isFinite(completedAtMs)) continue;
     if (completedAtMs < cutoffMs) continue;
     if (completedAtMs > nowMs) continue;
-    loaded.push({ runDir, completedAtMs, artifact: normalizeLoadedArtifact(raw) });
+    loaded.push({ runDir, completedAtMs, artifact: raw });
   }
   loaded.sort((a, b) => a.completedAtMs - b.completedAtMs);
   return loaded;
@@ -391,13 +408,18 @@ function rate(numerator: number, denominator: number): number {
  */
 export function aggregateCalibration(
   runsDir: string,
-  options: AggregateCalibrationOptions = {},
+  options: AggregateCalibrationOptions,
 ): EvaluatorCalibrationAggregate {
   const nowMs = options.nowMs ?? Date.now();
   const windowMs = options.windowMs ?? DEFAULT_WINDOW_MS;
   const followUpWindowMs = options.followUpWindowMs ?? DEFAULT_FOLLOW_UP_WINDOW_MS;
 
-  const artifacts = loadCalibrationArtifactsInWindow(runsDir, windowMs, nowMs);
+  const artifacts = loadCalibrationArtifactsInWindow(
+    runsDir,
+    windowMs,
+    nowMs,
+    options.criticPromptHash,
+  );
 
   const byVerdict: Record<EvaluatorCalibrationVerdict, number> = {
     pass: 0,

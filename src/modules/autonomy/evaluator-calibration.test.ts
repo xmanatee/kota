@@ -18,6 +18,8 @@ import {
   writeCalibrationArtifact,
 } from "./evaluator-calibration.js";
 
+const TEST_PROMPT_HASH = "promptv0test";
+
 type CalibrationSeed = {
   runId: string;
   completedAt: string;
@@ -30,6 +32,7 @@ type CalibrationSeed = {
   criticFailureCount?: number;
   taskId?: string | null;
   taskFinalState?: EvaluatorCalibrationArtifact["taskFinalState"];
+  criticPromptHash?: string;
 };
 
 function seedRun(runsDir: string, seed: CalibrationSeed): void {
@@ -49,6 +52,7 @@ function seedRun(runsDir: string, seed: CalibrationSeed): void {
     taskId: seed.taskId ?? null,
     taskFinalState: seed.taskFinalState ?? null,
     sourceFilesChanged: seed.sourceFilesChanged,
+    criticPromptHash: seed.criticPromptHash ?? TEST_PROMPT_HASH,
   };
   writeFileSync(
     join(runDir, EVALUATOR_CALIBRATION_ARTIFACT),
@@ -267,6 +271,44 @@ describe("writeCalibrationArtifact", () => {
     expect(artifact.criticFailureCount).toBe(0);
   });
 
+  it("embeds the active critic prompt hash so aggregation can filter prior versions", () => {
+    writeFileSync(
+      join(runDir, "critic-review.json"),
+      JSON.stringify({ verdict: "pass", critical_issues: [], warnings: [], summary: "ok" }),
+    );
+    writeFileSync(
+      join(runDir, "run-summary.json"),
+      JSON.stringify({
+        runId: "run-test",
+        workflow: "builder",
+        taskId: null,
+        filesChanged: ["src/core/foo.ts"],
+        completedAt: "2026-04-20T12:00:00.000Z",
+      }),
+    );
+
+    const ctx = makeStepContext({
+      runDir,
+      projectDir: root,
+      stepOutputs: { build: { repairIterations: [] } },
+      stepResults: {
+        build: {
+          id: "build",
+          type: "agent",
+          status: "success",
+          startedAt: "2026-04-20T11:59:00.000Z",
+          completedAt: "2026-04-20T12:00:00.000Z",
+          durationMs: 60000,
+        },
+      },
+    });
+
+    const artifact = writeCalibrationArtifact(ctx, {
+      criticPromptHash: "promptvfixed",
+    });
+    expect(artifact.criticPromptHash).toBe("promptvfixed");
+  });
+
   it("records verdict=absent when critic-review.json is missing", () => {
     writeFileSync(
       join(runDir, "run-summary.json"),
@@ -329,6 +371,7 @@ describe("aggregateCalibration", () => {
     });
 
     const agg = aggregateCalibration(runsDir, {
+      criticPromptHash: TEST_PROMPT_HASH,
       windowMs: 7 * 24 * 60 * 60 * 1000,
       followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
       nowMs: Date.parse("2026-04-20T12:30:00.000Z"),
@@ -365,6 +408,7 @@ describe("aggregateCalibration", () => {
     });
 
     const agg = aggregateCalibration(runsDir, {
+      criticPromptHash: TEST_PROMPT_HASH,
       windowMs: 7 * 24 * 60 * 60 * 1000,
       followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
       nowMs: Date.parse("2026-04-20T12:00:00.000Z"),
@@ -393,6 +437,7 @@ describe("aggregateCalibration", () => {
     });
 
     const agg = aggregateCalibration(runsDir, {
+      criticPromptHash: TEST_PROMPT_HASH,
       windowMs: 7 * 24 * 60 * 60 * 1000,
       followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
       nowMs: Date.parse("2026-04-20T12:00:00.000Z"),
@@ -419,6 +464,7 @@ describe("aggregateCalibration", () => {
     });
 
     const agg = aggregateCalibration(runsDir, {
+      criticPromptHash: TEST_PROMPT_HASH,
       windowMs: 7 * 24 * 60 * 60 * 1000,
       followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
       nowMs: Date.parse("2026-04-20T12:00:00.000Z"),
@@ -427,32 +473,34 @@ describe("aggregateCalibration", () => {
     expect(agg.passContradictionCount).toBe(0);
   });
 
-  it("treats a pre-criticFailureCount artifact as zero critic failures", () => {
-    // Backward compatibility: an artifact written before the field existed
-    // must not silently inflate the contradiction count.
-    const olderRun = "2026-04-20T10-00-00-000Z-builder-a";
-    const laterRun = "2026-04-20T11-00-00-000Z-builder-b";
+  it("excludes pre-versioned artifacts that lack a criticPromptHash", () => {
+    // Pre-prompt-version artifacts on disk do not declare the hash. They
+    // were generated under an unknown critic prompt and cannot be safely
+    // aggregated against the running prompt's calibration. Filtering them
+    // out is the correct behavior — the alternative (treating them as
+    // matching) would let stale data dominate the rolling window after a
+    // prompt fix and re-fire the gate for the rest of the window.
     seedRun(runsDir, {
-      runId: olderRun,
-      completedAt: "2026-04-20T10:00:00.000Z",
+      runId: "2026-04-20T11-00-00-000Z-builder-current",
+      completedAt: "2026-04-20T11:00:00.000Z",
       verdict: "pass",
       sourceFilesChanged: ["src/core/a.ts"],
     });
-    // Write a later artifact missing the criticFailureCount field but with
-    // mechanical-iteration noise — this is the historical shape.
-    const legacyDir = join(runsDir, laterRun);
+    const legacyRun = "2026-04-20T10-00-00-000Z-builder-legacy";
+    const legacyDir = join(runsDir, legacyRun);
     mkdirSync(legacyDir, { recursive: true });
     writeFileSync(
       join(legacyDir, EVALUATOR_CALIBRATION_ARTIFACT),
       JSON.stringify({
-        runId: laterRun,
+        runId: legacyRun,
         workflow: "builder",
-        completedAt: "2026-04-20T11:00:00.000Z",
+        completedAt: "2026-04-20T10:00:00.000Z",
         verdict: "pass",
         warningCount: 0,
         criticalIssueCount: 0,
         repairIterations: 1,
-        finalIterationFailures: ["test"],
+        finalIterationFailures: [],
+        criticFailureCount: 0,
         terminalRunStatus: "success",
         taskId: null,
         taskFinalState: null,
@@ -461,12 +509,51 @@ describe("aggregateCalibration", () => {
     );
 
     const agg = aggregateCalibration(runsDir, {
+      criticPromptHash: TEST_PROMPT_HASH,
       windowMs: 7 * 24 * 60 * 60 * 1000,
       followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
       nowMs: Date.parse("2026-04-20T12:00:00.000Z"),
     });
+    // Only the seeded matching-hash artifact counts.
+    expect(agg.totalRuns).toBe(1);
+    expect(agg.byVerdict.pass).toBe(1);
+  });
+
+  it("excludes artifacts whose criticPromptHash does not match the running prompt", () => {
+    // A prior critic prompt (older hash) and the running critic prompt
+    // (current hash) coexist in the runs directory. Aggregation must only
+    // see runs from the running prompt — that is the contract that lets a
+    // prompt fix take effect immediately without dragging stale data into
+    // the rolling window.
+    seedRun(runsDir, {
+      runId: "2026-04-20T09-00-00-000Z-builder-old-prompt",
+      completedAt: "2026-04-20T09:00:00.000Z",
+      verdict: "pass_with_warnings",
+      sourceFilesChanged: ["src/core/a.ts"],
+      criticPromptHash: "olderpromptv0",
+    });
+    seedRun(runsDir, {
+      runId: "2026-04-20T10-00-00-000Z-builder-current-a",
+      completedAt: "2026-04-20T10:00:00.000Z",
+      verdict: "pass",
+      sourceFilesChanged: ["src/core/a.ts"],
+    });
+    seedRun(runsDir, {
+      runId: "2026-04-20T11-00-00-000Z-builder-current-b",
+      completedAt: "2026-04-20T11:00:00.000Z",
+      verdict: "pass",
+      sourceFilesChanged: ["src/core/a.ts"],
+    });
+
+    const agg = aggregateCalibration(runsDir, {
+      criticPromptHash: TEST_PROMPT_HASH,
+      windowMs: 7 * 24 * 60 * 60 * 1000,
+      followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
+      nowMs: Date.parse("2026-04-20T12:00:00.000Z"),
+    });
+    expect(agg.totalRuns).toBe(2);
     expect(agg.byVerdict.pass).toBe(2);
-    expect(agg.passContradictionCount).toBe(0);
+    expect(agg.byVerdict.pass_with_warnings).toBe(0);
   });
 
   it("flags pass_with_warnings escalation when the later overlapping run is itself hedging", () => {
@@ -484,6 +571,7 @@ describe("aggregateCalibration", () => {
     });
 
     const agg = aggregateCalibration(runsDir, {
+      criticPromptHash: TEST_PROMPT_HASH,
       windowMs: 7 * 24 * 60 * 60 * 1000,
       followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
       nowMs: Date.parse("2026-04-20T12:00:00.000Z"),
@@ -511,6 +599,7 @@ describe("aggregateCalibration", () => {
     });
 
     const agg = aggregateCalibration(runsDir, {
+      criticPromptHash: TEST_PROMPT_HASH,
       windowMs: 7 * 24 * 60 * 60 * 1000,
       followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
       nowMs: Date.parse("2026-04-20T12:00:00.000Z"),
@@ -536,6 +625,7 @@ describe("aggregateCalibration", () => {
     });
 
     const agg = aggregateCalibration(runsDir, {
+      criticPromptHash: TEST_PROMPT_HASH,
       windowMs: 7 * 24 * 60 * 60 * 1000,
       followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
       nowMs: Date.parse("2026-04-20T12:00:00.000Z"),
@@ -560,6 +650,7 @@ describe("aggregateCalibration", () => {
     });
 
     const agg = aggregateCalibration(runsDir, {
+      criticPromptHash: TEST_PROMPT_HASH,
       windowMs: 7 * 24 * 60 * 60 * 1000,
       followUpWindowMs: 2 * 24 * 60 * 60 * 1000,
       nowMs: Date.parse("2026-04-20T00:00:00.000Z"),
@@ -584,6 +675,7 @@ describe("aggregateCalibration", () => {
     });
 
     const agg = aggregateCalibration(runsDir, {
+      criticPromptHash: TEST_PROMPT_HASH,
       windowMs: 7 * 24 * 60 * 60 * 1000,
       followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
       nowMs: Date.parse("2026-04-20T00:00:00.000Z"),
@@ -593,6 +685,7 @@ describe("aggregateCalibration", () => {
 
   it("handles a missing runs directory by returning zeros", () => {
     const agg = aggregateCalibration(join(root, "does-not-exist"), {
+      criticPromptHash: TEST_PROMPT_HASH,
       nowMs: Date.parse("2026-04-20T00:00:00.000Z"),
     });
     expect(agg.totalRuns).toBe(0);

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import { CALIBRATION_REPAIR_TASK_ID } from "#modules/autonomy/calibration-repair.js";
+import { getCriticPromptHash } from "#modules/autonomy/critic.js";
 import {
   EVALUATOR_CALIBRATION_ARTIFACT,
   type EvaluatorCalibrationArtifact,
@@ -100,6 +101,10 @@ function seedCalibration(
     taskId: null,
     taskFinalState: null,
     sourceFilesChanged: overrides.sourceFilesChanged ?? [],
+    // Match the running critic prompt so the workflow's filtered aggregation
+    // counts these seeded runs. Cross-prompt-version filtering is exercised
+    // directly in evaluator-calibration.test.ts.
+    criticPromptHash: getCriticPromptHash(),
   };
   writeFileSync(
     join(runDir, EVALUATOR_CALIBRATION_ARTIFACT),

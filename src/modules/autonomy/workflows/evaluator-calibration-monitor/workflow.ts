@@ -29,6 +29,7 @@ import {
   proposeCalibrationRepair,
 } from "#modules/autonomy/calibration-repair.js";
 import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
+import { getCriticPromptHash } from "#modules/autonomy/critic.js";
 import {
   aggregateCalibration,
   type CalibrationDriftKind,
@@ -108,7 +109,9 @@ const inspectGate = typedCodeStep<GateInspection>({
       ),
     };
 
-    const aggregate = aggregateCalibration(runsDir);
+    const aggregate = aggregateCalibration(runsDir, {
+      criticPromptHash: getCriticPromptHash(),
+    });
     const decision = evaluateCalibrationGate(aggregate, config);
 
     return {

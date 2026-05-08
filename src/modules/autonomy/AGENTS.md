@@ -48,14 +48,15 @@ summaries live in run artifacts or `data/watchlist.yaml`.
 Fixture `pass^k` catches generator drift; per-run artifacts catch
 evaluator drift. Failure signal: `verdict==="fail"` or
 `criticFailureCount>0`. Mechanical repair is iteration noise. PWW
-escalation needs later overlap also failing. Drifts commit one path:
-create/recreate/promote `task-evaluator-calibration-drift-repair` in
+escalation needs later overlap also failing. Each artifact records
+the critic prompt hash; aggregation counts only matching-hash runs,
+so prompt edits reset the window. Drift commits one path: create/
+recreate/promote `task-evaluator-calibration-drift-repair` in
 `ready/`; regression bridges to attention digest. Critic blocks weak
-rendered evidence (including preflight-failure artifacts), placeholder
-tests, untracked compat shims, baseline-only ratchets (including
-hedged "if inadvertent" regressions), required-source dishonesty,
-untracked Done-When non-fulfillment, and runtime defects masked by
-missing test coverage.
+rendered evidence (preflight-only), placeholder tests, untracked
+compat shims, baseline ratchets (hedged "if inadvertent"), required-
+source dishonesty, untracked Done-When non-fulfillment, and runtime
+defects masked by missing test coverage.
 
 ## External Pattern Decisions
 
@@ -114,9 +115,9 @@ test enforces 1:1 match.
 `kota report` prints the operator balance/quality report. The
 strategic/fan-out heuristic in `task-classification.classifyTaskShape`
 inspects area + title + summary so surface-parity work filed under
-`architecture` / `modules` (macOS picker, web-UI form, Telegram
-command) classifies as fan-out. Per no-cost-bias-in-autonomy this
-output is operator-only and must not reach autonomy agents.
+`architecture`/`modules` classifies as fan-out. Per
+no-cost-bias-in-autonomy, this output is operator-only and must not
+reach autonomy agents.
 
 ## Multi-Client Fan-Out Consolidation
 
@@ -134,8 +135,8 @@ builder thrash:
 - **Builder gates on `autonomy.queue.available`** (ready+doing>0).
   Never fires on `runtime.idle`, never auto-consumes backlog.
 - **`backlog-promoter` records `promotion-rationale.json`** before
-  builder resumes. On `autonomy.queue.needs-promotion`, promotes 1–2
-  backlog tasks by priority → strategic-area → oldest `updated_at`.
+  builder resumes; promotes 1–2 backlog tasks by priority →
+  strategic-area → oldest `updated_at`.
 - **`explorer` repair-loop rejects commits without
   `exploration-rationale.json`** naming the decision (promote |
   decompose | create-task | noop | watchlist-only). `create-task`
