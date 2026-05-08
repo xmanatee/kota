@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   countRepoInboxEntries,
+  countRepoPromotableBacklogTasks,
   countRepoTaskState,
   getRepoTaskQueueSnapshot,
   isThinPullQueue,
@@ -38,6 +39,42 @@ describe("repo task helpers", () => {
     writeFileSync(join(projectDir, REPO_TASKS_DIR, "ready", "task-two.md"), "task");
 
     expect(countRepoTaskState(projectDir, "ready")).toBe(2);
+  });
+
+  it("counts only non-anchor backlog tasks as promotable", () => {
+    writeFileSync(
+      join(projectDir, REPO_TASKS_DIR, "backlog", "task-work.md"),
+      [
+        "---",
+        "id: task-work",
+        "title: Work",
+        "status: backlog",
+        "priority: p2",
+        "area: modules",
+        "summary: Work",
+        "updated_at: 2026-05-08T00:00:00.000Z",
+        "---",
+        "",
+      ].join("\n"),
+    );
+    writeFileSync(
+      join(projectDir, REPO_TASKS_DIR, "backlog", "task-anchor.md"),
+      [
+        "---",
+        "id: task-anchor",
+        "title: Anchor",
+        "status: backlog",
+        "priority: p2",
+        "area: architecture",
+        "summary: Anchor",
+        "updated_at: 2026-05-08T00:00:00.000Z",
+        "anchor: true",
+        "---",
+        "",
+      ].join("\n"),
+    );
+
+    expect(countRepoPromotableBacklogTasks(projectDir)).toBe(1);
   });
 
   it("summarizes the open task queue by state", () => {

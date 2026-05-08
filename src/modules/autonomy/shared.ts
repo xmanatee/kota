@@ -44,9 +44,13 @@ export const READY_TASK_TARGET = 4;
 export const BACKLOG_TASK_TARGET = 8;
 export const AUTONOMY_DISALLOWED_TOOLS = ["Agent", "Task", "EnterWorktree", "ExitWorktree"];
 export const AUTONOMY_AGENT_HANG_TIMEOUT_MS = 3 * 60 * 60 * 1000;
+const ACTIVE_AUTONOMY_PRESET = resolvePreset({ env: process.env[PRESET_ENV_VAR] })
+  .preset;
 // Shipped autonomy workflows must boot in a fresh clone with no operator-local
-// `.kota/config.json`, so their harness stays explicit in code.
-export const AUTONOMY_AGENT_HARNESS = "claude-agent-sdk";
+// `.kota/config.json`, so they resolve through the shipped default preset when
+// KOTA_PRESET is unset. When KOTA_PRESET is set, harness + model + effort move
+// together and cannot form a cross-provider tuple.
+export const AUTONOMY_AGENT_HARNESS = ACTIVE_AUTONOMY_PRESET.harness;
 
 // Tier the autonomy fleet runs at. `tier: "capable"` is what every autonomy
 // workflow agent step consumes; the workflow validator resolves it through
@@ -65,11 +69,10 @@ export const AUTONOMY_AGENT_TIER = "capable" as const;
 function buildAutonomyAgentDefaults(): Pick<AgentDef, "model" | "effort"> & {
   tier: typeof AUTONOMY_AGENT_TIER;
 } {
-  const { preset } = resolvePreset({ env: process.env[PRESET_ENV_VAR] });
   return {
     tier: AUTONOMY_AGENT_TIER,
-    model: resolveTierModel(preset, AUTONOMY_AGENT_TIER),
-    effort: preset.defaultEffort,
+    model: resolveTierModel(ACTIVE_AUTONOMY_PRESET, AUTONOMY_AGENT_TIER),
+    effort: ACTIVE_AUTONOMY_PRESET.defaultEffort,
   };
 }
 

@@ -6,7 +6,7 @@ priority: p2
 area: architecture
 summary: Add a daemon integration test that boots one daemon configured with two projects, runs a workflow in each, and asserts events, runs, sessions, owner questions, and approvals never cross projectId boundaries.
 created_at: 2026-05-08T00:57:07.098Z
-updated_at: 2026-05-08T04:21:12.046Z
+updated_at: 2026-05-08T16:30:00.000Z
 ---
 
 ## Problem
@@ -85,17 +85,17 @@ daemon control contract.
 
 ```
 kind: task-done
-ref: task-add-projectid-to-every-event-bus-payload
+ref: task-thread-projectid-through-module-event-emits
 ```
 
-Promote this task to `ready/` when the event-bus projectId slice lands
+Promote this task to `ready/` when the final event-bus projectId sub-slice lands
 in `done/`. The Done-When list explicitly requires the test to assert
 "every emitted event ... carries the correct `projectId` and none cross
 the boundary"; without slice 3 the bus payload has no `projectId` field
 to assert against, so the test cannot honestly exercise the contract
 the prior three slices were meant to deliver. Slice 4 (control-API
 projectId routing) and slice 2 (per-project ProjectRuntime bundle) have
-already landed in `done/`; only slice 3 (in `blocked/` on owner
-decision) gates this isolation test. Builder run
+already landed in `done/`; only the decomposed event-bus projectId sweep
+gates this isolation test. Builder run
 `2026-05-08T04-15-47-506Z-builder-qxep1j` re-blocked this task after
 backlog-promoter promoted it on the strength of slice 4 alone.

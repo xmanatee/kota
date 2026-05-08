@@ -99,7 +99,10 @@ Dispatcher emits queue-shape events distinguishing actionable from
 backlog-only state:
 
 - `autonomy.queue.available` — actionable (`ready` + `doing`) exists; builder gates on this.
-- `autonomy.queue.needs-promotion` — actionable=0, backlog>0; `backlog-promoter` consumes this and writes a deterministic promotion rationale before builder resumes.
+- `autonomy.queue.needs-promotion` — actionable=0 and at least one non-anchor
+  backlog task exists; `backlog-promoter` consumes this and writes a
+  deterministic promotion rationale before builder resumes. Strategic anchors
+  do not count as promotable work.
 - `autonomy.queue.empty` / `autonomy.queue.thin` — broader health signals routed to explorer.
 
 Builder must never silently consume the backlog — the rationale is the

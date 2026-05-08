@@ -299,10 +299,11 @@ describe("preset-parity model-id sweep — autonomy fleet defaults rebuild per a
   });
 
   for (const preset of listShippedPresets()) {
-    it(`preset=${preset.id}: AUTONOMY_AGENT_DEFAULTS.model resolves to ${preset.tiers.capable}`, async () => {
+    it(`preset=${preset.id}: autonomy harness and model resolve from the same preset`, async () => {
       process.env[PRESET_ENV_VAR] = preset.id;
       vi.resetModules();
       const fresh = await import("#modules/autonomy/shared.js");
+      expect(fresh.AUTONOMY_AGENT_HARNESS).toBe(preset.harness);
       expect(fresh.AUTONOMY_AGENT_DEFAULTS.model).toBe(preset.tiers.capable);
       expect(fresh.AUTONOMY_AGENT_DEFAULTS.effort).toBe(preset.defaultEffort);
       expect(fresh.AUTONOMY_AGENT_DEFAULTS.tier).toBe("capable");

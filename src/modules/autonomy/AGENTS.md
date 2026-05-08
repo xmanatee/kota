@@ -11,9 +11,11 @@ This module owns the project autonomous development loop.
   retract or narrow when code, behavior, or ownership changes.
 - Workflow prompts stay role-focused. Shared policy belongs in this
   module's `AGENTS.md` hierarchy.
-- Shipped autonomy workflows declare their harness in code so the repo
-  boots cleanly without an operator `.kota/config.json`. Generic project
-  workflows may still inherit `KotaConfig.defaultAgentHarness`.
+- Shipped autonomy workflows declare their harness through the active shipped
+  preset in code, so the repo boots cleanly without an operator
+  `.kota/config.json` while `KOTA_PRESET` moves harness, model, and effort as
+  one tuple. Generic project workflows may still inherit
+  `KotaConfig.defaultAgentHarness`.
 - Judges inside a repair loop inherit the parent step's resolved harness, not
   a parallel fallback.
 

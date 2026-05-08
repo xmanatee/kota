@@ -107,6 +107,11 @@ export function getRepoTaskQueueSnapshot(
   };
 }
 
+export function countRepoPromotableBacklogTasks(projectDir: string): number {
+  return listFullRepoTasks(projectDir, ["backlog"]).filter((record) => !record.anchor)
+    .length;
+}
+
 export function isThinPullQueue(snapshot: RepoTaskQueueSnapshot): boolean {
   const waitingCount = snapshot.counts.ready + snapshot.counts.backlog;
   return (

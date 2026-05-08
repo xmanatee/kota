@@ -1,5 +1,6 @@
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
+  countRepoPromotableBacklogTasks,
   getRepoTaskQueueSnapshot,
   isThinPullQueue,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
@@ -24,14 +25,17 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
       type: "code",
       run: ({ projectDir, emit }) => {
         const queue = getRepoTaskQueueSnapshot(projectDir);
+        const promotableBacklogCount = countRepoPromotableBacklogTasks(projectDir);
         const queueEmpty = queue.inboxCount === 0 && queue.pullableCount === 0;
         const queueThin = isThinPullQueue(queue);
         // Builder runs only on actionable (ready+doing) work; backlog-only
-        // queues route through `autonomy.queue.needs-promotion` so a deliberate
-        // promotion decision lands first.
+        // queues route through `autonomy.queue.needs-promotion` only when at
+        // least one backlog task can actually be promoted. Strategic anchors
+        // stay in backlog as tracking records and must not keep waking the
+        // promoter forever.
         const queueActionable = queue.actionableCount > 0;
         const queueNeedsPromotion =
-          queue.actionableCount === 0 && queue.counts.backlog > 0;
+          queue.actionableCount === 0 && promotableBacklogCount > 0;
 
         if (queue.inboxCount > 0) {
           emit("autonomy.inbox.available", { inboxCount: queue.inboxCount });
@@ -46,6 +50,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
         if (queueNeedsPromotion) {
           emit("autonomy.queue.needs-promotion", {
             backlogCount: queue.counts.backlog,
+            promotableBacklogCount,
             counts: queue.counts,
           });
         }
@@ -63,6 +68,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           inboxCount: queue.inboxCount,
           pullableCount: queue.pullableCount,
           actionableCount: queue.actionableCount,
+          promotableBacklogCount,
           emitted: [
             queue.inboxCount > 0 && "autonomy.inbox.available",
             queueActionable && "autonomy.queue.available",

@@ -88,19 +88,12 @@ same daemon control contract.
   selector + per-project view.
 - Contract-fixture diff and updated Swift/TS decoders.
 
-Operator-capture precondition: the iOS and macOS screenshots may
-require an operator with the build environment to capture. If the
-builder cannot produce those captures headlessly, document the
-captures inline and refresh an `operator-capture` instruction marker
-rather than completing without the artifact.
+Completed evidence:
 
-## Unblock Precondition
-
-```
-kind: task-done
-ref: task-add-web-client-project-selector-and-project-scoped
-```
-
-Promote this task to `ready/` when the web client selector lands in
-`done/`. By that point the daemon foundation, CLI, and web surfaces
-have all proven the contract; native clients are pure parity work.
+- `.kota/runs/2026-05-08T05-03-17-068Z-builder-26wdzw/rendered-project-selector-states.txt`
+  covers the Swift shared project-selector render states used by macOS/iOS.
+- `.kota/runs/2026-05-08T05-03-17-068Z-builder-26wdzw/rendered-mobile-project-selector.json`
+  covers the React Native mobile selector render state.
+- The CLI daemon-mode selector remains a separate blocked follow-up
+  (`task-add-cli-daemon-mode-project-selector-and-project-s`) because CLI
+  event filtering depends on the still-blocked event-bus `projectId` slice.

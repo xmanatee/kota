@@ -6,18 +6,8 @@ priority: p1
 area: architecture
 summary: Move KotaClient namespace type declarations and DaemonControlClient wire code from src/core/server/kota-client.ts and src/core/server/daemon-client.ts into the owning modules so the central files become thin protocol surfaces, mirroring the existing module-owned localClient(ctx) factory.
 created_at: 2026-04-25T23:45:34.278Z
-updated_at: 2026-05-05T08:20:21.763Z
+updated_at: 2026-05-08T16:30:00.000Z
 ---
-
-## Unblock Precondition
-
-```
-kind: owner-decision
-slot: kotaclient-namespace-distribution-chunking
-question: Should this 3500-line cross-23-namespace refactor land in (a) one cohesive builder run, (b) a foundation task plus 23 per-namespace migration sub-tasks, (c) 2-3 batched sub-tasks (foundation + first half + second half), or (d) foundation plus a pilot namespace plus follow-up migrations?
-context: kota-client.ts is 1477 lines and daemon-client.ts is 1893 lines; DaemonControlClient has 104 references across the repo and ~20 of its public non-namespace transport methods (getDaemonStatus, pause, events, voiceTranscribe, registerSession, queryEvents, ...) are consumed directly by route handlers in webhook, workflow-ops, module-manager, commands, push-notification, and voice modules. Driving daemon-client.ts under the 300-line guideline therefore also requires refactoring those route handlers, not just relocating namespace closures. The task's "Done When" criteria are all-or-nothing (both files <300 lines, every namespace migrated, full CLI parity transcripts, guard test); a single autonomous builder run is unlikely to land that without leaving partial state. Owner question 41f97b38 asked on 2026-04-26. Recommended: decompose_into_foundation_plus_pilot_namespace_then_followups — see ## Decomposition Proposal in the body for the foundation shape (daemonClient hook + route-handler refactor) and the pilot-namespace contract that lets the remaining 22 namespaces fan out as independent backlog tasks once the pattern is in tree.
-proposed_answers: attempt_full_in_one_run, decompose_into_foundation_plus_per_namespace_subtasks, decompose_into_2_or_3_batched_subtasks, decompose_into_foundation_plus_pilot_namespace_then_followups, unblock
-```
 
 ## Problem
 

@@ -86,12 +86,9 @@ same daemon control contract.
 - The Playwright (or equivalent) integration test exercising a
   selector-driven project switch.
 
-## Unblock Precondition
+Completed evidence:
 
-```
-kind: task-done
-ref: task-add-daemon-project-registry-and-projectid-attribut
-```
-
-Promote this task to `ready/` when the daemon-foundation task lands in
-`done/`. The web selector consumes that task's typed registry endpoints.
+- `.kota/runs/2026-05-08T04-29-40-532Z-builder-gk23fs/web-project-selector-alpha.html`
+- `.kota/runs/2026-05-08T04-29-40-532Z-builder-gk23fs/web-project-selector-beta.html`
+  capture the rendered selector states produced by the project-context
+  integration coverage.

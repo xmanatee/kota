@@ -1,12 +1,13 @@
 ---
 id: task-add-projectid-to-every-event-bus-payload
 title: Add projectId to every event-bus payload
-status: blocked
+status: backlog
 priority: p2
 area: architecture
 summary: Add a typed projectId field (or envelope) to every daemon-emitted bus event payload so downstream consumers can route, scope, and persist by project.
 created_at: 2026-05-08T00:57:06.459Z
-updated_at: 2026-05-08T03:38:53.642Z
+updated_at: 2026-05-08T16:30:00.000Z
+anchor: true
 ---
 
 ## Problem
@@ -68,15 +69,22 @@ Builder run `2026-05-08T03-28-53-940Z-builder-9wb0tj` measured the
 repo-wide impact at 179 `emit` call sites across 53 source files plus
 37 test files. Landing the change as a single sweep would either
 break the build for hours or require introducing the explicitly-
-forbidden nullable `projectId?` shim, so the run blocked the slice
-for owner direction instead. A full decomposition proposal is
-captured under
-`.kota/runs/2026-05-08T03-28-53-940Z-builder-9wb0tj/decomposition-proposal.md`.
-If the answer is "decompose", spawn the 3a (protocol primitives +
-isolation test), 3b (core daemon + workflow-runtime emit sites), and
-3c (module events + remaining production / test sweep) sub-tasks and
-convert this task into a strategic anchor (`anchor: true`)
-referencing them.
+forbidden nullable `projectId?` shim, so the correct implementation
+shape is decomposed.
+
+2026-05-08 decision: decompose into sequenced sub-slices and keep this
+file as the strategic anchor. This avoids a huge unsafe sweep, avoids
+nullable compatibility shims, and gives the queue actionable work
+without waiting on an owner-decision blocker.
+
+Sub-slices:
+
+1. `task-event-bus-projectid-protocol-primitives` — protocol primitive,
+   typed event scope shape, and focused two-project isolation test.
+2. `task-thread-projectid-through-core-daemon-event-emits` — core daemon,
+   workflow runtime, and daemon-owned emit sites.
+3. `task-thread-projectid-through-module-event-emits` — module-defined
+   events plus the remaining production/test sweep.
 
 ## Initiative
 
@@ -90,15 +98,3 @@ daemon control contract.
   through the typed payload shape.
 - Type-check pass shows no nullable `projectId?` introduced into
   project-scoped event shapes.
-
-## Unblock Precondition
-
-```
-kind: owner-decision
-slot: 5b6c20dd
-question: Should slice 3 be decomposed into 3a (protocol primitives + isolation test), 3b (core daemon + workflow-runtime emit sites), and 3c (module events + remaining production / test sweep), or pushed through as a single sweep?
-context: Builder measured 179 emit call sites across 53 source files plus 37 test files; a single-sweep landing would break the build for hours or require the forbidden nullable projectId shim. Full proposal at .kota/runs/2026-05-08T03-28-53-940Z-builder-9wb0tj/decomposition-proposal.md.
-proposed_answers: decompose, single-sweep, unblock
-```
-
-<!-- blocked-promoter-asked: slot=5b6c20dd last_asked_at=2026-05-08T03:56:22.281Z -->

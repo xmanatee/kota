@@ -1,10 +1,10 @@
 # backlog-promoter
 
 This workflow keeps `ready/` honest as the short execution queue. When the
-dispatcher reports actionable=0 with backlog>0 (`autonomy.queue.needs-promotion`)
-this workflow deterministically promotes a small batch of the best backlog
-candidates so builder runs land on intentionally selected work, not on whatever
-backlog ordering happens to produce.
+dispatcher reports actionable=0 with at least one non-anchor backlog task
+(`autonomy.queue.needs-promotion`) this workflow deterministically promotes a
+small batch of the best backlog candidates so builder runs land on intentionally
+selected work, not on whatever backlog ordering happens to produce.
 
 Runtime contract:
 

@@ -6,7 +6,7 @@ priority: p2
 area: architecture
 summary: Once the daemon can manage multiple project roots, native/web/CLI clients need a first-class project selector and per-project view so operators can supervise more than one repo at a time
 created_at: 2026-04-18T00:40:56.393Z
-updated_at: 2026-05-08T03:23:37.282Z
+updated_at: 2026-05-08T16:30:00.000Z
 anchor: true
 ---
 
@@ -99,7 +99,10 @@ end-to-end fulfillment.
    push-token store to per-project bundles; add a typed invariant test
    that rejects new singleton store bindings.
 3. **`projectId` on every event-bus payload** —
-   `task-add-projectid-to-every-event-bus-payload`. Typed envelope (or
+   `task-add-projectid-to-every-event-bus-payload` is now a strategic
+   anchor decomposed into `task-event-bus-projectid-protocol-primitives`,
+   `task-thread-projectid-through-core-daemon-event-emits`, and
+   `task-thread-projectid-through-module-event-emits`. Typed envelope (or
    field) on every project-scoped event; cross-project events declare a
    distinct typed shape.
 4. **`projectId` on every control-API route + decoder updates** —

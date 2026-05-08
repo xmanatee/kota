@@ -6,7 +6,7 @@ priority: p2
 area: client
 summary: Add a project selector and project-scoped views to the CLI daemon-mode commands so kota status, kota session, and kota events show one project at a time once the daemon hosts multiple project runtimes.
 created_at: 2026-05-07T23:59:57.549Z
-updated_at: 2026-05-08T04:21:08.981Z
+updated_at: 2026-05-08T16:30:00.000Z
 ---
 
 ## Problem
@@ -87,14 +87,13 @@ same daemon control contract.
 
 ```
 kind: task-done
-ref: task-add-projectid-to-every-event-bus-payload
+ref: task-thread-projectid-through-module-event-emits
 ```
 
-Promote this task to `ready/` when the event-bus projectId slice lands
+Promote this task to `ready/` when the final event-bus projectId sub-slice lands
 in `done/`. The CLI's `kota events --follow --project <id>` filter
 requires events to carry `projectId`; without slice 3 there is no field
 on the SSE payload to scope the stream against. Builder run
 `2026-05-08T04-15-47-506Z-builder-qxep1j` re-blocked this task after
 the original precondition (the foundation registry slice) auto-promoted
-it to ready while slice 3 (event-bus projectId) remained blocked on
-owner-decision.
+it to ready while the event-bus projectId sweep was not yet decomposed.
