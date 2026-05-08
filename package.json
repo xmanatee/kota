@@ -37,6 +37,7 @@
     "typecheck": "tsc --noEmit",
     "test": "NODE_OPTIONS=--conditions=source vitest run",
     "test:workflow-critical": "NODE_OPTIONS=--conditions=source vitest run src/modules/claude-agent-harness/executor.test.ts src/core/events/event-bus.test.ts src/core/loop/instruction-files.test.ts src/modules/daemon-ops/index.test.ts src/daemon.integration.test.ts src/task-files.test.ts src/workflow-runtime.integration.test.ts src/workflow-validation.integration.test.ts",
+    "test:preset-parity": "NODE_OPTIONS=--conditions=source vitest run src/preset-parity-model-sweep.integration.test.ts src/preset-parity.integration.test.ts",
     "lint": "biome check src/",
     "lint:fix": "biome check --write src/",
     "build:schema": "NODE_OPTIONS=--conditions=source tsx src/core/config/build-schema.ts",

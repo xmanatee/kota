@@ -1,12 +1,12 @@
 ---
 id: task-add-cross-preset-runtime-parity-gate
 title: Add cross-preset runtime parity gate
-status: ready
+status: blocked
 priority: p2
 area: architecture
 summary: Add a single test target that boots the daemon under each shipped preset and runs an operator-shaped scenario (boot, single-turn, tool-use, capture, workflow agent step, autonomy turn) so cross-preset parity is verifiable, not nominal.
 created_at: 2026-05-07T23:36:27.797Z
-updated_at: 2026-05-08T01:08:00.514Z
+updated_at: 2026-05-08T02:46:12.312Z
 ---
 
 ## Problem
@@ -178,3 +178,24 @@ Siblings: `task-introduce-harness-preset-abstraction`,
 - Bedrock / Vertex / OpenRouter providers. Ship the gate against
   the three primary presets first; downstream providers join
   once the shape is proven.
+
+## Unblock Precondition
+
+```
+kind: operator-capture
+path: .kota/runs/preset-parity-all-keys-set/
+description: operator-facilitated capture of two `pnpm test:preset-parity` transcripts on a host where all three preset authEnv vars are set — first run with claude+codex+gemini all green; second run with one env var unset showing only that preset's preflight cleanly fail and the other two scenarios passing. Capture each invocation's stdout/stderr at .kota/runs/preset-parity-all-keys-set/{all-green,one-unset}/transcript.txt with the per-preset .kota/runs/<test-stamp>/preset-parity/<preset-id>/{preflight.json,transcript.txt,result.json} artifacts copied alongside.
+```
+
+The gate scaffolding is already shipped: `src/preset-parity-model-sweep.integration.test.ts`
+(stand-alone fast-feedback model-id sweep, 35/35 green without provider keys),
+`src/preset-parity.integration.test.ts` (per-preset preflight + parameterized
+single-turn scenario gate), the `pnpm test:preset-parity` script, and per-preset
+artifact recording under `.kota/runs/<run-id>/preset-parity/<preset-id>/`. The
+no-keys-set transcript captured during the implementation builder run
+demonstrates the preflight mechanism works (all three preflights fail loudly
+with actionable per-preset messages, all three scenario tests cleanly skip
+with the missing-env reason in the test name, the model-sweep test stays
+green). The two on-host transcripts the task contracts for require real
+ANTHROPIC_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY (or GOOGLE_API_KEY) and
+must be operator-captured.
