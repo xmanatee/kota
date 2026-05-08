@@ -1,12 +1,12 @@
 ---
 id: task-add-cli-daemon-mode-project-selector-and-project-s
 title: Add CLI daemon-mode project selector and project-scoped views
-status: backlog
+status: ready
 priority: p2
 area: client
 summary: Add a project selector and project-scoped views to the CLI daemon-mode commands so kota status, kota session, and kota events show one project at a time once the daemon hosts multiple project runtimes.
 created_at: 2026-05-07T23:59:57.549Z
-updated_at: 2026-05-08T01:08:33.005Z
+updated_at: 2026-05-08T04:15:15.309Z
 ---
 
 ## Problem

@@ -1,12 +1,12 @@
 ---
 id: task-add-multi-project-daemon-isolation-integration-tes
 title: Add multi-project daemon isolation integration test
-status: backlog
+status: ready
 priority: p2
 area: architecture
 summary: Add a daemon integration test that boots one daemon configured with two projects, runs a workflow in each, and asserts events, runs, sessions, owner questions, and approvals never cross projectId boundaries.
 created_at: 2026-05-08T00:57:07.098Z
-updated_at: 2026-05-08T00:57:07.098Z
+updated_at: 2026-05-08T04:15:15.287Z
 ---
 
 ## Problem
