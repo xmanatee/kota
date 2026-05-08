@@ -1,12 +1,12 @@
 ---
 id: task-add-projectid-to-every-event-bus-payload
 title: Add projectId to every event-bus payload
-status: ready
+status: blocked
 priority: p2
 area: architecture
 summary: Add a typed projectId field (or envelope) to every daemon-emitted bus event payload so downstream consumers can route, scope, and persist by project.
 created_at: 2026-05-08T00:57:06.459Z
-updated_at: 2026-05-08T03:28:21.686Z
+updated_at: 2026-05-08T03:38:53.642Z
 ---
 
 ## Problem
@@ -64,6 +64,20 @@ supervision (parent: `task-surface-project-selection-in-operator-clients-for-`,
 foundation: `task-add-daemon-project-registry-and-projectid-attribut`).
 Builds on the registry primitive and the per-project bundle factory.
 
+Builder run `2026-05-08T03-28-53-940Z-builder-9wb0tj` measured the
+repo-wide impact at 179 `emit` call sites across 53 source files plus
+37 test files. Landing the change as a single sweep would either
+break the build for hours or require introducing the explicitly-
+forbidden nullable `projectId?` shim, so the run blocked the slice
+for owner direction instead. A full decomposition proposal is
+captured under
+`.kota/runs/2026-05-08T03-28-53-940Z-builder-9wb0tj/decomposition-proposal.md`.
+If the answer is "decompose", spawn the 3a (protocol primitives +
+isolation test), 3b (core daemon + workflow-runtime emit sites), and
+3c (module events + remaining production / test sweep) sub-tasks and
+convert this task into a strategic anchor (`anchor: true`)
+referencing them.
+
 ## Initiative
 
 Multi-project operator supervision: one daemon hosts project-scoped
@@ -76,3 +90,13 @@ daemon control contract.
   through the typed payload shape.
 - Type-check pass shows no nullable `projectId?` introduced into
   project-scoped event shapes.
+
+## Unblock Precondition
+
+```
+kind: owner-decision
+slot: 5b6c20dd
+question: Should slice 3 be decomposed into 3a (protocol primitives + isolation test), 3b (core daemon + workflow-runtime emit sites), and 3c (module events + remaining production / test sweep), or pushed through as a single sweep?
+context: Builder measured 179 emit call sites across 53 source files plus 37 test files; a single-sweep landing would break the build for hours or require the forbidden nullable projectId shim. Full proposal at .kota/runs/2026-05-08T03-28-53-940Z-builder-9wb0tj/decomposition-proposal.md.
+proposed_answers: decompose, single-sweep, unblock
+```
