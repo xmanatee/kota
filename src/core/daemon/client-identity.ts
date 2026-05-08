@@ -12,6 +12,7 @@
 
 import { basename } from "node:path";
 import type { CapabilityReadinessResponse } from "./capability-readiness.js";
+import type { ProjectRegistryProjection } from "./project-registry.js";
 
 /**
  * Stable capability id the daemon's `web` module registers when the
@@ -57,11 +58,15 @@ export type ClientDashboardAvailability =
 /**
  * Typed identity payload returned by `GET /identity`.
  *
- * - `projectName` is a short label derived from the project directory's
- *   basename. It is stable for one project but is not unique across
- *   different roots with the same final segment — `projectDir` is the
- *   authoritative identity.
- * - `projectDir` is the absolute path the daemon was launched against.
+ * - `projectName` is a short label derived from the *default* project's
+ *   directory basename. Single-project KOTA renders this directly; in a
+ *   multi-project daemon clients should look up the active project from
+ *   `projects` instead of treating this as authoritative.
+ * - `projectDir` is the absolute path of the default project. Same caveat
+ *   as `projectName` for multi-project daemons.
+ * - `projects` is the typed {@link ProjectRegistryProjection} every client
+ *   uses to render a project selector. Clients must not derive the project
+ *   list from `.kota/` files or from the singular fields above.
  * - `daemonVersion` mirrors the version string `GET /health` reports.
  * - `pid` and `startedAt` mirror `daemon-state.json` so a client can tell
  *   "same daemon" from "daemon was restarted".
@@ -71,6 +76,7 @@ export type ClientDashboardAvailability =
 export type ClientIdentity = {
   projectName: string;
   projectDir: string;
+  projects: ProjectRegistryProjection;
   daemonVersion: string;
   pid: number;
   startedAt: string;
@@ -104,6 +110,7 @@ export function buildClientIdentity(opts: {
   pid: number;
   startedAt: string;
   capabilities: CapabilityReadinessResponse;
+  projects: ProjectRegistryProjection;
 }): ClientIdentity {
   const dashboardCap = opts.capabilities.capabilities.find(
     (c) => c.id === DASHBOARD_CAPABILITY_ID,
@@ -128,6 +135,7 @@ export function buildClientIdentity(opts: {
   return {
     projectName: basename(opts.projectDir) || opts.projectDir,
     projectDir: opts.projectDir,
+    projects: opts.projects,
     daemonVersion: DAEMON_PROTOCOL_VERSION,
     pid: opts.pid,
     startedAt: opts.startedAt,

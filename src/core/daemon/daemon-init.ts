@@ -152,6 +152,8 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     sessions,
     runStore,
     projectDir,
+    projectRegistry,
+    projectRuntimes,
     config: { config: config.config, verbose: config.verbose },
     log,
     getModuleHealthChecks: () => ctx.moduleHealthChecks,

@@ -100,3 +100,5 @@ question: Should slice 3 be decomposed into 3a (protocol primitives + isolation 
 context: Builder measured 179 emit call sites across 53 source files plus 37 test files; a single-sweep landing would break the build for hours or require the forbidden nullable projectId shim. Full proposal at .kota/runs/2026-05-08T03-28-53-940Z-builder-9wb0tj/decomposition-proposal.md.
 proposed_answers: decompose, single-sweep, unblock
 ```
+
+<!-- blocked-promoter-asked: slot=5b6c20dd last_asked_at=2026-05-08T03:56:22.281Z -->

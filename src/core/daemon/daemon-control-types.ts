@@ -6,6 +6,18 @@ import type { WorkflowAgentBackoffState } from "#core/workflow/trigger-types.js"
 import type { CapabilityReadinessResponse } from "./capability-readiness.js";
 import type { ClientIdentity } from "./client-identity.js";
 import type { DaemonState } from "./daemon-state.js";
+import type { ProjectId, ProjectRegistryProjection } from "./project-registry.js";
+
+/**
+ * Typed wire-shape for the daemon's "unknown projectId" rejection on a
+ * project-scoped route. Built by `daemon-control-utils` when the route
+ * validates `?projectId=` and the id does not match a configured project.
+ */
+export type UnknownProjectError = {
+  error: "Unknown project";
+  reason: "unknown_project";
+  projectId: string;
+};
 
 export type { ChannelStatus };
 
@@ -189,26 +201,42 @@ export type HealthStatus = {
 export type DaemonControlHandle = {
   getDaemonLiveState(): DaemonState & { running: boolean };
   getHealthStatus(): HealthStatus;
-  getWorkflowLiveStatus(): WorkflowLiveStatus;
+  /**
+   * Live status for a single project's workflow runtime. `projectId` is
+   * optional; when omitted the daemon resolves the registry's default
+   * project. The caller is responsible for validating the id beforehand
+   * via {@link DaemonControlHandle.hasProject} — handle methods that
+   * receive an unknown id throw, since route handlers translate the typed
+   * "unknown_project" rejection to a 404 *before* dispatching.
+   */
+  getWorkflowLiveStatus(projectId?: ProjectId): WorkflowLiveStatus;
   /** Snapshot of every contributed channel's startup posture. */
   listChannelStatuses(): ChannelStatus[];
-  pauseWorkflowDispatch(): { already: boolean };
-  resumeWorkflowDispatch(): { already: boolean };
-  abortActiveRuns(): { aborted: number };
-  abortActiveRun(runId: string): { ok: boolean; notFound?: boolean; queued?: boolean };
-  reloadWorkflowDefinitions(): { count: number };
+  /** Typed projection of the daemon's configured project registry. */
+  getProjectRegistryProjection(): ProjectRegistryProjection;
+  /**
+   * True when `projectId` matches a configured project. Route handlers
+   * call this before invoking a project-scoped handle method so they can
+   * 404 with the unknown id surfaced explicitly to the caller.
+   */
+  hasProject(projectId: string): boolean;
+  pauseWorkflowDispatch(projectId?: ProjectId): { already: boolean };
+  resumeWorkflowDispatch(projectId?: ProjectId): { already: boolean };
+  abortActiveRuns(projectId?: ProjectId): { aborted: number };
+  abortActiveRun(runId: string, projectId?: ProjectId): { ok: boolean; notFound?: boolean; queued?: boolean };
+  reloadWorkflowDefinitions(projectId?: ProjectId): { count: number };
   reloadConfig(): Promise<{ workflows: number; changedModules: string[] }>;
-  getWorkflowDefinitions(): WorkflowDefinitionSummary[];
-  enableWorkflow(name: string): { ok: boolean; notFound?: boolean };
-  disableWorkflow(name: string): { ok: boolean; notFound?: boolean };
-  enqueuePendingRun(name: string, tags?: string[], extraPayload?: Record<string, unknown>): { ok: boolean; queued?: string; runId?: string; alreadyQueued?: boolean; error?: string };
-  cancelQueuedRun(runId: string): { ok: boolean; notFound?: boolean; active?: boolean };
+  getWorkflowDefinitions(projectId?: ProjectId): WorkflowDefinitionSummary[];
+  enableWorkflow(name: string, projectId?: ProjectId): { ok: boolean; notFound?: boolean };
+  disableWorkflow(name: string, projectId?: ProjectId): { ok: boolean; notFound?: boolean };
+  enqueuePendingRun(name: string, tags?: string[], extraPayload?: Record<string, unknown>, projectId?: ProjectId): { ok: boolean; queued?: string; runId?: string; alreadyQueued?: boolean; error?: string };
+  cancelQueuedRun(runId: string, projectId?: ProjectId): { ok: boolean; notFound?: boolean; active?: boolean };
   subscribeToEvents(handler: (event: DaemonSseEvent) => void): () => void;
   // Workflow runs
-  listWorkflowRuns(workflow?: string, limit?: number, tag?: string, causedByRunId?: string): WorkflowRunSummary[];
-  getWorkflowRun(id: string): WorkflowRunDetail | null;
+  listWorkflowRuns(opts?: { workflow?: string; limit?: number; tag?: string; causedByRunId?: string; projectId?: ProjectId }): WorkflowRunSummary[];
+  getWorkflowRun(id: string, projectId?: ProjectId): WorkflowRunDetail | null;
   // Metrics
-  getWorkflowMetricCounts(): WorkflowMetricCounts;
+  getWorkflowMetricCounts(projectId?: ProjectId): WorkflowMetricCounts;
   // Capability readiness
   probeCapabilityReadiness(): Promise<CapabilityReadinessResponse>;
   // Thin-client identity (project + dashboard availability)
@@ -216,7 +244,7 @@ export type DaemonControlHandle = {
   // Interactive sessions
   registerSession(id: string, createdAt: string, autonomyMode: AutonomyMode): void;
   unregisterSession(id: string): void;
-  listSessions(): InteractiveSession[];
+  listSessions(projectId?: ProjectId): InteractiveSession[];
   /**
    * Change a registered session's autonomy mode. Returns `{ ok: true }` when
    * the daemon owns an `AgentSession` it can mutate, or when it is able to

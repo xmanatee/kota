@@ -1,13 +1,23 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { DaemonControlHandle } from "./daemon-control-types.js";
-import { jsonResponse, readBody } from "./daemon-control-utils.js";
+import { jsonResponse, readBody, resolveProjectIdParam } from "./daemon-control-utils.js";
 
-export function handleGetWorkflowStatus(handle: DaemonControlHandle, res: ServerResponse): void {
-  jsonResponse(res, 200, handle.getWorkflowLiveStatus());
+export function handleGetWorkflowStatus(handle: DaemonControlHandle, res: ServerResponse, url: URL): void {
+  const scope = resolveProjectIdParam(handle, url);
+  if (!scope.ok) {
+    jsonResponse(res, 404, scope.error);
+    return;
+  }
+  jsonResponse(res, 200, handle.getWorkflowLiveStatus(scope.projectId));
 }
 
-export function handleGetWorkflowDefinitions(handle: DaemonControlHandle, res: ServerResponse): void {
-  jsonResponse(res, 200, { definitions: handle.getWorkflowDefinitions() });
+export function handleGetWorkflowDefinitions(handle: DaemonControlHandle, res: ServerResponse, url: URL): void {
+  const scope = resolveProjectIdParam(handle, url);
+  if (!scope.ok) {
+    jsonResponse(res, 404, scope.error);
+    return;
+  }
+  jsonResponse(res, 200, { definitions: handle.getWorkflowDefinitions(scope.projectId) });
 }
 
 export function handleListWorkflowRuns(
@@ -15,20 +25,33 @@ export function handleListWorkflowRuns(
   res: ServerResponse,
   url: URL,
 ): void {
+  const scope = resolveProjectIdParam(handle, url);
+  if (!scope.ok) {
+    jsonResponse(res, 404, scope.error);
+    return;
+  }
   const workflow = url.searchParams.get("workflow") ?? undefined;
   const tag = url.searchParams.get("tag") ?? undefined;
   const causedByRunId = url.searchParams.get("causedByRunId") ?? undefined;
   const rawLimit = url.searchParams.has("limit") ? Number.parseInt(url.searchParams.get("limit")!, 10) : 20;
   const limit = Number.isNaN(rawLimit) || rawLimit < 1 ? 20 : Math.min(rawLimit, 200);
-  jsonResponse(res, 200, { runs: handle.listWorkflowRuns(workflow, limit, tag, causedByRunId) });
+  jsonResponse(res, 200, {
+    runs: handle.listWorkflowRuns({ workflow, limit, tag, causedByRunId, projectId: scope.projectId }),
+  });
 }
 
 export function handleGetWorkflowRun(
   handle: DaemonControlHandle,
   res: ServerResponse,
   params: Record<string, string>,
+  url: URL,
 ): void {
-  const run = handle.getWorkflowRun(params.id);
+  const scope = resolveProjectIdParam(handle, url);
+  if (!scope.ok) {
+    jsonResponse(res, 404, scope.error);
+    return;
+  }
+  const run = handle.getWorkflowRun(params.id, scope.projectId);
   if (!run) {
     jsonResponse(res, 404, { error: "Run not found" });
     return;
@@ -36,18 +59,33 @@ export function handleGetWorkflowRun(
   jsonResponse(res, 200, run);
 }
 
-export function handlePauseWorkflow(handle: DaemonControlHandle, res: ServerResponse): void {
-  const { already } = handle.pauseWorkflowDispatch();
+export function handlePauseWorkflow(handle: DaemonControlHandle, res: ServerResponse, url: URL): void {
+  const scope = resolveProjectIdParam(handle, url);
+  if (!scope.ok) {
+    jsonResponse(res, 404, scope.error);
+    return;
+  }
+  const { already } = handle.pauseWorkflowDispatch(scope.projectId);
   jsonResponse(res, 200, { ok: true, paused: true, ...(already && { already: true }) });
 }
 
-export function handleResumeWorkflow(handle: DaemonControlHandle, res: ServerResponse): void {
-  const { already } = handle.resumeWorkflowDispatch();
+export function handleResumeWorkflow(handle: DaemonControlHandle, res: ServerResponse, url: URL): void {
+  const scope = resolveProjectIdParam(handle, url);
+  if (!scope.ok) {
+    jsonResponse(res, 404, scope.error);
+    return;
+  }
+  const { already } = handle.resumeWorkflowDispatch(scope.projectId);
   jsonResponse(res, 200, { ok: true, paused: false, ...(already && { already: true }) });
 }
 
-export function handleAbortWorkflow(handle: DaemonControlHandle, res: ServerResponse): void {
-  const { aborted } = handle.abortActiveRuns();
+export function handleAbortWorkflow(handle: DaemonControlHandle, res: ServerResponse, url: URL): void {
+  const scope = resolveProjectIdParam(handle, url);
+  if (!scope.ok) {
+    jsonResponse(res, 404, scope.error);
+    return;
+  }
+  const { aborted } = handle.abortActiveRuns(scope.projectId);
   jsonResponse(res, 200, { ok: true, aborted });
 }
 
@@ -55,8 +93,14 @@ export function handleAbortWorkflowRun(
   handle: DaemonControlHandle,
   res: ServerResponse,
   params: Record<string, string>,
+  url: URL,
 ): void {
-  const result = handle.abortActiveRun(params.id);
+  const scope = resolveProjectIdParam(handle, url);
+  if (!scope.ok) {
+    jsonResponse(res, 404, scope.error);
+    return;
+  }
+  const result = handle.abortActiveRun(params.id, scope.projectId);
   if (result.notFound) {
     jsonResponse(res, 404, { error: "Run not found" });
     return;
@@ -68,8 +112,13 @@ export function handleAbortWorkflowRun(
   jsonResponse(res, 200, { ok: true });
 }
 
-export function handleReloadWorkflow(handle: DaemonControlHandle, res: ServerResponse): void {
-  const { count } = handle.reloadWorkflowDefinitions();
+export function handleReloadWorkflow(handle: DaemonControlHandle, res: ServerResponse, url: URL): void {
+  const scope = resolveProjectIdParam(handle, url);
+  if (!scope.ok) {
+    jsonResponse(res, 404, scope.error);
+    return;
+  }
+  const { count } = handle.reloadWorkflowDefinitions(scope.projectId);
   jsonResponse(res, 200, { ok: true, count });
 }
 

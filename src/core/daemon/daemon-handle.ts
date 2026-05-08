@@ -22,6 +22,12 @@ import type {
   WorkflowRunSummary,
 } from "./daemon-control-types.js";
 import type { DaemonState } from "./daemon-state.js";
+import type {
+  ProjectId,
+  ProjectRegistry,
+  ProjectRegistryProjection,
+} from "./project-registry.js";
+import type { ProjectRuntime, ProjectRuntimeRegistry } from "./project-runtime.js";
 
 export type DaemonHandleContext = {
   getState: () => DaemonState;
@@ -31,6 +37,8 @@ export type DaemonHandleContext = {
   sessions: Map<string, InteractiveSession>;
   runStore: WorkflowRunStore;
   projectDir: string;
+  projectRegistry: ProjectRegistry;
+  projectRuntimes: ProjectRuntimeRegistry;
   config: { config?: KotaConfig; verbose?: boolean };
   log: (message: string) => void;
   getModuleHealthChecks: () => Record<string, ModuleHealthCheckResult>;
@@ -39,11 +47,22 @@ export type DaemonHandleContext = {
 };
 
 export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle {
-  const { workflows, bus, sessions, runStore, projectDir, config, log } = ctx;
+  const { bus, sessions, projectDir, projectRegistry, projectRuntimes, config, log } = ctx;
 
-  // Local mutable state that only the handle needs.
-  let metricCountsCache: WorkflowMetricCounts | null = null;
-  let metricCountsCacheAt = 0;
+  // Per-project metric counts cache. Each project has its own run store,
+  // so a single global cache would leak rows across projects.
+  const metricCountsCache = new Map<ProjectId, { value: WorkflowMetricCounts; at: number }>();
+
+  // Resolve a project's runtime bundle. `projectId` is optional; when
+  // omitted, we fall back to the registry's default. Throws on an unknown
+  // id — route handlers gate on `hasProject` first, so a thrown lookup
+  // here is a programmer error rather than a wire-shape rejection.
+  const lookupRuntime = (projectId?: ProjectId): ProjectRuntime => {
+    if (projectId === undefined) {
+      return projectRuntimes.getDefault();
+    }
+    return projectRuntimes.get(projectId);
+  };
 
   return {
     getHealthStatus: () => {
@@ -58,7 +77,11 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
     },
     getDaemonLiveState: () => ({ ...ctx.getState(), running: ctx.isRunning() }),
     listChannelStatuses: () => [...ctx.getChannelStatuses()],
-    getWorkflowLiveStatus: () => {
+    getProjectRegistryProjection: (): ProjectRegistryProjection =>
+      projectRegistry.toProjection(),
+    hasProject: (projectId: string) => projectRegistry.get(projectId) !== undefined,
+    getWorkflowLiveStatus: (projectId?: ProjectId) => {
+      const workflows = lookupRuntime(projectId).workflowRuntime;
       const wfState = workflows.getState();
       const windowStatus = workflows.getDispatchWindowStatus();
       return {
@@ -79,12 +102,14 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
         }),
       };
     },
-    pauseWorkflowDispatch: () => {
+    pauseWorkflowDispatch: (projectId?: ProjectId) => {
+      const workflows = lookupRuntime(projectId).workflowRuntime;
       const already = workflows.isDispatchPaused();
       if (!already) workflows.setDispatchPaused(true);
       return { already };
     },
-    resumeWorkflowDispatch: () => {
+    resumeWorkflowDispatch: (projectId?: ProjectId) => {
+      const workflows = lookupRuntime(projectId).workflowRuntime;
       const already = !workflows.isDispatchPaused();
       if (!already) workflows.setDispatchPaused(false);
       return { already };
@@ -98,12 +123,20 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
         pid: state.pid,
         startedAt: state.startedAt,
         capabilities,
+        projects: projectRegistry.toProjection(),
       });
     },
-    abortActiveRuns: () => workflows.abortActiveRuns(),
-    abortActiveRun: (runId: string) => workflows.abortActiveRun(runId),
-    reloadWorkflowDefinitions: () => workflows.reloadWorkflowDefinitions(),
+    abortActiveRuns: (projectId?: ProjectId) =>
+      lookupRuntime(projectId).workflowRuntime.abortActiveRuns(),
+    abortActiveRun: (runId: string, projectId?: ProjectId) =>
+      lookupRuntime(projectId).workflowRuntime.abortActiveRun(runId),
+    reloadWorkflowDefinitions: (projectId?: ProjectId) =>
+      lookupRuntime(projectId).workflowRuntime.reloadWorkflowDefinitions(),
     reloadConfig: async () => {
+      // Config reload is daemon-wide today: every project's workflow
+      // runtime adopts the same workflow inputs and the same module
+      // contributions. When per-project config lands, this method will
+      // need to fan out across `projectRuntimes`.
       const oldConfig = config.config ?? {};
       const newConfig = loadConfig(projectDir);
       const loader = await loadModuleMetadata(
@@ -121,9 +154,13 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
         allModules,
       );
       config.config = newConfig;
-      workflows.setWorkflowInputs(loader.getContributedWorkflows());
-      const { count } = workflows.reloadWorkflowDefinitions();
-      log(`Config reloaded: ${count} workflow definition(s) active`);
+      const inputs = loader.getContributedWorkflows();
+      let aggregateCount = 0;
+      for (const runtime of projectRuntimes.list()) {
+        runtime.workflowRuntime.setWorkflowInputs(inputs);
+        aggregateCount = runtime.workflowRuntime.reloadWorkflowDefinitions().count;
+      }
+      log(`Config reloaded: ${aggregateCount} workflow definition(s) active`);
       if (isFullReload) {
         log(`  Full reload: all ${changedModules.length} module(s) restarted (global config changed)`);
       } else if (changedModules.length > 0) {
@@ -133,10 +170,11 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       } else {
         log("  No module config changes detected");
       }
-      return { workflows: count, changedModules };
+      return { workflows: aggregateCount, changedModules };
     },
-    getWorkflowDefinitions: (): WorkflowDefinitionSummary[] =>
-      workflows.getDefinitions().map((def) => {
+    getWorkflowDefinitions: (projectId?: ProjectId): WorkflowDefinitionSummary[] => {
+      const workflows = lookupRuntime(projectId).workflowRuntime;
+      return workflows.getDefinitions().map((def) => {
         const sourceEnabled = workflows.getDefinitionSourceEnabled(def.name);
         const hasOverride = sourceEnabled !== undefined && sourceEnabled !== def.enabled;
         return {
@@ -154,12 +192,20 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
           ...(def.inputSchema !== undefined ? { inputSchema: def.inputSchema } : {}),
           ...(def.outputSchema !== undefined ? { outputSchema: def.outputSchema } : {}),
         };
-      }),
-    enableWorkflow: (name: string) => workflows.enableWorkflow(name),
-    disableWorkflow: (name: string) => workflows.disableWorkflow(name),
-    enqueuePendingRun: (name: string, tags?: string[], extraPayload?: Record<string, unknown>) =>
-      workflows.enqueuePendingRun(name, tags, extraPayload),
-    cancelQueuedRun: (runId: string) => workflows.cancelQueuedRun(runId),
+      });
+    },
+    enableWorkflow: (name: string, projectId?: ProjectId) =>
+      lookupRuntime(projectId).workflowRuntime.enableWorkflow(name),
+    disableWorkflow: (name: string, projectId?: ProjectId) =>
+      lookupRuntime(projectId).workflowRuntime.disableWorkflow(name),
+    enqueuePendingRun: (
+      name: string,
+      tags?: string[],
+      extraPayload?: Record<string, unknown>,
+      projectId?: ProjectId,
+    ) => lookupRuntime(projectId).workflowRuntime.enqueuePendingRun(name, tags, extraPayload),
+    cancelQueuedRun: (runId: string, projectId?: ProjectId) =>
+      lookupRuntime(projectId).workflowRuntime.cancelQueuedRun(runId),
     subscribeToEvents: (handler) => {
       const stops = [
         bus.on("workflow.started", (p) => {
@@ -203,8 +249,12 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       ];
       return () => stops.forEach((s) => s());
     },
-    listWorkflowRuns: (workflow?: string, limit?: number, tag?: string, causedByRunId?: string): WorkflowRunSummary[] =>
-      runStore.listRuns({ workflow, limit, tag, causedByRunId }).map((m) => ({
+    listWorkflowRuns: (
+      opts?: { workflow?: string; limit?: number; tag?: string; causedByRunId?: string; projectId?: ProjectId },
+    ): WorkflowRunSummary[] => {
+      const { workflow, limit, tag, causedByRunId, projectId } = opts ?? {};
+      const runStore = lookupRuntime(projectId).runStore;
+      return runStore.listRuns({ workflow, limit, tag, causedByRunId }).map((m) => ({
         id: m.id,
         workflow: m.workflow,
         status: m.status,
@@ -217,8 +267,10 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
         ...(m.retryOf != null && { retryOf: m.retryOf }),
         ...(m.resumedFromRunId != null && { resumedFromRunId: m.resumedFromRunId }),
         ...(m.tags && m.tags.length > 0 && { tags: m.tags }),
-      })),
-    getWorkflowRun: (id: string): WorkflowRunDetail | null => {
+      }));
+    },
+    getWorkflowRun: (id: string, projectId?: ProjectId): WorkflowRunDetail | null => {
+      const runStore = lookupRuntime(projectId).runStore;
       const m = runStore.getRun(id);
       if (!m) return null;
       return {
@@ -254,13 +306,16 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
         }),
       };
     },
-    getWorkflowMetricCounts: (): WorkflowMetricCounts => {
+    getWorkflowMetricCounts: (projectId?: ProjectId): WorkflowMetricCounts => {
+      const runtime = lookupRuntime(projectId);
+      const cacheKey = runtime.project.projectId;
       const now = Date.now();
-      if (metricCountsCache && now - metricCountsCacheAt < 30_000) {
-        return metricCountsCache;
+      const cached = metricCountsCache.get(cacheKey);
+      if (cached && now - cached.at < 30_000) {
+        return cached.value;
       }
       const DURATION_BUCKETS_S = [30, 120, 300, 900, 1800, 3600] as const;
-      const runs = runStore.listRuns({ limit: 100_000 });
+      const runs = runtime.runStore.listRuns({ limit: 100_000 });
       const countMap = new Map<string, number>();
       const costMap = new Map<string, number>();
       const durationMap = new Map<string, { buckets: Map<number | "+Inf", number>; sum: number; count: number }>();
@@ -310,8 +365,7 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
         });
       }
       const result: WorkflowMetricCounts = { runCounts, costTotals, durationHistogram };
-      metricCountsCache = result;
-      metricCountsCacheAt = now;
+      metricCountsCache.set(cacheKey, { value: result, at: now });
       return result;
     },
     registerSession: (id: string, createdAt: string, autonomyMode: AutonomyMode) => {
@@ -322,7 +376,22 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       sessions.delete(id);
       bus.emit("session.unregistered", { id });
     },
-    listSessions: () => [...sessions.values()],
+    listSessions: (projectId?: ProjectId) => {
+      // Sessions are daemon-default today: every interactive session is
+      // anchored to the registry's default project. When `projectId` is
+      // supplied for a non-default project, the list is empty until
+      // session-projectId attribution lands in the foundation slice that
+      // assigns project scope at registration time. The validation that
+      // `projectId` matches a configured project happens at the route
+      // level via `hasProject`.
+      if (
+        projectId !== undefined &&
+        projectId !== projectRegistry.getDefaultProjectId()
+      ) {
+        return [];
+      }
+      return [...sessions.values()];
+    },
     setSessionAutonomyMode: (id: string, mode: AutonomyMode) => {
       const session = sessions.get(id);
       if (!session) return { ok: false, notFound: true };
