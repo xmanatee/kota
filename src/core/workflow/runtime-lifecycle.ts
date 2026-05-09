@@ -27,6 +27,8 @@ export function startRuntime(state: WorkflowRuntimeLifecycleState): void {
   if (state.stopBus || state.idleTimer) return;
   state.stopping = false;
   state.dispatchPaused = false;
+  state.lastIdleEventSignature = undefined;
+  state.lastIdleEventEmittedAtMs = undefined;
 
   try {
     state.store.pruneRuns();

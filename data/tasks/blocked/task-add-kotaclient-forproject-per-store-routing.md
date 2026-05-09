@@ -1,12 +1,12 @@
 ---
 id: task-add-kotaclient-forproject-per-store-routing
 title: Add KotaClient forProject per-store routing
-status: ready
+status: blocked
 priority: p1
 area: architecture
 summary: Add a single project-scoped KotaClient primitive and thread projectId through every per-store daemon route and local namespace handler so clients and channels can route store commands without falling back to the daemon default project.
 created_at: 2026-05-09T00:11:48.000Z
-updated_at: 2026-05-09T00:11:48.000Z
+updated_at: 2026-05-09T00:21:59.626Z
 ---
 
 ## Problem
@@ -97,3 +97,42 @@ primitive out keeps the Telegram channel task focused on chat binding,
 `/project`, session keying, and outbound labels, while the store-routing
 contract lands once in the client and route layers that every channel can
 reuse.
+
+## Scope Resolution
+
+Builder run `2026-05-09T00-16-06-989Z-builder-35kfvt` confirmed this task
+spans a substantially larger refactor than a single autonomous run can land
+honestly without guessing the architecture path:
+
+- Today only `tasks` is project-scoped (TaskStore lives on
+  `ProjectRuntime`). Knowledge, memory, history, recall, answer, capture,
+  and retract stores are loaded by each module's `onLoad(ctx)` keyed off
+  the daemon's single `ctx.cwd` and exposed through module-global
+  singletons in `provider-registry.ts`.
+- The Done When invariant "per-store reads and writes do not cross
+  projects through `KotaClient.forProject(id)`" cannot be honestly proven
+  without per-project stores actually existing for those seven modules.
+  The constraints explicitly forbid silent default-fallbacks, so a
+  primitive-only landing would either lie about the contract or have to
+  hard-reject every non-default project — defeating the multi-project
+  point.
+- The two reasonable shapes (one big multi-module refactor in one push;
+  decompose into per-store sub-tasks plus a thin primitive that lands once
+  the per-project stores exist) are a non-trivial decomposition decision
+  the autonomous loop should not make alone, especially since this work
+  is the gating dependency for
+  `task-thread-projectid-through-telegram-channel-commands`.
+
+Owner question id `059dc16b` (asked 2026-05-09) carries the explicit
+question and proposed answers. The Telegram task remains blocked on this
+one until the decomposition decision lands.
+
+## Unblock Precondition
+
+```
+kind: owner-decision
+slot: forproject-decomposition
+question: Decompose into per-store sub-tasks first, or attempt the full refactor in one push?
+context: Today only `tasks` is project-scoped. Knowledge/memory/history/recall/answer/capture/retract are module-global singletons keyed off ctx.cwd. Real per-store isolation needs per-project stores in seven modules — a 1500+ LOC refactor — and the Done When two-project test depends on that.
+proposed_answers: decompose-per-store-subtasks, single-push-full-refactor, primitive-only-defer-stores
+```
