@@ -23,6 +23,8 @@ import type { WorkflowQueueManager } from "./workflow-queue.js";
 
 export { loadDefinitions, resolveDefinitions } from "./runtime-dispatch-definitions.js";
 
+export const IDLE_UNCHANGED_REEMIT_MS = 30 * 60 * 1000;
+
 export interface WorkflowRuntimeDispatchState {
   projectDir: string;
   stopping: boolean;
@@ -45,10 +47,21 @@ export interface WorkflowRuntimeDispatchState {
   runtimeConfig: WorkflowRuntimeConfig;
   model?: string;
   idleIntervalMs: number;
+  lastIdleEventSignature?: string;
+  lastIdleEventEmittedAtMs?: number;
   workflowInputs?: readonly RegisteredWorkflowDefinitionInput[];
   resolveAgentDef?: (name: string) => AgentDef | undefined;
   resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
   log(message: string): void;
+}
+
+function getIdleEventSignature(projectDir: string): string {
+  const worktree = getRepoWorktreeStatus(projectDir);
+  return [
+    worktree.available ? "git" : "no-git",
+    worktree.headSha,
+    worktree.fingerprint,
+  ].join("\0");
 }
 
 export function emitIdleEvent(state: WorkflowRuntimeDispatchState): void {
@@ -69,6 +82,15 @@ export function emitIdleEvent(state: WorkflowRuntimeDispatchState): void {
   if (state.stopping || state.activeRuns.size > 0 || idleTriggerAlreadyQueued) return;
   const dispatchWindow = state.config?.scheduler?.dispatchWindow;
   if (dispatchWindow && !isWithinDispatchWindow(dispatchWindow)) return;
+  const signature = getIdleEventSignature(state.projectDir);
+  const now = Date.now();
+  const recentlyEmittedUnchanged =
+    state.lastIdleEventSignature === signature &&
+    state.lastIdleEventEmittedAtMs !== undefined &&
+    now - state.lastIdleEventEmittedAtMs < IDLE_UNCHANGED_REEMIT_MS;
+  if (recentlyEmittedUnchanged) return;
+  state.lastIdleEventSignature = signature;
+  state.lastIdleEventEmittedAtMs = now;
   state.pbus.emit("runtime.idle", {
     timestamp: new Date().toISOString(),
     idleIntervalMs: state.idleIntervalMs,

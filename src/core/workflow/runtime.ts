@@ -77,6 +77,8 @@ export interface WorkflowRuntimeContext {
   readonly pbus: ProjectScopedEventBus;
   readonly model?: string;
   readonly idleIntervalMs: number;
+  lastIdleEventSignature?: string;
+  lastIdleEventEmittedAtMs?: number;
   readonly resolveAgentDef?: (name: string) => AgentDef | undefined;
   readonly resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
   readonly definitionSourceEnabled: Map<string, boolean>;
@@ -175,6 +177,8 @@ export class WorkflowRuntime {
       pbus,
       model: runtimeConfig.model,
       idleIntervalMs: runtimeConfig.idleIntervalMs ?? 30_000,
+      lastIdleEventSignature: undefined,
+      lastIdleEventEmittedAtMs: undefined,
       resolveAgentDef: runtimeConfig.resolveAgentDef,
       resolveSkillsPrompt: runtimeConfig.resolveSkillsPrompt,
       definitionSourceEnabled: new Map(),

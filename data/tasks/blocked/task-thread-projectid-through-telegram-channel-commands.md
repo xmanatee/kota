@@ -6,7 +6,7 @@ priority: p2
 area: architecture
 summary: Make telegram-status and telegram-interactive channels project-aware so operators on a multi-project daemon can target a specific project per message rather than the daemon's default
 created_at: 2026-05-08T20:28:46.713Z
-updated_at: 2026-05-08T20:36:06.189Z
+updated_at: 2026-05-09T00:11:48.000Z
 ---
 
 ## Problem
@@ -131,7 +131,7 @@ shape needs the same threading.
   project binding and the `/project` command at the conventions level —
   no enumerated catalog of state.
 
-## Scope Question
+## Scope Resolution
 
 Builder run `2026-05-08T20-31-17-184Z-builder-00uj92` discovered that the
 constraint "Per-store commands consume the per-message resolved projectId
@@ -147,18 +147,20 @@ threading projectId through every store's route + namespace handlers and
 introducing a `KotaClient.forProject(id)` mechanism — a substantial
 architectural slice spanning roughly ten modules.
 
-Owner question `1d1fea45` enqueued at 2026-05-08 asks whether to land the
-full per-store mechanism inside this task, split it into a preceding
-architectural task, or narrow the integration test until the mechanism
-lands. The answer chooses between three coherent shapes; the task body
-above will be reshaped accordingly when the operator answers.
+The owner-question timeout is resolved by the repository's own architecture
+rules: split the per-store routing primitive into a preceding architectural
+task, then let Telegram consume that single client/route contract. The
+preceding task is
+`task-add-kotaclient-forproject-per-store-routing`.
+
+Until that task lands, this Telegram task stays blocked rather than landing a
+parallel channel-local project routing model or narrowing away the store
+isolation invariant.
 
 ## Unblock Precondition
 
 ```
-kind: owner-decision
-slot: telegram-projectid-scope
-question: Should the Telegram projectId task land the full KotaClient `forProject(id)` per-store mechanism in one task, or split per-store routing into its own preceding task and narrow this one to Telegram-side binding/command/session/label work?
-context: Routing Telegram per-store commands per-message requires `?projectId=` support across every per-store namespace and route, plus a `KotaClient.forProject(id)` scoping primitive. None of that exists today; only control-plane routes honor `?projectId=`. Splitting cleanly preserves the foundation pattern; landing in one task delivers the integration-test assertion the Done When section asks for. The operator decision picks the shape before builder retries.
-proposed_answers: Split — land forProject + per-store route threading as a preceding task and narrow this task to Telegram-side binding/command/session/label work plus a resolution+label-only integration test, Land it all in one task — accept the broad cross-module change scope, Narrow the test — keep this task scope but reduce the integration test to resolution + outbound label + per-(chatId+projectId) session keying + unbound-chat failure path and defer per-store cross-project leakage to a follow-up once `forProject` lands
+kind: task-done
+ref: task-add-kotaclient-forproject-per-store-routing
+reason: Telegram per-store commands must consume one shared project-scoped KotaClient and per-store route contract; the channel must not invent a parallel project routing model.
 ```
