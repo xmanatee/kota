@@ -31,9 +31,9 @@ resources:
   - url: https://github.com/anthropics/claude-code
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:44e86aa549655f14ceea7b69db7bf4cd
-      summary: "Claude Code is Anthropic's agentic terminal coding tool with CLI, VS Code, GitHub-tag, and dev-container channels; extends via a /plugins system with custom commands, agents, hooks, and .claude/commands user slash commands; distributes via native installers and a deprecated npm package."
-      last_seen_at: "2026-04-19T22:21:08.572Z"
+      fingerprint: sha256:6f7581307fcdb6a690e645605fac4b76
+      summary: "Claude Code is Anthropic's agentic terminal coding tool with CLI, VS Code, GitHub-tag, and dev-container surfaces; extends via a /plugins system with custom commands, agents, hooks, and .claude/commands user slash commands; distributes via native installers (curl/brew/winget) with the npm package deprecated. Architecture pattern unchanged since prior visit — plugin/sub-agent/AGENTS.md model is the durable shape; no new primitive."
+      last_seen_at: "2026-05-10T04:55:39.674Z"
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
@@ -133,15 +133,15 @@ resources:
   - url: https://www.anthropic.com/research
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:084452ca7d9ab86806127273b950eede
-      summary: "Anthropic research index currently surfaces Automated Alignment Researchers, Trustworthy agents in practice, model-behavior-diff tooling, a diff tool for AI, and several agent / alignment / societal-impact pieces — several directly relevant to autonomy evaluator and oversight work."
-      last_seen_at: "2026-04-20T09:13:55.826Z"
+      fingerprint: sha256:c185315d7cf749c1019d06fd4d3c677a
+      summary: "Anthropic research index — three new entries since 2026-04-20 fingerprint: 'Natural Language Autoencoders' (interpretability, internal-representation decoding), 'Teaching Claude why' (alignment via reasoning explanations), 'Donating our open-source alignment tool' (policy/tool release). The autonomy-eval-adjacent thread (Automated Alignment Researchers, Trustworthy agents in practice) plus instruction-hierarchy / oversight angles remain durable. New entries are durable reading material rather than KOTA-primitive triggers — none open a new tool/skill/agent/workflow/module/channel pattern beyond what existing autonomy AGENTS.md already records."
+      last_seen_at: "2026-05-10T04:55:39.673Z"
   - url: https://www.anthropic.com/engineering
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:d86d2a8e2e7ba5ae43be88ca1bc892b3
-      summary: "Anthropic engineering blog — four autonomy-adjacent posts distilled 2026-04-23 alongside the previously distilled infra-noise post: 'Scaling Managed Agents: Decoupling the brain from the hands' (reject platform; KOTA already decouples locally via daemon + session + workflow + run artifacts), 'Claude Code auto mode: a safer way to skip permissions' (read; autonomy mode + approval-queue + injection-defense + tool-risk guardrails already realize the input-probe/output-classifier split), 'Harness design for long-running application development' (read, reinforces planner/generator/evaluator + reset-over-compact + pre-code sprint contracts already in decomposer + builder + critic + success-criteria files), 'Building a C compiler with a team of parallel Claudes' (reject; parallel-builder teams with git-lock task claims and oracle partitioning would be a second coordination surface beside workflow dispatch)."
-      last_seen_at: "2026-04-23T20:33:06.521Z"
+      fingerprint: sha256:b373958354ac9d064f4e6cf33fa776c4
+      summary: "Anthropic engineering blog — autonomy-adjacent post set unchanged since 2026-04-23 distillation: Managed Agents (rejected; KOTA already decouples via daemon+session+workflow+run-artifacts), Claude Code auto mode (read; covered by autonomy-mode + approval-queue + injection-defense + tool-risk), Harness design for long-running application development (read; reinforces decomposer/builder/critic + reset-over-compact + success-criteria), parallel-Claudes C-compiler (rejected; would create a second coordination surface beside workflow dispatch). No new post since prior visit; refreshing last_seen_at."
+      last_seen_at: "2026-05-10T04:55:39.673Z"
   - url: https://openai.com/research
     added: "2026-04-19"
     snapshot:
