@@ -1,12 +1,12 @@
 ---
 id: task-project-scope-memory-store-for-kotaclient-forproject
 title: Project-scope memory store for KotaClient.forProject
-status: blocked
+status: ready
 priority: p1
 area: architecture
 summary: Move memory store access behind an explicit per-project boundary after the knowledge-store slice establishes the pattern.
 created_at: 2026-05-12T15:45:00.000Z
-updated_at: 2026-05-12T15:45:00.000Z
+updated_at: 2026-05-13T19:50:59.000Z
 ---
 
 ## Problem
