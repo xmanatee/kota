@@ -35,8 +35,100 @@ import type {
   KnowledgeRetractContributor,
   MemoryRetractContributor,
   RetractContributorResult,
+  RetractProjectContext,
   TasksRetractContributor,
 } from "./retract-types.js";
+
+function requireProject(
+  project: RetractProjectContext | undefined,
+): RetractProjectContext {
+  if (!project) {
+    throw new Error("Retract contributor requires a project context");
+  }
+  return project;
+}
+
+function retractMemory(
+  provider: MemoryProvider,
+  id: string,
+): RetractContributorResult {
+  const removed = provider.delete(id);
+  if (!removed) {
+    return { kind: "not_found", identifier: id };
+  }
+  return {
+    kind: "removed",
+    record: { target: "memory", recordId: id },
+  };
+}
+
+function retractKnowledge(
+  provider: KnowledgeProvider,
+  slug: string,
+): RetractContributorResult {
+  const removed = provider.delete(slug);
+  if (!removed) {
+    return { kind: "not_found", identifier: slug };
+  }
+  return {
+    kind: "removed",
+    record: { target: "knowledge", recordId: slug },
+  };
+}
+
+function retractTasks(
+  projectDir: string,
+  id: string,
+): RetractContributorResult {
+  const tasksRoot = join(projectDir, REPO_TASKS_DIR);
+  let exists = false;
+  try {
+    exists = anyTaskStateContains(tasksRoot, id);
+  } catch {
+    exists = false;
+  }
+  if (!exists) {
+    return { kind: "not_found", identifier: id };
+  }
+  const result = moveTaskById(projectDir, id, "dropped");
+  return {
+    kind: "removed",
+    record: {
+      target: "tasks",
+      recordId: result.id,
+      previousPath: result.previousPath,
+      path: result.path,
+      toState: "dropped",
+    },
+  };
+}
+
+function retractInbox(
+  projectDir: string,
+  path: string,
+): RetractContributorResult {
+  const inboxDir = getRepoInboxDir(projectDir);
+  const absolute = normalize(join(projectDir, path));
+  const inside = relative(inboxDir, absolute);
+  if (
+    inside.startsWith("..") ||
+    inside === "" ||
+    inside.includes("/")
+  ) {
+    throw new Error(
+      `Refusing to retract inbox path outside ${REPO_INBOX_DIR}: ${path}`,
+    );
+  }
+  if (!existsSync(absolute)) {
+    return { kind: "not_found", identifier: path };
+  }
+  unlinkSync(absolute);
+  const recordId = inside.replace(/\.md$/, "");
+  return {
+    kind: "removed",
+    record: { target: "inbox", recordId, path },
+  };
+}
 
 export function createMemoryContributor(
   provider: MemoryProvider,
@@ -44,14 +136,16 @@ export function createMemoryContributor(
   return {
     target: "memory",
     async retract({ id }): Promise<RetractContributorResult> {
-      const removed = provider.delete(id);
-      if (!removed) {
-        return { kind: "not_found", identifier: id };
-      }
-      return {
-        kind: "removed",
-        record: { target: "memory", recordId: id },
-      };
+      return retractMemory(provider, id);
+    },
+  };
+}
+
+export function createProjectMemoryContributor(): MemoryRetractContributor {
+  return {
+    target: "memory",
+    async retract({ id, project }): Promise<RetractContributorResult> {
+      return retractMemory(requireProject(project).memory, id);
     },
   };
 }
@@ -62,14 +156,16 @@ export function createKnowledgeContributor(
   return {
     target: "knowledge",
     async retract({ slug }): Promise<RetractContributorResult> {
-      const removed = provider.delete(slug);
-      if (!removed) {
-        return { kind: "not_found", identifier: slug };
-      }
-      return {
-        kind: "removed",
-        record: { target: "knowledge", recordId: slug },
-      };
+      return retractKnowledge(provider, slug);
+    },
+  };
+}
+
+export function createProjectKnowledgeContributor(): KnowledgeRetractContributor {
+  return {
+    target: "knowledge",
+    async retract({ slug, project }): Promise<RetractContributorResult> {
+      return retractKnowledge(requireProject(project).knowledge, slug);
     },
   };
 }
@@ -80,31 +176,16 @@ export function createTasksContributor(
   return {
     target: "tasks",
     async retract({ id }): Promise<RetractContributorResult> {
-      // Refuse to act if the task is not under any state directory; the
-      // seam should never silently invent a destination.
-      const tasksRoot = join(projectDir, REPO_TASKS_DIR);
-      let exists = false;
-      try {
-        // moveTaskById throws "not found" when the id is absent in any
-        // state dir. We translate that into the typed `not_found` arm.
-        exists = anyTaskStateContains(tasksRoot, id);
-      } catch {
-        exists = false;
-      }
-      if (!exists) {
-        return { kind: "not_found", identifier: id };
-      }
-      const result = moveTaskById(projectDir, id, "dropped");
-      return {
-        kind: "removed",
-        record: {
-          target: "tasks",
-          recordId: result.id,
-          previousPath: result.previousPath,
-          path: result.path,
-          toState: "dropped",
-        },
-      };
+      return retractTasks(projectDir, id);
+    },
+  };
+}
+
+export function createProjectTasksContributor(): TasksRetractContributor {
+  return {
+    target: "tasks",
+    async retract({ id, project }): Promise<RetractContributorResult> {
+      return retractTasks(requireProject(project).projectDir, id);
     },
   };
 }
@@ -126,27 +207,16 @@ export function createInboxContributor(
   return {
     target: "inbox",
     async retract({ path }): Promise<RetractContributorResult> {
-      const inboxDir = getRepoInboxDir(projectDir);
-      const absolute = normalize(join(projectDir, path));
-      const inside = relative(inboxDir, absolute);
-      if (
-        inside.startsWith("..") ||
-        inside === "" ||
-        inside.includes("/")
-      ) {
-        throw new Error(
-          `Refusing to retract inbox path outside ${REPO_INBOX_DIR}: ${path}`,
-        );
-      }
-      if (!existsSync(absolute)) {
-        return { kind: "not_found", identifier: path };
-      }
-      unlinkSync(absolute);
-      const recordId = inside.replace(/\.md$/, "");
-      return {
-        kind: "removed",
-        record: { target: "inbox", recordId, path },
-      };
+      return retractInbox(projectDir, path);
+    },
+  };
+}
+
+export function createProjectInboxContributor(): InboxRetractContributor {
+  return {
+    target: "inbox",
+    async retract({ path, project }): Promise<RetractContributorResult> {
+      return retractInbox(requireProject(project).projectDir, path);
     },
   };
 }

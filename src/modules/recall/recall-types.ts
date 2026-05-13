@@ -9,10 +9,18 @@
  * contributors at type-time — `register` accepts N typed contributors, so
  * adding a fifth store is a registration, not an enum edit.
  */
+
+import type { ProjectId } from "#core/daemon/project-registry.js";
 import {
   defineProviderToken,
   type ProviderToken,
 } from "#core/modules/provider-token.js";
+import type {
+  HistoryProvider,
+  KnowledgeProvider,
+  MemoryProvider,
+  RepoTasksProvider,
+} from "#core/modules/provider-types.js";
 import type { RecallFilter, RecallHit, RecallSource } from "./client.js";
 
 export type {
@@ -51,6 +59,15 @@ export const RECALL_SOURCE_ORDER: ReadonlyArray<RecallSource> = [
  * field. Kept here so contributors never see `undefined` defaults.
  */
 export const RECALL_DEFAULT_TOP_K = 20;
+
+export type RecallProjectContext = {
+  projectId: ProjectId;
+  projectDir: string;
+  knowledge: KnowledgeProvider;
+  memory: MemoryProvider;
+  history: HistoryProvider;
+  tasks: RepoTasksProvider;
+};
 
 /**
  * Raw hit a contributor emits. The seam normalizes `nativeScore` once across
@@ -122,7 +139,7 @@ export interface RecallContributor {
   readonly source: RecallSource;
   recall(
     query: string,
-    options: { topK: number },
+    options: { topK: number; project?: RecallProjectContext },
   ): Promise<RawRecallEntry[]>;
 }
 
@@ -144,7 +161,11 @@ export interface RecallProvider {
   unregister(source: RecallSource): void;
   /** List currently-registered contributor sources, in registration order. */
   contributors(): ReadonlyArray<RecallSource>;
-  recall(query: string, filter?: RecallFilter): Promise<RecallHit[]>;
+  recall(
+    query: string,
+    filter?: RecallFilter,
+    project?: RecallProjectContext,
+  ): Promise<RecallHit[]>;
 }
 
 /** Provider-registry token for the cross-store recall seam. */

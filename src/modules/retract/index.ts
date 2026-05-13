@@ -20,20 +20,17 @@
 import { Command } from "commander";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
-import {
-  getKnowledgeProvider,
-  getMemoryProvider,
-} from "#core/modules/provider-registry.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { createRetractReadinessSource } from "./capability-readiness.js";
 import { registerRetractCommand } from "./cli.js";
 import type { RetractClient, RetractRequest, RetractResult } from "./client.js";
 import {
-  createInboxContributor,
-  createKnowledgeContributor,
-  createMemoryContributor,
-  createTasksContributor,
+  createProjectInboxContributor,
+  createProjectKnowledgeContributor,
+  createProjectMemoryContributor,
+  createProjectTasksContributor,
 } from "./contributors.js";
+import { createRetractProjectContextResolver } from "./project-context.js";
 import { RetractProviderImpl } from "./retract-provider.js";
 import {
   RETRACT_PROVIDER_TOKEN,
@@ -84,11 +81,13 @@ const retractModule: KotaModule = {
   dependencies: ["memory", "knowledge", "repo-tasks", "rendering"],
 
   onLoad(ctx: ModuleRuntimeContext) {
-    const provider = new RetractProviderImpl();
-    provider.register(createMemoryContributor(getMemoryProvider()));
-    provider.register(createKnowledgeContributor(getKnowledgeProvider()));
-    provider.register(createTasksContributor(ctx.cwd));
-    provider.register(createInboxContributor(ctx.cwd));
+    const provider = new RetractProviderImpl({
+      resolveProjectContext: createRetractProjectContextResolver(ctx.cwd),
+    });
+    provider.register(createProjectMemoryContributor());
+    provider.register(createProjectKnowledgeContributor());
+    provider.register(createProjectTasksContributor());
+    provider.register(createProjectInboxContributor());
     activeProvider = provider;
     ctx.registerProvider(RETRACT_PROVIDER_TOKEN, provider);
     ctx.registerProvider(
@@ -112,14 +111,26 @@ const retractModule: KotaModule = {
 
   tools: () => [createRetractToolDef(resolveActiveProvider)],
 
-  controlRoutes: () => retractControlRoutes(resolveActiveProvider),
+  controlRoutes: (ctx) =>
+    retractControlRoutes(
+      resolveActiveProvider,
+      createRetractProjectContextResolver(ctx.cwd),
+    ),
 
-  routes: () => retractApiRoutes(resolveActiveProvider),
+  routes: (ctx) =>
+    retractApiRoutes(
+      resolveActiveProvider,
+      createRetractProjectContextResolver(ctx.cwd),
+    ),
 
-  localClient: () => {
+  localClient: (ctx) => {
     const handler: RetractClient = {
       async retract(request) {
-        return resolveActiveProvider().retract(request);
+        const project = createRetractProjectContextResolver(ctx.cwd)(
+          request.projectId,
+        );
+        if ("error" in project) throw new Error(`Unknown project: ${project.projectId}`);
+        return resolveActiveProvider().retract(request, project);
       },
     };
     return { retract: handler };

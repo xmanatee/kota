@@ -20,14 +20,24 @@ import {
   type AnswerHistoryStore,
   answerSearchPreview,
 } from "./answer-history-store.js";
+import type { ResolveAnswerProjectContext } from "./project-context.js";
 
 export function createAnswerRecallContributor(
   store: AnswerHistoryStore,
+  resolveProjectContext?: ResolveAnswerProjectContext,
 ): RecallContributor {
   return {
     source: "answer",
-    async recall(query, { topK }) {
-      const hits = await store.searchAnswers(query, { topK });
+    async recall(query, { topK, project }) {
+      const scoped =
+        project && resolveProjectContext
+          ? resolveProjectContext(project.projectId)
+          : null;
+      if (scoped && "error" in scoped) {
+        throw new Error(`Unknown project: ${scoped.projectId}`);
+      }
+      const history = scoped?.history ?? store;
+      const hits = await history.searchAnswers(query, { topK });
       return hits.map<RawRecallEntry>(({ record, score }) => ({
         source: "answer",
         id: record.id,

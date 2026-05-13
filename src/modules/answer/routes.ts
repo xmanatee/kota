@@ -26,6 +26,7 @@ import type {
   AnswerHistoryShowResult,
   AnswerResult,
 } from "./client.js";
+import type { ResolveAnswerProjectContext } from "./project-context.js";
 
 const ALLOWED_SOURCES: ReadonlyArray<RecallSource> = [
   "knowledge",
@@ -51,11 +52,15 @@ function parseFilter(value: unknown): AnswerFilter | undefined {
     );
     if (sources.length > 0) filter.sources = sources;
   }
+  if (typeof raw.projectId === "string" && raw.projectId.trim() !== "") {
+    filter.projectId = raw.projectId;
+  }
   return filter;
 }
 
 export function createAnswerRouteHandler(
   resolveProvider: () => AnswerProvider,
+  resolveProjectContext?: ResolveAnswerProjectContext,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async function handler(
     req: IncomingMessage,
@@ -75,8 +80,17 @@ export function createAnswerRouteHandler(
     }
     const filter = parseFilter(body.filter);
     try {
+      const project = resolveProjectContext?.(filter?.projectId);
+      if (project && "error" in project) {
+        jsonResponse(res, 404, {
+          error: "Unknown project",
+          reason: "unknown_project",
+          projectId: project.projectId,
+        });
+        return;
+      }
       const provider = resolveProvider();
-      const result = await provider.answer(query, filter);
+      const result = await provider.answer(query, filter, project);
       jsonResponse(res, 200, result satisfies AnswerResult);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -88,14 +102,18 @@ export function createAnswerRouteHandler(
 export function answerControlRoutes(
   resolveProvider: () => AnswerProvider,
   resolveHistory: () => AnswerHistoryStore,
+  resolveProjectContext?: ResolveAnswerProjectContext,
 ): ControlRouteRegistration[] {
-  const historyHandlers = createAnswerHistoryRouteHandler(resolveHistory);
+  const historyHandlers = createAnswerHistoryRouteHandler(
+    resolveHistory,
+    resolveProjectContext,
+  );
   return [
     {
       method: "POST",
       path: "/answer",
       capabilityScope: "read",
-      handler: createAnswerRouteHandler(resolveProvider),
+      handler: createAnswerRouteHandler(resolveProvider, resolveProjectContext),
     },
     {
       method: "GET",
@@ -115,13 +133,17 @@ export function answerControlRoutes(
 export function answerApiRoutes(
   resolveProvider: () => AnswerProvider,
   resolveHistory: () => AnswerHistoryStore,
+  resolveProjectContext?: ResolveAnswerProjectContext,
 ): RouteRegistration[] {
-  const historyHandlers = createAnswerHistoryRouteHandler(resolveHistory);
+  const historyHandlers = createAnswerHistoryRouteHandler(
+    resolveHistory,
+    resolveProjectContext,
+  );
   return [
     {
       method: "POST",
       path: "/api/answer",
-      handler: createAnswerRouteHandler(resolveProvider),
+      handler: createAnswerRouteHandler(resolveProvider, resolveProjectContext),
     },
     {
       method: "GET",
@@ -141,6 +163,7 @@ export function answerApiRoutes(
 type ListQuery = {
   limit?: number;
   beforeId?: string;
+  projectId?: string;
 };
 
 function parseListQuery(req: IncomingMessage): ListQuery {
@@ -156,11 +179,14 @@ function parseListQuery(req: IncomingMessage): ListQuery {
   }
   const beforeId = params.get("beforeId");
   if (beforeId !== null && beforeId !== "") out.beforeId = beforeId;
+  const projectId = params.get("projectId");
+  if (projectId !== null && projectId.trim() !== "") out.projectId = projectId;
   return out;
 }
 
 export function createAnswerHistoryRouteHandler(
   resolveHistory: () => AnswerHistoryStore,
+  resolveProjectContext?: ResolveAnswerProjectContext,
 ): {
   list: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
   showById: (id: string, res: ServerResponse) => Promise<void>;
@@ -169,7 +195,18 @@ export function createAnswerHistoryRouteHandler(
     async list(req: IncomingMessage, res: ServerResponse): Promise<void> {
       try {
         const query = parseListQuery(req);
-        const entries = await resolveHistory().listAnswers(query);
+        const project = resolveProjectContext?.(query.projectId);
+        if (project && "error" in project) {
+          jsonResponse(res, 404, {
+            error: "Unknown project",
+            reason: "unknown_project",
+            projectId: project.projectId,
+          });
+          return;
+        }
+        const history = project?.history ?? resolveHistory();
+        const { projectId: _projectId, ...filter } = query;
+        const entries = await history.listAnswers(filter);
         const body: AnswerHistoryListResult = { entries };
         jsonResponse(res, 200, body);
       } catch (err) {

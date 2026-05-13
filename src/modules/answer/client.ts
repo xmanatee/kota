@@ -117,6 +117,7 @@ export type AnswerHistoryEntry = {
 export type AnswerHistoryListFilter = {
   limit?: number;
   beforeId?: string;
+  projectId?: string;
 };
 
 /** Result of `AnswerClient.log`. */

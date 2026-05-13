@@ -124,6 +124,7 @@ export type RecallFilter = {
   topK?: number;
   minScore?: number;
   sources?: ReadonlyArray<RecallSource>;
+  projectId?: string;
 };
 
 /**

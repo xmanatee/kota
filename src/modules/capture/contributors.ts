@@ -38,6 +38,7 @@ import {
 import type {
   CaptureContributor,
   CaptureContributorInput,
+  CaptureProjectContext,
 } from "./capture-types.js";
 
 const KNOWLEDGE_TITLE_MAX = 80;
@@ -57,14 +58,105 @@ function firstLine(text: string, max: number): string {
   return "";
 }
 
+function requireProject(
+  project: CaptureProjectContext | undefined,
+): CaptureProjectContext {
+  if (!project) {
+    throw new Error("Capture contributor requires a project context");
+  }
+  return project;
+}
+
+function createMemoryRecord(
+  provider: MemoryProvider,
+  input: CaptureContributorInput,
+) {
+  const id = provider.save(input.text);
+  return { target: "memory" as const, recordId: id };
+}
+
+function createKnowledgeRecord(
+  provider: KnowledgeProvider,
+  input: CaptureContributorInput,
+) {
+  const title = firstLine(input.text, KNOWLEDGE_TITLE_MAX);
+  if (title === "") {
+    throw new Error("Knowledge capture requires a non-empty first line.");
+  }
+  const id = provider.create({ title, content: input.text });
+  return { target: "knowledge" as const, recordId: id };
+}
+
+function createTasksRecord(
+  projectDir: string,
+  input: CaptureContributorInput,
+) {
+  const title = firstLine(input.text, 120);
+  if (title === "") {
+    throw new Error("Task capture requires a non-empty first line.");
+  }
+  const result = createNormalizedTask(projectDir, {
+    title,
+    priority: "p3",
+    area: "uncategorized",
+    state: "backlog",
+    summary: title,
+  });
+  if (!result.ok) {
+    throw new Error(
+      `Task capture rejected: ${result.reason}${
+        result.message ? ` — ${result.message}` : ""
+      }`,
+    );
+  }
+  const repoRelative = join(REPO_TASKS_DIR, "backlog", `${result.id}.md`);
+  return {
+    target: "tasks" as const,
+    recordId: result.id,
+    path: repoRelative,
+  };
+}
+
+function createInboxRecord(projectDir: string, input: CaptureContributorInput) {
+  const title = firstLine(input.text, 120);
+  if (title === "") {
+    throw new Error("Inbox capture requires a non-empty first line.");
+  }
+  const slug = slugifyTaskTitle(title);
+  if (slug === "") {
+    throw new Error(
+      "Inbox capture: title produced an empty slug. Use a more descriptive first line.",
+    );
+  }
+  const id = `note-${slug}`;
+  const inboxDir = getRepoInboxDir(projectDir);
+  mkdirSync(inboxDir, { recursive: true });
+  const filePath = join(inboxDir, `${id}.md`);
+  if (existsSync(filePath)) {
+    throw new Error(`Inbox file "${id}.md" already exists.`);
+  }
+  const body = input.text.endsWith("\n") ? input.text : `${input.text}\n`;
+  writeFileSync(filePath, body, "utf-8");
+  const repoRelative = join(REPO_INBOX_DIR, `${id}.md`);
+  return { target: "inbox" as const, recordId: id, path: repoRelative };
+}
+
 export function createMemoryContributor(
   provider: MemoryProvider,
 ): CaptureContributor {
   return {
     target: "memory",
     async capture(input: CaptureContributorInput) {
-      const id = provider.save(input.text);
-      return { target: "memory", recordId: id };
+      return createMemoryRecord(provider, input);
+    },
+  };
+}
+
+export function createProjectMemoryContributor(): CaptureContributor {
+  return {
+    target: "memory",
+    async capture(input: CaptureContributorInput) {
+      return createMemoryRecord(requireProject(input.project).memory, input);
     },
   };
 }
@@ -75,12 +167,16 @@ export function createKnowledgeContributor(
   return {
     target: "knowledge",
     async capture(input: CaptureContributorInput) {
-      const title = firstLine(input.text, KNOWLEDGE_TITLE_MAX);
-      if (title === "") {
-        throw new Error("Knowledge capture requires a non-empty first line.");
-      }
-      const id = provider.create({ title, content: input.text });
-      return { target: "knowledge", recordId: id };
+      return createKnowledgeRecord(provider, input);
+    },
+  };
+}
+
+export function createProjectKnowledgeContributor(): CaptureContributor {
+  return {
+    target: "knowledge",
+    async capture(input: CaptureContributorInput) {
+      return createKnowledgeRecord(requireProject(input.project).knowledge, input);
     },
   };
 }
@@ -89,30 +185,16 @@ export function createTasksContributor(projectDir: string): CaptureContributor {
   return {
     target: "tasks",
     async capture(input: CaptureContributorInput) {
-      const title = firstLine(input.text, 120);
-      if (title === "") {
-        throw new Error("Task capture requires a non-empty first line.");
-      }
-      const result = createNormalizedTask(projectDir, {
-        title,
-        priority: "p3",
-        area: "uncategorized",
-        state: "backlog",
-        summary: title,
-      });
-      if (!result.ok) {
-        throw new Error(
-          `Task capture rejected: ${result.reason}${
-            result.message ? ` — ${result.message}` : ""
-          }`,
-        );
-      }
-      const repoRelative = join(REPO_TASKS_DIR, "backlog", `${result.id}.md`);
-      return {
-        target: "tasks",
-        recordId: result.id,
-        path: repoRelative,
-      };
+      return createTasksRecord(projectDir, input);
+    },
+  };
+}
+
+export function createProjectTasksContributor(): CaptureContributor {
+  return {
+    target: "tasks",
+    async capture(input: CaptureContributorInput) {
+      return createTasksRecord(requireProject(input.project).projectDir, input);
     },
   };
 }
@@ -121,27 +203,16 @@ export function createInboxContributor(projectDir: string): CaptureContributor {
   return {
     target: "inbox",
     async capture(input: CaptureContributorInput) {
-      const title = firstLine(input.text, 120);
-      if (title === "") {
-        throw new Error("Inbox capture requires a non-empty first line.");
-      }
-      const slug = slugifyTaskTitle(title);
-      if (slug === "") {
-        throw new Error(
-          "Inbox capture: title produced an empty slug. Use a more descriptive first line.",
-        );
-      }
-      const id = `note-${slug}`;
-      const inboxDir = getRepoInboxDir(projectDir);
-      mkdirSync(inboxDir, { recursive: true });
-      const filePath = join(inboxDir, `${id}.md`);
-      if (existsSync(filePath)) {
-        throw new Error(`Inbox file "${id}.md" already exists.`);
-      }
-      const body = input.text.endsWith("\n") ? input.text : `${input.text}\n`;
-      writeFileSync(filePath, body, "utf-8");
-      const repoRelative = join(REPO_INBOX_DIR, `${id}.md`);
-      return { target: "inbox", recordId: id, path: repoRelative };
+      return createInboxRecord(projectDir, input);
+    },
+  };
+}
+
+export function createProjectInboxContributor(): CaptureContributor {
+  return {
+    target: "inbox",
+    async capture(input: CaptureContributorInput) {
+      return createInboxRecord(requireProject(input.project).projectDir, input);
     },
   };
 }

@@ -11,10 +11,16 @@
  * N typed contributors so adding a fifth store is a registration, not an
  * enum edit.
  */
+
+import type { ProjectId } from "#core/daemon/project-registry.js";
 import {
   defineProviderToken,
   type ProviderToken,
 } from "#core/modules/provider-token.js";
+import type {
+  KnowledgeProvider,
+  MemoryProvider,
+} from "#core/modules/provider-types.js";
 import type {
   RetractRecord,
   RetractRequest,
@@ -46,6 +52,13 @@ export const RETRACT_TARGET_ORDER: ReadonlyArray<RetractTarget> = [
   "inbox",
 ] as const;
 
+export type RetractProjectContext = {
+  projectId: ProjectId;
+  projectDir: string;
+  memory: MemoryProvider;
+  knowledge: KnowledgeProvider;
+};
+
 /**
  * Result a contributor returns. The seam translates these arms into the
  * outer `RetractResult` envelope.
@@ -67,22 +80,22 @@ export type RetractContributorResult =
  */
 export type MemoryRetractContributor = {
   readonly target: "memory";
-  retract(req: { id: string }): Promise<RetractContributorResult>;
+  retract(req: { id: string; project?: RetractProjectContext }): Promise<RetractContributorResult>;
 };
 
 export type KnowledgeRetractContributor = {
   readonly target: "knowledge";
-  retract(req: { slug: string }): Promise<RetractContributorResult>;
+  retract(req: { slug: string; project?: RetractProjectContext }): Promise<RetractContributorResult>;
 };
 
 export type TasksRetractContributor = {
   readonly target: "tasks";
-  retract(req: { id: string }): Promise<RetractContributorResult>;
+  retract(req: { id: string; project?: RetractProjectContext }): Promise<RetractContributorResult>;
 };
 
 export type InboxRetractContributor = {
   readonly target: "inbox";
-  retract(req: { path: string }): Promise<RetractContributorResult>;
+  retract(req: { path: string; project?: RetractProjectContext }): Promise<RetractContributorResult>;
 };
 
 export type RetractContributor =
@@ -96,7 +109,10 @@ export interface RetractProvider {
   register(contributor: RetractContributor): void;
   /** List currently-registered contributor targets, in registration order. */
   contributors(): ReadonlyArray<RetractTarget>;
-  retract(request: RetractRequest): Promise<RetractResult>;
+  retract(
+    request: RetractRequest,
+    project?: RetractProjectContext,
+  ): Promise<RetractResult>;
 }
 
 /** Provider-registry token for the cross-store retract seam. */

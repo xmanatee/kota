@@ -8,6 +8,7 @@
  * keyed by `{ source, id }`.
  */
 
+import type { ProjectId } from "#core/daemon/project-registry.js";
 import {
   defineProviderToken,
   type ProviderToken,
@@ -17,6 +18,7 @@ import type {
   RecallHit,
   RecallResult,
 } from "#modules/recall/client.js";
+import type { AnswerHistoryStore } from "./answer-history-store.js";
 import type {
   AnswerCitation,
   AnswerFilter,
@@ -76,6 +78,12 @@ export type SynthesisInput = {
  */
 export type Synthesizer = (input: SynthesisInput) => Promise<string>;
 
+export type AnswerProjectContext = {
+  projectId: ProjectId;
+  projectDir: string;
+  history: AnswerHistoryStore;
+};
+
 /**
  * Result of parsing the model output into prose plus typed citations.
  * `unknownMarkers` carries the `[source:id]` pairs that did not resolve
@@ -89,7 +97,11 @@ export type ParsedSynthesis = {
 
 /** The owning provider seam. */
 export interface AnswerProvider {
-  answer(query: string, filter?: AnswerFilter): Promise<AnswerResult>;
+  answer(
+    query: string,
+    filter?: AnswerFilter,
+    project?: AnswerProjectContext,
+  ): Promise<AnswerResult>;
 }
 
 /** Provider-registry token for the cited-answer seam. */

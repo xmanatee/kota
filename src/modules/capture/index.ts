@@ -21,10 +21,6 @@ import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-read
 import { createModelClient } from "#core/model/model-client.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import type { KotaModule, ModuleContext, ModuleRuntimeContext } from "#core/modules/module-types.js";
-import {
-  getKnowledgeProvider,
-  getMemoryProvider,
-} from "#core/modules/provider-registry.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { createCaptureReadinessSource } from "./capability-readiness.js";
 import { CaptureProviderImpl } from "./capture-provider.js";
@@ -45,11 +41,12 @@ import type {
   CaptureResult,
 } from "./client.js";
 import {
-  createInboxContributor,
-  createKnowledgeContributor,
-  createMemoryContributor,
-  createTasksContributor,
+  createProjectInboxContributor,
+  createProjectKnowledgeContributor,
+  createProjectMemoryContributor,
+  createProjectTasksContributor,
 } from "./contributors.js";
+import { createCaptureProjectContextResolver } from "./project-context.js";
 import { captureApiRoutes, captureControlRoutes } from "./routes.js";
 import {
   buildCaptureDynamicStateProvider,
@@ -145,13 +142,15 @@ const captureModule: KotaModule = {
   dependencies: ["memory", "knowledge", "repo-tasks", "rendering"],
 
   onLoad(ctx: ModuleRuntimeContext) {
+    const resolveProjectContext = createCaptureProjectContextResolver(ctx.cwd);
     const provider = new CaptureProviderImpl({
       classifier: createDefaultClassifier(ctx),
+      resolveProjectContext,
     });
-    provider.register(createMemoryContributor(getMemoryProvider()));
-    provider.register(createKnowledgeContributor(getKnowledgeProvider()));
-    provider.register(createTasksContributor(ctx.cwd));
-    provider.register(createInboxContributor(ctx.cwd));
+    provider.register(createProjectMemoryContributor());
+    provider.register(createProjectKnowledgeContributor());
+    provider.register(createProjectTasksContributor());
+    provider.register(createProjectInboxContributor());
     activeProvider = provider;
     ctx.registerProvider(CAPTURE_PROVIDER_TOKEN, provider);
     ctx.registerProvider(
@@ -175,14 +174,26 @@ const captureModule: KotaModule = {
 
   tools: () => [createCaptureToolDef(resolveActiveProvider)],
 
-  controlRoutes: () => captureControlRoutes(resolveActiveProvider),
+  controlRoutes: (ctx) =>
+    captureControlRoutes(
+      resolveActiveProvider,
+      createCaptureProjectContextResolver(ctx.cwd),
+    ),
 
-  routes: () => captureApiRoutes(resolveActiveProvider),
+  routes: (ctx) =>
+    captureApiRoutes(
+      resolveActiveProvider,
+      createCaptureProjectContextResolver(ctx.cwd),
+    ),
 
-  localClient: () => {
+  localClient: (ctx) => {
     const handler: CaptureClient = {
       async capture(text, filter) {
-        return resolveActiveProvider().capture(text, filter);
+        const project = createCaptureProjectContextResolver(ctx.cwd)(
+          filter?.projectId,
+        );
+        if ("error" in project) throw new Error(`Unknown project: ${project.projectId}`);
+        return resolveActiveProvider().capture(text, filter, project);
       },
     };
     return { capture: handler };

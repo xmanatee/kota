@@ -25,7 +25,15 @@ import type {
   MemoryProvider,
   RepoTasksProvider,
 } from "#core/modules/provider-types.js";
-import type { RawRecallEntry, RecallContributor } from "./recall-types.js";
+import type { HistoryProjectStores } from "#modules/history/project-scope.js";
+import type { KnowledgeProjectStores } from "#modules/knowledge/project-scope.js";
+import type { MemoryProjectStores } from "#modules/memory/project-scope.js";
+import type { RepoTasksProjectStores } from "#modules/repo-tasks/project-scope.js";
+import type {
+  RawRecallEntry,
+  RecallContributor,
+  RecallProjectContext,
+} from "./recall-types.js";
 
 const PREVIEW_MAX = 240;
 
@@ -39,25 +47,117 @@ function rankScore(rank: number, topK: number): number {
   return Math.max(1, topK - rank);
 }
 
+function requireProject(
+  project: RecallProjectContext | undefined,
+): RecallProjectContext {
+  if (!project) {
+    throw new Error("Recall contributor requires a project context");
+  }
+  return project;
+}
+
+function unknownProject(projectId: string): Error {
+  return new Error(`Unknown project: ${projectId}`);
+}
+
+async function recallKnowledge(
+  provider: KnowledgeProvider,
+  query: string,
+  topK: number,
+): Promise<RawRecallEntry[]> {
+  const entries = provider.supportsSemanticSearch()
+    ? await provider.semanticSearch(query, topK)
+    : provider.search(query).slice(0, topK);
+  return entries.map<RawRecallEntry>((entry, index) => ({
+    source: "knowledge",
+    id: entry.id,
+    nativeScore: rankScore(index, topK),
+    payload: {
+      title: entry.title,
+      preview: clipPreview(entry.content),
+      updated: entry.updated,
+    },
+  }));
+}
+
+async function recallMemory(
+  provider: MemoryProvider,
+  query: string,
+  topK: number,
+): Promise<RawRecallEntry[]> {
+  const entries = provider.supportsSemanticSearch()
+    ? await provider.semanticSearch(query, topK)
+    : provider.search(query).slice(0, topK);
+  return entries.map<RawRecallEntry>((entry, index) => ({
+    source: "memory",
+    id: entry.id,
+    nativeScore: rankScore(index, topK),
+    payload: {
+      preview: clipPreview(entry.content),
+      created: entry.created,
+    },
+  }));
+}
+
+async function recallHistory(
+  provider: HistoryProvider,
+  query: string,
+  topK: number,
+): Promise<RawRecallEntry[]> {
+  const entries = provider.supportsSemanticSearch()
+    ? await provider.semanticSearch(query, topK)
+    : provider.list({ search: query, limit: topK });
+  return entries.map<RawRecallEntry>((entry, index) => ({
+    source: "history",
+    id: entry.id,
+    nativeScore: rankScore(index, topK),
+    payload: {
+      title: entry.title,
+      cwd: entry.cwd,
+      updatedAt: entry.updatedAt,
+    },
+  }));
+}
+
+async function recallTasks(
+  provider: RepoTasksProvider,
+  query: string,
+  topK: number,
+): Promise<RawRecallEntry[]> {
+  const hits = await provider.searchTasks(query, { topK });
+  return hits.map<RawRecallEntry>((hit) => ({
+    source: "tasks",
+    id: hit.id,
+    nativeScore: hit.score,
+    payload: {
+      title: hit.title,
+      state: hit.state,
+      priority: hit.priority,
+      updatedAt: hit.updatedAt,
+    },
+  }));
+}
+
 export function createKnowledgeContributor(
   provider: KnowledgeProvider,
 ): RecallContributor {
   return {
     source: "knowledge",
     async recall(query, { topK }) {
-      const entries = provider.supportsSemanticSearch()
-        ? await provider.semanticSearch(query, topK)
-        : provider.search(query).slice(0, topK);
-      return entries.map<RawRecallEntry>((entry, index) => ({
-        source: "knowledge",
-        id: entry.id,
-        nativeScore: rankScore(index, topK),
-        payload: {
-          title: entry.title,
-          preview: clipPreview(entry.content),
-          updated: entry.updated,
-        },
-      }));
+      return recallKnowledge(provider, query, topK);
+    },
+  };
+}
+
+export function createProjectKnowledgeContributor(
+  stores: KnowledgeProjectStores,
+): RecallContributor {
+  return {
+    source: "knowledge",
+    async recall(query, { topK, project }) {
+      const resolved = stores.resolve(requireProject(project).projectId);
+      if (!resolved.ok) throw unknownProject(resolved.error.projectId);
+      return recallKnowledge(resolved.store, query, topK);
     },
   };
 }
@@ -68,18 +168,20 @@ export function createMemoryContributor(
   return {
     source: "memory",
     async recall(query, { topK }) {
-      const entries = provider.supportsSemanticSearch()
-        ? await provider.semanticSearch(query, topK)
-        : provider.search(query).slice(0, topK);
-      return entries.map<RawRecallEntry>((entry, index) => ({
-        source: "memory",
-        id: entry.id,
-        nativeScore: rankScore(index, topK),
-        payload: {
-          preview: clipPreview(entry.content),
-          created: entry.created,
-        },
-      }));
+      return recallMemory(provider, query, topK);
+    },
+  };
+}
+
+export function createProjectMemoryContributor(
+  stores: MemoryProjectStores,
+): RecallContributor {
+  return {
+    source: "memory",
+    async recall(query, { topK, project }) {
+      const resolved = stores.resolve(requireProject(project).projectId);
+      if (!resolved.ok) throw unknownProject(resolved.error.projectId);
+      return recallMemory(resolved.store, query, topK);
     },
   };
 }
@@ -90,19 +192,20 @@ export function createHistoryContributor(
   return {
     source: "history",
     async recall(query, { topK }) {
-      const entries = provider.supportsSemanticSearch()
-        ? await provider.semanticSearch(query, topK)
-        : provider.list({ search: query, limit: topK });
-      return entries.map<RawRecallEntry>((entry, index) => ({
-        source: "history",
-        id: entry.id,
-        nativeScore: rankScore(index, topK),
-        payload: {
-          title: entry.title,
-          cwd: entry.cwd,
-          updatedAt: entry.updatedAt,
-        },
-      }));
+      return recallHistory(provider, query, topK);
+    },
+  };
+}
+
+export function createProjectHistoryContributor(
+  stores: HistoryProjectStores,
+): RecallContributor {
+  return {
+    source: "history",
+    async recall(query, { topK, project }) {
+      const resolved = stores.resolve(requireProject(project).projectId);
+      if (!resolved.ok) throw unknownProject(resolved.error.projectId);
+      return recallHistory(resolved.store, query, topK);
     },
   };
 }
@@ -113,18 +216,20 @@ export function createTasksContributor(
   return {
     source: "tasks",
     async recall(query, { topK }) {
-      const hits = await provider.searchTasks(query, { topK });
-      return hits.map<RawRecallEntry>((hit) => ({
-        source: "tasks",
-        id: hit.id,
-        nativeScore: hit.score,
-        payload: {
-          title: hit.title,
-          state: hit.state,
-          priority: hit.priority,
-          updatedAt: hit.updatedAt,
-        },
-      }));
+      return recallTasks(provider, query, topK);
+    },
+  };
+}
+
+export function createProjectTasksContributor(
+  stores: RepoTasksProjectStores,
+): RecallContributor {
+  return {
+    source: "tasks",
+    async recall(query, { topK, project }) {
+      const resolved = stores.resolve(requireProject(project).projectId);
+      if (!resolved.ok) throw unknownProject(resolved.error.projectId);
+      return recallTasks(resolved.store, query, topK);
     },
   };
 }

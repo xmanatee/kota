@@ -66,7 +66,7 @@ export class KnowledgeProjectStores {
   resolve(
     projectId: string | null | undefined,
   ):
-    | { ok: true; projectId: ProjectId; store: KnowledgeProvider }
+    | { ok: true; projectId: ProjectId; projectDir: string; store: KnowledgeProvider }
     | { ok: false; error: UnknownKnowledgeProjectError } {
     const snapshot = this.snapshot();
     const requested = projectId?.trim();
@@ -90,6 +90,7 @@ export class KnowledgeProjectStores {
     return {
       ok: true,
       projectId: project.projectId,
+      projectDir: project.projectDir,
       store: this.storeFor(project, snapshot.defaultProjectId),
     };
   }

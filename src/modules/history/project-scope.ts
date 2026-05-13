@@ -63,7 +63,7 @@ export class HistoryProjectStores {
   resolve(
     projectId: string | null | undefined,
   ):
-    | { ok: true; projectId: ProjectId; store: HistoryProvider }
+    | { ok: true; projectId: ProjectId; projectDir: string; store: HistoryProvider }
     | { ok: false; error: UnknownHistoryProjectError } {
     const snapshot = this.snapshot();
     const requested = projectId?.trim();
@@ -87,6 +87,7 @@ export class HistoryProjectStores {
     return {
       ok: true,
       projectId: project.projectId,
+      projectDir: project.projectDir,
       store: this.storeFor(project, snapshot.defaultProjectId),
     };
   }

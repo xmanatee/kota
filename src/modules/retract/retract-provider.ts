@@ -17,13 +17,27 @@ import type { RetractRequest, RetractResult } from "./client.js";
 import type {
   RetractContributor,
   RetractContributorResult,
+  RetractProjectContext,
   RetractProvider,
   RetractTarget,
 } from "./retract-types.js";
 
+export type RetractProviderOptions = {
+  resolveProjectContext?: (
+    projectId: string | null | undefined,
+  ) => RetractProjectContext | { error: "unknown_project"; projectId: string };
+};
+
 export class RetractProviderImpl implements RetractProvider {
   private readonly byTarget = new Map<RetractTarget, RetractContributor>();
   private readonly order: RetractTarget[] = [];
+  private readonly resolveProjectContext:
+    | NonNullable<RetractProviderOptions["resolveProjectContext"]>
+    | undefined;
+
+  constructor(options: RetractProviderOptions = {}) {
+    this.resolveProjectContext = options.resolveProjectContext;
+  }
 
   register(contributor: RetractContributor): void {
     if (!this.byTarget.has(contributor.target)) {
@@ -36,14 +50,22 @@ export class RetractProviderImpl implements RetractProvider {
     return this.order.slice();
   }
 
-  async retract(request: RetractRequest): Promise<RetractResult> {
+  async retract(
+    request: RetractRequest,
+    project?: RetractProjectContext,
+  ): Promise<RetractResult> {
+    const resolvedProject =
+      project ?? this.resolveProjectContext?.(request.projectId);
+    if (resolvedProject && "error" in resolvedProject) {
+      throw new Error(`Unknown project: ${resolvedProject.projectId}`);
+    }
     const contributor = this.byTarget.get(request.target);
     if (!contributor) {
       return { ok: false, reason: "no_contributors" };
     }
     let outcome: RetractContributorResult;
     try {
-      outcome = await runContributor(contributor, request);
+      outcome = await runContributor(contributor, request, resolvedProject);
     } catch (err) {
       return {
         ok: false,
@@ -67,23 +89,24 @@ export class RetractProviderImpl implements RetractProvider {
 function runContributor(
   contributor: RetractContributor,
   request: RetractRequest,
+  project?: RetractProjectContext,
 ): Promise<RetractContributorResult> {
   switch (request.target) {
     case "memory":
       if (contributor.target !== "memory")
         throw new Error("retract: contributor target mismatch");
-      return contributor.retract({ id: request.id });
+      return contributor.retract({ id: request.id, ...(project && { project }) });
     case "knowledge":
       if (contributor.target !== "knowledge")
         throw new Error("retract: contributor target mismatch");
-      return contributor.retract({ slug: request.slug });
+      return contributor.retract({ slug: request.slug, ...(project && { project }) });
     case "tasks":
       if (contributor.target !== "tasks")
         throw new Error("retract: contributor target mismatch");
-      return contributor.retract({ id: request.id });
+      return contributor.retract({ id: request.id, ...(project && { project }) });
     case "inbox":
       if (contributor.target !== "inbox")
         throw new Error("retract: contributor target mismatch");
-      return contributor.retract({ path: request.path });
+      return contributor.retract({ path: request.path, ...(project && { project }) });
   }
 }

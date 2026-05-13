@@ -20,6 +20,9 @@ and are independently registered.
 - One daemon-control route (`POST /capture`) plus its user-facing twin
   (`POST /api/capture`) — both share `createCaptureRouteHandler` so the
   wire shape cannot drift between operator surfaces.
+- Both routes resolve a concrete project id before writer execution. Project
+  contributors receive `CaptureProjectContext` and write through that
+  project's stores and project root.
 - One `KotaClient.capture` namespace and one `kota capture <text>` CLI
   subcommand rendered through `src/modules/rendering`.
 - One agent-callable tool (`capture`) contributed through the standard
@@ -110,6 +113,8 @@ its `register()` API; nothing in core hard-codes the contributor set.
   `KnowledgeProvider.create`, `createNormalizedTask`, an inbox
   `writeFileSync`). The seam never writes a parallel record on the side
   and never logs a separate envelope.
+- Project contributors must use the supplied project context; default
+  provider getters are not a valid path for multi-project capture.
 - No public classifier-prompt knob. Tuning the routing prompt lands as
   a focused follow-up, not as a per-call parameter.
 - No cost surfacing into autonomy-facing context. The classifier uses

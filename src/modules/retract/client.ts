@@ -86,10 +86,10 @@ export type RetractRecord =
  *   (e.g. `data/inbox/note-foo.md`).
  */
 export type RetractRequest =
-  | { target: "memory"; id: string }
-  | { target: "knowledge"; slug: string }
-  | { target: "tasks"; id: string }
-  | { target: "inbox"; path: string };
+  | { target: "memory"; id: string; projectId?: string }
+  | { target: "knowledge"; slug: string; projectId?: string }
+  | { target: "tasks"; id: string; projectId?: string }
+  | { target: "inbox"; path: string; projectId?: string };
 
 /**
  * Result of `retract.retract`.

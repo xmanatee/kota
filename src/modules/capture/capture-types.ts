@@ -11,10 +11,16 @@
  * of contributors at type-time — `register` accepts N typed contributors,
  * so adding a fifth store is a registration, not an enum edit.
  */
+
+import type { ProjectId } from "#core/daemon/project-registry.js";
 import {
   defineProviderToken,
   type ProviderToken,
 } from "#core/modules/provider-token.js";
+import type {
+  KnowledgeProvider,
+  MemoryProvider,
+} from "#core/modules/provider-types.js";
 import type {
   CaptureFilter,
   CaptureRecord,
@@ -47,6 +53,13 @@ export const CAPTURE_TARGET_ORDER: ReadonlyArray<CaptureTarget> = [
   "inbox",
 ] as const;
 
+export type CaptureProjectContext = {
+  projectId: ProjectId;
+  projectDir: string;
+  memory: MemoryProvider;
+  knowledge: KnowledgeProvider;
+};
+
 /**
  * Input every contributor sees. The seam does not pre-process the text
  * beyond trimming the leading and trailing whitespace; classification
@@ -55,6 +68,7 @@ export const CAPTURE_TARGET_ORDER: ReadonlyArray<CaptureTarget> = [
 export type CaptureContributorInput = {
   text: string;
   hint?: string;
+  project?: CaptureProjectContext;
 };
 
 /**
@@ -99,7 +113,11 @@ export interface CaptureProvider {
   register(contributor: CaptureContributor): void;
   /** List currently-registered contributor targets, in registration order. */
   contributors(): ReadonlyArray<CaptureTarget>;
-  capture(text: string, filter?: CaptureFilter): Promise<CaptureResult>;
+  capture(
+    text: string,
+    filter?: CaptureFilter,
+    project?: CaptureProjectContext,
+  ): Promise<CaptureResult>;
 }
 
 /** Provider-registry token for the cross-store capture seam. */

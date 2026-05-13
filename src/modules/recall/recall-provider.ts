@@ -17,6 +17,7 @@ import {
   RECALL_DEFAULT_TOP_K,
   RECALL_SOURCE_ORDER,
   type RecallContributor,
+  type RecallProjectContext,
   type RecallProvider,
   type RecallSource,
 } from "./recall-types.js";
@@ -117,6 +118,9 @@ export type RecallProviderOptions = {
    * to `console.error`. Tests inject a quiet sink to keep output clean.
    */
   onContributorError?: (source: RecallSource, error: unknown) => void;
+  resolveProjectContext?: (
+    projectId: string | null | undefined,
+  ) => RecallProjectContext | { error: "unknown_project"; projectId: string };
 };
 
 export class RecallProviderImpl implements RecallProvider {
@@ -125,6 +129,9 @@ export class RecallProviderImpl implements RecallProvider {
   private readonly onContributorError: NonNullable<
     RecallProviderOptions["onContributorError"]
   >;
+  private readonly resolveProjectContext:
+    | NonNullable<RecallProviderOptions["resolveProjectContext"]>
+    | undefined;
 
   constructor(options: RecallProviderOptions = {}) {
     this.onContributorError =
@@ -133,6 +140,7 @@ export class RecallProviderImpl implements RecallProvider {
         const msg = err instanceof Error ? err.message : String(err);
         console.error(`[recall] ${source} contributor failed: ${msg}`);
       });
+    this.resolveProjectContext = options.resolveProjectContext;
   }
 
   register(contributor: RecallContributor): void {
@@ -152,9 +160,18 @@ export class RecallProviderImpl implements RecallProvider {
     return this.order.slice();
   }
 
-  async recall(query: string, filter?: RecallFilter): Promise<RecallHit[]> {
+  async recall(
+    query: string,
+    filter?: RecallFilter,
+    project?: RecallProjectContext,
+  ): Promise<RecallHit[]> {
     const trimmed = query.trim();
     if (trimmed === "") return [];
+    const resolvedProject =
+      project ?? this.resolveProjectContext?.(filter?.projectId);
+    if (resolvedProject && "error" in resolvedProject) {
+      throw new Error(`Unknown project: ${resolvedProject.projectId}`);
+    }
     const topK = filter?.topK ?? RECALL_DEFAULT_TOP_K;
     if (topK <= 0) return [];
     const minScore = filter?.minScore ?? 0;
@@ -170,7 +187,10 @@ export class RecallProviderImpl implements RecallProvider {
         const contributor = this.bySource.get(source);
         if (!contributor) return [] as RawRecallEntry[];
         try {
-          return await contributor.recall(trimmed, { topK });
+          return await contributor.recall(trimmed, {
+            topK,
+            ...(resolvedProject && { project: resolvedProject }),
+          });
         } catch (err) {
           this.onContributorError(source, err);
           return [] as RawRecallEntry[];

@@ -11,34 +11,27 @@ back to the underlying typed `RecallHit`s.
 - One daemon-control route (`POST /answer`) plus its user-facing twin
   (`POST /api/answer`) — both share `createAnswerRouteHandler` so the
   wire shape cannot drift.
+- The answer route resolves a concrete project id before synthesis. The
+  provider persists through the project-scoped answer-history store and
+  forwards the same project id through recall.
 - One `KotaClient.answer` namespace and one `kota answer <query>` CLI
   subcommand rendered through `src/modules/rendering`.
-- One agent-callable tool (`answer`) contributed through the standard
-  `KotaModule.tools` path. The tool wraps the same in-process
-  `AnswerProvider` and renders the cited reply through
-  `renderAnswerReplyPlain`, so a conversational answer turn flows
-  through the same recall + synthesizer + answer-history path every
-  other surface uses; every successful call appends to the same
-  `AnswerHistoryStore` the `/answer-log` route and `kota answer log`
-  read from.
+- One agent-callable tool (`answer`) through `KotaModule.tools`; it uses
+  the same `AnswerProvider`, `renderAnswerReplyPlain`, recall,
+  synthesizer, and answer-history path as every other surface.
 - One per-turn dynamic system-prompt contributor
-  (`buildAnswerDynamicStateProvider` in `system-prompt.ts`, registered
-  via `ctx.registerDynamicStateProvider` during `onLoad`). Emits the
-  conversational-pattern block when the session's effective tool policy
-  admits `answer` and the empty string otherwise. The block tells the
-  agent to prefer a cited synthesized reply over free-form text for
-  fact-shaped questions, so the answer-history surface fills with
-  conversational answers rather than only explicit `/answer` traffic.
+  (`buildAnswerDynamicStateProvider`, registered during `onLoad`). It
+  emits guidance only when the effective tool policy admits `answer`,
+  steering fact-shaped turns through cited answers and answer history.
 
 ## Typed citation contract
 
 The synthesizer emits `[source:id]` markers in the prose where
 `source ∈ {knowledge, memory, history, tasks, answer}` (matching
 `RecallSource` exactly; no aliases) and `id` is the typed hit id. The
-`answer` arm — the synthesizer chaining through a prior cited-answer
-envelope when recall surfaced one — is anchored end-to-end through the
-"answer-then-answer chain" describe noted in **Tests** below. The
-parser extracts each marker, validates it against the typed
+`answer` arm covers synthesizer chaining through a prior cited-answer
+envelope when recall surfaced one. The parser extracts each marker,
+validates it against the typed
 `RecallHit[]` the synthesizer was shown, and returns:
 
 - `answer: string` — the prose verbatim, markers preserved inline so the
@@ -116,27 +109,14 @@ contract.
 
 ## Tests
 
-- Unit tests for the seam pieces sit beside the code: `answer-provider.test.ts`,
-  `answer-history-store.test.ts`, `citation-parser.test.ts`,
-  `recall-contributor.test.ts`, `tool.test.ts`, `routes.test.ts`,
-  `cli.test.ts`, `system-prompt.test.ts`, and the lifecycle anchor
-  `answer-lifecycle.test.ts`.
-- Agent-loop integration anchors:
-  - `src/conversational-agent-tools.integration.test.ts` exercises the
-    `answer` tool end-to-end through the `openai-tools` harness against
-    the production `AnswerProviderImpl`. Describes pin: the cross-store
-    success arm ("capture / recall / answer round trip"); the `answer`
-    recall contributor ("prior answers surface as recall hits"); the
-    synthesizer chaining through a prior cited-answer envelope
-    ("answer-then-answer chain", with positive `[answer:<id>]` and
-    negative fabricated-marker arms); and the symmetric answer-layer
-    settling after retract ("post-retract answer settles", with a
-    positive arm that proves no memory citation or `recallHit` for the
-    retracted id and a negative arm that proves a fabricated
-    `[memory:<retractedId>]` still trips retry-and-reject).
-  - `src/conversational-prompt-priming.integration.test.ts` pins the
-    `dynamic-state` admission gate for the answer block (positive when
-    the tool is admitted, negative when it is excluded).
+- Unit tests sit beside the code and cover provider, history store,
+  citation parser, recall contributor, routes, CLI, tool, dynamic prompt,
+  and lifecycle behavior.
+- Integration anchors live in
+  `src/conversational-agent-tools.integration.test.ts` for tool
+  end-to-end behavior, prior-answer recall, answer chaining, and
+  post-retract settling; `src/conversational-prompt-priming.integration.test.ts`
+  pins the answer block's dynamic-state admission gate.
 
 ## Boundaries
 
@@ -153,6 +133,8 @@ contract.
 - No second persistence path. The store is the only on-disk record of
   cited-answer envelopes — no parallel logging, no second envelope
   shape elsewhere.
+- Project-scoped reads and writes use `AnswerProjectContext`; the default
+  history store is only the fallback for the default project.
 - No fan-out from this module. Surface adoption ships as honest
   single-task follow-ups owned by the surface module, not a parallel
   multi-surface chain seeded here.

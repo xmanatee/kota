@@ -23,6 +23,7 @@ import {
   CAPTURE_TARGET_ORDER,
   type CaptureClassifier,
   type CaptureContributor,
+  type CaptureProjectContext,
   type CaptureProvider,
   type CaptureTarget,
 } from "./capture-types.js";
@@ -34,15 +35,22 @@ export type CaptureProviderOptions = {
    * absent, an unguided capture surfaces `ambiguous` immediately.
    */
   classifier?: CaptureClassifier;
+  resolveProjectContext?: (
+    projectId: string | null | undefined,
+  ) => CaptureProjectContext | { error: "unknown_project"; projectId: string };
 };
 
 export class CaptureProviderImpl implements CaptureProvider {
   private readonly byTarget = new Map<CaptureTarget, CaptureContributor>();
   private readonly order: CaptureTarget[] = [];
   private readonly classifier?: CaptureClassifier;
+  private readonly resolveProjectContext:
+    | NonNullable<CaptureProviderOptions["resolveProjectContext"]>
+    | undefined;
 
   constructor(options: CaptureProviderOptions = {}) {
     if (options.classifier) this.classifier = options.classifier;
+    this.resolveProjectContext = options.resolveProjectContext;
   }
 
   register(contributor: CaptureContributor): void {
@@ -56,8 +64,17 @@ export class CaptureProviderImpl implements CaptureProvider {
     return this.order.slice();
   }
 
-  async capture(text: string, filter?: CaptureFilter): Promise<CaptureResult> {
+  async capture(
+    text: string,
+    filter?: CaptureFilter,
+    project?: CaptureProjectContext,
+  ): Promise<CaptureResult> {
     const trimmed = text.trim();
+    const resolvedProject =
+      project ?? this.resolveProjectContext?.(filter?.projectId);
+    if (resolvedProject && "error" in resolvedProject) {
+      throw new Error(`Unknown project: ${resolvedProject.projectId}`);
+    }
     if (this.order.length === 0) {
       return { ok: false, reason: "no_contributors" };
     }
@@ -74,7 +91,7 @@ export class CaptureProviderImpl implements CaptureProvider {
       if (!contributor) {
         return { ok: false, reason: "no_contributors" };
       }
-      return this.runContributor(contributor, trimmed, filter.hint);
+      return this.runContributor(contributor, trimmed, filter.hint, resolvedProject);
     }
 
     if (!this.classifier) {
@@ -105,18 +122,20 @@ export class CaptureProviderImpl implements CaptureProvider {
         suggestions: this.suggestionList(),
       };
     }
-    return this.runContributor(contributor, trimmed, filter?.hint);
+    return this.runContributor(contributor, trimmed, filter?.hint, resolvedProject);
   }
 
   private async runContributor(
     contributor: CaptureContributor,
     text: string,
     hint?: string,
+    project?: CaptureProjectContext,
   ): Promise<CaptureResult> {
     try {
       const record = await contributor.capture({
         text,
         ...(hint !== undefined && { hint }),
+        ...(project && { project }),
       });
       return { ok: true, record };
     } catch (err) {

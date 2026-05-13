@@ -1,12 +1,12 @@
 ---
 id: task-project-scope-recall-answer-capture-retract-pipelines
 title: Project-scope recall answer capture retract pipelines
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Route the cross-store recall, answer, capture, and retract pipelines through explicit project-scoped store contexts after the underlying stores are scoped.
 created_at: 2026-05-12T15:45:00.000Z
-updated_at: 2026-05-13T22:44:28.000Z
+updated_at: 2026-05-13T23:40:27.000Z
 ---
 
 ## Problem
@@ -46,16 +46,10 @@ project-scoped only after their underlying stores are scoped.
 
 ## Acceptance Evidence
 
-- Focused two-project evidence for recall, answer, capture, and retract, plus
-  queue validation.
+- Focused two-project evidence for recall, answer, capture, and retract:
+  `pnpm test src/cross-store-project-scope.integration.test.ts src/modules/recall/routes.test.ts src/modules/capture/routes.test.ts src/modules/retract/routes.test.ts src/modules/answer/routes.test.ts src/modules/recall/recall-provider.test.ts src/modules/capture/capture-provider.test.ts src/modules/retract/retract-provider.test.ts src/modules/answer/answer-provider.test.ts src/modules/recall/contributors.test.ts src/modules/capture/contributors.test.ts src/modules/retract/contributors.test.ts src/modules/answer/recall-contributor.test.ts`
+- Queue validation after staging.
 
 ## Source / Intent
 
 Fourth sub-slice of the KotaClient.forProject per-store routing anchor.
-
-## Unblock Precondition
-
-```
-kind: task-done
-ref: task-project-scope-history-store-for-kotaclient-forproject
-```

@@ -1,4 +1,3 @@
-import { join } from "node:path";
 import {
 	buildConfiguredProject,
 	type ConfiguredProject,
@@ -6,10 +5,10 @@ import {
 } from "#core/daemon/project-registry.js";
 import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
-import type { MemoryProvider } from "#core/modules/provider-types.js";
-import { MemoryStore } from "./store.js";
+import type { RepoTasksProvider } from "#core/modules/provider-types.js";
+import { RepoTasksDefaultStore } from "./repo-tasks-store.js";
 
-export type UnknownMemoryProjectError = {
+export type UnknownRepoTasksProjectError = {
 	error: "Unknown project";
 	reason: "unknown_project";
 	projectId: string;
@@ -21,30 +20,30 @@ type ProjectScopeSnapshot = {
 	projects: readonly ConfiguredProject[];
 };
 
-export type MemoryProjectStoresOptions = {
+export type RepoTasksProjectStoresOptions = {
 	defaultProjectDir: string;
 	projects?: readonly ConfiguredProject[];
 	defaultProjectId?: ProjectId;
 	getActiveProjectId?: () => ProjectId | null;
-	getDefaultProvider?: () => MemoryProvider | null;
+	getDefaultProvider?: () => RepoTasksProvider | null;
 };
 
-export class MemoryProjectStores {
+export class RepoTasksProjectStores {
 	private readonly fallbackProject: ConfiguredProject;
 	private readonly fallbackProjects: readonly ConfiguredProject[];
 	private readonly fallbackDefaultProjectId: ProjectId;
 	private readonly getFallbackActiveProjectId: () => ProjectId | null;
-	private readonly getDefaultProvider: (() => MemoryProvider | null) | undefined;
-	private readonly stores = new Map<ProjectId, MemoryProvider>();
+	private readonly getDefaultProvider: (() => RepoTasksProvider | null) | undefined;
+	private readonly stores = new Map<ProjectId, RepoTasksProvider>();
 
-	constructor(options: MemoryProjectStoresOptions) {
+	constructor(options: RepoTasksProjectStoresOptions) {
 		this.fallbackProject = buildConfiguredProject({
 			projectDir: options.defaultProjectDir,
 		});
 		this.fallbackProjects = options.projects ?? [this.fallbackProject];
 		const firstProject = this.fallbackProjects[0];
 		if (!firstProject) {
-			throw new Error("MemoryProjectStores requires at least one project");
+			throw new Error("RepoTasksProjectStores requires at least one project");
 		}
 		this.fallbackDefaultProjectId =
 			options.defaultProjectId ?? firstProject.projectId;
@@ -54,7 +53,7 @@ export class MemoryProjectStores {
 			)
 		) {
 			throw new Error(
-				`MemoryProjectStores default project ${this.fallbackDefaultProjectId} is not registered`,
+				`RepoTasksProjectStores default project ${this.fallbackDefaultProjectId} is not registered`,
 			);
 		}
 		this.getFallbackActiveProjectId = options.getActiveProjectId ?? (() => null);
@@ -64,8 +63,8 @@ export class MemoryProjectStores {
 	resolve(
 		projectId: string | null | undefined,
 	):
-		| { ok: true; projectId: ProjectId; projectDir: string; store: MemoryProvider }
-		| { ok: false; error: UnknownMemoryProjectError } {
+		| { ok: true; projectId: ProjectId; projectDir: string; store: RepoTasksProvider }
+		| { ok: false; error: UnknownRepoTasksProjectError } {
 		const snapshot = this.snapshot();
 		const requested = projectId?.trim();
 		const resolvedProjectId =
@@ -115,22 +114,22 @@ export class MemoryProjectStores {
 	private storeFor(
 		project: ConfiguredProject,
 		defaultProjectId: ProjectId,
-	): MemoryProvider {
+	): RepoTasksProvider {
 		if (project.projectId === defaultProjectId) {
 			const provider = this.getDefaultProvider?.();
 			if (provider) return provider;
 		}
 		const existing = this.stores.get(project.projectId);
 		if (existing) return existing;
-		const store = new MemoryStore(join(project.projectDir, ".kota"));
+		const store = new RepoTasksDefaultStore(project.projectDir);
 		this.stores.set(project.projectId, store);
 		return store;
 	}
 }
 
-export function createMemoryProjectStores(
+export function createRepoTasksProjectStores(
 	defaultProjectDir: string,
-	getDefaultProvider?: () => MemoryProvider | null,
-): MemoryProjectStores {
-	return new MemoryProjectStores({ defaultProjectDir, getDefaultProvider });
+	getDefaultProvider?: () => RepoTasksProvider | null,
+): RepoTasksProjectStores {
+	return new RepoTasksProjectStores({ defaultProjectDir, getDefaultProvider });
 }

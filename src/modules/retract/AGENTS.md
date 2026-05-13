@@ -13,6 +13,9 @@ record from the right store.
 - One daemon-control route (`POST /retract`) plus its user-facing twin
   (`POST /api/retract`) — both share `createRetractRouteHandler` so the
   wire shape cannot drift between operator surfaces.
+- Both routes resolve a concrete project id before removal execution. Project
+  contributors receive `RetractProjectContext` and remove from that project's
+  stores and project root only.
 - One `KotaClient.retract` namespace and one `kota retract` CLI
   subcommand rendered through `src/modules/rendering`.
 - One agent-callable tool (`retract`) contributed through the standard
@@ -96,6 +99,8 @@ its `register()` API; nothing in core hard-codes the contributor set.
 - No raw filesystem deletes for tasks. The tasks contributor routes
   through `moveTaskById(projectDir, id, "dropped")` so the state-machine
   invariants and `updated_at` / `git mv` semantics stay intact.
+- Project contributors must use the supplied project context; default
+  provider getters are not a valid path for multi-project retract.
 - No second registry, no second public retract path. `register()` is
   the single way new stores join.
 

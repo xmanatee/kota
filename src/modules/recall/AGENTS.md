@@ -12,6 +12,9 @@ corpus contributed by the answer module.
 - One daemon-control route (`POST /recall`) plus its user-facing twin
   (`POST /api/recall`) — both share `createRecallRouteHandler` so the wire
   shape cannot drift between operator surfaces.
+- Both routes resolve a concrete project id before provider execution. The
+  provider passes a `RecallProjectContext` into contributors, so composed
+  recall reads project-scoped stores instead of module-global providers.
 - One `KotaClient.recall` namespace and one `kota recall <query>` CLI
   subcommand.
 - One agent-callable tool (`recall`) contributed through the standard
@@ -82,6 +85,8 @@ cannot answer.
   contributors delegate to each store's existing semantic-search interface.
 - No replacement of the per-store query paths. `searchKnowledge`,
   `searchMemory`, `searchHistory`, and `searchTasks` remain as-is.
+- New contributors that read project data must consume the supplied project
+  context; global provider getters are only for the default-project resolver.
 - The recall module does not seed a parallel multi-surface fan-out chain
   by itself. Surface adoption (Telegram, Slack, macOS, mobile, web) lands
   as honest single-task follow-ups owned by the surface module. Each

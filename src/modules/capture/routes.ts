@@ -24,6 +24,7 @@ import type {
   CaptureResult,
   CaptureTarget,
 } from "./client.js";
+import type { ResolveCaptureProjectContext } from "./project-context.js";
 
 function parseFilter(value: unknown): CaptureFilter | undefined {
   if (!value || typeof value !== "object") return undefined;
@@ -37,11 +38,15 @@ function parseFilter(value: unknown): CaptureFilter | undefined {
   if (typeof raw.hint === "string" && raw.hint !== "") {
     filter.hint = raw.hint;
   }
+  if (typeof raw.projectId === "string" && raw.projectId.trim() !== "") {
+    filter.projectId = raw.projectId;
+  }
   return Object.keys(filter).length > 0 ? filter : undefined;
 }
 
 export function createCaptureRouteHandler(
   resolveProvider: () => CaptureProvider,
+  resolveProjectContext?: ResolveCaptureProjectContext,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async function handler(
     req: IncomingMessage,
@@ -61,8 +66,17 @@ export function createCaptureRouteHandler(
     }
     const filter = parseFilter(body.filter);
     try {
+      const project = resolveProjectContext?.(filter?.projectId);
+      if (project && "error" in project) {
+        jsonResponse(res, 404, {
+          error: "Unknown project",
+          reason: "unknown_project",
+          projectId: project.projectId,
+        });
+        return;
+      }
       const provider = resolveProvider();
-      const result = await provider.capture(text, filter);
+      const result = await provider.capture(text, filter, project);
       jsonResponse(res, 200, result satisfies CaptureResult);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -73,25 +87,27 @@ export function createCaptureRouteHandler(
 
 export function captureControlRoutes(
   resolveProvider: () => CaptureProvider,
+  resolveProjectContext?: ResolveCaptureProjectContext,
 ): ControlRouteRegistration[] {
   return [
     {
       method: "POST",
       path: "/capture",
       capabilityScope: "control",
-      handler: createCaptureRouteHandler(resolveProvider),
+      handler: createCaptureRouteHandler(resolveProvider, resolveProjectContext),
     },
   ];
 }
 
 export function captureApiRoutes(
   resolveProvider: () => CaptureProvider,
+  resolveProjectContext?: ResolveCaptureProjectContext,
 ): RouteRegistration[] {
   return [
     {
       method: "POST",
       path: "/api/capture",
-      handler: createCaptureRouteHandler(resolveProvider),
+      handler: createCaptureRouteHandler(resolveProvider, resolveProjectContext),
     },
   ];
 }

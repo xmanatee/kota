@@ -70,6 +70,7 @@ export type CaptureRecord =
 export type CaptureFilter = {
   target?: CaptureTarget;
   hint?: string;
+  projectId?: string;
 };
 
 /**

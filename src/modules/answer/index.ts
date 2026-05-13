@@ -51,6 +51,7 @@ import {
   decodeAnswerHistoryListResult,
   decodeAnswerHistoryShowResult,
 } from "./client.js";
+import { createAnswerProjectContextResolver } from "./project-context.js";
 import { createAnswerRecallContributor } from "./recall-contributor.js";
 import { answerApiRoutes, answerControlRoutes } from "./routes.js";
 import {
@@ -112,6 +113,7 @@ function buildAnswerDaemonHandler(link: DaemonTransport): AnswerClient {
       const params = new URLSearchParams();
       if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
       if (filter?.beforeId !== undefined) params.set("beforeId", filter.beforeId);
+      if (filter?.projectId !== undefined) params.set("projectId", filter.projectId);
       const query = params.toString() ? `?${params.toString()}` : "";
       const decoded = await link.requestStrict<unknown>("GET", `/answers${query}`);
       return decodeAnswerHistoryListResult(decoded);
@@ -157,6 +159,9 @@ const answerModule: KotaModule = {
   dependencies: ["recall", "model-clients", "rendering"],
 
   onLoad(ctx: ModuleRuntimeContext) {
+    const resolveProjectContext = createAnswerProjectContextResolver(ctx.cwd, () =>
+      activeHistory,
+    );
     const recallSeam: AnswerRecallSeam = {
       async recall(query, filter) {
         return ctx.client.recall.recall(query, filter);
@@ -210,7 +215,9 @@ const answerModule: KotaModule = {
         "answer module: `recall` provider is not registered. The recall module must load before answer (declared via dependencies).",
       );
     }
-    recallProvider.register(createAnswerRecallContributor(activeHistory));
+    recallProvider.register(
+      createAnswerRecallContributor(activeHistory, resolveProjectContext),
+    );
     recallContributorHost = recallProvider;
 
     ctx.log.info("answer: cited-answer seam ready");
@@ -224,9 +231,19 @@ const answerModule: KotaModule = {
 
   tools: () => [createAnswerToolDef(resolveActiveProvider)],
 
-  controlRoutes: () => answerControlRoutes(resolveActiveProvider, resolveActiveHistory),
+  controlRoutes: (ctx) =>
+    answerControlRoutes(
+      resolveActiveProvider,
+      resolveActiveHistory,
+      createAnswerProjectContextResolver(ctx.cwd, () => activeHistory),
+    ),
 
-  routes: () => answerApiRoutes(resolveActiveProvider, resolveActiveHistory),
+  routes: (ctx) =>
+    answerApiRoutes(
+      resolveActiveProvider,
+      resolveActiveHistory,
+      createAnswerProjectContextResolver(ctx.cwd, () => activeHistory),
+    ),
 
   localClient: (ctx) => {
     const localStore = new DiskAnswerHistoryStore({
@@ -234,10 +251,20 @@ const answerModule: KotaModule = {
     });
     const handler: AnswerClient = {
       async answer(query, filter) {
-        return resolveActiveProvider().answer(query, filter);
+        const resolver = createAnswerProjectContextResolver(ctx.cwd, () =>
+          activeHistory ?? localStore,
+        );
+        const project = resolver(filter?.projectId);
+        if ("error" in project) throw new Error(`Unknown project: ${project.projectId}`);
+        return resolveActiveProvider().answer(query, filter, project);
       },
       async log(filter?: AnswerHistoryListFilter) {
-        const store = activeHistory ?? localStore;
+        const resolver = createAnswerProjectContextResolver(ctx.cwd, () =>
+          activeHistory ?? localStore,
+        );
+        const project = resolver(filter?.projectId);
+        if ("error" in project) throw new Error(`Unknown project: ${project.projectId}`);
+        const store = project.history;
         const entries = await store.listAnswers(filter);
         return { entries };
       },

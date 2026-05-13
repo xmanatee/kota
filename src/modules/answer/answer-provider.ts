@@ -31,6 +31,7 @@ import {
 } from "./answer-history-store.js";
 import {
   ANSWER_DEFAULT_TOP_K,
+  type AnswerProjectContext,
   type AnswerProvider,
   type AnswerRecallSeam,
   type Synthesizer,
@@ -73,7 +74,11 @@ export class AnswerProviderImpl implements AnswerProvider {
     this.onPersistError = options.onPersistError ?? (() => {});
   }
 
-  async answer(query: string, filter?: AnswerFilter): Promise<AnswerResult> {
+  async answer(
+    query: string,
+    filter?: AnswerFilter,
+    project?: AnswerProjectContext,
+  ): Promise<AnswerResult> {
     const trimmed = query.trim();
     const recallFilter: AnswerFilter = {
       ...filter,
@@ -81,10 +86,16 @@ export class AnswerProviderImpl implements AnswerProvider {
     };
 
     if (trimmed === "") {
-      return this.persistAndReturn(query, recallFilter, [], {
-        ok: false,
-        reason: "no_hits",
-      });
+      return this.persistAndReturn(
+        query,
+        recallFilter,
+        [],
+        {
+          ok: false,
+          reason: "no_hits",
+        },
+        project,
+      );
     }
 
     const recallResult = await this.recall.recall(trimmed, recallFilter);
@@ -92,19 +103,25 @@ export class AnswerProviderImpl implements AnswerProvider {
       return this.persistAndReturn(query, recallFilter, [], {
         ok: false,
         reason: recallResult.reason,
-      });
+      }, project);
     }
     const hits = recallResult.hits;
     if (hits.length === 0) {
       return this.persistAndReturn(query, recallFilter, [], {
         ok: false,
         reason: "no_hits",
-      });
+      }, project);
     }
 
     const firstAttempt = await this.runSynthesis(trimmed, hits, false);
     if (firstAttempt.ok) {
-      return this.persistAndReturn(query, recallFilter, hits, firstAttempt.result);
+      return this.persistAndReturn(
+        query,
+        recallFilter,
+        hits,
+        firstAttempt.result,
+        project,
+      );
     }
 
     if (firstAttempt.kind === "thrown") {
@@ -112,19 +129,25 @@ export class AnswerProviderImpl implements AnswerProvider {
       return this.persistAndReturn(query, recallFilter, hits, {
         ok: false,
         reason: "synthesis_failed",
-      });
+      }, project);
     }
 
     const retry = await this.runSynthesis(trimmed, hits, true);
     if (retry.ok) {
-      return this.persistAndReturn(query, recallFilter, hits, retry.result);
+      return this.persistAndReturn(
+        query,
+        recallFilter,
+        hits,
+        retry.result,
+        project,
+      );
     }
     if (retry.kind === "thrown") this.onSynthesisError(retry.error);
     else this.onSynthesisError(new Error(`malformed citations: ${retry.unknown.join(", ")}`));
     return this.persistAndReturn(query, recallFilter, hits, {
       ok: false,
       reason: "synthesis_failed",
-    });
+    }, project);
   }
 
   private async persistAndReturn(
@@ -132,9 +155,11 @@ export class AnswerProviderImpl implements AnswerProvider {
     filter: AnswerFilter,
     recallHits: RecallHit[],
     result: AnswerResult,
+    project?: AnswerProjectContext,
   ): Promise<AnswerResult> {
     try {
-      await this.history.appendAnswer(
+      const history = project?.history ?? this.history;
+      await history.appendAnswer(
         buildAnswerHistoryRecord({
           id: mintAnswerHistoryId(),
           createdAt: new Date().toISOString(),

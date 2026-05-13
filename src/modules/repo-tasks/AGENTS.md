@@ -16,6 +16,9 @@ served at `/api/tasks`.
   against `title + summary + indexable body sections` answers `kota task
   search --keyword`. The `tasks-semantic` module overrides this when an
   embedding provider is configured.
+- Exposes a project-scoped task-search resolver for composed seams such as
+  recall. The default provider remains the default-project path; non-default
+  projects get a store rooted at that project's task queue.
 - `kota task search` and `kota task reindex` use the same daemon control
   plane the CLI consumes for `tasks.show`/`tasks.move`. The single seam is
   the bearer-auth `GET /tasks/search` control route; there is intentionally
