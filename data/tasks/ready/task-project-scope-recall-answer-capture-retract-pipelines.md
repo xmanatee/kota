@@ -1,12 +1,12 @@
 ---
 id: task-project-scope-recall-answer-capture-retract-pipelines
 title: Project-scope recall answer capture retract pipelines
-status: blocked
+status: ready
 priority: p1
 area: architecture
 summary: Route the cross-store recall, answer, capture, and retract pipelines through explicit project-scoped store contexts after the underlying stores are scoped.
 created_at: 2026-05-12T15:45:00.000Z
-updated_at: 2026-05-12T15:45:00.000Z
+updated_at: 2026-05-13T22:44:28.000Z
 ---
 
 ## Problem
