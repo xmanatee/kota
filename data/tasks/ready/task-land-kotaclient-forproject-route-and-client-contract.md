@@ -1,12 +1,12 @@
 ---
 id: task-land-kotaclient-forproject-route-and-client-contract
 title: Land KotaClient.forProject route and client contract
-status: blocked
+status: ready
 priority: p1
 area: architecture
 summary: Add the public KotaClient.forProject(projectId) primitive and route/client contract once the underlying stores and pipelines are project-scoped.
 created_at: 2026-05-12T15:45:00.000Z
-updated_at: 2026-05-12T15:45:00.000Z
+updated_at: 2026-05-13T23:54:25.000Z
 ---
 
 ## Problem
