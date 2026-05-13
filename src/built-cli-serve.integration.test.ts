@@ -75,7 +75,6 @@ async function reserveFreePort(): Promise<number> {
 }
 
 async function pollForToken(
-  child: ChildProcess,
   buffers: { stdout: Buffer[]; stderr: Buffer[] },
   timeoutMs: number,
   earlyExit: Promise<number>,
@@ -173,40 +172,61 @@ describe("built CLI serve smoke (provider-backed routes)", () => {
   });
 
   it("`node dist/cli.js serve` serves /api/knowledge with 200 (provider onLoad ran)", async () => {
-    const port = await reserveFreePort();
+    let port = 0;
+    let token = "";
+    let servingChild: ChildProcess | null = null;
 
-    child = spawn(
-      process.execPath,
-      [
-        CLI_PATH,
-        "serve",
-        "--port",
-        String(port),
-      ],
-      {
-        // `kota serve` reads its project root from process.cwd(); pinning the
-        // child's cwd to a temp dir is therefore the project pin.
-        cwd: projectDir,
-        env: {
-          ...process.env,
-          HOME: homeDir,
-          NODE_OPTIONS: "",
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      port = await reserveFreePort();
+      stdoutChunks = [];
+      stderrChunks = [];
+      const spawned = spawn(
+        process.execPath,
+        [
+          CLI_PATH,
+          "serve",
+          "--port",
+          String(port),
+        ],
+        {
+          // `kota serve` reads its project root from process.cwd(); pinning the
+          // child's cwd to a temp dir is therefore the project pin.
+          cwd: projectDir,
+          env: {
+            ...process.env,
+            HOME: homeDir,
+            NODE_OPTIONS: "",
+          },
         },
-      },
-    );
-    child.stdout?.on("data", (d) => stdoutChunks.push(Buffer.from(d)));
-    child.stderr?.on("data", (d) => stderrChunks.push(Buffer.from(d)));
+      );
+      child = spawned;
+      spawned.stdout?.on("data", (d) => stdoutChunks.push(Buffer.from(d)));
+      spawned.stderr?.on("data", (d) => stderrChunks.push(Buffer.from(d)));
 
-    const exited = new Promise<number>((resolveExit) => {
-      child!.once("exit", (code) => resolveExit(code ?? -1));
-    });
+      const exited = new Promise<number>((resolveExit) => {
+        spawned.once("exit", (code) => resolveExit(code ?? -1));
+      });
 
-    const token = await pollForToken(
-      child,
-      { stdout: stdoutChunks, stderr: stderrChunks },
-      30_000,
-      exited,
-    );
+      try {
+        token = await pollForToken(
+          { stdout: stdoutChunks, stderr: stderrChunks },
+          30_000,
+          exited,
+        );
+        servingChild = spawned;
+        break;
+      } catch (err) {
+        const stderrText = Buffer.concat(stderrChunks).toString();
+        if (attempt === 5 || !stderrText.includes("EADDRINUSE")) {
+          throw err;
+        }
+        await waitForExit(spawned, 2_000);
+      }
+    }
+
+    if (!servingChild) {
+      throw new Error("serve did not publish an auth token before retry attempts were exhausted");
+    }
 
     const res = await fetchAuthorized(port, "/api/knowledge?scope=project", token);
     const bodyText = await res.text();
@@ -217,8 +237,8 @@ describe("built CLI serve smoke (provider-backed routes)", () => {
     const body = JSON.parse(bodyText) as { entries: unknown[] };
     expect(Array.isArray(body.entries)).toBe(true);
 
-    child.kill("SIGTERM");
-    const outcome = await waitForExit(child, 10_000);
+    servingChild.kill("SIGTERM");
+    const outcome = await waitForExit(servingChild, 10_000);
     // `kota serve` has no graceful-shutdown handler today: SIGTERM kills the
     // Node process directly, so the OS-level exit reports `signal=SIGTERM`
     // with `code=null`. A clean exit-code path (graceful close, port

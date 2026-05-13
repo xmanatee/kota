@@ -12,12 +12,15 @@ import {
   chmodSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { PRESET_ENV_VAR } from "#core/model/preset.js";
+import { REPLAY_AGENT_HARNESS_NAME_ENV } from "./replay-harness.js";
 import { createSubprocessExecutor } from "./subprocess-executor.js";
 
 function writeFakeKotaScript(path: string, body: string): void {
@@ -103,6 +106,44 @@ describe("createSubprocessExecutor", () => {
 
     expect(outcome.kind).toBe("completed");
     expect(outcome.runArtifactPath).toContain("run-1-noop-abc");
+  });
+
+  it("pins replay runs to the claude preset so recordings override the active harness", async () => {
+    const fakeKota = join(binariesDir, "kota-env-capture.mjs");
+    writeFakeKotaScript(
+      fakeKota,
+      [
+        "import { mkdirSync, writeFileSync } from 'node:fs';",
+        "import { join } from 'node:path';",
+        "writeFileSync(join(process.cwd(), 'env.json'), JSON.stringify({",
+        `  preset: process.env.${PRESET_ENV_VAR},`,
+        `  replayRoot: process.env.${REPLAY_AGENT_HARNESS_NAME_ENV},`,
+        "}));",
+        "const runDir = join(process.cwd(), '.kota', 'runs', 'run-1-noop-replay');",
+        "mkdirSync(runDir, { recursive: true });",
+        "writeFileSync(join(runDir, 'metadata.json'), JSON.stringify({",
+        "  id: 'run-1-noop-replay', workflow: 'noop', status: 'success',",
+        "}));",
+      ].join("\n"),
+    );
+
+    const executor = createSubprocessExecutor({
+      kotaBinaryPath: fakeKota,
+      extraEnv: { [PRESET_ENV_VAR]: "codex" },
+    });
+    const outcome = await executor.execute({
+      workflowName: "noop",
+      workingDir,
+      budgetMs: 5_000,
+      replayRecordingsRoot: "/fixtures/replay",
+    });
+
+    expect(outcome.kind).toBe("completed");
+    const envCapture = JSON.parse(
+      readFileSync(join(workingDir, "env.json"), "utf8"),
+    ) as Record<string, string>;
+    expect(envCapture.preset).toBe("claude");
+    expect(envCapture.replayRoot).toBe("/fixtures/replay");
   });
 
   it("reports error when the child exits non-zero", async () => {

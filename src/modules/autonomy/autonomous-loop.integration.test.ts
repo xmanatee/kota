@@ -16,12 +16,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
+import { getPreset, PRESET_ENV_VAR } from "#core/model/preset.js";
 import { enqueueMatchingWorkflows } from "#core/workflow/run-executor-utils.js";
 import { WorkflowRuntime } from "#core/workflow/runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
-import autonomyModule from "./index.js";
 
 vi.mock("#modules/claude-agent-harness/executor.js", async () => {
   const actual = await vi.importActual("../claude-agent-harness/executor.js");
@@ -40,6 +40,8 @@ function wait(ms: number): Promise<void> {
 }
 
 async function loadAutonomyWorkflowDefinitions(): Promise<RegisteredWorkflowDefinitionInput[]> {
+  vi.resetModules();
+  const { default: autonomyModule } = await import("./index.js");
   const workflows = autonomyModule.workflows;
   if (!workflows || typeof workflows !== "function") {
     throw new Error("autonomy module must expose workflows as a contribution factory");
@@ -173,8 +175,11 @@ function seedFixtureProject(projectDir: string): void {
 
 describe("autonomous workflow loop integration", () => {
   let projectDir: string;
+  let savedPreset: string | undefined;
 
   beforeEach(() => {
+    savedPreset = process.env[PRESET_ENV_VAR];
+    process.env[PRESET_ENV_VAR] = "claude";
     projectDir = join(
       tmpdir(),
       `kota-integ-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -185,6 +190,11 @@ describe("autonomous workflow loop integration", () => {
 
   afterEach(() => {
     rmSync(projectDir, { recursive: true, force: true });
+    if (savedPreset === undefined) {
+      delete process.env[PRESET_ENV_VAR];
+    } else {
+      process.env[PRESET_ENV_VAR] = savedPreset;
+    }
   });
 
   it(
@@ -226,7 +236,7 @@ describe("autonomous workflow loop integration", () => {
       });
 
       const runtime = new WorkflowRuntime({
-        config: { defaultAgentHarness: "claude-agent-sdk" },
+        config: { defaultAgentHarness: "claude-agent-sdk", defaultPreset: "claude" },
         bus,
         projectDir,
         idleIntervalMs: 10,
@@ -343,7 +353,7 @@ describe("autonomous workflow loop integration", () => {
 
       const bus = new EventBus();
       const runtime = new WorkflowRuntime({
-        config: { defaultAgentHarness: "claude-agent-sdk" },
+        config: { defaultAgentHarness: "claude-agent-sdk", defaultPreset: "claude" },
         bus,
         projectDir,
         idleIntervalMs: 10,
@@ -414,6 +424,7 @@ describe("autonomous workflow loop integration", () => {
         // fail with `promptPath does not exist`.
         const compiled = validateWorkflowDefinitions(rawDefs, externalProjectDir, {
           defaultAgentHarness: "claude-agent-sdk",
+          preset: getPreset("claude"),
         });
         expect(compiled.length).toBe(rawDefs.length);
         for (const def of compiled) {
@@ -460,7 +471,7 @@ describe("autonomous workflow loop integration", () => {
     const compiled = validateWorkflowDefinitions(
       rawDefs.filter((d) => d.name === "attention-digest" || d.name === "improver"),
       projectDir,
-      { defaultAgentHarness: "claude-agent-sdk" },
+      { defaultAgentHarness: "claude-agent-sdk", preset: getPreset("claude") },
     );
 
     const attentionDigest = compiled.find((d) => d.name === "attention-digest")!;

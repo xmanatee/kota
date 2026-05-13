@@ -26,7 +26,7 @@ function runExpectFail(...args: string[]): { stderr: string; exitCode: number } 
       encoding: "utf-8",
       timeout: CLI_TIMEOUT,
       cwd: root,
-      env: { ...process.env, ANTHROPIC_API_KEY: "" },
+      env: { ...process.env, KOTA_PRESET: "claude", ANTHROPIC_API_KEY: "" },
     });
     return { stderr: "", exitCode: 0 };
   } catch (err) {

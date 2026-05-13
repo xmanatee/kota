@@ -18,6 +18,7 @@
 import { spawn } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { PRESET_ENV_VAR } from "#core/model/preset.js";
 import { REPLAY_AGENT_HARNESS_NAME_ENV } from "./replay-harness.js";
 import type {
   WorkflowExecutionOutcome,
@@ -40,6 +41,8 @@ type RunMetadataSnapshot = {
   id: string;
   status: string;
 };
+
+const REPLAY_PRESET_ID = "claude";
 
 function readTerminalRunForWorkflow(
   workingDir: string,
@@ -95,6 +98,13 @@ export function createSubprocessExecutor(
         request.externalCallShimDir !== undefined
           ? `${request.externalCallShimDir}:${basePath}`
           : basePath;
+      const replayEnv =
+        request.replayRecordingsRoot !== undefined
+          ? {
+              [PRESET_ENV_VAR]: REPLAY_PRESET_ID,
+              [REPLAY_AGENT_HARNESS_NAME_ENV]: request.replayRecordingsRoot,
+            }
+          : {};
 
       const env = {
         ...process.env,
@@ -103,9 +113,7 @@ export function createSubprocessExecutor(
         KOTA_PROJECT_DIR: request.workingDir,
         KOTA_DIST_DIR: kotaDistDir,
         PATH: pathWithShims,
-        ...(request.replayRecordingsRoot !== undefined && {
-          [REPLAY_AGENT_HARNESS_NAME_ENV]: request.replayRecordingsRoot,
-        }),
+        ...replayEnv,
       };
 
       const execArgs = [

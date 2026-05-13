@@ -121,6 +121,7 @@ async function executeRepairAgentIteration(
   );
   const harness = resolveAgentHarness(step.harness);
   const harnessOverrides = step.harnessOptions?.[harness.name];
+  const messageCapture = harness.emitsAgentMessageStream ? appendMessage : undefined;
   const result = await runAgentHarness(
     harness,
     {
@@ -137,7 +138,7 @@ async function executeRepairAgentIteration(
       autonomyMode: step.autonomyMode,
       harnessOverrides,
       abortController,
-      onMessage: appendMessage,
+      ...(messageCapture !== undefined ? { onMessage: messageCapture } : {}),
       canUseTool: createWorkflowAgentGuards(),
     },
     { write: () => true },

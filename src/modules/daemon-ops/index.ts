@@ -9,13 +9,13 @@ import type {
   ProjectId,
   ProjectRegistryProjection,
 } from "#core/daemon/project-registry.js";
-import type { KotaModule } from "#core/modules/module-types.js";
-import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import {
   checkPresetAuth,
   PRESET_ENV_VAR,
   resolvePreset,
 } from "#core/model/preset.js";
+import type { KotaModule } from "#core/modules/module-types.js";
+import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import { daemonManagedHttp } from "#core/server/daemon-client.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";

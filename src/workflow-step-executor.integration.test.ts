@@ -2,6 +2,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  type AgentHarness,
+  registerAgentHarness,
+} from "#core/agent-harness/index.js";
 import { EventBus } from "#core/events/event-bus.js";
 import type {
   WorkflowRunMetadata,
@@ -926,6 +930,62 @@ describe("executeStep repair loop", () => {
     expect(iterations[0].agentResponse).toBe("fixed");
     const failures = iterations[0].failures as Array<{ id: string }>;
     expect(failures[0].id).toBe("check-lint");
+  });
+
+  it("omits message capture during repair attempts for non-streaming harnesses", async () => {
+    const harnessCalls: Array<{ hasOnMessage: boolean }> = [];
+    const harness: AgentHarness = {
+      name: "repair-loop-nostream-test",
+      description: "test-only non-streaming repair harness",
+      supportsMultiTurn: true,
+      supportedHookKinds: [],
+      askOwnerToolName: null,
+      emitsAgentMessageStream: false,
+      async run(options) {
+        harnessCalls.push({ hasOnMessage: "onMessage" in options });
+        if (options.onMessage !== undefined) {
+          throw new Error("non-stream harness received onMessage");
+        }
+        return {
+          ...SUCCESS_RESULT,
+          text: harnessCalls.length === 1 ? "done" : "fixed",
+        };
+      },
+    };
+    registerAgentHarness(harness);
+
+    const runTool = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("lint error: missing semicolon"))
+      .mockResolvedValue({ content: "lint passed", is_error: false });
+
+    const context = makeRepairContext(runTool);
+    const step = makeStep(projectDir, {
+      harness: "repair-loop-nostream-test",
+      model: "test-model",
+      repairLoop: {
+        maxRepairAttempts: 2,
+        checks: [{ id: "check-lint", tool: "shell", input: { command: "pnpm lint" } }],
+      },
+    });
+
+    const wrapped = await executeStep(
+      makeDefinition(),
+      step,
+      makeMetadata(),
+      TRIGGER,
+      context,
+      new AbortController(),
+      () => {},
+      () => {},
+      agentConfig,
+      new EventBus(),
+    ) as { output: Record<string, unknown>; harness: string; model: string };
+
+    expect(wrapped.output.content).toBe("fixed");
+    expect(wrapped.harness).toBe("repair-loop-nostream-test");
+    expect(wrapped.model).toBe("test-model");
+    expect(harnessCalls).toEqual([{ hasOnMessage: false }, { hasOnMessage: false }]);
   });
 
   it("classifies SDK isError from repair agent into provider-kind AgentStepRuntimeError", async () => {
