@@ -45,7 +45,7 @@ export function registerMemoryCommands(program: Command, ctx: ModuleContext): vo
 		.action(async (opts: { limit: string }) => {
 			await ensureCliProvidersFor(["memory"]);
 			const limit = Math.max(1, parseInt(opts.limit, 10) || 20);
-			const result = await ctx.client.memory.list(limit);
+			const result = await ctx.client.memory.list({ limit });
 			if (result.entries.length === 0) {
 				print(line(plain("No memory entries.")));
 				return;

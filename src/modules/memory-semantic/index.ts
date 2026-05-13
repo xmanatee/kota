@@ -7,7 +7,7 @@
 
 import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { MEMORY_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
-import { getMemoryStore } from "#modules/memory/store.js";
+import { getProjectMemoryStore } from "#modules/memory/store.js";
 import {
 	createEmbeddingProvider,
 	readEmbeddingProviderConfig,
@@ -39,7 +39,7 @@ const memorySemanticModule: KotaModule = {
 			ctx.log.warn(`memory-semantic: cannot init embedding provider — ${msg}`);
 			return;
 		}
-		const base = getMemoryStore();
+		const base = getProjectMemoryStore(ctx.cwd);
 		const store = new SemanticMemoryStore({
 			base,
 			provider,

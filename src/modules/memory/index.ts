@@ -30,8 +30,12 @@ import type {
   MemorySearchResult,
 } from "./client.js";
 import { memoryTool, runMemory } from "./memory.js";
+import {
+  createMemoryProjectStores,
+  type MemoryProjectStores,
+} from "./project-scope.js";
 import { memoryRoutes } from "./routes.js";
-import { getMemoryStore } from "./store.js";
+import { getProjectMemoryStore } from "./store.js";
 
 const memoryModule: KotaModule = {
   name: "memory",
@@ -48,12 +52,16 @@ const memoryModule: KotaModule = {
   ],
   skills: [{ name: "memory", promptPath: "src/modules/memory/memory.md" }],
 
-  localClient: () => {
+  localClient: (ctx) => {
+    const projectStores = createMemoryProjectStores(ctx.cwd, () =>
+      getMemoryProvider(),
+    );
     const handler: MemoryClient = {
-      async list(limit) {
-        const provider = getMemoryProvider();
+      async list(filter) {
+        const provider = resolveMemoryProvider(projectStores, filter?.projectId);
         const all = provider.list();
-        const slice = limit !== undefined ? all.slice(0, limit) : all;
+        const slice =
+          filter?.limit !== undefined ? all.slice(0, filter.limit) : all;
         return {
           entries: slice.map((entry) => ({
             id: entry.id,
@@ -62,18 +70,18 @@ const memoryModule: KotaModule = {
           })),
         };
       },
-      async add(content, tags) {
-        const provider = getMemoryProvider();
+      async add(content, tags, project) {
+        const provider = resolveMemoryProvider(projectStores, project?.projectId);
         const id = provider.save(content, tags ?? []);
         return { id };
       },
-      async delete(id) {
-        const provider = getMemoryProvider();
+      async delete(id, project) {
+        const provider = resolveMemoryProvider(projectStores, project?.projectId);
         const ok = provider.delete(id);
         return ok ? { ok: true } : { ok: false, reason: "not_found" };
       },
       async search(query, filter) {
-        const provider = getMemoryProvider();
+        const provider = resolveMemoryProvider(projectStores, filter?.projectId);
         const limit = filter?.limit ?? 20;
         if (filter?.semantic) {
           if (!provider.supportsSemanticSearch()) {
@@ -96,8 +104,8 @@ const memoryModule: KotaModule = {
           entries: results.map((m) => ({ id: m.id, created: m.created, content: m.content })),
         };
       },
-      async reindex() {
-        const provider = getMemoryProvider();
+      async reindex(project) {
+        const provider = resolveMemoryProvider(projectStores, project?.projectId);
         return provider.reindex();
       },
     };
@@ -107,7 +115,7 @@ const memoryModule: KotaModule = {
   daemonClient: (link) => ({ memory: buildMemoryDaemonHandler(link) }),
 
   onLoad: (ctx: ModuleRuntimeContext) => {
-    const store = getMemoryStore();
+    const store = getProjectMemoryStore(ctx.cwd);
     ctx.registerProvider(MEMORY_PROVIDER_TOKEN, store);
     ctx.registerProvider(
       CAPABILITY_READINESS_PROVIDER_TYPE,
@@ -121,7 +129,8 @@ const memoryModule: KotaModule = {
     return root.commands as Command[];
   },
 
-  routes: () => memoryRoutes(),
+  routes: (ctx) =>
+    memoryRoutes(createMemoryProjectStores(ctx.cwd, () => getMemoryProvider())),
 };
 
 /**
@@ -131,18 +140,20 @@ const memoryModule: KotaModule = {
  * bearer token, base URL, and timeout policy — this factory only encodes
  * the wire shape.
  *
- * `list(limit)` issues `GET /api/memory` through `requestStrict<T>`, then
+ * `list(filter)` issues `GET /api/memory` through `requestStrict<T>`, then
  * collapses the daemon-wire `{ id, tags, created, excerpt }[]` entries
  * into the `MemoryListResult` shape by mapping `excerpt → content`,
- * dropping `tags`, and slicing by `limit ?? Number.POSITIVE_INFINITY` —
- * preserving the central closure's prior behavior byte-for-byte.
+ * dropping `tags`, and slicing by `filter.limit ?? Number.POSITIVE_INFINITY`.
  *
- * `add(content, tags)` issues `POST /api/memory` with body `{ content,
- * tags: tags ?? [] }` through `requestStrict<T>` and returns `{ id }`.
+ * Project-scoped calls append `?projectId=...`; omitted ids resolve at the
+ * daemon route boundary. `add(content, tags)` issues `POST /api/memory`
+ * with body `{ content, tags: tags ?? [] }` through `requestStrict<T>` and
+ * returns `{ id }`.
  *
- * `delete(id)` issues `DELETE /api/memory/:id` through `request<T>`,
- * collapsing a `null` (404 or transport silence) into `{ ok: false,
- * reason: "not_found" }` and a non-null result into `{ ok: true }`.
+ * `delete(id)` issues `DELETE /api/memory/:id` through `fetchRaw`,
+ * collapsing a 404 not-found response into `{ ok: false,
+ * reason: "not_found" }`, preserving typed unknown-project errors, and
+ * collapsing a non-null result into `{ ok: true }`.
  * The id runs through `encodeURIComponent` so embedded slashes,
  * percents, or spaces round-trip safely.
  *
@@ -157,11 +168,15 @@ const memoryModule: KotaModule = {
  */
 function buildMemoryDaemonHandler(link: DaemonTransport): MemoryClient {
   return {
-    list: async (limit): Promise<MemoryListResult> => {
+    list: async (filter): Promise<MemoryListResult> => {
+      const query = projectQuery(filter?.projectId);
       const result = await link.requestStrict<{
         entries: { id: string; tags: string[]; created: string; excerpt: string }[];
-      }>("GET", "/api/memory");
-      const slice = result.entries.slice(0, limit ?? Number.POSITIVE_INFINITY);
+      }>("GET", `/api/memory${query}`);
+      const slice = result.entries.slice(
+        0,
+        filter?.limit ?? Number.POSITIVE_INFINITY,
+      );
       return {
         entries: slice.map((entry) => ({
           id: entry.id,
@@ -170,18 +185,21 @@ function buildMemoryDaemonHandler(link: DaemonTransport): MemoryClient {
         })),
       };
     },
-    add: async (content, tags): Promise<MemoryAddResult> => {
+    add: async (content, tags, project): Promise<MemoryAddResult> => {
+      const query = projectQuery(project?.projectId);
       const result = await link.requestStrict<{ id: string }>(
         "POST",
-        "/api/memory",
+        `/api/memory${query}`,
         { content, tags: tags ?? [] },
       );
       return { id: result.id };
     },
-    delete: async (id): Promise<MemoryDeleteResult> => {
-      const result = await link.request<{ deleted: string }>(
+    delete: async (id, project): Promise<MemoryDeleteResult> => {
+      const query = projectQuery(project?.projectId);
+      const result = await requestNullableMemoryRoute<{ deleted: string }>(
+        link,
         "DELETE",
-        `/api/memory/${encodeURIComponent(id)}`,
+        `/api/memory/${encodeURIComponent(id)}${query}`,
       );
       return result ? { ok: true } : { ok: false, reason: "not_found" };
     },
@@ -192,15 +210,76 @@ function buildMemoryDaemonHandler(link: DaemonTransport): MemoryClient {
       if (filter?.since) params.set("since", filter.since);
       if (filter?.semantic) params.set("semantic", "true");
       if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
+      if (filter?.projectId) params.set("projectId", filter.projectId);
       return link.requestStrict<MemorySearchResult>(
         "GET",
         `/api/memory/search?${params.toString()}`,
       );
     },
-    reindex: async (): Promise<MemoryReindexResult> => {
-      return link.requestStrict<MemoryReindexResult>("POST", "/api/memory/reindex");
+    reindex: async (project): Promise<MemoryReindexResult> => {
+      const query = projectQuery(project?.projectId);
+      return link.requestStrict<MemoryReindexResult>(
+        "POST",
+        `/api/memory/reindex${query}`,
+      );
     },
   };
+}
+
+type MemoryRouteErrorBody = {
+  error?: string;
+  reason?: string;
+  projectId?: string;
+};
+
+async function requestNullableMemoryRoute<T>(
+  link: DaemonTransport,
+  method: string,
+  path: string,
+): Promise<T | null> {
+  const res = await link.fetchRaw(path, { method });
+  if (res.status === 404) {
+    const body = await readMemoryRouteError(res);
+    if (body?.reason === "unknown_project" && body.projectId) {
+      throw new Error(`Unknown project: ${body.projectId}`);
+    }
+    return null;
+  }
+  if (!res.ok) {
+    const body = await readMemoryRouteError(res);
+    throw new Error(body?.error ?? `HTTP ${res.status}`);
+  }
+  if (res.status === 204) return null;
+  return (await res.json()) as T;
+}
+
+async function readMemoryRouteError(
+  res: Response,
+): Promise<MemoryRouteErrorBody | null> {
+  try {
+    const parsed = (await res.json()) as MemoryRouteErrorBody;
+    return typeof parsed === "object" && parsed !== null ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function resolveMemoryProvider(
+  projectStores: MemoryProjectStores,
+  projectId: string | undefined,
+) {
+  const resolved = projectStores.resolve(projectId);
+  if (!resolved.ok) {
+    throw new Error(`Unknown project: ${resolved.error.projectId}`);
+  }
+  return resolved.store;
+}
+
+function projectQuery(projectId: string | undefined): string {
+  if (!projectId) return "";
+  const params = new URLSearchParams();
+  params.set("projectId", projectId);
+  return `?${params.toString()}`;
 }
 
 export default memoryModule;

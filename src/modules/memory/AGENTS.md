@@ -2,7 +2,14 @@
 
 This directory owns persistent, searchable agent notes that survive across sessions.
 
-- Owns the file-based `MemoryStore` implementation (`store.ts`) and registers it as the `default` memory provider at module load through the provider registry.
+- Owns the file-based `MemoryStore` implementation (`store.ts`) and registers
+  it as the `default` memory provider at module load through the provider
+  registry.
+- Storage is project-scoped under `.kota/memory.json`. Daemon/API access
+  resolves a concrete project id before using the store. Omitted project ids
+  resolve to the daemon's active/default project at the route or client
+  boundary; explicit unknown ids return the typed `unknown_project` route
+  error.
 - Contributes the `memory` tool in the `management` group, the `kota memory …` CLI commands, the `/api/memory` HTTP routes, and the `memory` skill.
 - Operator pull-surfaces consume the search seam through one shared HTTP route (`GET /api/memory/search`) and one shared line shape (`renderMemorySearchPlain`): Telegram `/memory`, terminal `kota memory search`, the macOS menu bar `MemoryView`, and the mobile `MemoryScreen`.
 

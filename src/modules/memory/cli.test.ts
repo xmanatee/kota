@@ -17,10 +17,11 @@ function stubCtx(): ModuleContext {
 	return {
 		client: {
 			memory: {
-				async list(limit?: number) {
+				async list(filter?: { limit?: number }) {
 					const provider = getMemoryProvider();
 					const all = provider.list();
-					const slice = limit !== undefined ? all.slice(0, limit) : all;
+					const slice =
+						filter?.limit !== undefined ? all.slice(0, filter.limit) : all;
 					return {
 						entries: slice.map((entry) => ({
 							id: entry.id,

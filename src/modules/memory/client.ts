@@ -24,6 +24,21 @@ export type MemoryListResult = {
   entries: MemoryListEntry[];
 };
 
+/**
+ * Optional project boundary for callers that already hold an explicit
+ * project id, such as future `KotaClient.forProject(...)` wrappers. When
+ * absent, the implementation resolves the active/default project once at the
+ * client or route boundary.
+ */
+export type MemoryProjectSelection = {
+  projectId?: string;
+};
+
+/** Filter for `memory.list`. */
+export type MemoryListFilter = MemoryProjectSelection & {
+  limit?: number;
+};
+
 /** Result of `memory.add`. */
 export type MemoryAddResult = { id: string };
 
@@ -33,7 +48,7 @@ export type MemoryDeleteResult =
   | { ok: false; reason: "not_found" };
 
 /** Filter for `memory.search`. */
-export type MemorySearchFilter = {
+export type MemorySearchFilter = MemoryProjectSelection & {
   tag?: string;
   since?: string;
   semantic?: boolean;
@@ -64,9 +79,13 @@ export type MemoryReindexResult = ReindexResult;
  */
 export interface MemoryClient {
   /** List recent memory entries, newest first, capped at `limit`. */
-  list(limit?: number): Promise<MemoryListResult>;
-  add(content: string, tags?: string[]): Promise<MemoryAddResult>;
-  delete(id: string): Promise<MemoryDeleteResult>;
+  list(filter?: MemoryListFilter): Promise<MemoryListResult>;
+  add(
+    content: string,
+    tags?: string[],
+    project?: MemoryProjectSelection,
+  ): Promise<MemoryAddResult>;
+  delete(id: string, project?: MemoryProjectSelection): Promise<MemoryDeleteResult>;
   search(query: string, filter?: MemorySearchFilter): Promise<MemorySearchResult>;
-  reindex(): Promise<MemoryReindexResult>;
+  reindex(project?: MemoryProjectSelection): Promise<MemoryReindexResult>;
 }

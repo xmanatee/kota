@@ -7,17 +7,17 @@
  *
  *  1. The memory module exposes a `daemonClient(link)` factory and the
  *     factory returns a handler for the `memory` namespace.
- *  2. `list(limit)` is wired through `DaemonTransport.requestStrict<T>`
+ *  2. `list(filter)` is wired through `DaemonTransport.requestStrict<T>`
  *     with method `GET`, path `/api/memory`, and an undefined body. The
  *     daemon-wire `{ id, tags, created, excerpt }[]` payload collapses
  *     into the `MemoryListResult` shape by mapping `excerpt → content`,
- *     dropping `tags`, and slicing by `limit ?? Number.POSITIVE_INFINITY`.
- *     Both the undefined-limit and finite-limit paths thread through.
+ *     dropping `tags`, and slicing by `filter.limit ?? Number.POSITIVE_INFINITY`.
+ *     Both the undefined-filter and finite-limit paths thread through.
  *  3. `add(content, tags)` is wired through `requestStrict<T>` with
  *     method `POST`, path `/api/memory`, and body `{ content, tags }`.
  *     An undefined `tags` argument collapses to `[]`, and a multi-tag
  *     array threads through verbatim.
- *  4. `delete(id)` is wired through `request<T>` with method `DELETE`,
+ *  4. `delete(id)` is wired through `fetchRaw` with method `DELETE`,
  *     path `/api/memory/${encodeURIComponent(id)}`, and an undefined body.
  *     An id containing reserved characters (`%`, `/`, space) round-trips
  *     through `encodeURIComponent`. A `null` (404) response collapses into
@@ -58,7 +58,7 @@ type RecordedCall = {
   method: string;
   path: string;
   body: unknown;
-  shape: "request" | "requestStrict";
+  shape: "fetchRaw" | "request" | "requestStrict";
 };
 
 const ENCODING_SENSITIVE_ID = "weird/id %value with space";
@@ -91,7 +91,27 @@ function makeRecordingTransport(
       calls.push({ method, path, body, shape: "requestStrict" });
       return responder(method, path, body, "requestStrict") as T;
     },
-    fetchRaw: async () => new Response(null, { status: 200 }),
+    fetchRaw: async (path, init) => {
+      calls.push({
+        method: init?.method ?? "GET",
+        path,
+        body: init?.body,
+        shape: "fetchRaw",
+      });
+      const payload = responder(
+        init?.method ?? "GET",
+        path,
+        init?.body,
+        "request",
+      );
+      if (payload instanceof Response) return payload;
+      if (payload === null) {
+        return new Response(JSON.stringify({ error: "Not found" }), {
+          status: 404,
+        });
+      }
+      return new Response(JSON.stringify(payload), { status: 200 });
+    },
     events: async function* () {
       // empty generator
     },
@@ -150,13 +170,21 @@ describe("memory module daemonClient(link)", () => {
     };
     const { transport } = makeRecordingTransport(() => wirePayload);
     const contributed = memoryModule.daemonClient!(transport);
-    const result = await contributed.memory!.list(2);
+    const result = await contributed.memory!.list({ limit: 2 });
     expect(result).toEqual({
       entries: [
         { id: "a", created: "2026-01-01T00:00:00Z", content: "first" },
         { id: "b", created: "2026-01-02T00:00:00Z", content: "second" },
       ],
     });
+  });
+
+  it("threads an explicit project id through list()", async () => {
+    const wirePayload = { entries: [] };
+    const { transport, calls } = makeRecordingTransport(() => wirePayload);
+    const contributed = memoryModule.daemonClient!(transport);
+    await contributed.memory!.list({ projectId: "project-b" });
+    expect(calls[0]!.path).toBe("/api/memory?projectId=project-b");
   });
 
   it("routes add(content, tags) through POST /api/memory via requestStrict<T> with body { content, tags }", async () => {
@@ -189,7 +217,16 @@ describe("memory module daemonClient(link)", () => {
     ]);
   });
 
-  it("routes delete(id) through DELETE /api/memory/:id via request<T> with encodeURIComponent and no body", async () => {
+  it("threads an explicit project id through add()", async () => {
+    const { transport, calls } = makeRecordingTransport(() => ({ id: "new-id" }));
+    const contributed = memoryModule.daemonClient!(transport);
+    await contributed.memory!.add("the content", ["alpha"], {
+      projectId: "project-b",
+    });
+    expect(calls[0]!.path).toBe("/api/memory?projectId=project-b");
+  });
+
+  it("routes delete(id) through DELETE /api/memory/:id via fetchRaw with encodeURIComponent and no body", async () => {
     const { transport, calls } = makeRecordingTransport(() => ({ deleted: ENCODING_SENSITIVE_ID }));
     const contributed = memoryModule.daemonClient!(transport);
     const result = await contributed.memory!.delete(ENCODING_SENSITIVE_ID);
@@ -199,7 +236,7 @@ describe("memory module daemonClient(link)", () => {
         method: "DELETE",
         path: `/api/memory/${encodeURIComponent(ENCODING_SENSITIVE_ID)}`,
         body: undefined,
-        shape: "request",
+        shape: "fetchRaw",
       },
     ]);
   });
@@ -209,6 +246,30 @@ describe("memory module daemonClient(link)", () => {
     const contributed = memoryModule.daemonClient!(transport);
     const result = await contributed.memory!.delete("missing");
     expect(result).toEqual({ ok: false, reason: "not_found" });
+  });
+
+  it("threads an explicit project id through delete()", async () => {
+    const { transport, calls } = makeRecordingTransport(() => ({ deleted: "plain-id" }));
+    const contributed = memoryModule.daemonClient!(transport);
+    await contributed.memory!.delete("plain-id", { projectId: "project-b" });
+    expect(calls[0]!.path).toBe("/api/memory/plain-id?projectId=project-b");
+  });
+
+  it("throws the typed unknown project route error from delete()", async () => {
+    const { transport } = makeRecordingTransport(() =>
+      new Response(
+        JSON.stringify({
+          error: "Unknown project",
+          reason: "unknown_project",
+          projectId: "ghost",
+        }),
+        { status: 404 },
+      ),
+    );
+    const contributed = memoryModule.daemonClient!(transport);
+    await expect(
+      contributed.memory!.delete("plain-id", { projectId: "ghost" }),
+    ).rejects.toThrow("Unknown project: ghost");
   });
 
   it("routes search(query) through GET /api/memory/search?q=... via requestStrict<T> with no filter", async () => {
@@ -249,6 +310,14 @@ describe("memory module daemonClient(link)", () => {
     expect(calls[0]!.path).toBe("/api/memory/search?q=query&semantic=true");
   });
 
+  it("threads an explicit project id through search()", async () => {
+    const expected: MemorySearchResult = { ok: true, entries: [] };
+    const { transport, calls } = makeRecordingTransport(() => expected);
+    const contributed = memoryModule.daemonClient!(transport);
+    await contributed.memory!.search("query", { projectId: "project-b" });
+    expect(calls[0]!.path).toBe("/api/memory/search?q=query&projectId=project-b");
+  });
+
   it("decodes a multi-entry MemorySearchResult ok: true arm unchanged", async () => {
     const entries: MemoryListEntry[] = [
       { id: "a", created: "2026-01-01T00:00:00Z", content: "first" },
@@ -286,6 +355,14 @@ describe("memory module daemonClient(link)", () => {
         shape: "requestStrict",
       },
     ]);
+  });
+
+  it("threads an explicit project id through reindex()", async () => {
+    const expected: MemoryReindexResult = { indexed: 5, failed: 0 };
+    const { transport, calls } = makeRecordingTransport(() => expected);
+    const contributed = memoryModule.daemonClient!(transport);
+    await contributed.memory!.reindex({ projectId: "project-b" });
+    expect(calls[0]!.path).toBe("/api/memory/reindex?projectId=project-b");
   });
 
   it("the assembly path fails loudly when the memory module's daemonClient(link) is removed", () => {

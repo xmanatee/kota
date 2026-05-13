@@ -432,7 +432,9 @@ async function memoryScreen(
   client: KotaClient,
   output: NavigatorOutput,
 ): Promise<void> {
-  const result = await callOrError(output, "memory.list", () => client.memory.list(20));
+  const result = await callOrError(output, "memory.list", () =>
+    client.memory.list({ limit: 20 }),
+  );
   if (!result) return;
   if (result.entries.length === 0) {
     output.write(stack(heading("Memory", 2), line(span("No memory entries.", "muted"))));
