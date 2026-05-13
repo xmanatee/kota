@@ -7,15 +7,39 @@ import { getHistoryProvider } from "#core/modules/provider-registry.js";
 import type {
   ConversationData,
   ConversationRecord,
+  HistoryProvider,
 } from "#core/modules/provider-types.js";
 import {
   type DaemonTransport,
   getDaemonTransport,
 } from "#core/server/daemon-transport.js";
 import { jsonResponse } from "#core/server/session-pool.js";
-import { getHistory } from "./history.js";
+import {
+  createHistoryProjectStores,
+  type HistoryProjectStores,
+} from "./project-scope.js";
 
-function listHistoryLocal(url: URL): { conversations: ConversationRecord[] } {
+function resolveScopedProvider(
+  res: ServerResponse,
+  url: URL,
+  projectStores: HistoryProjectStores | undefined,
+): HistoryProvider | null {
+  if (!projectStores) return getHistoryProvider();
+  const resolved = projectStores.resolve(url.searchParams.get("projectId"));
+  if (!resolved.ok) {
+    jsonResponse(res, 404, resolved.error);
+    return null;
+  }
+  return resolved.store;
+}
+
+function listHistoryLocal(
+  res: ServerResponse,
+  url: URL,
+  projectStores?: HistoryProjectStores,
+): { conversations: ConversationRecord[] } | null {
+  const provider = resolveScopedProvider(res, url, projectStores);
+  if (!provider) return null;
   const search = url.searchParams.get("search") ?? undefined;
   const cwd = url.searchParams.get("cwd") ?? undefined;
   const sourceParam = url.searchParams.get("source") ?? undefined;
@@ -25,21 +49,36 @@ function listHistoryLocal(url: URL): { conversations: ConversationRecord[] } {
     ? Number.parseInt(url.searchParams.get("limit")!, 10)
     : 20;
   const limit = Number.isNaN(rawLimit) || rawLimit < 1 ? 20 : Math.min(rawLimit, 1000);
-  return { conversations: getHistory().list({ search, limit, cwd, source }) };
+  return { conversations: provider.list({ search, limit, cwd, source }) };
 }
 
-function loadHistoryLocal(id: string): ConversationData | null {
-  return getHistory().load(id) ?? null;
+function loadHistoryLocal(
+  res: ServerResponse,
+  url: URL,
+  id: string,
+  projectStores?: HistoryProjectStores,
+): ConversationData | null {
+  const provider = resolveScopedProvider(res, url, projectStores);
+  if (!provider) return null;
+  return provider.load(id) ?? null;
 }
 
-function removeHistoryLocal(id: string): boolean {
-  return getHistory().remove(id);
+function removeHistoryLocal(
+  res: ServerResponse,
+  url: URL,
+  id: string,
+  projectStores?: HistoryProjectStores,
+): boolean | null {
+  const provider = resolveScopedProvider(res, url, projectStores);
+  if (!provider) return null;
+  return provider.remove(id);
 }
 
 export async function handleListHistory(
   res: ServerResponse,
   url: URL,
   link: DaemonTransport | null = null,
+  projectStores?: HistoryProjectStores,
 ): Promise<void> {
   if (link) {
     const params = new URLSearchParams();
@@ -50,6 +89,8 @@ export async function handleListHistory(
     if (cwd != null) params.set("cwd", cwd);
     const sourceParam = url.searchParams.get("source") ?? undefined;
     if (sourceParam === "user" || sourceParam === "action") params.set("source", sourceParam);
+    const projectId = url.searchParams.get("projectId");
+    if (projectId != null) params.set("projectId", projectId);
     const qs = params.toString();
     const result = await link.request<{ conversations: ConversationRecord[] }>(
       "GET",
@@ -61,18 +102,23 @@ export async function handleListHistory(
     }
   }
 
-  jsonResponse(res, 200, listHistoryLocal(url));
+  const result = listHistoryLocal(res, url, projectStores);
+  if (!result) return;
+  jsonResponse(res, 200, result);
 }
 
 export async function handleGetHistory(
   res: ServerResponse,
   conversationId: string,
+  url: URL,
   link: DaemonTransport | null = null,
+  projectStores?: HistoryProjectStores,
 ): Promise<void> {
+  const projectQuery = buildProjectQuery(url);
   if (link) {
     const data = await link.request<ConversationData>(
       "GET",
-      `/history/${encodeURIComponent(conversationId)}`,
+      `/history/${encodeURIComponent(conversationId)}${projectQuery}`,
     );
     if (data !== null) {
       jsonResponse(res, 200, data);
@@ -81,10 +127,10 @@ export async function handleGetHistory(
     // null may mean daemon returned 404 or is unreachable — fall through to local
   }
 
-  const data = loadHistoryLocal(conversationId);
+  const data = loadHistoryLocal(res, url, conversationId, projectStores);
   if (data) {
     jsonResponse(res, 200, data);
-  } else {
+  } else if (!res.headersSent) {
     jsonResponse(res, 404, { error: "Conversation not found" });
   }
 }
@@ -92,6 +138,7 @@ export async function handleGetHistory(
 export async function handleSearchHistory(
   req: IncomingMessage,
   res: ServerResponse,
+  projectStores?: HistoryProjectStores,
 ): Promise<void> {
   const url = new URL(req.url ?? "", "http://localhost");
   const query = url.searchParams.get("q") ?? "";
@@ -105,7 +152,8 @@ export async function handleSearchHistory(
     ? Math.max(1, Number.parseInt(limitParam, 10) || 0)
     : 20;
   try {
-    const provider = getHistoryProvider();
+    const provider = resolveScopedProvider(res, url, projectStores);
+    if (!provider) return;
     if (semantic && !provider.supportsSemanticSearch()) {
       jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
       return;
@@ -123,14 +171,18 @@ export async function handleDeleteHistory(
   _req: IncomingMessage,
   res: ServerResponse,
   conversationId: string,
+  url: URL,
   link: DaemonTransport | null = null,
+  projectStores?: HistoryProjectStores,
 ): Promise<void> {
+  const projectQuery = buildProjectQuery(url);
   if (link) {
     let resp: Response | null = null;
     try {
-      resp = await link.fetchRaw(`/history/${encodeURIComponent(conversationId)}`, {
-        method: "DELETE",
-      });
+      resp = await link.fetchRaw(
+        `/history/${encodeURIComponent(conversationId)}${projectQuery}`,
+        { method: "DELETE" },
+      );
     } catch {
       resp = null;
     }
@@ -142,56 +194,87 @@ export async function handleDeleteHistory(
     // 404 or daemon unreachable; fall through to local
   }
 
-  if (removeHistoryLocal(conversationId)) {
+  const removed = removeHistoryLocal(res, url, conversationId, projectStores);
+  if (removed) {
     res.writeHead(204);
     res.end();
-  } else {
+  } else if (!res.headersSent) {
     jsonResponse(res, 404, { error: "Conversation not found" });
   }
 }
 
 
-export function historyRoutes(): RouteRegistration[] {
+export function historyRoutes(
+  projectStores = createHistoryProjectStores(process.cwd(), () =>
+    getHistoryProvider(),
+  ),
+): RouteRegistration[] {
   return [
     {
       method: "GET",
       path: "/api/history",
       handler: (req, res) => {
         const url = new URL(req.url!, `http://localhost`);
-        return handleListHistory(res, url, getDaemonTransport());
+        return handleListHistory(res, url, getDaemonTransport(), projectStores);
       },
     },
     {
       method: "GET",
       path: "/api/history/search",
-      handler: (req, res) => handleSearchHistory(req, res),
+      handler: (req, res) => handleSearchHistory(req, res, projectStores),
     },
     {
       method: "GET",
       path: "/api/history/:id",
-      handler: (_req, res, params) =>
-        handleGetHistory(res, params.id, getDaemonTransport()),
+      handler: (req, res, params) => {
+        const url = new URL(req.url ?? "", "http://localhost");
+        return handleGetHistory(
+          res,
+          params.id,
+          url,
+          getDaemonTransport(),
+          projectStores,
+        );
+      },
     },
     {
       method: "DELETE",
       path: "/api/history/:id",
-      handler: (req, res, params) =>
-        handleDeleteHistory(req, res, params.id, getDaemonTransport()),
+      handler: (req, res, params) => {
+        const url = new URL(req.url ?? "", "http://localhost");
+        return handleDeleteHistory(
+          req,
+          res,
+          params.id,
+          url,
+          getDaemonTransport(),
+          projectStores,
+        );
+      },
     },
   ];
 }
 
-function handleListHistoryControl(req: IncomingMessage, res: ServerResponse): void {
+function handleListHistoryControl(
+  req: IncomingMessage,
+  res: ServerResponse,
+  projectStores: HistoryProjectStores,
+): void {
   const url = new URL(req.url ?? "/history", "http://127.0.0.1");
-  jsonResponse(res, 200, listHistoryLocal(url));
+  const result = listHistoryLocal(res, url, projectStores);
+  if (!result) return;
+  jsonResponse(res, 200, result);
 }
 
 async function handleReindexHistoryControl(
-  _req: IncomingMessage,
+  req: IncomingMessage,
   res: ServerResponse,
+  projectStores: HistoryProjectStores,
 ): Promise<void> {
+  const url = new URL(req.url ?? "/history/reindex", "http://127.0.0.1");
   try {
-    const provider = getHistoryProvider();
+    const provider = resolveScopedProvider(res, url, projectStores);
+    if (!provider) return;
     const result = await provider.reindex();
     jsonResponse(res, 200, result);
   } catch (err) {
@@ -200,55 +283,78 @@ async function handleReindexHistoryControl(
 }
 
 function handleGetHistoryControl(
-  _req: IncomingMessage,
+  req: IncomingMessage,
   res: ServerResponse,
   params: Record<string, string>,
+  projectStores: HistoryProjectStores,
 ): void {
-  const data = loadHistoryLocal(params.id);
+  const url = new URL(req.url ?? "/history", "http://127.0.0.1");
+  const data = loadHistoryLocal(res, url, params.id, projectStores);
   if (!data) {
-    jsonResponse(res, 404, { error: "Conversation not found" });
+    if (!res.headersSent) {
+      jsonResponse(res, 404, { error: "Conversation not found" });
+    }
     return;
   }
   jsonResponse(res, 200, data);
 }
 
 function handleDeleteHistoryControl(
-  _req: IncomingMessage,
+  req: IncomingMessage,
   res: ServerResponse,
   params: Record<string, string>,
+  projectStores: HistoryProjectStores,
 ): void {
-  if (!removeHistoryLocal(params.id)) {
+  const url = new URL(req.url ?? "/history", "http://127.0.0.1");
+  const removed = removeHistoryLocal(res, url, params.id, projectStores);
+  if (!removed) {
+    if (res.headersSent) return;
     jsonResponse(res, 404, { error: "Conversation not found" });
     return;
   }
   jsonResponse(res, 200, { deleted: params.id });
 }
 
-export function historyControlRoutes(): ControlRouteRegistration[] {
+function buildProjectQuery(url: URL): string {
+  const projectId = url.searchParams.get("projectId");
+  if (projectId === null) return "";
+  const params = new URLSearchParams();
+  params.set("projectId", projectId);
+  return `?${params.toString()}`;
+}
+
+export function historyControlRoutes(
+  projectStores = createHistoryProjectStores(process.cwd(), () =>
+    getHistoryProvider(),
+  ),
+): ControlRouteRegistration[] {
   return [
     {
       method: "GET",
       path: "/history",
       capabilityScope: "read",
-      handler: handleListHistoryControl,
+      handler: (req, res) => handleListHistoryControl(req, res, projectStores),
     },
     {
       method: "POST",
       path: "/history/reindex",
       capabilityScope: "control",
-      handler: handleReindexHistoryControl,
+      handler: (req, res) =>
+        handleReindexHistoryControl(req, res, projectStores),
     },
     {
       method: "GET",
       path: "/history/:id",
       capabilityScope: "read",
-      handler: handleGetHistoryControl,
+      handler: (req, res, params) =>
+        handleGetHistoryControl(req, res, params, projectStores),
     },
     {
       method: "DELETE",
       path: "/history/:id",
       capabilityScope: "control",
-      handler: handleDeleteHistoryControl,
+      handler: (req, res, params) =>
+        handleDeleteHistoryControl(req, res, params, projectStores),
     },
   ];
 }

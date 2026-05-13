@@ -2,7 +2,7 @@
 
 Embedding-backed semantic search over the file-based conversation history store.
 
-- Wraps the default `ConversationHistory` with a `SemanticHistoryStore` that
+- Wraps the project-scoped `ConversationHistory` with a `SemanticHistoryStore` that
   keeps a sidecar `.embeddings.json` index next to `index.json` in the history
   directory.
 - Delegates embedding, cosine ranking, queueing, and reindex to the shared

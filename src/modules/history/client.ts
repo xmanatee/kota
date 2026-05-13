@@ -18,6 +18,16 @@ import type {
 } from "#core/modules/provider-types.js";
 
 /**
+ * Optional project boundary for callers that already hold an explicit
+ * project id, such as future `KotaClient.forProject(...)` wrappers. When
+ * absent, the implementation resolves the active/default project once at the
+ * client or route boundary.
+ */
+export type HistoryProjectSelection = {
+  projectId?: string;
+};
+
+/**
  * Filter for `HistoryClient.list`.
  *
  * The CLI uses `cwd` to scope the per-directory list (default `kota history list`),
@@ -26,7 +36,7 @@ import type {
  * action-driven sessions. Defaults match the underlying store: when `limit` is
  * absent the implementor returns the same default the store would (20).
  */
-export type HistoryListFilter = {
+export type HistoryListFilter = HistoryProjectSelection & {
   search?: string;
   limit?: number;
   cwd?: string;
@@ -51,7 +61,7 @@ export type HistoryDeleteResult =
 export type HistoryReindexResult = ReindexResult;
 
 /** Filter for `history.search`. */
-export type HistorySearchFilter = {
+export type HistorySearchFilter = HistoryProjectSelection & {
   cwd?: string;
   source?: "user" | "action";
   semantic?: boolean;
@@ -81,8 +91,8 @@ export type HistorySearchResult =
  */
 export interface HistoryClient {
   list(filter?: HistoryListFilter): Promise<HistoryListResult>;
-  show(id: string): Promise<HistoryShowResult>;
-  delete(id: string): Promise<HistoryDeleteResult>;
+  show(id: string, project?: HistoryProjectSelection): Promise<HistoryShowResult>;
+  delete(id: string, project?: HistoryProjectSelection): Promise<HistoryDeleteResult>;
   /**
    * Run semantic or keyword search across stored conversations. Semantic
    * ranking requires an embedding-backed provider; when the caller asks for
@@ -92,5 +102,5 @@ export interface HistoryClient {
    */
   search(query: string, filter?: HistorySearchFilter): Promise<HistorySearchResult>;
   /** Rebuild the semantic index over all conversations when the active provider supports it. */
-  reindex(): Promise<HistoryReindexResult>;
+  reindex(project?: HistoryProjectSelection): Promise<HistoryReindexResult>;
 }

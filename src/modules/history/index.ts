@@ -29,7 +29,11 @@ import {
 	conversationRecallTool,
 	runConversationRecall,
 } from "./conversation-recall.js";
-import { getHistory } from "./history.js";
+import { getProjectHistoryStore } from "./history.js";
+import {
+	createHistoryProjectStores,
+	type HistoryProjectStores,
+} from "./project-scope.js";
 import { historyControlRoutes, historyRoutes } from "./routes.js";
 
 const historyModule: KotaModule = {
@@ -49,7 +53,7 @@ const historyModule: KotaModule = {
 	skills: [{ name: "history", promptPath: "src/modules/history/history.md" }],
 
 	onLoad: (ctx: ModuleRuntimeContext) => {
-		const store = getHistory();
+		const store = getProjectHistoryStore(ctx.cwd);
 		ctx.registerProvider(HISTORY_PROVIDER_TOKEN, store);
 		ctx.registerProvider(
 			CAPABILITY_READINESS_PROVIDER_TYPE,
@@ -57,25 +61,37 @@ const historyModule: KotaModule = {
 		);
 	},
 
-	routes: () => historyRoutes(),
-	controlRoutes: () => historyControlRoutes(),
+	routes: (ctx) =>
+		historyRoutes(
+			createHistoryProjectStores(ctx.cwd, () => getHistoryProvider()),
+		),
+	controlRoutes: (ctx) =>
+		historyControlRoutes(
+			createHistoryProjectStores(ctx.cwd, () => getHistoryProvider()),
+		),
 
-	localClient: () => {
+	localClient: (ctx) => {
+		const projectStores = createHistoryProjectStores(ctx.cwd, () =>
+			getHistoryProvider(),
+		);
 		const handler: HistoryClient = {
 			async list(filter) {
-				return { conversations: getHistoryProvider().list(filter) };
+				const provider = resolveHistoryProvider(projectStores, filter?.projectId);
+				return { conversations: provider.list(filter) };
 			},
-			async show(id) {
-				const data = getHistoryProvider().load(id);
+			async show(id, project) {
+				const provider = resolveHistoryProvider(projectStores, project?.projectId);
+				const data = provider.load(id);
 				return data ? { found: true, data } : { found: false };
 			},
-			async delete(id) {
-				return getHistoryProvider().remove(id)
+			async delete(id, project) {
+				const provider = resolveHistoryProvider(projectStores, project?.projectId);
+				return provider.remove(id)
 					? { ok: true }
 					: { ok: false, reason: "not_found" };
 			},
 			async search(query, filter) {
-				const provider = getHistoryProvider();
+				const provider = resolveHistoryProvider(projectStores, filter?.projectId);
 				const limit = filter?.limit ?? 20;
 				if (filter?.semantic) {
 					if (!provider.supportsSemanticSearch()) {
@@ -95,8 +111,9 @@ const historyModule: KotaModule = {
 				});
 				return { ok: true, conversations };
 			},
-			async reindex() {
-				return getHistoryProvider().reindex();
+			async reindex(project) {
+				const provider = resolveHistoryProvider(projectStores, project?.projectId);
+				return provider.reindex();
 			},
 		};
 		return { history: handler };
@@ -116,18 +133,21 @@ const historyModule: KotaModule = {
  * The two-stem route layout (`/history*` for list/show/delete/reindex,
  * `/api/history/search` for search) matches today's daemon contract.
  *
- * `list(filter)` builds the optional `search` / `limit` / `cwd` / `source`
- * URLSearchParams shape (omitting the query string entirely when no key is
- * set) and issues `GET /history${query}` through `requestStrict<T>`. The
- * daemon route emits `{ conversations: ConversationRecord[] }`; the factory
- * passes that decode shape through unchanged.
+ * `list(filter)` builds the optional `search` / `limit` / `cwd` / `source` /
+ * `projectId` URLSearchParams shape (omitting the query string entirely when
+ * no key is set) and issues `GET /history${query}` through
+ * `requestStrict<T>`. The daemon route emits
+ * `{ conversations: ConversationRecord[] }`; the factory passes that decode
+ * shape through unchanged.
  *
- * `show(id)` issues `GET /history/:id` through `request<T>`, collapsing a
- * `null` (404) into `{ found: false }` and a non-null `ConversationData`
- * into `{ found: true, data }`. The id runs through `encodeURIComponent`.
+ * `show(id)` issues `GET /history/:id` through `fetchRaw`, collapsing a 404
+ * missing conversation into `{ found: false }`, throwing the typed
+ * unknown-project route error, and returning `{ found: true, data }` for a
+ * non-null `ConversationData`. The id runs through `encodeURIComponent`.
  *
- * `delete(id)` issues `DELETE /history/:id` through `request<T>`, collapsing
- * `null` (404) into `{ ok: false, reason: "not_found" }` and a non-null
+ * `delete(id)` issues `DELETE /history/:id` through `fetchRaw`, collapsing a
+ * 404 missing conversation into `{ ok: false, reason: "not_found" }`,
+ * throwing the typed unknown-project route error, and collapsing a non-null
  * `{ deleted: id }` envelope into `{ ok: true }`. The id runs through
  * `encodeURIComponent`. The control route was reshaped from a `204` success
  * to `200 + { deleted: id }` to match the knowledge / approvals / secrets
@@ -135,12 +155,13 @@ const historyModule: KotaModule = {
  *
  * `search(query, filter)` builds the same `URLSearchParams` shape today's
  * `searchHistoryHttp` built (`q`, optional `cwd`, `source`, `semantic=true`,
- * `limit`) and issues `GET /api/history/search?...` through
+ * `limit`, `projectId`) and issues `GET /api/history/search?...` through
  * `requestStrict<T>`. The daemon route emits the discriminated union
  * directly.
  *
- * `reindex()` issues `POST /history/reindex` through `requestStrict<T>` and
- * returns the provider's `ReindexResult` verbatim.
+ * `reindex()` issues `POST /history/reindex` through `requestStrict<T>`,
+ * optionally scoped by `projectId`, and returns the provider's
+ * `ReindexResult` verbatim.
  */
 function buildHistoryDaemonHandler(link: DaemonTransport): HistoryClient {
 	return {
@@ -150,23 +171,28 @@ function buildHistoryDaemonHandler(link: DaemonTransport): HistoryClient {
 			if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
 			if (filter?.cwd) params.set("cwd", filter.cwd);
 			if (filter?.source) params.set("source", filter.source);
+			if (filter?.projectId) params.set("projectId", filter.projectId);
 			const query = params.toString() ? `?${params.toString()}` : "";
 			return link.requestStrict<HistoryListResult>(
 				"GET",
 				`/history${query}`,
 			);
 		},
-		show: async (id): Promise<HistoryShowResult> => {
-			const data = await link.request<ConversationData>(
+		show: async (id, project): Promise<HistoryShowResult> => {
+			const query = projectQuery(project?.projectId);
+			const data = await requestNullableHistoryRoute<ConversationData>(
+				link,
 				"GET",
-				`/history/${encodeURIComponent(id)}`,
+				`/history/${encodeURIComponent(id)}${query}`,
 			);
 			return data ? { found: true, data } : { found: false };
 		},
-		delete: async (id): Promise<HistoryDeleteResult> => {
-			const result = await link.request<{ deleted: string }>(
+		delete: async (id, project): Promise<HistoryDeleteResult> => {
+			const query = projectQuery(project?.projectId);
+			const result = await requestNullableHistoryRoute<{ deleted: string }>(
+				link,
 				"DELETE",
-				`/history/${encodeURIComponent(id)}`,
+				`/history/${encodeURIComponent(id)}${query}`,
 			);
 			return result ? { ok: true } : { ok: false, reason: "not_found" };
 		},
@@ -177,18 +203,76 @@ function buildHistoryDaemonHandler(link: DaemonTransport): HistoryClient {
 			if (filter?.source) params.set("source", filter.source);
 			if (filter?.semantic) params.set("semantic", "true");
 			if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
+			if (filter?.projectId) params.set("projectId", filter.projectId);
 			return link.requestStrict<HistorySearchResult>(
 				"GET",
 				`/api/history/search?${params.toString()}`,
 			);
 		},
-		reindex: async (): Promise<HistoryReindexResult> => {
+		reindex: async (project): Promise<HistoryReindexResult> => {
+			const query = projectQuery(project?.projectId);
 			return link.requestStrict<HistoryReindexResult>(
 				"POST",
-				"/history/reindex",
+				`/history/reindex${query}`,
 			);
 		},
 	};
+}
+
+type HistoryRouteErrorBody = {
+	error?: string;
+	reason?: string;
+	projectId?: string;
+};
+
+async function requestNullableHistoryRoute<T>(
+	link: DaemonTransport,
+	method: string,
+	path: string,
+): Promise<T | null> {
+	const res = await link.fetchRaw(path, { method });
+	if (res.status === 404) {
+		const body = await readHistoryRouteError(res);
+		if (body?.reason === "unknown_project" && body.projectId) {
+			throw new Error(`Unknown project: ${body.projectId}`);
+		}
+		return null;
+	}
+	if (!res.ok) {
+		const body = await readHistoryRouteError(res);
+		throw new Error(body?.error ?? `HTTP ${res.status}`);
+	}
+	if (res.status === 204) return null;
+	return (await res.json()) as T;
+}
+
+async function readHistoryRouteError(
+	res: Response,
+): Promise<HistoryRouteErrorBody | null> {
+	try {
+		const parsed = (await res.json()) as HistoryRouteErrorBody;
+		return typeof parsed === "object" && parsed !== null ? parsed : null;
+	} catch {
+		return null;
+	}
+}
+
+function resolveHistoryProvider(
+	projectStores: HistoryProjectStores,
+	projectId: string | undefined,
+) {
+	const resolved = projectStores.resolve(projectId);
+	if (!resolved.ok) {
+		throw new Error(`Unknown project: ${resolved.error.projectId}`);
+	}
+	return resolved.store;
+}
+
+function projectQuery(projectId: string | undefined): string {
+	if (!projectId) return "";
+	const params = new URLSearchParams();
+	params.set("projectId", projectId);
+	return `?${params.toString()}`;
 }
 
 export default historyModule;

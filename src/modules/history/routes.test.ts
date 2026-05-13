@@ -1,9 +1,14 @@
+import { mkdtempSync, rmSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { buildConfiguredProject } from "#core/daemon/project-registry.js";
 import type {
   ConversationRecord,
   HistoryProvider,
 } from "#core/modules/provider-types.js";
+import { HistoryProjectStores } from "./project-scope.js";
 import { handleSearchHistory } from "./routes.js";
 
 function mockResponse() {
@@ -55,9 +60,15 @@ function makeProvider(records: ConversationRecord[]): HistoryProvider {
   };
 }
 
-vi.mock("#core/modules/provider-registry.js", () => ({
-  getHistoryProvider: vi.fn(),
-}));
+vi.mock("#core/modules/provider-registry.js", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("#core/modules/provider-registry.js")>();
+  return {
+    ...actual,
+    getHistoryProvider: vi.fn(),
+    getProviderRegistry: vi.fn(() => null),
+  };
+});
 
 import { getHistoryProvider } from "#core/modules/provider-registry.js";
 
@@ -158,6 +169,68 @@ describe("history-routes", () => {
         cwd: undefined,
         source: undefined,
       });
+    });
+
+    it("isolates project history entries and rejects unknown project ids", async () => {
+      const root = mkdtempSync(join(tmpdir(), "kota-history-projects-"));
+      try {
+        const projectA = buildConfiguredProject({ projectDir: join(root, "a") });
+        const projectB = buildConfiguredProject({ projectDir: join(root, "b") });
+        const stores = new HistoryProjectStores({
+          defaultProjectDir: projectA.projectDir,
+          defaultProjectId: projectA.projectId,
+          projects: [projectA, projectB],
+        });
+
+        const scopedA = stores.resolve(projectA.projectId);
+        if (!scopedA.ok) throw new Error("project A did not resolve");
+        const id = scopedA.store.create("claude-sonnet-4-6", projectA.projectDir);
+        scopedA.store.save(
+          id,
+          [{ role: "user", content: "private alpha discussion" }],
+          0,
+          0,
+        );
+
+        const searchA = mockResponse();
+        await handleSearchHistory(
+          searchRequest(`?q=alpha&projectId=${projectA.projectId}`),
+          searchA.res,
+          stores,
+        );
+        expect(searchA.result.status).toBe(200);
+        expect(
+          (searchA.result.body as { ok: true; conversations: ConversationRecord[] })
+            .conversations.map((conversation) => conversation.id),
+        ).toEqual([id]);
+
+        const searchB = mockResponse();
+        await handleSearchHistory(
+          searchRequest(`?q=alpha&projectId=${projectB.projectId}`),
+          searchB.res,
+          stores,
+        );
+        expect(searchB.result.status).toBe(200);
+        expect(
+          (searchB.result.body as { ok: true; conversations: ConversationRecord[] })
+            .conversations,
+        ).toEqual([]);
+
+        const unknown = mockResponse();
+        await handleSearchHistory(
+          searchRequest("?q=alpha&projectId=missing-project"),
+          unknown.res,
+          stores,
+        );
+        expect(unknown.result.status).toBe(404);
+        expect(unknown.result.body).toEqual({
+          error: "Unknown project",
+          reason: "unknown_project",
+          projectId: "missing-project",
+        });
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
     });
   });
 });

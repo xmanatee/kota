@@ -1,5 +1,12 @@
 import { execFileSync, type SpawnSyncReturns } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  writeFileSync,
+} from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,11 +15,13 @@ import { formatAuthError, parseIntOption } from "./cli.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = resolve(root, "src/cli.ts");
+const require = createRequire(import.meta.url);
+const TSX_IMPORT = require.resolve("tsx");
 
 const CLI_TIMEOUT = 15_000;
 
 function run(...args: string[]): string {
-  return execFileSync(process.execPath, ["--import", "tsx", CLI, ...args], {
+  return execFileSync(process.execPath, ["--import", TSX_IMPORT, CLI, ...args], {
     encoding: "utf-8",
     timeout: CLI_TIMEOUT,
     cwd: root,
@@ -22,7 +31,7 @@ function run(...args: string[]): string {
 /** Run CLI expecting it to fail, return stderr. */
 function runExpectFail(...args: string[]): { stderr: string; exitCode: number } {
   try {
-    execFileSync(process.execPath, ["--import", "tsx", CLI, ...args], {
+    execFileSync(process.execPath, ["--import", TSX_IMPORT, CLI, ...args], {
       encoding: "utf-8",
       timeout: CLI_TIMEOUT,
       cwd: root,
@@ -41,7 +50,7 @@ function runFull(
   opts?: { env?: Record<string, string>; input?: string; cwd?: string },
 ): { stdout: string; stderr: string; exitCode: number } {
   try {
-    const stdout = execFileSync(process.execPath, ["--import", "tsx", CLI, ...args], {
+    const stdout = execFileSync(process.execPath, ["--import", TSX_IMPORT, CLI, ...args], {
       encoding: "utf-8",
       timeout: CLI_TIMEOUT,
       cwd: opts?.cwd ?? root,
@@ -57,6 +66,10 @@ function runFull(
       exitCode: e.status ?? 1,
     };
   }
+}
+
+function mkdtempForCli(prefix: string): string {
+  return mkdtempSync(join(tmpdir(), `${prefix}-`));
 }
 
 describe("cli", () => {
@@ -266,16 +279,13 @@ describe("subcommand help", () => {
 describe("history clear confirmation", () => {
   let tempHome: string;
 
-  // Pin `KOTA_PROJECT_DIR` to `tempHome` so the contract selector finds no
-  // `<projectDir>/.kota/daemon-control.json` and resolves a fresh
-  // `LocalKotaClient` against the seeded HOME=tempHome history. Without
-  // this guard the CLI would route through any daemon currently serving
-  // the developer's machine and wipe the wrong dataset. We keep `cwd: root`
-  // so node still resolves `tsx`. The CLI's own per-cwd filter on
-  // `history clear` still uses `process.cwd()`, so the seeded conversation
-  // is recorded with `cwd: root` to match.
+  // Pin `KOTA_PROJECT_DIR` and `cwd` to `tempHome` so the contract selector
+  // finds no `<projectDir>/.kota/daemon-control.json` and resolves a fresh
+  // project-scoped `LocalKotaClient` against the seeded temp history. Without
+  // this guard the CLI would route through any daemon currently serving the
+  // developer's machine and wipe the wrong dataset.
   beforeEach(() => {
-    tempHome = join(tmpdir(), `kota-test-clear-${Date.now()}`);
+    tempHome = realpathSync(mkdtempForCli("kota-test-clear"));
     const histDir = join(tempHome, ".kota", "history");
     mkdirSync(histDir, { recursive: true });
     const index = {
@@ -287,7 +297,7 @@ describe("history clear confirmation", () => {
           updatedAt: new Date().toISOString(),
           model: "claude-sonnet-4-6",
           messageCount: 2,
-          cwd: root,
+          cwd: tempHome,
         },
       ],
     };
@@ -301,6 +311,7 @@ describe("history clear confirmation", () => {
   it("cancels when stdin is not a TTY (no --yes)", () => {
     const { stdout, exitCode } = runFull(["history", "clear"], {
       env: { HOME: tempHome, KOTA_PROJECT_DIR: tempHome },
+      cwd: tempHome,
     });
     expect(exitCode).toBe(0);
     expect(stdout).toContain("Cancelled");
@@ -311,6 +322,7 @@ describe("history clear confirmation", () => {
   it("deletes when --yes flag is provided", () => {
     const { stdout, exitCode } = runFull(["history", "clear", "--yes"], {
       env: { HOME: tempHome, KOTA_PROJECT_DIR: tempHome },
+      cwd: tempHome,
     });
     expect(exitCode).toBe(0);
     expect(stdout).toContain("Deleted 1 conversation(s)");
@@ -318,10 +330,10 @@ describe("history clear confirmation", () => {
 
   it("reports no conversations when history is empty", () => {
     // Use a fresh home with no history
-    const emptyHome = join(tmpdir(), `kota-test-empty-${Date.now()}`);
-    mkdirSync(emptyHome, { recursive: true });
+    const emptyHome = realpathSync(mkdtempForCli("kota-test-empty"));
     const { stdout, exitCode } = runFull(["history", "clear"], {
       env: { HOME: emptyHome, KOTA_PROJECT_DIR: emptyHome },
+      cwd: emptyHome,
     });
     expect(exitCode).toBe(0);
     expect(stdout).toContain("No conversations to delete");
@@ -332,14 +344,15 @@ describe("history resume validation", () => {
   it("exits with error for non-existent conversation ID", () => {
     // Pin `KOTA_PROJECT_DIR` to a fresh temp dir so the contract selector
     // finds no `<projectDir>/.kota/daemon-control.json` and resolves a
-    // `LocalKotaClient` against the empty HOME=tempHome history. Without
-    // this guard the CLI would route through any daemon currently serving
-    // the developer's machine and either find an unrelated conversation or
-    // surface a `fetch` abort instead of the expected "not found" error.
-    const tempHome = join(tmpdir(), `kota-test-resume-${Date.now()}`);
-    mkdirSync(tempHome, { recursive: true });
+    // project-scoped `LocalKotaClient` against the empty temp history.
+    // Without this guard the CLI would route through any daemon currently
+    // serving the developer's machine and either find an unrelated
+    // conversation or surface a `fetch` abort instead of the expected
+    // "not found" error.
+    const tempHome = realpathSync(mkdtempForCli("kota-test-resume"));
     const { stderr, exitCode } = runFull(["history", "resume", "someId"], {
       env: { ANTHROPIC_API_KEY: "", HOME: tempHome, KOTA_PROJECT_DIR: tempHome },
+      cwd: tempHome,
     });
     expect(exitCode).toBe(1);
     expect(stderr).toContain("not found");

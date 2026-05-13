@@ -63,8 +63,8 @@ describe("provider-registry interface conformance", () => {
   });
 
   // HistoryProvider conformance is enforced structurally: the history
-  // module's onLoad calls `ctx.registerProvider("history", getHistory())`
-  // with a typed HistoryProvider target, so any shape mismatch fails at
-  // typecheck. The neutral core guard blocks `#modules/history` imports
-  // under `src/core/`, so there is no in-core runtime check.
+  // module's onLoad calls `ctx.registerProvider("history", store)` with a
+  // typed HistoryProvider target, so any shape mismatch fails at typecheck.
+  // The neutral core guard blocks `#modules/history` imports under
+  // `src/core/`, so there is no in-core runtime check.
 });

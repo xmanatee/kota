@@ -12,6 +12,7 @@ import {
   generateId,
   generateTitle,
   getHistoryDir,
+  getProjectHistoryDir,
   type HistoryIndex,
   MAX_ACTION_CONVERSATIONS,
   MAX_USER_CONVERSATIONS,
@@ -276,12 +277,23 @@ export class ConversationHistory {
 }
 
 let globalHistory: ConversationHistory | null = null;
+const projectHistories = new Map<string, ConversationHistory>();
 
 export function getHistory(): ConversationHistory {
   if (!globalHistory) globalHistory = new ConversationHistory();
   return globalHistory;
 }
 
+export function getProjectHistoryStore(projectDir: string): ConversationHistory {
+  const dir = getProjectHistoryDir(projectDir);
+  const existing = projectHistories.get(dir);
+  if (existing) return existing;
+  const history = new ConversationHistory(dir);
+  projectHistories.set(dir, history);
+  return history;
+}
+
 export function resetHistory(): void {
   globalHistory = null;
+  projectHistories.clear();
 }

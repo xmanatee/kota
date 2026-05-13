@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { join } from "node:path";
 import type {
   ConversationMessage,
   ConversationRecord,
@@ -18,6 +19,10 @@ const TITLE_MAX_LENGTH = 80;
 export function getHistoryDir(): string {
   const home = process.env.HOME || process.env.USERPROFILE || "/tmp";
   return `${home}/.kota/history`;
+}
+
+export function getProjectHistoryDir(projectDir: string): string {
+  return join(projectDir, ".kota", "history");
 }
 
 export function generateId(): string {

@@ -19,12 +19,14 @@ import {
   DaemonControlServer,
   type WorkflowMetricCounts,
 } from "#core/daemon/daemon-control.js";
+import { buildConfiguredProject } from "#core/daemon/project-registry.js";
 import {
   HISTORY_PROVIDER_TOKEN,
   initProviderRegistry,
   resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
 import { getHistory, resetHistory } from "./history.js";
+import { HistoryProjectStores } from "./project-scope.js";
 import { historyControlRoutes } from "./routes.js";
 
 const TEST_TOKEN = "history-test-token";
@@ -186,6 +188,56 @@ describe("history module daemon-control routes", () => {
       const limited = await fetchWith(port, "/history?limit=1");
       const limitedBody = (await limited.json()) as { conversations: unknown[] };
       expect(limitedBody.conversations).toHaveLength(1);
+    });
+
+    it("resolves projectId through the project store boundary", async () => {
+      const root = mkdtempSync(join(tmpdir(), "kota-history-control-projects-"));
+      const projectA = buildConfiguredProject({ projectDir: join(root, "a") });
+      const projectB = buildConfiguredProject({ projectDir: join(root, "b") });
+      const stores = new HistoryProjectStores({
+        defaultProjectDir: projectA.projectDir,
+        defaultProjectId: projectA.projectId,
+        projects: [projectA, projectB],
+      });
+      const scopedServer = new DaemonControlServer(makeHandle(), TEST_TOKEN, {
+        controlRoutes: historyControlRoutes(stores),
+      });
+      const scopedPort = await scopedServer.start();
+      try {
+        const scopedA = stores.resolve(projectA.projectId);
+        if (!scopedA.ok) throw new Error("project A did not resolve");
+        const id = scopedA.store.create(
+          "claude-sonnet-4-6",
+          projectA.projectDir,
+        );
+
+        const a = await fetchWith(
+          scopedPort,
+          `/history?projectId=${projectA.projectId}`,
+        );
+        expect(a.status).toBe(200);
+        const aBody = (await a.json()) as { conversations: Array<{ id: string }> };
+        expect(aBody.conversations.map((conversation) => conversation.id)).toEqual([id]);
+
+        const b = await fetchWith(
+          scopedPort,
+          `/history?projectId=${projectB.projectId}`,
+        );
+        expect(b.status).toBe(200);
+        const bBody = (await b.json()) as { conversations: unknown[] };
+        expect(bBody.conversations).toEqual([]);
+
+        const unknown = await fetchWith(scopedPort, "/history?projectId=ghost");
+        expect(unknown.status).toBe(404);
+        expect(await unknown.json()).toEqual({
+          error: "Unknown project",
+          reason: "unknown_project",
+          projectId: "ghost",
+        });
+      } finally {
+        await scopedServer.stop();
+        rmSync(root, { recursive: true, force: true });
+      }
     });
   });
 

@@ -13,18 +13,19 @@
  *     (`{ search, limit, cwd, source }`) threads through `URLSearchParams`
  *     in `search,limit,cwd,source` insertion order to match today's
  *     pre-migration `historyListHttp`.
- *  3. `show(id)` is wired through `request<T>` with method `GET`, path
+ *  3. `show(id)` is wired through `fetchRaw` with method `GET`, path
  *     `/history/${encodeURIComponent(id)}`, and an undefined body. An id
  *     containing reserved characters (`%`, `/`, space) round-trips through
- *     `encodeURIComponent`. A `null` (404) response collapses into
- *     `{ found: false }` and a non-null `ConversationData` collapses into
- *     `{ found: true, data }`.
- *  4. `delete(id)` is wired through `request<T>` with method `DELETE`,
+ *     `encodeURIComponent`. A 404 missing response collapses into
+ *     `{ found: false }`, typed unknown-project 404s throw, and a non-null
+ *     `ConversationData` collapses into `{ found: true, data }`.
+ *  4. `delete(id)` is wired through `fetchRaw` with method `DELETE`,
  *     path `/history/${encodeURIComponent(id)}`, and an undefined body. An
  *     id containing reserved characters round-trips through
- *     `encodeURIComponent`. A `null` (404) response collapses into
- *     `{ ok: false, reason: "not_found" }` and a non-null
- *     `{ deleted: id }` envelope collapses into `{ ok: true }`. The control
+ *     `encodeURIComponent`. A 404 missing response collapses into
+ *     `{ ok: false, reason: "not_found" }`, typed unknown-project 404s
+ *     throw, and a non-null `{ deleted: id }` envelope collapses into
+ *     `{ ok: true }`. The control
  *     route was reshaped from a `204` success to `200 + { deleted: id }`
  *     to match the knowledge / approvals / secrets delete precedent.
  *  5. `search(query, filter)` is wired through `requestStrict<T>` with
@@ -69,7 +70,7 @@ type RecordedCall = {
   method: string;
   path: string;
   body: unknown;
-  shape: "request" | "requestStrict";
+  shape: "fetchRaw" | "request" | "requestStrict";
 };
 
 const ENCODING_SENSITIVE_ID = "weird/id %value with space";
@@ -100,7 +101,7 @@ function makeRecordingTransport(
     method: string,
     path: string,
     body: unknown,
-    shape: "request" | "requestStrict",
+    shape: "fetchRaw" | "request" | "requestStrict",
   ) => unknown,
 ): { transport: DaemonTransport; calls: RecordedCall[] } {
   const calls: RecordedCall[] = [];
@@ -123,7 +124,27 @@ function makeRecordingTransport(
       calls.push({ method, path, body, shape: "requestStrict" });
       return responder(method, path, body, "requestStrict") as T;
     },
-    fetchRaw: async () => new Response(null, { status: 200 }),
+    fetchRaw: async (path, init) => {
+      calls.push({
+        method: init?.method ?? "GET",
+        path,
+        body: init?.body,
+        shape: "fetchRaw",
+      });
+      const payload = responder(
+        init?.method ?? "GET",
+        path,
+        init?.body,
+        "fetchRaw",
+      );
+      if (payload instanceof Response) return payload;
+      if (payload === null) {
+        return new Response(JSON.stringify({ error: "Not found" }), {
+          status: 404,
+        });
+      }
+      return new Response(JSON.stringify(payload), { status: 200 });
+    },
     events: async function* () {
       // empty generator
     },
@@ -185,7 +206,15 @@ describe("history module daemonClient(link)", () => {
     );
   });
 
-  it("routes show(id) through GET /history/:id via request<T> with encodeURIComponent and no body", async () => {
+  it("threads an explicit project id through list()", async () => {
+    const wirePayload = { conversations: [] };
+    const { transport, calls } = makeRecordingTransport(() => wirePayload);
+    const contributed = historyModule.daemonClient!(transport);
+    await contributed.history!.list({ projectId: "project-b" });
+    expect(calls[0]!.path).toBe("/history?projectId=project-b");
+  });
+
+  it("routes show(id) through GET /history/:id via fetchRaw with encodeURIComponent and no body", async () => {
     const data = makeData("plain-id");
     const { transport, calls } = makeRecordingTransport(() => data);
     const contributed = historyModule.daemonClient!(transport);
@@ -196,7 +225,7 @@ describe("history module daemonClient(link)", () => {
         method: "GET",
         path: `/history/${encodeURIComponent(ENCODING_SENSITIVE_ID)}`,
         body: undefined,
-        shape: "request",
+        shape: "fetchRaw",
       },
     ]);
   });
@@ -208,7 +237,32 @@ describe("history module daemonClient(link)", () => {
     expect(result).toEqual({ found: false });
   });
 
-  it("routes delete(id) through DELETE /history/:id via request<T> with encodeURIComponent and no body", async () => {
+  it("threads an explicit project id through show()", async () => {
+    const data = makeData("plain-id");
+    const { transport, calls } = makeRecordingTransport(() => data);
+    const contributed = historyModule.daemonClient!(transport);
+    await contributed.history!.show("plain-id", { projectId: "project-b" });
+    expect(calls[0]!.path).toBe("/history/plain-id?projectId=project-b");
+  });
+
+  it("throws the typed unknown project route error from show()", async () => {
+    const { transport } = makeRecordingTransport(() =>
+      new Response(
+        JSON.stringify({
+          error: "Unknown project",
+          reason: "unknown_project",
+          projectId: "ghost",
+        }),
+        { status: 404 },
+      ),
+    );
+    const contributed = historyModule.daemonClient!(transport);
+    await expect(
+      contributed.history!.show("plain-id", { projectId: "ghost" }),
+    ).rejects.toThrow("Unknown project: ghost");
+  });
+
+  it("routes delete(id) through DELETE /history/:id via fetchRaw with encodeURIComponent and no body", async () => {
     const { transport, calls } = makeRecordingTransport(() => ({
       deleted: ENCODING_SENSITIVE_ID,
     }));
@@ -220,7 +274,7 @@ describe("history module daemonClient(link)", () => {
         method: "DELETE",
         path: `/history/${encodeURIComponent(ENCODING_SENSITIVE_ID)}`,
         body: undefined,
-        shape: "request",
+        shape: "fetchRaw",
       },
     ]);
   });
@@ -230,6 +284,15 @@ describe("history module daemonClient(link)", () => {
     const contributed = historyModule.daemonClient!(transport);
     const result = await contributed.history!.delete("missing");
     expect(result).toEqual({ ok: false, reason: "not_found" });
+  });
+
+  it("threads an explicit project id through delete()", async () => {
+    const { transport, calls } = makeRecordingTransport(() => ({
+      deleted: "plain-id",
+    }));
+    const contributed = historyModule.daemonClient!(transport);
+    await contributed.history!.delete("plain-id", { projectId: "project-b" });
+    expect(calls[0]!.path).toBe("/history/plain-id?projectId=project-b");
   });
 
   it("routes search(query) with no filter through GET /api/history/search?q=... via requestStrict<T>", async () => {
@@ -270,6 +333,16 @@ describe("history module daemonClient(link)", () => {
     expect(calls[0]!.path).toBe("/api/history/search?q=query&semantic=true");
   });
 
+  it("threads an explicit project id through search()", async () => {
+    const expected: HistorySearchResult = { ok: true, conversations: [] };
+    const { transport, calls } = makeRecordingTransport(() => expected);
+    const contributed = historyModule.daemonClient!(transport);
+    await contributed.history!.search("query", { projectId: "project-b" });
+    expect(calls[0]!.path).toBe(
+      "/api/history/search?q=query&projectId=project-b",
+    );
+  });
+
   it("decodes a multi-record HistorySearchResult ok: true arm unchanged", async () => {
     const conversations: ConversationRecord[] = [makeRecord("a"), makeRecord("b")];
     const expected: HistorySearchResult = { ok: true, conversations };
@@ -306,6 +379,14 @@ describe("history module daemonClient(link)", () => {
         shape: "requestStrict",
       },
     ]);
+  });
+
+  it("threads an explicit project id through reindex()", async () => {
+    const expected: HistoryReindexResult = { indexed: 5, failed: 0 };
+    const { transport, calls } = makeRecordingTransport(() => expected);
+    const contributed = historyModule.daemonClient!(transport);
+    await contributed.history!.reindex({ projectId: "project-b" });
+    expect(calls[0]!.path).toBe("/history/reindex?projectId=project-b");
   });
 
   it("the assembly path fails loudly when the history module's daemonClient(link) is removed", () => {

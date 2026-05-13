@@ -1,12 +1,12 @@
 ---
 id: task-project-scope-history-store-for-kotaclient-forproject
 title: Project-scope history store for KotaClient.forProject
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move conversation history access behind the same explicit project-scoped store boundary after knowledge and memory establish it.
 created_at: 2026-05-12T15:45:00.000Z
-updated_at: 2026-05-13T20:25:46.604Z
+updated_at: 2026-05-13T20:44:40.000Z
 ---
 
 ## Problem
