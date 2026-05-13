@@ -1,139 +1,86 @@
 /**
- * `codex` agent harness — a multi-turn tool-calling loop driven by the
- * OpenAI Agents SDK (`@openai/agents`'s `Agent` + `run` + `tool`). The
- * Agents SDK is KOTA's JavaScript surface for OpenAI's Responses API
- * agent loop. This adapter does not shell out to the Codex CLI or read
- * Codex CLI login state.
+ * `codex` agent harness — a subprocess adapter around `codex exec --json`.
  *
- * The Agents SDK runs the multi-step tool loop internally when an
- * `Agent` is given a tool list and `run(agent, prompt, { stream: true,
- * maxTurns })` is invoked. KOTA exposes its tool registry to the SDK as
- * `FunctionTool[]` whose `execute` callbacks enforce
- * `disallowedTools`, `allowedTools`, and `canUseTool` before delegating
- * to `executeTool`. Streamed text deltas are picked off the
- * `output_text_delta` events and forwarded to the optional
- * `AgentHarnessWriter`.
+ * This harness intentionally uses the installed Codex CLI instead of the
+ * OpenAI Agents SDK. The CLI is the surface that honors `codex login` /
+ * ChatGPT-plan subscription auth, so KOTA's default Codex preset must route
+ * through it rather than requiring `OPENAI_API_KEY`.
  */
 
-import type { Agent, run, tool } from "@openai/agents";
-
-/**
- * Local structural alias matching the Agents SDK's `JsonObjectSchemaNonStrict`
- * shape. The SDK does not re-export the type at the top-level `@openai/agents`
- * surface, so we mirror the structure here to keep the adapter's tool
- * conversion type-checked without piercing into the SDK's internal types
- * subpath.
- */
-type AgentsToolNonStrictParameters = {
-  type: "object";
-  properties: { [key: string]: { [key: string]: never } };
-  required: string[];
-  additionalProperties: true;
-  description?: string;
-};
-
+import { spawn } from "node:child_process";
+import { createInterface } from "node:readline";
 import type {
-  AgentCanUseTool,
   AgentEffort,
   AgentHarness,
   AgentHarnessResult,
   AgentHarnessRunOptions,
   AgentHarnessWriter,
-  KotaTool,
 } from "#core/agent-harness/index.js";
-import { runWithAskOwnerSource } from "#core/tools/ask-owner.js";
-import { executeTool, getAllTools } from "#core/tools/index.js";
-
-/**
- * Lazy `@openai/agents` import. Mirrors the gemini and vercel adapters —
- * keeps module discovery cheap when an operator never selects this
- * harness, and avoids pulling the SDK's transitive runtime side effects
- * into module load.
- */
-async function loadAgentsSdk(): Promise<typeof import("@openai/agents")> {
-  return import("@openai/agents");
-}
 
 export const CODEX_AGENT_HARNESS_NAME = "codex";
-export const CODEX_ASK_OWNER_TOOL_NAME = "ask_owner";
 
-const DEFAULT_MAX_TURNS = 25;
+type CodexCliUsage = {
+  input_tokens?: number;
+  output_tokens?: number;
+};
 
-type AgentsRunResult = Awaited<ReturnType<typeof run>>;
+type CodexCliEvent = {
+  type?: string;
+  thread_id?: string;
+  usage?: CodexCliUsage;
+  item?: {
+    type?: string;
+    text?: string;
+  };
+  message?: string;
+};
 
 function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
   if (options.mcpServers && Object.keys(options.mcpServers).length > 0) {
     throw new Error(
-      'The "codex" agent harness does not host MCP servers. Drop mcpServers ' +
-        "or run the claude-agent-sdk harness which proxies them through the SDK.",
+      'The "codex" agent harness runs through Codex CLI and does not host KOTA MCP servers. ' +
+        "Drop mcpServers or run the claude-agent-sdk harness.",
     );
   }
   if (options.autonomyMode === "supervised") {
     throw new Error(
-      'The "codex" agent harness cannot route tool calls through the operator approval queue. ' +
-        'Use autonomyMode "autonomous" or "passive", or run claude-agent-sdk.',
+      'The "codex" agent harness runs non-interactively and cannot route tool calls ' +
+        "through KOTA's operator approval queue. Use autonomous or passive mode.",
     );
   }
   if (options.persistSession === true) {
     throw new Error(
-      'The "codex" agent harness does not persist sessions. ' +
-        "Drop persistSession or run claude-agent-sdk for native session resumption.",
+      'The "codex" agent harness does not expose KOTA-managed session persistence. ' +
+        "Drop persistSession.",
     );
   }
   if (options.harnessOverrides !== undefined) {
     throw new Error(
       'The "codex" agent harness does not accept per-step harnessOptions. ' +
-        'Drop harnessOptions["codex"] or run an adapter that validates them.',
+        'Drop harnessOptions["codex"].',
     );
   }
   if (options.enableFileCheckpointing === true) {
     throw new Error(
-      'The "codex" agent harness does not support file checkpointing. ' +
-        "Drop enableFileCheckpointing or run claude-agent-sdk.",
+      'The "codex" agent harness does not support KOTA file checkpointing. ' +
+        "Drop enableFileCheckpointing.",
     );
   }
   if (options.thinkingEnabled === true) {
     throw new Error(
-      'The "codex" agent harness does not host extended thinking through the ' +
-        'thinkingEnabled toggle. Use the portable "effort" field — codex maps ' +
-        "it to modelSettings.reasoning.effort — or run claude-agent-sdk.",
+      'The "codex" agent harness maps portable effort to Codex CLI reasoning. ' +
+        "Drop thinkingEnabled/thinkingBudget and use effort.",
     );
   }
   if (options.onMessage !== undefined) {
     throw new Error(
-      'The "codex" agent harness does not emit KotaAgentMessage frames. ' +
-        "Drop onMessage or run claude-agent-sdk.",
+      'The "codex" agent harness emits text deltas only, not KotaAgentMessage frames. ' +
+        "Drop onMessage.",
     );
   }
 }
 
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function selectToolDefinitions(
-  allowed: readonly string[] | undefined,
-  disallowed: readonly string[] | undefined,
-  includeAskOwner: boolean,
-): KotaTool[] {
-  const all = getAllTools();
-  const denySet = new Set(disallowed ?? []);
-  const allowSet = allowed && allowed.length > 0 ? new Set(allowed) : null;
-  if (includeAskOwner && allowSet) allowSet.add(CODEX_ASK_OWNER_TOOL_NAME);
-  return all.filter((kotaTool) => {
-    if (denySet.has(kotaTool.name)) return false;
-    if (allowSet && !allowSet.has(kotaTool.name)) return false;
-    return true;
-  });
-}
-
-/**
- * Map KOTA's portable `AgentEffort` enum onto the Agents SDK's reasoning
- * effort literal. The SDK natively supports `low`, `medium`, `high`, and
- * `xhigh`; KOTA's `max` collapses to `xhigh` (the SDK has no "max"
- * literal).
- */
-function mapEffortToReasoningEffort(
+function mapEffortToCodexReasoning(
   effort: AgentEffort,
 ): "low" | "medium" | "high" | "xhigh" {
   if (effort === "low") return "low";
@@ -142,243 +89,202 @@ function mapEffortToReasoningEffort(
   return "xhigh";
 }
 
-type LoopFlags = {
-  interrupted: boolean;
-  interruptMessage: string;
-};
+function codexSandboxMode(
+  options: AgentHarnessRunOptions,
+): "read-only" | "workspace-write" {
+  return options.autonomyMode === "passive" ? "read-only" : "workspace-write";
+}
 
-function buildAgentTools(
-  agentsSdk: typeof import("@openai/agents"),
-  kotaTools: readonly KotaTool[],
-  guardrails: {
-    canUseTool: AgentCanUseTool | undefined;
-    abortSignal: AbortSignal | undefined;
-  },
-  flags: LoopFlags,
-  internalAbort: AbortController,
-): ReturnType<typeof tool>[] {
-  const result: ReturnType<typeof tool>[] = [];
-
-  for (const kotaTool of kotaTools) {
-    const definition = agentsSdk.tool({
-      name: kotaTool.name,
-      description: kotaTool.description,
-      parameters: kotaTool.input_schema as unknown as AgentsToolNonStrictParameters,
-      strict: false,
-      execute: async (input, _runContext, details) => {
-        if (!isPlainRecord(input)) {
-          throw new Error(
-            `codex adapter: tool "${kotaTool.name}" received non-object input ` +
-              `(${input === null ? "null" : Array.isArray(input) ? "array" : typeof input}); ` +
-              "the Agents SDK should validate against parameters before reaching execute.",
-          );
-        }
-
-        let effectiveInput: Record<string, unknown> = input;
-        if (guardrails.canUseTool) {
-          const toolAbort = new AbortController();
-          if (guardrails.abortSignal) {
-            if (guardrails.abortSignal.aborted) {
-              toolAbort.abort(guardrails.abortSignal.reason);
-            } else {
-              guardrails.abortSignal.addEventListener(
-                "abort",
-                () => toolAbort.abort(guardrails.abortSignal?.reason),
-                { once: true },
-              );
-            }
-          }
-          const decision = await guardrails.canUseTool(kotaTool.name, input, {
-            signal: toolAbort.signal,
-            suggestions: [],
-            toolUseId: details?.toolCall?.callId ?? kotaTool.name,
-          });
-          if (decision.behavior === "deny") {
-            if (decision.interrupt === true) {
-              flags.interrupted = true;
-              flags.interruptMessage = decision.message;
-              internalAbort.abort(
-                new Error(`canUseTool interrupted the loop: ${decision.message}`),
-              );
-              return decision.message;
-            }
-            return decision.message;
-          }
-          if (
-            decision.behavior === "allow" &&
-            isPlainRecord(decision.updatedInput)
-          ) {
-            effectiveInput = decision.updatedInput;
-          }
-        }
-
-        const executed = await executeTool(kotaTool.name, effectiveInput);
-        return executed.content;
-      },
-    });
-    result.push(definition);
+function buildCodexPrompt(options: AgentHarnessRunOptions): string {
+  const parts: string[] = [];
+  if (options.systemPrompt?.trim()) {
+    parts.push("## System instructions", options.systemPrompt.trim());
   }
-  return result;
+  parts.push(
+    "## KOTA workflow rails",
+    "Do not run `git commit`; stage changes and write the requested " +
+      "commit-message artifact instead. Do not stop, restart, signal, or " +
+      "control the daemon process that launched you.",
+    "## Task",
+    options.prompt,
+  );
+  return parts.join("\n\n");
+}
+
+function parseCodexEvent(line: string): CodexCliEvent | null {
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+  const parsed: unknown = JSON.parse(trimmed);
+  if (typeof parsed !== "object" || parsed === null) {
+    throw new Error(`Codex CLI emitted non-object JSON event: ${trimmed}`);
+  }
+  return parsed as CodexCliEvent;
+}
+
+function formatStderr(stderr: string[]): string {
+  return stderr.join("").trim();
+}
+
+async function collectTextFromCodexCli(args: {
+  prompt: string;
+  cwd: string;
+  model: string;
+  effort: AgentEffort;
+  sandbox: "read-only" | "workspace-write";
+  abortController: AbortController | undefined;
+  writer: AgentHarnessWriter | undefined;
+}): Promise<AgentHarnessResult> {
+  const cliArgs = [
+    "exec",
+    "--json",
+    "--model",
+    args.model,
+    "--cd",
+    args.cwd,
+    "--sandbox",
+    args.sandbox,
+    "--skip-git-repo-check",
+    "--color",
+    "never",
+    "-c",
+    'preferred_auth_method="chatgpt"',
+    "-c",
+    `model_reasoning_effort="${mapEffortToCodexReasoning(args.effort)}"`,
+    "-c",
+    'approval_policy="never"',
+    "-",
+  ];
+
+  const child = spawn("codex", cliArgs, {
+    cwd: args.cwd,
+    env: process.env,
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+
+  const stderr: string[] = [];
+  const streamedChunks: string[] = [];
+  let sessionId: string | undefined;
+  let turns = 0;
+  let inputTokens: number | undefined;
+  let outputTokens: number | undefined;
+  let cliError: string | undefined;
+
+  const abort = (): void => {
+    child.kill("SIGTERM");
+  };
+  let removeAbortListener: (() => void) | undefined;
+  if (args.abortController) {
+    if (args.abortController.signal.aborted) abort();
+    else {
+      args.abortController.signal.addEventListener("abort", abort, { once: true });
+      removeAbortListener = () =>
+        args.abortController?.signal.removeEventListener("abort", abort);
+    }
+  }
+
+  child.stdin.end(args.prompt);
+
+  const stderrDone = new Promise<void>((resolve) => {
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk: string) => stderr.push(chunk));
+    child.stderr.on("end", resolve);
+  });
+
+  const stdoutDone = (async (): Promise<void> => {
+    const lines = createInterface({ input: child.stdout });
+    for await (const line of lines) {
+      const event = parseCodexEvent(line);
+      if (!event) continue;
+      if (event.type === "thread.started" && typeof event.thread_id === "string") {
+        sessionId = event.thread_id;
+      } else if (event.type === "item.completed" && event.item?.type === "agent_message") {
+        const text = event.item.text ?? "";
+        streamedChunks.push(text);
+        args.writer?.write(text);
+      } else if (event.type === "turn.completed") {
+        turns += 1;
+        inputTokens = event.usage?.input_tokens;
+        outputTokens = event.usage?.output_tokens;
+      } else if (event.type === "error") {
+        cliError = event.message ?? "Codex CLI reported an error";
+      }
+    }
+  })();
+
+  const exit = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve, reject) => {
+    child.on("error", reject);
+    child.on("close", (code, signal) => resolve({ code, signal }));
+  });
+  removeAbortListener?.();
+  await Promise.all([stdoutDone, stderrDone]);
+
+  if (args.abortController?.signal.aborted) {
+    return {
+      text: "Codex CLI run aborted.",
+      streamedText: streamedChunks.join(""),
+      ...(sessionId !== undefined ? { sessionId } : {}),
+      turns,
+      ...(inputTokens !== undefined ? { inputTokens } : {}),
+      ...(outputTokens !== undefined ? { outputTokens } : {}),
+      isError: true,
+      subtype: "aborted",
+    };
+  }
+
+  if (exit.code !== 0 || cliError !== undefined) {
+    const detail =
+      cliError ??
+      (formatStderr(stderr) ||
+        `Codex CLI exited with code ${exit.code ?? `signal ${exit.signal}`}`);
+    return {
+      text: detail,
+      streamedText: streamedChunks.join(""),
+      ...(sessionId !== undefined ? { sessionId } : {}),
+      turns,
+      ...(inputTokens !== undefined ? { inputTokens } : {}),
+      ...(outputTokens !== undefined ? { outputTokens } : {}),
+      isError: true,
+      subtype: "codex_cli_error",
+    };
+  }
+
+  return {
+    text: streamedChunks.join(""),
+    streamedText: streamedChunks.join(""),
+    ...(sessionId !== undefined ? { sessionId } : {}),
+    turns: turns || (streamedChunks.length > 0 ? 1 : 0),
+    ...(inputTokens !== undefined ? { inputTokens } : {}),
+    ...(outputTokens !== undefined ? { outputTokens } : {}),
+    isError: false,
+  };
 }
 
 export const codexAgentHarness: AgentHarness = {
   name: CODEX_AGENT_HARNESS_NAME,
   description:
-    "Multi-turn tool-calling loop on the OpenAI Agents SDK (Agent + run + tool). Drives the OpenAI Codex/Responses agent runtime and honors canUseTool, allowedTools, disallowedTools.",
+    "Runs the installed Codex CLI (`codex exec --json`) so KOTA uses Codex ChatGPT-plan subscription auth from `codex login`.",
   supportsMultiTurn: true,
   supportedHookKinds: ["preRun", "postRun"] as const,
-  askOwnerToolName: CODEX_ASK_OWNER_TOOL_NAME,
+  askOwnerToolName: null,
   emitsAgentMessageStream: false,
   async run(
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,
   ): Promise<AgentHarnessResult> {
-    if (options.askOwner) {
-      return runWithAskOwnerSource(options.askOwner.source, () =>
-        runCodexLoop(options, writer),
+    rejectUnsupportedOptions(options);
+    if (!options.model) {
+      throw new Error(
+        'The "codex" agent harness requires an explicit model on the step or config.',
       );
     }
-    return runCodexLoop(options, writer);
+    return collectTextFromCodexCli({
+      prompt: buildCodexPrompt(options),
+      cwd: options.cwd ?? process.cwd(),
+      model: options.model,
+      effort: options.effort,
+      sandbox: codexSandboxMode(options),
+      abortController: options.abortController,
+      writer,
+    });
   },
 };
-
-async function runCodexLoop(
-  options: AgentHarnessRunOptions,
-  writer?: AgentHarnessWriter,
-): Promise<AgentHarnessResult> {
-  rejectUnsupportedOptions(options);
-  if (!options.model) {
-    throw new Error(
-      'The "codex" agent harness requires an explicit model on the step or config.',
-    );
-  }
-  if (options.abortController?.signal.aborted) {
-    const reason = options.abortController.signal.reason;
-    throw reason instanceof Error ? reason : new Error("Agent execution aborted");
-  }
-
-  const agentsSdk = await loadAgentsSdk();
-  const maxTurns = options.maxTurns ?? DEFAULT_MAX_TURNS;
-  const kotaTools = selectToolDefinitions(
-    options.allowedTools,
-    options.disallowedTools,
-    options.askOwner !== undefined,
-  );
-
-  const internalAbort = new AbortController();
-  if (options.abortController) {
-    if (options.abortController.signal.aborted) {
-      internalAbort.abort(options.abortController.signal.reason);
-    } else {
-      options.abortController.signal.addEventListener(
-        "abort",
-        () => internalAbort.abort(options.abortController?.signal.reason),
-        { once: true },
-      );
-    }
-  }
-
-  const flags: LoopFlags = { interrupted: false, interruptMessage: "" };
-  const tools = buildAgentTools(
-    agentsSdk,
-    kotaTools,
-    {
-      canUseTool: options.canUseTool,
-      abortSignal: options.abortController?.signal,
-    },
-    flags,
-    internalAbort,
-  );
-
-  const agent = new agentsSdk.Agent({
-    name: "kota-codex-agent",
-    instructions: options.systemPrompt ?? "",
-    model: options.model,
-    modelSettings: {
-      reasoning: { effort: mapEffortToReasoningEffort(options.effort) },
-    },
-    tools,
-  }) as Agent;
-
-  const streamedChunks: string[] = [];
-  let result: AgentsRunResult;
-  try {
-    result = await agentsSdk.run(agent, options.prompt, {
-      stream: true,
-      maxTurns,
-      signal: internalAbort.signal,
-    });
-  } catch (err) {
-    if (flags.interrupted) {
-      return interruptedResult(flags, streamedChunks);
-    }
-    throw err;
-  }
-
-  try {
-    for await (const event of result) {
-      if (event.type === "raw_model_stream_event") {
-        const data = event.data as { type?: string; delta?: string };
-        if (data.type === "output_text_delta" && typeof data.delta === "string") {
-          streamedChunks.push(data.delta);
-          if (writer) writer.write(data.delta);
-        }
-      }
-    }
-    await result.completed;
-  } catch (err) {
-    if (flags.interrupted) {
-      return interruptedResult(flags, streamedChunks);
-    }
-    throw err;
-  }
-
-  const usage = result.runContext.usage;
-  const rawResponses = result.rawResponses;
-  const turns = rawResponses.length;
-  const finalText =
-    typeof result.finalOutput === "string"
-      ? result.finalOutput
-      : streamedChunks.join("");
-  const lastResponseId = result.lastResponseId;
-
-  if (turns >= maxTurns && !result.finalOutput) {
-    return {
-      text:
-        finalText || `codex harness reached maxTurns=${maxTurns} without ending.`,
-      streamedText: streamedChunks.join(""),
-      ...(lastResponseId !== undefined ? { sessionId: lastResponseId } : {}),
-      turns,
-      inputTokens: usage.inputTokens,
-      outputTokens: usage.outputTokens,
-      isError: true,
-      subtype: "max_turns_reached",
-    };
-  }
-
-  return {
-    text: finalText,
-    streamedText: streamedChunks.join(""),
-    ...(lastResponseId !== undefined ? { sessionId: lastResponseId } : {}),
-    turns,
-    inputTokens: usage.inputTokens,
-    outputTokens: usage.outputTokens,
-    isError: false,
-  };
-}
-
-function interruptedResult(
-  flags: LoopFlags,
-  streamedChunks: string[],
-): AgentHarnessResult {
-  const message = `canUseTool interrupted the loop: ${flags.interruptMessage}`;
-  return {
-    text: message,
-    streamedText: streamedChunks.join(""),
-    turns: 1,
-    inputTokens: 0,
-    outputTokens: 0,
-    isError: true,
-    subtype: "interrupted_by_can_use_tool",
-  };
-}

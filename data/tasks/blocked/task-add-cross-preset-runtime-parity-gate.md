@@ -80,9 +80,8 @@ Scenario per preset (six surfaces, one assertion per surface):
 
 The gate fails if:
 
-- The active preset's `authEnv` is unset and the test silently
-  skipped rather than emitting a single-line "preset X requires Y"
-  report.
+- An env-auth preset's `authEnv` is unset and the test silently skipped
+  rather than emitting a single-line "preset X requires Y" report.
 - Any model id sent to any adapter inside the run does not appear in
   the active preset's catalog (`defaultModel` or tiers) or a per-
   call `harnessOverrides.model` override that the test explicitly
@@ -102,8 +101,9 @@ Concretely:
 
 - A new test file (e.g. `src/preset-parity.integration.test.ts`)
   runs the scenario above for each shipped preset, parameterized.
-- The test detects missing env vars and reports them as a single
-  per-preset preflight failure rather than a flaky individual test.
+- The test accepts harness-managed-auth presets and detects missing env vars
+  for env-auth presets as a single per-preset preflight failure rather than a
+  flaky individual test.
 - Test infrastructure under `src/eval-harness/` or
   `src/modules/eval-harness/` records the run artifacts for each
   preset under `.kota/runs/<run-id>/preset-parity/<preset-id>/` so
@@ -184,7 +184,7 @@ Siblings: `task-introduce-harness-preset-abstraction`,
 ```
 kind: operator-capture
 path: .kota/runs/preset-parity-all-keys-set/
-description: operator-facilitated capture of two `pnpm test:preset-parity` transcripts on a host where all three preset authEnv vars are set — first run with claude+codex+gemini all green; second run with one env var unset showing only that preset's preflight cleanly fail and the other two scenarios passing. Capture each invocation's stdout/stderr at .kota/runs/preset-parity-all-keys-set/{all-green,one-unset}/transcript.txt with the per-preset .kota/runs/<test-stamp>/preset-parity/<preset-id>/{preflight.json,transcript.txt,result.json} artifacts copied alongside.
+description: operator-facilitated capture of two `pnpm test:preset-parity` transcripts on a host where Claude/Gemini env auth is set and Codex CLI login is active — first run with claude+codex+gemini all green; second run with one env-auth preset unset showing only that preset's preflight cleanly fail and the other two scenarios passing. Capture each invocation's stdout/stderr at .kota/runs/preset-parity-all-keys-set/{all-green,one-unset}/transcript.txt with the per-preset .kota/runs/<test-stamp>/preset-parity/<preset-id>/{preflight.json,transcript.txt,result.json} artifacts copied alongside.
 ```
 
 The gate scaffolding is already shipped: `src/preset-parity-model-sweep.integration.test.ts`
@@ -193,9 +193,9 @@ The gate scaffolding is already shipped: `src/preset-parity-model-sweep.integrat
 single-turn scenario gate), the `pnpm test:preset-parity` script, and per-preset
 artifact recording under `.kota/runs/<run-id>/preset-parity/<preset-id>/`. The
 no-keys-set transcript captured during the implementation builder run
-demonstrates the preflight mechanism works (all three preflights fail loudly
-with actionable per-preset messages, all three scenario tests cleanly skip
-with the missing-env reason in the test name, the model-sweep test stays
-green). The two on-host transcripts the task contracts for require real
-ANTHROPIC_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY (or GOOGLE_API_KEY) and
-must be operator-captured.
+demonstrates the preflight mechanism works for env-auth presets (missing env
+preflights fail loudly with actionable per-preset messages, scenario tests
+cleanly skip with the missing-env reason in the test name, the model-sweep test
+stays green). The two on-host transcripts the task contracts for require real
+ANTHROPIC_API_KEY / GEMINI_API_KEY (or GOOGLE_API_KEY) plus an active Codex CLI
+login and must be operator-captured.

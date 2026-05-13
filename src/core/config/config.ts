@@ -76,8 +76,8 @@ export type CoreKotaConfig = {
 
   /**
    * Default preset id for this project. Selects harness + default model +
-   * fast/balanced/capable tier mapping + default reasoning effort + required
-   * env vars together. Resolution priority: `--preset` flag > `KOTA_PRESET`
+   * fast/balanced/capable tier mapping + default reasoning effort + auth
+   * contract together. Resolution priority: `--preset` flag > `KOTA_PRESET`
    * env > this field > shipped default preset. Must match a shipped preset
    * id (`claude` | `codex` | `gemini`). When unset, KOTA selects the shipped
    * default preset (`codex`).

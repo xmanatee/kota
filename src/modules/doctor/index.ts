@@ -76,7 +76,7 @@ function buildDoctorCommand(ctx: ModuleContext): Command {
     .option("--json", "Output results as JSON")
     .option("--fix", "Apply safe automatic repairs for fixable issues")
     .option("--skip-connectivity", "Skip provider API connectivity probes (for offline environments)")
-    .option("--preset <id>", "Preflight a named preset's authEnv (overrides $KOTA_PRESET and config.defaultPreset)")
+    .option("--preset <id>", "Preflight a named preset's auth contract (overrides $KOTA_PRESET and config.defaultPreset)")
     .action(async (opts: { json?: boolean; fix?: boolean; skipConnectivity?: boolean; preset?: string }) => {
       const runOptions: { skipConnectivity?: boolean; preset?: string } = {};
       if (opts.skipConnectivity) runOptions.skipConnectivity = true;

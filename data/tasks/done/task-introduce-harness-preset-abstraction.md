@@ -33,7 +33,7 @@ to OpenAI/Gemini SDKs.
 Make the `(harness, models, effort)` tuple a first-class named bundle. A
 single switch — `--preset <name>` CLI flag or `config.defaultPreset` —
 flips harness, default model, fast/balanced/capable tier mapping, default
-reasoning effort, and required env vars together. No silent fallback to
+reasoning effort, and auth contract together. No silent fallback to
 Claude-shaped defaults when the active preset is codex or gemini.
 
 Proposed shape:
@@ -45,7 +45,7 @@ type Preset = {
   id: PresetId;
   description: string;
   harness: string;                  // registered harness name
-  authEnv: readonly string[];       // required env vars; preflighted at load
+  authEnv: readonly string[];       // env auth alternates; [] = harness-managed auth
   defaultModel: string;             // canonical id passed to the SDK
   tiers: { fast: string; balanced: string; capable: string };
   defaultEffort: AgentEffort;       // 'low'|'medium'|'high'|'xhigh'|'max'
@@ -89,10 +89,8 @@ implicit fallback to `claude` unless `claude` is the configured default.
   single shipped preset's tiers — never imported as a global default.
 - `validate-agent-step.ts`'s `VALID_MODEL_IDS` is preset-derived (sibling
   `task-replace-workflow-agent-step-model-allowlist-with-p`).
-- `kota doctor` reports `preset: codex — OPENAI_API_KEY: missing` instead
-  of letting the run fail mid-call. `authEnv` is preflighted on preset
-  selection and the failure message names the preset and the missing
-  var.
+- `kota doctor` reports harness-managed auth for codex and missing env vars
+  for env-auth presets before a run fails mid-call.
 - A switch from `claude` → `codex` → `gemini` is observable as one
   config diff (or one flag); the announce-active-harness banner shows
   `kota [codex] gpt-5.5` instead of a hardcoded model string.
@@ -175,11 +173,9 @@ effort coherently. Sibling tasks consume this abstraction:
   `defaultModel` unless overridden.
 - A unit test enumerating the shipped presets and asserting every one
   resolves a non-empty `defaultModel`, `tiers.{fast,balanced,capable}`,
-  and `authEnv` array.
-- `kota doctor --preset codex` exits non-zero with a single line
-  naming `OPENAI_API_KEY` when the env var is unset, and exits zero
-  when it is set. Same shape for `gemini`
-  (GEMINI_API_KEY / GOOGLE_API_KEY).
+  and explicit `authEnv` array.
+- `kota doctor --preset codex` exits zero with harness-managed auth; env-auth
+  presets such as `gemini` still fail loudly when all alternates are unset.
 
 ## Out of Scope
 

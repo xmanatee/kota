@@ -121,7 +121,9 @@ function recordPreflight(preset: Preset): PreflightArtifact {
     missing.length === 0 ? "scenario-runnable" : "preflight-failure";
   const message =
     missing.length === 0
-      ? `preset "${preset.id}" auth ok (one of ${preset.authEnv.join(", ")} is set)`
+      ? preset.authEnv.length === 0
+        ? `preset "${preset.id}" auth ok (harness-managed auth)`
+        : `preset "${preset.id}" auth ok (one of ${preset.authEnv.join(", ")} is set)`
       : formatPreflightMessage(preset, missing);
   const artifact: PreflightArtifact = {
     presetId: preset.id,
@@ -294,7 +296,7 @@ afterAll(() => {
   // working tree is unaffected.
 });
 
-describe("preset-parity gate — per-preset preflight (loud-skip on missing authEnv)", () => {
+describe("preset-parity gate — per-preset preflight", () => {
   for (const preset of listShippedPresets()) {
     // Record the preflight artifact unconditionally so the cross-preset
     // sweep below sees the per-preset decision even when the assertion
@@ -307,8 +309,11 @@ describe("preset-parity gate — per-preset preflight (loud-skip on missing auth
     const titleSuffix = skip
       ? ` — SKIPPED (preset "${preset.id}" requires ${missingLabel}; preflight.json recorded preflight-failure)`
       : "";
+    const authExpectation = preset.authEnv.length === 0
+      ? "harness-managed auth is accepted"
+      : `at least one of ${preset.authEnv.join(" or ")} is set`;
     it.skipIf(skip)(
-      `preset=${preset.id}: at least one of ${preset.authEnv.join(" or ")} is set${titleSuffix}`,
+      `preset=${preset.id}: ${authExpectation}${titleSuffix}`,
       () => {
         expect(artifact.decision).toBe("scenario-runnable");
         expect(artifact.missing).toEqual([]);

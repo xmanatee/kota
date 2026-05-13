@@ -7,11 +7,11 @@ registerAgentHarness(codexAgentHarness);
 const codexAgentHarnessModule: KotaModule = {
   name: "codex-agent-harness",
   description:
-    "Registers the codex agent harness — a multi-turn tool-calling loop driven by the OpenAI Agents SDK (Agent + run + tool). Routes tool dispatch through the core tool registry and honors canUseTool, allowedTools, and disallowedTools.",
+    "Registers the codex agent harness — a non-interactive Codex CLI runner that honors local `codex login` ChatGPT-plan auth.",
   dependencies: [],
   onLoad(ctx) {
     ctx.log.info(
-      `Registered agent harness "${CODEX_AGENT_HARNESS_NAME}" (OpenAI Agents SDK tool loop).`,
+      `Registered agent harness "${CODEX_AGENT_HARNESS_NAME}" (Codex CLI exec).`,
     );
   },
 };

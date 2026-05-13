@@ -110,11 +110,12 @@ function resolveHarnessForPreset(args: {
 }
 
 /**
- * Preflight the preset's required env vars before launching the harness.
+ * Preflight the preset's env-auth requirements before launching the harness.
  * When the harness is overridden (e.g. `--harness thin` for a local probe),
  * skip the preset auth check — the operator picked a different harness whose
  * auth requirements are not the preset's. Exits 1 with a single-line message
- * naming the preset and the missing var when none of the alternates are set.
+ * naming the preset and missing vars when the preset declares env auth and
+ * none of the alternates are set.
  */
 function preflightPresetAuth(preset: Preset, harnessName: string): void {
   if (harnessName !== preset.harness) return;
@@ -165,7 +166,7 @@ program
   .option("-v, --verbose", "Show debug output")
   .option("-a, --architect", "Enable Architect/Editor split (two-pass reasoning)")
   .option("-i, --interactive", "Interactive mode (REPL)")
-  .option("--preset <id>", `Preset bundle (claude | codex | gemini). Sets harness, default model, tiers, and authEnv together. Overrides $${PRESET_ENV_VAR} and config.defaultPreset.`)
+  .option("--preset <id>", `Preset bundle (claude | codex | gemini). Sets harness, default model, tiers, effort, and auth contract together. Overrides $${PRESET_ENV_VAR} and config.defaultPreset.`)
   .option("--harness <name>", "Agent harness adapter (e.g. claude-agent-sdk, thin). Overrides the active preset's harness for this run")
   .option("-s, --session <path>", "Session file for persistence/resume")
   .option("-y, --yes", "Skip confirmation prompts for destructive commands")

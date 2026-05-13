@@ -5,9 +5,10 @@
  * Switching presets is one switch — `--preset <id>` CLI flag,
  * `KOTA_PRESET` env, or `config.defaultPreset` — that flips harness +
  * default model + fast/balanced/capable tier mapping + default reasoning
- * effort + required env vars together. Adapters keep ownership of effort
- * translation (codex/gemini map the neutral `AgentEffort` literal to their
- * provider's wire shape).
+ * effort + auth contract together. `authEnv` is empty only for harnesses
+ * that authenticate through their own local login state. Adapters keep
+ * ownership of effort translation (codex/gemini map the neutral
+ * `AgentEffort` literal to their provider's wire shape).
  *
  * Resolution priority (gemini-cli convention): CLI flag > env > project
  * config > user config > shipped default. No silent fallback to another
@@ -56,9 +57,9 @@ const SHIPPED_PRESETS: readonly Preset[] = [
   },
   {
     id: "codex",
-    description: "OpenAI Codex via @openai/agents (Responses API).",
+    description: "OpenAI Codex via the local Codex CLI.",
     harness: "codex",
-    authEnv: ["OPENAI_API_KEY"],
+    authEnv: [],
     defaultModel: "gpt-5.5",
     tiers: {
       fast: "gpt-5.4-mini",

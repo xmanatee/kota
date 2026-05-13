@@ -322,11 +322,10 @@ export async function checkProviderConnectivity(projectDir: string): Promise<Che
 }
 
 /**
- * Preflight the active preset's required env vars. Reports `pass` when at
- * least one alternate is set, `fail` (with a single line naming the missing
- * vars and the preset id) when none are. Reports `fail` when the requested
- * preset is unknown — silent fallback to a default preset would defeat the
- * preflight.
+ * Preflight the active preset's auth contract. Reports `pass` when auth is
+ * harness-managed or at least one alternate env var is set. Reports `fail`
+ * when env auth is declared and none are present, or when the requested preset
+ * is unknown.
  */
 function checkPresetAuthEnv(
   projectDir: string,
@@ -349,7 +348,10 @@ function checkPresetAuthEnv(
   const sourceDetail = `source: ${sourceLabel}, harness: ${preset.harness}, defaultModel: ${preset.defaultModel}`;
   const auth = checkPresetAuth(preset);
   if (auth.missing.length === 0) {
-    return [pass(`Preset: ${preset.id}`, `authEnv set (${sourceDetail})`)];
+    const authDetail = preset.authEnv.length === 0
+      ? "harness-managed auth"
+      : "authEnv set";
+    return [pass(`Preset: ${preset.id}`, `${authDetail} (${sourceDetail})`)];
   }
   return [
     fail(

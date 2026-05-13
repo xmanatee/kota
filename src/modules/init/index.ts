@@ -13,7 +13,7 @@ const KOTA_CONFIG_TEMPLATE = `import type { KotaConfig } from "kota/module";
 const config: KotaConfig = {
   // Active preset bundle (claude | codex | gemini). Selects harness, default
   // model, fast/balanced/capable tier mapping, default reasoning effort, and
-  // required env vars together. Override per-run with \`--preset <id>\` or
+  // auth contract together. Override per-run with \`--preset <id>\` or
   // \`KOTA_PRESET=<id>\`. Defaults to "codex" when unset.
   // defaultPreset: "codex",
 

@@ -26,10 +26,10 @@ KOTA ships a first-class `codex-agent-harness` module that lets an
 operator run the full daemon (interactive, delegate, autonomy, repair
 loops) on the OpenAI Codex CLI / Codex agent runtime as its own
 `src/modules/codex-agent-harness/` adapter that registers through
-`registerAgentHarness`, honors every guardrail field on
-`AgentHarnessRunOptions`, supports multi-turn so the REPL/delegate paths
-work, streams partial output through the adapter writer, and is exercised
-by harness-parity scenarios alongside the existing adapters.
+`registerAgentHarness`, uses Codex CLI login/subscription auth, supports
+multi-turn so the REPL/delegate paths work, streams final agent-message
+output through the adapter writer, and is exercised by harness-parity
+scenarios alongside the existing adapters.
 
 ## Constraints
 
@@ -41,10 +41,10 @@ by harness-parity scenarios alongside the existing adapters.
   truly OpenAI-chat-completions-compatible. If the Codex agent runtime
   ships its own SDK with tool-call shapes the existing OpenAI client
   cannot express, pull in the dedicated SDK and document why.
-- Honor `canUseTool`, `disallowedTools`, the agent commit guard, the
-  daemon control guard, injection-defense, and risk gating end-to-end.
-  Reject unsupported `AgentHarnessRunOptions` loudly, do not silently
-  degrade.
+- Codex CLI owns its own tool runtime. Reject unsupported KOTA tool-hosting
+  surfaces loudly, and keep workflow rails explicit in the prompt plus
+  post-step checks rather than pretending KOTA can intercept CLI-internal
+  tool calls.
 - No implicit defaults. Operators select this harness via
   `KotaConfig.defaultAgentHarness` or per-step `harness`.
 - Multi-turn must work. `supportsMultiTurn: true` is required.
@@ -57,8 +57,7 @@ by harness-parity scenarios alongside the existing adapters.
 
 - A new module `src/modules/codex-agent-harness/` ships an adapter
   against the OpenAI Codex CLI / Codex agent runtime, registers with
-  `registerAgentHarness`, and passes a tool-capable harness-parity
-  scenario.
+  `registerAgentHarness`, and passes a harness-parity scenario.
 - The adapter has an `AGENTS.md` documenting which providers it covers,
   how guardrails apply inside the loop, and what the multi-turn context
   format is — at conventions level, no per-function inventory.

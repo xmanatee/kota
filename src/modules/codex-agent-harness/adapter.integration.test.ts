@@ -1,9 +1,5 @@
-/**
- * Integration test: prove the codex agent harness can be selected by name
- * through the harness registry exactly like claude-agent-sdk, openai-tools,
- * thin, vercel, and gemini, with no implicit fallback.
- */
-
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   hasAgentHarness,
@@ -11,19 +7,45 @@ import {
   resolveAgentHarness,
 } from "#core/agent-harness/index.js";
 
-const runMock = vi.fn();
-const toolMock = vi.fn();
+const spawnMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@openai/agents", () => ({
-  Agent: function MockAgent(this: unknown, config: Record<string, unknown>) {
-    Object.assign(this as Record<string, unknown>, config);
-  },
-  run: (...args: unknown[]) => runMock(...args),
-  tool: (definition: Record<string, unknown>) => {
-    toolMock(definition);
-    return definition;
-  },
-}));
+vi.mock("node:child_process", async () => {
+  const actual = await vi.importActual<typeof import("node:child_process")>(
+    "node:child_process",
+  );
+  return { ...actual, spawn: spawnMock };
+});
+
+function mockCodexProcess(): void {
+  const child = new EventEmitter() as EventEmitter & {
+    stdin: PassThrough;
+    stdout: PassThrough;
+    stderr: PassThrough;
+    kill: ReturnType<typeof vi.fn>;
+  };
+  child.stdin = new PassThrough();
+  child.stdout = new PassThrough();
+  child.stderr = new PassThrough();
+  child.kill = vi.fn();
+  spawnMock.mockReturnValue(child);
+  queueMicrotask(() => {
+    child.stdout.write(`${JSON.stringify({
+      type: "thread.started",
+      thread_id: "cint",
+    })}\n`);
+    child.stdout.write(`${JSON.stringify({
+      type: "item.completed",
+      item: { type: "agent_message", text: "ok" },
+    })}\n`);
+    child.stdout.write(`${JSON.stringify({
+      type: "turn.completed",
+      usage: { input_tokens: 1, output_tokens: 1 },
+    })}\n`);
+    child.stdout.end();
+    child.stderr.end();
+    child.emit("close", 0, null);
+  });
+}
 
 import claudeHarnessModule from "../claude-agent-harness/index.js";
 import geminiHarnessModule from "../gemini-agent-harness/index.js";
@@ -35,28 +57,9 @@ import codexHarnessModule, {
   codexAgentHarness,
 } from "./index.js";
 
-function makeRunResult(): unknown {
-  const completedPromise: Promise<void> = Promise.resolve();
-  return {
-    [Symbol.asyncIterator]: async function* () {
-      yield {
-        type: "raw_model_stream_event",
-        data: { type: "output_text_delta", delta: "ok" },
-      };
-    },
-    completed: completedPromise,
-    finalOutput: "ok",
-    rawResponses: [{ id: "cint" }],
-    lastResponseId: "cint",
-    runContext: { usage: { inputTokens: 1, outputTokens: 1 } },
-  };
-}
-
 describe("codex agent harness integration", () => {
   beforeEach(() => {
-    runMock.mockReset();
-    toolMock.mockReset();
-    runMock.mockResolvedValue(makeRunResult());
+    spawnMock.mockReset();
   });
 
   afterEach(() => {
@@ -87,6 +90,8 @@ describe("codex agent harness integration", () => {
   });
 
   it("runs end-to-end through the registry without falling back to a different harness", async () => {
+    mockCodexProcess();
+
     const harness = resolveAgentHarness(CODEX_AGENT_HARNESS_NAME);
     const writer = { write: vi.fn().mockReturnValue(true) };
     const result = await harness.run(
@@ -98,7 +103,7 @@ describe("codex agent harness integration", () => {
       writer,
     );
 
-    expect(runMock).toHaveBeenCalledTimes(1);
+    expect(spawnMock).toHaveBeenCalledTimes(1);
     expect(writer.write).toHaveBeenCalledWith("ok");
     expect(result).toMatchObject({
       text: "ok",

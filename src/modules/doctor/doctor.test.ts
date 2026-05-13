@@ -404,12 +404,11 @@ describe("kota doctor --preset preflight", () => {
     vi.restoreAllMocks();
   });
 
-  it("fails with a single line naming OPENAI_API_KEY for codex preset when missing", async () => {
+  it("passes for codex preset without OPENAI_API_KEY because Codex CLI owns auth", async () => {
     const results = await runDoctorChecks(projectDir, { preset: "codex", skipConnectivity: true });
     const presetRow = results.find((r) => r.label === "Preset: codex");
-    expect(presetRow?.status).toBe("fail");
-    expect(presetRow?.detail).toContain("OPENAI_API_KEY");
-    expect(presetRow?.detail).toContain("missing");
+    expect(presetRow?.status).toBe("pass");
+    expect(presetRow?.detail).toContain("harness-managed auth");
   });
 
   it("fails for gemini preset when neither GEMINI_API_KEY nor GOOGLE_API_KEY is set", async () => {
@@ -419,12 +418,12 @@ describe("kota doctor --preset preflight", () => {
     expect(presetRow?.detail).toMatch(/GEMINI_API_KEY.*GOOGLE_API_KEY/);
   });
 
-  it("passes for codex preset when OPENAI_API_KEY is set", async () => {
+  it("keeps codex preset independent of OPENAI_API_KEY when it is set", async () => {
     process.env.OPENAI_API_KEY = "sk-test";
     const results = await runDoctorChecks(projectDir, { preset: "codex", skipConnectivity: true });
     const presetRow = results.find((r) => r.label === "Preset: codex");
     expect(presetRow?.status).toBe("pass");
-    expect(presetRow?.detail).toContain("authEnv set");
+    expect(presetRow?.detail).toContain("harness-managed auth");
   });
 
   it("passes for gemini preset when GOOGLE_API_KEY is set (alternate auth)", async () => {

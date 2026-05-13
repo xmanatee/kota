@@ -19,13 +19,13 @@ describe("shipped preset registry", () => {
     expect(ids).toEqual(expect.arrayContaining(["claude", "codex", "gemini"]));
   });
 
-  it("every shipped preset declares non-empty defaultModel, tiers and authEnv", () => {
+  it("every shipped preset declares model tiers and an explicit auth contract", () => {
     for (const preset of listShippedPresets()) {
       expect(preset.defaultModel.length).toBeGreaterThan(0);
       expect(preset.tiers.fast.length).toBeGreaterThan(0);
       expect(preset.tiers.balanced.length).toBeGreaterThan(0);
       expect(preset.tiers.capable.length).toBeGreaterThan(0);
-      expect(preset.authEnv.length).toBeGreaterThan(0);
+      expect(Array.isArray(preset.authEnv)).toBe(true);
       expect(preset.harness.length).toBeGreaterThan(0);
       expect(preset.defaultEffort).toMatch(/^(low|medium|high|xhigh|max)$/);
     }
@@ -132,14 +132,14 @@ describe("checkPresetAuth", () => {
   const claude = getPreset("claude");
   const gemini = getPreset("gemini");
 
-  it("reports the missing var when the env var is unset", () => {
+  it("does not require env auth for the Codex CLI preset", () => {
     const { missing } = checkPresetAuth(codex, {});
-    expect(missing).toEqual(codex.authEnv);
+    expect(missing).toEqual([]);
   });
 
-  it("returns no missing when the required var is set", () => {
-    const result = checkPresetAuth(codex, { OPENAI_API_KEY: "sk-test" });
-    expect(result.missing).toEqual([]);
+  it("reports the missing var when an env-auth preset is unset", () => {
+    const result = checkPresetAuth(claude, {});
+    expect(result.missing).toEqual(claude.authEnv);
   });
 
   it("treats multi-alternate auth (gemini) as satisfied when any alternate is set", () => {
