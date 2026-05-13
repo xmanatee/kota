@@ -434,11 +434,11 @@ describe("kota doctor --preset preflight", () => {
     expect(presetRow?.status).toBe("pass");
   });
 
-  it("falls back to the shipped default (claude) when no preset is requested", async () => {
+  it("falls back to the shipped default (codex) when no preset is requested", async () => {
     const results = await runDoctorChecks(projectDir, { skipConnectivity: true });
     const presetRow = results.find((r) => r.label.startsWith("Preset:"));
     expect(presetRow).toBeDefined();
-    expect(presetRow?.label).toBe("Preset: claude");
+    expect(presetRow?.label).toBe("Preset: codex");
     expect(presetRow?.detail).toContain("source: shipped default");
   });
 

@@ -46,9 +46,9 @@ export type WorkflowAgentStepInput = WorkflowBaseStep & {
   /**
    * Name of the agent harness adapter this step should run on. Must match a
    * harness registered with the core `agent-harness` registry. When omitted,
-   * the step inherits `KotaConfig.defaultAgentHarness`; the validator rejects
-   * any step that leaves the harness unset with no config default. There is
-   * no hidden fallback to `claude-agent-sdk`.
+   * the step inherits `KotaConfig.defaultAgentHarness` when pinned, otherwise
+   * the active preset's harness. There is no hidden fallback to a literal
+   * `claude-agent-sdk`.
    */
   harness?: string;
   /**

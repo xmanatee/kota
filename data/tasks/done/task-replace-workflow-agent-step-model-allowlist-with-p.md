@@ -79,8 +79,8 @@ swap without an edit.
     new `tier` field, the dropped allowlist, and the per-harness opt-in
     `validateModelId` rejection path.
   - A regression test asserts that a step declaring
-    `harness: "codex", model: "gpt-5-codex"` validates cleanly when the
-    codex adapter is registered.
+    `harness: "codex", model: "gpt-5.5"` validates cleanly when the codex
+    adapter is registered.
   - A regression test asserts that a step declaring
     `harness: "gemini", model: "gemini-2.5-pro"` validates cleanly when
     the gemini adapter is registered.

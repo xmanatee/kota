@@ -115,8 +115,8 @@ describe("mergePresetTiers and resolvePresetTierModel", () => {
   });
 
   it("operator overrides win on a per-tier basis", () => {
-    const merged = mergePresetTiers(codex, { capable: "gpt-5-frontier" });
-    expect(merged.capable).toBe("gpt-5-frontier");
+    const merged = mergePresetTiers(codex, { capable: "gpt-5.5-override" });
+    expect(merged.capable).toBe("gpt-5.5-override");
     expect(merged.fast).toBe(codex.tiers.fast);
     expect(merged.balanced).toBe(codex.tiers.balanced);
   });

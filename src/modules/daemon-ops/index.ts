@@ -11,6 +11,11 @@ import type {
 } from "#core/daemon/project-registry.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
+import {
+  checkPresetAuth,
+  PRESET_ENV_VAR,
+  resolvePreset,
+} from "#core/model/preset.js";
 import { daemonManagedHttp } from "#core/server/daemon-client.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
@@ -81,6 +86,48 @@ function parseIntOption(value: string, name: string): number {
     process.exit(1);
   }
   return parsed;
+}
+
+function installDaemonPresetEnv(args: {
+  flagValue: string | undefined;
+  configValue: string | undefined;
+}): ReturnType<typeof resolvePreset> {
+  try {
+    const resolution = resolvePreset({
+      flag: args.flagValue,
+      env: process.env[PRESET_ENV_VAR],
+      config: args.configValue,
+    });
+    process.env[PRESET_ENV_VAR] = resolution.preset.id;
+    return resolution;
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
+}
+
+function preflightDaemonPresetAuth(args: {
+  preset: ReturnType<typeof resolvePreset>["preset"];
+  harnessName: string;
+}): void {
+  if (args.harnessName !== args.preset.harness) return;
+  const { missing } = checkPresetAuth(args.preset);
+  if (missing.length === 0) return;
+  console.error(
+    `Error: preset "${args.preset.id}" requires ${missing.join(" or ")}. ` +
+      `Run \`kota doctor --preset ${args.preset.id}\` to diagnose before starting the daemon.`,
+  );
+  process.exit(1);
+}
+
+function resolveDaemonHarness(args: {
+  configHarness: string | undefined;
+  presetResolution: ReturnType<typeof resolvePreset>;
+}): string {
+  if (args.presetResolution.source === "flag" || args.presetResolution.source === "env") {
+    return args.presetResolution.preset.harness;
+  }
+  return args.configHarness ?? args.presetResolution.preset.harness;
 }
 
 async function runDaemonSupervisor(): Promise<void> {
@@ -243,6 +290,7 @@ const daemonModule: KotaModule = {
     const cmd = new Command("daemon")
       .description("Run KOTA as a long-running daemon with autonomous workflows")
       .option("-v, --verbose", "Show debug output")
+      .option("--preset <id>", "Preset bundle (claude | codex | gemini). Overrides KOTA_PRESET and config.defaultPreset for this daemon process")
       .option("--poll-interval <seconds>", "Scheduler poll interval in seconds", "30")
       .option(
         "--project-dir <path>",
@@ -279,13 +327,31 @@ const daemonModule: KotaModule = {
         // load here so the Daemon never reads contributions from the CLI's
         // partial state — the loader's typed accessors enforce this too.
         const config = loadConfig(projectDir);
-        const verbose = opts.verbose || config.verbose || false;
-        const loader = await loadRuntimeModules({ config, cwd: projectDir, verbose });
+        const presetResolution = installDaemonPresetEnv({
+          flagValue: opts.preset,
+          configValue: config.defaultPreset,
+        });
+        const preset = presetResolution.preset;
+        const effectiveHarness = resolveDaemonHarness({
+          configHarness: config.defaultAgentHarness,
+          presetResolution,
+        });
+        const effectiveConfig = {
+          ...config,
+          defaultPreset: preset.id,
+          defaultAgentHarness: effectiveHarness,
+        };
+        preflightDaemonPresetAuth({
+          preset,
+          harnessName: effectiveHarness,
+        });
+        const verbose = opts.verbose || effectiveConfig.verbose || false;
+        const loader = await loadRuntimeModules({ config: effectiveConfig, cwd: projectDir, verbose });
 
         const daemon = new Daemon({
           projectDir,
           verbose,
-          config,
+          config: effectiveConfig,
           idleIntervalMs: 30_000,
           pollIntervalMs: parseIntOption(opts.pollInterval, "poll-interval") * 1000,
           workflows: loader.getContributedWorkflows(),

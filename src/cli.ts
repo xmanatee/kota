@@ -97,6 +97,18 @@ function resolveActivePreset(
   }
 }
 
+function resolveHarnessForPreset(args: {
+  explicitHarness?: string;
+  configHarness?: string;
+  presetResolution: PresetResolution & { preset: Preset };
+}): string {
+  if (args.explicitHarness) return args.explicitHarness;
+  if (args.presetResolution.source === "flag" || args.presetResolution.source === "env") {
+    return args.presetResolution.preset.harness;
+  }
+  return args.configHarness ?? args.presetResolution.preset.harness;
+}
+
 /**
  * Preflight the preset's required env vars before launching the harness.
  * When the harness is overridden (e.g. `--harness thin` for a local probe),
@@ -175,8 +187,7 @@ program
 
     // Take the harness path whenever the operator did not name a non-agent-sdk
     // model provider. The active preset drives harness, default model, and
-    // effort. `--harness` and `config.defaultAgentHarness` still override the
-    // preset's harness when an operator explicitly pins one.
+    // effort; `--harness` is the per-invocation escape hatch.
     const useHarnessPath =
       Boolean(explicitHarness) ||
       providerName === "agent-sdk" ||
@@ -188,7 +199,11 @@ program
       const { model } = parseModelString(modelSpec);
       let prompt = promptWords.join(" ");
       prompt = expandAlias(prompt, config.aliases);
-      const harnessName = explicitHarness ?? config.defaultAgentHarness ?? preset.harness;
+      const harnessName = resolveHarnessForPreset({
+        explicitHarness,
+        configHarness: config.defaultAgentHarness,
+        presetResolution,
+      });
       announceActivePreset({
         presetId: preset.id,
         harnessOverride: harnessName !== preset.harness ? harnessName : undefined,
@@ -313,14 +328,16 @@ async function checkPipeMode() {
       const { preset } = presetResolution;
 
       // The harness path runs whenever no non-agent-sdk model provider is named.
-      // The active preset drives harness, default model, and effort; explicit
-      // `config.defaultAgentHarness` still wins when the operator pinned one.
+      // The active preset drives harness, default model, and effort.
       const provider = config.modelProvider?.type;
       const useHarnessPath = provider === undefined || provider === "agent-sdk";
       if (useHarnessPath) {
         const modelSpec = config.model || preset.defaultModel;
         const { model } = parseModelString(modelSpec);
-        const harnessName = config.defaultAgentHarness ?? preset.harness;
+        const harnessName = resolveHarnessForPreset({
+          configHarness: config.defaultAgentHarness,
+          presetResolution,
+        });
         preflightPresetAuth(preset, harnessName);
         announceActivePreset({
           presetId: preset.id,

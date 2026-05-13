@@ -13,7 +13,7 @@ routing, the `Preset` abstraction, and streaming behavior.
 - Resolution priority: `--preset` flag > `KOTA_PRESET` env > `config.defaultPreset`
   > shipped default. An explicitly named preset that does not exist throws
   loudly instead of falling through.
-- `DEFAULT_MODEL_TIERS` in `model-router.ts` is the claude preset's tiers
+- `DEFAULT_MODEL_TIERS` in `model-router.ts` is the shipped default preset's tiers
   surfaced for legacy callers; consumers should query the active preset via
   `mergePresetTiers(preset, overrides)` instead of importing the constant
   directly.

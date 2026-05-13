@@ -1,9 +1,9 @@
 /**
  * `codex` agent harness — a multi-turn tool-calling loop driven by the
  * OpenAI Agents SDK (`@openai/agents`'s `Agent` + `run` + `tool`). The
- * Agents SDK is the JavaScript surface of OpenAI's Codex agent runtime
- * (Responses API + agent loop); the same library powers the Codex CLI
- * and the OpenAI-hosted agent runs.
+ * Agents SDK is KOTA's JavaScript surface for OpenAI's Responses API
+ * agent loop. This adapter does not shell out to the Codex CLI or read
+ * Codex CLI login state.
  *
  * The Agents SDK runs the multi-step tool loop internally when an
  * `Agent` is given a tool list and `run(agent, prompt, { stream: true,

@@ -3,9 +3,9 @@
 Adapter module that registers the `codex` harness — a multi-turn
 tool-calling loop driven by the OpenAI Agents SDK
 (`@openai/agents`'s `Agent` + `run` + `tool`). The Agents SDK is the
-JavaScript surface of OpenAI's Codex agent runtime (Responses API +
-agent loop) and the same library powers the OpenAI Codex CLI and
-OpenAI-hosted agent runs. Operators select this harness via
+JavaScript surface KOTA uses for OpenAI's Responses API agent loop.
+This is not a shell-out to the Codex CLI and does not read Codex CLI
+login state. Operators select this harness via
 `KotaConfig.defaultAgentHarness: "codex"`, per-step `harness`, or the
 `--harness codex` CLI flag.
 
@@ -18,8 +18,8 @@ translation at the adapter seam (see
 Models are passed through verbatim to the Agents SDK. The Agents SDK
 currently targets OpenAI's Responses API by default, so there is no
 `<provider>/<modelId>` prefix to disambiguate — operators name the
-model directly (e.g. `gpt-5-codex`, `gpt-5`, `o4-mini`,
-`gpt-4.1-mini`). Authentication is handled by the SDK's default
+model directly (e.g. `gpt-5.5`, `gpt-5.4`,
+`gpt-5.4-mini`). Authentication is handled by the SDK's default
 `OpenAIProvider`, which reads `OPENAI_API_KEY` from the process
 environment when the SDK constructs its underlying `openai` client.
 The adapter does not surface API-key configuration; operators export

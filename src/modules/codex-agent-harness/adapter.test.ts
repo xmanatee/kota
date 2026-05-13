@@ -173,7 +173,7 @@ describe("codexAgentHarness — happy path", () => {
     const result = await codexAgentHarness.run(
       {
         prompt: "please echo",
-        model: "gpt-5-codex",
+        model: "gpt-5.5",
         effort: "xhigh",
         systemPrompt: "be brief",
       },
@@ -183,7 +183,7 @@ describe("codexAgentHarness — happy path", () => {
     const config = captureLastAgentConfig();
     expect(config.name).toBe("kota-codex-agent");
     expect(config.instructions).toBe("be brief");
-    expect(config.model).toBe("gpt-5-codex");
+    expect(config.model).toBe("gpt-5.5");
     expect(config.modelSettings).toEqual({ reasoning: { effort: "xhigh" } });
     expect(config.tools.map((t) => t.name)).toEqual(["echo_tool"]);
 
@@ -230,7 +230,7 @@ describe("codexAgentHarness — guardrails", () => {
 
     await codexAgentHarness.run({
       prompt: "go",
-      model: "gpt-5-codex",
+      model: "gpt-5.5",
       effort: "xhigh",
       ...(opts.canUseTool ? { canUseTool: opts.canUseTool } : {}),
       ...(opts.allowedTools ? { allowedTools: opts.allowedTools } : {}),
@@ -279,7 +279,7 @@ describe("codexAgentHarness — guardrails", () => {
 
     await codexAgentHarness.run({
       prompt: "go",
-      model: "gpt-5-codex",
+      model: "gpt-5.5",
       effort: "xhigh",
       disallowedTools: ["echo_tool"],
     });
@@ -338,7 +338,7 @@ describe("codexAgentHarness — guardrails", () => {
 
     const result = await codexAgentHarness.run({
       prompt: "go",
-      model: "gpt-5-codex",
+      model: "gpt-5.5",
       effort: "xhigh",
       canUseTool,
     });
@@ -363,7 +363,7 @@ describe("codexAgentHarness — unsupported options rejection", () => {
     await expect(
       codexAgentHarness.run({
         prompt: "x",
-        model: "gpt-5-codex",
+        model: "gpt-5.5",
         effort: "xhigh",
         mcpServers: { foo: { type: "stdio", command: "bar" } } as never,
       }),
@@ -374,7 +374,7 @@ describe("codexAgentHarness — unsupported options rejection", () => {
     await expect(
       codexAgentHarness.run({
         prompt: "x",
-        model: "gpt-5-codex",
+        model: "gpt-5.5",
         effort: "xhigh",
         autonomyMode: "supervised",
       }),
@@ -385,7 +385,7 @@ describe("codexAgentHarness — unsupported options rejection", () => {
     await expect(
       codexAgentHarness.run({
         prompt: "x",
-        model: "gpt-5-codex",
+        model: "gpt-5.5",
         effort: "xhigh",
         harnessOverrides: { foo: "bar" },
       }),
@@ -396,7 +396,7 @@ describe("codexAgentHarness — unsupported options rejection", () => {
     await expect(
       codexAgentHarness.run({
         prompt: "x",
-        model: "gpt-5-codex",
+        model: "gpt-5.5",
         effort: "xhigh",
         thinkingEnabled: true,
       }),
@@ -407,7 +407,7 @@ describe("codexAgentHarness — unsupported options rejection", () => {
     await expect(
       codexAgentHarness.run({
         prompt: "x",
-        model: "gpt-5-codex",
+        model: "gpt-5.5",
         effort: "xhigh",
         onMessage: () => {},
       }),
@@ -418,7 +418,7 @@ describe("codexAgentHarness — unsupported options rejection", () => {
     await expect(
       codexAgentHarness.run({
         prompt: "x",
-        model: "gpt-5-codex",
+        model: "gpt-5.5",
         effort: "xhigh",
         persistSession: true,
       }),
@@ -429,7 +429,7 @@ describe("codexAgentHarness — unsupported options rejection", () => {
     await expect(
       codexAgentHarness.run({
         prompt: "x",
-        model: "gpt-5-codex",
+        model: "gpt-5.5",
         effort: "xhigh",
         enableFileCheckpointing: true,
       }),
@@ -466,7 +466,7 @@ describe("codexAgentHarness — reasoning-effort passthrough", () => {
       );
       await codexAgentHarness.run({
         prompt: "x",
-        model: "gpt-5-codex",
+        model: "gpt-5.5",
         effort,
       });
       const config = captureLastAgentConfig();
@@ -490,7 +490,7 @@ describe("codexAgentHarness — max turns cap", () => {
 
     const result = await codexAgentHarness.run({
       prompt: "loop",
-      model: "gpt-5-codex",
+      model: "gpt-5.5",
       effort: "xhigh",
       maxTurns: 3,
     });

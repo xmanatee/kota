@@ -1421,6 +1421,12 @@ describe("classifyAgentRuntimeFailure", () => {
     expect(
       classifyAgentRuntimeFailure({ message: "unauthorized" }),
     ).toEqual({ kind: "auth", retryable: false });
+    expect(
+      classifyAgentRuntimeFailure({
+        message:
+          "Your organization has disabled Claude subscription access for Claude Code · Use an Anthropic API key instead, or ask your admin to enable access",
+      }),
+    ).toEqual({ kind: "auth", retryable: false });
   });
 
   it("classifies SDK 'Stream idle timeout' as retryable provider", () => {
@@ -1433,6 +1439,14 @@ describe("classifyAgentRuntimeFailure", () => {
     expect(
       classifyAgentRuntimeFailure({
         message: "API Error: Stream idle timeout",
+      }),
+    ).toEqual({ kind: "provider", retryable: true });
+  });
+
+  it("classifies SDK connection refusal text as retryable provider", () => {
+    expect(
+      classifyAgentRuntimeFailure({
+        message: "API Error: Unable to connect to API (ConnectionRefused)",
       }),
     ).toEqual({ kind: "provider", retryable: true });
   });

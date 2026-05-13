@@ -80,7 +80,7 @@ export type CoreKotaConfig = {
    * env vars together. Resolution priority: `--preset` flag > `KOTA_PRESET`
    * env > this field > shipped default preset. Must match a shipped preset
    * id (`claude` | `codex` | `gemini`). When unset, KOTA selects the shipped
-   * default preset (`claude`).
+   * default preset (`codex`).
    */
   defaultPreset?: string;
 

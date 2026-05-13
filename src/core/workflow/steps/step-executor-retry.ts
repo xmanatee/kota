@@ -213,6 +213,14 @@ export function classifyAgentRuntimeFailure(
   ) {
     return { kind: "auth", retryable: false };
   }
+  if (
+    /organization has disabled Claude subscription access for Claude Code/i.test(
+      input.message,
+    ) ||
+    /Use an Anthropic API key instead/i.test(input.message)
+  ) {
+    return { kind: "auth", retryable: false };
+  }
 
   // Anthropic SDK emits this exact prefix when the streaming response stalls
   // server-side after the SDK has exhausted its internal retry budget. It is
@@ -221,6 +229,9 @@ export function classifyAgentRuntimeFailure(
   // AgentBackoffManager apply a 5+ min dispatch delay so the next agent run
   // does not collide with the same upstream stall.
   if (/api error:\s*stream idle timeout/i.test(input.message)) {
+    return { kind: "provider", retryable: true };
+  }
+  if (/api error:\s*unable to connect to api\s*\(ConnectionRefused\)/i.test(input.message)) {
     return { kind: "provider", retryable: true };
   }
 

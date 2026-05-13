@@ -105,7 +105,7 @@ function makeAgentStep(moduleRoot: string): WorkflowAgentStep {
     type: "agent",
     promptPath: "prompt.md",
     moduleRoot,
-    model: "gpt-5-codex",
+    model: "gpt-5.5",
     effort: "xhigh",
     autonomyMode: "autonomous",
     harness: CODEX_AGENT_HARNESS_NAME,
@@ -166,6 +166,6 @@ describe("autonomy agent step on codex", () => {
     // Effort mapping reaches the adapter.
     expect(config.modelSettings).toEqual({ reasoning: { effort: "xhigh" } });
     // Model name is forwarded verbatim.
-    expect(config.model).toBe("gpt-5-codex");
+    expect(config.model).toBe("gpt-5.5");
   });
 });

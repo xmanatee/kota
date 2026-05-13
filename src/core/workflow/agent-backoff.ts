@@ -24,16 +24,17 @@ export class AgentBackoffManager {
     private readonly log: (msg: string) => void,
   ) {}
 
+  private getStored(): WorkflowAgentBackoffState | null {
+    return this.store.readState().agentBackoff ?? null;
+  }
+
   getActive(): WorkflowAgentBackoffState | null {
-    const state = this.store.readState();
-    const backoff = state.agentBackoff;
+    const backoff = this.getStored();
     if (!backoff) return null;
 
     const untilMs = new Date(backoff.until).getTime();
     if (untilMs > Date.now()) return backoff;
 
-    this.store.setAgentBackoff(null);
-    this.log(`Agent dispatch backoff expired (${backoff.kind})`);
     return null;
   }
 
@@ -54,7 +55,7 @@ export class AgentBackoffManager {
   }
 
   apply(signal: WorkflowAgentBackoffSignal): void {
-    const current = this.getActive();
+    const current = this.getStored();
     const policy = AGENT_BACKOFF_FACTORS[signal.kind];
     const nextFailureCount =
       current && current.kind === signal.kind ? current.failureCount + 1 : 1;
@@ -80,7 +81,7 @@ export class AgentBackoffManager {
   }
 
   clear(): void {
-    const backoff = this.getActive();
+    const backoff = this.getStored();
     if (!backoff) return;
     this.store.setAgentBackoff(null);
     this.log(

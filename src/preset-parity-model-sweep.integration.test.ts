@@ -118,7 +118,7 @@ const CONSUMER_SITES: readonly ConsumerSite[] = [
 /**
  * Build the set of model literals that would be a leak for a given preset
  * — every other shipped preset's defaultModel and tier ids. The active
- * preset's own catalog is excluded because `gpt-5-codex` is *expected*
+ * preset's own catalog is excluded because `gpt-5.5` is *expected*
  * when the active preset is `codex`.
  */
 function buildForeignCatalog(active: Preset): Set<string> {

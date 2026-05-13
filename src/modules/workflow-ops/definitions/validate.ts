@@ -105,7 +105,7 @@ export function registerValidateCommand(
         results = validateDefinitions(getWorkflowDefinitions(ctx), {
           workflow: opts.workflow,
           projectDir: ctx.cwd,
-          defaultAgentHarness: ctx.config.defaultAgentHarness,
+          defaultAgentHarness: ctx.config.defaultAgentHarness ?? preset.harness,
           preset,
           modelTiers: ctx.config.modelTiers,
         });

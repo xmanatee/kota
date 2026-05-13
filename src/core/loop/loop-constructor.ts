@@ -138,6 +138,7 @@ export function initAgentSession(
 
   state.verifyTracker = new VerifyTracker(detectVerifyCommands());
 
+  const activePreset = resolveActivePresetFromConfig(options.config);
   setDelegateConfig({
     model: state.editorModel,
     modelTiers: options.config?.modelTiers,
@@ -147,9 +148,7 @@ export function initAgentSession(
     instructionContext: instructionContext || undefined,
     costTracker: state.costTracker,
     transport: state.transport,
-    ...(options.config?.defaultAgentHarness !== undefined
-      ? { harness: options.config.defaultAgentHarness }
-      : {}),
+    harness: options.config?.defaultAgentHarness ?? activePreset.harness,
   });
 
   state.moduleLoader = new ModuleLoader(options.config || {}, state.verbose);

@@ -14,8 +14,8 @@ const config: KotaConfig = {
   // Active preset bundle (claude | codex | gemini). Selects harness, default
   // model, fast/balanced/capable tier mapping, default reasoning effort, and
   // required env vars together. Override per-run with \`--preset <id>\` or
-  // \`KOTA_PRESET=<id>\`. Defaults to "claude" when unset.
-  // defaultPreset: "claude",
+  // \`KOTA_PRESET=<id>\`. Defaults to "codex" when unset.
+  // defaultPreset: "codex",
 
   // Optional explicit override for the active preset's defaultModel. Most
   // operators leave this unset and let the preset drive.

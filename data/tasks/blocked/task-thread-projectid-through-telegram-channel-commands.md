@@ -149,9 +149,10 @@ architectural slice spanning roughly ten modules.
 
 The owner-question timeout is resolved by the repository's own architecture
 rules: split the per-store routing primitive into a preceding architectural
-task, then let Telegram consume that single client/route contract. The
-preceding task is
-`task-add-kotaclient-forproject-per-store-routing`.
+task sequence, then let Telegram consume that single client/route contract.
+The concrete enabler is
+`task-land-kotaclient-forproject-route-and-client-contract`; the broader
+anchor is `task-add-kotaclient-forproject-per-store-routing`.
 
 Until that task lands, this Telegram task stays blocked rather than landing a
 parallel channel-local project routing model or narrowing away the store
@@ -161,6 +162,6 @@ isolation invariant.
 
 ```
 kind: task-done
-ref: task-add-kotaclient-forproject-per-store-routing
+ref: task-land-kotaclient-forproject-route-and-client-contract
 reason: Telegram per-store commands must consume one shared project-scoped KotaClient and per-store route contract; the channel must not invent a parallel project routing model.
 ```

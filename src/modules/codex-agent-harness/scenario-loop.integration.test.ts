@@ -181,7 +181,7 @@ describe("codex agent harness × fix-arithmetic-bug scenario", () => {
 
     const result = await codexAgentHarness.run({
       prompt: loaded.spec.prompt,
-      model: "gpt-5-codex",
+      model: "gpt-5.5",
       effort: "xhigh",
       cwd: workingDir,
     });

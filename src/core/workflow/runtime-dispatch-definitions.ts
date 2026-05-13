@@ -13,7 +13,7 @@ export function compileDefinitions(
     config: state.config?.defaultPreset,
   });
   return validateWorkflowDefinitions(state.workflowInputs ?? [], state.projectDir, {
-    defaultAgentHarness: state.config?.defaultAgentHarness,
+    defaultAgentHarness: state.config?.defaultAgentHarness ?? preset.harness,
     preset,
     modelTiers: state.config?.modelTiers,
   });

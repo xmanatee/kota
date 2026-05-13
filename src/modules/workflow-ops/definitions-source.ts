@@ -18,7 +18,7 @@ export function getValidatedWorkflowDefinitions(
     config: ctx.config.defaultPreset,
   });
   return validateWorkflowDefinitions(getWorkflowDefinitions(ctx), projectDir, {
-    defaultAgentHarness: ctx.config.defaultAgentHarness,
+    defaultAgentHarness: ctx.config.defaultAgentHarness ?? preset.harness,
     preset,
     modelTiers: ctx.config.modelTiers,
   });

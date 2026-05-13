@@ -95,7 +95,7 @@ implicit fallback to `claude` unless `claude` is the configured default.
   var.
 - A switch from `claude` → `codex` → `gemini` is observable as one
   config diff (or one flag); the announce-active-harness banner shows
-  `kota [codex] gpt-5-codex` instead of a hardcoded model string.
+  `kota [codex] gpt-5.5` instead of a hardcoded model string.
 - `agentModels` accepts tier names; raw model strings are still allowed
   but warn when the value is not present in the active preset's catalog.
   Migration of in-tree autonomy `AgentDef` entries to tier names lands

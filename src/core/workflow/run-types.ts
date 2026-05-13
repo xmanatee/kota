@@ -203,7 +203,8 @@ export type WorkflowRepairCheck = {
        * Called once per repair iteration. `parentStep` is the agent step whose
        * repair loop owns this check; critic- and judge-backed checks read
        * `parentStep.harness` so they dispatch through the same registered
-       * adapter the step itself resolved from `config.defaultAgentHarness`.
+       * adapter the step itself resolved from per-step config, config, or the
+       * active preset.
        * Mechanical checks can ignore the second argument — TypeScript permits
        * fewer-arg function assignments.
        */

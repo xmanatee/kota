@@ -195,9 +195,9 @@ Siblings: `task-introduce-harness-preset-abstraction`,
   scoped to the mock — production code should never read the mock's
   model literal as a default.
 - The `init` module's scaffolded `config.json` example should switch
-  to `defaultPreset: "claude"` (or whatever ships as the default
-  preset) rather than `model: "claude-sonnet-4-6"`. New users start
-  aligned with the preset abstraction.
+  to `defaultPreset: "codex"` (the shipped default preset) rather than
+  `model: "claude-sonnet-4-6"`. New users start aligned with the preset
+  abstraction.
 - This task is fundamentally bounded — every hit is in the inventory
   above. If implementation surfaces a hit not listed, add it here in
   the same commit. The grep test prevents future hits from creeping

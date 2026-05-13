@@ -97,8 +97,10 @@ export function getRuntimeState(
   codeConcurrency: number;
 } {
   const runtimeState = state.store.readState();
+  const activeAgentBackoff = state.backoff.getActive();
   return {
     ...runtimeState,
+    agentBackoff: activeAgentBackoff ?? undefined,
     queueLength: state.wfQueue.length,
     agentConcurrency: state.agentConcurrency,
     codeConcurrency: state.codeConcurrency,

@@ -10,8 +10,8 @@
  * provider's wire shape).
  *
  * Resolution priority (gemini-cli convention): CLI flag > env > project
- * config > user config > shipped default. No silent fallback to `claude`
- * when the active preset is something else; resolution that returns
+ * config > user config > shipped default. No silent fallback to another
+ * preset when the active preset is explicitly named; resolution that returns
  * nothing throws with the consumer named.
  *
  * The shipped registry below is the single place new model ids land when
@@ -59,11 +59,11 @@ const SHIPPED_PRESETS: readonly Preset[] = [
     description: "OpenAI Codex via @openai/agents (Responses API).",
     harness: "codex",
     authEnv: ["OPENAI_API_KEY"],
-    defaultModel: "gpt-5-codex",
+    defaultModel: "gpt-5.5",
     tiers: {
-      fast: "gpt-4.1-mini",
-      balanced: "gpt-5",
-      capable: "gpt-5-codex",
+      fast: "gpt-5.4-mini",
+      balanced: "gpt-5.4",
+      capable: "gpt-5.5",
     },
     defaultEffort: "xhigh",
   },
@@ -87,7 +87,7 @@ const PRESET_INDEX: ReadonlyMap<PresetId, Preset> = new Map(
 );
 
 /** The preset KOTA selects when none is configured. Always present in `SHIPPED_PRESETS`. */
-export const SHIPPED_DEFAULT_PRESET_ID: PresetId = "claude";
+export const SHIPPED_DEFAULT_PRESET_ID: PresetId = "codex";
 
 /** Env var name that sets the active preset for the current process. */
 export const PRESET_ENV_VAR = "KOTA_PRESET";
@@ -115,10 +115,9 @@ export function getPreset(id: PresetId): Preset {
 }
 
 /**
- * Read the preset's shipped default model. Use at every consumer that previously
- * defaulted to a literal `claude-*` model id; pass the active preset (resolved
- * via `resolvePreset` or `resolveActivePresetFromConfig`) instead of repeating
- * the literal.
+ * Read the preset's shipped default model. Consumers should pass the active
+ * preset (resolved via `resolvePreset` or `resolveActivePresetFromConfig`)
+ * instead of repeating a model literal.
  */
 export function resolveDefaultModel(preset: Preset): string {
   return preset.defaultModel;
@@ -178,8 +177,8 @@ export function resolvePreset(input: PresetResolutionInput): PresetResolution {
 
 /**
  * Resolve the active preset from a loaded config plus the process env. Used by
- * non-CLI consumers (capture, answer, daemon-init, history) that previously
- * defaulted to a literal `claude-*` model id when `config.model` was unset.
+ * non-CLI consumers (capture, answer, daemon-init, history) that need the
+ * shipped default when `config.model` is unset.
  */
 export function resolveActivePresetFromConfig(
   config: { defaultPreset?: string } | undefined,

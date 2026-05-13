@@ -632,7 +632,7 @@ describe("workflow validation", () => {
                 type: "agent",
                 promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
                 harness: "codex",
-                model: "gpt-5-codex",
+                model: "gpt-5.5",
                 effort: "xhigh",
                 autonomyMode: "autonomous",
               },
@@ -732,13 +732,13 @@ describe("workflow validation", () => {
       projectDir,
       {
         defaultAgentHarness: "claude-agent-sdk",
-        modelTiers: { capable: "gpt-5-codex" },
+        modelTiers: { capable: "gpt-5.5" },
       },
     );
 
     const step = definitions[0]?.steps[0];
     expect(step && "tier" in step ? step.tier : undefined).toBe("capable");
-    expect(step && "model" in step ? step.model : undefined).toBe("gpt-5-codex");
+    expect(step && "model" in step ? step.model : undefined).toBe("gpt-5.5");
   });
 
   it("resolves a tier through the active preset's tiers when no operator override is given", async () => {
@@ -811,12 +811,12 @@ describe("workflow validation", () => {
       {
         defaultAgentHarness: "codex",
         preset: codex,
-        modelTiers: { capable: "gpt-5-frontier-override" },
+        modelTiers: { capable: "gpt-5.5-custom" },
       },
     );
 
     const step = definitions[0]?.steps[0];
-    expect(step && "model" in step ? step.model : undefined).toBe("gpt-5-frontier-override");
+    expect(step && "model" in step ? step.model : undefined).toBe("gpt-5.5-custom");
   });
 
   it("rejects an agent step that declares both model and tier", () => {
