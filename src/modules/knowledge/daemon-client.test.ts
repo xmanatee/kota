@@ -13,7 +13,7 @@
  *     (`{ tag, type, status, scope }`) threads through `URLSearchParams`
  *     in `tag,type,status,scope` insertion order to match today's
  *     pre-migration `listKnowledgeHttp`.
- *  3. `show(id)` is wired through `request<T>` with method `GET`, path
+ *  3. `show(id)` is wired through `fetchRaw` with method `GET`, path
  *     `/api/knowledge/${encodeURIComponent(id)}`, and an undefined body.
  *     An id containing reserved characters (`%`, `/`, space) round-trips
  *     through `encodeURIComponent`. A `null` (404) response collapses into
@@ -29,7 +29,7 @@
  *     minimal `{ title, content }` body and a body with every optional key
  *     (`type`, `tags`, `status`, `scope`, `meta`) both pass through
  *     verbatim.
- *  6. `delete(id)` is wired through `request<T>` with method `DELETE`,
+ *  6. `delete(id)` is wired through `fetchRaw` with method `DELETE`,
  *     path `/api/knowledge/${encodeURIComponent(id)}`, and an undefined
  *     body. An id containing reserved characters round-trips through
  *     `encodeURIComponent`. A `null` (404) response collapses into
@@ -69,7 +69,7 @@ type RecordedCall = {
   method: string;
   path: string;
   body: unknown;
-  shape: "request" | "requestStrict";
+  shape: "fetchRaw" | "request" | "requestStrict";
 };
 
 const ENCODING_SENSITIVE_ID = "weird/id %value with space";
@@ -116,7 +116,27 @@ function makeRecordingTransport(
       calls.push({ method, path, body, shape: "requestStrict" });
       return responder(method, path, body, "requestStrict") as T;
     },
-    fetchRaw: async () => new Response(null, { status: 200 }),
+    fetchRaw: async (path, init) => {
+      calls.push({
+        method: init?.method ?? "GET",
+        path,
+        body: init?.body,
+        shape: "fetchRaw",
+      });
+      const payload = responder(
+        init?.method ?? "GET",
+        path,
+        init?.body,
+        "request",
+      );
+      if (payload instanceof Response) return payload;
+      if (payload === null) {
+        return new Response(JSON.stringify({ error: "Not found" }), {
+          status: 404,
+        });
+      }
+      return new Response(JSON.stringify(payload), { status: 200 });
+    },
     events: async function* () {
       // empty generator
     },
@@ -177,7 +197,15 @@ describe("knowledge module daemonClient(link)", () => {
     );
   });
 
-  it("routes show(id) through GET /api/knowledge/:id via request<T> with encodeURIComponent and no body", async () => {
+  it("threads an explicit project id through list()", async () => {
+    const wirePayload = { entries: [] };
+    const { transport, calls } = makeRecordingTransport(() => wirePayload);
+    const contributed = knowledgeModule.daemonClient!(transport);
+    await contributed.knowledge!.list({ projectId: "project-b" });
+    expect(calls[0]!.path).toBe("/api/knowledge?projectId=project-b");
+  });
+
+  it("routes show(id) through GET /api/knowledge/:id via fetchRaw with encodeURIComponent and no body", async () => {
     const entry = makeEntry("plain-id");
     const { transport, calls } = makeRecordingTransport(() => entry);
     const contributed = knowledgeModule.daemonClient!(transport);
@@ -188,7 +216,7 @@ describe("knowledge module daemonClient(link)", () => {
         method: "GET",
         path: `/api/knowledge/${encodeURIComponent(ENCODING_SENSITIVE_ID)}`,
         body: undefined,
-        shape: "request",
+        shape: "fetchRaw",
       },
     ]);
   });
@@ -198,6 +226,31 @@ describe("knowledge module daemonClient(link)", () => {
     const contributed = knowledgeModule.daemonClient!(transport);
     const result = await contributed.knowledge!.show("missing");
     expect(result).toEqual({ found: false });
+  });
+
+  it("threads an explicit project id through show()", async () => {
+    const entry = makeEntry("plain-id");
+    const { transport, calls } = makeRecordingTransport(() => entry);
+    const contributed = knowledgeModule.daemonClient!(transport);
+    await contributed.knowledge!.show("plain-id", { projectId: "project-b" });
+    expect(calls[0]!.path).toBe("/api/knowledge/plain-id?projectId=project-b");
+  });
+
+  it("throws the typed unknown project route error from show()", async () => {
+    const { transport } = makeRecordingTransport(() =>
+      new Response(
+        JSON.stringify({
+          error: "Unknown project",
+          reason: "unknown_project",
+          projectId: "ghost",
+        }),
+        { status: 404 },
+      ),
+    );
+    const contributed = knowledgeModule.daemonClient!(transport);
+    await expect(
+      contributed.knowledge!.show("plain-id", { projectId: "ghost" }),
+    ).rejects.toThrow("Unknown project: ghost");
   });
 
   it("routes search(query) with no filter through GET /api/knowledge/search?q=... via requestStrict<T>", async () => {
@@ -238,6 +291,14 @@ describe("knowledge module daemonClient(link)", () => {
     const contributed = knowledgeModule.daemonClient!(transport);
     await contributed.knowledge!.search("query", { semantic: true });
     expect(calls[0]!.path).toBe("/api/knowledge/search?q=query&semantic=true");
+  });
+
+  it("threads an explicit project id through search()", async () => {
+    const expected: KnowledgeSearchResult = { ok: true, entries: [] };
+    const { transport, calls } = makeRecordingTransport(() => expected);
+    const contributed = knowledgeModule.daemonClient!(transport);
+    await contributed.knowledge!.search("query", { projectId: "project-b" });
+    expect(calls[0]!.path).toBe("/api/knowledge/search?q=query&projectId=project-b");
   });
 
   it("decodes a multi-entry KnowledgeSearchResult ok: true arm unchanged", async () => {
@@ -294,7 +355,19 @@ describe("knowledge module daemonClient(link)", () => {
     expect(calls[0]!.body).toEqual(options);
   });
 
-  it("routes delete(id) through DELETE /api/knowledge/:id via request<T> with encodeURIComponent and no body", async () => {
+  it("threads an explicit project id through add() without putting it in the body", async () => {
+    const { transport, calls } = makeRecordingTransport(() => ({ id: "new-id" }));
+    const contributed = knowledgeModule.daemonClient!(transport);
+    await contributed.knowledge!.add({
+      title: "Title",
+      content: "body",
+      projectId: "project-b",
+    });
+    expect(calls[0]!.path).toBe("/api/knowledge?projectId=project-b");
+    expect(calls[0]!.body).toEqual({ title: "Title", content: "body" });
+  });
+
+  it("routes delete(id) through DELETE /api/knowledge/:id via fetchRaw with encodeURIComponent and no body", async () => {
     const { transport, calls } = makeRecordingTransport(() => ({
       deleted: ENCODING_SENSITIVE_ID,
     }));
@@ -306,7 +379,7 @@ describe("knowledge module daemonClient(link)", () => {
         method: "DELETE",
         path: `/api/knowledge/${encodeURIComponent(ENCODING_SENSITIVE_ID)}`,
         body: undefined,
-        shape: "request",
+        shape: "fetchRaw",
       },
     ]);
   });
@@ -316,6 +389,32 @@ describe("knowledge module daemonClient(link)", () => {
     const contributed = knowledgeModule.daemonClient!(transport);
     const result = await contributed.knowledge!.delete("missing");
     expect(result).toEqual({ ok: false, reason: "not_found" });
+  });
+
+  it("threads an explicit project id through delete()", async () => {
+    const { transport, calls } = makeRecordingTransport(() => ({
+      deleted: "plain-id",
+    }));
+    const contributed = knowledgeModule.daemonClient!(transport);
+    await contributed.knowledge!.delete("plain-id", { projectId: "project-b" });
+    expect(calls[0]!.path).toBe("/api/knowledge/plain-id?projectId=project-b");
+  });
+
+  it("throws the typed unknown project route error from delete()", async () => {
+    const { transport } = makeRecordingTransport(() =>
+      new Response(
+        JSON.stringify({
+          error: "Unknown project",
+          reason: "unknown_project",
+          projectId: "ghost",
+        }),
+        { status: 404 },
+      ),
+    );
+    const contributed = knowledgeModule.daemonClient!(transport);
+    await expect(
+      contributed.knowledge!.delete("plain-id", { projectId: "ghost" }),
+    ).rejects.toThrow("Unknown project: ghost");
   });
 
   it("routes reindex() through POST /api/knowledge/reindex via requestStrict<T> with no body", async () => {
@@ -332,6 +431,14 @@ describe("knowledge module daemonClient(link)", () => {
         shape: "requestStrict",
       },
     ]);
+  });
+
+  it("threads an explicit project id through reindex()", async () => {
+    const expected: KnowledgeReindexResult = { indexed: 5, failed: 0 };
+    const { transport, calls } = makeRecordingTransport(() => expected);
+    const contributed = knowledgeModule.daemonClient!(transport);
+    await contributed.knowledge!.reindex({ projectId: "project-b" });
+    expect(calls[0]!.path).toBe("/api/knowledge/reindex?projectId=project-b");
   });
 
   it("the assembly path fails loudly when the knowledge module's daemonClient(link) is removed", () => {

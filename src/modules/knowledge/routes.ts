@@ -3,6 +3,7 @@ import type { RouteRegistration } from "#core/modules/module-types.js";
 import { getKnowledgeProvider } from "#core/modules/provider-registry.js";
 import type { KnowledgeEntry, SearchFilters } from "#core/modules/provider-types.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
+import type { KnowledgeProjectStores } from "./project-scope.js";
 
 type KnowledgeListResponse = {
   entries: KnowledgeEntry[];
@@ -26,9 +27,29 @@ function parseListFilters(req: IncomingMessage): SearchFilters {
   return filters;
 }
 
-export function handleListKnowledge(req: IncomingMessage, res: ServerResponse): void {
+function resolveScopedProvider(
+  req: IncomingMessage,
+  res: ServerResponse,
+  projectStores: KnowledgeProjectStores | undefined,
+) {
+  if (!projectStores) return getKnowledgeProvider();
+  const url = new URL(req.url ?? "", "http://localhost");
+  const resolved = projectStores.resolve(url.searchParams.get("projectId"));
+  if (!resolved.ok) {
+    jsonResponse(res, 404, resolved.error);
+    return null;
+  }
+  return resolved.store;
+}
+
+export function handleListKnowledge(
+  req: IncomingMessage,
+  res: ServerResponse,
+  projectStores?: KnowledgeProjectStores,
+): void {
   try {
-    const provider = getKnowledgeProvider();
+    const provider = resolveScopedProvider(req, res, projectStores);
+    if (!provider) return;
     const filters = parseListFilters(req);
     const entries = provider.list(filters);
     jsonResponse(res, 200, { entries } satisfies KnowledgeListResponse);
@@ -51,9 +72,30 @@ export function handleGetKnowledge(res: ServerResponse, id: string): void {
   }
 }
 
+function handleGetKnowledgeScoped(
+  req: IncomingMessage,
+  res: ServerResponse,
+  id: string,
+  projectStores: KnowledgeProjectStores,
+): void {
+  try {
+    const provider = resolveScopedProvider(req, res, projectStores);
+    if (!provider) return;
+    const entry = provider.read(id);
+    if (!entry) {
+      jsonResponse(res, 404, { error: "Not found" });
+      return;
+    }
+    jsonResponse(res, 200, entry);
+  } catch (err) {
+    jsonResponse(res, 500, { error: (err as Error).message });
+  }
+}
+
 export async function handleAddKnowledge(
   req: IncomingMessage,
   res: ServerResponse,
+  projectStores?: KnowledgeProjectStores,
 ): Promise<void> {
   let body: Record<string, unknown>;
   try {
@@ -84,7 +126,8 @@ export async function handleAddKnowledge(
         )
       : undefined;
   try {
-    const provider = getKnowledgeProvider();
+    const provider = resolveScopedProvider(req, res, projectStores);
+    if (!provider) return;
     const id = provider.create({
       title,
       content,
@@ -103,6 +146,7 @@ export async function handleAddKnowledge(
 export async function handleSearchKnowledge(
   req: IncomingMessage,
   res: ServerResponse,
+  projectStores?: KnowledgeProjectStores,
 ): Promise<void> {
   const url = new URL(req.url ?? "", "http://localhost");
   const query = url.searchParams.get("q") ?? "";
@@ -121,7 +165,8 @@ export async function handleSearchKnowledge(
   if (status) filters.status = status;
   if (scope) filters.scope = scope;
   try {
-    const provider = getKnowledgeProvider();
+    const provider = resolveScopedProvider(req, res, projectStores);
+    if (!provider) return;
     if (semantic && !provider.supportsSemanticSearch()) {
       jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
       return;
@@ -135,9 +180,14 @@ export async function handleSearchKnowledge(
   }
 }
 
-export async function handleReindexKnowledge(res: ServerResponse): Promise<void> {
+export async function handleReindexKnowledge(
+  req: IncomingMessage,
+  res: ServerResponse,
+  projectStores?: KnowledgeProjectStores,
+): Promise<void> {
   try {
-    const provider = getKnowledgeProvider();
+    const provider = resolveScopedProvider(req, res, projectStores);
+    if (!provider) return;
     const result = await provider.reindex();
     jsonResponse(res, 200, result);
   } catch (err) {
@@ -149,6 +199,7 @@ export async function handleUpdateKnowledge(
   req: IncomingMessage,
   res: ServerResponse,
   id: string,
+  projectStores?: KnowledgeProjectStores,
 ): Promise<void> {
   let body: Record<string, unknown>;
   try {
@@ -165,7 +216,8 @@ export async function handleUpdateKnowledge(
     changes.tags = (body.tags as unknown[]).filter((t): t is string => typeof t === "string");
   }
   try {
-    const provider = getKnowledgeProvider();
+    const provider = resolveScopedProvider(req, res, projectStores);
+    if (!provider) return;
     const existing = provider.read(id);
     if (!existing) {
       jsonResponse(res, 404, { error: "Not found" });
@@ -193,43 +245,66 @@ export function handleDeleteKnowledge(res: ServerResponse, id: string): void {
   }
 }
 
+function handleDeleteKnowledgeScoped(
+  req: IncomingMessage,
+  res: ServerResponse,
+  id: string,
+  projectStores: KnowledgeProjectStores,
+): void {
+  try {
+    const provider = resolveScopedProvider(req, res, projectStores);
+    if (!provider) return;
+    const ok = provider.delete(id);
+    if (!ok) {
+      jsonResponse(res, 404, { error: "Not found" });
+      return;
+    }
+    jsonResponse(res, 200, { deleted: id });
+  } catch (err) {
+    jsonResponse(res, 500, { error: (err as Error).message });
+  }
+}
 
-export function knowledgeRoutes(): RouteRegistration[] {
+
+export function knowledgeRoutes(projectStores: KnowledgeProjectStores): RouteRegistration[] {
   return [
     {
       method: "GET",
       path: "/api/knowledge",
-      handler: (req, res) => handleListKnowledge(req, res),
+      handler: (req, res) => handleListKnowledge(req, res, projectStores),
     },
     {
       method: "GET",
       path: "/api/knowledge/search",
-      handler: (req, res) => handleSearchKnowledge(req, res),
+      handler: (req, res) => handleSearchKnowledge(req, res, projectStores),
     },
     {
       method: "POST",
       path: "/api/knowledge",
-      handler: (req, res) => handleAddKnowledge(req, res),
+      handler: (req, res) => handleAddKnowledge(req, res, projectStores),
     },
     {
       method: "POST",
       path: "/api/knowledge/reindex",
-      handler: (_req, res) => handleReindexKnowledge(res),
+      handler: (req, res) => handleReindexKnowledge(req, res, projectStores),
     },
     {
       method: "GET",
       path: "/api/knowledge/:id",
-      handler: (_req, res, params) => handleGetKnowledge(res, params.id),
+      handler: (req, res, params) =>
+        handleGetKnowledgeScoped(req, res, params.id, projectStores),
     },
     {
       method: "DELETE",
       path: "/api/knowledge/:id",
-      handler: (_req, res, params) => handleDeleteKnowledge(res, params.id),
+      handler: (req, res, params) =>
+        handleDeleteKnowledgeScoped(req, res, params.id, projectStores),
     },
     {
       method: "PATCH",
       path: "/api/knowledge/:id",
-      handler: (req, res, params) => handleUpdateKnowledge(req, res, params.id),
+      handler: (req, res, params) =>
+        handleUpdateKnowledge(req, res, params.id, projectStores),
     },
   ];
 }

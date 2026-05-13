@@ -23,6 +23,16 @@ export type KnowledgeScope = "project" | "global" | "all";
 export type KnowledgeWritableScope = "project" | "global";
 
 /**
+ * Optional project boundary for callers that already hold an explicit
+ * project id, such as future `KotaClient.forProject(...)` wrappers. When
+ * absent, the implementation resolves the active/default project once at the
+ * client or route boundary.
+ */
+export type KnowledgeProjectSelection = {
+  projectId?: string;
+};
+
+/**
  * Filter for `KnowledgeClient.list`.
  *
  * `scope` defaults to undefined (loads both project + global directories,
@@ -30,7 +40,7 @@ export type KnowledgeWritableScope = "project" | "global";
  * scope or include only the global store pass it explicitly. Slicing by
  * `limit` is left to the caller — the contract returns the full filtered set.
  */
-export type KnowledgeListFilter = {
+export type KnowledgeListFilter = KnowledgeProjectSelection & {
   tag?: string;
   type?: string;
   status?: string;
@@ -47,7 +57,7 @@ export type KnowledgeShowResult =
   | { found: false };
 
 /** Filter for `KnowledgeClient.search`. */
-export type KnowledgeSearchFilter = {
+export type KnowledgeSearchFilter = KnowledgeProjectSelection & {
   tag?: string;
   type?: string;
   status?: string;
@@ -67,7 +77,7 @@ export type KnowledgeSearchResult =
   | { ok: false; reason: "semantic_unavailable" };
 
 /** Options for `knowledge.add`. */
-export type KnowledgeAddOptions = {
+export type KnowledgeAddOptions = KnowledgeProjectSelection & {
   title: string;
   content: string;
   type?: string;
@@ -100,9 +110,9 @@ export type KnowledgeReindexResult = ReindexResult;
  */
 export interface KnowledgeClient {
   list(filter?: KnowledgeListFilter): Promise<KnowledgeListResult>;
-  show(id: string): Promise<KnowledgeShowResult>;
+  show(id: string, project?: KnowledgeProjectSelection): Promise<KnowledgeShowResult>;
   search(query: string, filter?: KnowledgeSearchFilter): Promise<KnowledgeSearchResult>;
   add(options: KnowledgeAddOptions): Promise<KnowledgeAddResult>;
-  delete(id: string): Promise<KnowledgeDeleteResult>;
-  reindex(): Promise<KnowledgeReindexResult>;
+  delete(id: string, project?: KnowledgeProjectSelection): Promise<KnowledgeDeleteResult>;
+  reindex(project?: KnowledgeProjectSelection): Promise<KnowledgeReindexResult>;
 }

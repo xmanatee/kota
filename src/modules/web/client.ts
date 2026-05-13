@@ -34,13 +34,12 @@ export type WebStartOptions = {
 /**
  * Result of `web.start`.
  *
- * The local handler drives a long-running HTTP server; resolution of the
- * promise is therefore a server-shutdown signal rather than a normal
- * response. `daemon_required` surfaces from the daemon-side handler because
+ * The local handler resolves once the HTTP listener is ready to accept
+ * requests. `daemon_required` surfaces from the daemon-side handler because
  * the daemon cannot start a fresh `kota serve` process in another address
- * space — running `kota serve` with a daemon already up is ambiguous, so
- * the contract refuses uniformly and the CLI maps that to a clear
- * "stop the daemon first" hint.
+ * space — running `kota serve` with a daemon already up is ambiguous, so the
+ * contract refuses uniformly and the CLI maps that to a clear "stop the
+ * daemon first" hint.
  */
 export type WebStartResult =
   | { ok: true }

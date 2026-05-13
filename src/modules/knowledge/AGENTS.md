@@ -12,6 +12,10 @@ This directory owns the `knowledge` management tool — a structured, file-based
   module runtime or `ensureCliProvidersFor(["knowledge"])`) before
   invoking `getKnowledgeProvider()`.
 - Storage locations: `.kota/data/` (project-scoped) and `~/.kota/data/` (global).
+- Daemon/API access resolves a concrete project id before using the project
+  store. Omitted project ids resolve to the daemon's active/default project at
+  the route or client boundary; explicit unknown ids return the typed
+  `unknown_project` route error.
 - Registers `knowledge` in the `management` tool group.
 - Contributes the `knowledge` skill (prompt guidance for storing and querying structured entries).
 - Operator pull-surfaces consume the search seam through one shared HTTP route (`GET /api/knowledge/search`) and one shared line shape (`renderKnowledgeSearchPlain`): Telegram `/knowledge`, terminal `kota knowledge search`, mobile `KnowledgeScreen`, the macOS menu bar `KnowledgeView`, and the embedded web sidebar `KnowledgePanel`.

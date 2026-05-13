@@ -1,12 +1,12 @@
 ---
 id: task-project-scope-knowledge-store-for-kotaclient-forproject
 title: Project-scope knowledge store for KotaClient.forProject
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move the knowledge store path from daemon-global provider state to an explicit project-scoped store path so future KotaClient.forProject routing cannot leak entries across projects.
 created_at: 2026-05-12T15:45:00.000Z
-updated_at: 2026-05-12T15:45:00.000Z
+updated_at: 2026-05-13T19:30:12.000Z
 ---
 
 ## Problem

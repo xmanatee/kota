@@ -81,10 +81,10 @@ describe("web local handler cold-start", () => {
     } as typeof originalListen;
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     const httpModule = require("node:http") as typeof import("node:http");
     httpModule.Server.prototype.listen = originalListen;
-    if (listenSpyServer) listenSpyServer.close();
+    if (listenSpyServer) await closeServer(listenSpyServer);
     rmSync(cwd, { recursive: true, force: true });
     if (savedKey === undefined) delete process.env.ANTHROPIC_API_KEY;
     else process.env.ANTHROPIC_API_KEY = savedKey;
@@ -121,3 +121,13 @@ describe("web local handler cold-start", () => {
     expect(body.error).toContain("autonomy mode is not configured");
   });
 });
+
+async function closeServer(server: Server): Promise<void> {
+  if (!server.listening) return;
+  await new Promise<void>((resolve, reject) => {
+    server.close((err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}

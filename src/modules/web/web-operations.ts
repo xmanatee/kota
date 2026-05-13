@@ -5,7 +5,8 @@
  * the embedded web UI. The work is fundamentally local: it spins up a
  * server in the operator's address space, so the daemon-side handler
  * surfaces `daemon_required` and the local handler runs the boot logic
- * directly. The promise resolves when the server shuts down.
+ * directly. The promise resolves once the listener is ready to accept
+ * requests, or rejects if the listener fails to bind.
  *
  * The CLI bootstraps a `"commands"` ModuleLoader for fast subcommand
  * registration, but the web server is a long-lived runtime host: serving
@@ -16,6 +17,7 @@
  * partial state — the loader's typed accessors enforce this too.
  */
 import { existsSync } from "node:fs";
+import type { Server } from "node:http";
 import { resolve } from "node:path";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import { warnUnknownConfigKeys } from "#core/config/config-warnings.js";
@@ -50,7 +52,7 @@ export function localWebClient(ctx: ModuleContext): WebClient {
 
       const moduleRoutes = runtimeLoader.getRoutes();
 
-      startServer({
+      const server = startServer({
         port: options.port,
         model: options.model || ctx.config.model,
         verbose,
@@ -62,7 +64,32 @@ export function localWebClient(ctx: ModuleContext): WebClient {
         assembleDaemonHandlers: (transport) =>
           runtimeLoader.assembleDaemonClientHandlers(transport),
       });
+      await waitForServerListening(server);
       return { ok: true };
     },
   };
+}
+
+function waitForServerListening(server: Server): Promise<void> {
+  if (server.listening) return Promise.resolve();
+
+  return new Promise((resolve, reject) => {
+    function cleanup(): void {
+      server.off("listening", onListening);
+      server.off("error", onError);
+    }
+
+    function onListening(): void {
+      cleanup();
+      resolve();
+    }
+
+    function onError(err: Error): void {
+      cleanup();
+      reject(err);
+    }
+
+    server.once("listening", onListening);
+    server.once("error", onError);
+  });
 }

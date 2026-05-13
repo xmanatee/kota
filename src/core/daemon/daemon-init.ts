@@ -33,6 +33,7 @@ import {
 } from "./metrics-source-provider.js";
 import type { ProjectRegistry } from "./project-registry.js";
 import type { ProjectRuntimeRegistry } from "./project-runtime.js";
+import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "./project-scope-provider.js";
 
 /**
  * Per-instance lifecycle context for one running daemon.
@@ -189,6 +190,10 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
   };
   const registry = getProviderRegistry();
   if (registry) {
+    registry.register(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE, "daemon", {
+      getProjectRegistryProjection: () => handle.getProjectRegistryProjection(),
+      getActiveProjectId: () => handle.getActiveProjectId(),
+    });
     registry.register(WORKFLOW_DISPATCHER_PROVIDER_TYPE, "daemon", dispatcher);
     registry.register(WORKFLOW_METRICS_SOURCE_PROVIDER_TYPE, "daemon", metricsSource);
     registry.register(WORKFLOW_DEFINITIONS_PROVIDER_TYPE, "daemon", definitionsSource);

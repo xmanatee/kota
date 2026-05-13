@@ -1,7 +1,12 @@
+import { mkdtempSync, rmSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { buildConfiguredProject } from "#core/daemon/project-registry.js";
 import type { KnowledgeEntry, KnowledgeProvider } from "#core/modules/provider-types.js";
-import { handleAddKnowledge, handleDeleteKnowledge, handleGetKnowledge, handleListKnowledge, handleUpdateKnowledge } from "./routes.js";
+import { KnowledgeProjectStores } from "./project-scope.js";
+import { handleAddKnowledge, handleDeleteKnowledge, handleGetKnowledge, handleListKnowledge, handleSearchKnowledge, handleUpdateKnowledge } from "./routes.js";
 
 function mockResponse() {
   const result = { status: 0, body: null as unknown };
@@ -16,6 +21,18 @@ function mockResponse() {
 
 function listRequest(query = ""): IncomingMessage {
   return { url: `/api/knowledge${query}` } as unknown as IncomingMessage;
+}
+
+function makeRequest(url: string, body: unknown): IncomingMessage {
+  const data = JSON.stringify(body);
+  const req = {
+    url,
+    on: (event: string, cb: (chunk?: Buffer | string) => void) => {
+      if (event === "data") cb(Buffer.from(data));
+      if (event === "end") cb();
+    },
+  } as unknown as IncomingMessage;
+  return req;
 }
 
 function makeEntry(overrides: Partial<KnowledgeEntry> = {}): KnowledgeEntry {
@@ -48,9 +65,15 @@ function makeProvider(entries: KnowledgeEntry[]): KnowledgeProvider {
   };
 }
 
-vi.mock("#core/modules/provider-registry.js", () => ({
-  getKnowledgeProvider: vi.fn(),
-}));
+vi.mock("#core/modules/provider-registry.js", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("#core/modules/provider-registry.js")>();
+  return {
+    ...actual,
+    getKnowledgeProvider: vi.fn(),
+    getProviderRegistry: vi.fn(() => null),
+  };
+});
 
 import { getKnowledgeProvider } from "#core/modules/provider-registry.js";
 
@@ -180,6 +203,67 @@ describe("knowledge-routes", () => {
       const { res, result } = mockResponse();
       await handleAddKnowledge(makeRequest({ title: "T" }), res);
       expect(result.status).toBe(500);
+    });
+  });
+
+  describe("project-scoped routing", () => {
+    it("isolates project entries and rejects unknown project ids", async () => {
+      const root = mkdtempSync(join(tmpdir(), "kota-knowledge-projects-"));
+      try {
+        const projectA = buildConfiguredProject({ projectDir: join(root, "a") });
+        const projectB = buildConfiguredProject({ projectDir: join(root, "b") });
+        const stores = new KnowledgeProjectStores({
+          defaultProjectDir: projectA.projectDir,
+          defaultProjectId: projectA.projectId,
+          projects: [projectA, projectB],
+          globalDir: join(root, "global"),
+        });
+
+        const addA = mockResponse();
+        await handleAddKnowledge(
+          makeRequest(`/api/knowledge?projectId=${projectA.projectId}`, {
+            title: "Alpha project entry",
+            content: "private alpha notes",
+          }),
+          addA.res,
+          stores,
+        );
+        expect(addA.result.status).toBe(201);
+        const createdId = (addA.result.body as { id: string }).id;
+
+        const searchA = mockResponse();
+        await handleSearchKnowledge(
+          listRequest(`/search?q=alpha&projectId=${projectA.projectId}`),
+          searchA.res,
+          stores,
+        );
+        expect(searchA.result.status).toBe(200);
+        expect(
+          (searchA.result.body as { ok: true; entries: KnowledgeEntry[] }).entries.map((entry) => entry.id),
+        ).toEqual([createdId]);
+
+        const searchB = mockResponse();
+        await handleSearchKnowledge(
+          listRequest(`/search?q=alpha&projectId=${projectB.projectId}`),
+          searchB.res,
+          stores,
+        );
+        expect(searchB.result.status).toBe(200);
+        expect(
+          (searchB.result.body as { ok: true; entries: KnowledgeEntry[] }).entries,
+        ).toEqual([]);
+
+        const unknown = mockResponse();
+        handleListKnowledge(listRequest("?projectId=missing-project"), unknown.res, stores);
+        expect(unknown.result.status).toBe(404);
+        expect(unknown.result.body).toEqual({
+          error: "Unknown project",
+          reason: "unknown_project",
+          projectId: "missing-project",
+        });
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
     });
   });
 
