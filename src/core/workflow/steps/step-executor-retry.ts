@@ -234,6 +234,20 @@ export function classifyAgentRuntimeFailure(
   if (/api error:\s*unable to connect to api\s*\(ConnectionRefused\)/i.test(input.message)) {
     return { kind: "provider", retryable: true };
   }
+  if (
+    /stream disconnected before completion:\s*idle timeout sending websocket request/i.test(
+      input.message,
+    )
+  ) {
+    return { kind: "provider", retryable: true };
+  }
+  if (
+    /error running remote compact task:\s*stream disconnected before completion:\s*error sending request for url \(https:\/\/chatgpt\.com\/backend-api\/codex\/responses\/compact\)/i.test(
+      input.message,
+    )
+  ) {
+    return { kind: "provider", retryable: true };
+  }
 
   return null;
 }

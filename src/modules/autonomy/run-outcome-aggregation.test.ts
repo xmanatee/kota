@@ -636,6 +636,60 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
     });
   });
 
+  function writeAgentRuntimeFailureRun(
+    id: string,
+    workflow: string,
+    stepId: string,
+    completedAt: string,
+    error: string,
+  ): void {
+    const runDir = join(runsDir, id);
+    mkdirSync(runDir, { recursive: true });
+    const metadata: WorkflowRunMetadata = {
+      id,
+      workflow,
+      definitionPath: `src/modules/autonomy/workflows/${workflow}/workflow.ts`,
+      trigger: { event: "runtime.idle", payload: {} },
+      startedAt: new Date(Date.now() - 60_000).toISOString(),
+      completedAt,
+      status: "failed",
+      durationMs: 600_000,
+      runDir: id,
+      steps: [
+        {
+          id: stepId,
+          type: "agent",
+          status: "failed",
+          startedAt: "2026-04-16T00:00:00.000Z",
+          completedAt,
+          durationMs: 599_000,
+          error,
+        },
+      ],
+    };
+    writeFileSync(join(runDir, "metadata.json"), JSON.stringify(metadata));
+  }
+
+  it("does not advance latestActionableRunAt for classified provider transport failures", () => {
+    writeAgentRuntimeFailureRun(
+      "codex-compact-disconnect",
+      "builder",
+      "build",
+      "2026-04-21T02:00:00.000Z",
+      'Agent step "build" failed (codex_cli_error): Error running remote compact task: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses/compact)',
+    );
+    writeAgentRuntimeFailureRun(
+      "codex-websocket-disconnect",
+      "builder",
+      "build",
+      "2026-04-21T03:00:00.000Z",
+      'Repair agent for step "build" failed: Reconnecting... 2/5 (stream disconnected before completion: idle timeout sending websocket request)',
+    );
+
+    const result = aggregateRunOutcomes(runsDir);
+    expect(result.latestActionableRunAt).toBeNull();
+  });
+
   it("still advances latestActionableRunAt for a non-timeout terminal failure even when an agent-step timeout coexists", () => {
     writeAgentStepTimeoutRun(
       "stalled-decomposer",

@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { readRepairIterations } from "#core/workflow/repair-iteration-output.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-retry.js";
 import { loadRunsInWindow } from "#modules/workflow-ops/runs/workflow-history.js";
 import type { WorkflowRunSummary } from "./run-summary.js";
 import { type RunSummary, summarizeRun } from "./shared.js";
@@ -72,16 +73,11 @@ export type RunOutcomeAggregation = {
   // no-oped. The outlier list still ships to the agent in `durationOutliers`
   // so it can be inspected when improver does fire on a real failure.
   //
-  // Agent-step wall-clock timeouts are likewise excluded: 24h evidence
-  // around 2026-05-04 showed three consecutive improver runs (1vzoz9,
-  // fqo7wk, 3b34za) and one builder/decomposer pair (18hn1h, y7gom0)
-  // all hit the 3-hour `timeoutMs` rail with the same shape — only an
-  // `api_retry` system event between meaningful frames, and the run sum
-  // never finalized. The cause is upstream-SDK transport, not the
-  // autonomy prompt/process surface improver tunes; firing on those
-  // signals burns 3-hour slots while the same outage persists. The
-  // pattern is preserved as `agentStepTimeouts7d` so it remains visible
-  // when improver next wakes on a real signal.
+  // Agent-step wall-clock timeouts and classified provider/auth/rate-limit
+  // agent failures are likewise excluded: these are infrastructure signals,
+  // not the autonomy prompt/process surface improver tunes. Firing on them
+  // burns agent slots while the same upstream outage or operator credential
+  // issue persists.
   latestActionableRunAt: string | null;
 };
 
@@ -256,6 +252,30 @@ function collectAgentStepTimeouts(
   return out.sort((a, b) => (a.completedAt < b.completedAt ? 1 : -1));
 }
 
+function parseAgentFailureSubtype(error: string): string | undefined {
+  const match = /\(([^)]+)\):/.exec(error);
+  return match?.[1];
+}
+
+function hasClassifiedAgentRuntimeFailure(run: WorkflowRunMetadata): boolean {
+  if (run.status !== "failed") return false;
+  for (const step of run.steps) {
+    if (step.type !== "agent") continue;
+    if (step.status !== "failed") continue;
+    if (typeof step.error !== "string") continue;
+    const classified = classifyAgentRuntimeFailure({
+      message: step.error,
+      subtype: parseAgentFailureSubtype(step.error),
+    });
+    if (classified !== null) return true;
+  }
+  return false;
+}
+
+function hasInfrastructureAgentFailure(run: WorkflowRunMetadata): boolean {
+  return findAgentStepTimeout(run) !== null || hasClassifiedAgentRuntimeFailure(run);
+}
+
 function latestActionableCompletedAt(
   all24h: WorkflowRunMetadata[],
 ): string | null {
@@ -264,7 +284,7 @@ function latestActionableCompletedAt(
     if (run.workflow === "improver") continue;
     if (!run.completedAt) continue;
     if (run.status !== "failed") continue;
-    if (findAgentStepTimeout(run) !== null) continue;
+    if (hasInfrastructureAgentFailure(run)) continue;
     if (latest === null || run.completedAt > latest) latest = run.completedAt;
   }
   return latest;
