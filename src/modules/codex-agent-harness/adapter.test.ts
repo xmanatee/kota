@@ -68,6 +68,9 @@ describe("codexAgentHarness", () => {
     expect(codexAgentHarness.supportsMultiTurn).toBe(true);
     expect(codexAgentHarness.askOwnerToolName).toBeNull();
     expect(codexAgentHarness.emitsAgentMessageStream).toBe(false);
+    expect(codexAgentHarness.unsupportedRunOptions?.map((option) => option.option)).toEqual(
+      expect.arrayContaining(["allowedTools", "disallowedTools", "canUseTool"]),
+    );
   });
 
   it("runs codex exec through ChatGPT auth and parses JSONL output", async () => {
@@ -172,6 +175,33 @@ describe("codexAgentHarness", () => {
         prompt: "x",
         model: "gpt-5.5",
         effort: "xhigh",
+        canUseTool: async () => ({ behavior: "allow" }),
+      }),
+    ).rejects.toThrow(/canUseTool/);
+
+    await expect(
+      codexAgentHarness.run({
+        prompt: "x",
+        model: "gpt-5.5",
+        effort: "xhigh",
+        allowedTools: ["Read"],
+      }),
+    ).rejects.toThrow(/allowedTools/);
+
+    await expect(
+      codexAgentHarness.run({
+        prompt: "x",
+        model: "gpt-5.5",
+        effort: "xhigh",
+        disallowedTools: ["Bash"],
+      }),
+    ).rejects.toThrow(/disallowedTools/);
+
+    await expect(
+      codexAgentHarness.run({
+        prompt: "x",
+        model: "gpt-5.5",
+        effort: "xhigh",
         autonomyMode: "supervised",
       }),
     ).rejects.toThrow(/non-interactively/);
@@ -184,5 +214,6 @@ describe("codexAgentHarness", () => {
         mcpServers: { foo: { type: "stdio", command: "bar" } },
       }),
     ).rejects.toThrow(/does not host KOTA MCP servers/);
+    expect(spawnMock).not.toHaveBeenCalled();
   });
 });

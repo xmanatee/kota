@@ -48,6 +48,9 @@ instructions rather than KOTA-enforced tool guardrails.
 Do not treat this adapter as an autonomous builder-equivalent until a guarded
 tool-control path exists. It is safe as a native CLI runtime boundary and for
 headless tasks that the CLI can complete under its own approval policy.
+The unsupported tool-control options are declared on the harness and reported
+through readiness so guardrail-dependent workflow agent steps fail before
+Gemini CLI starts.
 
 ## Release Channel
 

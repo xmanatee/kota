@@ -115,4 +115,35 @@ describe("runAgentHarness", () => {
     await runAgentHarness(harness, { prompt: "hello", effort: "xhigh" });
     expect(run).toHaveBeenCalledTimes(1);
   });
+
+  it("rejects declared unsupported run options before hooks or adapter run", async () => {
+    const preRun = vi.fn();
+    registerHarnessHook({
+      kind: "preRun",
+      owner: "observer",
+      name: "before",
+      handler: preRun,
+    });
+    const { harness, run } = harnessStub("native-cli", ["preRun", "postRun"]);
+    const unsupportedHarness: AgentHarness = {
+      ...harness,
+      unsupportedRunOptions: [
+        {
+          runOption: "canUseTool",
+          option: "canUseTool",
+          reason: "native CLI tool calls cannot pass through KOTA guards",
+        },
+      ],
+    };
+
+    await expect(
+      runAgentHarness(unsupportedHarness, {
+        prompt: "x",
+        effort: "xhigh",
+        canUseTool: async () => ({ behavior: "allow" }),
+      }),
+    ).rejects.toThrow(/native-cli.*canUseTool.*native CLI tool calls/);
+    expect(preRun).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+  });
 });

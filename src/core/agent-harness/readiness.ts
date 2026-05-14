@@ -69,9 +69,23 @@ export type AgentHarnessRuntimeProbe =
     };
 
 export type AgentHarnessUnsupportedOption = {
+  readonly runOption?: AgentHarnessUnsupportedRunOption;
   readonly option: string;
   readonly reason: string;
 };
+
+export type AgentHarnessUnsupportedRunOption =
+  | "mcpServers"
+  | "allowedTools"
+  | "disallowedTools"
+  | "canUseTool"
+  | "askOwner"
+  | "autonomyMode.supervised"
+  | "persistSession"
+  | "harnessOverrides"
+  | "enableFileCheckpointing"
+  | "thinking"
+  | "onMessage";
 
 export type AgentHarnessAuthProbe =
   | {

@@ -527,6 +527,105 @@ describe("executeAgentStep — SDK autonomy permissions", () => {
   });
 });
 
+describe("executeAgentStep — harness tool-control preflight", () => {
+  let projectDir: string;
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-step-executor-tool-control-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(join(projectDir, "prompt.md"), "do the thing");
+    tryEmitMock.mockReset();
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("fails before running a harness that declares canUseTool unsupported", async () => {
+    const run = vi.fn(async () => ({
+      text: "should not run",
+      streamedText: "",
+      turns: 1,
+      isError: false,
+    }));
+    registerAgentHarness({
+      name: "unsupported-tool-control-harness",
+      description: "test-only unsupported harness",
+      supportsMultiTurn: true,
+      supportedHookKinds: [],
+      askOwnerToolName: null,
+      emitsAgentMessageStream: false,
+      unsupportedRunOptions: [
+        {
+          runOption: "canUseTool",
+          option: "canUseTool",
+          reason: "this harness cannot enforce KOTA tool gates",
+        },
+      ],
+      run,
+    });
+
+    await expect(
+      executeAgentStep(
+        makeDefinition(),
+        makeAgentStep(projectDir, {
+          harness: "unsupported-tool-control-harness",
+          model: "fake-model",
+        }),
+        makeMetadata("run-tool-control-blocked"),
+        { event: "runtime.idle", payload: {} },
+        new AbortController(),
+        () => {},
+        () => {},
+        { projectDir, log: () => {} },
+      ),
+    ).rejects.toThrow(/unsupported-tool-control-harness.*canUseTool/);
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("passes canUseTool through to a guardrail-capable harness", async () => {
+    const calls: Array<{ canUseTool: unknown }> = [];
+    registerAgentHarness({
+      name: "capable-tool-control-harness",
+      description: "test-only guardrail-capable harness",
+      supportsMultiTurn: true,
+      supportedHookKinds: [],
+      askOwnerToolName: null,
+      emitsAgentMessageStream: false,
+      async run(options) {
+        calls.push({ canUseTool: options.canUseTool });
+        return {
+          text: "done",
+          streamedText: "",
+          turns: 1,
+          isError: false,
+        };
+      },
+    });
+
+    const result = await executeAgentStep(
+      makeDefinition(),
+      makeAgentStep(projectDir, {
+        harness: "capable-tool-control-harness",
+        model: "fake-model",
+      }),
+      makeMetadata("run-tool-control-capable"),
+      { event: "runtime.idle", payload: {} },
+      new AbortController(),
+      () => {},
+      () => {},
+      { projectDir, log: () => {} },
+    );
+
+    expect(result.harness).toBe("capable-tool-control-harness");
+    expect(calls).toHaveLength(1);
+    expect(calls[0].canUseTool).toEqual(expect.any(Function));
+  });
+});
+
 describe("executeAgentStep — writeScope enforcement", () => {
   let projectDir: string;
 

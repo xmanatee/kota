@@ -2,11 +2,12 @@
  * Harness-neutral `canUseTool` guards and composition helpers.
  *
  * Each guard reads tool inputs (Bash commands, tool names) and returns a
- * `PermissionResult`. Every registered adapter honors `canUseTool`, so these
- * guards apply uniformly across claude-agent-sdk, openai-tools, and any
- * future adapter that runs a tool loop. Callers compose the guards they need
- * (commit-blocking, daemon-host control) and hand the composed callback to
- * `runAgentHarness` through the neutral `canUseTool` option.
+ * `PermissionResult`. Adapters with a KOTA-routable tool loop honor
+ * `canUseTool`; adapters that cannot must declare it unsupported so
+ * `runAgentHarness` rejects guarded calls before launch. Callers compose the
+ * guards they need (commit-blocking, daemon-host control) and hand the
+ * composed callback to `runAgentHarness` through the neutral `canUseTool`
+ * option.
  */
 
 import type { AgentCanUseTool, AgentPermissionResult } from "./types.js";

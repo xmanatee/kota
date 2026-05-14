@@ -69,6 +69,13 @@ beforeAll(() => {
 });
 
 type ControlAddress = { port: number; token: string };
+type LoopbackAwareGlobal = typeof globalThis & {
+  __kotaRealLoopbackAvailable?: boolean;
+};
+
+function realLoopbackAvailable(): boolean {
+  return (globalThis as LoopbackAwareGlobal).__kotaRealLoopbackAvailable !== false;
+}
 
 async function pollControlFile(
   stateDir: string,
@@ -125,7 +132,7 @@ async function waitForExit(
   });
 }
 
-describe("built CLI daemon smoke (provider-backed routes)", () => {
+describe.skipIf(!realLoopbackAvailable())("built CLI daemon smoke (provider-backed routes)", () => {
   let projectDir: string;
   let stateDir: string;
   let homeDir: string;

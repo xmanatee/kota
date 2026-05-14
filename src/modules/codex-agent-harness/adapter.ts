@@ -15,6 +15,7 @@ import type {
   AgentHarnessReadiness,
   AgentHarnessResult,
   AgentHarnessRunOptions,
+  AgentHarnessUnsupportedOption,
   AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
 import {
@@ -26,34 +27,56 @@ export const CODEX_AGENT_HARNESS_NAME = "codex";
 
 const CODEX_UNSUPPORTED_OPTIONS = [
   {
+    runOption: "mcpServers",
     option: "mcpServers",
     reason: "Codex CLI owns its own tool runtime and does not host KOTA MCP servers.",
   },
   {
+    runOption: "allowedTools",
+    option: "allowedTools",
+    reason: "Codex CLI tool policy cannot be constrained through KOTA allowedTools.",
+  },
+  {
+    runOption: "disallowedTools",
+    option: "disallowedTools",
+    reason: "Codex CLI tool policy cannot be constrained through KOTA disallowedTools.",
+  },
+  {
+    runOption: "canUseTool",
+    option: "canUseTool",
+    reason: "Codex CLI tool calls cannot be routed through KOTA's canUseTool gate.",
+  },
+  {
+    runOption: "autonomyMode.supervised",
     option: 'autonomyMode="supervised"',
     reason: "The non-interactive CLI path cannot route approvals through KOTA's queue.",
   },
   {
+    runOption: "persistSession",
     option: "persistSession",
     reason: "KOTA-managed session persistence is not exposed by this adapter.",
   },
   {
+    runOption: "harnessOverrides",
     option: "harnessOverrides",
     reason: "The codex adapter does not accept per-step harnessOptions.",
   },
   {
+    runOption: "enableFileCheckpointing",
     option: "enableFileCheckpointing",
     reason: "KOTA file checkpointing is not supported by Codex CLI.",
   },
   {
+    runOption: "thinking",
     option: "thinkingEnabled/thinkingBudget",
     reason: "Portable effort maps to Codex CLI model_reasoning_effort instead.",
   },
   {
+    runOption: "onMessage",
     option: "onMessage",
     reason: "Codex CLI emits text deltas, not KotaAgentMessage frames.",
   },
-] as const;
+] as const satisfies readonly AgentHarnessUnsupportedOption[];
 
 function codexReadiness(): AgentHarnessReadiness {
   return {
@@ -101,6 +124,24 @@ function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
         "Drop mcpServers or run the claude-agent-sdk harness.",
     );
   }
+  if (options.allowedTools && options.allowedTools.length > 0) {
+    throw new Error(
+      'The "codex" agent harness cannot constrain Codex CLI tools through KOTA allowedTools. ' +
+        "Drop allowedTools or run a KOTA-hosted tool-loop harness.",
+    );
+  }
+  if (options.disallowedTools && options.disallowedTools.length > 0) {
+    throw new Error(
+      'The "codex" agent harness cannot constrain Codex CLI tools through KOTA disallowedTools. ' +
+        "Drop disallowedTools or run a KOTA-hosted tool-loop harness.",
+    );
+  }
+  if (options.canUseTool !== undefined) {
+    throw new Error(
+      'The "codex" agent harness cannot route Codex CLI tool calls through KOTA canUseTool. ' +
+        "Drop canUseTool or run a KOTA-hosted tool-loop harness.",
+    );
+  }
   if (options.autonomyMode === "supervised") {
     throw new Error(
       'The "codex" agent harness runs non-interactively and cannot route tool calls ' +
@@ -125,7 +166,7 @@ function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
         "Drop enableFileCheckpointing.",
     );
   }
-  if (options.thinkingEnabled === true) {
+  if (options.thinkingEnabled === true || options.thinkingBudget !== undefined) {
     throw new Error(
       'The "codex" agent harness maps portable effort to Codex CLI reasoning. ' +
         "Drop thinkingEnabled/thinkingBudget and use effort.",
@@ -326,6 +367,7 @@ export const codexAgentHarness: AgentHarness = {
   supportedHookKinds: ["preRun", "postRun"] as const,
   askOwnerToolName: null,
   emitsAgentMessageStream: false,
+  unsupportedRunOptions: CODEX_UNSUPPORTED_OPTIONS,
   readiness: codexReadiness,
   async run(
     options: AgentHarnessRunOptions,

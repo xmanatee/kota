@@ -16,6 +16,10 @@ import {
   listHarnessHooks,
 } from "./hooks.js";
 import type {
+  AgentHarnessUnsupportedOption,
+  AgentHarnessUnsupportedRunOption,
+} from "./readiness.js";
+import type {
   AgentHarness,
   AgentHarnessResult,
   AgentHarnessRunOptions,
@@ -40,12 +44,55 @@ function assertAdapterCanHostRequestedCapabilities(
   harness: AgentHarness,
   options: AgentHarnessRunOptions,
 ): void {
+  const unsupported = requestedUnsupportedOptions(harness, options);
+  if (unsupported.length > 0) {
+    const labels = unsupported.map((entry) => entry.option).join(", ");
+    const reasons = unsupported.map((entry) => `${entry.option}: ${entry.reason}`).join("; ");
+    throw new Error(
+      `Agent harness "${harness.name}" cannot honor requested run option(s): ${labels}. ` +
+        `${reasons}`,
+    );
+  }
   if (options.askOwner && harness.askOwnerToolName === null) {
     throw new Error(
       `Agent harness "${harness.name}" cannot host the owner-questions surface (askOwnerToolName is null). ` +
         "Drop askOwner or run a harness that declares support — never run owner-questions silently disabled.",
     );
   }
+}
+
+function requestedUnsupportedOptions(
+  harness: AgentHarness,
+  options: AgentHarnessRunOptions,
+): AgentHarnessUnsupportedOption[] {
+  return (harness.unsupportedRunOptions ?? []).filter((entry) =>
+    entry.runOption !== undefined && isRunOptionRequested(entry.runOption, options)
+  );
+}
+
+function isRunOptionRequested(
+  option: AgentHarnessUnsupportedRunOption,
+  options: AgentHarnessRunOptions,
+): boolean {
+  if (option === "mcpServers") {
+    return options.mcpServers !== undefined && Object.keys(options.mcpServers).length > 0;
+  }
+  if (option === "allowedTools") {
+    return options.allowedTools !== undefined && options.allowedTools.length > 0;
+  }
+  if (option === "disallowedTools") {
+    return options.disallowedTools !== undefined && options.disallowedTools.length > 0;
+  }
+  if (option === "canUseTool") return options.canUseTool !== undefined;
+  if (option === "askOwner") return options.askOwner !== undefined;
+  if (option === "autonomyMode.supervised") return options.autonomyMode === "supervised";
+  if (option === "persistSession") return options.persistSession === true;
+  if (option === "harnessOverrides") return options.harnessOverrides !== undefined;
+  if (option === "enableFileCheckpointing") return options.enableFileCheckpointing === true;
+  if (option === "thinking") {
+    return options.thinkingEnabled === true || options.thinkingBudget !== undefined;
+  }
+  return options.onMessage !== undefined;
 }
 
 export async function runAgentHarness(

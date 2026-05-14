@@ -70,6 +70,9 @@ describe("geminiCliAgentHarness", () => {
     expect(geminiCliAgentHarness.supportsMultiTurn).toBe(true);
     expect(geminiCliAgentHarness.askOwnerToolName).toBeNull();
     expect(geminiCliAgentHarness.emitsAgentMessageStream).toBe(false);
+    expect(geminiCliAgentHarness.unsupportedRunOptions?.map((option) => option.option)).toEqual(
+      expect.arrayContaining(["allowedTools", "disallowedTools", "canUseTool"]),
+    );
   });
 
   it("runs gemini headless stream-json and parses successful output", async () => {

@@ -63,6 +63,7 @@ export type {
   AgentHarnessRuntimeProbeDeps,
   AgentHarnessRuntimeStatus,
   AgentHarnessUnsupportedOption,
+  AgentHarnessUnsupportedRunOption,
   BinaryResolution,
   CommandOutputResolution,
   CommandVersionResolution,

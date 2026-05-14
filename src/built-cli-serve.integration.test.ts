@@ -45,6 +45,13 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 const REPO_ROOT = resolve(fileURLToPath(import.meta.url), "..", "..");
 const CLI_PATH = join(REPO_ROOT, "dist", "cli.js");
+type LoopbackAwareGlobal = typeof globalThis & {
+  __kotaRealLoopbackAvailable?: boolean;
+};
+
+function realLoopbackAvailable(): boolean {
+  return (globalThis as LoopbackAwareGlobal).__kotaRealLoopbackAvailable !== false;
+}
 
 beforeAll(() => {
   if (!existsSync(CLI_PATH)) {
@@ -133,7 +140,7 @@ async function waitForExit(
   });
 }
 
-describe("built CLI serve smoke (provider-backed routes)", () => {
+describe.skipIf(!realLoopbackAvailable())("built CLI serve smoke (provider-backed routes)", () => {
   let projectDir: string;
   let stateDir: string;
   let homeDir: string;

@@ -4,7 +4,10 @@ import type { KotaAgentMessage } from "./agent-message.js";
 export type { KotaAgentMessage } from "./agent-message.js";
 
 import type { HarnessHookKind } from "./hooks.js";
-import type { AgentHarnessReadinessProbe } from "./readiness.js";
+import type {
+  AgentHarnessReadinessProbe,
+  AgentHarnessUnsupportedOption,
+} from "./readiness.js";
 
 /**
  * KOTA-native portable system-prompt text every harness-neutral caller
@@ -258,6 +261,14 @@ export type AgentHarness = {
    * id, model tiers, and env-auth state.
    */
   readonly readiness?: AgentHarnessReadinessProbe;
+  /**
+   * Static declaration of neutral run options this adapter cannot honor.
+   * `runAgentHarness` checks these before hooks or adapter spawn so a caller
+   * that depends on KOTA guardrails cannot accidentally fall through to a
+   * prompt-only native runtime. Readiness reports should expose the same
+   * entries for operator-facing preflight output.
+   */
+  readonly unsupportedRunOptions?: readonly AgentHarnessUnsupportedOption[];
   /**
    * Validates a per-step harness-specific options block and returns the
    * adapter-private fragment to thread through as

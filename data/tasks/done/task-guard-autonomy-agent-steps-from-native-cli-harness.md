@@ -1,12 +1,12 @@
 ---
 id: task-guard-autonomy-agent-steps-from-native-cli-harness
 title: Guard autonomy agent steps from native CLI harnesses that cannot enforce KOTA tool rails
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Ensure autonomy agent steps cannot run through native CLI harnesses that bypass KOTA tool guardrails.
 created_at: 2026-05-14T04:02:55.300Z
-updated_at: 2026-05-14T04:02:55.300Z
+updated_at: 2026-05-14T22:45:27.754Z
 ---
 
 ## Problem

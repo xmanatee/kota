@@ -21,11 +21,15 @@ protocol live in modules — the core only owns the interface and the registry.
 - Streaming text goes through the optional `writer` so operators see live
   output regardless of which harness runs.
 - Tool risk gating, commit guards, daemon control guards, and injection-defense
-  middleware are passed into the harness through standard fields
-  (`canUseTool`, `mcpServers`, tool allow/deny lists). Every adapter must
-  apply them; `src/rails-cross-harness.integration.test.ts`,
+  middleware are expressed through neutral run options (`canUseTool`,
+  `mcpServers`, `allowedTools`, `disallowedTools`). Adapters with a
+  KOTA-routable tool loop must honor the supported options. Adapters that
+  cannot honor an option must declare it in `unsupportedRunOptions`, so
+  `runAgentHarness` fails before hooks or adapter launch instead of silently
+  weakening guardrails. `src/rails-cross-harness.integration.test.ts`,
   `src/abort-cross-harness.integration.test.ts`, and
-  `src/mcp-servers-cross-harness.integration.test.ts` enforce parity.
+  `src/mcp-servers-cross-harness.integration.test.ts` enforce this
+  apply-or-reject boundary.
 - `guards.ts` hosts the harness-neutral `canUseTool` primitives
   (`createAgentCommitGuard`, `createDaemonHostControlGuard`,
   `composeCanUseTools`, `createWorkflowAgentGuards`). Callers reach for
@@ -59,6 +63,11 @@ injected by call sites.
   local runtime probe, harness-managed local auth probe when the preset has no
   `authEnv`, optional peer runtime probes, and unsupported neutral option
   boundaries without making provider network calls.
+- `unsupportedRunOptions` — static unsupported neutral option declarations
+  that `runAgentHarness` checks before hooks or adapter launch. Native CLI
+  adapters that cannot route KOTA's tool gate must declare `canUseTool`,
+  `allowedTools`, and `disallowedTools` here and surface the same entries
+  through readiness.
 
 ## Registry and selection
 

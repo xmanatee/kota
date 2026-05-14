@@ -19,6 +19,7 @@ import type {
   AgentHarnessReadiness,
   AgentHarnessResult,
   AgentHarnessRunOptions,
+  AgentHarnessUnsupportedOption,
   AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
 import { probeNativeCliRuntime } from "#core/agent-harness/index.js";
@@ -27,46 +28,61 @@ export const GEMINI_CLI_AGENT_HARNESS_NAME = "gemini-cli";
 
 const GEMINI_CLI_UNSUPPORTED_OPTIONS = [
   {
+    runOption: "mcpServers",
     option: "mcpServers",
     reason: "Gemini CLI owns its own MCP configuration and does not host KOTA MCP servers.",
   },
   {
-    option: "allowedTools/disallowedTools",
+    runOption: "allowedTools",
+    option: "allowedTools",
     reason: "Gemini CLI owns its own tool catalog and policy engine.",
   },
   {
+    runOption: "disallowedTools",
+    option: "disallowedTools",
+    reason: "Gemini CLI owns its own tool catalog and policy engine.",
+  },
+  {
+    runOption: "canUseTool",
     option: "canUseTool",
     reason: "Gemini CLI tool calls cannot be routed through KOTA's canUseTool gate.",
   },
   {
+    runOption: "askOwner",
     option: "askOwner",
     reason: "Gemini CLI cannot host KOTA's owner-question tool in this adapter.",
   },
   {
+    runOption: "autonomyMode.supervised",
     option: 'autonomyMode="supervised"',
     reason: "The non-interactive CLI path cannot route approvals through KOTA's queue.",
   },
   {
+    runOption: "persistSession",
     option: "persistSession",
     reason: "KOTA-managed session persistence is not exposed by this adapter.",
   },
   {
+    runOption: "harnessOverrides",
     option: "harnessOverrides",
     reason: "The gemini-cli adapter does not accept per-step harnessOptions.",
   },
   {
+    runOption: "enableFileCheckpointing",
     option: "enableFileCheckpointing",
     reason: "KOTA file checkpointing is not supported by Gemini CLI.",
   },
   {
+    runOption: "thinking",
     option: "thinkingEnabled/thinkingBudget",
     reason: "Gemini CLI owns provider-specific thinking controls outside this neutral surface.",
   },
   {
+    runOption: "onMessage",
     option: "onMessage",
     reason: "Gemini CLI emits JSON events, not KotaAgentMessage frames.",
   },
-] as const;
+] as const satisfies readonly AgentHarnessUnsupportedOption[];
 
 type GeminiCliError = {
   readonly type?: string;
@@ -618,6 +634,7 @@ export const geminiCliAgentHarness: AgentHarness = {
   supportedHookKinds: ["preRun", "postRun"] as const,
   askOwnerToolName: null,
   emitsAgentMessageStream: false,
+  unsupportedRunOptions: GEMINI_CLI_UNSUPPORTED_OPTIONS,
   readiness: geminiCliReadiness,
   async run(
     options: AgentHarnessRunOptions,

@@ -122,28 +122,22 @@ describe("autonomy agent step on codex", () => {
     vi.clearAllMocks();
   });
 
-  it("passes portable workflow context to Codex CLI without claude-specific options", async () => {
-    const process = mockCodexProcess();
+  it("refuses guardrail-dependent workflow agent steps before Codex CLI spawn", async () => {
+    mockCodexProcess();
 
-    const result = await executeAgentStep(
-      makeDefinition(),
-      makeAgentStep(projectDir),
-      makeMetadata(),
-      { event: "autonomy.queue.available", payload: {} },
-      new AbortController(),
-      () => {},
-      () => {},
-      { projectDir, log: () => {} },
-    );
+    await expect(
+      executeAgentStep(
+        makeDefinition(),
+        makeAgentStep(projectDir),
+        makeMetadata(),
+        { event: "autonomy.queue.available", payload: {} },
+        new AbortController(),
+        () => {},
+        () => {},
+        { projectDir, log: () => {} },
+      ),
+    ).rejects.toThrow(/codex.*canUseTool/);
 
-    expect(result.harness).toBe(CODEX_AGENT_HARNESS_NAME);
-    expect(spawnMock).toHaveBeenCalledTimes(1);
-    expect(spawnMock.mock.calls[0][1]).toEqual(
-      expect.arrayContaining(["--model", "gpt-5.5", "--sandbox", "workspace-write"]),
-    );
-    expect(process.stdinText()).toContain("Project AGENTS");
-    expect(process.stdinText()).toContain("Portable project rules live here.");
-    expect(process.stdinText()).toContain("## Autonomous Agent Instructions");
-    expect(process.stdinText()).toContain("Stay focused on the build.");
+    expect(spawnMock).not.toHaveBeenCalled();
   });
 });
