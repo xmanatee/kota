@@ -1,12 +1,12 @@
 ---
 id: task-thread-projectid-through-telegram-channel-commands
 title: Thread projectId through Telegram channel commands and session routing
-status: blocked
+status: ready
 priority: p2
 area: architecture
 summary: Make telegram-status and telegram-interactive channels project-aware so operators on a multi-project daemon can target a specific project per message rather than the daemon's default
 created_at: 2026-05-08T20:28:46.713Z
-updated_at: 2026-05-09T00:11:48.000Z
+updated_at: 2026-05-14T00:28:01.000Z
 ---
 
 ## Problem
@@ -154,14 +154,7 @@ The concrete enabler is
 `task-land-kotaclient-forproject-route-and-client-contract`; the broader
 anchor is `task-add-kotaclient-forproject-per-store-routing`.
 
-Until that task lands, this Telegram task stays blocked rather than landing a
+That enabler has now landed. This task is ready to consume the shared
+project-scoped KotaClient and per-store route contract rather than landing a
 parallel channel-local project routing model or narrowing away the store
 isolation invariant.
-
-## Unblock Precondition
-
-```
-kind: task-done
-ref: task-land-kotaclient-forproject-route-and-client-contract
-reason: Telegram per-store commands must consume one shared project-scoped KotaClient and per-store route contract; the channel must not invent a parallel project routing model.
-```

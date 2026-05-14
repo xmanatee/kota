@@ -1,13 +1,13 @@
 ---
 id: task-add-kotaclient-forproject-per-store-routing
 title: Add KotaClient forProject per-store routing
-status: backlog
+status: done
 priority: p1
 area: architecture
 anchor: true
 summary: Track the sequenced per-store work needed before KotaClient.forProject(projectId) can honestly route knowledge, memory, history, tasks, recall, answer, capture, and retract without daemon-default leakage.
 created_at: 2026-05-09T00:11:48.000Z
-updated_at: 2026-05-12T15:45:00.000Z
+updated_at: 2026-05-14T00:28:01.000Z
 ---
 
 ## Problem
@@ -108,8 +108,8 @@ are actually project-scoped.
   client calls.
 - Namespace-level tests cover daemon-backed and local client paths so the
   project scope is not only present in HTTP route tests.
-- Queue validation passes with the Telegram follow-up still blocked on this
-  task's descendant completion path.
+- Queue validation passes, and the Telegram follow-up's descendant completion
+  path is satisfied.
 
 ## Source / Intent
 
