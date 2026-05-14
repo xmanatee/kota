@@ -43,9 +43,9 @@ resources:
   - url: https://github.com/google-gemini/gemini-cli
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:33284d9ee010c6e9dd15acf23fd64b86
-      summary: "Gemini CLI now documents distinct release channels and auth modes; KOTA should make clear when its shipped Gemini preset is SDK-backed and should report the active local runtime/auth boundary explicitly."
-      last_seen_at: "2026-05-14T02:45:38.617Z"
+      fingerprint: sha256:a5c6e64caee52b5c77fbb80b5371dff8
+      summary: "Gemini CLI now documents a native headless JSON/stream-json surface, Google OAuth / Code Assist login, API-key and Vertex modes, and explicit stable/preview/nightly channels; KOTA's current Gemini preset is SDK/API-key backed, so native Gemini CLI runtime parity is a separate harness task."
+      last_seen_at: "2026-05-14T03:27:03.636Z"
   - url: https://github.com/Aider-AI/aider
     added: "2026-04-19"
     snapshot:
