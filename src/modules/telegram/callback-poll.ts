@@ -13,6 +13,7 @@
 
 import { getOwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import type { KotaClient } from "#core/server/kota-client.js";
 import { getApprovalQueue } from "#modules/approval-queue/index.js";
 import type { TelegramCallbackQuery } from "./client.js";
 import { callTelegramApi } from "./client.js";
@@ -31,6 +32,7 @@ export function startCallbackPoll(
   pendingApprovals: Map<string, PendingMessage>,
   pendingOwnerQuestions: Map<string, PendingMessage>,
   log: ModuleContext["log"],
+  client?: KotaClient,
 ): () => void {
   let running = true;
   let offset = 0;
@@ -59,6 +61,7 @@ export function startCallbackPoll(
             approvalMatch[1] as "approve" | "reject",
             approvalMatch[2],
             pendingApprovals,
+            client,
           );
           continue;
         }
@@ -71,6 +74,7 @@ export function startCallbackPoll(
             answerMatch[1],
             Number.parseInt(answerMatch[2], 10),
             pendingOwnerQuestions,
+            client,
           );
           continue;
         }
@@ -82,6 +86,7 @@ export function startCallbackPoll(
             cq,
             dismissMatch[1],
             pendingOwnerQuestions,
+            client,
           );
         }
       }
@@ -107,14 +112,27 @@ async function handleApprovalCallback(
   action: "approve" | "reject",
   approvalId: string,
   pending: Map<string, PendingMessage>,
+  client: KotaClient | undefined,
 ): Promise<void> {
-  const queue = getApprovalQueue();
-  const resolved =
-    action === "approve"
-      ? queue.approve(approvalId, undefined, "telegram-inline")
-      : queue.reject(approvalId, undefined, "telegram-inline");
+  const info = pending.get(approvalId);
+  const mutate = client
+    ? info
+      ? action === "approve"
+        ? await client.forProject(info.projectId).approvals.approve(approvalId)
+        : await client.forProject(info.projectId).approvals.reject(approvalId)
+      : { ok: false as const, reason: "not_found" as const }
+    : (() => {
+        const queue = getApprovalQueue();
+        const resolved =
+          action === "approve"
+            ? queue.approve(approvalId, undefined, "telegram-inline")
+            : queue.reject(approvalId, undefined, "telegram-inline");
+        return resolved
+          ? { ok: true as const, approval: resolved }
+          : { ok: false as const, reason: "not_found" as const };
+      })();
 
-  if (!resolved) {
+  if (!mutate.ok) {
     await callTelegramApi(token, "answerCallbackQuery", {
       callback_query_id: cq.id,
       text: "Approval already resolved or not found.",
@@ -129,8 +147,8 @@ async function handleApprovalCallback(
     text: action === "approve" ? "Approved!" : "Rejected!",
   }).catch(() => {});
 
-  const info = pending.get(approvalId);
   if (info) {
+    const resolved = mutate.approval;
     const editedText = [
       `${label}: *${resolved.tool}*`,
       `Risk: ${resolved.risk}`,
@@ -156,9 +174,14 @@ async function handleOwnerAnswerCallback(
   questionId: string,
   answerIdx: number,
   pending: Map<string, PendingMessage>,
+  client: KotaClient | undefined,
 ): Promise<void> {
-  const queue = getOwnerQuestionQueue();
-  const item = queue.get(questionId);
+  const info = pending.get(questionId);
+  const item = client
+    ? info
+      ? { status: "pending" as const, proposedAnswers: info.proposedAnswers ?? [] }
+      : null
+    : getOwnerQuestionQueue().get(questionId);
   if (!item || item.status !== "pending") {
     await callTelegramApi(token, "answerCallbackQuery", {
       callback_query_id: cq.id,
@@ -177,8 +200,17 @@ async function handleOwnerAnswerCallback(
     return;
   }
   const answerText = answers[answerIdx];
-  const resolved = queue.answer(questionId, answerText, "telegram-inline");
-  if (!resolved) {
+  const mutate = client
+    ? info
+      ? await client.forProject(info.projectId).ownerQuestions.answer(questionId, answerText)
+      : { ok: false as const, reason: "not_found" as const }
+    : (() => {
+        const resolved = getOwnerQuestionQueue().answer(questionId, answerText, "telegram-inline");
+        return resolved
+          ? { ok: true as const, question: resolved }
+          : { ok: false as const, reason: "not_found" as const };
+      })();
+  if (!mutate.ok) {
     await callTelegramApi(token, "answerCallbackQuery", {
       callback_query_id: cq.id,
       text: "Question already resolved or not found.",
@@ -196,7 +228,7 @@ async function handleOwnerAnswerCallback(
     token,
     questionId,
     "answer",
-    resolved,
+    mutate.question,
     pending,
   );
 }
@@ -206,10 +238,20 @@ async function handleOwnerDismissCallback(
   cq: TelegramCallbackQuery,
   questionId: string,
   pending: Map<string, PendingMessage>,
+  client: KotaClient | undefined,
 ): Promise<void> {
-  const queue = getOwnerQuestionQueue();
-  const resolved = queue.dismiss(questionId, undefined, "telegram-inline");
-  if (!resolved) {
+  const info = pending.get(questionId);
+  const mutate = client
+    ? info
+      ? await client.forProject(info.projectId).ownerQuestions.dismiss(questionId)
+      : { ok: false as const, reason: "not_found" as const }
+    : (() => {
+        const resolved = getOwnerQuestionQueue().dismiss(questionId, undefined, "telegram-inline");
+        return resolved
+          ? { ok: true as const, question: resolved }
+          : { ok: false as const, reason: "not_found" as const };
+      })();
+  if (!mutate.ok) {
     await callTelegramApi(token, "answerCallbackQuery", {
       callback_query_id: cq.id,
       text: "Question already resolved or not found.",
@@ -227,7 +269,7 @@ async function handleOwnerDismissCallback(
     token,
     questionId,
     "dismiss",
-    resolved,
+    mutate.question,
     pending,
   );
 }

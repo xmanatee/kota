@@ -139,6 +139,9 @@ describe("project-scoped cross-store daemon routes", () => {
         projects: [projectA, projectB],
       }),
       getActiveProjectId: () => null,
+      resolveProjectRuntime: () => {
+        throw new Error("cross-store test does not use daemon runtime queues");
+      },
     });
     registry.register(MEMORY_PROVIDER_TOKEN, "default", memoryA);
     registry.register(KNOWLEDGE_PROVIDER_TOKEN, "default", knowledgeA);

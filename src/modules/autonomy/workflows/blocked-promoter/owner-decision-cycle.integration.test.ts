@@ -329,8 +329,8 @@ describe("owner-decision blocked-task unblock cycle", () => {
         //     owner-question messages.
         const chatId = 99;
         const messageId = 7;
-        const pending = new Map<string, { chatId: string; messageId: number }>(
-          [[questionId!, { chatId: String(chatId), messageId }]],
+        const pending = new Map<string, { chatId: string; messageId: number; projectId: string }>(
+          [[questionId!, { chatId: String(chatId), messageId, projectId: "test-project" }]],
         );
 
         const stubLog = {

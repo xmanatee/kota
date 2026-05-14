@@ -30,6 +30,11 @@ export type ApprovalsListResult = {
  */
 export type ApprovalListFilter = {
   status?: ApprovalStatus | "all";
+  projectId?: string;
+};
+
+export type ApprovalProjectScope = {
+  projectId?: string;
 };
 
 /** Result of an approval mutation (`approve`, `reject`). */
@@ -48,6 +53,14 @@ export type ApprovalMutateResult =
  */
 export interface ApprovalsClient {
   list(filter?: ApprovalListFilter): Promise<ApprovalsListResult>;
-  approve(id: string, note?: string): Promise<ApprovalMutateResult>;
-  reject(id: string, reason?: string): Promise<ApprovalMutateResult>;
+  approve(
+    id: string,
+    note?: string,
+    project?: ApprovalProjectScope,
+  ): Promise<ApprovalMutateResult>;
+  reject(
+    id: string,
+    reason?: string,
+    project?: ApprovalProjectScope,
+  ): Promise<ApprovalMutateResult>;
 }

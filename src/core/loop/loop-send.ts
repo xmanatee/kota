@@ -32,7 +32,7 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
     });
   }
 
-  const analysis = analyzeRequest(prompt, process.cwd());
+  const analysis = analyzeRequest(prompt, state.projectDir);
   const taskRoute = routeTask(prompt);
   let augmentedPrompt = prompt;
   if (analysis) augmentedPrompt += formatContextHint(analysis);

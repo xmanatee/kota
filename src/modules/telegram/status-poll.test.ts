@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ConfiguredProject } from "#core/daemon/project-registry.js";
+import type { KotaClient } from "#core/server/kota-client.js";
 import type {
   AnswerClient,
   AnswerHistoryEntry,
@@ -16,6 +18,7 @@ import type {
   RetractResult,
 } from "#modules/retract/client.js";
 import { callTelegramApi } from "./client.js";
+import type { TelegramProjectSelection } from "./project-selection.js";
 import {
   buildStatusText,
   type StatusInfo,
@@ -248,6 +251,78 @@ describe("startTelegramStatusPoll", () => {
       parse_mode: "Markdown",
     });
     expect((sendCall?.[2] as { text: string }).text).toContain("*Dispatch:*");
+  });
+
+  it("routes /status through the resolved project-scoped workflow client", async () => {
+    const project: ConfiguredProject = {
+      projectId: "project-b",
+      projectDir: "/tmp/project-b",
+      displayName: "Project B",
+    };
+    const rootStatusInfo = vi.fn(() => makeStatusInfo());
+    const projectWorkflowStatus = vi.fn(async () => ({
+      activeRuns: [],
+      pendingRuns: [],
+      queueLength: 0,
+      completedRuns: 0,
+      workflows: {},
+      paused: true,
+      pendingAbort: false,
+      agentConcurrency: 1,
+      codeConcurrency: 4,
+    }));
+    const client = {
+      forProject: vi.fn(() => ({
+        workflow: {
+          status: projectWorkflowStatus,
+        },
+        knowledge: makeKnowledgeStub(),
+        memory: makeMemoryStub(),
+        history: makeHistoryStub(),
+        tasks: makeTasksStub(),
+        recall: makeRecallStub(),
+        answer: makeAnswerStub(),
+        capture: makeCaptureStub(),
+        retract: makeRetractStub(),
+      })),
+    } as unknown as KotaClient;
+    const selection = {
+      resolveChat: vi.fn(async () => ({
+        ok: true as const,
+        project,
+        showProjectLabels: true,
+      })),
+      switchChat: vi.fn(),
+      renderProjectLabelPrefix: vi.fn(),
+    } as unknown as TelegramProjectSelection;
+
+    mockedCallTelegramApi
+      .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "/status")])
+      .mockResolvedValue([]);
+    stop = startTelegramStatusPoll(
+      FAKE_TOKEN,
+      FAKE_CHAT_ID,
+      FAKE_PROJECT_DIR,
+      rootStatusInfo,
+      makeKnowledgeStub(),
+      makeMemoryStub(),
+      makeHistoryStub(),
+      makeTasksStub(),
+      makeRecallStub(),
+      makeAnswerStub(),
+      makeCaptureStub(),
+      makeRetractStub(),
+      undefined,
+      { client, selection },
+    );
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(selection.resolveChat).toHaveBeenCalledWith(Number(FAKE_CHAT_ID));
+    expect(client.forProject).toHaveBeenCalledWith("project-b");
+    expect(projectWorkflowStatus).toHaveBeenCalledOnce();
+    expect(rootStatusInfo).not.toHaveBeenCalled();
+    const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
+    expect((sendCall?.[2] as { text: string }).text).toContain("*Dispatch:* paused");
   });
 
   it("responds to /digest from the configured chat with rendered digest text", async () => {
@@ -2532,6 +2607,173 @@ describe("startTelegramStatusPoll", () => {
     await new Promise((r) => setTimeout(r, 20));
     const sendCalls = mockedCallTelegramApi.mock.calls.filter((c) => c[1] === "sendMessage");
     expect(sendCalls).toHaveLength(1);
+  });
+
+  it("routes per-store commands through the resolved project-scoped KotaClient", async () => {
+    const project: ConfiguredProject = {
+      projectId: "project-b",
+      projectDir: "/tmp/project-b",
+      displayName: "Project B",
+    };
+    const rootTasksSearch = vi.fn();
+    const projectTasksSearch: RepoTasksClient["search"] = vi.fn(async () => ({
+      ok: true as const,
+      tasks: [{
+        id: "task-b",
+        title: "B task",
+        priority: "p2",
+        state: "ready" as const,
+        area: "modules",
+        summary: "Project B task",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        score: 1,
+      }],
+    }));
+    const projectTasks = makeTasksStub(projectTasksSearch);
+    const client = {
+      forProject: vi.fn(() => ({
+        workflow: {
+          status: vi.fn(),
+        },
+        knowledge: makeKnowledgeStub(),
+        memory: makeMemoryStub(),
+        history: makeHistoryStub(),
+        tasks: projectTasks,
+        recall: makeRecallStub(),
+        answer: makeAnswerStub(),
+        capture: makeCaptureStub(),
+        retract: makeRetractStub(),
+      })),
+    } as unknown as KotaClient;
+    const selection = {
+      resolveChat: vi.fn(async () => ({
+        ok: true as const,
+        project,
+        showProjectLabels: true,
+      })),
+      switchChat: vi.fn(),
+      renderProjectLabelPrefix: vi.fn(),
+    } as unknown as TelegramProjectSelection;
+
+    mockedCallTelegramApi
+      .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "/tasks project")])
+      .mockResolvedValue([]);
+    stop = startTelegramStatusPoll(
+      FAKE_TOKEN,
+      FAKE_CHAT_ID,
+      FAKE_PROJECT_DIR,
+      makeStatusInfo,
+      makeKnowledgeStub(),
+      makeMemoryStub(),
+      makeHistoryStub(),
+      makeTasksStub(rootTasksSearch),
+      makeRecallStub(),
+      makeAnswerStub(),
+      makeCaptureStub(),
+      makeRetractStub(),
+      undefined,
+      { client, selection },
+    );
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(selection.resolveChat).toHaveBeenCalledWith(Number(FAKE_CHAT_ID));
+    expect(client.forProject).toHaveBeenCalledWith("project-b");
+    expect(projectTasksSearch).toHaveBeenCalledWith("project", { semantic: true, limit: 10 });
+    expect(rootTasksSearch).not.toHaveBeenCalled();
+  });
+
+  it("fails loudly when a multi-project chat has no selected project", async () => {
+    const selection = {
+      resolveChat: vi.fn(async () => ({
+        ok: false as const,
+        message: "This Telegram chat is not bound to a KOTA project.",
+      })),
+      switchChat: vi.fn(),
+      renderProjectLabelPrefix: vi.fn(),
+    } as unknown as TelegramProjectSelection;
+    const client = { forProject: vi.fn() } as unknown as KotaClient;
+    const tasksSearch = vi.fn();
+
+    mockedCallTelegramApi
+      .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "/tasks project")])
+      .mockResolvedValue([]);
+    stop = startTelegramStatusPoll(
+      FAKE_TOKEN,
+      FAKE_CHAT_ID,
+      FAKE_PROJECT_DIR,
+      makeStatusInfo,
+      makeKnowledgeStub(),
+      makeMemoryStub(),
+      makeHistoryStub(),
+      makeTasksStub(tasksSearch),
+      makeRecallStub(),
+      makeAnswerStub(),
+      makeCaptureStub(),
+      makeRetractStub(),
+      undefined,
+      { client, selection },
+    );
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(client.forProject).not.toHaveBeenCalled();
+    expect(tasksSearch).not.toHaveBeenCalled();
+    expect(mockedCallTelegramApi).toHaveBeenCalledWith(
+      FAKE_TOKEN,
+      "sendMessage",
+      expect.objectContaining({
+        text: "This Telegram chat is not bound to a KOTA project.",
+      }),
+    );
+  });
+
+  it("handles /project through the chat project selector before command routing", async () => {
+    const selection = {
+      resolveChat: vi.fn(),
+      switchChat: vi.fn(async () => ({
+        ok: true as const,
+        project: {
+          projectId: "project-b",
+          projectDir: "/tmp/project-b",
+          displayName: "Project B",
+        },
+        changed: true,
+        showProjectLabels: true,
+        message: "Telegram chat is now using Project B (project-b).",
+      })),
+      renderProjectLabelPrefix: vi.fn(),
+    } as unknown as TelegramProjectSelection;
+    const client = { forProject: vi.fn() } as unknown as KotaClient;
+
+    mockedCallTelegramApi
+      .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "/project project-b")])
+      .mockResolvedValue([]);
+    stop = startTelegramStatusPoll(
+      FAKE_TOKEN,
+      FAKE_CHAT_ID,
+      FAKE_PROJECT_DIR,
+      makeStatusInfo,
+      makeKnowledgeStub(),
+      makeMemoryStub(),
+      makeHistoryStub(),
+      makeTasksStub(),
+      makeRecallStub(),
+      makeAnswerStub(),
+      makeCaptureStub(),
+      makeRetractStub(),
+      undefined,
+      { client, selection },
+    );
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(selection.switchChat).toHaveBeenCalledWith(Number(FAKE_CHAT_ID), "project-b");
+    expect(selection.resolveChat).not.toHaveBeenCalled();
+    expect(mockedCallTelegramApi).toHaveBeenCalledWith(
+      FAKE_TOKEN,
+      "sendMessage",
+      expect.objectContaining({
+        text: "Telegram chat is now using Project B (project-b).",
+      }),
+    );
   });
 
   it("logs and continues on poll error", async () => {

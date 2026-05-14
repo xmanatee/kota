@@ -193,6 +193,27 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     registry.register(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE, "daemon", {
       getProjectRegistryProjection: () => handle.getProjectRegistryProjection(),
       getActiveProjectId: () => handle.getActiveProjectId(),
+      resolveProjectRuntime: (projectId) => {
+        const requested = projectId?.trim();
+        const resolvedProjectId =
+          requested && requested.length > 0
+            ? requested
+            : handle.getActiveProjectId();
+        if (resolvedProjectId !== null && resolvedProjectId !== undefined) {
+          if (!handle.hasProject(resolvedProjectId)) {
+            return {
+              ok: false,
+              error: {
+                error: "Unknown project",
+                reason: "unknown_project",
+                projectId: resolvedProjectId,
+              },
+            };
+          }
+          return { ok: true, runtime: projectRuntimes.get(resolvedProjectId) };
+        }
+        return { ok: true, runtime: projectRuntimes.getDefault() };
+      },
     });
     registry.register(WORKFLOW_DISPATCHER_PROVIDER_TYPE, "daemon", dispatcher);
     registry.register(WORKFLOW_METRICS_SOURCE_PROVIDER_TYPE, "daemon", metricsSource);

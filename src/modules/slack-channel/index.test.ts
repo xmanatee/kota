@@ -21,6 +21,13 @@ const MockedSlackBot = vi.mocked(SlackBot);
 
 const STUB_CHANNEL_START_CTX = {
   projectDir: "/tmp",
+  defaultProjectRuntime: {
+    project: { projectId: "test-project", projectDir: "/tmp", displayName: "test" },
+  } as never,
+  getProjectRuntime: () =>
+    ({
+      project: { projectId: "test-project", projectDir: "/tmp", displayName: "test" },
+    }) as never,
   log: () => {},
   getWorkflowStatus: () => ({
     runtimeState: { completedRuns: 0, pendingRuns: [], workflows: {} },

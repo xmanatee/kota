@@ -196,6 +196,13 @@ describe("webhookChannelModule channel adapter", () => {
     const channels = await resolveModuleChannels(webhookChannelModule, ctx);
     const result = channels[0].create({
       projectDir: "/tmp",
+      defaultProjectRuntime: {
+        project: { projectId: "test-project", projectDir: "/tmp", displayName: "test" },
+      } as never,
+      getProjectRuntime: () =>
+        ({
+          project: { projectId: "test-project", projectDir: "/tmp", displayName: "test" },
+        }) as never,
       log: () => {},
       getWorkflowStatus: () => ({
         runtimeState: { completedRuns: 0, pendingRuns: [], workflows: {} },

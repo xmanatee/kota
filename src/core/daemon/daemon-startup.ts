@@ -119,6 +119,8 @@ export async function runDaemonStartup(
   const operator = process.env.KOTA_OPERATOR;
   const channelCtx = {
     projectDir: ctx.projectDir,
+    defaultProjectRuntime: ctx.projectRuntimes.getDefault(),
+    getProjectRuntime: (projectId: string) => ctx.projectRuntimes.get(projectId),
     log: ctx.log,
     getWorkflowStatus: () => ({
       runtimeState: ctx.workflows.getState(),

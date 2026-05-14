@@ -71,20 +71,12 @@ export async function unloadModule(
 
 export async function unloadAllModules(state: LoaderState, env: LifecycleEnv): Promise<void> {
   const owners = [...new Set(state.registeredConfigKeys.values())];
-  const eventOwners = state.modules.map((m) => m.name);
+  const loadedModules = [...state.modules];
+  const eventOwners = loadedModules.map((m) => m.name);
 
-  for (const mod of [...state.modules].reverse()) {
-    if (mod.onUnload) {
-      try {
-        await mod.onUnload();
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[kota] Module "${mod.name}" unload error: ${msg}`);
-      }
-    }
-  }
-
-  for (const mod of [...state.modules]) deregisterModuleTools(mod.name);
+  // AgentSession.close() is synchronous, so this cleanup must happen before
+  // any async onUnload hook can yield and race the next session's module load.
+  for (const mod of loadedModules) deregisterModuleTools(mod.name);
   state.modules.splice(0);
   state.moduleRegistry.clear();
   state.moduleStorages.clear();
@@ -120,6 +112,17 @@ export async function unloadAllModules(state: LoaderState, env: LifecycleEnv): P
   state.moduleSources.clear();
   state.loadFailures.clear();
   env.resetBus();
+
+  for (const mod of loadedModules.reverse()) {
+    if (mod.onUnload) {
+      try {
+        await mod.onUnload();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[kota] Module "${mod.name}" unload error: ${msg}`);
+      }
+    }
+  }
 }
 
 function cleanupLoaderState(moduleName: string, state: LoaderState): void {

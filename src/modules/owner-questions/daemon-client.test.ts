@@ -225,6 +225,44 @@ describe("owner-questions module daemonClient(link)", () => {
     ]);
   });
 
+  it("threads projectId through list, answer, and dismiss when provided", async () => {
+    const question = makeQuestion("q-7", "answered");
+    const { transport, calls } = makeRecordingTransport({
+      requestStrictResponder: () => ({ questions: [] }),
+      fetchRawResponder: () => jsonResponse(200, { question }),
+    });
+    const contributed = ownerQuestionsModule.daemonClient!(transport);
+    await contributed.ownerQuestions!.list({ status: "pending", projectId: "project-b" });
+    await contributed.ownerQuestions!.answer("q-7", "yes", { projectId: "project-b" });
+    await contributed.ownerQuestions!.dismiss("q-7", "done", { projectId: "project-b" });
+    expect(calls).toEqual([
+      {
+        kind: "requestStrict",
+        method: "GET",
+        path: "/owner-questions?status=pending&projectId=project-b",
+        body: undefined,
+      },
+      {
+        kind: "fetchRaw",
+        path: "/owner-questions/q-7/answer?projectId=project-b",
+        init: {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ answer: "yes" }),
+        },
+      },
+      {
+        kind: "fetchRaw",
+        path: "/owner-questions/q-7/dismiss?projectId=project-b",
+        init: {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason: "done" }),
+        },
+      },
+    ]);
+  });
+
   it("transforms a 404 from answer into { ok: false, reason: 'not_found' }", async () => {
     const { transport } = makeRecordingTransport({
       fetchRawResponder: () =>
@@ -233,6 +271,23 @@ describe("owner-questions module daemonClient(link)", () => {
     const contributed = ownerQuestionsModule.daemonClient!(transport);
     const result = await contributed.ownerQuestions!.answer("missing", "x");
     expect(result).toEqual({ ok: false, reason: "not_found" });
+  });
+
+  it("throws the typed unknown-project error from answer instead of returning not_found", async () => {
+    const { transport } = makeRecordingTransport({
+      fetchRawResponder: () =>
+        jsonResponse(404, {
+          error: "Unknown project",
+          reason: "unknown_project",
+          projectId: "missing-project",
+        }),
+    });
+    const contributed = ownerQuestionsModule.daemonClient!(transport);
+    await expect(
+      contributed.ownerQuestions!.answer("q-7", "x", {
+        projectId: "missing-project",
+      }),
+    ).rejects.toThrow(/Unknown project: missing-project/);
   });
 
   it("transforms a 404 from dismiss into { ok: false, reason: 'not_found' }", async () => {

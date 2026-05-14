@@ -8,6 +8,7 @@
 
 import { randomBytes } from "node:crypto";
 import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import type { KotaConfig } from "#core/config/config.js";
 import { loadConfig } from "#core/config/config.js";
@@ -25,6 +26,8 @@ import type { DaemonClientHandlers } from "./kota-client.js";
 import { NOTIFICATION_HUB_PROVIDER_TYPE } from "./notification-hub-provider.js";
 import { buildRequestHandler } from "./server-routes.js";
 import { SessionPool } from "./session-pool.js";
+
+const LOOPBACK_HOST = "127.0.0.1";
 
 export type ServerOptions = {
   port?: number;
@@ -143,13 +146,15 @@ export function startServer(options: ServerOptions): Server {
     pool.closeAll();
   });
 
-  server.listen(port, () => {
-    console.log(`KOTA server listening on http://localhost:${port}`);
+  server.listen(port, LOOPBACK_HOST, () => {
+    const address = server.address() as AddressInfo | null;
+    const actualPort = address?.port ?? port;
+    console.log(`KOTA server listening on http://${LOOPBACK_HOST}:${actualPort}`);
     if (authToken) {
       console.log(`Auth token: ${authToken}`);
-      console.log(`Web UI:     http://localhost:${port}/?token=${authToken}`);
+      console.log(`Web UI:     http://${LOOPBACK_HOST}:${actualPort}/?token=${authToken}`);
     } else {
-      console.log(`Web UI:     http://localhost:${port}/`);
+      console.log(`Web UI:     http://${LOOPBACK_HOST}:${actualPort}/`);
       console.log("Warning: auth disabled (--no-auth). Do not expose this server on a shared network.");
     }
     console.log("API endpoints:");

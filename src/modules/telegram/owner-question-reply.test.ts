@@ -41,7 +41,7 @@ describe("tryHandleOwnerQuestionReply", () => {
       answer: "variant-a, but only land follow-up (a) for now",
     });
     const pending: Map<string, PendingMessage> = new Map([
-      ["oq-free-form", { chatId: "99", messageId: 30 }],
+      ["oq-free-form", { chatId: "99", messageId: 30, projectId: "test-project" }],
     ]);
 
     const handled = await tryHandleOwnerQuestionReply({
@@ -80,7 +80,7 @@ describe("tryHandleOwnerQuestionReply", () => {
 
   it("falls through (returns false) when the reply does not match any tracked owner-question message", async () => {
     const pending: Map<string, PendingMessage> = new Map([
-      ["oq-free-form", { chatId: "99", messageId: 30 }],
+      ["oq-free-form", { chatId: "99", messageId: 30, projectId: "test-project" }],
     ]);
 
     const handled = await tryHandleOwnerQuestionReply({
@@ -101,7 +101,7 @@ describe("tryHandleOwnerQuestionReply", () => {
 
   it("does not resolve owner questions for replies from chats outside the allowlist", async () => {
     const pending: Map<string, PendingMessage> = new Map([
-      ["oq-free-form", { chatId: "99", messageId: 30 }],
+      ["oq-free-form", { chatId: "99", messageId: 30, projectId: "test-project" }],
     ]);
 
     const handled = await tryHandleOwnerQuestionReply({
@@ -123,7 +123,7 @@ describe("tryHandleOwnerQuestionReply", () => {
   it("releases the binding and falls through when the question was already resolved by another surface", async () => {
     mockOwnerAnswer.mockReturnValue(null);
     const pending: Map<string, PendingMessage> = new Map([
-      ["oq-free-form", { chatId: "99", messageId: 30 }],
+      ["oq-free-form", { chatId: "99", messageId: 30, projectId: "test-project" }],
     ]);
 
     const handled = await tryHandleOwnerQuestionReply({

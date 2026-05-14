@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
 import { Scheduler } from "#core/daemon/scheduler.js";
 import {
   initProviderRegistry,
@@ -8,15 +9,53 @@ import {
   TRANSCRIPTION_PROVIDER_TYPE,
   type TranscriptionProvider,
 } from "#modules/transcription/index.js";
-import { callTelegramApi, splitMessage, TelegramBot, TelegramTransport } from "./bot.js";
+import {
+  callTelegramApi,
+  splitMessage,
+  TelegramBot,
+  type TelegramBotOptions,
+  TelegramTransport,
+} from "./bot.js";
+import type { TelegramProjectSelection } from "./project-selection.js";
 
 const agentSendMock = vi.fn(async () => undefined);
+const agentSessionOptions: unknown[] = [];
+
+function makeProjectRuntime(
+  projectId = "project-a",
+  projectDir = `/tmp/${projectId}`,
+): ProjectRuntime {
+  return {
+    project: { projectId, projectDir, displayName: projectId },
+    scheduler: new Scheduler(projectDir, null),
+  } as ProjectRuntime;
+}
+
+function botOptions(
+  overrides: Partial<TelegramBotOptions> = {},
+): TelegramBotOptions {
+  const defaultProjectRuntime =
+    overrides.defaultProjectRuntime ?? makeProjectRuntime();
+  return {
+    token: "tok",
+    autonomyMode: "supervised",
+    defaultProjectRuntime,
+    getProjectRuntime: (projectId) =>
+      projectId === defaultProjectRuntime.project.projectId
+        ? defaultProjectRuntime
+        : makeProjectRuntime(projectId),
+    ...overrides,
+  };
+}
 
 vi.mock("#core/loop/loop.js", async () => {
   const actual = await vi.importActual<typeof import("#core/loop/loop.js")>(
     "#core/loop/loop.js",
   );
   class FakeAgentSession {
+    constructor(options?: unknown) {
+      agentSessionOptions.push(options);
+    }
     send = agentSendMock;
     close = vi.fn();
     getCostSummary = vi.fn().mockReturnValue("$0.00");
@@ -259,6 +298,7 @@ describe("callTelegramApi", () => {
 
   beforeEach(() => {
     fetchMock = installFetchMock();
+    agentSessionOptions.length = 0;
   });
 
   afterEach(restoreFetch);
@@ -348,6 +388,8 @@ describe("TelegramBot", () => {
 
   beforeEach(() => {
     fetchMock = installFetchMock();
+    agentSessionOptions.length = 0;
+    agentSendMock.mockClear();
   });
 
   afterEach(() => {
@@ -355,18 +397,18 @@ describe("TelegramBot", () => {
   });
 
   it("constructs with options", () => {
-    const bot = new TelegramBot({ token: "test-token", autonomyMode: "supervised" });
+    const bot = new TelegramBot(botOptions({ token: "test-token" }));
     expect(bot.sessionCount).toBe(0);
   });
 
   it("stop clears sessions", () => {
-    const bot = new TelegramBot({ token: "test-token", autonomyMode: "supervised" });
+    const bot = new TelegramBot(botOptions({ token: "test-token" }));
     bot.stop();
     expect(bot.sessionCount).toBe(0);
   });
 
   it("start verifies token via getMe", async () => {
-    const bot = new TelegramBot({ token: "test-token", autonomyMode: "supervised" });
+    const bot = new TelegramBot(botOptions({ token: "test-token" }));
     fetchMock
       .mockResolvedValueOnce({
         json: () => Promise.resolve({ ok: true, result: { id: 1, first_name: "TestBot", username: "test_bot" } }),
@@ -386,7 +428,7 @@ describe("TelegramBot", () => {
   });
 
   it("broadcastToChats delivers a message to every active session", async () => {
-    const bot = new TelegramBot({ token: "tok", autonomyMode: "supervised" });
+    const bot = new TelegramBot(botOptions());
     // Drive a text message through the poll loop to create a session, then stop.
     let delivered = false;
     fetchMock.mockImplementation(async (url: string) => {
@@ -447,12 +489,99 @@ describe("TelegramBot", () => {
     expect(sentToChat77).toBe(true);
   });
 
+  it("creates project-scoped sessions and scopes broadcasts by project", async () => {
+    agentSendMock.mockClear();
+    const projectSelection = {
+      resolveChat: vi.fn(async () => ({
+        ok: true as const,
+        project: {
+          projectId: "project-b",
+          projectDir: "/tmp/project-b",
+          displayName: "Project B",
+        },
+        showProjectLabels: true,
+      })),
+      switchChat: vi.fn(),
+      renderProjectLabelPrefix: vi.fn(),
+    } as unknown as TelegramProjectSelection;
+    const projectBRuntime = makeProjectRuntime("project-b", "/tmp/project-b");
+    const bot = new TelegramBot({
+      ...botOptions(),
+      getProjectRuntime: (projectId) => {
+        if (projectId !== "project-b") throw new Error(`unexpected project ${projectId}`);
+        return projectBRuntime;
+      },
+      projectSelection,
+    });
+    let delivered = false;
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/getMe")) {
+        return {
+          json: () => Promise.resolve({ ok: true, result: { id: 1, first_name: "Bot" } }),
+        };
+      }
+      if (url.endsWith("/getUpdates")) {
+        if (!delivered) {
+          delivered = true;
+          return {
+            json: () =>
+              Promise.resolve({
+                ok: true,
+                result: [
+                  {
+                    update_id: 1,
+                    message: {
+                      message_id: 1,
+                      chat: { id: 77, type: "private", first_name: "Op" },
+                      text: "hi",
+                      date: 0,
+                    },
+                  },
+                ],
+              }),
+          };
+        }
+        return {
+          json: () =>
+            new Promise((resolve) =>
+              setTimeout(() => {
+                bot.stop();
+                resolve({ ok: true, result: [] });
+              }, 50),
+            ),
+        };
+      }
+      return { json: () => Promise.resolve({ ok: true, result: true }) };
+    });
+
+    const startPromise = bot.start();
+    const deadline = Date.now() + 1_500;
+    while (Date.now() < deadline && bot.sessionCount === 0) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    bot.broadcastToChats("project-b ping", "project-b");
+    bot.broadcastToChats("project-a ping", "project-a");
+    await startPromise;
+
+    expect(agentSessionOptions).toHaveLength(1);
+    expect(agentSessionOptions[0]).toEqual(
+      expect.objectContaining({
+        projectDir: "/tmp/project-b",
+        projectRuntime: projectBRuntime,
+      }),
+    );
+    const sentBodies = fetchMock.mock.calls
+      .filter((call) => String(call[0]).endsWith("/sendMessage"))
+      .map((call) => JSON.parse(String((call[1] as { body: string }).body)) as { text: string });
+    expect(sentBodies.some((body) => body.text === "project-b ping")).toBe(true);
+    expect(sentBodies.some((body) => body.text === "project-a ping")).toBe(false);
+  });
+
   it("routes a reply_to_message text update through the onChatReply hook and skips agent.send when the hook returns true", async () => {
     agentSendMock.mockClear();
     const onChatReply = vi.fn(async () => true);
     const bot = new TelegramBot({
-      token: "tok",
-      autonomyMode: "supervised",
+      ...botOptions(),
       onChatReply,
     });
     let delivered = false;
@@ -516,8 +645,7 @@ describe("TelegramBot", () => {
     agentSendMock.mockClear();
     const onChatReply = vi.fn(async () => false);
     const bot = new TelegramBot({
-      token: "tok",
-      autonomyMode: "supervised",
+      ...botOptions(),
       onChatReply,
     });
     let delivered = false;
@@ -579,7 +707,7 @@ describe("TelegramBot", () => {
 
   it("routes inbound text messages into AgentSession.send (session loop)", async () => {
     agentSendMock.mockClear();
-    const bot = new TelegramBot({ token: "tok", autonomyMode: "supervised" });
+    const bot = new TelegramBot(botOptions());
     let delivered = false;
     fetchMock.mockImplementation(async (url: string) => {
       if (url.endsWith("/getMe")) {
@@ -727,7 +855,7 @@ describe("TelegramBot voice messages", () => {
     };
     registry.register(TRANSCRIPTION_PROVIDER_TYPE, provider.name, provider);
 
-    const bot = new TelegramBot({ token: "tok", autonomyMode: "supervised" });
+    const bot = new TelegramBot(botOptions());
 
     const startPromise = startBotAndQueueUpdate(bot, {
       update_id: 1,
@@ -746,7 +874,7 @@ describe("TelegramBot voice messages", () => {
   });
 
   it("replies with a clear failure when no transcription provider is registered", async () => {
-    const bot = new TelegramBot({ token: "tok", autonomyMode: "supervised" });
+    const bot = new TelegramBot(botOptions());
 
     const startPromise = startBotAndQueueUpdate(bot, {
       update_id: 2,

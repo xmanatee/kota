@@ -29,6 +29,11 @@ import type {
  */
 export type OwnerQuestionListFilter = {
   status?: OwnerQuestionStatus | "all";
+  projectId?: string;
+};
+
+export type OwnerQuestionProjectScope = {
+  projectId?: string;
 };
 
 export type OwnerQuestionsListResult = {
@@ -54,6 +59,14 @@ export type OwnerQuestionMutateResult =
  */
 export interface OwnerQuestionsClient {
   list(filter?: OwnerQuestionListFilter): Promise<OwnerQuestionsListResult>;
-  answer(id: string, answer: string): Promise<OwnerQuestionMutateResult>;
-  dismiss(id: string, reason?: string): Promise<OwnerQuestionMutateResult>;
+  answer(
+    id: string,
+    answer: string,
+    project?: OwnerQuestionProjectScope,
+  ): Promise<OwnerQuestionMutateResult>;
+  dismiss(
+    id: string,
+    reason?: string,
+    project?: OwnerQuestionProjectScope,
+  ): Promise<OwnerQuestionMutateResult>;
 }

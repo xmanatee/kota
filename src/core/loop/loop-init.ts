@@ -36,6 +36,7 @@ export interface AgentLoopState {
   sessionStartTime: number;
   sessionId: string;
   sessionLabel: string | undefined;
+  projectDir: string;
   context: Context;
   client: ModelClient;
   model: string;
@@ -92,7 +93,7 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
         model: state.editorModel,
         modelTiers: state.modelTiers,
         client: state.client,
-        cwd: process.cwd(),
+        cwd: state.projectDir,
         projectContext: state.projectContext || undefined,
         instructionContext: state.instructionContext || undefined,
         costTracker: state.costTracker,
@@ -110,9 +111,14 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
   }
 
   const projectModules = await discoverProjectModules();
-  const modules = await discoverModules(undefined, state.verbose);
+  const modules = await discoverModules(state.projectDir, state.verbose);
   for (const { name } of listManifestModules()) addLoadedModule(name);
-  await state.moduleLoader.loadAll(projectModules, modules);
+  try {
+    await state.moduleLoader.loadAll(projectModules, modules);
+  } catch (err) {
+    await state.moduleLoader.unloadAll().catch(() => {});
+    throw err;
+  }
 
   bindRenderingTransport(state);
 
@@ -187,7 +193,7 @@ export function saveToHistoryImpl(state: AgentLoopState): void {
     return;
   }
   if (!state.conversationId) {
-    state.conversationId = history.create(state.model, process.cwd(), state.historySource);
+    state.conversationId = history.create(state.model, state.projectDir, state.historySource);
   }
   history.save(state.conversationId, snapshot.messages, snapshot.compactionCount, snapshot.lastInputTokens);
 }

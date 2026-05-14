@@ -176,24 +176,65 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
       codeConcurrency: 4,
     };
     const { transport, calls } = makeRecordingTransport({
-      respondRequest: () => live,
+      respondFetch: () => jsonResponse(200, live),
     });
     const wf = workflowOpsModule.daemonClient!(transport).workflow!;
     const result = await wf.status();
     expect(result).toEqual({ ...live, pendingAbort: false });
-    expect((calls[0] as { method: string; path: string }).method).toBe("GET");
-    expect((calls[0] as { method: string; path: string }).path).toBe(
-      "/workflow/status",
-    );
+    expect(calls[0]).toEqual({
+      kind: "fetchRaw",
+      path: "/workflow/status",
+      init: { method: "GET" },
+    });
+  });
+
+  it("status serializes projectId into the query string", async () => {
+    const live = {
+      activeRuns: [],
+      pendingRuns: [],
+      queueLength: 0,
+      completedRuns: 0,
+      workflows: {},
+      paused: false,
+      agentConcurrency: 1,
+      codeConcurrency: 4,
+    };
+    const { transport, calls } = makeRecordingTransport({
+      respondFetch: () => jsonResponse(200, live),
+    });
+    const wf = workflowOpsModule.daemonClient!(transport).workflow!;
+    await wf.status({ projectId: "project-b" });
+    expect(calls[0]).toEqual({
+      kind: "fetchRaw",
+      path: "/workflow/status?projectId=project-b",
+      init: { method: "GET" },
+    });
   });
 
   it("status throws byte-for-byte on transport failure", async () => {
     const { transport } = makeRecordingTransport({
-      respondRequest: () => null,
+      respondFetch: () => {
+        throw new Error("daemon down");
+      },
     });
     const wf = workflowOpsModule.daemonClient!(transport).workflow!;
     await expect(wf.status()).rejects.toThrow(
       "Daemon unreachable while reading workflow status",
+    );
+  });
+
+  it("status preserves typed unknown-project route errors", async () => {
+    const { transport } = makeRecordingTransport({
+      respondFetch: () =>
+        jsonResponse(404, {
+          error: "Unknown project",
+          reason: "unknown_project",
+          projectId: "ghost",
+        }),
+    });
+    const wf = workflowOpsModule.daemonClient!(transport).workflow!;
+    await expect(wf.status({ projectId: "ghost" })).rejects.toThrow(
+      "Unknown project: ghost",
     );
   });
 

@@ -1,13 +1,15 @@
 import { existsSync } from "node:fs";
 import { SYSTEM_PROMPT } from "#core/agents/system-prompt.js";
 import { buildUserProfile } from "#core/config/config.js";
-import { initScheduler } from "#core/daemon/scheduler.js";
-import { initTaskStore } from "#core/daemon/task-store.js";
+import { setApprovalQueueInstance } from "#core/daemon/approval-queue.js";
+import { setOwnerQuestionQueueInstance } from "#core/daemon/owner-question-queue.js";
+import { initScheduler, setSchedulerInstance } from "#core/daemon/scheduler.js";
+import { initTaskStore, setTaskStoreInstance } from "#core/daemon/task-store.js";
 import { tryEmit } from "#core/events/event-bus.js";
 import { createModelClient } from "#core/model/model-client.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import { ModuleLoader } from "#core/modules/module-loader.js";
-import { initModuleLogStore } from "#core/modules/module-log.js";
+import { initModuleLogStore, setModuleLogStoreInstance } from "#core/modules/module-log.js";
 import type { CreateSessionOptions, ModuleSession } from "#core/modules/module-types.js";
 import { initProviderRegistry, registerDefaultProviders } from "#core/modules/provider-registry.js";
 import { setConfigProvider, setModuleInfoProvider } from "#core/tools/agent-status.js";
@@ -32,6 +34,8 @@ export function initAgentSession(
   options: LoopOptions,
   sessionFactory: (opts: CreateSessionOptions) => ModuleSession,
 ): void {
+  const projectDir = options.projectRuntime?.project.projectDir ?? options.projectDir ?? process.cwd();
+  state.projectDir = projectDir;
   state.sessionId = `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   state.sessionLabel = options.label;
   if (!isAutonomyMode(options.autonomyMode)) {
@@ -80,18 +84,31 @@ export function initAgentSession(
   state.client = options.client ?? createModelClient({ model: state.model }).client;
   state.costTracker = new CostTracker();
 
-  initTaskStore(process.cwd());
-  initScheduler(process.cwd());
-  initModuleLogStore(process.cwd());
+  if (options.projectRuntime) {
+    if (options.projectDir !== undefined && options.projectDir !== projectDir) {
+      throw new Error(
+        `AgentSession projectDir ${options.projectDir} does not match projectRuntime ${projectDir}`,
+      );
+    }
+    setTaskStoreInstance(options.projectRuntime.taskStore);
+    setSchedulerInstance(options.projectRuntime.scheduler);
+    setModuleLogStoreInstance(options.projectRuntime.moduleLogStore);
+    setApprovalQueueInstance(options.projectRuntime.approvalQueue);
+    setOwnerQuestionQueueInstance(options.projectRuntime.ownerQuestionQueue);
+  } else {
+    initTaskStore(projectDir);
+    initScheduler(projectDir);
+    initModuleLogStore(projectDir);
+  }
   initChangeTracker();
   initProviderRegistry();
   registerDefaultProviders();
 
-  state.projectContext = loadProjectContext(process.cwd(), process.cwd());
+  state.projectContext = loadProjectContext(projectDir, projectDir);
   const projectContext = state.projectContext;
-  const instructionContext = loadInstructionContext(process.cwd(), process.cwd());
+  const instructionContext = loadInstructionContext(projectDir, projectDir);
   state.instructionContext = instructionContext;
-  const warmup = buildSessionWarmup();
+  const warmup = buildSessionWarmup(projectDir);
   const userProfile = options.config ? buildUserProfile(options.config) : "";
   const systemPrompt = SYSTEM_PROMPT + projectContext + instructionContext + userProfile + warmup;
   if (projectContext && state.verbose) {
@@ -136,14 +153,14 @@ export function initAgentSession(
   state.historyEnabled = !options.noHistory && (!state.sessionPath || !!options.resumeConversation);
   state.historySource = options.historySource ?? "user";
 
-  state.verifyTracker = new VerifyTracker(detectVerifyCommands());
+  state.verifyTracker = new VerifyTracker(detectVerifyCommands(projectDir));
 
   const activePreset = resolveActivePresetFromConfig(options.config);
   setDelegateConfig({
     model: state.editorModel,
     modelTiers: options.config?.modelTiers,
     client: state.client,
-    cwd: process.cwd(),
+    cwd: projectDir,
     projectContext: projectContext || undefined,
     instructionContext: instructionContext || undefined,
     costTracker: state.costTracker,
@@ -152,6 +169,7 @@ export function initAgentSession(
   });
 
   state.moduleLoader = new ModuleLoader(options.config || {}, state.verbose);
+  state.moduleLoader.setCwd(projectDir);
   setModuleInfoProvider(() =>
     state.moduleLoader.getLoadedModules().map((name) => ({
       name,

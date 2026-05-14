@@ -7,8 +7,9 @@
 
 import type { ChannelDef } from "#core/channels/channel.js";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
-import { getOwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
+import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { KotaClient } from "#core/server/kota-client.js";
 import { AUTONOMY_MODES, type AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { TelegramBot } from "./bot.js";
 import { startCallbackPoll } from "./callback-poll.js";
@@ -18,6 +19,10 @@ import {
   type PendingMessage,
   tryHandleOwnerQuestionReply,
 } from "./owner-question-reply.js";
+import {
+  type TelegramChatProjectBinding,
+  TelegramProjectSelection,
+} from "./project-selection.js";
 import { startTelegramStatusPoll } from "./status-poll.js";
 
 async function sendTelegramMessage(
@@ -33,6 +38,38 @@ async function sendTelegramMessage(
   }).catch((err: unknown) => {
     log.warn(`Failed to send Telegram message: ${(err as Error).message}`);
   });
+}
+
+function eventProjectId(payload: object): string | undefined {
+  return "projectId" in payload && typeof payload.projectId === "string"
+    ? payload.projectId
+    : undefined;
+}
+
+async function sendTelegramProjectMessage(
+  token: string,
+  chatId: string,
+  text: string,
+  projectId: string | undefined,
+  projectSelection: TelegramProjectSelection | undefined,
+  log: ModuleContext["log"],
+): Promise<void> {
+  const prefix = await renderProjectLabelPrefix(projectId, projectSelection, log);
+  await sendTelegramMessage(token, chatId, `${prefix}${text}`, log);
+}
+
+async function renderProjectLabelPrefix(
+  projectId: string | undefined,
+  projectSelection: TelegramProjectSelection | undefined,
+  log: ModuleContext["log"],
+): Promise<string> {
+  if (!projectId || !projectSelection) return "";
+  try {
+    return await projectSelection.renderProjectLabelPrefix(projectId);
+  } catch (err) {
+    log.warn(`Telegram project label unavailable: ${(err as Error).message}`);
+    return "";
+  }
 }
 
 type InlineButton = { text: string; callback_data: string };
@@ -66,10 +103,11 @@ async function sendOwnerQuestionMessage(
   reason: string,
   source: string,
   proposedAnswers: string[],
+  projectLabelPrefix: string,
   log: ModuleContext["log"],
 ): Promise<number | null> {
   const text = [
-    `Owner question from *${source}*`,
+    `${projectLabelPrefix}Owner question from *${source}*`,
     `Reason: ${reason}`,
     `Question: ${question}`,
     `ID: \`${id}\``,
@@ -100,10 +138,11 @@ async function sendApprovalMessage(
   tool: string,
   risk: string,
   reason: string,
+  projectLabelPrefix: string,
   log: ModuleContext["log"],
 ): Promise<number | null> {
   const text = [
-    `Approval required: *${tool}*`,
+    `${projectLabelPrefix}Approval required: *${tool}*`,
     `Risk: ${risk}`,
     `Reason: ${reason}`,
     `ID: \`${approvalId}\``,
@@ -139,6 +178,8 @@ type TelegramConfig = {
   defaultAutonomyMode?: AutonomyMode;
   /** Whitelist of chat IDs allowed to open interactive sessions. Empty/undefined = allow all. */
   allowedChatIds?: number[];
+  /** Default Telegram chat -> project bindings used when the daemon hosts multiple projects. */
+  chatProjectBindings?: TelegramChatProjectBinding[];
 };
 
 function getCredentials(): { token: string; chatId: string } | null {
@@ -148,7 +189,66 @@ function getCredentials(): { token: string; chatId: string } | null {
   return { token, chatId };
 }
 
-function makeTelegramStatusChannel(moduleCtx: ModuleContext): ChannelDef {
+type TelegramProjectRouting = {
+  client: KotaClient;
+  selection: TelegramProjectSelection;
+};
+
+type TelegramProjectSource = Pick<KotaClient["projects"], "list">;
+
+function hasProjectRoutingClient(client: KotaClient): boolean {
+  return typeof client.forProject === "function" &&
+    typeof client.projects?.list === "function";
+}
+
+// Channels are contributed before the daemon publishes a daemon-control client.
+// Once the daemon is constructing the channel, its in-process registry provider
+// is the authoritative project-list source.
+function resolveDaemonProjectSource(
+  ctx: ModuleContext,
+): TelegramProjectSource | undefined {
+  const projectScope = ctx.getProvider(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE);
+  if (!projectScope) return undefined;
+  return {
+    list: async () => {
+      const projection = projectScope.getProjectRegistryProjection();
+      return {
+        ok: true as const,
+        projects: projection.projects,
+        defaultProjectId: projection.defaultProjectId,
+        activeProjectId: projectScope.getActiveProjectId(),
+      };
+    },
+  };
+}
+
+function resolveTelegramProjectRouting(
+  ctx: ModuleContext,
+  chatProjectBindings: TelegramChatProjectBinding[],
+): TelegramProjectRouting | undefined {
+  let client: KotaClient;
+  try {
+    client = ctx.client;
+  } catch {
+    return undefined;
+  }
+  if (!hasProjectRoutingClient(client)) return undefined;
+  const projectSource = resolveDaemonProjectSource(ctx);
+  return {
+    client,
+    selection: new TelegramProjectSelection(
+      client,
+      ctx.storage,
+      chatProjectBindings,
+      projectSource ? { projectSource } : undefined,
+    ),
+  };
+}
+
+function makeTelegramStatusChannel(
+  moduleCtx: ModuleContext,
+  chatProjectBindings: TelegramChatProjectBinding[],
+): ChannelDef {
   return {
     name: "telegram-status",
     description:
@@ -163,6 +263,10 @@ function makeTelegramStatusChannel(moduleCtx: ModuleContext): ChannelDef {
             "TELEGRAM_BOT_TOKEN and TELEGRAM_ALERT_CHAT_ID env vars are required",
         };
       }
+      const projectRouting = resolveTelegramProjectRouting(
+        moduleCtx,
+        chatProjectBindings,
+      );
 
       let stop: (() => void) | null = null;
       return {
@@ -183,6 +287,7 @@ function makeTelegramStatusChannel(moduleCtx: ModuleContext): ChannelDef {
               moduleCtx.client.capture,
               moduleCtx.client.retract,
               ctx.log,
+              projectRouting,
             );
           },
           stop() {
@@ -194,11 +299,14 @@ function makeTelegramStatusChannel(moduleCtx: ModuleContext): ChannelDef {
   };
 }
 
-function makeTelegramInteractiveChannel(ctx: ModuleContext): ChannelDef {
+function makeTelegramInteractiveChannel(
+  ctx: ModuleContext,
+  chatProjectBindings: TelegramChatProjectBinding[],
+): ChannelDef {
   return {
     name: "telegram-interactive",
     description: "Hosts the interactive Telegram bot as a daemon channel (one session per chat)",
-    create() {
+    create(channelCtx) {
       const token = process.env.TELEGRAM_BOT_TOKEN;
       if (!token) {
         return {
@@ -215,13 +323,20 @@ function makeTelegramInteractiveChannel(ctx: ModuleContext): ChannelDef {
       );
 
       const allowedChatIds = telegramConfig?.allowedChatIds;
+      const projectRouting = resolveTelegramProjectRouting(
+        ctx,
+        chatProjectBindings,
+      );
       const bot = new TelegramBot({
         token,
         model: ctx.config.model,
         verbose: ctx.verbose || ctx.config.verbose,
         config: ctx.config,
         autonomyMode,
+        defaultProjectRuntime: channelCtx.defaultProjectRuntime,
+        getProjectRuntime: channelCtx.getProjectRuntime,
         allowedChatIds,
+        projectSelection: projectRouting?.selection,
         onChatReply: (chatId, replyToMessageId, text) =>
           tryHandleOwnerQuestionReply({
             token,
@@ -231,6 +346,7 @@ function makeTelegramInteractiveChannel(ctx: ModuleContext): ChannelDef {
             pending: pendingOwnerQuestionMessages,
             allowedChatIds,
             log: ctx.log,
+            client: ctx.client,
           }),
       });
 
@@ -238,7 +354,15 @@ function makeTelegramInteractiveChannel(ctx: ModuleContext): ChannelDef {
         const description = typeof payload.description === "string"
           ? payload.description
           : JSON.stringify(payload);
-        bot.broadcastToChats(`⏰ Reminder: ${description}`);
+        const projectId = typeof payload.projectId === "string" ? payload.projectId : undefined;
+        void (async () => {
+          const prefix = await renderProjectLabelPrefix(
+            projectId,
+            projectRouting?.selection,
+            ctx.log,
+          );
+          bot.broadcastToChats(`${prefix}⏰ Reminder: ${description}`, projectId);
+        })();
       });
 
       let startPromise: Promise<void> | null = null;
@@ -275,7 +399,7 @@ const telegramModule: KotaModule = {
   name: "telegram",
   version: "1.0.0",
   description: "Telegram bot frontend for KOTA",
-  dependencies: ["answer", "approval-queue", "autonomy", "capture", "history", "knowledge", "memory", "recall", "repo-tasks", "retract", "transcription"],
+  dependencies: ["answer", "approval-queue", "autonomy", "capture", "daemon-ops", "history", "knowledge", "memory", "recall", "repo-tasks", "retract", "transcription"],
   configSchema: {
     type: "object",
     additionalProperties: false,
@@ -291,16 +415,33 @@ const telegramModule: KotaModule = {
         items: { type: "integer" },
         uniqueItems: true,
       },
+      chatProjectBindings: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["chatId", "projectId"],
+          properties: {
+            chatId: { type: "integer" },
+            projectId: { type: "string", minLength: 1 },
+          },
+        },
+      },
     },
   },
 
-  channels: (ctx) => [
-    makeTelegramStatusChannel(ctx),
-    makeTelegramInteractiveChannel(ctx),
-  ],
+  channels: (ctx) => {
+    const telegramConfig = ctx.getModuleConfig<TelegramConfig>();
+    const chatProjectBindings = telegramConfig?.chatProjectBindings ?? [];
+    return [
+      makeTelegramStatusChannel(ctx, chatProjectBindings),
+      makeTelegramInteractiveChannel(ctx, chatProjectBindings),
+    ];
+  },
 
   onLoad: (ctx) => {
     const telegramConfig = ctx.getModuleConfig<TelegramConfig>();
+    const chatProjectBindings = telegramConfig?.chatProjectBindings ?? [];
     const optInEvents = new Set(telegramConfig?.events ?? []);
 
     const creds = getCredentials();
@@ -310,6 +451,7 @@ const telegramModule: KotaModule = {
         pendingApprovalMessages,
         pendingOwnerQuestionMessages,
         ctx.log,
+        ctx.client,
       );
     }
 
@@ -317,22 +459,50 @@ const telegramModule: KotaModule = {
       ctx.events.subscribe("workflow.failure.alert", (payload) => {
         const creds = getCredentials();
         if (!creds) return;
-        void sendTelegramMessage(creds.token, creds.chatId, payload.text as string, ctx.log);
+        void sendTelegramProjectMessage(
+          creds.token,
+          creds.chatId,
+          payload.text as string,
+          eventProjectId(payload),
+          resolveTelegramProjectRouting(ctx, chatProjectBindings)?.selection,
+          ctx.log,
+        );
       }),
       ctx.events.subscribe("workflow.attention.digest", (payload) => {
         const creds = getCredentials();
         if (!creds) return;
-        void sendTelegramMessage(creds.token, creds.chatId, payload.text as string, ctx.log);
+        void sendTelegramProjectMessage(
+          creds.token,
+          creds.chatId,
+          payload.text as string,
+          eventProjectId(payload),
+          resolveTelegramProjectRouting(ctx, chatProjectBindings)?.selection,
+          ctx.log,
+        );
       }),
       ctx.events.subscribe("workflow.daily.digest", (payload) => {
         const creds = getCredentials();
         if (!creds) return;
-        void sendTelegramMessage(creds.token, creds.chatId, payload.text as string, ctx.log);
+        void sendTelegramProjectMessage(
+          creds.token,
+          creds.chatId,
+          payload.text as string,
+          eventProjectId(payload),
+          resolveTelegramProjectRouting(ctx, chatProjectBindings)?.selection,
+          ctx.log,
+        );
       }),
       ctx.events.subscribe("workflow.approval.expired", (payload) => {
         const creds = getCredentials();
         if (!creds) return;
-        void sendTelegramMessage(creds.token, creds.chatId, payload.text as string, ctx.log);
+        void sendTelegramProjectMessage(
+          creds.token,
+          creds.chatId,
+          payload.text as string,
+          eventProjectId(payload),
+          resolveTelegramProjectRouting(ctx, chatProjectBindings)?.selection,
+          ctx.log,
+        );
       }),
       ctx.events.subscribe("module.crash.alert", (payload) => {
         const creds = getCredentials();
@@ -346,10 +516,24 @@ const telegramModule: KotaModule = {
         const tool = payload.tool as string;
         const risk = payload.risk as string;
         const reason = payload.reason as string;
-        void sendApprovalMessage(creds.token, creds.chatId, id, tool, risk, reason, ctx.log).then(
+        const projectId = payload.projectId as string;
+        void (async () => sendApprovalMessage(
+          creds.token,
+          creds.chatId,
+          id,
+          tool,
+          risk,
+          reason,
+          await renderProjectLabelPrefix(
+            projectId,
+            resolveTelegramProjectRouting(ctx, chatProjectBindings)?.selection,
+            ctx.log,
+          ),
+          ctx.log,
+        ))().then(
           (messageId) => {
             if (messageId != null) {
-              pendingApprovalMessages.set(id, { chatId: creds.chatId, messageId });
+              pendingApprovalMessages.set(id, { chatId: creds.chatId, messageId, projectId });
             }
           },
         );
@@ -361,22 +545,34 @@ const telegramModule: KotaModule = {
         const question = payload.question as string;
         const reason = payload.reason as string;
         const source = payload.source as string;
-        const entry = getOwnerQuestionQueue().get(id);
-        const proposedAnswers = entry?.proposedAnswers ?? [];
-        void sendOwnerQuestionMessage(
-          creds.token,
-          creds.chatId,
-          id,
-          question,
-          reason,
-          source,
-          proposedAnswers,
-          ctx.log,
-        ).then((messageId) => {
+        const projectId = payload.projectId as string;
+        void (async () => {
+          const projectRouting = resolveTelegramProjectRouting(ctx, chatProjectBindings);
+          const listed = projectRouting
+            ? await projectRouting.client.forProject(projectId).ownerQuestions.list()
+            : { questions: [] };
+          const entry = listed.questions.find((question) => question.id === id);
+          const proposedAnswers = entry?.proposedAnswers ?? [];
+          const messageId = await sendOwnerQuestionMessage(
+            creds.token,
+            creds.chatId,
+            id,
+            question,
+            reason,
+            source,
+            proposedAnswers,
+            await renderProjectLabelPrefix(projectId, projectRouting?.selection, ctx.log),
+            ctx.log,
+          );
           if (messageId != null) {
-            pendingOwnerQuestionMessages.set(id, { chatId: creds.chatId, messageId });
+            pendingOwnerQuestionMessages.set(id, {
+              chatId: creds.chatId,
+              messageId,
+              projectId,
+              proposedAnswers,
+            });
           }
-        });
+        })();
       }),
       ...(optInEvents.has("workflow.build.committed")
         ? [
@@ -394,7 +590,14 @@ const telegramModule: KotaModule = {
               const text = [`✅ Builder committed: ${commitMessage}`, meta ? `Task: ${meta}` : null]
                 .filter(Boolean)
                 .join("\n");
-              void sendTelegramMessage(creds.token, creds.chatId, text, ctx.log);
+              void sendTelegramProjectMessage(
+                creds.token,
+                creds.chatId,
+                text,
+                eventProjectId(payload),
+                resolveTelegramProjectRouting(ctx, chatProjectBindings)?.selection,
+                ctx.log,
+              );
             }),
           ]
         : []),

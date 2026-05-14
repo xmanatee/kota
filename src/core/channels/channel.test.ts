@@ -7,6 +7,13 @@ import type {
 
 const STUB_START_CTX: ChannelStartContext = {
   projectDir: "/tmp/test",
+  defaultProjectRuntime: {
+    project: { projectId: "test-project", projectDir: "/tmp/test", displayName: "test" },
+  } as never,
+  getProjectRuntime: () =>
+    ({
+      project: { projectId: "test-project", projectDir: "/tmp/test", displayName: "test" },
+    }) as never,
   log: () => {},
   getWorkflowStatus: () => ({
     runtimeState: { completedRuns: 0, pendingRuns: [], workflows: {} },

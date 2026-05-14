@@ -6,13 +6,17 @@
 import { Command } from "commander";
 import {
   getOwnerQuestionQueue,
+  type OwnerQuestionQueue,
   type PendingOwnerQuestion,
 } from "#core/daemon/owner-question-queue.js";
+import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
 import type { KotaModule } from "#core/modules/module-types.js";
+import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { registerOwnerQuestionCommands } from "./cli.js";
 import type {
   OwnerQuestionMutateResult,
+  OwnerQuestionProjectScope,
   OwnerQuestionsClient,
   OwnerQuestionsListResult,
 } from "./client.js";
@@ -31,6 +35,31 @@ export {
 export { reviewOwnerQuestion } from "#core/daemon/owner-question-review.js";
 
 const RESOLUTION_SOURCE = "cli";
+
+function resolveLocalOwnerQuestionQueue(projectId?: string): OwnerQuestionQueue {
+  const projectScope = getProviderRegistry()?.get(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE);
+  if (!projectScope) return getOwnerQuestionQueue();
+  const resolved = projectScope.resolveProjectRuntime(projectId);
+  if (!resolved.ok) {
+    throw new Error(`Unknown project: ${resolved.error.projectId}`);
+  }
+  return resolved.runtime.ownerQuestionQueue;
+}
+
+function ownerQuestionsListPath(filter?: { status?: string; projectId?: string }): string {
+  const params: string[] = [];
+  if (filter?.status) params.push(`status=${encodeURIComponent(filter.status)}`);
+  if (filter?.projectId) params.push(`projectId=${encodeURIComponent(filter.projectId)}`);
+  const query = params.join("&");
+  return query ? `/owner-questions?${query}` : "/owner-questions";
+}
+
+function ownerQuestionProjectQuery(project?: OwnerQuestionProjectScope): string {
+  if (!project?.projectId) return "";
+  const params = new URLSearchParams();
+  params.set("projectId", project.projectId);
+  return `?${params.toString()}`;
+}
 
 /**
  * Daemon-side `OwnerQuestionsClient` backed by the typed `DaemonTransport`.
@@ -51,23 +80,21 @@ function buildOwnerQuestionsDaemonHandler(
 ): OwnerQuestionsClient {
   return {
     list: async (filter): Promise<OwnerQuestionsListResult> => {
-      const status = filter?.status;
-      const query = status ? `?status=${encodeURIComponent(status)}` : "";
       return link.requestStrict<OwnerQuestionsListResult>(
         "GET",
-        `/owner-questions${query}`,
+        ownerQuestionsListPath(filter),
       );
     },
-    answer: async (id, answer): Promise<OwnerQuestionMutateResult> =>
+    answer: async (id, answer, project): Promise<OwnerQuestionMutateResult> =>
       mutateOwnerQuestion(
         link,
-        `/owner-questions/${encodeURIComponent(id)}/answer`,
+        `/owner-questions/${encodeURIComponent(id)}/answer${ownerQuestionProjectQuery(project)}`,
         JSON.stringify({ answer }),
       ),
-    dismiss: async (id, reason): Promise<OwnerQuestionMutateResult> =>
+    dismiss: async (id, reason, project): Promise<OwnerQuestionMutateResult> =>
       mutateOwnerQuestion(
         link,
-        `/owner-questions/${encodeURIComponent(id)}/dismiss`,
+        `/owner-questions/${encodeURIComponent(id)}/dismiss${ownerQuestionProjectQuery(project)}`,
         JSON.stringify(reason !== undefined ? { reason } : {}),
       ),
   };
@@ -83,7 +110,13 @@ async function mutateOwnerQuestion(
     headers: { "Content-Type": "application/json" },
     body,
   });
-  if (res.status === 404) return { ok: false, reason: "not_found" };
+  if (res.status === 404) {
+    const errBody = await readOwnerQuestionRouteError(res);
+    if (errBody?.reason === "unknown_project" && errBody.projectId) {
+      throw new Error(`Unknown project: ${errBody.projectId}`);
+    }
+    return { ok: false, reason: "not_found" };
+  }
   if (!res.ok) {
     let detail = `HTTP ${res.status}`;
     try {
@@ -96,6 +129,23 @@ async function mutateOwnerQuestion(
   }
   const data = (await res.json()) as { question: PendingOwnerQuestion };
   return { ok: true, question: data.question };
+}
+
+type OwnerQuestionRouteErrorBody = {
+  error?: string;
+  reason?: string;
+  projectId?: string;
+};
+
+async function readOwnerQuestionRouteError(
+  res: Response,
+): Promise<OwnerQuestionRouteErrorBody | null> {
+  try {
+    const parsed = (await res.json()) as OwnerQuestionRouteErrorBody;
+    return typeof parsed === "object" && parsed !== null ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 const ownerQuestionsModule: KotaModule = {
@@ -116,18 +166,18 @@ const ownerQuestionsModule: KotaModule = {
   localClient: () => {
     const handler: OwnerQuestionsClient = {
       async list(filter) {
-        const queue = getOwnerQuestionQueue();
+        const queue = resolveLocalOwnerQuestionQueue(filter?.projectId);
         const status = filter?.status;
         if (status === undefined) return { questions: queue.list("pending") };
         if (status === "all") return { questions: queue.list() };
         return { questions: queue.list(status) };
       },
-      async answer(id, answer) {
-        const item = getOwnerQuestionQueue().answer(id, answer, RESOLUTION_SOURCE);
+      async answer(id, answer, project) {
+        const item = resolveLocalOwnerQuestionQueue(project?.projectId).answer(id, answer, RESOLUTION_SOURCE);
         return item ? { ok: true, question: item } : { ok: false, reason: "not_found" };
       },
-      async dismiss(id, reason) {
-        const item = getOwnerQuestionQueue().dismiss(id, reason, RESOLUTION_SOURCE);
+      async dismiss(id, reason, project) {
+        const item = resolveLocalOwnerQuestionQueue(project?.projectId).dismiss(id, reason, RESOLUTION_SOURCE);
         return item ? { ok: true, question: item } : { ok: false, reason: "not_found" };
       },
     };

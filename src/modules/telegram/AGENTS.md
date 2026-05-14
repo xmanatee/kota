@@ -3,16 +3,9 @@
 This directory owns the Telegram integration — interactive bot access and
 notification forwarding.
 
-- Contributes two daemon channels: `telegram-status` (responds to
-  `/status`, `/digest`, `/attention`, the per-store search commands
-  `/knowledge`, `/memory`, `/history`, `/tasks`, the unified-recall
-  `/recall`, the cited-answer `/answer` plus `/answer-log` /
-  `/answer-show`, the cross-store capture `/capture` plus the four
-  `/capture-to-{memory,knowledge,tasks,inbox}` twins, and the
-  cross-store retract umbrella `/retract` plus the four
-  `/retract-{memory,knowledge,tasks,inbox}` explicit-target commands)
-  and `telegram-interactive` (hosts one agent session per chat). Both
-  are started and stopped by the daemon alongside other channels.
+- Contributes two daemon channels: `telegram-status` for operator slash
+  commands and `telegram-interactive` for chat sessions. Both are started
+  and stopped by the daemon alongside other channels.
 - `/digest` and `/attention` call `renderOnDemandDigest` /
   `renderOnDemandAttention` directly. Both must not write cadence
   snapshots, must not advance counters, must not emit
@@ -21,17 +14,18 @@ notification forwarding.
   fixed `NO_ATTENTION_ITEMS_TEXT` body so "nothing wrong" is
   distinguishable from "command failed". Operator-facing only — never
   exposed to autonomy agents in any prompt path.
-- All read, capture, and retract commands (`/knowledge`, `/memory`,
-  `/history`, `/tasks`, `/recall`, `/answer`, `/answer-log`,
-  `/answer-show`, `/capture`, `/capture-to-*`, `/retract`,
-  `/retract-*`) are thin wrappers over their `KotaClient` namespace
-  and render through the owning module's plain-text helper — no
-  copy of CLI rendering on the Telegram side. Each is plain text
-  (Markdown-active characters appear unescaped in titles, bodies,
-  synthesized prose, identifiers, and contributor errors), gated by
-  the chat allowlist only, advances no cadence counter, emits no
-  workflow event, surfaces no cost or token signal, and is
-  operator-facing only.
+- Read, capture, and retract commands are thin wrappers over their
+  `KotaClient` namespace and render through the owning module's
+  plain-text helper — no copy of CLI rendering on the Telegram side.
+  They are allowlist-gated, do not advance cadence counters or emit
+  workflow events, and are operator-facing only.
+- On multi-project daemons, Telegram resolves one project per chat
+  before running commands or interactive sessions. Defaults live in
+  `modules.telegram.chatProjectBindings`; `/project` lists hosted
+  projects and updates the daemon-owned per-chat selection. Unbound
+  chats fail with an explicit reply instead of falling back to the
+  active/default project. Single-project daemons do not show project
+  labels and do not need `/project`.
 - The four per-store search commands call
   `ctx.client.<store>.search` with `{ semantic: true, limit: 10 }`.
   Empty / whitespace-only queries reply with a usage hint and skip

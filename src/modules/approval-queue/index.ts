@@ -8,13 +8,16 @@
 
 import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
-import type { PendingApproval } from "#core/daemon/approval-queue.js";
+import type { ApprovalQueue, PendingApproval } from "#core/daemon/approval-queue.js";
 import { getApprovalQueue } from "#core/daemon/approval-queue.js";
+import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
 import type { KotaModule } from "#core/modules/module-types.js";
+import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { registerApprovalCommands } from "./cli.js";
 import type {
 	ApprovalMutateResult,
+	ApprovalProjectScope,
 	ApprovalsClient,
 	ApprovalsListResult,
 } from "./client.js";
@@ -24,6 +27,31 @@ export type { ApprovalStatus, PendingApproval } from "#core/daemon/approval-queu
 export { ApprovalQueue, getApprovalQueue, resetApprovalQueue } from "#core/daemon/approval-queue.js";
 
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
+
+function resolveLocalApprovalQueue(projectId?: string): ApprovalQueue {
+	const projectScope = getProviderRegistry()?.get(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE);
+	if (!projectScope) return getApprovalQueue();
+	const resolved = projectScope.resolveProjectRuntime(projectId);
+	if (!resolved.ok) {
+		throw new Error(`Unknown project: ${resolved.error.projectId}`);
+	}
+	return resolved.runtime.approvalQueue;
+}
+
+function approvalListPath(filter?: { status?: string; projectId?: string }): string {
+	const params: string[] = [];
+	if (filter?.status) params.push(`status=${encodeURIComponent(filter.status)}`);
+	if (filter?.projectId) params.push(`projectId=${encodeURIComponent(filter.projectId)}`);
+	const query = params.join("&");
+	return query ? `/approvals?${query}` : "/approvals";
+}
+
+function approvalProjectQuery(project?: ApprovalProjectScope): string {
+	if (!project?.projectId) return "";
+	const params = new URLSearchParams();
+	params.set("projectId", project.projectId);
+	return `?${params.toString()}`;
+}
 
 const approvalQueueModule: KotaModule = {
 	name: "approval-queue",
@@ -45,19 +73,19 @@ const approvalQueueModule: KotaModule = {
 			async list(filter) {
 				const config = loadConfig();
 				const ttlMs = config.approvalTtlMs ?? DEFAULT_TTL_MS;
-				const queue = getApprovalQueue();
+				const queue = resolveLocalApprovalQueue(filter?.projectId);
 				queue.expireStale(ttlMs);
 				const status = filter?.status;
 				if (status === undefined) return { approvals: queue.list("pending") };
 				if (status === "all") return { approvals: queue.list() };
 				return { approvals: queue.list(status) };
 			},
-			async approve(id, note) {
-				const item = getApprovalQueue().approve(id, note);
+			async approve(id, note, project) {
+				const item = resolveLocalApprovalQueue(project?.projectId).approve(id, note);
 				return item ? { ok: true, approval: item } : { ok: false, reason: "not_found" };
 			},
-			async reject(id, reason) {
-				const item = getApprovalQueue().reject(id, reason);
+			async reject(id, reason, project) {
+				const item = resolveLocalApprovalQueue(project?.projectId).reject(id, reason);
 				return item ? { ok: true, approval: item } : { ok: false, reason: "not_found" };
 			},
 		};
@@ -87,32 +115,68 @@ const approvalQueueModule: KotaModule = {
 function buildApprovalsDaemonHandler(link: DaemonTransport): ApprovalsClient {
 	return {
 		list: async (filter): Promise<ApprovalsListResult> => {
-			const path = filter?.status
-				? `/approvals?status=${encodeURIComponent(filter.status)}`
-				: "/approvals";
-			return link.requestStrict<ApprovalsListResult>("GET", path);
+			return link.requestStrict<ApprovalsListResult>(
+				"GET",
+				approvalListPath(filter),
+			);
 		},
-		approve: async (id, note): Promise<ApprovalMutateResult> => {
-			const result = await link.request<{ approval: PendingApproval }>(
-				"POST",
-				`/approvals/${encodeURIComponent(id)}/approve`,
+		approve: async (id, note, project): Promise<ApprovalMutateResult> => {
+			return mutateApproval(
+				link,
+				`/approvals/${encodeURIComponent(id)}/approve${approvalProjectQuery(project)}`,
 				{ note },
 			);
-			return result
-				? { ok: true, approval: result.approval }
-				: { ok: false, reason: "not_found" };
 		},
-		reject: async (id, reason): Promise<ApprovalMutateResult> => {
-			const result = await link.request<{ approval: PendingApproval }>(
-				"POST",
-				`/approvals/${encodeURIComponent(id)}/reject`,
+		reject: async (id, reason, project): Promise<ApprovalMutateResult> => {
+			return mutateApproval(
+				link,
+				`/approvals/${encodeURIComponent(id)}/reject${approvalProjectQuery(project)}`,
 				{ reason },
 			);
-			return result
-				? { ok: true, approval: result.approval }
-				: { ok: false, reason: "not_found" };
 		},
 	};
+}
+
+type ApprovalRouteErrorBody = {
+	error?: string;
+	reason?: string;
+	projectId?: string;
+};
+
+async function mutateApproval(
+	link: DaemonTransport,
+	path: string,
+	body: { note?: string } | { reason?: string },
+): Promise<ApprovalMutateResult> {
+	const res = await link.fetchRaw(path, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(body),
+	});
+	if (res.status === 404) {
+		const errBody = await readApprovalRouteError(res);
+		if (errBody?.reason === "unknown_project" && errBody.projectId) {
+			throw new Error(`Unknown project: ${errBody.projectId}`);
+		}
+		return { ok: false, reason: "not_found" };
+	}
+	if (!res.ok) {
+		const errBody = await readApprovalRouteError(res);
+		throw new Error(errBody?.error ?? `HTTP ${res.status}`);
+	}
+	const data = (await res.json()) as { approval: PendingApproval };
+	return { ok: true, approval: data.approval };
+}
+
+async function readApprovalRouteError(
+	res: Response,
+): Promise<ApprovalRouteErrorBody | null> {
+	try {
+		const parsed = (await res.json()) as ApprovalRouteErrorBody;
+		return typeof parsed === "object" && parsed !== null ? parsed : null;
+	} catch {
+		return null;
+	}
 }
 
 export default approvalQueueModule;

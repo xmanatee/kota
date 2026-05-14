@@ -5,10 +5,12 @@ import {
   type OwnerQuestionStatus,
   type PendingOwnerQuestion,
 } from "#core/daemon/owner-question-queue.js";
+import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
 import type {
   ControlRouteRegistration,
   RouteRegistration,
 } from "#core/modules/module-types.js";
+import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 
 const RESOLUTION_SOURCE = "http";
@@ -30,6 +32,27 @@ export function readOwnerQuestionStatusFilter(
     return status as OwnerQuestionStatus | "all";
   }
   return undefined;
+}
+
+function readProjectId(req: IncomingMessage): string | undefined {
+  const projectId = new URL(req.url ?? "", "http://localhost").searchParams.get("projectId");
+  return projectId && projectId.trim() !== "" ? projectId : undefined;
+}
+
+function resolveOwnerQuestionQueue(
+  res: ServerResponse,
+  queue?: OwnerQuestionQueue,
+  projectId?: string,
+): OwnerQuestionQueue | null {
+  if (queue) return queue;
+  const projectScope = getProviderRegistry()?.get(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE);
+  if (!projectScope) return getOwnerQuestionQueue();
+  const resolved = projectScope.resolveProjectRuntime(projectId);
+  if (!resolved.ok) {
+    jsonResponse(res, 404, resolved.error);
+    return null;
+  }
+  return resolved.runtime.ownerQuestionQueue;
 }
 
 export function listOwnerQuestionsLocal(
@@ -77,24 +100,30 @@ async function readReasonField(req: IncomingMessage): Promise<string | undefined
 
 export async function handleListOwnerQuestions(
   res: ServerResponse,
-  queue: OwnerQuestionQueue = getOwnerQuestionQueue(),
+  queue?: OwnerQuestionQueue,
   status?: OwnerQuestionStatus | "all",
+  projectId?: string,
 ): Promise<void> {
-  jsonResponse(res, 200, listOwnerQuestionsLocal(queue, status));
+  const resolvedQueue = resolveOwnerQuestionQueue(res, queue, projectId);
+  if (!resolvedQueue) return;
+  jsonResponse(res, 200, listOwnerQuestionsLocal(resolvedQueue, status));
 }
 
 export async function handleAnswerOwnerQuestion(
   req: IncomingMessage,
   res: ServerResponse,
   id: string,
-  queue: OwnerQuestionQueue = getOwnerQuestionQueue(),
+  queue?: OwnerQuestionQueue,
+  projectId?: string,
 ): Promise<void> {
   const answer = await readAnswerField(req);
   if (!answer.trim()) {
     jsonResponse(res, 400, { error: "answer is required" });
     return;
   }
-  const item = answerOwnerQuestionLocal(queue, id, answer);
+  const resolvedQueue = resolveOwnerQuestionQueue(res, queue, projectId);
+  if (!resolvedQueue) return;
+  const item = answerOwnerQuestionLocal(resolvedQueue, id, answer);
   if (!item) {
     jsonResponse(res, 404, { error: "Owner question not found or already resolved" });
     return;
@@ -106,10 +135,13 @@ export async function handleDismissOwnerQuestion(
   req: IncomingMessage,
   res: ServerResponse,
   id: string,
-  queue: OwnerQuestionQueue = getOwnerQuestionQueue(),
+  queue?: OwnerQuestionQueue,
+  projectId?: string,
 ): Promise<void> {
   const reason = await readReasonField(req);
-  const item = dismissOwnerQuestionLocal(queue, id, reason);
+  const resolvedQueue = resolveOwnerQuestionQueue(res, queue, projectId);
+  if (!resolvedQueue) return;
+  const item = dismissOwnerQuestionLocal(resolvedQueue, id, reason);
   if (!item) {
     jsonResponse(res, 404, { error: "Owner question not found or already resolved" });
     return;
@@ -123,17 +155,36 @@ export function ownerQuestionRoutes(): RouteRegistration[] {
       method: "GET",
       path: "/api/owner-questions",
       handler: (req, res) =>
-        handleListOwnerQuestions(res, undefined, readOwnerQuestionStatusFilter(req)),
+        handleListOwnerQuestions(
+          res,
+          undefined,
+          readOwnerQuestionStatusFilter(req),
+          readProjectId(req),
+        ),
     },
     {
       method: "POST",
       path: "/api/owner-questions/:id/answer",
-      handler: (req, res, params) => handleAnswerOwnerQuestion(req, res, params.id),
+      handler: (req, res, params) =>
+        handleAnswerOwnerQuestion(
+          req,
+          res,
+          params.id,
+          undefined,
+          readProjectId(req),
+        ),
     },
     {
       method: "POST",
       path: "/api/owner-questions/:id/dismiss",
-      handler: (req, res, params) => handleDismissOwnerQuestion(req, res, params.id),
+      handler: (req, res, params) =>
+        handleDismissOwnerQuestion(
+          req,
+          res,
+          params.id,
+          undefined,
+          readProjectId(req),
+        ),
     },
   ];
 }
@@ -142,10 +193,12 @@ async function handleListOwnerQuestionsControl(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
+  const queue = resolveOwnerQuestionQueue(res, undefined, readProjectId(req));
+  if (!queue) return;
   jsonResponse(
     res,
     200,
-    listOwnerQuestionsLocal(getOwnerQuestionQueue(), readOwnerQuestionStatusFilter(req)),
+    listOwnerQuestionsLocal(queue, readOwnerQuestionStatusFilter(req)),
   );
 }
 
@@ -159,7 +212,9 @@ async function handleAnswerOwnerQuestionControl(
     jsonResponse(res, 400, { error: "answer is required" });
     return;
   }
-  const item = answerOwnerQuestionLocal(getOwnerQuestionQueue(), params.id, answer);
+  const queue = resolveOwnerQuestionQueue(res, undefined, readProjectId(req));
+  if (!queue) return;
+  const item = answerOwnerQuestionLocal(queue, params.id, answer);
   if (!item) {
     jsonResponse(res, 404, { error: "Owner question not found or already resolved" });
     return;
@@ -173,7 +228,9 @@ async function handleDismissOwnerQuestionControl(
   params: Record<string, string>,
 ): Promise<void> {
   const reason = await readReasonField(req);
-  const item = dismissOwnerQuestionLocal(getOwnerQuestionQueue(), params.id, reason);
+  const queue = resolveOwnerQuestionQueue(res, undefined, readProjectId(req));
+  if (!queue) return;
+  const item = dismissOwnerQuestionLocal(queue, params.id, reason);
   if (!item) {
     jsonResponse(res, 404, { error: "Owner question not found or already resolved" });
     return;

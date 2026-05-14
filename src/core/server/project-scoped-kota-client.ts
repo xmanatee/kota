@@ -43,6 +43,13 @@ export function createProjectScopedKotaClient(
     ...base,
     forProject: (nextProjectId) =>
       createProjectScopedKotaClient(base, nextProjectId),
+    workflow: {
+      ...base.workflow,
+      status: (filter) =>
+        scoped(selectedProjectId, () =>
+          base.workflow.status(withProject(filter, selectedProjectId)),
+        ),
+    },
     memory: {
       list: (filter) =>
         scoped(selectedProjectId, () =>
@@ -177,6 +184,34 @@ export function createProjectScopedKotaClient(
       retract: (request) =>
         scoped(selectedProjectId, () =>
           base.retract.retract({ ...request, projectId: selectedProjectId }),
+        ),
+    },
+    approvals: {
+      list: (filter) =>
+        scoped(selectedProjectId, () =>
+          base.approvals.list(withProject(filter, selectedProjectId)),
+        ),
+      approve: (id, note, project) =>
+        scoped(selectedProjectId, () =>
+          base.approvals.approve(id, note, withProject(project, selectedProjectId)),
+        ),
+      reject: (id, reason, project) =>
+        scoped(selectedProjectId, () =>
+          base.approvals.reject(id, reason, withProject(project, selectedProjectId)),
+        ),
+    },
+    ownerQuestions: {
+      list: (filter) =>
+        scoped(selectedProjectId, () =>
+          base.ownerQuestions.list(withProject(filter, selectedProjectId)),
+        ),
+      answer: (id, answer, project) =>
+        scoped(selectedProjectId, () =>
+          base.ownerQuestions.answer(id, answer, withProject(project, selectedProjectId)),
+        ),
+      dismiss: (id, reason, project) =>
+        scoped(selectedProjectId, () =>
+          base.ownerQuestions.dismiss(id, reason, withProject(project, selectedProjectId)),
         ),
     },
   };

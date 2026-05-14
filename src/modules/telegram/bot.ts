@@ -12,7 +12,7 @@
 
 import type { ChannelSession, ChannelUserIdentity } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
-import { getScheduler } from "#core/daemon/scheduler.js";
+import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
 import { AgentSession, type LoopOptions } from "#core/loop/loop.js";
 import { NullTransport, ProxyTransport } from "#core/loop/transport.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
@@ -33,6 +33,7 @@ import {
   type TelegramUser,
   type TelegramVoice,
 } from "./client.js";
+import type { TelegramProjectSelection } from "./project-selection.js";
 
 export { callTelegramApi, splitMessage, TelegramTransport };
 
@@ -44,8 +45,13 @@ export type TelegramBotOptions = {
   verbose?: boolean;
   config?: KotaConfig;
   autonomyMode: AutonomyMode;
+  /** Default daemon-owned runtime bundle used for single-project Telegram sessions. */
+  defaultProjectRuntime: ProjectRuntime;
+  /** Resolve the daemon-owned runtime bundle for a selected project id. */
+  getProjectRuntime: (projectId: string) => ProjectRuntime;
   /** Whitelist of allowed chat IDs. Empty/undefined = allow all. */
   allowedChatIds?: number[];
+  projectSelection?: TelegramProjectSelection;
   /**
    * Hook invoked when a text message is a Telegram chat reply. If the hook
    * returns true, the message is considered consumed (e.g. it resolved a
@@ -59,12 +65,24 @@ export type TelegramBotOptions = {
   ) => Promise<boolean>;
 };
 
+type TelegramProjectTarget = {
+  chatId: number;
+  projectId: string;
+  projectDir: string;
+  projectRuntime: ProjectRuntime;
+  sessionKey: string;
+};
+
+type TelegramProjectTargetResolution =
+  | { ok: true; target: TelegramProjectTarget }
+  | { ok: false; message: string };
+
 // --- TelegramBot ---
 
 export class TelegramBot {
   private token: string;
-  private sessions = new Map<number, ChannelSession>();
-  private busyChats = new Set<number>();
+  private sessions = new Map<string, ChannelSession>();
+  private busyChats = new Set<string>();
   private running = false;
   private offset = 0;
   private options: TelegramBotOptions;
@@ -103,10 +121,14 @@ export class TelegramBot {
     return this.sessions.size;
   }
 
-  /** Send a message to every active chat session. */
-  broadcastToChats(text: string): void {
-    for (const chatId of this.sessions.keys()) {
-      this.sendText(chatId, text);
+  /** Send a message to active chat sessions, optionally scoped to one project. */
+  broadcastToChats(text: string, projectId?: string): void {
+    for (const [key, session] of this.sessions) {
+      const meta = session.identity?.meta;
+      const sessionProjectId = typeof meta?.projectId === "string" ? meta.projectId : "";
+      if (projectId !== undefined && sessionProjectId !== projectId) continue;
+      const chatId = Number.parseInt(key.split(":")[0]!, 10);
+      if (Number.isFinite(chatId)) this.sendText(chatId, text);
     }
   }
 
@@ -162,6 +184,11 @@ export class TelegramBot {
       this.sendText(chatId, "Sorry, I'm not authorized to chat with you.");
       return;
     }
+    const resolved = await this.resolveProjectTarget(chatId);
+    if (!resolved.ok) {
+      this.sendText(chatId, resolved.message);
+      return;
+    }
 
     const media: TelegramVoice | TelegramAudio | undefined = message.voice ?? message.audio;
     if (!media) return;
@@ -206,71 +233,127 @@ export class TelegramBot {
     }
 
     this.sendText(chatId, `\u{1F3A4} Transcribed: ${transcript}`);
-    this.handleMessage(chatId, transcript, message.chat.first_name);
+    this.handleMessage(chatId, transcript, message.chat.first_name, resolved.target);
   }
 
-  private handleMessage(chatId: number, text: string, firstName?: string): void {
+  private handleMessage(
+    chatId: number,
+    text: string,
+    firstName?: string,
+    resolvedTarget?: TelegramProjectTarget,
+  ): void {
     if (this.options.allowedChatIds?.length && !this.options.allowedChatIds.includes(chatId)) {
       this.sendText(chatId, "Sorry, I'm not authorized to chat with you.");
       return;
     }
 
+    if (text === "/project" || text.startsWith("/project ")) {
+      this.handleProjectCommand(chatId, text).catch((err) => {
+        console.error(`[kota-telegram] Project switch error in chat ${chatId}:`, (err as Error).message);
+        this.sendText(chatId, "Project selection failed.");
+      });
+      return;
+    }
+
+    const targetPromise = resolvedTarget
+      ? Promise.resolve({ ok: true as const, target: resolvedTarget })
+      : this.resolveProjectTarget(chatId);
+
     if (text === "/start") {
-      this.sendText(
-        chatId,
-        `Hi ${firstName ?? "there"}! I'm KOTA, your AI assistant. Send me any message.\n\n` +
-          `/clear — New conversation\n/status — Session info`,
-      );
+      targetPromise.then((resolved) => {
+        if (!resolved.ok) {
+          this.sendText(chatId, resolved.message);
+          return;
+        }
+        this.sendText(
+          chatId,
+          `Hi ${firstName ?? "there"}! I'm KOTA, your AI assistant. Send me any message.\n\n` +
+            `/clear — New conversation\n/status — Session info`,
+        );
+      }).catch((err) => {
+        console.error(`[kota-telegram] Project resolution error in chat ${chatId}:`, (err as Error).message);
+        this.sendText(chatId, "Project selection failed.");
+      });
       return;
     }
 
     if (text === "/clear") {
-      const session = this.sessions.get(chatId);
-      if (session) {
-        session.agent.close();
-        this.sessions.delete(chatId);
-      }
-      this.sendText(chatId, "Conversation cleared.");
+      targetPromise.then((resolved) => {
+        if (!resolved.ok) {
+          this.sendText(chatId, resolved.message);
+          return;
+        }
+        const session = this.sessions.get(resolved.target.sessionKey);
+        if (session) {
+          session.agent.close();
+          this.sessions.delete(resolved.target.sessionKey);
+        }
+        this.sendText(chatId, "Conversation cleared.");
+      }).catch((err) => {
+        console.error(`[kota-telegram] Project resolution error in chat ${chatId}:`, (err as Error).message);
+        this.sendText(chatId, "Project selection failed.");
+      });
       return;
     }
 
     if (text === "/status") {
-      const session = this.sessions.get(chatId);
-      const busy = this.busyChats.has(chatId);
-      const scheduler = getScheduler();
-      const pendingCount = scheduler.count();
-      const statusParts = [
-        session
-          ? `Active session (${busy ? "processing" : "idle"}). Cost: ${session.agent.getCostSummary()}`
-          : "No active session. Send a message to start one.",
-      ];
-      if (pendingCount > 0) {
-        statusParts.push(`${pendingCount} pending reminder(s)`);
-      }
-      this.sendText(chatId, statusParts.join("\n"));
+      targetPromise.then((resolved) => {
+        if (!resolved.ok) {
+          this.sendText(chatId, resolved.message);
+          return;
+        }
+        const session = this.sessions.get(resolved.target.sessionKey);
+        const busy = this.busyChats.has(resolved.target.sessionKey);
+        const pendingCount = resolved.target.projectRuntime.scheduler.count();
+        const statusParts = [
+          session
+            ? `Active session (${busy ? "processing" : "idle"}). Cost: ${session.agent.getCostSummary()}`
+            : "No active session. Send a message to start one.",
+        ];
+        if (pendingCount > 0) {
+          statusParts.push(`${pendingCount} pending reminder(s)`);
+        }
+        this.sendText(chatId, statusParts.join("\n"));
+      }).catch((err) => {
+        console.error(`[kota-telegram] Project resolution error in chat ${chatId}:`, (err as Error).message);
+        this.sendText(chatId, "Project selection failed.");
+      });
       return;
     }
 
     // Skip bot commands we don't handle
     if (text.startsWith("/")) return;
 
-    this.processMessage(chatId, text, firstName).catch((err) => {
-      console.error(`[kota-telegram] Error in chat ${chatId}:`, (err as Error).message);
-      this.sendText(chatId, "Something went wrong. Try again or /clear to start over.");
+    targetPromise.then((resolved) => {
+      if (!resolved.ok) {
+        this.sendText(chatId, resolved.message);
+        return;
+      }
+      this.processMessage(resolved.target, text, firstName).catch((err) => {
+        console.error(`[kota-telegram] Error in chat ${chatId}:`, (err as Error).message);
+        this.sendText(chatId, "Something went wrong. Try again or /clear to start over.");
+      });
+    }).catch((err) => {
+      console.error(`[kota-telegram] Project resolution error in chat ${chatId}:`, (err as Error).message);
+      this.sendText(chatId, "Project selection failed.");
     });
   }
 
-  private async processMessage(chatId: number, text: string, firstName?: string): Promise<void> {
-    if (this.busyChats.has(chatId)) {
-      this.sendText(chatId, "Still working on your previous message. Please wait.");
+  private async processMessage(
+    target: TelegramProjectTarget,
+    text: string,
+    firstName?: string,
+  ): Promise<void> {
+    if (this.busyChats.has(target.sessionKey)) {
+      this.sendText(target.chatId, "Still working on your previous message. Please wait.");
       return;
     }
 
-    this.busyChats.add(chatId);
-    const transport = new TelegramTransport(chatId, this.token);
+    this.busyChats.add(target.sessionKey);
+    const transport = new TelegramTransport(target.chatId, this.token);
 
     try {
-      const session = this.getOrCreateSession(chatId, firstName);
+      const session = this.getOrCreateSession(target, firstName);
       session.proxy.target = transport;
       session.lastActive = Date.now();
 
@@ -286,21 +369,22 @@ export class TelegramBot {
       }
       throw err;
     } finally {
-      const session = this.sessions.get(chatId);
+      const session = this.sessions.get(target.sessionKey);
       if (session) session.proxy.target = new NullTransport();
       transport.stopTyping();
-      this.busyChats.delete(chatId);
+      this.busyChats.delete(target.sessionKey);
     }
   }
 
-  private getOrCreateSession(chatId: number, firstName?: string): ChannelSession {
-    let session = this.sessions.get(chatId);
+  private getOrCreateSession(target: TelegramProjectTarget, firstName?: string): ChannelSession {
+    let session = this.sessions.get(target.sessionKey);
     if (session) return session;
 
     const identity: ChannelUserIdentity = {
-      channelUserId: String(chatId),
+      channelUserId: String(target.chatId),
       displayName: firstName,
       channel: "telegram",
+      meta: { projectId: target.projectId },
     };
     const proxy = new ProxyTransport();
     const loopOpts: LoopOptions = {
@@ -310,6 +394,8 @@ export class TelegramBot {
       transport: proxy,
       config: this.options.config,
       channelIdentity: identity,
+      projectDir: target.projectDir,
+      projectRuntime: target.projectRuntime,
     };
     session = {
       agent: new AgentSession(loopOpts),
@@ -317,8 +403,65 @@ export class TelegramBot {
       lastActive: Date.now(),
       identity,
     };
-    this.sessions.set(chatId, session);
+    this.sessions.set(target.sessionKey, session);
     return session;
+  }
+
+  private async resolveProjectTarget(chatId: number): Promise<TelegramProjectTargetResolution> {
+    if (!this.options.projectSelection) {
+      const runtime = this.options.defaultProjectRuntime;
+      return {
+        ok: true,
+        target: {
+          chatId,
+          projectId: runtime.project.projectId,
+          projectDir: runtime.project.projectDir,
+          projectRuntime: runtime,
+          sessionKey: `${chatId}:${runtime.project.projectId}`,
+        },
+      };
+    }
+    const resolved = await this.options.projectSelection.resolveChat(chatId);
+    if (!resolved.ok) return resolved;
+    let projectRuntime: ProjectRuntime;
+    try {
+      projectRuntime = this.options.getProjectRuntime(resolved.project.projectId);
+    } catch (err) {
+      return {
+        ok: false,
+        message: `Telegram project "${resolved.project.projectId}" is not available in this daemon runtime: ${(err as Error).message}`,
+      };
+    }
+    return {
+      ok: true,
+      target: {
+        chatId,
+        projectId: resolved.project.projectId,
+        projectDir: resolved.project.projectDir,
+        projectRuntime,
+        sessionKey: `${chatId}:${resolved.project.projectId}`,
+      },
+    };
+  }
+
+  private async handleProjectCommand(chatId: number, text: string): Promise<void> {
+    if (!this.options.projectSelection) return;
+    const before = await this.resolveProjectTarget(chatId);
+    const requested = text === "/project" ? "" : text.slice("/project ".length);
+    const result = await this.options.projectSelection.switchChat(chatId, requested);
+    this.sendText(chatId, result.message);
+    if (!result.ok || !result.changed) return;
+    if (before.ok) this.closeSessionsForChat(chatId);
+  }
+
+  private closeSessionsForChat(chatId: number): void {
+    const prefix = `${chatId}:`;
+    for (const [key, session] of this.sessions) {
+      if (!key.startsWith(prefix)) continue;
+      session.agent.close();
+      this.sessions.delete(key);
+      this.busyChats.delete(key);
+    }
   }
 
   private sendText(chatId: number, text: string): void {

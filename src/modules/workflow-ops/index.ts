@@ -256,8 +256,9 @@ const workflowModule: KotaModule = {
  *
  *  - `listRuns(filter)` → `GET /workflow/runs[?workflow=...&limit=...&tag=...&causedByRunId=...]`.
  *    Soft-falls through on transport failure: returns `{ runs: [] }`.
- *  - `status()` → `GET /workflow/status`. Throws `"Daemon unreachable while
- *    reading workflow status"` on transport failure. Wraps the daemon's
+ *  - `status(filter?)` → `GET /workflow/status[?projectId=...]`. Throws
+ *    `"Daemon unreachable while reading workflow status"` on transport
+ *    failure and preserves typed unknown-project route errors. Wraps the daemon's
  *    `WorkflowLiveStatus` with `pendingAbort: false` (the daemon-up branch
  *    never observes a stale abort signal file).
  *  - `pause()` / `resume()` → `POST /workflow/pause` / `/workflow/resume`.
@@ -316,6 +317,7 @@ export function buildWorkflowDaemonHandler(
       if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
       if (filter?.tag) params.set("tag", filter.tag);
       if (filter?.causedByRunId) params.set("causedByRunId", filter.causedByRunId);
+      if (filter?.projectId) params.set("projectId", filter.projectId);
       const query = params.toString() ? `?${params.toString()}` : "";
       const result = await link.request<{ runs: WorkflowRunSummary[] }>(
         "GET",
@@ -323,14 +325,11 @@ export function buildWorkflowDaemonHandler(
       );
       return { runs: result?.runs ?? [] };
     },
-    status: async () => {
-      const result = await link.request<WorkflowLiveStatus>(
-        "GET",
-        "/workflow/status",
-      );
-      if (!result) {
-        throw new Error("Daemon unreachable while reading workflow status");
-      }
+    status: async (filter) => {
+      const params = new URLSearchParams();
+      if (filter?.projectId) params.set("projectId", filter.projectId);
+      const query = params.toString() ? `?${params.toString()}` : "";
+      const result = await fetchWorkflowStatus(link, `/workflow/status${query}`);
       return { ...result, pendingAbort: false };
     },
     pause: async () => {
@@ -473,6 +472,45 @@ export function buildWorkflowDaemonHandler(
       };
     },
   };
+}
+
+type WorkflowRouteErrorBody = {
+  error?: string;
+  reason?: string;
+  projectId?: string;
+};
+
+async function fetchWorkflowStatus(
+  link: DaemonTransport,
+  path: string,
+): Promise<WorkflowLiveStatus> {
+  let res: Response;
+  try {
+    res = await link.fetchRaw(path, { method: "GET" });
+  } catch {
+    throw new Error("Daemon unreachable while reading workflow status");
+  }
+  if (res.status === 404) {
+    const body = await readWorkflowRouteError(res);
+    if (body?.reason === "unknown_project" && body.projectId) {
+      throw new Error(`Unknown project: ${body.projectId}`);
+    }
+  }
+  if (!res.ok) {
+    throw new Error("Daemon unreachable while reading workflow status");
+  }
+  return (await res.json()) as WorkflowLiveStatus;
+}
+
+async function readWorkflowRouteError(
+  res: Response,
+): Promise<WorkflowRouteErrorBody | null> {
+  try {
+    const parsed = (await res.json()) as WorkflowRouteErrorBody;
+    return typeof parsed === "object" && parsed !== null ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

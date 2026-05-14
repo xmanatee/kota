@@ -9,9 +9,15 @@
 
 import { getOwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import type { KotaClient } from "#core/server/kota-client.js";
 import { callTelegramApi } from "./client.js";
 
-export type PendingMessage = { chatId: string; messageId: number };
+export type PendingMessage = {
+  chatId: string;
+  messageId: number;
+  projectId: string;
+  proposedAnswers?: string[];
+};
 
 export async function editResolvedOwnerQuestionMessage(
   token: string,
@@ -59,6 +65,7 @@ export async function tryHandleOwnerQuestionReply(args: {
   pending: Map<string, PendingMessage>;
   allowedChatIds: number[] | undefined;
   log: ModuleContext["log"];
+  client?: KotaClient;
 }): Promise<boolean> {
   if (
     args.allowedChatIds?.length &&
@@ -79,9 +86,17 @@ export async function tryHandleOwnerQuestionReply(args: {
   }
   if (!questionId) return false;
 
-  const queue = getOwnerQuestionQueue();
-  const resolved = queue.answer(questionId, args.text, "telegram-reply");
-  if (!resolved) {
+  const info = args.pending.get(questionId);
+  if (!info) return false;
+  const mutate = args.client
+    ? await args.client.forProject(info.projectId).ownerQuestions.answer(questionId, args.text)
+    : (() => {
+        const resolved = getOwnerQuestionQueue().answer(questionId, args.text, "telegram-reply");
+        return resolved
+          ? { ok: true as const, question: resolved }
+          : { ok: false as const, reason: "not_found" as const };
+      })();
+  if (!mutate.ok) {
     args.pending.delete(questionId);
     return false;
   }
@@ -90,7 +105,7 @@ export async function tryHandleOwnerQuestionReply(args: {
     args.token,
     questionId,
     "answer",
-    resolved,
+    mutate.question,
     args.pending,
   );
   return true;

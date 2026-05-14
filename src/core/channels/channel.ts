@@ -25,6 +25,7 @@
  * null if the channel cannot start (e.g., missing credentials).
  */
 
+import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
 import type { AgentSession } from "#core/loop/loop.js";
 import type { ProxyTransport } from "#core/loop/transport.js";
 import type { WorkflowRuntimeState } from "#core/workflow/run-types.js";
@@ -106,6 +107,10 @@ export type ChannelOperatorIdentity = {
 export type ChannelStartContext = {
   /** Project root directory. */
   projectDir: string;
+  /** Default daemon-owned project runtime bundle. */
+  defaultProjectRuntime: ProjectRuntime;
+  /** Resolve a daemon-owned project runtime bundle by stable project id. */
+  getProjectRuntime: (projectId: string) => ProjectRuntime;
   /** Logger for channel messages. */
   log: (message: string) => void;
   /** Current workflow runtime status for monitoring/alerting channels. */

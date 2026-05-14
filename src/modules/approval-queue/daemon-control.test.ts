@@ -19,12 +19,22 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { type ApprovalQueue, getApprovalQueue, resetApprovalQueue } from "#core/daemon/approval-queue.js";
+import { ApprovalQueue, getApprovalQueue, resetApprovalQueue } from "#core/daemon/approval-queue.js";
 import {
   type DaemonControlHandle,
   DaemonControlServer,
   type WorkflowMetricCounts,
 } from "#core/daemon/daemon-control.js";
+import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
+import {
+  buildConfiguredProject,
+  type ConfiguredProject,
+} from "#core/daemon/project-registry.js";
+import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
+import {
+  initProviderRegistry,
+  resetProviderRegistry,
+} from "#core/modules/provider-registry.js";
 import { approvalControlRoutes } from "./routes.js";
 
 const TEST_TOKEN = "approvals-test-token";
@@ -100,6 +110,48 @@ async function fetchWith(
   });
 }
 
+function registerProjectQueueProvider(
+  entries: Array<{
+    project: ConfiguredProject;
+    approvalQueue: ApprovalQueue;
+    ownerQuestionQueue: OwnerQuestionQueue;
+  }>,
+): void {
+  const defaultEntry = entries[0];
+  if (!defaultEntry) throw new Error("expected at least one project");
+  const byId = new Map(entries.map((entry) => [entry.project.projectId, entry]));
+  const registry = initProviderRegistry();
+  registry.register(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE, "test", {
+    getProjectRegistryProjection: () => ({
+      defaultProjectId: defaultEntry.project.projectId,
+      projects: entries.map((entry) => entry.project),
+    }),
+    getActiveProjectId: () => null,
+    resolveProjectRuntime: (projectId) => {
+      const selected = projectId?.trim() || defaultEntry.project.projectId;
+      const entry = byId.get(selected);
+      if (!entry) {
+        return {
+          ok: false,
+          error: {
+            error: "Unknown project",
+            reason: "unknown_project",
+            projectId: selected,
+          },
+        };
+      }
+      return {
+        ok: true,
+        runtime: {
+          project: entry.project,
+          approvalQueue: entry.approvalQueue,
+          ownerQuestionQueue: entry.ownerQuestionQueue,
+        },
+      };
+    },
+  });
+}
+
 describe("approval-queue module daemon-control routes", () => {
   let server: DaemonControlServer;
   let port: number;
@@ -108,6 +160,7 @@ describe("approval-queue module daemon-control routes", () => {
 
   beforeEach(async () => {
     queueDir = mkdtempSync(join(tmpdir(), "kota-approvals-control-"));
+    resetProviderRegistry();
     resetApprovalQueue();
     queue = getApprovalQueue(queueDir);
     server = new DaemonControlServer(makeHandle(), TEST_TOKEN, {
@@ -119,6 +172,7 @@ describe("approval-queue module daemon-control routes", () => {
   afterEach(async () => {
     await server.stop();
     resetApprovalQueue();
+    resetProviderRegistry();
     rmSync(queueDir, { recursive: true, force: true });
   });
 
@@ -176,6 +230,42 @@ describe("approval-queue module daemon-control routes", () => {
       const res = await fetchWith(port, "/approvals");
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual({ approvals: [] });
+    });
+
+    it("uses the projectId query to list and mutate the selected project's queue", async () => {
+      const projectA = buildConfiguredProject({
+        projectDir: join(queueDir, "project-a"),
+        displayName: "Project A",
+      });
+      const projectB = buildConfiguredProject({
+        projectDir: join(queueDir, "project-b"),
+        displayName: "Project B",
+      });
+      const approvalA = new ApprovalQueue(join(projectA.projectDir, ".kota", "approvals"));
+      const approvalB = new ApprovalQueue(join(projectB.projectDir, ".kota", "approvals"));
+      const ownerA = new OwnerQuestionQueue(join(projectA.projectDir, ".kota", "owner-questions"));
+      const ownerB = new OwnerQuestionQueue(join(projectB.projectDir, ".kota", "owner-questions"));
+      registerProjectQueueProvider([
+        { project: projectA, approvalQueue: approvalA, ownerQuestionQueue: ownerA },
+        { project: projectB, approvalQueue: approvalB, ownerQuestionQueue: ownerB },
+      ]);
+
+      const itemA = approvalA.enqueue("shell", { command: "a" }, "moderate", "a");
+      const itemB = approvalB.enqueue("shell", { command: "b" }, "moderate", "b");
+
+      const listB = await fetchWith(port, `/approvals?projectId=${projectB.projectId}`);
+      expect(listB.status).toBe(200);
+      const body = (await listB.json()) as { approvals: Array<{ id: string }> };
+      expect(body.approvals.map((item) => item.id)).toEqual([itemB.id]);
+
+      const approveB = await fetchWith(
+        port,
+        `/approvals/${itemB.id}/approve?projectId=${projectB.projectId}`,
+        { method: "POST" },
+      );
+      expect(approveB.status).toBe(200);
+      expect(approvalA.get(itemA.id)?.status).toBe("pending");
+      expect(approvalB.get(itemB.id)?.status).toBe("approved");
     });
   });
 

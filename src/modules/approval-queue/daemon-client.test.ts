@@ -49,12 +49,18 @@ import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type { ApprovalsListResult } from "./client.js";
 import approvalQueueModule from "./index.js";
 
-type RecordedCall = {
-  method: string;
-  path: string;
-  body: unknown;
-  shape: "request" | "requestStrict";
-};
+type RecordedCall =
+  | {
+      method: string;
+      path: string;
+      body: unknown;
+      shape: "request" | "requestStrict";
+    }
+  | {
+      path: string;
+      init: RequestInit | undefined;
+      shape: "fetchRaw";
+    };
 
 const ENCODING_SENSITIVE_ID = "weird/id %name with space";
 
@@ -63,7 +69,7 @@ function makeRecordingTransport(
     method: string,
     path: string,
     body: unknown,
-    shape: "request" | "requestStrict",
+    shape: "request" | "requestStrict" | "fetchRaw",
   ) => unknown,
 ): { transport: DaemonTransport; calls: RecordedCall[] } {
   const calls: RecordedCall[] = [];
@@ -86,7 +92,26 @@ function makeRecordingTransport(
       calls.push({ method, path, body, shape: "requestStrict" });
       return responder(method, path, body, "requestStrict") as T;
     },
-    fetchRaw: async () => new Response(null, { status: 200 }),
+    fetchRaw: async (path: string, init?: RequestInit) => {
+      calls.push({ path, init, shape: "fetchRaw" });
+      const value = responder(
+        init?.method ?? "GET",
+        path,
+        init?.body,
+        "fetchRaw",
+      );
+      if (value instanceof Response) return value;
+      if (value === null) {
+        return new Response(JSON.stringify({ error: "not found" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify(value), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    },
     events: async function* () {
       // empty generator
     },
@@ -202,10 +227,13 @@ describe("approval-queue module daemonClient(link)", () => {
     expect(result).toEqual({ ok: true, approval });
     expect(calls).toEqual([
       {
-        method: "POST",
         path: `/approvals/${encodeURIComponent(ENCODING_SENSITIVE_ID)}/approve`,
-        body: { note: "looks good" },
-        shape: "request",
+        init: {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ note: "looks good" }),
+        },
+        shape: "fetchRaw",
       },
     ]);
   });
@@ -218,10 +246,13 @@ describe("approval-queue module daemonClient(link)", () => {
     expect(result).toEqual({ ok: true, approval });
     expect(calls).toEqual([
       {
-        method: "POST",
         path: "/approvals/a-bare/approve",
-        body: { note: undefined },
-        shape: "request",
+        init: {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ note: undefined }),
+        },
+        shape: "fetchRaw",
       },
     ]);
   });
@@ -237,10 +268,13 @@ describe("approval-queue module daemonClient(link)", () => {
     expect(result).toEqual({ ok: true, approval });
     expect(calls).toEqual([
       {
-        method: "POST",
         path: `/approvals/${encodeURIComponent(ENCODING_SENSITIVE_ID)}/reject`,
-        body: { reason: "policy violation" },
-        shape: "request",
+        init: {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason: "policy violation" }),
+        },
+        shape: "fetchRaw",
       },
     ]);
   });
@@ -253,10 +287,50 @@ describe("approval-queue module daemonClient(link)", () => {
     expect(result).toEqual({ ok: true, approval });
     expect(calls).toEqual([
       {
-        method: "POST",
         path: "/approvals/a-bare/reject",
-        body: { reason: undefined },
-        shape: "request",
+        init: {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason: undefined }),
+        },
+        shape: "fetchRaw",
+      },
+    ]);
+  });
+
+  it("threads projectId through list and mutations when provided", async () => {
+    const approval = makeApproval("a-project", "approved");
+    const { transport, calls } = makeRecordingTransport((_method, _path, _body, shape) =>
+      shape === "requestStrict" ? { approvals: [] } : { approval },
+    );
+    const contributed = approvalQueueModule.daemonClient!(transport);
+    await contributed.approvals!.list({ status: "pending", projectId: "project-b" });
+    await contributed.approvals!.approve("a-project", "ok", { projectId: "project-b" });
+    await contributed.approvals!.reject("a-project", "no", { projectId: "project-b" });
+    expect(calls).toEqual([
+      {
+        method: "GET",
+        path: "/approvals?status=pending&projectId=project-b",
+        body: undefined,
+        shape: "requestStrict",
+      },
+      {
+        path: "/approvals/a-project/approve?projectId=project-b",
+        init: {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ note: "ok" }),
+        },
+        shape: "fetchRaw",
+      },
+      {
+        path: "/approvals/a-project/reject?projectId=project-b",
+        init: {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason: "no" }),
+        },
+        shape: "fetchRaw",
       },
     ]);
   });
@@ -266,6 +340,25 @@ describe("approval-queue module daemonClient(link)", () => {
     const contributed = approvalQueueModule.daemonClient!(transport);
     const result = await contributed.approvals!.approve("missing-id");
     expect(result).toEqual({ ok: false, reason: "not_found" });
+  });
+
+  it("throws the typed unknown-project error from approve instead of returning not_found", async () => {
+    const { transport } = makeRecordingTransport(() =>
+      new Response(
+        JSON.stringify({
+          error: "Unknown project",
+          reason: "unknown_project",
+          projectId: "missing-project",
+        }),
+        { status: 404, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    const contributed = approvalQueueModule.daemonClient!(transport);
+    await expect(
+      contributed.approvals!.approve("a-1", undefined, {
+        projectId: "missing-project",
+      }),
+    ).rejects.toThrow(/Unknown project: missing-project/);
   });
 
   it("collapses a null (404) response from reject into { ok: false, reason: 'not_found' }", async () => {

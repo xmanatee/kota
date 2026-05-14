@@ -22,10 +22,16 @@ export type WorkflowRunsListFilter = {
   limit?: number;
   tag?: string;
   causedByRunId?: string;
+  projectId?: string;
 };
 
 export type WorkflowRunsListResult = {
   runs: WorkflowRunSummary[];
+};
+
+/** Project scope accepted by workflow runtime reads. */
+export type WorkflowStatusFilter = {
+  projectId?: string;
 };
 
 /**
@@ -163,7 +169,9 @@ export type WorkflowDefinitionsResult = {
  * Workflow runtime operations.
  *
  * Reads (`listRuns`, `status`) work both daemon-up and daemon-down — the
- * local implementor sources from run artifacts and persisted state.
+ * local implementor sources from run artifacts and persisted state. The
+ * daemon-up `status` path accepts `projectId` so scoped clients can read the
+ * selected project's workflow runtime.
  * Dispatch-state mutations (`pause`, `resume`, `abort`, `reload`) work
  * daemon-down via signal files: the local implementor writes the signal
  * and the next daemon cycle picks it up. Definition mutations
@@ -173,7 +181,7 @@ export type WorkflowDefinitionsResult = {
  */
 export interface WorkflowClient {
   listRuns(filter?: WorkflowRunsListFilter): Promise<WorkflowRunsListResult>;
-  status(): Promise<WorkflowStatusSnapshot>;
+  status(filter?: WorkflowStatusFilter): Promise<WorkflowStatusSnapshot>;
   /**
    * Look up a single run. Daemon-up consults the daemon's in-memory tracker;
    * daemon-down reads the run artifact under `.kota/runs/`.

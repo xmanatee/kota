@@ -1,9 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
+import type { ConfiguredProject } from "#core/daemon/project-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { resolveModuleChannels } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
+import type { KotaClient } from "#core/server/kota-client.js";
 import { callTelegramApi } from "./client.js";
 import telegramModule from "./index.js";
 
@@ -22,7 +25,62 @@ vi.mock("#core/daemon/owner-question-queue.js", () => ({
 
 const mockedCallTelegramApi = vi.mocked(callTelegramApi);
 
-function makeStubCtx(bus?: EventBus): ModuleRuntimeContext {
+async function flushAsyncNotifications(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+const TEST_PROJECT: ConfiguredProject = {
+  projectId: "test-project",
+  projectDir: "/tmp/test",
+  displayName: "KOTA",
+};
+
+function makeChannelStartContext() {
+  const runtime = {
+    project: TEST_PROJECT,
+    scheduler: { count: () => 0 },
+  } as never;
+  return {
+    projectDir: "/tmp",
+    defaultProjectRuntime: runtime,
+    getProjectRuntime: () => runtime,
+    log: () => {},
+    getWorkflowStatus: () => ({
+      runtimeState: { completedRuns: 0, pendingRuns: [], workflows: {} },
+      dispatchPaused: false,
+      runsDir: "/tmp/.kota/runs",
+    }),
+  };
+}
+
+function makeStubClient(
+  overrides: Partial<KotaClient> = {},
+): KotaClient {
+  const client = {
+    projects: {
+      list: vi.fn(async () => ({
+        ok: true as const,
+        defaultProjectId: TEST_PROJECT.projectId,
+        activeProjectId: null,
+        projects: [TEST_PROJECT],
+      })),
+      use: vi.fn(),
+    },
+    ownerQuestions: {
+      list: vi.fn(async () => ({ questions: [] })),
+      answer: vi.fn(),
+      dismiss: vi.fn(),
+    },
+  } as Partial<KotaClient>;
+  client.forProject = vi.fn(() => client as KotaClient);
+  Object.assign(client, overrides);
+  return client as KotaClient;
+}
+
+function makeStubCtx(
+  bus?: EventBus,
+  client: KotaClient = makeStubClient(),
+): ModuleRuntimeContext {
   const b = bus ?? new EventBus();
   return {
     cwd: "/tmp/test",
@@ -34,7 +92,7 @@ function makeStubCtx(bus?: EventBus): ModuleRuntimeContext {
     getContributedWorkflows: () => [],
     getContributedChannels: () => [],
     getContributedControlRoutes: () => [],
-  getModuleSummaries: () => [],
+    getModuleSummaries: () => [],
     getModuleConfig: () => undefined,
     log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
     getSecret: () => null,
@@ -53,7 +111,7 @@ function makeStubCtx(bus?: EventBus): ModuleRuntimeContext {
     resolveSkillsPrompt: () => "",
     probeHealthChecks: async () => ({}),
     getRegisteredConfigKeys: () => new Set<string>(),
-    client: {} as never,
+    client,
   };
 }
 
@@ -79,6 +137,7 @@ describe("telegramModule", () => {
       "approval-queue",
       "autonomy",
       "capture",
+      "daemon-ops",
       "history",
       "knowledge",
       "memory",
@@ -106,15 +165,7 @@ describe("telegramModule", () => {
       const channels = await resolveModuleChannels(telegramModule, makeStubCtx());
       const channel = channels.find((c) => c.name === "telegram-status");
       if (!channel) throw new Error("telegram-status channel missing");
-      const result = channel.create({
-        projectDir: "/tmp",
-        log: () => {},
-        getWorkflowStatus: () => ({
-          runtimeState: { completedRuns: 0, pendingRuns: [], workflows: {} },
-          dispatchPaused: false,
-          runsDir: "/tmp/.kota/runs",
-        }),
-      });
+      const result = channel.create(makeChannelStartContext());
       expect(result.status).toBe("unavailable");
       if (result.status === "unavailable") {
         expect(result.reason).toContain("TELEGRAM_BOT_TOKEN");
@@ -133,15 +184,7 @@ describe("telegramModule", () => {
       const channels = await resolveModuleChannels(telegramModule, makeStubCtx());
       const channel = channels.find((c) => c.name === "telegram-interactive");
       if (!channel) throw new Error("telegram-interactive channel missing");
-      const result = channel.create({
-        projectDir: "/tmp",
-        log: () => {},
-        getWorkflowStatus: () => ({
-          runtimeState: { completedRuns: 0, pendingRuns: [], workflows: {} },
-          dispatchPaused: false,
-          runsDir: "/tmp/.kota/runs",
-        }),
-      });
+      const result = channel.create(makeChannelStartContext());
       expect(result.status).toBe("unavailable");
       if (result.status === "unavailable") {
         expect(result.reason).toContain("TELEGRAM_BOT_TOKEN");
@@ -182,7 +225,7 @@ describe("telegramModule notifications via onLoad", () => {
       errorSummary: "",
       text: "Workflow failed: *builder*",
     });
-    await Promise.resolve();
+    await flushAsyncNotifications();
     expect(mockedCallTelegramApi).toHaveBeenCalledWith(
       FAKE_TOKEN,
       "sendMessage",
@@ -197,7 +240,7 @@ describe("telegramModule notifications via onLoad", () => {
       items: [{ label: "Builder failure streak", detail: "3 consecutive failures" }],
       text: "Attention digest (1 item):\n• *Builder failure streak*: 3 consecutive failures",
     });
-    await Promise.resolve();
+    await flushAsyncNotifications();
     expect(mockedCallTelegramApi).toHaveBeenCalledWith(
       FAKE_TOKEN,
       "sendMessage",
@@ -216,7 +259,7 @@ describe("telegramModule notifications via onLoad", () => {
       text: "Daily digest body — 2 commits, 1 explorer addition.",
       quiet: false,
     });
-    await Promise.resolve();
+    await flushAsyncNotifications();
     expect(mockedCallTelegramApi).toHaveBeenCalledWith(
       FAKE_TOKEN,
       "sendMessage",
@@ -230,12 +273,13 @@ describe("telegramModule notifications via onLoad", () => {
     const bus = new EventBus();
     telegramModule.onLoad!(makeStubCtx(bus));
     bus.emit("owner.question.asked", {
+      projectId: TEST_PROJECT.projectId,
       id: "oq-xyz",
       question: "Split this migration into two phases?",
       reason: "Risky one-shot migration",
       source: "builder",
     });
-    await Promise.resolve();
+    await flushAsyncNotifications();
     expect(mockedCallTelegramApi).toHaveBeenCalledOnce();
     const body = mockedCallTelegramApi.mock.calls[0][2] as {
       text: string;
@@ -254,28 +298,46 @@ describe("telegramModule notifications via onLoad", () => {
   });
 
   it("sends owner.question.asked with per-answer buttons when proposedAnswers is set", async () => {
-    mockOwnerQueueGet.mockReturnValue({
+    const ownerQuestion: PendingOwnerQuestion = {
       id: "oq-abc",
+      seq: 1,
+      context: "test",
       question: "Pick cluster region",
       reason: "multiregion rollout",
       source: "builder",
+      createdAt: "2026-05-14T00:00:00.000Z",
       status: "pending",
       proposedAnswers: ["us-east-1", "us-west-2", "eu-central-1"],
-    });
+    };
+    const ownerQuestionsList = vi.fn(async () => ({
+      questions: [ownerQuestion],
+    }));
 
     const bus = new EventBus();
-    telegramModule.onLoad!(makeStubCtx(bus));
+    telegramModule.onLoad!(
+      makeStubCtx(
+        bus,
+        makeStubClient({
+          ownerQuestions: {
+            list: ownerQuestionsList,
+            answer: vi.fn(),
+            dismiss: vi.fn(),
+          },
+        } as Partial<KotaClient>),
+      ),
+    );
     bus.emit("owner.question.asked", {
+      projectId: TEST_PROJECT.projectId,
       id: "oq-abc",
       question: "Pick cluster region",
       reason: "multiregion rollout",
       source: "builder",
     });
-    await Promise.resolve();
+    await flushAsyncNotifications();
     const body = mockedCallTelegramApi.mock.calls[0][2] as {
       reply_markup?: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
     };
-    expect(mockOwnerQueueGet).toHaveBeenCalledWith("oq-abc");
+    expect(ownerQuestionsList).toHaveBeenCalledOnce();
     const keyboard = body.reply_markup?.inline_keyboard ?? [];
     expect(keyboard).toEqual([
       [
@@ -291,13 +353,14 @@ describe("telegramModule notifications via onLoad", () => {
     const bus = new EventBus();
     telegramModule.onLoad!(makeStubCtx(bus));
     bus.emit("approval.requested", {
+      projectId: TEST_PROJECT.projectId,
       id: "abc123",
       tool: "bash",
       risk: "high",
       reason: "Runs shell commands",
       source: "builder",
     });
-    await Promise.resolve();
+    await flushAsyncNotifications();
     expect(mockedCallTelegramApi).toHaveBeenCalledWith(
       FAKE_TOKEN,
       "sendMessage",
@@ -397,6 +460,7 @@ describe("telegramModule notifications via onLoad", () => {
       FAKE_TOKEN,
       expect.any(Map),
       expect.any(Map),
+      expect.any(Object),
       expect.any(Object),
     );
   });

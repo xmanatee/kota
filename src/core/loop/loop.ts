@@ -1,6 +1,7 @@
 import type { KotaThinkingConfig } from "#core/agent-harness/message-protocol.js";
 import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
+import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
 import { tryEmit } from "#core/events/event-bus.js";
 import type { McpManager } from "#core/mcp/manager.js";
 import type { ModelClient } from "#core/model/model-client.js";
@@ -48,6 +49,14 @@ export type LoopOptions = {
   showCost?: boolean;
   /** Channel user identity for attribution (set by channel adapters). */
   channelIdentity?: ChannelUserIdentity;
+  /** Project root this session should initialize against. Defaults to process.cwd(). */
+  projectDir?: string;
+  /**
+   * Existing daemon-owned project runtime bundle to bind this session to.
+   * When supplied, the session reuses the bundle's stores instead of
+   * constructing new singleton-backed stores from `projectDir`.
+   */
+  projectRuntime?: ProjectRuntime;
 };
 
 /**
@@ -75,6 +84,7 @@ export class AgentSession implements AgentLoopState {
   closed = false;
   initialized = false;
   initPromise!: Promise<void>;
+  projectDir!: string;
   projectContext!: string;
   instructionContext!: string;
   conversationId: string | null = null;
@@ -102,6 +112,8 @@ export class AgentSession implements AgentLoopState {
         noHistory: opts.noHistory ?? true,
         historySource: "action",
         reflectionEnabled: false,
+        projectDir: this.projectDir,
+        projectRuntime: options.projectRuntime,
       });
       return {
         send: (prompt: string) => session.send(prompt),

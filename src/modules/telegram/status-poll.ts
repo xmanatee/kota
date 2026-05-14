@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import type { KotaClient } from "#core/server/kota-client.js";
 import type { WorkflowRuntimeState } from "#core/workflow/run-types.js";
 import type { AnswerClient } from "#modules/answer/client.js";
 import {
@@ -32,6 +33,7 @@ import {
   retractUsageBody,
 } from "#modules/retract/render.js";
 import { callTelegramApi, splitMessage } from "./client.js";
+import type { TelegramProjectSelection } from "./project-selection.js";
 
 const POLL_INTERVAL_MS = 30_000;
 const ERROR_BACKOFF_MS = 5_000;
@@ -57,6 +59,28 @@ export type StatusInfo = {
   dispatchPaused: boolean;
   runsDir: string;
 };
+
+export type TelegramStatusPollProjectRouting = {
+  client: KotaClient;
+  selection: TelegramProjectSelection;
+};
+
+type TelegramStatusScope = {
+  projectDir: string;
+  getStatusInfo: () => StatusInfo | Promise<StatusInfo>;
+  knowledge: KnowledgeClient;
+  memory: MemoryClient;
+  history: HistoryClient;
+  tasks: RepoTasksClient;
+  recall: RecallClient;
+  answer: AnswerClient;
+  capture: CaptureClient;
+  retract: RetractClient;
+};
+
+type TelegramStatusScopeResolution =
+  | { ok: true; scope: TelegramStatusScope }
+  | { ok: false; message: string };
 
 export function buildStatusText({ runtimeState, dispatchPaused, runsDir }: StatusInfo): string {
   const activeRuns = runtimeState.activeRuns ?? [];
@@ -114,13 +138,75 @@ export function startTelegramStatusPoll(
   capture: CaptureClient,
   retract: RetractClient,
   log?: (message: string) => void,
+  projectRouting?: TelegramStatusPollProjectRouting,
 ): () => void {
   let running = true;
   let offset = 0;
   let timer: ReturnType<typeof setTimeout> | null = null;
 
-  async function handleStatus(): Promise<void> {
-    const text = buildStatusText(getStatusInfo());
+  const defaultScope: TelegramStatusScope = {
+    projectDir,
+    getStatusInfo,
+    knowledge,
+    memory,
+    history,
+    tasks,
+    recall,
+    answer,
+    capture,
+    retract,
+  };
+
+  async function resolveScope(chatId: number): Promise<TelegramStatusScopeResolution> {
+    if (!projectRouting) return { ok: true, scope: defaultScope };
+    const resolved = await projectRouting.selection.resolveChat(chatId);
+    if (!resolved.ok) return resolved;
+    const scoped = projectRouting.client.forProject(resolved.project.projectId);
+    return {
+      ok: true,
+      scope: {
+        projectDir: resolved.project.projectDir,
+        getStatusInfo: async () => {
+          const status = await scoped.workflow.status();
+          return {
+            runtimeState: {
+              activeRuns: status.activeRuns,
+              completedRuns: status.completedRuns,
+              pendingRuns: status.pendingRuns,
+              workflows: status.workflows,
+            },
+            dispatchPaused: status.paused,
+            runsDir: join(resolved.project.projectDir, ".kota", "runs"),
+          };
+        },
+        knowledge: scoped.knowledge,
+        memory: scoped.memory,
+        history: scoped.history,
+        tasks: scoped.tasks,
+        recall: scoped.recall,
+        answer: scoped.answer,
+        capture: scoped.capture,
+        retract: scoped.retract,
+      },
+    };
+  }
+
+  async function sendPlain(text: string): Promise<void> {
+    await callTelegramApi(token, "sendMessage", {
+      chat_id: chatId,
+      text,
+    });
+  }
+
+  async function handleProjectCommand(chatId: number, text: string): Promise<void> {
+    if (!projectRouting) return;
+    const requested = text === "/project" ? "" : text.slice("/project ".length);
+    const result = await projectRouting.selection.switchChat(chatId, requested);
+    await sendPlain(result.message);
+  }
+
+  async function handleStatus(scope: TelegramStatusScope): Promise<void> {
+    const text = buildStatusText(await scope.getStatusInfo());
     await callTelegramApi(token, "sendMessage", {
       chat_id: chatId,
       text,
@@ -128,8 +214,8 @@ export function startTelegramStatusPoll(
     });
   }
 
-  async function handleDigest(): Promise<void> {
-    const { text } = renderOnDemandDigest({ projectDir });
+  async function handleDigest(scope: TelegramStatusScope): Promise<void> {
+    const { text } = renderOnDemandDigest({ projectDir: scope.projectDir });
     await callTelegramApi(token, "sendMessage", {
       chat_id: chatId,
       // Plain text — the rendered digest contains underscores, parentheses,
@@ -138,9 +224,9 @@ export function startTelegramStatusPoll(
     });
   }
 
-  async function handleAttention(): Promise<void> {
-    const runsDir = join(projectDir, ".kota", "runs");
-    const { text } = renderOnDemandAttention({ projectDir, runsDir });
+  async function handleAttention(scope: TelegramStatusScope): Promise<void> {
+    const runsDir = join(scope.projectDir, ".kota", "runs");
+    const { text } = renderOnDemandAttention({ projectDir: scope.projectDir, runsDir });
     await callTelegramApi(token, "sendMessage", {
       chat_id: chatId,
       // Plain text — the rendered attention body uses bullet glyphs and
@@ -149,7 +235,7 @@ export function startTelegramStatusPoll(
     });
   }
 
-  async function handleKnowledge(text: string): Promise<void> {
+  async function handleKnowledge(scope: TelegramStatusScope, text: string): Promise<void> {
     const query =
       text === "/knowledge" ? "" : text.slice("/knowledge ".length).trim();
     if (query.length === 0) {
@@ -159,7 +245,7 @@ export function startTelegramStatusPoll(
       });
       return;
     }
-    const result = await knowledge.search(query, { semantic: true, limit: 10 });
+    const result = await scope.knowledge.search(query, { semantic: true, limit: 10 });
     if (!result.ok) {
       await callTelegramApi(token, "sendMessage", {
         chat_id: chatId,
@@ -182,7 +268,7 @@ export function startTelegramStatusPoll(
     });
   }
 
-  async function handleMemory(text: string): Promise<void> {
+  async function handleMemory(scope: TelegramStatusScope, text: string): Promise<void> {
     const query =
       text === "/memory" ? "" : text.slice("/memory ".length).trim();
     if (query.length === 0) {
@@ -192,7 +278,7 @@ export function startTelegramStatusPoll(
       });
       return;
     }
-    const result = await memory.search(query, { semantic: true, limit: 10 });
+    const result = await scope.memory.search(query, { semantic: true, limit: 10 });
     if (!result.ok) {
       await callTelegramApi(token, "sendMessage", {
         chat_id: chatId,
@@ -215,7 +301,7 @@ export function startTelegramStatusPoll(
     });
   }
 
-  async function handleHistory(text: string): Promise<void> {
+  async function handleHistory(scope: TelegramStatusScope, text: string): Promise<void> {
     const query =
       text === "/history" ? "" : text.slice("/history ".length).trim();
     if (query.length === 0) {
@@ -225,7 +311,7 @@ export function startTelegramStatusPoll(
       });
       return;
     }
-    const result = await history.search(query, { semantic: true, limit: 10 });
+    const result = await scope.history.search(query, { semantic: true, limit: 10 });
     if (!result.ok) {
       await callTelegramApi(token, "sendMessage", {
         chat_id: chatId,
@@ -249,7 +335,7 @@ export function startTelegramStatusPoll(
     });
   }
 
-  async function handleRecall(text: string): Promise<void> {
+  async function handleRecall(scope: TelegramStatusScope, text: string): Promise<void> {
     const query =
       text === "/recall" ? "" : text.slice("/recall ".length).trim();
     if (query.length === 0) {
@@ -259,7 +345,7 @@ export function startTelegramStatusPoll(
       });
       return;
     }
-    const result = await recall.recall(query);
+    const result = await scope.recall.recall(query);
     if (!result.ok) {
       await callTelegramApi(token, "sendMessage", {
         chat_id: chatId,
@@ -283,7 +369,7 @@ export function startTelegramStatusPoll(
     });
   }
 
-  async function handleAnswer(text: string): Promise<void> {
+  async function handleAnswer(scope: TelegramStatusScope, text: string): Promise<void> {
     const query =
       text === "/answer" ? "" : text.slice("/answer ".length).trim();
     if (query.length === 0) {
@@ -293,7 +379,7 @@ export function startTelegramStatusPoll(
       });
       return;
     }
-    const result = await answer.answer(query);
+    const result = await scope.answer.answer(query);
     await callTelegramApi(token, "sendMessage", {
       chat_id: chatId,
       // Plain text — the synthesized prose can carry Markdown-active
@@ -303,7 +389,7 @@ export function startTelegramStatusPoll(
     });
   }
 
-  async function handleAnswerLog(text: string): Promise<void> {
+  async function handleAnswerLog(scope: TelegramStatusScope, text: string): Promise<void> {
     const arg =
       text === "/answer-log" ? "" : text.slice("/answer-log ".length).trim();
     let limit = ANSWER_LOG_DEFAULT_LIMIT;
@@ -318,7 +404,7 @@ export function startTelegramStatusPoll(
       }
       limit = parsed;
     }
-    const result = await answer.log({ limit });
+    const result = await scope.answer.log({ limit });
     if (result.entries.length === 0) {
       await callTelegramApi(token, "sendMessage", {
         chat_id: chatId,
@@ -334,7 +420,7 @@ export function startTelegramStatusPoll(
     });
   }
 
-  async function handleAnswerShow(text: string): Promise<void> {
+  async function handleAnswerShow(scope: TelegramStatusScope, text: string): Promise<void> {
     const id =
       text === "/answer-show" ? "" : text.slice("/answer-show ".length).trim();
     if (id.length === 0) {
@@ -344,7 +430,7 @@ export function startTelegramStatusPoll(
       });
       return;
     }
-    const result = await answer.show(id);
+    const result = await scope.answer.show(id);
     if (!result.ok) {
       await callTelegramApi(token, "sendMessage", {
         chat_id: chatId,
@@ -375,6 +461,7 @@ export function startTelegramStatusPoll(
    * a wasted classifier call.
    */
   async function handleCapture(
+    scope: TelegramStatusScope,
     body: string,
     target: CaptureTarget | undefined,
   ): Promise<void> {
@@ -392,7 +479,7 @@ export function startTelegramStatusPoll(
     }
     const filter: CaptureFilter | undefined =
       target === undefined ? undefined : { target };
-    const result = await capture.capture(trimmed, filter);
+    const result = await scope.capture.capture(trimmed, filter);
     await callTelegramApi(token, "sendMessage", {
       chat_id: chatId,
       // Plain text — captured identifiers, slugs, and contributor error
@@ -417,6 +504,7 @@ export function startTelegramStatusPoll(
    * short-circuits to a fixed usage body before the seam is called.
    */
   async function handleRetract(
+    scope: TelegramStatusScope,
     command: RetractSlashCommand,
     body: string,
   ): Promise<void> {
@@ -431,13 +519,13 @@ export function startTelegramStatusPoll(
     const result = await (() => {
       switch (command) {
         case "/retract-memory":
-          return retract.retract({ target: "memory", id: trimmed });
+          return scope.retract.retract({ target: "memory", id: trimmed });
         case "/retract-knowledge":
-          return retract.retract({ target: "knowledge", slug: trimmed });
+          return scope.retract.retract({ target: "knowledge", slug: trimmed });
         case "/retract-tasks":
-          return retract.retract({ target: "tasks", id: trimmed });
+          return scope.retract.retract({ target: "tasks", id: trimmed });
         case "/retract-inbox":
-          return retract.retract({ target: "inbox", path: trimmed });
+          return scope.retract.retract({ target: "inbox", path: trimmed });
       }
     })();
     await callTelegramApi(token, "sendMessage", {
@@ -456,7 +544,7 @@ export function startTelegramStatusPoll(
     });
   }
 
-  async function handleTasks(text: string): Promise<void> {
+  async function handleTasks(scope: TelegramStatusScope, text: string): Promise<void> {
     const query =
       text === "/tasks" ? "" : text.slice("/tasks ".length).trim();
     if (query.length === 0) {
@@ -466,7 +554,7 @@ export function startTelegramStatusPoll(
       });
       return;
     }
-    const result = await tasks.search(query, { semantic: true, limit: 10 });
+    const result = await scope.tasks.search(query, { semantic: true, limit: 10 });
     if (!result.ok) {
       await callTelegramApi(token, "sendMessage", {
         chat_id: chatId,
@@ -509,57 +597,69 @@ export function startTelegramStatusPoll(
         if (!msg?.text) continue;
         if (String(msg.chat.id) !== chatId) continue;
 
+        if (msg.text === "/project" || msg.text.startsWith("/project ")) {
+          await handleProjectCommand(msg.chat.id, msg.text);
+          continue;
+        }
+        const resolvedScope = await resolveScope(msg.chat.id);
+        if (!resolvedScope.ok) {
+          await sendPlain(resolvedScope.message);
+          continue;
+        }
+        const { scope } = resolvedScope;
+
         if (msg.text === "/status") {
-          await handleStatus();
+          await handleStatus(scope);
         } else if (msg.text === "/digest") {
-          await handleDigest();
+          await handleDigest(scope);
         } else if (msg.text === "/attention") {
-          await handleAttention();
+          await handleAttention(scope);
         } else if (
           msg.text === "/knowledge" ||
           msg.text.startsWith("/knowledge ")
         ) {
-          await handleKnowledge(msg.text);
+          await handleKnowledge(scope, msg.text);
         } else if (
           msg.text === "/memory" ||
           msg.text.startsWith("/memory ")
         ) {
-          await handleMemory(msg.text);
+          await handleMemory(scope, msg.text);
         } else if (
           msg.text === "/history" ||
           msg.text.startsWith("/history ")
         ) {
-          await handleHistory(msg.text);
+          await handleHistory(scope, msg.text);
         } else if (
           msg.text === "/tasks" ||
           msg.text.startsWith("/tasks ")
         ) {
-          await handleTasks(msg.text);
+          await handleTasks(scope, msg.text);
         } else if (
           msg.text === "/recall" ||
           msg.text.startsWith("/recall ")
         ) {
-          await handleRecall(msg.text);
+          await handleRecall(scope, msg.text);
         } else if (
           msg.text === "/answer-log" ||
           msg.text.startsWith("/answer-log ")
         ) {
-          await handleAnswerLog(msg.text);
+          await handleAnswerLog(scope, msg.text);
         } else if (
           msg.text === "/answer-show" ||
           msg.text.startsWith("/answer-show ")
         ) {
-          await handleAnswerShow(msg.text);
+          await handleAnswerShow(scope, msg.text);
         } else if (
           msg.text === "/answer" ||
           msg.text.startsWith("/answer ")
         ) {
-          await handleAnswer(msg.text);
+          await handleAnswer(scope, msg.text);
         } else if (
           msg.text === "/capture-to-memory" ||
           msg.text.startsWith("/capture-to-memory ")
         ) {
           await handleCapture(
+            scope,
             captureCommandBody(msg.text, "/capture-to-memory"),
             "memory",
           );
@@ -568,6 +668,7 @@ export function startTelegramStatusPoll(
           msg.text.startsWith("/capture-to-knowledge ")
         ) {
           await handleCapture(
+            scope,
             captureCommandBody(msg.text, "/capture-to-knowledge"),
             "knowledge",
           );
@@ -576,6 +677,7 @@ export function startTelegramStatusPoll(
           msg.text.startsWith("/capture-to-tasks ")
         ) {
           await handleCapture(
+            scope,
             captureCommandBody(msg.text, "/capture-to-tasks"),
             "tasks",
           );
@@ -584,6 +686,7 @@ export function startTelegramStatusPoll(
           msg.text.startsWith("/capture-to-inbox ")
         ) {
           await handleCapture(
+            scope,
             captureCommandBody(msg.text, "/capture-to-inbox"),
             "inbox",
           );
@@ -592,6 +695,7 @@ export function startTelegramStatusPoll(
           msg.text.startsWith("/capture ")
         ) {
           await handleCapture(
+            scope,
             captureCommandBody(msg.text, "/capture"),
             undefined,
           );
@@ -600,6 +704,7 @@ export function startTelegramStatusPoll(
           msg.text.startsWith("/retract-memory ")
         ) {
           await handleRetract(
+            scope,
             "/retract-memory",
             captureCommandBody(msg.text, "/retract-memory"),
           );
@@ -608,6 +713,7 @@ export function startTelegramStatusPoll(
           msg.text.startsWith("/retract-knowledge ")
         ) {
           await handleRetract(
+            scope,
             "/retract-knowledge",
             captureCommandBody(msg.text, "/retract-knowledge"),
           );
@@ -616,6 +722,7 @@ export function startTelegramStatusPoll(
           msg.text.startsWith("/retract-tasks ")
         ) {
           await handleRetract(
+            scope,
             "/retract-tasks",
             captureCommandBody(msg.text, "/retract-tasks"),
           );
@@ -624,6 +731,7 @@ export function startTelegramStatusPoll(
           msg.text.startsWith("/retract-inbox ")
         ) {
           await handleRetract(
+            scope,
             "/retract-inbox",
             captureCommandBody(msg.text, "/retract-inbox"),
           );

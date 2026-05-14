@@ -427,6 +427,26 @@
                 "type": "integer"
               },
               "uniqueItems": true
+            },
+            "chatProjectBindings": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "chatId",
+                  "projectId"
+                ],
+                "properties": {
+                  "chatId": {
+                    "type": "integer"
+                  },
+                  "projectId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
             }
           }
         },
