@@ -2,7 +2,7 @@
  * Cross-preset operator-shaped runtime parity gate.
  *
  * Boots `node dist/cli.js` under each shipped preset (`claude`, `codex`,
- * `gemini`) and runs a deterministic single-turn scenario, the smallest
+ * `gemini`, `gemini-cli`) and runs a deterministic single-turn scenario, the smallest
  * operator-visible end-to-end probe that proves the preset switch actually
  * propagates from the CLI flag through harness resolution to the model id
  * the adapter sends. Pairs with `src/preset-parity-model-sweep.test.ts`,
@@ -68,6 +68,7 @@ import {
 } from "#core/model/preset-readiness.js";
 import "#modules/claude-agent-harness/index.js";
 import "#modules/codex-agent-harness/index.js";
+import "#modules/gemini-cli-agent-harness/index.js";
 import "#modules/gemini-agent-harness/index.js";
 
 const REPO_ROOT = resolve(fileURLToPath(import.meta.url), "..", "..");
@@ -303,7 +304,7 @@ beforeAll(() => {
       "  result.json    — exit code, banner model id, response text.",
       "",
       "Operator transcripts to capture for the task's Acceptance Evidence:",
-      "  1. All three presets passing on a host where every authEnv is set.",
+      "  1. All shipped presets passing on a host where every authEnv/login state is set.",
       "  2. One env var unset → that preset's preflight.json carries decision=preflight-failure",
       "     while the other two pass.",
       "",

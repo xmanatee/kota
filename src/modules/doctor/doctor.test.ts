@@ -74,21 +74,27 @@ function registerReadinessHarness(
         version: "1.0.0",
         summary: `${name}-runtime@1.0.0`,
       },
-      ...(name === "codex"
+      ...(name === "codex" || name === "gemini-cli"
         ? {
             localAuth: {
               kind: "harness-managed-login",
               status: authStatus,
               required: true,
-              command: "codex login status",
+              command: name === "codex" ? "codex login status" : "gemini",
               detail:
                 authStatus === "ready"
-                  ? "Logged in using ChatGPT"
+                  ? name === "codex"
+                    ? "Logged in using ChatGPT"
+                    : "Cached Gemini CLI Google login"
                   : "Not logged in",
               summary:
                 authStatus === "ready"
-                  ? "Codex ChatGPT login active"
-                  : "Codex ChatGPT login not active; run `codex login`",
+                  ? name === "codex"
+                    ? "Codex ChatGPT login active"
+                    : "Gemini CLI Google login cached"
+                  : name === "codex"
+                    ? "Codex ChatGPT login not active; run `codex login`"
+                    : "Gemini CLI login not active; run `gemini` and sign in",
             },
           }
         : {}),
@@ -110,6 +116,7 @@ beforeEach(() => {
   registerReadinessHarness("claude-agent-sdk", "agent-sdk");
   registerReadinessHarness("codex", "native-cli", "ready");
   registerReadinessHarness("gemini", "provider-sdk");
+  registerReadinessHarness("gemini-cli", "native-cli", "ready");
 });
 
 afterEach(() => {
@@ -487,6 +494,7 @@ describe("kota doctor --preset preflight", () => {
     registerReadinessHarness("claude-agent-sdk", "agent-sdk");
     registerReadinessHarness("codex", "native-cli", "missing");
     registerReadinessHarness("gemini", "provider-sdk");
+    registerReadinessHarness("gemini-cli", "native-cli", "ready");
 
     const results = await runDoctorChecks(projectDir, { preset: "codex", skipConnectivity: true });
     const presetRow = results.find((r) => r.label === "Preset: codex");
@@ -500,6 +508,7 @@ describe("kota doctor --preset preflight", () => {
     ["claude", "agent-sdk"],
     ["codex", "native-cli"],
     ["gemini", "provider-sdk"],
+    ["gemini-cli", "native-cli"],
   ])("renders readiness rows for preset=%s", async (preset, adapterKind) => {
     const results = await runDoctorChecks(projectDir, { preset, skipConnectivity: true });
     expect(results.find((r) => r.label === `Preset: ${preset}`)?.metadata?.presetReadiness?.presetId).toBe(preset);
@@ -522,6 +531,15 @@ describe("kota doctor --preset preflight", () => {
     const presetRow = results.find((r) => r.label === "Preset: codex");
     expect(presetRow?.status).toBe("pass");
     expect(presetRow?.detail).toContain("harness-managed auth");
+  });
+
+  it("keeps gemini-cli preset independent of Gemini API-key env auth", async () => {
+    process.env.GEMINI_API_KEY = "g-test";
+    const results = await runDoctorChecks(projectDir, { preset: "gemini-cli", skipConnectivity: true });
+    const presetRow = results.find((r) => r.label === "Preset: gemini-cli");
+    expect(presetRow?.status).toBe("pass");
+    expect(presetRow?.detail).toContain("harness-managed auth");
+    expect(presetRow?.detail).toContain("Gemini CLI Google login cached");
   });
 
   it("passes for gemini preset when GOOGLE_API_KEY is set (alternate auth)", async () => {

@@ -166,7 +166,7 @@ program
   .option("-v, --verbose", "Show debug output")
   .option("-a, --architect", "Enable Architect/Editor split (two-pass reasoning)")
   .option("-i, --interactive", "Interactive mode (REPL)")
-  .option("--preset <id>", `Preset bundle (claude | codex | gemini). Sets harness, default model, tiers, effort, and auth contract together. Overrides $${PRESET_ENV_VAR} and config.defaultPreset.`)
+  .option("--preset <id>", `Preset bundle (claude | codex | gemini | gemini-cli). Sets harness, default model, tiers, effort, and auth contract together. Overrides $${PRESET_ENV_VAR} and config.defaultPreset.`)
   .option("--harness <name>", "Agent harness adapter (e.g. claude-agent-sdk, thin). Overrides the active preset's harness for this run")
   .option("-s, --session <path>", "Session file for persistence/resume")
   .option("-y, --yes", "Skip confirmation prompts for destructive commands")

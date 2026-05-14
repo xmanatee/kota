@@ -79,8 +79,8 @@ export type CoreKotaConfig = {
    * fast/balanced/capable tier mapping + default reasoning effort + auth
    * contract together. Resolution priority: `--preset` flag > `KOTA_PRESET`
    * env > this field > shipped default preset. Must match a shipped preset
-   * id (`claude` | `codex` | `gemini`). When unset, KOTA selects the shipped
-   * default preset (`codex`).
+   * id (`claude` | `codex` | `gemini` | `gemini-cli`). When unset, KOTA
+   * selects the shipped default preset (`codex`).
    */
   defaultPreset?: string;
 

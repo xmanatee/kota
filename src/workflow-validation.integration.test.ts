@@ -21,6 +21,7 @@ import "#modules/claude-agent-harness/index.js";
 // Side-effect imports: register codex and gemini harnesses so per-harness
 // validateModelId tests can verify those adapters accept arbitrary ids.
 import "#modules/codex-agent-harness/index.js";
+import "#modules/gemini-cli-agent-harness/index.js";
 import "#modules/gemini-agent-harness/index.js";
 import {
   defineDaemonWideModuleEvent,
@@ -664,6 +665,36 @@ describe("workflow validation", () => {
                 type: "agent",
                 promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
                 harness: "gemini",
+                model: "gemini-2.5-pro",
+                effort: "xhigh",
+                autonomyMode: "autonomous",
+              },
+            ],
+          }),
+        ],
+        projectDir,
+      ),
+    ).not.toThrow();
+  });
+
+  it("accepts a non-claude model id when the resolved harness declares no catalog (gemini-cli)", () => {
+    writeFileSync(
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "builder",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [
+              {
+                id: "build",
+                type: "agent",
+                promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+                harness: "gemini-cli",
                 model: "gemini-2.5-pro",
                 effort: "xhigh",
                 autonomyMode: "autonomous",

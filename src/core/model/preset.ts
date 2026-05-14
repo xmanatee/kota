@@ -81,6 +81,19 @@ const SHIPPED_PRESETS: readonly Preset[] = [
     },
     defaultEffort: "xhigh",
   },
+  {
+    id: "gemini-cli",
+    description: "Google Gemini via the local Gemini CLI.",
+    harness: "gemini-cli",
+    authEnv: [],
+    defaultModel: "gemini-2.5-pro",
+    tiers: {
+      fast: "gemini-2.5-flash-lite",
+      balanced: "gemini-2.5-flash",
+      capable: "gemini-2.5-pro",
+    },
+    defaultEffort: "xhigh",
+  },
 ];
 
 const PRESET_INDEX: ReadonlyMap<PresetId, Preset> = new Map(

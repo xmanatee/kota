@@ -14,9 +14,9 @@ import {
 } from "./preset.js";
 
 describe("shipped preset registry", () => {
-  it("includes the canonical claude/codex/gemini presets", () => {
+  it("includes the canonical claude/codex/gemini/gemini-cli presets", () => {
     const ids = listShippedPresetIds();
-    expect(ids).toEqual(expect.arrayContaining(["claude", "codex", "gemini"]));
+    expect(ids).toEqual(expect.arrayContaining(["claude", "codex", "gemini", "gemini-cli"]));
   });
 
   it("every shipped preset declares model tiers and an explicit auth contract", () => {
@@ -36,12 +36,11 @@ describe("shipped preset registry", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("no preset entry inherits tier/model/authEnv values from another preset by accident", () => {
+  it("no preset entry inherits harness/authEnv values from another preset by accident", () => {
     const presets = listShippedPresets();
     for (let i = 0; i < presets.length; i++) {
       for (let j = i + 1; j < presets.length; j++) {
-        expect(presets[i].defaultModel).not.toBe(presets[j].defaultModel);
-        expect(presets[i].tiers).not.toBe(presets[j].tiers);
+        expect(presets[i].harness).not.toBe(presets[j].harness);
         expect(presets[i].authEnv).not.toBe(presets[j].authEnv);
       }
     }
@@ -51,12 +50,13 @@ describe("shipped preset registry", () => {
     expect(hasPreset("claude")).toBe(true);
     expect(hasPreset("codex")).toBe(true);
     expect(hasPreset("gemini")).toBe(true);
+    expect(hasPreset("gemini-cli")).toBe(true);
     expect(hasPreset("nonexistent")).toBe(false);
   });
 
   it("getPreset throws a loud error naming the available ids when given an unknown id", () => {
     expect(() => getPreset("nonexistent")).toThrow(
-      /Unknown preset "nonexistent".*claude.*codex.*gemini/,
+      /Unknown preset "nonexistent".*claude.*codex.*gemini.*gemini-cli/,
     );
   });
 
@@ -131,9 +131,15 @@ describe("checkPresetAuth", () => {
   const codex = getPreset("codex");
   const claude = getPreset("claude");
   const gemini = getPreset("gemini");
+  const geminiCli = getPreset("gemini-cli");
 
   it("does not require env auth for the Codex CLI preset", () => {
     const { missing } = checkPresetAuth(codex, {});
+    expect(missing).toEqual([]);
+  });
+
+  it("does not require env auth for the native Gemini CLI preset", () => {
+    const { missing } = checkPresetAuth(geminiCli, {});
     expect(missing).toEqual([]);
   });
 

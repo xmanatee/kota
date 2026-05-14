@@ -1,12 +1,12 @@
 ---
 id: task-add-native-gemini-cli-harness-managed-preset
 title: Add native Gemini CLI harness-managed preset
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a native Gemini CLI harness and preset so KOTA can run through the installed gemini CLI with OAuth or Code Assist login, separate from the existing SDK/API-key-backed Gemini adapter.
 created_at: 2026-05-14T03:24:55.009Z
-updated_at: 2026-05-14T03:24:55.009Z
+updated_at: 2026-05-14T03:50:40.526Z
 ---
 
 ## Problem

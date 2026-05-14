@@ -290,7 +290,7 @@ const daemonModule: KotaModule = {
     const cmd = new Command("daemon")
       .description("Run KOTA as a long-running daemon with autonomous workflows")
       .option("-v, --verbose", "Show debug output")
-      .option("--preset <id>", "Preset bundle (claude | codex | gemini). Overrides KOTA_PRESET and config.defaultPreset for this daemon process")
+      .option("--preset <id>", "Preset bundle (claude | codex | gemini | gemini-cli). Overrides KOTA_PRESET and config.defaultPreset for this daemon process")
       .option("--poll-interval <seconds>", "Scheduler poll interval in seconds", "30")
       .option(
         "--project-dir <path>",
