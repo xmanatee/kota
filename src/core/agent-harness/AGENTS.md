@@ -54,6 +54,11 @@ injected by call sites.
 - `supportsMultiTurn: boolean` — whether the REPL can launch this adapter.
   Single-shot runners set `false` so the REPL refuses to launch them rather
   than silently downgrading.
+- `readiness?: () => AgentHarnessReadiness` — optional local preflight
+  metadata owned by the adapter. It should report the adapter kind, required
+  local runtime probe, harness-managed local auth probe when the preset has no
+  `authEnv`, optional peer runtime probes, and unsupported neutral option
+  boundaries without making provider network calls.
 
 ## Registry and selection
 

@@ -12,12 +12,71 @@ import { createInterface } from "node:readline";
 import type {
   AgentEffort,
   AgentHarness,
+  AgentHarnessReadiness,
   AgentHarnessResult,
   AgentHarnessRunOptions,
   AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
+import {
+  probeNativeCliAuth,
+  probeNativeCliRuntime,
+} from "#core/agent-harness/index.js";
 
 export const CODEX_AGENT_HARNESS_NAME = "codex";
+
+const CODEX_UNSUPPORTED_OPTIONS = [
+  {
+    option: "mcpServers",
+    reason: "Codex CLI owns its own tool runtime and does not host KOTA MCP servers.",
+  },
+  {
+    option: 'autonomyMode="supervised"',
+    reason: "The non-interactive CLI path cannot route approvals through KOTA's queue.",
+  },
+  {
+    option: "persistSession",
+    reason: "KOTA-managed session persistence is not exposed by this adapter.",
+  },
+  {
+    option: "harnessOverrides",
+    reason: "The codex adapter does not accept per-step harnessOptions.",
+  },
+  {
+    option: "enableFileCheckpointing",
+    reason: "KOTA file checkpointing is not supported by Codex CLI.",
+  },
+  {
+    option: "thinkingEnabled/thinkingBudget",
+    reason: "Portable effort maps to Codex CLI model_reasoning_effort instead.",
+  },
+  {
+    option: "onMessage",
+    reason: "Codex CLI emits text deltas, not KotaAgentMessage frames.",
+  },
+] as const;
+
+function codexReadiness(): AgentHarnessReadiness {
+  return {
+    adapterKind: "native-cli",
+    localRuntime: probeNativeCliRuntime({
+      binaryName: "codex",
+      versionArgs: ["--version"],
+      required: true,
+    }),
+    localAuth: probeNativeCliAuth({
+      binaryName: "codex",
+      statusArgs: ["login", "status"],
+      required: true,
+      readyPattern: /logged in using chatgpt/i,
+      missingPattern:
+        /not logged in|not authenticated|logged out|no login|login required|api key/i,
+      readySummary: "Codex ChatGPT login active",
+      missingSummary: "Codex ChatGPT login not active; run `codex login`",
+    }),
+    optionalRuntimes: [],
+    unsupportedOptions: CODEX_UNSUPPORTED_OPTIONS,
+  };
+}
 
 type CodexCliUsage = {
   input_tokens?: number;
@@ -267,6 +326,7 @@ export const codexAgentHarness: AgentHarness = {
   supportedHookKinds: ["preRun", "postRun"] as const,
   askOwnerToolName: null,
   emitsAgentMessageStream: false,
+  readiness: codexReadiness,
   async run(
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,

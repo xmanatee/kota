@@ -25,7 +25,10 @@ import type {
   DoctorRunOptions,
   DoctorRunResult,
 } from "./client.js";
-import { runDoctorChecks, runDoctorFixes } from "./doctor-checks.js";
+import {
+  runDoctorFixes,
+  runDoctorReport,
+} from "./doctor-checks.js";
 import { doctorControlRoutes } from "./doctor-control-routes.js";
 
 export type {
@@ -36,6 +39,7 @@ export {
   checkProviderConnectivity,
   runDoctorChecks,
   runDoctorFixes,
+  runDoctorReport,
 } from "./doctor-checks.js";
 
 function statusIcon(status: DoctorCheckResult["status"]): string {
@@ -86,7 +90,7 @@ function buildDoctorCommand(ctx: ModuleContext): Command {
       const repairs = opts.fix ? (await ctx.client.doctor.fix()).repairs : [];
 
       if (opts.json) {
-        console.log(JSON.stringify(opts.fix ? { checks: results, repairs } : results, null, 2));
+        console.log(JSON.stringify(opts.fix ? { ...runResult, repairs } : runResult, null, 2));
       } else {
         console.log("\nKOTA Health Check\n");
         printResults(results);
@@ -148,8 +152,7 @@ const doctorModule: KotaModule = {
         const checkOpts: { skipConnectivity?: boolean; preset?: string } = {};
         if (options?.skipConnectivity) checkOpts.skipConnectivity = true;
         if (options?.preset) checkOpts.preset = options.preset;
-        const checks = await runDoctorChecks(ctx.cwd, checkOpts);
-        return { checks };
+        return runDoctorReport(ctx.cwd, checkOpts);
       },
       async fix() {
         return { repairs: runDoctorFixes(ctx.cwd) };

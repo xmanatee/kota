@@ -10,23 +10,21 @@
  * without paying for a CLI spawn or a real provider call.
  *
  * Per-preset preflight behavior:
- *   - Each preset declares an `authEnv` list; the gate inspects the live
- *     process env for any of those vars.
- *   - When at least one is set, the scenario runs: `node dist/cli.js -p
- *     "Reply with the single word OK"` with `KOTA_PRESET=<id>` and the
- *     full env passed through. The test asserts a response was received
- *     and captures the transcript.
- *   - When none are set, both the preflight assertion and the scenario
- *     test loud-skip via `it.skipIf` — the missing env var name is in
- *     the test title and `preflight.json` records the actionable
- *     "preset X requires Y" message. Vitest never emits a skipped test
- *     without naming it, so the operator sees one named-and-skipped
- *     preflight plus one named-and-skipped scenario per offline preset
- *     rather than a flaky red run.
+ *   - Each preset records the shared harness-readiness object: auth
+ *     alternatives, local runtime probe, adapter kind, and unsupported
+ *     neutral-option boundaries.
+ *   - When auth and required local runtime are ready, the scenario runs:
+ *     `node dist/cli.js -p "Reply with the single word OK"` with
+ *     `KOTA_PRESET=<id>` and the full env passed through.
+ *   - When auth or required local runtime is missing, both the preflight
+ *     assertion and the scenario test loud-skip via `it.skipIf`; the skip
+ *     title names the actionable reason and `preflight.json` preserves the
+ *     structured readiness payload for diagnosis.
  *
  * Run-artifact layout (per task contract): every preset's recordings land
  * under `.kota/runs/<run-id>/preset-parity/<preset-id>/`:
- *   - `preflight.json` — auth-env snapshot, missing list, decision.
+ *   - `preflight.json` — auth/runtime readiness snapshot, missing list,
+ *     decision, and structured per-preset readiness.
  *   - `transcript.txt` — full stdout + stderr from the spawned CLI.
  *   - `result.json` — exit code, observed model id banner, response text.
  * The directory is the postmortem evidence the task asks for.
@@ -60,10 +58,17 @@ import {
   it,
 } from "vitest";
 import {
-  checkPresetAuth,
   listShippedPresets,
   type Preset,
 } from "#core/model/preset.js";
+import {
+  collectPresetHarnessReadiness,
+  isPresetHarnessReadinessReady,
+  type PresetHarnessReadiness,
+} from "#core/model/preset-readiness.js";
+import "#modules/claude-agent-harness/index.js";
+import "#modules/codex-agent-harness/index.js";
+import "#modules/gemini-agent-harness/index.js";
 
 const REPO_ROOT = resolve(fileURLToPath(import.meta.url), "..", "..");
 const CLI_PATH = join(REPO_ROOT, "dist", "cli.js");
@@ -77,6 +82,7 @@ type PreflightArtifact = {
   presetId: string;
   authEnv: readonly string[];
   missing: readonly string[];
+  readiness: PresetHarnessReadiness;
   decision: "scenario-runnable" | "preflight-failure";
   message: string;
   capturedAt: string;
@@ -115,20 +121,35 @@ function formatPreflightMessage(preset: Preset, missing: readonly string[]): str
 }
 
 function recordPreflight(preset: Preset): PreflightArtifact {
-  const { missing } = checkPresetAuth(preset);
+  const readiness = collectPresetHarnessReadiness(preset);
+  const missing = readiness.auth.missing;
   const dir = ensureRunDir(preset.id);
   const decision: PreflightArtifact["decision"] =
-    missing.length === 0 ? "scenario-runnable" : "preflight-failure";
-  const message =
-    missing.length === 0
-      ? preset.authEnv.length === 0
+    isPresetHarnessReadinessReady(readiness)
+      ? "scenario-runnable"
+      : "preflight-failure";
+  let message: string;
+  if (decision === "scenario-runnable") {
+    message =
+      preset.authEnv.length === 0
         ? `preset "${preset.id}" auth ok (harness-managed auth)`
-        : `preset "${preset.id}" auth ok (one of ${preset.authEnv.join(", ")} is set)`
-      : formatPreflightMessage(preset, missing);
+        : `preset "${preset.id}" auth ok (one of ${preset.authEnv.join(", ")} is set)`;
+  } else if (missing.length > 0) {
+    message = formatPreflightMessage(preset, missing);
+  } else if (!readiness.auth.ready) {
+    message =
+      `preset "${preset.id}" auth not ready (${readiness.auth.summary}) — ` +
+      `run \`kota doctor --preset ${preset.id}\` to diagnose.`;
+  } else {
+    message =
+      `preset "${preset.id}" local runtime not ready (${readiness.adapter.localRuntime.summary}) — ` +
+      `run \`kota doctor --preset ${preset.id}\` to diagnose.`;
+  }
   const artifact: PreflightArtifact = {
     presetId: preset.id,
     authEnv: preset.authEnv,
     missing,
+    readiness,
     decision,
     message,
     capturedAt: new Date().toISOString(),
@@ -277,7 +298,7 @@ beforeAll(() => {
       `started: ${new Date().toISOString()}`,
       "",
       "Per-preset directories:",
-      "  preflight.json — auth-env snapshot and decision.",
+      "  preflight.json — auth/runtime readiness snapshot and decision.",
       "  transcript.txt — stdout/stderr tail of the spawned CLI.",
       "  result.json    — exit code, banner model id, response text.",
       "",
@@ -303,11 +324,16 @@ describe("preset-parity gate — per-preset preflight", () => {
     // skips. The artifact's `message` field carries the same single-line
     // "preset X requires Y" wording the CLI doctor emits.
     const artifact = recordPreflight(preset);
-    const missingLabel =
-      artifact.missing.length > 0 ? artifact.missing.join(" or ") : null;
-    const skip = missingLabel !== null;
+    const missingLabel = artifact.missing.length > 0
+      ? artifact.missing.join(" or ")
+      : !artifact.readiness.auth.ready
+        ? artifact.readiness.auth.summary
+      : artifact.readiness.adapter.localRuntime.status !== "ready"
+        ? artifact.readiness.adapter.localRuntime.summary
+        : null;
+    const skip = artifact.decision === "preflight-failure";
     const titleSuffix = skip
-      ? ` — SKIPPED (preset "${preset.id}" requires ${missingLabel}; preflight.json recorded preflight-failure)`
+      ? ` — SKIPPED (preset "${preset.id}" not ready: ${missingLabel}; preflight.json recorded preflight-failure)`
       : "";
     const authExpectation = preset.authEnv.length === 0
       ? "harness-managed auth is accepted"
@@ -324,10 +350,10 @@ describe("preset-parity gate — per-preset preflight", () => {
 
 describe("preset-parity gate — single-turn scenario (boot + first response)", () => {
   for (const preset of listShippedPresets()) {
-    const { missing } = checkPresetAuth(preset);
+    const artifact = recordPreflight(preset);
     const skipReason =
-      missing.length > 0
-        ? `preset "${preset.id}" auth missing (${missing.join(" or ")}); preflight failure recorded`
+      artifact.decision === "preflight-failure"
+        ? `${artifact.message}; preflight failure recorded`
         : null;
     const runner = skipReason ? it.skip : it;
     runner(

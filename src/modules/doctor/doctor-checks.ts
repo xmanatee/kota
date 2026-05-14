@@ -25,18 +25,26 @@ import type {
 } from "#core/daemon/daemon-control.js";
 import { createModelClient } from "#core/model/model-client.js";
 import {
-  checkPresetAuth,
   getPreset,
   PRESET_ENV_VAR,
   resolveActivePresetFromConfig,
   resolvePreset,
 } from "#core/model/preset.js";
+import {
+  collectPresetHarnessReadiness,
+  isPresetHarnessReadinessReady,
+  type PresetHarnessReadiness,
+} from "#core/model/preset-readiness.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
 import { getDaemonTransport } from "#core/server/daemon-transport.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
 import { validateWorkflowDefinitions, WorkflowDefinitionError } from "#core/workflow/validation.js";
 import { resolveApiKey } from "#modules/model-clients/factory.js";
-import type { DoctorCheckResult, DoctorRepairResult } from "./client.js";
+import type {
+  DoctorCheckResult,
+  DoctorRepairResult,
+  DoctorRunResult,
+} from "./client.js";
 
 export type CheckResult = DoctorCheckResult;
 export type RepairResult = DoctorRepairResult;
@@ -321,13 +329,88 @@ export async function checkProviderConnectivity(projectDir: string): Promise<Che
   }
 }
 
+function runtimeProbeStatus(probe: PresetHarnessReadiness["adapter"]["localRuntime"]): CheckResult["status"] {
+  if (probe.status === "ready") return "pass";
+  return probe.required ? "fail" : "pass";
+}
+
+function runtimeProbeName(probe: PresetHarnessReadiness["adapter"]["localRuntime"]): string {
+  return probe.kind === "native-cli" ? probe.binaryName : probe.packageName;
+}
+
+function runtimeProbeDetail(probe: PresetHarnessReadiness["adapter"]["localRuntime"]): string {
+  if (probe.status === "error") return `${probe.summary} (${probe.detail})`;
+  return probe.summary;
+}
+
+function presetReadinessSummary(readiness: PresetHarnessReadiness): string {
+  if (!readiness.auth.ready) return `auth ${readiness.auth.summary}`;
+  if (readiness.adapter.localRuntime.required && readiness.adapter.localRuntime.status !== "ready") {
+    return `runtime ${readiness.adapter.localRuntime.summary}`;
+  }
+  return `${readiness.auth.summary}; runtime ${readiness.adapter.localRuntime.summary}`;
+}
+
+function renderPresetReadinessChecks(
+  readiness: PresetHarnessReadiness,
+  sourceLabel: string,
+): CheckResult[] {
+  const sourceDetail =
+    `source: ${sourceLabel}, harness: ${readiness.harnessId}, defaultModel: ${readiness.defaultModel}`;
+  const presetStatus: CheckResult["status"] =
+    isPresetHarnessReadinessReady(readiness) ? "pass" : "fail";
+  const checks: CheckResult[] = [
+    {
+      label: `Preset: ${readiness.presetId}`,
+      status: presetStatus,
+      detail: `${presetReadinessSummary(readiness)} (${sourceDetail})`,
+      metadata: { presetReadiness: readiness },
+    },
+    pass(
+      `Preset tiers: ${readiness.presetId}`,
+      `fast=${readiness.tiers.fast}, balanced=${readiness.tiers.balanced}, capable=${readiness.tiers.capable}`,
+    ),
+    pass(
+      `Preset adapter: ${readiness.presetId}`,
+      `kind=${readiness.adapter.adapterKind}, harness=${readiness.harnessId}`,
+    ),
+    {
+      label: `Preset runtime: ${readiness.presetId}`,
+      status: runtimeProbeStatus(readiness.adapter.localRuntime),
+      detail: runtimeProbeDetail(readiness.adapter.localRuntime),
+    },
+  ];
+
+  for (const optional of readiness.adapter.optionalRuntimes) {
+    checks.push({
+      label: `Preset optional runtime: ${readiness.presetId}/${runtimeProbeName(optional)}`,
+      status: runtimeProbeStatus(optional),
+      detail: runtimeProbeDetail(optional),
+    });
+  }
+
+  checks.push({
+    label: `Preset auth: ${readiness.presetId}`,
+    status: readiness.auth.ready ? "pass" : "fail",
+    detail: readiness.auth.summary,
+  });
+  checks.push(pass(
+    `Preset unsupported options: ${readiness.presetId}`,
+    readiness.adapter.unsupportedOptions.length === 0
+      ? "none"
+      : readiness.adapter.unsupportedOptions
+        .map((option) => option.option)
+        .join(", "),
+  ));
+  return checks;
+}
+
 /**
- * Preflight the active preset's auth contract. Reports `pass` when auth is
- * harness-managed or at least one alternate env var is set. Reports `fail`
- * when env auth is declared and none are present, or when the requested preset
- * is unknown.
+ * Preflight the active preset's harness readiness. Reports structured
+ * readiness on the main preset row and renders concise rows for the runtime,
+ * auth, tiers, adapter kind, and unsupported neutral-option boundaries.
  */
-function checkPresetAuthEnv(
+function checkPresetHarnessReadiness(
   projectDir: string,
   requestedPresetId: string | undefined,
 ): CheckResult[] {
@@ -345,20 +428,21 @@ function checkPresetAuthEnv(
   }
   const { preset, source } = resolution;
   const sourceLabel = source === "default" ? "shipped default" : source;
-  const sourceDetail = `source: ${sourceLabel}, harness: ${preset.harness}, defaultModel: ${preset.defaultModel}`;
-  const auth = checkPresetAuth(preset);
-  if (auth.missing.length === 0) {
-    const authDetail = preset.authEnv.length === 0
-      ? "harness-managed auth"
-      : "authEnv set";
-    return [pass(`Preset: ${preset.id}`, `${authDetail} (${sourceDetail})`)];
+  const readiness = collectPresetHarnessReadiness(preset, {
+    tierOverrides: config.modelTiers,
+  });
+  return renderPresetReadinessChecks(readiness, sourceLabel);
+}
+
+function extractPresetReadiness(
+  checks: readonly CheckResult[],
+): PresetHarnessReadiness | undefined {
+  for (const check of checks) {
+    if (check.metadata?.presetReadiness) {
+      return check.metadata.presetReadiness;
+    }
   }
-  return [
-    fail(
-      `Preset: ${preset.id}`,
-      `${preset.authEnv.join(" or ")}: missing — export one of (${sourceDetail})`,
-    ),
-  ];
+  return undefined;
 }
 
 export async function runDoctorChecks(
@@ -431,7 +515,7 @@ export async function runDoctorChecks(
     results.push(...extResults);
   }
 
-  results.push(...checkPresetAuthEnv(projectDir, opts?.preset));
+  results.push(...checkPresetHarnessReadiness(projectDir, opts?.preset));
 
   results.push(...checkProvidersConfig(projectDir));
 
@@ -459,4 +543,13 @@ export async function runDoctorChecks(
   results.push(...checkDisk(projectDir));
 
   return results;
+}
+
+export async function runDoctorReport(
+  projectDir: string,
+  opts?: { skipConnectivity?: boolean; preset?: string },
+): Promise<DoctorRunResult> {
+  const checks = await runDoctorChecks(projectDir, opts);
+  const presetReadiness = extractPresetReadiness(checks);
+  return presetReadiness ? { checks, presetReadiness } : { checks };
 }

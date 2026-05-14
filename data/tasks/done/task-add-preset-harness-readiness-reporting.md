@@ -1,12 +1,12 @@
 ---
 id: task-add-preset-harness-readiness-reporting
 title: Add preset harness readiness reporting
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Report adapter kind, local binary or package version, auth mode, and unsupported-option boundaries for each shipped preset so parity failures distinguish missing auth, missing local runtime, and adapter drift.
 created_at: 2026-05-14T02:43:08Z
-updated_at: 2026-05-14T02:43:08Z
+updated_at: 2026-05-14T03:15:00Z
 ---
 
 ## Problem
@@ -106,3 +106,16 @@ local causes.
   per-preset readiness objects while provider auth is absent.
 - A `kota doctor --preset codex` transcript under `.kota/runs/<run-id>/` showing
   the missing-binary or version-present branch with actionable output.
+
+## Completion Evidence
+
+- `pnpm test src/core/agent-harness/readiness.test.ts src/core/model/preset-readiness.test.ts src/modules/doctor/doctor.test.ts`
+- `pnpm typecheck`
+- `pnpm test:preset-parity`
+- `.kota/runs/2026-05-14T02-46-04-030Z-builder-1ysr5b/doctor-codex-transcript.txt`
+- `.kota/runs/2026-05-14T02-57-53-671Z-preset-parity/preset-parity/codex/preflight.json`
+- Repair validation: `pnpm test src/core/agent-harness/readiness.test.ts src/core/model/preset-readiness.test.ts src/modules/doctor/doctor.test.ts`
+- Repair validation: `pnpm typecheck`
+- Repair validation: `pnpm lint` (only reports an unrelated informational hint in `src/modules/autonomy/workflows/fan-out-consolidator/workflow.test.ts`)
+- Repair preflight: `pnpm test src/preset-parity.integration.test.ts -t "preset-parity gate — per-preset preflight"`
+- `.kota/runs/2026-05-14T03-13-50-086Z-preset-parity/preset-parity/codex/preflight.json`

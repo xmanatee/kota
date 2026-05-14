@@ -8,12 +8,16 @@
  * (`daemonClient(link)` in `index.ts`) realize this contract; the `kota
  * doctor` CLI consumes it through `ctx.client.doctor`.
  */
+import type { PresetHarnessReadiness } from "#core/model/preset-readiness.js";
 
 /** A single doctor health-check result. */
 export type DoctorCheckResult = {
   label: string;
   status: "pass" | "warn" | "fail";
   detail?: string;
+  metadata?: {
+    presetReadiness?: PresetHarnessReadiness;
+  };
 };
 
 /** A single doctor auto-repair result. */
@@ -37,6 +41,7 @@ export type DoctorRunOptions = {
 
 export type DoctorRunResult = {
   checks: DoctorCheckResult[];
+  presetReadiness?: PresetHarnessReadiness;
 };
 
 export type DoctorFixResult = {

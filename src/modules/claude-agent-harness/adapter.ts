@@ -1,11 +1,13 @@
 import type {
   AgentHarness,
+  AgentHarnessReadiness,
   AgentHarnessResult,
   AgentHarnessRunOptions,
   AgentHarnessStepOverrides,
   AgentHarnessWriter,
   AgentMcpServers,
 } from "#core/agent-harness/index.js";
+import { probeNodePackageRuntime } from "#core/agent-harness/index.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type {
   ClaudeAgentMcpServers,
@@ -22,6 +24,25 @@ import {
 import type { SDKSystemPrompt } from "./sdk-types.js";
 
 export const CLAUDE_AGENT_HARNESS_NAME = "claude-agent-sdk";
+
+const CLAUDE_UNSUPPORTED_OPTIONS = [
+  {
+    option: 'autonomyMode="supervised"',
+    reason: "Claude Agent SDK has no native route into KOTA's approval queue.",
+  },
+] as const;
+
+function claudeReadiness(): AgentHarnessReadiness {
+  return {
+    adapterKind: "agent-sdk",
+    localRuntime: probeNodePackageRuntime({
+      packageName: "@anthropic-ai/claude-agent-sdk",
+      required: true,
+    }),
+    optionalRuntimes: [],
+    unsupportedOptions: CLAUDE_UNSUPPORTED_OPTIONS,
+  };
+}
 
 /**
  * Canonical model ids the claude-agent-sdk adapter knows it can serve. The
@@ -199,6 +220,7 @@ export const claudeAgentHarness: AgentHarness = {
   supportedHookKinds: ["preRun", "postRun"] as const,
   askOwnerToolName: KOTA_OWNER_QUESTIONS_MCP_TOOL,
   emitsAgentMessageStream: true,
+  readiness: claudeReadiness,
   validateStepOptions: validateClaudeSdkStepOptions,
   validateModelId: validateClaudeSdkModelId,
   async run(

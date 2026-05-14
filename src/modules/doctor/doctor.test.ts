@@ -2,6 +2,12 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  type AgentHarness,
+  type AgentHarnessAdapterKind,
+  clearAgentHarnessRegistryForTest,
+  registerAgentHarness,
+} from "#core/agent-harness/index.js";
 import { checkProviderConnectivity, runDoctorChecks, runDoctorFixes } from "./index.js";
 
 vi.mock("#core/workflow/validation.js", () => ({
@@ -45,6 +51,70 @@ function makeTmpDir(): string {
   mkdirSync(dir, { recursive: true });
   return dir;
 }
+
+function registerReadinessHarness(
+  name: string,
+  adapterKind: AgentHarnessAdapterKind,
+  authStatus: "ready" | "missing" = "ready",
+): void {
+  const harness: AgentHarness = {
+    name,
+    description: `${name} test harness`,
+    supportsMultiTurn: true,
+    supportedHookKinds: [],
+    askOwnerToolName: null,
+    emitsAgentMessageStream: false,
+    readiness: () => ({
+      adapterKind,
+      localRuntime: {
+        kind: "node-package",
+        status: "ready",
+        required: true,
+        packageName: `${name}-runtime`,
+        version: "1.0.0",
+        summary: `${name}-runtime@1.0.0`,
+      },
+      ...(name === "codex"
+        ? {
+            localAuth: {
+              kind: "harness-managed-login",
+              status: authStatus,
+              required: true,
+              command: "codex login status",
+              detail:
+                authStatus === "ready"
+                  ? "Logged in using ChatGPT"
+                  : "Not logged in",
+              summary:
+                authStatus === "ready"
+                  ? "Codex ChatGPT login active"
+                  : "Codex ChatGPT login not active; run `codex login`",
+            },
+          }
+        : {}),
+      optionalRuntimes: [],
+      unsupportedOptions: [],
+    }),
+    run: async () => ({
+      text: "",
+      streamedText: "",
+      turns: 0,
+      isError: false,
+    }),
+  };
+  registerAgentHarness(harness);
+}
+
+beforeEach(() => {
+  clearAgentHarnessRegistryForTest();
+  registerReadinessHarness("claude-agent-sdk", "agent-sdk");
+  registerReadinessHarness("codex", "native-cli", "ready");
+  registerReadinessHarness("gemini", "provider-sdk");
+});
+
+afterEach(() => {
+  clearAgentHarnessRegistryForTest();
+});
 
 describe("kota doctor — offline path", () => {
   let projectDir: string;
@@ -404,11 +474,39 @@ describe("kota doctor --preset preflight", () => {
     vi.restoreAllMocks();
   });
 
-  it("passes for codex preset without OPENAI_API_KEY because Codex CLI owns auth", async () => {
+  it("passes for codex preset without OPENAI_API_KEY when Codex ChatGPT login is active", async () => {
     const results = await runDoctorChecks(projectDir, { preset: "codex", skipConnectivity: true });
     const presetRow = results.find((r) => r.label === "Preset: codex");
     expect(presetRow?.status).toBe("pass");
     expect(presetRow?.detail).toContain("harness-managed auth");
+    expect(presetRow?.detail).toContain("Codex ChatGPT login active");
+  });
+
+  it("fails for codex preset when Codex ChatGPT login is not active", async () => {
+    clearAgentHarnessRegistryForTest();
+    registerReadinessHarness("claude-agent-sdk", "agent-sdk");
+    registerReadinessHarness("codex", "native-cli", "missing");
+    registerReadinessHarness("gemini", "provider-sdk");
+
+    const results = await runDoctorChecks(projectDir, { preset: "codex", skipConnectivity: true });
+    const presetRow = results.find((r) => r.label === "Preset: codex");
+    const authRow = results.find((r) => r.label === "Preset auth: codex");
+    expect(presetRow?.status).toBe("fail");
+    expect(authRow?.status).toBe("fail");
+    expect(authRow?.detail).toContain("run `codex login`");
+  });
+
+  it.each([
+    ["claude", "agent-sdk"],
+    ["codex", "native-cli"],
+    ["gemini", "provider-sdk"],
+  ])("renders readiness rows for preset=%s", async (preset, adapterKind) => {
+    const results = await runDoctorChecks(projectDir, { preset, skipConnectivity: true });
+    expect(results.find((r) => r.label === `Preset: ${preset}`)?.metadata?.presetReadiness?.presetId).toBe(preset);
+    expect(results.find((r) => r.label === `Preset tiers: ${preset}`)?.detail).toContain("capable=");
+    expect(results.find((r) => r.label === `Preset adapter: ${preset}`)?.detail).toContain(`kind=${adapterKind}`);
+    expect(results.find((r) => r.label === `Preset runtime: ${preset}`)?.detail).toContain("@1.0.0");
+    expect(results.find((r) => r.label === `Preset unsupported options: ${preset}`)).toBeDefined();
   });
 
   it("fails for gemini preset when neither GEMINI_API_KEY nor GOOGLE_API_KEY is set", async () => {

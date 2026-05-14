@@ -4,6 +4,7 @@ import type { KotaAgentMessage } from "./agent-message.js";
 export type { KotaAgentMessage } from "./agent-message.js";
 
 import type { HarnessHookKind } from "./hooks.js";
+import type { AgentHarnessReadinessProbe } from "./readiness.js";
 
 /**
  * KOTA-native portable system-prompt text every harness-neutral caller
@@ -250,6 +251,13 @@ export type AgentHarness = {
    * than the adapter name.
    */
   readonly emitsAgentMessageStream: boolean;
+  /**
+   * Local readiness probe for operator-facing preflight surfaces. Adapters
+   * own runtime details (native CLI, SDK package), harness-managed local
+   * auth checks, and unsupported neutral options; preset consumers add preset
+   * id, model tiers, and env-auth state.
+   */
+  readonly readiness?: AgentHarnessReadinessProbe;
   /**
    * Validates a per-step harness-specific options block and returns the
    * adapter-private fragment to thread through as

@@ -12,7 +12,7 @@ import type {
   ModuleContext,
 } from "#core/modules/module-types.js";
 import { jsonResponse } from "#core/server/session-pool.js";
-import { runDoctorChecks, runDoctorFixes } from "./doctor-checks.js";
+import { runDoctorFixes, runDoctorReport } from "./doctor-checks.js";
 
 export function doctorControlRoutes(ctx: ModuleContext): ControlRouteRegistration[] {
   return [
@@ -28,8 +28,8 @@ export function doctorControlRoutes(ctx: ModuleContext): ControlRouteRegistratio
           const opts: { skipConnectivity?: boolean; preset?: string } = {};
           if (skipConnectivity) opts.skipConnectivity = true;
           if (preset) opts.preset = preset;
-          const checks = await runDoctorChecks(ctx.cwd, opts);
-          jsonResponse(res, 200, { checks });
+          const report = await runDoctorReport(ctx.cwd, opts);
+          jsonResponse(res, 200, report);
         } catch (err) {
           jsonResponse(res, 500, { error: (err as Error).message });
         }

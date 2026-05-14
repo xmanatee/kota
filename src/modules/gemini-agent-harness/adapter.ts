@@ -27,10 +27,15 @@ import type {
   AgentCanUseTool,
   AgentEffort,
   AgentHarness,
+  AgentHarnessReadiness,
   AgentHarnessResult,
   AgentHarnessRunOptions,
   AgentHarnessWriter,
   KotaTool,
+} from "#core/agent-harness/index.js";
+import {
+  probeNativeCliRuntime,
+  probeNodePackageRuntime,
 } from "#core/agent-harness/index.js";
 import { runWithAskOwnerSource } from "#core/tools/ask-owner.js";
 import { executeTool, getAllTools } from "#core/tools/index.js";
@@ -48,6 +53,57 @@ export const GEMINI_AGENT_HARNESS_NAME = "gemini";
 export const GEMINI_ASK_OWNER_TOOL_NAME = "ask_owner";
 
 const DEFAULT_MAX_TURNS = 25;
+
+const GEMINI_UNSUPPORTED_OPTIONS = [
+  {
+    option: "mcpServers",
+    reason: "The Gemini SDK adapter hosts KOTA tools directly, not MCP servers.",
+  },
+  {
+    option: 'autonomyMode="supervised"',
+    reason: "The adapter cannot route tool calls through KOTA's approval queue.",
+  },
+  {
+    option: "persistSession",
+    reason: "The Gemini SDK loop does not persist native sessions.",
+  },
+  {
+    option: "harnessOverrides",
+    reason: "The gemini adapter does not accept per-step harnessOptions.",
+  },
+  {
+    option: "enableFileCheckpointing",
+    reason: "KOTA file checkpointing is not supported by this adapter.",
+  },
+  {
+    option: "thinkingEnabled/thinkingBudget",
+    reason: "Portable effort maps to Gemini thinkingConfig.thinkingLevel instead.",
+  },
+  {
+    option: "onMessage",
+    reason: "The adapter emits text deltas, not KotaAgentMessage frames.",
+  },
+] as const;
+
+function geminiReadiness(): AgentHarnessReadiness {
+  return {
+    adapterKind: "provider-sdk",
+    localRuntime: probeNodePackageRuntime({
+      packageName: "@google/genai",
+      required: true,
+    }),
+    optionalRuntimes: [
+      probeNativeCliRuntime({
+        binaryName: "gemini",
+        versionArgs: ["--version"],
+        required: false,
+        missingSummary:
+          "gemini CLI not found on PATH; this is informational because KOTA's gemini harness is SDK-backed",
+      }),
+    ],
+    unsupportedOptions: GEMINI_UNSUPPORTED_OPTIONS,
+  };
+}
 
 function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
   if (options.mcpServers && Object.keys(options.mcpServers).length > 0) {
@@ -277,6 +333,7 @@ export const geminiAgentHarness: AgentHarness = {
   supportedHookKinds: ["preRun", "postRun"] as const,
   askOwnerToolName: GEMINI_ASK_OWNER_TOOL_NAME,
   emitsAgentMessageStream: false,
+  readiness: geminiReadiness,
   async run(
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,

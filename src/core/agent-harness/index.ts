@@ -53,6 +53,30 @@ export type {
   KotaToolResultBlockContent,
   KotaToolUseBlock,
 } from "./message-protocol.js";
+export type {
+  AgentHarnessAdapterKind,
+  AgentHarnessAuthProbe,
+  AgentHarnessAuthStatus,
+  AgentHarnessReadiness,
+  AgentHarnessReadinessProbe,
+  AgentHarnessRuntimeProbe,
+  AgentHarnessRuntimeProbeDeps,
+  AgentHarnessRuntimeStatus,
+  AgentHarnessUnsupportedOption,
+  BinaryResolution,
+  CommandOutputResolution,
+  CommandVersionResolution,
+  NativeCliAuthProbeSpec,
+  NativeCliRuntimeProbeSpec,
+  NodePackageRuntimeProbeSpec,
+  PackageVersionResolution,
+} from "./readiness.js";
+export {
+  NODE_RUNTIME_PROBE_DEPS,
+  probeNativeCliAuth,
+  probeNativeCliRuntime,
+  probeNodePackageRuntime,
+} from "./readiness.js";
 export {
   clearAgentHarnessRegistryForTest,
   hasAgentHarness,
