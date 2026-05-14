@@ -66,6 +66,7 @@ import type { WorkflowClient } from "#modules/workflow-ops/client.js";
  * `localClient(ctx)` factory.
  */
 export interface KotaClient {
+  forProject(projectId: string): KotaClient;
   readonly workflow: WorkflowClient;
   readonly approvals: ApprovalsClient;
   readonly secrets: SecretsClient;
@@ -151,3 +152,20 @@ export type LocalClientHandlers = {
 export type DaemonClientHandlers = {
   [K in KotaClientNamespace]: KotaClient[K];
 };
+
+/**
+ * Typed client-side rejection for project-scoped calls that name a project
+ * outside the daemon/project registry. `forProject(projectId)` normalizes the
+ * module route errors into this shape so callers can branch on `reason`
+ * instead of parsing error text.
+ */
+export class KotaClientProjectError extends Error {
+  readonly reason = "unknown_project" as const;
+  readonly projectId: string;
+
+  constructor(projectId: string, cause?: Error) {
+    super(`Unknown project: ${projectId}`, cause ? { cause } : undefined);
+    this.name = "KotaClientProjectError";
+    this.projectId = projectId;
+  }
+}

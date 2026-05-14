@@ -178,6 +178,20 @@ describe("answer module daemonClient(link)", () => {
     ]);
   });
 
+  it("routes show with projectId as a query parameter when supplied", async () => {
+    const expected = { ok: false, reason: "not_found" } as const;
+    const { transport, calls } = makeRecordingTransport(() => expected);
+    const contributed = answerModule.daemonClient!(transport);
+    await contributed.answer!.show("answer-1", { projectId: "project-a" });
+    expect(calls).toEqual([
+      {
+        method: "GET",
+        path: "/answers/answer-1?projectId=project-a",
+        body: undefined,
+      },
+    ]);
+  });
+
   it("decodes a populated show response through the migrated decoder", async () => {
     const record: AnswerHistoryRecord = {
       id: "2026-05-03T08-00-00-000Z-aaaaaa",

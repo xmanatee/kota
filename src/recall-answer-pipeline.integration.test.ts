@@ -186,7 +186,11 @@ function buildRouteSpecs(specs: {
   recall: RouteHandler;
   answer: RouteHandler;
   answerList: RouteHandler;
-  answerShow: (id: string, res: ServerResponse) => Promise<void>;
+  answerShow: (
+    id: string,
+    req: IncomingMessage,
+    res: ServerResponse,
+  ) => Promise<void>;
 }): RouteSpec[] {
   const showPattern = /^\/answers\/([^/]+)$/;
   return [
@@ -196,8 +200,8 @@ function buildRouteSpecs(specs: {
     {
       method: "GET",
       match: (p) => showPattern.test(p),
-      handler: async (_req, res, captures) => {
-        await specs.answerShow(decodeURIComponent(captures.id ?? ""), res);
+      handler: async (req, res, captures) => {
+        await specs.answerShow(decodeURIComponent(captures.id ?? ""), req, res);
       },
     },
   ];

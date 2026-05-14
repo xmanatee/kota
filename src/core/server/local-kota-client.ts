@@ -18,6 +18,7 @@ import {
   type KotaClientNamespace,
   type LocalClientHandlers,
 } from "./kota-client.js";
+import { createProjectScopedKotaClient } from "./project-scoped-kota-client.js";
 
 /** Validate `handlers` covers every declared namespace, then assemble. */
 export function buildLocalKotaClient(
@@ -66,6 +67,10 @@ export class LocalKotaClient implements KotaClient {
   readonly answer: KotaClient["answer"];
   readonly capture: KotaClient["capture"];
   readonly retract: KotaClient["retract"];
+
+  forProject(projectId: string): KotaClient {
+    return createProjectScopedKotaClient(this, projectId);
+  }
 
   constructor(handlers: LocalClientHandlers) {
     this.workflow = handlers.workflow;

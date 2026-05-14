@@ -350,7 +350,7 @@ describe("answer history route handler", () => {
       inMemoryHistoryStore([record]),
     );
     const { res, result } = mockResponse();
-    await handlers.showById(record.id, res);
+    await handlers.showById(record.id, mockGetRequest(`/answers/${record.id}`), res);
     expect(result.status).toBe(200);
     const body = result.body as { ok: boolean; record?: AnswerHistoryRecord };
     expect(body.ok).toBe(true);
@@ -364,7 +364,7 @@ describe("answer history route handler", () => {
       inMemoryHistoryStore([record]),
     );
     const { res, result } = mockResponse();
-    await handlers.showById(record.id, res);
+    await handlers.showById(record.id, mockGetRequest(`/answers/${record.id}`), res);
     expect(result.status).toBe(200);
     const body = result.body as { ok: boolean; record?: AnswerHistoryRecord };
     expect(body.ok).toBe(true);
@@ -376,7 +376,7 @@ describe("answer history route handler", () => {
       inMemoryHistoryStore([]),
     );
     const { res, result } = mockResponse();
-    await handlers.showById("nope", res);
+    await handlers.showById("nope", mockGetRequest("/answers/nope"), res);
     expect(result.status).toBe(200);
     expect(result.body).toEqual({ ok: false, reason: "not_found" });
   });

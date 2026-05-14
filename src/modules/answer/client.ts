@@ -120,6 +120,10 @@ export type AnswerHistoryListFilter = {
   projectId?: string;
 };
 
+export type AnswerHistoryShowFilter = {
+  projectId?: string;
+};
+
 /** Result of `AnswerClient.log`. */
 export type AnswerHistoryListResult = {
   entries: AnswerHistoryEntry[];
@@ -150,7 +154,10 @@ export type AnswerHistoryShowResult =
 export interface AnswerClient {
   answer(query: string, filter?: AnswerFilter): Promise<AnswerResult>;
   log(filter?: AnswerHistoryListFilter): Promise<AnswerHistoryListResult>;
-  show(id: string): Promise<AnswerHistoryShowResult>;
+  show(
+    id: string,
+    project?: AnswerHistoryShowFilter,
+  ): Promise<AnswerHistoryShowResult>;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

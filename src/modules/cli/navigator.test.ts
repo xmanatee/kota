@@ -43,6 +43,9 @@ function makeOutput(): { capture: NavigatorOutput; frames: string[]; nodes: Rend
 function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
   const stub = <T>(value: T) => vi.fn(async () => value);
   const base: KotaClient = {
+    forProject: vi.fn(() => {
+      throw new Error("not implemented in test");
+    }),
     workflow: {
       listRuns: stub({ runs: [] }),
       status: vi.fn(async () => {

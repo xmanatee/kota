@@ -24,7 +24,7 @@ export type KnowledgeWritableScope = "project" | "global";
 
 /**
  * Optional project boundary for callers that already hold an explicit
- * project id, such as future `KotaClient.forProject(...)` wrappers. When
+ * project id, such as `KotaClient.forProject(...)` wrappers. When
  * absent, the implementation resolves the active/default project once at the
  * client or route boundary.
  */

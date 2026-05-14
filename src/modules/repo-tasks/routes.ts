@@ -13,6 +13,7 @@ import type {
   RepoTaskCreateOptions,
   RepoTaskPriority,
 } from "./client.js";
+import type { RepoTasksProjectStores } from "./project-scope.js";
 import type { DaemonTaskDetail, DaemonTaskStatusResponse } from "./repo-tasks-domain.js";
 import {
   getRepoInboxDir,
@@ -33,6 +34,40 @@ const DETAIL_STATES = ["doing", "ready", "backlog", "blocked"] as const;
 const OPEN_STATES: readonly RepoTaskState[] = ["backlog", "ready", "doing", "blocked"];
 const ALLOWED_TARGET_STATES: readonly RepoTaskState[] = ["backlog", "ready", "blocked", "dropped"];
 type AllowedTargetState = RepoTaskState;
+
+function requestProjectId(req: IncomingMessage): string | undefined {
+  const url = new URL(req.url ?? "/", "http://127.0.0.1");
+  const projectId = url.searchParams.get("projectId");
+  return projectId && projectId.trim() !== "" ? projectId : undefined;
+}
+
+function resolveRouteProject(
+  projectStores: RepoTasksProjectStores | undefined,
+  req: IncomingMessage,
+):
+  | { ok: true; projectDir: string; store: ReturnType<typeof getRepoTasksProvider> | null }
+  | { ok: false; projectId: string } {
+  if (!projectStores) {
+    return { ok: true, projectDir: process.cwd(), store: null };
+  }
+  const resolved = projectStores.resolve(requestProjectId(req));
+  if (!resolved.ok) {
+    return { ok: false, projectId: resolved.error.projectId };
+  }
+  return {
+    ok: true,
+    projectDir: resolved.projectDir,
+    store: resolved.store,
+  };
+}
+
+function writeUnknownProject(res: ServerResponse, projectId: string): void {
+  jsonResponse(res, 404, {
+    error: "Unknown project",
+    reason: "unknown_project",
+    projectId,
+  });
+}
 
 function isMissingPathError(error: unknown): boolean {
   if (!error || typeof error !== "object" || !("code" in error)) {
@@ -523,6 +558,7 @@ export async function handleTaskGc(
 async function handleTasksSearchControl(
   req: IncomingMessage,
   res: ServerResponse,
+  projectStores?: RepoTasksProjectStores,
 ): Promise<void> {
   const url = new URL(req.url ?? "/tasks/search", "http://127.0.0.1");
   const query = url.searchParams.get("q") ?? "";
@@ -536,7 +572,12 @@ async function handleTasksSearchControl(
     (REPO_TASK_STATES as readonly string[]).includes(s),
   );
   try {
-    const provider = getRepoTasksProvider();
+    const project = resolveRouteProject(projectStores, req);
+    if (!project.ok) {
+      writeUnknownProject(res, project.projectId);
+      return;
+    }
+    const provider = project.store ?? getRepoTasksProvider();
     if (semantic && !provider.supportsSemanticSearch()) {
       jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
       return;
@@ -555,85 +596,157 @@ async function handleTasksSearchControl(
 }
 
 async function handleTasksReindexControl(
-  _req: IncomingMessage,
+  req: IncomingMessage,
   res: ServerResponse,
+  projectStores?: RepoTasksProjectStores,
 ): Promise<void> {
   try {
-    const result = await getRepoTasksProvider().reindex();
+    const project = resolveRouteProject(projectStores, req);
+    if (!project.ok) {
+      writeUnknownProject(res, project.projectId);
+      return;
+    }
+    const provider = project.store ?? getRepoTasksProvider();
+    const result = await provider.reindex();
     jsonResponse(res, 200, result);
   } catch (err) {
     jsonResponse(res, 500, { error: (err as Error).message });
   }
 }
 
-export function taskControlRoutes(): ControlRouteRegistration[] {
+export function taskControlRoutes(
+  projectStores?: RepoTasksProjectStores,
+): ControlRouteRegistration[] {
   return [
     {
       method: "GET",
       path: "/tasks/search",
       capabilityScope: "read",
-      handler: handleTasksSearchControl,
+      handler: (req, res) => handleTasksSearchControl(req, res, projectStores),
     },
     {
       method: "POST",
       path: "/tasks/reindex",
       capabilityScope: "control",
-      handler: handleTasksReindexControl,
+      handler: (req, res) => handleTasksReindexControl(req, res, projectStores),
     },
   ];
 }
 
-export function taskRoutes(): RouteRegistration[] {
+export function taskRoutes(
+  projectStores?: RepoTasksProjectStores,
+): RouteRegistration[] {
   return [
     {
       method: "GET",
       path: "/api/tasks",
-      handler: (_req, res) => handleTaskStatus(res),
+      handler: (req, res) => {
+        const project = resolveRouteProject(projectStores, req);
+        if (!project.ok) {
+          writeUnknownProject(res, project.projectId);
+          return;
+        }
+        return handleTaskStatus(res, project.projectDir);
+      },
     },
     {
       method: "POST",
       path: "/api/tasks",
-      handler: (req, res) => handleTaskCreate(req, res),
+      handler: (req, res) => {
+        const project = resolveRouteProject(projectStores, req);
+        if (!project.ok) {
+          writeUnknownProject(res, project.projectId);
+          return;
+        }
+        return handleTaskCreate(req, res, project.projectDir);
+      },
     },
     {
       method: "POST",
       path: "/api/tasks/normalized",
-      handler: (req, res) => handleTaskCreateNormalized(req, res),
+      handler: (req, res) => {
+        const project = resolveRouteProject(projectStores, req);
+        if (!project.ok) {
+          writeUnknownProject(res, project.projectId);
+          return;
+        }
+        return handleTaskCreateNormalized(req, res, project.projectDir);
+      },
     },
     {
       method: "POST",
       path: "/api/tasks/capture",
-      handler: (req, res) => handleTaskCapture(req, res),
+      handler: (req, res) => {
+        const project = resolveRouteProject(projectStores, req);
+        if (!project.ok) {
+          writeUnknownProject(res, project.projectId);
+          return;
+        }
+        return handleTaskCapture(req, res, project.projectDir);
+      },
     },
     {
       method: "POST",
       path: "/api/tasks/gc",
-      handler: (req, res) => handleTaskGc(req, res),
+      handler: (req, res) => {
+        const project = resolveRouteProject(projectStores, req);
+        if (!project.ok) {
+          writeUnknownProject(res, project.projectId);
+          return;
+        }
+        return handleTaskGc(req, res, project.projectDir);
+      },
     },
     {
       method: "PATCH",
       path: "/api/tasks/:id/state",
-      handler: (req, res, params) => handleTaskStateChange(req, res, params.id),
+      handler: (req, res, params) => {
+        const project = resolveRouteProject(projectStores, req);
+        if (!project.ok) {
+          writeUnknownProject(res, project.projectId);
+          return;
+        }
+        return handleTaskStateChange(req, res, params.id, project.projectDir);
+      },
     },
     {
       method: "PATCH",
       path: "/api/tasks/:id/move",
-      handler: (req, res, params) => handleTaskMove(req, res, params.id),
+      handler: (req, res, params) => {
+        const project = resolveRouteProject(projectStores, req);
+        if (!project.ok) {
+          writeUnknownProject(res, project.projectId);
+          return;
+        }
+        return handleTaskMove(req, res, params.id, project.projectDir);
+      },
     },
     {
       method: "PATCH",
       path: "/api/tasks/:id/body",
-      handler: (req, res, params) => handleTaskBodyUpdate(req, res, params.id),
+      handler: (req, res, params) => {
+        const project = resolveRouteProject(projectStores, req);
+        if (!project.ok) {
+          writeUnknownProject(res, project.projectId);
+          return;
+        }
+        return handleTaskBodyUpdate(req, res, params.id, project.projectDir);
+      },
     },
     {
       method: "GET",
       path: "/api/tasks/:id",
-      handler: (_req, res, params) => {
+      handler: (req, res, params) => {
         if (RESERVED_TASK_NAMES.has(params.id)) {
           jsonResponse(res, 404, { error: "Not found" });
           return;
         }
-        return handleTaskShow(res, params.id);
+        const project = resolveRouteProject(projectStores, req);
+        if (!project.ok) {
+          writeUnknownProject(res, project.projectId);
+          return;
+        }
+        return handleTaskShow(res, params.id, project.projectDir);
       },
     },
   ];

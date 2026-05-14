@@ -321,8 +321,8 @@ describe("capture → recall → answer → answer-history pipeline (HTTP)", () 
       {
         method: "GET",
         match: (p) => showRe.test(p),
-        handler: async (_req, res, params) =>
-          historyHandlers.showById(params.id ?? "", res),
+        handler: async (req, res, params) =>
+          historyHandlers.showById(params.id ?? "", req, res),
       },
     ]);
     server = started.server;

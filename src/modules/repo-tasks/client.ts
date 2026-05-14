@@ -37,6 +37,16 @@ export type RepoTaskListResult = {
 };
 
 /**
+ * Optional project boundary for callers that already hold an explicit
+ * project id, such as `KotaClient.forProject(...)` wrappers. When absent,
+ * the implementation resolves the active/default project once at the client
+ * or route boundary.
+ */
+export type RepoTaskProjectSelection = {
+  projectId?: string;
+};
+
+/**
  * Result of `tasks.show(id)`. The full file content is returned with the
  * resolved state so callers can render it without re-resolving the task.
  */
@@ -69,6 +79,7 @@ export type RepoTaskCreateOptions = {
   area: string;
   state: RepoTaskState;
   summary?: string;
+  projectId?: string;
 };
 
 export type RepoTaskCreateResult =
@@ -92,6 +103,7 @@ export type RepoTaskGcOptions = {
   days?: number;
   delete?: boolean;
   dryRun?: boolean;
+  projectId?: string;
 };
 
 export type RepoTaskGcResult = {
@@ -100,7 +112,7 @@ export type RepoTaskGcResult = {
 };
 
 /** Filter for `RepoTasksClient.search`. */
-export type RepoTaskSearchFilter = {
+export type RepoTaskSearchFilter = RepoTaskProjectSelection & {
   /** Restrict matches to the listed states. Defaults to all states. */
   states?: ReadonlyArray<RepoTaskState>;
   /** Maximum hits returned, ranked by score. Defaults to 20. */
@@ -143,11 +155,21 @@ export interface RepoTasksClient {
    * are provided, the implementor returns all open states
    * (`backlog`, `ready`, `doing`, `blocked`).
    */
-  list(states?: RepoTaskState[]): Promise<RepoTaskListResult>;
-  show(id: string): Promise<RepoTaskShowResult>;
-  move(id: string, toState: RepoTaskState): Promise<RepoTaskMoveResult>;
+  list(
+    states?: RepoTaskState[],
+    project?: RepoTaskProjectSelection,
+  ): Promise<RepoTaskListResult>;
+  show(id: string, project?: RepoTaskProjectSelection): Promise<RepoTaskShowResult>;
+  move(
+    id: string,
+    toState: RepoTaskState,
+    project?: RepoTaskProjectSelection,
+  ): Promise<RepoTaskMoveResult>;
   create(options: RepoTaskCreateOptions): Promise<RepoTaskCreateResult>;
-  capture(title: string): Promise<RepoTaskCaptureResult>;
+  capture(
+    title: string,
+    project?: RepoTaskProjectSelection,
+  ): Promise<RepoTaskCaptureResult>;
   gc(options?: RepoTaskGcOptions): Promise<RepoTaskGcResult>;
   /**
    * Run semantic or keyword ranking across the repo task queue. Semantic
@@ -158,5 +180,5 @@ export interface RepoTasksClient {
    */
   search(query: string, filter?: RepoTaskSearchFilter): Promise<RepoTaskSearchResult>;
   /** Rebuild the semantic index over the repo task queue when the active provider supports it. */
-  reindex(): Promise<RepoTaskReindexResult>;
+  reindex(project?: RepoTaskProjectSelection): Promise<RepoTaskReindexResult>;
 }

@@ -118,10 +118,13 @@ function buildAnswerDaemonHandler(link: DaemonTransport): AnswerClient {
       const decoded = await link.requestStrict<unknown>("GET", `/answers${query}`);
       return decodeAnswerHistoryListResult(decoded);
     },
-    show: async (id: string): Promise<AnswerHistoryShowResult> => {
+    show: async (id: string, project): Promise<AnswerHistoryShowResult> => {
+      const params = new URLSearchParams();
+      if (project?.projectId !== undefined) params.set("projectId", project.projectId);
+      const query = params.toString() ? `?${params.toString()}` : "";
       const decoded = await link.requestStrict<unknown>(
         "GET",
-        `/answers/${encodeURIComponent(id)}`,
+        `/answers/${encodeURIComponent(id)}${query}`,
       );
       return decodeAnswerHistoryShowResult(decoded);
     },
@@ -268,8 +271,13 @@ const answerModule: KotaModule = {
         const entries = await store.listAnswers(filter);
         return { entries };
       },
-      async show(id: string) {
-        const store = activeHistory ?? localStore;
+      async show(id: string, project) {
+        const resolver = createAnswerProjectContextResolver(ctx.cwd, () =>
+          activeHistory ?? localStore,
+        );
+        const resolved = resolver(project?.projectId);
+        if ("error" in resolved) throw new Error(`Unknown project: ${resolved.projectId}`);
+        const store = resolved.history;
         const record = await store.getAnswer(id);
         return record
           ? { ok: true as const, record }

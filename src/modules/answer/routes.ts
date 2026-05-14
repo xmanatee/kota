@@ -125,7 +125,7 @@ export function answerControlRoutes(
       method: "GET",
       path: "/answers/:id",
       capabilityScope: "read",
-      handler: (_req, res, params) => historyHandlers.showById(params.id, res),
+      handler: (req, res, params) => historyHandlers.showById(params.id, req, res),
     },
   ];
 }
@@ -153,8 +153,8 @@ export function answerApiRoutes(
     {
       method: "GET",
       path: "/api/answers/:id",
-      handler: async (_req, res, params) => {
-        await historyHandlers.showById(params.id, res);
+      handler: async (req, res, params) => {
+        await historyHandlers.showById(params.id, req, res);
       },
     },
   ];
@@ -189,7 +189,11 @@ export function createAnswerHistoryRouteHandler(
   resolveProjectContext?: ResolveAnswerProjectContext,
 ): {
   list: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
-  showById: (id: string, res: ServerResponse) => Promise<void>;
+  showById: (
+    id: string,
+    req: IncomingMessage,
+    res: ServerResponse,
+  ) => Promise<void>;
 } {
   return {
     async list(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -214,9 +218,24 @@ export function createAnswerHistoryRouteHandler(
         jsonResponse(res, 500, { error: message });
       }
     },
-    async showById(id: string, res: ServerResponse): Promise<void> {
+    async showById(
+      id: string,
+      req: IncomingMessage,
+      res: ServerResponse,
+    ): Promise<void> {
       try {
-        const record = await resolveHistory().getAnswer(id);
+        const query = parseListQuery(req);
+        const project = resolveProjectContext?.(query.projectId);
+        if (project && "error" in project) {
+          jsonResponse(res, 404, {
+            error: "Unknown project",
+            reason: "unknown_project",
+            projectId: project.projectId,
+          });
+          return;
+        }
+        const history = project?.history ?? resolveHistory();
+        const record = await history.getAnswer(id);
         const body: AnswerHistoryShowResult = record
           ? { ok: true, record }
           : { ok: false, reason: "not_found" };

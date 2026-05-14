@@ -266,6 +266,12 @@ describe("repo-tasks module daemonClient(link) — tasks namespace", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]!.path).toBe("/api/tasks/normalized");
     expect(calls[0]!.init?.method).toBe("POST");
+    expect(JSON.parse(String(calls[0]!.init?.body))).toEqual({
+      title: "Hello",
+      priority: "p2",
+      area: "core",
+      state: "ready",
+    });
 
     const { transport: t409 } = makeRecordingTransport({
       fetchRaw: () => jsonResponse(409, { error: "exists" }),
@@ -290,6 +296,27 @@ describe("repo-tasks module daemonClient(link) — tasks namespace", () => {
         state: "ready",
       }),
     ).toEqual({ ok: false, reason: "invalid_slug", message: "bad slug" });
+  });
+
+  it("project-scoped create sends projectId in the query, not the JSON body", async () => {
+    const { transport, calls } = makeRecordingTransport({
+      fetchRaw: () => jsonResponse(200, { id: "t1", path: "data/tasks/ready/t1.md" }),
+    });
+    const contributed = repoTasksModule.daemonClient!(transport);
+    await contributed.tasks!.create({
+      title: "Hello",
+      priority: "p2",
+      area: "core",
+      state: "ready",
+      projectId: "project-a",
+    });
+    expect(calls[0]!.path).toBe("/api/tasks/normalized?projectId=project-a");
+    expect(JSON.parse(String(calls[0]!.init?.body))).toEqual({
+      title: "Hello",
+      priority: "p2",
+      area: "core",
+      state: "ready",
+    });
   });
 
   it("capture POSTs /api/tasks/capture with the title body", async () => {
@@ -337,6 +364,27 @@ describe("repo-tasks module daemonClient(link) — tasks namespace", () => {
     expect(calls[0]!.path).toBe(
       "/tasks/search?q=query+terms&semantic=false&limit=5&state=ready&state=doing",
     );
+  });
+
+  it("project-scoped search and reindex append projectId to their query strings", async () => {
+    const { transport, calls } = makeRecordingTransport({
+      fetchRaw: () => jsonResponse(200, { ok: true, tasks: [] }),
+    });
+    const contributed = repoTasksModule.daemonClient!(transport);
+    await contributed.tasks!.search("query terms", {
+      semantic: false,
+      projectId: "project-a",
+    });
+    expect(calls[0]!.path).toBe(
+      "/tasks/search?q=query+terms&semantic=false&projectId=project-a",
+    );
+
+    const { transport: reindexTransport, calls: reindexCalls } = makeRecordingTransport({
+      fetchRaw: () => jsonResponse(200, { indexed: 1, failed: 0 }),
+    });
+    const reindexClient = repoTasksModule.daemonClient!(reindexTransport);
+    await reindexClient.tasks!.reindex({ projectId: "project-a" });
+    expect(reindexCalls[0]!.path).toBe("/tasks/reindex?projectId=project-a");
   });
 
   it("reindex POSTs /tasks/reindex and returns the body verbatim", async () => {

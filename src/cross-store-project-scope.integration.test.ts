@@ -7,6 +7,7 @@ import { Readable } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildConfiguredProject, type ConfiguredProject } from "#core/daemon/project-registry.js";
 import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import {
   HISTORY_PROVIDER_TOKEN,
   initProviderRegistry,
@@ -15,13 +16,10 @@ import {
   REPO_TASKS_PROVIDER_TOKEN,
   resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
-import type {
-  ConversationData,
-  ConversationMessage,
-  ConversationRecord,
-  HistoryProvider,
-  ReindexResult,
-} from "#core/modules/provider-types.js";
+import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
+import type { KotaClient, LocalClientHandlers } from "#core/server/kota-client.js";
+import { KotaClientProjectError } from "#core/server/kota-client.js";
+import { buildLocalKotaClient } from "#core/server/local-kota-client.js";
 import {
   answerHistoryRootForProject,
   DiskAnswerHistoryStore,
@@ -40,9 +38,13 @@ import {
 } from "#modules/capture/contributors.js";
 import { createCaptureProjectContextResolver } from "#modules/capture/project-context.js";
 import { createCaptureRouteHandler } from "#modules/capture/routes.js";
+import { getProjectHistoryStore } from "#modules/history/history.js";
+import historyModule from "#modules/history/index.js";
 import { createHistoryProjectStores } from "#modules/history/project-scope.js";
+import knowledgeModule from "#modules/knowledge/index.js";
 import { createKnowledgeProjectStores } from "#modules/knowledge/project-scope.js";
 import { KnowledgeStore } from "#modules/knowledge/store.js";
+import memoryModule from "#modules/memory/index.js";
 import { createMemoryProjectStores } from "#modules/memory/project-scope.js";
 import { MemoryStore } from "#modules/memory/store.js";
 import {
@@ -54,6 +56,7 @@ import {
 import { createRecallProjectContextResolver } from "#modules/recall/project-context.js";
 import { RecallProviderImpl } from "#modules/recall/recall-provider.js";
 import { createRecallRouteHandler } from "#modules/recall/routes.js";
+import repoTasksModule from "#modules/repo-tasks/index.js";
 import { createRepoTasksProjectStores } from "#modules/repo-tasks/project-scope.js";
 import { RepoTasksDefaultStore } from "#modules/repo-tasks/repo-tasks-store.js";
 import {
@@ -108,40 +111,6 @@ function makeProjectRoot(parent: string, name: string): string {
   return projectDir;
 }
 
-function createEmptyHistoryProvider(): HistoryProvider {
-  const unused = (name: string): never => {
-    throw new Error(`history provider ${name}() is not used in this test`);
-  };
-  return {
-    create: (_model: string, _cwd: string): string => unused("create"),
-    save: (
-      _id: string,
-      _messages: ConversationMessage[],
-      _compactionCount: number,
-      _lastInputTokens: number,
-    ): void => unused("save"),
-    load: (_id: string): ConversationData | null => null,
-    list: (_opts?: {
-      search?: string;
-      limit?: number;
-      cwd?: string;
-      source?: "user" | "action";
-    }): ConversationRecord[] => [],
-    getMostRecent: (_cwd?: string): ConversationRecord | null => null,
-    findByPrefix: (_idOrPrefix: string): ConversationRecord | null => null,
-    remove: (_id: string): boolean => false,
-    cleanup: (): number => 0,
-    supportsSemanticSearch: (): boolean => false,
-    semanticSearch: async (): Promise<ConversationRecord[]> =>
-      unused("semanticSearch"),
-    reindex: async (): Promise<ReindexResult> => ({
-      indexed: 0,
-      failed: 0,
-      skipped: true,
-    }),
-  };
-}
-
 describe("project-scoped cross-store daemon routes", () => {
   let root: string;
   let projectA: ConfiguredProject;
@@ -151,6 +120,7 @@ describe("project-scoped cross-store daemon routes", () => {
   let answer: ReturnType<typeof createAnswerRouteHandler>;
   let retract: ReturnType<typeof createRetractRouteHandler>;
   let historyA: DiskAnswerHistoryStore;
+  let client: KotaClient;
 
   beforeEach(() => {
     root = mkdtempSync(join(tmpdir(), "kota-cross-store-projects-"));
@@ -159,7 +129,7 @@ describe("project-scoped cross-store daemon routes", () => {
 
     const memoryA = new MemoryStore(join(projectA.projectDir, ".kota"));
     const knowledgeA = new KnowledgeStore(projectA.projectDir);
-    const historyProviderA = createEmptyHistoryProvider();
+    const historyProviderA = getProjectHistoryStore(projectA.projectDir);
     const tasksA = new RepoTasksDefaultStore(projectA.projectDir);
 
     const registry = initProviderRegistry();
@@ -244,6 +214,64 @@ describe("project-scoped cross-store daemon routes", () => {
     recall = createRecallRouteHandler(() => recallProvider, recallProject);
     answer = createAnswerRouteHandler(() => answerProvider, answerProject);
     retract = createRetractRouteHandler(() => retractProvider, retractProject);
+
+    const moduleCtx = { cwd: projectA.projectDir } as ModuleContext;
+    const handlers = {
+      ...buildMigratedNamespaceTestStubs(),
+      ...memoryModule.localClient!(moduleCtx),
+      ...knowledgeModule.localClient!(moduleCtx),
+      ...historyModule.localClient!(moduleCtx),
+      ...repoTasksModule.localClient!(moduleCtx),
+      recall: {
+        recall: async (query, filter) => {
+          const project = recallProject(filter?.projectId);
+          if ("error" in project) throw new Error(`Unknown project: ${project.projectId}`);
+          return {
+            ok: true as const,
+            hits: await recallProvider.recall(query, filter, project),
+          };
+        },
+      },
+      answer: {
+        answer: async (query, filter) => {
+          const project = answerProject(filter?.projectId);
+          if ("error" in project) throw new Error(`Unknown project: ${project.projectId}`);
+          return answerProvider.answer(query, filter, project);
+        },
+        log: async (filter) => {
+          const project = answerProject(filter?.projectId);
+          if ("error" in project) throw new Error(`Unknown project: ${project.projectId}`);
+          const entries = await project.history.listAnswers({
+            ...(filter?.limit !== undefined && { limit: filter.limit }),
+            ...(filter?.beforeId !== undefined && { beforeId: filter.beforeId }),
+          });
+          return { entries };
+        },
+        show: async (id, projectSelection) => {
+          const project = answerProject(projectSelection?.projectId);
+          if ("error" in project) throw new Error(`Unknown project: ${project.projectId}`);
+          const record = await project.history.getAnswer(id);
+          return record
+            ? { ok: true as const, record }
+            : { ok: false as const, reason: "not_found" as const };
+        },
+      },
+      capture: {
+        capture: async (text, filter) => {
+          const project = captureProject(filter?.projectId);
+          if ("error" in project) throw new Error(`Unknown project: ${project.projectId}`);
+          return captureProvider.capture(text, filter, project);
+        },
+      },
+      retract: {
+        retract: async (request) => {
+          const project = retractProject(request.projectId);
+          if ("error" in project) throw new Error(`Unknown project: ${project.projectId}`);
+          return retractProvider.retract(request, project);
+        },
+      },
+    } as LocalClientHandlers;
+    client = buildLocalKotaClient(handlers);
   });
 
   afterEach(() => {
@@ -351,5 +379,124 @@ describe("project-scoped cross-store daemon routes", () => {
       id: "mem-x",
       projectId: "missing-project",
     })).resolves.toMatchObject({ status: 404 });
+  });
+
+  it("KotaClient.forProject isolates every project-scoped namespace", async () => {
+    const clientA = client.forProject(projectA.projectId);
+    const clientB = client.forProject(projectB.projectId);
+
+    const memoryA = await clientA.memory.add("client-alpha memory note");
+    const memorySearchA = await clientA.memory.search("client-alpha");
+    expect(memorySearchA).toMatchObject({
+      ok: true,
+      entries: [expect.objectContaining({ id: memoryA.id })],
+    });
+    const memorySearchB = await clientB.memory.search("client-alpha");
+    expect(memorySearchB).toEqual({ ok: true, entries: [] });
+
+    const knowledgeA = await clientA.knowledge.add({
+      title: "client-alpha knowledge",
+      content: "client-alpha knowledge body",
+    });
+    const knowledgeSearchA = await clientA.knowledge.search("client-alpha knowledge");
+    expect(knowledgeSearchA).toMatchObject({
+      ok: true,
+      entries: [expect.objectContaining({ id: knowledgeA.id })],
+    });
+    const knowledgeSearchB = await clientB.knowledge.search("client-alpha knowledge");
+    expect(knowledgeSearchB).toEqual({ ok: true, entries: [] });
+
+    const historyId = getProjectHistoryStore(projectA.projectDir).create(
+      "test-model",
+      projectA.projectDir,
+    );
+    getProjectHistoryStore(projectA.projectDir).save(
+      historyId,
+      [{ role: "user", content: "client-alpha history turn" }],
+      0,
+      0,
+    );
+    const historySearchA = await clientA.history.search("client-alpha history");
+    expect(historySearchA).toMatchObject({
+      ok: true,
+      conversations: [expect.objectContaining({ id: historyId })],
+    });
+    const historySearchB = await clientB.history.search("client-alpha history");
+    expect(historySearchB).toEqual({ ok: true, conversations: [] });
+
+    const taskA = await clientA.tasks.create({
+      title: "client-alpha task",
+      priority: "p2",
+      area: "core",
+      state: "backlog",
+    });
+    expect(taskA.ok).toBe(true);
+    const taskSearchA = await clientA.tasks.search("client-alpha task", {
+      semantic: false,
+    });
+    expect(taskSearchA).toMatchObject({
+      ok: true,
+      tasks: [expect.objectContaining({ id: taskA.ok ? taskA.id : "" })],
+    });
+    const taskSearchB = await clientB.tasks.search("client-alpha task", {
+      semantic: false,
+    });
+    expect(taskSearchB).toEqual({ ok: true, tasks: [] });
+
+    const captureA = await clientA.capture.capture("client-alpha capture note", {
+      target: "memory",
+    });
+    expect(captureA).toMatchObject({ ok: true, record: { target: "memory" } });
+    const captureSearchB = await clientB.memory.search("client-alpha capture");
+    expect(captureSearchB).toEqual({ ok: true, entries: [] });
+
+    const recallA = await clientA.recall.recall("client-alpha");
+    expect(recallA.ok).toBe(true);
+    expect(recallA.ok ? recallA.hits.length : 0).toBeGreaterThan(0);
+    const recallB = await clientB.recall.recall("client-alpha");
+    expect(recallB).toEqual({ ok: true, hits: [] });
+
+    const answerA = await clientA.answer.answer("client-alpha");
+    expect(answerA).toMatchObject({ ok: true });
+    const answerLogA = await clientA.answer.log();
+    expect(answerLogA.entries.length).toBeGreaterThan(0);
+    const answerLogB = await clientB.answer.log();
+    expect(answerLogB.entries).toEqual([]);
+    const leakedAnswer = await clientB.answer.show(answerLogA.entries[0]!.id);
+    expect(leakedAnswer).toEqual({ ok: false, reason: "not_found" });
+    const answerB = await clientB.answer.answer("client-alpha");
+    expect(answerB).toEqual({ ok: false, reason: "no_hits" });
+    const answerLogBAfterOwnCall = await clientB.answer.log();
+    expect(answerLogBAfterOwnCall.entries.map((entry) => entry.id)).not.toContain(
+      answerLogA.entries[0]!.id,
+    );
+
+    const retractTarget = await clientA.memory.add("client-alpha retract target");
+    const wrongProjectRetract = await clientB.retract.retract({
+      target: "memory",
+      id: retractTarget.id,
+    });
+    expect(wrongProjectRetract).toEqual({
+      ok: false,
+      reason: "not_found",
+      target: "memory",
+      identifier: retractTarget.id,
+    });
+    const rightProjectRetract = await clientA.retract.retract({
+      target: "memory",
+      id: retractTarget.id,
+    });
+    expect(rightProjectRetract).toEqual({
+      ok: true,
+      record: { target: "memory", recordId: retractTarget.id },
+    });
+
+    await expect(client.forProject("missing-project").memory.list()).rejects.toMatchObject({
+      reason: "unknown_project",
+      projectId: "missing-project",
+    });
+    await expect(client.forProject("missing-project").memory.list()).rejects.toBeInstanceOf(
+      KotaClientProjectError,
+    );
   });
 });

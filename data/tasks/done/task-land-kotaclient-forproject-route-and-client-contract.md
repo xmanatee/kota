@@ -1,12 +1,12 @@
 ---
 id: task-land-kotaclient-forproject-route-and-client-contract
 title: Land KotaClient.forProject route and client contract
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Add the public KotaClient.forProject(projectId) primitive and route/client contract once the underlying stores and pipelines are project-scoped.
 created_at: 2026-05-12T15:45:00.000Z
-updated_at: 2026-05-13T23:54:25.000Z
+updated_at: 2026-05-14T00:12:41.000Z
 ---
 
 ## Problem
@@ -47,17 +47,10 @@ real project isolation.
 
 ## Acceptance Evidence
 
-- End-to-end two-project client evidence proves `KotaClient.forProject(projectA)`
-  cannot read from or write to project B across every per-store namespace.
-- Queue validation passes.
+- `pnpm test src/cross-store-project-scope.integration.test.ts src/modules/repo-tasks/daemon-client.test.ts src/modules/answer/daemon-client.test.ts src/modules/answer/routes.test.ts src/recall-answer-pipeline.integration.test.ts src/capture-answer-pipeline.integration.test.ts`
+- `pnpm test src/core/server/daemon-client.test.ts src/core/server/kota-client-namespace-types-guard.test.ts src/core/server/kota-client-guard.test.ts src/modules/repo-tasks/routes.test.ts src/modules/repo-tasks/cli.test.ts src/modules/repo-tasks/repo-tasks.test.ts src/modules/answer/routes.test.ts`
+- `pnpm exec tsc --noEmit --pretty false`
 
 ## Source / Intent
 
 Final sub-slice of the KotaClient.forProject per-store routing anchor.
-
-## Unblock Precondition
-
-```
-kind: task-done
-ref: task-project-scope-recall-answer-capture-retract-pipelines
-```

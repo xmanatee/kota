@@ -8,6 +8,7 @@ import {
   KOTA_CLIENT_NAMESPACES,
   type KotaClientNamespace,
 } from "./kota-client.js";
+import { createProjectScopedKotaClient } from "./project-scoped-kota-client.js";
 
 /**
  * The OS-managed daemon flag is filesystem-scoped (it checks for a
@@ -144,6 +145,10 @@ export class DaemonControlClient implements KotaClient {
     this.answer = handlers.answer;
     this.capture = handlers.capture;
     this.retract = handlers.retract;
+  }
+
+  forProject(projectId: string): KotaClient {
+    return createProjectScopedKotaClient(this, projectId);
   }
 
   /**

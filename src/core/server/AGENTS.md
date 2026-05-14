@@ -27,6 +27,10 @@ per CLI invocation and stores it in `client-holder.ts`. CLI subcommands
 read it through `ModuleContext.client` and never re-decide the
 daemon-vs-local policy.
 
+`KotaClient.forProject(projectId)` is the single public project-scoping
+primitive. It returns a scoped client that injects the selected project id into
+project-aware namespaces and normalizes unknown ids to the typed client error.
+
 ## Conventions
 
 - The contract lives in `kota-client.ts` and grows by adding a typed
