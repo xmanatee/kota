@@ -31,21 +31,21 @@ resources:
   - url: https://github.com/anthropics/claude-code
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:6f7581307fcdb6a690e645605fac4b76
-      summary: "Claude Code is Anthropic's agentic terminal coding tool with CLI, VS Code, GitHub-tag, and dev-container surfaces; extends via a /plugins system with custom commands, agents, hooks, and .claude/commands user slash commands; distributes via native installers (curl/brew/winget) with the npm package deprecated. Architecture pattern unchanged since prior visit — plugin/sub-agent/AGENTS.md model is the durable shape; no new primitive."
-      last_seen_at: "2026-05-10T04:55:39.674Z"
+      fingerprint: sha256:9c31331cb2df64de1578ba30dd05bc10
+      summary: "Claude Code's recommended install path has shifted away from npm, so KOTA's harness diagnostics should report the adapter/runtime source rather than assuming package-manager installation shape."
+      last_seen_at: "2026-05-14T02:45:38.617Z"
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:ad3f4fb2fb06f557af145bdedfb8ff1b
-      summary: "Codex is OpenAI's Rust-built local coding agent with terminal, IDE-plugin, desktop, and web surfaces; uses ChatGPT-account or API-key auth, references AGENTS.md repo conventions, and integrates external tools via an MCP Registry."
-      last_seen_at: "2026-04-19T22:21:08.572Z"
+      fingerprint: sha256:0169753501cfee130f6ad06758184376
+      summary: "Codex remains a fast-moving local CLI harness surface; latest observed release is 0.130.0 on 2026-05-08, reinforcing the need for KOTA to report installed Codex CLI readiness/version before preset parity runs."
+      last_seen_at: "2026-05-14T02:45:38.617Z"
   - url: https://github.com/google-gemini/gemini-cli
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:51e09fcfc835a9acb3ed70e30e1f3557
-      summary: "Gemini CLI is Google's TypeScript open-source terminal Gemini agent with built-in fs/shell/web tools, MCP-server extensibility, three account/auth tiers, a 'trusted folders' execution policy plus sandbox, slash-command interactive UX, and JSON / streaming-JSON non-interactive modes."
-      last_seen_at: "2026-04-19T22:21:08.572Z"
+      fingerprint: sha256:33284d9ee010c6e9dd15acf23fd64b86
+      summary: "Gemini CLI now documents distinct release channels and auth modes; KOTA should make clear when its shipped Gemini preset is SDK-backed and should report the active local runtime/auth boundary explicitly."
+      last_seen_at: "2026-05-14T02:45:38.617Z"
   - url: https://github.com/Aider-AI/aider
     added: "2026-04-19"
     snapshot:
