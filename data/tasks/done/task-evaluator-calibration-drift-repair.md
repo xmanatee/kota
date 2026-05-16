@@ -1,12 +1,12 @@
 ---
 id: task-evaluator-calibration-drift-repair
 title: Repair evaluator calibration drift
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Restore the live-run evaluator calibration loop to within threshold by tightening critic guidance, repair-loop checks, or the calibration gate itself.
 created_at: 2026-05-16T02:37:19.045Z
-updated_at: 2026-05-16T02:37:19.045Z
+updated_at: 2026-05-16T02:43:04.033Z
 ---
 
 ## Problem
@@ -89,3 +89,14 @@ not only a clean commit with advisory caveats.
   or the recorded rationale for retuning it.
 - Updated scoped autonomy guidance naming which critic warning classes
   must fail, track follow-up, or pass as harmless.
+
+## Completion Evidence
+
+- `.kota/runs/2026-05-16T02-37-51-356Z-builder-fjb7q2/calibration-repair.json`
+  shows the latest sample under threshold: pass contradiction `0 of 9`
+  (`0.0%`) against the `25.0%` threshold.
+- `.kota/runs/2026-05-16T02-37-51-356Z-builder-fjb7q2/evaluator-calibration-test.txt`
+  records `25 passed`; `critic-test.txt` records `22 passed`.
+- `src/modules/autonomy/evaluator-calibration.ts` now documents
+  `criticFailureCount` as diagnostic review evidence only, matching the
+  scoped guidance in `src/modules/autonomy/AGENTS.md`.

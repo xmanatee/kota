@@ -69,10 +69,9 @@ export type EvaluatorCalibrationArtifact = {
    * Number of repair iterations in which the critic itself was the failing
    * check. The critic runs in the final repair-loop phase, so a non-zero
    * value means the critic actually flagged issues during this build (the
-   * agent then repaired and the critic eventually passed). This is the
-   * meaningful evaluator-quality signal: aggregation uses it, together with
-   * `verdict === "fail"`, as the failure signal that turns iteration into
-   * contradiction.
+   * agent then repaired and the critic eventually passed). Aggregation keeps
+   * this as diagnostic review evidence only; pass-contradiction decisions
+   * require a later overlapping run with a final failure signal.
    */
   criticFailureCount: number;
   terminalRunStatus: WorkflowRunStatus | "running";
