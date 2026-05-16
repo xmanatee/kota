@@ -14,7 +14,7 @@
  */
 import type {
   DaemonLiveStatus,
-  DaemonSseEvent,
+  DaemonSseStreamEvent,
 } from "#core/daemon/daemon-control.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { DaemonTransport } from "./daemon-transport.js";
@@ -58,6 +58,6 @@ export async function unregisterSession(
   }
 }
 
-export function events(transport: DaemonTransport): AsyncGenerator<DaemonSseEvent> {
+export function events(transport: DaemonTransport): AsyncGenerator<DaemonSseStreamEvent> {
   return transport.events();
 }

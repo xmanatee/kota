@@ -743,6 +743,7 @@ describe("DaemonControlServer", () => {
       }
 
       expect(received).toContain("event: workflow.started");
+      expect(received).toContain("id: evt-1");
       expect(received).toContain('"workflow":"builder"');
       controller.abort();
     });
@@ -1010,6 +1011,8 @@ describe("DaemonControlServer", () => {
       const res = await fetchWithToken(port, "/api/events");
       const body = await res.json();
       expect(body.events).toHaveLength(2);
+      expect(body.events[0].id).toBe("evt-1");
+      expect(body.events[1].id).toBe("evt-2");
       expect(body.events[0].type).toBe("workflow.started");
       expect(body.events[1].type).toBe("workflow.completed");
     });
@@ -1104,7 +1107,24 @@ describe("DaemonControlServer", () => {
 
       const res = await fetchWithToken(port, "/api/events");
       const body = await res.json();
+      expect(body.events[0].id).toBe("evt-1");
       expect(body.events[0].timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    });
+
+    it("filters by after event id without returning the cursor event", async () => {
+      const emit = pushEvents(handle);
+      emit(makeWorkflowStartedEvent({ runId: "run-1" }));
+      emit(makeWorkflowStartedEvent({ runId: "run-2" }));
+      emit(makeWorkflowCompletedEvent({ runId: "run-3" }));
+
+      const res = await fetchWithToken(port, "/api/events?after=evt-2");
+      const body = await res.json();
+      expect(body.events).toHaveLength(1);
+      expect(body.events[0]).toMatchObject({
+        id: "evt-3",
+        type: "workflow.completed",
+        payload: { runId: "run-3" },
+      });
     });
   });
 });

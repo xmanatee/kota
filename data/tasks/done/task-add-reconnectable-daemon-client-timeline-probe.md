@@ -1,12 +1,12 @@
 ---
 id: task-add-reconnectable-daemon-client-timeline-probe
 title: Add reconnectable daemon-client timeline probe
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Add a local runtime probe proving daemon clients can reconnect and reconstruct active sessions, workflow runs, approvals, and timeline events from the control API plus SSE without becoming the source of truth.
 created_at: 2026-05-16T01:57:48.915Z
-updated_at: 2026-05-16T01:57:48.915Z
+updated_at: 2026-05-16T02:12:32Z
 ---
 
 ## Problem
@@ -114,3 +114,11 @@ long-running local work through the daemon without owning runtime state.
   resolution, and final equivalence assertions.
 - The probe output names any skipped dependency explicitly; it must not pass
   silently because a daemon route, event stream, or approval surface was absent.
+
+## Completion Evidence
+
+- `pnpm test src/daemon-remote-reconnect.integration.test.ts src/core/daemon/event-ring-buffer.test.ts src/core/daemon/daemon-control.test.ts`
+- `pnpm typecheck`
+- `pnpm exec biome check src/core/daemon/daemon-control.ts src/daemon-remote-reconnect.integration.test.ts src/core/daemon/daemon-control-routes.ts src/core/daemon/daemon-control-types.ts src/core/daemon/event-ring-buffer.ts src/core/daemon/event-ring-buffer.test.ts src/core/daemon/daemon-control.test.ts src/core/server/daemon-client.ts src/core/server/daemon-control-methods.ts src/core/server/daemon-transport.ts`
+- `.kota/runs/2026-05-16T01-59-56-101Z-builder-g1uskl/remote-client-reconnect/probe.json`
+- `pnpm lint` was run and still fails only on an unrelated pre-existing `useLiteralKeys` finding in `src/modules/autonomy/workflows/fan-out-consolidator/workflow.test.ts`.

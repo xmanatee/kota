@@ -22,6 +22,7 @@ describe("EventRingBuffer", () => {
     const results = buf.query();
     expect(workflowsOf(results)).toEqual(["a", "b", "c"]);
     expect(results.map((e) => e.timestamp)).toEqual([1000, 2000, 3000]);
+    expect(results.map((e) => e.id)).toEqual(["evt-1", "evt-2", "evt-3"]);
   });
 
   it("evicts oldest entry when buffer is full", () => {
@@ -75,6 +76,28 @@ describe("EventRingBuffer", () => {
     // since=300 (exclusive) → 4,5,6,7,8,9; limit=3 → 7,8,9
     const results = buf.query(300, 3);
     expect(workflowsOf(results)).toEqual(["7", "8", "9"]);
+  });
+
+  it("filters after a stable event id", () => {
+    const buf = new EventRingBuffer(10);
+    buf.push(makeWorkflowCompletedEvent({ workflow: "a" }), 1000);
+    const cursor = buf.push(makeWorkflowCompletedEvent({ workflow: "b" }), 2000);
+    buf.push(makeWorkflowCompletedEvent({ workflow: "c" }), 3000);
+    buf.push(makeWorkflowCompletedEvent({ workflow: "d" }), 4000);
+
+    const results = buf.query(undefined, undefined, cursor.id);
+    expect(workflowsOf(results)).toEqual(["c", "d"]);
+    expect(results.some((entry) => entry.id === cursor.id)).toBe(false);
+  });
+
+  it("returns no events when an after cursor is outside the buffer", () => {
+    const buf = new EventRingBuffer(2);
+    buf.push(makeWorkflowCompletedEvent({ workflow: "a" }), 1000);
+    buf.push(makeWorkflowCompletedEvent({ workflow: "b" }), 2000);
+    buf.push(makeWorkflowCompletedEvent({ workflow: "c" }), 3000);
+
+    const results = buf.query(undefined, undefined, "evt-1");
+    expect(results).toEqual([]);
   });
 
   it("returns empty array when buffer is empty", () => {

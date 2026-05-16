@@ -1,4 +1,4 @@
-import type { DaemonControlAddress, DaemonLiveStatus, DaemonSseEvent } from "#core/daemon/daemon-control.js";
+import type { DaemonControlAddress, DaemonLiveStatus, DaemonSseStreamEvent } from "#core/daemon/daemon-control.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import * as methods from "./daemon-control-methods.js";
 import { type DaemonTransport, daemonTransportFromAddress } from "./daemon-transport.js";
@@ -210,7 +210,7 @@ export class DaemonControlClient implements KotaClient {
   unregisterSession(id: string): Promise<boolean> {
     return methods.unregisterSession(this.transport, id);
   }
-  events(): AsyncGenerator<DaemonSseEvent> {
+  events(): AsyncGenerator<DaemonSseStreamEvent> {
     return methods.events(this.transport);
   }
 }

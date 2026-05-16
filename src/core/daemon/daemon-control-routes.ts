@@ -182,11 +182,20 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
         });
         res.write(":\n\n");
         const sinceParam = url.searchParams.get("since");
+        const afterParam = url.searchParams.get("after") ?? req.headers["last-event-id"];
         if (sinceParam) {
           const sinceMs = new Date(sinceParam).getTime();
           if (!Number.isNaN(sinceMs)) {
-            for (const { event } of eventBuffer.query(sinceMs)) {
-              res.write(`event: ${event.type}\ndata: ${JSON.stringify(event.payload)}\n\n`);
+            const afterId = typeof afterParam === "string" ? afterParam : undefined;
+            for (const entry of eventBuffer.query(sinceMs, undefined, afterId)) {
+              res.write(`id: ${entry.id}\nevent: ${entry.event.type}\ndata: ${JSON.stringify(entry.event.payload)}\n\n`);
+            }
+          }
+        } else {
+          const afterId = typeof afterParam === "string" ? afterParam : undefined;
+          if (afterId) {
+            for (const entry of eventBuffer.query(undefined, undefined, afterId)) {
+              res.write(`id: ${entry.id}\nevent: ${entry.event.type}\ndata: ${JSON.stringify(entry.event.payload)}\n\n`);
             }
           }
         }
@@ -201,6 +210,7 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
       handler: (req, res) => {
         const url = new URL(req.url ?? "/", "http://127.0.0.1");
         const sinceParam = url.searchParams.get("since");
+        const afterParam = url.searchParams.get("after");
         const limitParam = url.searchParams.get("limit");
         const typeParam = url.searchParams.get("type");
         const sinceMs = sinceParam ? new Date(sinceParam).getTime() : undefined;
@@ -208,6 +218,7 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
         let entries = eventBuffer.query(
           sinceMs != null && !Number.isNaN(sinceMs) ? sinceMs : undefined,
           limit == null || typeParam != null ? undefined : limit,
+          afterParam ?? undefined,
         );
         if (typeParam) {
           const isGlob = typeParam.includes("*");
@@ -222,7 +233,8 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
           }
         }
         jsonResponse(res, 200, {
-          events: entries.map(({ event, timestamp }) => ({
+          events: entries.map(({ id, event, timestamp }) => ({
+            id,
             type: event.type,
             payload: event.payload,
             timestamp: new Date(timestamp).toISOString(),

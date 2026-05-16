@@ -21,7 +21,7 @@ import { join } from "node:path";
 import { resolveProjectDir } from "#core/config/project-dir.js";
 import type {
   DaemonControlAddress,
-  DaemonSseEvent,
+  DaemonSseStreamEvent,
 } from "#core/daemon/daemon-control.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 
@@ -74,7 +74,7 @@ export interface DaemonTransport {
    * Open the daemon SSE stream and yield decoded events. Returns
    * immediately if the stream cannot be opened.
    */
-  events(init?: { signal?: AbortSignal }): AsyncGenerator<DaemonSseEvent>;
+  events(init?: { signal?: AbortSignal }): AsyncGenerator<DaemonSseStreamEvent>;
 
   /**
    * Issue a raw fetch against the daemon. Used by callers that need the
@@ -138,7 +138,7 @@ class HttpDaemonTransport implements DaemonTransport {
     });
   }
 
-  async *events(init?: { signal?: AbortSignal }): AsyncGenerator<DaemonSseEvent> {
+  async *events(init?: { signal?: AbortSignal }): AsyncGenerator<DaemonSseStreamEvent> {
     let res: Response;
     try {
       res = await fetch(`${this.baseUrl}/events`, {
@@ -165,18 +165,21 @@ class HttpDaemonTransport implements DaemonTransport {
         for (const message of messages) {
           if (!message.trim()) continue;
           const lines = message.split("\n");
+          let id = "";
           let eventType = "";
           let data = "";
           for (const line of lines) {
-            if (line.startsWith("event: ")) eventType = line.slice(7).trim();
+            if (line.startsWith("id: ")) id = line.slice(4).trim();
+            else if (line.startsWith("event: ")) eventType = line.slice(7).trim();
             else if (line.startsWith("data: ")) data = line.slice(6).trim();
           }
-          if (eventType && data) {
+          if (id && eventType && data) {
             try {
               yield {
+                id,
                 type: eventType,
                 payload: JSON.parse(data),
-              } as DaemonSseEvent;
+              } as DaemonSseStreamEvent;
             } catch (err) {
               console.warn(
                 "[kota-daemon-transport] Failed to parse daemon SSE event:",

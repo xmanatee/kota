@@ -126,6 +126,16 @@ export type DaemonSseEvent =
 
 export type DaemonSseEventType = DaemonSseEvent["type"];
 
+export type DaemonSseStreamEvent = DaemonSseEvent & {
+  /** Opaque, daemon-local event id. Clients use it as the reconnect cursor. */
+  id: string;
+};
+
+export type DaemonTimelineEvent = DaemonSseStreamEvent & {
+  /** ISO timestamp for human-facing timeline ordering and timestamp catch-up. */
+  timestamp: string;
+};
+
 export type WorkflowRunSummary = {
   id: string;
   workflow: string;

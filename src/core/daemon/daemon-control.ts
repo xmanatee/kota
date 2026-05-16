@@ -10,9 +10,9 @@ import {
   type DaemonChatPoolOptions,
 } from "./daemon-chat-pool.js";
 import { buildBuiltinControlRoutes } from "./daemon-control-routes.js";
-import type { DaemonControlHandle, DaemonSseEvent } from "./daemon-control-types.js";
+import type { DaemonControlHandle } from "./daemon-control-types.js";
 import { jsonResponse } from "./daemon-control-utils.js";
-import { EventRingBuffer } from "./event-ring-buffer.js";
+import { type BufferedEvent, EventRingBuffer } from "./event-ring-buffer.js";
 
 export type {
   ClientDashboardAvailability,
@@ -30,6 +30,8 @@ export type {
   DaemonLiveStatus,
   DaemonSseEvent,
   DaemonSseEventType,
+  DaemonSseStreamEvent,
+  DaemonTimelineEvent,
   HealthStatus,
   InteractiveSession,
   WorkflowCostEntry,
@@ -179,8 +181,8 @@ export class DaemonControlServer {
         this.server = srv;
         this.port = addr.port;
         this.unsubscribeEvents = this.handle.subscribeToEvents((event) => {
-          this.eventBuffer.push(event);
-          this.broadcast(event);
+          const entry = this.eventBuffer.push(event);
+          this.broadcast(entry);
         });
         if (this.chatPool) {
           this.cleanupTimer = setInterval(() => { this.chatPool!.cleanup(); }, this.chatSweepMs);
@@ -222,8 +224,13 @@ export class DaemonControlServer {
     return header === `Bearer ${this.token}`;
   }
 
-  private broadcast(event: DaemonSseEvent): void {
-    const chunk = `event: ${event.type}\ndata: ${JSON.stringify(event.payload)}\n\n`;
+  private serializeEvent(entry: BufferedEvent): string {
+    const { event } = entry;
+    return `id: ${entry.id}\nevent: ${event.type}\ndata: ${JSON.stringify(event.payload)}\n\n`;
+  }
+
+  private broadcast(entry: BufferedEvent): void {
+    const chunk = this.serializeEvent(entry);
     for (const res of this.sseClients) {
       try {
         res.write(chunk);
