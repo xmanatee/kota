@@ -229,3 +229,7 @@ resources:
   - url: https://modelcontextprotocol.io/specification/draft/server/tools
     added: "2026-05-16"
     notes: "Official MCP tools spec draft - monitor tool-result content, structuredContent, _meta, output schema, annotations, and execution-error semantics that affect KOTA's MCP client/server protocol fidelity."
+    snapshot:
+      fingerprint: sha256:57c513e494ffb3d3f42650f33440dae1
+      summary: "MCP draft Tools now has explicit complete and input_required result variants plus richer structured output and state-handle guidance; KOTA's remaining local gap is server-side tools/call result negotiation and input-required conformance."
+      last_seen_at: "2026-05-16T10:20:03.467Z"
