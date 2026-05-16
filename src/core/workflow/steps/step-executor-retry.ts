@@ -248,6 +248,13 @@ export function classifyAgentRuntimeFailure(
   ) {
     return { kind: "provider", retryable: true };
   }
+  if (
+    /stream disconnected before completion:\s*error sending request for url \(https:\/\/chatgpt\.com\/backend-api\/codex\/responses\)/i.test(
+      input.message,
+    )
+  ) {
+    return { kind: "provider", retryable: true };
+  }
 
   return null;
 }

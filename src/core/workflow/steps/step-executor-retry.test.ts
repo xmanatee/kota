@@ -22,6 +22,16 @@ describe("classifyAgentRuntimeFailure", () => {
     ).toEqual({ kind: "provider", retryable: true });
   });
 
+  it("classifies Codex CLI response stream disconnects as provider failures", () => {
+    expect(
+      classifyAgentRuntimeFailure({
+        subtype: "codex_cli_error",
+        message:
+          "stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)",
+      }),
+    ).toEqual({ kind: "provider", retryable: true });
+  });
+
   it("does not classify arbitrary request-disconnect text as a provider failure", () => {
     expect(
       classifyAgentRuntimeFailure({

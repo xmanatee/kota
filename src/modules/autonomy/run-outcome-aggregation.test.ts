@@ -685,6 +685,13 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
       "2026-04-21T03:00:00.000Z",
       'Repair agent for step "build" failed: Reconnecting... 2/5 (stream disconnected before completion: idle timeout sending websocket request)',
     );
+    writeAgentRuntimeFailureRun(
+      "codex-response-disconnect",
+      "explorer",
+      "explore",
+      "2026-04-21T04:00:00.000Z",
+      'Agent step "explore" failed (codex_cli_error): stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)',
+    );
 
     const result = aggregateRunOutcomes(runsDir);
     expect(result.latestActionableRunAt).toBeNull();
