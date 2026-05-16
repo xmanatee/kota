@@ -1,8 +1,12 @@
-import type {
-  KotaMessage,
-  KotaToolResultBlock,
-  KotaToolUseBlock,
-} from "#core/agent-harness/message-protocol.js";
+import type { KotaMessage } from "#core/agent-harness/message-protocol.js";
+import {
+  buildToolCallMap,
+  extractToolResultText,
+  formatMaskedToolObservation,
+  hasToolResultImageContent,
+  isMaskedToolObservation,
+  MASKED_OBSERVATION_PREFIX,
+} from "./tool-observations.js";
 
 type Message = KotaMessage;
 
@@ -24,156 +28,13 @@ type Message = KotaMessage;
 const DEFAULT_WINDOW = 10;
 const MIN_CONTENT_LENGTH = 200;
 
-/** Sentinel prefix so we never re-mask an already-masked result. */
-const MASKED_PREFIX = "[Observed:";
-
 export type MaskStats = {
   maskedCount: number;
   charsSaved: number;
 };
 
-type ToolCallInfo = {
-  name: string;
-  input: Record<string, unknown>;
-};
-
-/** Build a map of tool_use_id → { name, input } from assistant messages. */
-function buildToolCallMap(messages: Message[]): Map<string, ToolCallInfo> {
-  const map = new Map<string, ToolCallInfo>();
-  for (const msg of messages) {
-    if (msg.role !== "assistant" || typeof msg.content === "string") continue;
-    if (!Array.isArray(msg.content)) continue;
-    for (const block of msg.content) {
-      if (block.type === "tool_use") {
-        const tu = block as KotaToolUseBlock;
-        map.set(tu.id, {
-          name: tu.name,
-          input: tu.input as Record<string, unknown>,
-        });
-      }
-    }
-  }
-  return map;
-}
-
 /** Generate a compact placeholder for a masked tool observation. */
-export function generatePlaceholder(
-  toolName: string,
-  input: Record<string, unknown>,
-  isError: boolean,
-): string {
-  const status = isError ? " (error)" : "";
-
-  switch (toolName) {
-    case "file_read": {
-      const path = (input.path || input.file_path || "?") as string;
-      return `${MASKED_PREFIX} read ${path}${status}]`;
-    }
-    case "file_edit":
-    case "multi_edit":
-    case "find_replace": {
-      const path = (input.file_path || input.path || "?") as string;
-      return `${MASKED_PREFIX} edited ${path}${status}]`;
-    }
-    case "file_write": {
-      const path = (input.file_path || input.path || "?") as string;
-      return `${MASKED_PREFIX} wrote ${path}${status}]`;
-    }
-    case "shell": {
-      const cmd = (input.command || "?") as string;
-      return `${MASKED_PREFIX} shell: ${cmd.slice(0, 80)}${status}]`;
-    }
-    case "process": {
-      const action = (input.action || "?") as string;
-      const cmd = (input.command || "") as string;
-      const label = cmd ? `${action} ${cmd.slice(0, 60)}` : action;
-      return `${MASKED_PREFIX} process: ${label}${status}]`;
-    }
-    case "code_exec": {
-      const lang = (input.language || "code") as string;
-      return `${MASKED_PREFIX} executed ${lang}${status}]`;
-    }
-    case "grep": {
-      const pattern = (input.pattern || "?") as string;
-      return `${MASKED_PREFIX} grep "${pattern.slice(0, 50)}"${status}]`;
-    }
-    case "glob": {
-      const pattern = (input.pattern || "?") as string;
-      return `${MASKED_PREFIX} glob "${pattern.slice(0, 50)}"${status}]`;
-    }
-    case "repo_map":
-      return `${MASKED_PREFIX} repo map${status}]`;
-    case "web_search": {
-      const query = (input.query || "?") as string;
-      return `${MASKED_PREFIX} search "${query.slice(0, 50)}"${status}]`;
-    }
-    case "web_fetch": {
-      const url = (input.url || "?") as string;
-      return `${MASKED_PREFIX} fetched ${url.slice(0, 80)}${status}]`;
-    }
-    case "delegate": {
-      const task = (input.task || "?") as string;
-      return `${MASKED_PREFIX} delegate: "${task.slice(0, 60)}"${status}]`;
-    }
-    case "todo":
-      return `${MASKED_PREFIX} todo${status}]`;
-    case "files_overview":
-      return `${MASKED_PREFIX} files overview${status}]`;
-    case "notebook":
-      return `${MASKED_PREFIX} notebook${status}]`;
-    case "http_request": {
-      const method = (input.method || "GET") as string;
-      const url = (input.url || "?") as string;
-      return `${MASKED_PREFIX} ${method} ${url.slice(0, 60)}${status}]`;
-    }
-    case "memory": {
-      const action = (input.action || "?") as string;
-      return `${MASKED_PREFIX} memory ${action}${status}]`;
-    }
-    case "schedule": {
-      const action = (input.action || "?") as string;
-      return `${MASKED_PREFIX} schedule ${action}${status}]`;
-    }
-    case "ask_user":
-      return `${MASKED_PREFIX} asked user${status}]`;
-    case "enable_tools":
-      return `${MASKED_PREFIX} enabled tools${status}]`;
-    case "get_secret":
-      return `${MASKED_PREFIX} got secret${status}]`;
-    case "custom_tool":
-      return `${MASKED_PREFIX} custom tool${status}]`;
-    case "screenshot":
-      return `${MASKED_PREFIX} screenshot${status}]`;
-    default:
-      return `${MASKED_PREFIX} ${toolName}${status}]`;
-  }
-}
-
-/** Extract text content from a tool_result block. */
-function extractText(tr: KotaToolResultBlock): string {
-  if (typeof tr.content === "string") return tr.content;
-  if (Array.isArray(tr.content)) {
-    return (tr.content as Array<{ type: string; text?: string }>)
-      .filter((b) => b.type === "text")
-      .map((b) => b.text || "")
-      .join("\n");
-  }
-  return "";
-}
-
-/** Check if content is already masked. */
-function isAlreadyMasked(tr: KotaToolResultBlock): boolean {
-  const text = typeof tr.content === "string" ? tr.content : extractText(tr);
-  return text.startsWith(MASKED_PREFIX);
-}
-
-/** Check if content contains an image block. */
-function hasImageContent(tr: KotaToolResultBlock): boolean {
-  return (
-    Array.isArray(tr.content) &&
-    (tr.content as Array<{ type: string }>).some((b) => b.type === "image")
-  );
-}
+export const generatePlaceholder = formatMaskedToolObservation;
 
 /**
  * Mask old tool observations beyond a rolling window.
@@ -204,34 +65,34 @@ export function maskObservations(
 
     for (const block of msg.content) {
       if (block.type !== "tool_result") continue;
-      const tr = block as KotaToolResultBlock;
+      const tr = block;
 
-      if (isAlreadyMasked(tr)) continue;
+      if (isMaskedToolObservation(tr)) continue;
 
       // Handle image content — always mask (images are expensive)
-      if (hasImageContent(tr)) {
+      if (hasToolResultImageContent(tr)) {
         const toolInfo = toolCallMap.get(tr.tool_use_id);
         const placeholder = toolInfo
-          ? generatePlaceholder(toolInfo.name, toolInfo.input, !!tr.is_error)
-          : `${MASKED_PREFIX} image]`;
-        (tr as { content: string }).content = placeholder;
+          ? formatMaskedToolObservation(toolInfo.name, toolInfo.input, !!tr.is_error)
+          : `${MASKED_OBSERVATION_PREFIX} image]`;
+        tr.content = placeholder;
         maskedCount++;
         charsSaved += 5000; // Estimate for image tokens
         continue;
       }
 
-      const text = extractText(tr);
+      const text = extractToolResultText(tr);
       if (text.length < MIN_CONTENT_LENGTH) continue;
 
       const toolInfo = toolCallMap.get(tr.tool_use_id);
       const placeholder = toolInfo
-        ? generatePlaceholder(toolInfo.name, toolInfo.input, !!tr.is_error)
-        : `${MASKED_PREFIX} tool result]`;
+        ? formatMaskedToolObservation(toolInfo.name, toolInfo.input, !!tr.is_error)
+        : `${MASKED_OBSERVATION_PREFIX} tool result]`;
 
       const saved = text.length - placeholder.length;
       if (saved <= 0) continue;
 
-      (tr as { content: string }).content = placeholder;
+      tr.content = placeholder;
       maskedCount++;
       charsSaved += saved;
     }

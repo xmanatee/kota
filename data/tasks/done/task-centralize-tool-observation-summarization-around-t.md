@@ -1,12 +1,12 @@
 ---
 id: task-centralize-tool-observation-summarization-around-t
 title: Centralize tool observation summarization around the agent message protocol
-status: ready
+status: done
 priority: p2
 area: core
 summary: Replace duplicate tool-use parsing and placeholder heuristics in core loop context masking/pruning with one typed helper grounded in KOTA's agent message protocol.
 created_at: 2026-05-16T02:51:19.000Z
-updated_at: 2026-05-16T02:51:19.000Z
+updated_at: 2026-05-16T03:01:36.000Z
 ---
 
 ## Problem

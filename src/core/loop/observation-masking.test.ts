@@ -81,6 +81,11 @@ describe("generatePlaceholder", () => {
     expect(p).toBe("[Observed: executed python]");
   });
 
+  it("generates process placeholder", () => {
+    const p = generatePlaceholder("process", { action: "start", command: "pnpm dev" }, false);
+    expect(p).toBe("[Observed: process: start pnpm dev]");
+  });
+
   it("generates http_request placeholder", () => {
     const p = generatePlaceholder("http_request", { method: "POST", url: "https://api.example.com/data" }, false);
     expect(p).toBe("[Observed: POST https://api.example.com/data]");
@@ -89,6 +94,12 @@ describe("generatePlaceholder", () => {
   it("handles unknown tools", () => {
     const p = generatePlaceholder("some_new_tool", {}, false);
     expect(p).toBe("[Observed: some_new_tool]");
+  });
+
+  it("throws on malformed known-tool input", () => {
+    expect(() => generatePlaceholder("file_read", null, false)).toThrow(
+      /Tool observation input must be an object/,
+    );
   });
 });
 

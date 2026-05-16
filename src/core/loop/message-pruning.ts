@@ -1,8 +1,11 @@
-import type {
-  KotaMessage,
-  KotaToolResultBlock,
-  KotaToolUseBlock,
-} from "#core/agent-harness/message-protocol.js";
+import type { KotaMessage } from "#core/agent-harness/message-protocol.js";
+import {
+  buildToolCallMap,
+  extractToolResultText,
+  formatPrunedImageObservation,
+  formatPrunedToolObservation,
+  hasToolResultImageContent,
+} from "./tool-observations.js";
 
 type Message = KotaMessage;
 
@@ -20,11 +23,6 @@ const PRUNEABLE_TOOLS = new Set([
 const DEFAULT_KEEP_RECENT = 20;
 const DEFAULT_MIN_LENGTH = 1500;
 
-type ToolCallInfo = {
-  name: string;
-  input: Record<string, unknown>;
-};
-
 export type PruneStats = {
   prunedCount: number;
   charsSaved: number;
@@ -35,64 +33,10 @@ export type PruneOptions = {
   minLength?: number;
 };
 
-/** Build a map of tool_use_id → { name, input } from assistant messages. */
-export function buildToolCallMap(messages: Message[]): Map<string, ToolCallInfo> {
-  const map = new Map<string, ToolCallInfo>();
-  for (const msg of messages) {
-    if (msg.role !== "assistant" || typeof msg.content === "string") continue;
-    if (!Array.isArray(msg.content)) continue;
-    for (const block of msg.content) {
-      if (block.type === "tool_use") {
-        const tu = block as KotaToolUseBlock;
-        map.set(tu.id, {
-          name: tu.name,
-          input: tu.input as Record<string, unknown>,
-        });
-      }
-    }
-  }
-  return map;
-}
+export { buildToolCallMap } from "./tool-observations.js";
 
 /** Generate a compact summary for a pruned tool result. */
-export function generateSummary(
-  toolName: string,
-  input: Record<string, unknown>,
-  content: string,
-): string {
-  const lineCount = content.split("\n").length;
-
-  switch (toolName) {
-    case "file_read": {
-      const path = (input.path || input.file_path || "unknown") as string;
-      return `[Previously read: ${path} — ${lineCount} lines. Re-read if needed.]`;
-    }
-    case "grep": {
-      const pattern = (input.pattern || "") as string;
-      return `[Previous grep for "${pattern.slice(0, 50)}" — ~${lineCount} lines. Re-grep if needed.]`;
-    }
-    case "glob": {
-      const pattern = (input.pattern || "") as string;
-      return `[Previous glob "${pattern.slice(0, 50)}" — ${lineCount} results. Re-glob if needed.]`;
-    }
-    case "repo_map":
-      return `[Previous repo map — ${lineCount} lines. Re-run if needed.]`;
-    case "web_fetch": {
-      const url = (input.url || "") as string;
-      return `[Previously fetched: ${url.slice(0, 80)}. Re-fetch if needed.]`;
-    }
-    case "web_search": {
-      const query = (input.query || "") as string;
-      return `[Previous search: "${query.slice(0, 50)}". Re-search if needed.]`;
-    }
-    case "delegate": {
-      const task = (input.task || "") as string;
-      return `[Previous delegate: "${task.slice(0, 60)}". Result pruned.]`;
-    }
-    default:
-      return `[Previous ${toolName} — ${lineCount} lines. Re-run if needed.]`;
-  }
-}
+export const generateSummary = formatPrunedToolObservation;
 
 /**
  * Prune large read-only tool results from older messages.
@@ -126,44 +70,33 @@ export function pruneMessages(messages: Message[], options?: PruneOptions): Prun
 
     for (const block of msg.content) {
       if (block.type !== "tool_result") continue;
-      const tr = block as KotaToolResultBlock;
+      const tr = block;
 
       if (tr.is_error) continue;
 
       // Image-bearing results (array content with image blocks) — always prune
-      const hasImages = Array.isArray(tr.content) &&
-        (tr.content as Array<{ type: string }>).some((b) => b.type === "image");
-
-      if (hasImages) {
+      if (hasToolResultImageContent(tr)) {
         const toolInfo = toolCallMap.get(tr.tool_use_id);
-        const path = toolInfo ? (toolInfo.input.path || toolInfo.input.file_path || "image") as string : "image";
-        const summary = `[Previously viewed image: ${path}. Re-read if needed.]`;
+        const summary = formatPrunedImageObservation(toolInfo);
         const estimatedSaved = 5000; // Images consume ~1000+ tokens; estimate char savings
-        (tr as { content: string }).content = summary;
+        tr.content = summary;
         prunedCount++;
         charsSaved += estimatedSaved;
         continue;
       }
 
       // Extract text from string or array-of-text-blocks content
-      const textContent = typeof tr.content === "string"
-        ? tr.content
-        : Array.isArray(tr.content)
-          ? (tr.content as Array<{ type: string; text?: string }>)
-              .filter((b) => b.type === "text")
-              .map((b) => b.text || "")
-              .join("\n")
-          : "";
+      const textContent = extractToolResultText(tr);
 
       if (textContent.length < minLength) continue;
 
       const toolInfo = toolCallMap.get(tr.tool_use_id);
       if (!toolInfo || !PRUNEABLE_TOOLS.has(toolInfo.name)) continue;
 
-      const summary = generateSummary(toolInfo.name, toolInfo.input, textContent);
+      const summary = formatPrunedToolObservation(toolInfo.name, toolInfo.input, textContent);
       const saved = textContent.length - summary.length;
 
-      (tr as { content: string }).content = summary;
+      tr.content = summary;
       prunedCount++;
       charsSaved += saved;
     }

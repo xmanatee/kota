@@ -8,6 +8,7 @@ import type {
   KotaAgentToolCallMessage,
   KotaAgentToolResultMessage,
 } from "#core/agent-harness/index.js";
+import { formatToolCallLogLabel } from "#core/loop/tool-observations.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowRunMetadata, WorkflowRuntimeState } from "#core/workflow/run-types.js";
 import { line, plain } from "#modules/rendering/primitives.js";
@@ -38,7 +39,7 @@ function renderToolCallMessage(
   maxLen: number,
 ): string {
   const inputStr = JSON.stringify(message.input);
-  return `[assistant] [tool: ${message.toolName}] ${truncateContent(inputStr, maxLen)}`;
+  return `[assistant] ${formatToolCallLogLabel(message.toolName)} ${truncateContent(inputStr, maxLen)}`;
 }
 
 function renderToolResultMessage(

@@ -147,12 +147,16 @@ describe("pruneMessages", () => {
     expect(stats.prunedCount).toBe(0);
   });
 
-  it("does not prune non-pruneable tools (shell, file_edit)", () => {
+  it("does not prune non-pruneable tools (shell, process, code_exec, file_edit)", () => {
     const messages: Message[] = [
       toolUse("shell", { command: "npm test" }, "t1"),
       toolResult(LARGE_CONTENT, "t1"),
-      toolUse("file_edit", { file_path: "src/foo.ts" }, "t2"),
+      toolUse("process", { action: "start", command: "pnpm dev" }, "t2"),
       toolResult(LARGE_CONTENT, "t2"),
+      toolUse("code_exec", { language: "python" }, "t3"),
+      toolResult(LARGE_CONTENT, "t3"),
+      toolUse("file_edit", { file_path: "src/foo.ts" }, "t4"),
+      toolResult(LARGE_CONTENT, "t4"),
       ...Array.from({ length: 6 }, (_, i) => ({
         role: "user" as const,
         content: `msg-${i}`,
