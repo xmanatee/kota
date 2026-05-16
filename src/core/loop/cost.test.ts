@@ -9,9 +9,22 @@ import {
 import { CostTracker } from "./cost.js";
 
 const TEST_PRICING: Record<string, ModelPricing> = {
-  "claude-sonnet-4-6": { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
-  "claude-opus-4-7": { input: 15, output: 75, cacheRead: 1.5, cacheWrite: 18.75 },
-  "claude-haiku-4-5-20251001": { input: 0.8, output: 4, cacheRead: 0.08, cacheWrite: 1 },
+  "claude-sonnet-4-6": { kind: "flat", input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+  "claude-opus-4-7": { kind: "flat", input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
+  "claude-haiku-4-5-20251001": { kind: "flat", input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25 },
+  "tiered-model": {
+    kind: "input-token-tiered",
+    tiers: [
+      { maxInputTokens: 200_000, rates: { input: 1, output: 10, cacheRead: 0.1, cacheWrite: 1 } },
+      { maxInputTokens: null, rates: { input: 2, output: 15, cacheRead: 0.2, cacheWrite: 2 } },
+    ],
+  },
+  "malformed-tiered-model": {
+    kind: "input-token-tiered",
+    tiers: [
+      { maxInputTokens: 100, rates: { input: 1, output: 10, cacheRead: 0.1, cacheWrite: 1 } },
+    ],
+  },
 };
 
 const testPricingProvider: ModelPricingProvider = {
@@ -83,8 +96,8 @@ describe("CostTracker", () => {
       input_tokens: 1_000_000,
       output_tokens: 1_000_000,
     });
-    // Opus: $15/M input + $75/M output = $90
-    expect(tracker.getTotalCost()).toBeCloseTo(90.0);
+    // Opus: $5/M input + $25/M output = $30
+    expect(tracker.getTotalCost()).toBeCloseTo(30.0);
   });
 
   it("uses haiku pricing for haiku model", () => {
@@ -93,8 +106,31 @@ describe("CostTracker", () => {
       input_tokens: 1_000_000,
       output_tokens: 1_000_000,
     });
-    // Haiku: $0.8/M input + $4/M output = $4.8
-    expect(tracker.getTotalCost()).toBeCloseTo(4.8);
+    // Haiku: $1/M input + $5/M output = $6
+    expect(tracker.getTotalCost()).toBeCloseTo(6.0);
+  });
+
+  it("selects tiered pricing from input token count", () => {
+    const tracker = new CostTracker();
+    tracker.addUsage("tiered-model", {
+      input_tokens: 200_001,
+      output_tokens: 1_000_000,
+      cache_read_input_tokens: 1_000_000,
+      cache_creation_input_tokens: 1_000_000,
+    });
+    expect(tracker.getTotalCost()).toBeCloseTo(
+      (200_001 * 2 + 1_000_000 * 15 + 1_000_000 * 0.2 + 1_000_000 * 2) / 1_000_000,
+    );
+  });
+
+  it("fails loudly when tiered pricing has a gap", () => {
+    const tracker = new CostTracker();
+    expect(() =>
+      tracker.addUsage("malformed-tiered-model", {
+        input_tokens: 101,
+        output_tokens: 1,
+      }),
+    ).toThrow(/Tiered model pricing does not cover 101 input token/);
   });
 
   it("contributes zero cost for models with no registered pricing", () => {

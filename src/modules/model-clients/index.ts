@@ -1,13 +1,13 @@
 import { registerModelClientFactory } from "#core/model/model-client.js";
 import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { MODEL_PRICING_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
-import { createAnthropicModelPricingProvider } from "./anthropic-pricing.js";
 import { failoverConfigSlice, modelProviderConfigSlice } from "./config-slice.js";
 import {
   createModelClientImpl,
   createModelClientWithFailover,
   getActiveFailoverClient,
 } from "./factory.js";
+import { createShippedModelPricingProvider } from "./pricing.js";
 
 registerModelClientFactory(createModelClientImpl);
 
@@ -17,7 +17,7 @@ const modelClientsModule: KotaModule = {
   configSlices: [modelProviderConfigSlice, failoverConfigSlice],
 
   onLoad(ctx: ModuleRuntimeContext) {
-    ctx.registerProvider(MODEL_PRICING_PROVIDER_TOKEN, createAnthropicModelPricingProvider());
+    ctx.registerProvider(MODEL_PRICING_PROVIDER_TOKEN, createShippedModelPricingProvider());
 
     const failoverConfig = ctx.config.failover;
     if (failoverConfig) {

@@ -204,17 +204,42 @@ export interface RenderingProvider {
 }
 
 /**
- * Per-million-token pricing for a single model. Strict: every field must be
- * present for a registered model. Modules that own model clients register
- * complete pricing entries through the model-pricing provider seam — the seam
- * itself never returns a partial record.
+ * Per-million-token rate columns for a single pricing tier. Strict: every
+ * field must be present for a registered tier. Modules that own model clients
+ * register complete pricing entries through the model-pricing provider seam —
+ * the seam itself never returns a partial record.
  */
-export type ModelPricing = {
+export type ModelPricingRates = {
 	input: number;
 	output: number;
 	cacheRead: number;
 	cacheWrite: number;
 };
+
+/** A single-rate model whose token categories do not vary by prompt size. */
+export type FlatModelPricing = ModelPricingRates & {
+	kind: "flat";
+};
+
+/** One prompt-size tier for providers whose rates change by input tokens. */
+export type InputTokenPricingTier = {
+	/** Inclusive upper bound. `null` is the final unbounded tier. */
+	maxInputTokens: number | null;
+	rates: ModelPricingRates;
+};
+
+/**
+ * A model whose input/output/cache rates are selected from the prompt's input
+ * token count. The first matching tier wins; malformed gaps fail loudly in
+ * CostTracker instead of silently picking an arbitrary row.
+ */
+export type InputTokenTieredModelPricing = {
+	kind: "input-token-tiered";
+	tiers: readonly [InputTokenPricingTier, ...InputTokenPricingTier[]];
+};
+
+/** Per-million-token pricing for a single model. */
+export type ModelPricing = FlatModelPricing | InputTokenTieredModelPricing;
 
 /**
  * Lookup contract for per-model token pricing. Module-owned: each

@@ -1,12 +1,12 @@
 ---
 id: task-add-shipped-preset-pricing-coverage-for-codex-a
 title: Add shipped-preset pricing coverage for Codex and Gemini models
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Register model-pricing rows for the non-Anthropic shipped preset models so operator-facing cost reports do not show honest-but-misleading zero dollars for Codex/OpenAI and Gemini runs.
 created_at: 2026-05-16T03:23:56.349Z
-updated_at: 2026-05-16T03:23:56.349Z
+updated_at: 2026-05-16T03:40:16.764Z
 ---
 
 ## Problem

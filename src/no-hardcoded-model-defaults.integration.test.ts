@@ -15,8 +15,8 @@
  *     snapshots.
  *   - src/core/model/preset.ts — the shipped preset registry: every model
  *     id lands here when a vendor releases a new tier.
- *   - src/modules/model-clients/anthropic-pricing.ts — provider-shaped
- *     pricing table owned by the anthropic adapter.
+ *   - src/modules/model-clients/pricing.ts — provider-shaped pricing
+ *     coverage owned by the model-clients module.
  *   - src/modules/claude-agent-harness/adapter.ts — claude harness's
  *     SDK-internal model allowlist (per-adapter probe table).
  */
@@ -30,7 +30,7 @@ const REPO_ROOT = join(SRC_DIR, "..");
 
 const ALLOWLIST = new Set<string>([
   "src/core/model/preset.ts",
-  "src/modules/model-clients/anthropic-pricing.ts",
+  "src/modules/model-clients/pricing.ts",
   "src/modules/claude-agent-harness/adapter.ts",
   // The grep test itself names the patterns; that file is the one place
   // the literal regex source must live.

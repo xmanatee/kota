@@ -18,11 +18,15 @@ import type {
 
 export { defineProviderToken, type ProviderToken } from "./provider-token.js";
 export type {
+	FlatModelPricing,
 	HistoryProvider,
+	InputTokenPricingTier,
+	InputTokenTieredModelPricing,
 	KnowledgeProvider,
 	MemoryProvider,
 	ModelPricing,
 	ModelPricingProvider,
+	ModelPricingRates,
 	RenderingProvider,
 	RepoTasksProvider,
 	TaskProvider,

@@ -1,4 +1,8 @@
-import { getModelPricingProvider } from "#core/modules/provider-registry.js";
+import {
+  getModelPricingProvider,
+  type ModelPricing,
+  type ModelPricingRates,
+} from "#core/modules/provider-registry.js";
 
 type Usage = {
   input_tokens: number;
@@ -11,6 +15,18 @@ function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
+}
+
+function selectPricingRates(pricing: ModelPricing, inputTokens: number): ModelPricingRates {
+  if (pricing.kind === "flat") return pricing;
+  for (const tier of pricing.tiers) {
+    if (tier.maxInputTokens === null || inputTokens <= tier.maxInputTokens) {
+      return tier.rates;
+    }
+  }
+  throw new Error(
+    `Tiered model pricing does not cover ${inputTokens} input token(s).`,
+  );
 }
 
 export class CostTracker {
@@ -26,19 +42,25 @@ export class CostTracker {
    * unknown models contribute $0 by design (no silent Sonnet-rate fallback).
    */
   addUsage(model: string, usage: Usage): void {
+    const cacheReadTokens = usage.cache_read_input_tokens || 0;
+    const cacheWriteTokens = usage.cache_creation_input_tokens || 0;
     this.totalInput += usage.input_tokens;
     this.totalOutput += usage.output_tokens;
-    this.totalCacheRead += usage.cache_read_input_tokens || 0;
-    this.totalCacheWrite += usage.cache_creation_input_tokens || 0;
+    this.totalCacheRead += cacheReadTokens;
+    this.totalCacheWrite += cacheWriteTokens;
 
     const pricing = getModelPricingProvider()?.getPricing(model) ?? null;
     if (!pricing) return;
+    const rates = selectPricingRates(
+      pricing,
+      usage.input_tokens + cacheReadTokens + cacheWriteTokens,
+    );
 
     this.totalCost +=
-      (usage.input_tokens * pricing.input +
-        usage.output_tokens * pricing.output +
-        (usage.cache_read_input_tokens || 0) * pricing.cacheRead +
-        (usage.cache_creation_input_tokens || 0) * pricing.cacheWrite) /
+      (usage.input_tokens * rates.input +
+        usage.output_tokens * rates.output +
+        cacheReadTokens * rates.cacheRead +
+        cacheWriteTokens * rates.cacheWrite) /
       1_000_000;
   }
 
