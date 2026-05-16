@@ -1,12 +1,12 @@
 ---
 id: task-expose-tool-output-schemas-through-mcp-toolslist
 title: Expose tool output schemas through MCP tools/list
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add an optional structured-output schema to KOTA tool definitions and expose it as MCP outputSchema, with validation so structured tool results cannot drift silently from their advertised contract.
 created_at: 2026-05-16T10:55:39Z
-updated_at: 2026-05-16T10:55:39Z
+updated_at: 2026-05-16T11:07:25Z
 ---
 
 ## Problem

@@ -21,9 +21,16 @@ export type KotaToolInputSchema = {
 };
 
 /**
+ * Neutral JSON Schema object shape for a tool's structured output. This is the
+ * same strict object-schema style as `input_schema` because KOTA structured
+ * tool results are JSON objects.
+ */
+export type KotaToolOutputSchema = KotaToolInputSchema;
+
+/**
  * Neutral tool-definition shape. A tool is a name, a description, and a
- * JSON-Schema `input_schema`. Harness adapters that target an SDK whose tool
- * type is the same JSON shape (Anthropic SDK, OpenAI chat-completions tools)
+ * JSON-Schema `input_schema`, plus an optional schema for structured output.
+ * Harness adapters that target an SDK whose tool type is the same JSON shape
  * pass this value through or translate it at their seam; core consumes only
  * `KotaTool`.
  */
@@ -31,6 +38,7 @@ export type KotaTool = {
   name: string;
   description: string;
   input_schema: KotaToolInputSchema;
+  output_schema?: KotaToolOutputSchema;
 };
 
 /**

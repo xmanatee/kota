@@ -352,6 +352,48 @@ describe("McpServer", () => {
 			server.stop();
 		});
 
+		it("exposes outputSchema for module tools that declare output_schema", async () => {
+			const outputSchema = {
+				type: "object" as const,
+				properties: {
+					ok: { type: "boolean" },
+					count: { type: "number" },
+				},
+				required: ["ok", "count"],
+				additionalProperties: false,
+			};
+			const { input, output } = createTestStreams();
+			const server = new McpServer({
+				input,
+				output,
+				log: () => {},
+				moduleTools: [
+					{
+						tool: {
+							name: "ext_structured_contract",
+							description: "Structured contract tool",
+							input_schema: { type: "object" as const, properties: {}, required: [] },
+							output_schema: outputSchema,
+						},
+						runner: async () => ({ content: "structured", structuredContent: { ok: true, count: 1 } }),
+						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+					},
+				],
+			});
+			await initServer(server, input, output);
+
+			sendRequest(input, 2, "tools/list");
+			const resp = await readResponse(output);
+
+			const result = resp.result as { tools: Array<Record<string, unknown>> };
+			const tool = result.tools.find((t) => t.name === "ext_structured_contract");
+			expect(tool).toBeDefined();
+			expect(tool?.outputSchema).toEqual(outputSchema);
+			expect(tool).not.toHaveProperty("output_schema");
+
+			server.stop();
+		});
+
 		it("applies toolFilter to module tools", async () => {
 			const { input, output } = createTestStreams();
 			const server = new McpServer({
@@ -499,6 +541,15 @@ describe("McpServer", () => {
 		});
 
 		it("returns draft complete results without dropping structured metadata or rich content", async () => {
+			const outputSchema = {
+				type: "object" as const,
+				properties: {
+					ok: { type: "boolean" },
+					count: { type: "number" },
+				},
+				required: ["ok", "count"],
+				additionalProperties: false,
+			};
 			const { input, output } = createTestStreams();
 			const server = new McpServer({
 				input,
@@ -510,6 +561,7 @@ describe("McpServer", () => {
 							name: "ext_rich_result",
 							description: "Rich draft result",
 							input_schema: { type: "object" as const, properties: {}, required: [] },
+							output_schema: outputSchema,
 						},
 						runner: async () => ({
 							content: "fallback",
@@ -534,7 +586,6 @@ describe("McpServer", () => {
 							],
 							structuredContent: { ok: true, count: 2 },
 							_meta: { source: "test" },
-							is_error: true,
 						}),
 						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
 					},
@@ -573,7 +624,54 @@ describe("McpServer", () => {
 			});
 			expect(result.structuredContent).toEqual({ ok: true, count: 2 });
 			expect(result._meta).toEqual({ source: "test" });
-			expect(result.isError).toBe(true);
+			expect(result.isError).toBe(false);
+
+			server.stop();
+		});
+
+		it("fails loudly when structuredContent violates the declared output_schema", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({
+				input,
+				output,
+				log: () => {},
+				moduleTools: [
+					{
+						tool: {
+							name: "ext_bad_structured_result",
+							description: "Bad structured result",
+							input_schema: { type: "object" as const, properties: {}, required: [] },
+							output_schema: {
+								type: "object" as const,
+								properties: {
+									ok: { type: "boolean" },
+									count: { type: "number" },
+								},
+								required: ["ok", "count"],
+								additionalProperties: false,
+							},
+						},
+						runner: async () => ({
+							content: "bad",
+							structuredContent: { ok: true, count: "two" },
+						}),
+						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+					},
+				],
+			});
+			await initDraftServer(server, input, output);
+
+			sendRequest(input, 2, "tools/call", {
+				name: "ext_bad_structured_result",
+				arguments: {},
+			});
+			const resp = await readResponse(output);
+
+			expect(resp.result).toBeUndefined();
+			const err = resp.error as { code: number; message: string };
+			expect(err.code).toBe(-32603);
+			expect(err.message).toContain("structuredContent does not match output_schema");
+			expect(err.message).toContain("structuredContent.count: expected number, got string");
 
 			server.stop();
 		});
@@ -992,6 +1090,24 @@ describe("kotaToolToMcp", () => {
 		});
 		// MCP uses inputSchema (camelCase), not input_schema (snake_case)
 		expect(mcp).not.toHaveProperty("input_schema");
+		expect(mcp).not.toHaveProperty("outputSchema");
+	});
+
+	it("maps neutral output_schema to MCP outputSchema", () => {
+		const outputSchema = {
+			type: "object" as const,
+			properties: { ok: { type: "boolean" } },
+			required: ["ok"],
+		};
+		const mcp = kotaToolToMcp({
+			name: "test_tool",
+			description: "A test tool",
+			input_schema: { type: "object", properties: {} },
+			output_schema: outputSchema,
+		});
+
+		expect(mcp.outputSchema).toEqual(outputSchema);
+		expect(mcp).not.toHaveProperty("output_schema");
 	});
 });
 

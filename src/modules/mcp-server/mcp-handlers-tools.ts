@@ -8,6 +8,10 @@ import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolDef } from "#core/modules/module-types.js";
 import { getToolMcpAnnotations } from "#core/tools/guardrails-classify.js";
 import { executeTool, getAllTools, type ToolResult } from "#core/tools/index.js";
+import {
+	type JsonSchemaObject,
+	validateJsonSchemaValue,
+} from "#core/util/json-schema-validator.js";
 import type { ElicitationHandler } from "./mcp-handlers-elicitation.js";
 import type {
 	ElicitationResponse,
@@ -102,7 +106,8 @@ export class ToolsHandler {
 		}
 
 		const exposed = this.getExposedTools();
-		if (!exposed.some((t) => t.name === name)) {
+		const tool = exposed.find((t) => t.name === name);
+		if (!tool) {
 			return this.ctx.transport.sendError(msg, -32602, `Unknown tool: ${name}`);
 		}
 
@@ -141,7 +146,7 @@ export class ToolsHandler {
 			result = await executeTool(name, args);
 		}
 
-		this.sendToolExecutionResult(msg, result);
+		this.sendToolExecutionResult(msg, tool, result);
 	}
 
 	private handleConfirmViaInputRequired(
@@ -208,10 +213,24 @@ export class ToolsHandler {
 			return;
 		}
 		this.pendingInputRequests.delete(requestState);
-		this.sendToolExecutionResult(msg, confirmToolResultFromInputResponse(pending.args, inputResponse));
+		const tool = this.getExposedTools().find((t) => t.name === name) ?? null;
+		this.sendToolExecutionResult(
+			msg,
+			tool,
+			confirmToolResultFromInputResponse(pending.args, inputResponse),
+		);
 	}
 
-	private sendToolExecutionResult(msg: JsonRpcRequest, result: ToolResult): void {
+	private sendToolExecutionResult(
+		msg: JsonRpcRequest,
+		tool: KotaTool | null,
+		result: ToolResult,
+	): void {
+		const outputSchemaError = tool ? validateToolStructuredOutput(tool, result) : null;
+		if (outputSchemaError) {
+			this.ctx.transport.sendError(msg, -32603, outputSchemaError);
+			return;
+		}
 		this.ctx.transport.sendResult(
 			msg,
 			toolResultToMcpCallResult(result, this.ctx.session.protocolVersion),
@@ -250,7 +269,8 @@ export class ToolsHandler {
 			const approved = elicitResult.content.confirmed === true;
 			text = approved ? `APPROVED: ${action}` : `REJECTED: ${action}`;
 		}
-		this.sendToolExecutionResult(msg, { content: text });
+		const tool = this.getExposedTools().find((t) => t.name === "confirm") ?? null;
+		this.sendToolExecutionResult(msg, tool, { content: text });
 	}
 }
 
@@ -259,12 +279,28 @@ export function kotaToolToMcp(tool: KotaTool): {
 	name: string;
 	description: string;
 	inputSchema: KotaTool["input_schema"];
+	outputSchema?: NonNullable<KotaTool["output_schema"]>;
 } {
 	return {
 		name: tool.name,
 		description: tool.description,
 		inputSchema: tool.input_schema,
+		...(tool.output_schema ? { outputSchema: tool.output_schema } : {}),
 	};
+}
+
+function validateToolStructuredOutput(tool: KotaTool, result: ToolResult): string | null {
+	if (!tool.output_schema || result.is_error === true) return null;
+	if (result.structuredContent === undefined) {
+		return `Tool "${tool.name}" declared output_schema but returned no structuredContent`;
+	}
+	const validationError = validateJsonSchemaValue(
+		tool.output_schema as JsonSchemaObject,
+		result.structuredContent,
+		"structuredContent",
+	);
+	if (!validationError) return null;
+	return `Tool "${tool.name}" structuredContent does not match output_schema: ${validationError}`;
 }
 
 export function toolResultToMcpCallResult(

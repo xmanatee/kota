@@ -3,6 +3,7 @@
 Shared infrastructure utilities used across core and modules.
 
 - JSON file I/O with atomic writes and typed errors.
+- Minimal JSON Schema value validation for shared protocol boundaries.
 - Frontmatter parsing and serialization.
 - Git worktree status and head SHA helpers.
 - Log formatting (text and JSON modes).
