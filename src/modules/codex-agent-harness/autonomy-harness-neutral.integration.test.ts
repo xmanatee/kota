@@ -122,22 +122,40 @@ describe("autonomy agent step on codex", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses guardrail-dependent workflow agent steps before Codex CLI spawn", async () => {
-    mockCodexProcess();
+  it("runs workflow agent steps through Codex CLI native tool control", async () => {
+    const codexProcess = mockCodexProcess();
 
-    await expect(
-      executeAgentStep(
-        makeDefinition(),
-        makeAgentStep(projectDir),
-        makeMetadata(),
-        { event: "autonomy.queue.available", payload: {} },
-        new AbortController(),
-        () => {},
-        () => {},
-        { projectDir, log: () => {} },
-      ),
-    ).rejects.toThrow(/codex.*canUseTool/);
+    const result = await executeAgentStep(
+      makeDefinition(),
+      makeAgentStep(projectDir),
+      makeMetadata(),
+      { event: "autonomy.queue.available", payload: {} },
+      new AbortController(),
+      () => {},
+      () => {},
+      { projectDir, log: () => {} },
+    );
 
-    expect(spawnMock).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      harness: CODEX_AGENT_HARNESS_NAME,
+      model: "gpt-5.5",
+      output: {
+        content: "done",
+        inputTokens: 1,
+        outputTokens: 1,
+        turns: 1,
+      },
+    });
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+    expect(spawnMock.mock.calls[0][1]).toEqual(
+      expect.arrayContaining([
+        "--sandbox",
+        "workspace-write",
+        "-c",
+        'approval_policy="never"',
+      ]),
+    );
+    expect(codexProcess.stdinText()).toContain("## KOTA workflow rails");
+    expect(codexProcess.stdinText()).toContain("Do not run `git commit`");
   });
 });

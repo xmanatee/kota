@@ -192,6 +192,7 @@ export function createReplayAgentHarness(recordingsRoot: string): AgentHarness {
     supportedHookKinds: [],
     askOwnerToolName: null,
     emitsAgentMessageStream: true,
+    toolControl: "kota",
     async run(
       options: AgentHarnessRunOptions,
     ): Promise<AgentHarnessResult> {
@@ -287,4 +288,3 @@ export function resolveReplayRootFromEnv(
   if (!raw || raw.trim().length === 0) return null;
   return raw.trim();
 }
-

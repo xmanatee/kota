@@ -367,6 +367,7 @@ export const codexAgentHarness: AgentHarness = {
   supportedHookKinds: ["preRun", "postRun"] as const,
   askOwnerToolName: null,
   emitsAgentMessageStream: false,
+  toolControl: "native",
   unsupportedRunOptions: CODEX_UNSUPPORTED_OPTIONS,
   readiness: codexReadiness,
   async run(

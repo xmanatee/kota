@@ -4,7 +4,11 @@ import {
   registerHarnessHook,
   resetHarnessHooks,
 } from "./hooks.js";
-import { runAgentHarness } from "./runner.js";
+import {
+  routeKotaToolControlOptions,
+  runAgentHarness,
+  shouldRouteKotaToolControl,
+} from "./runner.js";
 import type { AgentHarness } from "./types.js";
 
 function harnessStub(
@@ -25,6 +29,7 @@ function harnessStub(
       supportedHookKinds,
       askOwnerToolName: null,
       emitsAgentMessageStream: false,
+      toolControl: "kota",
       run,
     },
     run,
@@ -145,5 +150,21 @@ describe("runAgentHarness", () => {
     ).rejects.toThrow(/native-cli.*canUseTool.*native CLI tool calls/);
     expect(preRun).not.toHaveBeenCalled();
     expect(run).not.toHaveBeenCalled();
+  });
+
+  it("routes KOTA tool-control options only to KOTA-controlled harnesses", () => {
+    const { harness } = harnessStub("tool-loop", ["preRun", "postRun"]);
+
+    expect(shouldRouteKotaToolControl(harness)).toBe(true);
+    expect(shouldRouteKotaToolControl({ ...harness, toolControl: "native" })).toBe(false);
+    expect(routeKotaToolControlOptions(harness, { allowedTools: ["Read"] })).toEqual({
+      allowedTools: ["Read"],
+    });
+    expect(
+      routeKotaToolControlOptions(
+        { ...harness, toolControl: "native" },
+        { allowedTools: ["Read"] },
+      ),
+    ).toEqual({});
   });
 });

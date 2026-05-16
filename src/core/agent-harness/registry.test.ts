@@ -16,6 +16,7 @@ function stubHarness(name: string): AgentHarness {
     supportedHookKinds: ["preRun", "postRun"],
     askOwnerToolName: null,
     emitsAgentMessageStream: false,
+    toolControl: "kota",
     run: async () => ({
       text: "",
       streamedText: "",

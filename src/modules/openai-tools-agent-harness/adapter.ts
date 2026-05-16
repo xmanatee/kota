@@ -251,6 +251,7 @@ export const openaiToolsAgentHarness: AgentHarness = {
   supportedHookKinds: ["preRun", "postRun"] as const,
   askOwnerToolName: OPENAI_TOOLS_ASK_OWNER_TOOL_NAME,
   emitsAgentMessageStream: false,
+  toolControl: "kota",
   async run(
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,

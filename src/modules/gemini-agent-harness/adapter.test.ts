@@ -85,6 +85,7 @@ describe("geminiAgentHarness — registration", () => {
     expect(geminiAgentHarness.supportedHookKinds).toEqual(["preRun", "postRun"]);
     expect(geminiAgentHarness.askOwnerToolName).toBe("ask_owner");
     expect(geminiAgentHarness.emitsAgentMessageStream).toBe(false);
+    expect(geminiAgentHarness.toolControl).toBe("kota");
   });
 });
 

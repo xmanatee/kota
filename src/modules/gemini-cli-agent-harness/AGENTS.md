@@ -41,16 +41,18 @@ runs when the CLI needs an approval KOTA cannot provide.
 
 Gemini CLI owns its own tool runtime, MCP configuration, checkpointing, and
 approval loop. This adapter does not expose KOTA's tool registry, `canUseTool`,
-MCP servers, owner-question tool, or supervised approvals to the CLI. It still
-injects KOTA workflow rails into the prompt, but those rails are prompt-level
-instructions rather than KOTA-enforced tool guardrails.
+MCP servers, owner-question tool, or supervised approvals to the CLI. It
+declares `toolControl: "native"`, so workflow, repair, and delegate callers
+that intentionally use the native CLI omit KOTA-only tool-control options
+through `routeKotaToolControlOptions`. It still injects KOTA workflow rails
+into the prompt, but those rails are prompt-level instructions rather than
+KOTA-enforced tool guardrails.
 
 Do not treat this adapter as an autonomous builder-equivalent until a guarded
 tool-control path exists. It is safe as a native CLI runtime boundary and for
 headless tasks that the CLI can complete under its own approval policy.
 The unsupported tool-control options are declared on the harness and reported
-through readiness so guardrail-dependent workflow agent steps fail before
-Gemini CLI starts.
+through readiness; direct callers that pass them fail before Gemini CLI starts.
 
 ## Release Channel
 

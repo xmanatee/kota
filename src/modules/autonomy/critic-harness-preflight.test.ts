@@ -86,6 +86,7 @@ describe("critic harness tool-control preflight", () => {
       supportedHookKinds: [],
       askOwnerToolName: null,
       emitsAgentMessageStream: false,
+      toolControl: "kota",
       unsupportedRunOptions: [
         {
           runOption: "canUseTool",

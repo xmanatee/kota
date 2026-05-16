@@ -95,6 +95,26 @@ function isRunOptionRequested(
   return options.onMessage !== undefined;
 }
 
+export function shouldRouteKotaToolControl(harness: AgentHarness): boolean {
+  return harness.toolControl === "kota";
+}
+
+export function routeKotaToolControlOptions(
+  harness: AgentHarness,
+  options: {
+    allowedTools?: string[];
+    disallowedTools?: string[];
+    canUseTool?: AgentHarnessRunOptions["canUseTool"];
+  },
+): {
+  allowedTools?: string[];
+  disallowedTools?: string[];
+  canUseTool?: AgentHarnessRunOptions["canUseTool"];
+} {
+  if (!shouldRouteKotaToolControl(harness)) return {};
+  return options;
+}
+
 export async function runAgentHarness(
   harness: AgentHarness,
   options: AgentHarnessRunOptions,

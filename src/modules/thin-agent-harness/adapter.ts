@@ -71,6 +71,7 @@ export const thinAgentHarness: AgentHarness = {
   // `runAgentHarness` throws at the boundary if `askOwner` is requested.
   askOwnerToolName: null,
   emitsAgentMessageStream: false,
+  toolControl: "kota",
   async run(
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,

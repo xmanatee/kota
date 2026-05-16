@@ -85,7 +85,11 @@ export {
   registerAgentHarness,
   resolveAgentHarness,
 } from "./registry.js";
-export { runAgentHarness } from "./runner.js";
+export {
+  routeKotaToolControlOptions,
+  runAgentHarness,
+  shouldRouteKotaToolControl,
+} from "./runner.js";
 export type {
   AgentAskOwnerOptions,
   AgentCanUseTool,

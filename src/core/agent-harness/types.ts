@@ -255,6 +255,13 @@ export type AgentHarness = {
    */
   readonly emitsAgentMessageStream: boolean;
   /**
+   * Which runtime owns tool access for this harness. `kota` means callers can
+   * route neutral tool-control options (`allowedTools`, `disallowedTools`,
+   * `canUseTool`) through the adapter. `native` means the adapter's own CLI
+   * process owns the tool loop and rejects KOTA-only controls.
+   */
+  readonly toolControl: "kota" | "native";
+  /**
    * Local readiness probe for operator-facing preflight surfaces. Adapters
    * own runtime details (native CLI, SDK package), harness-managed local
    * auth checks, and unsupported neutral options; preset consumers add preset

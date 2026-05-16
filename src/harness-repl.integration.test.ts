@@ -96,6 +96,7 @@ describe("runHarnessRepl", () => {
       supportedHookKinds: ["preRun", "postRun"],
       askOwnerToolName: null,
       emitsAgentMessageStream: false,
+      toolControl: "kota",
       run: async (): Promise<AgentHarnessResult> => ({
         text: "",
         streamedText: "",
@@ -126,6 +127,7 @@ describe("runHarnessRepl", () => {
       supportedHookKinds: ["preRun", "postRun"],
       askOwnerToolName: null,
       emitsAgentMessageStream: false,
+      toolControl: "kota",
       run: async (options): Promise<AgentHarnessResult> => {
         captured.push(options);
         return {
@@ -242,6 +244,7 @@ describe("runHarnessRepl", () => {
       supportedHookKinds: ["preRun", "postRun"],
       askOwnerToolName: null,
       emitsAgentMessageStream: false,
+      toolControl: "kota",
       run: async (options): Promise<AgentHarnessResult> => {
         calls.push(options.prompt);
         return { text: "ack", streamedText: "ack", turns: 1, isError: false };
@@ -272,6 +275,7 @@ describe("runHarnessRepl", () => {
       supportedHookKinds: ["preRun", "postRun"],
       askOwnerToolName: null,
       emitsAgentMessageStream: false,
+      toolControl: "kota",
       run: async (options, writer?: AgentHarnessWriter) => {
         prompts.push(options.prompt);
         writer?.write("ok");
@@ -305,6 +309,7 @@ describe("runHarnessRepl", () => {
       supportedHookKinds: ["preRun", "postRun"],
       askOwnerToolName: null,
       emitsAgentMessageStream: false,
+      toolControl: "kota",
       run: async () => {
         call += 1;
         if (call === 1) throw new Error("boom");

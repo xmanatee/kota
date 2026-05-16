@@ -55,6 +55,11 @@ injected by call sites.
 - `emitsAgentMessageStream: boolean` — whether the adapter emits
   `KotaAgentMessage` frames to `onMessage`. Adapters without a stream reject
   `onMessage` at the boundary.
+- `toolControl: "kota" | "native"` — whether KOTA can route neutral
+  tool-control options into the adapter. `"kota"` adapters receive those
+  options and either honor or reject them at their own boundary. `"native"`
+  adapters own their CLI tool loop, so callers that intentionally use native
+  control omit KOTA-only tool options via `routeKotaToolControlOptions`.
 - `supportsMultiTurn: boolean` — whether the REPL can launch this adapter.
   Single-shot runners set `false` so the REPL refuses to launch them rather
   than silently downgrading.
@@ -67,7 +72,7 @@ injected by call sites.
   that `runAgentHarness` checks before hooks or adapter launch. Native CLI
   adapters that cannot route KOTA's tool gate must declare `canUseTool`,
   `allowedTools`, and `disallowedTools` here and surface the same entries
-  through readiness.
+  through readiness; direct callers that pass those options still fail loudly.
 
 ## Registry and selection
 

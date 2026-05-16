@@ -333,6 +333,7 @@ export const geminiAgentHarness: AgentHarness = {
   supportedHookKinds: ["preRun", "postRun"] as const,
   askOwnerToolName: GEMINI_ASK_OWNER_TOOL_NAME,
   emitsAgentMessageStream: false,
+  toolControl: "kota",
   readiness: geminiReadiness,
   async run(
     options: AgentHarnessRunOptions,

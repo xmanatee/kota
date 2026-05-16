@@ -64,6 +64,7 @@ function registerReadinessHarness(
     supportedHookKinds: [],
     askOwnerToolName: null,
     emitsAgentMessageStream: false,
+    toolControl: adapterKind === "native-cli" ? "native" : "kota",
     readiness: () => ({
       adapterKind,
       localRuntime: {

@@ -3,6 +3,7 @@ import {
   createWorkflowAgentGuards,
   type KotaAgentMessage,
   resolveAgentHarness,
+  routeKotaToolControlOptions,
   runAgentHarness,
 } from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
@@ -153,13 +154,16 @@ export async function executeAgentStep(
           prompt, model: resolvedModel, cwd: agentConfig.projectDir, systemPrompt,
           maxTurns: step.maxTurns, effort: step.effort,
           thinkingEnabled: step.thinkingEnabled, thinkingBudget: step.thinkingBudget,
-          allowedTools: toolScope.allowedTools, disallowedTools: toolScope.disallowedTools,
+          ...routeKotaToolControlOptions(resolvedHarness, {
+            allowedTools: toolScope.allowedTools,
+            disallowedTools: toolScope.disallowedTools,
+            canUseTool: createWorkflowAgentGuards(),
+          }),
           askOwner: resolvedHarness.askOwnerToolName !== null
             ? { source: `workflow:${metadata.workflow}/${metadata.id}/${step.id}` }
             : undefined,
           autonomyMode: step.autonomyMode, harnessOverrides, abortController,
           ...(trackedMessage !== undefined ? { onMessage: trackedMessage } : {}),
-          canUseTool: createWorkflowAgentGuards(),
         },
         { write: () => true },
       );

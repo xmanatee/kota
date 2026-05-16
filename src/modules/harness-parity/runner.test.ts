@@ -40,6 +40,7 @@ function makeHarness(
     supportedHookKinds: ["preRun", "postRun"] as const,
     askOwnerToolName: null,
     emitsAgentMessageStream: false,
+    toolControl: "kota",
     async run(options, writer) {
       const cwd = options.cwd ?? process.cwd();
       await behavior(cwd);
@@ -139,7 +140,8 @@ describe("harness-parity runner", () => {
       supportsMultiTurn: true,
       supportedHookKinds: ["preRun", "postRun"] as const,
       askOwnerToolName: null,
-    emitsAgentMessageStream: false,
+      emitsAgentMessageStream: false,
+      toolControl: "kota",
       async run() {
         throw new Error("adapter exploded");
       },

@@ -634,6 +634,7 @@ export const geminiCliAgentHarness: AgentHarness = {
   supportedHookKinds: ["preRun", "postRun"] as const,
   askOwnerToolName: null,
   emitsAgentMessageStream: false,
+  toolControl: "native",
   unsupportedRunOptions: GEMINI_CLI_UNSUPPORTED_OPTIONS,
   readiness: geminiCliReadiness,
   async run(

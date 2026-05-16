@@ -220,6 +220,7 @@ export const claudeAgentHarness: AgentHarness = {
   supportedHookKinds: ["preRun", "postRun"] as const,
   askOwnerToolName: KOTA_OWNER_QUESTIONS_MCP_TOOL,
   emitsAgentMessageStream: true,
+  toolControl: "kota",
   readiness: claudeReadiness,
   validateStepOptions: validateClaudeSdkStepOptions,
   validateModelId: validateClaudeSdkModelId,

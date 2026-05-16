@@ -15,6 +15,7 @@ function registerGeminiReadinessHarness(): void {
     supportedHookKinds: [],
     askOwnerToolName: "ask_owner",
     emitsAgentMessageStream: false,
+    toolControl: "kota",
     readiness: () => ({
       adapterKind: "provider-sdk",
       localRuntime: {
@@ -53,6 +54,7 @@ function registerCodexReadinessHarness(
     supportedHookKinds: [],
     askOwnerToolName: null,
     emitsAgentMessageStream: false,
+    toolControl: "native",
     readiness: () => ({
       adapterKind: "native-cli",
       localRuntime: {
@@ -179,6 +181,7 @@ describe("preset harness readiness", () => {
       supportedHookKinds: [],
       askOwnerToolName: null,
       emitsAgentMessageStream: false,
+      toolControl: "native",
       readiness: () => ({
         adapterKind: "native-cli",
         localRuntime: {

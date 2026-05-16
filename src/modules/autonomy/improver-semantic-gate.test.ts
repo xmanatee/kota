@@ -15,6 +15,7 @@ const mockResolveAgentHarness = vi.hoisted(() =>
     supportedHookKinds: ["preRun", "postRun"],
     askOwnerToolName: "mcp__kota_owner_questions__ask_owner",
     emitsAgentMessageStream: true,
+    toolControl: "kota",
     run: vi.fn(),
   })),
 );

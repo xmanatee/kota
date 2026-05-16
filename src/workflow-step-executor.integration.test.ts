@@ -941,6 +941,7 @@ describe("executeStep repair loop", () => {
       supportedHookKinds: [],
       askOwnerToolName: null,
       emitsAgentMessageStream: false,
+      toolControl: "kota",
       async run(options) {
         harnessCalls.push({ hasOnMessage: "onMessage" in options });
         if (options.onMessage !== undefined) {

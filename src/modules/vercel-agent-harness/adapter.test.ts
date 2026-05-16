@@ -100,6 +100,7 @@ describe("vercelAgentHarness — registration", () => {
     expect(vercelAgentHarness.supportedHookKinds).toEqual(["preRun", "postRun"]);
     expect(vercelAgentHarness.askOwnerToolName).toBe("ask_owner");
     expect(vercelAgentHarness.emitsAgentMessageStream).toBe(false);
+    expect(vercelAgentHarness.toolControl).toBe("kota");
   });
 });
 

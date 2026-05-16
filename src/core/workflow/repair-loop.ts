@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import {
   createWorkflowAgentGuards,
   resolveAgentHarness,
+  routeKotaToolControlOptions,
   runAgentHarness,
 } from "#core/agent-harness/index.js";
 import type { KotaAgentMessage } from "#core/agent-harness/types.js";
@@ -133,13 +134,15 @@ async function executeRepairAgentIteration(
       effort: step.effort,
       thinkingEnabled: step.thinkingEnabled,
       thinkingBudget: step.thinkingBudget,
-      allowedTools: step.allowedTools,
-      disallowedTools: step.disallowedTools,
+      ...routeKotaToolControlOptions(harness, {
+        allowedTools: step.allowedTools,
+        disallowedTools: step.disallowedTools,
+        canUseTool: createWorkflowAgentGuards(),
+      }),
       autonomyMode: step.autonomyMode,
       harnessOverrides,
       abortController,
       ...(messageCapture !== undefined ? { onMessage: messageCapture } : {}),
-      canUseTool: createWorkflowAgentGuards(),
     },
     { write: () => true },
   );

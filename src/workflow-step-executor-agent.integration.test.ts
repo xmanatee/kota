@@ -558,6 +558,7 @@ describe("executeAgentStep — harness tool-control preflight", () => {
       supportedHookKinds: [],
       askOwnerToolName: null,
       emitsAgentMessageStream: false,
+      toolControl: "kota",
       unsupportedRunOptions: [
         {
           runOption: "canUseTool",
@@ -595,6 +596,7 @@ describe("executeAgentStep — harness tool-control preflight", () => {
       supportedHookKinds: [],
       askOwnerToolName: null,
       emitsAgentMessageStream: false,
+      toolControl: "kota",
       async run(options) {
         calls.push({ canUseTool: options.canUseTool });
         return {
@@ -623,6 +625,72 @@ describe("executeAgentStep — harness tool-control preflight", () => {
     expect(result.harness).toBe("capable-tool-control-harness");
     expect(calls).toHaveLength(1);
     expect(calls[0].canUseTool).toEqual(expect.any(Function));
+  });
+
+  it("omits KOTA tool-control options for native tool-control harnesses", async () => {
+    const calls: Array<{
+      allowedTools?: string[];
+      disallowedTools?: string[];
+      hasCanUseTool: boolean;
+    }> = [];
+    registerAgentHarness({
+      name: "native-tool-control-harness",
+      description: "test-only native harness that owns its tool loop",
+      supportsMultiTurn: true,
+      supportedHookKinds: [],
+      askOwnerToolName: null,
+      emitsAgentMessageStream: false,
+      toolControl: "native",
+      unsupportedRunOptions: [
+        {
+          runOption: "disallowedTools",
+          option: "disallowedTools",
+          reason: "native harness owns tool filtering",
+        },
+        {
+          runOption: "canUseTool",
+          option: "canUseTool",
+          reason: "native harness owns tool approvals",
+        },
+      ],
+      async run(options) {
+        calls.push({
+          allowedTools: options.allowedTools,
+          disallowedTools: options.disallowedTools,
+          hasCanUseTool: options.canUseTool !== undefined,
+        });
+        return {
+          text: "done",
+          streamedText: "",
+          turns: 1,
+          isError: false,
+        };
+      },
+    });
+
+    const result = await executeAgentStep(
+      makeDefinition(),
+      makeAgentStep(projectDir, {
+        harness: "native-tool-control-harness",
+        model: "fake-model",
+        disallowedTools: ["Bash"],
+      }),
+      makeMetadata("run-tool-control-native"),
+      { event: "runtime.idle", payload: {} },
+      new AbortController(),
+      () => {},
+      () => {},
+      { projectDir, log: () => {} },
+    );
+
+    expect(result.harness).toBe("native-tool-control-harness");
+    expect(calls).toEqual([
+      {
+        allowedTools: undefined,
+        disallowedTools: undefined,
+        hasCanUseTool: false,
+      },
+    ]);
   });
 });
 
@@ -850,6 +918,7 @@ describe("executeAgentStep — records resolved harness and model", () => {
     supportedHookKinds: [],
     askOwnerToolName: null,
     emitsAgentMessageStream: false,
+    toolControl: "kota",
     async run(options) {
       testHarnessCalls.push({ model: options.model });
       return {

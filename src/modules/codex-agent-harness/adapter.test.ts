@@ -68,6 +68,7 @@ describe("codexAgentHarness", () => {
     expect(codexAgentHarness.supportsMultiTurn).toBe(true);
     expect(codexAgentHarness.askOwnerToolName).toBeNull();
     expect(codexAgentHarness.emitsAgentMessageStream).toBe(false);
+    expect(codexAgentHarness.toolControl).toBe("native");
     expect(codexAgentHarness.unsupportedRunOptions?.map((option) => option.option)).toEqual(
       expect.arrayContaining(["allowedTools", "disallowedTools", "canUseTool"]),
     );

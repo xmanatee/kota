@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
   createWorkflowAgentGuards,
   resolveAgentHarness,
+  routeKotaToolControlOptions,
   runAgentHarness,
 } from "#core/agent-harness/index.js";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
@@ -285,9 +286,11 @@ export async function invokeAgentJudge(
           systemPrompt: config.systemPrompt,
           maxTurns: config.maxTurns,
           effort: config.effort,
-          disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
+          ...routeKotaToolControlOptions(harness, {
+            disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
+            canUseTool: createWorkflowAgentGuards(),
+          }),
           autonomyMode: "autonomous",
-          canUseTool: createWorkflowAgentGuards(),
         },
         {
           write: () => true,

@@ -5,7 +5,11 @@
  * there is no silent fallback that re-pins subagents to claude-agent-sdk.
  */
 
-import { resolveAgentHarness, runAgentHarness } from "#core/agent-harness/index.js";
+import {
+  resolveAgentHarness,
+  routeKotaToolControlOptions,
+  runAgentHarness,
+} from "#core/agent-harness/index.js";
 import {
   buildSubAgentPrompt,
   EXECUTE_PROMPT,
@@ -91,7 +95,7 @@ export async function runDelegateHarness(
       prompt: task,
       model: config.model,
       systemPrompt,
-      allowedTools,
+      ...routeKotaToolControlOptions(harness, { allowedTools }),
       autonomyMode: "autonomous",
       cwd: config.cwd ?? process.cwd(),
       effort: "xhigh",
