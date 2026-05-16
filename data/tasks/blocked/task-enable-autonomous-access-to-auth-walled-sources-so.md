@@ -6,7 +6,7 @@ priority: p2
 area: architecture
 summary: Give autonomy a reliable path to read auth-walled or JS-gated sources (X/Twitter, openai.com/index, etc.) via authenticated browser automation plus a scoped X-post capture tool, so 'inaccessible source' tasks do not stay blocked indefinitely.
 created_at: 2026-04-22T16:47:00.746Z
-updated_at: 2026-05-07T12:27:35.000Z
+updated_at: 2026-05-16T04:14:40.000Z
 ---
 
 ## Problem
@@ -127,9 +127,9 @@ Mechanism landed in this repo:
   test.
 - Autonomy workflow: `src/modules/autonomy/workflows/research-retry/`
   (workflow.ts, candidates.ts, prompt.md, AGENTS.md, workflow.test.ts)
-  triggers on `autonomy.queue.available`, selects the oldest blocked task
-  with a `## Resources` URL section, and runs the agent with the candidate
-  info exposed via `exposeOutputToAgent`.
+  wakes from `autonomy.blocked-research.attemptable`, selects the oldest
+  blocked task with a `## Resources` URL section, and runs the agent with
+  the candidate info exposed via `exposeOutputToAgent`.
 - Named tasks repositioned with fresh honest status: the review task now
   records two URLs as now-readable and dispositioned (helm article,
   arxiv 2511.18423) and six as still auth-walled / 404; the OpenAI SWE-bench

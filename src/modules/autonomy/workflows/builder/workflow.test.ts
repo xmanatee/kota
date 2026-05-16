@@ -129,6 +129,13 @@ describe("builder workflow", () => {
     vi.clearAllMocks();
   });
 
+  it("only wakes from actionable queue availability and recovery", () => {
+    expect(builderWorkflow.triggers.map((trigger) => trigger.event)).toEqual([
+      "autonomy.queue.available",
+      "runtime.recovered",
+    ]);
+  });
+
   it("skips build when worktree is dirty", async () => {
     const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
     vi.mocked(getRepoWorktreeStatus).mockReturnValueOnce({

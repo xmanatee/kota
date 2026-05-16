@@ -4,10 +4,12 @@ This workflow re-attempts inaccessible sources in blocked research tasks.
 A retry candidate is a blocked task with resource URLs that the current runtime
 can attempt.
 
-- Triggered on `autonomy.queue.available` and gated on a candidate being
-  attemptable plus a clean worktree. The workflow honors the recovery
-  contract: it resets the worktree on `runtime.recovered` and skips the
-  agent step on recovery triggers.
+- Triggered on `autonomy.blocked-research.attemptable`, the dispatcher event
+  for blocked research tasks whose current resources are retryable in the
+  available runtime. The workflow still rechecks candidate availability and a
+  clean worktree before invoking the agent. It honors the recovery contract:
+  it resets the worktree on `runtime.recovered` and skips the agent step on
+  recovery triggers.
 - Agent writes stay limited to task/inbox/autonomy data. The outcome must
   honestly reflect whether the source became accessible, remained blocked, or
   no longer justifies retrying.

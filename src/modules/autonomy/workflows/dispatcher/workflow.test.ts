@@ -3,12 +3,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { WorkflowTestHarness } from "#core/workflow/testing/testing-api.js";
+import {
+  computeResourceFingerprint,
+  renderRetryMarker,
+} from "../research-retry/precondition.js";
 import dispatcherWorkflow from "./workflow.js";
 
 function taskFixture(
   id: string,
   state: "ready" | "doing" | "backlog" | "blocked",
-  options: { anchor?: boolean } = {},
+  options: { anchor?: boolean; resources?: string[]; marker?: string } = {},
 ): string {
   return [
     "---",
@@ -23,6 +27,15 @@ function taskFixture(
     ...(options.anchor ? ["anchor: true"] : []),
     "---",
     "",
+    ...(options.resources
+      ? [
+          "## Resources",
+          "",
+          ...options.resources.map((url) => `- ${url}`),
+          "",
+        ]
+      : []),
+    ...(options.marker ? [options.marker, ""] : []),
   ].join("\n");
 }
 
@@ -133,6 +146,74 @@ describe("dispatcher workflow", () => {
     expect(output.actionableCount).toBe(0);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(true);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.needs-promotion")).toBe(false);
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
+  });
+
+  it("emits blocked-research attemptable without queue.available for a blocked-only retry candidate", async () => {
+    writeFileSync(
+      join(projectDir, "data", "tasks", "blocked", "task-research.md"),
+      taskFixture("task-research", "blocked", {
+        resources: ["https://example.com/research-note"],
+      }),
+    );
+    const harness = new WorkflowTestHarness(dispatcherWorkflow, { projectDir });
+    const result = await harness.run();
+
+    const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
+    expect(output.actionableCount).toBe(0);
+    expect(output.promotableBacklogCount).toBe(0);
+    expect(output.researchRetryCandidateCount).toBe(1);
+    expect(output.researchRetryAttemptableCount).toBe(1);
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(true);
+    const retryEvent = result.emitted.find(
+      (e) => e.event === "autonomy.blocked-research.attemptable",
+    );
+    expect(retryEvent?.payload).toMatchObject({
+      candidateCount: 1,
+      attemptableCount: 1,
+      counts: expect.objectContaining({ ready: 0, doing: 0, backlog: 0, blocked: 1 }),
+    });
+  });
+
+  it("does not emit blocked-research attemptable when capability is missing", async () => {
+    writeFileSync(
+      join(projectDir, "data", "tasks", "blocked", "task-research.md"),
+      taskFixture("task-research", "blocked", {
+        resources: ["https://x.com/example/status/12345"],
+      }),
+    );
+    const harness = new WorkflowTestHarness(dispatcherWorkflow, { projectDir });
+    const result = await harness.run();
+
+    const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
+    expect(output.researchRetryCandidateCount).toBe(1);
+    expect(output.researchRetryAttemptableCount).toBe(0);
+    expect(
+      result.emitted.some((e) => e.event === "autonomy.blocked-research.attemptable"),
+    ).toBe(false);
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
+  });
+
+  it("does not emit blocked-research attemptable when the retry fingerprint is unchanged", async () => {
+    const resources = ["https://example.com/research-note"];
+    const marker = renderRetryMarker({
+      fingerprint: computeResourceFingerprint(resources),
+      attemptedAt: "2026-05-16T00:00:00.000Z",
+    });
+    writeFileSync(
+      join(projectDir, "data", "tasks", "blocked", "task-research.md"),
+      taskFixture("task-research", "blocked", { resources, marker }),
+    );
+    const harness = new WorkflowTestHarness(dispatcherWorkflow, { projectDir });
+    const result = await harness.run();
+
+    const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
+    expect(output.researchRetryCandidateCount).toBe(1);
+    expect(output.researchRetryAttemptableCount).toBe(0);
+    expect(
+      result.emitted.some((e) => e.event === "autonomy.blocked-research.attemptable"),
+    ).toBe(false);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
   });
 

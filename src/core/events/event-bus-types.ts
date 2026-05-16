@@ -57,6 +57,19 @@ export type BusEvents = {
       dropped: number;
     };
   };
+  "autonomy.blocked-research.attemptable": {
+    projectId: ProjectId;
+    candidateCount: number;
+    attemptableCount: number;
+    counts: {
+      backlog: number;
+      ready: number;
+      doing: number;
+      blocked: number;
+      done: number;
+      dropped: number;
+    };
+  };
   "autonomy.queue.thin": {
     projectId: ProjectId;
     pullableCount: number;

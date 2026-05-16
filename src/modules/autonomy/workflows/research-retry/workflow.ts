@@ -161,7 +161,7 @@ const researchRetryWorkflow: WorkflowDefinitionInput = {
   defaultAutonomyMode: "autonomous",
   triggers: [
     {
-      event: "autonomy.queue.available",
+      event: "autonomy.blocked-research.attemptable",
       cooldownMs: 60_000,
     },
     {

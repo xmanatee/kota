@@ -89,13 +89,20 @@ describe("research-retry workflow", () => {
     vi.clearAllMocks();
   });
 
+  it("wakes from blocked research availability and recovery", () => {
+    expect(researchRetryWorkflow.triggers.map((trigger) => trigger.event)).toEqual([
+      "autonomy.blocked-research.attemptable",
+      "runtime.recovered",
+    ]);
+  });
+
   it("skips the agent step when there are no blocked research candidates", async () => {
     await mockCleanWorktree();
     await setCandidates([]);
     await setCapability({ playwright: true });
 
     const harness = new WorkflowTestHarness(researchRetryWorkflow, {
-      trigger: { event: "autonomy.queue.available", payload: {} },
+      trigger: { event: "autonomy.blocked-research.attemptable", payload: {} },
     });
 
     const result = await harness.run();
@@ -128,7 +135,7 @@ describe("research-retry workflow", () => {
     ]);
 
     const harness = new WorkflowTestHarness(researchRetryWorkflow, {
-      trigger: { event: "autonomy.queue.available", payload: {} },
+      trigger: { event: "autonomy.blocked-research.attemptable", payload: {} },
     });
 
     const result = await harness.run();
@@ -152,7 +159,7 @@ describe("research-retry workflow", () => {
     ]);
 
     const harness = new WorkflowTestHarness(researchRetryWorkflow, {
-      trigger: { event: "autonomy.queue.available", payload: {} },
+      trigger: { event: "autonomy.blocked-research.attemptable", payload: {} },
     });
 
     const result = await harness.run();
@@ -193,7 +200,7 @@ describe("research-retry workflow", () => {
     ]);
 
     const harness = new WorkflowTestHarness(researchRetryWorkflow, {
-      trigger: { event: "autonomy.queue.available", payload: {} },
+      trigger: { event: "autonomy.blocked-research.attemptable", payload: {} },
     });
 
     const result = await harness.run();
@@ -243,7 +250,7 @@ describe("research-retry workflow", () => {
     } as never);
 
     const harness = new WorkflowTestHarness(researchRetryWorkflow, {
-      trigger: { event: "autonomy.queue.available", payload: {} },
+      trigger: { event: "autonomy.blocked-research.attemptable", payload: {} },
       stepMocks: {
         retry: { turns: [], totalCostUsd: 0.01 },
         "mark-attempt": { written: false, reason: "task moved to done" },
@@ -281,7 +288,7 @@ describe("research-retry workflow", () => {
     vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
 
     const harness = new WorkflowTestHarness(researchRetryWorkflow, {
-      trigger: { event: "autonomy.queue.available", payload: {} },
+      trigger: { event: "autonomy.blocked-research.attemptable", payload: {} },
       stepMocks: {
         retry: { turns: [], totalCostUsd: 0.01 },
         "mark-attempt": { written: false, reason: "no resource URLs remain" },

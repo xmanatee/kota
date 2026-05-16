@@ -7,7 +7,7 @@ import {
   REPO_TASK_STATES,
   type RepoTaskState,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
-import { extractResourceUrls } from "./candidates.js";
+import { extractResourceUrls, listResearchRetryCandidates } from "./candidates.js";
 import { isPlaywrightAvailable, readBrowserConfig } from "./runtime-detect.js";
 
 export type ResearchRetryUrlClass = "x-post" | "js-rendered" | "plain-http";
@@ -138,6 +138,30 @@ export type CandidateEvaluation = {
   marker: ResearchRetryMarker | null;
   skipReason: ResearchRetrySkipReason | null;
 };
+
+export type ResearchRetryAvailability = {
+  candidateCount: number;
+  attemptableCount: number;
+};
+
+export function inspectResearchRetryAvailability(
+  projectDir: string,
+): ResearchRetryAvailability {
+  const capability = checkResearchRetryCapability(projectDir);
+  const candidates = listResearchRetryCandidates(projectDir);
+  let attemptableCount = 0;
+  for (const candidate of candidates) {
+    const evaluation = evaluateCandidate({
+      urls: candidate.urls,
+      body: candidate.body,
+      capability,
+    });
+    if (evaluation.skipReason === null) {
+      attemptableCount += 1;
+    }
+  }
+  return { candidateCount: candidates.length, attemptableCount };
+}
 
 export function evaluateCandidate(
   input: CandidateEvaluationInput,

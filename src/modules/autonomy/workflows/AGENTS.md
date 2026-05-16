@@ -103,16 +103,15 @@ backlog-only state:
   deterministic promotion rationale before builder resumes. Strategic anchors
   do not count as promotable work.
 - `autonomy.queue.empty` / `autonomy.queue.thin` — broader health signals routed to explorer.
+- `autonomy.blocked-research.attemptable` — blocked research can retry; `research-retry` consumes this instead of `autonomy.queue.available`.
 
 Builder must never silently consume the backlog — the rationale is the
 operator-auditable record of why the next ready batch is the right one.
 
 ## Repair-Loop Checks
 
-Workflow repair-loop checks should use `type: "code"` with `spawnSync` rather than `tool: "shell"`.
-The `shell` tool lives in the execution module and is not guaranteed to be available in every
-workflow execution context. `type: "code"` checks run inline in the workflow process and have no
-tool-availability dependency.
+Workflow repair-loop checks should use `type: "code"` with `spawnSync`, not `tool: "shell"`;
+shell is module-owned and may not be available. Code checks run inline with no tool dependency.
 
 Do not add repair checks that force exact route, event, enum, or config catalogs
 into `docs/`. Those contracts should be enforced by source types and focused

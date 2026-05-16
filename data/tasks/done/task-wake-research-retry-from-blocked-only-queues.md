@@ -1,12 +1,12 @@
 ---
 id: task-wake-research-retry-from-blocked-only-queues
 title: Wake research-retry from blocked-only queues
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Research-retry can starve when only blocked research candidates remain because it listens only to actionable queue availability.
 created_at: 2026-05-16T04:02:46.000Z
-updated_at: 2026-05-16T04:02:46.000Z
+updated_at: 2026-05-16T04:13:51.880Z
 ---
 
 ## Problem
