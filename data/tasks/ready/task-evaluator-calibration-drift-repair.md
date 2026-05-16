@@ -1,12 +1,12 @@
 ---
 id: task-evaluator-calibration-drift-repair
 title: Repair evaluator calibration drift
-status: done
+status: ready
 priority: p1
 area: autonomy
 summary: Restore the live-run evaluator calibration loop to within threshold by tightening critic guidance, repair-loop checks, or the calibration gate itself.
-created_at: 2026-05-08T01:59:47.592Z
-updated_at: 2026-05-08T02:20:49.951Z
+created_at: 2026-05-16T02:20:33.138Z
+updated_at: 2026-05-16T02:20:33.138Z
 ---
 
 ## Problem
@@ -17,22 +17,22 @@ event and an attention-digest entry, but it must also turn into a concrete
 repair: the critic, repair-loop checks, prompt guidance, or the gate
 configuration itself need to change so the rate returns within threshold.
 
-Drift kind(s): pass-with-warnings-escalation.
+Drift kind(s): pass-contradiction.
 
 Decision reason from the monitor:
 
-> Pass-with-warnings follow-up rate 77.8% exceeds threshold 75.0% (21 of 27 pass_with_warnings verdicts).
+> Pass-verdict contradiction rate 44.4% exceeds threshold 25.0% (4 of 9 pass verdicts).
 
 ## Calibration Snapshot
 
-- Window: 2026-05-01T01:59:47.256Z → 2026-05-08T01:59:47.256Z
-- Total runs in window: 103
-- Pass verdicts: 74
-- Pass-with-warnings verdicts: 27
+- Window: 2026-05-09T02:20:32.862Z → 2026-05-16T02:20:32.862Z
+- Total runs in window: 10
+- Pass verdicts: 9
+- Pass-with-warnings verdicts: 1
 - Fail verdicts: 0
-- Absent verdicts: 2
-- Pass-contradiction rate: 2.7% (2 of 74); threshold 25.0%.
-- Pass-with-warnings follow-up rate: 77.8% (21 of 27); threshold 75.0%.
+- Absent verdicts: 0
+- Pass-contradiction rate: 44.4% (4 of 9); threshold 25.0%.
+- Pass-with-warnings follow-up rate: 100.0% (1 of 1); threshold 75.0%.
 
 ## Desired Outcome
 
@@ -73,7 +73,7 @@ visible in the run artifact rather than only in attention digests.
 ## Source / Intent
 
 Auto-created by `evaluator-calibration-monitor` after the live calibration
-gate fired at 2026-05-08T01:59:47.592Z. Replaces the previous notification-only
+gate fired at 2026-05-16T02:20:33.138Z. Replaces the previous notification-only
 behavior so calibration drift becomes a deterministic next action in the
 queue rather than a recurring attention item.
 
