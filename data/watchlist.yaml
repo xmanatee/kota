@@ -37,9 +37,9 @@ resources:
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:a8c6ec89365c146034bae990f6c68623
-      summary: "Codex is moving from local CLI parity toward reconnectable app-server remote control; KOTA should prove its daemon-control API/SSE can reconstruct live session/run/approval state before adding any relay or client fan-out."
-      last_seen_at: "2026-05-16T01:59:53.917Z"
+      fingerprint: sha256:81c436c2dcbfa1f690080a67b288846c
+      summary: "Codex continues to push app-server/remote-control and MCP metadata fidelity; KOTA already landed a reconnect probe, leaving MCP tool-result metadata preservation as the actionable local gap."
+      last_seen_at: "2026-05-16T09:29:43.579Z"
   - url: https://github.com/google-gemini/gemini-cli
     added: "2026-04-19"
     snapshot:
@@ -226,3 +226,6 @@ resources:
       fingerprint: sha256:b7f62ec5b3323245d932105c5fb13359
       summary: "Vercel Workflows is Vercel's fully-managed durable-execution platform for JS/TS/Python apps and AI agents: plain async functions annotated with `'use workflow'` / `'use step'` directives, executed by Vercel Functions + Vercel Queues with managed persistence; resumable for minutes-to-months, deterministic replays across deploys and crashes, sleep/hooks for waits, streams, skew protection, and built-in observability. Pitched as 'no YAML or state machines'. Pattern verdict: parallel orchestration layer beside KOTA's existing workflow protocol (typed triggers + steps + run records + recoveryCapable + askOwnerSteps), so falls under the already-rejected 'Workflow DSLs' and 'Managed Agents' categories; no new KOTA primitive opened."
       last_seen_at: "2026-05-08T04:29:08.386Z"
+  - url: https://modelcontextprotocol.io/specification/draft/server/tools
+    added: "2026-05-16"
+    notes: "Official MCP tools spec draft - monitor tool-result content, structuredContent, _meta, output schema, annotations, and execution-error semantics that affect KOTA's MCP client/server protocol fidelity."
