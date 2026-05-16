@@ -1,8 +1,21 @@
 import { writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { KotaAgentMessage } from "#core/agent-harness/index.js";
-import type { ToolTelemetry } from "#core/tools/tool-telemetry.js";
+import {
+  hasToolResultTruncationMarker,
+  measureTelemetryPayloadBytes,
+  type ToolTelemetry,
+  type ToolTelemetryResultContentKind,
+} from "#core/tools/tool-telemetry.js";
 import type { WorkflowRunMetadata } from "../run-types.js";
+
+function getAgentToolResultContentKind(
+  content: Extract<KotaAgentMessage, { type: "tool_result" }>["content"],
+): ToolTelemetryResultContentKind {
+  if (Array.isArray(content)) return "blocks";
+  if (content.length === 0) return "empty";
+  return "text";
+}
 
 export function makeToolTelemetryTracker(
   telemetry: ToolTelemetry,
@@ -16,6 +29,11 @@ export function makeToolTelemetryTracker(
         name: message.toolName,
         startMs: Date.now(),
       });
+      telemetry.recordCallStart({
+        toolUseId: message.toolUseId,
+        tool: message.toolName,
+        inputBytes: measureTelemetryPayloadBytes(message.input),
+      });
       return;
     }
     if (message.type === "tool_result") {
@@ -28,7 +46,16 @@ export function makeToolTelemetryTracker(
             : JSON.stringify(message.content)
           ).slice(0, 200)
         : undefined;
-      telemetry.record(entry.name, durationMs, !message.isError, errorMsg);
+      telemetry.recordCallResult({
+        toolUseId: message.toolUseId,
+        tool: entry.name,
+        durationMs,
+        success: !message.isError,
+        resultBytes: measureTelemetryPayloadBytes(message.content),
+        resultContentKind: getAgentToolResultContentKind(message.content),
+        truncated: hasToolResultTruncationMarker(message.content),
+        ...(errorMsg !== undefined ? { error: errorMsg } : {}),
+      });
       pending.delete(message.toolUseId);
     }
   };
@@ -40,7 +67,9 @@ export function writeToolTelemetryArtifact(
   projectDir: string,
   telemetry: ToolTelemetry,
 ): void {
-  if (telemetry.getTotalCalls() === 0) return;
+  const calls = telemetry.getCallRecords();
+  const callsOmitted = telemetry.getOmittedCallCount();
+  if (telemetry.getTotalCalls() === 0 && calls.length === 0 && callsOmitted === 0) return;
   const tools: Record<string, Record<string, unknown>> = {};
   for (const [name, s] of telemetry.getStats()) {
     const avgMs = s.calls > 0 ? Math.round(s.totalMs / s.calls) : 0;
@@ -54,7 +83,12 @@ export function writeToolTelemetryArtifact(
     if (s.lastError !== undefined) entry.lastError = s.lastError;
     tools[name] = entry;
   }
-  const payload = { summary: telemetry.getSummary(), tools };
+  const payload = {
+    summary: telemetry.getSummary(),
+    tools,
+    calls,
+    ...(callsOmitted > 0 ? { callsOmitted } : {}),
+  };
   const filePath = join(resolve(projectDir, metadata.runDir), "steps", `${stepId}.tool-telemetry.json`);
   writeFileSync(filePath, JSON.stringify(payload, null, 2), "utf-8");
 }

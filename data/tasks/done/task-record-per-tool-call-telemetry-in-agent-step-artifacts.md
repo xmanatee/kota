@@ -1,12 +1,12 @@
 ---
 id: task-record-per-tool-call-telemetry-in-agent-step-artifacts
 title: Record per-tool-call telemetry in agent step artifacts
-status: ready
+status: done
 priority: p2
 area: observability
 summary: Persist one structured record per tool call with tool-use id, timing, success, and bounded payload-size metadata so run diagnostics can catch slow or oversized calls without rereading raw transcripts.
 created_at: 2026-05-16T23:22:03Z
-updated_at: 2026-05-16T23:22:03Z
+updated_at: 2026-05-16T23:37:10Z
 ---
 
 ## Problem

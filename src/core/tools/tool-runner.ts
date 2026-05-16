@@ -12,10 +12,15 @@ import type { McpManager } from "#core/mcp/manager.js";
 import { confirmAction } from "#core/util/confirm.js";
 import { type AutonomyMode, resolveAutonomyGate } from "./autonomy-mode.js";
 import { assess, type GuardrailsConfig } from "./guardrails.js";
-import type { ToolResultBlock } from "./index.js";
+import type { ToolResult, ToolResultBlock } from "./index.js";
 import { executeTool } from "./index.js";
 import { getToolMiddleware } from "./tool-middleware.js";
-import { getToolTelemetry } from "./tool-telemetry.js";
+import {
+  getToolTelemetry,
+  hasToolResultTruncationMarker,
+  measureTelemetryPayloadBytes,
+  type ToolTelemetryResultContentKind,
+} from "./tool-telemetry.js";
 
 type ToolUseBlock = {
   type: "tool_use";
@@ -78,6 +83,35 @@ export type ToolCallExecutionOptions = {
   sessionId?: string;
   messages?: KotaMessage[];
 };
+
+function getToolResultTelemetryPayload(result: ToolResult): string | object {
+  if (!result.blocks && !result.structuredContent && !result._meta) {
+    return result.content;
+  }
+  return {
+    content: result.content,
+    ...(result.blocks ? { blocks: result.blocks } : {}),
+    ...(result.structuredContent ? { structuredContent: result.structuredContent } : {}),
+    ...(result._meta ? { _meta: result._meta } : {}),
+  };
+}
+
+function getToolResultContentKind(result: ToolResult): ToolTelemetryResultContentKind {
+  const hasBlocks = result.blocks !== undefined && result.blocks.length > 0;
+  const hasStructured = result.structuredContent !== undefined || result._meta !== undefined;
+  if (hasBlocks && hasStructured) return "mixed";
+  if (hasBlocks) return "blocks";
+  if (hasStructured) return "structured";
+  if (result.content.length === 0) return "empty";
+  return "text";
+}
+
+function toolResultWouldTruncate(result: ToolResult, resultLimit: number): boolean {
+  const payload = getToolResultTelemetryPayload(result);
+  if (result.content.length > resultLimit) return true;
+  if (result.blocks?.some((block) => block.type === "text" && block.text.length > resultLimit)) return true;
+  return hasToolResultTruncationMarker(payload);
+}
 
 /**
  * Execute tool calls in parallel, with verbose logging and result truncation.
@@ -241,6 +275,13 @@ export async function executeToolCalls(
       // baseFn reads from call.input so retry middleware can adjust it
       // (e.g. shell timeout doubling).
       const startMs = performance.now();
+      const inputBytes = measureTelemetryPayloadBytes(input);
+      const telemetry = getToolTelemetry();
+      telemetry.recordCallStart({
+        toolUseId: block.id,
+        tool: block.name,
+        inputBytes,
+      });
       const middleware = getToolMiddleware();
       const call = {
         name: block.name,
@@ -254,13 +295,17 @@ export async function executeToolCalls(
       const result = await middleware.execute(call, baseFn);
 
       const durationMs = Math.round(performance.now() - startMs);
-      const telemetry = getToolTelemetry();
-      telemetry.record(
-        block.name,
+      const resultPayload = getToolResultTelemetryPayload(result);
+      telemetry.recordCallResult({
+        toolUseId: block.id,
+        tool: block.name,
         durationMs,
-        !result.is_error,
-        result.is_error ? result.content.slice(0, 200) : undefined,
-      );
+        success: !result.is_error,
+        resultBytes: measureTelemetryPayloadBytes(resultPayload),
+        resultContentKind: getToolResultContentKind(result),
+        truncated: toolResultWouldTruncate(result, resultLimit),
+        ...(result.is_error ? { error: result.content.slice(0, 200) } : {}),
+      });
       if (transport) {
         transport.emit({ type: "tool_metric", tool: block.name, durationMs, success: !result.is_error });
       }

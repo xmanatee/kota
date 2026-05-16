@@ -1,3 +1,5 @@
+import { Buffer } from "node:buffer";
+
 /**
  * Tool execution telemetry — tracks per-tool timing, success/failure rates,
  * and error patterns across a session. Cross-cutting infrastructure that
@@ -14,12 +16,71 @@ type ToolStats = {
   lastError?: string;
 };
 
+export type ToolTelemetryResultContentKind =
+  | "text"
+  | "blocks"
+  | "structured"
+  | "mixed"
+  | "empty";
+
+export type ToolTelemetryCallRecord = {
+  toolUseId: string;
+  tool: string;
+  inputBytes: number;
+  incomplete: boolean;
+  truncated: boolean;
+  durationMs?: number;
+  success?: boolean;
+  resultBytes?: number;
+  resultContentKind?: ToolTelemetryResultContentKind;
+};
+
+export type ToolTelemetryCallStart = {
+  toolUseId: string;
+  tool: string;
+  inputBytes: number;
+};
+
+export type ToolTelemetryCallResult = {
+  toolUseId: string;
+  tool: string;
+  durationMs: number;
+  success: boolean;
+  resultBytes: number;
+  resultContentKind: ToolTelemetryResultContentKind;
+  truncated: boolean;
+  error?: string;
+};
+
+export const MAX_TOOL_TELEMETRY_CALL_RECORDS = 500;
+
 function emptyStats(): ToolStats {
   return { calls: 0, successes: 0, failures: 0, totalMs: 0, minMs: Infinity, maxMs: 0 };
 }
 
+export function measureTelemetryPayloadBytes(
+  value: string | object | null | undefined,
+): number {
+  if (value === null || value === undefined) return 0;
+  if (typeof value === "string") return Buffer.byteLength(value, "utf-8");
+  const serialized = JSON.stringify(value);
+  return serialized ? Buffer.byteLength(serialized, "utf-8") : 0;
+}
+
+export function hasToolResultTruncationMarker(
+  value: string | object | null | undefined,
+): boolean {
+  if (value === null || value === undefined) return false;
+  const text = typeof value === "string" ? value : JSON.stringify(value) ?? "";
+  return text.includes("chars omitted") && text.includes("context budget tight");
+}
+
 export class ToolTelemetry {
   private stats = new Map<string, ToolStats>();
+  private calls: ToolTelemetryCallRecord[] = [];
+  private callIndexes = new Map<string, number>();
+  private omittedCallIds = new Set<string>();
+  private omittedCalls = 0;
 
   record(name: string, durationMs: number, success: boolean, error?: string): void {
     let s = this.stats.get(name);
@@ -34,6 +95,80 @@ export class ToolTelemetry {
     if (durationMs < s.minMs) s.minMs = durationMs;
     if (durationMs > s.maxMs) s.maxMs = durationMs;
     if (error) s.lastError = error.slice(0, 200);
+  }
+
+  recordCallStart(call: ToolTelemetryCallStart): void {
+    const existing = this.callIndexes.get(call.toolUseId);
+    if (existing !== undefined) {
+      this.calls[existing] = {
+        ...this.calls[existing],
+        tool: call.tool,
+        inputBytes: call.inputBytes,
+      };
+      return;
+    }
+
+    if (this.calls.length >= MAX_TOOL_TELEMETRY_CALL_RECORDS) {
+      if (!this.omittedCallIds.has(call.toolUseId)) {
+        this.omittedCallIds.add(call.toolUseId);
+        this.omittedCalls += 1;
+      }
+      return;
+    }
+
+    this.callIndexes.set(call.toolUseId, this.calls.length);
+    this.calls.push({
+      toolUseId: call.toolUseId,
+      tool: call.tool,
+      inputBytes: call.inputBytes,
+      incomplete: true,
+      truncated: false,
+    });
+  }
+
+  recordCallResult(result: ToolTelemetryCallResult): void {
+    const existing = this.callIndexes.get(result.toolUseId);
+    if (existing !== undefined) {
+      const current = this.calls[existing];
+      this.calls[existing] = {
+        ...current,
+        tool: result.tool,
+        durationMs: result.durationMs,
+        success: result.success,
+        resultBytes: result.resultBytes,
+        resultContentKind: result.resultContentKind,
+        truncated: result.truncated,
+        incomplete: false,
+      };
+    } else if (!this.omittedCallIds.has(result.toolUseId)) {
+      if (this.calls.length >= MAX_TOOL_TELEMETRY_CALL_RECORDS) {
+        this.omittedCallIds.add(result.toolUseId);
+        this.omittedCalls += 1;
+      } else {
+        this.callIndexes.set(result.toolUseId, this.calls.length);
+        this.calls.push({
+          toolUseId: result.toolUseId,
+          tool: result.tool,
+          inputBytes: 0,
+          durationMs: result.durationMs,
+          success: result.success,
+          resultBytes: result.resultBytes,
+          resultContentKind: result.resultContentKind,
+          truncated: result.truncated,
+          incomplete: false,
+        });
+      }
+    }
+
+    this.record(result.tool, result.durationMs, result.success, result.error);
+  }
+
+  getCallRecords(): readonly ToolTelemetryCallRecord[] {
+    return this.calls.map((call) => ({ ...call }));
+  }
+
+  getOmittedCallCount(): number {
+    return this.omittedCalls;
   }
 
   getStats(): ReadonlyMap<string, Readonly<ToolStats>> {
@@ -107,6 +242,10 @@ export class ToolTelemetry {
 
   reset(): void {
     this.stats.clear();
+    this.calls = [];
+    this.callIndexes.clear();
+    this.omittedCallIds.clear();
+    this.omittedCalls = 0;
   }
 }
 

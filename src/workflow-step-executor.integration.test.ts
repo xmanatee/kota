@@ -402,24 +402,31 @@ describe("executeAgentStep", () => {
 
   describe("tool telemetry artifact", () => {
     it("writes tool-telemetry.json when tool calls were recorded via SDK messages", async () => {
+      const largeResult = "x".repeat(8192);
       mockedExecuteWithAgentSDK.mockImplementation(async (_prompt, options) => {
         options?.onMessage?.({
           type: "tool_call",
           toolUseId: "tu-1",
           toolName: "shell",
-          input: {},
+          input: { command: "printf big" },
         });
         options?.onMessage?.({
           type: "tool_call",
           toolUseId: "tu-2",
           toolName: "file_read",
-          input: {},
+          input: { path: "/missing.txt" },
+        });
+        options?.onMessage?.({
+          type: "tool_call",
+          toolUseId: "tu-3",
+          toolName: "grep",
+          input: { pattern: "TODO" },
         });
         options?.onMessage?.({
           type: "tool_result",
           toolUseId: "tu-1",
           isError: false,
-          content: "ok",
+          content: largeResult,
         });
         options?.onMessage?.({
           type: "tool_result",
@@ -448,6 +455,36 @@ describe("executeAgentStep", () => {
       expect(data.summary).toContain("2 tool calls");
       expect(data.tools.shell).toMatchObject({ calls: 1, successes: 1, failures: 0 });
       expect(data.tools.file_read).toMatchObject({ calls: 1, failures: 1, lastError: "not found" });
+      expect(data.calls).toHaveLength(3);
+      expect(data.calls[0]).toMatchObject({
+        toolUseId: "tu-1",
+        tool: "shell",
+        inputBytes: Buffer.byteLength(JSON.stringify({ command: "printf big" }), "utf-8"),
+        resultBytes: Buffer.byteLength(largeResult, "utf-8"),
+        resultContentKind: "text",
+        success: true,
+        truncated: false,
+        incomplete: false,
+      });
+      expect(data.calls[1]).toMatchObject({
+        toolUseId: "tu-2",
+        tool: "file_read",
+        inputBytes: Buffer.byteLength(JSON.stringify({ path: "/missing.txt" }), "utf-8"),
+        resultBytes: Buffer.byteLength("not found", "utf-8"),
+        resultContentKind: "text",
+        success: false,
+        truncated: false,
+        incomplete: false,
+      });
+      expect(data.calls[2]).toMatchObject({
+        toolUseId: "tu-3",
+        tool: "grep",
+        inputBytes: Buffer.byteLength(JSON.stringify({ pattern: "TODO" }), "utf-8"),
+        truncated: false,
+        incomplete: true,
+      });
+      expect(data.calls[2]).not.toHaveProperty("durationMs");
+      expect(JSON.stringify(data.calls)).not.toContain(largeResult.slice(0, 20));
     });
 
     it("skips writing when no tool calls were recorded", async () => {

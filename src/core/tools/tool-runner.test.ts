@@ -38,6 +38,7 @@ import { truncateToolResult } from "#core/loop/context.js";
 import { confirmAction } from "#core/util/confirm.js";
 import { assess } from "./guardrails.js";
 import { executeTool } from "./index.js";
+import { getToolTelemetry, resetToolTelemetry } from "./tool-telemetry.js";
 
 const mockExecuteTool = vi.mocked(executeTool);
 const mockTruncate = vi.mocked(truncateToolResult);
@@ -171,6 +172,7 @@ describe("FailureTracker", () => {
 describe("executeToolCalls", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetToolTelemetry();
     mockTruncate.mockImplementation((text: string) => text);
     mockAssess.mockReturnValue(safeAssessment);
   });
@@ -232,6 +234,15 @@ describe("executeToolCalls", () => {
     expect(results[0].structuredContent).toEqual({ answer: 42 });
     expect(results[0]._meta).toEqual({ cache: "hit" });
     expect(results[0].is_error).toBe(true);
+    expect(getToolTelemetry().getCallRecords()).toEqual([
+      expect.objectContaining({
+        toolUseId: "t1",
+        tool: "mcp__server__tool",
+        success: false,
+        resultContentKind: "mixed",
+        incomplete: false,
+      }),
+    ]);
   });
 
   it("uses executeTool for non-MCP tools when mcpManager present", async () => {
@@ -259,6 +270,45 @@ describe("executeToolCalls", () => {
     );
     expect(results[0].content).toBe("permanent error");
     expect(results[0].is_error).toBe(true);
+  });
+
+  it("records bounded per-call telemetry for local failures and oversized results", async () => {
+    const oversized = "x".repeat(120);
+    mockExecuteTool
+      .mockResolvedValueOnce({ content: oversized })
+      .mockResolvedValueOnce({ content: "boom", is_error: true });
+
+    await executeToolCalls(
+      [
+        toolBlock("file_read", { path: "/large.txt" }, "local-1"),
+        toolBlock("shell", { command: "exit 1" }, "local-2"),
+      ],
+      runOptions({ resultLimit: 50 }),
+    );
+
+    const calls = getToolTelemetry().getCallRecords();
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toMatchObject({
+      toolUseId: "local-1",
+      tool: "file_read",
+      inputBytes: Buffer.byteLength(JSON.stringify({ path: "/large.txt" }), "utf-8"),
+      resultBytes: Buffer.byteLength(oversized, "utf-8"),
+      resultContentKind: "text",
+      success: true,
+      truncated: true,
+      incomplete: false,
+    });
+    expect(calls[1]).toMatchObject({
+      toolUseId: "local-2",
+      tool: "shell",
+      resultBytes: Buffer.byteLength("boom", "utf-8"),
+      resultContentKind: "text",
+      success: false,
+      truncated: false,
+      incomplete: false,
+    });
+    expect(JSON.stringify(calls)).not.toContain(oversized.slice(0, 20));
+    expect(getToolTelemetry().getToolStats("shell")).toMatchObject({ calls: 1, failures: 1 });
   });
 
   it("truncates plain text results to resultLimit", async () => {
