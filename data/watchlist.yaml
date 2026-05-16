@@ -31,15 +31,15 @@ resources:
   - url: https://github.com/anthropics/claude-code
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:9c31331cb2df64de1578ba30dd05bc10
-      summary: "Claude Code's recommended install path has shifted away from npm, so KOTA's harness diagnostics should report the adapter/runtime source rather than assuming package-manager installation shape."
-      last_seen_at: "2026-05-14T02:45:38.617Z"
+      fingerprint: sha256:4878d66de543d3446efd24760c434b80
+      summary: "Claude Code's recent release stream continues to harden background agents, hooks, MCP behavior, and tool-event observability; KOTA's remaining local gap is structured per-call tool telemetry rather than another prompt or workflow primitive."
+      last_seen_at: "2026-05-16T23:26:50.039Z"
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:81c436c2dcbfa1f690080a67b288846c
-      summary: "Codex continues to push app-server/remote-control and MCP metadata fidelity; KOTA already landed a reconnect probe, leaving MCP tool-result metadata preservation as the actionable local gap."
-      last_seen_at: "2026-05-16T09:29:43.579Z"
+      fingerprint: sha256:d090496e46399cde43a1d4fec40b9e60
+      summary: "Codex continues to make tool calls protocol-level turn items and to treat unbounded MCP/hook output as a runtime defect; KOTA should extend its existing telemetry artifact with per-call records."
+      last_seen_at: "2026-05-16T23:26:50.039Z"
   - url: https://github.com/google-gemini/gemini-cli
     added: "2026-04-19"
     snapshot:
@@ -202,9 +202,9 @@ resources:
     added: "2026-05-02"
     notes: "LiveKit Agents is a real-time multi-modal voice/agent orchestration framework — peer to KOTA's voice module surface. Owner-flagged 2026-05-02 in inbox capture as relevant to voice-stack reevaluation. Snapshot and distill on the next explorer cycle."
     snapshot:
-      fingerprint: sha256:d7e42d6e2ca9103f125219b5a87a38ec
-      summary: "LiveKit Agents reinforces a remaining KOTA gap: realtime voice needs a strict shared session/turn lifecycle before WebRTC, telephony, or client-specific audio loops are added."
-      last_seen_at: "2026-05-16T04:42:52.237Z"
+      fingerprint: sha256:43dd79178adf37e3418c9da56f8d5d68
+      summary: "LiveKit Agents reinforces the same observability direction: latency, usage, and turn-level telemetry should be reconstructible from runtime artifacts."
+      last_seen_at: "2026-05-16T23:26:50.039Z"
   - url: https://github.com/abhigyanpatwari/GitNexus
     added: "2026-05-02"
     notes: "GitNexus is a knowledge-base project owner-flagged 2026-05-02 as potentially relevant to KOTA's knowledge / memory subsystems. Snapshot and distill on the next explorer cycle to determine whether any primitive maps onto KOTA's existing knowledge module."
