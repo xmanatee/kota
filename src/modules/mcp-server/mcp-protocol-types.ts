@@ -10,6 +10,13 @@ import type {
 	KotaMcpPreservedContent,
 } from "#core/agent-harness/message-protocol.js";
 
+export const MCP_LEGACY_PROTOCOL_VERSION = "2024-11-05";
+export const MCP_DRAFT_PROTOCOL_VERSION = "DRAFT-2026-v1";
+
+export type McpProtocolVersion =
+	| typeof MCP_LEGACY_PROTOCOL_VERSION
+	| typeof MCP_DRAFT_PROTOCOL_VERSION;
+
 export type JsonRpcRequest = {
 	jsonrpc: "2.0";
 	id: number | string;
@@ -66,6 +73,34 @@ export type ElicitationResponse =
 	| { action: "reject" }
 	| { action: "cancel" };
 
+export type McpToolInputRequest = {
+	method: "elicitation/create";
+	params: {
+		mode: "form";
+		message: string;
+		requestedSchema: ElicitationSchema;
+	};
+};
+
+export type McpToolInputRequests = { [requestId: string]: McpToolInputRequest };
+export type McpToolInputResponses = { [requestId: string]: ElicitationResponse };
+
+export type McpToolCompleteResult = {
+	resultType: "complete";
+	content: McpContentBlock[];
+	structuredContent?: KotaJsonObject;
+	_meta?: KotaJsonObject;
+	isError: boolean;
+};
+
+export type McpToolInputRequiredResult = {
+	resultType: "input_required";
+	inputRequests: McpToolInputRequests;
+	requestState: string;
+};
+
+export type McpToolResult = McpToolCompleteResult | McpToolInputRequiredResult;
+
 /**
  * Transport-side surface every per-feature handler uses to write JSON-RPC
  * frames back to the client. The orchestrator owns the underlying writer.
@@ -85,6 +120,7 @@ export type McpTransport = {
  */
 export type SessionState = {
 	initialized: boolean;
+	protocolVersion: McpProtocolVersion;
 	clientSupportsElicitation: boolean;
 	clientSupportsRoots: boolean;
 };

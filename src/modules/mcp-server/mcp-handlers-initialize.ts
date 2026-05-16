@@ -12,6 +12,11 @@ import type {
 	JsonRpcResponse,
 	McpRoot,
 } from "./mcp-protocol-types.js";
+import {
+	MCP_DRAFT_PROTOCOL_VERSION,
+	MCP_LEGACY_PROTOCOL_VERSION,
+	type McpProtocolVersion,
+} from "./mcp-protocol-types.js";
 
 export type InitializeOptions = {
 	serverName: string;
@@ -42,6 +47,12 @@ function decodeRootsListResult(result: unknown): McpRoot[] {
 	return out;
 }
 
+function negotiateInitializeProtocolVersion(requested: string): McpProtocolVersion | null {
+	if (requested === MCP_DRAFT_PROTOCOL_VERSION) return MCP_DRAFT_PROTOCOL_VERSION;
+	if (requested === MCP_LEGACY_PROTOCOL_VERSION) return MCP_LEGACY_PROTOCOL_VERSION;
+	return null;
+}
+
 export class InitializeHandler {
 	private clientRoots: McpRoot[] = [];
 	private pendingRootsRequest: {
@@ -57,6 +68,17 @@ export class InitializeHandler {
 	) {}
 
 	handleInitialize(msg: JsonRpcRequest): void {
+		const requestedProtocolVersion =
+			typeof msg.params?.protocolVersion === "string"
+				? msg.params.protocolVersion
+				: MCP_LEGACY_PROTOCOL_VERSION;
+		const negotiatedProtocolVersion =
+			negotiateInitializeProtocolVersion(requestedProtocolVersion);
+		if (!negotiatedProtocolVersion) {
+			this.ctx.transport.sendError(msg, -32602, "Unsupported protocol version");
+			return;
+		}
+		this.ctx.session.protocolVersion = negotiatedProtocolVersion;
 		this.ctx.session.initialized = true;
 		const clientCaps = (msg.params?.capabilities ?? {}) as Record<string, unknown>;
 		this.ctx.session.clientSupportsElicitation =
@@ -78,7 +100,7 @@ export class InitializeHandler {
 			capabilities.sampling = {};
 		}
 		this.ctx.transport.sendResult(msg, {
-			protocolVersion: "2024-11-05",
+			protocolVersion: this.ctx.session.protocolVersion,
 			capabilities,
 			serverInfo: {
 				name: this.options.serverName,

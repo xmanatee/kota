@@ -19,10 +19,20 @@ import { PromptsHandler } from "./mcp-handlers-prompts.js";
 import { ResourcesHandler } from "./mcp-handlers-resources.js";
 import { SamplingHandler } from "./mcp-handlers-sampling.js";
 import { ToolsHandler } from "./mcp-handlers-tools.js";
-import type { HandlerContext, JsonRpcMessage, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, McpRoot, McpTransport, SessionState } from "./mcp-protocol-types.js";
+import type {
+	HandlerContext,
+	JsonRpcMessage,
+	JsonRpcNotification,
+	JsonRpcRequest,
+	JsonRpcResponse,
+	McpRoot,
+	McpTransport,
+	SessionState,
+} from "./mcp-protocol-types.js";
+import { MCP_LEGACY_PROTOCOL_VERSION } from "./mcp-protocol-types.js";
 
 export { kotaToolToMcp, toolResultToMcp } from "./mcp-handlers-tools.js";
-export type { ElicitationResponse, ElicitationSchema, McpRoot } from "./mcp-protocol-types.js";
+export type { ElicitationResponse, ElicitationSchema, McpRoot, McpToolResult } from "./mcp-protocol-types.js";
 
 export type McpServerOptions = {
 	toolFilter?: string[];
@@ -49,6 +59,7 @@ export class McpServer {
 	private readonly log: (msg: string) => void;
 	private readonly session: SessionState = {
 		initialized: false,
+		protocolVersion: MCP_LEGACY_PROTOCOL_VERSION,
 		clientSupportsElicitation: false,
 		clientSupportsRoots: false,
 	};

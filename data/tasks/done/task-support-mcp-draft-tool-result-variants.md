@@ -1,12 +1,12 @@
 ---
 id: task-support-mcp-draft-tool-result-variants
 title: Support MCP draft tool result variants
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Align the MCP server tools/call response contract with the draft tools spec by handling explicit result types and standard input-required tool results at the MCP adapter boundary.
 created_at: 2026-05-16T10:17:17Z
-updated_at: 2026-05-16T10:17:17Z
+updated_at: 2026-05-16T10:31:43Z
 ---
 
 ## Problem
