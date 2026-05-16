@@ -1,12 +1,12 @@
 ---
 id: task-evaluator-calibration-drift-repair
 title: Repair evaluator calibration drift
-status: done
+status: ready
 priority: p1
 area: autonomy
 summary: Restore the live-run evaluator calibration loop to within threshold by tightening critic guidance, repair-loop checks, or the calibration gate itself.
-created_at: 2026-05-16T02:20:33.138Z
-updated_at: 2026-05-16T02:27:21.542Z
+created_at: 2026-05-16T02:37:19.045Z
+updated_at: 2026-05-16T02:37:19.045Z
 ---
 
 ## Problem
@@ -25,14 +25,14 @@ Decision reason from the monitor:
 
 ## Calibration Snapshot
 
-- Window: 2026-05-09T02:20:32.862Z → 2026-05-16T02:20:32.862Z
-- Total runs in window: 10
+- Window: 2026-05-09T02:37:18.808Z → 2026-05-16T02:37:18.808Z
+- Total runs in window: 11
 - Pass verdicts: 9
-- Pass-with-warnings verdicts: 1
+- Pass-with-warnings verdicts: 2
 - Fail verdicts: 0
 - Absent verdicts: 0
 - Pass-contradiction rate: 44.4% (4 of 9); threshold 25.0%.
-- Pass-with-warnings follow-up rate: 100.0% (1 of 1); threshold 75.0%.
+- Pass-with-warnings follow-up rate: 50.0% (1 of 2); threshold 75.0%.
 
 ## Desired Outcome
 
@@ -73,7 +73,7 @@ visible in the run artifact rather than only in attention digests.
 ## Source / Intent
 
 Auto-created by `evaluator-calibration-monitor` after the live calibration
-gate fired at 2026-05-16T02:20:33.138Z. Replaces the previous notification-only
+gate fired at 2026-05-16T02:37:19.045Z. Replaces the previous notification-only
 behavior so calibration drift becomes a deterministic next action in the
 queue rather than a recurring attention item.
 
@@ -89,10 +89,3 @@ not only a clean commit with advisory caveats.
   or the recorded rationale for retuning it.
 - Updated scoped autonomy guidance naming which critic warning classes
   must fail, track follow-up, or pass as harmless.
-
-## Outcome
-
-Repaired the gate definition rather than widening the threshold: later
-successful tasks whose critic repaired their own drafts no longer contradict
-earlier clean passes solely because source files overlap. Post-fix evidence is
-recorded in `.kota/runs/2026-05-16T02-21-05-579Z-builder-dy6u9l/calibration-repair.json`.
