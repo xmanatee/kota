@@ -37,9 +37,9 @@ resources:
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:0169753501cfee130f6ad06758184376
-      summary: "Codex remains a fast-moving local CLI harness surface; latest observed release is 0.130.0 on 2026-05-08, reinforcing the need for KOTA to report installed Codex CLI readiness/version before preset parity runs."
-      last_seen_at: "2026-05-14T02:45:38.617Z"
+      fingerprint: sha256:a8c6ec89365c146034bae990f6c68623
+      summary: "Codex is moving from local CLI parity toward reconnectable app-server remote control; KOTA should prove its daemon-control API/SSE can reconstruct live session/run/approval state before adding any relay or client fan-out."
+      last_seen_at: "2026-05-16T01:59:53.917Z"
   - url: https://github.com/google-gemini/gemini-cli
     added: "2026-04-19"
     snapshot:
