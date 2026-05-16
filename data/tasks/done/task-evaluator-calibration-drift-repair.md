@@ -1,12 +1,12 @@
 ---
 id: task-evaluator-calibration-drift-repair
 title: Repair evaluator calibration drift
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Restore the live-run evaluator calibration loop to within threshold by tightening critic guidance, repair-loop checks, or the calibration gate itself.
 created_at: 2026-05-16T02:20:33.138Z
-updated_at: 2026-05-16T02:20:33.138Z
+updated_at: 2026-05-16T02:27:21.542Z
 ---
 
 ## Problem
@@ -89,3 +89,10 @@ not only a clean commit with advisory caveats.
   or the recorded rationale for retuning it.
 - Updated scoped autonomy guidance naming which critic warning classes
   must fail, track follow-up, or pass as harmless.
+
+## Outcome
+
+Repaired the gate definition rather than widening the threshold: later
+successful tasks whose critic repaired their own drafts no longer contradict
+earlier clean passes solely because source files overlap. Post-fix evidence is
+recorded in `.kota/runs/2026-05-16T02-21-05-579Z-builder-dy6u9l/calibration-repair.json`.

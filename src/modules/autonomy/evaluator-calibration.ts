@@ -100,21 +100,19 @@ export type EvaluatorCalibrationAggregate = {
   /**
    * Pass verdicts contradicted by downstream evidence: a later builder run
    * within the follow-up window touched overlapping source files AND that
-   * later run itself carried an evaluator-quality failure signal (critic
-   * verdict `fail`, or a non-zero `criticFailureCount` — the critic itself
-   * flagged issues during the later build before passing on a repaired diff).
-   * Mechanical-check repair iterations are not counted — repair iteration
-   * is healthy when typecheck/test/lint catch the issue and the agent fixes
-   * it; that is iteration noise, not evaluator drift.
+   * later run finished with a failure signal. Critic repair iterations inside
+   * an otherwise successful later run are not contradictions of the earlier
+   * pass: they show the later critic caught that task's draft before commit.
+   * Mechanical-check and critic-check repair iterations are diagnostic
+   * iteration evidence, not evaluator drift by themselves.
    */
   passContradictionCount: number;
   passContradictionRate: number;
   /**
    * Pass-with-warnings verdicts whose later overlapping run was itself
-   * hedging or failing (verdict `pass_with_warnings` or `fail`, or a
-   * non-zero `criticFailureCount`). A clean later run on the same files is
-   * the healthy shape and is not counted: the critic already hedged once
-   * and the iteration closed cleanly.
+   * hedging or failing (final verdict `pass_with_warnings` or `fail`). A
+   * clean later run on the same files is the healthy shape and is not counted:
+   * the critic already hedged once and the iteration closed cleanly.
    */
   passWithWarningsFollowUpCount: number;
   passWithWarningsFollowUpRate: number;
@@ -355,16 +353,16 @@ function loadCalibrationArtifactsInWindow(
   return loaded;
 }
 
-function hasFailureSignal(artifact: EvaluatorCalibrationArtifact): boolean {
+function hasTerminalFailureSignal(artifact: EvaluatorCalibrationArtifact): boolean {
   if (artifact.verdict === "fail") return true;
-  if (artifact.criticFailureCount > 0) return true;
+  if (artifact.terminalRunStatus === "failed") return true;
   return false;
 }
 
 function isHedgingOrFailing(artifact: EvaluatorCalibrationArtifact): boolean {
   if (artifact.verdict === "fail") return true;
   if (artifact.verdict === "pass_with_warnings") return true;
-  if (artifact.criticFailureCount > 0) return true;
+  if (artifact.terminalRunStatus === "failed") return true;
   return false;
 }
 
@@ -391,7 +389,7 @@ function hasOverlappingFollowUp(
 }
 
 const acceptHedgingFollowUp: FollowUpFilter = isHedgingOrFailing;
-const acceptFailingFollowUp: FollowUpFilter = hasFailureSignal;
+const acceptFailingFollowUp: FollowUpFilter = hasTerminalFailureSignal;
 
 function rate(numerator: number, denominator: number): number {
   return denominator === 0 ? 0 : numerator / denominator;
@@ -402,9 +400,9 @@ function rate(numerator: number, denominator: number): number {
  * Follow-up fingerprinting walks forward from each base run up to
  * `followUpWindowMs` looking for overlapping source-file changes. A pass is
  * only counted as contradicted when the later overlapping run itself carries
- * a failure signal — overlap alone is healthy iteration, not evaluator drift.
- * Pass-with-warnings stays on the looser overlap signal since the critic
- * already hedged on those runs.
+ * a final failure signal — overlap and in-run repair iterations are healthy
+ * task execution, not evaluator drift. Pass-with-warnings stays on the looser
+ * final-verdict signal since the critic already hedged on those runs.
  */
 export function aggregateCalibration(
   runsDir: string,
@@ -473,7 +471,7 @@ export function aggregateCalibration(
  * kind crosses its configured threshold:
  *
  * - `pass-contradiction`: critic said pass on a run whose later overlapping
- *   follow-up itself failed.
+ *   follow-up itself finished with a failure signal.
  * - `pass-with-warnings-escalation`: critic kept hedging on overlapping work
  *   — already-accepted warnings are recurring against shared files instead of
  *   being closed out.

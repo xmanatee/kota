@@ -1,6 +1,6 @@
 # Autonomy Module
 
-This module owns the project autonomous development loop.
+Owns KOTA's autonomous development loop.
 
 - Keep the autonomous workflows and their helpers inside this module; do
   not recreate a parallel workflow catalog in core.
@@ -9,20 +9,18 @@ This module owns the project autonomous development loop.
   history; no second lessons store or injected summaries.
 - Promote a lesson only when repeated run evidence shows a durable pattern;
   retract or narrow when code, behavior, or ownership changes.
-- Workflow prompts stay role-focused. Shared policy belongs in this
-  module's `AGENTS.md` hierarchy.
-- Shipped autonomy workflows declare their harness through the active shipped
-  preset in code, so the repo boots cleanly without an operator
-  `.kota/config.json` while `KOTA_PRESET` moves harness, model, and effort as
-  one tuple. Generic project workflows may still inherit
+- Workflow prompts stay role-focused; shared policy belongs in this hierarchy.
+- Shipped autonomy workflows get harness/model/effort from the active preset
+  in code, so repo boot does not require operator `.kota/config.json`.
+  Generic workflows may still inherit
   `KotaConfig.defaultAgentHarness`.
 - Judges inside a repair loop inherit the parent step's resolved harness, not
   a parallel fallback.
 
 ## Core Autonomy Decisions
 
-Load-bearing rules from harness, eval, and peer-runtime research. Post
-summaries live in run artifacts or `data/watchlist.yaml`.
+Load-bearing harness/eval/peer-runtime rules. Post summaries live in run
+artifacts or `data/watchlist.yaml`.
 
 - **Generator / evaluator separation.** Decomposer → builder → critic.
   Strip repair-loop checks first; keep roles.
@@ -48,11 +46,13 @@ summaries live in run artifacts or `data/watchlist.yaml`.
 ## Live-Run Evaluator Calibration
 
 Fixture `pass^k` catches generator drift; per-run artifacts catch
-evaluator drift. Failure signal: `verdict==="fail"` or
-`criticFailureCount>0`. Mechanical repair is iteration noise. PWW
-escalation needs later overlap also failing. Each artifact records
-the critic prompt hash; aggregation counts only matching-hash runs,
-so prompt edits reset the window. Drift commits one path: create/
+evaluator drift. Pass-contradiction requires later overlap with a final
+failure (`verdict==="fail"` or failed terminal status);
+`criticFailureCount>0` alone is diagnostic review evidence. Mechanical
+repair is iteration noise. PWW escalation needs later overlap with a
+final hedging/failing verdict. Artifacts record critic prompt hash;
+aggregation counts matching hashes only, so prompt edits reset the
+window. Drift commits one path: create/
 recreate/promote `task-evaluator-calibration-drift-repair` in
 `ready/`; regression bridges to attention digest. Recreate noops when
 the prior repair commit is newer than the latest calibration artifact:
@@ -61,7 +61,9 @@ accrue before re-opening. Critic blocks weak rendered evidence
 (preflight-only), placeholder tests, untracked compat shims, baseline
 ratchets (hedged "if inadvertent"), required-source dishonesty,
 untracked Done-When non-fulfillment, and runtime defects masked by
-missing test coverage.
+missing test coverage. Non-trivial warnings need a durable trace
+(follow-up task, task limitation, or harmless reason); otherwise
+critical.
 
 ## External Pattern Decisions
 
@@ -96,11 +98,11 @@ test enforces 1:1 match.
 - **Trustworthy-agents four-layer injection defense.** Model/harness ≈
   SDK boundary; tools ≈ `guardrails.ts` + risk; runtime ≈
   `approval-queue` + autonomy mode + `injection-defense`.
-- **Opus 4.7 harness defaults at agent-step layer.** Delegate-don't-pair
-  (front-load intent, constraints, success criteria in one turn), `xhigh`
-  default, adaptive thinking, batch-upfront, judicious subagent spawning
-  (explicit builder→critic steps). Task contract + success-criteria
-  files enforce this; no clarification loops or fixed reasoning caps.
+- **Opus 4.7 harness defaults at agent-step layer.** Delegate-don't-pair:
+  front-load intent, constraints, and success criteria. Use `xhigh`,
+  adaptive thinking, batch-upfront, and judicious subagents
+  (builder→critic). Task contract + success-criteria files enforce this;
+  no clarification loops or fixed reasoning caps.
 - **Tool-design hygiene.** High bar for new tools; prefer discoverable
   surfaces (read, grep, scoped `AGENTS.md`, prompt state).
 - **`ask_owner` in autonomous workflows uses `askOwnerSteps`**
@@ -139,9 +141,9 @@ Deliberate workflow gating, not emergent thrash:
   builder resumes; promotes 1–2 backlog tasks by priority →
   strategic-area → oldest `updated_at`.
 - **`explorer` repair-loop rejects commits without
-  `exploration-rationale.json`**. `create-task` cites every strategic
-  blocked id; `noop` at `actionableCount===0` cites every `movable`
-  one. No `--min-ready 1` gate; a paused queue is a valid noop.
+  `exploration-rationale.json`**. `create-task` cites each strategic
+  blocked id; `noop` at `actionableCount===0` cites each `movable`
+  one. No `--min-ready 1`; a paused queue may noop.
 - **Cooldowns over caps.** Explorer 30-minute refresh; builder paced
   by repair checks and task availability.
 - **Honesty over speculation.** Inaccessible sources block

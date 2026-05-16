@@ -418,10 +418,11 @@ describe("aggregateCalibration", () => {
     expect(agg.passContradictionRate).toBe(0);
   });
 
-  it("flags contradiction when the later overlapping run's critic itself failed", () => {
-    // The later overlapping run has a pass verdict but its build's critic
-    // ran more than once because it flagged something the agent had to
-    // repair. That critic catch is the evaluator-quality failure signal.
+  it("does not flag contradiction when a later overlapping run passed after critic repair", () => {
+    // The later overlapping run has a final pass verdict, but its build's
+    // critic ran more than once because it flagged something the agent had to
+    // repair for that task. That is healthy in-run review, not evidence that
+    // the earlier clean pass was wrong.
     seedRun(runsDir, {
       runId: "2026-04-20T10-00-00-000Z-builder-a",
       completedAt: "2026-04-20T10:00:00.000Z",
@@ -443,7 +444,7 @@ describe("aggregateCalibration", () => {
       nowMs: Date.parse("2026-04-20T12:00:00.000Z"),
     });
     expect(agg.byVerdict.pass).toBe(2);
-    expect(agg.passContradictionCount).toBe(1);
+    expect(agg.passContradictionCount).toBe(0);
   });
 
   it("does not flag contradiction when the later overlapping run only needed mechanical-check repair", () => {
@@ -608,6 +609,32 @@ describe("aggregateCalibration", () => {
     expect(agg.passWithWarningsFollowUpCount).toBe(0);
     expect(agg.passWithWarningsFollowUpRate).toBe(0);
     expect(agg.passContradictionCount).toBe(0);
+  });
+
+  it("does not flag pass_with_warnings escalation for a later pass after critic repair", () => {
+    seedRun(runsDir, {
+      runId: "2026-04-20T10-00-00-000Z-builder-a",
+      completedAt: "2026-04-20T10:00:00.000Z",
+      verdict: "pass_with_warnings",
+      sourceFilesChanged: ["src/modules/x.ts"],
+    });
+    seedRun(runsDir, {
+      runId: "2026-04-20T11-00-00-000Z-builder-b",
+      completedAt: "2026-04-20T11:00:00.000Z",
+      verdict: "pass",
+      sourceFilesChanged: ["src/modules/x.ts"],
+      criticFailureCount: 2,
+    });
+
+    const agg = aggregateCalibration(runsDir, {
+      criticPromptHash: TEST_PROMPT_HASH,
+      windowMs: 7 * 24 * 60 * 60 * 1000,
+      followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
+      nowMs: Date.parse("2026-04-20T12:00:00.000Z"),
+    });
+    expect(agg.byVerdict.pass_with_warnings).toBe(1);
+    expect(agg.passWithWarningsFollowUpCount).toBe(0);
+    expect(agg.passWithWarningsFollowUpRate).toBe(0);
   });
 
   it("does not flag follow-up when file sets do not overlap", () => {
