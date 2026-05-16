@@ -55,9 +55,9 @@ resources:
   - url: https://github.com/block/goose
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:b38bb126730cd20add342444ed10007b
-      summary: "Goose is Block's Rust+TypeScript general AI agent with desktop, CLI, and API surfaces; supports 15+ LLM providers (incl. ACP credential reuse), 70+ MCP extensions, AAIF/Linux-Foundation governance, and brandable preconfigured distributions."
-      last_seen_at: "2026-04-19T22:21:08.572Z"
+      fingerprint: sha256:c192ac59b694ec14e8d4857d159c8c52
+      summary: "Goose is leaning into protocol messages over artifact heuristics; KOTA has a matching local gap in duplicated tool-observation summarizers in the core loop."
+      last_seen_at: "2026-05-16T02:53:47.679Z"
   - url: https://github.com/All-Hands-AI/OpenHands
     added: "2026-04-19"
     snapshot:
@@ -202,16 +202,16 @@ resources:
     added: "2026-05-02"
     notes: "LiveKit Agents is a real-time multi-modal voice/agent orchestration framework — peer to KOTA's voice module surface. Owner-flagged 2026-05-02 in inbox capture as relevant to voice-stack reevaluation. Snapshot and distill on the next explorer cycle."
     snapshot:
-      fingerprint: sha256:6d0c0b4e5dd9bafe7a1717c282cfae33
-      summary: "LiveKit Agents is a Python realtime voice/multimodal agent framework built around Agent + AgentSession + entrypoint + AgentServer; multi-agent handoff via tool-returned successor agents, native MCP tool support, built-in test framework with judges, and WebRTC/telephony transport. Patterns map cleanly onto KOTA's session/daemon/tool/bus/eval-harness primitives — voice/WebRTC transport is the only differentiator and it lives at the channel layer, not as a new autonomy primitive."
-      last_seen_at: "2026-05-03T04:04:20.334Z"
+      fingerprint: sha256:7868de88e060860c8359e4fc83569414
+      summary: "LiveKit Agents has moved further into production realtime voice-agent concerns; the main KOTA takeaway remains channel-layer realtime voice boundaries, not a new core autonomy primitive."
+      last_seen_at: "2026-05-16T02:53:47.679Z"
   - url: https://github.com/abhigyanpatwari/GitNexus
     added: "2026-05-02"
     notes: "GitNexus is a knowledge-base project owner-flagged 2026-05-02 as potentially relevant to KOTA's knowledge / memory subsystems. Snapshot and distill on the next explorer cycle to determine whether any primitive maps onto KOTA's existing knowledge module."
     snapshot:
-      fingerprint: sha256:8f0080bad00e5ff8f850d84d55e5ba4b
-      summary: "GitNexus is a code knowledge-graph + MCP server (16 tools — query/context/impact/detect_changes/rename/cypher plus group-scope multi-repo tools) for AI coding agents (Claude Code, Cursor, Codex, Windsurf, OpenCode). Integrates as an external MCP-tools provider, not a peer agent runtime; impact/blast-radius and rename tools could augment KOTA's pr-reviewer/critic flows if operators install it. PolyForm Noncommercial; commercial use via Akon Labs SaaS."
-      last_seen_at: "2026-05-03T04:04:20.334Z"
+      fingerprint: sha256:960b15b923358fc606b7a7664e75679b
+      summary: "GitNexus has grown route/tool/shape-checking MCP tools; KOTA already covers much of this through conformance fixtures, with the relevant lesson being protocol-derived checks over heuristics."
+      last_seen_at: "2026-05-16T02:53:47.679Z"
   - url: https://github.com/vercel-labs/open-agents
     added: "2026-05-07"
     notes: "Vercel Labs Open Agents is the open-source reference implementation behind open-agents.dev — a TypeScript Next.js + Vercel Workflows + Sandbox stack that runs coding agents 'infinitely in the cloud' with the agent running outside the sandbox. Direct peer to KOTA's daemon + workflow + session model and a comparison point for the events/hooks vs. workflows debate. Snapshot and distill on the next explorer cycle."
