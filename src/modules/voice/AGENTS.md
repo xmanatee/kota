@@ -24,6 +24,11 @@ control API, not through a per-client audio pipeline.
 - **Transport-neutral.** Clients hit JSON endpoints with base64-encoded
   audio. No client owns vendor calls, credential handling, or audio
   format negotiation.
+- **Realtime voice lifecycle.** Future streaming voice transports (WebRTC,
+  telephony, native live microphone sessions, huddles) must route audio,
+  partial/final transcripts, assistant audio, interruptions, completion,
+  and terminal errors through the module-owned realtime session protocol
+  and state machine. Do not create a per-surface audio lifecycle.
 
 ## Client surfaces
 
@@ -102,3 +107,7 @@ voice module.
   honestly so preflight validation works.
 - Add a new client: call the daemon control API (or `/api/voice/*`) with
   the JSON shape above. Do not reach providers directly.
+- Add a realtime voice transport: bind the transport to an existing KOTA
+  session id and channel identity, then drive `realtime-session` events
+  through the voice state machine before crossing provider or channel
+  boundaries.

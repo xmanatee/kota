@@ -1,12 +1,12 @@
 ---
 id: task-add-a-realtime-voice-session-protocol-probe
 title: Add a realtime voice-session protocol probe
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Define and test a strict voice-session event/state protocol so future realtime voice, WebRTC, or telephony channels can share KOTA's daemon/channel/session boundary instead of inventing per-client audio loops.
 created_at: 2026-05-16T04:40:46.000Z
-updated_at: 2026-05-16T04:40:46.000Z
+updated_at: 2026-05-16T04:51:42.000Z
 ---
 
 ## Problem
