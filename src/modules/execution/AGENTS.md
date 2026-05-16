@@ -12,3 +12,9 @@ processes, code REPL, computer use, and screenshot tools.
   language-keyed REPL session singletons from this module. Core callers reach
   the capability through `#modules/execution/...` imports; do not add a
   re-export shim back under `#core/tools/`.
+- GUI coordinate actions use one explicit convention: `screenshot` records
+  native capture size, displayed image size, and display-to-native scale
+  factors; `computer_use` coordinate actions must choose `coordinate_space:
+  "native"` or `"last_screenshot_display"`. Browser full-page and element
+  screenshots are visual artifacts, not desktop coordinate maps, unless a
+  future implementation proves and reports a native transform.

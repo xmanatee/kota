@@ -1,12 +1,12 @@
 ---
 id: task-add-a-gui-screenshot-coordinate-scaling-contract-for
 title: Add a GUI screenshot coordinate-scaling contract for computer use
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Make screenshot output and computer_use coordinates share an explicit display-to-native scaling contract so GUI automation does not silently click in the wrong coordinate space after image resizing.
 created_at: 2026-05-16T05:15:30.000Z
-updated_at: 2026-05-16T05:15:30.000Z
+updated_at: 2026-05-16T05:26:39.000Z
 ---
 
 ## Problem

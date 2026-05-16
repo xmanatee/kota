@@ -19,6 +19,16 @@ const mockExec = execFileSync as ReturnType<typeof vi.fn>;
 const mockRead = readFileSync as ReturnType<typeof vi.fn>;
 const mockUnlink = unlinkSync as ReturnType<typeof vi.fn>;
 
+function pngBuffer(width: number, height: number, size = 64): Buffer {
+	const buffer = Buffer.alloc(Math.max(size, 32), 0);
+	Buffer.from("89504e470d0a1a0a", "hex").copy(buffer, 0);
+	buffer.writeUInt32BE(13, 8);
+	buffer.write("IHDR", 12, "ascii");
+	buffer.writeUInt32BE(width, 16);
+	buffer.writeUInt32BE(height, 20);
+	return buffer;
+}
+
 describe("runScreenshot", () => {
 	const originalPlatform = process.platform;
 
@@ -29,7 +39,7 @@ describe("runScreenshot", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		// Default: return a small PNG buffer
-		const fakePng = Buffer.from("fake-png-data");
+		const fakePng = pngBuffer(1024, 768);
 		mockRead.mockReturnValue(fakePng);
 		mockUnlink.mockImplementation(() => {});
 	});
@@ -42,15 +52,14 @@ describe("runScreenshot", () => {
 
 	it("captures screenshot on macOS", async () => {
 		setPlatform("darwin");
-		// sips -g pixelWidth returns width < MAX_DIM, so no resize
-		mockExec.mockImplementation((cmd: string, args: string[]) => {
-			if (cmd === "sips" && args[0] === "-g") return "pixelWidth: 1024\n";
-			return "";
-		});
+		mockExec.mockReturnValue("");
 
 		const result = await runScreenshot({});
 		expect(result.is_error).toBeUndefined();
 		expect(result.content).toContain("Screenshot captured");
+		expect(result.content).toContain("Native 1024x768");
+		expect(result.content).toContain("displayed 1024x768");
+		expect(result.content).toContain('coordinate_space to "last_screenshot_display"');
 		expect(result.blocks).toBeDefined();
 		expect(result.blocks).toHaveLength(2);
 		expect(result.blocks![0].type).toBe("image");
@@ -64,33 +73,31 @@ describe("runScreenshot", () => {
 		);
 	});
 
-	it("resizes when image exceeds MAX_DIM on macOS", async () => {
+	it("resizes when image exceeds the max long edge on macOS", async () => {
 		setPlatform("darwin");
-		mockExec.mockImplementation((cmd: string, args: string[]) => {
-			if (cmd === "sips" && args[0] === "-g") return "pixelWidth: 3840\n";
-			return "";
-		});
+		mockRead
+			.mockReturnValueOnce(pngBuffer(1600, 700))
+			.mockReturnValue(pngBuffer(1568, 686));
+		mockExec.mockReturnValue("");
 
-		await runScreenshot({});
+		const result = await runScreenshot({});
 
-		// Should call sips --resampleWidth
 		expect(mockExec).toHaveBeenCalledWith(
 			"sips",
 			expect.arrayContaining(["--resampleWidth", "1568"]),
 			expect.any(Object),
 		);
+		expect(result.content).toContain("Native 1600x700");
+		expect(result.content).toContain("displayed 1568x686");
 	});
 
 	it("skips resize when image is within MAX_DIM on macOS", async () => {
 		setPlatform("darwin");
-		mockExec.mockImplementation((cmd: string, args: string[]) => {
-			if (cmd === "sips" && args[0] === "-g") return "pixelWidth: 1200\n";
-			return "";
-		});
+		mockRead.mockReturnValue(pngBuffer(1200, 800));
+		mockExec.mockReturnValue("");
 
 		await runScreenshot({});
 
-		// Should NOT call sips --resampleWidth
 		const resizeCalls = mockExec.mock.calls.filter(
 			(call: unknown[]) =>
 				call[0] === "sips" && (call[1] as string[]).includes("--resampleWidth"),
@@ -100,8 +107,8 @@ describe("runScreenshot", () => {
 
 	it("handles sips resize failure gracefully on macOS", async () => {
 		setPlatform("darwin");
+		mockRead.mockReturnValue(pngBuffer(1600, 700));
 		mockExec.mockImplementation((cmd: string, args: string[]) => {
-			if (cmd === "sips" && args[0] === "-g") return "pixelWidth: 4000\n";
 			if (cmd === "sips" && (args as string[]).includes("--resampleWidth"))
 				throw new Error("sips failed");
 			return "";
@@ -172,6 +179,7 @@ describe("runScreenshot", () => {
 
 	it("handles convert resize failure gracefully on Linux", async () => {
 		setPlatform("linux");
+		mockRead.mockReturnValue(pngBuffer(1600, 700));
 		mockExec.mockImplementation((cmd: string) => {
 			if (cmd === "gnome-screenshot") return "";
 			if (cmd === "convert") throw new Error("convert not found");
@@ -197,10 +205,7 @@ describe("runScreenshot", () => {
 
 	it("includes description in text content", async () => {
 		setPlatform("darwin");
-		mockExec.mockImplementation((cmd: string, args: string[]) => {
-			if (cmd === "sips" && args[0] === "-g") return "pixelWidth: 1024\n";
-			return "";
-		});
+		mockExec.mockReturnValue("");
 
 		const result = await runScreenshot({
 			description: "Check the error dialog",
@@ -210,10 +215,7 @@ describe("runScreenshot", () => {
 
 	it("omits context line when no description", async () => {
 		setPlatform("darwin");
-		mockExec.mockImplementation((cmd: string, args: string[]) => {
-			if (cmd === "sips" && args[0] === "-g") return "pixelWidth: 1024\n";
-			return "";
-		});
+		mockExec.mockReturnValue("");
 
 		const result = await runScreenshot({});
 		expect(result.content).not.toContain("Context:");
@@ -223,12 +225,9 @@ describe("runScreenshot", () => {
 
 	it("returns base64-encoded image in blocks", async () => {
 		setPlatform("darwin");
-		const pngData = Buffer.from("test-image-data");
+		const pngData = pngBuffer(800, 600);
 		mockRead.mockReturnValue(pngData);
-		mockExec.mockImplementation((cmd: string, args: string[]) => {
-			if (cmd === "sips" && args[0] === "-g") return "pixelWidth: 800\n";
-			return "";
-		});
+		mockExec.mockReturnValue("");
 
 		const result = await runScreenshot({});
 		const imageBlock = result.blocks?.find((b) => b.type === "image");
@@ -242,13 +241,9 @@ describe("runScreenshot", () => {
 
 	it("shows size in KB", async () => {
 		setPlatform("darwin");
-		// 2048 bytes = 2KB
-		const bigPng = Buffer.alloc(2048, 0);
+		const bigPng = pngBuffer(500, 500, 2048);
 		mockRead.mockReturnValue(bigPng);
-		mockExec.mockImplementation((cmd: string, args: string[]) => {
-			if (cmd === "sips" && args[0] === "-g") return "pixelWidth: 500\n";
-			return "";
-		});
+		mockExec.mockReturnValue("");
 
 		const result = await runScreenshot({});
 		expect(result.content).toContain("2KB");
@@ -287,10 +282,7 @@ describe("runScreenshot", () => {
 
 	it("cleans up temp file after successful capture", async () => {
 		setPlatform("darwin");
-		mockExec.mockImplementation((cmd: string, args: string[]) => {
-			if (cmd === "sips" && args[0] === "-g") return "pixelWidth: 800\n";
-			return "";
-		});
+		mockExec.mockReturnValue("");
 
 		await runScreenshot({});
 		expect(mockUnlink).toHaveBeenCalled();

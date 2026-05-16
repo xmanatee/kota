@@ -288,6 +288,7 @@ describe("browser tool runners", () => {
       const result = await runBrowserScreenshot({});
       expect(result.is_error).toBeUndefined();
       expect(result.content).toContain("Screenshot captured");
+      expect(result.content).toContain("Not a native desktop coordinate map");
       expect(result.blocks).toHaveLength(1);
       expect(result.blocks![0].type).toBe("image");
     });

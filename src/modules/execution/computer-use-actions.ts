@@ -6,7 +6,11 @@ export * from "./computer-use-actions-mac.js";
 export { needCoords } from "./computer-use-actions-shared.js";
 
 /** Reset cached tool detection (for tests). */
-export function resetComputerUseState(): void {
+export function resetActionToolState(): void {
 	resetMacState();
 	resetLinuxState();
+}
+
+export function resetComputerUseState(): void {
+	resetActionToolState();
 }

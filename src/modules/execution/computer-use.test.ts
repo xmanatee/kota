@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetComputerUseState, runComputerUse } from "./computer-use.js";
+import {
+	createScreenshotCoordinateMap,
+	rememberLastActionableScreenshot,
+} from "./gui-coordinate-scaling.js";
 
 vi.mock("node:child_process", () => ({
 	execFileSync: vi.fn(),
@@ -8,6 +12,10 @@ vi.mock("node:child_process", () => ({
 import { execFileSync } from "node:child_process";
 
 const mockExec = execFileSync as ReturnType<typeof vi.fn>;
+
+function native<T extends object>(input: T): T & { coordinate_space: "native" } {
+	return { ...input, coordinate_space: "native" };
+}
 
 describe("runComputerUse", () => {
 	const originalPlatform = process.platform;
@@ -52,6 +60,13 @@ describe("runComputerUse", () => {
 		expect(r.content).toContain("coordinates are required");
 	});
 
+	it("requires explicit coordinate space for coordinate actions", async () => {
+		setPlatform("darwin");
+		const r = await runComputerUse({ action: "click", x: 100, y: 200 });
+		expect(r.is_error).toBe(true);
+		expect(r.content).toContain("coordinate_space is required");
+	});
+
 	it("requires text for type action", async () => {
 		setPlatform("darwin");
 		const r = await runComputerUse({ action: "type" });
@@ -79,7 +94,7 @@ describe("runComputerUse", () => {
 		setPlatform("darwin");
 		mockExec.mockReturnValue("");
 
-		const r = await runComputerUse({ action: "click", x: 300, y: 400 });
+		const r = await runComputerUse(native({ action: "click", x: 300, y: 400 }));
 		expect(r.content).toBe("Clicked at (300, 400)");
 		expect(mockExec).toHaveBeenCalledWith(
 			"cliclick",
@@ -95,7 +110,7 @@ describe("runComputerUse", () => {
 			return "";
 		});
 
-		const r = await runComputerUse({ action: "click", x: 300, y: 400 });
+		const r = await runComputerUse(native({ action: "click", x: 300, y: 400 }));
 		expect(r.content).toBe("Clicked at (300, 400)");
 		expect(mockExec).toHaveBeenCalledWith(
 			"osascript",
@@ -110,6 +125,7 @@ describe("runComputerUse", () => {
 			action: "double_click",
 			x: 150,
 			y: 250,
+			coordinate_space: "native",
 		});
 		expect(r.content).toBe("Double-clicked at (150, 250)");
 		expect(mockExec).toHaveBeenCalledWith(
@@ -125,6 +141,7 @@ describe("runComputerUse", () => {
 			action: "right_click",
 			x: 100,
 			y: 200,
+			coordinate_space: "native",
 		});
 		expect(r.content).toBe("Right-clicked at (100, 200)");
 	});
@@ -140,6 +157,7 @@ describe("runComputerUse", () => {
 			action: "right_click",
 			x: 100,
 			y: 200,
+			coordinate_space: "native",
 		});
 		expect(r.is_error).toBe(true);
 		expect(r.content).toContain("cliclick");
@@ -149,7 +167,7 @@ describe("runComputerUse", () => {
 
 	it("moves cursor via cliclick", async () => {
 		setPlatform("darwin");
-		const r = await runComputerUse({ action: "move", x: 500, y: 600 });
+		const r = await runComputerUse(native({ action: "move", x: 500, y: 600 }));
 		expect(r.content).toBe("Moved cursor to (500, 600)");
 		expect(mockExec).toHaveBeenCalledWith(
 			"cliclick",
@@ -165,7 +183,7 @@ describe("runComputerUse", () => {
 			return "";
 		});
 
-		const r = await runComputerUse({ action: "move", x: 500, y: 600 });
+		const r = await runComputerUse(native({ action: "move", x: 500, y: 600 }));
 		expect(r.is_error).toBe(true);
 		expect(r.content).toContain("cliclick");
 	});
@@ -180,6 +198,7 @@ describe("runComputerUse", () => {
 			start_y: 100,
 			x: 200,
 			y: 200,
+			coordinate_space: "native",
 		});
 		expect(r.content).toBe("Dragged from (100, 100) to (200, 200)");
 		expect(mockExec).toHaveBeenCalledWith(
@@ -378,7 +397,7 @@ describe("runComputerUse", () => {
 
 	it("clicks via xdotool on Linux", async () => {
 		setPlatform("linux");
-		const r = await runComputerUse({ action: "click", x: 300, y: 400 });
+		const r = await runComputerUse(native({ action: "click", x: 300, y: 400 }));
 		expect(r.content).toBe("Clicked at (300, 400)");
 		expect(mockExec).toHaveBeenCalledWith(
 			"xdotool",
@@ -393,6 +412,7 @@ describe("runComputerUse", () => {
 			action: "double_click",
 			x: 100,
 			y: 200,
+			coordinate_space: "native",
 		});
 		expect(r.content).toBe("Double-clicked at (100, 200)");
 	});
@@ -403,6 +423,7 @@ describe("runComputerUse", () => {
 			action: "right_click",
 			x: 100,
 			y: 200,
+			coordinate_space: "native",
 		});
 		expect(r.content).toBe("Right-clicked at (100, 200)");
 		expect(mockExec).toHaveBeenCalledWith(
@@ -416,7 +437,7 @@ describe("runComputerUse", () => {
 
 	it("moves cursor on Linux", async () => {
 		setPlatform("linux");
-		const r = await runComputerUse({ action: "move", x: 500, y: 600 });
+		const r = await runComputerUse(native({ action: "move", x: 500, y: 600 }));
 		expect(r.content).toBe("Moved cursor to (500, 600)");
 	});
 
@@ -428,6 +449,7 @@ describe("runComputerUse", () => {
 			start_y: 20,
 			x: 200,
 			y: 300,
+			coordinate_space: "native",
 		});
 		expect(r.content).toBe("Dragged from (10, 20) to (200, 300)");
 		expect(mockExec).toHaveBeenCalledWith(
@@ -523,7 +545,7 @@ describe("runComputerUse", () => {
 			throw new Error("xdotool not found");
 		});
 
-		const r = await runComputerUse({ action: "click", x: 100, y: 200 });
+		const r = await runComputerUse(native({ action: "click", x: 100, y: 200 }));
 		expect(r.is_error).toBe(true);
 		expect(r.content).toContain("xdotool");
 	});
@@ -549,7 +571,45 @@ describe("runComputerUse", () => {
 
 	it("rounds fractional coordinates", async () => {
 		setPlatform("darwin");
-		const r = await runComputerUse({ action: "click", x: 300.7, y: 400.3 });
+		const r = await runComputerUse(
+			native({ action: "click", x: 300.7, y: 400.3 }),
+		);
 		expect(r.content).toBe("Clicked at (301, 400)");
+	});
+
+	it("converts last screenshot display coordinates before clicking", async () => {
+		setPlatform("darwin");
+		rememberLastActionableScreenshot(
+			createScreenshotCoordinateMap(
+				{ width: 3000, height: 2000 },
+				{ width: 1500, height: 1000 },
+			),
+		);
+
+		const r = await runComputerUse({
+			action: "click",
+			x: 750,
+			y: 250,
+			coordinate_space: "last_screenshot_display",
+		});
+
+		expect(r.content).toBe("Clicked at (1500, 500)");
+		expect(mockExec).toHaveBeenCalledWith(
+			"cliclick",
+			["c:1500,500"],
+			expect.any(Object),
+		);
+	});
+
+	it("rejects display coordinates without an actionable screenshot", async () => {
+		setPlatform("darwin");
+		const r = await runComputerUse({
+			action: "click",
+			x: 750,
+			y: 250,
+			coordinate_space: "last_screenshot_display",
+		});
+		expect(r.is_error).toBe(true);
+		expect(r.content).toContain("requires a prior actionable screenshot");
 	});
 });

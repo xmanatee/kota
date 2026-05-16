@@ -4,12 +4,22 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
+import {
+	calculateDisplayDimensions,
+	createScreenshotCoordinateMap,
+	type GuiDimensions,
+	readPngDimensions,
+	rememberLastActionableScreenshot,
+	type ScreenshotCoordinateMap,
+	type ScreenshotResizeLimits,
+} from "./gui-coordinate-scaling.js";
 
 export const screenshotTool: KotaTool = {
 	name: "screenshot",
 	description:
 		"Capture a screenshot of the screen for visual analysis. " +
-		"Returns the image so you can see what's on screen. " +
+		"Returns the image plus native/display dimensions and display-to-native scale factors. " +
+		"Use coordinate_space=\"last_screenshot_display\" in computer_use for coordinates measured on this image. " +
 		"Use for: reading on-screen content, debugging UIs, monitoring dashboards, " +
 		"understanding visual context, extracting data from charts/graphs.",
 	input_schema: {
@@ -25,16 +35,24 @@ export const screenshotTool: KotaTool = {
 	},
 };
 
-/** Max image dimension (pixels) — Claude's optimal limit. */
-const MAX_DIM = 1568;
+const DEFAULT_RESIZE_LIMITS: ScreenshotResizeLimits = {
+	maxLongEdge: 1568,
+	maxPixels: 1_200_000,
+};
 const CAPTURE_TIMEOUT = 10_000;
 const RESIZE_TIMEOUT = 10_000;
 
-export type ScreenshotResult = {
-	captured: boolean;
-	sizeKB: number;
-	error?: string;
-};
+export type ScreenshotResult =
+	| {
+			captured: true;
+			sizeKB: number;
+			coordinateMap: ScreenshotCoordinateMap;
+	  }
+	| {
+			captured: false;
+			sizeKB: 0;
+			error: string;
+	  };
 
 export async function runScreenshot(
 	input: Record<string, unknown>,
@@ -46,10 +64,8 @@ export async function runScreenshot(
 	try {
 		if (os === "darwin") {
 			captureDarwin(rawPath);
-			resizeDarwin(rawPath);
 		} else if (os === "linux") {
 			captureLinux(rawPath);
-			resizeLinux(rawPath);
 		} else {
 			return {
 				content: `Screenshot not supported on ${os}. Supported: macOS, Linux.`,
@@ -57,13 +73,38 @@ export async function runScreenshot(
 			};
 		}
 
+		const nativeBuffer = readFileSync(rawPath);
+		const nativeDimensions = readPngDimensions(nativeBuffer);
+		const targetDisplayDimensions = calculateDisplayDimensions(
+			nativeDimensions,
+			DEFAULT_RESIZE_LIMITS,
+		);
+		let resizeSucceeded = false;
+		if (!sameDimensions(nativeDimensions, targetDisplayDimensions)) {
+			const resized =
+				os === "darwin"
+					? resizeDarwin(rawPath, nativeDimensions, targetDisplayDimensions)
+					: resizeLinux(rawPath, targetDisplayDimensions);
+			resizeSucceeded = resized;
+		}
 		const imageBuffer = readFileSync(rawPath);
+		const displayDimensions = resizeSucceeded
+			? readPngDimensions(imageBuffer)
+			: nativeDimensions;
+		const coordinateMap = createScreenshotCoordinateMap(
+			nativeDimensions,
+			displayDimensions,
+		);
+		rememberLastActionableScreenshot(coordinateMap);
+
 		const base64 = imageBuffer.toString("base64");
 		const sizeKB = Math.round(imageBuffer.length / 1024);
 		cleanup(rawPath);
 
 		const contextLine = description ? `\nContext: ${description}` : "";
-		const textContent = `Screenshot captured (${sizeKB}KB).${contextLine}\nDescribe what you see in the image.`;
+		const textContent =
+			`Screenshot captured (${sizeKB}KB). Native ${nativeDimensions.width}x${nativeDimensions.height}; displayed ${displayDimensions.width}x${displayDimensions.height}; display-to-native scale ${formatScale(coordinateMap.scaleX)}x, ${formatScale(coordinateMap.scaleY)}y. ` +
+			`For computer_use coordinate actions, set coordinate_space to "last_screenshot_display" for coordinates measured on this image or "native" for OS coordinates.${contextLine}`;
 
 		return {
 			content: textContent,
@@ -118,37 +159,38 @@ function captureLinux(path: string): void {
 }
 
 /** Downscale on macOS using sips (always available). Only shrinks, never upscales. */
-function resizeDarwin(path: string): void {
+function resizeDarwin(
+	path: string,
+	native: GuiDimensions,
+	display: GuiDimensions,
+): boolean {
 	try {
-		const info = execFileSync("sips", ["-g", "pixelWidth", path], {
-			timeout: RESIZE_TIMEOUT,
-			stdio: "pipe",
-			encoding: "utf-8",
-		});
-		const match = info.match(/pixelWidth:\s*(\d+)/);
-		const width = match ? Number.parseInt(match[1], 10) : 0;
-		if (width > MAX_DIM) {
-			execFileSync(
-				"sips",
-				["--resampleWidth", String(MAX_DIM), path, "--out", path],
-				{ timeout: RESIZE_TIMEOUT, stdio: "pipe" },
-			);
-		}
+		const dimensionFlag =
+			display.width !== native.width ? "--resampleWidth" : "--resampleHeight";
+		const dimensionValue =
+			display.width !== native.width ? display.width : display.height;
+		execFileSync(
+			"sips",
+			[dimensionFlag, String(dimensionValue), path, "--out", path],
+			{ timeout: RESIZE_TIMEOUT, stdio: "pipe" },
+		);
+		return true;
 	} catch {
-		// Resize failed — use original resolution
+		return false;
 	}
 }
 
 /** Downscale on Linux using ImageMagick convert. The `>` flag prevents upscaling. */
-function resizeLinux(path: string): void {
+function resizeLinux(path: string, display: GuiDimensions): boolean {
 	try {
 		execFileSync(
 			"convert",
-			[path, "-resize", `${MAX_DIM}x>`, path],
+			[path, "-resize", `${display.width}x${display.height}>`, path],
 			{ timeout: RESIZE_TIMEOUT, stdio: "pipe" },
 		);
+		return true;
 	} catch {
-		// ImageMagick not available — use original resolution
+		return false;
 	}
 }
 
@@ -165,4 +207,12 @@ function platformHint(os: string): string {
 	if (os === "linux")
 		return "Install gnome-screenshot, scrot, or ImageMagick";
 	return `Platform "${os}" is not supported`;
+}
+
+function sameDimensions(a: GuiDimensions, b: GuiDimensions): boolean {
+	return a.width === b.width && a.height === b.height;
+}
+
+function formatScale(scale: number): string {
+	return Number.isInteger(scale) ? String(scale) : scale.toFixed(4);
 }

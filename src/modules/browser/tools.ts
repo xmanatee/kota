@@ -164,7 +164,8 @@ export const browserScreenshotTool: KotaTool = {
   description:
     "Capture a screenshot of the current page or a specific element. " +
     "Returns the screenshot as a base64-encoded PNG image. " +
-    "Respects configurable max dimensions to avoid flooding agent context.",
+    "Respects configurable max dimensions to avoid flooding agent context. " +
+    "This is not a native desktop coordinate map for computer_use; use browser selectors for browser actions.",
   input_schema: {
     type: "object" as const,
     properties: {
@@ -226,7 +227,7 @@ export async function runBrowserScreenshot(
     const sizeKB = (buffer.byteLength / 1024).toFixed(1);
 
     return {
-      content: `Screenshot captured (${sizeKB} KB, ${maxWidth}x${maxHeight} viewport)`,
+      content: `Screenshot captured (${sizeKB} KB, ${maxWidth}x${maxHeight} viewport). Not a native desktop coordinate map for computer_use; use browser selectors for browser actions.`,
       blocks: [
         {
           type: "image",
