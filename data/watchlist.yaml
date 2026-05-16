@@ -157,9 +157,9 @@ resources:
   - url: https://research.google/blog/
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:5d18aaf5ad4133091df1e7df3063384c
-      summary: "Google Research blog index recently leans into evaluation methodology (rater sufficiency, alignment of behavioral dispositions, synthetic-data design, user-simulator realism) plus purpose-built AI agents (academic figure/peer-review agents, XR Blocks Gemini prototyping) — relevant to KOTA autonomy-eval and agent-judge calibration work."
-      last_seen_at: "2026-04-20T12:32:55.787Z"
+      fingerprint: sha256:2049b8c5ef1abff336748708361e4745
+      summary: "Google Research has added ReasoningBank and empirical-research-assistance posts since the last stored snapshot; they are autonomy-eval reading material, but the current actionable local gap is shipped-preset pricing coverage rather than a new memory or self-reflection primitive."
+      last_seen_at: "2026-05-16T03:30:30.187Z"
   - url: https://vercel.com/blog/category/ai
     added: "2026-04-19"
     status: inaccessible
