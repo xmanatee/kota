@@ -276,6 +276,38 @@ describe("pruneMessages", () => {
     expect(resultMsg.content[0].content).toContain("image");
   });
 
+  it("prunes enriched image-bearing results to a visible placeholder", () => {
+    const imageContent: KotaToolResultBlockContent = [
+      { type: "image", source: { type: "base64", media_type: "image/png", data: "abc" } },
+      {
+        type: "mcp_content",
+        content: { type: "audio", data: "def", mimeType: "audio/wav" },
+      },
+    ];
+    const messages: Message[] = [
+      toolUse("file_read", { path: "screenshot.png" }, "t1"),
+      {
+        role: "user",
+        content: [{
+          type: "tool_result",
+          tool_use_id: "t1",
+          content: imageContent,
+          structuredContent: { objects: 1 },
+          _meta: { resultCache: "r1" },
+        }],
+      },
+      ...Array.from({ length: 6 }, (_, i) => ({
+        role: "user" as const,
+        content: `msg-${i}`,
+      })),
+    ];
+
+    const stats = pruneMessages(messages, { keepRecent: 4, minLength: 100 });
+    expect(stats.prunedCount).toBe(1);
+    const resultMsg = messages[1] as { role: string; content: Array<{ content: string }> };
+    expect(resultMsg.content[0].content).toContain("Previously viewed image");
+  });
+
   it("handles mixed pruneable and non-pruneable in same message", () => {
     const messages: Message[] = [
       {

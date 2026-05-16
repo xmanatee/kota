@@ -104,6 +104,8 @@ export class ToolsHandler {
 
 		this.ctx.transport.sendResult(msg, {
 			content,
+			...(result.structuredContent ? { structuredContent: result.structuredContent } : {}),
+			...(result._meta ? { _meta: result._meta } : {}),
 			...(result.is_error && { isError: true }),
 		});
 	}
@@ -168,9 +170,19 @@ export function toolResultToMcp(result: ToolResult): McpContentBlock[] {
 					type: "image" as const,
 					data: block.source.data,
 					mimeType: block.source.media_type,
+					...(block.annotations ? { annotations: block.annotations } : {}),
+					...(block._meta ? { _meta: block._meta } : {}),
 				};
 			}
-			return { type: "text" as const, text: block.text };
+			if (block.type === "mcp_content") {
+				return block.content;
+			}
+			return {
+				type: "text" as const,
+				text: block.text,
+				...(block.annotations ? { annotations: block.annotations } : {}),
+				...(block._meta ? { _meta: block._meta } : {}),
+			};
 		});
 	}
 	return [{ type: "text", text: result.content }];

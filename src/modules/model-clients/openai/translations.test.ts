@@ -72,7 +72,7 @@ describe("extractToolResultContent", () => {
 		expect(extractToolResultContent(block)).toBe("[ERROR] something failed");
 	});
 
-	it("filters non-text blocks from content array", () => {
+	it("rejects image blocks it cannot translate in content arrays", () => {
 		const block: KotaToolResultBlock = {
 			type: "tool_result",
 			tool_use_id: "t1",
@@ -84,7 +84,9 @@ describe("extractToolResultContent", () => {
 				{ type: "text", text: "visible" },
 			],
 		};
-		expect(extractToolResultContent(block)).toBe("visible");
+		expect(() => extractToolResultContent(block)).toThrow(
+			/content\[0\]\.image:image\/png/,
+		);
 	});
 
 	it("returns prefix only for empty content array", () => {
@@ -94,6 +96,33 @@ describe("extractToolResultContent", () => {
 			content: [],
 		};
 		expect(extractToolResultContent(block)).toBe("");
+	});
+
+	it("rejects enriched tool_result fields it cannot translate", () => {
+		const block: KotaToolResultBlock = {
+			type: "tool_result",
+			tool_use_id: "t1",
+			content: [{ type: "text", text: "visible", _meta: { blockCache: "b1" } }],
+			structuredContent: { answer: 42 },
+			_meta: { resultCache: "r1" },
+		};
+		expect(() => extractToolResultContent(block)).toThrow(
+			/enriched tool_result fields: structuredContent, _meta, content\[0\]\._meta/,
+		);
+	});
+
+	it("rejects MCP-only tool_result content explicitly", () => {
+		const block: KotaToolResultBlock = {
+			type: "tool_result",
+			tool_use_id: "t1",
+			content: [{
+				type: "mcp_content",
+				content: { type: "audio", data: "abc", mimeType: "audio/wav" },
+			}],
+		};
+		expect(() => extractToolResultContent(block)).toThrow(
+			/content\[0\]\.mcp_content:audio/,
+		);
 	});
 });
 
@@ -203,7 +232,7 @@ describe("kotaMessageToOpenAiMessage round-trip coverage", () => {
 		]);
 	});
 
-	it("translates a tool_result with block content, joining text and dropping images", () => {
+	it("rejects a tool_result with mixed text and image block content", () => {
 		const textA: KotaTextBlock = { type: "text", text: "first" };
 		const textB: KotaTextBlock = { type: "text", text: "second" };
 		const image: KotaImageBlock = {
@@ -216,12 +245,12 @@ describe("kotaMessageToOpenAiMessage round-trip coverage", () => {
 			content: [textA, image, textB],
 		};
 		const msg: KotaMessage = { role: "user", content: [resultBlock] };
-		expect(kotaMessageToOpenAiMessage(msg)).toEqual([
-			{ role: "tool", tool_call_id: "t1", content: "first\nsecond" },
-		]);
+		expect(() => kotaMessageToOpenAiMessage(msg)).toThrow(
+			/content\[1\]\.image:image\/png/,
+		);
 	});
 
-	it("translates a tool_result with image-only content into a prefix-only tool entry", () => {
+	it("rejects a tool_result with image-only block content", () => {
 		const image: KotaImageBlock = {
 			type: "image",
 			source: { type: "base64", media_type: "image/png", data: "abc" },
@@ -232,9 +261,9 @@ describe("kotaMessageToOpenAiMessage round-trip coverage", () => {
 			content: [image],
 		};
 		const msg: KotaMessage = { role: "user", content: [resultBlock] };
-		expect(kotaMessageToOpenAiMessage(msg)).toEqual([
-			{ role: "tool", tool_call_id: "t1", content: "" },
-		]);
+		expect(() => kotaMessageToOpenAiMessage(msg)).toThrow(
+			/content\[0\]\.image:image\/png/,
+		);
 	});
 });
 

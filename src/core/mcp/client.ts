@@ -1,5 +1,16 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { createInterface, type Interface } from "node:readline";
+import type {
+  KotaJsonObject,
+  KotaJsonValue,
+  KotaMcpAnnotations,
+  KotaMcpBlobResourceContents,
+  KotaMcpIcon,
+  KotaMcpPreservedContent,
+  KotaMcpResourceContents,
+  KotaMcpTextResourceContents,
+} from "#core/agent-harness/message-protocol.js";
+import type { ToolResultBlock } from "#core/tools/tool-result.js";
 
 export type McpToolSchema = {
   name: string;
@@ -36,8 +47,338 @@ type PendingRequest = {
   reject: (reason: Error) => void;
 };
 
+export type McpToolTextContent = {
+  type: "text";
+  text: string;
+  annotations?: KotaMcpAnnotations;
+  _meta?: KotaJsonObject;
+};
+
+export type McpToolImageContent = {
+  type: "image";
+  data: string;
+  mimeType: string;
+  annotations?: KotaMcpAnnotations;
+  _meta?: KotaJsonObject;
+};
+
+export type McpToolContentBlock =
+  | McpToolTextContent
+  | McpToolImageContent
+  | KotaMcpPreservedContent;
+
+export type McpCallToolResult = {
+  content: McpToolContentBlock[];
+  text: string;
+  blocks: ToolResultBlock[];
+  structuredContent?: KotaJsonObject;
+  _meta?: KotaJsonObject;
+  isError?: boolean;
+};
+
 const CONNECT_TIMEOUT = 10_000;
 const CALL_TIMEOUT = 120_000;
+
+function isJsonValue(value: JsonRpcResponse["result"]): value is KotaJsonValue {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return true;
+  }
+  if (Array.isArray(value)) return value.every(isJsonValue);
+  if (typeof value !== "object") return false;
+  return Object.values(value).every(isJsonValue);
+}
+
+function isJsonObject(value: JsonRpcResponse["result"]): value is KotaJsonObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function requireJsonObject(
+  value: JsonRpcResponse["result"],
+  label: string,
+): KotaJsonObject {
+  if (!isJsonObject(value)) {
+    throw new Error(`Malformed MCP tools/call result: ${label} must be an object`);
+  }
+  return value;
+}
+
+function requireString(value: KotaJsonValue | undefined, label: string): string {
+  if (typeof value !== "string") {
+    throw new Error(`Malformed MCP tools/call result: ${label} must be a string`);
+  }
+  return value;
+}
+
+function optionalString(value: KotaJsonValue | undefined, label: string): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string") {
+    throw new Error(`Malformed MCP tools/call result: ${label} must be a string`);
+  }
+  return value;
+}
+
+function optionalNumber(value: KotaJsonValue | undefined, label: string): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "number") {
+    throw new Error(`Malformed MCP tools/call result: ${label} must be a number`);
+  }
+  return value;
+}
+
+function optionalBoolean(value: KotaJsonValue | undefined, label: string): boolean | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "boolean") {
+    throw new Error(`Malformed MCP tools/call result: ${label} must be a boolean`);
+  }
+  return value;
+}
+
+function optionalStringArray(
+  value: KotaJsonValue | undefined,
+  label: string,
+): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || !value.every((entry) => typeof entry === "string")) {
+    throw new Error(`Malformed MCP tools/call result: ${label} must be a string array`);
+  }
+  return value;
+}
+
+function optionalJsonObject(
+  value: KotaJsonValue | undefined,
+  label: string,
+): KotaJsonObject | undefined {
+  if (value === undefined) return undefined;
+  if (!isJsonObject(value)) {
+    throw new Error(`Malformed MCP tools/call result: ${label} must be an object`);
+  }
+  return value;
+}
+
+function decodeAnnotations(
+  value: KotaJsonValue | undefined,
+  label: string,
+): KotaMcpAnnotations | undefined {
+  const object = optionalJsonObject(value, label);
+  if (!object) return undefined;
+  const audience = optionalStringArray(object.audience, `${label}.audience`);
+  if (audience?.some((role) => role !== "user" && role !== "assistant")) {
+    throw new Error(
+      `Malformed MCP tools/call result: ${label}.audience must contain user or assistant`,
+    );
+  }
+  const priority = optionalNumber(object.priority, `${label}.priority`);
+  const lastModified = optionalString(object.lastModified, `${label}.lastModified`);
+  return {
+    ...(audience ? { audience: audience as Array<"user" | "assistant"> } : {}),
+    ...(priority !== undefined ? { priority } : {}),
+    ...(lastModified !== undefined ? { lastModified } : {}),
+  };
+}
+
+function decodeTextResourceContents(
+  object: KotaJsonObject,
+  label: string,
+): KotaMcpTextResourceContents {
+  const mimeType = optionalString(object.mimeType, `${label}.mimeType`);
+  const meta = optionalJsonObject(object._meta, `${label}._meta`);
+  return {
+    uri: requireString(object.uri, `${label}.uri`),
+    ...(mimeType !== undefined ? { mimeType } : {}),
+    text: requireString(object.text, `${label}.text`),
+    ...(meta ? { _meta: meta } : {}),
+  };
+}
+
+function decodeBlobResourceContents(
+  object: KotaJsonObject,
+  label: string,
+): KotaMcpBlobResourceContents {
+  const mimeType = optionalString(object.mimeType, `${label}.mimeType`);
+  const meta = optionalJsonObject(object._meta, `${label}._meta`);
+  return {
+    uri: requireString(object.uri, `${label}.uri`),
+    ...(mimeType !== undefined ? { mimeType } : {}),
+    blob: requireString(object.blob, `${label}.blob`),
+    ...(meta ? { _meta: meta } : {}),
+  };
+}
+
+function decodeResourceContents(
+  value: KotaJsonValue | undefined,
+  label: string,
+): KotaMcpResourceContents {
+  const object = optionalJsonObject(value, label);
+  if (!object) {
+    throw new Error(`Malformed MCP tools/call result: ${label} must be an object`);
+  }
+  if (typeof object.text === "string") return decodeTextResourceContents(object, label);
+  if (typeof object.blob === "string") return decodeBlobResourceContents(object, label);
+  throw new Error(`Malformed MCP tools/call result: ${label} must include text or blob`);
+}
+
+function decodeIcons(value: KotaJsonValue | undefined, label: string): KotaMcpIcon[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) {
+    throw new Error(`Malformed MCP tools/call result: ${label} must be an array`);
+  }
+  return value.map((entry, index) => {
+    const object = optionalJsonObject(entry, `${label}[${index}]`);
+    if (!object) {
+      throw new Error(`Malformed MCP tools/call result: ${label}[${index}] must be an object`);
+    }
+    const mimeType = optionalString(object.mimeType, `${label}[${index}].mimeType`);
+    const sizes = optionalStringArray(object.sizes, `${label}[${index}].sizes`);
+    const theme = optionalString(object.theme, `${label}[${index}].theme`);
+    if (theme !== undefined && theme !== "light" && theme !== "dark") {
+      throw new Error(
+        `Malformed MCP tools/call result: ${label}[${index}].theme must be light or dark`,
+      );
+    }
+    return {
+      src: requireString(object.src, `${label}[${index}].src`),
+      ...(mimeType !== undefined ? { mimeType } : {}),
+      ...(sizes !== undefined ? { sizes } : {}),
+      ...(theme !== undefined ? { theme: theme as "light" | "dark" } : {}),
+    };
+  });
+}
+
+function decodeMcpContentBlock(
+  value: KotaJsonValue,
+  index: number,
+): McpToolContentBlock {
+  const label = `content[${index}]`;
+  const object = optionalJsonObject(value, label);
+  if (!object) {
+    throw new Error(`Malformed MCP tools/call result: ${label} must be an object`);
+  }
+  const type = requireString(object.type, `${label}.type`);
+  const annotations = decodeAnnotations(object.annotations, `${label}.annotations`);
+  const meta = optionalJsonObject(object._meta, `${label}._meta`);
+  switch (type) {
+    case "text":
+      return {
+        type: "text",
+        text: requireString(object.text, `${label}.text`),
+        ...(annotations ? { annotations } : {}),
+        ...(meta ? { _meta: meta } : {}),
+      };
+    case "image":
+      return {
+        type: "image",
+        data: requireString(object.data, `${label}.data`),
+        mimeType: requireString(object.mimeType, `${label}.mimeType`),
+        ...(annotations ? { annotations } : {}),
+        ...(meta ? { _meta: meta } : {}),
+      };
+    case "audio":
+      return {
+        type: "audio",
+        data: requireString(object.data, `${label}.data`),
+        mimeType: requireString(object.mimeType, `${label}.mimeType`),
+        ...(annotations ? { annotations } : {}),
+        ...(meta ? { _meta: meta } : {}),
+      };
+    case "resource":
+      return {
+        type: "resource",
+        resource: decodeResourceContents(object.resource, `${label}.resource`),
+        ...(annotations ? { annotations } : {}),
+        ...(meta ? { _meta: meta } : {}),
+      };
+    case "resource_link": {
+      const icons = decodeIcons(object.icons, `${label}.icons`);
+      const title = optionalString(object.title, `${label}.title`);
+      const description = optionalString(object.description, `${label}.description`);
+      const mimeType = optionalString(object.mimeType, `${label}.mimeType`);
+      const size = optionalNumber(object.size, `${label}.size`);
+      return {
+        type: "resource_link",
+        uri: requireString(object.uri, `${label}.uri`),
+        name: requireString(object.name, `${label}.name`),
+        ...(title !== undefined ? { title } : {}),
+        ...(description !== undefined ? { description } : {}),
+        ...(mimeType !== undefined ? { mimeType } : {}),
+        ...(size !== undefined ? { size } : {}),
+        ...(icons ? { icons } : {}),
+        ...(annotations ? { annotations } : {}),
+        ...(meta ? { _meta: meta } : {}),
+      };
+    }
+    default:
+      return { type: "unknown", mcpType: type, raw: object };
+  }
+}
+
+function decodeContent(value: KotaJsonValue | undefined): McpToolContentBlock[] {
+  if (!Array.isArray(value)) {
+    throw new Error("Malformed MCP tools/call result: content must be an array");
+  }
+  return value.map(decodeMcpContentBlock);
+}
+
+function toResultText(content: McpToolContentBlock[]): string {
+  const text = content
+    .filter((block): block is McpToolTextContent => block.type === "text")
+    .map((block) => block.text)
+    .join("\n");
+  return text || "(no output)";
+}
+
+function toToolResultBlock(block: McpToolContentBlock): ToolResultBlock {
+  if (block.type === "text") {
+    return {
+      type: "text",
+      text: block.text,
+      ...(block.annotations ? { annotations: block.annotations } : {}),
+      ...(block._meta ? { _meta: block._meta } : {}),
+    };
+  }
+  if (block.type === "image") {
+    return {
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: block.mimeType,
+        data: block.data,
+      },
+      ...(block.annotations ? { annotations: block.annotations } : {}),
+      ...(block._meta ? { _meta: block._meta } : {}),
+    };
+  }
+  return { type: "mcp_content", content: block };
+}
+
+function decodeCallToolResult(value: JsonRpcResponse["result"]): McpCallToolResult {
+  const object = requireJsonObject(value, "result");
+  const content = decodeContent(object.content);
+  if (
+    object.structuredContent !== undefined &&
+    !isJsonValue(object.structuredContent)
+  ) {
+    throw new Error("Malformed MCP tools/call result: structuredContent must be JSON");
+  }
+  const structuredContent = optionalJsonObject(
+    object.structuredContent,
+    "structuredContent",
+  );
+  const meta = optionalJsonObject(object._meta, "_meta");
+  const isError = optionalBoolean(object.isError, "isError");
+  return {
+    content,
+    text: toResultText(content),
+    blocks: content.map(toToolResultBlock),
+    ...(structuredContent ? { structuredContent } : {}),
+    ...(meta ? { _meta: meta } : {}),
+    ...(isError !== undefined ? { isError } : {}),
+  };
+}
 
 /**
  * Lightweight MCP client using JSON-RPC 2.0 over stdio.
@@ -146,18 +487,9 @@ export class McpClient {
   async callTool(
     name: string,
     args: Record<string, unknown>,
-  ): Promise<{ content: string; isError?: boolean }> {
-    const result = await this.request("tools/call", { name, arguments: args }, CALL_TIMEOUT) as {
-      content: Array<{ type: string; text?: string }>;
-      isError?: boolean;
-    };
-
-    const text = (result.content || [])
-      .filter((c) => c.type === "text" && c.text)
-      .map((c) => c.text)
-      .join("\n");
-
-    return { content: text || "(no output)", isError: result.isError };
+  ): Promise<McpCallToolResult> {
+    const result = await this.request("tools/call", { name, arguments: args }, CALL_TIMEOUT);
+    return decodeCallToolResult(result);
   }
 
   /** Gracefully shut down the server. */

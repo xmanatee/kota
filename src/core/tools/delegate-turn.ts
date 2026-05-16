@@ -1,4 +1,5 @@
 import type {
+  KotaJsonObject,
   KotaMessage,
   KotaModelResponse,
   KotaTextBlock,
@@ -51,6 +52,15 @@ export type TurnLoopResult = {
   completionReason: CompletionReason;
   lastText: string;
   totalTurns: number;
+};
+
+type DelegateToolResultEntry = {
+  tool_use_id: string;
+  content: string;
+  blocks?: ToolResultBlock[];
+  structuredContent?: KotaJsonObject;
+  _meta?: KotaJsonObject;
+  is_error?: boolean;
 };
 
 export async function runDelegateTurns(opts: TurnLoopOptions): Promise<TurnLoopResult> {
@@ -165,7 +175,7 @@ export async function runDelegateTurns(opts: TurnLoopOptions): Promise<TurnLoopR
     }
 
     const results = await Promise.all(
-      toolBlocks.map(async (block) => {
+      toolBlocks.map(async (block): Promise<DelegateToolResultEntry | null> => {
         if (block.type !== "tool_use") return null;
         const toolInput = block.input as Record<string, unknown>;
 
@@ -202,8 +212,10 @@ export async function runDelegateTurns(opts: TurnLoopOptions): Promise<TurnLoopR
         return {
           tool_use_id: block.id,
           content: truncateToolResult(result.content, SUB_AGENT_RESULT_LIMIT),
-          blocks: result.blocks,
-          is_error: result.is_error,
+          ...(result.blocks ? { blocks: result.blocks } : {}),
+          ...(result.structuredContent ? { structuredContent: result.structuredContent } : {}),
+          ...(result._meta ? { _meta: result._meta } : {}),
+          ...(result.is_error !== undefined ? { is_error: result.is_error } : {}),
         };
       }),
     );
@@ -244,7 +256,9 @@ export async function runDelegateTurns(opts: TurnLoopOptions): Promise<TurnLoopR
         content: r.blocks
           ? (r.blocks as KotaToolResultBlockContent)
           : r.content,
-        is_error: r.is_error,
+        ...(r.structuredContent ? { structuredContent: r.structuredContent } : {}),
+        ...(r._meta ? { _meta: r._meta } : {}),
+        ...(r.is_error !== undefined ? { is_error: r.is_error } : {}),
       })),
     });
   }

@@ -6,12 +6,17 @@
  * this type without pulling in the entire tool implementation bundle.
  */
 
-export type ToolResultBlock =
-  | { type: "text"; text: string }
-  | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
+import type {
+  KotaJsonObject,
+  KotaToolResultContentBlock,
+} from "#core/agent-harness/message-protocol.js";
+
+export type ToolResultBlock = KotaToolResultContentBlock;
 
 export type ToolResult = {
   content: string;
   blocks?: ToolResultBlock[];
+  structuredContent?: KotaJsonObject;
+  _meta?: KotaJsonObject;
   is_error?: boolean;
 };

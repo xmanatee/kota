@@ -177,6 +177,58 @@ describe("McpManager", () => {
     await manager.close();
   }, 10_000);
 
+  it("executeTool preserves structured metadata, rich content, and tool errors", async () => {
+    const manager = new McpManager();
+    const server = `
+      const rl = require("readline").createInterface({ input: process.stdin });
+      rl.on("line", (line) => {
+        let msg;
+        try { msg = JSON.parse(line); } catch { return; }
+        if (msg.method === "initialize") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            protocolVersion: "2024-11-05", capabilities: {},
+          }}) + "\\n");
+        } else if (msg.method === "tools/list") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            tools: [{ name: "rich", inputSchema: { type: "object" } }],
+          }}) + "\\n");
+        } else if (msg.method === "tools/call" && msg.params.name === "rich") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            content: [
+              { type: "text", text: "visible", _meta: { blockCache: "b1" } },
+              { type: "image", data: "abc", mimeType: "image/png" },
+              { type: "audio", data: "def", mimeType: "audio/wav" },
+            ],
+            structuredContent: { count: 3 },
+            _meta: { resultCache: "r1" },
+            isError: true,
+          }}) + "\\n");
+        } else if (msg.method === "shutdown") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {} }) + "\\n");
+        }
+      });
+    `;
+    await manager.initialize({
+      mcpServers: { rich: { command: "node", args: ["-e", server] } },
+    });
+
+    const result = await manager.executeTool("mcp__rich__rich", {});
+    expect(result.content).toBe("visible");
+    expect(result.blocks).toEqual([
+      { type: "text", text: "visible", _meta: { blockCache: "b1" } },
+      {
+        type: "image",
+        source: { type: "base64", media_type: "image/png", data: "abc" },
+      },
+      { type: "mcp_content", content: { type: "audio", data: "def", mimeType: "audio/wav" } },
+    ]);
+    expect(result.structuredContent).toEqual({ count: 3 });
+    expect(result._meta).toEqual({ resultCache: "r1" });
+    expect(result.is_error).toBe(true);
+
+    await manager.close();
+  }, 10_000);
+
   it("mixed success/failure in multi-server init", async () => {
     const manager = new McpManager();
     const goodServer = `

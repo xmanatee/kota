@@ -1,12 +1,12 @@
 ---
 id: task-preserve-mcp-tool-result-metadata-through-the-client-runtime
 title: Preserve MCP tool result metadata through the client runtime
-status: ready
+status: done
 priority: p2
 area: core
 summary: Keep MCP CallToolResult structuredContent, _meta, non-text content, and execution-error shape intact when external MCP tools are routed into KOTA sessions.
 created_at: 2026-05-16T09:24:49Z
-updated_at: 2026-05-16T09:24:49Z
+updated_at: 2026-05-16T09:45:57Z
 ---
 
 ## Problem

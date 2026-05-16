@@ -243,6 +243,41 @@ describe("Context", () => {
       // When blocks are provided, they should be used instead of string content
       expect(content[0].content).toEqual([{ type: "text", text: "rich content" }]);
     });
+
+    it("preserves enriched tool result fields in the transcript", () => {
+      ctx.addToolResults([
+        {
+          tool_use_id: "id1",
+          content: "fallback",
+          blocks: [
+            { type: "text", text: "visible", _meta: { blockCache: "b1" } },
+            {
+              type: "mcp_content",
+              content: { type: "audio", data: "abc", mimeType: "audio/wav" },
+            },
+          ],
+          structuredContent: { answer: 42 },
+          _meta: { resultCache: "r1" },
+          is_error: true,
+        },
+      ]);
+
+      const content = ctx.getMessages()[0].content as KotaToolResultBlock[];
+      expect(content[0]).toEqual({
+        type: "tool_result",
+        tool_use_id: "id1",
+        content: [
+          { type: "text", text: "visible", _meta: { blockCache: "b1" } },
+          {
+            type: "mcp_content",
+            content: { type: "audio", data: "abc", mimeType: "audio/wav" },
+          },
+        ],
+        structuredContent: { answer: 42 },
+        _meta: { resultCache: "r1" },
+        is_error: true,
+      });
+    });
   });
 
   describe("save/load", () => {

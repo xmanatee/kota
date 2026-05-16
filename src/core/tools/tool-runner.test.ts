@@ -204,9 +204,19 @@ describe("executeToolCalls", () => {
   });
 
   it("routes MCP tools through mcpManager", async () => {
+    const imageBlock = {
+      type: "image" as const,
+      source: { type: "base64" as const, media_type: "image/png", data: "abc" },
+    };
     const mcpManager = {
       isMcpTool: vi.fn((name: string) => name.startsWith("mcp__")),
-      executeTool: vi.fn().mockResolvedValue({ content: "mcp result" }),
+      executeTool: vi.fn().mockResolvedValue({
+        content: "mcp result",
+        blocks: [{ type: "text", text: "mcp result" }, imageBlock],
+        structuredContent: { answer: 42 },
+        _meta: { cache: "hit" },
+        is_error: true,
+      }),
     };
     const results = await executeToolCalls(
       [toolBlock("mcp__server__tool", { q: "test" })],
@@ -218,6 +228,10 @@ describe("executeToolCalls", () => {
     );
     expect(mockExecuteTool).not.toHaveBeenCalled();
     expect(results[0].content).toBe("mcp result");
+    expect(results[0].blocks).toEqual([{ type: "text", text: "mcp result" }, imageBlock]);
+    expect(results[0].structuredContent).toEqual({ answer: 42 });
+    expect(results[0]._meta).toEqual({ cache: "hit" });
+    expect(results[0].is_error).toBe(true);
   });
 
   it("uses executeTool for non-MCP tools when mcpManager present", async () => {

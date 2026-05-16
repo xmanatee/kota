@@ -59,11 +59,32 @@ export type KotaRole = "user" | "assistant";
  */
 export type KotaCacheControl = { type: "ephemeral" };
 
+/** JSON value shape used for structured tool output and protocol metadata. */
+export type KotaJsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | KotaJsonValue[]
+  | { [key: string]: KotaJsonValue };
+
+/** JSON object shape for structured tool output and protocol metadata. */
+export type KotaJsonObject = { [key: string]: KotaJsonValue };
+
+/** MCP content annotations preserved on neutral tool-result blocks. */
+export type KotaMcpAnnotations = {
+  audience?: KotaRole[];
+  priority?: number;
+  lastModified?: string;
+};
+
 /** Neutral text content block. */
 export type KotaTextBlock = {
   type: "text";
   text: string;
   cache_control?: KotaCacheControl;
+  annotations?: KotaMcpAnnotations;
+  _meta?: KotaJsonObject;
 };
 
 /**
@@ -86,6 +107,76 @@ export type KotaImageBlock = {
     media_type: string;
     data: string;
   };
+  annotations?: KotaMcpAnnotations;
+  _meta?: KotaJsonObject;
+};
+
+export type KotaMcpTextResourceContents = {
+  uri: string;
+  mimeType?: string;
+  text: string;
+  _meta?: KotaJsonObject;
+};
+
+export type KotaMcpBlobResourceContents = {
+  uri: string;
+  mimeType?: string;
+  blob: string;
+  _meta?: KotaJsonObject;
+};
+
+export type KotaMcpResourceContents =
+  | KotaMcpTextResourceContents
+  | KotaMcpBlobResourceContents;
+
+export type KotaMcpIcon = {
+  src: string;
+  mimeType?: string;
+  sizes?: string[];
+  theme?: "light" | "dark";
+};
+
+/**
+ * MCP content kinds that KOTA's current provider adapters cannot represent
+ * directly. The neutral transcript keeps them explicit so adapter seams can
+ * reject them loudly instead of erasing them during MCP routing.
+ */
+export type KotaMcpPreservedContent =
+  | {
+      type: "audio";
+      data: string;
+      mimeType: string;
+      annotations?: KotaMcpAnnotations;
+      _meta?: KotaJsonObject;
+    }
+  | {
+      type: "resource";
+      resource: KotaMcpResourceContents;
+      annotations?: KotaMcpAnnotations;
+      _meta?: KotaJsonObject;
+    }
+  | {
+      type: "resource_link";
+      uri: string;
+      name: string;
+      title?: string;
+      description?: string;
+      mimeType?: string;
+      size?: number;
+      icons?: KotaMcpIcon[];
+      annotations?: KotaMcpAnnotations;
+      _meta?: KotaJsonObject;
+    }
+  | {
+      type: "unknown";
+      mcpType: string;
+      raw: KotaJsonObject;
+    };
+
+/** Neutral wrapper for MCP content that has no model-provider block analog. */
+export type KotaMcpPreservedContentBlock = {
+  type: "mcp_content";
+  content: KotaMcpPreservedContent;
 };
 
 /**
@@ -105,15 +196,22 @@ export type KotaThinkingBlock = {
  * results as plain text or as a list of structured blocks (text + image) when
  * the tool produced a rich payload.
  */
+export type KotaToolResultContentBlock =
+  | KotaTextBlock
+  | KotaImageBlock
+  | KotaMcpPreservedContentBlock;
+
 export type KotaToolResultBlockContent =
   | string
-  | Array<KotaTextBlock | KotaImageBlock>;
+  | KotaToolResultContentBlock[];
 
 /** Neutral tool-result content block. */
 export type KotaToolResultBlock = {
   type: "tool_result";
   tool_use_id: string;
   content: KotaToolResultBlockContent;
+  structuredContent?: KotaJsonObject;
+  _meta?: KotaJsonObject;
   is_error?: boolean;
 };
 

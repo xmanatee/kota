@@ -311,6 +311,35 @@ describe("maskObservations", () => {
     expect(r.content).toContain("[Observed: fetched https://example.com]");
   });
 
+  it("masks enriched tool results while preserving placeholder semantics", () => {
+    const messages: Message[] = [
+      toolUse("t1", "web_fetch", { url: "https://example.com/data" }),
+      {
+        role: "user",
+        content: [{
+          type: "tool_result",
+          tool_use_id: "t1",
+          content: [
+            { type: "text", text: filler(450), _meta: { blockCache: "b1" } },
+            {
+              type: "mcp_content",
+              content: { type: "audio", data: "abc", mimeType: "audio/wav" },
+            },
+          ],
+          structuredContent: { rows: 2 },
+          _meta: { resultCache: "r1" },
+        }],
+      },
+      textMsg("user", "recent"),
+      textMsg("assistant", "ok"),
+    ];
+
+    const stats = maskObservations(messages, 2);
+    expect(stats.maskedCount).toBe(1);
+    const result = (messages[1] as { content: Array<{ content: string }> }).content[0];
+    expect(result.content).toContain("[Observed: fetched https://example.com/data]");
+  });
+
   it("does not mask when placeholder would be larger than content", () => {
     // A tool result that's 201 chars but whose placeholder is longer
     const messages: Message[] = [

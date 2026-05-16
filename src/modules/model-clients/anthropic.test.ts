@@ -164,6 +164,33 @@ describe("kotaMessageToAnthropicMessage — block coverage", () => {
 		]);
 	});
 
+	it("rejects enriched tool_result fields it cannot translate", () => {
+		const block: KotaToolResultBlock = {
+			type: "tool_result",
+			tool_use_id: "t1",
+			content: [{ type: "text", text: "summary", _meta: { blockCache: "b1" } }],
+			structuredContent: { answer: 42 },
+			_meta: { resultCache: "r1" },
+		};
+		expect(() => kotaBlockToAnthropicBlock(block)).toThrow(
+			/enriched tool_result fields: structuredContent, _meta, content\[0\]\._meta/,
+		);
+	});
+
+	it("rejects MCP-only tool_result content explicitly", () => {
+		const block: KotaToolResultBlock = {
+			type: "tool_result",
+			tool_use_id: "t1",
+			content: [{
+				type: "mcp_content",
+				content: { type: "audio", data: "abc", mimeType: "audio/wav" },
+			}],
+		};
+		expect(() => kotaBlockToAnthropicBlock(block)).toThrow(
+			/content\[0\]\.mcp_content:audio/,
+		);
+	});
+
 	it("translates image block with narrowed media_type", () => {
 		const block: KotaImageBlock = {
 			type: "image",

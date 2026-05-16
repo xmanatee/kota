@@ -90,13 +90,45 @@ function kotaToolResultContentToAnthropic(
 	if (typeof content === "string") return content;
 	return content.map((b) => {
 		if (b.type === "text") return kotaTextBlockToAnthropic(b);
+		if (b.type === "mcp_content") {
+			throw new Error(
+				`Anthropic model client cannot translate MCP ${b.content.type} tool_result content`,
+			);
+		}
 		return kotaImageBlockToAnthropic(b);
 	});
+}
+
+function unsupportedToolResultFields(block: KotaToolResultBlock): string[] {
+	const unsupported: string[] = [];
+	if (block.structuredContent !== undefined) unsupported.push("structuredContent");
+	if (block._meta !== undefined) unsupported.push("_meta");
+	if (Array.isArray(block.content)) {
+		block.content.forEach((entry, index) => {
+			if (entry.type === "mcp_content") {
+				unsupported.push(`content[${index}].mcp_content:${entry.content.type}`);
+				return;
+			}
+			if (entry.annotations !== undefined) {
+				unsupported.push(`content[${index}].annotations`);
+			}
+			if (entry._meta !== undefined) {
+				unsupported.push(`content[${index}]._meta`);
+			}
+		});
+	}
+	return unsupported;
 }
 
 function kotaToolResultBlockToAnthropic(
 	block: KotaToolResultBlock,
 ): Anthropic.Messages.ToolResultBlockParam {
+	const unsupported = unsupportedToolResultFields(block);
+	if (unsupported.length > 0) {
+		throw new Error(
+			`Anthropic model client cannot translate enriched tool_result fields: ${unsupported.join(", ")}`,
+		);
+	}
 	return {
 		type: "tool_result",
 		tool_use_id: block.tool_use_id,

@@ -106,12 +106,42 @@ export function toOpenAIMessages(
 
 /** Extract text content from a tool result block. */
 export function extractToolResultContent(block: KotaToolResultBlock): string {
+	const unsupported: string[] = [];
+	if (block.structuredContent !== undefined) unsupported.push("structuredContent");
+	if (block._meta !== undefined) unsupported.push("_meta");
+	if (Array.isArray(block.content)) {
+		block.content.forEach((entry, index) => {
+			if (entry.type === "mcp_content") {
+				unsupported.push(`content[${index}].mcp_content:${entry.content.type}`);
+				return;
+			}
+			if (entry.type === "image") {
+				unsupported.push(`content[${index}].image:${entry.source.media_type}`);
+			}
+			if (entry.annotations !== undefined) {
+				unsupported.push(`content[${index}].annotations`);
+			}
+			if (entry._meta !== undefined) {
+				unsupported.push(`content[${index}]._meta`);
+			}
+		});
+	}
+	if (unsupported.length > 0) {
+		throw new Error(
+			`OpenAI model client cannot translate enriched tool_result fields: ${unsupported.join(", ")}`,
+		);
+	}
 	const prefix = block.is_error ? "[ERROR] " : "";
 	if (typeof block.content === "string") return prefix + block.content;
 	if (!block.content) return `${prefix}`;
-	const texts = block.content
-		.filter((b): b is KotaTextBlock => b.type === "text")
-		.map((b) => b.text);
+	const texts = block.content.map((entry) => {
+		if (entry.type !== "text") {
+			throw new Error(
+				`OpenAI model client cannot translate non-text tool_result content: ${entry.type}`,
+			);
+		}
+		return entry.text;
+	});
 	return prefix + texts.join("\n");
 }
 

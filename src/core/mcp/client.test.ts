@@ -41,9 +41,25 @@ rl.on("line", (line) => {
       process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
         content: [
           { type: "text", text: "line1" },
-          { type: "image", data: "abc123" },
+          { type: "image", data: "abc123", mimeType: "image/png" },
+          { type: "resource_link", uri: "file:///tmp/report.json", name: "report", mimeType: "application/json" },
           { type: "text", text: "line2" },
         ],
+      }}) + "\\n");
+    } else if (msg.params.name === "structured") {
+      process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+        content: [{
+          type: "text",
+          text: "structured text",
+          annotations: { audience: ["assistant"], priority: 0.7 },
+          _meta: { textCache: "t1" },
+        }],
+        structuredContent: { answer: 42, nested: { ok: true } },
+        _meta: { resultCache: "r1" },
+      }}) + "\\n");
+    } else if (msg.params.name === "future") {
+      process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+        content: [{ type: "video", data: "future-bytes", mimeType: "video/mp4" }],
       }}) + "\\n");
     } else if (msg.params.name === "empty") {
       process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
@@ -124,7 +140,9 @@ describe("McpClient lifecycle (fake MCP server)", () => {
     expect(tools[1].name).toBe("fail");
 
     const result = await client.callTool("echo", { text: "hello world" });
-    expect(result.content).toBe("Echo: hello world");
+    expect(result.text).toBe("Echo: hello world");
+    expect(result.content).toEqual([{ type: "text", text: "Echo: hello world" }]);
+    expect(result.blocks).toEqual([{ type: "text", text: "Echo: hello world" }]);
     expect(result.isError).toBeUndefined();
   }, 10_000);
 
@@ -137,12 +155,82 @@ describe("McpClient lifecycle (fake MCP server)", () => {
     );
   }, 10_000);
 
-  it("callTool extracts only text content, ignores non-text", async () => {
+  it("callTool preserves image and unsupported MCP content beside text fallback", async () => {
     client = new McpClient("node", ["-e", FAKE_MCP_SERVER], {}, "mixed-test");
     await client.connect();
 
     const result = await client.callTool("mixed", {});
-    expect(result.content).toBe("line1\nline2");
+    expect(result.text).toBe("line1\nline2");
+    expect(result.content).toEqual([
+      { type: "text", text: "line1" },
+      { type: "image", data: "abc123", mimeType: "image/png" },
+      { type: "resource_link", uri: "file:///tmp/report.json", name: "report", mimeType: "application/json" },
+      { type: "text", text: "line2" },
+    ]);
+    expect(result.blocks).toEqual([
+      { type: "text", text: "line1" },
+      {
+        type: "image",
+        source: { type: "base64", media_type: "image/png", data: "abc123" },
+      },
+      {
+        type: "mcp_content",
+        content: {
+          type: "resource_link",
+          uri: "file:///tmp/report.json",
+          name: "report",
+          mimeType: "application/json",
+        },
+      },
+      { type: "text", text: "line2" },
+    ]);
+  }, 10_000);
+
+  it("callTool preserves structuredContent and _meta separately from text", async () => {
+    client = new McpClient("node", ["-e", FAKE_MCP_SERVER], {}, "structured-test");
+    await client.connect();
+
+    const result = await client.callTool("structured", {});
+    expect(result.text).toBe("structured text");
+    expect(result.structuredContent).toEqual({ answer: 42, nested: { ok: true } });
+    expect(result._meta).toEqual({ resultCache: "r1" });
+    expect(result.content[0]).toEqual({
+      type: "text",
+      text: "structured text",
+      annotations: { audience: ["assistant"], priority: 0.7 },
+      _meta: { textCache: "t1" },
+    });
+    expect(result.blocks[0]).toEqual({
+      type: "text",
+      text: "structured text",
+      annotations: { audience: ["assistant"], priority: 0.7 },
+      _meta: { textCache: "t1" },
+    });
+  }, 10_000);
+
+  it("callTool preserves future MCP content kinds instead of erasing them", async () => {
+    client = new McpClient("node", ["-e", FAKE_MCP_SERVER], {}, "future-test");
+    await client.connect();
+
+    const result = await client.callTool("future", {});
+    expect(result.text).toBe("(no output)");
+    expect(result.content).toEqual([
+      {
+        type: "unknown",
+        mcpType: "video",
+        raw: { type: "video", data: "future-bytes", mimeType: "video/mp4" },
+      },
+    ]);
+    expect(result.blocks).toEqual([
+      {
+        type: "mcp_content",
+        content: {
+          type: "unknown",
+          mcpType: "video",
+          raw: { type: "video", data: "future-bytes", mimeType: "video/mp4" },
+        },
+      },
+    ]);
   }, 10_000);
 
   it("callTool returns fallback for empty content", async () => {
@@ -150,7 +238,9 @@ describe("McpClient lifecycle (fake MCP server)", () => {
     await client.connect();
 
     const result = await client.callTool("empty", {});
-    expect(result.content).toBe("(no output)");
+    expect(result.text).toBe("(no output)");
+    expect(result.content).toEqual([]);
+    expect(result.blocks).toEqual([]);
   }, 10_000);
 
   it("callTool preserves isError flag", async () => {
@@ -158,7 +248,7 @@ describe("McpClient lifecycle (fake MCP server)", () => {
     await client.connect();
 
     const result = await client.callTool("is_error", {});
-    expect(result.content).toBe("partial failure");
+    expect(result.text).toBe("partial failure");
     expect(result.isError).toBe(true);
   }, 10_000);
 
@@ -314,8 +404,9 @@ describe("McpClient concurrency", () => {
       client.callTool("echo", { text: "second" }),
     ]);
 
-    expect(r1.content).toBe("Echo: first");
-    expect(r2.content).toBe("Echo: second");
+    expect(r1.content).toEqual([{ type: "text", text: "Echo: first" }]);
+    expect(r1.text).toBe("Echo: first");
+    expect(r2.text).toBe("Echo: second");
   }, 10_000);
 
   it("callTool() during close() rejects without hanging", async () => {

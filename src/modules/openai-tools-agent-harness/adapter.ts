@@ -230,7 +230,9 @@ async function dispatchToolCall(
     result: {
       type: "tool_result",
       tool_use_id: call.id,
-      content: toolResult.content,
+      content: toolResult.blocks ? toolResult.blocks : toolResult.content,
+      ...(toolResult.structuredContent ? { structuredContent: toolResult.structuredContent } : {}),
+      ...(toolResult._meta ? { _meta: toolResult._meta } : {}),
       is_error: toolResult.is_error === true,
     },
   };

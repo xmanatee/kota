@@ -4,6 +4,12 @@
  * in their owning handler module.
  */
 
+import type {
+	KotaJsonObject,
+	KotaMcpAnnotations,
+	KotaMcpPreservedContent,
+} from "#core/agent-harness/message-protocol.js";
+
 export type JsonRpcRequest = {
 	jsonrpc: "2.0";
 	id: number | string;
@@ -27,8 +33,20 @@ export type JsonRpcResponse = {
 export type JsonRpcMessage = JsonRpcRequest | JsonRpcNotification;
 
 export type McpContentBlock =
-	| { type: "text"; text: string }
-	| { type: "image"; data: string; mimeType: string };
+	| {
+			type: "text";
+			text: string;
+			annotations?: KotaMcpAnnotations;
+			_meta?: KotaJsonObject;
+		}
+	| {
+			type: "image";
+			data: string;
+			mimeType: string;
+			annotations?: KotaMcpAnnotations;
+			_meta?: KotaJsonObject;
+		}
+	| KotaMcpPreservedContent;
 
 /** A workspace root advertised by the MCP client via the `roots/list` response. */
 export type McpRoot = { uri: string; name?: string };

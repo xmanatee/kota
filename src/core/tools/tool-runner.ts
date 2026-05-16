@@ -1,4 +1,5 @@
 import type {
+  KotaJsonObject,
   KotaMessage,
   KotaTextBlock,
 } from "#core/agent-harness/message-protocol.js";
@@ -62,6 +63,8 @@ export type ToolResultEntry = {
   tool_use_id: string;
   content: string;
   blocks?: ToolResultBlock[];
+  structuredContent?: KotaJsonObject;
+  _meta?: KotaJsonObject;
   is_error?: boolean;
 };
 
@@ -265,8 +268,10 @@ export async function executeToolCalls(
       return {
         tool_use_id: block.id,
         content: result.content,
-        blocks: result.blocks,
-        is_error: result.is_error,
+        ...(result.blocks ? { blocks: result.blocks } : {}),
+        ...(result.structuredContent ? { structuredContent: result.structuredContent } : {}),
+        ...(result._meta ? { _meta: result._meta } : {}),
+        ...(result.is_error !== undefined ? { is_error: result.is_error } : {}),
       };
     }),
   );

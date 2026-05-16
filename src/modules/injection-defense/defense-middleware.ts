@@ -13,7 +13,7 @@ import type {
   ToolCallContext,
   ToolMiddlewareFn,
 } from "#core/tools/tool-middleware.js";
-import type { ToolResult } from "#core/tools/tool-result.js";
+import type { ToolResult, ToolResultBlock } from "#core/tools/tool-result.js";
 import { detectInjection } from "./detector.js";
 
 export const DEFAULT_TARGET_TOOLS = [
@@ -73,6 +73,46 @@ export function renderInjectionBanner(
 
 const UNTRUSTED_END_MARKER = "--- END UNTRUSTED CONTENT ---";
 
+function blockScreeningText(block: ToolResultBlock): string {
+  if (block.type === "text") return block.text;
+  if (block.type !== "mcp_content") return "";
+
+  const content = block.content;
+  if (content.type === "resource" && "text" in content.resource) {
+    return content.resource.text;
+  }
+  if (content.type === "resource_link") {
+    return [
+      content.name,
+      content.title,
+      content.description,
+      content.uri,
+    ].filter((entry): entry is string => entry !== undefined).join("\n");
+  }
+  if (content.type === "unknown") {
+    return JSON.stringify(content.raw);
+  }
+  return "";
+}
+
+function resultScreeningText(result: ToolResult): string {
+  if (!result.blocks) return result.content;
+  const blockText = result.blocks.map(blockScreeningText).filter(Boolean);
+  if (blockText.length === 0) return result.content;
+  return [result.content, ...blockText].join("\n");
+}
+
+function annotateBlocks(
+  blocks: ToolResultBlock[],
+  banner: string,
+): ToolResultBlock[] {
+  return [
+    { type: "text", text: banner },
+    ...blocks,
+    { type: "text", text: UNTRUSTED_END_MARKER },
+  ];
+}
+
 function selectAutonomyMode(context: ToolCallContext | undefined): AutonomyMode {
   // Absent context (e.g. direct `callTool` invocations outside a session) is
   // treated as autonomous for screening purposes — we would rather annotate
@@ -96,7 +136,7 @@ export function createInjectionDefenseMiddleware(
       return result;
     }
 
-    const verdict = detectInjection(result.content);
+    const verdict = detectInjection(resultScreeningText(result));
     emit({
       tool: call.name,
       suspicious: verdict.suspicious,
@@ -111,6 +151,7 @@ export function createInjectionDefenseMiddleware(
     const annotated: ToolResult = {
       ...result,
       content: `${banner}\n${result.content}\n${UNTRUSTED_END_MARKER}`,
+      ...(result.blocks !== undefined ? { blocks: annotateBlocks(result.blocks, banner) } : {}),
     };
     return annotated;
   };

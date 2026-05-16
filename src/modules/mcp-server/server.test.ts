@@ -804,17 +804,28 @@ describe("toolResultToMcp", () => {
 		const content = toolResultToMcp({
 			content: "summary",
 			blocks: [
-				{ type: "text", text: "line 1" },
+				{ type: "text", text: "line 1", _meta: { blockCache: "b1" } },
 				{
 					type: "image",
 					source: { type: "base64", media_type: "image/png", data: "abc123" },
+					annotations: { audience: ["assistant"] },
+				},
+				{
+					type: "mcp_content",
+					content: { type: "audio", data: "def456", mimeType: "audio/wav" },
 				},
 			],
 		});
 
-		expect(content).toHaveLength(2);
-		expect(content[0]).toEqual({ type: "text", text: "line 1" });
-		expect(content[1]).toEqual({ type: "image", data: "abc123", mimeType: "image/png" });
+		expect(content).toHaveLength(3);
+		expect(content[0]).toEqual({ type: "text", text: "line 1", _meta: { blockCache: "b1" } });
+		expect(content[1]).toEqual({
+			type: "image",
+			data: "abc123",
+			mimeType: "image/png",
+			annotations: { audience: ["assistant"] },
+		});
+		expect(content[2]).toEqual({ type: "audio", data: "def456", mimeType: "audio/wav" });
 	});
 
 	it("falls back to content string when blocks is empty", () => {
