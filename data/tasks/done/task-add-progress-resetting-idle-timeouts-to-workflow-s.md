@@ -1,12 +1,12 @@
 ---
 id: task-add-progress-resetting-idle-timeouts-to-workflow-s
 title: Add progress-resetting idle timeouts to workflow steps
-status: ready
+status: done
 priority: p2
 area: core
 summary: Add a strict idle-timeout policy for workflow and agent steps so stalled streams fail or retry after no observable progress, without imposing a shorter hard wall-clock cap on productive long runs.
 created_at: 2026-05-17T05:25:16.639Z
-updated_at: 2026-05-17T05:25:16.639Z
+updated_at: 2026-05-17T05:45:48.865Z
 ---
 
 ## Problem

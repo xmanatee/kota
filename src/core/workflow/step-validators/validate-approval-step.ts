@@ -4,8 +4,8 @@ import {
   expectName,
   expectOptionalBoolean,
   expectOptionalFunction,
-  expectOptionalInteger,
   expectOptionalString,
+  validateBaseStepTimeouts,
   WorkflowDefinitionError,
 } from "#core/workflow/validation-primitives.js";
 
@@ -31,6 +31,7 @@ export function validateApprovalStep(
     type: "approval",
     reason: expectOptionalString(step.reason, `steps[${index}].reason`, definitionPath),
     defaultResolution: step.defaultResolution,
+    ...validateBaseStepTimeouts(step, `steps[${index}]`, definitionPath),
     when: expectOptionalFunction(
       step.when,
       `steps[${index}].when`,
@@ -40,12 +41,6 @@ export function validateApprovalStep(
       step.continueOnFailure,
       `steps[${index}].continueOnFailure`,
       definitionPath,
-    ),
-    timeoutMs: expectOptionalInteger(
-      step.timeoutMs,
-      `steps[${index}].timeoutMs`,
-      definitionPath,
-      1,
     ),
     exposeOutputToAgent: expectOptionalBoolean(
       step.exposeOutputToAgent,

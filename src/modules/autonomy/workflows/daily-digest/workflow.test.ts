@@ -128,6 +128,7 @@ describe("daily-digest build-digest step", () => {
         pendingRuns: [],
         workflows: {},
       }),
+      reportProgress: () => {},
       triggerWorkflow: async () => ({ runId: "x", status: "queued" as const }),
     });
 
@@ -175,6 +176,7 @@ describe("daily-digest build-digest step", () => {
         pendingRuns: [],
         workflows: {},
       }),
+      reportProgress: () => {},
       triggerWorkflow: async () => ({ runId: "x", status: "queued" as const }),
     };
 

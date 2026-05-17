@@ -1,4 +1,5 @@
 import type { ToolResult } from "#core/tools/index.js";
+import type { WorkflowStepProgressReporter } from "./step-idle-timeout.js";
 import type { WorkflowAgentStep, WorkflowStep } from "./step-types.js";
 import type { WorkflowAgentBackoffSignal, WorkflowAgentBackoffState, WorkflowRunTrigger } from "./trigger-types.js";
 
@@ -111,6 +112,8 @@ export type WorkflowStepResult = {
   costUsd?: number;
   output?: unknown;
   error?: string;
+  errorKind?: "idle-timeout";
+  idleTimeoutMs?: number;
   continueOnFailure?: boolean;
   toolCalls?: ToolCallSummaryEntry[];
   /** True when this step result was reused from a prior run (resume-from-step). */
@@ -148,6 +151,12 @@ export type WorkflowStepContext = {
   requestRestart: (reason: string) => void;
   readPrompt: (promptPath: string) => string;
   readRuntimeState: () => WorkflowRuntimeState;
+  /**
+   * Runtime-owned progress heartbeat for code steps that opt into
+   * idleTimeoutMs. This is an explicit typed signal; stdout/log text never
+   * resets the idle clock.
+   */
+  reportProgress: WorkflowStepProgressReporter;
   /**
    * Queue or run another workflow from within this step.
    * Returns the runId and whether it was queued or completed.

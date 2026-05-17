@@ -209,6 +209,7 @@ export class WorkflowTestHarness {
         readPrompt:
           this.#options.contextOverrides?.readPrompt ?? (() => ""),
         readRuntimeState: () => runtimeState,
+        reportProgress: () => {},
         triggerWorkflow:
           this.#options.contextOverrides?.triggerWorkflow ??
           (() => {

@@ -71,6 +71,7 @@ function makeDryRunContext(
     readRuntimeState: (): never => {
       throw new Error("dry-run: runtime state unavailable");
     },
+    reportProgress: () => {},
     triggerWorkflow: () => Promise.reject(new Error("dry-run: triggerWorkflow cannot be executed")),
   };
 }

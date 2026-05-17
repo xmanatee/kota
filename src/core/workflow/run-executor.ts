@@ -164,9 +164,21 @@ export function executeWorkflowRun(
             trigger,
             runAbortController: abortController,
             agentConfig,
+            acc,
+            bus: deps.bus,
+            pbus: deps.pbus,
+            log: deps.log,
           };
-          const { groupResult, innerResults, hadNewWarnings, groupFailed } =
+          const {
+            groupResult,
+            innerResults,
+            hadNewWarnings,
+            groupFailed,
+            agentBackoff: parallelBackoff,
+            thrownError,
+          } =
             await executeParallelStepGroup(step, context, stepStartedAt, parallelAgentDeps);
+          if (parallelBackoff && !agentBackoff) agentBackoff = parallelBackoff;
           run.recordStep(groupResult);
           stepOutputsById[step.id] = groupResult.output;
           stepResultsById[step.id] = groupResult;
@@ -186,6 +198,7 @@ export function executeWorkflowRun(
           );
           if (groupFailed) {
             if (step.continueOnFailure) { hadWarnings = true; continue; }
+            if (thrownError) throw thrownError;
             const failedChildren = innerResults.filter((r) => r.status === "failed" && !r.continueOnFailure);
             throw new Error(
               `Parallel group "${step.id}" failed: ${failedChildren.map((r) => `${r.id}: ${r.error ?? "unknown"}`).join("; ")}`,
@@ -251,7 +264,14 @@ export function executeWorkflowRun(
             clearTimeout(branchTimeoutHandle);
             abortController.signal.removeEventListener("abort", forwardBranchAbort);
           }
-          const { branchResult, hadNewWarnings, branchFailed, thrownError } = branchGroupResult!;
+          const {
+            branchResult,
+            hadNewWarnings,
+            branchFailed,
+            thrownError,
+            agentBackoff: branchBackoff,
+          } = branchGroupResult!;
+          if (branchBackoff && !agentBackoff) agentBackoff = branchBackoff;
           run.recordStep(branchResult);
           stepOutputsById[step.id] = branchResult.output;
           stepResultsById[step.id] = branchResult;
@@ -334,7 +354,14 @@ export function executeWorkflowRun(
             clearTimeout(foreachTimeoutHandle);
             abortController.signal.removeEventListener("abort", forwardForeachAbort);
           }
-          const { groupResult, hadNewWarnings, groupFailed, thrownError } = foreachGroupResult!;
+          const {
+            groupResult,
+            hadNewWarnings,
+            groupFailed,
+            thrownError,
+            agentBackoff: foreachBackoff,
+          } = foreachGroupResult!;
+          if (foreachBackoff && !agentBackoff) agentBackoff = foreachBackoff;
           run.recordStep(groupResult);
           stepOutputsById[step.id] = groupResult.output;
           stepResultsById[step.id] = groupResult;

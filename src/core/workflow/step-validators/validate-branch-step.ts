@@ -40,6 +40,12 @@ export function validateBranchStep(
       definitionPath,
     );
   }
+  if (step.idleTimeoutMs !== undefined) {
+    throw new WorkflowDefinitionError(
+      `steps[${index}].idleTimeoutMs is not supported on branch groups — put idleTimeoutMs on leaf steps`,
+      definitionPath,
+    );
+  }
 
   if (!Array.isArray(step.ifTrue) || step.ifTrue.length === 0) {
     throw new WorkflowDefinitionError(

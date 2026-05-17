@@ -29,6 +29,7 @@ function makeContext(
       pendingRuns: [],
       workflows: {},
     }),
+    reportProgress: () => {},
     triggerWorkflow: vi.fn().mockResolvedValue({ runId: "child-run-1", status: "queued" }),
     ...overrides,
   };

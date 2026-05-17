@@ -20,6 +20,14 @@ export type WorkflowBaseStep = {
    */
   timeoutMs?: number;
   /**
+   * Maximum idle gap in milliseconds between trusted runtime progress
+   * signals. Unlike timeoutMs, this is not a wall-clock cap: productive long
+   * steps may exceed it in total as long as they keep reporting progress.
+   * Agent progress comes from typed harness message events; code steps report
+   * explicit heartbeats through ctx.reportProgress(...).
+   */
+  idleTimeoutMs?: number;
+  /**
    * When true, this step's output is injected into later agent-step prompts.
    * Keep this off by default and only expose runtime-only facts that the agent
    * cannot reasonably discover from the repository itself.

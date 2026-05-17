@@ -1,16 +1,14 @@
-import type { KotaAgentMessage } from "#core/agent-harness/types.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import type { ActiveWorkflowRunHandle } from "../active-run-handle.js";
 import { buildStepCompletedPayload, buildStepStartedPayload, resolveStepAutonomyMode } from "../event-payloads.js";
-import { applyOutputSizeLimit, DEFAULT_STEP_TIMEOUT_MS } from "../run-executor-step.js";
-import type { WorkflowRunWarning, WorkflowStepContext, WorkflowStepResult, WorkflowStepSkipReason } from "../run-types.js";
+import { buildSkippedResult, executeWorkflowStep, type StepAccumulators } from "../run-executor-step.js";
+import type { WorkflowStepContext, WorkflowStepResult, WorkflowStepSkipReason } from "../run-types.js";
 import type { WorkflowAgentStep, WorkflowCodeStep, WorkflowForeachStep } from "../step-types.js";
-import type { WorkflowRunTrigger } from "../trigger-types.js";
+import type { WorkflowAgentBackoffSignal, WorkflowRunTrigger } from "../trigger-types.js";
 import type { WorkflowDefinition } from "../types.js";
-import { evaluateStepRunDecision, executeCodeStep, resolveValue } from "./step-executor.js";
-import type { AgentStepConfig, AgentStepResult } from "./step-executor-agent.js";
-import { executeAgentStep } from "./step-executor-agent.js";
+import { evaluateStepRunDecision, resolveValue } from "./step-executor.js";
+import type { AgentStepConfig } from "./step-executor-agent.js";
 
 export type ForeachItemResult = {
   index: number;
@@ -23,26 +21,20 @@ export type ForeachGroupResult = {
   itemResults: ForeachItemResult[];
   hadNewWarnings: boolean;
   groupFailed: boolean;
+  agentBackoff?: WorkflowAgentBackoffSignal;
   thrownError?: Error;
-};
-
-type ForeachStepAccumulators = {
-  stepOutputsById: Record<string, unknown>;
-  stepResultsById: Record<string, WorkflowStepResult>;
-  stepOutputs: unknown[];
-  warnings: WorkflowRunWarning[];
 };
 
 type ForeachAgentDeps = {
   definition: WorkflowDefinition;
-  run: Pick<ActiveWorkflowRunHandle, "metadata" | "appendAgentMessage" | "writeAgentInputs">;
+  run: Pick<ActiveWorkflowRunHandle, "metadata" | "recordStep" | "appendAgentMessage" | "writeAgentInputs">;
   trigger: WorkflowRunTrigger;
   runAbortController: AbortController;
   agentConfig: AgentStepConfig;
 };
 
 type ForeachRunDeps = ForeachAgentDeps & {
-  acc: ForeachStepAccumulators;
+  acc: StepAccumulators;
   bus: EventBus;
   pbus: ProjectScopedEventBus;
   log: (message: string) => void;
@@ -50,28 +42,39 @@ type ForeachRunDeps = ForeachAgentDeps & {
   priorItemResults?: ForeachItemResult[];
 };
 
+type InnerStepExecution = {
+  result: WorkflowStepResult;
+  agentBackoff?: WorkflowAgentBackoffSignal;
+  thrownError?: Error;
+};
+
+type ItemExecution = {
+  itemResult: ForeachItemResult;
+  thrownError?: Error;
+};
+
 async function executeInnerStep(
   innerStep: WorkflowCodeStep | WorkflowAgentStep,
   context: WorkflowStepContext,
   itemIndex: number,
   deps: ForeachRunDeps,
-): Promise<WorkflowStepResult> {
+): Promise<InnerStepExecution> {
   const stepStartedAt = Date.now();
 
   const runDecision = await evaluateStepRunDecision(innerStep, context);
   if (!runDecision.run) {
-    const skipped: WorkflowStepResult = {
-      id: innerStep.id,
-      type: innerStep.type,
-      status: "skipped",
-      startedAt: new Date(stepStartedAt).toISOString(),
-      completedAt: new Date().toISOString(),
-      durationMs: 0,
-      skipReason: runDecision.skipReason,
+    return {
+      result: buildSkippedResult(
+        innerStep,
+        stepStartedAt,
+        deps.acc,
+        (result) => deps.run.recordStep(result),
+        deps.pbus,
+        deps.run.metadata,
+        deps.definition.defaultAutonomyMode,
+        runDecision.skipReason,
+      ),
     };
-    deps.acc.stepOutputsById[innerStep.id] = { skipped: true };
-    deps.acc.stepResultsById[innerStep.id] = skipped;
-    return skipped;
   }
 
   deps.pbus.emit(
@@ -82,109 +85,19 @@ async function executeInnerStep(
     `Starting foreach item[${itemIndex}] step "${innerStep.id}" (${innerStep.type}) in workflow "${deps.definition.name}"`,
   );
 
-  try {
-    let output: unknown;
-    let agentResult: AgentStepResult | undefined;
-
-    if (innerStep.type === "agent") {
-      const timeoutMs = innerStep.timeoutMs ?? DEFAULT_STEP_TIMEOUT_MS;
-      const stepAbortController = new AbortController();
-      const forwardAbort = () => stepAbortController.abort(deps.runAbortController.signal.reason);
-      deps.runAbortController.signal.addEventListener("abort", forwardAbort, { once: true });
-
-      let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        timeoutHandle = setTimeout(() => {
-          const err = new Error(`Step "${innerStep.id}" timed out after ${timeoutMs}ms`);
-          stepAbortController.abort(err);
-          reject(err);
-        }, timeoutMs);
-      });
-
-      try {
-        agentResult = await Promise.race([
-          executeAgentStep(
-            deps.definition,
-            innerStep,
-            deps.run.metadata,
-            deps.trigger,
-            stepAbortController,
-            (message: KotaAgentMessage) => deps.run.appendAgentMessage(innerStep.id, message),
-            (systemPromptAppend: string | undefined, prompt: string) =>
-              deps.run.writeAgentInputs(innerStep.id, systemPromptAppend, prompt),
-            deps.agentConfig,
-            context.stepOutputs,
-          ),
-          timeoutPromise,
-        ]);
-        output = agentResult.output;
-      } finally {
-        clearTimeout(timeoutHandle);
-        deps.runAbortController.signal.removeEventListener("abort", forwardAbort);
-      }
-    } else {
-      output = await executeCodeStep(innerStep, context);
-    }
-
-    const { output: limitedOutput, warning: truncationWarning } = applyOutputSizeLimit(
-      output,
-      deps.agentConfig.config?.workflow?.maxStepOutputBytes,
-    );
-    if (truncationWarning) {
-      deps.acc.warnings.push(truncationWarning);
-      deps.log(`foreach step "${innerStep.id}" output truncated in workflow "${deps.definition.name}": ${truncationWarning.message}`);
-    }
-    const completed: WorkflowStepResult = {
-      id: innerStep.id,
-      type: innerStep.type,
-      status: "success",
-      startedAt: new Date(stepStartedAt).toISOString(),
-      completedAt: new Date().toISOString(),
-      durationMs: Date.now() - stepStartedAt,
-      output: limitedOutput,
-      ...(agentResult ? { harness: agentResult.harness, model: agentResult.model } : {}),
-    };
-    deps.acc.stepOutputsById[innerStep.id] = limitedOutput;
-    deps.acc.stepResultsById[innerStep.id] = completed;
-    deps.acc.stepOutputs.push(limitedOutput);
-    deps.pbus.emit(
-      "workflow.step.completed",
-      buildStepCompletedPayload(
-        deps.run.metadata,
-        completed,
-        resolveStepAutonomyMode(innerStep, deps.definition.defaultAutonomyMode),
-      ),
-    );
-    deps.log(
-      `Completed foreach item[${itemIndex}] step "${innerStep.id}" in workflow "${deps.definition.name}" [${completed.durationMs}ms]`,
-    );
-    return completed;
-  } catch (error) {
-    const err = error instanceof Error ? error : new Error(String(error));
-    const failed: WorkflowStepResult = {
-      id: innerStep.id,
-      type: innerStep.type,
-      status: "failed",
-      startedAt: new Date(stepStartedAt).toISOString(),
-      completedAt: new Date().toISOString(),
-      durationMs: Date.now() - stepStartedAt,
-      error: err.message,
-      ...(innerStep.continueOnFailure ? { continueOnFailure: true } : {}),
-    };
-    deps.acc.stepResultsById[innerStep.id] = failed;
-    deps.pbus.emit(
-      "workflow.step.completed",
-      buildStepCompletedPayload(
-        deps.run.metadata,
-        failed,
-        resolveStepAutonomyMode(innerStep, deps.definition.defaultAutonomyMode),
-      ),
-    );
-    deps.log(
-      `Failed foreach item[${itemIndex}] step "${innerStep.id}" in workflow "${deps.definition.name}": ${err.message}`,
-    );
-    return failed;
-  }
+  const { completed, agentBackoff, thrownError } = await executeWorkflowStep(
+    deps.definition,
+    innerStep,
+    deps.run,
+    deps.trigger,
+    context,
+    deps.runAbortController,
+    deps.agentConfig,
+    deps.acc,
+    { bus: deps.bus, pbus: deps.pbus, log: deps.log },
+    stepStartedAt,
+  );
+  return { result: completed, agentBackoff, thrownError };
 }
 
 export async function executeForeachStepGroup(
@@ -272,9 +185,10 @@ export async function executeForeachStepGroup(
   const itemResults: ForeachItemResult[] = [];
   let hadNewWarnings = false;
   let groupFailed = false;
+  let agentBackoff: WorkflowAgentBackoffSignal | undefined;
   let thrownError: Error | undefined;
 
-  async function executeOneItem(item: unknown, i: number): Promise<ForeachItemResult> {
+  async function executeOneItem(item: unknown, i: number): Promise<ItemExecution> {
     const itemContext: WorkflowStepContext = {
       ...context,
       foreach: { [step.as]: item },
@@ -286,9 +200,14 @@ export async function executeForeachStepGroup(
 
     const iterationStepResults: Record<string, WorkflowStepResult> = {};
     let iterationFailed = false;
+    let iterationThrownError: Error | undefined;
 
     for (const innerStep of step.steps) {
-      const result = await executeInnerStep(innerStep, itemContext, i, deps);
+      const execution = await executeInnerStep(innerStep, itemContext, i, deps);
+      const result = execution.result;
+      if (execution.agentBackoff !== undefined && agentBackoff === undefined) {
+        agentBackoff = execution.agentBackoff;
+      }
       iterationStepResults[innerStep.id] = result;
 
       if (result.status === "failed") {
@@ -297,20 +216,32 @@ export async function executeForeachStepGroup(
           hadNewWarnings = true;
         } else {
           iterationFailed = true;
+          iterationThrownError = execution.thrownError ?? new Error(result.error ?? `Step "${innerStep.id}" failed`);
           break;
         }
       }
     }
 
-    return { index: i, status: iterationFailed ? "failed" : "success", steps: iterationStepResults };
+    return {
+      itemResult: {
+        index: i,
+        status: iterationFailed ? "failed" : "success",
+        steps: iterationStepResults,
+      },
+      ...(iterationThrownError ? { thrownError: iterationThrownError } : {}),
+    };
   }
 
-  function handleItemResult(itemResult: ForeachItemResult, index: number): void {
+  function handleItemResult(
+    itemResult: ForeachItemResult,
+    index: number,
+    itemThrownError?: Error,
+  ): void {
     itemResults.push(itemResult);
     if (itemResult.status === "failed") {
       const failedStep = Object.values(itemResult.steps).find((s) => s.status === "failed" && !s.continueOnFailure);
       groupFailed = true;
-      thrownError = thrownError ?? new Error(failedStep?.error ?? `Item ${index} failed`);
+      thrownError = thrownError ?? itemThrownError ?? new Error(failedStep?.error ?? `Item ${index} failed`);
       if (step.continueOnFailure) {
         hadNewWarnings = true;
       }
@@ -325,17 +256,18 @@ export async function executeForeachStepGroup(
         handleItemResult(priorResults![i], i);
         continue;
       }
-      handleItemResult(await executeOneItem(items[i], i), i);
+      const execution = await executeOneItem(items[i], i);
+      handleItemResult(execution.itemResult, i, execution.thrownError);
       if (groupFailed && !step.continueOnFailure) break;
     }
   } else {
     for (let batchStart = 0; batchStart < items.length; batchStart += maxConcurrency) {
       const batchEnd = Math.min(batchStart + maxConcurrency, items.length);
       const batchSettled = await Promise.allSettled(
-        items.slice(batchStart, batchEnd).map((item, j) => {
+        items.slice(batchStart, batchEnd).map((item, j): Promise<ItemExecution> => {
           const absIndex = batchStart + j;
           if (usePartialResume && priorResults![absIndex].status === "success") {
-            return Promise.resolve(priorResults![absIndex]);
+            return Promise.resolve({ itemResult: priorResults![absIndex] });
           }
           return executeOneItem(item, absIndex);
         }),
@@ -343,11 +275,19 @@ export async function executeForeachStepGroup(
 
       for (let j = 0; j < batchSettled.length; j++) {
         const settled = batchSettled[j];
-        // executeOneItem never throws; fulfilled is always expected
-        const itemResult = settled.status === "fulfilled"
-          ? settled.value
-          : { index: batchStart + j, status: "failed" as const, steps: {} };
-        handleItemResult(itemResult, batchStart + j);
+        if (settled.status === "fulfilled") {
+          handleItemResult(
+            settled.value.itemResult,
+            batchStart + j,
+            settled.value.thrownError,
+          );
+        } else {
+          handleItemResult(
+            { index: batchStart + j, status: "failed" as const, steps: {} },
+            batchStart + j,
+            settled.reason instanceof Error ? settled.reason : new Error(String(settled.reason)),
+          );
+        }
       }
 
       if (groupFailed && !step.continueOnFailure) break;
@@ -367,5 +307,12 @@ export async function executeForeachStepGroup(
     ...(groupFailed && thrownError ? { error: thrownError.message } : {}),
   };
 
-  return { groupResult, itemResults, hadNewWarnings, groupFailed, thrownError };
+  return {
+    groupResult,
+    itemResults,
+    hadNewWarnings,
+    groupFailed,
+    ...(agentBackoff ? { agentBackoff } : {}),
+    ...(thrownError ? { thrownError } : {}),
+  };
 }

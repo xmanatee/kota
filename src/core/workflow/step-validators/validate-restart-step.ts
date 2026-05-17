@@ -5,6 +5,7 @@ import {
   expectOptionalBoolean,
   expectOptionalFunction,
   expectOptionalStringArray,
+  validateBaseStepTimeouts,
   WorkflowDefinitionError,
 } from "#core/workflow/validation-primitives.js";
 
@@ -29,6 +30,7 @@ export function validateRestartStep(
     id: expectName(step.id, `steps[${index}].id`, definitionPath),
     type: "restart",
     reason: reason as WorkflowRestartStep["reason"],
+    ...validateBaseStepTimeouts(step, `steps[${index}]`, definitionPath),
     requires:
       expectOptionalStringArray(
         step.requires,

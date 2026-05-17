@@ -1,6 +1,7 @@
 import { isAbsolute } from "node:path";
 import type { ModelTiers } from "../model/model-router.js";
 import type { Preset } from "../model/preset.js";
+import type { WorkflowBaseStep } from "./step-input-base.js";
 import type { WorkflowFilterValue } from "./trigger-types.js";
 
 export class WorkflowDefinitionError extends Error {
@@ -121,6 +122,29 @@ export function expectOptionalInteger(
     );
   }
   return value as number;
+}
+
+export function validateBaseStepTimeouts(
+  step: Pick<WorkflowBaseStep, "timeoutMs" | "idleTimeoutMs">,
+  stepLabel: string,
+  definitionPath: string,
+): Pick<WorkflowBaseStep, "timeoutMs" | "idleTimeoutMs"> {
+  const timeoutMs = expectOptionalInteger(
+    step.timeoutMs,
+    `${stepLabel}.timeoutMs`,
+    definitionPath,
+    1,
+  );
+  const idleTimeoutMs = expectOptionalInteger(
+    step.idleTimeoutMs,
+    `${stepLabel}.idleTimeoutMs`,
+    definitionPath,
+    1,
+  );
+  return {
+    ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+    ...(idleTimeoutMs !== undefined ? { idleTimeoutMs } : {}),
+  };
 }
 
 export function expectOptionalPositiveNumber(

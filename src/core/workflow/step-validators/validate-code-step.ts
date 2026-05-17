@@ -4,6 +4,7 @@ import {
   expectName,
   expectOptionalBoolean,
   expectOptionalFunction,
+  validateBaseStepTimeouts,
   WorkflowDefinitionError,
 } from "#core/workflow/validation-primitives.js";
 
@@ -11,38 +12,40 @@ export function validateCodeStep(
   step: WorkflowCodeStepInput,
   definitionPath: string,
   index: number,
+  stepLabel = `steps[${index}]`,
 ): WorkflowCodeStep {
   if (typeof step.run !== "function") {
     throw new WorkflowDefinitionError(
-      `steps[${index}].run must be a function`,
+      `${stepLabel}.run must be a function`,
       definitionPath,
     );
   }
 
   if (step.validate !== undefined && typeof step.validate !== "function") {
     throw new WorkflowDefinitionError(
-      `steps[${index}].validate must be a function`,
+      `${stepLabel}.validate must be a function`,
       definitionPath,
     );
   }
 
   return {
-    id: expectName(step.id, `steps[${index}].id`, definitionPath),
+    id: expectName(step.id, `${stepLabel}.id`, definitionPath),
     type: "code",
     run: step.run,
+    ...validateBaseStepTimeouts(step, stepLabel, definitionPath),
     when: expectOptionalFunction(
       step.when,
-      `steps[${index}].when`,
+      `${stepLabel}.when`,
       definitionPath,
     ) as WorkflowCodeStep["when"],
     continueOnFailure: expectOptionalBoolean(
       step.continueOnFailure,
-      `steps[${index}].continueOnFailure`,
+      `${stepLabel}.continueOnFailure`,
       definitionPath,
     ),
     exposeOutputToAgent: expectOptionalBoolean(
       step.exposeOutputToAgent,
-      `steps[${index}].exposeOutputToAgent`,
+      `${stepLabel}.exposeOutputToAgent`,
       definitionPath,
     ),
     ...(step.validate !== undefined

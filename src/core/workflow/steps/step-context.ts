@@ -102,6 +102,7 @@ export function createStepContext(
       return readFileSync(resolve(deps.projectDir, promptPath), "utf-8");
     },
     readRuntimeState: () => deps.store.readState(),
+    reportProgress: () => {},
     triggerWorkflow: async (workflowName, payload, waitFor, signal) => {
       if (!deps.triggerWorkflow) {
         throw new Error("triggerWorkflow is not supported in this execution context");

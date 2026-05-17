@@ -6,6 +6,7 @@ import {
   expectOptionalBoolean,
   expectOptionalFunction,
   expectOptionalObjectOrFunction,
+  validateBaseStepTimeouts,
 } from "#core/workflow/validation-primitives.js";
 
 export function validateEmitStep(
@@ -22,6 +23,7 @@ export function validateEmitStep(
       `steps[${index}].payload`,
       definitionPath,
     ) as WorkflowEmitStep["payload"],
+    ...validateBaseStepTimeouts(step, `steps[${index}]`, definitionPath),
     when: expectOptionalFunction(
       step.when,
       `steps[${index}].when`,

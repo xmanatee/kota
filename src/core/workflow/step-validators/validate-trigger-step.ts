@@ -5,8 +5,8 @@ import {
   expectNonEmptyString,
   expectOptionalBoolean,
   expectOptionalFunction,
-  expectOptionalInteger,
   expectOptionalObjectOrFunction,
+  validateBaseStepTimeouts,
   WorkflowDefinitionError,
 } from "#core/workflow/validation-primitives.js";
 
@@ -36,6 +36,7 @@ export function validateTriggerStep(
       definitionPath,
     ) as WorkflowTriggerStep["payload"],
     waitFor,
+    ...validateBaseStepTimeouts(step, `steps[${index}]`, definitionPath),
     when: expectOptionalFunction(
       step.when,
       `steps[${index}].when`,
@@ -50,12 +51,6 @@ export function validateTriggerStep(
       step.exposeOutputToAgent,
       `steps[${index}].exposeOutputToAgent`,
       definitionPath,
-    ),
-    timeoutMs: expectOptionalInteger(
-      step.timeoutMs,
-      `steps[${index}].timeoutMs`,
-      definitionPath,
-      1,
     ),
   };
 }

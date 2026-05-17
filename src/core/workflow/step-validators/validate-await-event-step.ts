@@ -17,6 +17,12 @@ export function validateAwaitEventStep(
   definitionPath: string,
   index: number,
 ): WorkflowAwaitEventStep {
+  if (step.idleTimeoutMs !== undefined) {
+    throw new WorkflowDefinitionError(
+      `steps[${index}].idleTimeoutMs is not supported on await-event steps — use awaitTimeoutMs for wait deadlines`,
+      definitionPath,
+    );
+  }
   if (
     typeof step.matchValue !== "string" &&
     typeof step.matchValue !== "number" &&

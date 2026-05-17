@@ -1,4 +1,5 @@
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import type { WorkflowCodeStepInput } from "#core/workflow/step-input-code.js";
 import type { WorkflowParallelGroupInput } from "#core/workflow/step-input-control-flow.js";
 import type { WorkflowAgentStep, WorkflowCodeStep, WorkflowParallelGroup } from "#core/workflow/step-types.js";
 import {
@@ -10,6 +11,7 @@ import {
   type WorkflowValidationOptions,
 } from "#core/workflow/validation-primitives.js";
 import { validateAgentStep } from "./validate-agent-step.js";
+import { validateCodeStep } from "./validate-code-step.js";
 
 const UNSUPPORTED_PARALLEL_TYPES = new Set(["emit", "restart", "trigger", "parallel"]);
 
@@ -24,6 +26,12 @@ export function validateParallelGroup(
   if (!Array.isArray(step.steps) || step.steps.length === 0) {
     throw new WorkflowDefinitionError(
       `steps[${index}].steps must be a non-empty array`,
+      definitionPath,
+    );
+  }
+  if ("idleTimeoutMs" in step) {
+    throw new WorkflowDefinitionError(
+      `steps[${index}].idleTimeoutMs is not supported on parallel groups — put idleTimeoutMs on leaf steps`,
       definitionPath,
     );
   }
@@ -57,30 +65,12 @@ export function validateParallelGroup(
         definitionPath,
       );
     }
-    const codeStep = childStep as { id?: unknown; run?: unknown; when?: unknown; continueOnFailure?: unknown; exposeOutputToAgent?: unknown };
-    if (typeof codeStep.run !== "function") {
-      throw new WorkflowDefinitionError(`${label}.run must be a function`, definitionPath);
-    }
-    return {
-      id: expectName(codeStep.id as string, `${label}.id`, definitionPath),
-      type: "code" as const,
-      run: codeStep.run as WorkflowCodeStep["run"],
-      when: expectOptionalFunction(
-        codeStep.when,
-        `${label}.when`,
-        definitionPath,
-      ) as WorkflowCodeStep["when"],
-      continueOnFailure: expectOptionalBoolean(
-        codeStep.continueOnFailure,
-        `${label}.continueOnFailure`,
-        definitionPath,
-      ),
-      exposeOutputToAgent: expectOptionalBoolean(
-        codeStep.exposeOutputToAgent,
-        `${label}.exposeOutputToAgent`,
-        definitionPath,
-      ),
-    } satisfies WorkflowCodeStep;
+    return validateCodeStep(
+      childStep as WorkflowCodeStepInput,
+      definitionPath,
+      childIndex,
+      label,
+    ) as WorkflowCodeStep;
   });
 
   const maxParallelAgents = expectOptionalInteger(

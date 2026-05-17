@@ -12,6 +12,11 @@ import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
 import type { ToolResult } from "#core/tools/index.js";
 import { ToolTelemetry } from "#core/tools/tool-telemetry.js";
 import type { WorkflowRunMetadata } from "../run-types.js";
+import {
+  AgentStepIdleTimeoutError,
+  createStepIdleTimeoutMonitor,
+  isAgentProgressMessage,
+} from "../step-idle-timeout.js";
 import type { WorkflowAgentStep } from "../step-types.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 import type { WorkflowDefinition } from "../types.js";
@@ -126,9 +131,6 @@ export async function executeAgentStep(
   // Telemetry tracking and caller message capture both ride `onMessage`,
   // which only stream-capable harnesses emit; non-stream harnesses reject it.
   const stepTelemetry = new ToolTelemetry();
-  const trackedMessage = resolvedHarness.emitsAgentMessageStream
-    ? makeToolTelemetryTracker(stepTelemetry, appendMessage)
-    : undefined;
 
   let lastSchemaError: string | undefined;
 
@@ -137,6 +139,35 @@ export async function executeAgentStep(
   const preStepMutatedPaths = agentDef && step.agentName ? listWorkflowMutatedPaths(agentConfig.projectDir) : undefined;
 
   const runAttempt = async (): Promise<WorkflowStepOutput> => {
+    const attemptAbortController = new AbortController();
+    const forwardAbort = () => attemptAbortController.abort(abortController.signal.reason);
+    abortController.signal.addEventListener("abort", forwardAbort, { once: true });
+    const idleMonitor = step.idleTimeoutMs === undefined
+      ? undefined
+      : createStepIdleTimeoutMonitor({
+          stepId: step.id,
+          idleTimeoutMs: step.idleTimeoutMs,
+          abortController: attemptAbortController,
+          createError: (idleForMs) =>
+            new AgentStepIdleTimeoutError(
+              step.id,
+              step.idleTimeoutMs!,
+              idleForMs,
+            ),
+        });
+    const captureMessage = (message: KotaAgentMessage) => {
+      if (idleMonitor !== undefined && isAgentProgressMessage(message)) {
+        idleMonitor.reportProgress({
+          kind: "agent-message",
+          messageType: message.type,
+        });
+      }
+      appendMessage(message);
+    };
+    const trackedMessage = resolvedHarness.emitsAgentMessageStream
+      ? makeToolTelemetryTracker(stepTelemetry, captureMessage)
+      : undefined;
+
     const prompt = lastSchemaError
       ? `${agentPrompt.prompt}\n\n[Previous output failed schema validation: ${lastSchemaError}\nPlease include all required fields in your JSON block and try again.]`
       : agentPrompt.prompt;
@@ -148,7 +179,7 @@ export async function executeAgentStep(
       resolvedHarness.askOwnerToolName,
     );
     try {
-      const result = await runAgentHarness(
+      const harnessRun = runAgentHarness(
         resolvedHarness,
         {
           prompt, model: resolvedModel, cwd: agentConfig.projectDir, systemPrompt,
@@ -162,11 +193,15 @@ export async function executeAgentStep(
           askOwner: resolvedHarness.askOwnerToolName !== null
             ? { source: `workflow:${metadata.workflow}/${metadata.id}/${step.id}` }
             : undefined,
-          autonomyMode: step.autonomyMode, harnessOverrides, abortController,
+          autonomyMode: step.autonomyMode, harnessOverrides, abortController: attemptAbortController,
           ...(trackedMessage !== undefined ? { onMessage: trackedMessage } : {}),
         },
         { write: () => true },
       );
+      const result = await (idleMonitor === undefined
+        ? harnessRun
+        : Promise.race([harnessRun, idleMonitor.timeout]));
+      idleMonitor?.reportProgress({ kind: "agent-result" });
       if (result.isError) {
         const reason = result.subtype ?? "error";
         const detail = result.text.trim() || "Agent step returned an error result";
@@ -196,6 +231,10 @@ export async function executeAgentStep(
         outputTokens: result.outputTokens, subtype: result.subtype,
       };
     } catch (error) {
+      if (error instanceof AgentStepIdleTimeoutError) throw error;
+      if (attemptAbortController.signal.reason instanceof AgentStepIdleTimeoutError) {
+        throw attemptAbortController.signal.reason;
+      }
       if (
         error instanceof AgentStepRuntimeError ||
         error instanceof JsonSchemaValidationError ||
@@ -210,6 +249,9 @@ export async function executeAgentStep(
         classified.kind,
         classified.retryable,
       );
+    } finally {
+      idleMonitor?.dispose();
+      abortController.signal.removeEventListener("abort", forwardAbort);
     }
   };
 

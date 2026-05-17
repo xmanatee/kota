@@ -101,6 +101,177 @@ describe("workflow validation", () => {
     });
   });
 
+  it("accepts idleTimeoutMs on agent steps", () => {
+    writeFileSync(
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    const definitions = validateWorkflowDefinitions(
+      [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "build",
+              type: "agent",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+              model: "claude-opus-4-7",
+              effort: "xhigh",
+              autonomyMode: "autonomous",
+              idleTimeoutMs: 60_000,
+            },
+          ],
+        }),
+      ],
+      projectDir,
+    );
+
+    expect(definitions[0]?.steps[0]).toMatchObject({ idleTimeoutMs: 60_000 });
+  });
+
+  it("rejects malformed idleTimeoutMs values", () => {
+    writeFileSync(
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "builder",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [
+              {
+                id: "build",
+                type: "agent",
+                promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+                model: "claude-opus-4-7",
+                effort: "xhigh",
+                autonomyMode: "autonomous",
+                idleTimeoutMs: 0,
+              },
+            ],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow(/idleTimeoutMs must be an integer >= 1/);
+  });
+
+  it("accepts idleTimeoutMs on parallel code children", () => {
+    const definitions = validateWorkflowDefinitions(
+      [
+        registerWorkflowDefinition("test/fanout.ts", {
+          name: "fanout",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "parallel-work",
+              type: "parallel",
+              steps: [
+                {
+                  id: "heartbeat",
+                  type: "code",
+                  idleTimeoutMs: 60_000,
+                  run: () => ({ ok: true }),
+                },
+              ],
+            },
+          ],
+        }),
+      ],
+      projectDir,
+    );
+
+    expect(definitions[0]?.steps[0]).toMatchObject({
+      type: "parallel",
+      steps: [{ idleTimeoutMs: 60_000 }],
+    });
+  });
+
+  it("rejects idleTimeoutMs on parallel groups", () => {
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/fanout.ts", {
+            name: "fanout",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [
+              {
+                id: "parallel-work",
+                type: "parallel",
+                idleTimeoutMs: 60_000,
+                steps: [
+                  {
+                    id: "heartbeat",
+                    type: "code",
+                    run: () => ({ ok: true }),
+                  },
+                ],
+              } as RegisteredWorkflowDefinitionInput["steps"][number],
+            ],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow(/idleTimeoutMs is not supported on parallel groups/);
+  });
+
+  it("rejects malformed idleTimeoutMs values on parallel code children", () => {
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/fanout.ts", {
+            name: "fanout",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [
+              {
+                id: "parallel-work",
+                type: "parallel",
+                steps: [
+                  {
+                    id: "heartbeat",
+                    type: "code",
+                    idleTimeoutMs: 0,
+                    run: () => ({ ok: true }),
+                  },
+                ],
+              },
+            ],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow(/steps\[0\]\.steps\[0\]\.idleTimeoutMs must be an integer >= 1/);
+  });
+
+  it("rejects idleTimeoutMs on await-event steps", () => {
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/wait.ts", {
+            name: "waiter",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [
+              {
+                id: "wait",
+                type: "await-event",
+                event: "owner.question.resolved",
+                matchValue: "question-1",
+                awaitTimeoutMs: 60_000,
+                idleTimeoutMs: 1_000,
+              },
+            ],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow(/idleTimeoutMs is not supported on await-event steps/);
+  });
+
   it("accepts trigger filters with multiple allowed values", () => {
     const definitions = validateWorkflowDefinitions(
       [

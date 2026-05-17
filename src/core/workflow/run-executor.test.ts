@@ -1,11 +1,18 @@
-import { mkdirSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { registerAgentHarness } from "#core/agent-harness/registry.js";
+import type {
+  AgentHarness,
+  AgentHarnessResult,
+  AgentHarnessRunOptions,
+} from "#core/agent-harness/types.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { DEFAULT_STEP_TIMEOUT_MS } from "./run-executor-step.js";
 import { WorkflowRunStore } from "./run-store.js";
+import type { WorkflowAgentStep } from "./step-types.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
@@ -24,6 +31,65 @@ function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDe
 }
 
 const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", payload: {} };
+
+const AGENT_OK_RESULT: AgentHarnessResult = {
+  text: "done",
+  streamedText: "done",
+  turns: 1,
+  isError: false,
+};
+
+function delayWithAbort(ms: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return Promise.reject(signal.reason);
+  if (!signal) return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timeout);
+      signal.removeEventListener("abort", onAbort);
+      reject(signal.reason);
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+function registerWorkflowTestHarness(
+  name: string,
+  run: AgentHarness["run"],
+): void {
+  registerAgentHarness({
+    name,
+    description: "workflow test harness",
+    supportsMultiTurn: false,
+    supportedHookKinds: [],
+    askOwnerToolName: null,
+    emitsAgentMessageStream: true,
+    toolControl: "kota",
+    run,
+  });
+}
+
+function makeAgentStep(
+  projectDir: string,
+  harness: string,
+  overrides: Partial<WorkflowAgentStep> = {},
+): WorkflowAgentStep {
+  writeFileSync(join(projectDir, "prompt.md"), "Run.\n");
+  return {
+    id: "agent",
+    type: "agent",
+    harness,
+    promptPath: "prompt.md",
+    moduleRoot: projectDir,
+    model: "test-model",
+    effort: "low",
+    autonomyMode: "autonomous",
+    ...overrides,
+  };
+}
 
 describe("continueOnFailure", () => {
   let projectDir: string;
@@ -353,6 +419,368 @@ describe("step timeout", () => {
 
     expect(alerts).toHaveLength(1);
     expect((alerts[0] as { status: string }).status).toBe("failed");
+  }, 10_000);
+
+  it("lets code steps exceed idleTimeoutMs when they report typed progress", async () => {
+    const definition = makeDefinition({
+      steps: [
+        {
+          id: "heartbeat-step",
+          type: "code",
+          idleTimeoutMs: 25,
+          run: async (ctx) => {
+            await delayWithAbort(15);
+            ctx.reportProgress({ kind: "code-heartbeat", label: "first" });
+            await delayWithAbort(15);
+            ctx.reportProgress({ kind: "code-heartbeat", label: "second" });
+            await delayWithAbort(15);
+            return { ok: true };
+          },
+        },
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("success");
+    expect(result.metadata.steps[0]?.output).toEqual({ ok: true });
+  }, 10_000);
+
+  it("keeps await-event steps governed by awaitTimeoutMs, not idleTimeoutMs", async () => {
+    const definition = makeDefinition({
+      steps: [
+        {
+          id: "wait",
+          type: "await-event",
+          event: "owner.answer",
+          matchField: "id",
+          matchValue: "question-1",
+          awaitTimeoutMs: 25,
+          idleTimeoutMs: 5,
+        } as WorkflowDefinition["steps"][number],
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("success");
+    expect(result.metadata.steps[0]?.output).toMatchObject({
+      kind: "timeout",
+      awaitTimeoutMs: 25,
+    });
+    expect(result.metadata.steps[0]?.errorKind).toBeUndefined();
+  }, 10_000);
+
+  it("lets streaming agent steps exceed idleTimeoutMs while typed messages arrive", async () => {
+    const harness = "workflow-idle-productive";
+    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+      const signal = options.abortController?.signal;
+      await delayWithAbort(15, signal);
+      await options.onMessage?.({ type: "text", text: "one" });
+      await delayWithAbort(15, signal);
+      await options.onMessage?.({ type: "tool_call", toolUseId: "t1", toolName: "read", input: {} });
+      await delayWithAbort(15, signal);
+      await options.onMessage?.({ type: "tool_result", toolUseId: "t1", isError: false, content: "ok" });
+      return AGENT_OK_RESULT;
+    });
+
+    const definition = makeDefinition({
+      moduleRoot: projectDir,
+      steps: [
+        makeAgentStep(projectDir, harness, {
+          idleTimeoutMs: 25,
+          timeoutMs: 500,
+        }),
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("success");
+    expect(result.metadata.steps[0]?.harness).toBe(harness);
+  }, 10_000);
+
+  it("retries agent idle timeouts through the agent retry classifier", async () => {
+    const harness = "workflow-idle-retry";
+    let attempts = 0;
+    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+      attempts += 1;
+      const signal = options.abortController?.signal;
+      if (attempts === 1) {
+        await delayWithAbort(200, signal);
+      }
+      await options.onMessage?.({ type: "text", text: "recovered" });
+      return AGENT_OK_RESULT;
+    });
+
+    const definition = makeDefinition({
+      moduleRoot: projectDir,
+      steps: [
+        makeAgentStep(projectDir, harness, {
+          idleTimeoutMs: 20,
+          timeoutMs: 500,
+          retry: { maxAttempts: 2, initialDelayMs: 1, backoffFactor: 1 },
+        }),
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("success");
+    expect(attempts).toBe(2);
+  }, 10_000);
+
+  it("records structured idle-timeout failure details and emits the failure path", async () => {
+    const { subscribeWorkflowFailureAlert } = await import("./failure-alert.js");
+    subscribeWorkflowFailureAlert(bus, projectDir);
+    const alerts: unknown[] = [];
+    bus.on("workflow.failure.alert", (payload) => alerts.push(payload));
+
+    const harness = "workflow-idle-failure";
+    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+      await delayWithAbort(200, options.abortController?.signal);
+      return AGENT_OK_RESULT;
+    });
+
+    const definition = makeDefinition({
+      moduleRoot: projectDir,
+      steps: [
+        makeAgentStep(projectDir, harness, {
+          idleTimeoutMs: 20,
+          timeoutMs: 500,
+          retry: { maxAttempts: 1, initialDelayMs: 1, backoffFactor: 1 },
+        }),
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("failed");
+    expect(result.metadata.steps[0]).toMatchObject({
+      status: "failed",
+      errorKind: "idle-timeout",
+      idleTimeoutMs: 20,
+    });
+    expect(alerts).toHaveLength(1);
+  }, 10_000);
+
+  it("records structured idle-timeout failure details from repair agents", async () => {
+    const harness = "workflow-repair-idle-failure";
+    let attempts = 0;
+    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+      attempts += 1;
+      if (attempts === 1) return AGENT_OK_RESULT;
+      await delayWithAbort(200, options.abortController?.signal);
+      return AGENT_OK_RESULT;
+    });
+
+    const definition = makeDefinition({
+      moduleRoot: projectDir,
+      steps: [
+        makeAgentStep(projectDir, harness, {
+          idleTimeoutMs: 20,
+          timeoutMs: 500,
+          retry: { maxAttempts: 1, initialDelayMs: 1, backoffFactor: 1 },
+          repairLoop: {
+            maxRepairAttempts: 1,
+            checks: [
+              {
+                id: "post-check",
+                type: "code",
+                run: () => {
+                  throw new Error("still failing");
+                },
+              },
+            ],
+          },
+        }),
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("failed");
+    expect(result.agentBackoff).toMatchObject({ kind: "provider" });
+    expect(result.metadata.steps[0]).toMatchObject({
+      status: "failed",
+      errorKind: "idle-timeout",
+      idleTimeoutMs: 20,
+    });
+    expect(attempts).toBe(2);
+  }, 10_000);
+
+  it("applies idleTimeoutMs to code children in parallel groups", async () => {
+    const definition = makeDefinition({
+      steps: [
+        {
+          id: "fanout",
+          type: "parallel",
+          steps: [
+            {
+              id: "inner-code",
+              type: "code",
+              idleTimeoutMs: 20,
+              timeoutMs: 500,
+              run: () => new Promise(() => {}),
+            },
+          ],
+        },
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    const child = result.metadata.steps.find((step) => step.id === "inner-code");
+    expect(result.metadata.status).toBe("failed");
+    expect(child).toMatchObject({
+      status: "failed",
+      errorKind: "idle-timeout",
+      idleTimeoutMs: 20,
+    });
+  }, 10_000);
+
+  it("applies idleTimeoutMs to code children in foreach groups", async () => {
+    const definition = makeDefinition({
+      steps: [
+        {
+          id: "loop",
+          type: "foreach",
+          items: [1],
+          as: "item",
+          steps: [
+            {
+              id: "inner-code",
+              type: "code",
+              idleTimeoutMs: 20,
+              timeoutMs: 500,
+              run: () => new Promise(() => {}),
+            },
+          ],
+        },
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    const child = result.metadata.steps.find((step) => step.id === "inner-code");
+    expect(result.metadata.status).toBe("failed");
+    expect(child).toMatchObject({
+      status: "failed",
+      errorKind: "idle-timeout",
+      idleTimeoutMs: 20,
+    });
+  }, 10_000);
+
+  it("preserves agent idle-timeout details and backoff from parallel groups", async () => {
+    const harness = "workflow-parallel-idle-failure";
+    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+      await delayWithAbort(200, options.abortController?.signal);
+      return AGENT_OK_RESULT;
+    });
+
+    const definition = makeDefinition({
+      moduleRoot: projectDir,
+      steps: [
+        {
+          id: "fanout",
+          type: "parallel",
+          steps: [
+            makeAgentStep(projectDir, harness, {
+              id: "inner-agent",
+              idleTimeoutMs: 20,
+              timeoutMs: 500,
+              retry: { maxAttempts: 1, initialDelayMs: 1, backoffFactor: 1 },
+            }),
+          ],
+        },
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    const child = result.metadata.steps.find((step) => step.id === "inner-agent");
+    expect(result.metadata.status).toBe("failed");
+    expect(result.agentBackoff).toMatchObject({ kind: "provider" });
+    expect(child).toMatchObject({
+      status: "failed",
+      errorKind: "idle-timeout",
+      idleTimeoutMs: 20,
+    });
+  }, 10_000);
+
+  it("preserves agent idle-timeout details and backoff from foreach groups", async () => {
+    const harness = "workflow-foreach-idle-failure";
+    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+      await delayWithAbort(200, options.abortController?.signal);
+      return AGENT_OK_RESULT;
+    });
+
+    const definition = makeDefinition({
+      moduleRoot: projectDir,
+      steps: [
+        {
+          id: "loop",
+          type: "foreach",
+          items: [1],
+          as: "item",
+          steps: [
+            makeAgentStep(projectDir, harness, {
+              id: "inner-agent",
+              idleTimeoutMs: 20,
+              timeoutMs: 500,
+              retry: { maxAttempts: 1, initialDelayMs: 1, backoffFactor: 1 },
+            }),
+          ],
+        },
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    const child = result.metadata.steps.find((step) => step.id === "inner-agent");
+    expect(result.metadata.status).toBe("failed");
+    expect(result.agentBackoff).toMatchObject({ kind: "provider" });
+    expect(child).toMatchObject({
+      status: "failed",
+      errorKind: "idle-timeout",
+      idleTimeoutMs: 20,
+    });
+  }, 10_000);
+
+  it("lets hard timeoutMs win before an idle timeout deadline", async () => {
+    const harness = "workflow-hard-timeout-wins";
+    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+      await delayWithAbort(200, options.abortController?.signal);
+      return AGENT_OK_RESULT;
+    });
+
+    const definition = makeDefinition({
+      moduleRoot: projectDir,
+      steps: [
+        makeAgentStep(projectDir, harness, {
+          idleTimeoutMs: 100,
+          timeoutMs: 20,
+          retry: { maxAttempts: 1, initialDelayMs: 1, backoffFactor: 1 },
+        }),
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("failed");
+    expect(result.metadata.steps[0]?.error).toContain("timed out after 20ms");
+    expect(result.metadata.steps[0]?.errorKind).toBeUndefined();
   }, 10_000);
 });
 

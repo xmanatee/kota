@@ -6,6 +6,11 @@ import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
 import { buildStepCompletedPayload, resolveStepAutonomyMode } from "./event-payloads.js";
 import type { ToolCallSummaryEntry, WorkflowRunMetadata, WorkflowRunWarning, WorkflowStepContext, WorkflowStepResult, WorkflowStepSkipReason } from "./run-types.js";
+import {
+  AgentStepIdleTimeoutError,
+  createStepIdleTimeoutMonitor,
+  WorkflowStepIdleTimeoutError,
+} from "./step-idle-timeout.js";
 import type { WorkflowStep } from "./step-types.js";
 import {
   type AgentStepConfig,
@@ -236,6 +241,27 @@ export async function executeWorkflowStep(
             reject(err);
           }, timeoutMs);
         });
+  const idleTimeoutMs = "idleTimeoutMs" in step ? step.idleTimeoutMs : undefined;
+  const idleMonitor =
+    step.type !== "agent" &&
+    step.type !== "await-event" &&
+    idleTimeoutMs !== undefined
+      ? createStepIdleTimeoutMonitor({
+          stepId: step.id,
+          idleTimeoutMs,
+          abortController: stepAbortController,
+          createError: (idleForMs) =>
+            new WorkflowStepIdleTimeoutError(
+              step.id,
+              idleTimeoutMs,
+              idleForMs,
+            ),
+        })
+      : undefined;
+  const progressContext: WorkflowStepContext = {
+    ...context,
+    reportProgress: idleMonitor?.reportProgress ?? context.reportProgress ?? (() => {}),
+  };
 
   try {
     const stepPromise = executeStep(
@@ -243,16 +269,19 @@ export async function executeWorkflowStep(
       step,
       run.metadata,
       trigger,
-      context,
+      progressContext,
       stepAbortController,
       (message) => run.appendAgentMessage(step.id, message),
       (systemPromptAppend, prompt) => run.writeAgentInputs(step.id, systemPromptAppend, prompt),
       agentConfig,
       deps.bus,
     );
-    const rawResult = await (timeoutPromise === null
+    const racePromises: Promise<unknown>[] = [stepPromise];
+    if (timeoutPromise !== null) racePromises.push(timeoutPromise);
+    if (idleMonitor !== undefined) racePromises.push(idleMonitor.timeout);
+    const rawResult = await (racePromises.length === 1
       ? stepPromise
-      : Promise.race([stepPromise, timeoutPromise]));
+      : Promise.race(racePromises));
     // Agent steps return an AgentStepResult wrapper so the resolved harness
     // and model can be promoted to top-level fields on the step result; every
     // other step type returns its output directly.
@@ -318,13 +347,24 @@ export async function executeWorkflowStep(
   } catch (error) {
     // If the step-level controller was aborted by the deadline (not the run-level abort),
     // surface a plain Error so the run gets status "failed" rather than "interrupted".
-    const isStepTimeout = stepAbortController.signal.aborted && !runAbortController.signal.aborted;
-    const err = isStepTimeout
+    const abortReason = stepAbortController.signal.reason;
+    const idleTimeoutError =
+      error instanceof WorkflowStepIdleTimeoutError ||
+      error instanceof AgentStepIdleTimeoutError
+        ? error
+        : abortReason instanceof WorkflowStepIdleTimeoutError ||
+            abortReason instanceof AgentStepIdleTimeoutError
+          ? abortReason
+          : undefined;
+    const isStepTimeout =
+      stepAbortController.signal.aborted &&
+      !runAbortController.signal.aborted &&
+      idleTimeoutError === undefined;
+    const err = idleTimeoutError ?? (isStepTimeout
       ? (() => {
-          const reason = stepAbortController.signal.reason;
-          return new Error(reason instanceof Error ? reason.message : `Step "${step.id}" timed out`);
+          return new Error(abortReason instanceof Error ? abortReason.message : `Step "${step.id}" timed out`);
         })()
-      : error instanceof Error ? error : new Error(String(error));
+      : error instanceof Error ? error : new Error(String(error)));
 
     let agentBackoff: WorkflowAgentBackoffSignal | undefined;
     if (!isStepTimeout && err instanceof AgentStepRuntimeError) {
@@ -338,6 +378,9 @@ export async function executeWorkflowStep(
       completedAt: new Date().toISOString(),
       durationMs: Date.now() - stepStartedAt,
       error: err.message,
+      ...(idleTimeoutError !== undefined
+        ? { errorKind: "idle-timeout" as const, idleTimeoutMs: idleTimeoutError.idleTimeoutMs }
+        : {}),
       ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
     };
     run.recordStep(failed);
@@ -356,6 +399,7 @@ export async function executeWorkflowStep(
     return { completed: failed, agentBackoff, thrownError: err };
   } finally {
     clearTimeout(timeoutHandle);
+    idleMonitor?.dispose();
     runAbortController.signal.removeEventListener("abort", forwardRunAbort);
   }
 }

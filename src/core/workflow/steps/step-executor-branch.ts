@@ -5,7 +5,7 @@ import { buildStepCompletedPayload, buildStepStartedPayload, resolveStepAutonomy
 import { buildSkippedResult, executeWorkflowStep, type StepAccumulators } from "../run-executor-step.js";
 import type { WorkflowStepContext, WorkflowStepResult, WorkflowStepSkipReason } from "../run-types.js";
 import type { WorkflowBranchStep, WorkflowForeachStep, WorkflowStep } from "../step-types.js";
-import type { WorkflowRunTrigger } from "../trigger-types.js";
+import type { WorkflowAgentBackoffSignal, WorkflowRunTrigger } from "../trigger-types.js";
 import type { WorkflowDefinition } from "../types.js";
 import { evaluateStepRunDecision } from "./step-executor.js";
 import type { AgentStepConfig } from "./step-executor-agent.js";
@@ -29,6 +29,7 @@ export type BranchGroupResult = {
   arm: "ifTrue" | "ifFalse";
   hadNewWarnings: boolean;
   branchFailed: boolean;
+  agentBackoff?: WorkflowAgentBackoffSignal;
   thrownError?: Error;
 };
 
@@ -36,8 +37,14 @@ async function executeArmSteps(
   armSteps: WorkflowStep[],
   deps: BranchRunDeps,
   getContext: () => WorkflowStepContext,
-): Promise<{ hadWarnings: boolean; failed: boolean; thrownError?: Error }> {
+): Promise<{
+  hadWarnings: boolean;
+  failed: boolean;
+  agentBackoff?: WorkflowAgentBackoffSignal;
+  thrownError?: Error;
+}> {
   let hadWarnings = false;
+  let agentBackoff: WorkflowAgentBackoffSignal | undefined;
 
   for (const armStep of armSteps) {
     const context = getContext();
@@ -71,9 +78,21 @@ async function executeArmSteps(
         trigger: deps.trigger,
         runAbortController: deps.runAbortController,
         agentConfig: deps.agentConfig,
+        acc: deps.acc,
+        bus: deps.bus,
+        pbus: deps.pbus,
+        log: deps.log,
       };
-      const { groupResult, innerResults, hadNewWarnings, groupFailed } =
+      const {
+        groupResult,
+        innerResults,
+        hadNewWarnings,
+        groupFailed,
+        agentBackoff: parallelBackoff,
+        thrownError,
+      } =
         await executeParallelStepGroup(armStep, context, stepStartedAt, parallelDeps);
+      if (parallelBackoff && !agentBackoff) agentBackoff = parallelBackoff;
       deps.run.recordStep(groupResult);
       deps.acc.stepOutputsById[armStep.id] = groupResult.output;
       deps.acc.stepResultsById[armStep.id] = groupResult;
@@ -95,10 +114,10 @@ async function executeArmSteps(
       if (groupFailed) {
         if (armStep.continueOnFailure) { hadWarnings = true; continue; }
         const failedChildren = innerResults.filter((r) => r.status === "failed" && !r.continueOnFailure);
-        const err = new Error(
+        const err = thrownError ?? new Error(
           `Parallel group "${armStep.id}" failed: ${failedChildren.map((r) => `${r.id}: ${r.error ?? "unknown"}`).join("; ")}`,
         );
-        return { hadWarnings, failed: true, thrownError: err };
+        return { hadWarnings, failed: true, agentBackoff, thrownError: err };
       }
       if (hadNewWarnings) hadWarnings = true;
       continue;
@@ -106,6 +125,9 @@ async function executeArmSteps(
 
     if (armStep.type === "branch") {
       const nestedResult = await executeBranchStepGroup(armStep, context, stepStartedAt, deps, getContext);
+      if (nestedResult.agentBackoff && !agentBackoff) {
+        agentBackoff = nestedResult.agentBackoff;
+      }
       deps.run.recordStep(nestedResult.branchResult);
       deps.acc.stepOutputsById[armStep.id] = nestedResult.branchResult.output;
       deps.acc.stepResultsById[armStep.id] = nestedResult.branchResult;
@@ -120,7 +142,12 @@ async function executeArmSteps(
       );
       if (nestedResult.branchFailed) {
         if (armStep.continueOnFailure) { hadWarnings = true; continue; }
-        return { hadWarnings, failed: true, thrownError: nestedResult.thrownError };
+        return {
+          hadWarnings,
+          failed: true,
+          agentBackoff,
+          thrownError: nestedResult.thrownError,
+        };
       }
       if (nestedResult.hadNewWarnings) hadWarnings = true;
       continue;
@@ -138,8 +165,15 @@ async function executeArmSteps(
         pbus: deps.pbus,
         log: deps.log,
       };
-      const { groupResult, hadNewWarnings: foreachHadWarnings, groupFailed, thrownError }: ForeachGroupResult =
+      const {
+        groupResult,
+        hadNewWarnings: foreachHadWarnings,
+        groupFailed,
+        thrownError,
+        agentBackoff: foreachBackoff,
+      }: ForeachGroupResult =
         await executeForeachStepGroup(armStep as WorkflowForeachStep, context, stepStartedAt, foreachDeps);
+      if (foreachBackoff && !agentBackoff) agentBackoff = foreachBackoff;
       deps.run.recordStep(groupResult);
       deps.acc.stepOutputsById[armStep.id] = groupResult.output;
       deps.acc.stepResultsById[armStep.id] = groupResult;
@@ -154,27 +188,32 @@ async function executeArmSteps(
       );
       if (groupFailed) {
         if (armStep.continueOnFailure) { hadWarnings = true; continue; }
-        return { hadWarnings, failed: true, thrownError };
+        return { hadWarnings, failed: true, agentBackoff, thrownError };
       }
       if (foreachHadWarnings) hadWarnings = true;
       continue;
     }
 
     const stepDeps = { bus: deps.bus, pbus: deps.pbus, log: deps.log };
-    const { completed, thrownError } = await executeWorkflowStep(
+    const { completed, agentBackoff: stepBackoff, thrownError } = await executeWorkflowStep(
       deps.definition, armStep, deps.run, deps.trigger, context,
       deps.runAbortController, deps.agentConfig, deps.acc, stepDeps, stepStartedAt,
     );
+    if (stepBackoff && !agentBackoff) agentBackoff = stepBackoff;
     if (completed.status === "success") {
       /* output already written to acc by executeWorkflowStep */
     } else if (completed.continueOnFailure) {
       hadWarnings = true;
     } else if (thrownError) {
-      return { hadWarnings, failed: true, thrownError };
+      return { hadWarnings, failed: true, agentBackoff, thrownError };
     }
   }
 
-  return { hadWarnings, failed: false };
+  return {
+    hadWarnings,
+    failed: false,
+    ...(agentBackoff ? { agentBackoff } : {}),
+  };
 }
 
 export async function executeBranchStepGroup(
@@ -252,7 +291,7 @@ export async function executeBranchStepGroup(
 
   deps.log(`Branch "${step.id}" taking ${arm} arm (${armSteps.length} step(s)) in workflow "${deps.definition.name}"`);
 
-  const { hadWarnings, failed, thrownError } = await executeArmSteps(armSteps, deps, getContext);
+  const { hadWarnings, failed, agentBackoff, thrownError } = await executeArmSteps(armSteps, deps, getContext);
 
   const status = failed ? "failed" : "success";
   const branchResult: WorkflowStepResult = {
@@ -267,5 +306,12 @@ export async function executeBranchStepGroup(
     ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
   };
 
-  return { branchResult, arm, hadNewWarnings: hadWarnings, branchFailed: failed, thrownError };
+  return {
+    branchResult,
+    arm,
+    hadNewWarnings: hadWarnings,
+    branchFailed: failed,
+    ...(agentBackoff ? { agentBackoff } : {}),
+    ...(thrownError ? { thrownError } : {}),
+  };
 }

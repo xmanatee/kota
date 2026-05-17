@@ -93,6 +93,7 @@ function makeStepContext(
       pendingRuns: [],
       workflows: {},
     }),
+    reportProgress: () => {},
     triggerWorkflow: async () => ({ runId: "r", status: "queued" }),
   };
 }

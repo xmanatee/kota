@@ -29,6 +29,12 @@ export function validateForeachStep(
       definitionPath,
     );
   }
+  if (step.idleTimeoutMs !== undefined) {
+    throw new WorkflowDefinitionError(
+      `steps[${index}].idleTimeoutMs is not supported on foreach groups — put idleTimeoutMs on leaf steps`,
+      definitionPath,
+    );
+  }
   if (typeof step.items !== "function" && !Array.isArray(step.items)) {
     throw new WorkflowDefinitionError(
       `steps[${index}].items must be a function or array`,
@@ -78,7 +84,12 @@ export function validateForeachStep(
       );
     }
     if (innerStep.type === "code") {
-      return validateCodeStep(innerStep as WorkflowCodeStepInput, definitionPath, innerIndex) as WorkflowCodeStep;
+      return validateCodeStep(
+        innerStep as WorkflowCodeStepInput,
+        definitionPath,
+        innerIndex,
+        `steps[${index}].steps[${innerIndex}]`,
+      ) as WorkflowCodeStep;
     }
     return validateAgentStep(
       innerStep as WorkflowAgentStepInput,

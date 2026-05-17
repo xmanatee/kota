@@ -34,13 +34,30 @@ export function createActiveRunHandle(opts: {
   runDirPath: string;
   metadata: WorkflowRunMetadata;
   workflowName: string;
+  stepOrder?: ReadonlyMap<string, number>;
   readState: () => WorkflowRuntimeState;
   writeState: (state: WorkflowRuntimeState) => void;
 }): ActiveWorkflowRunHandle {
-  const { id, runDirPath, metadata, workflowName, readState, writeState } = opts;
+  const { id, runDirPath, metadata, workflowName, stepOrder, readState, writeState } = opts;
 
   const persistMetadata = () => {
     writeJsonFile(join(runDirPath, "metadata.json"), metadata);
+  };
+
+  const recordStepInDefinitionOrder = (result: WorkflowStepResult): void => {
+    const existingIndex = metadata.steps.findIndex((step) => step.id === result.id);
+    if (existingIndex >= 0) {
+      metadata.steps[existingIndex] = result;
+      return;
+    }
+
+    const resultOrder = stepOrder?.get(result.id) ?? Number.POSITIVE_INFINITY;
+    const insertIndex = metadata.steps.findIndex((step) => {
+      const existingOrder = stepOrder?.get(step.id) ?? Number.POSITIVE_INFINITY;
+      return existingOrder > resultOrder;
+    });
+    if (insertIndex >= 0) metadata.steps.splice(insertIndex, 0, result);
+    else metadata.steps.push(result);
   };
 
   return {
@@ -70,9 +87,7 @@ export function createActiveRunHandle(opts: {
       );
     },
     recordStep: (result) => {
-      const existingIndex = metadata.steps.findIndex((step) => step.id === result.id);
-      if (existingIndex >= 0) metadata.steps[existingIndex] = result;
-      else metadata.steps.push(result);
+      recordStepInDefinitionOrder(result);
       writeJsonFile(join(runDirPath, "steps", `${result.id}.json`), result);
       persistMetadata();
     },
