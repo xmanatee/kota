@@ -2,7 +2,7 @@
  * Tracing module config slice.
  *
  * Owns the top-level `tracing` field — OpenTelemetry trace export
- * endpoint and sampling configuration. Required `endpoint` enables
+ * endpoint, security log export endpoint, and sampling configuration. Required `endpoint` enables
  * tracing; absent endpoint leaves it disabled.
  */
 
@@ -13,6 +13,8 @@ export type TracingConfig = {
   endpoint: string;
   /** OTLP HTTP endpoint for metrics. Defaults to `endpoint`. */
   metricsEndpoint?: string;
+  /** OTLP HTTP endpoint for security logs. Defaults to `endpoint` with `/v1/traces` or `/v1/metrics` replaced by `/v1/logs`. */
+  logsEndpoint?: string;
   /** Metric flush interval. Default: 30 000. */
   metricsExportIntervalMs?: number;
   /** Sampling rate between 0 and 1. Default: 1.0. */
@@ -33,6 +35,7 @@ function sanitizeTracing(raw: unknown): TracingConfig | undefined {
   if (typeof src.endpoint !== "string" || !src.endpoint) return undefined;
   const t: TracingConfig = { endpoint: src.endpoint };
   if (typeof src.metricsEndpoint === "string" && src.metricsEndpoint) t.metricsEndpoint = src.metricsEndpoint;
+  if (typeof src.logsEndpoint === "string" && src.logsEndpoint) t.logsEndpoint = src.logsEndpoint;
   if (typeof src.metricsExportIntervalMs === "number" && src.metricsExportIntervalMs > 0) t.metricsExportIntervalMs = src.metricsExportIntervalMs;
   if (typeof src.samplingRate === "number" && src.samplingRate >= 0 && src.samplingRate <= 1) t.samplingRate = src.samplingRate;
   if (typeof src.serviceName === "string" && src.serviceName) t.serviceName = src.serviceName;
@@ -41,7 +44,7 @@ function sanitizeTracing(raw: unknown): TracingConfig | undefined {
 
 export const tracingConfigSlice: ModuleConfigSlice<"tracing"> = {
   key: "tracing",
-  description: "OpenTelemetry trace export endpoint and sampling config",
+  description: "OpenTelemetry trace, metrics, and security log export config",
   sanitize: sanitizeTracing,
   merge: (base, override) => ({ ...base, ...override }),
   schemaSource: {

@@ -108,6 +108,7 @@ describe("pushNotificationModule bus subscriptions", () => {
       risk: "moderate",
       source: "session",
       reason: "test",
+      sessionId: "session",
     });
     await flushFetch();
 

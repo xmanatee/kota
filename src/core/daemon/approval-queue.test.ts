@@ -110,6 +110,22 @@ describe("ApprovalQueue", () => {
 		expect(item.source).toBe("session-123");
 	});
 
+	it("stores session id in enqueued item when provided", () => {
+		const item = queue.enqueue(
+			"shell",
+			{ command: "rm" },
+			"dangerous",
+			"reason",
+			"session-123",
+			undefined,
+			undefined,
+			undefined,
+			"session-123",
+		);
+		expect(item.sessionId).toBe("session-123");
+		expect(queue.get(item.id)!.sessionId).toBe("session-123");
+	});
+
 	it("stores context in enqueued item when provided", () => {
 		const ctx = "User: delete temp files\nAssistant: I will remove /tmp/old";
 		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, undefined, undefined, ctx);
@@ -267,6 +283,28 @@ describe("approval.changed events", () => {
 		expect(calls[0][1]).toEqual({ projectId: "test-project", id: item.id, pendingCount: 1 });
 	});
 
+	it("emits approval.requested with source and session correlation", () => {
+		const item = queue.enqueue(
+			"shell",
+			{ command: "rm" },
+			"dangerous",
+			"reason",
+			"session-123",
+			undefined,
+			undefined,
+			undefined,
+			"session-123",
+		);
+		const calls = received.filter(({ event }) => event === "approval.requested").map((r) => [r.event, r.payload]);
+		expect(calls).toHaveLength(1);
+		expect(calls[0][1]).toMatchObject({
+			projectId: "test-project",
+			id: item.id,
+			source: "session-123",
+			sessionId: "session-123",
+		});
+	});
+
 	it("emits approval.changed on approve with decremented pending count", () => {
 		queue.enqueue("shell", { command: "a" }, "dangerous", "r");
 		const item2 = queue.enqueue("git", { command: "b" }, "dangerous", "r");
@@ -276,6 +314,32 @@ describe("approval.changed events", () => {
 		const calls = received.filter(({ event }) => event === "approval.changed").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
 		expect(calls[0][1]).toEqual({ projectId: "test-project", id: item2.id, pendingCount: 1 });
+	});
+
+	it("emits approval.resolved with source and session correlation", () => {
+		const item = queue.enqueue(
+			"shell",
+			{ command: "rm" },
+			"dangerous",
+			"reason",
+			"session-123",
+			undefined,
+			undefined,
+			undefined,
+			"session-123",
+		);
+		received.length = 0;
+
+		queue.approve(item.id);
+		const calls = received.filter(({ event }) => event === "approval.resolved").map((r) => [r.event, r.payload]);
+		expect(calls).toHaveLength(1);
+		expect(calls[0][1]).toMatchObject({
+			projectId: "test-project",
+			id: item.id,
+			source: "session-123",
+			sessionId: "session-123",
+			approved: true,
+		});
 	});
 
 	it("emits approval.changed on reject with decremented pending count", () => {

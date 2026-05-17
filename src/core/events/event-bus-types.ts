@@ -239,6 +239,7 @@ export type BusEvents = {
     risk: string;
     reason: string;
     source: string;
+    sessionId: string;
   };
   "approval.resolved": {
     projectId: ProjectId;
@@ -246,6 +247,8 @@ export type BusEvents = {
     tool: string;
     approved: boolean;
     reason: string;
+    source: string;
+    sessionId: string;
   };
   "workflow.failure.alert": {
     projectId: ProjectId;

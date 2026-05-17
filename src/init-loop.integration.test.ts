@@ -20,6 +20,20 @@ vi.mock("./core/model/model-client.js", () => ({
   })),
   registerModelClientFactory: vi.fn(),
 }));
+vi.mock("./core/modules/project-discovery.js", () => ({
+  discoverProjectModules: vi.fn(async () => []),
+}));
+vi.mock("./core/modules/module-discovery.js", () => ({
+  discoverModules: vi.fn(async () => []),
+}));
+
+async function closeSessionAfterInit(session: {
+  initPromise: Promise<void>;
+  close: () => void;
+}): Promise<void> {
+  await session.initPromise;
+  session.close();
+}
 
 // Suppress console.error during tests
 beforeEach(() => { vi.spyOn(console, "error").mockImplementation(() => {}); });
@@ -37,7 +51,7 @@ describe("init → loop → context: session startup pipeline", () => {
     const ctx = (session as any).context;
     const staticPrompt: string = ctx.getStaticPrompt();
     expect(staticPrompt.startsWith(SYSTEM_PROMPT)).toBe(true);
-    session.close();
+    await closeSessionAfterInit(session);
   });
 
   it("warmup section appears in the static prompt", async () => {
@@ -48,7 +62,7 @@ describe("init → loop → context: session startup pipeline", () => {
     // buildSessionWarmup always includes working directory
     expect(staticPrompt).toContain("**Working directory**:");
     expect(staticPrompt).toContain("## Session Context (auto-detected)");
-    session.close();
+    await closeSessionAfterInit(session);
   });
 
   it("system info (date, platform) appears in static prompt", async () => {
@@ -59,7 +73,7 @@ describe("init → loop → context: session startup pipeline", () => {
     expect(staticPrompt).toContain("**System**:");
     expect(staticPrompt).toMatch(/Date: \d{4}-\d{2}-\d{2}/);
     expect(staticPrompt).toMatch(/Platform: (macOS|Linux|Windows)/);
-    session.close();
+    await closeSessionAfterInit(session);
   });
 
   it("project detection flows into static prompt for code directories", async () => {
@@ -70,7 +84,7 @@ describe("init → loop → context: session startup pipeline", () => {
     const staticPrompt: string = (session as any).context.getStaticPrompt();
     expect(staticPrompt).toContain("**Project**:");
     expect(staticPrompt).toContain("Node.js project");
-    session.close();
+    await closeSessionAfterInit(session);
   });
 });
 

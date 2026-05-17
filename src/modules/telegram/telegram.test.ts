@@ -359,6 +359,7 @@ describe("telegramModule notifications via onLoad", () => {
       risk: "high",
       reason: "Runs shell commands",
       source: "builder",
+      sessionId: "",
     });
     await flushAsyncNotifications();
     expect(mockedCallTelegramApi).toHaveBeenCalledWith(

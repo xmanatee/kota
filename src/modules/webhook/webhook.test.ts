@@ -252,6 +252,7 @@ describe("webhookModule notifications", () => {
       risk: "high",
       reason: "destructive command",
       source: "builder",
+      sessionId: "",
     });
     await Promise.resolve();
     expect(mockFetch).toHaveBeenCalledOnce();
@@ -273,6 +274,7 @@ describe("webhookModule notifications", () => {
       risk: "medium",
       reason: "file write",
       source: "builder",
+      sessionId: "",
     });
     await Promise.resolve();
     expect(mockFetch).toHaveBeenCalledOnce();

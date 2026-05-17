@@ -38,6 +38,7 @@ describe("tracing config slice", () => {
         tracing: {
           endpoint: "http://localhost:4318/v1/traces",
           metricsEndpoint: "http://localhost:4318/v1/metrics",
+          logsEndpoint: "http://localhost:4318/v1/logs",
           metricsExportIntervalMs: 5000,
           samplingRate: 0.25,
           serviceName: "kota-test",
@@ -47,6 +48,7 @@ describe("tracing config slice", () => {
     const config = loadConfig(tmpDir);
     expect(config.tracing?.endpoint).toBe("http://localhost:4318/v1/traces");
     expect(config.tracing?.metricsEndpoint).toBe("http://localhost:4318/v1/metrics");
+    expect(config.tracing?.logsEndpoint).toBe("http://localhost:4318/v1/logs");
     expect(config.tracing?.metricsExportIntervalMs).toBe(5000);
     expect(config.tracing?.samplingRate).toBe(0.25);
     expect(config.tracing?.serviceName).toBe("kota-test");

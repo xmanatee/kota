@@ -1,11 +1,19 @@
 # Tracing Module
 
-This module provides OpenTelemetry workflow execution tracing and metrics.
+This module provides OpenTelemetry workflow execution tracing, metrics, and
+bounded operator/security logs.
 
 - Subscribes to workflow bus events and emits both structured spans and
   operator-facing metrics.
 - Opt-in via the `tracing.endpoint` config field. Metrics use the same endpoint
-  unless `tracing.metricsEndpoint` is set.
+  unless `tracing.metricsEndpoint` is set. Security logs use
+  `tracing.logsEndpoint` when set; otherwise the tracing endpoint's
+  `/v1/traces` or `/v1/metrics` suffix is replaced with `/v1/logs`.
+- Security logs export bounded metadata from existing guardrail, approval,
+  injection-defense, and agent-step tool telemetry signals. They must not
+  include raw prompts, chain-of-thought, tool inputs, tool outputs, file
+  contents, network payloads, or secrets; use byte counts and explicit
+  omission flags instead.
 - Owns the daemon-control `GET /metrics` Prometheus text-format exposition
   alongside the OTLP push emitter. The route is contributed through
   `KotaModule.controlRoutes` with `read` capability scope and is always

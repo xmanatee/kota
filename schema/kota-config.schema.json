@@ -754,6 +754,10 @@
           "description": "OTLP HTTP endpoint (e.g. \"http://localhost:4318/v1/traces\"). Required to enable.",
           "type": "string"
         },
+        "logsEndpoint": {
+          "description": "OTLP HTTP endpoint for security logs. Defaults to `endpoint` with `/v1/traces` or `/v1/metrics` replaced by `/v1/logs`.",
+          "type": "string"
+        },
         "metricsEndpoint": {
           "description": "OTLP HTTP endpoint for metrics. Defaults to `endpoint`.",
           "type": "string"
@@ -775,7 +779,7 @@
         "endpoint"
       ],
       "type": "object",
-      "description": "OpenTelemetry trace export endpoint and sampling config"
+      "description": "OpenTelemetry trace, metrics, and security log export config"
     },
     "user": {
       "additionalProperties": false,

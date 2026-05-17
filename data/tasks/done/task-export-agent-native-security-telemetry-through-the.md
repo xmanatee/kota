@@ -1,12 +1,12 @@
 ---
 id: task-export-agent-native-security-telemetry-through-the
 title: Export agent-native security telemetry through the tracing module
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Bridge KOTA's existing tool telemetry, guardrail decisions, approval events, and injection-defense assessments into bounded OTLP log records so operators can triage autonomous coding-agent activity without reconstructing raw transcripts.
 created_at: 2026-05-17T13:42:30.451Z
-updated_at: 2026-05-17T13:42:30.451Z
+updated_at: 2026-05-17T13:58:27.000Z
 ---
 
 ## Problem

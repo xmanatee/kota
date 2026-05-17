@@ -266,6 +266,7 @@ describe("slackChannelModule channel adapter", () => {
       risk: "high",
       reason: "Runs commands",
       source: "builder",
+      sessionId: "",
     });
     await Promise.resolve();
     expect(botInstance.postApproval).toHaveBeenCalledWith(
@@ -285,6 +286,7 @@ describe("slackChannelModule channel adapter", () => {
       risk: "low",
       reason: "test",
       source: "test",
+      sessionId: "",
     });
     await Promise.resolve();
     expect(botInstance.postApproval).not.toHaveBeenCalled();

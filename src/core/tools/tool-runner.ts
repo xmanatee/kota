@@ -194,6 +194,7 @@ export async function executeToolCalls(
           guardrailsConfig?.approvalTimeoutMs,
           undefined,
           approvalContext,
+          sessionId,
         );
         tryEmit("guardrail.assessed", {
           tool: assessment.tool,
@@ -250,6 +251,7 @@ export async function executeToolCalls(
           const queued = getApprovalQueue().enqueue(
             block.name, input, assessment.risk, assessment.reason, sessionId,
             guardrailsConfig.approvalTimeoutMs, undefined, approvalContext,
+            sessionId,
           );
           return {
             tool_use_id: block.id,

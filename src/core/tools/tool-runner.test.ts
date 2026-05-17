@@ -452,6 +452,7 @@ describe("guardrails confirm gate", () => {
       undefined,
       undefined,
       undefined,
+      "session-1",
     );
   });
 

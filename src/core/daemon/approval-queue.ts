@@ -23,6 +23,7 @@ export type PendingApproval = {
 	risk: RiskLevel;
 	reason: string;
 	source?: string;
+	sessionId?: string;
 	/** Last N agent conversation turns captured at enqueue time, for operator context. */
 	context?: string;
 	createdAt: string;
@@ -54,6 +55,7 @@ export class ApprovalQueue {
 		timeoutMs?: number,
 		defaultResolution?: "deny" | "approve",
 		context?: string,
+		sessionId?: string,
 	): PendingApproval {
 		const item: PendingApproval = {
 			id: randomUUID().slice(0, 8),
@@ -63,6 +65,7 @@ export class ApprovalQueue {
 			risk,
 			reason,
 			source,
+			...(sessionId !== undefined && { sessionId }),
 			...(context !== undefined && { context }),
 			createdAt: new Date().toISOString(),
 			status: "pending",
@@ -71,7 +74,7 @@ export class ApprovalQueue {
 		};
 		writeFileSync(join(this.dir, `${item.id}.json`), JSON.stringify(item, null, 2));
 		if (this.pbus) {
-			this.pbus.emit("approval.requested", { id: item.id, tool, risk, reason, source: source ?? "" });
+			this.pbus.emit("approval.requested", { id: item.id, tool, risk, reason, source: source ?? "", sessionId: sessionId ?? "" });
 			this.pbus.emit("approval.changed", { id: item.id, pendingCount: this.count("pending") });
 		}
 		return item;
@@ -101,7 +104,7 @@ export class ApprovalQueue {
 		if (resolutionSource) item.resolutionSource = resolutionSource;
 		writeFileSync(join(this.dir, `${id}.json`), JSON.stringify(item, null, 2));
 		if (this.pbus) {
-			this.pbus.emit("approval.resolved", { id, tool: item.tool, approved: true, reason: "" });
+			this.pbus.emit("approval.resolved", { id, tool: item.tool, approved: true, reason: "", source: item.source ?? "", sessionId: item.sessionId ?? "" });
 			this.pbus.emit("approval.changed", { id, pendingCount: this.count("pending") });
 		}
 		return item;
@@ -116,7 +119,7 @@ export class ApprovalQueue {
 		if (resolutionSource) item.resolutionSource = resolutionSource;
 		writeFileSync(join(this.dir, `${id}.json`), JSON.stringify(item, null, 2));
 		if (this.pbus) {
-			this.pbus.emit("approval.resolved", { id, tool: item.tool, approved: false, reason: reason ?? "" });
+			this.pbus.emit("approval.resolved", { id, tool: item.tool, approved: false, reason: reason ?? "", source: item.source ?? "", sessionId: item.sessionId ?? "" });
 			this.pbus.emit("approval.changed", { id, pendingCount: this.count("pending") });
 		}
 		return item;
@@ -142,7 +145,7 @@ export class ApprovalQueue {
 			if (this.pbus) {
 				this.pbus.emit("workflow.approval.timeout", { id: item.id, tool: item.tool, defaultResolution: resolution });
 				this.pbus.emit("approval.expired", { id: item.id, tool: item.tool });
-				this.pbus.emit("approval.resolved", { id: item.id, tool: item.tool, approved: resolution === "approve", reason: "expired" });
+				this.pbus.emit("approval.resolved", { id: item.id, tool: item.tool, approved: resolution === "approve", reason: "expired", source: item.source ?? "", sessionId: item.sessionId ?? "" });
 				this.pbus.emit("approval.changed", { id: item.id, pendingCount: this.count("pending") });
 			}
 			expired.push(item);

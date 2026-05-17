@@ -106,6 +106,8 @@ describe("slackModule notifications", () => {
       tool: "bash",
       risk: "high",
       reason: "running rm command",
+      source: "",
+      sessionId: "",
     });
     await Promise.resolve();
     expect(mockFetch).toHaveBeenCalledOnce();
@@ -135,7 +137,7 @@ describe("slackModule notifications", () => {
     slackModule.onLoad!(
       makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK, events: ["workflow.failure.alert"] }),
     );
-    bus.emit("approval.requested", { id: "x", tool: "bash", risk: "low", reason: "test" });
+    bus.emit("approval.requested", { id: "x", tool: "bash", risk: "low", reason: "test", source: "", sessionId: "" });
     await Promise.resolve();
     expect(mockFetch).toHaveBeenCalledOnce();
   });
