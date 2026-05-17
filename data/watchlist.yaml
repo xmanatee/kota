@@ -31,21 +31,21 @@ resources:
   - url: https://github.com/anthropics/claude-code
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:fed2c8331caa195de4af66e0dd8a3dbe
-      summary: "Claude Code releases now emphasize long-lived background-session configuration preservation and typed hook output; KOTA's fresh local gap is making daemon config reloads typed observable runtime events rather than caller-only responses."
-      last_seen_at: "2026-05-17T03:06:13.269Z"
+      fingerprint: sha256:ff74b12e791f1e9be0c92dbc9028acd0
+      summary: "Claude Code now advertises GitHub @claude tagging and repo-local plugins; KOTA already covers plugin/skill primitives, while GitHub comment mention routing remains the nonduplicative local gap."
+      last_seen_at: "2026-05-17T07:03:40.826Z"
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:47c6da145eb3a2b7c34512dad7208db4
-      summary: "Codex CLI releases remain active, but this check opened no new nonduplicative KOTA task."
-      last_seen_at: "2026-05-17T04:52:38.674Z"
+      fingerprint: sha256:a8d41d665e599e701da0af2715e47072
+      summary: "Codex CLI remains active with local, IDE, desktop, and web entry points; this refresh opened no new nonduplicative KOTA task."
+      last_seen_at: "2026-05-17T07:03:40.826Z"
   - url: https://github.com/google-gemini/gemini-cli
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:a5c6e64caee52b5c77fbb80b5371dff8
-      summary: "Gemini CLI now documents a native headless JSON/stream-json surface, Google OAuth / Code Assist login, API-key and Vertex modes, and explicit stable/preview/nightly channels; KOTA's current Gemini preset is SDK/API-key backed, so native Gemini CLI runtime parity is a separate harness task."
-      last_seen_at: "2026-05-14T03:27:03.636Z"
+      fingerprint: sha256:47c833736351ed6376d4370cdee71b7c
+      summary: "Gemini CLI's GitHub Action highlights issue/PR mention-driven assistance; KOTA's actionable gap is typed github-webhook issue_comment mention events."
+      last_seen_at: "2026-05-17T07:03:40.826Z"
   - url: https://github.com/Aider-AI/aider
     added: "2026-04-19"
     snapshot:
@@ -237,6 +237,6 @@ resources:
     added: "2026-05-17"
     notes: "GitHub Agentic Workflows is a GitHub Actions-hosted agent workflow runtime; monitor for event-trigger, safe-output, input-sanitization, and multi-engine guardrail patterns relevant to KOTA's workflow runtime."
     snapshot:
-      fingerprint: sha256:ce910e3b44c6275995e23fefe047f158
-      summary: "GitHub Agentic Workflows is an Actions-hosted agent workflow runtime; the useful KOTA signal is actor/content integrity gating for event-triggered GitHub agent runs, distinct from webhook authenticity and prompt-injection labeling."
-      last_seen_at: "2026-05-17T04:16:38.060Z"
+      fingerprint: sha256:83127a3d6de603b1aaa9363b6d46a9c7
+      summary: "GitHub Agentic Workflows still reinforces explicit guardrails for repository agents; KOTA's actor-integrity PR gate is complete, and the new local gap is comment mention ingress."
+      last_seen_at: "2026-05-17T07:03:40.826Z"
