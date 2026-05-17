@@ -9,9 +9,10 @@ This directory owns the GitHub webhook ingestion module — receives GitHub webh
 - Invalid signatures are rejected; unrecognized event types are acknowledged and
   ignored.
 - Signature validation uses `timingSafeEqual` to prevent timing attacks.
-- Pull-request events own actor-integrity normalization at this boundary.
-  Preserve the distinction between webhook authenticity, normalized actor
-  trust metadata, and downstream prompt-injection labeling.
+- Pull-request events and issue-comment mention events own actor-integrity
+  normalization at this boundary. Preserve the distinction between webhook
+  authenticity, mention detection, normalized actor trust metadata, and
+  downstream prompt-injection labeling.
 
 ## GitHub Setup
 

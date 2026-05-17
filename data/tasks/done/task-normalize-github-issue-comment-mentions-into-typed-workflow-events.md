@@ -1,12 +1,12 @@
 ---
 id: task-normalize-github-issue-comment-mentions-into-typed-workflow-events
 title: Normalize GitHub issue-comment mentions into typed workflow events
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Extend github-webhook beyond pull_request by normalizing issue_comment events with actor-integrity metadata and emitting an explicit mention-trigger event that workflows can consume without parsing raw GitHub payloads.
 created_at: 2026-05-17T07:01:10Z
-updated_at: 2026-05-17T07:01:10Z
+updated_at: 2026-05-17T07:11:31Z
 ---
 
 ## Problem

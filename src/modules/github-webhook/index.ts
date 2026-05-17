@@ -8,6 +8,7 @@
  * Config (under modules.github-webhook):
  *   secret:  Webhook secret or "$ENV_VAR" reference. Required.
  *   events:  Event types to accept. Default: ["push", "pull_request", "check_run"].
+ *   issueComment.mentionAliases: Mention aliases that trigger typed comment events.
  *
  * Invalid signatures are rejected with HTTP 401 and a warning log.
  * Unrecognised/unconfigured event types return HTTP 200 with `ignored: true`.
@@ -22,9 +23,11 @@ import type {
   RouteRegistration,
 } from "#core/modules/module-types.js";
 import {
-  type GitHubPullRequestActor,
-  type GitHubPullRequestActorIntegrity,
+  type GitHubIssueCommentMentionEventPayload,
   type GitHubPullRequestEventPayload,
+  type GitHubWebhookActor,
+  type GitHubWebhookActorIntegrity,
+  githubIssueCommentMentionEvent,
   githubPullRequestEvent,
 } from "./events.js";
 
@@ -35,6 +38,12 @@ type GitHubWebhookConfig = {
   secret: string;
   /** Event types to accept. Default: ["push", "pull_request", "check_run"]. */
   events?: readonly string[];
+  issueComment?: {
+    /** GitHub mention tokens that should trigger the typed comment event. Defaults to @kota. */
+    mentionAliases?: readonly string[];
+    /** Comment actions that can trigger mention handling. Defaults to created. */
+    supportedActions?: readonly string[];
+  };
   actorIntegrity?: {
     /** Author associations trusted for autonomous review. Defaults to OWNER, MEMBER, COLLABORATOR. */
     trustedAuthorAssociations?: readonly string[];
@@ -44,12 +53,15 @@ type GitHubWebhookConfig = {
 };
 
 const DEFAULT_EVENTS = ["push", "pull_request", "check_run"];
+const DEFAULT_ISSUE_COMMENT_MENTION_ALIASES = ["@kota"];
+const DEFAULT_ISSUE_COMMENT_SUPPORTED_ACTIONS = ["created"];
 const DEFAULT_TRUSTED_AUTHOR_ASSOCIATIONS = ["OWNER", "MEMBER", "COLLABORATOR"];
 
 type JsonObject = { [key: string]: unknown };
 type JsonMember = JsonObject[string];
 
 type ActorIntegrityConfig = NonNullable<GitHubWebhookConfig["actorIntegrity"]>;
+type IssueCommentConfig = NonNullable<GitHubWebhookConfig["issueComment"]>;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -109,7 +121,7 @@ function booleanValue(value: JsonMember): boolean | null {
   return typeof value === "boolean" ? value : null;
 }
 
-function actorValue(value: JsonMember): GitHubPullRequestActor {
+function actorValue(value: JsonMember): GitHubWebhookActor {
   const actor = objectValue(value);
   return {
     login: actor ? stringValue(actor.login) : null,
@@ -140,13 +152,13 @@ function actorIntegrityConfigSets(config: ActorIntegrityConfig | undefined): {
 }
 
 function deriveActorIntegrity(input: {
-  sender: GitHubPullRequestActor;
-  prAuthor: GitHubPullRequestActor;
+  sender: GitHubWebhookActor;
+  prAuthor: GitHubWebhookActor;
   authorAssociation: string | null;
   headSha: string | null;
   config?: ActorIntegrityConfig;
 }): {
-  actorIntegrity: GitHubPullRequestActorIntegrity;
+  actorIntegrity: GitHubWebhookActorIntegrity;
   actorIntegrityReason: string;
 } {
   const { blockedActors, trustedAssociations } = actorIntegrityConfigSets(input.config);
@@ -167,6 +179,89 @@ function deriveActorIntegrity(input: {
   if (!input.prAuthor.type) missing.push("pull_request.user.type");
   if (!input.authorAssociation) missing.push("pull_request.author_association");
   if (!input.headSha) missing.push("pull_request.head.sha");
+  if (missing.length > 0) {
+    return {
+      actorIntegrity: "missing_metadata",
+      actorIntegrityReason: `missing actor trust metadata: ${missing.join(", ")}`,
+    };
+  }
+
+  const authorAssociation = input.authorAssociation;
+  if (authorAssociation === null) {
+    throw new Error("authorAssociation must be present after missing metadata check");
+  }
+  const association = authorAssociation.toUpperCase();
+  if (!trustedAssociations.has(association)) {
+    return {
+      actorIntegrity: "low_trust_actor",
+      actorIntegrityReason: `author association '${authorAssociation}' is below the configured trust threshold`,
+    };
+  }
+
+  return {
+    actorIntegrity: "allowed",
+    actorIntegrityReason: `author association '${authorAssociation}' satisfies the configured trust threshold`,
+  };
+}
+
+function issueCommentConfigValues(config: IssueCommentConfig | undefined): {
+  mentionAliases: readonly string[];
+  supportedActions: ReadonlySet<string>;
+} {
+  return {
+    mentionAliases: (config?.mentionAliases ?? DEFAULT_ISSUE_COMMENT_MENTION_ALIASES)
+      .map((alias) => alias.trim())
+      .filter((alias) => alias.length > 0),
+    supportedActions: new Set(
+      (config?.supportedActions ?? DEFAULT_ISSUE_COMMENT_SUPPORTED_ACTIONS)
+        .map((action) => action.trim().toLowerCase())
+        .filter((action) => action.length > 0),
+    ),
+  };
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function findMentionAlias(body: string | null, aliases: readonly string[]): string | null {
+  if (!body) return null;
+  for (const alias of aliases) {
+    const pattern = new RegExp(
+      `(^|[^A-Za-z0-9_@-])${escapeRegExp(alias)}(?=$|[^A-Za-z0-9_-])`,
+      "i",
+    );
+    if (pattern.test(body)) return alias;
+  }
+  return null;
+}
+
+function deriveIssueCommentActorIntegrity(input: {
+  sender: GitHubWebhookActor;
+  commenter: GitHubWebhookActor;
+  authorAssociation: string | null;
+  config?: ActorIntegrityConfig;
+}): {
+  actorIntegrity: GitHubWebhookActorIntegrity;
+  actorIntegrityReason: string;
+} {
+  const { blockedActors, trustedAssociations } = actorIntegrityConfigSets(input.config);
+  const blockedActor = [input.sender.login, input.commenter.login].find(
+    (login) => login !== null && blockedActors.has(normalizeActorLogin(login)),
+  );
+  if (blockedActor) {
+    return {
+      actorIntegrity: "blocked_actor",
+      actorIntegrityReason: `blocked actor '${blockedActor}' matched github-webhook actorIntegrity.blockedActors`,
+    };
+  }
+
+  const missing: string[] = [];
+  if (!input.sender.login) missing.push("sender.login");
+  if (!input.sender.type) missing.push("sender.type");
+  if (!input.commenter.login) missing.push("comment.user.login");
+  if (!input.commenter.type) missing.push("comment.user.type");
+  if (!input.authorAssociation) missing.push("comment.author_association");
   if (missing.length > 0) {
     return {
       actorIntegrity: "missing_metadata",
@@ -235,6 +330,74 @@ function normalizePullRequestPayload(
   };
 }
 
+type IssueCommentMentionDecision =
+  | {
+      kind: "emit";
+      payload: GitHubIssueCommentMentionEventPayload;
+    }
+  | {
+      kind: "ignore";
+      reason: "unsupported_action" | "no_matching_mention";
+      repo: string | null;
+      action: string | null;
+    };
+
+function normalizeIssueCommentMentionDelivery(
+  raw: JsonObject,
+  issueCommentConfig: IssueCommentConfig | undefined,
+  actorIntegrityConfig: ActorIntegrityConfig | undefined,
+): IssueCommentMentionDecision {
+  const repository = objectValue(raw.repository);
+  const repo = repository ? stringValue(repository.full_name) : null;
+  const action = stringValue(raw.action);
+  const { mentionAliases, supportedActions } = issueCommentConfigValues(issueCommentConfig);
+  if (action === null || !supportedActions.has(action.toLowerCase())) {
+    return { kind: "ignore", reason: "unsupported_action", repo, action };
+  }
+
+  const comment = objectValue(raw.comment);
+  const issue = objectValue(raw.issue);
+  const body = comment ? stringValue(comment.body) : null;
+  const matchedMentionAlias = findMentionAlias(body, mentionAliases);
+  if (!matchedMentionAlias) {
+    return { kind: "ignore", reason: "no_matching_mention", repo, action };
+  }
+
+  const sender = actorValue(raw.sender);
+  const commenter = actorValue(comment ? comment.user : null);
+  const authorAssociation = comment ? stringValue(comment.author_association) : null;
+  const integrity = deriveIssueCommentActorIntegrity({
+    sender,
+    commenter,
+    authorAssociation,
+    config: actorIntegrityConfig,
+  });
+
+  return {
+    kind: "emit",
+    payload: {
+      repo,
+      repositoryId: repository ? numberValue(repository.id) : null,
+      repositoryUrl: repository ? stringValue(repository.html_url) : null,
+      action,
+      issueNumber: issue ? numberValue(issue.number) : null,
+      issueTitle: issue ? stringValue(issue.title) : null,
+      issueUrl: issue ? stringValue(issue.html_url) : null,
+      isPullRequest: issue ? objectValue(issue.pull_request) !== null : false,
+      commentId: comment ? numberValue(comment.id) : null,
+      commentBody: body,
+      commentUrl: comment ? stringValue(comment.html_url) : null,
+      commenter,
+      sender,
+      authorAssociation,
+      matchedMentionAlias,
+      actorIntegrity: integrity.actorIntegrity,
+      actorIntegrityReason: integrity.actorIntegrityReason,
+      reason: `comment body mentioned configured alias '${matchedMentionAlias}'`,
+    },
+  };
+}
+
 function normalizePayload(
   eventType: string,
   raw: JsonObject,
@@ -272,6 +435,7 @@ function normalizePayload(
 function makeWebhookHandler(
   secret: string,
   enabledEvents: Set<string>,
+  issueCommentConfig: IssueCommentConfig | undefined,
   actorIntegrityConfig: ActorIntegrityConfig | undefined,
   ctx: ModuleContext,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
@@ -316,6 +480,41 @@ function makeWebhookHandler(
       return;
     }
 
+    if (eventType === "issue_comment") {
+      const decision = normalizeIssueCommentMentionDelivery(
+        rawPayload,
+        issueCommentConfig,
+        actorIntegrityConfig,
+      );
+      if (decision.kind === "ignore") {
+        ctx.log.info(`github-webhook: ignored github.issue_comment`, {
+          repo: decision.repo,
+          action: decision.action,
+          reason: decision.reason,
+        });
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            ok: true,
+            ignored: true,
+            event: "issue_comment",
+            reason: decision.reason,
+          }),
+        );
+        return;
+      }
+
+      ctx.events.emit(githubIssueCommentMentionEvent, decision.payload);
+      ctx.log.info("github-webhook: emitted github.issue_comment.mention", {
+        repo: decision.payload.repo,
+        actorIntegrity: decision.payload.actorIntegrity,
+      });
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true, event: "github.issue_comment.mention" }));
+      return;
+    }
+
     const payload =
       eventType === "pull_request"
         ? normalizePullRequestPayload(rawPayload, actorIntegrityConfig)
@@ -346,7 +545,7 @@ const githubWebhookModule: KotaModule = {
   version: "1.0.0",
   description:
     "GitHub webhook receiver — validates HMAC signatures and emits typed github.* bus events",
-  events: [githubPullRequestEvent],
+  events: [githubPullRequestEvent, githubIssueCommentMentionEvent],
 
   routes: (ctx: ModuleContext): RouteRegistration[] => {
     const secret = resolveActiveSecret(ctx);
@@ -360,7 +559,13 @@ const githubWebhookModule: KotaModule = {
         method: "POST",
         path: "/api/webhooks/github",
         bypassAuth: true,
-        handler: makeWebhookHandler(secret, enabledEvents, config?.actorIntegrity, ctx),
+        handler: makeWebhookHandler(
+          secret,
+          enabledEvents,
+          config?.issueComment,
+          config?.actorIntegrity,
+          ctx,
+        ),
       },
     ];
   },

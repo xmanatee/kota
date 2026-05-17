@@ -5,7 +5,7 @@ import { buildAgentPrompt } from "#core/workflow/steps/step-executor-agent-promp
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
-import type { GitHubPullRequestActorIntegrity } from "#modules/github-webhook/events.js";
+import type { GitHubWebhookActorIntegrity } from "#modules/github-webhook/events.js";
 import prReviewerWorkflow from "./workflow.js";
 
 type PrPayload = {
@@ -16,7 +16,7 @@ type PrPayload = {
   headBranch?: string | null;
   baseBranch?: string | null;
   isFork?: boolean | null;
-  actorIntegrity?: GitHubPullRequestActorIntegrity | null;
+  actorIntegrity?: GitHubWebhookActorIntegrity | null;
   actorIntegrityReason?: string | null;
 };
 

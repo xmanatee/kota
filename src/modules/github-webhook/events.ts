@@ -1,11 +1,11 @@
 import { defineDaemonWideModuleEvent } from "#core/events/module-event.js";
 
-export type GitHubPullRequestActor = {
+export type GitHubWebhookActor = {
   login: string | null;
   type: string | null;
 };
 
-export type GitHubPullRequestActorIntegrity =
+export type GitHubWebhookActorIntegrity =
   | "allowed"
   | "blocked_actor"
   | "low_trust_actor"
@@ -23,11 +23,32 @@ export type GitHubPullRequestEventPayload = {
   headRepo: string | null;
   isFork: boolean | null;
   headSha: string | null;
-  sender: GitHubPullRequestActor;
-  prAuthor: GitHubPullRequestActor;
+  sender: GitHubWebhookActor;
+  prAuthor: GitHubWebhookActor;
   authorAssociation: string | null;
-  actorIntegrity: GitHubPullRequestActorIntegrity;
+  actorIntegrity: GitHubWebhookActorIntegrity;
   actorIntegrityReason: string;
+};
+
+export type GitHubIssueCommentMentionEventPayload = {
+  repo: string | null;
+  repositoryId: number | null;
+  repositoryUrl: string | null;
+  action: string | null;
+  issueNumber: number | null;
+  issueTitle: string | null;
+  issueUrl: string | null;
+  isPullRequest: boolean;
+  commentId: number | null;
+  commentBody: string | null;
+  commentUrl: string | null;
+  commenter: GitHubWebhookActor;
+  sender: GitHubWebhookActor;
+  authorAssociation: string | null;
+  matchedMentionAlias: string | null;
+  actorIntegrity: GitHubWebhookActorIntegrity;
+  actorIntegrityReason: string;
+  reason: string;
 };
 
 // GitHub webhook routes do not carry project attribution today; this should
@@ -52,5 +73,30 @@ export const githubPullRequestEvent =
       "authorAssociation",
       "actorIntegrity",
       "actorIntegrityReason",
+    ],
+  );
+
+export const githubIssueCommentMentionEvent =
+  defineDaemonWideModuleEvent<GitHubIssueCommentMentionEventPayload>(
+    "github.issue_comment.mention",
+    [
+      "repo",
+      "repositoryId",
+      "repositoryUrl",
+      "action",
+      "issueNumber",
+      "issueTitle",
+      "issueUrl",
+      "isPullRequest",
+      "commentId",
+      "commentBody",
+      "commentUrl",
+      "commenter",
+      "sender",
+      "authorAssociation",
+      "matchedMentionAlias",
+      "actorIntegrity",
+      "actorIntegrityReason",
+      "reason",
     ],
   );
