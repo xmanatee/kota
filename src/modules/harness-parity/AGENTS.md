@@ -36,6 +36,13 @@ Per harness run the module writes:
 - `trace-summary.md` — operator-facing digest (harness, model, turns, cost,
   verification verdict, changed files) plus the adapter capability boundary
   before streamed text.
+- `trajectory.json` — ordered `KotaAgentMessage` frames captured through
+  `AgentHarnessRunOptions.onMessage` when the harness declares
+  `emitsAgentMessageStream: true`, or an explicit unsupported record when it
+  does not.
+- `trajectory-summary.md` — concise action/observation sequence for tool
+  calls, tool results, status frames, and final result frames; oversized tool
+  results are bounded with an explicit truncation marker.
 - `diff.patch` — `git diff --no-index` output against the scenario's
   `initial/` tree.
 - `verification.json` — command, timeout, exit status, and tail of combined
@@ -45,9 +52,9 @@ Per harness run the module writes:
   mode, owner-question tool name, message-stream support, supported hook kinds,
   unsupported neutral run options, and optional local readiness data.
 
-The top-level `parity.json` keeps a compact capability summary beside each
-harness outcome so side-by-side comparison does not require opening every
-child run directory.
+The top-level `parity.json` keeps compact capability and trajectory metadata
+beside each harness outcome so side-by-side comparison does not require
+opening every child run directory.
 
 ## Scenario Coverage
 

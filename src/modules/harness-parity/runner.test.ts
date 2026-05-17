@@ -6,7 +6,10 @@ import type {
   AgentHarness,
   AgentHarnessReadiness,
   AgentHarnessResult,
+  AgentHarnessRunOptions,
   AgentHarnessUnsupportedOption,
+  KotaContentBlock,
+  KotaToolResultBlock,
 } from "#core/agent-harness/index.js";
 import { resetHarnessHooks } from "#core/agent-harness/index.js";
 import { runScenarioAcrossHarnesses, runScenarioOnHarness } from "./runner.js";
@@ -35,7 +38,10 @@ function writeMinimalScenario(scenariosRoot: string, id = "fix-add"): void {
 
 function makeHarness(
   name: string,
-  behavior: (workingDir: string) => Promise<void> | void,
+  behavior: (
+    workingDir: string,
+    options: AgentHarnessRunOptions,
+  ) => Promise<void> | void,
   overrides: Partial<AgentHarnessResult> = {},
   harnessOverrides: Partial<
     Pick<
@@ -68,7 +74,7 @@ function makeHarness(
       : {}),
     async run(options, writer) {
       const cwd = options.cwd ?? process.cwd();
-      await behavior(cwd);
+      await behavior(cwd, options);
       writer?.write(`[${name}] ran with prompt: ${options.prompt}\n`);
       return {
         text: `[${name}] done`,
@@ -137,6 +143,397 @@ describe("harness-parity runner", () => {
 
     const diff = readFileSync(join(artifact.artifactDir, "diff.patch"), "utf-8");
     expect(diff).toContain("add.js");
+  });
+
+  it("captures ordered structured trajectories for message-streaming harnesses", async () => {
+    const scenario = loadScenario(scenariosRoot, "fix-add");
+    const harness = makeHarness(
+      "streaming",
+      async (workingDir, options) => {
+        writeFileSync(
+          join(workingDir, "add.js"),
+          "exports.add = (a, b) => a + b;\n",
+        );
+        await options.onMessage?.({
+          type: "status",
+          category: "started",
+          text: "run started",
+        });
+        await options.onMessage?.({
+          type: "tool_call",
+          toolUseId: "tool-1",
+          toolName: "Edit",
+          input: { path: "add.js" },
+        });
+        await options.onMessage?.({
+          type: "tool_result",
+          toolUseId: "tool-1",
+          isError: false,
+          content: "patched add.js",
+        });
+        await options.onMessage?.({
+          type: "result",
+          text: "done",
+          isError: false,
+          numTurns: 1,
+        });
+      },
+      {},
+      { emitsAgentMessageStream: true },
+    );
+
+    const artifacts = await runScenarioAcrossHarnesses({
+      scenario,
+      harnesses: [harness],
+      callOptions: { model: "test-model" },
+      outBaseDir: outRoot,
+    });
+
+    const trajectory = JSON.parse(
+      readFileSync(join(artifacts[0]!.artifactDir, "trajectory.json"), "utf-8"),
+    );
+    expect(trajectory.status).toBe("supported");
+    expect(trajectory.counts).toMatchObject({
+      frameCount: 4,
+      toolCallCount: 1,
+      toolResultCount: 1,
+      statusCount: 1,
+      resultCount: 1,
+      truncatedFrameCount: 0,
+    });
+    expect(trajectory.frames.map((frame: { type: string }) => frame.type)).toEqual([
+      "status",
+      "tool_call",
+      "tool_result",
+      "result",
+    ]);
+    expect(trajectory.frames[1]).toMatchObject({
+      index: 1,
+      toolName: "Edit",
+      message: {
+        type: "tool_call",
+        toolUseId: "tool-1",
+        toolName: "Edit",
+      },
+    });
+    expect(trajectory.frames[2]).toMatchObject({
+      index: 2,
+      toolName: "Edit",
+      message: {
+        type: "tool_result",
+        toolUseId: "tool-1",
+        isError: false,
+      },
+    });
+    expect(trajectory.frames[3]).toMatchObject({
+      message: {
+        type: "result",
+        isError: false,
+        numTurns: 1,
+      },
+    });
+
+    const summary = readFileSync(
+      join(artifacts[0]!.artifactDir, "trajectory-summary.md"),
+      "utf-8",
+    );
+    expect(summary).toContain("tool_call Edit (tool-1)");
+    expect(summary).toContain("tool_result Edit (tool-1) isError=false");
+
+    const parity = JSON.parse(
+      readFileSync(join(outRoot, "fix-add", "parity.json"), "utf-8"),
+    );
+    expect(parity.artifacts[0].trajectory).toMatchObject({
+      status: "supported",
+      emitsAgentMessageStream: true,
+      frameCount: 4,
+      toolCallCount: 1,
+      toolResultCount: 1,
+      resultCount: 1,
+      artifactPath: join(artifacts[0]!.artifactDir, "trajectory.json"),
+      summaryPath: join(artifacts[0]!.artifactDir, "trajectory-summary.md"),
+    });
+  });
+
+  it("writes explicit unsupported trajectory artifacts for non-streaming harnesses", async () => {
+    const scenario = loadScenario(scenariosRoot, "fix-add");
+    const harness = makeHarness("non-streaming", (workingDir) => {
+      writeFileSync(
+        join(workingDir, "add.js"),
+        "exports.add = (a, b) => a + b;\n",
+      );
+    });
+
+    const artifacts = await runScenarioAcrossHarnesses({
+      scenario,
+      harnesses: [harness],
+      callOptions: { model: "test-model" },
+      outBaseDir: outRoot,
+    });
+
+    const trajectory = JSON.parse(
+      readFileSync(join(artifacts[0]!.artifactDir, "trajectory.json"), "utf-8"),
+    );
+    expect(trajectory).toMatchObject({
+      status: "unsupported",
+      emitsAgentMessageStream: false,
+      reason:
+        "Harness capability snapshot declares emitsAgentMessageStream=false.",
+      frames: [],
+      counts: {
+        frameCount: 0,
+        toolCallCount: 0,
+        toolResultCount: 0,
+        statusCount: 0,
+        resultCount: 0,
+        truncatedFrameCount: 0,
+      },
+    });
+    const summary = readFileSync(
+      join(artifacts[0]!.artifactDir, "trajectory-summary.md"),
+      "utf-8",
+    );
+    expect(summary).toContain("- status: unsupported");
+    expect(summary).toContain(
+      "- reason: Harness capability snapshot declares emitsAgentMessageStream=false.",
+    );
+
+    const parity = JSON.parse(
+      readFileSync(join(outRoot, "fix-add", "parity.json"), "utf-8"),
+    );
+    expect(parity.artifacts[0].trajectory).toMatchObject({
+      status: "unsupported",
+      emitsAgentMessageStream: false,
+      reason:
+        "Harness capability snapshot declares emitsAgentMessageStream=false.",
+      frameCount: 0,
+      artifactPath: join(artifacts[0]!.artifactDir, "trajectory.json"),
+    });
+  });
+
+  it("truncates oversized tool-result content in trajectory artifacts", async () => {
+    const scenario = loadScenario(scenariosRoot, "fix-add");
+    const oversized = "x".repeat(20_000);
+    const harness = makeHarness(
+      "streaming-large-result",
+      async (workingDir, options) => {
+        writeFileSync(
+          join(workingDir, "add.js"),
+          "exports.add = (a, b) => a + b;\n",
+        );
+        await options.onMessage?.({
+          type: "tool_call",
+          toolUseId: "tool-large",
+          toolName: "Read",
+          input: { path: "large.txt" },
+        });
+        await options.onMessage?.({
+          type: "tool_result",
+          toolUseId: "tool-large",
+          isError: false,
+          content: oversized,
+        });
+      },
+      {},
+      { emitsAgentMessageStream: true },
+    );
+
+    const artifact = await runScenarioOnHarness({
+      scenario,
+      harness,
+      callOptions: { model: "test-model" },
+      outBaseDir: outRoot,
+    });
+
+    const trajectory = JSON.parse(
+      readFileSync(join(artifact.artifactDir, "trajectory.json"), "utf-8"),
+    );
+    const resultFrame = trajectory.frames[1];
+    expect(resultFrame).toMatchObject({
+      index: 1,
+      type: "tool_result",
+      toolName: "Read",
+      truncatedFields: ["content"],
+      message: {
+        type: "tool_result",
+        toolUseId: "tool-large",
+        isError: false,
+      },
+    });
+    expect(resultFrame.message.content.length).toBeLessThan(oversized.length);
+    expect(resultFrame.message.content).toContain(
+      "[... 12000 chars truncated from trajectory field ...]",
+    );
+    expect(trajectory.counts.truncatedFrameCount).toBe(1);
+
+    const summary = readFileSync(
+      join(artifact.artifactDir, "trajectory-summary.md"),
+      "utf-8",
+    );
+    expect(summary).toContain("truncated=content");
+  });
+
+  it("truncates rich tool-result block payloads in trajectory artifacts", async () => {
+    const scenario = loadScenario(scenariosRoot, "fix-add");
+    const oversized = "x".repeat(20_000);
+    const nestedToolResult: KotaToolResultBlock = {
+      type: "tool_result",
+      tool_use_id: "nested-tool",
+      is_error: false,
+      content: [
+        { type: "text", text: oversized },
+        {
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: "image/png",
+            data: oversized,
+          },
+        },
+        {
+          type: "mcp_content",
+          content: {
+            type: "resource",
+            resource: {
+              uri: "file:///report.txt",
+              mimeType: "text/plain",
+              text: oversized,
+            },
+          },
+        },
+        {
+          type: "mcp_content",
+          content: {
+            type: "resource",
+            resource: {
+              uri: "file:///report.bin",
+              mimeType: "application/octet-stream",
+              blob: oversized,
+            },
+          },
+        },
+        {
+          type: "mcp_content",
+          content: {
+            type: "audio",
+            mimeType: "audio/wav",
+            data: oversized,
+          },
+        },
+      ],
+      structuredContent: {
+        raw: oversized,
+      },
+    };
+    const stringNestedToolResult: KotaToolResultBlock = {
+      type: "tool_result",
+      tool_use_id: "nested-string-tool",
+      is_error: false,
+      content: oversized,
+      structuredContent: {
+        raw: oversized,
+      },
+      _meta: {
+        raw: oversized,
+      },
+    };
+    const richContent: KotaContentBlock[] = [
+      {
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: "image/png",
+          data: oversized,
+        },
+      },
+      nestedToolResult,
+      stringNestedToolResult,
+    ];
+    const harness = makeHarness(
+      "streaming-rich-result",
+      async (workingDir, options) => {
+        writeFileSync(
+          join(workingDir, "add.js"),
+          "exports.add = (a, b) => a + b;\n",
+        );
+        await options.onMessage?.({
+          type: "tool_call",
+          toolUseId: "tool-rich",
+          toolName: "Inspect",
+          input: { path: "rich.bin" },
+        });
+        await options.onMessage?.({
+          type: "tool_result",
+          toolUseId: "tool-rich",
+          isError: false,
+          content: richContent,
+        });
+      },
+      {},
+      { emitsAgentMessageStream: true },
+    );
+
+    const artifact = await runScenarioOnHarness({
+      scenario,
+      harness,
+      callOptions: { model: "test-model" },
+      outBaseDir: outRoot,
+    });
+
+    const trajectory = JSON.parse(
+      readFileSync(join(artifact.artifactDir, "trajectory.json"), "utf-8"),
+    );
+    const resultFrame = trajectory.frames[1];
+    expect(resultFrame.truncatedFields).toEqual([
+      "content[0].source.data",
+      "content[1].content[0].text",
+      "content[1].content[1].source.data",
+      "content[1].content[2].content.resource.text",
+      "content[1].content[3].content.resource.blob",
+      "content[1].content[4].content.data",
+      "content[1].structuredContent.raw",
+      "content[2].content",
+      "content[2].structuredContent.raw",
+      "content[2]._meta.raw",
+    ]);
+    expect(resultFrame.message.content[0].source.data).toContain(
+      "[... 12000 chars truncated from trajectory field ...]",
+    );
+    expect(resultFrame.message.content[1].content[0].text).toContain(
+      "[... 12000 chars truncated from trajectory field ...]",
+    );
+    expect(resultFrame.message.content[1].content[1].source.data).toContain(
+      "[... 12000 chars truncated from trajectory field ...]",
+    );
+    expect(resultFrame.message.content[1].content[2].content.resource.text).toContain(
+      "[... 12000 chars truncated from trajectory field ...]",
+    );
+    expect(resultFrame.message.content[1].content[3].content.resource.blob).toContain(
+      "[... 12000 chars truncated from trajectory field ...]",
+    );
+    expect(resultFrame.message.content[1].content[4].content.data).toContain(
+      "[... 12000 chars truncated from trajectory field ...]",
+    );
+    expect(resultFrame.message.content[1].structuredContent.raw).toContain(
+      "[... 12000 chars truncated from trajectory field ...]",
+    );
+    expect(resultFrame.message.content[2].content).toContain(
+      "[... 12000 chars truncated from trajectory field ...]",
+    );
+    expect(resultFrame.message.content[2].structuredContent.raw).toContain(
+      "[... 12000 chars truncated from trajectory field ...]",
+    );
+    expect(resultFrame.message.content[2]._meta.raw).toContain(
+      "[... 12000 chars truncated from trajectory field ...]",
+    );
+
+    const summary = readFileSync(
+      join(artifact.artifactDir, "trajectory-summary.md"),
+      "utf-8",
+    );
+    expect(summary).toContain(
+      "truncated=content[0].source.data,content[1].content[0].text",
+    );
   });
 
   it("records capability snapshots for KOTA-controlled and native harnesses", async () => {

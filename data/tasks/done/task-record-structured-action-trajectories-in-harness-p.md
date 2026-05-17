@@ -1,12 +1,12 @@
 ---
 id: task-record-structured-action-trajectories-in-harness-p
 title: Record structured action trajectories in harness parity runs
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Extend harness-parity artifacts with a typed action/observation trajectory captured from AgentHarness onMessage frames so parity evidence shows what each coding harness actually did, not only streamed text and final diff.
 created_at: 2026-05-17T12:29:47.000Z
-updated_at: 2026-05-17T12:29:47.000Z
+updated_at: 2026-05-17T12:42:51.000Z
 ---
 
 ## Problem
