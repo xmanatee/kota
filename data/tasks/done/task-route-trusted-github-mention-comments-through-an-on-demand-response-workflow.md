@@ -1,12 +1,12 @@
 ---
 id: task-route-trusted-github-mention-comments-through-an-on-demand-response-workflow
 title: Route trusted GitHub mention comments through an on-demand response workflow
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Consume github.issue_comment.mention events with actor-integrity gating, run a bounded KOTA response workflow, and post the result back to the originating GitHub issue or PR without parsing raw webhook payloads.
 created_at: 2026-05-17T07:35:32Z
-updated_at: 2026-05-17T07:35:32Z
+updated_at: 2026-05-17T07:48:37Z
 ---
 
 ## Problem
@@ -136,3 +136,9 @@ pnpm test src/modules/autonomy/workflows/github-mention-responder/workflow.test.
   payload posts or queues exactly one GitHub response comment.
 - A fixture or run artifact showing a blocked or low-trust actor is skipped
   before any response agent step or GitHub comment write.
+
+## Completion Evidence
+
+- `.kota/runs/2026-05-17T07-37-50-446Z-builder-d5nars/focused-test-transcript.txt`
+- `.kota/runs/2026-05-17T07-37-50-446Z-builder-d5nars/workflow-validate-transcript.txt`
+- `.kota/runs/2026-05-17T07-37-50-446Z-builder-d5nars/github-mention-responder-evidence.json`
