@@ -230,6 +230,6 @@ resources:
     added: "2026-05-16"
     notes: "Official MCP tools spec draft - monitor tool-result content, structuredContent, _meta, output schema, annotations, and execution-error semantics that affect KOTA's MCP client/server protocol fidelity."
     snapshot:
-      fingerprint: sha256:61e49bf16d190283291b9bdbf04a6761
-      summary: "MCP draft Tools still centers outputSchema/structuredContent as the live protocol signal; after KOTA's outbound and local-runner fixes, the next gap is validating remote MCP tool structured results in the client runtime."
-      last_seen_at: "2026-05-17T01:11:06.657Z"
+      fingerprint: sha256:27b5b174ea5c4de1cd82f00fdaba3f8c
+      summary: "MCP draft Tools still centers structured tool results and draft input-required result variants; KOTA's remaining local gap is inbound client-runtime handling for remote input_required results."
+      last_seen_at: "2026-05-17T02:18:33.268Z"
