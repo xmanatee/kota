@@ -186,6 +186,7 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
       verbose: state.verbose,
       autonomyMode: state.autonomyMode,
       mcpManager: state.mcpManager ?? undefined,
+      mcpInputResolver: state.mcpInputResolver,
       transport: state.transport,
       guardrailsConfig: state.guardrailsConfig,
       sessionId: state.sessionId,

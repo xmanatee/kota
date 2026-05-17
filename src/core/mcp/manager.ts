@@ -3,7 +3,14 @@ import { join } from "node:path";
 import type { KotaJsonObject, KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/index.js";
 import { validateToolStructuredOutput } from "#core/tools/output-schema.js";
-import { McpClient, type McpInputRequiredCallToolResult, type McpToolSchema } from "./client.js";
+import {
+  type McpCallToolResult,
+  McpClient,
+  type McpInputRequiredCallToolResult,
+  type McpToolInputRequests,
+  type McpToolInputResponses,
+  type McpToolSchema,
+} from "./client.js";
 
 type McpServerConfig = {
   command: string;
@@ -19,6 +26,26 @@ type McpToolEntry = {
   client: McpClient;
   originalName: string;
   tool: KotaTool;
+};
+
+export type McpRemoteInputRequest = {
+  server: string;
+  tool: string;
+  inputRequests: McpToolInputRequests;
+  requestState: string;
+  resultMeta?: KotaJsonObject;
+};
+
+export type McpInputResolverResult =
+  | { kind: "respond"; inputResponses: McpToolInputResponses }
+  | { kind: "unavailable"; reason: string };
+
+export type McpInputResolver = (
+  request: McpRemoteInputRequest,
+) => Promise<McpInputResolverResult>;
+
+export type McpExecuteToolOptions = {
+  inputResolver?: McpInputResolver;
 };
 
 const SEPARATOR = "__";
@@ -70,15 +97,40 @@ function inputRequiredDiagnostics(
 function unsupportedInputRequiredResult(
   entry: McpToolEntry,
   result: McpInputRequiredCallToolResult,
+  reason?: string,
 ): ToolResult {
+  const detail = reason
+    ? ` ${reason}`
+    : " this KOTA runtime cannot route remote input_required results yet.";
   return {
     content:
       `MCP tool error: remote MCP tool "${entry.originalName}" on server ` +
-      `"${entry.client.getName()}" requires additional input, but this KOTA ` +
-      "runtime cannot route remote input_required results yet.",
+      `"${entry.client.getName()}" requires additional input, but${detail}`,
     is_error: true,
     _meta: { mcp: inputRequiredDiagnostics(entry, result) },
   };
+}
+
+function toToolResult(entry: McpToolEntry, result: McpCallToolResult): ToolResult {
+  if (result.resultType === "input_required") {
+    return unsupportedInputRequiredResult(
+      entry,
+      result,
+      "the remote server requested additional input again after the retry.",
+    );
+  }
+  const toolResult: ToolResult = {
+    content: result.text,
+    blocks: result.blocks,
+    ...(result.structuredContent ? { structuredContent: result.structuredContent } : {}),
+    ...(result._meta ? { _meta: result._meta } : {}),
+    ...(result.isError !== undefined ? { is_error: result.isError } : {}),
+  };
+  const schemaError = validateToolStructuredOutput(entry.tool, toolResult);
+  if (schemaError) {
+    return { content: `MCP tool error: ${schemaError}`, is_error: true };
+  }
+  return toolResult;
 }
 
 /**
@@ -160,7 +212,11 @@ export class McpManager {
   }
 
   /** Execute an MCP tool by its namespaced name. */
-  async executeTool(name: string, input: Record<string, unknown>): Promise<ToolResult> {
+  async executeTool(
+    name: string,
+    input: Record<string, unknown>,
+    options: McpExecuteToolOptions = {},
+  ): Promise<ToolResult> {
     const entry = this.toolMap.get(name);
     if (!entry) return { content: `Unknown MCP tool: ${name}`, is_error: true };
 
@@ -171,20 +227,26 @@ export class McpManager {
     try {
       const result = await entry.client.callTool(entry.originalName, input);
       if (result.resultType === "input_required") {
-        return unsupportedInputRequiredResult(entry, result);
+        if (!options.inputResolver) {
+          return unsupportedInputRequiredResult(entry, result);
+        }
+        const routed = await options.inputResolver({
+          server: entry.client.getName(),
+          tool: entry.originalName,
+          inputRequests: result.inputRequests,
+          requestState: result.requestState,
+          ...(result._meta ? { resultMeta: result._meta } : {}),
+        });
+        if (routed.kind === "unavailable") {
+          return unsupportedInputRequiredResult(entry, result, routed.reason);
+        }
+        const retried = await entry.client.callTool(entry.originalName, input, {
+          requestState: result.requestState,
+          inputResponses: routed.inputResponses,
+        });
+        return toToolResult(entry, retried);
       }
-      const toolResult: ToolResult = {
-        content: result.text,
-        blocks: result.blocks,
-        ...(result.structuredContent ? { structuredContent: result.structuredContent } : {}),
-        ...(result._meta ? { _meta: result._meta } : {}),
-        ...(result.isError !== undefined ? { is_error: result.isError } : {}),
-      };
-      const schemaError = validateToolStructuredOutput(entry.tool, toolResult);
-      if (schemaError) {
-        return { content: `MCP tool error: ${schemaError}`, is_error: true };
-      }
-      return toolResult;
+      return toToolResult(entry, result);
     } catch (err) {
       if (!entry.client.isConnected()) {
         return { content: `MCP server disconnected for tool: ${name}`, is_error: true };

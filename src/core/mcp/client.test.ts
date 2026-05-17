@@ -118,6 +118,18 @@ rl.on("line", (line) => {
         isError: false,
       }}) + "\\n");
     } else if (msg.params.name === "input_required") {
+      if (msg.params.requestState || msg.params.inputResponses) {
+        const response = msg.params.inputResponses?.github_login;
+        process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+          resultType: "complete",
+          content: [{ type: "text", text: "Retry: " + msg.params.requestState + " " + response?.action + " " + (response?.content?.name || "") }],
+          structuredContent: {
+            requestState: msg.params.requestState,
+            inputResponses: msg.params.inputResponses,
+          },
+        }}) + "\\n");
+        return;
+      }
       process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
         resultType: "input_required",
         inputRequests: {
@@ -420,6 +432,61 @@ describe("McpClient lifecycle (fake MCP server)", () => {
     });
     expect(result.requestState).toBe("state-token-1");
     expect(result._meta).toEqual({ traceId: "input-required-1" });
+  }, 10_000);
+
+  it("callTool retries draft input_required requests with requestState and inputResponses", async () => {
+    client = new McpClient(
+      "node",
+      ["-e", FAKE_MCP_SERVER],
+      { MCP_TEST_MODE: "draft" },
+      "input-required-retry-test",
+    );
+    await client.connect();
+
+    const result = expectCompletedResult(
+      await client.callTool("input_required", {}, {
+        requestState: "state-token-1",
+        inputResponses: {
+          github_login: {
+            action: "accept",
+            content: { name: "octocat" },
+          },
+        },
+      }),
+    );
+
+    expect(result.resultType).toBe("complete");
+    expect(result.text).toBe("Retry: state-token-1 accept octocat");
+    expect(result.structuredContent).toEqual({
+      requestState: "state-token-1",
+      inputResponses: {
+        github_login: {
+          action: "accept",
+          content: { name: "octocat" },
+        },
+      },
+    });
+  }, 10_000);
+
+  it("callTool rejects malformed retry inputResponses before sending the retry", async () => {
+    client = new McpClient(
+      "node",
+      ["-e", FAKE_MCP_SERVER],
+      { MCP_TEST_MODE: "draft" },
+      "bad-input-response-test",
+    );
+    await client.connect();
+
+    await expect(
+      client.callTool("input_required", {}, {
+        requestState: "state-token-1",
+        inputResponses: {
+          github_login: {
+            action: "accept",
+          },
+        } as never,
+      }),
+    ).rejects.toThrow(/inputResponses\.github_login\.content must be an object/);
   }, 10_000);
 
   it("callTool rejects malformed draft input_required payloads at the MCP boundary", async () => {

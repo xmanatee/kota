@@ -3,7 +3,7 @@ import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import { getEventBus, tryEmit } from "#core/events/event-bus.js";
 import { runCleanupHooks } from "#core/loop/cleanup-hooks.js";
 import { listManifestModules } from "#core/manifest/index.js";
-import { McpManager } from "#core/mcp/manager.js";
+import { type McpInputResolver, McpManager } from "#core/mcp/manager.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import type { ModelTiers } from "#core/model/model-router.js";
 import { discoverModules } from "#core/modules/module-discovery.js";
@@ -59,6 +59,7 @@ export interface AgentLoopState {
   showCost: boolean;
   verifyTracker: VerifyTracker;
   mcpManager: McpManager | null;
+  mcpInputResolver: McpInputResolver | undefined;
   costTracker: CostTracker;
   reflectionEnabled: boolean;
   stateMachine: SessionStateMachine;

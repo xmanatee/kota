@@ -245,6 +245,27 @@ describe("executeToolCalls", () => {
     ]);
   });
 
+  it("passes MCP input resolver context to MCP tool execution when available", async () => {
+    const mcpInputResolver = vi.fn();
+    const mcpManager = {
+      isMcpTool: vi.fn((name: string) => name.startsWith("mcp__")),
+      executeTool: vi.fn().mockResolvedValue({ content: "mcp result" }),
+    };
+    await executeToolCalls(
+      [toolBlock("mcp__server__tool", { q: "test" })],
+      runOptions({
+        mcpManager: mcpManager as never,
+        mcpInputResolver,
+      }),
+    );
+
+    expect(mcpManager.executeTool).toHaveBeenCalledWith(
+      "mcp__server__tool",
+      { q: "test" },
+      { inputResolver: mcpInputResolver },
+    );
+  });
+
   it("uses executeTool for non-MCP tools when mcpManager present", async () => {
     mockExecuteTool.mockResolvedValue({ content: "local result" });
     const mcpManager = {

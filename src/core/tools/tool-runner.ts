@@ -8,7 +8,7 @@ import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import { tryEmit } from "#core/events/event-bus.js";
 import { truncateToolResult } from "#core/loop/context.js";
 import type { Transport } from "#core/loop/transport.js";
-import type { McpManager } from "#core/mcp/manager.js";
+import type { McpInputResolver, McpManager } from "#core/mcp/manager.js";
 import { confirmAction } from "#core/util/confirm.js";
 import { type AutonomyMode, resolveAutonomyGate } from "./autonomy-mode.js";
 import { assess, type GuardrailsConfig } from "./guardrails.js";
@@ -78,6 +78,7 @@ export type ToolCallExecutionOptions = {
   verbose: boolean;
   autonomyMode: AutonomyMode;
   mcpManager?: McpManager;
+  mcpInputResolver?: McpInputResolver;
   transport?: Transport;
   guardrailsConfig?: GuardrailsConfig;
   sessionId?: string;
@@ -131,6 +132,7 @@ export async function executeToolCalls(
     verbose,
     autonomyMode,
     mcpManager,
+    mcpInputResolver,
     transport,
     guardrailsConfig,
     sessionId,
@@ -290,7 +292,11 @@ export async function executeToolCalls(
       };
       const baseFn = () =>
         mcpManager?.isMcpTool(call.name)
-          ? mcpManager.executeTool(call.name, call.input)
+          ? mcpInputResolver
+            ? mcpManager.executeTool(call.name, call.input, {
+                inputResolver: mcpInputResolver,
+              })
+            : mcpManager.executeTool(call.name, call.input)
           : executeTool(call.name, call.input);
       const result = await middleware.execute(call, baseFn);
 

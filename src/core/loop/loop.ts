@@ -3,7 +3,7 @@ import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
 import { tryEmit } from "#core/events/event-bus.js";
-import type { McpManager } from "#core/mcp/manager.js";
+import type { McpInputResolver, McpManager } from "#core/mcp/manager.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import type { ModelTiers } from "#core/model/model-router.js";
 import type { ModuleLoader } from "#core/modules/module-loader.js";
@@ -57,6 +57,8 @@ export type LoopOptions = {
    * constructing new singleton-backed stores from `projectDir`.
    */
   projectRuntime?: ProjectRuntime;
+  /** Optional existing operator surface bridge for remote MCP input_required retries. */
+  mcpInputResolver?: McpInputResolver;
 };
 
 /**
@@ -76,6 +78,7 @@ export class AgentSession implements AgentLoopState {
   thinkingConfig: KotaThinkingConfig | undefined;
   verifyTracker!: VerifyTracker;
   mcpManager: McpManager | null = null;
+  mcpInputResolver: McpInputResolver | undefined;
   moduleLoader!: ModuleLoader;
   transport!: Transport;
   defaultTransportProxy: ProxyTransport | undefined;
@@ -114,6 +117,7 @@ export class AgentSession implements AgentLoopState {
         reflectionEnabled: false,
         projectDir: this.projectDir,
         projectRuntime: options.projectRuntime,
+        mcpInputResolver: this.mcpInputResolver,
       });
       return {
         send: (prompt: string) => session.send(prompt),

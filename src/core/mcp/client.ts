@@ -105,6 +105,15 @@ export type McpToolInputRequests = KotaJsonObject & {
   [requestId: string]: McpToolInputRequest;
 };
 
+export type McpToolInputResponse = KotaJsonObject & {
+  action: "accept" | "reject" | "cancel";
+  content?: KotaJsonObject;
+};
+
+export type McpToolInputResponses = KotaJsonObject & {
+  [requestId: string]: McpToolInputResponse;
+};
+
 export type McpInputRequiredCallToolResult = {
   resultType: "input_required";
   protocolVersion: McpProtocolVersion;
@@ -117,6 +126,11 @@ export type McpCallToolResult =
   | McpLegacyCallToolResult
   | McpCompleteCallToolResult
   | McpInputRequiredCallToolResult;
+
+export type McpCallToolRetry = {
+  requestState: string;
+  inputResponses: McpToolInputResponses;
+};
 
 const CONNECT_TIMEOUT = 10_000;
 const CALL_TIMEOUT = 120_000;
@@ -561,6 +575,43 @@ function decodeInputRequests(value: KotaJsonValue | undefined): McpToolInputRequ
   return decoded as McpToolInputRequests;
 }
 
+export function decodeMcpToolInputResponses(
+  value: KotaJsonValue | undefined,
+): McpToolInputResponses {
+  const object = requireJsonObject(value, "inputResponses");
+  const decoded: { [requestId: string]: McpToolInputResponse } = {};
+  for (const [requestId, rawResponse] of Object.entries(object)) {
+    const label = `inputResponses.${requestId}`;
+    const response = optionalJsonObject(rawResponse, label);
+    if (!response) {
+      throw malformedMcpResult("tools/call", label, "an object");
+    }
+    const action = requireString(response.action, `${label}.action`);
+    if (action !== "accept" && action !== "reject" && action !== "cancel") {
+      throw new Error(
+        `Malformed MCP tools/call result: ${label}.action must be accept, reject, or cancel`,
+      );
+    }
+    const content = optionalJsonObject(response.content, `${label}.content`);
+    if (action === "accept" && !content) {
+      throw new Error(
+        `Malformed MCP tools/call result: ${label}.content must be an object when action is accept`,
+      );
+    }
+    decoded[requestId] = {
+      ...response,
+      action,
+      ...(content ? { content } : {}),
+    };
+  }
+  if (Object.keys(decoded).length === 0) {
+    throw new Error(
+      "Malformed MCP tools/call result: inputResponses must include at least one response",
+    );
+  }
+  return decoded as McpToolInputResponses;
+}
+
 function decodeInputRequiredResult(
   object: KotaJsonObject,
   protocolVersion: McpProtocolVersion,
@@ -725,8 +776,17 @@ export class McpClient {
   async callTool(
     name: string,
     args: Record<string, unknown>,
+    retry?: McpCallToolRetry,
   ): Promise<McpCallToolResult> {
-    const result = await this.request("tools/call", { name, arguments: args }, CALL_TIMEOUT);
+    const params: JsonRpcRequest["params"] = { name, arguments: args };
+    if (retry) {
+      if (retry.requestState.length === 0) {
+        throw new Error("Malformed MCP tools/call retry: requestState must be a non-empty string");
+      }
+      params.requestState = retry.requestState;
+      params.inputResponses = decodeMcpToolInputResponses(retry.inputResponses);
+    }
+    const result = await this.request("tools/call", params, CALL_TIMEOUT);
     return decodeCallToolResult(result, this.protocolVersion ?? MCP_LEGACY_PROTOCOL_VERSION);
   }
 
