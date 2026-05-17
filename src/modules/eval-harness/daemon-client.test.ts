@@ -25,8 +25,9 @@
  *     string entirely.
  *  5. `EvalRunResult` arms decode correctly through `requestStrict<T>`:
  *     the `ok: true` arm with the full report payload collapses unchanged,
- *     the `no_fixtures` arm collapses unchanged, and the
- *     `fixture_provenance` arm collapses unchanged.
+ *     the `no_fixtures` arm collapses unchanged, the
+ *     `fixture_provenance` arm collapses unchanged, and objective-metric
+ *     validation failures collapse unchanged.
  *  6. `EvalListResult` decodes correctly through `requestStrict<T>` (the
  *     `fixtures` array passes through unchanged with all five
  *     `EvalFixtureSummary` keys preserved verbatim).
@@ -145,6 +146,7 @@ describe("eval-harness module daemonClient(link)", () => {
       repeatCount: 3,
       passAtK: 1,
       passHatK: 1,
+      objectiveMetrics: [],
       runArtifactBaseDir: "/tmp/eval-runs/run-x",
     };
     const { transport, calls } = makeRecordingTransport(() => wireResult);
@@ -169,6 +171,7 @@ describe("eval-harness module daemonClient(link)", () => {
       repeatCount: 1,
       passAtK: 1,
       passHatK: 1,
+      objectiveMetrics: [],
       runArtifactBaseDir: "/tmp/eval-runs/run-y",
     };
     const { transport, calls } = makeRecordingTransport(() => wireResult);
@@ -205,6 +208,19 @@ describe("eval-harness module daemonClient(link)", () => {
       ok: false,
       reason: "fixture_provenance",
       message: "fixture spec missing source provenance",
+    };
+    const { transport } = makeRecordingTransport(() => wireResult);
+    const contributed = evalHarnessModule.daemonClient!(transport);
+    const result = await contributed.evalHarness!.run();
+    expect(result).toEqual(wireResult);
+  });
+
+  it("decodes the EvalRunResult objective_metric_validation arm unchanged", async () => {
+    const wireResult: EvalRunResult = {
+      ok: false,
+      reason: "objective_metric_validation",
+      validationReason: "nonnumeric-value",
+      message: "objective metric was nonnumeric",
     };
     const { transport } = makeRecordingTransport(() => wireResult);
     const contributed = evalHarnessModule.daemonClient!(transport);

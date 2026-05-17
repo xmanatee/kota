@@ -14,6 +14,17 @@
       "path": "data/tasks/ready/task-add-builder-eval-marker.md"
     }
   ],
+  "objectiveMetrics": [
+    {
+      "name": "marker_file_count",
+      "unit": "files",
+      "direction": "higher_is_better",
+      "source": {
+        "kind": "shell",
+        "command": "find data/markers -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' '"
+      }
+    }
+  ],
   "tags": [
     "smoke",
     "autonomy"

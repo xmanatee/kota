@@ -18,6 +18,11 @@ import {
   loadAgentStepRecordings,
   recordingsDirForFixture,
 } from "./agent-step-recording.js";
+import {
+  type ObjectiveMetricSpec,
+  ObjectiveMetricValidationError,
+  parseObjectiveMetricSpec,
+} from "./objective-metrics.js";
 import type {
   FixturePredicate,
   FixturePredicateExpectation,
@@ -103,6 +108,11 @@ export type FixtureSpecFile = {
    * malformed declaration cannot escape the shim directory.
    */
   externalCallShims?: readonly string[];
+  /**
+   * Optional deterministic numeric objective metrics. Metrics are reported
+   * evidence only; pass/fail gating remains exclusively predicate-based.
+   */
+  objectiveMetrics?: readonly ObjectiveMetricSpec[];
   /**
    * Optional tags operators use to slice the fixture set (e.g. "smoke",
    * "regression-2026-04", "slow"). Not load-bearing — scoring does not read
@@ -378,6 +388,30 @@ function parseFixtureSpec(rawJson: string, fixtureDir: string): FixtureSpecFile 
     externalCallShims = r.externalCallShims as string[];
   }
 
+  let objectiveMetrics: ObjectiveMetricSpec[] | undefined;
+  if (r.objectiveMetrics !== undefined) {
+    if (!Array.isArray(r.objectiveMetrics) || r.objectiveMetrics.length === 0) {
+      throw new ObjectiveMetricValidationError(
+        "malformed-declaration",
+        `Fixture at "${fixtureDir}" has invalid objectiveMetrics; must be a non-empty array when present.`,
+      );
+    }
+    objectiveMetrics = [];
+    const names = new Set<string>();
+    for (const metric of r.objectiveMetrics) {
+      const parsedMetric = parseObjectiveMetricSpec(metric, fixtureDir);
+      if (names.has(parsedMetric.name)) {
+        throw new ObjectiveMetricValidationError(
+          "malformed-declaration",
+          `Fixture at "${fixtureDir}" declares duplicate objective metric name "${parsedMetric.name}".`,
+          { metricName: parsedMetric.name },
+        );
+      }
+      names.add(parsedMetric.name);
+      objectiveMetrics.push(parsedMetric);
+    }
+  }
+
   const provenance = parseProvenance(r.provenance, fixtureDir);
 
   return {
@@ -391,6 +425,7 @@ function parseFixtureSpec(rawJson: string, fixtureDir: string): FixtureSpecFile 
     provenance,
     ...(triggerPayload !== undefined && { triggerPayload }),
     ...(externalCallShims !== undefined && { externalCallShims }),
+    ...(objectiveMetrics !== undefined && { objectiveMetrics }),
     ...(tags && { tags }),
   };
 }

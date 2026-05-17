@@ -30,6 +30,10 @@ import type {
 } from "./fixture-run.js";
 import { resourceProfileFromExecutionProfile } from "./fixture-run.js";
 import { applyFixtureTemplates } from "./fixture-templating.js";
+import {
+  evaluateObjectiveMetrics,
+  type ObservedObjectiveMetric,
+} from "./objective-metrics.js";
 import type {
   FixturePredicate,
   PredicateEvalResult,
@@ -107,6 +111,7 @@ export type FixtureRunReport = {
   run: FixtureRun;
   predicateResults: PredicateEvalResult[];
   preRunExpectationResults: PredicateExpectationEvalResult[];
+  objectiveMetrics: ObservedObjectiveMetric[];
   workingDir: string;
   executionOutcome: WorkflowExecutionOutcome;
 };
@@ -216,6 +221,7 @@ function writeRunArtifact(
     predicates: readonly FixturePredicate[];
     preRunExpectationResults: PredicateExpectationEvalResult[];
     predicateResults: PredicateEvalResult[];
+    objectiveMetrics: ObservedObjectiveMetric[];
   },
 ): void {
   mkdirSync(runArtifactDir, { recursive: true });
@@ -237,6 +243,7 @@ function writeRunArtifact(
         })),
         preRunExpectationResults: payload.preRunExpectationResults,
         predicateResults: payload.predicateResults,
+        objectiveMetrics: payload.objectiveMetrics,
       },
       null,
       2,
@@ -280,6 +287,7 @@ export async function runFixture(
       outcome: outcomeFromExecution(executionOutcome, false),
       resourceProfile,
       executionProfile: params.executionProfile,
+      objectiveMetrics: [],
       timing: {
         startedAt: startedAt.toISOString(),
         durationMs: executionOutcome.durationMs,
@@ -297,11 +305,13 @@ export async function runFixture(
       predicates: params.fixture.spec.predicates,
       preRunExpectationResults: preRunSanity.results,
       predicateResults: [],
+      objectiveMetrics: [],
     });
     return {
       run,
       predicateResults: [],
       preRunExpectationResults: preRunSanity.results,
+      objectiveMetrics: [],
       workingDir,
       executionOutcome,
     };
@@ -333,6 +343,14 @@ export async function runFixture(
     params.fixture.spec.predicates,
   );
   const outcome = outcomeFromExecution(executionOutcome, passed);
+  const objectiveMetrics = evaluateObjectiveMetrics({
+    fixtureId: params.fixture.spec.id,
+    metricSpecs: params.fixture.spec.objectiveMetrics ?? [],
+    workingDir,
+    executionProfile: params.executionProfile,
+    runIndex: params.runIndex,
+    repeatCount: params.repeatCount,
+  });
 
   const run: FixtureRun = {
     fixtureId: params.fixture.spec.id,
@@ -341,6 +359,7 @@ export async function runFixture(
     outcome,
     resourceProfile,
     executionProfile: params.executionProfile,
+    objectiveMetrics,
     timing: {
       startedAt: startedAt.toISOString(),
       durationMs: executionOutcome.durationMs,
@@ -359,12 +378,14 @@ export async function runFixture(
     predicates: params.fixture.spec.predicates,
     preRunExpectationResults: preRunSanity.results,
     predicateResults: results,
+    objectiveMetrics,
   });
 
   return {
     run,
     predicateResults: results,
     preRunExpectationResults: preRunSanity.results,
+    objectiveMetrics,
     workingDir,
     executionOutcome,
   };

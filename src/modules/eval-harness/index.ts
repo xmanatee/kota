@@ -125,6 +125,25 @@ export {
   MIN_REPEAT_COUNT_FOR_GATING,
 } from "./noise-band.js";
 export type {
+  AggregateObjectiveMetric,
+  ObjectiveMetricComparison,
+  ObjectiveMetricComparisonBaseline,
+  ObjectiveMetricDirection,
+  ObjectiveMetricExecutionComparison,
+  ObjectiveMetricExecutionProfileSummary,
+  ObjectiveMetricResourceComparison,
+  ObjectiveMetricSource,
+  ObjectiveMetricSpec,
+  ObjectiveMetricValidationReason,
+  ObservedObjectiveMetric,
+} from "./objective-metrics.js";
+export {
+  aggregateObjectiveMetrics,
+  evaluateObjectiveMetrics,
+  ObjectiveMetricValidationError,
+  parseObjectiveMetricSpec,
+} from "./objective-metrics.js";
+export type {
   ExternalCallArgvMatch,
   FixturePredicate,
   FixturePredicateExpectation,

@@ -10,6 +10,10 @@
  * `ctx.client.evalHarness` or by importing these types from
  * `#modules/eval-harness/client.js`.
  */
+import type {
+  AggregateObjectiveMetric,
+  ObjectiveMetricValidationReason,
+} from "./objective-metrics.js";
 
 /** A fixture surfaced by `evalHarness.list`. */
 export type EvalFixtureSummary = {
@@ -48,10 +52,17 @@ export type EvalRunResult =
       repeatCount: number;
       passAtK: number;
       passHatK: number;
+      objectiveMetrics: AggregateObjectiveMetric[];
       runArtifactBaseDir: string;
     }
   | { ok: false; reason: "no_fixtures"; message: string }
-  | { ok: false; reason: "fixture_provenance"; message: string };
+  | { ok: false; reason: "fixture_provenance"; message: string }
+  | {
+      ok: false;
+      reason: "objective_metric_validation";
+      validationReason: ObjectiveMetricValidationReason;
+      message: string;
+    };
 
 /**
  * Options accepted by `evalHarness.calibration`. Mirror the CLI flags so

@@ -32,6 +32,7 @@ const BASE_RUN: FixtureRun = {
   outcome: "pass",
   resourceProfile: RESOURCE_PROFILE,
   executionProfile: EXECUTION_PROFILE,
+  objectiveMetrics: [],
   timing: {
     startedAt: "2026-05-17T00:00:00.000Z",
     durationMs: 10,
@@ -43,7 +44,29 @@ const BASE_RUN: FixtureRun = {
 describe("scoreFixtureSet", () => {
   it("computes pass@k and pass^k from capability outcomes", () => {
     const aggregate = scoreFixtureSet([
-      BASE_RUN,
+      {
+        ...BASE_RUN,
+        objectiveMetrics: [
+          {
+            fixtureId: "fixture-a",
+            name: "duration",
+            unit: "ms",
+            direction: "lower_is_better",
+            source: { kind: "text-file", path: "metric.txt" },
+            value: 3,
+            runIndex: 0,
+            repeatCount: 1,
+            resourceProfile: RESOURCE_PROFILE,
+            executionProfile: {
+              status: "verified",
+              backendKind: "container",
+              verification: "enforced",
+              gateEligible: true,
+              reason: "verified-profile",
+            },
+          },
+        ],
+      },
       {
         ...BASE_RUN,
         fixtureId: "fixture-b",

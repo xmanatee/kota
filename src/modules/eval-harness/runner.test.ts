@@ -7,6 +7,7 @@ import type {
   ExecutionProfilePreflightResult,
   ResourceProfile,
 } from "./fixture-run.js";
+import { ObjectiveMetricValidationError } from "./objective-metrics.js";
 import {
   cleanupFixtureWorkingDir,
   runFixture,
@@ -112,6 +113,7 @@ describe("runFixture", () => {
     expect(raw.executionProfile.status).toBe("verified");
     expect(raw.executionProfile.eligibilityReason).toBe("verified-profile");
     expect(raw.preRunExpectationResults).toHaveLength(2);
+    expect(raw.objectiveMetrics).toEqual([]);
     cleanupFixtureWorkingDir(report.workingDir);
   });
 
@@ -217,6 +219,160 @@ describe("runFixture", () => {
     );
     expect(raw.execution.message).toContain("boom");
     cleanupFixtureWorkingDir(report.workingDir);
+  });
+
+  it("evaluates declared objective metrics and writes them to the run artifact", async () => {
+    const fixtureDir = join(fixturesRoot, "metric-mini");
+    mkdirSync(join(fixtureDir, "initial"), { recursive: true });
+    writeFileSync(
+      join(fixtureDir, "fixture.json"),
+      JSON.stringify({
+        id: "metric-mini",
+        description: "minimal fixture with objective metric",
+        role: "builder",
+        workflowName: "noop",
+        budgetMs: 60_000,
+        predicates: [{ kind: "file-exists", path: "output.txt" }],
+        preRunExpectations: [
+          { predicate: { kind: "file-exists", path: "output.txt" }, expected: "fail" },
+        ],
+        objectiveMetrics: [
+          {
+            name: "output_bytes",
+            unit: "bytes",
+            direction: "lower_is_better",
+            source: {
+              kind: "text-file",
+              path: "metrics.txt",
+              pattern: "bytes=(\\d+)",
+            },
+            comparisonBaseline: {
+              value: 64,
+              resourceProfile: TEST_PROFILE,
+              executionProfile: {
+                status: "verified",
+                backendKind: "container",
+                verification: "enforced",
+                gateEligible: true,
+              },
+            },
+          },
+        ],
+        provenance: {
+          kind: "smoke-fixture",
+          justification: "tests objective metric extraction",
+        },
+      }),
+    );
+    const fixture = loadFixture(fixturesRoot, "metric-mini");
+    const executor: WorkflowExecutor = {
+      preflight: () => TEST_EXECUTION_PROFILE,
+      execute: async ({ workingDir }) => {
+        writeFileSync(join(workingDir, "output.txt"), "done");
+        writeFileSync(join(workingDir, "metrics.txt"), "bytes=42");
+        return { kind: "completed", durationMs: 5, runArtifactPath: null };
+      },
+    };
+
+    const report = await runFixture({
+      fixture,
+      executor,
+      executionProfile: TEST_EXECUTION_PROFILE,
+      runArtifactBaseDir: runsRoot,
+      runIndex: 0,
+      repeatCount: 1,
+    });
+
+    expect(report.run.outcome).toBe("pass");
+    expect(report.objectiveMetrics).toHaveLength(1);
+    expect(report.objectiveMetrics[0]).toMatchObject({
+      fixtureId: "metric-mini",
+      name: "output_bytes",
+      unit: "bytes",
+      direction: "lower_is_better",
+      value: 42,
+      comparison: {
+        status: "compared",
+        baselineValue: 64,
+        currentValue: 42,
+        delta: -22,
+        improved: true,
+      },
+    });
+
+    const raw = JSON.parse(
+      readFileSync(join(report.run.runArtifactPath, "fixture-run.json"), "utf-8"),
+    );
+    expect(raw.objectiveMetrics[0].value).toBe(42);
+    expect(raw.objectiveMetrics[0].comparison.status).toBe("compared");
+    cleanupFixtureWorkingDir(report.workingDir);
+  });
+
+  it("fails loudly when objective metric source data is missing or nonnumeric", async () => {
+    const cases = [
+      { id: "missing-metric", fileContent: null, reason: "missing-source" },
+      { id: "nonnumeric-metric", fileContent: "not-a-number", reason: "nonnumeric-value" },
+    ] as const;
+
+    for (const testCase of cases) {
+      const fixtureDir = join(fixturesRoot, testCase.id);
+      mkdirSync(join(fixtureDir, "initial"), { recursive: true });
+      writeFileSync(
+        join(fixtureDir, "fixture.json"),
+        JSON.stringify({
+          id: testCase.id,
+          description: "objective metric validation",
+          role: "builder",
+          workflowName: "noop",
+          budgetMs: 60_000,
+          predicates: [{ kind: "file-exists", path: "output.txt" }],
+          preRunExpectations: [
+            { predicate: { kind: "file-exists", path: "output.txt" }, expected: "fail" },
+          ],
+          objectiveMetrics: [
+            {
+              name: "quality_score",
+              unit: "score",
+              direction: "higher_is_better",
+              source: { kind: "text-file", path: "metric.txt" },
+            },
+          ],
+          provenance: {
+            kind: "smoke-fixture",
+            justification: "tests objective metric validation failures",
+          },
+        }),
+      );
+      const fixture = loadFixture(fixturesRoot, testCase.id);
+      const executor: WorkflowExecutor = {
+        preflight: () => TEST_EXECUTION_PROFILE,
+        execute: async ({ workingDir }) => {
+          writeFileSync(join(workingDir, "output.txt"), "done");
+          if (testCase.fileContent !== null) {
+            writeFileSync(join(workingDir, "metric.txt"), testCase.fileContent);
+          }
+          return { kind: "completed", durationMs: 5, runArtifactPath: null };
+        },
+      };
+
+      let caught: unknown;
+      try {
+        await runFixture({
+          fixture,
+          executor,
+          executionProfile: TEST_EXECUTION_PROFILE,
+          runArtifactBaseDir: runsRoot,
+          runIndex: 0,
+          repeatCount: 1,
+        });
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(ObjectiveMetricValidationError);
+      expect((caught as ObjectiveMetricValidationError).reason).toBe(
+        testCase.reason,
+      );
+    }
   });
 
   it("installs declared external-call shims and forwards the shim dir to the executor", async () => {

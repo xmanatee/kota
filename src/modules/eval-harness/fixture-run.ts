@@ -7,6 +7,8 @@
  * distinguish real regressions from host drift.
  */
 
+import type { ObservedObjectiveMetric } from "./objective-metrics.js";
+
 /**
  * Container resource configuration observed for a single fixture run.
  *
@@ -106,6 +108,11 @@ export type FixtureRun = {
   outcome: FixtureRunOutcome;
   resourceProfile: ResourceProfile;
   executionProfile: ExecutionProfilePreflightResult;
+  /**
+   * Deterministic numeric objective evidence observed for this run. Empty
+   * when the fixture declares no objective metrics.
+   */
+  objectiveMetrics: readonly ObservedObjectiveMetric[];
   timing: TimingEnvelope;
   /** Absolute path to the run artifact directory under `.kota/runs/`. */
   runArtifactPath: string;

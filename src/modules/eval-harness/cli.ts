@@ -118,6 +118,8 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
       if (!result.ok) {
         if (result.reason === "fixture_provenance") {
           console.error(`eval-harness fixture provenance error: ${result.message}`);
+        } else if (result.reason === "objective_metric_validation") {
+          console.error(`eval-harness objective metric error: ${result.message}`);
         } else {
           console.error(result.message);
         }
@@ -128,6 +130,19 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
       const passAtK = result.passAtK;
       const passHatK = result.passHatK;
       const passRole = passHatK >= 1 ? "success" : passHatK > 0 ? "warn" : "error";
+      const metricRows = result.objectiveMetrics.map((metric) =>
+        line(
+          plain("metric "),
+          span(`${metric.fixtureId}.${metric.name}`, "info"),
+          plain(` mean=${metric.mean.toFixed(3)} ${metric.unit}`),
+          plain(` n=${metric.sampleCount}`),
+          metric.comparison?.status === "compared"
+            ? plain(` delta=${metric.comparison.delta.toFixed(3)}`)
+            : metric.comparison?.status === "not-compared"
+              ? span(` delta not compared (${metric.comparison.reason})`, "muted")
+              : plain(""),
+        ),
+      );
       print(stack(
         line(
           plain("eval-set done: "),
@@ -140,6 +155,7 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
           span(`${(passHatK * 100).toFixed(1)}%`, passRole),
         ),
         line(span(`artifacts: ${result.runArtifactBaseDir}`, "muted")),
+        ...metricRows,
       ));
       if (passHatK < 1) {
         process.exitCode = 1;

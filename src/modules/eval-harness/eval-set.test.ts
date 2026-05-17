@@ -33,6 +33,7 @@ function seedFixture(
   root: string,
   id: string,
   predicate: { kind: "file-exists"; path: string },
+  objectiveMetrics?: object[],
 ): void {
   const dir = join(root, id);
   mkdirSync(join(dir, "initial"), { recursive: true });
@@ -46,6 +47,7 @@ function seedFixture(
       budgetMs: 60_000,
       predicates: [predicate],
       preRunExpectations: [{ predicate, expected: "fail" }],
+      ...(objectiveMetrics !== undefined && { objectiveMetrics }),
       provenance: {
         kind: "smoke-fixture",
         justification: "minimal test fixture for eval-set unit tests",
@@ -117,6 +119,178 @@ describe("runEvalSet", () => {
       ),
     );
     expect(preflight.eligibilityReason).toBe("verified-profile");
+  });
+
+  it("writes objective metric aggregates without changing pass/fail aggregation", async () => {
+    seedFixture(
+      fixturesRoot,
+      "alpha",
+      { kind: "file-exists", path: "alpha.txt" },
+      [
+        {
+          name: "output_bytes",
+          unit: "bytes",
+          direction: "lower_is_better",
+          source: { kind: "text-file", path: "metric.txt" },
+          comparisonBaseline: {
+            value: 20,
+            resourceProfile: PROFILE,
+            executionProfile: {
+              status: "verified",
+              backendKind: "container",
+              verification: "enforced",
+              gateEligible: true,
+            },
+          },
+        },
+      ],
+    );
+    const fixtures = loadAllFixtures(fixturesRoot);
+    let call = 0;
+    const executor: WorkflowExecutor = {
+      preflight: () => EXECUTION_PROFILE,
+      execute: async ({ workingDir }) => {
+        writeFileSync(join(workingDir, "alpha.txt"), "ok");
+        writeFileSync(join(workingDir, "metric.txt"), String(call === 0 ? 12 : 10));
+        call++;
+        return { kind: "completed", durationMs: 10, runArtifactPath: null };
+      },
+    };
+
+    const report = await runEvalSet({
+      fixtures,
+      executor,
+      requestedProfile: PROFILE,
+      runArtifactBaseDir: runsRoot,
+      repeatCount: 2,
+    });
+
+    expect(report.aggregate.passAtK).toBe(1);
+    expect(report.aggregate.passHatK).toBe(1);
+    expect(report.objectiveMetrics).toHaveLength(1);
+    expect(report.objectiveMetrics[0]).toMatchObject({
+      fixtureId: "alpha",
+      name: "output_bytes",
+      unit: "bytes",
+      sampleCount: 2,
+      values: [12, 10],
+      min: 10,
+      max: 12,
+      mean: 11,
+      resourceProfileComparison: { status: "comparable" },
+      executionProfileComparison: { status: "comparable" },
+      comparison: {
+        status: "compared",
+        baselineValue: 20,
+        currentValue: 11,
+        delta: -9,
+        improved: true,
+      },
+    });
+
+    const raw = JSON.parse(
+      readFileSync(join(runsRoot, "eval-set-report.json"), "utf-8"),
+    );
+    expect(raw.objectiveMetrics[0].mean).toBe(11);
+    expect(raw.runs[0].objectiveMetrics[0].value).toBe(12);
+  });
+
+  it("does not compare objective metric deltas across incompatible environments", async () => {
+    seedFixture(
+      fixturesRoot,
+      "resource-drift",
+      { kind: "file-exists", path: "resource.txt" },
+      [
+        {
+          name: "duration",
+          unit: "ms",
+          direction: "lower_is_better",
+          source: { kind: "text-file", path: "metric.txt" },
+          comparisonBaseline: {
+            value: 10,
+            resourceProfile: { ...PROFILE, hostClass: "other-host" },
+            executionProfile: {
+              status: "verified",
+              backendKind: "container",
+              verification: "enforced",
+              gateEligible: true,
+            },
+          },
+        },
+      ],
+    );
+    const resourceReport = await runEvalSet({
+      fixtures: loadAllFixtures(fixturesRoot),
+      executor: {
+        preflight: () => EXECUTION_PROFILE,
+        execute: async ({ workingDir }) => {
+          writeFileSync(join(workingDir, "resource.txt"), "ok");
+          writeFileSync(join(workingDir, "metric.txt"), "8");
+          return { kind: "completed", durationMs: 10, runArtifactPath: null };
+        },
+      },
+      requestedProfile: PROFILE,
+      runArtifactBaseDir: runsRoot,
+      repeatCount: 1,
+    });
+    expect(resourceReport.objectiveMetrics[0].comparison).toMatchObject({
+      status: "not-compared",
+      reason: "resource-profile-incomparable",
+    });
+
+    rmSync(fixturesRoot, { recursive: true, force: true });
+    fixturesRoot = mkdtempSync(join(tmpdir(), "kota-eval-harness-set-fx-"));
+    seedFixture(
+      fixturesRoot,
+      "execution-drift",
+      { kind: "file-exists", path: "execution.txt" },
+      [
+        {
+          name: "duration",
+          unit: "ms",
+          direction: "lower_is_better",
+          source: { kind: "text-file", path: "metric.txt" },
+          comparisonBaseline: {
+            value: 10,
+            resourceProfile: PROFILE,
+            executionProfile: {
+              status: "verified",
+              backendKind: "container",
+              verification: "enforced",
+              gateEligible: true,
+            },
+          },
+        },
+      ],
+    );
+    const nonGatingProfile: ExecutionProfilePreflightResult = {
+      status: "non-gating",
+      backendKind: "host-subprocess",
+      requestedProfile: PROFILE,
+      observedOrEnforcedProfile: PROFILE,
+      verification: "unverified",
+      gateEligible: false,
+      nonGatingReason: "host-subprocess-unverified",
+      diagnostics: [],
+    };
+    const executionReport = await runEvalSet({
+      fixtures: loadAllFixtures(fixturesRoot),
+      executor: {
+        preflight: () => nonGatingProfile,
+        execute: async ({ workingDir }) => {
+          writeFileSync(join(workingDir, "execution.txt"), "ok");
+          writeFileSync(join(workingDir, "metric.txt"), "8");
+          return { kind: "completed", durationMs: 10, runArtifactPath: null };
+        },
+      },
+      requestedProfile: PROFILE,
+      runArtifactBaseDir: runsRoot,
+      repeatCount: 1,
+    });
+    expect(executionReport.objectiveMetrics[0].comparison).toMatchObject({
+      status: "not-compared",
+      reason: "execution-profile-incomparable",
+    });
   });
 
   it("rejects non-positive repeat counts", async () => {

@@ -8,6 +8,7 @@ import {
   loadAllFixtures,
   loadFixture,
 } from "./fixture.js";
+import { ObjectiveMetricValidationError } from "./objective-metrics.js";
 import { evaluatePredicateExpectations } from "./predicates.js";
 
 const REAL_FAILURE_PROVENANCE = {
@@ -328,6 +329,148 @@ describe("loadFixture", () => {
     expect(() => loadFixture(root, "badShims")).toThrow(/externalCallShims/);
   });
 
+  it("accepts typed objective metric declarations", () => {
+    writeFixture(root, "withMetric", {
+      id: "withMetric",
+      description: "x",
+      role: "builder",
+      workflowName: "builder",
+      budgetMs: 600_000,
+      predicates: [{ kind: "file-exists", path: "foo" }],
+      objectiveMetrics: [
+        {
+          name: "output_size",
+          unit: "bytes",
+          direction: "lower_is_better",
+          source: {
+            kind: "json-file",
+            path: "metrics.json",
+            pointer: "/output/bytes",
+          },
+          comparisonBaseline: {
+            value: 120,
+            resourceProfile: {
+              cpuAllocationCores: 2,
+              cpuKillThresholdCores: 2,
+              memoryAllocationMB: 4000,
+              memoryKillThresholdMB: 4000,
+              hostClass: "test",
+            },
+            executionProfile: {
+              status: "verified",
+              backendKind: "container",
+              verification: "enforced",
+              gateEligible: true,
+            },
+          },
+        },
+      ],
+    });
+    const loaded = loadFixture(root, "withMetric");
+    expect(loaded.spec.objectiveMetrics).toEqual([
+      {
+        name: "output_size",
+        unit: "bytes",
+        direction: "lower_is_better",
+        source: {
+          kind: "json-file",
+          path: "metrics.json",
+          pointer: "/output/bytes",
+        },
+        comparisonBaseline: {
+          value: 120,
+          resourceProfile: {
+            cpuAllocationCores: 2,
+            cpuKillThresholdCores: 2,
+            memoryAllocationMB: 4000,
+            memoryKillThresholdMB: 4000,
+            hostClass: "test",
+          },
+          executionProfile: {
+            status: "verified",
+            backendKind: "container",
+            verification: "enforced",
+            gateEligible: true,
+          },
+        },
+      },
+    ]);
+  });
+
+  it("rejects malformed objective metric declarations with a typed validation error", () => {
+    writeFixture(root, "badMetric", {
+      id: "badMetric",
+      description: "x",
+      role: "builder",
+      workflowName: "builder",
+      budgetMs: 600_000,
+      predicates: [{ kind: "file-exists", path: "foo" }],
+      objectiveMetrics: [
+        {
+          name: "bad metric",
+          unit: "bytes",
+          direction: "lower",
+          source: { kind: "text-file", path: "metric.txt" },
+        },
+      ],
+    });
+    let caught: unknown;
+    try {
+      loadFixture(root, "badMetric");
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(ObjectiveMetricValidationError);
+    expect((caught as ObjectiveMetricValidationError).reason).toBe(
+      "malformed-declaration",
+    );
+  });
+
+  it("rejects objective metric baselines without comparable environment data", () => {
+    writeFixture(root, "badMetricBaseline", {
+      id: "badMetricBaseline",
+      description: "x",
+      role: "builder",
+      workflowName: "builder",
+      budgetMs: 600_000,
+      predicates: [{ kind: "file-exists", path: "foo" }],
+      objectiveMetrics: [
+        {
+          name: "duration",
+          unit: "ms",
+          direction: "lower_is_better",
+          source: { kind: "text-file", path: "metric.txt" },
+          comparisonBaseline: {
+            value: 10,
+            resourceProfile: {
+              cpuAllocationCores: 2,
+              cpuKillThresholdCores: 2,
+              memoryAllocationMB: 4000,
+              memoryKillThresholdMB: 4000,
+              hostClass: "test",
+            },
+            executionProfile: {
+              status: "non-gating",
+              backendKind: "host-subprocess",
+              verification: "unverified",
+              gateEligible: false,
+            },
+          },
+        },
+      ],
+    });
+    let caught: unknown;
+    try {
+      loadFixture(root, "badMetricBaseline");
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(ObjectiveMetricValidationError);
+    expect((caught as ObjectiveMetricValidationError).reason).toBe(
+      "environment-incomparable",
+    );
+  });
+
   it("accepts a well-formed external-call-log predicate", () => {
     writeFixture(root, "withExtCall", {
       id: "withExtCall",
@@ -431,6 +574,23 @@ describe("loadAllFixtures", () => {
         ),
       ),
     ).toBe(true);
+  });
+
+  it("ships at least one smoke fixture with an objective metric and non-vacuous pre-run expectation", () => {
+    const fixtures = loadAllFixtures(
+      join(process.cwd(), "src/modules/eval-harness/fixtures"),
+    );
+    const demonstratingFixtures = fixtures.filter(
+      (fixture) =>
+        fixture.spec.provenance.kind === "smoke-fixture" &&
+        (fixture.spec.objectiveMetrics?.length ?? 0) > 0 &&
+        fixture.spec.preRunExpectations.some(
+          (expectation) => expectation.expected === "fail",
+        ),
+    );
+    expect(demonstratingFixtures.map((fixture) => fixture.spec.id)).toContain(
+      "builder-trivial-edit",
+    );
   });
 
   it("shipped fixture pre-run expectations match their initial trees", () => {

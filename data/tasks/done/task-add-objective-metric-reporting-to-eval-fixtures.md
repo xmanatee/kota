@@ -1,12 +1,12 @@
 ---
 id: task-add-objective-metric-reporting-to-eval-fixtures
 title: Add objective-metric reporting to eval fixtures
-status: ready
+status: done
 priority: p2
 area: eval-harness
 summary: Let eval-harness fixtures record deterministic numeric objective metrics in run artifacts while preserving pass/fail gating, so optimization-shaped tasks can prove measurable improvement without a parallel benchmark system.
 created_at: 2026-05-17T13:04:31.000Z
-updated_at: 2026-05-17T13:04:31.000Z
+updated_at: 2026-05-17T13:25:45.000Z
 ---
 
 ## Problem

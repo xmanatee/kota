@@ -20,6 +20,10 @@ import {
   resourceProfileFromExecutionProfile,
 } from "./fixture-run.js";
 import {
+  type AggregateObjectiveMetric,
+  aggregateObjectiveMetrics,
+} from "./objective-metrics.js";
+import {
   cleanupFixtureWorkingDir,
   runFixture,
   type WorkflowExecutor,
@@ -44,6 +48,7 @@ export type EvalSetReport = {
   runs: readonly FixtureRun[];
   perFixture: readonly FixtureScore[];
   aggregate: AggregateScore;
+  objectiveMetrics: readonly AggregateObjectiveMetric[];
   resourceProfile: ResourceProfile;
   executionProfile: ExecutionProfilePreflightResult;
   repeatCount: number;
@@ -102,6 +107,7 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
 
   const perFixture = scorePerFixture(runs);
   const aggregate = aggregateScores(perFixture);
+  const objectiveMetrics = aggregateObjectiveMetrics(runs);
   const completedAt = new Date().toISOString();
 
   writeFileSync(
@@ -116,6 +122,7 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
         runs,
         perFixture,
         aggregate,
+        objectiveMetrics,
       },
       null,
       2,
@@ -126,6 +133,7 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
     runs,
     perFixture,
     aggregate,
+    objectiveMetrics,
     resourceProfile,
     executionProfile,
     repeatCount: params.repeatCount,

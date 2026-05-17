@@ -30,6 +30,7 @@ import { runEvalSet } from "./eval-set.js";
 import { evalHarnessSetCompleted } from "./events.js";
 import { loadAllFixtures, loadFixture } from "./fixture.js";
 import type { ResourceProfile } from "./fixture-run.js";
+import { ObjectiveMetricValidationError } from "./objective-metrics.js";
 import {
   createSubprocessExecutor,
   detectHostSubprocessResourceProfile,
@@ -94,6 +95,14 @@ export async function runEvalHarness(
       ? options.fixtureIds.map((id) => loadFixture(fixturesRoot, id))
       : loadAllFixtures(fixturesRoot);
   } catch (err) {
+    if (err instanceof ObjectiveMetricValidationError) {
+      return {
+        ok: false,
+        reason: "objective_metric_validation",
+        validationReason: err.reason,
+        message: err.message,
+      };
+    }
     return {
       ok: false,
       reason: "fixture_provenance",
@@ -110,14 +119,27 @@ export async function runEvalHarness(
   const executor = createSubprocessExecutor({ kotaBinaryPath: kotaBinaryPathFor(projectDir) });
   const requestedProfile = buildProfile(options, DEFAULT_HOST_CLASS);
   const repeatCount = options.repeatCount ?? DEFAULT_REPEATS;
-  const report = await runEvalSet({
-    fixtures,
-    executor,
-    requestedProfile,
-    runArtifactBaseDir: realpathSync(runArtifactBaseDir),
-    repeatCount,
-    keepWorkingDirs: options.keepWorkingDirs ?? false,
-  });
+  let report: Awaited<ReturnType<typeof runEvalSet>>;
+  try {
+    report = await runEvalSet({
+      fixtures,
+      executor,
+      requestedProfile,
+      runArtifactBaseDir: realpathSync(runArtifactBaseDir),
+      repeatCount,
+      keepWorkingDirs: options.keepWorkingDirs ?? false,
+    });
+  } catch (err) {
+    if (err instanceof ObjectiveMetricValidationError) {
+      return {
+        ok: false,
+        reason: "objective_metric_validation",
+        validationReason: err.reason,
+        message: err.message,
+      };
+    }
+    throw err;
+  }
 
   if (bus) {
     const pbus = new ProjectScopedEventBus(bus, deriveProjectId(projectDir));
@@ -139,6 +161,7 @@ export async function runEvalHarness(
     repeatCount: report.repeatCount,
     passAtK: report.aggregate.passAtK,
     passHatK: report.aggregate.passHatK,
+    objectiveMetrics: [...report.objectiveMetrics],
     runArtifactBaseDir: report.runArtifactBaseDir,
   };
 }

@@ -69,6 +69,13 @@ New predicate kinds extend the predicate union and evaluator.
 Fixtures also declare `preRunExpectations`: expected initial predicate results.
 At least one must be `expected: "fail"`; mismatches are fixture config errors.
 
+Objective metrics are deterministic numeric evidence on the same fixture path,
+not a second benchmark runner. They may be extracted from fixture files,
+runtime artifacts, or local deterministic commands, and they are reported in
+run and aggregate artifacts. Pass/fail gating remains predicate-only unless a
+fixture adds an explicit predicate that encodes a threshold. Metric deltas are
+compared only when resource and execution profiles are compatible.
+
 ## Baseline Persistence And Regression Surfacing
 
 Only the cadence persists the last accepted aggregate as the next
