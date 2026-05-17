@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MCP_DRAFT_PROTOCOL_VERSION } from "./client.js";
 import { McpManager, namespaceTool, parseToolName } from "./manager.js";
 
 describe("namespaceTool", () => {
@@ -396,6 +397,85 @@ describe("McpManager", () => {
     expect(result.structuredContent).toEqual({ count: 3 });
     expect(result._meta).toEqual({ resultCache: "r1" });
     expect(result.is_error).toBe(true);
+
+    await manager.close();
+  }, 10_000);
+
+  it("executeTool returns explicit diagnostics for remote draft input_required results", async () => {
+    const manager = new McpManager();
+    const server = `
+      const rl = require("readline").createInterface({ input: process.stdin });
+      rl.on("line", (line) => {
+        let msg;
+        try { msg = JSON.parse(line); } catch { return; }
+        if (msg.method === "initialize") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            protocolVersion: "DRAFT-2026-v1",
+            capabilities: {},
+            serverInfo: { name: "needs-input" },
+          }}) + "\\n");
+        } else if (msg.method === "tools/list") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            tools: [{ name: "confirmable", inputSchema: { type: "object" } }],
+          }}) + "\\n");
+        } else if (msg.method === "tools/call" && msg.params.name === "confirmable") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            resultType: "input_required",
+            inputRequests: {
+              approval: {
+                method: "elicitation/create",
+                params: {
+                  mode: "form",
+                  message: "Approve remote action?",
+                  requestedSchema: {
+                    type: "object",
+                    properties: { approve: { type: "boolean" } },
+                    required: ["approve"],
+                  },
+                },
+              },
+            },
+            requestState: "remote-state-1",
+            _meta: { traceId: "remote-input-1" },
+          }}) + "\\n");
+        } else if (msg.method === "shutdown") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {} }) + "\\n");
+        }
+      });
+    `;
+    await manager.initialize({
+      mcpServers: { remote: { command: "node", args: ["-e", server] } },
+    });
+
+    const result = await manager.executeTool("mcp__remote__confirmable", {});
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("remote MCP tool");
+    expect(result.content).toContain("input_required");
+    expect(result.content).not.toContain("content must be an array");
+    expect(result._meta).toEqual({
+      mcp: {
+        resultType: "input_required",
+        protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+        server: "needs-input",
+        tool: "confirmable",
+        inputRequests: {
+          approval: {
+            method: "elicitation/create",
+            params: {
+              mode: "form",
+              message: "Approve remote action?",
+              requestedSchema: {
+                type: "object",
+                properties: { approve: { type: "boolean" } },
+                required: ["approve"],
+              },
+            },
+          },
+        },
+        requestState: "remote-state-1",
+        resultMeta: { traceId: "remote-input-1" },
+      },
+    });
 
     await manager.close();
   }, 10_000);

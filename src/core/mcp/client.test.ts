@@ -1,5 +1,21 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { McpClient } from "./client.js";
+import {
+  MCP_DRAFT_PROTOCOL_VERSION,
+  MCP_LEGACY_PROTOCOL_VERSION,
+  type McpCallToolResult,
+  McpClient,
+  type McpCompleteCallToolResult,
+  type McpLegacyCallToolResult,
+} from "./client.js";
+
+function expectCompletedResult(
+  result: McpCallToolResult,
+): McpCompleteCallToolResult | McpLegacyCallToolResult {
+  if (result.resultType === "input_required") {
+    throw new Error("Expected a completed MCP tool result");
+  }
+  return result;
+}
 
 /**
  * Inline Node.js script that acts as a minimal MCP server.
@@ -13,8 +29,17 @@ rl.on("line", (line) => {
   let msg;
   try { msg = JSON.parse(line); } catch { return; }
   if (msg.method === "initialize") {
+    if (mode === "fallback_legacy" && msg.params.protocolVersion !== "2024-11-05") {
+      process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, error: {
+        code: -32602,
+        message: "Unsupported protocol version",
+        data: { supported: ["2024-11-05"], requested: msg.params.protocolVersion },
+      }}) + "\\n");
+      return;
+    }
+    const protocolVersion = mode === "draft" ? "DRAFT-2026-v1" : "2024-11-05";
     const resp = { jsonrpc: "2.0", id: msg.id, result: {
-      protocolVersion: "2024-11-05",
+      protocolVersion,
       capabilities: {},
       serverInfo: { name: "test-mcp-server" },
     }};
@@ -80,6 +105,57 @@ rl.on("line", (line) => {
         content: [{ type: "text", text: "partial failure" }],
         isError: true,
       }}) + "\\n");
+    } else if (msg.params.name === "draft_complete") {
+      process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+        resultType: "complete",
+        content: [
+          { type: "text", text: "draft visible", _meta: { blockCache: "b-draft" } },
+          { type: "image", data: "draft-image", mimeType: "image/png" },
+          { type: "resource_link", uri: "file:///tmp/draft.json", name: "draft", mimeType: "application/json" },
+        ],
+        structuredContent: { ok: true, count: 3 },
+        _meta: { resultCache: "r-draft" },
+        isError: false,
+      }}) + "\\n");
+    } else if (msg.params.name === "input_required") {
+      process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+        resultType: "input_required",
+        inputRequests: {
+          github_login: {
+            method: "elicitation/create",
+            params: {
+              mode: "form",
+              message: "Please provide your GitHub username",
+              requestedSchema: {
+                type: "object",
+                properties: { name: { type: "string" } },
+                required: ["name"],
+              },
+            },
+          },
+        },
+        requestState: "state-token-1",
+        _meta: { traceId: "input-required-1" },
+      }}) + "\\n");
+    } else if (msg.params.name === "malformed_input_required") {
+      process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+        resultType: "input_required",
+        inputRequests: [],
+        requestState: "state-token-1",
+      }}) + "\\n");
+    } else if (msg.params.name === "missing_input_required_request_state") {
+      process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+        resultType: "input_required",
+        inputRequests: {
+          github_login: {
+            method: "elicitation/create",
+            params: {
+              mode: "form",
+              message: "Please provide your GitHub username",
+            },
+          },
+        },
+      }}) + "\\n");
     }
   } else if (msg.method === "shutdown") {
     process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {} }) + "\\n");
@@ -143,17 +219,48 @@ describe("McpClient lifecycle (fake MCP server)", () => {
     await client.connect();
     expect(client.isConnected()).toBe(true);
     expect(client.getName()).toBe("test-mcp-server"); // from serverInfo
+    expect(client.getProtocolVersion()).toBe(MCP_LEGACY_PROTOCOL_VERSION);
+    expect(client.getToolResultContract()).toBe("legacy-content");
 
     const tools = await client.listTools();
     expect(tools).toHaveLength(2);
     expect(tools[0].name).toBe("echo");
     expect(tools[1].name).toBe("fail");
 
-    const result = await client.callTool("echo", { text: "hello world" });
+    const result = expectCompletedResult(
+      await client.callTool("echo", { text: "hello world" }),
+    );
+    expect(result.resultType).toBe("legacy");
     expect(result.text).toBe("Echo: hello world");
     expect(result.content).toEqual([{ type: "text", text: "Echo: hello world" }]);
     expect(result.blocks).toEqual([{ type: "text", text: "Echo: hello world" }]);
     expect(result.isError).toBeUndefined();
+  }, 10_000);
+
+  it("records draft protocol negotiation when the server selects draft", async () => {
+    client = new McpClient(
+      "node",
+      ["-e", FAKE_MCP_SERVER],
+      { MCP_TEST_MODE: "draft" },
+      "draft-negotiation",
+    );
+    await client.connect();
+
+    expect(client.getProtocolVersion()).toBe(MCP_DRAFT_PROTOCOL_VERSION);
+    expect(client.getToolResultContract()).toBe("draft-tool-result");
+  }, 10_000);
+
+  it("falls back to the legacy handshake when a server rejects draft", async () => {
+    client = new McpClient(
+      "node",
+      ["-e", FAKE_MCP_SERVER],
+      { MCP_TEST_MODE: "fallback_legacy" },
+      "fallback-negotiation",
+    );
+    await client.connect();
+
+    expect(client.getProtocolVersion()).toBe(MCP_LEGACY_PROTOCOL_VERSION);
+    expect(client.getToolResultContract()).toBe("legacy-content");
   }, 10_000);
 
   it("listTools preserves advertised outputSchema", async () => {
@@ -185,7 +292,7 @@ describe("McpClient lifecycle (fake MCP server)", () => {
     client = new McpClient("node", ["-e", FAKE_MCP_SERVER], {}, "mixed-test");
     await client.connect();
 
-    const result = await client.callTool("mixed", {});
+    const result = expectCompletedResult(await client.callTool("mixed", {}));
     expect(result.text).toBe("line1\nline2");
     expect(result.content).toEqual([
       { type: "text", text: "line1" },
@@ -216,7 +323,7 @@ describe("McpClient lifecycle (fake MCP server)", () => {
     client = new McpClient("node", ["-e", FAKE_MCP_SERVER], {}, "structured-test");
     await client.connect();
 
-    const result = await client.callTool("structured", {});
+    const result = expectCompletedResult(await client.callTool("structured", {}));
     expect(result.text).toBe("structured text");
     expect(result.structuredContent).toEqual({ answer: 42, nested: { ok: true } });
     expect(result._meta).toEqual({ resultCache: "r1" });
@@ -234,11 +341,120 @@ describe("McpClient lifecycle (fake MCP server)", () => {
     });
   }, 10_000);
 
+  it("callTool decodes draft complete results without dropping rich fields", async () => {
+    client = new McpClient(
+      "node",
+      ["-e", FAKE_MCP_SERVER],
+      { MCP_TEST_MODE: "draft" },
+      "draft-complete-test",
+    );
+    await client.connect();
+
+    const result = expectCompletedResult(await client.callTool("draft_complete", {}));
+    expect(result.resultType).toBe("complete");
+    expect(result.protocolVersion).toBe(MCP_DRAFT_PROTOCOL_VERSION);
+    expect(result.text).toBe("draft visible");
+    expect(result.content).toEqual([
+      { type: "text", text: "draft visible", _meta: { blockCache: "b-draft" } },
+      { type: "image", data: "draft-image", mimeType: "image/png" },
+      {
+        type: "resource_link",
+        uri: "file:///tmp/draft.json",
+        name: "draft",
+        mimeType: "application/json",
+      },
+    ]);
+    expect(result.blocks).toEqual([
+      { type: "text", text: "draft visible", _meta: { blockCache: "b-draft" } },
+      {
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: "image/png",
+          data: "draft-image",
+        },
+      },
+      {
+        type: "mcp_content",
+        content: {
+          type: "resource_link",
+          uri: "file:///tmp/draft.json",
+          name: "draft",
+          mimeType: "application/json",
+        },
+      },
+    ]);
+    expect(result.structuredContent).toEqual({ ok: true, count: 3 });
+    expect(result._meta).toEqual({ resultCache: "r-draft" });
+    expect(result.isError).toBe(false);
+  }, 10_000);
+
+  it("callTool decodes draft input_required results without treating content as malformed", async () => {
+    client = new McpClient(
+      "node",
+      ["-e", FAKE_MCP_SERVER],
+      { MCP_TEST_MODE: "draft" },
+      "input-required-test",
+    );
+    await client.connect();
+
+    const result = await client.callTool("input_required", {});
+    expect(result.resultType).toBe("input_required");
+    if (result.resultType !== "input_required") {
+      throw new Error("Expected input_required result");
+    }
+    expect(result.protocolVersion).toBe(MCP_DRAFT_PROTOCOL_VERSION);
+    expect(result.inputRequests).toEqual({
+      github_login: {
+        method: "elicitation/create",
+        params: {
+          mode: "form",
+          message: "Please provide your GitHub username",
+          requestedSchema: {
+            type: "object",
+            properties: { name: { type: "string" } },
+            required: ["name"],
+          },
+        },
+      },
+    });
+    expect(result.requestState).toBe("state-token-1");
+    expect(result._meta).toEqual({ traceId: "input-required-1" });
+  }, 10_000);
+
+  it("callTool rejects malformed draft input_required payloads at the MCP boundary", async () => {
+    client = new McpClient(
+      "node",
+      ["-e", FAKE_MCP_SERVER],
+      { MCP_TEST_MODE: "draft" },
+      "bad-input-required-test",
+    );
+    await client.connect();
+
+    await expect(client.callTool("malformed_input_required", {})).rejects.toThrow(
+      /Malformed MCP tools\/call result: inputRequests must be an object/,
+    );
+  }, 10_000);
+
+  it("callTool rejects draft input_required payloads missing requestState", async () => {
+    client = new McpClient(
+      "node",
+      ["-e", FAKE_MCP_SERVER],
+      { MCP_TEST_MODE: "draft" },
+      "missing-request-state-test",
+    );
+    await client.connect();
+
+    await expect(client.callTool("missing_input_required_request_state", {})).rejects.toThrow(
+      /Malformed MCP tools\/call result: requestState must be a string/,
+    );
+  }, 10_000);
+
   it("callTool preserves future MCP content kinds instead of erasing them", async () => {
     client = new McpClient("node", ["-e", FAKE_MCP_SERVER], {}, "future-test");
     await client.connect();
 
-    const result = await client.callTool("future", {});
+    const result = expectCompletedResult(await client.callTool("future", {}));
     expect(result.text).toBe("(no output)");
     expect(result.content).toEqual([
       {
@@ -263,7 +479,7 @@ describe("McpClient lifecycle (fake MCP server)", () => {
     client = new McpClient("node", ["-e", FAKE_MCP_SERVER], {}, "empty-test");
     await client.connect();
 
-    const result = await client.callTool("empty", {});
+    const result = expectCompletedResult(await client.callTool("empty", {}));
     expect(result.text).toBe("(no output)");
     expect(result.content).toEqual([]);
     expect(result.blocks).toEqual([]);
@@ -273,7 +489,7 @@ describe("McpClient lifecycle (fake MCP server)", () => {
     client = new McpClient("node", ["-e", FAKE_MCP_SERVER], {}, "iserr-test");
     await client.connect();
 
-    const result = await client.callTool("is_error", {});
+    const result = expectCompletedResult(await client.callTool("is_error", {}));
     expect(result.text).toBe("partial failure");
     expect(result.isError).toBe(true);
   }, 10_000);
@@ -425,10 +641,12 @@ describe("McpClient concurrency", () => {
     await client.connect();
 
     // Fire two tool calls simultaneously
-    const [r1, r2] = await Promise.all([
+    const [raw1, raw2] = await Promise.all([
       client.callTool("echo", { text: "first" }),
       client.callTool("echo", { text: "second" }),
     ]);
+    const r1 = expectCompletedResult(raw1);
+    const r2 = expectCompletedResult(raw2);
 
     expect(r1.content).toEqual([{ type: "text", text: "Echo: first" }]);
     expect(r1.text).toBe("Echo: first");

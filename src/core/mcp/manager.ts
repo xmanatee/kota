@@ -1,9 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type { KotaJsonObject, KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/index.js";
 import { validateToolStructuredOutput } from "#core/tools/output-schema.js";
-import { McpClient, type McpToolSchema } from "./client.js";
+import { McpClient, type McpInputRequiredCallToolResult, type McpToolSchema } from "./client.js";
 
 type McpServerConfig = {
   command: string;
@@ -49,6 +49,35 @@ function toKotaTool(serverName: string, tool: McpToolSchema): KotaTool {
       ...(tool.inputSchema.required && { required: tool.inputSchema.required }),
     },
     ...(tool.outputSchema ? { output_schema: tool.outputSchema } : {}),
+  };
+}
+
+function inputRequiredDiagnostics(
+  entry: McpToolEntry,
+  result: McpInputRequiredCallToolResult,
+): KotaJsonObject {
+  return {
+    resultType: "input_required",
+    protocolVersion: result.protocolVersion,
+    server: entry.client.getName(),
+    tool: entry.originalName,
+    inputRequests: result.inputRequests,
+    requestState: result.requestState,
+    ...(result._meta ? { resultMeta: result._meta } : {}),
+  };
+}
+
+function unsupportedInputRequiredResult(
+  entry: McpToolEntry,
+  result: McpInputRequiredCallToolResult,
+): ToolResult {
+  return {
+    content:
+      `MCP tool error: remote MCP tool "${entry.originalName}" on server ` +
+      `"${entry.client.getName()}" requires additional input, but this KOTA ` +
+      "runtime cannot route remote input_required results yet.",
+    is_error: true,
+    _meta: { mcp: inputRequiredDiagnostics(entry, result) },
   };
 }
 
@@ -141,6 +170,9 @@ export class McpManager {
 
     try {
       const result = await entry.client.callTool(entry.originalName, input);
+      if (result.resultType === "input_required") {
+        return unsupportedInputRequiredResult(entry, result);
+      }
       const toolResult: ToolResult = {
         content: result.text,
         blocks: result.blocks,

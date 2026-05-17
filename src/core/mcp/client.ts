@@ -46,7 +46,16 @@ type PendingRequest = {
   reject: (reason: Error) => void;
 };
 
-type McpResultKind = "tools/call" | "tools/list";
+type McpResultKind = "initialize" | "tools/call" | "tools/list";
+
+export const MCP_LEGACY_PROTOCOL_VERSION = "2024-11-05";
+export const MCP_DRAFT_PROTOCOL_VERSION = "DRAFT-2026-v1";
+
+export type McpProtocolVersion =
+  | typeof MCP_LEGACY_PROTOCOL_VERSION
+  | typeof MCP_DRAFT_PROTOCOL_VERSION;
+
+export type McpToolResultContract = "legacy-content" | "draft-tool-result";
 
 export type McpToolTextContent = {
   type: "text";
@@ -68,7 +77,7 @@ export type McpToolContentBlock =
   | McpToolImageContent
   | KotaMcpPreservedContent;
 
-export type McpCallToolResult = {
+type McpCompleteResultFields = {
   content: McpToolContentBlock[];
   text: string;
   blocks: ToolResultBlock[];
@@ -76,6 +85,38 @@ export type McpCallToolResult = {
   _meta?: KotaJsonObject;
   isError?: boolean;
 };
+
+export type McpLegacyCallToolResult = McpCompleteResultFields & {
+  resultType: "legacy";
+  protocolVersion: McpProtocolVersion;
+};
+
+export type McpCompleteCallToolResult = McpCompleteResultFields & {
+  resultType: "complete";
+  protocolVersion: McpProtocolVersion;
+};
+
+export type McpToolInputRequest = KotaJsonObject & {
+  method: string;
+  params: KotaJsonObject;
+};
+
+export type McpToolInputRequests = KotaJsonObject & {
+  [requestId: string]: McpToolInputRequest;
+};
+
+export type McpInputRequiredCallToolResult = {
+  resultType: "input_required";
+  protocolVersion: McpProtocolVersion;
+  inputRequests: McpToolInputRequests;
+  requestState: string;
+  _meta?: KotaJsonObject;
+};
+
+export type McpCallToolResult =
+  | McpLegacyCallToolResult
+  | McpCompleteCallToolResult
+  | McpInputRequiredCallToolResult;
 
 const CONNECT_TIMEOUT = 10_000;
 const CALL_TIMEOUT = 120_000;
@@ -182,6 +223,42 @@ function optionalJsonObject(
     throw malformedMcpResult(kind, label, "an object");
   }
   return value;
+}
+
+type McpInitializeResult = {
+  protocolVersion: McpProtocolVersion;
+  serverInfo?: { name?: string };
+};
+
+function isMcpProtocolVersion(value: string): value is McpProtocolVersion {
+  return value === MCP_DRAFT_PROTOCOL_VERSION || value === MCP_LEGACY_PROTOCOL_VERSION;
+}
+
+function decodeInitializeResult(value: JsonRpcResponse["result"]): McpInitializeResult {
+  const object = requireJsonObject(value, "result", "initialize");
+  const protocolVersion = requireString(
+    object.protocolVersion,
+    "protocolVersion",
+    "initialize",
+  );
+  if (!isMcpProtocolVersion(protocolVersion)) {
+    throw new Error(
+      `Malformed MCP initialize result: protocolVersion must be ${MCP_DRAFT_PROTOCOL_VERSION} or ${MCP_LEGACY_PROTOCOL_VERSION}`,
+    );
+  }
+  optionalJsonObject(object.capabilities, "capabilities", "initialize");
+  const rawServerInfo = optionalJsonObject(
+    object.serverInfo,
+    "serverInfo",
+    "initialize",
+  );
+  const name = rawServerInfo
+    ? optionalString(rawServerInfo.name, "serverInfo.name", "initialize")
+    : undefined;
+  return {
+    protocolVersion,
+    ...(rawServerInfo ? { serverInfo: { ...(name !== undefined ? { name } : {}) } } : {}),
+  };
 }
 
 function decodeToolObjectSchema(
@@ -437,8 +514,7 @@ function toToolResultBlock(block: McpToolContentBlock): ToolResultBlock {
   return { type: "mcp_content", content: block };
 }
 
-function decodeCallToolResult(value: JsonRpcResponse["result"]): McpCallToolResult {
-  const object = requireJsonObject(value, "result");
+function decodeCompleteResultFields(object: KotaJsonObject): McpCompleteResultFields {
   const content = decodeContent(object.content);
   if (
     object.structuredContent !== undefined &&
@@ -462,6 +538,77 @@ function decodeCallToolResult(value: JsonRpcResponse["result"]): McpCallToolResu
   };
 }
 
+function decodeInputRequests(value: KotaJsonValue | undefined): McpToolInputRequests {
+  const object = requireJsonObject(value, "inputRequests");
+  const decoded: { [requestId: string]: McpToolInputRequest } = {};
+  for (const [requestId, rawRequest] of Object.entries(object)) {
+    const label = `inputRequests.${requestId}`;
+    const request = optionalJsonObject(rawRequest, label);
+    if (!request) {
+      throw malformedMcpResult("tools/call", label, "an object");
+    }
+    decoded[requestId] = {
+      ...request,
+      method: requireString(request.method, `${label}.method`),
+      params: requireJsonObject(request.params, `${label}.params`),
+    };
+  }
+  if (Object.keys(decoded).length === 0) {
+    throw new Error(
+      "Malformed MCP tools/call result: inputRequests must include at least one request",
+    );
+  }
+  return decoded as McpToolInputRequests;
+}
+
+function decodeInputRequiredResult(
+  object: KotaJsonObject,
+  protocolVersion: McpProtocolVersion,
+): McpInputRequiredCallToolResult {
+  const inputRequests = decodeInputRequests(object.inputRequests);
+  const requestState = requireString(object.requestState, "requestState");
+  const meta = optionalJsonObject(object._meta, "_meta");
+  return {
+    resultType: "input_required",
+    protocolVersion,
+    inputRequests,
+    requestState,
+    ...(meta ? { _meta: meta } : {}),
+  };
+}
+
+function decodeCallToolResult(
+  value: JsonRpcResponse["result"],
+  protocolVersion: McpProtocolVersion,
+): McpCallToolResult {
+  const object = requireJsonObject(value, "result");
+  if (object.resultType === undefined) {
+    return {
+      resultType: "legacy",
+      protocolVersion,
+      ...decodeCompleteResultFields(object),
+    };
+  }
+  const resultType = requireString(object.resultType, "resultType");
+  if (resultType === "complete") {
+    return {
+      resultType: "complete",
+      protocolVersion,
+      ...decodeCompleteResultFields(object),
+    };
+  }
+  if (resultType === "input_required") {
+    return decodeInputRequiredResult(object, protocolVersion);
+  }
+  throw new Error(
+    'Malformed MCP tools/call result: resultType must be "complete" or "input_required"',
+  );
+}
+
+function isUnsupportedProtocolVersionError(err: Error): boolean {
+  return /MCP error -32602: Unsupported protocol version/.test(err.message);
+}
+
 /**
  * Lightweight MCP client using JSON-RPC 2.0 over stdio.
  * Handles the MCP lifecycle: initialize → list tools → call tools → close.
@@ -476,6 +623,8 @@ export class McpClient {
   private closing = false;
   private killTimer: ReturnType<typeof setTimeout> | null = null;
   private serverName: string;
+  private protocolVersion: McpProtocolVersion | null = null;
+  private toolResultContract: McpToolResultContract | null = null;
 
   constructor(
     private command: string,
@@ -488,6 +637,14 @@ export class McpClient {
 
   getName(): string {
     return this.serverName;
+  }
+
+  getProtocolVersion(): McpProtocolVersion | null {
+    return this.protocolVersion;
+  }
+
+  getToolResultContract(): McpToolResultContract | null {
+    return this.toolResultContract;
   }
 
   isConnected(): boolean {
@@ -535,12 +692,7 @@ export class McpClient {
       this.rl = createInterface({ input: this.proc.stdout! });
       this.rl.on("line", (line) => this.handleLine(line));
 
-      // Initialize handshake
-      const result = await this.request("initialize", {
-        protocolVersion: "2024-11-05",
-        capabilities: {},
-        clientInfo: { name: "kota", version: "0.1.0" },
-      }) as { protocolVersion: string; capabilities: unknown; serverInfo?: { name?: string } };
+      const result = await this.initializeServer();
 
       // Send initialized notification
       this.notify("notifications/initialized");
@@ -553,6 +705,10 @@ export class McpClient {
       if (result.serverInfo?.name) {
         this.serverName = result.serverInfo.name;
       }
+      this.protocolVersion = result.protocolVersion;
+      this.toolResultContract = result.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION
+        ? "draft-tool-result"
+        : "legacy-content";
       this.connected = true;
     } finally {
       this.connecting = false;
@@ -571,7 +727,7 @@ export class McpClient {
     args: Record<string, unknown>,
   ): Promise<McpCallToolResult> {
     const result = await this.request("tools/call", { name, arguments: args }, CALL_TIMEOUT);
-    return decodeCallToolResult(result);
+    return decodeCallToolResult(result, this.protocolVersion ?? MCP_LEGACY_PROTOCOL_VERSION);
   }
 
   /** Gracefully shut down the server. */
@@ -632,6 +788,27 @@ export class McpClient {
     } catch {
       // Non-JSON lines (e.g. server startup messages) are ignored
     }
+  }
+
+  private async initializeServer(): Promise<McpInitializeResult> {
+    try {
+      return await this.requestInitialize(MCP_DRAFT_PROTOCOL_VERSION);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      if (!isUnsupportedProtocolVersionError(error)) throw err;
+      return await this.requestInitialize(MCP_LEGACY_PROTOCOL_VERSION);
+    }
+  }
+
+  private async requestInitialize(
+    protocolVersion: McpProtocolVersion,
+  ): Promise<McpInitializeResult> {
+    const result = await this.request("initialize", {
+      protocolVersion,
+      capabilities: {},
+      clientInfo: { name: "kota", version: "0.1.0" },
+    });
+    return decodeInitializeResult(result);
   }
 
   private request(

@@ -1,12 +1,12 @@
 ---
 id: task-handle-remote-mcp-input-required-tool-results
 title: Handle remote MCP input-required tool results explicitly
-status: ready
+status: done
 priority: p2
 area: core
 summary: Decode MCP draft input_required tool results from remote servers and route or fail them through an explicit KOTA client-runtime contract instead of treating them as malformed content.
 created_at: 2026-05-17T02:16:06Z
-updated_at: 2026-05-17T02:16:06Z
+updated_at: 2026-05-17T02:29:15Z
 ---
 
 ## Problem
