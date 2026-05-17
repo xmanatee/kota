@@ -128,6 +128,26 @@ describe("openaiToolsAgentHarness — registration", () => {
       "preRun",
       "postRun",
     ]);
+    expect(openaiToolsAgentHarness.unsupportedRunOptions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          option: "mcpServers",
+          runOption: "mcpServers",
+        }),
+        expect.objectContaining({
+          option: 'autonomyMode="supervised"',
+          runOption: "autonomyMode.supervised",
+        }),
+        expect.objectContaining({
+          option: "thinkingEnabled/thinkingBudget",
+          runOption: "thinking",
+        }),
+        expect.objectContaining({
+          option: "onMessage",
+          runOption: "onMessage",
+        }),
+      ]),
+    );
   });
 });
 

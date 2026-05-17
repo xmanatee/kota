@@ -46,6 +46,7 @@ import type {
   AgentHarness,
   AgentHarnessResult,
   AgentHarnessRunOptions,
+  AgentHarnessUnsupportedOption,
   AgentHarnessWriter,
   KotaTool,
 } from "#core/agent-harness/index.js";
@@ -56,6 +57,44 @@ export const VERCEL_AGENT_HARNESS_NAME = "vercel";
 export const VERCEL_ASK_OWNER_TOOL_NAME = "ask_owner";
 
 const DEFAULT_MAX_TURNS = 25;
+
+const VERCEL_UNSUPPORTED_OPTIONS = [
+  {
+    runOption: "mcpServers",
+    option: "mcpServers",
+    reason: "The vercel harness hosts KOTA tools directly, not MCP servers.",
+  },
+  {
+    runOption: "autonomyMode.supervised",
+    option: 'autonomyMode="supervised"',
+    reason: "The vercel harness cannot route tool calls through KOTA's approval queue.",
+  },
+  {
+    runOption: "persistSession",
+    option: "persistSession",
+    reason: "The vercel harness does not persist native sessions.",
+  },
+  {
+    runOption: "harnessOverrides",
+    option: "harnessOverrides",
+    reason: "The vercel harness does not accept per-step harnessOptions.",
+  },
+  {
+    runOption: "enableFileCheckpointing",
+    option: "enableFileCheckpointing",
+    reason: "KOTA file checkpointing is not supported by this adapter.",
+  },
+  {
+    runOption: "thinking",
+    option: "thinkingEnabled/thinkingBudget",
+    reason: "Portable effort maps to provider-specific reasoning settings instead.",
+  },
+  {
+    runOption: "onMessage",
+    option: "onMessage",
+    reason: "The adapter emits text deltas, not KotaAgentMessage frames.",
+  },
+] as const satisfies readonly AgentHarnessUnsupportedOption[];
 
 type ProviderFactory = (modelId: string) => Promise<LanguageModel>;
 
@@ -273,6 +312,7 @@ export const vercelAgentHarness: AgentHarness = {
   askOwnerToolName: VERCEL_ASK_OWNER_TOOL_NAME,
   emitsAgentMessageStream: false,
   toolControl: "kota",
+  unsupportedRunOptions: VERCEL_UNSUPPORTED_OPTIONS,
   async run(
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,

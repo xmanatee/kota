@@ -86,6 +86,26 @@ describe("geminiAgentHarness — registration", () => {
     expect(geminiAgentHarness.askOwnerToolName).toBe("ask_owner");
     expect(geminiAgentHarness.emitsAgentMessageStream).toBe(false);
     expect(geminiAgentHarness.toolControl).toBe("kota");
+    expect(geminiAgentHarness.unsupportedRunOptions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          option: "mcpServers",
+          runOption: "mcpServers",
+        }),
+        expect.objectContaining({
+          option: 'autonomyMode="supervised"',
+          runOption: "autonomyMode.supervised",
+        }),
+        expect.objectContaining({
+          option: "thinkingEnabled/thinkingBudget",
+          runOption: "thinking",
+        }),
+        expect.objectContaining({
+          option: "onMessage",
+          runOption: "onMessage",
+        }),
+      ]),
+    );
   });
 });
 

@@ -30,6 +30,7 @@ import type {
   AgentHarnessReadiness,
   AgentHarnessResult,
   AgentHarnessRunOptions,
+  AgentHarnessUnsupportedOption,
   AgentHarnessWriter,
   KotaTool,
 } from "#core/agent-harness/index.js";
@@ -56,34 +57,41 @@ const DEFAULT_MAX_TURNS = 25;
 
 const GEMINI_UNSUPPORTED_OPTIONS = [
   {
+    runOption: "mcpServers",
     option: "mcpServers",
     reason: "The Gemini SDK adapter hosts KOTA tools directly, not MCP servers.",
   },
   {
+    runOption: "autonomyMode.supervised",
     option: 'autonomyMode="supervised"',
     reason: "The adapter cannot route tool calls through KOTA's approval queue.",
   },
   {
+    runOption: "persistSession",
     option: "persistSession",
     reason: "The Gemini SDK loop does not persist native sessions.",
   },
   {
+    runOption: "harnessOverrides",
     option: "harnessOverrides",
     reason: "The gemini adapter does not accept per-step harnessOptions.",
   },
   {
+    runOption: "enableFileCheckpointing",
     option: "enableFileCheckpointing",
     reason: "KOTA file checkpointing is not supported by this adapter.",
   },
   {
+    runOption: "thinking",
     option: "thinkingEnabled/thinkingBudget",
     reason: "Portable effort maps to Gemini thinkingConfig.thinkingLevel instead.",
   },
   {
+    runOption: "onMessage",
     option: "onMessage",
     reason: "The adapter emits text deltas, not KotaAgentMessage frames.",
   },
-] as const;
+] as const satisfies readonly AgentHarnessUnsupportedOption[];
 
 function geminiReadiness(): AgentHarnessReadiness {
   return {
@@ -334,6 +342,7 @@ export const geminiAgentHarness: AgentHarness = {
   askOwnerToolName: GEMINI_ASK_OWNER_TOOL_NAME,
   emitsAgentMessageStream: false,
   toolControl: "kota",
+  unsupportedRunOptions: GEMINI_UNSUPPORTED_OPTIONS,
   readiness: geminiReadiness,
   async run(
     options: AgentHarnessRunOptions,

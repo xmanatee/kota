@@ -62,5 +62,11 @@ describe("claudeAgentHarness", () => {
 
   it("declares its name so the registry can resolve it", () => {
     expect(claudeAgentHarness.name).toBe("claude-agent-sdk");
+    expect(claudeAgentHarness.unsupportedRunOptions).toEqual([
+      expect.objectContaining({
+        option: 'autonomyMode="supervised"',
+        runOption: "autonomyMode.supervised",
+      }),
+    ]);
   });
 });

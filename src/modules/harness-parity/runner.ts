@@ -17,6 +17,11 @@ import type {
   AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
 import { runAgentHarness } from "#core/agent-harness/index.js";
+import {
+  buildHarnessCapabilitySnapshot,
+  type HarnessCapabilitySnapshot,
+  summarizeHarnessCapability,
+} from "./capability-snapshot.js";
 import type { LoadedScenario, ScenarioVerification } from "./scenario.js";
 
 const DEFAULT_EFFORT: AgentEffort = "xhigh";
@@ -75,6 +80,8 @@ export type HarnessParityArtifact = {
   subtype?: string;
   sessionId?: string;
   verification: VerificationResult;
+  /** Static adapter boundary and optional local readiness observed before the run. */
+  capability: HarnessCapabilitySnapshot;
   /** Files changed under the working directory relative to the initial tree. */
   changedFiles: readonly string[];
   /** Where artifacts for this harness × scenario run landed. */
@@ -217,6 +224,7 @@ export async function runScenarioOnHarness(
   const artifactDir = join(params.outBaseDir, harness.name);
   mkdirSync(artifactDir, { recursive: true });
 
+  const capability = buildHarnessCapabilitySnapshot(harness);
   const workingDir = materializeWorkingDir(scenario);
   const writer = createCollectingWriter();
   const startedAt = new Date();
@@ -274,6 +282,7 @@ export async function runScenarioOnHarness(
     turns: runResult?.turns ?? 0,
     isError: runError !== null || runResult?.isError === true,
     verification,
+    capability,
     changedFiles,
     artifactDir,
     ...(runResult?.inputTokens !== undefined
@@ -345,6 +354,10 @@ function buildTraceSummary(
   );
   lines.push(`- changedFiles (${artifact.changedFiles.length}):`);
   for (const path of artifact.changedFiles) lines.push(`  - ${path}`);
+  lines.push("");
+  lines.push("## Capability boundary");
+  lines.push("");
+  renderCapabilityBoundary(lines, artifact.capability);
   if (runError) {
     lines.push("");
     lines.push("## Run error");
@@ -360,6 +373,61 @@ function buildTraceSummary(
   lines.push(tail(streamedText, 8_000));
   lines.push("```");
   return `${lines.join("\n")}\n`;
+}
+
+function renderCapabilityBoundary(
+  lines: string[],
+  capability: HarnessCapabilitySnapshot,
+): void {
+  lines.push(`- toolControl: ${capability.toolControl}`);
+  lines.push(`- supportsMultiTurn: ${capability.supportsMultiTurn}`);
+  lines.push(
+    `- ownerQuestions: ${
+      capability.askOwnerToolName === null
+        ? "unsupported"
+        : `supported (${capability.askOwnerToolName})`
+    }`,
+  );
+  lines.push(
+    `- emitsAgentMessageStream: ${capability.emitsAgentMessageStream}`,
+  );
+  lines.push(
+    `- supportedHookKinds: ${capability.supportedHookKinds.join(", ") || "none"}`,
+  );
+  lines.push(
+    `- unsupportedRunOptions (${capability.unsupportedRunOptions.length}):`,
+  );
+  if (capability.unsupportedRunOptions.length === 0) {
+    lines.push("  - none");
+  } else {
+    for (const entry of capability.unsupportedRunOptions) {
+      const runOption =
+        entry.runOption !== undefined ? ` [${entry.runOption}]` : "";
+      lines.push(`  - ${entry.option}${runOption}: ${entry.reason}`);
+    }
+  }
+  if (capability.localReadiness === undefined) {
+    lines.push("- localReadiness: not declared");
+    return;
+  }
+
+  lines.push(
+    `- localReadiness: ${capability.localReadiness.adapterKind}`,
+  );
+  lines.push(
+    `  - runtime: ${capability.localReadiness.localRuntime.status} - ${capability.localReadiness.localRuntime.summary}`,
+  );
+  if (capability.localReadiness.localAuth !== undefined) {
+    lines.push(
+      `  - auth: ${capability.localReadiness.localAuth.status} - ${capability.localReadiness.localAuth.summary}`,
+    );
+  }
+  if (capability.localReadiness.optionalRuntimes.length > 0) {
+    lines.push("  - optionalRuntimes:");
+    for (const runtime of capability.localReadiness.optionalRuntimes) {
+      lines.push(`    - ${runtime.status} - ${runtime.summary}`);
+    }
+  }
 }
 
 /**
@@ -405,6 +473,7 @@ export async function runScenarioAcrossHarnesses(params: {
           verificationPassed: a.verification.passed,
           changedFiles: a.changedFiles,
           isError: a.isError,
+          capability: summarizeHarnessCapability(a.capability),
           totalCostUsd: a.totalCostUsd,
           inputTokens: a.inputTokens,
           outputTokens: a.outputTokens,

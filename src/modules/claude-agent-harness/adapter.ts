@@ -4,6 +4,7 @@ import type {
   AgentHarnessResult,
   AgentHarnessRunOptions,
   AgentHarnessStepOverrides,
+  AgentHarnessUnsupportedOption,
   AgentHarnessWriter,
   AgentMcpServers,
 } from "#core/agent-harness/index.js";
@@ -27,10 +28,11 @@ export const CLAUDE_AGENT_HARNESS_NAME = "claude-agent-sdk";
 
 const CLAUDE_UNSUPPORTED_OPTIONS = [
   {
+    runOption: "autonomyMode.supervised",
     option: 'autonomyMode="supervised"',
     reason: "Claude Agent SDK has no native route into KOTA's approval queue.",
   },
-] as const;
+] as const satisfies readonly AgentHarnessUnsupportedOption[];
 
 function claudeReadiness(): AgentHarnessReadiness {
   return {
@@ -221,6 +223,7 @@ export const claudeAgentHarness: AgentHarness = {
   askOwnerToolName: KOTA_OWNER_QUESTIONS_MCP_TOOL,
   emitsAgentMessageStream: true,
   toolControl: "kota",
+  unsupportedRunOptions: CLAUDE_UNSUPPORTED_OPTIONS,
   readiness: claudeReadiness,
   validateStepOptions: validateClaudeSdkStepOptions,
   validateModelId: validateClaudeSdkModelId,

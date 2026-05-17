@@ -34,12 +34,20 @@ Per harness run the module writes:
 - `trace.txt` — tail of everything the adapter streamed through
   `AgentHarnessWriter`.
 - `trace-summary.md` — operator-facing digest (harness, model, turns, cost,
-  verification verdict, changed files).
+  verification verdict, changed files) plus the adapter capability boundary
+  before streamed text.
 - `diff.patch` — `git diff --no-index` output against the scenario's
   `initial/` tree.
 - `verification.json` — command, timeout, exit status, and tail of combined
   stdout/stderr.
-- `run-meta.json` — structured record including any adapter error.
+- `run-meta.json` — structured record including any adapter error and the full
+  `AgentHarness` capability snapshot observed before the run: tool-control
+  mode, owner-question tool name, message-stream support, supported hook kinds,
+  unsupported neutral run options, and optional local readiness data.
+
+The top-level `parity.json` keeps a compact capability summary beside each
+harness outcome so side-by-side comparison does not require opening every
+child run directory.
 
 ## Scenario Coverage
 

@@ -2,6 +2,7 @@ import type {
   AgentHarness,
   AgentHarnessResult,
   AgentHarnessRunOptions,
+  AgentHarnessUnsupportedOption,
   AgentHarnessWriter,
   KotaMessage,
   KotaModelResponse,
@@ -11,6 +12,44 @@ import { createModelClient } from "#core/model/model-client.js";
 export const THIN_AGENT_HARNESS_NAME = "thin";
 
 const DEFAULT_MAX_TOKENS = 4096;
+
+const THIN_UNSUPPORTED_OPTIONS = [
+  {
+    runOption: "allowedTools",
+    option: "allowedTools",
+    reason: "The thin harness is text-only and has no tool loop to restrict.",
+  },
+  {
+    runOption: "disallowedTools",
+    option: "disallowedTools",
+    reason: "The thin harness is text-only and has no tool loop to filter.",
+  },
+  {
+    runOption: "mcpServers",
+    option: "mcpServers",
+    reason: "The thin harness is text-only and does not host MCP servers.",
+  },
+  {
+    runOption: "canUseTool",
+    option: "canUseTool",
+    reason: "The thin harness has no tool loop for canUseTool to guard.",
+  },
+  {
+    runOption: "autonomyMode.supervised",
+    option: 'autonomyMode="supervised"',
+    reason: "The thin harness cannot route calls through the operator approval queue.",
+  },
+  {
+    runOption: "harnessOverrides",
+    option: "harnessOverrides",
+    reason: "The thin harness does not accept per-step harnessOptions.",
+  },
+  {
+    runOption: "onMessage",
+    option: "onMessage",
+    reason: "The thin harness emits text only, not KotaAgentMessage frames.",
+  },
+] as const satisfies readonly AgentHarnessUnsupportedOption[];
 
 function rejectUnsupportedToolOptions(options: AgentHarnessRunOptions): void {
   if (options.allowedTools && options.allowedTools.length > 0) {
@@ -72,6 +111,7 @@ export const thinAgentHarness: AgentHarness = {
   askOwnerToolName: null,
   emitsAgentMessageStream: false,
   toolControl: "kota",
+  unsupportedRunOptions: THIN_UNSUPPORTED_OPTIONS,
   async run(
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,

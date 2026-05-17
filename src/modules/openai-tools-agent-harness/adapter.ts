@@ -15,6 +15,7 @@ import type {
   AgentHarness,
   AgentHarnessResult,
   AgentHarnessRunOptions,
+  AgentHarnessUnsupportedOption,
   AgentHarnessWriter,
   KotaContentBlock,
   KotaMessage,
@@ -32,6 +33,44 @@ export const OPENAI_TOOLS_ASK_OWNER_TOOL_NAME = "ask_owner";
 
 const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_MAX_TURNS = 25;
+
+const OPENAI_TOOLS_UNSUPPORTED_OPTIONS = [
+  {
+    runOption: "mcpServers",
+    option: "mcpServers",
+    reason: "The openai-tools harness hosts KOTA tools directly, not MCP servers.",
+  },
+  {
+    runOption: "autonomyMode.supervised",
+    option: 'autonomyMode="supervised"',
+    reason: "The openai-tools harness cannot route tool calls through KOTA's approval queue.",
+  },
+  {
+    runOption: "persistSession",
+    option: "persistSession",
+    reason: "The openai-tools harness does not persist native sessions.",
+  },
+  {
+    runOption: "harnessOverrides",
+    option: "harnessOverrides",
+    reason: "The openai-tools harness does not accept per-step harnessOptions.",
+  },
+  {
+    runOption: "enableFileCheckpointing",
+    option: "enableFileCheckpointing",
+    reason: "KOTA file checkpointing is not supported by this adapter.",
+  },
+  {
+    runOption: "thinking",
+    option: "thinkingEnabled/thinkingBudget",
+    reason: "Portable effort is the canonical reasoning control for this adapter.",
+  },
+  {
+    runOption: "onMessage",
+    option: "onMessage",
+    reason: "The adapter emits text deltas, not KotaAgentMessage frames.",
+  },
+] as const satisfies readonly AgentHarnessUnsupportedOption[];
 
 function isToolUseBlock(block: KotaContentBlock): block is KotaToolUseBlock {
   return block.type === "tool_use";
@@ -254,6 +293,7 @@ export const openaiToolsAgentHarness: AgentHarness = {
   askOwnerToolName: OPENAI_TOOLS_ASK_OWNER_TOOL_NAME,
   emitsAgentMessageStream: false,
   toolControl: "kota",
+  unsupportedRunOptions: OPENAI_TOOLS_UNSUPPORTED_OPTIONS,
   async run(
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,

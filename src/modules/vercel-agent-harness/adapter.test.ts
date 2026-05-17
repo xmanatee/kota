@@ -101,6 +101,26 @@ describe("vercelAgentHarness — registration", () => {
     expect(vercelAgentHarness.askOwnerToolName).toBe("ask_owner");
     expect(vercelAgentHarness.emitsAgentMessageStream).toBe(false);
     expect(vercelAgentHarness.toolControl).toBe("kota");
+    expect(vercelAgentHarness.unsupportedRunOptions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          option: "mcpServers",
+          runOption: "mcpServers",
+        }),
+        expect.objectContaining({
+          option: 'autonomyMode="supervised"',
+          runOption: "autonomyMode.supervised",
+        }),
+        expect.objectContaining({
+          option: "thinkingEnabled/thinkingBudget",
+          runOption: "thinking",
+        }),
+        expect.objectContaining({
+          option: "onMessage",
+          runOption: "onMessage",
+        }),
+      ]),
+    );
   });
 });
 

@@ -1,12 +1,12 @@
 ---
 id: task-record-harness-capability-boundaries-in-parity-artifacts
 title: Record harness capability boundaries in parity artifacts
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Extend harness-parity artifacts so every run records the resolved adapter capability boundary, including tool-control mode, unsupported neutral options, owner-question support, streaming support, and readiness or sandbox preflight data.
 created_at: 2026-05-17T08:54:03.000Z
-updated_at: 2026-05-17T08:54:03.000Z
+updated_at: 2026-05-17T13:05:05.000Z
 ---
 
 ## Problem
