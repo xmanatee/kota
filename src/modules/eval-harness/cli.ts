@@ -80,9 +80,9 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
     .option("--fixture <id>", "Run only the fixture with this id (repeatable)", (v, prev: string[]) => [...prev, v], [] as string[])
     .option("--repeats <n>", "Repeat each fixture N times (default 3)", "3")
     .option("--host-class <name>", "Host class label recorded on every run")
-    .option("--cpu-allocation <cores>", "Guaranteed CPU cores per run")
+    .option("--cpu-allocation <cores>", "Requested guaranteed CPU cores per run (defaults to detected host)")
     .option("--cpu-kill <cores>", "Hard CPU ceiling per run (defaults to allocation)")
-    .option("--memory-allocation-mb <mb>", "Guaranteed memory per run in MB")
+    .option("--memory-allocation-mb <mb>", "Requested guaranteed memory per run in MB (defaults to detected host)")
     .option("--memory-kill-threshold-mb <mb>", "Hard memory ceiling per run in MB")
     .option("--keep", "Keep fixture working directories for post-mortem")
     .action(async (opts: {

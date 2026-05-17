@@ -1,12 +1,12 @@
 ---
 id: task-bind-eval-harness-resource-profiles-to-executable
 title: Bind eval-harness resource profiles to executable isolation
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Make eval-harness resource profiles describe the executor's actual isolation and limits, not only caller-supplied metadata, so cadence baselines cannot compare unverified host conditions.
 created_at: 2026-05-17T06:26:45Z
-updated_at: 2026-05-17T06:26:45Z
+updated_at: 2026-05-17T06:42:44Z
 ---
 
 ## Problem

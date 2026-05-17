@@ -4,7 +4,10 @@ import {
   type CandidateAssessment,
 } from "./baseline-assessment.js";
 import type { PersistedBaseline } from "./baseline-store.js";
-import type { ResourceProfile } from "./fixture-run.js";
+import type {
+  ExecutionProfilePreflightResult,
+  ResourceProfile,
+} from "./fixture-run.js";
 
 const stableProfile: ResourceProfile = {
   hostClass: "autonomy-cadence",
@@ -19,6 +22,21 @@ const driftedProfile: ResourceProfile = {
   cpuKillThresholdCores: 4,
 };
 
+function verifiedProfile(
+  profile: ResourceProfile = stableProfile,
+): ExecutionProfilePreflightResult {
+  return {
+    status: "verified",
+    backendKind: "container",
+    requestedProfile: profile,
+    observedOrEnforcedProfile: profile,
+    verification: "enforced",
+    gateEligible: true,
+    eligibilityReason: "verified-profile",
+    diagnostics: [],
+  };
+}
+
 function candidate(
   passHatK: number,
   passAtK: number,
@@ -26,7 +44,7 @@ function candidate(
 ): CandidateAssessment {
   return {
     aggregate: { fixtureCount: 4, repeatCount: 3, passAtK, passHatK },
-    resourceProfile: stableProfile,
+    executionProfile: verifiedProfile(),
     runArtifactBaseDir: "/tmp/fresh/eval-runs",
     recordedAt: "2026-04-27T12:00:00.000Z",
     ...overrides,
@@ -82,12 +100,52 @@ describe("assessAgainstBaseline", () => {
   it("resource-profile drift resolves to not-gated even on a large drop", () => {
     const result = assessAgainstBaseline(
       baseline(0.95, 0.95),
-      candidate(0.4, 0.8, { resourceProfile: driftedProfile }),
+      candidate(0.4, 0.8, { executionProfile: verifiedProfile(driftedProfile) }),
     );
     expect(result.status).toBe("not-gated");
     if (result.status !== "not-gated") throw new Error("unreachable");
     expect(result.reason).toBe("resource-profile-drift");
     expect(result.baselineToRecord.resourceProfile).toEqual(driftedProfile);
+  });
+
+  it("refuses baseline comparison when the execution profile is non-gating", () => {
+    const executionProfile: ExecutionProfilePreflightResult = {
+      status: "non-gating",
+      backendKind: "host-subprocess",
+      requestedProfile: stableProfile,
+      observedOrEnforcedProfile: stableProfile,
+      verification: "unverified",
+      gateEligible: false,
+      nonGatingReason: "host-subprocess-unverified",
+      diagnostics: [],
+    };
+    const result = assessAgainstBaseline(
+      baseline(1, 1),
+      candidate(0, 0, { executionProfile }),
+    );
+    expect(result.status).toBe("non-gating");
+    if (result.status !== "non-gating") throw new Error("unreachable");
+    expect(result.reason).toBe("host-subprocess-unverified");
+  });
+
+  it("rejects requested/observed mismatches before comparing baseline scores", () => {
+    const executionProfile: ExecutionProfilePreflightResult = {
+      status: "rejected",
+      backendKind: "host-subprocess",
+      requestedProfile: stableProfile,
+      observedOrEnforcedProfile: driftedProfile,
+      verification: "observed",
+      gateEligible: false,
+      rejectionReason: "requested-observed-mismatch",
+      diagnostics: [],
+    };
+    const result = assessAgainstBaseline(
+      baseline(1, 1),
+      candidate(0, 0, { executionProfile }),
+    );
+    expect(result.status).toBe("non-gating");
+    if (result.status !== "non-gating") throw new Error("unreachable");
+    expect(result.reason).toBe("requested-observed-mismatch");
   });
 
   it("repeat-count-below-minimum resolves to not-gated even on a 100pp drop", () => {

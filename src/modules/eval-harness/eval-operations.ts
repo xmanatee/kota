@@ -30,11 +30,12 @@ import { runEvalSet } from "./eval-set.js";
 import { evalHarnessSetCompleted } from "./events.js";
 import { loadAllFixtures, loadFixture } from "./fixture.js";
 import type { ResourceProfile } from "./fixture-run.js";
-import { createSubprocessExecutor } from "./subprocess-executor.js";
+import {
+  createSubprocessExecutor,
+  detectHostSubprocessResourceProfile,
+} from "./subprocess-executor.js";
 
 export const DEFAULT_HOST_CLASS = "local-dev";
-export const DEFAULT_CPU_ALLOC = 2;
-export const DEFAULT_MEM_ALLOC_MB = 4096;
 const DEFAULT_REPEATS = 3;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -64,12 +65,16 @@ export function listEvalFixtures(projectDir: string): EvalListResult {
 }
 
 function buildProfile(options: EvalRunOptions, defaultHost: string): ResourceProfile {
-  const cpuAllocationCores = options.cpuAllocationCores ?? DEFAULT_CPU_ALLOC;
+  const hostClass = options.hostClass ?? defaultHost;
+  const detected = detectHostSubprocessResourceProfile(hostClass);
+  const cpuAllocationCores =
+    options.cpuAllocationCores ?? detected.cpuAllocationCores;
   const cpuKillThresholdCores = options.cpuKillThresholdCores ?? cpuAllocationCores;
-  const memoryAllocationMB = options.memoryAllocationMB ?? DEFAULT_MEM_ALLOC_MB;
+  const memoryAllocationMB =
+    options.memoryAllocationMB ?? detected.memoryAllocationMB;
   const memoryKillThresholdMB = options.memoryKillThresholdMB ?? memoryAllocationMB;
   return {
-    hostClass: options.hostClass ?? defaultHost,
+    hostClass,
     cpuAllocationCores,
     cpuKillThresholdCores,
     memoryAllocationMB,
@@ -102,13 +107,13 @@ export async function runEvalHarness(
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const runArtifactBaseDir = join(evalRunsRootFor(projectDir), stamp);
   mkdirSync(runArtifactBaseDir, { recursive: true });
-  const profile = buildProfile(options, DEFAULT_HOST_CLASS);
   const executor = createSubprocessExecutor({ kotaBinaryPath: kotaBinaryPathFor(projectDir) });
+  const requestedProfile = buildProfile(options, DEFAULT_HOST_CLASS);
   const repeatCount = options.repeatCount ?? DEFAULT_REPEATS;
   const report = await runEvalSet({
     fixtures,
     executor,
-    resourceProfile: profile,
+    requestedProfile,
     runArtifactBaseDir: realpathSync(runArtifactBaseDir),
     repeatCount,
     keepWorkingDirs: options.keepWorkingDirs ?? false,
@@ -121,7 +126,7 @@ export async function runEvalHarness(
       repeatCount: report.repeatCount,
       passAtK: report.aggregate.passAtK,
       passHatK: report.aggregate.passHatK,
-      hostClass: profile.hostClass,
+      hostClass: report.resourceProfile.hostClass,
       runArtifactBaseDir: report.runArtifactBaseDir,
       startedAt: report.startedAt,
       completedAt: report.completedAt,

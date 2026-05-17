@@ -15,10 +15,16 @@
  * environment.
  */
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { availableParallelism, totalmem } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { PRESET_ENV_VAR } from "#core/model/preset.js";
+import type {
+  ExecutionProfilePreflightResult,
+  ResourceProfile,
+} from "./fixture-run.js";
+import { resourceProfilesComparable } from "./fixture-run.js";
 import { REPLAY_AGENT_HARNESS_NAME_ENV } from "./replay-harness.js";
 import type {
   WorkflowExecutionOutcome,
@@ -35,7 +41,18 @@ export type SubprocessExecutorOptions = {
    * effects cannot leak from the operator's real environment.
    */
   extraEnv?: Record<string, string>;
+  /**
+   * Optional isolation backend request. Host subprocess execution is the
+   * default and is explicitly non-gating because it cannot enforce CPU or
+   * memory limits. Container support is capability-detected before any run;
+   * an unavailable backend produces a typed non-gating preflight result.
+   */
+  isolationBackend?: SubprocessIsolationBackend;
 };
+
+export type SubprocessIsolationBackend =
+  | { kind: "host-subprocess" }
+  | { kind: "container"; executable: string };
 
 type RunMetadataSnapshot = {
   id: string;
@@ -43,6 +60,108 @@ type RunMetadataSnapshot = {
 };
 
 const REPLAY_PRESET_ID = "claude";
+
+export function detectHostSubprocessResourceProfile(
+  hostClass: string,
+): ResourceProfile {
+  const cpuCores = Math.max(1, availableParallelism());
+  const memoryMB = Math.max(1, Math.floor(totalmem() / (1024 * 1024)));
+  return {
+    hostClass,
+    cpuAllocationCores: cpuCores,
+    cpuKillThresholdCores: cpuCores,
+    memoryAllocationMB: memoryMB,
+    memoryKillThresholdMB: memoryMB,
+  };
+}
+
+function preflightHostSubprocess(
+  requestedProfile: ResourceProfile,
+): ExecutionProfilePreflightResult {
+  const observedProfile = detectHostSubprocessResourceProfile(
+    requestedProfile.hostClass,
+  );
+  const diagnostics = [
+    {
+      severity: "info" as const,
+      message:
+        "Host subprocess execution remaps HOME and KOTA_PROJECT_DIR but does not enforce CPU or memory allocation or kill thresholds.",
+    },
+  ];
+  if (!resourceProfilesComparable(requestedProfile, observedProfile)) {
+    return {
+      status: "rejected",
+      backendKind: "host-subprocess",
+      requestedProfile,
+      observedOrEnforcedProfile: observedProfile,
+      verification: "observed",
+      gateEligible: false,
+      rejectionReason: "requested-observed-mismatch",
+      diagnostics: [
+        ...diagnostics,
+        {
+          severity: "warning" as const,
+          message:
+            "Requested resource profile does not match the observed host subprocess profile; scoring would record misleading execution conditions.",
+        },
+      ],
+    };
+  }
+  return {
+    status: "non-gating",
+    backendKind: "host-subprocess",
+    requestedProfile,
+    observedOrEnforcedProfile: observedProfile,
+    verification: "unverified",
+    gateEligible: false,
+    nonGatingReason: "host-subprocess-unverified",
+    diagnostics,
+  };
+}
+
+function preflightContainerBackend(
+  backend: Extract<SubprocessIsolationBackend, { kind: "container" }>,
+  requestedProfile: ResourceProfile,
+): ExecutionProfilePreflightResult {
+  const probe = spawnSync(backend.executable, ["--version"], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (probe.status !== 0 || probe.error !== undefined) {
+    return {
+      status: "non-gating",
+      backendKind: "missing-isolation-backend",
+      requestedProfile,
+      observedOrEnforcedProfile: detectHostSubprocessResourceProfile(
+        requestedProfile.hostClass,
+      ),
+      verification: "observed",
+      gateEligible: false,
+      nonGatingReason: "isolation-backend-unavailable",
+      diagnostics: [
+        {
+          severity: "warning",
+          message: `Requested container isolation backend "${backend.executable}" is unavailable, so this run cannot be gate-eligible.`,
+        },
+      ],
+    };
+  }
+  throw new Error(
+    `Container isolation backend "${backend.executable}" is available but eval-harness subprocess execution does not yet run fixtures inside it.`,
+  );
+}
+
+function preflightExecutionProfile(
+  backend: SubprocessIsolationBackend,
+  requestedProfile: ResourceProfile,
+): ExecutionProfilePreflightResult {
+  switch (backend.kind) {
+    case "host-subprocess":
+      return preflightHostSubprocess(requestedProfile);
+    case "container":
+      return preflightContainerBackend(backend, requestedProfile);
+  }
+}
 
 function readTerminalRunForWorkflow(
   workingDir: string,
@@ -81,7 +200,11 @@ function readTerminalRunForWorkflow(
 export function createSubprocessExecutor(
   options: SubprocessExecutorOptions,
 ): WorkflowExecutor {
+  const isolationBackend = options.isolationBackend ?? { kind: "host-subprocess" };
   return {
+    preflight(requestedProfile) {
+      return preflightExecutionProfile(isolationBackend, requestedProfile);
+    },
     async execute(request: WorkflowExecutionRequest): Promise<WorkflowExecutionOutcome> {
       const startMs = Date.now();
 

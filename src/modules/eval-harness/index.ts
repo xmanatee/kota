@@ -101,12 +101,23 @@ export type {
 } from "./fixture.js";
 export { FixtureProvenanceError, FixtureRecordingProvenanceError, loadAllFixtures, loadFixture } from "./fixture.js";
 export type {
+  ExecutionBackendKind,
+  ExecutionProfileDiagnostic,
+  ExecutionProfileNonGatingReason,
+  ExecutionProfilePreflightResult,
+  ExecutionProfileRejectionReason,
+  ExecutionProfileVerification,
   FixtureRun,
   FixtureRunOutcome,
   ResourceProfile,
   TimingEnvelope,
 } from "./fixture-run.js";
-export { resourceProfilesComparable } from "./fixture-run.js";
+export {
+  assertExecutionProfileCanScore,
+  executionProfileGateReason,
+  resourceProfileFromExecutionProfile,
+  resourceProfilesComparable,
+} from "./fixture-run.js";
 export type { RegressionGateDecision, RegressionGateInput } from "./noise-band.js";
 export {
   DEFAULT_NOISE_BAND_PP,
@@ -146,8 +157,14 @@ export {
   scoreFixtureSet,
   scorePerFixture,
 } from "./scoring.js";
-export type { SubprocessExecutorOptions } from "./subprocess-executor.js";
-export { createSubprocessExecutor } from "./subprocess-executor.js";
+export type {
+  SubprocessExecutorOptions,
+  SubprocessIsolationBackend,
+} from "./subprocess-executor.js";
+export {
+  createSubprocessExecutor,
+  detectHostSubprocessResourceProfile,
+} from "./subprocess-executor.js";
 
 const evalHarnessModule: KotaModule = {
   name: "eval-harness",

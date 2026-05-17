@@ -9,7 +9,13 @@
  */
 
 import type { PersistedBaseline } from "./baseline-store.js";
-import type { ResourceProfile } from "./fixture-run.js";
+import type {
+  ExecutionProfileNonGatingReason,
+  ExecutionProfilePreflightResult,
+  ExecutionProfileRejectionReason,
+  ResourceProfile,
+} from "./fixture-run.js";
+import { resourceProfileFromExecutionProfile } from "./fixture-run.js";
 import {
   DEFAULT_NOISE_BAND_PP,
   evaluateRegressionGate,
@@ -19,7 +25,7 @@ import type { AggregateScore } from "./scoring.js";
 
 export type CandidateAssessment = {
   aggregate: AggregateScore;
-  resourceProfile: ResourceProfile;
+  executionProfile: ExecutionProfilePreflightResult;
   runArtifactBaseDir: string;
   /** ISO timestamp of the cadence run that produced the candidate. */
   recordedAt: string;
@@ -28,6 +34,13 @@ export type CandidateAssessment = {
 };
 
 export type BaselineAssessment =
+  | {
+      status: "non-gating";
+      reason: ExecutionProfileNonGatingReason | ExecutionProfileRejectionReason;
+      resourceProfile: ResourceProfile;
+      runArtifactBaseDir: string;
+      recordedAt: string;
+    }
   | {
       status: "first-run";
       /** The caller MUST persist this baseline so the next cadence has a comparison point. */
@@ -61,9 +74,26 @@ export function assessAgainstBaseline(
   prior: PersistedBaseline | null,
   candidate: CandidateAssessment,
 ): BaselineAssessment {
+  const candidateResourceProfile = resourceProfileFromExecutionProfile(
+    candidate.executionProfile,
+  );
+  if (!candidate.executionProfile.gateEligible) {
+    const reason =
+      candidate.executionProfile.status === "rejected"
+        ? candidate.executionProfile.rejectionReason
+        : candidate.executionProfile.nonGatingReason;
+    return {
+      status: "non-gating",
+      reason,
+      resourceProfile: candidateResourceProfile,
+      runArtifactBaseDir: candidate.runArtifactBaseDir,
+      recordedAt: candidate.recordedAt,
+    };
+  }
+
   const candidateBaseline: PersistedBaseline = {
     aggregate: candidate.aggregate,
-    resourceProfile: candidate.resourceProfile,
+    resourceProfile: candidateResourceProfile,
     recordedAt: candidate.recordedAt,
     runArtifactBaseDir: candidate.runArtifactBaseDir,
   };
@@ -79,7 +109,7 @@ export function assessAgainstBaseline(
     baseline: prior.aggregate,
     candidate: candidate.aggregate,
     baselineResourceProfile: prior.resourceProfile,
-    candidateResourceProfile: candidate.resourceProfile,
+    candidateResourceProfile,
     noiseBandPercentagePoints,
   });
 

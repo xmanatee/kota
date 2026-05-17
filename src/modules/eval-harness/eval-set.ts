@@ -10,7 +10,15 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { LoadedFixture } from "./fixture.js";
-import type { FixtureRun, ResourceProfile } from "./fixture-run.js";
+import type {
+  ExecutionProfilePreflightResult,
+  FixtureRun,
+  ResourceProfile,
+} from "./fixture-run.js";
+import {
+  assertExecutionProfileCanScore,
+  resourceProfileFromExecutionProfile,
+} from "./fixture-run.js";
 import {
   cleanupFixtureWorkingDir,
   runFixture,
@@ -22,7 +30,7 @@ import { aggregateScores, scorePerFixture } from "./scoring.js";
 export type EvalSetParams = {
   fixtures: readonly LoadedFixture[];
   executor: WorkflowExecutor;
-  resourceProfile: ResourceProfile;
+  requestedProfile: ResourceProfile;
   runArtifactBaseDir: string;
   repeatCount: number;
   /**
@@ -37,6 +45,7 @@ export type EvalSetReport = {
   perFixture: readonly FixtureScore[];
   aggregate: AggregateScore;
   resourceProfile: ResourceProfile;
+  executionProfile: ExecutionProfilePreflightResult;
   repeatCount: number;
   runArtifactBaseDir: string;
   /** ISO timestamps bracketing the full set. */
@@ -61,8 +70,17 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
   if (params.fixtures.length === 0) {
     throw new Error("runEvalSet called with an empty fixture set.");
   }
-  const startedAt = new Date().toISOString();
+  const executionProfile = params.executor.preflight(params.requestedProfile);
   mkdirSync(params.runArtifactBaseDir, { recursive: true });
+  writeFileSync(
+    join(params.runArtifactBaseDir, "eval-resource-profile-preflight.json"),
+    JSON.stringify(executionProfile, null, 2),
+  );
+  assertExecutionProfileCanScore(executionProfile);
+  const resourceProfile = resourceProfileFromExecutionProfile(
+    executionProfile,
+  );
+  const startedAt = new Date().toISOString();
 
   const runs: FixtureRun[] = [];
   for (const fixture of params.fixtures) {
@@ -70,7 +88,7 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
       const report = await runFixture({
         fixture,
         executor: params.executor,
-        resourceProfile: params.resourceProfile,
+        executionProfile,
         runArtifactBaseDir: params.runArtifactBaseDir,
         runIndex,
         repeatCount: params.repeatCount,
@@ -93,7 +111,8 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
         startedAt,
         completedAt,
         repeatCount: params.repeatCount,
-        resourceProfile: params.resourceProfile,
+        resourceProfile,
+        executionProfile,
         runs,
         perFixture,
         aggregate,
@@ -107,7 +126,8 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
     runs,
     perFixture,
     aggregate,
-    resourceProfile: params.resourceProfile,
+    resourceProfile,
+    executionProfile,
     repeatCount: params.repeatCount,
     runArtifactBaseDir: params.runArtifactBaseDir,
     startedAt,

@@ -1,23 +1,37 @@
 import { describe, expect, it } from "vitest";
-import type { FixtureRun } from "./fixture-run.js";
+import type { ExecutionProfilePreflightResult, FixtureRun } from "./fixture-run.js";
 import {
   FixtureConfigurationScoringError,
   scoreFixtureSet,
   scorePerFixture,
 } from "./scoring.js";
 
+const RESOURCE_PROFILE = {
+  cpuAllocationCores: 2,
+  cpuKillThresholdCores: 2,
+  memoryAllocationMB: 4000,
+  memoryKillThresholdMB: 4000,
+  hostClass: "test",
+};
+
+const EXECUTION_PROFILE: ExecutionProfilePreflightResult = {
+  status: "verified",
+  backendKind: "container",
+  requestedProfile: RESOURCE_PROFILE,
+  observedOrEnforcedProfile: RESOURCE_PROFILE,
+  verification: "enforced",
+  gateEligible: true,
+  eligibilityReason: "verified-profile",
+  diagnostics: [],
+};
+
 const BASE_RUN: FixtureRun = {
   fixtureId: "fixture-a",
   runIndex: 0,
   repeatCount: 1,
   outcome: "pass",
-  resourceProfile: {
-    cpuAllocationCores: 2,
-    cpuKillThresholdCores: 2,
-    memoryAllocationMB: 4000,
-    memoryKillThresholdMB: 4000,
-    hostClass: "test",
-  },
+  resourceProfile: RESOURCE_PROFILE,
+  executionProfile: EXECUTION_PROFILE,
   timing: {
     startedAt: "2026-05-17T00:00:00.000Z",
     durationMs: 10,

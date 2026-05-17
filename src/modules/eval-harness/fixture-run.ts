@@ -28,6 +28,59 @@ export type ResourceProfile = {
   hostClass: string;
 };
 
+export type ExecutionBackendKind =
+  | "host-subprocess"
+  | "container"
+  | "missing-isolation-backend";
+
+export type ExecutionProfileVerification =
+  | "enforced"
+  | "observed"
+  | "unverified";
+
+export type ExecutionProfileDiagnostic = {
+  severity: "info" | "warning";
+  message: string;
+};
+
+export type ExecutionProfileNonGatingReason =
+  | "host-subprocess-unverified"
+  | "isolation-backend-unavailable";
+
+export type ExecutionProfileRejectionReason = "requested-observed-mismatch";
+
+export type ExecutionProfilePreflightResult =
+  | {
+      status: "verified";
+      backendKind: Exclude<ExecutionBackendKind, "missing-isolation-backend">;
+      requestedProfile: ResourceProfile;
+      observedOrEnforcedProfile: ResourceProfile;
+      verification: Exclude<ExecutionProfileVerification, "unverified">;
+      gateEligible: true;
+      eligibilityReason: "verified-profile";
+      diagnostics: ExecutionProfileDiagnostic[];
+    }
+  | {
+      status: "non-gating";
+      backendKind: ExecutionBackendKind;
+      requestedProfile: ResourceProfile;
+      observedOrEnforcedProfile: ResourceProfile;
+      verification: ExecutionProfileVerification;
+      gateEligible: false;
+      nonGatingReason: ExecutionProfileNonGatingReason;
+      diagnostics: ExecutionProfileDiagnostic[];
+    }
+  | {
+      status: "rejected";
+      backendKind: ExecutionBackendKind;
+      requestedProfile: ResourceProfile;
+      observedOrEnforcedProfile: ResourceProfile;
+      verification: Extract<ExecutionProfileVerification, "observed">;
+      gateEligible: false;
+      rejectionReason: ExecutionProfileRejectionReason;
+      diagnostics: ExecutionProfileDiagnostic[];
+    };
+
 export type TimingEnvelope = {
   /** ISO 8601 timestamp when the run started. */
   startedAt: string;
@@ -52,6 +105,7 @@ export type FixtureRun = {
   repeatCount: number;
   outcome: FixtureRunOutcome;
   resourceProfile: ResourceProfile;
+  executionProfile: ExecutionProfilePreflightResult;
   timing: TimingEnvelope;
   /** Absolute path to the run artifact directory under `.kota/runs/`. */
   runArtifactPath: string;
@@ -73,5 +127,34 @@ export function resourceProfilesComparable(
     a.cpuKillThresholdCores === b.cpuKillThresholdCores &&
     a.memoryAllocationMB === b.memoryAllocationMB &&
     a.memoryKillThresholdMB === b.memoryKillThresholdMB
+  );
+}
+
+export function resourceProfileFromExecutionProfile(
+  preflight: ExecutionProfilePreflightResult,
+): ResourceProfile {
+  return preflight.observedOrEnforcedProfile;
+}
+
+export function executionProfileGateReason(
+  preflight: ExecutionProfilePreflightResult,
+): "verified-profile" | ExecutionProfileNonGatingReason | ExecutionProfileRejectionReason {
+  if (preflight.status === "verified") {
+    return preflight.eligibilityReason;
+  }
+  if (preflight.status === "rejected") {
+    return preflight.rejectionReason;
+  }
+  return preflight.nonGatingReason;
+}
+
+export function assertExecutionProfileCanScore(
+  preflight: ExecutionProfilePreflightResult,
+): void {
+  if (preflight.status !== "rejected") return;
+  throw new Error(
+    `eval-harness execution profile rejected before scoring: ${preflight.rejectionReason}. ` +
+      `Requested ${JSON.stringify(preflight.requestedProfile)} but observed ` +
+      `${JSON.stringify(preflight.observedOrEnforcedProfile)}.`,
   );
 }

@@ -74,19 +74,13 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { loadFixture } from "./fixture.js";
-import type { ResourceProfile } from "./fixture-run.js";
 import { cleanupFixtureWorkingDir, runFixture } from "./runner.js";
-import { createSubprocessExecutor } from "./subprocess-executor.js";
+import {
+  createSubprocessExecutor,
+  detectHostSubprocessResourceProfile,
+} from "./subprocess-executor.js";
 
 const PROJECT_DIR = fileURLToPath(new URL("../../..", import.meta.url));
-
-const SMOKE_PROFILE: ResourceProfile = {
-  hostClass: "pnpm-test-smoke",
-  cpuAllocationCores: 2,
-  cpuKillThresholdCores: 2,
-  memoryAllocationMB: 4096,
-  memoryKillThresholdMB: 4096,
-};
 
 const SMOKE_FIXTURE_IDS = [
   "decomposer-agent-call-replay",
@@ -114,10 +108,13 @@ describe("eval-harness shipped replay-fixture smoke gate", () => {
           kotaBinaryPath: resolve(join(PROJECT_DIR, "bin/kota.mjs")),
           extraEnv: { NODE_OPTIONS: "" },
         });
+        const executionProfile = executor.preflight(
+          detectHostSubprocessResourceProfile("pnpm-test-smoke"),
+        );
         const report = await runFixture({
           fixture,
           executor,
-          resourceProfile: SMOKE_PROFILE,
+          executionProfile,
           runArtifactBaseDir,
           runIndex: 0,
           repeatCount: 1,

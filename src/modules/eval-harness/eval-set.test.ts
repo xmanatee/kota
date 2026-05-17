@@ -4,7 +4,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { runEvalSet } from "./eval-set.js";
 import { loadAllFixtures } from "./fixture.js";
-import type { ResourceProfile } from "./fixture-run.js";
+import type {
+  ExecutionProfilePreflightResult,
+  ResourceProfile,
+} from "./fixture-run.js";
 import type { WorkflowExecutor } from "./runner.js";
 
 const PROFILE: ResourceProfile = {
@@ -13,6 +16,17 @@ const PROFILE: ResourceProfile = {
   memoryAllocationMB: 4000,
   memoryKillThresholdMB: 4000,
   hostClass: "test",
+};
+
+const EXECUTION_PROFILE: ExecutionProfilePreflightResult = {
+  status: "verified",
+  backendKind: "container",
+  requestedProfile: PROFILE,
+  observedOrEnforcedProfile: PROFILE,
+  verification: "enforced",
+  gateEligible: true,
+  eligibilityReason: "verified-profile",
+  diagnostics: [],
 };
 
 function seedFixture(
@@ -61,6 +75,7 @@ describe("runEvalSet", () => {
 
     let betaCalls = 0;
     const executor: WorkflowExecutor = {
+      preflight: () => EXECUTION_PROFILE,
       execute: async ({ workingDir }) => {
         const isAlpha = workingDir.includes("alpha");
         if (isAlpha) {
@@ -78,7 +93,7 @@ describe("runEvalSet", () => {
     const report = await runEvalSet({
       fixtures,
       executor,
-      resourceProfile: PROFILE,
+      requestedProfile: PROFILE,
       runArtifactBaseDir: runsRoot,
       repeatCount: 3,
     });
@@ -93,7 +108,15 @@ describe("runEvalSet", () => {
       readFileSync(join(runsRoot, "eval-set-report.json"), "utf-8"),
     );
     expect(raw.repeatCount).toBe(3);
+    expect(raw.executionProfile.status).toBe("verified");
     expect(raw.runs).toHaveLength(6);
+    const preflight = JSON.parse(
+      readFileSync(
+        join(runsRoot, "eval-resource-profile-preflight.json"),
+        "utf-8",
+      ),
+    );
+    expect(preflight.eligibilityReason).toBe("verified-profile");
   });
 
   it("rejects non-positive repeat counts", async () => {
@@ -102,8 +125,15 @@ describe("runEvalSet", () => {
     await expect(
       runEvalSet({
         fixtures,
-        executor: { execute: async () => ({ kind: "completed", durationMs: 0, runArtifactPath: null }) },
-        resourceProfile: PROFILE,
+        executor: {
+          preflight: () => EXECUTION_PROFILE,
+          execute: async () => ({
+            kind: "completed",
+            durationMs: 0,
+            runArtifactPath: null,
+          }),
+        },
+        requestedProfile: PROFILE,
         runArtifactBaseDir: runsRoot,
         repeatCount: 0,
       }),
@@ -114,11 +144,58 @@ describe("runEvalSet", () => {
     await expect(
       runEvalSet({
         fixtures: [],
-        executor: { execute: async () => ({ kind: "completed", durationMs: 0, runArtifactPath: null }) },
-        resourceProfile: PROFILE,
+        executor: {
+          preflight: () => EXECUTION_PROFILE,
+          execute: async () => ({
+            kind: "completed",
+            durationMs: 0,
+            runArtifactPath: null,
+          }),
+        },
+        requestedProfile: PROFILE,
         runArtifactBaseDir: runsRoot,
         repeatCount: 1,
       }),
     ).rejects.toThrow(/empty fixture set/);
+  });
+
+  it("rejects requested/observed execution-profile mismatches before scoring", async () => {
+    seedFixture(fixturesRoot, "alpha", { kind: "file-exists", path: "alpha.txt" });
+    const fixtures = loadAllFixtures(fixturesRoot);
+    const rejectedProfile: ExecutionProfilePreflightResult = {
+      status: "rejected",
+      backendKind: "host-subprocess",
+      requestedProfile: PROFILE,
+      observedOrEnforcedProfile: {
+        ...PROFILE,
+        cpuKillThresholdCores: PROFILE.cpuKillThresholdCores + 1,
+      },
+      verification: "observed",
+      gateEligible: false,
+      rejectionReason: "requested-observed-mismatch",
+      diagnostics: [],
+    };
+    let executeCalls = 0;
+
+    await expect(
+      runEvalSet({
+        fixtures,
+        executor: {
+          preflight: () => rejectedProfile,
+          execute: async () => {
+            executeCalls++;
+            return {
+              kind: "completed",
+              durationMs: 0,
+              runArtifactPath: null,
+            };
+          },
+        },
+        requestedProfile: PROFILE,
+        runArtifactBaseDir: runsRoot,
+        repeatCount: 1,
+      }),
+    ).rejects.toThrow(/requested-observed-mismatch/);
+    expect(executeCalls).toBe(0);
   });
 });

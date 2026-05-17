@@ -3,7 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { loadFixture } from "./fixture.js";
-import type { ResourceProfile } from "./fixture-run.js";
+import type {
+  ExecutionProfilePreflightResult,
+  ResourceProfile,
+} from "./fixture-run.js";
 import {
   cleanupFixtureWorkingDir,
   runFixture,
@@ -16,6 +19,17 @@ const TEST_PROFILE: ResourceProfile = {
   memoryAllocationMB: 4000,
   memoryKillThresholdMB: 4000,
   hostClass: "test",
+};
+
+const TEST_EXECUTION_PROFILE: ExecutionProfilePreflightResult = {
+  status: "verified",
+  backendKind: "container",
+  requestedProfile: TEST_PROFILE,
+  observedOrEnforcedProfile: TEST_PROFILE,
+  verification: "enforced",
+  gateEligible: true,
+  eligibilityReason: "verified-profile",
+  diagnostics: [],
 };
 
 function setupFixtureTree(): {
@@ -73,6 +87,7 @@ describe("runFixture", () => {
   it("passes when the executor satisfies every predicate", async () => {
     const fixture = loadFixture(fixturesRoot, "mini");
     const executor: WorkflowExecutor = {
+      preflight: () => TEST_EXECUTION_PROFILE,
       execute: async ({ workingDir }) => {
         writeFileSync(join(workingDir, "output.txt"), "done");
         return { kind: "completed", durationMs: 5, runArtifactPath: null };
@@ -81,7 +96,7 @@ describe("runFixture", () => {
     const report = await runFixture({
       fixture,
       executor,
-      resourceProfile: TEST_PROFILE,
+      executionProfile: TEST_EXECUTION_PROFILE,
       runArtifactBaseDir: runsRoot,
       runIndex: 0,
       repeatCount: 1,
@@ -94,6 +109,8 @@ describe("runFixture", () => {
     const raw = JSON.parse(readFileSync(artifactPath, "utf-8"));
     expect(raw.fixtureId).toBe("mini");
     expect(raw.outcome).toBe("pass");
+    expect(raw.executionProfile.status).toBe("verified");
+    expect(raw.executionProfile.eligibilityReason).toBe("verified-profile");
     expect(raw.preRunExpectationResults).toHaveLength(2);
     cleanupFixtureWorkingDir(report.workingDir);
   });
@@ -101,6 +118,7 @@ describe("runFixture", () => {
   it("reports fail when the executor completes but predicates miss", async () => {
     const fixture = loadFixture(fixturesRoot, "mini");
     const executor: WorkflowExecutor = {
+      preflight: () => TEST_EXECUTION_PROFILE,
       execute: async () => ({
         kind: "completed",
         durationMs: 5,
@@ -110,7 +128,7 @@ describe("runFixture", () => {
     const report = await runFixture({
       fixture,
       executor,
-      resourceProfile: TEST_PROFILE,
+      executionProfile: TEST_EXECUTION_PROFILE,
       runArtifactBaseDir: runsRoot,
       runIndex: 0,
       repeatCount: 1,
@@ -126,6 +144,7 @@ describe("runFixture", () => {
     writeFileSync(join(fixture.initialStateDir, "output.txt"), "already done");
     let executorCalls = 0;
     const executor: WorkflowExecutor = {
+      preflight: () => TEST_EXECUTION_PROFILE,
       execute: async () => {
         executorCalls++;
         return { kind: "completed", durationMs: 5, runArtifactPath: null };
@@ -134,7 +153,7 @@ describe("runFixture", () => {
     const report = await runFixture({
       fixture,
       executor,
-      resourceProfile: TEST_PROFILE,
+      executionProfile: TEST_EXECUTION_PROFILE,
       runArtifactBaseDir: runsRoot,
       runIndex: 0,
       repeatCount: 1,
@@ -157,6 +176,7 @@ describe("runFixture", () => {
   it("reports timeout distinctly from fail when the executor reports timeout", async () => {
     const fixture = loadFixture(fixturesRoot, "mini");
     const executor: WorkflowExecutor = {
+      preflight: () => TEST_EXECUTION_PROFILE,
       execute: async () => ({
         kind: "timeout",
         durationMs: 60_001,
@@ -166,7 +186,7 @@ describe("runFixture", () => {
     const report = await runFixture({
       fixture,
       executor,
-      resourceProfile: TEST_PROFILE,
+      executionProfile: TEST_EXECUTION_PROFILE,
       runArtifactBaseDir: runsRoot,
       runIndex: 0,
       repeatCount: 1,
@@ -178,6 +198,7 @@ describe("runFixture", () => {
   it("reports error when the executor throws and surfaces the message in the artifact", async () => {
     const fixture = loadFixture(fixturesRoot, "mini");
     const executor: WorkflowExecutor = {
+      preflight: () => TEST_EXECUTION_PROFILE,
       execute: async () => {
         throw new Error("boom");
       },
@@ -185,7 +206,7 @@ describe("runFixture", () => {
     const report = await runFixture({
       fixture,
       executor,
-      resourceProfile: TEST_PROFILE,
+      executionProfile: TEST_EXECUTION_PROFILE,
       runArtifactBaseDir: runsRoot,
       runIndex: 0,
       repeatCount: 1,
@@ -233,6 +254,7 @@ describe("runFixture", () => {
       const fixture = loadFixture(shimFixturesRoot, "shim-mini");
       let observedShimDir: string | undefined;
       const executor: WorkflowExecutor = {
+        preflight: () => TEST_EXECUTION_PROFILE,
         execute: async ({ workingDir, externalCallShimDir }) => {
           observedShimDir = externalCallShimDir;
           writeFileSync(join(workingDir, "output.txt"), "done");
@@ -242,7 +264,7 @@ describe("runFixture", () => {
       const report = await runFixture({
         fixture,
         executor,
-        resourceProfile: TEST_PROFILE,
+        executionProfile: TEST_EXECUTION_PROFILE,
         runArtifactBaseDir: shimRunsRoot,
         runIndex: 0,
         repeatCount: 1,
@@ -262,6 +284,7 @@ describe("runFixture", () => {
   it("copies initial state into the isolated working directory without mutating the fixture", async () => {
     const fixture = loadFixture(fixturesRoot, "mini");
     const executor: WorkflowExecutor = {
+      preflight: () => TEST_EXECUTION_PROFILE,
       execute: async ({ workingDir }) => {
         writeFileSync(join(workingDir, "output.txt"), "done");
         writeFileSync(join(workingDir, "seed.txt"), "tampered");
@@ -271,7 +294,7 @@ describe("runFixture", () => {
     const report = await runFixture({
       fixture,
       executor,
-      resourceProfile: TEST_PROFILE,
+      executionProfile: TEST_EXECUTION_PROFILE,
       runArtifactBaseDir: runsRoot,
       runIndex: 0,
       repeatCount: 1,

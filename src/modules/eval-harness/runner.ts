@@ -22,7 +22,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { installExternalCallShims } from "./external-call-shim.js";
 import type { LoadedFixture } from "./fixture.js";
-import type { FixtureRun, FixtureRunOutcome, ResourceProfile } from "./fixture-run.js";
+import type {
+  ExecutionProfilePreflightResult,
+  FixtureRun,
+  FixtureRunOutcome,
+  ResourceProfile,
+} from "./fixture-run.js";
+import { resourceProfileFromExecutionProfile } from "./fixture-run.js";
 import { applyFixtureTemplates } from "./fixture-templating.js";
 import type {
   FixturePredicate,
@@ -83,13 +89,14 @@ export type WorkflowExecutionOutcome =
  * executor reuses the existing workflow runtime while tests inject a mock.
  */
 export type WorkflowExecutor = {
+  preflight(requestedProfile: ResourceProfile): ExecutionProfilePreflightResult;
   execute(request: WorkflowExecutionRequest): Promise<WorkflowExecutionOutcome>;
 };
 
 export type RunFixtureParams = {
   fixture: LoadedFixture;
   executor: WorkflowExecutor;
-  resourceProfile: ResourceProfile;
+  executionProfile: ExecutionProfilePreflightResult;
   /** Where this run's artifact directory should live. */
   runArtifactBaseDir: string;
   runIndex: number;
@@ -205,6 +212,7 @@ function writeRunArtifact(
     workflowName: string;
     workingDir: string;
     executionOutcome: WorkflowExecutionOutcome;
+    executionProfile: ExecutionProfilePreflightResult;
     predicates: readonly FixturePredicate[];
     preRunExpectationResults: PredicateExpectationEvalResult[];
     predicateResults: PredicateEvalResult[];
@@ -251,6 +259,9 @@ export async function runFixture(
     workingDir,
     params.fixture.spec.preRunExpectations,
   );
+  const resourceProfile = resourceProfileFromExecutionProfile(
+    params.executionProfile,
+  );
   const runArtifactDir = join(
     params.runArtifactBaseDir,
     `${params.fixture.spec.id}-${params.runIndex}`,
@@ -267,7 +278,8 @@ export async function runFixture(
       runIndex: params.runIndex,
       repeatCount: params.repeatCount,
       outcome: outcomeFromExecution(executionOutcome, false),
-      resourceProfile: params.resourceProfile,
+      resourceProfile,
+      executionProfile: params.executionProfile,
       timing: {
         startedAt: startedAt.toISOString(),
         durationMs: executionOutcome.durationMs,
@@ -281,6 +293,7 @@ export async function runFixture(
       workflowName: params.fixture.spec.workflowName,
       workingDir,
       executionOutcome,
+      executionProfile: params.executionProfile,
       predicates: params.fixture.spec.predicates,
       preRunExpectationResults: preRunSanity.results,
       predicateResults: [],
@@ -326,7 +339,8 @@ export async function runFixture(
     runIndex: params.runIndex,
     repeatCount: params.repeatCount,
     outcome,
-    resourceProfile: params.resourceProfile,
+    resourceProfile,
+    executionProfile: params.executionProfile,
     timing: {
       startedAt: startedAt.toISOString(),
       durationMs: executionOutcome.durationMs,
@@ -341,6 +355,7 @@ export async function runFixture(
     workflowName: params.fixture.spec.workflowName,
     workingDir,
     executionOutcome,
+    executionProfile: params.executionProfile,
     predicates: params.fixture.spec.predicates,
     preRunExpectationResults: preRunSanity.results,
     predicateResults: results,

@@ -21,7 +21,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { PRESET_ENV_VAR } from "#core/model/preset.js";
 import { REPLAY_AGENT_HARNESS_NAME_ENV } from "./replay-harness.js";
-import { createSubprocessExecutor } from "./subprocess-executor.js";
+import {
+  createSubprocessExecutor,
+  detectHostSubprocessResourceProfile,
+} from "./subprocess-executor.js";
 
 function writeFakeKotaScript(path: string, body: string): void {
   writeFileSync(path, body, "utf-8");
@@ -144,6 +147,87 @@ describe("createSubprocessExecutor", () => {
     ) as Record<string, string>;
     expect(envCapture.preset).toBe("claude");
     expect(envCapture.replayRoot).toBe("/fixtures/replay");
+  });
+
+  it("marks host subprocess preflight as explicit non-gating evidence", () => {
+    const executor = createSubprocessExecutor({
+      kotaBinaryPath: join(binariesDir, "unused.mjs"),
+    });
+    const requestedProfile = detectHostSubprocessResourceProfile("host-test");
+    const preflight = executor.preflight(requestedProfile);
+
+    expect(preflight.status).toBe("non-gating");
+    expect(preflight.backendKind).toBe("host-subprocess");
+    expect(preflight.gateEligible).toBe(false);
+    if (preflight.status !== "non-gating") throw new Error("unreachable");
+    expect(preflight.nonGatingReason).toBe("host-subprocess-unverified");
+    expect(preflight.observedOrEnforcedProfile).toEqual(requestedProfile);
+  });
+
+  it("rejects requested resource profiles that do not match observed host facts", () => {
+    const executor = createSubprocessExecutor({
+      kotaBinaryPath: join(binariesDir, "unused.mjs"),
+    });
+    const observedProfile = detectHostSubprocessResourceProfile("host-test");
+    const preflight = executor.preflight({
+      ...observedProfile,
+      cpuKillThresholdCores: observedProfile.cpuKillThresholdCores + 1,
+    });
+
+    expect(preflight.status).toBe("rejected");
+    if (preflight.status !== "rejected") throw new Error("unreachable");
+    expect(preflight.rejectionReason).toBe("requested-observed-mismatch");
+  });
+
+  it("reports a missing optional container backend as typed non-gating preflight", () => {
+    const executor = createSubprocessExecutor({
+      kotaBinaryPath: join(binariesDir, "unused.mjs"),
+      isolationBackend: {
+        kind: "container",
+        executable: "kota-eval-missing-container-backend",
+      },
+    });
+    const requestedProfile = detectHostSubprocessResourceProfile("host-test");
+    const preflight = executor.preflight(requestedProfile);
+
+    expect(preflight.status).toBe("non-gating");
+    expect(preflight.backendKind).toBe("missing-isolation-backend");
+    if (preflight.status !== "non-gating") throw new Error("unreachable");
+    expect(preflight.nonGatingReason).toBe("isolation-backend-unavailable");
+  });
+
+  it("remaps HOME and KOTA_PROJECT_DIR inside the child process", async () => {
+    const fakeKota = join(binariesDir, "kota-home-capture.mjs");
+    writeFakeKotaScript(
+      fakeKota,
+      [
+        "import { mkdirSync, writeFileSync } from 'node:fs';",
+        "import { join } from 'node:path';",
+        "writeFileSync(join(process.cwd(), 'env.json'), JSON.stringify({",
+        "  home: process.env.HOME,",
+        "  projectDir: process.env.KOTA_PROJECT_DIR,",
+        "}));",
+        "const runDir = join(process.cwd(), '.kota', 'runs', 'run-1-noop-env');",
+        "mkdirSync(runDir, { recursive: true });",
+        "writeFileSync(join(runDir, 'metadata.json'), JSON.stringify({",
+        "  id: 'run-1-noop-env', workflow: 'noop', status: 'success',",
+        "}));",
+      ].join("\n"),
+    );
+
+    const executor = createSubprocessExecutor({ kotaBinaryPath: fakeKota });
+    const outcome = await executor.execute({
+      workflowName: "noop",
+      workingDir,
+      budgetMs: 5_000,
+    });
+
+    expect(outcome.kind).toBe("completed");
+    const envCapture = JSON.parse(
+      readFileSync(join(workingDir, "env.json"), "utf8"),
+    ) as Record<string, string>;
+    expect(envCapture.home).toBe(workingDir);
+    expect(envCapture.projectDir).toBe(workingDir);
   });
 
   it("reports error when the child exits non-zero", async () => {

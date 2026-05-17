@@ -20,8 +20,10 @@ import { loadBaseline, saveBaseline } from "./baseline-store.js";
 import { runEvalSet } from "./eval-set.js";
 import { evalHarnessSetCompleted } from "./events.js";
 import { loadAllFixtures } from "./fixture.js";
-import type { ResourceProfile } from "./fixture-run.js";
-import { createSubprocessExecutor } from "./subprocess-executor.js";
+import {
+  createSubprocessExecutor,
+  detectHostSubprocessResourceProfile,
+} from "./subprocess-executor.js";
 
 type CadenceResult = {
   fixtureCount: number;
@@ -32,14 +34,7 @@ type CadenceResult = {
   assessmentStatus: BaselineAssessment["status"];
 };
 
-const CADENCE_PROFILE: ResourceProfile = {
-  hostClass: "autonomy-cadence",
-  cpuAllocationCores: 2,
-  cpuKillThresholdCores: 2,
-  memoryAllocationMB: 4096,
-  memoryKillThresholdMB: 4096,
-};
-
+const CADENCE_HOST_CLASS = "autonomy-cadence";
 const CADENCE_REPEAT_COUNT = 3;
 
 const runHarness = typedCodeStep<CadenceResult>({
@@ -67,10 +62,12 @@ const runHarness = typedCodeStep<CadenceResult>({
       kotaBinaryPath: resolve(join(projectDir, "bin/kota.mjs")),
     });
     const runArtifactBaseDir = join(workflow.runDirPath, "eval-runs");
+    const requestedProfile =
+      detectHostSubprocessResourceProfile(CADENCE_HOST_CLASS);
     const report = await runEvalSet({
       fixtures,
       executor,
-      resourceProfile: CADENCE_PROFILE,
+      requestedProfile,
       runArtifactBaseDir,
       repeatCount: CADENCE_REPEAT_COUNT,
     });
@@ -78,7 +75,7 @@ const runHarness = typedCodeStep<CadenceResult>({
     const priorBaseline = loadBaseline(projectDir);
     const assessment = assessAgainstBaseline(priorBaseline, {
       aggregate: report.aggregate,
-      resourceProfile: CADENCE_PROFILE,
+      executionProfile: report.executionProfile,
       runArtifactBaseDir: report.runArtifactBaseDir,
       recordedAt: report.completedAt,
     });
@@ -97,13 +94,16 @@ const runHarness = typedCodeStep<CadenceResult>({
           passAtK: report.aggregate.passAtK,
           passHatK: report.aggregate.passHatK,
         },
-        hostClass: CADENCE_PROFILE.hostClass,
+        hostClass: report.resourceProfile.hostClass,
         noiseBandPercentagePoints: assessment.noiseBandPercentagePoints,
         dropPercentagePoints: assessment.dropPercentagePoints,
         runArtifactBaseDir: report.runArtifactBaseDir,
         reason: assessment.reason,
       });
-    } else {
+    } else if (
+      assessment.status === "first-run" ||
+      assessment.status === "not-gated"
+    ) {
       saveBaseline(projectDir, assessment.baselineToRecord);
     }
 
@@ -115,7 +115,8 @@ const runHarness = typedCodeStep<CadenceResult>({
           repeatCount: report.repeatCount,
           passAtK: report.aggregate.passAtK,
           passHatK: report.aggregate.passHatK,
-          resourceProfile: CADENCE_PROFILE,
+          resourceProfile: report.resourceProfile,
+          executionProfile: report.executionProfile,
           startedAt: report.startedAt,
           completedAt: report.completedAt,
           assessment: summarizeAssessment(assessment),
@@ -130,7 +131,7 @@ const runHarness = typedCodeStep<CadenceResult>({
       repeatCount: report.repeatCount,
       passAtK: report.aggregate.passAtK,
       passHatK: report.aggregate.passHatK,
-      hostClass: CADENCE_PROFILE.hostClass,
+      hostClass: report.resourceProfile.hostClass,
       runArtifactBaseDir: report.runArtifactBaseDir,
       startedAt: report.startedAt,
       completedAt: report.completedAt,
@@ -150,6 +151,13 @@ const runHarness = typedCodeStep<CadenceResult>({
 function summarizeAssessment(
   assessment: BaselineAssessment,
 ): Record<string, unknown> {
+  if (assessment.status === "non-gating") {
+    return {
+      status: "non-gating",
+      reason: assessment.reason,
+      resourceProfile: assessment.resourceProfile,
+    };
+  }
   if (assessment.status === "first-run") {
     return { status: "first-run" };
   }

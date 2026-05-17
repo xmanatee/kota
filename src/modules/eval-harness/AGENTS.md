@@ -1,20 +1,21 @@
 # Eval Harness Module
 
-This module hosts KOTA's autonomy eval harness: the strict scoring and
-regression-gate contract plus the fixture-running surface that applies it.
-The CLI, HTTP route, and weekly cadence workflow all reuse one execution
-path, so the harness has a single observable runtime rather than three.
+This module hosts KOTA's autonomy eval harness: strict scoring,
+regression gating, and fixture execution. The CLI, HTTP route, and weekly
+cadence workflow all reuse one execution path.
 
 ## Infrastructure Noise Rule
 
-Container resource config alone can swing benchmark scores past the gap
-used to rank models. The harness treats that swing as a first-class
-confounder, not statistical noise. Every fixture run must carry:
+Container resource config alone can swing benchmark scores past model
+ranking gaps, so every fixture run must carry:
 
-- **Resource profile** — host class, CPU allocation (guaranteed floor) and
-  kill threshold (hard ceiling) as separate fields, and matching memory
-  fields. Collapsing allocation and kill erases the signal operators need.
-- **Repeat index and total** — every fixture runs k times; k=1 runs do not
+- **Resource profile** — host class, CPU allocation and kill threshold as
+  separate fields, with matching memory fields.
+- **Execution profile preflight** — backend kind, requested profile,
+  observed or enforced profile, diagnostics, and gate eligibility. Host
+  subprocess runs may score fixtures, but are non-gating unless an executor
+  verifies or enforces recorded CPU and memory facts.
+- **Repeat index and total** — every fixture runs k times; k=1 does not
   participate in regression gating.
 - **Timing envelope** — explicit budget plus observed duration, so runs
   that hit their deadline are distinguishable from clean returns.
@@ -36,70 +37,61 @@ A candidate change is gated only when ALL of the following hold:
 
 1. `pass^k` drops beyond the calibrated noise band.
 2. Both runs used the same `k`, and `k` is at or above the gating minimum.
-3. Baseline and candidate resource profiles are comparable (same host
+3. The candidate execution preflight is gate-eligible.
+4. Baseline and candidate resource profiles are comparable (same host
    class, identical allocation and kill thresholds).
 
-A drop inside the noise band, a repeat-count mismatch, or resource-profile
-drift resolves to `not-gated` with a typed reason — evidence that the
-comparison itself isn't load-bearing, not an error signal.
+A drop inside the noise band, repeat-count mismatch, non-gating execution
+profile, or resource drift resolves to typed non-gating evidence.
 
 Operators calibrate the band per host class empirically and record the
 calibration alongside the run. Concrete defaults live in code.
 
 ## Fixture Provenance
 
-Provenance answers "why does this fixture exist?". The loader accepts
-exactly two shapes:
+Provenance answers "why does this fixture exist?". The loader accepts two
+shapes:
 
-- **Real failure** — the fixture encodes a specific past autonomy failure
-  and points at its source run id. Use this for every fixture the harness
-  exists to regression-gate against. Fixtures assembled from hypothetical
-  tasks reward cosmetic progress on capability the agent already has and
-  miss the failure modes the harness exists to catch.
-- **Smoke fixture** — the fixture exists to fail loudly when harness
-  plumbing itself regresses. This is the narrow exception; a written
-  justification is the contract that keeps it honest.
+- **Real failure** — encodes a specific past autonomy failure and points at
+  its source run id. Use this for every regression-gated fixture.
+- **Smoke fixture** — fails loudly when harness plumbing regresses; a
+  written justification keeps the exception honest.
 
-Anything else fails loudly at load time as a typed error that names the
-offending fixture. There is no undocumented fallback path, and a fixture
-the loader rejects is a contribution error — fix the fixture, do not work
-around the loader.
+Anything else fails loudly at load time as a typed error naming the
+fixture. Fix rejected fixtures; do not work around the loader.
 
 ## Predicate Contract
 
-Predicates are intentionally small and deterministic. They inspect the
-final fixture working directory; the agent's self-report is never part of
-the pass/fail signal. New predicate kinds extend the predicate union and
-the evaluator — verification logic does not move into fixture authors.
+Predicates are small and deterministic. They inspect the final fixture
+working directory; the agent's self-report is never part of the signal.
+New predicate kinds extend the predicate union and evaluator.
 
 Fixtures also declare `preRunExpectations`: expected initial predicate results.
 At least one must be `expected: "fail"`; mismatches are fixture config errors.
 
 ## Baseline Persistence And Regression Surfacing
 
-The cadence (only the cadence) persists the last accepted aggregate as the
-next run's comparison baseline, in the KOTA state root, per-project and
+Only the cadence persists the last accepted aggregate as the next
+comparison baseline, in the KOTA state root, per-project and
 per-host-class, never in the repo. First run records and skips the gate.
 `not-gated` rolls the baseline forward — including reasons where the
 comparison isn't load-bearing — so regressions are always measured against
 the most recent accepted result. `gated` holds the baseline until the next
 run clears or an operator resets it manually.
 
-On `gated`, the cadence emits a typed regression event; a dedicated bridge
-workflow forwards it through the normal attention channel. Consumers must
-subscribe to the typed event, not filter generic completion events by
-workflow name. CLI and HTTP callers still own their own comparison —
-auto-resolution is cadence-only.
+On `gated`, the cadence emits a typed regression event; a bridge workflow
+forwards it through the attention channel. Consumers subscribe to the
+typed event, not generic completion events. CLI and HTTP callers own their
+own comparison; auto-resolution is cadence-only.
 
 ## Runner Lifecycle And Execution Paths
 
-Each fixture run materializes its initial state into a fresh tmpdir,
-invokes the workflow through a pluggable executor, evaluates predicates,
-and emits a per-run artifact. Fixtures run sequentially — parallel
-replicas would corrupt the per-run resource profile and break noise-band
-comparison. `gated` means the change should not ship as-is; rerun on the
-same host class to confirm. `not-gated` with a profile-drift or
-sample-too-small reason means rerun with correct config.
+Each fixture run materializes initial state into a fresh tmpdir, invokes
+the workflow through a pluggable executor, evaluates predicates, and emits
+a per-run artifact. Fixtures run sequentially; parallel replicas corrupt
+resource profiles and noise-band comparison. `gated` means do not ship
+as-is; rerun on the same host class to confirm. `not-gated` with
+profile-drift or sample-too-small means rerun with correct config.
 
 Three paths share the same `runFixture` + subprocess executor:
 
@@ -118,40 +110,37 @@ Three paths share the same `runFixture` + subprocess executor:
 ## Recorded Agent-Step Replay
 
 Agent-call fixtures ship one recording per agent call under
-`<fixtureDir>/recordings/<id>.json`. The subprocess executor forwards
-the fixture directory as `KOTA_EVAL_HARNESS_REPLAY_ROOT`; the module
-overrides the `claude-agent-sdk` slot with a replay adapter for that
-subprocess. Replay subprocesses also force `KOTA_PRESET=claude` so
-autonomy workflows resolve to the replay-overridden harness regardless
-of the operator or shipped default preset. Production selection is unchanged.
+`<fixtureDir>/recordings/<id>.json`. The subprocess executor sets
+`KOTA_EVAL_HARNESS_REPLAY_ROOT`; the module overrides the
+`claude-agent-sdk` slot with a replay adapter. Replay subprocesses also
+force `KOTA_PRESET=claude` so workflows resolve to the replay-overridden
+harness. Production selection is unchanged.
 
 The adapter substitutes `{{runDir}}` in recorded paths, writes operations
 to the fixture working dir, and `git add -A`s them so downstream repair
 checks see the same tree the real agent produced. Every recording's
 `sourceRunId` must match the fixture's `real-failure` provenance.
 `pnpm kota eval record-agent-step` is the single authoring surface
-(`--step <id>` walks the source commit's diff; `--judge <label>` lifts
-`<runDir>/<label>.json`; `--source-commit-sha` is the escape hatch for
-pre-SHA-capture sources). The adapter routes workflow-step prompts by
-the `Step:` marker and judge prompts by leading header (table in
-`replay-harness.ts`); a new judge adds an entry there and authors via
-`--judge <label>`.
+(`--step <id>` walks the source commit diff; `--judge <label>` lifts
+`<runDir>/<label>.json`; `--source-commit-sha` handles pre-SHA sources).
+The adapter routes workflow-step prompts by `Step:` and judge prompts by
+leading header (table in `replay-harness.ts`); new judges add an entry
+there and author via `--judge <label>`.
 
-Time-sliding fixtures (e.g. improver reading runs under `.kota/runs/`)
-use the runner's templating pass: `{{NOW_MINUS_HOURS:N}}` and
-`{{NOW_MINUS_MINUTES:N}}` rewrite to ISO timestamps `N` units before
-`Date.now()` at materialization.
+Time-sliding fixtures use the runner templating pass:
+`{{NOW_MINUS_HOURS:N}}` and `{{NOW_MINUS_MINUTES:N}}` rewrite to ISO
+timestamps before `Date.now()` at materialization.
 
 ## Boundaries
 
-- Scoring, fixture-run contract, runner, gate decisions, and the persisted
+- Scoring, fixture-run contract, runner, gate decisions, and persisted
   cadence baseline all live in this module.
 - Do NOT add a parallel metrics store. Aggregate scores surface through a
   typed completion event; regressions through the typed regression event;
   per-run evidence as run artifacts; baseline holds one row.
 - No cost signals leak into agent-facing context (autonomy rule).
 - Fixture working dirs materialize under the OS tmpdir, never inside the
-  operator's repo. Always go through the harness entry points; do not
+  repo. Always go through the harness entry points; do not
   mutate a fixture's initial state at runtime.
 - The replay adapter is module-owned. Do not add a parallel fixture-
   scoped mock layer under `src/core/agent-harness/`; the replay adapter
