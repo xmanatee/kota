@@ -152,9 +152,12 @@ resources:
   - url: https://openai.com/research
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:86c23f95f0322cb972d4c09f0aad4167
-      summary: "OpenAI research is readable; the current actionable KOTA signal is eval-harness scoring robustness against vacuous or shortcut-passing fixtures."
-      last_seen_at: "2026-05-17T04:52:38.674Z"
+      fingerprint: sha256:6bb8ed711a54970fd3732e752d9a9672
+      summary: "OpenAI research remains useful for instruction-hierarchy and monitorability signals; this run added the separate OpenAI security feed because Codex deployment-control posts now land there."
+      last_seen_at: "2026-05-17T13:48:09.787Z"
+  - url: https://openai.com/news/security/
+    added: "2026-05-17"
+    notes: "Official OpenAI security feed. Monitor Codex and coding-agent deployment controls, sandboxing, network policy, credentials, and agent telemetry posts that are not always listed on the research index."
   - url: https://deepmind.google/discover/blog/
     added: "2026-04-19"
     snapshot:
