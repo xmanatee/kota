@@ -37,9 +37,9 @@ resources:
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:d090496e46399cde43a1d4fec40b9e60
-      summary: "Codex continues to make tool calls protocol-level turn items and to treat unbounded MCP/hook output as a runtime defect; KOTA should extend its existing telemetry artifact with per-call records."
-      last_seen_at: "2026-05-16T23:26:50.039Z"
+      fingerprint: sha256:444aaaa94bc598030856ac200bcb9fda
+      summary: "Codex release notes reinforce bounded MCP/tool output handling; KOTA's next local gap is pruning structured tool-result side channels, not adding another telemetry surface."
+      last_seen_at: "2026-05-17T00:01:46.600Z"
   - url: https://github.com/google-gemini/gemini-cli
     added: "2026-04-19"
     snapshot:
