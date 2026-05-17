@@ -37,9 +37,9 @@ resources:
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:f1df94ff367f60428581ce2000c45286
-      summary: "Codex alpha releases are still active, but the visible release page exposed no new detailed KOTA primitive beyond already-completed MCP/tool-result observability work."
-      last_seen_at: "2026-05-17T03:06:13.269Z"
+      fingerprint: sha256:47c6da145eb3a2b7c34512dad7208db4
+      summary: "Codex CLI releases remain active, but this check opened no new nonduplicative KOTA task."
+      last_seen_at: "2026-05-17T04:52:38.674Z"
   - url: https://github.com/google-gemini/gemini-cli
     added: "2026-04-19"
     snapshot:
@@ -61,9 +61,9 @@ resources:
   - url: https://github.com/All-Hands-AI/OpenHands
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:2317a3a152df0b140a81a7ae25d2b92f
-      summary: "OpenHands is an MIT-licensed Python+React autonomous-dev agent framework with an SDK, REST agent server, web UI, Docker/Kubernetes deployments, multi-LLM backends, Slack/Jira/Linear integrations, and a benchmarked 77.6% on SWE-bench."
-      last_seen_at: "2026-04-19T22:21:08.572Z"
+      fingerprint: sha256:0268aea3da2e83908dc5922cb9fa0371
+      summary: "OpenHands has moved to the OpenHands org and remains active; no new KOTA task was opened from it."
+      last_seen_at: "2026-05-17T04:52:38.674Z"
   - url: https://github.com/SWE-agent/SWE-agent
     added: "2026-04-19"
     snapshot:
@@ -145,9 +145,9 @@ resources:
   - url: https://openai.com/research
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:223b549c97f0f16e5c859441c18ef47e
-      summary: "OpenAI research index is CF-JS-gated but the public research sitemap currently lists instruction-hierarchy-challenge, why-we-no-longer-evaluate-swe-bench-verified, evaluating-chain-of-thought-monitorability, and the model spec posts as the durable autonomy-eval-adjacent threads."
-      last_seen_at: "2026-04-20T13:51:00.617Z"
+      fingerprint: sha256:86c23f95f0322cb972d4c09f0aad4167
+      summary: "OpenAI research is readable; the current actionable KOTA signal is eval-harness scoring robustness against vacuous or shortcut-passing fixtures."
+      last_seen_at: "2026-05-17T04:52:38.674Z"
   - url: https://deepmind.google/discover/blog/
     added: "2026-04-19"
     snapshot:
