@@ -233,3 +233,6 @@ resources:
       fingerprint: sha256:27b5b174ea5c4de1cd82f00fdaba3f8c
       summary: "MCP draft Tools still centers structured tool results and draft input-required result variants; KOTA's remaining local gap is inbound client-runtime handling for remote input_required results."
       last_seen_at: "2026-05-17T02:18:33.268Z"
+  - url: https://github.com/github/gh-aw
+    added: "2026-05-17"
+    notes: "GitHub Agentic Workflows is a GitHub Actions-hosted agent workflow runtime; monitor for event-trigger, safe-output, input-sanitization, and multi-engine guardrail patterns relevant to KOTA's workflow runtime."
