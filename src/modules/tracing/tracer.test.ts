@@ -467,6 +467,61 @@ describe("WorkflowTracer", () => {
     expect(errors[0].msg).toContain("build.json");
     expect(errors[0].err).toBeInstanceOf(SyntaxError);
   });
+
+  it("records daemon config reload spans with reload attributes", () => {
+    const tracer = new WorkflowTracer(projectDir, new Map());
+
+    tracer.onDaemonConfigReload({
+      timestamp: "2026-01-01T00:00:00.000Z",
+      scope: "daemon",
+      outcome: "success",
+      reloadKind: "module-scoped",
+      fullReload: false,
+      changedModules: ["tracing", "workflow-ops"],
+      workflowCount: 12,
+    });
+
+    const spans = exporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].name).toBe("daemon.config.reload");
+    expect(spans[0].attributes).toMatchObject({
+      "daemon.config_reload.scope": "daemon",
+      "daemon.config_reload.outcome": "success",
+      "daemon.config_reload.reload_kind": "module-scoped",
+      "daemon.config_reload.full_reload": false,
+      "daemon.config_reload.changed_module_count": 2,
+      "daemon.config_reload.workflow_count": 12,
+    });
+    expect(spans[0].status.code).toBe(SpanStatusCode.OK);
+  });
+
+  it("marks failed daemon config reload spans as errors with sanitized failure attributes", () => {
+    const tracer = new WorkflowTracer(projectDir, new Map());
+
+    tracer.onDaemonConfigReload({
+      timestamp: "2026-01-01T00:00:00.000Z",
+      scope: "daemon",
+      outcome: "failure",
+      reloadKind: "failed",
+      fullReload: false,
+      changedModules: [],
+      workflowCount: 3,
+      errorClass: "Error",
+      errorMessage: "Config reload failed",
+    });
+
+    const spans = exporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].attributes).toMatchObject({
+      "daemon.config_reload.outcome": "failure",
+      "daemon.config_reload.changed_module_count": 0,
+      "daemon.config_reload.full_reload": false,
+      "daemon.config_reload.workflow_count": 3,
+      "daemon.config_reload.error_class": "Error",
+      "daemon.config_reload.error_message": "Config reload failed",
+    });
+    expect(spans[0].status.code).toBe(SpanStatusCode.ERROR);
+  });
 });
 
 describe("buildModelLookup", () => {

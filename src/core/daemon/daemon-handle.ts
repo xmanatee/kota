@@ -9,6 +9,10 @@ import type { WorkflowRuntime } from "#core/workflow/runtime.js";
 import type { CapabilityReadinessResponse } from "./capability-readiness.js";
 import { buildClientIdentity, type ClientIdentity } from "./client-identity.js";
 import { computeModuleConfigDiff } from "./config-reload-diff.js";
+import {
+  buildDaemonConfigReloadFailureEvent,
+  buildDaemonConfigReloadSuccessEvent,
+} from "./daemon-config-reload-event.js";
 import type {
   DaemonControlHandle,
   InteractiveSession,
@@ -158,40 +162,61 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       // runtime adopts the same workflow inputs and the same module
       // contributions. When per-project config lands, this method will
       // need to fan out across `projectRuntimes`.
-      const oldConfig = config.config ?? {};
-      const newConfig = loadConfig(projectDir);
-      const loader = await loadModuleMetadata(
-        newConfig,
-        projectDir,
-        config.verbose ?? false,
-      );
-      const allModules = loader.getModuleSummaries().map((s) => ({
-        name: s.name,
-        dependencies: s.dependencies,
-      }));
-      const { changedModules, isFullReload } = computeModuleConfigDiff(
-        oldConfig,
-        newConfig,
-        allModules,
-      );
-      config.config = newConfig;
-      const inputs = loader.getContributedWorkflows();
-      let aggregateCount = 0;
-      for (const runtime of projectRuntimes.list()) {
-        runtime.workflowRuntime.setWorkflowInputs(inputs);
-        aggregateCount = runtime.workflowRuntime.reloadWorkflowDefinitions().count;
+      const currentWorkflowCount = (): number => {
+        let count = 0;
+        for (const runtime of projectRuntimes.list()) {
+          count = runtime.workflowRuntime.getDefinitionCount();
+        }
+        return count;
+      };
+
+      try {
+        const oldConfig = config.config ?? {};
+        const newConfig = loadConfig(projectDir);
+        const loader = await loadModuleMetadata(
+          newConfig,
+          projectDir,
+          config.verbose ?? false,
+        );
+        const allModules = loader.getModuleSummaries().map((s) => ({
+          name: s.name,
+          dependencies: s.dependencies,
+        }));
+        const { changedModules, isFullReload } = computeModuleConfigDiff(
+          oldConfig,
+          newConfig,
+          allModules,
+        );
+        config.config = newConfig;
+        const inputs = loader.getContributedWorkflows();
+        let aggregateCount = 0;
+        for (const runtime of projectRuntimes.list()) {
+          runtime.workflowRuntime.setWorkflowInputs(inputs);
+          aggregateCount = runtime.workflowRuntime.reloadWorkflowDefinitions().count;
+        }
+        bus.emit("daemon.config.reload", buildDaemonConfigReloadSuccessEvent({
+          changedModules,
+          isFullReload,
+          workflowCount: aggregateCount,
+        }));
+        log(`Config reloaded: ${aggregateCount} workflow definition(s) active`);
+        if (isFullReload) {
+          log(`  Full reload: all ${changedModules.length} module(s) restarted (global config changed)`);
+        } else if (changedModules.length > 0) {
+          log(`  Reloaded: ${changedModules.join(", ")}`);
+          const skipped = allModules.filter((m) => !changedModules.includes(m.name)).map((m) => m.name);
+          if (skipped.length > 0) log(`  Skipped: ${skipped.join(", ")}`);
+        } else {
+          log("  No module config changes detected");
+        }
+        return { workflows: aggregateCount, changedModules };
+      } catch (error) {
+        bus.emit("daemon.config.reload", buildDaemonConfigReloadFailureEvent({
+          errorClass: error instanceof Error ? error.name : typeof error,
+          workflowCount: currentWorkflowCount(),
+        }));
+        throw error;
       }
-      log(`Config reloaded: ${aggregateCount} workflow definition(s) active`);
-      if (isFullReload) {
-        log(`  Full reload: all ${changedModules.length} module(s) restarted (global config changed)`);
-      } else if (changedModules.length > 0) {
-        log(`  Reloaded: ${changedModules.join(", ")}`);
-        const skipped = allModules.filter((m) => !changedModules.includes(m.name)).map((m) => m.name);
-        if (skipped.length > 0) log(`  Skipped: ${skipped.join(", ")}`);
-      } else {
-        log("  No module config changes detected");
-      }
-      return { workflows: aggregateCount, changedModules };
     },
     getWorkflowDefinitions: (projectId?: ProjectId): WorkflowDefinitionSummary[] => {
       const workflows = lookupRuntime(projectId).workflowRuntime;
@@ -239,6 +264,9 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
         }),
         bus.on("workflow.step.completed", (p) =>
           handler({ type: "workflow.step.completed", payload: p }),
+        ),
+        bus.on("daemon.config.reload", (p) =>
+          handler({ type: "daemon.config.reload", payload: p }),
         ),
         bus.on("approval.changed", (p) =>
           handler({ type: "approval.changed", payload: p }),
@@ -427,4 +455,3 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
     },
   };
 }
-

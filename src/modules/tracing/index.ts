@@ -109,6 +109,10 @@ function subscribeToEvents(
         payload as Parameters<NonNullable<typeof metricsEmitter>["onSessionAutonomyChanged"]>[0],
       );
     }),
+    ctx.events.subscribe("daemon.config.reload", (payload) => {
+      tracer.onDaemonConfigReload(payload);
+      metricsEmitter?.onDaemonConfigReload(payload);
+    }),
   );
 }
 

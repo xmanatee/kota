@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { ROOT_CONTEXT, type Span, SpanStatusCode, trace } from "@opentelemetry/api";
+import type { BusEvents } from "#core/events/event-bus-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowStepSkipReason } from "#core/workflow/run-types.js";
 
@@ -186,6 +187,31 @@ export class WorkflowTracer {
 
     span.end();
     this.runSpans.delete(payload.runId);
+  }
+
+  onDaemonConfigReload(payload: BusEvents["daemon.config.reload"]): void {
+    const tracer = trace.getTracer(TRACER_NAME);
+    const span = tracer.startSpan("daemon.config.reload", {
+      attributes: {
+        "daemon.config_reload.scope": payload.scope,
+        "daemon.config_reload.outcome": payload.outcome,
+        "daemon.config_reload.reload_kind": payload.reloadKind,
+        "daemon.config_reload.full_reload": payload.fullReload,
+        "daemon.config_reload.changed_module_count": payload.changedModules.length,
+        "daemon.config_reload.workflow_count": payload.workflowCount,
+        ...(payload.outcome === "failure"
+          ? {
+              "daemon.config_reload.error_class": payload.errorClass,
+              "daemon.config_reload.error_message": payload.errorMessage,
+            }
+          : {}),
+      },
+      startTime: new Date(payload.timestamp),
+    });
+    span.setStatus({
+      code: payload.outcome === "failure" ? SpanStatusCode.ERROR : SpanStatusCode.OK,
+    });
+    span.end(new Date(payload.timestamp));
   }
 
   private readAgentStepOutput(runDir: string, stepId: string): AgentStepOutput | undefined {

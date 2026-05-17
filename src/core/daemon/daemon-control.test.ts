@@ -7,6 +7,7 @@ import {
   type WorkflowMetricCounts,
 } from "./daemon-control.js";
 import {
+  makeDaemonConfigReloadEvent,
   makeTaskChangedEvent,
   makeWorkflowCompletedEvent,
   makeWorkflowStartedEvent,
@@ -567,6 +568,107 @@ describe("DaemonControlServer", () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body).toMatchObject({ ok: true, workflows: 3, changedModules: [] });
+    });
+
+    it("exposes successful reload events through event catch-up and SSE", async () => {
+      let eventHandler: ((e: DaemonSseEvent) => void) | null = null;
+      handle = makeHandle({
+        subscribeToEvents: vi.fn((h) => {
+          eventHandler = h;
+          return () => { eventHandler = null; };
+        }),
+        reloadConfig: vi.fn(async () => {
+          eventHandler!(makeDaemonConfigReloadEvent({
+            changedModules: ["tracing"],
+            workflowCount: 4,
+          }));
+          return { workflows: 4, changedModules: ["tracing"] };
+        }),
+      });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const beforeReload = new Date(Date.now() - 1000).toISOString();
+      const reloadRes = await fetchWithToken(port, "/reload", { method: "POST" });
+      expect(reloadRes.status).toBe(200);
+
+      const apiRes = await fetchWithToken(port, "/api/events?type=daemon.config.reload");
+      const apiBody = await apiRes.json();
+      expect(apiBody.events).toHaveLength(1);
+      expect(apiBody.events[0]).toMatchObject({
+        type: "daemon.config.reload",
+        payload: {
+          outcome: "success",
+          reloadKind: "module-scoped",
+          changedModules: ["tracing"],
+          workflowCount: 4,
+          scope: "daemon",
+        },
+      });
+
+      const controller = new AbortController();
+      const sseRes = await fetchWithToken(
+        port,
+        `/events?since=${encodeURIComponent(beforeReload)}`,
+        { signal: controller.signal },
+      );
+      expect(sseRes.status).toBe(200);
+      const reader = sseRes.body!.getReader();
+      const decoder = new TextDecoder();
+      let received = "";
+      while (!received.includes("daemon.config.reload")) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        received += decoder.decode(value);
+      }
+      controller.abort();
+
+      expect(received).toContain("event: daemon.config.reload");
+      expect(received).toContain('"changedModules":["tracing"]');
+    });
+
+    it("exposes failed reload events without raw config values", async () => {
+      let eventHandler: ((e: DaemonSseEvent) => void) | null = null;
+      handle = makeHandle({
+        subscribeToEvents: vi.fn((h) => {
+          eventHandler = h;
+          return () => { eventHandler = null; };
+        }),
+        reloadConfig: vi.fn(async () => {
+          eventHandler!({
+            type: "daemon.config.reload",
+            payload: {
+              timestamp: "2026-01-01T00:00:00.000Z",
+              scope: "daemon",
+              outcome: "failure",
+              reloadKind: "failed",
+              fullReload: false,
+              changedModules: [],
+              workflowCount: 3,
+              errorClass: "Error",
+              errorMessage: "Config reload failed",
+            },
+          });
+          throw new Error("raw config secret");
+        }),
+      });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const reloadRes = await fetchWithToken(port, "/reload", { method: "POST" });
+      expect(reloadRes.status).toBe(500);
+
+      const apiRes = await fetchWithToken(port, "/api/events?type=daemon.config.reload");
+      const apiBody = await apiRes.json();
+      expect(apiBody.events).toHaveLength(1);
+      expect(apiBody.events[0].payload).toMatchObject({
+        outcome: "failure",
+        errorClass: "Error",
+        errorMessage: "Config reload failed",
+      });
+      expect(JSON.stringify(apiBody.events[0].payload)).not.toContain("raw config secret");
     });
 
     it("requires authentication", async () => {

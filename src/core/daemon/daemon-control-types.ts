@@ -113,6 +113,7 @@ export type DaemonSseEvent =
   | { type: "workflow.started"; payload: BusEvents["workflow.started"] }
   | { type: "workflow.completed"; payload: BusEvents["workflow.completed"] }
   | { type: "workflow.step.completed"; payload: BusEvents["workflow.step.completed"] }
+  | { type: "daemon.config.reload"; payload: BusEvents["daemon.config.reload"] }
   | { type: "queue.changed"; payload: QueueChangedPayload }
   | { type: "approval.changed"; payload: BusEvents["approval.changed"] }
   | { type: "task.changed"; payload: BusEvents["task.changed"] }

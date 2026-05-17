@@ -3,6 +3,28 @@ import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowStepSkipReason } from "#core/workflow/run-types.js";
 import type { ProjectId } from "./project-scope.js";
 
+export type DaemonConfigReloadEvent =
+  | {
+      timestamp: string;
+      scope: "daemon";
+      outcome: "success";
+      reloadKind: "full" | "module-scoped" | "noop";
+      fullReload: boolean;
+      changedModules: string[];
+      workflowCount: number;
+    }
+  | {
+      timestamp: string;
+      scope: "daemon";
+      outcome: "failure";
+      reloadKind: "failed";
+      fullReload: false;
+      changedModules: [];
+      workflowCount: number;
+      errorClass: string;
+      errorMessage: string;
+    };
+
 /**
  * Known event payloads. Extend this map to add new typed events.
  *
@@ -29,6 +51,7 @@ export type BusEvents = {
     runId?: string;
     requires?: string[];
   };
+  "daemon.config.reload": DaemonConfigReloadEvent;
   "autonomy.queue.available": {
     projectId: ProjectId;
     pullableCount: number;

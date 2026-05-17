@@ -1,12 +1,12 @@
 ---
 id: task-emit-typed-daemon-config-reload-events-into-tracing
 title: Emit typed daemon config reload events into tracing and event streams
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: Make daemon config reloads emit a typed event with changed modules, full-reload status, and active workflow count, then route that event through tracing and daemon event catch-up so config changes are observable beyond the caller that invoked reload.
 created_at: 2026-05-17T03:03:35Z
-updated_at: 2026-05-17T03:03:35Z
+updated_at: 2026-05-17T03:20:21Z
 ---
 
 ## Problem
@@ -127,4 +127,3 @@ operator command that caused them.
 - A runtime probe artifact under `.kota/runs/<run-id>/config-reload-event-probe.json`
   showing `POST /reload` followed by event catch-up containing the typed reload
   event.
-*** End Patch

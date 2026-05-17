@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import type { Counter, Histogram, Meter } from "@opentelemetry/api";
+import type { Attributes, Counter, Histogram, Meter } from "@opentelemetry/api";
+import type { BusEvents } from "#core/events/event-bus-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { readRepairIterations } from "#core/workflow/repair-iteration-output.js";
 
@@ -61,6 +62,7 @@ export class WorkflowMetricsEmitter {
   private readonly repairLoopHits: Counter;
   private readonly failureClass: Counter;
   private readonly sessionAutonomyTransitions: Counter;
+  private readonly configReloadAttempts: Counter;
 
   constructor(
     meter: Meter,
@@ -99,6 +101,12 @@ export class WorkflowMetricsEmitter {
       {
         description:
           "Session autonomy-mode transitions, labelled by autonomy.from and autonomy.to",
+      },
+    );
+    this.configReloadAttempts = meter.createCounter(
+      "kota.daemon.config_reload.attempts",
+      {
+        description: "Daemon config reload attempts, labelled by outcome and reload shape",
       },
     );
   }
@@ -180,6 +188,21 @@ export class WorkflowMetricsEmitter {
       "autonomy.from": payload.from,
       "autonomy.to": payload.to,
     });
+  }
+
+  onDaemonConfigReload(payload: BusEvents["daemon.config.reload"]): void {
+    const attrs: Attributes = {
+      "daemon.config_reload.scope": payload.scope,
+      "daemon.config_reload.outcome": payload.outcome,
+      "daemon.config_reload.reload_kind": payload.reloadKind,
+      "daemon.config_reload.full_reload": payload.fullReload,
+      "daemon.config_reload.changed_module_count": payload.changedModules.length,
+      "daemon.config_reload.workflow_count": payload.workflowCount,
+    };
+    if (payload.outcome === "failure") {
+      attrs["daemon.config_reload.error_class"] = payload.errorClass;
+    }
+    this.configReloadAttempts.add(1, attrs);
   }
 
   private readAgentStepOutput(runDir: string, stepId: string): AgentStepOutput | undefined {

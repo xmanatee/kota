@@ -71,6 +71,24 @@ export function makeWorkflowStepCompletedEvent(
   };
 }
 
+export function makeDaemonConfigReloadEvent(
+  overrides: Partial<Extract<BusEvents["daemon.config.reload"], { outcome: "success" }>> = {},
+): DaemonSseEvent {
+  return {
+    type: "daemon.config.reload",
+    payload: {
+      timestamp: DEFAULT_TIMESTAMP,
+      scope: "daemon",
+      outcome: "success",
+      reloadKind: "module-scoped",
+      fullReload: false,
+      changedModules: ["git"],
+      workflowCount: 3,
+      ...overrides,
+    },
+  };
+}
+
 export function makeTaskChangedEvent(
   overrides: Partial<BusEvents["task.changed"]> = {},
 ): DaemonSseEvent {

@@ -394,4 +394,34 @@ describe("WorkflowMetricsEmitter", () => {
     expect(downgrade?.value).toBe(1);
     expect(upgrade?.value).toBe(1);
   });
+
+  it("records daemon config reload attempts with reload attributes", async () => {
+    const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), projectDir);
+
+    emitter.onDaemonConfigReload({
+      timestamp: "2026-01-01T00:00:00.000Z",
+      scope: "daemon",
+      outcome: "success",
+      reloadKind: "full",
+      fullReload: true,
+      changedModules: ["git", "github", "filesystem"],
+      workflowCount: 9,
+    });
+
+    const metrics = await collectMetrics(provider, exporter);
+    const reloads = findMetric(metrics, "kota.daemon.config_reload.attempts");
+    expect(reloads).toBeDefined();
+    expect(reloads!.dataPointType).toBe(DataPointType.SUM);
+    const point = reloads!.dataPoints.find((p) =>
+      attrsMatch(p.attributes, {
+        "daemon.config_reload.scope": "daemon",
+        "daemon.config_reload.outcome": "success",
+        "daemon.config_reload.reload_kind": "full",
+      }),
+    );
+    expect(point?.value).toBe(1);
+    expect(point?.attributes["daemon.config_reload.full_reload"]).toBe(true);
+    expect(point?.attributes["daemon.config_reload.changed_module_count"]).toBe(3);
+    expect(point?.attributes["daemon.config_reload.workflow_count"]).toBe(9);
+  });
 });
