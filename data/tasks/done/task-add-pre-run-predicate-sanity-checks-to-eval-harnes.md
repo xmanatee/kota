@@ -1,12 +1,12 @@
 ---
 id: task-add-pre-run-predicate-sanity-checks-to-eval-harnes
 title: Add pre-run predicate sanity checks to eval-harness fixtures
-status: ready
+status: done
 priority: p2
 area: eval-harness
 summary: Make eval-harness fixtures prove their scoring predicates are non-vacuous against the initial state before running a workflow, so shortcut or already-satisfied fixtures cannot inflate pass rates.
 created_at: 2026-05-17T04:50:10Z
-updated_at: 2026-05-17T04:50:10Z
+updated_at: 2026-05-17T05:02:11Z
 ---
 
 ## Problem

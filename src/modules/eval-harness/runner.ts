@@ -24,8 +24,15 @@ import { installExternalCallShims } from "./external-call-shim.js";
 import type { LoadedFixture } from "./fixture.js";
 import type { FixtureRun, FixtureRunOutcome, ResourceProfile } from "./fixture-run.js";
 import { applyFixtureTemplates } from "./fixture-templating.js";
-import type { FixturePredicate, PredicateEvalResult } from "./predicates.js";
-import { evaluatePredicates } from "./predicates.js";
+import type {
+  FixturePredicate,
+  PredicateEvalResult,
+  PredicateExpectationEvalResult,
+} from "./predicates.js";
+import {
+  evaluatePredicateExpectations,
+  evaluatePredicates,
+} from "./predicates.js";
 
 /** Input passed to a WorkflowExecutor for a single fixture run attempt. */
 export type WorkflowExecutionRequest = {
@@ -62,7 +69,13 @@ export type WorkflowExecutionRequest = {
 export type WorkflowExecutionOutcome =
   | { kind: "completed"; durationMs: number; runArtifactPath: string | null }
   | { kind: "timeout"; durationMs: number; runArtifactPath: string | null }
-  | { kind: "error"; durationMs: number; message: string; runArtifactPath: string | null };
+  | { kind: "error"; durationMs: number; message: string; runArtifactPath: string | null }
+  | {
+      kind: "not-started";
+      durationMs: number;
+      reason: "pre-run-sanity-failed";
+      runArtifactPath: null;
+    };
 
 /**
  * Pluggable workflow executor. The harness stays agnostic about *how* the
@@ -86,6 +99,7 @@ export type RunFixtureParams = {
 export type FixtureRunReport = {
   run: FixtureRun;
   predicateResults: PredicateEvalResult[];
+  preRunExpectationResults: PredicateExpectationEvalResult[];
   workingDir: string;
   executionOutcome: WorkflowExecutionOutcome;
 };
@@ -178,6 +192,8 @@ function outcomeFromExecution(
       return "timeout";
     case "error":
       return "error";
+    case "not-started":
+      return "configuration-error";
   }
 }
 
@@ -190,6 +206,7 @@ function writeRunArtifact(
     workingDir: string;
     executionOutcome: WorkflowExecutionOutcome;
     predicates: readonly FixturePredicate[];
+    preRunExpectationResults: PredicateExpectationEvalResult[];
     predicateResults: PredicateEvalResult[];
   },
 ): void {
@@ -206,6 +223,11 @@ function writeRunArtifact(
         },
         execution: payload.executionOutcome,
         predicates: payload.predicates,
+        preRunExpectations: payload.preRunExpectationResults.map((result) => ({
+          predicate: result.predicate,
+          expected: result.expected,
+        })),
+        preRunExpectationResults: payload.preRunExpectationResults,
         predicateResults: payload.predicateResults,
       },
       null,
@@ -225,6 +247,52 @@ export async function runFixture(
   const startedAt = new Date();
   const startMs = startedAt.getTime();
   let executionOutcome: WorkflowExecutionOutcome;
+  const preRunSanity = evaluatePredicateExpectations(
+    workingDir,
+    params.fixture.spec.preRunExpectations,
+  );
+  const runArtifactDir = join(
+    params.runArtifactBaseDir,
+    `${params.fixture.spec.id}-${params.runIndex}`,
+  );
+  if (!preRunSanity.passed) {
+    executionOutcome = {
+      kind: "not-started",
+      durationMs: Date.now() - startMs,
+      reason: "pre-run-sanity-failed",
+      runArtifactPath: null,
+    };
+    const run: FixtureRun = {
+      fixtureId: params.fixture.spec.id,
+      runIndex: params.runIndex,
+      repeatCount: params.repeatCount,
+      outcome: outcomeFromExecution(executionOutcome, false),
+      resourceProfile: params.resourceProfile,
+      timing: {
+        startedAt: startedAt.toISOString(),
+        durationMs: executionOutcome.durationMs,
+        budgetMs: params.fixture.spec.budgetMs,
+      },
+      runArtifactPath: runArtifactDir,
+    };
+    writeRunArtifact(runArtifactDir, {
+      run,
+      fixtureId: params.fixture.spec.id,
+      workflowName: params.fixture.spec.workflowName,
+      workingDir,
+      executionOutcome,
+      predicates: params.fixture.spec.predicates,
+      preRunExpectationResults: preRunSanity.results,
+      predicateResults: [],
+    });
+    return {
+      run,
+      predicateResults: [],
+      preRunExpectationResults: preRunSanity.results,
+      workingDir,
+      executionOutcome,
+    };
+  }
   try {
     executionOutcome = await params.executor.execute({
       workflowName: params.fixture.spec.workflowName,
@@ -253,10 +321,6 @@ export async function runFixture(
   );
   const outcome = outcomeFromExecution(executionOutcome, passed);
 
-  const runArtifactDir = join(
-    params.runArtifactBaseDir,
-    `${params.fixture.spec.id}-${params.runIndex}`,
-  );
   const run: FixtureRun = {
     fixtureId: params.fixture.spec.id,
     runIndex: params.runIndex,
@@ -278,10 +342,17 @@ export async function runFixture(
     workingDir,
     executionOutcome,
     predicates: params.fixture.spec.predicates,
+    preRunExpectationResults: preRunSanity.results,
     predicateResults: results,
   });
 
-  return { run, predicateResults: results, workingDir, executionOutcome };
+  return {
+    run,
+    predicateResults: results,
+    preRunExpectationResults: preRunSanity.results,
+    workingDir,
+    executionOutcome,
+  };
 }
 
 /**

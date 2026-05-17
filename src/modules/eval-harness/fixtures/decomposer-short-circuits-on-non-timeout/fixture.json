@@ -13,7 +13,9 @@
     "triggerEvent": "autonomy.queue.available",
     "durationMs": 60000,
     "definitionPath": "src/modules/autonomy/workflows/builder/workflow.ts",
-    "tags": ["monitored"],
+    "tags": [
+      "monitored"
+    ],
     "autonomyMode": "autonomous"
   },
   "predicates": [
@@ -51,9 +53,30 @@
       "needle": "\"id\": \"commit\",\n      \"type\": \"code\",\n      \"status\": \"skipped\""
     }
   ],
-  "tags": ["smoke", "autonomy", "decision-gate"],
+  "tags": [
+    "smoke",
+    "autonomy",
+    "decision-gate"
+  ],
   "provenance": {
     "kind": "smoke-fixture",
     "justification": "Locks two harness-plumbing invariants no real-failure fixture captures today and that no other smoke fixture covers either: (1) triggerPayload round-trips verbatim through `kota workflow exec --payload <json>` so the runDir/runId of the upstream failed-builder run reach decomposer's assess-failure step intact (the dispatcher smoke fixture only exercises the payload-free `manual` trigger), and (2) decomposer's assess-failure decision gate returns shouldDecompose: false on a non-timeout-shaped builder failure, skipping the decompose agent step (asserted directly against the deterministic decomposer run metadata so a regression that lets the agent step run is caught loudly without a real LLM call). The fixture uses the `_runId` field of the queue-replay protocol to pin the decomposer run dir name so file-contains can inspect the metadata.json without globbing — `_runId` is part of the payload the runtime-dispatch path naturally adds to every queued workflow.completed trigger, so this is the same shape decomposer sees in production. The agent-call path (shouldDecompose: true → real decompose run) remains uncovered pending the agent-step bootstrap follow-up tracked in fixtures/uncovered/notes.md."
-  }
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "file-contains",
+        "path": ".kota/runs/fixture-decomposer-shortcircuit-2026-04-24/metadata.json",
+        "needle": "\"shouldDecompose\": false"
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/tasks/doing/task-fixture-decomposer-decision-seed.md"
+      },
+      "expected": "pass"
+    }
+  ]
 }

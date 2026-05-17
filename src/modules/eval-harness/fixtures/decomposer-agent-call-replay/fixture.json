@@ -13,7 +13,9 @@
     "triggerEvent": "autonomy.queue.available",
     "durationMs": 10800000,
     "definitionPath": "src/modules/autonomy/workflows/builder/workflow.ts",
-    "tags": ["monitored"],
+    "tags": [
+      "monitored"
+    ],
     "autonomyMode": "autonomous"
   },
   "predicates": [
@@ -54,9 +56,28 @@
       "needle": "\"committed\": true"
     }
   ],
-  "tags": ["autonomy", "agent-call-replay"],
+  "tags": [
+    "autonomy",
+    "agent-call-replay"
+  ],
   "provenance": {
     "kind": "real-failure",
     "sourceRunId": "2026-04-18T15-45-49-339Z-decomposer-zloyo6"
-  }
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "file-absent",
+        "path": "data/tasks/doing/task-fixture-agent-call-replay-target.md"
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/tasks/doing/task-fixture-agent-call-replay-target.md"
+      },
+      "expected": "pass"
+    }
+  ]
 }

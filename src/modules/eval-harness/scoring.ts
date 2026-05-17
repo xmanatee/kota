@@ -29,6 +29,20 @@ export type AggregateScore = {
   passHatK: number;
 };
 
+export class FixtureConfigurationScoringError extends Error {
+  readonly fixtureId: string;
+  readonly runIndex: number;
+
+  constructor(run: FixtureRun) {
+    super(
+      `Fixture "${run.fixtureId}" runIndex ${run.runIndex} ended with configuration-error; fix the fixture before computing pass@k/pass^k.`,
+    );
+    this.name = "FixtureConfigurationScoringError";
+    this.fixtureId = run.fixtureId;
+    this.runIndex = run.runIndex;
+  }
+}
+
 /**
  * Group runs by fixtureId and compute per-fixture scores. Runs are expected
  * to be complete repeat sets for each fixture — a partial set fails loudly
@@ -38,6 +52,9 @@ export function scorePerFixture(runs: readonly FixtureRun[]): FixtureScore[] {
   if (runs.length === 0) return [];
   const grouped = new Map<string, FixtureRun[]>();
   for (const run of runs) {
+    if (run.outcome === "configuration-error") {
+      throw new FixtureConfigurationScoringError(run);
+    }
     const bucket = grouped.get(run.fixtureId);
     if (bucket) {
       bucket.push(run);

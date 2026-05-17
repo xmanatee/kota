@@ -65,9 +65,28 @@
       "needle": "\"committed\": true"
     }
   ],
-  "tags": ["autonomy", "agent-call-replay"],
+  "tags": [
+    "autonomy",
+    "agent-call-replay"
+  ],
   "provenance": {
     "kind": "real-failure",
     "sourceRunId": "2026-04-24T22-26-19-626Z-explorer-tocx88"
-  }
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/tasks/ready/task-gate-shipped-replay-fixtures-from-pnpm-test-so-wor.md"
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/watchlist.yaml"
+      },
+      "expected": "pass"
+    }
+  ]
 }

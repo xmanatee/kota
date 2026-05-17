@@ -67,9 +67,28 @@
       "needle": "\"committed\": true"
     }
   ],
-  "tags": ["autonomy", "agent-call-replay"],
+  "tags": [
+    "autonomy",
+    "agent-call-replay"
+  ],
   "provenance": {
     "kind": "real-failure",
     "sourceRunId": "2026-04-24T22-53-55-335Z-inbox-sorter-1u1xc9"
-  }
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "file-absent",
+        "path": "data/inbox/note-broken-decomposer-replay-fixture.md"
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/inbox/note-broken-decomposer-replay-fixture.md"
+      },
+      "expected": "pass"
+    }
+  ]
 }

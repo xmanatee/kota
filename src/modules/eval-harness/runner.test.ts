@@ -36,6 +36,10 @@ function setupFixtureTree(): {
       workflowName: "noop",
       budgetMs: 60_000,
       predicates: [{ kind: "file-exists", path: "output.txt" }],
+      preRunExpectations: [
+        { predicate: { kind: "file-exists", path: "output.txt" }, expected: "fail" },
+        { predicate: { kind: "file-exists", path: "seed.txt" }, expected: "pass" },
+      ],
       provenance: {
         kind: "smoke-fixture",
         justification: "minimal test fixture for runner unit tests",
@@ -84,11 +88,13 @@ describe("runFixture", () => {
     });
     expect(report.run.outcome).toBe("pass");
     expect(report.predicateResults.every((r) => r.passed)).toBe(true);
+    expect(report.preRunExpectationResults.every((r) => r.passed)).toBe(true);
 
     const artifactPath = join(report.run.runArtifactPath, "fixture-run.json");
     const raw = JSON.parse(readFileSync(artifactPath, "utf-8"));
     expect(raw.fixtureId).toBe("mini");
     expect(raw.outcome).toBe("pass");
+    expect(raw.preRunExpectationResults).toHaveLength(2);
     cleanupFixtureWorkingDir(report.workingDir);
   });
 
@@ -110,6 +116,41 @@ describe("runFixture", () => {
       repeatCount: 1,
     });
     expect(report.run.outcome).toBe("fail");
+    expect(report.preRunExpectationResults.every((r) => r.passed)).toBe(true);
+    expect(report.predicateResults.some((r) => !r.passed)).toBe(true);
+    cleanupFixtureWorkingDir(report.workingDir);
+  });
+
+  it("rejects an already-satisfied outcome predicate before invoking the executor", async () => {
+    const fixture = loadFixture(fixturesRoot, "mini");
+    writeFileSync(join(fixture.initialStateDir, "output.txt"), "already done");
+    let executorCalls = 0;
+    const executor: WorkflowExecutor = {
+      execute: async () => {
+        executorCalls++;
+        return { kind: "completed", durationMs: 5, runArtifactPath: null };
+      },
+    };
+    const report = await runFixture({
+      fixture,
+      executor,
+      resourceProfile: TEST_PROFILE,
+      runArtifactBaseDir: runsRoot,
+      runIndex: 0,
+      repeatCount: 1,
+    });
+    expect(executorCalls).toBe(0);
+    expect(report.run.outcome).toBe("configuration-error");
+    expect(report.executionOutcome.kind).toBe("not-started");
+    expect(report.predicateResults).toEqual([]);
+    expect(report.preRunExpectationResults.some((r) => !r.passed)).toBe(true);
+    const raw = JSON.parse(
+      readFileSync(join(report.run.runArtifactPath, "fixture-run.json"), "utf-8"),
+    );
+    expect(raw.execution.reason).toBe("pre-run-sanity-failed");
+    expect(raw.preRunExpectationResults.some((r: { passed: boolean }) => !r.passed)).toBe(
+      true,
+    );
     cleanupFixtureWorkingDir(report.workingDir);
   });
 
@@ -176,6 +217,12 @@ describe("runFixture", () => {
           workflowName: "noop",
           budgetMs: 60_000,
           predicates: [{ kind: "file-exists", path: "output.txt" }],
+          preRunExpectations: [
+            {
+              predicate: { kind: "file-exists", path: "output.txt" },
+              expected: "fail",
+            },
+          ],
           externalCallShims: ["gh"],
           provenance: {
             kind: "smoke-fixture",

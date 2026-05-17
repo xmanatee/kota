@@ -18,7 +18,10 @@ import {
   loadAgentStepRecordings,
   recordingsDirForFixture,
 } from "./agent-step-recording.js";
-import type { FixturePredicate } from "./predicates.js";
+import type {
+  FixturePredicate,
+  FixturePredicateExpectation,
+} from "./predicates.js";
 
 /** The role the fixture is scored against. Matches autonomy workflow names. */
 export type FixtureAutonomyRole =
@@ -69,6 +72,13 @@ export type FixtureSpecFile = {
    * fixture passes only when every predicate passes.
    */
   predicates: readonly FixturePredicate[];
+  /**
+   * Predicate expectations evaluated against the materialized initial state
+   * before the workflow executor starts. At least one expectation must require
+   * a predicate to fail initially, proving the fixture is not already in a
+   * passing state.
+   */
+  preRunExpectations: readonly FixturePredicateExpectation[];
   /**
    * Provenance record validated by the loader. Required on every fixture.
    */
@@ -289,6 +299,43 @@ function parseFixtureSpec(rawJson: string, fixtureDir: string): FixtureSpecFile 
     }
     predicates.push(p);
   }
+  if (
+    !Array.isArray(r.preRunExpectations) ||
+    r.preRunExpectations.length === 0
+  ) {
+    throw new Error(
+      `Fixture at "${fixtureDir}" must declare at least one preRunExpectations entry.`,
+    );
+  }
+  const preRunExpectations: FixturePredicateExpectation[] = [];
+  for (const expectation of r.preRunExpectations) {
+    if (
+      typeof expectation !== "object" ||
+      expectation === null ||
+      Array.isArray(expectation)
+    ) {
+      throw new Error(
+        `Fixture at "${fixtureDir}" has an invalid preRunExpectations entry: ${JSON.stringify(expectation)}`,
+      );
+    }
+    const candidate = expectation as Partial<FixturePredicateExpectation>;
+    const predicate = candidate.predicate;
+    const expected = candidate.expected;
+    if (
+      !isFixturePredicate(predicate) ||
+      (expected !== "pass" && expected !== "fail")
+    ) {
+      throw new Error(
+        `Fixture at "${fixtureDir}" has an invalid preRunExpectations entry: ${JSON.stringify(expectation)}`,
+      );
+    }
+    preRunExpectations.push({ predicate, expected });
+  }
+  if (!preRunExpectations.some((expectation) => expectation.expected === "fail")) {
+    throw new Error(
+      `Fixture at "${fixtureDir}" preRunExpectations must include at least one predicate expected to fail initially.`,
+    );
+  }
   const tags =
     r.tags === undefined
       ? undefined
@@ -340,6 +387,7 @@ function parseFixtureSpec(rawJson: string, fixtureDir: string): FixtureSpecFile 
     workflowName: r.workflowName as string,
     budgetMs: r.budgetMs,
     predicates,
+    preRunExpectations,
     provenance,
     ...(triggerPayload !== undefined && { triggerPayload }),
     ...(externalCallShims !== undefined && { externalCallShims }),

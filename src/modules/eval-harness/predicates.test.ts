@@ -2,7 +2,11 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { evaluatePredicate, evaluatePredicates } from "./predicates.js";
+import {
+  evaluatePredicate,
+  evaluatePredicateExpectations,
+  evaluatePredicates,
+} from "./predicates.js";
 
 describe("evaluatePredicate", () => {
   let workDir: string;
@@ -95,6 +99,23 @@ describe("evaluatePredicate", () => {
     ]);
     expect(mixed.passed).toBe(false);
     expect(mixed.results.find((r) => !r.passed)?.detail).toContain("file missing");
+  });
+
+  it("evaluatePredicateExpectations accepts both initially true invariants and initially false outcome predicates", () => {
+    writeFileSync(join(workDir, "seed.txt"), "seed");
+    const { passed, results } = evaluatePredicateExpectations(workDir, [
+      { predicate: { kind: "file-exists", path: "seed.txt" }, expected: "pass" },
+      { predicate: { kind: "file-exists", path: "output.txt" }, expected: "fail" },
+    ]);
+    expect(passed).toBe(true);
+    expect(results.map((r) => r.actual)).toEqual(["pass", "fail"]);
+    expect(results.every((r) => r.passed)).toBe(true);
+
+    const mismatch = evaluatePredicateExpectations(workDir, [
+      { predicate: { kind: "file-exists", path: "seed.txt" }, expected: "fail" },
+    ]);
+    expect(mismatch.passed).toBe(false);
+    expect(mismatch.results[0].detail).toContain("did not match expected");
   });
 
   it("rejects non-positive timeouts rather than silently using a default", () => {

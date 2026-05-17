@@ -72,6 +72,9 @@ final fixture working directory; the agent's self-report is never part of
 the pass/fail signal. New predicate kinds extend the predicate union and
 the evaluator — verification logic does not move into fixture authors.
 
+Fixtures also declare `preRunExpectations`: expected initial predicate results.
+At least one must be `expected: "fail"`; mismatches are fixture config errors.
+
 ## Baseline Persistence And Regression Surfacing
 
 The cadence (only the cadence) persists the last accepted aggregate as the

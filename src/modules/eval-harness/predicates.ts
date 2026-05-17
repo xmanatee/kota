@@ -112,6 +112,24 @@ export type PredicateEvalResult = {
   detail: string;
 };
 
+export type PredicateExpectedResult = "pass" | "fail";
+
+export type FixturePredicateExpectation = {
+  predicate: FixturePredicate;
+  expected: PredicateExpectedResult;
+};
+
+export type PredicateExpectationEvalResult = {
+  predicate: FixturePredicate;
+  expected: PredicateExpectedResult;
+  actual: PredicateExpectedResult;
+  passed: boolean;
+  /** Whether the underlying predicate passed before expectation inversion. */
+  predicatePassed: boolean;
+  predicateDetail: string;
+  detail: string;
+};
+
 const SHELL_PREDICATE_MAX_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_SHELL_TIMEOUT_MS = 60_000;
 const OUTPUT_TAIL_LIMIT = 4_000;
@@ -539,5 +557,28 @@ export function evaluatePredicates(
   predicates: readonly FixturePredicate[],
 ): { passed: boolean; results: PredicateEvalResult[] } {
   const results = predicates.map((p) => evaluatePredicate(workingDir, p));
+  return { passed: results.every((r) => r.passed), results };
+}
+
+export function evaluatePredicateExpectations(
+  workingDir: string,
+  expectations: readonly FixturePredicateExpectation[],
+): { passed: boolean; results: PredicateExpectationEvalResult[] } {
+  const results = expectations.map((expectation) => {
+    const predicateResult = evaluatePredicate(workingDir, expectation.predicate);
+    const actual: PredicateExpectedResult = predicateResult.passed ? "pass" : "fail";
+    const passed = actual === expectation.expected;
+    return {
+      predicate: expectation.predicate,
+      expected: expectation.expected,
+      actual,
+      passed,
+      predicatePassed: predicateResult.passed,
+      predicateDetail: predicateResult.detail,
+      detail: passed
+        ? `initial predicate ${actual} matched expected ${expectation.expected}: ${predicateResult.detail}`
+        : `initial predicate ${actual} did not match expected ${expectation.expected}: ${predicateResult.detail}`,
+    };
+  });
   return { passed: results.every((r) => r.passed), results };
 }

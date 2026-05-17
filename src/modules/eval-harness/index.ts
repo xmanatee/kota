@@ -116,9 +116,16 @@ export {
 export type {
   ExternalCallArgvMatch,
   FixturePredicate,
+  FixturePredicateExpectation,
   PredicateEvalResult,
+  PredicateExpectationEvalResult,
+  PredicateExpectedResult,
 } from "./predicates.js";
-export { evaluatePredicate, evaluatePredicates } from "./predicates.js";
+export {
+  evaluatePredicate,
+  evaluatePredicateExpectations,
+  evaluatePredicates,
+} from "./predicates.js";
 export {
   createReplayAgentHarness,
   REPLAY_AGENT_HARNESS_NAME_ENV,
@@ -133,7 +140,12 @@ export type {
 } from "./runner.js";
 export { cleanupFixtureWorkingDir, runFixture } from "./runner.js";
 export type { AggregateScore, FixtureScore } from "./scoring.js";
-export { aggregateScores, scoreFixtureSet, scorePerFixture } from "./scoring.js";
+export {
+  aggregateScores,
+  FixtureConfigurationScoringError,
+  scoreFixtureSet,
+  scorePerFixture,
+} from "./scoring.js";
 export type { SubprocessExecutorOptions } from "./subprocess-executor.js";
 export { createSubprocessExecutor } from "./subprocess-executor.js";
 

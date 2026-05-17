@@ -14,9 +14,28 @@
       "path": "data/tasks/ready/task-add-builder-eval-marker.md"
     }
   ],
-  "tags": ["smoke", "autonomy"],
+  "tags": [
+    "smoke",
+    "autonomy"
+  ],
   "provenance": {
     "kind": "smoke-fixture",
     "justification": "Proves the fixture → workflow → predicate plumbing works end-to-end on the minimum-viable builder path (one ready task, one file edit, one task-state move). Orthogonal to the real-failure fixtures alongside it: a regression fixture proves the agent still handles a specific past failure; this proves the harness wiring is not itself broken."
-  }
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/markers/builder-eval-ok.txt"
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/tasks/ready/task-add-builder-eval-marker.md"
+      },
+      "expected": "pass"
+    }
+  ]
 }

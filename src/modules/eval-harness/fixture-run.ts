@@ -37,7 +37,12 @@ export type TimingEnvelope = {
   budgetMs: number;
 };
 
-export type FixtureRunOutcome = "pass" | "fail" | "timeout" | "error";
+export type FixtureRunOutcome =
+  | "pass"
+  | "fail"
+  | "timeout"
+  | "error"
+  | "configuration-error";
 
 export type FixtureRun = {
   fixtureId: string;

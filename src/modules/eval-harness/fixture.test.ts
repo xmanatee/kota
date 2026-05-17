@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -8,6 +8,7 @@ import {
   loadAllFixtures,
   loadFixture,
 } from "./fixture.js";
+import { evaluatePredicateExpectations } from "./predicates.js";
 
 const REAL_FAILURE_PROVENANCE = {
   kind: "real-failure",
@@ -18,6 +19,10 @@ const SMOKE_PROVENANCE = {
   kind: "smoke-fixture",
   justification: "Exists to prove harness plumbing itself still works.",
 };
+
+const DEFAULT_PRE_RUN_EXPECTATIONS = [
+  { predicate: { kind: "file-exists", path: "foo" }, expected: "fail" },
+];
 
 function writeFixture(
   root: string,
@@ -31,7 +36,11 @@ function writeFixture(
     spec.provenance === undefined
       ? { ...spec, provenance: REAL_FAILURE_PROVENANCE }
       : spec;
-  writeFileSync(join(dir, "fixture.json"), JSON.stringify(withProvenance, null, 2));
+  const fullSpec =
+    withProvenance.preRunExpectations === undefined
+      ? { ...withProvenance, preRunExpectations: DEFAULT_PRE_RUN_EXPECTATIONS }
+      : withProvenance;
+  writeFileSync(join(dir, "fixture.json"), JSON.stringify(fullSpec, null, 2));
   if (withInitial) mkdirSync(join(dir, "initial"));
 }
 
@@ -60,6 +69,7 @@ describe("loadFixture", () => {
     const loaded = loadFixture(root, "example");
     expect(loaded.spec.id).toBe("example");
     expect(loaded.spec.predicates).toHaveLength(1);
+    expect(loaded.spec.preRunExpectations).toEqual(DEFAULT_PRE_RUN_EXPECTATIONS);
     expect(loaded.spec.tags).toEqual(["smoke"]);
     expect(loaded.spec.provenance).toEqual(REAL_FAILURE_PROVENANCE);
   });
@@ -100,6 +110,58 @@ describe("loadFixture", () => {
       predicates: [],
     });
     expect(() => loadFixture(root, "x")).toThrow(/at least one predicate/);
+  });
+
+  it("rejects a fixture that omits pre-run expectations", () => {
+    const id = "missingPreRun";
+    const dir = join(root, id);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "fixture.json"),
+      JSON.stringify({
+        id,
+        description: "x",
+        role: "builder",
+        workflowName: "builder",
+        budgetMs: 600_000,
+        predicates: [{ kind: "file-exists", path: "foo" }],
+        provenance: REAL_FAILURE_PROVENANCE,
+      }),
+    );
+    mkdirSync(join(dir, "initial"));
+    expect(() => loadFixture(root, id)).toThrow(/preRunExpectations/);
+  });
+
+  it("rejects pre-run expectations without an initially failing predicate", () => {
+    writeFixture(root, "vacuous", {
+      id: "vacuous",
+      description: "x",
+      role: "builder",
+      workflowName: "builder",
+      budgetMs: 600_000,
+      predicates: [{ kind: "file-exists", path: "foo" }],
+      preRunExpectations: [
+        { predicate: { kind: "file-exists", path: "foo" }, expected: "pass" },
+      ],
+    });
+    expect(() => loadFixture(root, "vacuous")).toThrow(/expected to fail initially/);
+  });
+
+  it("rejects malformed pre-run expectation entries", () => {
+    writeFixture(root, "badPreRun", {
+      id: "badPreRun",
+      description: "x",
+      role: "builder",
+      workflowName: "builder",
+      budgetMs: 600_000,
+      predicates: [{ kind: "file-exists", path: "foo" }],
+      preRunExpectations: [
+        { predicate: { kind: "not-a-kind", path: "foo" }, expected: "fail" },
+      ],
+    });
+    expect(() => loadFixture(root, "badPreRun")).toThrow(
+      /invalid preRunExpectations/,
+    );
   });
 
   it("fails when budgetMs is missing or out of range", () => {
@@ -156,6 +218,7 @@ describe("loadFixture", () => {
         workflowName: "builder",
         budgetMs: 600_000,
         predicates: [{ kind: "file-exists", path: "foo" }],
+        preRunExpectations: DEFAULT_PRE_RUN_EXPECTATIONS,
       }),
     );
     mkdirSync(join(dir, "initial"));
@@ -354,6 +417,43 @@ describe("loadAllFixtures", () => {
     writeFileSync(join(root, "note.md"), "ignore me");
     const ids = loadAllFixtures(root).map((f) => f.spec.id);
     expect(ids).toEqual(["alpha", "beta"]);
+  });
+
+  it("loads every shipped fixture with explicit pre-run expectations", () => {
+    const fixtures = loadAllFixtures(
+      join(process.cwd(), "src/modules/eval-harness/fixtures"),
+    );
+    expect(fixtures.length).toBeGreaterThan(0);
+    expect(
+      fixtures.every((fixture) =>
+        fixture.spec.preRunExpectations.some(
+          (expectation) => expectation.expected === "fail",
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it("shipped fixture pre-run expectations match their initial trees", () => {
+    const fixtures = loadAllFixtures(
+      join(process.cwd(), "src/modules/eval-harness/fixtures"),
+    );
+    const scratch = mkdtempSync(join(tmpdir(), "kota-shipped-pre-run-"));
+    try {
+      for (const fixture of fixtures) {
+        const workDir = join(scratch, fixture.spec.id);
+        cpSync(fixture.initialStateDir, workDir, { recursive: true });
+        const result = evaluatePredicateExpectations(
+          workDir,
+          fixture.spec.preRunExpectations,
+        );
+        expect(
+          result.results.filter((entry) => !entry.passed),
+          fixture.spec.id,
+        ).toEqual([]);
+      }
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
   });
 });
 

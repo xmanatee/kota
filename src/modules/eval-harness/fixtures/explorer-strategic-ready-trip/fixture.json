@@ -14,9 +14,29 @@
       "command": "grep -l -E '^priority: p[0-2]$' data/tasks/ready/task-*.md 2>/dev/null | grep -q ."
     }
   ],
-  "tags": ["regression", "autonomy", "explorer-discipline"],
+  "tags": [
+    "regression",
+    "autonomy",
+    "explorer-discipline"
+  ],
   "provenance": {
     "kind": "real-failure",
     "sourceRunId": "2026-04-20T18-24-04-094Z-explorer-r2qqhx"
-  }
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "grep -l -E '^priority: p[0-2]$' data/tasks/ready/task-*.md 2>/dev/null | grep -q ."
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "find data/tasks/ready -maxdepth 1 -name 'task-*.md' -type f | head -n 1 | grep -q ."
+      },
+      "expected": "pass"
+    }
+  ]
 }

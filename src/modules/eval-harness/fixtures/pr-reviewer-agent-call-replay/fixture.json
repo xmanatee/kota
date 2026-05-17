@@ -17,23 +17,40 @@
     "headRepo": "kota-test/example",
     "isFork": false,
     "headSha": "abc123",
-    "sender": { "login": "maintainer", "type": "User" },
-    "prAuthor": { "login": "kota-bot", "type": "Bot" },
+    "sender": {
+      "login": "maintainer",
+      "type": "User"
+    },
+    "prAuthor": {
+      "login": "kota-bot",
+      "type": "Bot"
+    },
     "authorAssociation": "MEMBER",
     "actorIntegrity": "allowed",
     "actorIntegrityReason": "author association 'MEMBER' satisfies the configured trust threshold"
   },
-  "externalCallShims": ["gh"],
+  "externalCallShims": [
+    "gh"
+  ],
   "predicates": [
     {
       "kind": "external-call-log",
       "binary": "gh",
-      "match": { "kind": "argv-prefix", "argv": ["pr", "review"] }
+      "match": {
+        "kind": "argv-prefix",
+        "argv": [
+          "pr",
+          "review"
+        ]
+      }
     },
     {
       "kind": "external-call-log",
       "binary": "gh",
-      "match": { "kind": "argv-includes", "arg": "--approve" },
+      "match": {
+        "kind": "argv-includes",
+        "arg": "--approve"
+      },
       "exitClass": "zero"
     },
     {
@@ -62,9 +79,36 @@
       "needle": "\"argv\":[\"pr\",\"review\",\"42\""
     }
   ],
-  "tags": ["autonomy", "agent-call-replay", "external-call-log"],
+  "tags": [
+    "autonomy",
+    "agent-call-replay",
+    "external-call-log"
+  ],
   "provenance": {
     "kind": "smoke-fixture",
     "justification": "pr-reviewer has zero real-failure runs to encode (the workflow only fires on github.pull_request webhooks and KOTA's own dogfood loop has not produced one yet), so this fixture is the harness-plumbing gate for two new primitives: (1) the `external-call-log` predicate kind that asserts properties of recorded out-of-process command invocations, and (2) the fixture-scoped fake-binary shim mechanism that prepends `<workingDir>/.kota/shims/` to PATH so `gh` invocations land in `<workingDir>/.kota/external-calls/gh.jsonl` rather than the host's real gh. The synthesized recording mirrors the shape a real pr-reviewer run would produce — `gh pr review 42 --approve --body ...` plus a JSON verdict block — so the predicate's argv matchers and the workflow's outputFormat:json + emit step path are exercised end-to-end. Replace with a real-failure fixture (and flip `kind` to `real-failure` with the captured sourceRunId) when the first bad pr-reviewer run lands."
-  }
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "external-call-log",
+        "binary": "gh",
+        "match": {
+          "kind": "argv-prefix",
+          "argv": [
+            "pr",
+            "review"
+          ]
+        }
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "package.json"
+      },
+      "expected": "pass"
+    }
+  ]
 }

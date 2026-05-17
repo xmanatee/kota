@@ -71,9 +71,29 @@
       "needle": "\"written\": true"
     }
   ],
-  "tags": ["autonomy", "agent-call-replay"],
+  "tags": [
+    "autonomy",
+    "agent-call-replay"
+  ],
   "provenance": {
     "kind": "real-failure",
     "sourceRunId": "2026-04-23T00-03-55-062Z-research-retry-u92f1u"
-  }
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "file-contains",
+        "path": "data/tasks/blocked/task-fixture-research-blocker.md",
+        "needle": "<!-- research-retry-attempt: fingerprint="
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/tasks/blocked/task-fixture-research-blocker.md"
+      },
+      "expected": "pass"
+    }
+  ]
 }

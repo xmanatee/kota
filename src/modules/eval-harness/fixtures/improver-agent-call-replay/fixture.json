@@ -13,7 +13,9 @@
     "durationMs": 300000,
     "definitionPath": "src/modules/autonomy/workflows/builder/workflow.ts",
     "runDir": ".kota/runs/fxt-failed-builder-seed",
-    "tags": ["monitored"],
+    "tags": [
+      "monitored"
+    ],
     "autonomyMode": "autonomous"
   },
   "predicates": [
@@ -56,9 +58,28 @@
       "needle": "checkCommitStageable"
     }
   ],
-  "tags": ["autonomy", "agent-call-replay"],
+  "tags": [
+    "autonomy",
+    "agent-call-replay"
+  ],
   "provenance": {
     "kind": "real-failure",
     "sourceRunId": "2026-04-24T17-23-37-109Z-improver-tqqgmc"
-  }
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": ".kota/runs/fixture-improver-agent-call-replay-2026-04-24/metadata.json"
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": ".kota/runs/fxt-failed-builder-seed/metadata.json"
+      },
+      "expected": "pass"
+    }
+  ]
 }

@@ -33,9 +33,34 @@
       "workflow": "dispatcher"
     }
   ],
-  "tags": ["smoke", "autonomy", "emit-only"],
+  "tags": [
+    "smoke",
+    "autonomy",
+    "emit-only"
+  ],
   "provenance": {
     "kind": "smoke-fixture",
     "justification": "Proves the fixture → workflow → run-emits-event / run-omits-event predicate plumbing works end-to-end for emit-only autonomy workflows. Orthogonal to per-workflow regression coverage: all 987 dispatcher runs in .kota/runs/ are success on this branch, so there is no real-failure history to encode yet. This fixture exists to fail loudly when the emitted-events.jsonl logging, the predicate kinds themselves, or dispatcher's queue-shape event emission regress; a real-failure dispatcher fixture should replace it once the first bad dispatcher run lands."
-  }
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "run-emits-event",
+        "event": "autonomy.queue.available",
+        "workflow": "dispatcher",
+        "payloadMatch": {
+          "pullableCount": 1,
+          "actionableCount": 1
+        }
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/tasks/ready/task-eval-harness-dispatcher-seed.md"
+      },
+      "expected": "pass"
+    }
+  ]
 }

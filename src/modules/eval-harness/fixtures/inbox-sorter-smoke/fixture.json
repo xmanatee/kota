@@ -14,9 +14,28 @@
       "command": "test \"$(find data/tasks -mindepth 1 -name 'task-*.md' -type f | wc -l | tr -d ' ')\" -ge 1"
     }
   ],
-  "tags": ["smoke", "autonomy"],
+  "tags": [
+    "smoke",
+    "autonomy"
+  ],
   "provenance": {
     "kind": "smoke-fixture",
     "justification": "Proves the inbox-sorter workflow still runs end-to-end under the harness: one rough idea in, one normalized task out, inbox drained. Orthogonal to the dedup regression fixture next door, which exercises a specific past-failure mode; this smoke fixture fails loudly when harness plumbing itself regresses."
-  }
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "file-absent",
+        "path": "data/inbox/rough-idea.md"
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/inbox/rough-idea.md"
+      },
+      "expected": "pass"
+    }
+  ]
 }
