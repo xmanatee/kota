@@ -1,12 +1,12 @@
 ---
 id: task-screen-workflow-trigger-payloads-before-agent-prompt-
 title: Screen workflow trigger payloads before agent prompt exposure
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: Treat workflow trigger payload text as untrusted input at the agent-prompt boundary so webhook, GitHub, and manual trigger context cannot become unscreened agent instructions.
 created_at: 2026-05-17T03:39:19Z
-updated_at: 2026-05-17T03:39:19Z
+updated_at: 2026-05-17T03:49:02Z
 ---
 
 ## Problem
@@ -132,3 +132,15 @@ auditable from run artifacts.
   remain outside that block.
 - Diff review confirms the change uses a core-owned helper and does not import
   module-owned `injection-defense` into the workflow runtime.
+
+## Completion Evidence
+
+- `src/core/workflow/steps/step-executor-agent-prompt.test.ts` covers benign,
+  malicious, and valid workflow-shaped hostile trigger payloads.
+- `src/modules/autonomy/workflows/pr-reviewer/workflow.test.ts` proves a
+  hostile GitHub PR title is inside the untrusted-content marker before review.
+- `.kota/runs/2026-05-17T03-41-52-078Z-builder-uddpzb/verification-transcript.txt`
+  captures focused tests, typecheck, and lint passing.
+- `.kota/runs/2026-05-17T03-41-52-078Z-builder-uddpzb/steps/hostile-trigger-payload.input.md`
+  shows trusted runtime facts outside the marker and hostile payload JSON
+  inside it with detector reason tags.

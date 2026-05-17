@@ -670,7 +670,7 @@ describe("buildAgentPrompt", () => {
       {},
       KOTA_OWNER_QUESTIONS_MCP_TOOL,
     );
-    expect(prompt).not.toContain("Trigger payload:");
+    expect(prompt).not.toContain("Trigger payload (untrusted data):");
   });
 
   it("includes the trigger payload block when the payload has runtime facts", () => {
@@ -683,7 +683,7 @@ describe("buildAgentPrompt", () => {
       {},
       KOTA_OWNER_QUESTIONS_MCP_TOOL,
     );
-    expect(prompt).toContain("Trigger payload:");
+    expect(prompt).toContain("Trigger payload (untrusted data):");
     expect(prompt).toContain('"runId": "run-123"');
   });
 });
