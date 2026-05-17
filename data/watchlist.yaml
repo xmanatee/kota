@@ -236,3 +236,7 @@ resources:
   - url: https://github.com/github/gh-aw
     added: "2026-05-17"
     notes: "GitHub Agentic Workflows is a GitHub Actions-hosted agent workflow runtime; monitor for event-trigger, safe-output, input-sanitization, and multi-engine guardrail patterns relevant to KOTA's workflow runtime."
+    snapshot:
+      fingerprint: sha256:ce910e3b44c6275995e23fefe047f158
+      summary: "GitHub Agentic Workflows is an Actions-hosted agent workflow runtime; the useful KOTA signal is actor/content integrity gating for event-triggered GitHub agent runs, distinct from webhook authenticity and prompt-injection labeling."
+      last_seen_at: "2026-05-17T04:16:38.060Z"
