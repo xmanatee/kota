@@ -10,9 +10,18 @@
     "action": "opened",
     "number": 42,
     "title": "Add cache-warming task to inbox-sorter",
+    "state": "open",
+    "merged": false,
     "headBranch": "kota/task/task-add-cache-warming",
     "baseBranch": "main",
-    "isFork": false
+    "headRepo": "kota-test/example",
+    "isFork": false,
+    "headSha": "abc123",
+    "sender": { "login": "maintainer", "type": "User" },
+    "prAuthor": { "login": "kota-bot", "type": "Bot" },
+    "authorAssociation": "MEMBER",
+    "actorIntegrity": "allowed",
+    "actorIntegrityReason": "author association 'MEMBER' satisfies the configured trust threshold"
   },
   "externalCallShims": ["gh"],
   "predicates": [

@@ -35,9 +35,11 @@ load-bearing honesty contract.
   fixture `initial/.kota/` trees.
 - `triggerPayload` carries the github.pull_request webhook fields
   pr-reviewer's `assess-pr` step inspects (`repo`, `action`, `number`,
-  `title`, `headBranch`, `baseBranch`, `isFork`) plus `_runId`, the
-  runtime-pinned run-directory id used by the metadata predicates so a
-  regression renaming the run dir is caught loudly without globbing.
+  `title`, `headBranch`, `baseBranch`, `isFork`, and the normalized
+  `actorIntegrity` verdict) plus the surrounding PR actor metadata and
+  `_runId`, the runtime-pinned run-directory id used by the metadata
+  predicates so a regression renaming the run dir is caught loudly
+  without globbing.
 - `externalCallShims: ["gh"]` opts in to the new fake-binary shim
   mechanism. The runner installs a Node-script shim at
   `<workingDir>/.kota/shims/gh` and prepends that directory to `PATH`

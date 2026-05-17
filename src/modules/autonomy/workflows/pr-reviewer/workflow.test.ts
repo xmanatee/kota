@@ -5,6 +5,7 @@ import { buildAgentPrompt } from "#core/workflow/steps/step-executor-agent-promp
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
+import type { GitHubPullRequestActorIntegrity } from "#modules/github-webhook/events.js";
 import prReviewerWorkflow from "./workflow.js";
 
 type PrPayload = {
@@ -15,6 +16,8 @@ type PrPayload = {
   headBranch?: string | null;
   baseBranch?: string | null;
   isFork?: boolean | null;
+  actorIntegrity?: GitHubPullRequestActorIntegrity | null;
+  actorIntegrityReason?: string | null;
 };
 
 function makeTrigger(overrides: PrPayload = {}) {
@@ -28,6 +31,12 @@ function makeTrigger(overrides: PrPayload = {}) {
       headBranch: "kota/task/task-feature-x",
       baseBranch: "main",
       isFork: false,
+      headSha: "abc123",
+      sender: { login: "maintainer", type: "User" },
+      prAuthor: { login: "kota-bot", type: "Bot" },
+      authorAssociation: "MEMBER",
+      actorIntegrity: "allowed",
+      actorIntegrityReason: "author association 'MEMBER' satisfies the configured trust threshold",
       ...overrides,
     },
   };
@@ -88,7 +97,7 @@ describe("pr-reviewer workflow — assess-pr step", () => {
     expect(result.status).toBe("success");
     expect(result.steps["assess-pr"].output).toMatchObject({ skip: true });
     expect(result.steps["assess-pr"].output).toMatchObject({
-      skipReason: expect.stringContaining("action 'closed'"),
+      skipReason: expect.stringContaining("irrelevant action 'closed'"),
     });
     expect(result.steps.review.status).toBe("skipped");
     expect(result.steps["emit-review-posted"].status).toBe("skipped");
@@ -114,7 +123,7 @@ describe("pr-reviewer workflow — assess-pr step", () => {
 
     expect(result.steps["assess-pr"].output).toMatchObject({
       skip: true,
-      skipReason: expect.stringContaining("not a kota/task/*"),
+      skipReason: expect.stringContaining("non-KOTA branch"),
     });
     expect(result.steps.review.status).toBe("skipped");
   });
@@ -139,7 +148,55 @@ describe("pr-reviewer workflow — assess-pr step", () => {
 
     expect(result.steps["assess-pr"].output).toMatchObject({
       skip: true,
-      skipReason: expect.stringContaining("fork"),
+      skipReason: expect.stringContaining("fork PR"),
+    });
+    expect(result.steps.review.status).toBe("skipped");
+  });
+
+  it("skips low-trust same-repo kota/task PRs before review", async () => {
+    const harness = new WorkflowTestHarness(prReviewerWorkflow, {
+      trigger: makeTrigger({
+        actorIntegrity: "low_trust_actor",
+        actorIntegrityReason: "author association 'FIRST_TIMER' is below the configured trust threshold",
+      }),
+    });
+
+    const result = await harness.run();
+
+    expect(result.steps["assess-pr"].output).toMatchObject({
+      skip: true,
+      skipReason: expect.stringContaining("low-trust actor"),
+    });
+    expect(result.steps.review.status).toBe("skipped");
+  });
+
+  it("skips configured blocked actors before review", async () => {
+    const harness = new WorkflowTestHarness(prReviewerWorkflow, {
+      trigger: makeTrigger({
+        actorIntegrity: "blocked_actor",
+        actorIntegrityReason: "blocked actor 'blocked-user' matched github-webhook actorIntegrity.blockedActors",
+      }),
+    });
+
+    const result = await harness.run();
+
+    expect(result.steps["assess-pr"].output).toMatchObject({
+      skip: true,
+      skipReason: expect.stringContaining("blocked actor"),
+    });
+    expect(result.steps.review.status).toBe("skipped");
+  });
+
+  it("skips when actor integrity metadata is missing", async () => {
+    const harness = new WorkflowTestHarness(prReviewerWorkflow, {
+      trigger: makeTrigger({ actorIntegrity: null, actorIntegrityReason: null }),
+    });
+
+    const result = await harness.run();
+
+    expect(result.steps["assess-pr"].output).toMatchObject({
+      skip: true,
+      skipReason: expect.stringContaining("missing actor trust metadata"),
     });
     expect(result.steps.review.status).toBe("skipped");
   });
@@ -241,6 +298,7 @@ describe("pr-reviewer workflow — assess-pr step", () => {
     expect(hostileTitle).toBeLessThan(markerEnd);
     expect(prompt).toContain('Injection screening: {"suspicious":true');
     expect(prompt).toContain('"override-phrase"');
+    expect(prompt).toContain('"actorIntegrity": "allowed"');
     expect(prompt).not.toContain("\nTrigger payload:\n```json");
   });
 });

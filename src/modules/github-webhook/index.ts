@@ -21,6 +21,12 @@ import type {
   ModuleRuntimeContext,
   RouteRegistration,
 } from "#core/modules/module-types.js";
+import {
+  type GitHubPullRequestActor,
+  type GitHubPullRequestActorIntegrity,
+  type GitHubPullRequestEventPayload,
+  githubPullRequestEvent,
+} from "./events.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -28,10 +34,22 @@ type GitHubWebhookConfig = {
   /** Webhook secret or "$ENV_VAR" reference. Required. */
   secret: string;
   /** Event types to accept. Default: ["push", "pull_request", "check_run"]. */
-  events?: string[];
+  events?: readonly string[];
+  actorIntegrity?: {
+    /** Author associations trusted for autonomous review. Defaults to OWNER, MEMBER, COLLABORATOR. */
+    trustedAuthorAssociations?: readonly string[];
+    /** GitHub logins that should never trigger autonomous review. Case-insensitive. */
+    blockedActors?: readonly string[];
+  };
 };
 
 const DEFAULT_EVENTS = ["push", "pull_request", "check_run"];
+const DEFAULT_TRUSTED_AUTHOR_ASSOCIATIONS = ["OWNER", "MEMBER", "COLLABORATOR"];
+
+type JsonObject = { [key: string]: unknown };
+type JsonMember = JsonObject[string];
+
+type ActorIntegrityConfig = NonNullable<GitHubWebhookConfig["actorIntegrity"]>;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -72,12 +90,157 @@ function verifySignature(secret: string, body: Buffer, signature: string): boole
   }
 }
 
+function objectValue(value: JsonMember): JsonObject | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as JsonObject;
+}
+
+function stringValue(value: JsonMember): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function numberValue(value: JsonMember): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function booleanValue(value: JsonMember): boolean | null {
+  return typeof value === "boolean" ? value : null;
+}
+
+function actorValue(value: JsonMember): GitHubPullRequestActor {
+  const actor = objectValue(value);
+  return {
+    login: actor ? stringValue(actor.login) : null,
+    type: actor ? stringValue(actor.type) : null,
+  };
+}
+
+function normalizeActorLogin(login: string): string {
+  return login.trim().toLowerCase();
+}
+
+function actorIntegrityConfigSets(config: ActorIntegrityConfig | undefined): {
+  blockedActors: ReadonlySet<string>;
+  trustedAssociations: ReadonlySet<string>;
+} {
+  return {
+    blockedActors: new Set(
+      (config?.blockedActors ?? [])
+        .map(normalizeActorLogin)
+        .filter((login) => login.length > 0),
+    ),
+    trustedAssociations: new Set(
+      (config?.trustedAuthorAssociations ?? DEFAULT_TRUSTED_AUTHOR_ASSOCIATIONS)
+        .map((association) => association.trim().toUpperCase())
+        .filter((association) => association.length > 0),
+    ),
+  };
+}
+
+function deriveActorIntegrity(input: {
+  sender: GitHubPullRequestActor;
+  prAuthor: GitHubPullRequestActor;
+  authorAssociation: string | null;
+  headSha: string | null;
+  config?: ActorIntegrityConfig;
+}): {
+  actorIntegrity: GitHubPullRequestActorIntegrity;
+  actorIntegrityReason: string;
+} {
+  const { blockedActors, trustedAssociations } = actorIntegrityConfigSets(input.config);
+  const blockedActor = [input.sender.login, input.prAuthor.login].find(
+    (login) => login !== null && blockedActors.has(normalizeActorLogin(login)),
+  );
+  if (blockedActor) {
+    return {
+      actorIntegrity: "blocked_actor",
+      actorIntegrityReason: `blocked actor '${blockedActor}' matched github-webhook actorIntegrity.blockedActors`,
+    };
+  }
+
+  const missing: string[] = [];
+  if (!input.sender.login) missing.push("sender.login");
+  if (!input.sender.type) missing.push("sender.type");
+  if (!input.prAuthor.login) missing.push("pull_request.user.login");
+  if (!input.prAuthor.type) missing.push("pull_request.user.type");
+  if (!input.authorAssociation) missing.push("pull_request.author_association");
+  if (!input.headSha) missing.push("pull_request.head.sha");
+  if (missing.length > 0) {
+    return {
+      actorIntegrity: "missing_metadata",
+      actorIntegrityReason: `missing actor trust metadata: ${missing.join(", ")}`,
+    };
+  }
+
+  const authorAssociation = input.authorAssociation;
+  if (authorAssociation === null) {
+    throw new Error("authorAssociation must be present after missing metadata check");
+  }
+  const association = authorAssociation.toUpperCase();
+  if (!trustedAssociations.has(association)) {
+    return {
+      actorIntegrity: "low_trust_actor",
+      actorIntegrityReason: `author association '${authorAssociation}' is below the configured trust threshold`,
+    };
+  }
+
+  return {
+    actorIntegrity: "allowed",
+    actorIntegrityReason: `author association '${authorAssociation}' satisfies the configured trust threshold`,
+  };
+}
+
+function normalizePullRequestPayload(
+  raw: JsonObject,
+  actorIntegrityConfig: ActorIntegrityConfig | undefined,
+): GitHubPullRequestEventPayload {
+  const repository = objectValue(raw.repository);
+  const repo = repository ? stringValue(repository.full_name) : null;
+  const pr = objectValue(raw.pull_request);
+  const head = pr ? objectValue(pr.head) : null;
+  const base = pr ? objectValue(pr.base) : null;
+  const headRepoObject = head ? objectValue(head.repo) : null;
+  const headRepo = headRepoObject ? stringValue(headRepoObject.full_name) : null;
+  const sender = actorValue(raw.sender);
+  const prAuthor = actorValue(pr ? pr.user : null);
+  const authorAssociation = pr ? stringValue(pr.author_association) : null;
+  const headSha = head ? stringValue(head.sha) : null;
+  const integrity = deriveActorIntegrity({
+    sender,
+    prAuthor,
+    authorAssociation,
+    headSha,
+    config: actorIntegrityConfig,
+  });
+
+  return {
+    repo,
+    action: stringValue(raw.action),
+    number: numberValue(raw.number),
+    title: pr ? stringValue(pr.title) : null,
+    state: pr ? stringValue(pr.state) : null,
+    merged: pr ? booleanValue(pr.merged) : null,
+    headBranch: head ? stringValue(head.ref) : null,
+    baseBranch: base ? stringValue(base.ref) : null,
+    headRepo,
+    isFork: headRepo !== null && repo !== null ? headRepo !== repo : null,
+    headSha,
+    sender,
+    prAuthor,
+    authorAssociation,
+    actorIntegrity: integrity.actorIntegrity,
+    actorIntegrityReason: integrity.actorIntegrityReason,
+  };
+}
+
 function normalizePayload(
   eventType: string,
-  raw: Record<string, unknown>,
-): Record<string, unknown> {
-  const repo =
-    (raw.repository as Record<string, unknown> | undefined)?.full_name ?? null;
+  raw: JsonObject,
+): JsonObject {
+  const repository = objectValue(raw.repository);
+  const repo = repository ? stringValue(repository.full_name) : null;
 
   if (eventType === "push") {
     const ref = typeof raw.ref === "string" ? raw.ref : null;
@@ -86,37 +249,18 @@ function normalizePayload(
       ref,
       branch: ref ? ref.replace("refs/heads/", "") : null,
       commits: Array.isArray(raw.commits) ? raw.commits.length : 0,
-      pusher: (raw.pusher as Record<string, unknown> | undefined)?.name ?? null,
-    };
-  }
-
-  if (eventType === "pull_request") {
-    const pr = raw.pull_request as Record<string, unknown> | undefined;
-    const headRepo =
-      ((pr?.head as Record<string, unknown> | undefined)?.repo as Record<string, unknown> | undefined)
-        ?.full_name ?? null;
-    return {
-      repo,
-      action: raw.action ?? null,
-      number: raw.number ?? null,
-      title: pr?.title ?? null,
-      state: pr?.state ?? null,
-      merged: pr?.merged ?? null,
-      headBranch: (pr?.head as Record<string, unknown> | undefined)?.ref ?? null,
-      baseBranch: (pr?.base as Record<string, unknown> | undefined)?.ref ?? null,
-      headRepo,
-      isFork: typeof headRepo === "string" && typeof repo === "string" ? headRepo !== repo : null,
+      pusher: stringValue(objectValue(raw.pusher)?.name),
     };
   }
 
   if (eventType === "check_run") {
-    const checkRun = raw.check_run as Record<string, unknown> | undefined;
+    const checkRun = objectValue(raw.check_run);
     return {
       repo,
-      action: raw.action ?? null,
-      name: checkRun?.name ?? null,
-      status: checkRun?.status ?? null,
-      conclusion: checkRun?.conclusion ?? null,
+      action: stringValue(raw.action),
+      name: checkRun ? stringValue(checkRun.name) : null,
+      status: checkRun ? stringValue(checkRun.status) : null,
+      conclusion: checkRun ? stringValue(checkRun.conclusion) : null,
     };
   }
 
@@ -128,6 +272,7 @@ function normalizePayload(
 function makeWebhookHandler(
   secret: string,
   enabledEvents: Set<string>,
+  actorIntegrityConfig: ActorIntegrityConfig | undefined,
   ctx: ModuleContext,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async (req, res) => {
@@ -162,17 +307,24 @@ function makeWebhookHandler(
       return;
     }
 
-    let rawPayload: Record<string, unknown>;
+    let rawPayload: JsonObject;
     try {
-      rawPayload = body.length ? (JSON.parse(body.toString("utf-8")) as Record<string, unknown>) : {};
+      rawPayload = body.length ? (JSON.parse(body.toString("utf-8")) as JsonObject) : {};
     } catch {
       res.writeHead(400, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Invalid JSON body" }));
       return;
     }
 
-    const payload = normalizePayload(eventType, rawPayload);
-    ctx.events.emitExternal(`github.${eventType}`, payload);
+    const payload =
+      eventType === "pull_request"
+        ? normalizePullRequestPayload(rawPayload, actorIntegrityConfig)
+        : normalizePayload(eventType, rawPayload);
+    if (eventType === "pull_request") {
+      ctx.events.emit(githubPullRequestEvent, payload as GitHubPullRequestEventPayload);
+    } else {
+      ctx.events.emitExternal(`github.${eventType}`, payload);
+    }
     ctx.log.info(`github-webhook: emitted github.${eventType}`, { repo: payload.repo });
 
     res.writeHead(200, { "Content-Type": "application/json" });
@@ -194,6 +346,7 @@ const githubWebhookModule: KotaModule = {
   version: "1.0.0",
   description:
     "GitHub webhook receiver — validates HMAC signatures and emits typed github.* bus events",
+  events: [githubPullRequestEvent],
 
   routes: (ctx: ModuleContext): RouteRegistration[] => {
     const secret = resolveActiveSecret(ctx);
@@ -207,7 +360,7 @@ const githubWebhookModule: KotaModule = {
         method: "POST",
         path: "/api/webhooks/github",
         bypassAuth: true,
-        handler: makeWebhookHandler(secret, enabledEvents, ctx),
+        handler: makeWebhookHandler(secret, enabledEvents, config?.actorIntegrity, ctx),
       },
     ];
   },

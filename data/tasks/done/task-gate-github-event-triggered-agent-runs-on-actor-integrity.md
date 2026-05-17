@@ -1,12 +1,12 @@
 ---
 id: task-gate-github-event-triggered-agent-runs-on-actor-integrity
 title: Gate GitHub event-triggered agent runs on actor integrity
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add normalized actor and trust metadata to GitHub webhook events, then require event-triggered agent workflows such as pr-reviewer to prove the event came from an allowed repository actor before exposing PR content to an autonomous review step.
 created_at: 2026-05-17T04:14:04Z
-updated_at: 2026-05-17T04:14:04Z
+updated_at: 2026-05-17T04:26:20Z
 ---
 
 ## Problem
@@ -146,3 +146,20 @@ pnpm test src/modules/github-webhook/github-webhook.test.ts src/modules/autonomy
 - A fixture or run artifact showing an allowed actor event still reaches the
   review step with the trigger payload wrapped in the existing untrusted-content
   marker.
+
+## Completion Evidence
+
+- `src/modules/github-webhook/github-webhook.test.ts` covers the typed
+  `github.pull_request` event declaration, normalized sender/PR-author
+  metadata, head SHA, author association, and the allowed, missing, low-trust,
+  and blocked actor-integrity states.
+- `src/modules/autonomy/workflows/pr-reviewer/workflow.test.ts` covers distinct
+  skip reasons for irrelevant action, non-KOTA branch, fork PR, missing actor
+  metadata, blocked actor, and low-trust actor, plus the allowed-event
+  untrusted-content prompt marker.
+- `.kota/runs/2026-05-17T04-16-44-246Z-builder-074q56/focused-test-transcript.txt`
+  captures the focused GitHub webhook and `pr-reviewer` test run passing.
+- `.kota/runs/2026-05-17T04-16-44-246Z-builder-074q56/low-trust-skip-artifact.json`
+  records the same-repo `kota/task/*` low-trust skip fixture.
+- `.kota/runs/2026-05-17T04-16-44-246Z-builder-074q56/allowed-untrusted-prompt-artifact.json`
+  records the allowed actor prompt-boundary fixture.

@@ -6,6 +6,7 @@ import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
+import { githubPullRequestEvent } from "./events.js";
 import githubWebhookModule from "./index.js";
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
@@ -118,13 +119,36 @@ describe("githubWebhookModule metadata", () => {
     expect(githubWebhookModule.description).toBeTruthy();
   });
 
-  it("contributes only routes and a one-time onLoad warning", () => {
+  it("contributes routes, the pull-request event declaration, and a one-time onLoad warning", () => {
     expect(githubWebhookModule.tools).toBeUndefined();
     expect(githubWebhookModule.commands).toBeUndefined();
     expect(githubWebhookModule.channels).toBeUndefined();
     expect(githubWebhookModule.workflows).toBeUndefined();
+    expect(githubWebhookModule.events).toEqual([githubPullRequestEvent]);
     expect(githubWebhookModule.onUnload).toBeUndefined();
     expect(typeof githubWebhookModule.onLoad).toBe("function");
+  });
+
+  it("declares every pull-request field required for actor-integrity gating", () => {
+    expect(githubPullRequestEvent.name).toBe("github.pull_request");
+    expect(githubPullRequestEvent.fields).toEqual([
+      "repo",
+      "action",
+      "number",
+      "title",
+      "state",
+      "merged",
+      "headBranch",
+      "baseBranch",
+      "headRepo",
+      "isFork",
+      "headSha",
+      "sender",
+      "prAuthor",
+      "authorAssociation",
+      "actorIntegrity",
+      "actorIntegrityReason",
+    ]);
   });
 
   it("sets bypassAuth:true on its route so GitHub deliveries work without KOTA auth", () => {
@@ -286,11 +310,14 @@ describe("githubWebhookModule handler — event emission", () => {
       action: "opened",
       number: 42,
       repository: { full_name: "owner/repo" },
+      sender: { login: "maintainer", type: "User" },
       pull_request: {
         title: "Fix bug",
         state: "open",
         merged: false,
-        head: { ref: "feature-branch", repo: { full_name: "owner/repo" } },
+        user: { login: "kota-bot", type: "Bot" },
+        author_association: "MEMBER",
+        head: { ref: "feature-branch", sha: "abc123", repo: { full_name: "owner/repo" } },
         base: { ref: "main" },
       },
     });
@@ -302,15 +329,122 @@ describe("githubWebhookModule handler — event emission", () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(received[0]).toMatchObject({
+    expect(received[0]).toEqual({
       repo: "owner/repo",
       action: "opened",
       number: 42,
       title: "Fix bug",
+      state: "open",
+      merged: false,
       headBranch: "feature-branch",
       baseBranch: "main",
       headRepo: "owner/repo",
       isFork: false,
+      headSha: "abc123",
+      sender: { login: "maintainer", type: "User" },
+      prAuthor: { login: "kota-bot", type: "Bot" },
+      authorAssociation: "MEMBER",
+      actorIntegrity: "allowed",
+      actorIntegrityReason: "author association 'MEMBER' satisfies the configured trust threshold",
+    });
+  });
+
+  it("marks pull_request payloads with missing actor trust metadata", async () => {
+    const bus = new EventBus();
+    const received: Record<string, unknown>[] = [];
+    bus.on("github.pull_request", (p) => received.push(p as Record<string, unknown>));
+
+    const body = JSON.stringify({
+      action: "opened",
+      number: 42,
+      repository: { full_name: "owner/repo" },
+      pull_request: {
+        title: "Fix bug",
+        state: "open",
+        merged: false,
+        head: { ref: "feature-branch", repo: { full_name: "owner/repo" } },
+        base: { ref: "main" },
+      },
+    });
+
+    const ctx = makeStubCtx(bus, { secret: SECRET });
+    await invokeHandler(githubWebhookModule, ctx, body, {
+      "x-hub-signature-256": sign(SECRET, body),
+      "x-github-event": "pull_request",
+    });
+
+    expect(received[0]).toMatchObject({
+      actorIntegrity: "missing_metadata",
+      actorIntegrityReason: expect.stringContaining("sender.login"),
+    });
+  });
+
+  it("marks pull_request payloads from low-trust authors", async () => {
+    const bus = new EventBus();
+    const received: Record<string, unknown>[] = [];
+    bus.on("github.pull_request", (p) => received.push(p as Record<string, unknown>));
+
+    const body = JSON.stringify({
+      action: "opened",
+      number: 42,
+      repository: { full_name: "owner/repo" },
+      sender: { login: "new-contributor", type: "User" },
+      pull_request: {
+        title: "Fix bug",
+        state: "open",
+        merged: false,
+        user: { login: "new-contributor", type: "User" },
+        author_association: "FIRST_TIME_CONTRIBUTOR",
+        head: { ref: "kota/task/task-from-new-contributor", sha: "abc123", repo: { full_name: "owner/repo" } },
+        base: { ref: "main" },
+      },
+    });
+
+    const ctx = makeStubCtx(bus, { secret: SECRET });
+    await invokeHandler(githubWebhookModule, ctx, body, {
+      "x-hub-signature-256": sign(SECRET, body),
+      "x-github-event": "pull_request",
+    });
+
+    expect(received[0]).toMatchObject({
+      actorIntegrity: "low_trust_actor",
+      actorIntegrityReason: "author association 'FIRST_TIME_CONTRIBUTOR' is below the configured trust threshold",
+    });
+  });
+
+  it("marks configured blocked pull_request actors before trust-threshold checks", async () => {
+    const bus = new EventBus();
+    const received: Record<string, unknown>[] = [];
+    bus.on("github.pull_request", (p) => received.push(p as Record<string, unknown>));
+
+    const body = JSON.stringify({
+      action: "opened",
+      number: 42,
+      repository: { full_name: "owner/repo" },
+      sender: { login: "blocked-user", type: "User" },
+      pull_request: {
+        title: "Fix bug",
+        state: "open",
+        merged: false,
+        user: { login: "blocked-user", type: "User" },
+        author_association: "MEMBER",
+        head: { ref: "kota/task/task-from-blocked-user", sha: "abc123", repo: { full_name: "owner/repo" } },
+        base: { ref: "main" },
+      },
+    });
+
+    const ctx = makeStubCtx(bus, {
+      secret: SECRET,
+      actorIntegrity: { blockedActors: ["BLOCKED-USER"] },
+    });
+    await invokeHandler(githubWebhookModule, ctx, body, {
+      "x-hub-signature-256": sign(SECRET, body),
+      "x-github-event": "pull_request",
+    });
+
+    expect(received[0]).toMatchObject({
+      actorIntegrity: "blocked_actor",
+      actorIntegrityReason: "blocked actor 'blocked-user' matched github-webhook actorIntegrity.blockedActors",
     });
   });
 

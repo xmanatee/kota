@@ -8,6 +8,7 @@ import {
   AUTONOMY_DISALLOWED_TOOLS,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
+import type { GitHubPullRequestEventPayload } from "#modules/github-webhook/events.js";
 
 export const agent: AgentDef = {
   name: "pr-reviewer",
@@ -20,15 +21,7 @@ export const agent: AgentDef = {
   writeScope: [],
 };
 
-type PrWebhookPayload = {
-  repo?: unknown;
-  action?: unknown;
-  number?: unknown;
-  title?: unknown;
-  headBranch?: unknown;
-  baseBranch?: unknown;
-  isFork?: unknown;
-};
+type PrWebhookPayload = Partial<GitHubPullRequestEventPayload>;
 
 export type PrReviewAssessment =
   | { skip: true; skipReason: string }
@@ -55,6 +48,22 @@ function skip(skipReason: string): PrReviewAssessment {
   return { skip: true, skipReason };
 }
 
+function assessActorIntegrity(p: PrWebhookPayload): string | null {
+  if (p.actorIntegrity === "allowed") {
+    return null;
+  }
+  if (p.actorIntegrity === "blocked_actor") {
+    return `blocked actor: ${p.actorIntegrityReason ?? "webhook payload marked the actor as blocked"}`;
+  }
+  if (p.actorIntegrity === "low_trust_actor") {
+    return `low-trust actor: ${p.actorIntegrityReason ?? "webhook payload did not meet the trust threshold"}`;
+  }
+  if (p.actorIntegrity === "missing_metadata") {
+    return `missing actor trust metadata: ${p.actorIntegrityReason ?? "webhook payload omitted actor integrity fields"}`;
+  }
+  return "missing actor trust metadata: webhook payload omitted actorIntegrity";
+}
+
 const assessPr = typedCodeStep<PrReviewAssessment>({
   id: "assess-pr",
   type: "code",
@@ -69,16 +78,20 @@ const assessPr = typedCodeStep<PrReviewAssessment>({
     const p = trigger.payload as PrWebhookPayload;
 
     if (!isNonEmptyString(p.action) || !REVIEWABLE_ACTIONS.has(p.action)) {
-      return skip(`action '${String(p.action)}' is not reviewable`);
+      return skip(`irrelevant action '${String(p.action)}' is not reviewable`);
     }
     if (!isKotaTaskBranch(p.headBranch)) {
-      return skip(`head branch '${String(p.headBranch)}' is not a kota/task/* branch`);
+      return skip(`non-KOTA branch '${String(p.headBranch)}' is not a kota/task/* branch`);
     }
     if (p.isFork === true) {
-      return skip("PR is from a fork — skipping automated review");
+      return skip("fork PR is not eligible for automated review");
     }
     if (p.isFork !== false) {
       return skip("missing explicit fork status in webhook payload");
+    }
+    const actorIntegritySkipReason = assessActorIntegrity(p);
+    if (actorIntegritySkipReason) {
+      return skip(actorIntegritySkipReason);
     }
     if (!isNonEmptyString(p.repo) || typeof p.number !== "number") {
       return skip("missing repo or PR number in webhook payload");
