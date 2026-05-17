@@ -97,9 +97,9 @@ resources:
   - url: https://github.com/langchain-ai/langgraph
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:e5274ec59e494cd76a89952d867fff16
-      summary: "LangGraph is a Python orchestration framework for stateful agents that models runs as Pregel-style graphs with durable execution, automatic resume-through-failure, first-class human-in-the-loop state editing, and LangSmith deployment tooling."
-      last_seen_at: "2026-04-20T09:13:55.826Z"
+      fingerprint: sha256:a0a7f3c64298f7ab5d103d68aa95ae53
+      summary: "LangGraph 1.2 separates hard run timeouts from progress-resetting idle timeouts; KOTA's fresh local gap is a core workflow idle-progress timeout rail rather than another graph orchestration primitive."
+      last_seen_at: "2026-05-17T05:27:39.857Z"
   - url: https://github.com/huggingface/smolagents
     added: "2026-04-19"
     snapshot:
