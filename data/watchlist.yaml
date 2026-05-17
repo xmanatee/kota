@@ -31,15 +31,15 @@ resources:
   - url: https://github.com/anthropics/claude-code
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:4878d66de543d3446efd24760c434b80
-      summary: "Claude Code's recent release stream continues to harden background agents, hooks, MCP behavior, and tool-event observability; KOTA's remaining local gap is structured per-call tool telemetry rather than another prompt or workflow primitive."
-      last_seen_at: "2026-05-16T23:26:50.039Z"
+      fingerprint: sha256:fed2c8331caa195de4af66e0dd8a3dbe
+      summary: "Claude Code releases now emphasize long-lived background-session configuration preservation and typed hook output; KOTA's fresh local gap is making daemon config reloads typed observable runtime events rather than caller-only responses."
+      last_seen_at: "2026-05-17T03:06:13.269Z"
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:444aaaa94bc598030856ac200bcb9fda
-      summary: "Codex release notes reinforce bounded MCP/tool output handling; KOTA's next local gap is pruning structured tool-result side channels, not adding another telemetry surface."
-      last_seen_at: "2026-05-17T00:01:46.600Z"
+      fingerprint: sha256:f1df94ff367f60428581ce2000c45286
+      summary: "Codex alpha releases are still active, but the visible release page exposed no new detailed KOTA primitive beyond already-completed MCP/tool-result observability work."
+      last_seen_at: "2026-05-17T03:06:13.269Z"
   - url: https://github.com/google-gemini/gemini-cli
     added: "2026-04-19"
     snapshot:
@@ -55,9 +55,9 @@ resources:
   - url: https://github.com/block/goose
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:c192ac59b694ec14e8d4857d159c8c52
-      summary: "Goose is leaning into protocol messages over artifact heuristics; KOTA has a matching local gap in duplicated tool-observation summarizers in the core loop."
-      last_seen_at: "2026-05-16T02:53:47.679Z"
+      fingerprint: sha256:f57f69134fec08536609b1a97700245f
+      summary: "Goose latest release is packaging-focused; no new KOTA task is opened from it."
+      last_seen_at: "2026-05-17T03:06:13.269Z"
   - url: https://github.com/All-Hands-AI/OpenHands
     added: "2026-04-19"
     snapshot:
@@ -202,9 +202,9 @@ resources:
     added: "2026-05-02"
     notes: "LiveKit Agents is a real-time multi-modal voice/agent orchestration framework — peer to KOTA's voice module surface. Owner-flagged 2026-05-02 in inbox capture as relevant to voice-stack reevaluation. Snapshot and distill on the next explorer cycle."
     snapshot:
-      fingerprint: sha256:43dd79178adf37e3418c9da56f8d5d68
-      summary: "LiveKit Agents reinforces the same observability direction: latency, usage, and turn-level telemetry should be reconstructible from runtime artifacts."
-      last_seen_at: "2026-05-16T23:26:50.039Z"
+      fingerprint: sha256:9d2a528340e2f412b95f77f1afa4a963
+      summary: "LiveKit Agents reinforces config-update observability through OTLP session logs; KOTA should emit daemon config reload events into its bus/event-ring/tracing path."
+      last_seen_at: "2026-05-17T03:06:13.269Z"
   - url: https://github.com/abhigyanpatwari/GitNexus
     added: "2026-05-02"
     notes: "GitNexus is a knowledge-base project owner-flagged 2026-05-02 as potentially relevant to KOTA's knowledge / memory subsystems. Snapshot and distill on the next explorer cycle to determine whether any primitive maps onto KOTA's existing knowledge module."
