@@ -73,9 +73,9 @@ resources:
   - url: https://github.com/princeton-nlp/SWE-bench
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:7d50cc970580558044a2dee341510f2c
-      summary: "SWE-bench scores LLM patches against real GitHub issues using a Docker-based reproducible harness with structured prediction inputs and standardized result outputs; supports local Docker, Modal, or sb-cli execution and recommends 0.75*cpu workers."
-      last_seen_at: "2026-04-19T22:21:08.572Z"
+      fingerprint: sha256:7a8177b66c7880e71f52c4ac5f774869
+      summary: "SWE-bench still reinforces Docker-backed reproducible evaluation and explicit resource requirements; KOTA's fresh local gap is binding eval-harness ResourceProfile fields to actual executor isolation/preflight rather than only recording caller-supplied metadata."
+      last_seen_at: "2026-05-17T06:28:45.237Z"
   - url: https://github.com/letta-ai/letta
     added: "2026-04-19"
     snapshot:
