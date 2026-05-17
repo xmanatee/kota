@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type {
   KotaMessage,
+  KotaToolResultBlock,
   KotaToolResultBlockContent,
 } from "#core/agent-harness/message-protocol.js";
 import { buildToolCallMap, generateSummary, pruneMessages } from "./message-pruning.js";
@@ -134,6 +135,50 @@ describe("pruneMessages", () => {
     expect(resultMsg.content[0].content).toContain("src/big.ts");
   });
 
+  it("prunes enriched text results as one bounded envelope", () => {
+    const secretPayload = "secret structured payload";
+    const messages: Message[] = [
+      toolUse("file_read", { path: "src/rich.ts" }, "t1"),
+      {
+        role: "user",
+        content: [{
+          type: "tool_result",
+          tool_use_id: "t1",
+          content: [
+            { type: "text", text: LARGE_CONTENT, _meta: { blockCache: "block-secret" } },
+            {
+              type: "mcp_content",
+              content: {
+                type: "resource",
+                resource: {
+                  uri: "file:///src/rich.ts",
+                  text: "hidden resource payload",
+                },
+              },
+            },
+          ],
+          structuredContent: { payload: secretPayload },
+          _meta: { resultCache: "result-secret" },
+        }],
+      },
+      ...Array.from({ length: 6 }, (_, i) => ({
+        role: "user" as const,
+        content: `msg-${i}`,
+      })),
+    ];
+
+    const stats = pruneMessages(messages, { keepRecent: 4, minLength: 100 });
+    expect(stats.prunedCount).toBe(1);
+
+    const result = (messages[1].content as KotaToolResultBlock[])[0];
+    expect(result.content).toContain("Previously read");
+    expect(result.content).toContain("src/rich.ts");
+    expect("structuredContent" in result).toBe(false);
+    expect("_meta" in result).toBe(false);
+    expect(JSON.stringify(result)).not.toContain(secretPayload);
+    expect(JSON.stringify(result)).not.toContain("hidden resource payload");
+  });
+
   it("does not prune error results", () => {
     const messages: Message[] = [
       toolUse("file_read", { path: "missing.ts" }, "t1"),
@@ -190,6 +235,34 @@ describe("pruneMessages", () => {
     ];
     const stats = pruneMessages(messages, { keepRecent: 4, minLength: 100 });
     expect(stats.prunedCount).toBe(0);
+  });
+
+  it("preserves recent enriched tool results", () => {
+    const richContent: KotaToolResultBlockContent = [
+      { type: "text", text: LARGE_CONTENT, _meta: { blockCache: "b1" } },
+    ];
+    const messages: Message[] = [
+      { role: "user", content: "old" },
+      { role: "assistant", content: "old reply" },
+      toolUse("file_read", { path: "recent-rich.ts" }, "t1"),
+      {
+        role: "user",
+        content: [{
+          type: "tool_result",
+          tool_use_id: "t1",
+          content: richContent,
+          structuredContent: { rows: 2 },
+          _meta: { resultCache: "r1" },
+        }],
+      },
+    ];
+
+    const stats = pruneMessages(messages, { keepRecent: 2, minLength: 100 });
+    expect(stats.prunedCount).toBe(0);
+    const result = (messages[3].content as KotaToolResultBlock[])[0];
+    expect(result.content).toBe(richContent);
+    expect(result.structuredContent).toEqual({ rows: 2 });
+    expect(result._meta).toEqual({ resultCache: "r1" });
   });
 
   it("prunes multiple results and reports correct stats", () => {
@@ -304,8 +377,12 @@ describe("pruneMessages", () => {
 
     const stats = pruneMessages(messages, { keepRecent: 4, minLength: 100 });
     expect(stats.prunedCount).toBe(1);
-    const resultMsg = messages[1] as { role: string; content: Array<{ content: string }> };
-    expect(resultMsg.content[0].content).toContain("Previously viewed image");
+    const result = (messages[1].content as KotaToolResultBlock[])[0];
+    expect(result.content).toContain("Previously viewed image");
+    expect("structuredContent" in result).toBe(false);
+    expect("_meta" in result).toBe(false);
+    expect(JSON.stringify(result)).not.toContain("def");
+    expect(JSON.stringify(result)).not.toContain("r1");
   });
 
   it("handles mixed pruneable and non-pruneable in same message", () => {

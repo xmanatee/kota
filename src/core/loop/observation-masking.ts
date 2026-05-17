@@ -1,6 +1,7 @@
 import type { KotaMessage } from "#core/agent-harness/message-protocol.js";
 import {
   buildToolCallMap,
+  compactToolResultEnvelope,
   extractToolResultText,
   formatMaskedToolObservation,
   hasToolResultImageContent,
@@ -75,7 +76,7 @@ export function maskObservations(
         const placeholder = toolInfo
           ? formatMaskedToolObservation(toolInfo.name, toolInfo.input, !!tr.is_error)
           : `${MASKED_OBSERVATION_PREFIX} image]`;
-        tr.content = placeholder;
+        compactToolResultEnvelope(tr, placeholder);
         maskedCount++;
         charsSaved += 5000; // Estimate for image tokens
         continue;
@@ -92,7 +93,7 @@ export function maskObservations(
       const saved = text.length - placeholder.length;
       if (saved <= 0) continue;
 
-      tr.content = placeholder;
+      compactToolResultEnvelope(tr, placeholder);
       maskedCount++;
       charsSaved += saved;
     }

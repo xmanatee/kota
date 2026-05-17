@@ -1,6 +1,7 @@
 import type { KotaMessage } from "#core/agent-harness/message-protocol.js";
 import {
   buildToolCallMap,
+  compactToolResultEnvelope,
   extractToolResultText,
   formatPrunedImageObservation,
   formatPrunedToolObservation,
@@ -79,7 +80,7 @@ export function pruneMessages(messages: Message[], options?: PruneOptions): Prun
         const toolInfo = toolCallMap.get(tr.tool_use_id);
         const summary = formatPrunedImageObservation(toolInfo);
         const estimatedSaved = 5000; // Images consume ~1000+ tokens; estimate char savings
-        tr.content = summary;
+        compactToolResultEnvelope(tr, summary);
         prunedCount++;
         charsSaved += estimatedSaved;
         continue;
@@ -96,7 +97,7 @@ export function pruneMessages(messages: Message[], options?: PruneOptions): Prun
       const summary = formatPrunedToolObservation(toolInfo.name, toolInfo.input, textContent);
       const saved = textContent.length - summary.length;
 
-      tr.content = summary;
+      compactToolResultEnvelope(tr, summary);
       prunedCount++;
       charsSaved += saved;
     }

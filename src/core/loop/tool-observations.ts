@@ -75,6 +75,15 @@ export function hasToolResultImageContent(result: KotaToolResultBlock): boolean 
   );
 }
 
+export function compactToolResultEnvelope(
+  result: KotaToolResultBlock,
+  replacementContent: string,
+): void {
+  result.content = replacementContent;
+  delete result.structuredContent;
+  delete result._meta;
+}
+
 export function isMaskedToolObservation(result: KotaToolResultBlock): boolean {
   return extractToolResultText(result).startsWith(MASKED_OBSERVATION_PREFIX);
 }

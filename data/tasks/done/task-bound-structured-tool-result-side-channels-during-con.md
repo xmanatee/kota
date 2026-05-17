@@ -1,12 +1,12 @@
 ---
 id: task-bound-structured-tool-result-side-channels-during-con
 title: Bound structured tool-result side channels during context pruning
-status: ready
+status: done
 priority: p2
 area: core
 summary: When old tool observations are masked or pruned, clear or bound structuredContent and _meta side channels too so rich MCP/tool results cannot keep large payloads in context after their visible content was replaced.
 created_at: 2026-05-16T23:59:40Z
-updated_at: 2026-05-16T23:59:40Z
+updated_at: 2026-05-17T00:07:27Z
 ---
 
 ## Problem

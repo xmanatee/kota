@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { KotaMessage } from "#core/agent-harness/message-protocol.js";
+import type {
+  KotaMessage,
+  KotaToolResultBlock,
+  KotaToolResultBlockContent,
+} from "#core/agent-harness/message-protocol.js";
 import {
   generatePlaceholder,
   maskObservations,
@@ -225,6 +229,40 @@ describe("maskObservations", () => {
     expect(stats.charsSaved).toBe(5000);
   });
 
+  it("masks enriched image-bearing results as one bounded envelope", () => {
+    const richContent: KotaToolResultBlockContent = [
+      { type: "image", source: { type: "base64", media_type: "image/png", data: "abc" } },
+      {
+        type: "mcp_content",
+        content: { type: "audio", data: "secret-audio", mimeType: "audio/wav" },
+      },
+    ];
+    const messages: Message[] = [
+      toolUse("t1", "screenshot", { path: "/screenshot.png" }),
+      {
+        role: "user",
+        content: [{
+          type: "tool_result",
+          tool_use_id: "t1",
+          content: richContent,
+          structuredContent: { objects: 2 },
+          _meta: { resultCache: "image-cache" },
+        }],
+      },
+      textMsg("user", "recent"),
+      textMsg("assistant", "ok"),
+    ];
+
+    const stats = maskObservations(messages, 2);
+    expect(stats.maskedCount).toBe(1);
+    const result = (messages[1].content as KotaToolResultBlock[])[0];
+    expect(result.content).toBe("[Observed: screenshot]");
+    expect("structuredContent" in result).toBe(false);
+    expect("_meta" in result).toBe(false);
+    expect(JSON.stringify(result)).not.toContain("secret-audio");
+    expect(JSON.stringify(result)).not.toContain("image-cache");
+  });
+
   it("handles multiple tool results in one user message", () => {
     const messages: Message[] = [
       {
@@ -312,6 +350,7 @@ describe("maskObservations", () => {
   });
 
   it("masks enriched tool results while preserving placeholder semantics", () => {
+    const secretPayload = "secret structured rows";
     const messages: Message[] = [
       toolUse("t1", "web_fetch", { url: "https://example.com/data" }),
       {
@@ -326,7 +365,7 @@ describe("maskObservations", () => {
               content: { type: "audio", data: "abc", mimeType: "audio/wav" },
             },
           ],
-          structuredContent: { rows: 2 },
+          structuredContent: { rows: 2, payload: secretPayload },
           _meta: { resultCache: "r1" },
         }],
       },
@@ -336,8 +375,40 @@ describe("maskObservations", () => {
 
     const stats = maskObservations(messages, 2);
     expect(stats.maskedCount).toBe(1);
-    const result = (messages[1] as { content: Array<{ content: string }> }).content[0];
+    const result = (messages[1].content as KotaToolResultBlock[])[0];
     expect(result.content).toContain("[Observed: fetched https://example.com/data]");
+    expect("structuredContent" in result).toBe(false);
+    expect("_meta" in result).toBe(false);
+    expect(JSON.stringify(result)).not.toContain(secretPayload);
+    expect(JSON.stringify(result)).not.toContain("blockCache");
+  });
+
+  it("preserves recent enriched tool results", () => {
+    const richContent: KotaToolResultBlockContent = [
+      { type: "text", text: filler(500), _meta: { blockCache: "b1" } },
+    ];
+    const messages: Message[] = [
+      textMsg("user", "old"),
+      textMsg("assistant", "old reply"),
+      toolUse("t1", "web_fetch", { url: "https://example.com/recent" }),
+      {
+        role: "user",
+        content: [{
+          type: "tool_result",
+          tool_use_id: "t1",
+          content: richContent,
+          structuredContent: { rows: 2 },
+          _meta: { resultCache: "r1" },
+        }],
+      },
+    ];
+
+    const stats = maskObservations(messages, 2);
+    expect(stats.maskedCount).toBe(0);
+    const result = (messages[3].content as KotaToolResultBlock[])[0];
+    expect(result.content).toBe(richContent);
+    expect(result.structuredContent).toEqual({ rows: 2 });
+    expect(result._meta).toEqual({ resultCache: "r1" });
   });
 
   it("does not mask when placeholder would be larger than content", () => {
