@@ -1,12 +1,12 @@
 ---
 id: task-route-remote-mcp-input-required-results-through-operator-surface
 title: Route remote MCP input_required results through an existing operator surface
-status: backlog
+status: ready
 priority: p3
 area: core
 summary: Add safe runtime context so remote MCP input_required tool results can be answered through an existing operator or approval path instead of returning the explicit unsupported error.
 created_at: 2026-05-17T02:28:21Z
-updated_at: 2026-05-17T02:28:21Z
+updated_at: 2026-05-17T02:43:09.378Z
 ---
 
 ## Problem
