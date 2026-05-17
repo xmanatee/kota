@@ -142,6 +142,177 @@ describe("McpManager", () => {
     expect(manager.getToolCount()).toBe(0);
   }, 10_000);
 
+  it("exposes remote output schemas and accepts matching structuredContent", async () => {
+    const manager = new McpManager();
+    const outputSchema = {
+      type: "object",
+      properties: {
+        ok: { type: "boolean" },
+        count: { type: "number" },
+      },
+      required: ["ok", "count"],
+      additionalProperties: false,
+    };
+    const server = `
+      const rl = require("readline").createInterface({ input: process.stdin });
+      rl.on("line", (line) => {
+        let msg;
+        try { msg = JSON.parse(line); } catch { return; }
+        if (msg.method === "initialize") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            protocolVersion: "2024-11-05", capabilities: {},
+          }}) + "\\n");
+        } else if (msg.method === "tools/list") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            tools: [{
+              name: "structured",
+              description: "Structured response",
+              inputSchema: { type: "object" },
+              outputSchema: ${JSON.stringify(outputSchema)},
+            }],
+          }}) + "\\n");
+        } else if (msg.method === "tools/call" && msg.params.name === "structured") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            content: [
+              {
+                type: "text",
+                text: "visible",
+                annotations: { audience: ["assistant"], priority: 0.8 },
+                _meta: { blockCache: "b1" },
+              },
+              { type: "image", data: "abc", mimeType: "image/png" },
+            ],
+            structuredContent: { ok: true, count: 2 },
+            _meta: { resultCache: "r1" },
+          }}) + "\\n");
+        } else if (msg.method === "shutdown") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {} }) + "\\n");
+        }
+      });
+    `;
+    await manager.initialize({
+      mcpServers: { structured: { command: "node", args: ["-e", server] } },
+    });
+
+    const tools = manager.getTools();
+    expect(tools).toHaveLength(1);
+    expect(tools[0].output_schema).toEqual(outputSchema);
+
+    const result = await manager.executeTool("mcp__structured__structured", {});
+    expect(result.content).toBe("visible");
+    expect(result.blocks).toEqual([
+      {
+        type: "text",
+        text: "visible",
+        annotations: { audience: ["assistant"], priority: 0.8 },
+        _meta: { blockCache: "b1" },
+      },
+      {
+        type: "image",
+        source: { type: "base64", media_type: "image/png", data: "abc" },
+      },
+    ]);
+    expect(result.structuredContent).toEqual({ ok: true, count: 2 });
+    expect(result._meta).toEqual({ resultCache: "r1" });
+    expect(result.is_error).toBeUndefined();
+
+    await manager.close();
+  }, 10_000);
+
+  it("returns an MCP tool error when outputSchema is advertised without structuredContent", async () => {
+    const manager = new McpManager();
+    const outputSchema = {
+      type: "object",
+      properties: { count: { type: "number" } },
+      required: ["count"],
+    };
+    const server = `
+      const rl = require("readline").createInterface({ input: process.stdin });
+      rl.on("line", (line) => {
+        let msg;
+        try { msg = JSON.parse(line); } catch { return; }
+        if (msg.method === "initialize") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            protocolVersion: "2024-11-05", capabilities: {},
+          }}) + "\\n");
+        } else if (msg.method === "tools/list") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            tools: [{
+              name: "missing",
+              inputSchema: { type: "object" },
+              outputSchema: ${JSON.stringify(outputSchema)},
+            }],
+          }}) + "\\n");
+        } else if (msg.method === "tools/call" && msg.params.name === "missing") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            content: [{ type: "text", text: "missing structured output" }],
+          }}) + "\\n");
+        } else if (msg.method === "shutdown") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {} }) + "\\n");
+        }
+      });
+    `;
+    await manager.initialize({
+      mcpServers: { missing: { command: "node", args: ["-e", server] } },
+    });
+
+    const result = await manager.executeTool("mcp__missing__missing", {});
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("MCP tool error");
+    expect(result.content).toContain("declared output_schema but returned no structuredContent");
+    expect(result.structuredContent).toBeUndefined();
+
+    await manager.close();
+  }, 10_000);
+
+  it("returns an MCP tool error when structuredContent violates outputSchema", async () => {
+    const manager = new McpManager();
+    const outputSchema = {
+      type: "object",
+      properties: { count: { type: "number" } },
+      required: ["count"],
+    };
+    const server = `
+      const rl = require("readline").createInterface({ input: process.stdin });
+      rl.on("line", (line) => {
+        let msg;
+        try { msg = JSON.parse(line); } catch { return; }
+        if (msg.method === "initialize") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            protocolVersion: "2024-11-05", capabilities: {},
+          }}) + "\\n");
+        } else if (msg.method === "tools/list") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            tools: [{
+              name: "invalid",
+              inputSchema: { type: "object" },
+              outputSchema: ${JSON.stringify(outputSchema)},
+            }],
+          }}) + "\\n");
+        } else if (msg.method === "tools/call" && msg.params.name === "invalid") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            content: [{ type: "text", text: "invalid structured output" }],
+            structuredContent: { count: "two" },
+          }}) + "\\n");
+        } else if (msg.method === "shutdown") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {} }) + "\\n");
+        }
+      });
+    `;
+    await manager.initialize({
+      mcpServers: { invalid: { command: "node", args: ["-e", server] } },
+    });
+
+    const result = await manager.executeTool("mcp__invalid__invalid", {});
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("MCP tool error");
+    expect(result.content).toContain("structuredContent does not match output_schema");
+    expect(result.content).toContain("structuredContent.count: expected number, got string");
+    expect(result.structuredContent).toBeUndefined();
+
+    await manager.close();
+  }, 10_000);
+
   it("executeTool returns error when server has disconnected", async () => {
     const manager = new McpManager();
     const dieServer = `

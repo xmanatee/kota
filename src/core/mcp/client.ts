@@ -9,17 +9,16 @@ import type {
   KotaMcpPreservedContent,
   KotaMcpResourceContents,
   KotaMcpTextResourceContents,
+  KotaToolInputSchema,
+  KotaToolOutputSchema,
 } from "#core/agent-harness/message-protocol.js";
 import type { ToolResultBlock } from "#core/tools/tool-result.js";
 
 export type McpToolSchema = {
   name: string;
   description?: string;
-  inputSchema: {
-    type: "object";
-    properties?: Record<string, unknown>;
-    required?: string[];
-  };
+  inputSchema: KotaToolInputSchema;
+  outputSchema?: KotaToolOutputSchema;
 };
 
 type JsonRpcRequest = {
@@ -46,6 +45,8 @@ type PendingRequest = {
   resolve: (value: unknown) => void;
   reject: (reason: Error) => void;
 };
+
+type McpResultKind = "tools/call" | "tools/list";
 
 export type McpToolTextContent = {
   type: "text";
@@ -97,43 +98,64 @@ function isJsonObject(value: JsonRpcResponse["result"]): value is KotaJsonObject
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function malformedMcpResult(kind: McpResultKind, label: string, expected: string): Error {
+  return new Error(`Malformed MCP ${kind} result: ${label} must be ${expected}`);
+}
+
 function requireJsonObject(
   value: JsonRpcResponse["result"],
   label: string,
+  kind: McpResultKind = "tools/call",
 ): KotaJsonObject {
   if (!isJsonObject(value)) {
-    throw new Error(`Malformed MCP tools/call result: ${label} must be an object`);
+    throw malformedMcpResult(kind, label, "an object");
   }
   return value;
 }
 
-function requireString(value: KotaJsonValue | undefined, label: string): string {
+function requireString(
+  value: KotaJsonValue | undefined,
+  label: string,
+  kind: McpResultKind = "tools/call",
+): string {
   if (typeof value !== "string") {
-    throw new Error(`Malformed MCP tools/call result: ${label} must be a string`);
+    throw malformedMcpResult(kind, label, "a string");
   }
   return value;
 }
 
-function optionalString(value: KotaJsonValue | undefined, label: string): string | undefined {
+function optionalString(
+  value: KotaJsonValue | undefined,
+  label: string,
+  kind: McpResultKind = "tools/call",
+): string | undefined {
   if (value === undefined) return undefined;
   if (typeof value !== "string") {
-    throw new Error(`Malformed MCP tools/call result: ${label} must be a string`);
+    throw malformedMcpResult(kind, label, "a string");
   }
   return value;
 }
 
-function optionalNumber(value: KotaJsonValue | undefined, label: string): number | undefined {
+function optionalNumber(
+  value: KotaJsonValue | undefined,
+  label: string,
+  kind: McpResultKind = "tools/call",
+): number | undefined {
   if (value === undefined) return undefined;
   if (typeof value !== "number") {
-    throw new Error(`Malformed MCP tools/call result: ${label} must be a number`);
+    throw malformedMcpResult(kind, label, "a number");
   }
   return value;
 }
 
-function optionalBoolean(value: KotaJsonValue | undefined, label: string): boolean | undefined {
+function optionalBoolean(
+  value: KotaJsonValue | undefined,
+  label: string,
+  kind: McpResultKind = "tools/call",
+): boolean | undefined {
   if (value === undefined) return undefined;
   if (typeof value !== "boolean") {
-    throw new Error(`Malformed MCP tools/call result: ${label} must be a boolean`);
+    throw malformedMcpResult(kind, label, "a boolean");
   }
   return value;
 }
@@ -141,10 +163,11 @@ function optionalBoolean(value: KotaJsonValue | undefined, label: string): boole
 function optionalStringArray(
   value: KotaJsonValue | undefined,
   label: string,
+  kind: McpResultKind = "tools/call",
 ): string[] | undefined {
   if (value === undefined) return undefined;
   if (!Array.isArray(value) || !value.every((entry) => typeof entry === "string")) {
-    throw new Error(`Malformed MCP tools/call result: ${label} must be a string array`);
+    throw malformedMcpResult(kind, label, "a string array");
   }
   return value;
 }
@@ -152,12 +175,71 @@ function optionalStringArray(
 function optionalJsonObject(
   value: KotaJsonValue | undefined,
   label: string,
+  kind: McpResultKind = "tools/call",
 ): KotaJsonObject | undefined {
   if (value === undefined) return undefined;
   if (!isJsonObject(value)) {
-    throw new Error(`Malformed MCP tools/call result: ${label} must be an object`);
+    throw malformedMcpResult(kind, label, "an object");
   }
   return value;
+}
+
+function decodeToolObjectSchema(
+  value: KotaJsonValue | undefined,
+  label: string,
+): KotaToolInputSchema {
+  const object = optionalJsonObject(value, label, "tools/list");
+  if (!object) {
+    throw malformedMcpResult("tools/list", label, "an object");
+  }
+  const type = requireString(object.type, `${label}.type`, "tools/list");
+  if (type !== "object") {
+    throw new Error(`Malformed MCP tools/list result: ${label}.type must be "object"`);
+  }
+  const properties = optionalJsonObject(
+    object.properties,
+    `${label}.properties`,
+    "tools/list",
+  ) ?? {};
+  const required = optionalStringArray(
+    object.required,
+    `${label}.required`,
+    "tools/list",
+  );
+  return {
+    ...object,
+    type: "object",
+    properties,
+    ...(required !== undefined ? { required } : {}),
+  };
+}
+
+function decodeToolDefinition(value: KotaJsonValue, index: number): McpToolSchema {
+  const label = `tools[${index}]`;
+  const object = optionalJsonObject(value, label, "tools/list");
+  if (!object) {
+    throw malformedMcpResult("tools/list", label, "an object");
+  }
+  const outputSchema = object.outputSchema === undefined
+    ? undefined
+    : decodeToolObjectSchema(object.outputSchema, `${label}.outputSchema`);
+  return {
+    name: requireString(object.name, `${label}.name`, "tools/list"),
+    ...(object.description !== undefined
+      ? { description: optionalString(object.description, `${label}.description`, "tools/list") }
+      : {}),
+    inputSchema: decodeToolObjectSchema(object.inputSchema, `${label}.inputSchema`),
+    ...(outputSchema ? { outputSchema } : {}),
+  };
+}
+
+function decodeListToolsResult(value: JsonRpcResponse["result"]): McpToolSchema[] {
+  const object = requireJsonObject(value, "result", "tools/list");
+  const tools = object.tools;
+  if (!Array.isArray(tools)) {
+    throw malformedMcpResult("tools/list", "tools", "an array");
+  }
+  return tools.map(decodeToolDefinition);
 }
 
 function decodeAnnotations(
@@ -479,8 +561,8 @@ export class McpClient {
 
   /** List available tools from the server. */
   async listTools(): Promise<McpToolSchema[]> {
-    const result = await this.request("tools/list") as { tools: McpToolSchema[] };
-    return result.tools || [];
+    const result = await this.request("tools/list");
+    return decodeListToolsResult(result);
   }
 
   /** Call a tool on the server. */

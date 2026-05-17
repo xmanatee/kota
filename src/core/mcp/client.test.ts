@@ -23,7 +23,17 @@ rl.on("line", (line) => {
     // notification — no response
   } else if (msg.method === "tools/list") {
     const tools = [
-      { name: "echo", description: "Echoes input", inputSchema: { type: "object", properties: { text: { type: "string" } } } },
+      {
+        name: "echo",
+        description: "Echoes input",
+        inputSchema: { type: "object", properties: { text: { type: "string" } } },
+        outputSchema: {
+          type: "object",
+          properties: { echoed: { type: "string" } },
+          required: ["echoed"],
+          additionalProperties: false,
+        },
+      },
       { name: "fail", description: "Always errors", inputSchema: { type: "object" } },
     ];
     process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: { tools } }) + "\\n");
@@ -144,6 +154,22 @@ describe("McpClient lifecycle (fake MCP server)", () => {
     expect(result.content).toEqual([{ type: "text", text: "Echo: hello world" }]);
     expect(result.blocks).toEqual([{ type: "text", text: "Echo: hello world" }]);
     expect(result.isError).toBeUndefined();
+  }, 10_000);
+
+  it("listTools preserves advertised outputSchema", async () => {
+    client = new McpClient("node", ["-e", FAKE_MCP_SERVER], {}, "schema-list");
+    await client.connect();
+
+    const tools = await client.listTools();
+    expect(tools[0]).toMatchObject({
+      name: "echo",
+      outputSchema: {
+        type: "object",
+        properties: { echoed: { type: "string" } },
+        required: ["echoed"],
+        additionalProperties: false,
+      },
+    });
   }, 10_000);
 
   it("callTool surfaces JSON-RPC errors", async () => {
@@ -459,6 +485,37 @@ describe("McpClient error paths", () => {
     await client.close();
 
     await expect(client.listTools()).rejects.toThrow(/not connected/);
+  }, 10_000);
+
+  it("listTools rejects malformed advertised outputSchema", async () => {
+    const malformedSchemaServer = `
+      const rl = require("readline").createInterface({ input: process.stdin });
+      rl.on("line", (line) => {
+        let msg;
+        try { msg = JSON.parse(line); } catch { return; }
+        if (msg.method === "initialize") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            protocolVersion: "2024-11-05", capabilities: {},
+          }}) + "\\n");
+        } else if (msg.method === "tools/list") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            tools: [{
+              name: "bad",
+              inputSchema: { type: "object" },
+              outputSchema: { type: "string" },
+            }],
+          }}) + "\\n");
+        } else if (msg.method === "shutdown") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {} }) + "\\n");
+        }
+      });
+    `;
+    client = new McpClient("node", ["-e", malformedSchemaServer], {}, "bad-schema");
+    await client.connect();
+
+    await expect(client.listTools()).rejects.toThrow(
+      /Malformed MCP tools\/list result: tools\[0\]\.outputSchema\.type must be "object"/,
+    );
   }, 10_000);
 
   it("double close is safe", async () => {

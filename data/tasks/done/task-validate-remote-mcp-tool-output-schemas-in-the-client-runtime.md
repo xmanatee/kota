@@ -1,12 +1,12 @@
 ---
 id: task-validate-remote-mcp-tool-output-schemas-in-the-client-runtime
 title: Validate remote MCP tool output schemas in the client runtime
-status: ready
+status: done
 priority: p2
 area: core
 summary: Preserve MCP tools/list outputSchema for remote server tools and validate remote structuredContent before it enters KOTA's neutral tool-result path.
 created_at: 2026-05-17T01:08:38Z
-updated_at: 2026-05-17T01:08:38Z
+updated_at: 2026-05-17T01:20:04Z
 ---
 
 ## Problem

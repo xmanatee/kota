@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/index.js";
+import { validateToolStructuredOutput } from "#core/tools/output-schema.js";
 import { McpClient, type McpToolSchema } from "./client.js";
 
 type McpServerConfig = {
@@ -17,6 +18,7 @@ type McpConfig = {
 type McpToolEntry = {
   client: McpClient;
   originalName: string;
+  tool: KotaTool;
 };
 
 const SEPARATOR = "__";
@@ -46,6 +48,7 @@ function toKotaTool(serverName: string, tool: McpToolSchema): KotaTool {
       properties: tool.inputSchema.properties ?? {},
       ...(tool.inputSchema.required && { required: tool.inputSchema.required }),
     },
+    ...(tool.outputSchema ? { output_schema: tool.outputSchema } : {}),
   };
 }
 
@@ -106,8 +109,9 @@ export class McpManager {
 
       for (const tool of tools) {
         const nsName = namespaceTool(name, tool.name);
-        this.toolMap.set(nsName, { client, originalName: tool.name });
-        this.kotaTools.push(toKotaTool(name, tool));
+        const kotaTool = toKotaTool(name, tool);
+        this.toolMap.set(nsName, { client, originalName: tool.name, tool: kotaTool });
+        this.kotaTools.push(kotaTool);
       }
 
       console.error(
@@ -137,13 +141,18 @@ export class McpManager {
 
     try {
       const result = await entry.client.callTool(entry.originalName, input);
-      return {
+      const toolResult: ToolResult = {
         content: result.text,
         blocks: result.blocks,
         ...(result.structuredContent ? { structuredContent: result.structuredContent } : {}),
         ...(result._meta ? { _meta: result._meta } : {}),
         ...(result.isError !== undefined ? { is_error: result.isError } : {}),
       };
+      const schemaError = validateToolStructuredOutput(entry.tool, toolResult);
+      if (schemaError) {
+        return { content: `MCP tool error: ${schemaError}`, is_error: true };
+      }
+      return toolResult;
     } catch (err) {
       if (!entry.client.isConnected()) {
         return { content: `MCP server disconnected for tool: ${name}`, is_error: true };
