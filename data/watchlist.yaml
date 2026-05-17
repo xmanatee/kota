@@ -230,6 +230,6 @@ resources:
     added: "2026-05-16"
     notes: "Official MCP tools spec draft - monitor tool-result content, structuredContent, _meta, output schema, annotations, and execution-error semantics that affect KOTA's MCP client/server protocol fidelity."
     snapshot:
-      fingerprint: sha256:e1706fd0c810b20e4d566efa3a7615b4
-      summary: "MCP draft Tools outputSchema remains the current nonduplicative KOTA gap: result preservation and draft result variants have landed, but KOTA tool definitions still cannot advertise or enforce structured output schemas."
-      last_seen_at: "2026-05-16T10:58:07.526Z"
+      fingerprint: sha256:a7854ffd75fe320ec767fc27276ed257
+      summary: "MCP draft Tools outputSchema remains the relevant protocol signal; the next KOTA gap is enforcing advertised output schemas in the shared local tool runner, not only in the MCP server adapter."
+      last_seen_at: "2026-05-17T00:36:37.382Z"
