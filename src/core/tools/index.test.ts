@@ -116,10 +116,103 @@ describe("getCoreRegistrations", () => {
 });
 
 describe("executeTool", () => {
+  afterEach(() => clearCustomTools());
+
   it("returns error for unknown tool", async () => {
     const result = await executeTool("nonexistent_tool", {});
     expect(result.is_error).toBe(true);
     expect(result.content).toBe("Unknown tool: nonexistent_tool");
+  });
+
+  it("returns valid structuredContent for a tool with output_schema", async () => {
+    registerTool(
+      {
+        ...makeTool("structured_ok"),
+        output_schema: {
+          type: "object",
+          properties: {
+            ok: { type: "boolean" },
+            count: { type: "number" },
+          },
+          required: ["ok", "count"],
+          additionalProperties: false,
+        },
+      },
+      async () => ({
+        content: "ok",
+        structuredContent: { ok: true, count: 2 },
+      }),
+    );
+
+    const result = await executeTool("structured_ok", {});
+
+    expect(result.is_error).toBeUndefined();
+    expect(result.structuredContent).toEqual({ ok: true, count: 2 });
+  });
+
+  it("fails loudly when a tool with output_schema omits structuredContent", async () => {
+    registerTool(
+      {
+        ...makeTool("structured_missing"),
+        output_schema: {
+          type: "object",
+          properties: { ok: { type: "boolean" } },
+          required: ["ok"],
+        },
+      },
+      async () => ({ content: "text only" }),
+    );
+
+    const result = await executeTool("structured_missing", {});
+
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("declared output_schema but returned no structuredContent");
+    expect(result.structuredContent).toBeUndefined();
+  });
+
+  it("fails loudly when a tool with output_schema returns malformed structuredContent", async () => {
+    registerTool(
+      {
+        ...makeTool("structured_invalid"),
+        output_schema: {
+          type: "object",
+          properties: {
+            ok: { type: "boolean" },
+            count: { type: "number" },
+          },
+          required: ["ok", "count"],
+        },
+      },
+      async () => ({
+        content: "bad",
+        structuredContent: { ok: true, count: "two" },
+      }),
+    );
+
+    const result = await executeTool("structured_invalid", {});
+
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("structuredContent does not match output_schema");
+    expect(result.content).toContain("structuredContent.count: expected number, got string");
+    expect(result.structuredContent).toBeUndefined();
+  });
+
+  it("does not require structuredContent on execution-error results", async () => {
+    registerTool(
+      {
+        ...makeTool("structured_tool_error"),
+        output_schema: {
+          type: "object",
+          properties: { ok: { type: "boolean" } },
+          required: ["ok"],
+        },
+      },
+      async () => ({ content: "upstream failed", is_error: true }),
+    );
+
+    const result = await executeTool("structured_tool_error", {});
+
+    expect(result).toEqual({ content: "upstream failed", is_error: true });
   });
 });
 

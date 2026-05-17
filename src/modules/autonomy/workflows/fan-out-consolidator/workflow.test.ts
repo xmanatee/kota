@@ -225,6 +225,6 @@ describe("fan-out-consolidator workflow", () => {
     expect(detectStep.status).toBe("success");
     const detection = detectStep.output as { touchedDisk: boolean };
     expect(detection.touchedDisk).toBe(false);
-    expect(result.steps["commit"]?.status).not.toBe("success");
+    expect(result.steps.commit?.status).not.toBe("success");
   });
 });

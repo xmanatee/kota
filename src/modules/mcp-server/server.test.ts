@@ -676,6 +676,45 @@ describe("McpServer", () => {
 			server.stop();
 		});
 
+		it("fails loudly when a module tool declares output_schema but omits structuredContent", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({
+				input,
+				output,
+				log: () => {},
+				moduleTools: [
+					{
+						tool: {
+							name: "ext_missing_structured_result",
+							description: "Missing structured result",
+							input_schema: { type: "object" as const, properties: {}, required: [] },
+							output_schema: {
+								type: "object" as const,
+								properties: { ok: { type: "boolean" } },
+								required: ["ok"],
+							},
+						},
+						runner: async () => ({ content: "text only" }),
+						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+					},
+				],
+			});
+			await initDraftServer(server, input, output);
+
+			sendRequest(input, 2, "tools/call", {
+				name: "ext_missing_structured_result",
+				arguments: {},
+			});
+			const resp = await readResponse(output);
+
+			expect(resp.result).toBeUndefined();
+			const err = resp.error as { code: number; message: string };
+			expect(err.code).toBe(-32603);
+			expect(err.message).toContain("declared output_schema but returned no structuredContent");
+
+			server.stop();
+		});
+
 		it("returns error for unknown tool", async () => {
 			const { input, output } = createTestStreams();
 			const server = new McpServer({ input, output, log: () => {} });

@@ -8,10 +8,7 @@ import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolDef } from "#core/modules/module-types.js";
 import { getToolMcpAnnotations } from "#core/tools/guardrails-classify.js";
 import { executeTool, getAllTools, type ToolResult } from "#core/tools/index.js";
-import {
-	type JsonSchemaObject,
-	validateJsonSchemaValue,
-} from "#core/util/json-schema-validator.js";
+import { validateToolStructuredOutput } from "#core/tools/output-schema.js";
 import type { ElicitationHandler } from "./mcp-handlers-elicitation.js";
 import type {
 	ElicitationResponse,
@@ -287,20 +284,6 @@ export function kotaToolToMcp(tool: KotaTool): {
 		inputSchema: tool.input_schema,
 		...(tool.output_schema ? { outputSchema: tool.output_schema } : {}),
 	};
-}
-
-function validateToolStructuredOutput(tool: KotaTool, result: ToolResult): string | null {
-	if (!tool.output_schema || result.is_error === true) return null;
-	if (result.structuredContent === undefined) {
-		return `Tool "${tool.name}" declared output_schema but returned no structuredContent`;
-	}
-	const validationError = validateJsonSchemaValue(
-		tool.output_schema as JsonSchemaObject,
-		result.structuredContent,
-		"structuredContent",
-	);
-	if (!validationError) return null;
-	return `Tool "${tool.name}" structuredContent does not match output_schema: ${validationError}`;
 }
 
 export function toolResultToMcpCallResult(

@@ -1,12 +1,12 @@
 ---
 id: task-enforce-tool-output-schemas-in-the-local-tool-runner
 title: Enforce tool output schemas in the local tool runner
-status: ready
+status: done
 priority: p2
 area: core
 summary: Move KotaTool output_schema validation into the shared tool execution path so local agent-loop tool calls fail loudly on malformed structuredContent instead of only enforcing the contract through the MCP server adapter.
 created_at: 2026-05-17T00:34:33Z
-updated_at: 2026-05-17T00:34:33Z
+updated_at: 2026-05-17T00:42:34Z
 ---
 
 ## Problem

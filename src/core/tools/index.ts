@@ -9,6 +9,7 @@ import { registration as customTool, initCustomToolRegistry } from "./custom-too
 import { registration as delegate } from "./delegate.js";
 import type { ToolEffect } from "./effect.js";
 import { registration as moduleFactory } from "./module-factory/index.js";
+import { assertToolStructuredOutput } from "./output-schema.js";
 import { getTodoState, registration as todo } from "./todo.js";
 import { deregisterToolsFromGroups, registerCustomGroup, runEnableTools } from "./tool-groups.js";
 import type { ToolResult, ToolResultBlock } from "./tool-result.js";
@@ -104,7 +105,10 @@ export async function executeTool(
     return { content: `Unknown tool: ${name}`, is_error: true };
   }
   try {
-    return await runner(input);
+    const result = await runner(input);
+    const tool = tools.find((t) => t.name === name);
+    if (tool) assertToolStructuredOutput(tool, result);
+    return result;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return { content: `Tool error: ${msg}`, is_error: true };
