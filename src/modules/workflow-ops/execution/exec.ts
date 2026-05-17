@@ -1,12 +1,15 @@
 import type { Command } from "commander";
+import { loadConfig } from "#core/config/config.js";
 import { deriveProjectId } from "#core/daemon/project-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { PRESET_ENV_VAR, resolvePreset } from "#core/model/preset.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import { executeWorkflowRun } from "#core/workflow/run-executor.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
-import { getValidatedWorkflowDefinitions } from "../definitions-source.js";
+import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
 
 /**
  * `kota workflow exec <name>` — synchronously execute one workflow run to
@@ -48,47 +51,69 @@ export function registerExecCommand(
         }
       }
 
-      const definitions = getValidatedWorkflowDefinitions(ctx);
-      const definition = definitions.find((d) => d.name === name);
-      if (!definition) {
-        const names = definitions.map((d) => d.name).join(", ");
-        console.error(`Unknown workflow "${name}". Available: ${names}`);
-        process.exit(1);
-      }
-      if (!definition.enabled) {
-        console.error(`Workflow "${name}" is disabled.`);
-        process.exit(1);
-      }
-
-      const bus = new EventBus();
-      const pbus = new ProjectScopedEventBus(bus, deriveProjectId(ctx.cwd));
-      const store = new WorkflowRunStore(ctx.cwd);
-      const trigger: WorkflowRunTrigger = {
-        event: opts.event,
-        payload: {
-          ...(extraPayload ?? {}),
-          triggeredAt: new Date().toISOString(),
-        },
-      };
-
-      const { promise } = executeWorkflowRun(definition, trigger, {
-        projectDir: ctx.cwd,
-        bus,
-        pbus,
-        store,
-        config: ctx.config,
-        log: (msg) => console.error(msg),
-        resolveAgentDef: ctx.resolveAgentDef,
-        resolveSkillsPrompt: ctx.resolveSkillsPrompt,
+      const runtimeConfig = loadConfig(ctx.cwd);
+      const runtimeLoader = await loadRuntimeModules({
+        config: runtimeConfig,
+        cwd: ctx.cwd,
       });
+      try {
+        const { preset } = resolvePreset({
+          env: process.env[PRESET_ENV_VAR],
+          config: runtimeConfig.defaultPreset,
+        });
+        const definitions = validateWorkflowDefinitions(
+          runtimeLoader.getContributedWorkflows(),
+          ctx.cwd,
+          {
+            defaultAgentHarness: runtimeConfig.defaultAgentHarness ?? preset.harness,
+            preset,
+            modelTiers: runtimeConfig.modelTiers,
+          },
+        );
+        const definition = definitions.find((d) => d.name === name);
+        if (!definition) {
+          const names = definitions.map((d) => d.name).join(", ");
+          console.error(`Unknown workflow "${name}". Available: ${names}`);
+          process.exit(1);
+        }
+        if (!definition.enabled) {
+          console.error(`Workflow "${name}" is disabled.`);
+          process.exit(1);
+        }
 
-      const result = await promise;
-      console.log(result.metadata.id);
-      if (
-        result.metadata.status !== "success" &&
-        result.metadata.status !== "completed-with-warnings"
-      ) {
-        process.exitCode = 1;
+        const bus = new EventBus();
+        const pbus = new ProjectScopedEventBus(bus, deriveProjectId(ctx.cwd));
+        const store = new WorkflowRunStore(ctx.cwd);
+        const trigger: WorkflowRunTrigger = {
+          event: opts.event,
+          payload: {
+            ...(extraPayload ?? {}),
+            triggeredAt: new Date().toISOString(),
+          },
+        };
+
+        const { promise } = executeWorkflowRun(definition, trigger, {
+          projectDir: ctx.cwd,
+          bus,
+          pbus,
+          store,
+          config: runtimeConfig,
+          log: (msg) => console.error(msg),
+          resolveAgentDef: (agentName) => runtimeLoader.getAgentDef(agentName),
+          resolveSkillsPrompt: (names, agentName) =>
+            runtimeLoader.getSkillsPromptFor(names, agentName),
+        });
+
+        const result = await promise;
+        console.log(result.metadata.id);
+        if (
+          result.metadata.status !== "success" &&
+          result.metadata.status !== "completed-with-warnings"
+        ) {
+          process.exitCode = 1;
+        }
+      } finally {
+        await runtimeLoader.unloadAll();
       }
     });
 }

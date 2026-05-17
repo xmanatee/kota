@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import type { ToolResult } from "#core/tools/tool-result.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
 import { buildAgentPrompt } from "#core/workflow/steps/step-executor-agent-prompt.js";
@@ -39,6 +40,27 @@ function makeTrigger(overrides: PrPayload = {}) {
       actorIntegrityReason: "author association 'MEMBER' satisfies the configured trust threshold",
       ...overrides,
     },
+  };
+}
+
+function reviewDraft(overrides: { recommendation?: string; body?: string } = {}) {
+  return {
+    recommendation: overrides.recommendation ?? "approve",
+    body: overrides.body ?? "Summary: the task criteria are covered.",
+  };
+}
+
+function toolSpy(): {
+  runTool: (name: string, input: Record<string, unknown>) => Promise<ToolResult>;
+  calls: Array<{ name: string; input: Record<string, unknown> }>;
+} {
+  const calls: Array<{ name: string; input: Record<string, unknown> }> = [];
+  return {
+    calls,
+    runTool: vi.fn(async (name, input) => {
+      calls.push({ name, input });
+      return { content: "Comment posted (ID: 999)" };
+    }),
   };
 }
 
@@ -87,6 +109,18 @@ function buildReviewPrompt(trigger: WorkflowRunTrigger): string {
 }
 
 describe("pr-reviewer workflow — assess-pr step", () => {
+  it("keeps the review agent on read-only tools", () => {
+    const reviewStep = prReviewerWorkflow.steps.find((step) => step.id === "review");
+
+    expect(reviewStep).toMatchObject({
+      type: "agent",
+      allowedTools: ["Read", "LS", "Grep", "Glob", "github_get_pr", "github_list_prs"],
+    });
+    expect(reviewStep).not.toMatchObject({
+      allowedTools: expect.arrayContaining(["github_comment", "Bash"]),
+    });
+  });
+
   it("skips when action is not opened or synchronize", async () => {
     const harness = new WorkflowTestHarness(prReviewerWorkflow, {
       trigger: makeTrigger({ action: "closed" }),
@@ -154,11 +188,15 @@ describe("pr-reviewer workflow — assess-pr step", () => {
   });
 
   it("skips low-trust same-repo kota/task PRs before review", async () => {
+    const tools = toolSpy();
     const harness = new WorkflowTestHarness(prReviewerWorkflow, {
       trigger: makeTrigger({
         actorIntegrity: "low_trust_actor",
         actorIntegrityReason: "author association 'FIRST_TIMER' is below the configured trust threshold",
       }),
+      contextOverrides: {
+        runTool: tools.runTool,
+      },
     });
 
     const result = await harness.run();
@@ -168,6 +206,10 @@ describe("pr-reviewer workflow — assess-pr step", () => {
       skipReason: expect.stringContaining("low-trust actor"),
     });
     expect(result.steps.review.status).toBe("skipped");
+    expect(result.steps["prepare-comment"].status).toBe("skipped");
+    expect(result.steps["comment-policy"].status).toBe("skipped");
+    expect(result.steps["post-comment"].status).toBe("skipped");
+    expect(tools.calls).toEqual([]);
   });
 
   it("skips configured blocked actors before review", async () => {
@@ -202,10 +244,14 @@ describe("pr-reviewer workflow — assess-pr step", () => {
   });
 
   it("does not skip when action is synchronize and branch is kota/task/*", async () => {
+    const tools = toolSpy();
     const harness = new WorkflowTestHarness(prReviewerWorkflow, {
       trigger: makeTrigger({ action: "synchronize" }),
       stepMocks: {
-        review: { recommendation: "approve" },
+        review: reviewDraft(),
+      },
+      contextOverrides: {
+        runTool: tools.runTool,
       },
     });
 
@@ -218,13 +264,19 @@ describe("pr-reviewer workflow — assess-pr step", () => {
       headBranch: "kota/task/task-feature-x",
     });
     expect(result.steps.review.status).toBe("success");
+    expect(result.steps["post-comment"].status).toBe("success");
+    expect(tools.calls).toHaveLength(1);
   });
 
   it("runs review when action is opened and branch is kota/task/*", async () => {
+    const tools = toolSpy();
     const harness = new WorkflowTestHarness(prReviewerWorkflow, {
       trigger: makeTrigger(),
       stepMocks: {
-        review: { recommendation: "approve" },
+        review: reviewDraft(),
+      },
+      contextOverrides: {
+        runTool: tools.runTool,
       },
     });
 
@@ -238,14 +290,40 @@ describe("pr-reviewer workflow — assess-pr step", () => {
       headBranch: "kota/task/task-feature-x",
     });
     expect(result.steps.review.status).toBe("success");
+    expect(result.steps["prepare-comment"].output).toMatchObject({
+      repo: "owner/repo",
+      prNumber: 42,
+      recommendation: "approve",
+      body: "**Recommendation:** approve\n\nSummary: the task criteria are covered.",
+    });
+    expect(result.steps["comment-policy"].output).toMatchObject({
+      approvalRequired: true,
+      policy: "queue",
+    });
+    expect(result.steps["approve-comment"].status).toBe("success");
+    expect(result.steps["post-comment"].status).toBe("success");
     expect(result.steps["emit-review-posted"].status).toBe("success");
+    expect(tools.calls).toEqual([
+      {
+        name: "github_comment",
+        input: {
+          repo: "owner/repo",
+          number: 42,
+          body: "**Recommendation:** approve\n\nSummary: the task criteria are covered.",
+        },
+      },
+    ]);
   });
 
   it("emits workflow.pr.review.posted after successful review", async () => {
+    const tools = toolSpy();
     const harness = new WorkflowTestHarness(prReviewerWorkflow, {
       trigger: makeTrigger(),
       stepMocks: {
-        review: { recommendation: "approve" },
+        review: reviewDraft(),
+      },
+      contextOverrides: {
+        runTool: tools.runTool,
       },
     });
 
@@ -256,7 +334,77 @@ describe("pr-reviewer workflow — assess-pr step", () => {
     expect(emitted?.payload).toMatchObject({
       prNumber: 42,
       repo: "owner/repo",
+      recommendation: "approve",
     });
+  });
+
+  it("fails malformed review output before any GitHub comment write", async () => {
+    const tools = toolSpy();
+    const harness = new WorkflowTestHarness(prReviewerWorkflow, {
+      trigger: makeTrigger(),
+      stepMocks: {
+        review: reviewDraft({ recommendation: "maybe" }),
+      },
+      contextOverrides: {
+        runTool: tools.runTool,
+      },
+    });
+
+    const result = await harness.run();
+
+    expect(result.status).toBe("failed");
+    expect(result.steps.review.status).toBe("success");
+    expect(result.steps["prepare-comment"].status).toBe("failed");
+    expect(result.steps["prepare-comment"].error).toContain("recommendation must be approve or request-changes");
+    expect(result.steps["post-comment"]).toBeUndefined();
+    expect(tools.calls).toEqual([]);
+  });
+
+  it("fails empty review output before any GitHub comment write", async () => {
+    const tools = toolSpy();
+    const harness = new WorkflowTestHarness(prReviewerWorkflow, {
+      trigger: makeTrigger(),
+      stepMocks: {
+        review: reviewDraft({ body: "   " }),
+      },
+      contextOverrides: {
+        runTool: tools.runTool,
+      },
+    });
+
+    const result = await harness.run();
+
+    expect(result.status).toBe("failed");
+    expect(result.steps["prepare-comment"].status).toBe("failed");
+    expect(result.steps["prepare-comment"].error).toContain("body must be a non-empty string");
+    expect(result.steps["post-comment"]).toBeUndefined();
+    expect(tools.calls).toEqual([]);
+  });
+
+  it("bounds oversized review text before posting one GitHub comment", async () => {
+    const tools = toolSpy();
+    const harness = new WorkflowTestHarness(prReviewerWorkflow, {
+      trigger: makeTrigger(),
+      stepMocks: {
+        review: reviewDraft({
+          recommendation: "request-changes",
+          body: `Blocking issue:\n\n${"x".repeat(5_000)}`,
+        }),
+      },
+      contextOverrides: {
+        runTool: tools.runTool,
+      },
+    });
+
+    const result = await harness.run();
+
+    expect(result.status).toBe("success");
+    expect(tools.calls).toHaveLength(1);
+    const body = tools.calls[0].input.body;
+    expect(typeof body).toBe("string");
+    expect((body as string).length).toBeLessThanOrEqual(4_000);
+    expect(body).toContain("**Recommendation:** request-changes");
+    expect(body).toContain("[Review truncated]");
   });
 
   it("does not emit when review is skipped", async () => {

@@ -1,4 +1,5 @@
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import { getToolEffect } from "#core/tools/index.js";
 
 function includeAskOwnerTool(
   allowedTools: string[] | undefined,
@@ -33,15 +34,19 @@ const PASSIVE_ALLOWED_TOOLS = [
 
 const PASSIVE_ALLOWED_TOOL_SET = new Set<string>(PASSIVE_ALLOWED_TOOLS);
 
+function isPassiveAllowedTool(tool: string, askOwnerToolName: string | null): boolean {
+  if (tool === askOwnerToolName) return true;
+  if (PASSIVE_ALLOWED_TOOL_SET.has(tool)) return true;
+  return getToolEffect(tool)?.kind === "read";
+}
+
 function resolvePassiveAllowedTools(
   allowedTools: string[] | undefined,
   disallowedTools: string[] | undefined,
   askOwnerToolName: string | null,
 ): string[] {
   const requested = allowedTools ?? [...PASSIVE_ALLOWED_TOOLS];
-  const unsafe = requested.filter(
-    (tool) => tool !== askOwnerToolName && !PASSIVE_ALLOWED_TOOL_SET.has(tool),
-  );
+  const unsafe = requested.filter((tool) => !isPassiveAllowedTool(tool, askOwnerToolName));
   if (unsafe.length > 0) {
     throw new Error(
       `Passive agent steps may only allow read-only tools; disallowed here: ${unsafe.join(", ")}`,

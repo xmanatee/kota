@@ -1,0 +1,7 @@
+{
+  "guardrails": {
+    "toolOverrides": {
+      "github_comment": "allow"
+    }
+  }
+}

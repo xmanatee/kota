@@ -421,13 +421,13 @@ function validateRecordingProvenance(
   // the recording is provable evidence of a past run rather than a synthesized
   // shape. Smoke fixtures opt out of that pin: they exist to lock harness
   // plumbing for a workflow whose target failure mode has no real-run history
-  // yet (e.g. pr-reviewer's external-call-log path), and a synthesized
-  // recording is the legitimate way to exercise that plumbing. Honesty for
-  // smoke fixtures lives in the written `justification`, which the loader
-  // already enforces is non-empty; the recording's own `sourceRunId` field
-  // (also enforced non-empty by `parseAgentStepRecording`) carries
-  // traceability for the recording's origin without forcing a fake
-  // "real-failure" claim onto a synthesized shape.
+  // yet, and a synthesized recording is the legitimate way to exercise that
+  // plumbing. Honesty for smoke fixtures lives in the written
+  // `justification`, which the loader already enforces is non-empty; the
+  // recording's own `sourceRunId` field (also enforced non-empty by
+  // `parseAgentStepRecording`) carries traceability for the recording's
+  // origin without forcing a fake "real-failure" claim onto a synthesized
+  // shape.
   if (spec.provenance.kind !== "real-failure") return;
   const expected = spec.provenance.sourceRunId;
   for (const recording of recordings) {

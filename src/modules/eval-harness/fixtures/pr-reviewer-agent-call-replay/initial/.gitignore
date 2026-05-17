@@ -1,6 +1,8 @@
-.kota/
+.kota/*
+!.kota/config.json
+!.kota/modules/
+!.kota/modules/**
 node_modules/
-# Eval-harness fixtures legitimately seed prior run state; mirror the repo-
-# root unignore so agent mutations into nested fixture initial/.kota/ trees
-# are stageable under the replay.
-!src/modules/eval-harness/fixtures/**/initial/.kota/
+# Eval-harness fixtures may seed scoped KOTA config and installed module fakes
+# under initial/.kota/ when the workflow under test needs deterministic local
+# capability instead of host credentials or network access.

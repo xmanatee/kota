@@ -119,8 +119,10 @@ were skipped will advertise routes whose providers are uninitialized. The
 typed boundary fails at the accessor instead of at request time. Static
 contributions stay safe in commands mode because they are populated from
 module definitions during `load()` regardless of mode — which is what
-`kota workflow validate`, `kota workflow exec`, and the daemon's
-`reloadConfig` diff rely on.
+`kota workflow validate` and the daemon's `reloadConfig` diff rely on.
+`kota workflow exec` registers its command shape in commands mode, then
+hydrates a runtime-mode loader inside the action before executing the run so
+workflow tool steps and module lifecycle state are available.
 
 Tests, helpers, and runtime hosts must declare which mode they exercise:
 commands-mode callers may read static contributions but not `getRoutes()`,

@@ -40,14 +40,13 @@
  *     (`task-queue-valid` with default `min-ready`,
  *     `no-scratch-artifacts`, `commit-message-exists`, `commit-stageable`)
  *     — none of which the other four replays exercise.
- *   - `pr-reviewer-agent-call-replay` covers the new `external-call-log`
- *     predicate + fake-binary shim mechanism wired through the runner
- *     and subprocess executor, the `assess-pr` webhook-payload
- *     assessment path (action / kota-task branch / fork gating), the
- *     `outputFormat: "json"` + `outputSchema` extraction the `review`
- *     step now declares, and the typed `workflow.pr.review.posted`
- *     emission shape — none of which the other shipped replays
- *     exercise.
+ *   - `pr-reviewer-agent-call-replay` covers the `assess-pr`
+ *     webhook-payload assessment path (action / kota-task branch / fork
+ *     gating), passive agent access to registered read-only GitHub tools,
+ *     the `outputFormat: "json"` + `outputSchema` extraction on `review`,
+ *     the deterministic `github_comment` output step via a fixture-local
+ *     module, and the typed `workflow.pr.review.posted` emission shape —
+ *     none of which the other shipped replays exercise.
  * The builder fixture stays in cadence-only coverage because its surfaces
  * (workflow-step prompt routing, repair-loop survival, commit step's
  * `git add -A`, restart request) are already exercised by the gated

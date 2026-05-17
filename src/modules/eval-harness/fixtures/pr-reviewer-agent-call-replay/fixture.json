@@ -1,6 +1,6 @@
 {
   "id": "pr-reviewer-agent-call-replay",
-  "description": "End-to-end replay of pr-reviewer's `review` agent step plus the gh-shim+external-call-log harness plumbing. Forwards a github.pull_request webhook payload (opened, kota/task/* head branch, non-fork) through `kota workflow exec --payload`, replays the agent step from a synthesized recording so the regression-gate path is covered without a real LLM call, and asserts the gh CLI invocation shape via the new `external-call-log` predicate. The fixture is the first consumer of the fake-binary shim mechanism; it locks both the predicate kind and the shim's PATH-prepend wiring against future regressions.",
+  "description": "End-to-end replay of pr-reviewer's read-only review agent plus deterministic github_comment output step. Forwards a github.pull_request webhook payload (opened, kota/task/* head branch, non-fork) through `kota workflow exec --payload`, replays the review agent from a synthesized recording, uses a fixture-local GitHub module to avoid host credentials and network access, and asserts the prepared comment, tool write, and workflow.pr.review.posted emission.",
   "role": "pr-reviewer",
   "workflowName": "pr-reviewer",
   "budgetMs": 60000,
@@ -29,34 +29,21 @@
     "actorIntegrity": "allowed",
     "actorIntegrityReason": "author association 'MEMBER' satisfies the configured trust threshold"
   },
-  "externalCallShims": [
-    "gh"
-  ],
   "predicates": [
-    {
-      "kind": "external-call-log",
-      "binary": "gh",
-      "match": {
-        "kind": "argv-prefix",
-        "argv": [
-          "pr",
-          "review"
-        ]
-      }
-    },
-    {
-      "kind": "external-call-log",
-      "binary": "gh",
-      "match": {
-        "kind": "argv-includes",
-        "arg": "--approve"
-      },
-      "exitClass": "zero"
-    },
     {
       "kind": "file-contains",
       "path": ".kota/runs/fixture-pr-reviewer-agent-call-replay-2026-04-25/metadata.json",
       "needle": "\"id\": \"review\",\n      \"type\": \"agent\",\n      \"status\": \"success\""
+    },
+    {
+      "kind": "file-contains",
+      "path": ".kota/runs/fixture-pr-reviewer-agent-call-replay-2026-04-25/metadata.json",
+      "needle": "\"id\": \"prepare-comment\",\n      \"type\": \"code\",\n      \"status\": \"success\""
+    },
+    {
+      "kind": "file-contains",
+      "path": ".kota/runs/fixture-pr-reviewer-agent-call-replay-2026-04-25/metadata.json",
+      "needle": "\"id\": \"post-comment\",\n      \"type\": \"tool\",\n      \"status\": \"success\""
     },
     {
       "kind": "file-contains",
@@ -75,31 +62,29 @@
     },
     {
       "kind": "file-contains",
-      "path": ".kota/external-calls/gh.jsonl",
-      "needle": "\"argv\":[\"pr\",\"review\",\"42\""
+      "path": ".kota/external-calls/github_comment.jsonl",
+      "needle": "\"tool\":\"github_comment\""
+    },
+    {
+      "kind": "file-contains",
+      "path": ".kota/external-calls/github_comment.jsonl",
+      "needle": "\"repo\":\"kota-test/example\",\"number\":42"
     }
   ],
   "tags": [
     "autonomy",
     "agent-call-replay",
-    "external-call-log"
+    "github-output-step"
   ],
   "provenance": {
     "kind": "smoke-fixture",
-    "justification": "pr-reviewer has zero real-failure runs to encode (the workflow only fires on github.pull_request webhooks and KOTA's own dogfood loop has not produced one yet), so this fixture is the harness-plumbing gate for two new primitives: (1) the `external-call-log` predicate kind that asserts properties of recorded out-of-process command invocations, and (2) the fixture-scoped fake-binary shim mechanism that prepends `<workingDir>/.kota/shims/` to PATH so `gh` invocations land in `<workingDir>/.kota/external-calls/gh.jsonl` rather than the host's real gh. The synthesized recording mirrors the shape a real pr-reviewer run would produce — `gh pr review 42 --approve --body ...` plus a JSON verdict block — so the predicate's argv matchers and the workflow's outputFormat:json + emit step path are exercised end-to-end. Replace with a real-failure fixture (and flip `kind` to `real-failure` with the captured sourceRunId) when the first bad pr-reviewer run lands."
+    "justification": "pr-reviewer has zero real-failure runs to encode (the workflow only fires on github.pull_request webhooks and KOTA's own dogfood loop has not produced one yet), so this fixture is the harness-plumbing gate for the deterministic safe-output boundary: the review agent returns structured JSON, prepare-comment validates and bounds one body, guardrails policy decides whether the approval step is required, github_comment performs the only external write, and workflow.pr.review.posted is emitted only after that write path succeeds. The fixture uses a project-local github_comment recorder plus a guardrails allow override so subprocess replay can exercise the post path without host GitHub credentials, network access, or a hanging operator approval."
   },
   "preRunExpectations": [
     {
       "predicate": {
-        "kind": "external-call-log",
-        "binary": "gh",
-        "match": {
-          "kind": "argv-prefix",
-          "argv": [
-            "pr",
-            "review"
-          ]
-        }
+        "kind": "file-exists",
+        "path": ".kota/external-calls/github_comment.jsonl"
       },
       "expected": "fail"
     },

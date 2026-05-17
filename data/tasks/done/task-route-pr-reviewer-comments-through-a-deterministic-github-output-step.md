@@ -1,12 +1,12 @@
 ---
 id: task-route-pr-reviewer-comments-through-a-deterministic-github-output-step
 title: Route PR reviewer comments through a deterministic GitHub output step
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Make pr-reviewer return structured review output and let a separate approval plus github_comment step post one bounded PR comment, so external GitHub writes do not happen inside the agent step.
 created_at: 2026-05-17T08:10:21Z
-updated_at: 2026-05-17T08:10:21Z
+updated_at: 2026-05-17T08:22:56.405Z
 ---
 
 ## Problem

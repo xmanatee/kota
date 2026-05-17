@@ -15,6 +15,10 @@ const MUTATING_AGENT_WORKFLOWS = [
   explorerWorkflow,
   improverWorkflow,
   inboxSorterWorkflow,
+];
+
+const TOP_LEVEL_AGENT_WORKFLOWS = [
+  ...MUTATING_AGENT_WORKFLOWS,
   prReviewerWorkflow,
 ];
 
@@ -24,7 +28,7 @@ function agentSteps(workflow: WorkflowDefinitionInput): WorkflowAgentStepInput[]
 
 describe("autonomy agent policy", () => {
   it("runs top-level autonomy agents without reasoning or repair caps", () => {
-    for (const workflow of MUTATING_AGENT_WORKFLOWS) {
+    for (const workflow of TOP_LEVEL_AGENT_WORKFLOWS) {
       for (const step of agentSteps(workflow)) {
         expect(step.maxTurns, `${workflow.name}.${step.id}.maxTurns`).toBeUndefined();
         const repairLoop = step.repairLoop as Record<string, unknown> | undefined;
