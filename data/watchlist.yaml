@@ -49,9 +49,9 @@ resources:
   - url: https://github.com/Aider-AI/aider
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:7315ced4656d522d01fb396c1c40412a
-      summary: "Aider is a git-aware terminal pair-programming CLI that builds a tree-sitter repo map, supports many LLM backends, auto-commits with sensible messages, runs lint/tests in-loop, and offers watch-mode IDE comments, voice-to-code, and a copy/paste-to-web-chat fallback."
-      last_seen_at: "2026-04-19T22:21:08.572Z"
+      fingerprint: sha256:af24199d1c209c6bcb6499e16c430773
+      summary: "Aider remains active as a git-aware terminal pair-programming CLI; this refresh opened no new KOTA task."
+      last_seen_at: "2026-05-17T08:57:00.839Z"
   - url: https://github.com/block/goose
     added: "2026-04-19"
     snapshot:
@@ -67,9 +67,12 @@ resources:
   - url: https://github.com/SWE-agent/SWE-agent
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:460930794db8bd613177ec8e6a14a6e6
-      summary: "SWE-agent is a Princeton/Stanford research coding agent with a YAML-configured Agent-Computer Interface, SWE-bench harness integration, an EnIGMA cybersecurity CTF mode, and a 100-line successor (mini-SWE-agent) reaching 65% on SWE-bench verified."
-      last_seen_at: "2026-04-19T22:21:08.572Z"
+      fingerprint: sha256:470b80192f388b0a1e0f5546ce43a199
+      summary: "SWE-agent still exists as the research coding-agent repo, but its current durable signal is the mini-SWE-agent successor and its bash-action substrate."
+      last_seen_at: "2026-05-17T08:57:00.839Z"
+  - url: https://github.com/SWE-agent/mini-swe-agent
+    added: "2026-05-17"
+    notes: "SWE-agent now points operators at mini-SWE-agent as its simplified successor: a compact coding-agent runtime built around independent bash actions, multiple sandbox backends, and SWE-bench evaluation. Monitor as a peer signal for harness-parity substrate evidence and coding-agent eval ergonomics."
   - url: https://github.com/princeton-nlp/SWE-bench
     added: "2026-04-19"
     snapshot:
