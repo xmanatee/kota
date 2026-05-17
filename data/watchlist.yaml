@@ -86,9 +86,9 @@ resources:
   - url: https://github.com/letta-ai/letta
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:c89d647c67c17844b365886127f5f85b
-      summary: "Letta is an open-source Python platform for stateful agents organized around labeled `memory_blocks`; ships a CLI (Letta Code) with built-in skills/subagents and an SDK-backed agent API server, with Docker and migration tooling for self-hosted deployments."
-      last_seen_at: "2026-04-19T22:21:08.572Z"
+      fingerprint: sha256:4418d5c6f8d7298186355ded4e0b8c64
+      summary: "Letta remains centered on stateful memory, skills, subagents, and a local coding CLI; no new nonduplicative KOTA task was opened from this refresh."
+      last_seen_at: "2026-05-17T13:08:55.112Z"
   - url: https://github.com/microsoft/autogen
     added: "2026-04-19"
     snapshot:
@@ -158,9 +158,9 @@ resources:
   - url: https://deepmind.google/discover/blog/
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:7859bbd59191f54e50c27c60ba98afb6
-      summary: "DeepMind blog recent cadence mixes frontier model announcements (Gemini 3 Deep Think / Flash, Robotics-ER 1.6, D4RT) with safety/oversight and evaluation-methodology posts (Protecting from harmful manipulation, Measuring progress toward AGI cognitive framework, Gemma Scope 2 interpretability) — interpretability and evaluation threads are the durable autonomy-adjacent signal."
-      last_seen_at: "2026-04-20T12:32:55.787Z"
+      fingerprint: sha256:a31ab02acad770b660d45496c034721b
+      summary: "DeepMind's current autonomy-adjacent signal is AlphaEvolve-style objective optimization evidence; KOTA should carry numeric objective metrics in eval artifacts without adding a parallel benchmark or agent framework."
+      last_seen_at: "2026-05-17T13:08:55.112Z"
   - url: https://research.google/blog/
     added: "2026-04-19"
     snapshot:
@@ -174,9 +174,9 @@ resources:
     added: "2026-04-22"
     notes: "Nous Research's open-source personal-assistant runtime with agent-curated persistent memory, autonomous self-improving skills, FTS5 session search with LLM summarization, built-in cron scheduler, MCP integration, Agentskills.io skill interop, and 40+ tools across six terminal backends (local/Docker/SSH/Daytona/Singularity/Modal) — direct peer to KOTA's module+workflow+session model. Snapshot to be captured by the next explorer run."
     snapshot:
-      fingerprint: sha256:730f1336068983ee1b26143ee51c1b50
-      summary: "Hermes Agent is Nous Research's self-improving personal-assistant framework — closed learning loop where agents curate persistent memory and autonomously generate/refine skills, FTS5 session search with LLM summarization, integrated cron scheduling, parallel subagent delegation, MCP + Agentskills.io interop, and 40+ tools across six terminal backends; direct peer to KOTA's module+workflow+session model."
-      last_seen_at: "2026-04-22T18:53:11.453Z"
+      fingerprint: sha256:0d020a163e63d05892cddd43cf3d24e2
+      summary: "Hermes continues to reinforce KOTA's existing daemon/channel/session/tool/skill/workflow mapping; no new primitive or task was opened from this refresh."
+      last_seen_at: "2026-05-17T13:08:55.112Z"
   - url: https://claude.com/blog
     added: "2026-04-22"
     notes: "Anthropic's Claude product blog — distinct surface from anthropic.com/engineering, lands Claude Code release notes and model-specific best-practices posts. Relevant to autonomy-loop posture and harness defaults on claude-agent-sdk."
