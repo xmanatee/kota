@@ -686,6 +686,13 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
       'Repair agent for step "build" failed: Reconnecting... 2/5 (stream disconnected before completion: idle timeout sending websocket request)',
     );
     writeAgentRuntimeFailureRun(
+      "codex-websocket-wait-timeout",
+      "builder",
+      "build",
+      "2026-04-21T03:30:00.000Z",
+      'Agent step "build" failed (codex_cli_error): Reconnecting... 2/5 (stream disconnected before completion: idle timeout waiting for websocket)',
+    );
+    writeAgentRuntimeFailureRun(
       "codex-response-disconnect",
       "explorer",
       "explore",
