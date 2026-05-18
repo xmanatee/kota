@@ -25,9 +25,9 @@ resources:
   - url: https://github.com/badlogic/pi-mono
     added: "2026-04-14"
     snapshot:
-      fingerprint: sha256:c4c36596e3dba94a654bce7537b4ebf1
-      summary: "Pi-mono is a TypeScript monorepo toolkit for building AI agents and managing LLM deployments, bundling a unified multi-provider LLM API, an agent runtime with state persistence, a coding agent CLI, a Slack bot that delegates to the coding agent, a terminal UI library, and web components for chat UIs; encourages public sharing of agent session logs to build training data."
-      last_seen_at: "2026-04-18T00:43:33.665Z"
+      fingerprint: sha256:0ae693a2ac83f26cdca84edae7c2e72c
+      summary: "Pi moved to earendil-works/pi and remains a broad TypeScript agent toolkit; the refreshed signal is still real-world coding-session evidence and terminal/UI ergonomics, not a new KOTA primitive."
+      last_seen_at: "2026-05-18T08:48:25.077Z"
   - url: https://github.com/anthropics/claude-code
     added: "2026-04-19"
     snapshot:
@@ -230,16 +230,16 @@ resources:
     added: "2026-05-07"
     notes: "Vercel Labs Open Agents is the open-source reference implementation behind open-agents.dev — a TypeScript Next.js + Vercel Workflows + Sandbox stack that runs coding agents 'infinitely in the cloud' with the agent running outside the sandbox. Direct peer to KOTA's daemon + workflow + session model and a comparison point for the events/hooks vs. workflows debate. Snapshot and distill on the next explorer cycle."
     snapshot:
-      fingerprint: sha256:7f518f61cd09822d7949839bdc2502e9
-      summary: "Open Agents is Vercel-Labs' MIT TypeScript reference implementation for background coding agents on Vercel: Next.js web UI + agent package + sandbox abstraction in a bun monorepo, with the agent running outside the sandbox and interacting via tools (brain/hands decoupling) atop the Vercel Workflow SDK; durable multi-step workflows, resumable streams, skills registry, PostgreSQL persistence, branching + auto-commit + PR creation. Pattern overlaps with KOTA's already-rejected 'Managed Agents / brain-hands decoupling' verdict; no new primitive opened."
-      last_seen_at: "2026-05-08T04:29:08.386Z"
+      fingerprint: sha256:310194637cdcc062e75568ae891640a4
+      summary: "Open Agents still maps mostly to KOTA's existing workflow/session/harness model; the useful new local gap is harness-parity coverage for frontend preview artifacts."
+      last_seen_at: "2026-05-18T08:48:25.077Z"
   - url: https://vercel.com/docs/workflow
     added: "2026-05-07"
     notes: "Vercel Workflow SDK docs — durable, resumable orchestration with checkpointing. Peer to KOTA's workflow runtime; useful comparison for workflow durability and resume semantics. Snapshot and distill on the next explorer cycle."
     snapshot:
-      fingerprint: sha256:b7f62ec5b3323245d932105c5fb13359
-      summary: "Vercel Workflows is Vercel's fully-managed durable-execution platform for JS/TS/Python apps and AI agents: plain async functions annotated with `'use workflow'` / `'use step'` directives, executed by Vercel Functions + Vercel Queues with managed persistence; resumable for minutes-to-months, deterministic replays across deploys and crashes, sleep/hooks for waits, streams, skew protection, and built-in observability. Pitched as 'no YAML or state machines'. Pattern verdict: parallel orchestration layer beside KOTA's existing workflow protocol (typed triggers + steps + run records + recoveryCapable + askOwnerSteps), so falls under the already-rejected 'Workflow DSLs' and 'Managed Agents' categories; no new KOTA primitive opened."
-      last_seen_at: "2026-05-08T04:29:08.386Z"
+      fingerprint: sha256:4a2817002fbaf71eac1cc4dde99eaf5f
+      summary: "Vercel Workflow continues to reinforce already-covered durable workflow, await-event, and observability patterns; no new KOTA workflow primitive was opened from this refresh."
+      last_seen_at: "2026-05-18T08:48:25.077Z"
   - url: https://modelcontextprotocol.io/specification/draft/server/tools
     added: "2026-05-16"
     notes: "Official MCP tools spec draft - monitor tool-result content, structuredContent, _meta, output schema, annotations, and execution-error semantics that affect KOTA's MCP client/server protocol fidelity."
