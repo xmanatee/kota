@@ -27,6 +27,7 @@ import {
   listWorkflowMutatedPaths,
   writeWriteScopeViolationArtifact,
 } from "./agent-write-scope.js";
+import { writeHarnessCapabilityArtifact } from "./step-executor-agent-capability.js";
 import {
   extractJsonOutput,
   JsonSchemaValidationError,
@@ -99,6 +100,7 @@ export async function executeAgentStep(
 ): Promise<AgentStepResult> {
   const resolvedHarness = resolveAgentHarness(step.harness);
   const resolvedModel = resolveAgentModel(step, agentConfig);
+  writeHarnessCapabilityArtifact(step.id, metadata, agentConfig.projectDir, resolvedHarness);
 
   const agentPrompt = buildAgentPrompt(
     definition,

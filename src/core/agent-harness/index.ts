@@ -10,6 +10,19 @@ export type {
   KotaAgentToolCallMessage,
   KotaAgentToolResultMessage,
 } from "./agent-message.js";
+export type {
+  HarnessCapabilityArtifact,
+  HarnessCapabilityReadinessProbeSummary,
+  HarnessCapabilityReadinessSummary,
+  HarnessCapabilitySnapshot,
+  HarnessCapabilitySummary,
+  HarnessCapabilityUnsupportedRunOption,
+} from "./capability-snapshot.js";
+export {
+  buildHarnessCapabilityArtifact,
+  buildHarnessCapabilitySnapshot,
+  summarizeHarnessCapability,
+} from "./capability-snapshot.js";
 export {
   composeCanUseTools,
   createAgentCommitGuard,

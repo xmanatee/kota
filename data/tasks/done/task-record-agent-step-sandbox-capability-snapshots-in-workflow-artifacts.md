@@ -1,12 +1,12 @@
 ---
 id: task-record-agent-step-sandbox-capability-snapshots-in-workflow-artifacts
 title: Record agent-step sandbox capability snapshots in workflow artifacts
-status: ready
+status: done
 priority: p2
 area: core
 summary: Persist the resolved agent harness capability and sandbox boundary for every workflow agent step so ordinary autonomous run artifacts explain which controls were active, not only parity runs.
 created_at: 2026-05-18T02:26:21Z
-updated_at: 2026-05-18T02:26:21Z
+updated_at: 2026-05-18T02:37:17Z
 ---
 
 ## Problem
@@ -139,3 +139,13 @@ the run output was.
 - Diff review shows the artifact contains bounded capability/readiness metadata
   only, with no raw prompt, tool input, tool output, secret, or provider-native
   private config.
+
+## Completion Evidence
+
+- `.kota/runs/2026-05-18T02-28-26-837Z-builder-rcjgrk/focused-test-transcript.txt`
+  shows the focused workflow-step, harness-parity, and harness-runner tests
+  passing.
+- `.kota/runs/2026-05-18T02-28-26-837Z-builder-rcjgrk/typecheck-transcript.txt`
+  shows `pnpm typecheck` passing.
+- `.kota/runs/2026-05-18T02-28-26-837Z-builder-rcjgrk/lint-transcript.txt`
+  shows `pnpm lint` passing.

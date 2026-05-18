@@ -16,20 +16,20 @@ import type {
   AgentHarness,
   AgentHarnessRunOptions,
   AgentHarnessWriter,
+  HarnessCapabilitySnapshot,
   KotaAgentMessage,
   KotaContentBlock,
   KotaToolResultBlock,
 } from "#core/agent-harness/index.js";
-import { runAgentHarness } from "#core/agent-harness/index.js";
+import {
+  buildHarnessCapabilitySnapshot,
+  runAgentHarness,
+  summarizeHarnessCapability,
+} from "#core/agent-harness/index.js";
 import type {
   KotaJsonObject,
   KotaJsonValue,
 } from "#core/agent-harness/message-protocol.js";
-import {
-  buildHarnessCapabilitySnapshot,
-  type HarnessCapabilitySnapshot,
-  summarizeHarnessCapability,
-} from "./capability-snapshot.js";
 import type { LoadedScenario, ScenarioVerification } from "./scenario.js";
 
 const DEFAULT_EFFORT: AgentEffort = "xhigh";

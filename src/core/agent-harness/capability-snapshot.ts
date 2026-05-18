@@ -1,12 +1,12 @@
+import type { HarnessHookKind } from "./hooks.js";
 import type {
-  AgentHarness,
   AgentHarnessAuthProbe,
   AgentHarnessReadiness,
   AgentHarnessRuntimeProbe,
   AgentHarnessUnsupportedOption,
   AgentHarnessUnsupportedRunOption,
-  HarnessHookKind,
-} from "#core/agent-harness/index.js";
+} from "./readiness.js";
+import type { AgentHarness } from "./types.js";
 
 export type HarnessCapabilityUnsupportedRunOption = {
   readonly option: string;
@@ -50,6 +50,10 @@ export type HarnessCapabilitySummary = {
   readonly unsupportedRunOptions: readonly HarnessCapabilityUnsupportedRunOption[];
   readonly localReadiness?: HarnessCapabilityReadinessSummary;
 };
+
+export type HarnessCapabilityArtifact = {
+  readonly harnessName: string;
+} & HarnessCapabilitySummary;
 
 function normalizeUnsupportedOptions(
   entries: readonly AgentHarnessUnsupportedOption[],
@@ -143,5 +147,14 @@ export function summarizeHarnessCapability(
     ...(snapshot.localReadiness !== undefined
       ? { localReadiness: summarizeReadiness(snapshot.localReadiness) }
       : {}),
+  };
+}
+
+export function buildHarnessCapabilityArtifact(
+  snapshot: HarnessCapabilitySnapshot,
+): HarnessCapabilityArtifact {
+  return {
+    harnessName: snapshot.harnessName,
+    ...summarizeHarnessCapability(snapshot),
   };
 }

@@ -22,6 +22,8 @@ writeScope contract; everything else is a phase file:
 
 - `step-executor-agent-prompt.ts` — prompt build (trigger header,
   exposed-step-output block, ask-owner sentence, JSON-output trailer).
+- `step-executor-agent-capability.ts` — pre-launch
+  `<runDir>/steps/<stepId>.harness-capability.json` artifact.
 - `step-executor-agent-telemetry.ts` — tool-telemetry tracker and the
   `<runDir>/steps/<stepId>.tool-telemetry.json` artifact.
 - `step-executor-agent-tool-scope.ts` — autonomy-mode → allowed/disallowed

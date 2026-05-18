@@ -68,11 +68,14 @@ injected by call sites.
   local runtime probe, harness-managed local auth probe when the preset has no
   `authEnv`, optional peer runtime probes, and unsupported neutral option
   boundaries without making provider network calls.
-- `unsupportedRunOptions` — static unsupported neutral option declarations
-  that `runAgentHarness` checks before hooks or adapter launch. Native CLI
-  adapters that cannot route KOTA's tool gate must declare `canUseTool`,
-  `allowedTools`, and `disallowedTools` here and surface the same entries
-  through readiness; direct callers that pass those options still fail loudly.
+- `unsupportedRunOptions` — unsupported neutral option declarations checked
+  before hooks or adapter launch. Native CLI adapters that cannot route
+  KOTA's tool gate must declare `canUseTool`, `allowedTools`, and
+  `disallowedTools` here and surface the same entries through readiness;
+  direct callers that pass those options still fail loudly.
+- `capability-snapshot.ts` centralizes capability/readiness artifacts for
+  parity runs and agent steps; both read resolved `AgentHarness` declarations
+  instead of harness-name catalogs.
 
 ## Registry and selection
 
