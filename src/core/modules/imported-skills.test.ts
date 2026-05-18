@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { IMPORTED_SKILL_PROVENANCE_FILE } from "./imported-skills.js";
 import { ModuleLoader } from "./module-loader.js";
 
 function writeProjectFile(root: string, relPath: string, content: string): void {
@@ -12,11 +13,25 @@ function writeProjectFile(root: string, relPath: string, content: string): void 
 
 function writeImportedSkill(
 	root: string,
-	fileName: string,
+	name: string,
 	frontmatter: string,
 	body: string,
 ): void {
-	writeProjectFile(root, join(".kota", "skills", fileName), `---\n${frontmatter}---\n${body}`);
+	writeProjectFile(root, join(".kota", "skills", name, "SKILL.md"), `---\n${frontmatter}---\n${body}`);
+	writeProjectFile(
+		root,
+		join(".kota", "skills", name, IMPORTED_SKILL_PROVENANCE_FILE),
+		`${JSON.stringify({
+			version: 1,
+			skillName: name,
+			source: `/source/${name}`,
+			sourceKind: "single-file",
+			selectedSkillPath: `/source/${name}/SKILL.md`,
+			provenance: `/source/${name}`,
+			importedFiles: ["SKILL.md"],
+			skippedFiles: [],
+		}, null, 2)}\n`,
+	);
 }
 
 describe("imported skill resolution", () => {
@@ -37,7 +52,7 @@ describe("imported skill resolution", () => {
 		writeProjectFile(projectDir, "module.md", "Module guidance.");
 		writeImportedSkill(
 			projectDir,
-			"review.md",
+			"review",
 			"name: review\nimported_from: https://example.com/review.md\n",
 			"Imported review guidance.",
 		);
@@ -48,6 +63,7 @@ describe("imported skill resolution", () => {
 
 		const explicitPrompt = loader.getSkillsPromptFor(["review"], "builder");
 		expect(explicitPrompt).toContain("### review");
+		expect(explicitPrompt).toContain("Imported skill directory: .kota/skills/review");
 		expect(explicitPrompt).toContain("Imported review guidance.");
 
 		const allPrompt = loader.getSkillsPromptFor("all", "builder");
@@ -61,7 +77,7 @@ describe("imported skill resolution", () => {
 	it("injects a pack-imported selected skill only when named explicitly", async () => {
 		writeImportedSkill(
 			projectDir,
-			"typescript.md",
+			"typescript",
 			"name: typescript\nimported_from: repo-pack: vercel/ai -> typescript/SKILL.md (skill: typescript)\n",
 			"Pack-imported TypeScript guidance.",
 		);
@@ -79,7 +95,7 @@ describe("imported skill resolution", () => {
 		writeProjectFile(projectDir, "shared.md", "Module shared guidance.");
 		writeImportedSkill(
 			projectDir,
-			"shared-imported.md",
+			"shared",
 			"name: shared\n",
 			"Imported shared guidance.",
 		);
@@ -96,7 +112,7 @@ describe("imported skill resolution", () => {
 	it("applies role filtering to explicitly selected imported skills", async () => {
 		writeImportedSkill(
 			projectDir,
-			"builder-only.md",
+			"builder-only",
 			"name: builder-only\nroles: [builder]\n",
 			"Builder imported guidance.",
 		);
@@ -111,12 +127,52 @@ describe("imported skill resolution", () => {
 	});
 
 	it("fails loudly on malformed or duplicate imported skill data", async () => {
-		writeImportedSkill(projectDir, "one.md", "name: duplicate\n", "One.");
-		writeImportedSkill(projectDir, "two.md", "name: duplicate\n", "Two.");
+		writeImportedSkill(projectDir, "one", "name: duplicate\n", "One.");
+		writeImportedSkill(projectDir, "two", "name: duplicate\n", "Two.");
 		await loader.load({ name: "empty-module" });
 
 		expect(() => loader.getSkillsPromptFor(["duplicate"], "builder")).toThrow(
-			'duplicate imported skill name "duplicate"',
+			'frontmatter "name" must match imported skill directory "one"',
+		);
+	});
+
+	it("fails loudly on legacy flat imported skill files", async () => {
+		writeProjectFile(
+			projectDir,
+			join(".kota", "skills", "legacy.md"),
+			"---\nname: legacy\n---\nLegacy guidance.",
+		);
+		await loader.load({ name: "empty-module" });
+
+		expect(() => loader.getSkillsPromptFor(["legacy"], "builder")).toThrow(
+			"legacy flat imported skill files are no longer loaded",
+		);
+	});
+
+	it("rejects path-escaping imported resource metadata", async () => {
+		writeProjectFile(
+			projectDir,
+			join(".kota", "skills", "escape", "SKILL.md"),
+			"---\nname: escape\n---\nEscape guidance.",
+		);
+		writeProjectFile(
+			projectDir,
+			join(".kota", "skills", "escape", IMPORTED_SKILL_PROVENANCE_FILE),
+			`${JSON.stringify({
+				version: 1,
+				skillName: "escape",
+				source: "/source/escape",
+				sourceKind: "skill-directory",
+				selectedSkillPath: "/source/escape/SKILL.md",
+				provenance: "/source/escape",
+				importedFiles: ["SKILL.md", "../outside.md"],
+				skippedFiles: [],
+			}, null, 2)}\n`,
+		);
+		await loader.load({ name: "empty-module" });
+
+		expect(() => loader.getSkillsPromptFor(["escape"], "builder")).toThrow(
+			'path "../outside.md" escapes the imported skill directory',
 		);
 	});
 });

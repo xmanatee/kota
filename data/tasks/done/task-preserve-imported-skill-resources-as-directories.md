@@ -1,12 +1,12 @@
 ---
 id: task-preserve-imported-skill-resources-as-directories
 title: Preserve imported skill resources as directories
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Change imported skill storage and resolution from flattened markdown files to auditable skill directories that preserve SKILL.md plus bundled scripts, references, assets, and provenance, so Skills.sh-style packs remain usable after import.
 created_at: 2026-05-18T10:32:20Z
-updated_at: 2026-05-18T10:32:20Z
+updated_at: 2026-05-18T10:49:46Z
 ---
 
 ## Problem

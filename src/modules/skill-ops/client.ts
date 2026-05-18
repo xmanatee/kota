@@ -29,6 +29,7 @@ export type SkillSummary = {
   promptPath: string;
   roles?: string[];
   provenance?: string;
+  resourceSummary?: string;
   shadowedBy?: string;
 };
 
@@ -50,6 +51,7 @@ export type ImportedSkillWrite = {
   path: string;
   sourcePath: string;
   provenance: string;
+  resourceSummary?: string;
 };
 
 /**

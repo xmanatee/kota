@@ -21,6 +21,7 @@ const ROWS = [
     status: "resolvable" as const,
     activation: "explicit" as const,
     provenance: "https://example.com/phase-2.md",
+    resourceSummary: "2 resources; 1 skipped",
     description:
       "Long description that should wrap or truncate cleanly under a narrow terminal width without overflowing the next column",
     promptPath: "src/modules/skill-ops/prompt.md",
@@ -41,6 +42,7 @@ describe("buildSkillListNode", () => {
       expect(out).toContain("audit");
       expect(out).toContain("Src");
       expect(out).toContain("Use");
+      expect(out).toContain("Resources");
       expect(out).toContain("Description");
     });
   }

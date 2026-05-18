@@ -6,17 +6,23 @@
  * diverge in behavior.
  */
 import {
+  copyFileSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   readdirSync,
   readFileSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
-import { basename, dirname, join, posix, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, posix, relative, resolve } from "node:path";
 import {
   IMPORTED_SKILL_ACTIVATION,
+  IMPORTED_SKILL_PROVENANCE_FILE,
   IMPORTED_SKILL_SOURCE,
+  type ImportedSkillProvenance,
+  type ImportedSkillSkippedFile,
   importedSkillsDir,
   parseImportedSkillContent,
   readImportedSkillRecords,
@@ -39,17 +45,34 @@ type SkillSourceKind =
   | "directory-pack"
   | "repo-pack";
 
+type CandidateResource =
+  | {
+      kind: "local";
+      relativePath: string;
+      sourcePath: string;
+    }
+  | {
+      kind: "remote";
+      relativePath: string;
+      url: string;
+    };
+
 type SkillCandidate = {
   content: string;
   sourcePath: string;
+  originalSource: string;
   provenance: string;
   kind: SkillSourceKind;
+  resources: CandidateResource[];
+  skippedResources: ImportedSkillSkippedFile[];
   selectionName?: string;
   fallbackName?: string;
 };
 
 type PreparedSkillWrite = ImportedSkillWrite & {
   serialized: string;
+  resources: CandidateResource[];
+  provenanceRecord: ImportedSkillProvenance;
 };
 
 type GitHubSource =
@@ -106,6 +129,7 @@ export function readImportedSkills(
       promptPath: record.def.promptPath,
       ...(record.def.roles !== undefined && { roles: record.def.roles }),
       ...(record.provenance !== undefined && { provenance: record.provenance }),
+      ...(record.resourceSummary !== undefined && { resourceSummary: record.resourceSummary }),
       ...(shadowedBy !== undefined && { shadowedBy }),
     };
   });
@@ -175,6 +199,12 @@ async function fetchJson<T>(source: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function fetchBytes(source: string): Promise<Buffer> {
+  const res = await fetch(source);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  return Buffer.from(await res.arrayBuffer());
+}
+
 async function fetchSkillContent(source: string): Promise<string> {
   if (source.startsWith("http://") || source.startsWith("https://")) {
     return fetchText(source);
@@ -204,19 +234,87 @@ function inferPosixSkillDirectoryName(path: string): string | undefined {
 function makeCandidate(args: {
   content: string;
   sourcePath: string;
+  originalSource: string;
   provenance: string;
   kind: SkillSourceKind;
+  resources?: CandidateResource[];
+  skippedResources?: ImportedSkillSkippedFile[];
   fallbackName?: string;
 }): SkillCandidate {
   const frontmatterName = readFrontmatterName(args.content);
   return {
     content: args.content,
     sourcePath: args.sourcePath,
+    originalSource: args.originalSource,
     provenance: args.provenance,
     kind: args.kind,
+    resources: args.resources ?? [],
+    skippedResources: args.skippedResources ?? [],
     selectionName: frontmatterName ?? args.fallbackName,
     ...(args.fallbackName !== undefined && { fallbackName: args.fallbackName }),
   };
+}
+
+function toPosixPath(path: string): string {
+  return path.replaceAll("\\", "/");
+}
+
+function skipped(path: string, reason: string): ImportedSkillSkippedFile {
+  return { path: toPosixPath(path), reason };
+}
+
+function shouldSkipResourcePath(relativePath: string): string | null {
+  const parts = relativePath.split("/");
+  const ignored = parts.find((part) => IGNORED_PACK_DIRS.has(part));
+  if (ignored) return `${ignored} directory is not imported`;
+  if (parts.at(-1) === IMPORTED_SKILL_PROVENANCE_FILE) {
+    return `${IMPORTED_SKILL_PROVENANCE_FILE} is reserved for KOTA import provenance`;
+  }
+  return null;
+}
+
+function collectLocalSkillResources(skillDir: string, skillPath: string): {
+  resources: CandidateResource[];
+  skippedResources: ImportedSkillSkippedFile[];
+} {
+  const resolvedSkillPath = resolve(skillPath);
+  const resources: CandidateResource[] = [];
+  const skippedResources: ImportedSkillSkippedFile[] = [];
+  const visit = (dir: string, prefix = "") => {
+    const entries = readdirSync(dir, { withFileTypes: true })
+      .sort((a, b) => a.name.localeCompare(b.name));
+    for (const entry of entries) {
+      const fullPath = join(dir, entry.name);
+      const relativePath = toPosixPath(prefix ? `${prefix}/${entry.name}` : entry.name);
+      const stat = lstatSync(fullPath);
+      if (stat.isSymbolicLink()) {
+        skippedResources.push(skipped(
+          relativePath,
+          "symlink skipped to keep imported resources inside the skill directory",
+        ));
+        continue;
+      }
+      if (entry.isDirectory()) {
+        const reason = shouldSkipResourcePath(relativePath);
+        if (reason) {
+          skippedResources.push(skipped(relativePath, reason));
+          continue;
+        }
+        visit(fullPath, relativePath);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      if (resolve(fullPath) === resolvedSkillPath) continue;
+      const reason = shouldSkipResourcePath(relativePath);
+      if (reason) {
+        skippedResources.push(skipped(relativePath, reason));
+        continue;
+      }
+      resources.push({ kind: "local", relativePath, sourcePath: fullPath });
+    }
+  };
+  visit(skillDir);
+  return { resources, skippedResources };
 }
 
 function findLocalSkillFiles(root: string): string[] {
@@ -270,10 +368,17 @@ function readLocalSource(source: string): SkillCandidate[] | SkillImportFailure 
       const fallbackName = inferSkillDirectoryName(skillPath);
       const content = readFileSync(skillPath, "utf8");
       const selectionName = readFrontmatterName(content) ?? fallbackName ?? basename(resolvedSource);
+      const { resources, skippedResources } = collectLocalSkillResources(
+        dirname(skillPath),
+        skillPath,
+      );
       return makeCandidate({
         content,
         sourcePath: skillPath,
+        originalSource: source,
         kind,
+        resources,
+        skippedResources,
         fallbackName,
         provenance: localPackProvenance({
           source,
@@ -292,11 +397,16 @@ function readLocalSource(source: string): SkillCandidate[] | SkillImportFailure 
   const fallbackName = isSkillMarkdownPath(source) ? inferSkillDirectoryName(source) : undefined;
   const kind: SkillSourceKind = fallbackName ? "skill-directory" : "single-file";
   const selectionName = readFrontmatterName(content) ?? fallbackName ?? basename(source);
+  const resourceData = fallbackName
+    ? collectLocalSkillResources(dirname(source), source)
+    : { resources: [], skippedResources: [] };
   return [
     makeCandidate({
       content,
       sourcePath: source,
+      originalSource: source,
       kind,
+      ...resourceData,
       ...(fallbackName !== undefined && { fallbackName }),
       provenance: localPackProvenance({
         source,
@@ -358,6 +468,42 @@ function rawGitHubTreeUrl(source: Exclude<GitHubSource, { kind: "blob" }>, ref: 
   return `https://raw.githubusercontent.com/${source.owner}/${source.repo}/${encodeURIComponent(ref)}/${encodedPath}`;
 }
 
+function relativePathInPosixDir(directory: string, path: string): string | null {
+  if (directory === "." || directory === "") return path;
+  if (!path.startsWith(`${directory}/`)) return null;
+  return path.slice(directory.length + 1);
+}
+
+function collectGitHubSkillResources(args: {
+  source: Exclude<GitHubSource, { kind: "blob" }>;
+  ref: string;
+  skillPath: string;
+  tree: GitHubTreeItem[];
+}): {
+  resources: CandidateResource[];
+  skippedResources: ImportedSkillSkippedFile[];
+} {
+  const resources: CandidateResource[] = [];
+  const skippedResources: ImportedSkillSkippedFile[] = [];
+  const skillDir = posix.dirname(args.skillPath);
+  for (const item of args.tree) {
+    if (item.type !== "blob" || !item.path || item.path === args.skillPath) continue;
+    const relativePath = relativePathInPosixDir(skillDir, item.path);
+    if (!relativePath) continue;
+    const reason = shouldSkipResourcePath(relativePath);
+    if (reason) {
+      skippedResources.push(skipped(relativePath, reason));
+      continue;
+    }
+    resources.push({
+      kind: "remote",
+      relativePath,
+      url: rawGitHubTreeUrl(args.source, args.ref, item.path),
+    });
+  }
+  return { resources, skippedResources };
+}
+
 async function resolveGitHubRef(source: Exclude<GitHubSource, { kind: "blob" }>): Promise<string> {
   if (source.ref) return source.ref;
   const repo = await fetchJson<GitHubRepoResponse>(
@@ -369,7 +515,10 @@ async function resolveGitHubRef(source: Exclude<GitHubSource, { kind: "blob" }>)
   return repo.default_branch;
 }
 
-async function readGitHubSource(source: GitHubSource): Promise<SkillCandidate[] | SkillImportFailure> {
+async function readGitHubSource(
+  source: GitHubSource,
+  options?: SkillImportOptions,
+): Promise<SkillCandidate[] | SkillImportFailure> {
   if (source.kind === "blob") {
     const content = await fetchText(rawGitHubUrl(source));
     const fallbackName = isPosixSkillMarkdownPath(source.path)
@@ -379,6 +528,7 @@ async function readGitHubSource(source: GitHubSource): Promise<SkillCandidate[] 
       makeCandidate({
         content,
         sourcePath: source.path,
+        originalSource: source.originalSource,
         kind: fallbackName ? "skill-directory" : "single-file",
         ...(fallbackName !== undefined && { fallbackName }),
         provenance: source.originalSource,
@@ -402,15 +552,28 @@ async function readGitHubSource(source: GitHubSource): Promise<SkillCandidate[] 
       `GitHub skill pack "${source.originalSource}" contains no SKILL.md files.`,
     );
   }
+  const fallbackMatches = options?.skill
+    ? skillPaths.filter((path) => posix.basename(posix.dirname(path)) === options.skill)
+    : [];
+  const pathsToFetch = fallbackMatches.length > 0 ? fallbackMatches : skillPaths;
   const candidates: SkillCandidate[] = [];
-  for (const skillPath of skillPaths) {
+  for (const skillPath of pathsToFetch) {
     const content = await fetchText(rawGitHubTreeUrl(source, ref, skillPath));
     const fallbackName = posix.basename(posix.dirname(skillPath));
     const selectionName = readFrontmatterName(content) ?? fallbackName;
+    const { resources, skippedResources } = collectGitHubSkillResources({
+      source,
+      ref,
+      skillPath,
+      tree: tree.tree ?? [],
+    });
     candidates.push(makeCandidate({
       content,
       sourcePath: skillPath,
+      originalSource: source.originalSource,
       kind: "repo-pack",
+      resources,
+      skippedResources,
       fallbackName,
       provenance: `repo-pack: ${source.originalSource} -> ${skillPath} (skill: ${selectionName})`,
     }));
@@ -418,12 +581,15 @@ async function readGitHubSource(source: GitHubSource): Promise<SkillCandidate[] 
   return candidates;
 }
 
-async function resolveSourceCandidates(source: string): Promise<SkillCandidate[] | SkillImportFailure> {
+async function resolveSourceCandidates(
+  source: string,
+  options?: SkillImportOptions,
+): Promise<SkillCandidate[] | SkillImportFailure> {
   if (existsSync(source)) return readLocalSource(source);
   const githubSource = parseGitHubSource(source);
   if (githubSource) {
     try {
-      return await readGitHubSource(githubSource);
+      return await readGitHubSource(githubSource, options);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return failure("fetch_failed", message);
@@ -435,6 +601,7 @@ async function resolveSourceCandidates(source: string): Promise<SkillCandidate[]
       makeCandidate({
         content,
         sourcePath: source,
+        originalSource: source,
         kind: "single-file",
         provenance: source,
       }),
@@ -482,6 +649,21 @@ function selectCandidates(
   return [...candidates];
 }
 
+function formatResourceSummary(importedFiles: readonly string[], skippedFiles: readonly ImportedSkillSkippedFile[]): string {
+  const resourceCount = importedFiles.filter((file) => file !== "SKILL.md").length;
+  return `${resourceCount} resource${resourceCount === 1 ? "" : "s"}; ${skippedFiles.length} skipped`;
+}
+
+function safeDestinationPath(destDir: string, relativePath: string): string {
+  const resolvedRoot = resolve(destDir);
+  const resolvedDest = resolve(destDir, relativePath);
+  const backToRoot = relative(resolvedRoot, resolvedDest);
+  if (backToRoot.startsWith("..") || isAbsolute(backToRoot)) {
+    throw new Error(`Imported resource path escapes skill directory: ${relativePath}`);
+  }
+  return resolvedDest;
+}
+
 function prepareWrites(
   selected: readonly SkillCandidate[],
   options?: SkillImportOptions,
@@ -516,18 +698,39 @@ function prepareWrites(
       body,
     );
     try {
-      parseImportedSkillContent(serialized, `${skillName}.md`);
+      parseImportedSkillContent(serialized, join(skillName, "SKILL.md"));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return failure("invalid_skill", message);
     }
+    const importedFiles = [
+      "SKILL.md",
+      ...candidate.resources.map((resource) => resource.relativePath).sort((a, b) =>
+        a.localeCompare(b)
+      ),
+    ];
+    const provenanceRecord: ImportedSkillProvenance = {
+      version: 1,
+      skillName,
+      source: candidate.originalSource,
+      sourceKind: candidate.kind,
+      selectedSkillPath: candidate.sourcePath,
+      provenance: candidate.provenance,
+      importedFiles,
+      skippedFiles: [...candidate.skippedResources].sort((a, b) =>
+        a.path.localeCompare(b.path)
+      ),
+    };
     seen.set(skillName, candidate.sourcePath);
     writes.push({
       name: skillName,
       path: "",
       sourcePath: candidate.sourcePath,
       provenance: candidate.provenance,
+      resourceSummary: formatResourceSummary(importedFiles, provenanceRecord.skippedFiles),
       serialized,
+      resources: candidate.resources,
+      provenanceRecord,
     });
   }
   return writes;
@@ -544,7 +747,7 @@ export async function importSkill(
   source: string,
   options?: SkillImportOptions,
 ): Promise<SkillImportResult> {
-  const candidates = await resolveSourceCandidates(source);
+  const candidates = await resolveSourceCandidates(source, options);
   if (!Array.isArray(candidates)) return candidates;
   const selected = selectCandidates(source, candidates, options);
   if (!Array.isArray(selected)) return selected;
@@ -554,11 +757,41 @@ export async function importSkill(
   const dir = importedSkillsDir(ctx.cwd);
   mkdirSync(dir, { recursive: true });
   const installed: ImportedSkillWrite[] = [];
-  for (const write of writes) {
-    const dest = join(dir, `${write.name}.md`);
-    writeFileSync(dest, write.serialized, "utf8");
-    const { serialized: _serialized, ...result } = write;
-    installed.push({ ...result, path: dest });
+  try {
+    for (const write of writes) {
+      const destDir = join(dir, write.name);
+      const legacyFlatFile = join(dir, `${write.name}.md`);
+      rmSync(destDir, { recursive: true, force: true });
+      rmSync(legacyFlatFile, { force: true });
+      mkdirSync(destDir, { recursive: true });
+
+      const skillPath = join(destDir, "SKILL.md");
+      writeFileSync(skillPath, write.serialized, "utf8");
+      for (const resource of write.resources) {
+        const dest = safeDestinationPath(destDir, resource.relativePath);
+        mkdirSync(dirname(dest), { recursive: true });
+        if (resource.kind === "local") {
+          copyFileSync(resource.sourcePath, dest);
+        } else {
+          writeFileSync(dest, await fetchBytes(resource.url));
+        }
+      }
+      writeFileSync(
+        join(destDir, IMPORTED_SKILL_PROVENANCE_FILE),
+        `${JSON.stringify(write.provenanceRecord, null, 2)}\n`,
+        "utf8",
+      );
+      const {
+        serialized: _serialized,
+        resources: _resources,
+        provenanceRecord: _provenanceRecord,
+        ...result
+      } = write;
+      installed.push({ ...result, path: skillPath });
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure("fetch_failed", message);
   }
   return { ok: true, skills: installed };
 }

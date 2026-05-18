@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { IMPORTED_SKILL_PROVENANCE_FILE } from "#core/modules/imported-skills.js";
 import { ModuleLoader } from "#core/modules/module-loader.js";
 import type { ModuleContext, ModuleSummary } from "#core/modules/module-types.js";
 import { importSkill, listSkills } from "./skill-ops-operations.js";
@@ -49,6 +50,31 @@ function mockFetch(responses: Record<string, string>): void {
   );
 }
 
+function writeInstalledSkill(
+  projectDir: string,
+  name: string,
+  frontmatter: string,
+  body: string,
+  importedFiles = ["SKILL.md"],
+): void {
+  const skillDir = join(projectDir, ".kota", "skills", name);
+  mkdirSync(skillDir, { recursive: true });
+  writeFileSync(join(skillDir, "SKILL.md"), `---\n${frontmatter}---\n${body}`);
+  writeFileSync(
+    join(skillDir, IMPORTED_SKILL_PROVENANCE_FILE),
+    `${JSON.stringify({
+      version: 1,
+      skillName: name,
+      source: `/source/${name}`,
+      sourceKind: "single-file",
+      selectedSkillPath: `/source/${name}/SKILL.md`,
+      provenance: `/source/${name}`,
+      importedFiles,
+      skippedFiles: [],
+    }, null, 2)}\n`,
+  );
+}
+
 describe("skill-ops operations (local handler / daemon-down branch)", () => {
   let projectDir: string;
 
@@ -62,11 +88,11 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
   });
 
   it("listSkills surfaces module skills and reads imported skills", () => {
-    const skillsDir = join(projectDir, ".kota", "skills");
-    mkdirSync(skillsDir, { recursive: true });
-    writeFileSync(
-      join(skillsDir, "external.md"),
-      "---\nname: external\ndescription: external skill\n---\nbody\n",
+    writeInstalledSkill(
+      projectDir,
+      "external",
+      "name: external\ndescription: external skill\n",
+      "body\n",
     );
 
     const ctx = stubCtx(projectDir, [
@@ -85,17 +111,13 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
         sourceType: "imported",
         status: "resolvable",
         activation: "explicit",
+        resourceSummary: "0 resources; 0 skipped",
       }),
     );
   });
 
   it("listSkills reports an imported duplicate as shadowed by the module skill", () => {
-    const skillsDir = join(projectDir, ".kota", "skills");
-    mkdirSync(skillsDir, { recursive: true });
-    writeFileSync(
-      join(skillsDir, "shared.md"),
-      "---\nname: shared\n---\nbody\n",
-    );
+    writeInstalledSkill(projectDir, "shared", "name: shared\n", "body\n");
 
     const ctx = stubCtx(projectDir, [
       moduleSummary("autonomy", [
@@ -125,13 +147,13 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
   });
 
   it("listSkills fails loudly for invalid imported skill files", () => {
-    const skillsDir = join(projectDir, ".kota", "skills");
-    mkdirSync(skillsDir, { recursive: true });
-    writeFileSync(join(skillsDir, "invalid.md"), "body without frontmatter\n");
+    const skillDir = join(projectDir, ".kota", "skills", "invalid");
+    mkdirSync(skillDir, { recursive: true });
+    writeFileSync(join(skillDir, "SKILL.md"), "body without frontmatter\n");
 
     const ctx = stubCtx(projectDir);
     expect(() => listSkills(ctx)).toThrow(
-      '.kota/skills/invalid.md: imported skills must declare frontmatter with a non-empty "name"',
+      '.kota/skills/invalid/SKILL.md: imported skills must declare frontmatter with a non-empty "name"',
     );
   });
 
@@ -152,7 +174,7 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
     if (!result.ok) expect(result.reason).toBe("fetch_failed");
   });
 
-  it("importSkill writes the file to .kota/skills/ when frontmatter has a name", async () => {
+  it("importSkill writes a canonical skill directory when frontmatter has a name", async () => {
     const ctx = stubCtx(projectDir);
     const sourcePath = join(projectDir, "my-skill.md");
     writeFileSync(sourcePath, "---\nname: my-skill\n---\nbody\n");
@@ -163,8 +185,14 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
       expect(result.skills).toHaveLength(1);
       expect(result.skills[0].name).toBe("my-skill");
       expect(existsSync(result.skills[0].path)).toBe(true);
+      expect(result.skills[0].path).toBe(join(projectDir, ".kota", "skills", "my-skill", "SKILL.md"));
       expect(readFileSync(result.skills[0].path, "utf-8")).toContain("name: my-skill");
       expect(readFileSync(result.skills[0].path, "utf-8")).toContain(`imported_from: ${sourcePath}`);
+      expect(existsSync(join(projectDir, ".kota", "skills", "my-skill.md"))).toBe(false);
+      expect(readFileSync(
+        join(projectDir, ".kota", "skills", "my-skill", IMPORTED_SKILL_PROVENANCE_FILE),
+        "utf-8",
+      )).toContain('"importedFiles": [');
     }
   });
 
@@ -179,6 +207,7 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
     if (result.ok) {
       expect(result.skills).toHaveLength(1);
       expect(result.skills[0].name).toBe("url-skill");
+      expect(result.skills[0].path.endsWith(join("url-skill", "SKILL.md"))).toBe(true);
       expect(readFileSync(result.skills[0].path, "utf-8")).toContain(
         "imported_from: https://example.test/my-skill.md",
       );
@@ -189,9 +218,16 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
     const ctx = stubCtx(projectDir);
     const packDir = join(projectDir, "pack");
     mkdirSync(join(packDir, "alpha"), { recursive: true });
+    mkdirSync(join(packDir, "alpha", "references"), { recursive: true });
+    mkdirSync(join(packDir, "alpha", "scripts"), { recursive: true });
+    mkdirSync(join(packDir, "alpha", ".git"), { recursive: true });
     mkdirSync(join(packDir, "beta"), { recursive: true });
     writeFileSync(join(packDir, "alpha", "SKILL.md"), "Alpha guidance.\n");
+    writeFileSync(join(packDir, "alpha", "references", "schema.md"), "Alpha schema.\n");
+    writeFileSync(join(packDir, "alpha", "scripts", "helper.py"), "print('alpha')\n");
+    writeFileSync(join(packDir, "alpha", ".git", "config"), "ignored\n");
     writeFileSync(join(packDir, "beta", "SKILL.md"), "---\nname: beta\n---\nBeta guidance.\n");
+    writeFileSync(join(packDir, "beta", "sibling.md"), "Do not copy.\n");
 
     const result = await importSkill(ctx, packDir, { skill: "alpha" });
     expect(result.ok).toBe(true);
@@ -203,6 +239,16 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
       expect(imported).toContain("directory-pack:");
       expect(imported).toContain("alpha/SKILL.md");
       expect(imported).toContain("Alpha guidance.");
+      expect(existsSync(join(projectDir, ".kota", "skills", "alpha", "references", "schema.md"))).toBe(true);
+      expect(existsSync(join(projectDir, ".kota", "skills", "alpha", "scripts", "helper.py"))).toBe(true);
+      expect(existsSync(join(projectDir, ".kota", "skills", "alpha", "sibling.md"))).toBe(false);
+      const provenance = readFileSync(
+        join(projectDir, ".kota", "skills", "alpha", IMPORTED_SKILL_PROVENANCE_FILE),
+        "utf-8",
+      );
+      expect(provenance).toContain('"references/schema.md"');
+      expect(provenance).toContain('"scripts/helper.py"');
+      expect(provenance).toContain(".git directory is not imported");
       expect(listSkills(ctx).skills).toContainEqual(
         expect.objectContaining({
           name: "alpha",
@@ -210,6 +256,7 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
           activation: "explicit",
           status: "resolvable",
           provenance: expect.stringContaining("directory-pack:"),
+          resourceSummary: "2 resources; 1 skipped",
         }),
       );
     }
@@ -287,12 +334,16 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
       "https://api.github.com/repos/vercel/ai/git/trees/main?recursive=1": JSON.stringify({
         tree: [
           { path: "react/SKILL.md", type: "blob" },
+          { path: "react/references/react.md", type: "blob" },
           { path: "typescript/SKILL.md", type: "blob" },
+          { path: "typescript/references/api.md", type: "blob" },
+          { path: "typescript/scripts/check.ts", type: "blob" },
           { path: "README.md", type: "blob" },
         ],
       }),
-      "https://raw.githubusercontent.com/vercel/ai/main/react/SKILL.md": "React guidance.\n",
       "https://raw.githubusercontent.com/vercel/ai/main/typescript/SKILL.md": "TypeScript guidance.\n",
+      "https://raw.githubusercontent.com/vercel/ai/main/typescript/references/api.md": "TypeScript API.\n",
+      "https://raw.githubusercontent.com/vercel/ai/main/typescript/scripts/check.ts": "console.log('ts');\n",
     });
 
     const result = await importSkill(ctx, "vercel/ai", { skill: "typescript" });
@@ -303,6 +354,16 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
       const imported = readFileSync(result.skills[0].path, "utf-8");
       expect(imported).toContain("repo-pack: vercel/ai -> typescript/SKILL.md (skill: typescript)");
       expect(imported).toContain("TypeScript guidance.");
+      expect(readFileSync(
+        join(projectDir, ".kota", "skills", "typescript", "references", "api.md"),
+        "utf-8",
+      )).toBe("TypeScript API.\n");
+      expect(readFileSync(
+        join(projectDir, ".kota", "skills", "typescript", "scripts", "check.ts"),
+        "utf-8",
+      )).toBe("console.log('ts');\n");
+      expect(existsSync(join(projectDir, ".kota", "skills", "typescript", "references", "react.md"))).toBe(false);
+      expect(result.skills[0].resourceSummary).toBe("2 resources; 0 skipped");
     }
   });
 
@@ -312,10 +373,12 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
       "https://api.github.com/repos/crewaiinc/skills/git/trees/main?recursive=1": JSON.stringify({
         tree: [
           { path: "python/SKILL.md", type: "blob" },
+          { path: "python/references/python.md", type: "blob" },
           { path: "docs/SKILL.md", type: "blob" },
         ],
       }),
       "https://raw.githubusercontent.com/crewaiinc/skills/main/python/SKILL.md": "Python guidance.\n",
+      "https://raw.githubusercontent.com/crewaiinc/skills/main/python/references/python.md": "Python reference.\n",
     });
 
     const result = await importSkill(
@@ -329,6 +392,10 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
       expect(readFileSync(result.skills[0].path, "utf-8")).toContain(
         "repo-pack: https://github.com/crewaiinc/skills/tree/main/python -> python/SKILL.md (skill: python)",
       );
+      expect(readFileSync(
+        join(projectDir, ".kota", "skills", "python", "references", "python.md"),
+        "utf-8",
+      )).toBe("Python reference.\n");
     }
   });
 
@@ -351,12 +418,16 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
         status: "resolvable",
         activation: "explicit",
         provenance: sourcePath,
+        resourceSummary: "0 resources; 0 skipped",
       }),
     );
 
     const loader = new ModuleLoader({});
     loader.setCwd(projectDir);
     await loader.load({ name: "empty-module" });
+    expect(loader.getSkillsPromptFor(["resolver-skill"], "builder")).toContain(
+      "Imported skill directory: .kota/skills/resolver-skill",
+    );
     expect(loader.getSkillsPromptFor(["resolver-skill"], "builder")).toContain(
       "Use imported resolver guidance.",
     );
@@ -375,7 +446,7 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
     if (result.ok) {
       expect(result.skills).toHaveLength(1);
       expect(result.skills[0].name).toBe("renamed");
-      expect(result.skills[0].path.endsWith("renamed.md")).toBe(true);
+      expect(result.skills[0].path.endsWith(join("renamed", "SKILL.md"))).toBe(true);
       expect(readFileSync(result.skills[0].path, "utf-8")).toContain("name: renamed");
     }
   });
