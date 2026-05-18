@@ -251,6 +251,6 @@ resources:
     added: "2026-05-17"
     notes: "GitHub Agentic Workflows is a GitHub Actions-hosted agent workflow runtime; monitor for event-trigger, safe-output, input-sanitization, and multi-engine guardrail patterns relevant to KOTA's workflow runtime."
     snapshot:
-      fingerprint: sha256:83127a3d6de603b1aaa9363b6d46a9c7
-      summary: "GitHub Agentic Workflows still reinforces explicit guardrails for repository agents; KOTA's actor-integrity PR gate is complete, and the new local gap is comment mention ingress."
-      last_seen_at: "2026-05-17T07:03:40.826Z"
+      fingerprint: sha256:9e16f5cd8b79431a965813c394429e45
+      summary: "GitHub Agentic Workflows now exposes a TrialOps pattern for isolated real workflow execution; KOTA's actionable gap is workflow trial runs that sit between dry-run planning and live project execution."
+      last_seen_at: "2026-05-18T11:10:09.573Z"
