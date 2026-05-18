@@ -140,9 +140,9 @@ resources:
   - url: https://www.anthropic.com/research
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:c185315d7cf749c1019d06fd4d3c677a
-      summary: "Anthropic research index — three new entries since 2026-04-20 fingerprint: 'Natural Language Autoencoders' (interpretability, internal-representation decoding), 'Teaching Claude why' (alignment via reasoning explanations), 'Donating our open-source alignment tool' (policy/tool release). The autonomy-eval-adjacent thread (Automated Alignment Researchers, Trustworthy agents in practice) plus instruction-hierarchy / oversight angles remain durable. New entries are durable reading material rather than KOTA-primitive triggers — none open a new tool/skill/agent/workflow/module/channel pattern beyond what existing autonomy AGENTS.md already records."
-      last_seen_at: "2026-05-10T04:55:39.673Z"
+      fingerprint: sha256:d880049e5178d4820fd212f037ec00f0
+      summary: "Anthropic research now adds a May 14 policy-scenarios item, while the relevant autonomy signal remains the already-distilled May 7-8 alignment and interpretability work; no new KOTA task was opened."
+      last_seen_at: "2026-05-18T09:24:01.713Z"
   - url: https://www.anthropic.com/engineering
     added: "2026-04-19"
     snapshot:
