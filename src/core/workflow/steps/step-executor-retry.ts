@@ -262,6 +262,15 @@ export function classifyAgentRuntimeFailure(
   ) {
     return { kind: "provider", retryable: true };
   }
+  // The Codex CLI sometimes exits without stderr or a JSON error after the
+  // remote response stream dies. With no agent output to inspect, this is an
+  // adapter/provider signal rather than a workflow-quality failure.
+  if (
+    input.subtype === "codex_cli_error" &&
+    /\bCodex CLI exited with code 1\b/.test(input.message)
+  ) {
+    return { kind: "provider", retryable: true };
+  }
 
   return null;
 }

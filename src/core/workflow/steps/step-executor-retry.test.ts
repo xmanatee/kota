@@ -42,6 +42,16 @@ describe("classifyAgentRuntimeFailure", () => {
     ).toEqual({ kind: "provider", retryable: true });
   });
 
+  it("classifies no-detail Codex CLI exits as provider failures", () => {
+    expect(
+      classifyAgentRuntimeFailure({
+        subtype: "codex_cli_error",
+        message:
+          'Agent step "explore" failed (codex_cli_error): Codex CLI exited with code 1',
+      }),
+    ).toEqual({ kind: "provider", retryable: true });
+  });
+
   it("does not classify arbitrary request-disconnect text as a provider failure", () => {
     expect(
       classifyAgentRuntimeFailure({

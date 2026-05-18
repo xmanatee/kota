@@ -699,6 +699,13 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
       "2026-04-21T04:00:00.000Z",
       'Agent step "explore" failed (codex_cli_error): stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)',
     );
+    writeAgentRuntimeFailureRun(
+      "codex-silent-exit",
+      "explorer",
+      "explore",
+      "2026-04-21T04:30:00.000Z",
+      'Agent step "explore" failed (codex_cli_error): Codex CLI exited with code 1',
+    );
 
     const result = aggregateRunOutcomes(runsDir);
     expect(result.latestActionableRunAt).toBeNull();
