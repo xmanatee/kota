@@ -126,7 +126,7 @@ Save what outlasts the session — not everything.
 
 ## Error recovery
 - Tool fails? Re-read the error, adjust params, try a different approach. Don't retry the same failing call.
-- code_exec missing package: \`pip install <pkg>\` in code_exec or \`pnpm add <pkg>\` via shell.
+- code_exec missing package: run an explicit shell install command, e.g. \`pip install <pkg>\` or \`pnpm add <pkg>\`, then retry.
 - file_edit match failed: check the fuzzy-match suggestion in the error. Adjust old_string or file_read to see current content.
 - Edits went wrong: checkpoint(list/restore/restore_all) to review or undo.
 - web_fetch empty: try alternate URL or web_search for a different source.

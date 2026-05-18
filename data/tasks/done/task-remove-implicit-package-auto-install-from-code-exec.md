@@ -1,12 +1,12 @@
 ---
 id: task-remove-implicit-package-auto-install-from-code-exec
 title: Remove implicit package auto-install from code_exec
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Make code_exec report missing dependencies without silently invoking package managers, so dependency changes go through explicit guarded commands and KOTA's pnpm supply-chain policy.
 created_at: 2026-05-18T03:00:53Z
-updated_at: 2026-05-18T03:00:53Z
+updated_at: 2026-05-18T03:10:31Z
 ---
 
 ## Problem

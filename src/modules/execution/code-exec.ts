@@ -1,15 +1,11 @@
-import { execFile as execFileCb } from "node:child_process";
-import { promisify } from "node:util";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { which } from "#core/tools/runtime-check.js";
 import type { ToolResult, ToolResultBlock } from "#core/tools/tool-result.js";
 import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "./code-wrappers.js";
 import { extractPlots, readPlotFiles } from "./plot-capture.js";
-import { cleanupSessions, findPythonBinary, type Language, type REPLSession, sessions } from "./repl-session.js";
+import { cleanupSessions, findPythonBinary, type Language, sessions } from "./repl-session.js";
 
 export { cleanupSessions };
-
-const execFileP = promisify(execFileCb);
 
 export const codeExecTool: KotaTool = {
   name: "code_exec",
@@ -72,17 +68,7 @@ export async function runCodeExec(
   const session = sessions[language];
   if (reset) session.kill();
 
-  let { output, isError } = await session.execute(code, timeoutMs);
-
-  // Auto-install missing packages and retry (one attempt)
-  const missingPkg = extractMissingPackage(output, language);
-  if (missingPkg) {
-    const retry = await tryAutoInstall(missingPkg, code, language, session, timeoutMs);
-    if (retry) {
-      output = retry.output;
-      isError = retry.isError;
-    }
-  }
+  const { output, isError } = await session.execute(code, timeoutMs);
 
   // Separate plot markers from text output (Python matplotlib auto-capture)
   const { text: cleanOutput, plotPaths } = extractPlots(output);
@@ -152,37 +138,4 @@ export function extractMissingPackage(output: string, language: string): string 
     return /^(@[a-zA-Z0-9._-]+\/)?[a-zA-Z0-9._-]+$/.test(pkgName) ? pkgName : null;
   }
   return null;
-}
-
-/** Auto-install a missing package and re-run the code. Returns null on failure. */
-async function tryAutoInstall(
-  pkg: string,
-  code: string,
-  language: Language,
-  session: REPLSession,
-  timeoutMs: number,
-): Promise<{ output: string; isError: boolean } | null> {
-  try {
-    if (language === "python") {
-      const bin = findPythonBinary(process.cwd());
-      await execFileP(bin, ["-m", "pip", "install", "--quiet", pkg], {
-        timeout: 60_000,
-      });
-    } else {
-      await execFileP("npm", ["install", "--no-save", pkg], {
-        timeout: 60_000,
-      });
-    }
-  } catch {
-    return null;
-  }
-  const retryCode = language === "python"
-    ? `import importlib; importlib.invalidate_caches()\n${code}`
-    : code;
-  const result = await session.execute(retryCode, timeoutMs);
-  const installer = language === "python" ? "pip" : "npm";
-  return {
-    output: `[Auto-installed ${pkg} via ${installer}]\n${result.output}`,
-    isError: result.isError,
-  };
 }

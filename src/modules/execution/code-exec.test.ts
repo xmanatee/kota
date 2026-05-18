@@ -1,8 +1,32 @@
-import { afterAll, describe, expect, it } from "vitest";
+import { execFile } from "node:child_process";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { cleanupSessions, detectPackageHint, extractMissingPackage, runCodeExec } from "./code-exec.js";
+
+const execFileMock = vi.hoisted(() =>
+  vi.fn((...args: unknown[]) => {
+    const callback = args.find((arg) => typeof arg === "function") as
+      | ((error: Error | null, stdout: string, stderr: string) => void)
+      | undefined;
+    if (callback) {
+      callback(new Error("unexpected execFile call from code_exec"), "", "");
+    }
+    return {};
+  }),
+);
+
+vi.mock("node:child_process", async () => {
+  const actual = await vi.importActual<typeof import("node:child_process")>(
+    "node:child_process",
+  );
+  return { ...actual, execFile: execFileMock };
+});
 
 afterAll(() => {
   cleanupSessions();
+});
+
+afterEach(() => {
+  vi.clearAllMocks();
 });
 
 describe("code_exec tool", () => {
@@ -258,26 +282,42 @@ ModuleNotFoundError: No module named 'pandas'`;
     });
   });
 
-  describe("auto-install integration", () => {
-    it("gracefully degrades for non-existent packages", async () => {
-      const result = await runCodeExec({
-        code: "import nonexistent_pkg_xyzzy_99999",
-        language: "python",
-      });
-      // Auto-install fails silently, falls through to detectPackageHint
-      expect(result.content).toContain("ModuleNotFoundError");
-      expect(result.content).toContain("nonexistent_pkg_xyzzy_99999");
-    }, 90_000);
+  describe("missing dependency execution", () => {
+    const packageManagerExec = vi.mocked(execFile);
 
-    it("preserves package hint after failed auto-install", async () => {
+    it("returns Python missing-package output and hint without installing or retrying", async () => {
+      const missingPackage = "nonexistent_pkg_xyzzy_99999";
       const result = await runCodeExec({
-        code: "import nonexistent_pkg_xyzzy_99998",
+        code: `import ${missingPackage}`,
         language: "python",
+        reset: true,
       });
-      // When auto-install fails, detectPackageHint should still append a tip
-      expect(result.content).toContain("Tip: Install the missing package");
-      expect(result.content).toContain("pip install nonexistent_pkg_xyzzy_99998");
-    }, 90_000);
+
+      expect(result.content).toContain("ModuleNotFoundError");
+      expect(result.content).toContain(missingPackage);
+      expect(result.content).toContain(
+        `Tip: Install the missing package with shell: pip install ${missingPackage}`,
+      );
+      expect(result.content).not.toContain("Auto-installed");
+      expect(packageManagerExec).not.toHaveBeenCalled();
+    });
+
+    it("returns Node missing-package output and pnpm hint without installing or retrying", async () => {
+      const missingPackage = "nonexistent-node-pkg-kota-xyzzy-99999";
+      const result = await runCodeExec({
+        code: `require("${missingPackage}")`,
+        language: "node",
+        reset: true,
+      });
+
+      expect(result.content).toContain("Cannot find module");
+      expect(result.content).toContain(missingPackage);
+      expect(result.content).toContain(
+        `Tip: Install the missing package with shell: pnpm add ${missingPackage}`,
+      );
+      expect(result.content).not.toContain("Auto-installed");
+      expect(packageManagerExec).not.toHaveBeenCalled();
+    });
 
     it("no hint when code succeeds (stdlib import)", async () => {
       const result = await runCodeExec({
@@ -349,7 +389,7 @@ ModuleNotFoundError: No module named 'pandas'`;
     }, 10000);
   });
 
-  describe("venv-aware auto-install (cross-module: repl-session × code-exec)", () => {
+  describe("venv-aware package hints (cross-module: repl-session x code-exec)", () => {
     it("detectPackageHint uses venv binary in install command", () => {
       const output = "ModuleNotFoundError: No module named 'pandas'";
       const venvBin = "/project/.venv/bin/python";
