@@ -1,12 +1,12 @@
 ---
 id: task-support-skillssh-style-skill-pack-imports
 title: Support Skills.sh-style skill pack imports
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Teach kota skill import to ingest repo or directory based skill packs, including owner/repo shorthand and selecting individual SKILL.md entries, so KOTA can use the current skills.sh ecosystem without shelling out to a separate installer.
 created_at: 2026-05-18T04:14:48.438Z
-updated_at: 2026-05-18T04:14:48.438Z
+updated_at: 2026-05-18T04:29:34.362Z
 ---
 
 ## Problem

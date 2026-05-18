@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ModuleLoader } from "#core/modules/module-loader.js";
 import type { ModuleContext, ModuleSummary } from "#core/modules/module-types.js";
 import { importSkill, listSkills } from "./skill-ops-operations.js";
@@ -31,6 +31,24 @@ function stubCtx(cwd: string, summaries: ModuleSummary[] = []): ModuleContext {
   } as unknown as ModuleContext;
 }
 
+function mockFetch(responses: Record<string, string>): void {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: Parameters<typeof fetch>[0]) => {
+      const url = typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url;
+      const body = responses[url];
+      if (body === undefined) {
+        return new Response("missing", { status: 404, statusText: "Not Found" });
+      }
+      return new Response(body, { status: 200, statusText: "OK" });
+    }),
+  );
+}
+
 describe("skill-ops operations (local handler / daemon-down branch)", () => {
   let projectDir: string;
 
@@ -39,6 +57,7 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     rmSync(projectDir, { recursive: true, force: true });
   });
 
@@ -141,10 +160,175 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
     const result = await importSkill(ctx, sourcePath);
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.name).toBe("my-skill");
-      expect(existsSync(result.path)).toBe(true);
-      expect(readFileSync(result.path, "utf-8")).toContain("name: my-skill");
-      expect(readFileSync(result.path, "utf-8")).toContain(`imported_from: ${sourcePath}`);
+      expect(result.skills).toHaveLength(1);
+      expect(result.skills[0].name).toBe("my-skill");
+      expect(existsSync(result.skills[0].path)).toBe(true);
+      expect(readFileSync(result.skills[0].path, "utf-8")).toContain("name: my-skill");
+      expect(readFileSync(result.skills[0].path, "utf-8")).toContain(`imported_from: ${sourcePath}`);
+    }
+  });
+
+  it("keeps single-file URL imports on the frontmatter-driven path", async () => {
+    const ctx = stubCtx(projectDir);
+    mockFetch({
+      "https://example.test/my-skill.md": "---\nname: url-skill\n---\nURL body\n",
+    });
+
+    const result = await importSkill(ctx, "https://example.test/my-skill.md");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.skills).toHaveLength(1);
+      expect(result.skills[0].name).toBe("url-skill");
+      expect(readFileSync(result.skills[0].path, "utf-8")).toContain(
+        "imported_from: https://example.test/my-skill.md",
+      );
+    }
+  });
+
+  it("imports a selected skill from a local directory pack", async () => {
+    const ctx = stubCtx(projectDir);
+    const packDir = join(projectDir, "pack");
+    mkdirSync(join(packDir, "alpha"), { recursive: true });
+    mkdirSync(join(packDir, "beta"), { recursive: true });
+    writeFileSync(join(packDir, "alpha", "SKILL.md"), "Alpha guidance.\n");
+    writeFileSync(join(packDir, "beta", "SKILL.md"), "---\nname: beta\n---\nBeta guidance.\n");
+
+    const result = await importSkill(ctx, packDir, { skill: "alpha" });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.skills).toHaveLength(1);
+      expect(result.skills[0].name).toBe("alpha");
+      const imported = readFileSync(result.skills[0].path, "utf-8");
+      expect(imported).toContain("name: alpha");
+      expect(imported).toContain("directory-pack:");
+      expect(imported).toContain("alpha/SKILL.md");
+      expect(imported).toContain("Alpha guidance.");
+      expect(listSkills(ctx).skills).toContainEqual(
+        expect.objectContaining({
+          name: "alpha",
+          sourceType: "imported",
+          activation: "explicit",
+          status: "resolvable",
+          provenance: expect.stringContaining("directory-pack:"),
+        }),
+      );
+    }
+  });
+
+  it("imports a direct local skill directory SKILL.md without network access", async () => {
+    const ctx = stubCtx(projectDir);
+    const skillDir = join(projectDir, "pack", "gamma");
+    mkdirSync(skillDir, { recursive: true });
+    const skillPath = join(skillDir, "SKILL.md");
+    writeFileSync(skillPath, "Gamma guidance.\n");
+
+    const result = await importSkill(ctx, skillPath);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.skills).toHaveLength(1);
+      expect(result.skills[0].name).toBe("gamma");
+      expect(readFileSync(result.skills[0].path, "utf-8")).toContain("skill-directory:");
+      expect(readFileSync(result.skills[0].path, "utf-8")).toContain("Gamma guidance.");
+    }
+  });
+
+  it("fails ambiguous multi-skill directory imports with available skill names", async () => {
+    const ctx = stubCtx(projectDir);
+    const packDir = join(projectDir, "ambiguous-pack");
+    mkdirSync(join(packDir, "one"), { recursive: true });
+    mkdirSync(join(packDir, "two"), { recursive: true });
+    writeFileSync(join(packDir, "one", "SKILL.md"), "One guidance.\n");
+    writeFileSync(join(packDir, "two", "SKILL.md"), "Two guidance.\n");
+
+    const result = await importSkill(ctx, packDir);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe("ambiguous_pack");
+      expect(result.message).toContain("one");
+      expect(result.message).toContain("two");
+      expect(result.message).toContain("--skill");
+      expect(result.message).toContain("--all");
+    }
+  });
+
+  it("imports all skills from a local directory pack when explicitly requested", async () => {
+    const ctx = stubCtx(projectDir);
+    const packDir = join(projectDir, "all-pack");
+    mkdirSync(join(packDir, "one"), { recursive: true });
+    mkdirSync(join(packDir, "two"), { recursive: true });
+    writeFileSync(join(packDir, "one", "SKILL.md"), "One guidance.\n");
+    writeFileSync(join(packDir, "two", "SKILL.md"), "Two guidance.\n");
+
+    const result = await importSkill(ctx, packDir, { all: true });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.skills.map((skill) => skill.name).sort()).toEqual(["one", "two"]);
+      for (const skill of result.skills) expect(existsSync(skill.path)).toBe(true);
+    }
+  });
+
+  it("returns an invalid pack diagnostic when a directory has no SKILL.md files", async () => {
+    const ctx = stubCtx(projectDir);
+    const packDir = join(projectDir, "empty-pack");
+    mkdirSync(packDir, { recursive: true });
+
+    const result = await importSkill(ctx, packDir);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe("invalid_pack");
+      expect(result.message).toContain("contains no SKILL.md");
+    }
+  });
+
+  it("imports a selected skill from an owner/repo GitHub shorthand pack", async () => {
+    const ctx = stubCtx(projectDir);
+    mockFetch({
+      "https://api.github.com/repos/vercel/ai": JSON.stringify({ default_branch: "main" }),
+      "https://api.github.com/repos/vercel/ai/git/trees/main?recursive=1": JSON.stringify({
+        tree: [
+          { path: "react/SKILL.md", type: "blob" },
+          { path: "typescript/SKILL.md", type: "blob" },
+          { path: "README.md", type: "blob" },
+        ],
+      }),
+      "https://raw.githubusercontent.com/vercel/ai/main/react/SKILL.md": "React guidance.\n",
+      "https://raw.githubusercontent.com/vercel/ai/main/typescript/SKILL.md": "TypeScript guidance.\n",
+    });
+
+    const result = await importSkill(ctx, "vercel/ai", { skill: "typescript" });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.skills).toHaveLength(1);
+      expect(result.skills[0].name).toBe("typescript");
+      const imported = readFileSync(result.skills[0].path, "utf-8");
+      expect(imported).toContain("repo-pack: vercel/ai -> typescript/SKILL.md (skill: typescript)");
+      expect(imported).toContain("TypeScript guidance.");
+    }
+  });
+
+  it("imports from a full GitHub tree URL scoped to a skill directory", async () => {
+    const ctx = stubCtx(projectDir);
+    mockFetch({
+      "https://api.github.com/repos/crewaiinc/skills/git/trees/main?recursive=1": JSON.stringify({
+        tree: [
+          { path: "python/SKILL.md", type: "blob" },
+          { path: "docs/SKILL.md", type: "blob" },
+        ],
+      }),
+      "https://raw.githubusercontent.com/crewaiinc/skills/main/python/SKILL.md": "Python guidance.\n",
+    });
+
+    const result = await importSkill(
+      ctx,
+      "https://github.com/crewaiinc/skills/tree/main/python",
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.skills).toHaveLength(1);
+      expect(result.skills[0].name).toBe("python");
+      expect(readFileSync(result.skills[0].path, "utf-8")).toContain(
+        "repo-pack: https://github.com/crewaiinc/skills/tree/main/python -> python/SKILL.md (skill: python)",
+      );
     }
   });
 
@@ -189,9 +373,10 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
     const result = await importSkill(ctx, sourcePath, { name: "renamed" });
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.name).toBe("renamed");
-      expect(result.path.endsWith("renamed.md")).toBe(true);
-      expect(readFileSync(result.path, "utf-8")).toContain("name: renamed");
+      expect(result.skills).toHaveLength(1);
+      expect(result.skills[0].name).toBe("renamed");
+      expect(result.skills[0].path.endsWith("renamed.md")).toBe(true);
+      expect(readFileSync(result.skills[0].path, "utf-8")).toContain("name: renamed");
     }
   });
 

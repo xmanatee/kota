@@ -58,6 +58,23 @@ describe("imported skill resolution", () => {
 		expect(unrelatedPrompt).not.toContain("Imported review guidance.");
 	});
 
+	it("injects a pack-imported selected skill only when named explicitly", async () => {
+		writeImportedSkill(
+			projectDir,
+			"typescript.md",
+			"name: typescript\nimported_from: repo-pack: vercel/ai -> typescript/SKILL.md (skill: typescript)\n",
+			"Pack-imported TypeScript guidance.",
+		);
+		await loader.load({ name: "empty-module" });
+
+		expect(loader.getSkillsPromptFor(["typescript"], "builder")).toContain(
+			"Pack-imported TypeScript guidance.",
+		);
+		expect(loader.getSkillsPromptFor("all", "builder")).not.toContain(
+			"Pack-imported TypeScript guidance.",
+		);
+	});
+
 	it("keeps module-contributed skills ahead of imported name collisions", async () => {
 		writeProjectFile(projectDir, "shared.md", "Module shared guidance.");
 		writeImportedSkill(

@@ -14,7 +14,7 @@
  *  4. `import(source)` is wired through `requestStrict<T>` — calling
  *     `import` issues a single `POST /skills/import` with the canonical
  *     body shape (with and without the optional `name` override).
- *  5. A successful `{ ok: true; name; path }` response decodes verbatim.
+ *  5. A successful `{ ok: true; skills }` response decodes verbatim.
  *  6. A `{ ok: false; reason: "fetch_failed"; message }` response decodes
  *     verbatim — the strict-transport posture replaces the previous
  *     `502 → typed result` special-case.
@@ -148,8 +148,12 @@ describe("skill-ops module daemonClient(link)", () => {
   it("routes import through POST /skills/import with { source } body when no name override is supplied", async () => {
     const expected: SkillImportResult = {
       ok: true,
-      name: "review",
-      path: "/abs/.kota/skills/review.md",
+      skills: [{
+        name: "review",
+        path: "/abs/.kota/skills/review.md",
+        sourcePath: "review/SKILL.md",
+        provenance: "repo-pack: owner/repo -> review/SKILL.md (skill: review)",
+      }],
     };
     const { transport, calls } = makeRecordingTransport({
       requestStrictResponder: () => expected,
@@ -170,8 +174,12 @@ describe("skill-ops module daemonClient(link)", () => {
   it("routes import with the optional name override threaded into the body", async () => {
     const expected: SkillImportResult = {
       ok: true,
-      name: "renamed",
-      path: "/abs/.kota/skills/renamed.md",
+      skills: [{
+        name: "renamed",
+        path: "/abs/.kota/skills/renamed.md",
+        sourcePath: "/local/anon.md",
+        provenance: "/local/anon.md",
+      }],
     };
     const { transport, calls } = makeRecordingTransport({
       requestStrictResponder: () => expected,
@@ -192,11 +200,44 @@ describe("skill-ops module daemonClient(link)", () => {
     ]);
   });
 
-  it("decodes a successful { ok: true; name; path } response verbatim", async () => {
+  it("routes import with pack selection options threaded into the body", async () => {
     const expected: SkillImportResult = {
       ok: true,
-      name: "review",
-      path: "/abs/.kota/skills/review.md",
+      skills: [{
+        name: "review",
+        path: "/abs/.kota/skills/review.md",
+        sourcePath: "review/SKILL.md",
+        provenance: "repo-pack: owner/repo -> review/SKILL.md (skill: review)",
+      }],
+    };
+    const { transport, calls } = makeRecordingTransport({
+      requestStrictResponder: () => expected,
+    });
+    const contributed = skillsModule.daemonClient!(transport);
+    const result = await contributed.skills!.import(
+      "owner/repo",
+      { skill: "review", all: true },
+    );
+    expect(result).toEqual(expected);
+    expect(calls).toEqual([
+      {
+        kind: "requestStrict",
+        method: "POST",
+        path: "/skills/import",
+        body: { source: "owner/repo", skill: "review", all: true },
+      },
+    ]);
+  });
+
+  it("decodes a successful { ok: true; skills } response verbatim", async () => {
+    const expected: SkillImportResult = {
+      ok: true,
+      skills: [{
+        name: "review",
+        path: "/abs/.kota/skills/review.md",
+        sourcePath: "/local/review.md",
+        provenance: "/local/review.md",
+      }],
     };
     const { transport } = makeRecordingTransport({
       requestStrictResponder: () => expected,

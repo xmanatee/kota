@@ -136,7 +136,10 @@ function makeStubAgents(): DaemonClientHandlers["agents"] {
 function makeStubSkills(): DaemonClientHandlers["skills"] {
   return {
     list: async () => ({ skills: [] }),
-    import: async () => ({ ok: true, name: "stub", path: "stub" }),
+    import: async () => ({
+      ok: true,
+      skills: [{ name: "stub", path: "stub", sourcePath: "stub", provenance: "stub" }],
+    }),
   };
 }
 

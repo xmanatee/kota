@@ -15,6 +15,7 @@ import {
   line,
   plain,
   span,
+  stack,
 } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
 import type {
@@ -50,22 +51,43 @@ function buildSkillCommand(ctx: ModuleContext): Command {
 
   skillCmd
     .command("import <source>")
-    .description("Install a skill from a URL or local file path into .kota/skills/")
+    .description("Install a skill from a URL, GitHub pack, local directory, or local file into .kota/skills/")
     .option("--name <name>", "Override the skill name (and filename)")
-    .action(async (source: string, opts: { name?: string }) => {
+    .option("--skill <name>", "Select one skill from a pack source")
+    .option("--all", "Import every skill from a pack source")
+    .action(async (source: string, opts: { name?: string; skill?: string; all?: boolean }) => {
       const result = await ctx.client.skills.import(
         source,
-        opts.name !== undefined ? { name: opts.name } : undefined,
+        {
+          ...(opts.name !== undefined && { name: opts.name }),
+          ...(opts.skill !== undefined && { skill: opts.skill }),
+          ...(opts.all !== undefined && { all: opts.all }),
+        },
       );
       if (!result.ok) {
         console.error(`Error: ${result.message}`);
         process.exit(1);
       }
-      print(line(
-        span("Installed skill ", "success"),
-        span(`'${result.name}'`, "accent"),
-        plain(" → "),
-        span(result.path, "muted"),
+      if (result.skills.length === 1) {
+        const installed = result.skills[0];
+        print(line(
+          span("Installed skill ", "success"),
+          span(`'${installed.name}'`, "accent"),
+          plain(" -> "),
+          span(installed.path, "muted"),
+        ));
+        return;
+      }
+      print(stack(
+        line(span(`Installed ${result.skills.length} skills:`, "success")),
+        ...result.skills.map((installed) =>
+          line(
+            plain("  "),
+            span(installed.name, "accent"),
+            plain(" -> "),
+            span(installed.path, "muted"),
+          )
+        ),
       ));
     });
 
@@ -138,6 +160,8 @@ function buildSkillsDaemonHandler(link: DaemonTransport): SkillsClient {
       link.requestStrict<SkillImportResult>("POST", "/skills/import", {
         source,
         ...(options?.name !== undefined && { name: options.name }),
+        ...(options?.skill !== undefined && { skill: options.skill }),
+        ...(options?.all !== undefined && { all: options.all }),
       }),
   };
 }

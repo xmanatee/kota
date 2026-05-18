@@ -1,8 +1,8 @@
 # Skill Ops Module
 
-This module owns the reflective `kota skill` CLI surface, the operator
-path for importing standalone skill files into `.kota/skills/`, and the
-`skills` `KotaClient` namespace.
+This module owns the reflective `kota skill` CLI surface, the operator path
+for importing standalone skill files and Skills.sh-style packs into
+`.kota/skills/`, and the `skills` `KotaClient` namespace.
 
 - `index.ts` — `kota skill list` and `kota skill import` plus the top-level
   `localClient(ctx)` factory and `controlRoutes` for the daemon-control

@@ -36,7 +36,18 @@ async function handleImport(
     return;
   }
   const name = typeof body.name === "string" ? body.name : undefined;
-  const result = await importSkill(ctx, source, name !== undefined ? { name } : undefined);
+  const skill = typeof body.skill === "string" ? body.skill : undefined;
+  const all = typeof body.all === "boolean" ? body.all : undefined;
+  const options = {
+    ...(name !== undefined && { name }),
+    ...(skill !== undefined && { skill }),
+    ...(all !== undefined && { all }),
+  };
+  const result = await importSkill(
+    ctx,
+    source,
+    Object.keys(options).length > 0 ? options : undefined,
+  );
   jsonResponse(res, 200, result);
 }
 

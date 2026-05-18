@@ -39,6 +39,17 @@ export type SkillsListResult = {
 export type SkillImportOptions = {
   /** Override the skill name (and on-disk filename) declared in frontmatter. */
   name?: string;
+  /** Select one skill by pack skill name when the source contains multiple SKILL.md files. */
+  skill?: string;
+  /** Import every skill found in a pack source. */
+  all?: boolean;
+};
+
+export type ImportedSkillWrite = {
+  name: string;
+  path: string;
+  sourcePath: string;
+  provenance: string;
 };
 
 /**
@@ -47,14 +58,21 @@ export type SkillImportOptions = {
  * `fetch_failed` covers HTTP and missing-local-file errors uniformly;
  * `missing_name` fires when the skill source has no `name` frontmatter and
  * the caller passed no override. `invalid_skill` reports malformed local
- * skill metadata before the file is written. The CLI maps all errors to one
- * message regardless of which transport answered.
+ * skill metadata before the file is written. Pack-specific failures name
+ * the available selectors so operators can retry deterministically. The CLI
+ * maps all errors to one message regardless of which transport answered.
  */
 export type SkillImportResult =
-  | { ok: true; name: string; path: string }
+  | { ok: true; skills: ImportedSkillWrite[] }
   | {
       ok: false;
-      reason: "fetch_failed" | "missing_name" | "invalid_skill";
+      reason:
+        | "fetch_failed"
+        | "missing_name"
+        | "invalid_skill"
+        | "invalid_pack"
+        | "ambiguous_pack"
+        | "skill_not_found";
       message: string;
     };
 
@@ -62,8 +80,9 @@ export type SkillImportResult =
  * Skill operations.
  *
  * `list` enumerates every registered skill — module-contributed plus
- * imported — with the contributor name. `import` fetches a skill from a URL
- * or local file and writes it under `.kota/skills/`.
+ * imported — with the contributor name. `import` fetches a skill from a URL,
+ * GitHub pack, local directory, or local file and writes it under
+ * `.kota/skills/`.
  */
 export interface SkillsClient {
   list(): Promise<SkillsListResult>;
