@@ -98,15 +98,15 @@ resources:
   - url: https://github.com/crewAIInc/crewAI
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:719fea229d3a8d9a45ccd745975aab4a
-      summary: "CrewAI is a Python multi-agent framework organized around three primitives — Agents (role/goal/expertise), Tasks (typed work items), and Process (sequential/hierarchical coordination) — plus a Flows layer for event-driven workflows with conditional routing decorators; hybrid autonomous-plus-deterministic model positioned as distinct from free-form agent chat."
-      last_seen_at: "2026-04-20T10:27:20.863Z"
+      fingerprint: sha256:ccd4d66a868ba929bce31950914fa209
+      summary: "CrewAI still reinforces rejected workflow-DSL/control-plane patterns, but its official coding-agent skill-pack instructions expose KOTA's imported-skill runtime-resolution gap."
+      last_seen_at: "2026-05-18T03:42:05.722Z"
   - url: https://github.com/langchain-ai/langgraph
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:a0a7f3c64298f7ab5d103d68aa95ae53
-      summary: "LangGraph 1.2 separates hard run timeouts from progress-resetting idle timeouts; KOTA's fresh local gap is a core workflow idle-progress timeout rail rather than another graph orchestration primitive."
-      last_seen_at: "2026-05-17T05:27:39.857Z"
+      fingerprint: sha256:af615419257074c77c8f5d5b030548de
+      summary: "LangGraph's current signal remains durable stateful agent infrastructure; no new nonduplicative KOTA task was opened from this refresh."
+      last_seen_at: "2026-05-18T03:42:05.722Z"
   - url: https://github.com/huggingface/smolagents
     added: "2026-04-19"
     snapshot:
@@ -146,9 +146,9 @@ resources:
   - url: https://www.anthropic.com/engineering
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:b373958354ac9d064f4e6cf33fa776c4
-      summary: "Anthropic engineering blog — autonomy-adjacent post set unchanged since 2026-04-23 distillation: Managed Agents (rejected; KOTA already decouples via daemon+session+workflow+run-artifacts), Claude Code auto mode (read; covered by autonomy-mode + approval-queue + injection-defense + tool-risk), Harness design for long-running application development (read; reinforces decomposer/builder/critic + reset-over-compact + success-criteria), parallel-Claudes C-compiler (rejected; would create a second coordination surface beside workflow dispatch). No new post since prior visit; refreshing last_seen_at."
-      last_seen_at: "2026-05-10T04:55:39.673Z"
+      fingerprint: sha256:72fc277ebf4ef4b35d9f37cd3b06b5b7
+      summary: "Anthropic engineering had no new post beyond the previously distilled autonomy and harness guidance; this refresh opened no new KOTA task."
+      last_seen_at: "2026-05-18T03:42:05.722Z"
   - url: https://openai.com/research
     added: "2026-04-19"
     snapshot:
@@ -195,9 +195,9 @@ resources:
     added: "2026-04-23"
     notes: "Microsoft Agent Framework is the first-party successor to AutoGen (maintenance-mode). The AutoGen watchlist snapshot explicitly names it as the active investment target, so peer-runtime coverage of the Microsoft ecosystem is currently stale. Snapshot and distill on the next explorer cycle."
     snapshot:
-      fingerprint: sha256:dc8e033b206bc91d5ff47e6134e84d9a
-      summary: "Microsoft Agent Framework is Microsoft's first-party AutoGen + Semantic-Kernel successor, a Python + .NET SDK built on Agent + graph-based Workflow (executor/edge) primitives with sequential/concurrent/group-chat/handoff/magentic orchestrations, Cosmos-DB-backed checkpoint + time-travel, human-in-the-loop request/response gates, a YAML declarative workflow DSL, middleware, OpenTelemetry observability, DevUI, and AutoGen + Semantic-Kernel migration guides."
-      last_seen_at: "2026-04-23T21:10:25.405Z"
+      fingerprint: sha256:186ee6d56c2875b8e4c2b308465efbee
+      summary: "Microsoft Agent Framework remains a parallel agent/workflow platform; the fresh KOTA-relevant signal is that production agent frameworks now treat discoverable agent skills as a normal capability."
+      last_seen_at: "2026-05-18T03:42:05.722Z"
   - url: https://github.com/cline/cline
     added: "2026-04-26"
     notes: "Cline is one of the two most-deployed in-IDE agent runtimes (alongside continuedev/continue) and the dominant fork base for many VS Code agent extensions. KOTA's current peer-runtime coverage is heavy on terminal CLIs and SDK frameworks but missing the in-editor design point — different operator-surface and tool-permission model than terminal-host runtimes. Snapshot and distill on the next explorer cycle."
