@@ -7,9 +7,9 @@ resources:
   - url: https://github.com/openclaw/openclaw
     added: "2026-04-14"
     snapshot:
-      fingerprint: sha256:3ff3731c01df0daba335c013163109c5
-      summary: "OpenClaw is a local-first personal AI assistant with a gateway-style control plane managing sessions, channels, tools, and events across many messaging platforms; emphasizes injected prompt files (AGENTS.md, SOUL.md, TOOLS.md), per-session Docker sandboxing for non-primary contexts, multi-agent routing with isolated workspaces, wake-word voice on macOS/iOS, continuous voice mode on Android, and an agent-controlled live canvas."
-      last_seen_at: "2026-04-18T00:43:33.664Z"
+      fingerprint: sha256:9fbe725ae31d8182140a9742ddb5fbca
+      summary: "OpenClaw still maps cleanly to KOTA's daemon/session/channel/tool/skill model; the refreshed signal is skills-registry ergonomics, which reinforces KOTA's new skill-pack import task rather than opening a separate primitive."
+      last_seen_at: "2026-05-18T04:16:37.406Z"
   - url: https://github.com/zeroclaw-labs/zeroclaw
     added: "2026-04-14"
     snapshot:
@@ -92,9 +92,9 @@ resources:
   - url: https://github.com/microsoft/autogen
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:642820c56e8127cf31b3a899551958fb
-      summary: "AutoGen is Microsoft's now-maintenance-mode multi-agent framework with a Core/AgentChat/Extensions layering, cross-language (.NET + Python) runtime, and a no-code Studio GUI; ongoing investment is shifting to the successor Microsoft Agent Framework."
-      last_seen_at: "2026-04-20T09:13:55.826Z"
+      fingerprint: sha256:10720418c3610cca91cf0d2c6d2fa3f4
+      summary: "AutoGen remains a maintenance-mode pointer to Microsoft Agent Framework; no new KOTA task beyond the existing rejected/read MAF decision and current skill-pack import gap."
+      last_seen_at: "2026-05-18T04:16:37.406Z"
   - url: https://github.com/crewAIInc/crewAI
     added: "2026-04-19"
     snapshot:
@@ -122,15 +122,15 @@ resources:
   - url: https://github.com/FoundationAgents/OpenManus
     added: "2026-04-20"
     snapshot:
-      fingerprint: sha256:ce23f40950540ddd9d2b58da83968f00
-      summary: "OpenManus is MetaGPT-originated general-purpose Python agent framework with MCP integration, multi-agent specialization (e.g. DataAnalysis), browser-automation via anthropic-computer-use/browser-use/crawl4ai, and TOML-configured LLM endpoints; pattern overlap with KOTA is high but no novel primitive beyond the already-adopted tool/module/MCP model."
-      last_seen_at: "2026-04-20T12:32:55.787Z"
+      fingerprint: sha256:6f82d03886b3495e3319b5babf4be939
+      summary: "OpenManus remains a general Python agent framework with MCP, browser automation, and optional multi-agent flow; no new nonduplicative KOTA primitive surfaced."
+      last_seen_at: "2026-05-18T04:16:37.406Z"
   - url: https://github.com/vercel/ai
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:6fdc46fd91dcc88e07ef13dbbce30484
-      summary: "Vercel AI SDK is a provider-agnostic TypeScript toolkit with a ToolLoopAgent class, Zod-schema structured outputs, and a useChat hook; its durable pattern is strict separation of server-side agent tool loops from client-side UI rendering, aligning with KOTA's daemon-host-plus-client-surface split."
-      last_seen_at: "2026-04-20T10:27:20.863Z"
+      fingerprint: sha256:1264ded49500425f701a269a404ec306
+      summary: "Vercel AI SDK now explicitly recommends Skills.sh-style coding-agent skill installation; this refresh opened KOTA's skill-pack import task instead of a new agent or workflow primitive."
+      last_seen_at: "2026-05-18T04:16:37.406Z"
   - url: https://github.com/noahshinn/reflexion
     added: "2026-04-19"
     snapshot:
