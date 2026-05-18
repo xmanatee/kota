@@ -159,9 +159,9 @@ resources:
     added: "2026-05-17"
     notes: "Official OpenAI security feed. Monitor Codex and coding-agent deployment controls, sandboxing, network policy, credentials, and agent telemetry posts that are not always listed on the research index."
     snapshot:
-      fingerprint: sha256:6d337a600690a122e90a5a49a37c049e
-      summary: "OpenAI's security feed now includes a detailed Codex Windows sandbox post; KOTA's remaining nonduplicative gap is normal workflow agent-step artifacts that record the resolved harness sandbox/control boundary."
-      last_seen_at: "2026-05-18T02:28:05.315Z"
+      fingerprint: sha256:213dfe932eedb5076ac7611bc6cd64b0
+      summary: "OpenAI security feed currently reinforces already-completed KOTA work on Codex sandbox/control artifacts and pnpm supply-chain install policy; no new nonduplicative task was opened from the feed."
+      last_seen_at: "2026-05-18T05:33:38.133Z"
   - url: https://deepmind.google/discover/blog/
     added: "2026-04-19"
     snapshot:
