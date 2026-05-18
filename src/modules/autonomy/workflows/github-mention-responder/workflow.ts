@@ -1,6 +1,7 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import { isGitHubImplementationRequest } from "#modules/autonomy/github-mention-classification.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
@@ -51,14 +52,6 @@ export type GithubMentionAssessment =
       skipReason: string;
     }
   | {
-      decision: "unsupported";
-      agentEligible: false;
-      commentEligible: true;
-      skipReason: string;
-      fields: NormalizedMentionFields;
-      responseBody: string;
-    }
-  | {
       decision: "respond";
       agentEligible: true;
       commentEligible: true;
@@ -70,7 +63,7 @@ export type PreparedGithubMentionComment = {
   issueNumber: number;
   isPullRequest: boolean;
   originalCommentId: number;
-  mode: "agent" | "unsupported";
+  mode: "agent";
   body: string;
 };
 
@@ -163,24 +156,6 @@ function normalizedFields(p: MentionWebhookPayload): NormalizedMentionFields | {
   };
 }
 
-function isImplementationRequest(body: string): boolean {
-  return [
-    /\b(implement|code|patch|modify|refactor)\b/i,
-    /\b(fix|add|update|remove|delete|create)\b.+\b(file|code|feature|bug|test|branch|commit|pr|pull request)\b/i,
-    /\b(open|make|submit)\b.+\b(pr|pull request|branch|commit)\b/i,
-    /\b(push|commit)\b.+\b(change|code|fix|patch)\b/i,
-  ].some((pattern) => pattern.test(body));
-}
-
-function unsupportedResponse(fields: NormalizedMentionFields): string {
-  const surface = fields.isPullRequest ? `PR #${fields.issueNumber}` : `issue #${fields.issueNumber}`;
-  return [
-    `Thanks for the mention on ${surface}.`,
-    "",
-    "This GitHub mention entry point can answer bounded questions in-thread, but it cannot implement code changes, create branches, claim tasks, or run autonomous build work. Please open or link a normalized KOTA task for implementation work.",
-  ].join("\n");
-}
-
 function validateNormalizedMentionFields(fields: NormalizedMentionFields | undefined): NormalizedMentionFields {
   if (!fields) throw new Error("mention assessment missing normalized fields");
   if (!isNonEmptyString(fields.repo)) throw new Error("mention assessment fields missing repo");
@@ -217,17 +192,6 @@ function validateAssessment(raw: Parameters<typeof expectStructuredOutput<Github
     if (!isNonEmptyString(assessment.skipReason)) throw new Error("skip assessment missing reason");
     return assessment;
   }
-  if (obj.decision === "unsupported") {
-    if (assessment.agentEligible !== false || assessment.commentEligible !== true) {
-      throw new Error("unsupported assessment must disable agent and keep comment eligibility");
-    }
-    if (!isNonEmptyString(assessment.skipReason)) throw new Error("unsupported assessment missing reason");
-    if (!isNonEmptyString(assessment.responseBody)) {
-      throw new Error("unsupported assessment missing response body");
-    }
-    validateNormalizedMentionFields(assessment.fields);
-    return assessment;
-  }
   if (obj.decision === "respond") {
     if (assessment.agentEligible !== true || assessment.commentEligible !== true) {
       throw new Error("respond assessment must enable agent and comment eligibility");
@@ -253,8 +217,8 @@ function validatePreparedComment(
   if (typeof obj.issueNumber !== "number") throw new Error("prepared comment missing issue number");
   if (typeof obj.isPullRequest !== "boolean") throw new Error("prepared comment missing issue/PR kind");
   if (typeof obj.originalCommentId !== "number") throw new Error("prepared comment missing original comment id");
-  if (obj.mode !== "agent" && obj.mode !== "unsupported") {
-    throw new Error(`prepared comment mode must be agent or unsupported, got ${obj.mode}`);
+  if (obj.mode !== "agent") {
+    throw new Error(`prepared comment mode must be agent, got ${obj.mode}`);
   }
   if (!isNonEmptyString(obj.body)) throw new Error("prepared comment missing body");
   return raw as PreparedGithubMentionComment;
@@ -288,15 +252,8 @@ const assessMention = typedCodeStep<GithubMentionAssessment>({
       return skip(fields.skipReason);
     }
 
-    if (isImplementationRequest(fields.commentBody)) {
-      return {
-        decision: "unsupported",
-        agentEligible: false,
-        commentEligible: true,
-        skipReason: "implementation request is unsupported for GitHub mention responses",
-        fields,
-        responseBody: unsupportedResponse(fields),
-      };
+    if (isGitHubImplementationRequest(fields.commentBody)) {
+      return skip("implementation request is routed to github-mention-intake");
     }
 
     return {
@@ -318,17 +275,6 @@ const prepareComment = typedCodeStep<PreparedGithubMentionComment>({
     if (assessment.decision === "skip") {
       throw new Error("cannot prepare a comment for a skipped GitHub mention");
     }
-    if (assessment.decision === "unsupported") {
-      return {
-        repo: assessment.fields.repo,
-        issueNumber: assessment.fields.issueNumber,
-        isPullRequest: assessment.fields.isPullRequest,
-        originalCommentId: assessment.fields.commentId,
-        mode: "unsupported",
-        body: boundedBody(assessment.responseBody),
-      };
-    }
-
     const draft = ctx.stepOutputs["draft-response"];
     if (draft === null || typeof draft !== "object" || Array.isArray(draft)) {
       throw new Error("draft-response output must be an object");

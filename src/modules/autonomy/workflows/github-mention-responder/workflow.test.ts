@@ -271,7 +271,7 @@ describe("github-mention-responder workflow", () => {
     expect(tools.calls).toEqual([]);
   });
 
-  it("answers implementation requests with a deterministic unsupported response without running the agent", async () => {
+  it("leaves implementation requests to the intake workflow without running the agent or posting from the responder", async () => {
     const tools = toolSpy();
     const harness = new WorkflowTestHarness(githubMentionResponderWorkflow, {
       trigger: makeTrigger({
@@ -286,19 +286,16 @@ describe("github-mention-responder workflow", () => {
 
     expect(result.status).toBe("success");
     expect(result.steps["assess-mention"].output).toMatchObject({
-      decision: "unsupported",
+      decision: "skip",
       agentEligible: false,
-      commentEligible: true,
-      skipReason: expect.stringContaining("implementation request"),
+      commentEligible: false,
+      skipReason: expect.stringContaining("github-mention-intake"),
     });
     expect(result.steps["draft-response"].status).toBe("skipped");
-    expect(result.steps["post-comment"].status).toBe("success");
-    expect(tools.calls).toHaveLength(1);
-    expect(tools.calls[0].input).toMatchObject({
-      repo: "owner/repo",
-      number: 17,
-      body: expect.stringContaining("cannot implement code changes"),
-    });
+    expect(result.steps["prepare-comment"].status).toBe("skipped");
+    expect(result.steps["approve-comment"].status).toBe("skipped");
+    expect(result.steps["post-comment"].status).toBe("skipped");
+    expect(tools.calls).toEqual([]);
   });
 
   it("wraps hostile GitHub issue and comment text in the untrusted-content marker before drafting", () => {

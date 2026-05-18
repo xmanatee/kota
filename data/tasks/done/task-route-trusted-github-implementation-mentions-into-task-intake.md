@@ -1,12 +1,12 @@
 ---
 id: task-route-trusted-github-implementation-mentions-into-task-intake
 title: Route trusted GitHub implementation mentions into task intake
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a safe GitHub mention workflow path that turns trusted implementation requests into repo-local task intake and replies with the created reference instead of dropping them as unsupported.
 created_at: 2026-05-18T04:48:38Z
-updated_at: 2026-05-18T04:48:38Z
+updated_at: 2026-05-18T05:04:43Z
 ---
 
 ## Problem
