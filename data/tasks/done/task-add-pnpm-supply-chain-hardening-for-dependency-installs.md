@@ -1,12 +1,12 @@
 ---
 id: task-add-pnpm-supply-chain-hardening-for-dependency-installs
 title: Add pnpm supply-chain hardening for dependency installs
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Configure repo-level pnpm supply-chain safeguards and validation so dependency installs delay fresh packages, reject trust regressions or exotic transitive sources, and keep exceptions explicit.
 created_at: 2026-05-18T01:51:30Z
-updated_at: 2026-05-18T01:51:30Z
+updated_at: 2026-05-18T02:09:40.063Z
 ---
 
 ## Problem

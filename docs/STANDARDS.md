@@ -36,6 +36,8 @@
 - Use `pnpm` for package scripts, dependency installation, and one-off package
   execution. Do not use `npm` unless the task explicitly concerns npm
   compatibility.
+- Repo-level dependency install safeguards live in `pnpm-workspace.yaml`; keep
+  package-manager policy exceptions narrow, named, and justified there.
 - Optimize for the simplest, clearest, most maintainable final system, not for
   patch size. A larger cohesive change is better than a narrow edit that
   leaves confusing seams, duplicate concepts, or future cleanup.

@@ -1,0 +1,21 @@
+# Repo-level dependency install policy. Keep every exception tied to the
+# committed lockfile and explain the reason before widening this surface.
+minimumReleaseAge: 1440
+blockExoticSubdeps: true
+trustPolicy: no-downgrade
+dangerouslyAllowAllBuilds: false
+# pnpm 10.32.1 still exits nonzero under strictDepBuilds for explicit denied
+# build entries. Keep dependency scripts denied and named, but warn rather than
+# fail until pnpm can distinguish reviewed denials from unreviewed scripts.
+strictDepBuilds: false
+
+allowBuilds:
+  # @google/genai@1.51.0 is in pnpm-lock.yaml and pnpm currently reports its
+  # dependency lifecycle build as ignored; keep it explicitly denied.
+  "@google/genai": false
+  # esbuild@0.27.4 resolves through committed optional platform packages; deny
+  # the downloader-style dependency lifecycle script by default.
+  "esbuild": false
+  # protobufjs@7.5.5 is a transitive dependency in the committed lockfile; keep
+  # its lifecycle generation step denied unless runtime evidence requires it.
+  "protobufjs": false
