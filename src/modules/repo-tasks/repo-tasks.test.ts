@@ -2,6 +2,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { RepoTaskState } from "./repo-tasks-domain.js";
 import {
   countRepoInboxEntries,
   countRepoPromotableBacklogTasks,
@@ -12,6 +13,26 @@ import {
   REPO_TASK_STATES,
   REPO_TASKS_DIR,
 } from "./repo-tasks-domain.js";
+
+function taskFixture(
+  id: string,
+  state: RepoTaskState,
+  options: { dependsOn?: string[] } = {},
+): string {
+  return [
+    "---",
+    `id: ${id}`,
+    `title: ${id}`,
+    `status: ${state}`,
+    "priority: p2",
+    "area: modules",
+    `summary: ${id} summary`,
+    "updated_at: 2026-05-08T00:00:00.000Z",
+    ...(options.dependsOn ? [`depends_on: [${options.dependsOn.join(", ")}]`] : []),
+    "---",
+    "",
+  ].join("\n");
+}
 
 describe("repo task helpers", () => {
   let projectDir: string;
@@ -201,14 +222,50 @@ describe("repo task helpers", () => {
     expect(isThinPullQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(true);
   });
 
-  it("detects two waiting tasks as thin", () => {
+  it("detects two dependency-clear pull tasks as thin", () => {
     writeFileSync(join(projectDir, REPO_TASKS_DIR, "ready", "task-a.md"), "task");
     writeFileSync(join(projectDir, REPO_TASKS_DIR, "backlog", "task-b.md"), "task");
 
     expect(isThinPullQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(true);
   });
 
-  it("does not treat three or more waiting tasks as thin", () => {
+  it("does not treat dependency-blocked ready and backlog tails as thin", () => {
+    writeFileSync(
+      join(projectDir, REPO_TASKS_DIR, "ready", "task-ready-dependent.md"),
+      taskFixture("task-ready-dependent", "ready", { dependsOn: ["task-enabler"] }),
+    );
+    writeFileSync(
+      join(projectDir, REPO_TASKS_DIR, "backlog", "task-backlog-dependent.md"),
+      taskFixture("task-backlog-dependent", "backlog", { dependsOn: ["task-enabler"] }),
+    );
+    writeFileSync(
+      join(projectDir, REPO_TASKS_DIR, "blocked", "task-enabler.md"),
+      taskFixture("task-enabler", "blocked"),
+    );
+
+    const snapshot = getRepoTaskQueueSnapshot(projectDir);
+
+    expect(snapshot.pullableCount).toBe(0);
+    expect(snapshot.dependencyBlockedTasks).toEqual([
+      {
+        id: "task-backlog-dependent",
+        title: "task-backlog-dependent",
+        state: "backlog",
+        dependsOn: ["task-enabler"],
+        waitingOn: ["task-enabler"],
+      },
+      {
+        id: "task-ready-dependent",
+        title: "task-ready-dependent",
+        state: "ready",
+        dependsOn: ["task-enabler"],
+        waitingOn: ["task-enabler"],
+      },
+    ]);
+    expect(isThinPullQueue(snapshot)).toBe(false);
+  });
+
+  it("does not treat three or more dependency-clear pull tasks as thin", () => {
     writeFileSync(join(projectDir, REPO_TASKS_DIR, "ready", "task-a.md"), "task");
     writeFileSync(join(projectDir, REPO_TASKS_DIR, "ready", "task-b.md"), "task");
     writeFileSync(join(projectDir, REPO_TASKS_DIR, "backlog", "task-c.md"), "task");

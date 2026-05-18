@@ -19,8 +19,8 @@ When a workflow agent finishes its work:
 - Stage changes with `git add -A`.
 - Write a short commit message to `<run-directory>/commit-message.txt`.
 - Do not run `git commit` yourself. The workflow's commit step reads the
-  message file and commits after validation gates pass. Running `git commit`
-  directly bypasses the repair loop and fails the run.
+  message file and commits after validation gates pass; direct commits bypass
+  the repair loop and fail the run.
 
 Prompts should not repeat these instructions. Workflow-specific finish guidance
 (e.g. validation before staging, conditional staging) stays in the prompt.
@@ -38,13 +38,10 @@ Timeouts, trigger validation, dirty-worktree recovery, direct-commit
 prevention, and repair-loop checks are runtime rails, not prompt policy.
 Keep workflow code explicit and typed; keep prompts focused on the agent's
 role. Direct-commit prevention lives at the SDK `canUseTool` boundary
-(`createAgentCommitGuard`) so rogue `git commit` calls fail before
-producing a commit. The guard uses bare `deny`, not `interrupt: true` —
-`interrupt` triggers `abortController.abort()` and tears down the whole
-session, discarding all agent progress (e.g. when denying a `git commit`
-inside a legitimate tempdir reproducer). `deny` still blocks the command
-and surfaces the denial as a tool_result so the agent can adapt. Same
-rule applies to `createDaemonHostControlGuard`.
+(`createAgentCommitGuard`). Use bare `deny`, not `interrupt: true`: interrupt
+aborts the session and discards progress, while deny blocks the command as a
+tool_result the agent can adapt to. Same rule applies to
+`createDaemonHostControlGuard`.
 
 Every workflow that calls `commitWorkflowChanges` must also wire
 `checkCommitStageable` into its repair loop. The terminal commit step's
@@ -102,7 +99,11 @@ backlog-only state:
   backlog task exists; `backlog-promoter` consumes this and writes a
   deterministic promotion rationale before builder resumes. Strategic anchors
   do not count as promotable work.
-- `autonomy.queue.empty` / `autonomy.queue.thin` — broader health signals routed to explorer.
+- `autonomy.queue.empty` — no inbox entries and no dependency-clear pullable
+  ready/backlog/doing work exists.
+- `autonomy.queue.thin` — one or two dependency-clear ready/backlog tasks
+  remain, or only active doing work remains; dependency-waiting tails stay
+  visible through `dependencyBlockedTasks` without counting as thin.
 - `autonomy.blocked-research.attemptable` — blocked research can retry; `research-retry` consumes this instead of `autonomy.queue.available`.
 
 Builder must never silently consume the backlog — the rationale is the
@@ -133,19 +134,17 @@ in the recovery protocol. A workflow opts in by:
 1. Setting `recoveryCapable: true` in its definition.
 2. Adding a `runtime.recovered` trigger (the runtime filters recovery dispatch
    to recovery-capable workflows only; the validation layer rejects mismatches).
-3. Running a reset step first that brings the worktree back to a safe base
-   before anything heavier runs. Use `resetWorktreeForRecovery` from
-   `#modules/autonomy/recovery.js` — it stashes tracked dirt and, when asked,
-   switches from a `kota/task/*` branch back to the base branch.
+3. Running a reset step first to restore a safe base before heavier work. Use
+   `resetWorktreeForRecovery` from `#modules/autonomy/recovery.js`; it stashes
+   tracked dirt and can switch from a `kota/task/*` branch to the base branch.
 4. Gating the workflow's expensive work step (the agent call) so it does not
    run on the recovery trigger. Use the `onNormalTrigger` predicate to skip
    the agent step during recovery; pair it with an existing "skip when dirty"
    guard for a complete safety net. Improver is the exception: its analysis
    runs after stash because its role is evidence review, not task progress.
 5. Ensuring the reset step is idempotent and has no network side effects. If
-   the first recovery attempt fails, the runtime retries once and then pauses
-   dispatch — a network round-trip before the reset would leak side effects
-   on every retry.
+   recovery fails, the runtime retries once and pauses dispatch; network before
+   reset would leak side effects on every retry.
 
 A workflow without file mutations but with a recovery role (e.g.
 attention-digest notifying operators) may still set `recoveryCapable: true`

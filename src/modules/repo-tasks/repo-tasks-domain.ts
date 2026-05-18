@@ -149,11 +149,15 @@ export function countRepoPromotableBacklogTasks(projectDir: string): number {
 }
 
 export function isThinPullQueue(snapshot: RepoTaskQueueSnapshot): boolean {
-  const waitingCount = snapshot.counts.ready + snapshot.counts.backlog;
+  const dependencyBlockedTailCount = snapshot.dependencyBlockedTasks.filter(
+    (task) => task.state === "ready" || task.state === "backlog",
+  ).length;
+  const pullableTailCount =
+    snapshot.counts.ready + snapshot.counts.backlog - dependencyBlockedTailCount;
   return (
     snapshot.inboxCount === 0 &&
-    waitingCount <= 2 &&
-    (waitingCount > 0 || snapshot.counts.doing > 0)
+    pullableTailCount <= 2 &&
+    (pullableTailCount > 0 || snapshot.counts.doing > 0)
   );
 }
 

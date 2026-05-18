@@ -1,12 +1,12 @@
 ---
 id: task-exclude-dependency-blocked-tasks-from-thin-queue-signaling
 title: Exclude dependency-blocked tasks from thin-queue signaling
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Make thin-queue detection count only dependency-clear ready/backlog work so dependency-waiting tails emit empty or waiting signals without also waking thin-queue exploration.
 created_at: 2026-05-18T09:57:32Z
-updated_at: 2026-05-18T09:57:32Z
+updated_at: 2026-05-18T10:03:09.919Z
 ---
 
 ## Problem

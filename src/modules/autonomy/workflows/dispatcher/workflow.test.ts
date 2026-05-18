@@ -149,6 +149,54 @@ describe("dispatcher workflow", () => {
     expect(result.emitted.some((e) => e.event === "autonomy.queue.needs-promotion")).toBe(false);
   });
 
+  it("emits autonomy.queue.empty without thin when only dependency-blocked backlog remains", async () => {
+    writeFileSync(
+      join(projectDir, "data", "tasks", "backlog", "task-dependent-a.md"),
+      taskFixture("task-dependent-a", "backlog", { dependsOn: ["task-enabler"] }),
+    );
+    writeFileSync(
+      join(projectDir, "data", "tasks", "backlog", "task-dependent-b.md"),
+      taskFixture("task-dependent-b", "backlog", { dependsOn: ["task-enabler"] }),
+    );
+    writeFileSync(
+      join(projectDir, "data", "tasks", "blocked", "task-enabler.md"),
+      taskFixture("task-enabler", "blocked"),
+    );
+    const harness = new WorkflowTestHarness(dispatcherWorkflow, { projectDir });
+    const result = await harness.run();
+
+    const dependencyBlockedTasks = [
+      {
+        id: "task-dependent-a",
+        title: "task-dependent-a",
+        state: "backlog",
+        dependsOn: ["task-enabler"],
+        waitingOn: ["task-enabler"],
+      },
+      {
+        id: "task-dependent-b",
+        title: "task-dependent-b",
+        state: "backlog",
+        dependsOn: ["task-enabler"],
+        waitingOn: ["task-enabler"],
+      },
+    ];
+    const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
+    expect(output.pullableCount).toBe(0);
+    expect(output.actionableCount).toBe(0);
+    expect(output.dependencyBlockedTasks).toEqual(expect.arrayContaining(dependencyBlockedTasks));
+    expect(output.dependencyBlockedTasks).toHaveLength(2);
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(true);
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.thin")).toBe(false);
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.needs-promotion")).toBe(false);
+    const emptyEvent = result.emitted.find((e) => e.event === "autonomy.queue.empty");
+    const emptyPayload = emptyEvent?.payload as { dependencyBlockedTasks?: unknown[] } | undefined;
+    expect(emptyPayload?.dependencyBlockedTasks).toEqual(
+      expect.arrayContaining(dependencyBlockedTasks),
+    );
+    expect(emptyPayload?.dependencyBlockedTasks).toHaveLength(2);
+  });
+
   it("emits autonomy.queue.needs-promotion when only backlog work remains", async () => {
     writeFileSync(
       join(projectDir, "data", "tasks", "backlog", "task-foo.md"),
