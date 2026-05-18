@@ -8,12 +8,19 @@ const ROWS = [
   {
     name: "audit",
     source: "rendering",
+    sourceType: "module" as const,
+    status: "resolvable" as const,
+    activation: "default" as const,
     description: "Verify rendered surface diffs",
     promptPath: "src/modules/audit/prompt.md",
   },
   {
     name: "phase-2-migration",
     source: "skill-ops",
+    sourceType: "imported" as const,
+    status: "resolvable" as const,
+    activation: "explicit" as const,
+    provenance: "https://example.com/phase-2.md",
     description:
       "Long description that should wrap or truncate cleanly under a narrow terminal width without overflowing the next column",
     promptPath: "src/modules/skill-ops/prompt.md",
@@ -32,7 +39,8 @@ describe("buildSkillListNode", () => {
         renderContext({ theme, width: 120 }),
       );
       expect(out).toContain("audit");
-      expect(out).toContain("Source");
+      expect(out).toContain("Src");
+      expect(out).toContain("Use");
       expect(out).toContain("Description");
     });
   }

@@ -10,6 +10,8 @@ path for importing standalone skill files into `.kota/skills/`, and the
 - `skill-ops-operations.ts` — shared `listSkills` / `importSkill` helpers
   that both the local handler and the daemon-control routes call through,
   so the two transports cannot diverge on skill shape.
+- Imported skills must stay explicit-only in runtime prompt resolution unless
+  a later operator-reviewed activation state is added and tested.
 - Module-owned skill markdown should live with the module that provides the
   capability, not here.
 - Keep this module focused on inspection and import mechanics, not on owning a

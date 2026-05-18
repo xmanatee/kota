@@ -83,6 +83,9 @@ function makeSkillSummary(name: string): SkillSummary {
   return {
     name,
     source: "skill-ops",
+    sourceType: "module",
+    status: "resolvable",
+    activation: "default",
     promptPath: `src/modules/${name}/prompt.md`,
   };
 }

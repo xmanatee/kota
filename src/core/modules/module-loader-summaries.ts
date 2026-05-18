@@ -61,12 +61,13 @@ export function collectModuleSummaries(state: LoaderState): ModuleSummary[] {
 export function formatSkillsPrompt(
   skillContentsByName: ReadonlyMap<string, string>,
   skillDefsByName: ReadonlyMap<string, SkillDef>,
+  explicitOnlySkillNames: ReadonlySet<string>,
   skillNames: string[] | "all",
   agentName?: string,
 ): string {
   if (skillContentsByName.size === 0) return "";
   const names = skillNames === "all"
-    ? [...skillContentsByName.keys()]
+    ? [...skillContentsByName.keys()].filter((name) => !explicitOnlySkillNames.has(name))
     : skillNames;
   const entries = names
     .filter((name) => {

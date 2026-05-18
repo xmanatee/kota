@@ -15,16 +15,21 @@
  */
 
 /**
- * A registered skill as the CLI surfaces it. `source` is the contributing
- * module name, or the literal string `"imported"` for skills installed under
- * `.kota/skills/` via `kota skill import`.
+ * A registered skill as the CLI surfaces it. Module skills are active in
+ * broad skill sets; imported skills are explicit-only unless a future reviewed
+ * activation state says otherwise.
  */
 export type SkillSummary = {
   name: string;
   source: string;
+  sourceType: "module" | "imported";
+  status: "resolvable" | "shadowed";
+  activation: "default" | "explicit";
   description?: string;
   promptPath: string;
   roles?: string[];
+  provenance?: string;
+  shadowedBy?: string;
 };
 
 export type SkillsListResult = {
@@ -41,14 +46,15 @@ export type SkillImportOptions = {
  *
  * `fetch_failed` covers HTTP and missing-local-file errors uniformly;
  * `missing_name` fires when the skill source has no `name` frontmatter and
- * the caller passed no override. The CLI maps both to a single error
+ * the caller passed no override. `invalid_skill` reports malformed local
+ * skill metadata before the file is written. The CLI maps all errors to one
  * message regardless of which transport answered.
  */
 export type SkillImportResult =
   | { ok: true; name: string; path: string }
   | {
       ok: false;
-      reason: "fetch_failed" | "missing_name";
+      reason: "fetch_failed" | "missing_name" | "invalid_skill";
       message: string;
     };
 

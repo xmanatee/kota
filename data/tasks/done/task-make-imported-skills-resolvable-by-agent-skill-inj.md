@@ -1,12 +1,12 @@
 ---
 id: task-make-imported-skills-resolvable-by-agent-skill-inj
 title: Make imported skills resolvable by agent skill injection
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Close the gap between skill import and runtime skill use by loading local imported skills into the same explicit SkillDef resolution path with provenance and activation semantics.
 created_at: 2026-05-18T03:39:09.506Z
-updated_at: 2026-05-18T03:39:09.506Z
+updated_at: 2026-05-18T03:54:23.635Z
 ---
 
 ## Problem

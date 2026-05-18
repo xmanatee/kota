@@ -38,6 +38,8 @@ export interface LoaderState {
   moduleSources: Map<string, ModuleSource>;
   skillContentsByName: Map<string, string>;
   skillDefsByName: Map<string, SkillDef>;
+  importedSkillNames: Set<string>;
+  explicitOnlySkillNames: Set<string>;
   contributedWorkflows: RegisteredWorkflowDefinitionInput[];
   contributedChannels: ChannelDef[];
   loadFailures: Map<string, ModuleLoadFailure>;
@@ -65,6 +67,8 @@ export function createLoaderState(): LoaderState {
     moduleSources: new Map(),
     skillContentsByName: new Map(),
     skillDefsByName: new Map(),
+    importedSkillNames: new Set(),
+    explicitOnlySkillNames: new Set(),
     contributedWorkflows: [],
     contributedChannels: [],
     loadFailures: new Map(),

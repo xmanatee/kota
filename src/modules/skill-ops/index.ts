@@ -76,13 +76,17 @@ export function buildSkillListNode(skills: SkillSummary[]): ColumnsNode {
   return columns(
     [
       { header: "Name", role: "accent" },
-      { header: "Source", role: "info" },
-      { header: "Description", maxWidth: 80 },
+      { header: "Src", role: "info" },
+      { header: "Use" },
+      { header: "Provenance", maxWidth: 48 },
+      { header: "Description", maxWidth: 72 },
     ],
     skills.map((s) => ({
       cells: [
         { spans: [{ text: s.name, role: "accent" }] },
         { spans: [{ text: s.source, role: "info" }] },
+        { spans: [{ text: s.shadowedBy ? `shadowed by ${s.shadowedBy}` : s.activation }] },
+        { spans: [{ text: s.provenance ?? "" }] },
         { spans: [{ text: s.description ?? "" }] },
       ],
     })),

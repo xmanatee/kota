@@ -103,6 +103,8 @@ export async function unloadAllModules(state: LoaderState, env: LifecycleEnv): P
   state.contributedChannels.splice(0);
   state.skillContentsByName.clear();
   state.skillDefsByName.clear();
+  state.importedSkillNames.clear();
+  state.explicitOnlySkillNames.clear();
   state.moduleRoutes.clear();
   state.moduleCommands.clear();
   state.moduleControlRoutes.clear();

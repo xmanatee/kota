@@ -6,6 +6,7 @@ import type { EventBus } from "#core/events/event-bus.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type { DaemonClientHandlers, LocalClientHandlers } from "#core/server/kota-client.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
+import { readImportedSkillRecords } from "./imported-skills.js";
 import { type LifecycleEnv, unloadAllModules, unloadModule } from "./module-lifecycle.js";
 import { type LoadAllEnv, loadAllModules, reloadModule } from "./module-loader-bootstrap.js";
 import { assembleDaemonClientHandlers as assembleDaemonClientHandlersImpl } from "./module-loader-clients.js";
@@ -193,7 +194,39 @@ export class ModuleLoader {
   getSkillsPrompt(): string { return this.getSkillsPromptFor("all"); }
 
   getSkillsPromptFor(skillNames: string[] | "all", agentName?: string): string {
-    return formatSkillsPrompt(this.state.skillContentsByName, this.state.skillDefsByName, skillNames, agentName);
+    this.refreshImportedSkills();
+    return formatSkillsPrompt(
+      this.state.skillContentsByName,
+      this.state.skillDefsByName,
+      this.state.explicitOnlySkillNames,
+      skillNames,
+      agentName,
+    );
+  }
+
+  private refreshImportedSkills(): void {
+    const records = readImportedSkillRecords(this.cwd);
+    const moduleSkillNames = new Set<string>();
+    for (const skills of this.state.moduleSkillDefs.values()) {
+      for (const skill of skills) moduleSkillNames.add(skill.name);
+    }
+
+    for (const name of this.state.importedSkillNames) {
+      if (!moduleSkillNames.has(name)) {
+        this.state.skillContentsByName.delete(name);
+        this.state.skillDefsByName.delete(name);
+      }
+      this.state.explicitOnlySkillNames.delete(name);
+    }
+    this.state.importedSkillNames.clear();
+
+    for (const record of records) {
+      if (moduleSkillNames.has(record.def.name)) continue;
+      this.state.skillContentsByName.set(record.def.name, record.content);
+      this.state.skillDefsByName.set(record.def.name, record.def);
+      this.state.importedSkillNames.add(record.def.name);
+      this.state.explicitOnlySkillNames.add(record.def.name);
+    }
   }
 
   getAgentDef(name: string): AgentDef | undefined {
