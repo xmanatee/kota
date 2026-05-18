@@ -13,15 +13,15 @@ resources:
   - url: https://github.com/zeroclaw-labs/zeroclaw
     added: "2026-04-14"
     snapshot:
-      fingerprint: sha256:51a7729c05d0012bba7f592aeebb4e54
-      summary: "ZeroClaw is a Rust reimplementation of the OpenClaw-style personal AI assistant, targeting $10 hardware with <5MB RAM and cold starts under a second; positions itself around a local gateway, 20+ messaging channels, per-session autonomy levels (ReadOnly/Supervised/Full), community-auditable skills, 70+ integrated tools, direct ESP32/STM32/Arduino/Raspberry Pi integration, and 20+ LLM backends with failover."
-      last_seen_at: "2026-04-18T00:43:33.665Z"
+      fingerprint: sha256:91478f5eb891ba8534a0e35d3a9f8d1f
+      summary: "ZeroClaw still reinforces KOTA's daemon/session/channel/tool/skill model plus provider fallback and local ownership; no new KOTA primitive or task was opened from this refresh."
+      last_seen_at: "2026-05-18T06:08:15.722Z"
   - url: https://github.com/RightNow-AI/openfang
     added: "2026-04-14"
     snapshot:
-      fingerprint: sha256:176eb7e3267c67c26ac799ec0fe846a0
-      summary: "OpenFang presents itself as a Rust 'agent operating system' that compiles to a single ~32MB binary and ships seven pre-built autonomous capability packs called 'Hands' (Clip, Lead, Collector, Predictor, Researcher, Twitter, Browser) alongside 14 modular crates (kernel, runtime, channels, memory, skills), WASM sandboxing, Merkle-chain audit trails, 40 channel adapters, 27 LLM providers, and a stated OpenClaw-migration engine."
-      last_seen_at: "2026-04-18T00:43:33.665Z"
+      fingerprint: sha256:52e4189cf96f4ecb5eb61dd7fedc465f
+      summary: "OpenFang continues to package tools, prompts, skills, guardrails, and metrics as capability bundles; KOTA maps this to modules/workflows/skills and does not need a second Hand primitive."
+      last_seen_at: "2026-05-18T06:08:15.722Z"
   - url: https://github.com/badlogic/pi-mono
     added: "2026-04-14"
     snapshot:
@@ -202,16 +202,16 @@ resources:
     added: "2026-04-26"
     notes: "Cline is one of the two most-deployed in-IDE agent runtimes (alongside continuedev/continue) and the dominant fork base for many VS Code agent extensions. KOTA's current peer-runtime coverage is heavy on terminal CLIs and SDK frameworks but missing the in-editor design point — different operator-surface and tool-permission model than terminal-host runtimes. Snapshot and distill on the next explorer cycle."
     snapshot:
-      fingerprint: sha256:3e2b3227bc02e5120d675b6f23f13346
-      summary: "Cline is a VS Code-first autonomous coding agent (TypeScript) with HITL-every-step approval, single-agent Claude-Sonnet architecture, MCP runtime tool extension, multi-provider LLM backends, and per-task checkpoints rather than persistent memory. Verdict: HITL-every-step rejected at autonomy-mode layer (KOTA's autonomy mode + approval-queue + tool-risk already cover supervised posture); single-agent + MCP-extensible already adopted; no new KOTA primitive opened."
-      last_seen_at: "2026-04-26T02:48:28.585Z"
+      fingerprint: sha256:47242078d37d025cb8c923c11278763c
+      summary: "Cline has broadened from IDE-first HITL coding into a shared agent engine across CLI, SDK, Kanban, scheduled agents, and channels; KOTA already maps most primitives, while dependency-chain task ordering exposes a queue-contract gap."
+      last_seen_at: "2026-05-18T06:08:15.722Z"
   - url: https://github.com/continuedev/continue
     added: "2026-04-26"
     notes: "Continue.dev is the other widely-deployed in-IDE agent runtime, with a config-as-code pattern (config.yaml) and a different tool/sandbox model from Cline. Distinct from terminal-host peers already on the watchlist. Snapshot and distill on the next explorer cycle."
     snapshot:
-      fingerprint: sha256:2d645d1fffffc712c2b6505d2a27d814
-      summary: "Continue (continuedev/continue) is now a CI-enforceable AI-checks platform: source-controlled markdown checks under .continue/checks/, run on PRs as GitHub status checks, primary surface is a cn CLI plus VS Code/JetBrains plugins. Single-agent per check, MCP-supported, config-as-code in version control. Verdict: read but reject as a parallel surface — KOTA's eval-harness + agent-judge contracts already cover agent evaluation, pr-reviewer covers the GitHub-PR signal, and scoped AGENTS.md already realizes repo-resident config-as-code; importing markdown checks would be a second governance surface."
-      last_seen_at: "2026-04-26T02:48:28.586Z"
+      fingerprint: sha256:e70362a602520446ecd6c2f0aada5576
+      summary: "Continue remains centered on repo-resident AI checks as CI status checks; KOTA already covers the nonduplicative pieces through scoped AGENTS.md, eval-harness fixtures, and PR-reviewer workflows."
+      last_seen_at: "2026-05-18T06:08:15.722Z"
   - url: https://github.com/livekit/agents
     added: "2026-05-02"
     notes: "LiveKit Agents is a real-time multi-modal voice/agent orchestration framework — peer to KOTA's voice module surface. Owner-flagged 2026-05-02 in inbox capture as relevant to voice-stack reevaluation. Snapshot and distill on the next explorer cycle."
