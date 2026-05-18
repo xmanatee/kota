@@ -1,12 +1,12 @@
 ---
 id: task-retire-stale-research-retry-uncovered-fixtur
 title: Retire stale research-retry uncovered-fixture note
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Align eval-harness uncovered workflow notes with the shipped research-retry replay fixture so coverage records no longer claim a gap that is already smoke-gated.
 created_at: 2026-05-18T05:31:48Z
-updated_at: 2026-05-18T05:31:48Z
+updated_at: 2026-05-18T05:37:00.107Z
 ---
 
 ## Problem

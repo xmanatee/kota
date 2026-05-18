@@ -97,14 +97,16 @@ a reason the predicate/payload changes do not resolve.
   recordings (`improve.json` + `semantic-gate-review.json`) are
   authored end-to-end by the recorder CLI. Real `pnpm
   build`/`typecheck`/`lint`/`test` enforcement stays in KOTA's own CI.
-- **research-retry** — retired. 56 runs, all status=success. The
-  workflow retries blocked research tasks using authenticated-browser
-  and rendered-browser tools contributed by the browser module. The
-  harness subprocess runs with `HOME` remapped to the fixture working
-  dir and no credentials, so the retry step cannot exercise the browser
-  path it exists to retry. The agent-step replay adapter records the
-  final response envelope and file mutations but does not stand in for
-  live browser-tool side effects; a real-failure fixture still needs a
-  browser-capability fake that mirrors the blocked-source shape, or a
-  module-loader stub at the fixture boundary. Replay alone does not
-  unblock research-retry.
+- **research-retry (workflow-layer path)** — now covered by
+  `research-retry-agent-call-replay`. The fixture replays source run
+  `2026-04-23T00-03-55-062Z-research-retry-u92f1u`, seeds a hermetic
+  plain-http blocker so `inspect-candidates` selects work without
+  Playwright or an auth profile, and regression-gates the replayable
+  workflow substrate: capability evaluation, URL classification, marker
+  fingerprinting, the `retry` agent step, repair checks, `mark-attempt`,
+  commit, and smoke-gate inclusion through `replay-smoke.test.ts`.
+  Live authenticated-browser source reading remains outside eval-
+  harness replay coverage. That limitation belongs to
+  `task-enable-autonomous-access-to-auth-walled-sources-so` and the
+  blocked research tasks that need an operator-provided browser profile;
+  it is not a missing replay fixture or harness-substrate gap.
