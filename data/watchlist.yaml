@@ -158,6 +158,10 @@ resources:
   - url: https://openai.com/news/security/
     added: "2026-05-17"
     notes: "Official OpenAI security feed. Monitor Codex and coding-agent deployment controls, sandboxing, network policy, credentials, and agent telemetry posts that are not always listed on the research index."
+    snapshot:
+      fingerprint: sha256:295c2fe707e09deb051f32fc8f062e26
+      summary: "OpenAI's security feed now combines Codex sandbox/deployment-control material with an npm supply-chain incident response; KOTA's fresh local gap is repo-level pnpm install hardening rather than another Codex sandbox or telemetry task."
+      last_seen_at: "2026-05-18T01:53:59.873Z"
   - url: https://deepmind.google/discover/blog/
     added: "2026-04-19"
     snapshot:
