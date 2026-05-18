@@ -66,6 +66,7 @@ area: ${overrides.area ?? "workflow"}
 summary: ${overrides.summary ?? "Summary."}
 created_at: ${overrides.created_at ?? "2026-03-28T00:00:00Z"}
 updated_at: ${overrides.updated_at ?? "2026-03-28T00:00:00Z"}
+${overrides.depends_on ? `depends_on: ${overrides.depends_on}\n` : ""}
 ---
 
 ## Problem
@@ -195,6 +196,133 @@ describe("task queue validation", () => {
 
     const result = validateTaskQueue(projectDir);
     expect(result.findings.filter((f) => f.code === "task-invalid-priority")).toHaveLength(0);
+  });
+
+  it("accepts valid hard task dependency edges", () => {
+    writeTask(projectDir, "done", "task-enabler", { status: "done" });
+    writeTask(projectDir, "ready", "task-dependent", {
+      depends_on: "[task-enabler]",
+    });
+    execSync("git add data && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    const result = validateTaskQueue(projectDir);
+    expect(result.findings.filter((f) => f.code.startsWith("task-dependency"))).toEqual([]);
+  });
+
+  it("rejects malformed hard task dependency declarations", () => {
+    writeTask(projectDir, "ready", "task-dependent", {
+      depends_on: "task-enabler",
+    });
+    execSync("git add data && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    const result = validateTaskQueue(projectDir);
+    expect(result.findings.some((f) => f.code === "task-dependencies-invalid")).toBe(true);
+  });
+
+  it("rejects missing, duplicate, and self hard task dependencies", () => {
+    writeTask(projectDir, "ready", "task-dependent", {
+      depends_on: "[task-missing, task-missing, task-dependent]",
+    });
+    execSync("git add data && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    const result = validateTaskQueue(projectDir);
+    expect(result.findings.some((f) => f.code === "task-dependency-missing")).toBe(true);
+    expect(result.findings.some((f) => f.code === "task-dependency-duplicate")).toBe(true);
+    expect(result.findings.some((f) => f.code === "task-dependency-self")).toBe(true);
+  });
+
+  it("rejects hard task dependency cycles", () => {
+    writeTask(projectDir, "ready", "task-a", {
+      depends_on: "[task-b]",
+    });
+    writeTask(projectDir, "backlog", "task-b", {
+      depends_on: "[task-c]",
+    });
+    writeTask(projectDir, "backlog", "task-c", {
+      depends_on: "[task-a]",
+    });
+    execSync("git add data && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    const result = validateTaskQueue(projectDir);
+    const finding = result.findings.find((f) => f.code === "task-dependency-cycle");
+    expect(finding?.message).toMatch(/task-a/);
+    expect(finding?.message).toMatch(/task-b/);
+    expect(finding?.message).toMatch(/task-c/);
+  });
+
+  it("requires task-done blocked preconditions to match the canonical dependency edge", () => {
+    writeTask(projectDir, "done", "task-enabler", { status: "done" });
+    const dir = join(projectDir, REPO_TASKS_DIR, "blocked");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "task-blocked-dependent.md"),
+      `---
+id: task-blocked-dependent
+title: Blocked dependent
+status: blocked
+priority: p2
+area: architecture
+summary: Blocked dependent.
+created_at: 2026-03-28T00:00:00Z
+updated_at: 2026-03-28T00:00:00Z
+depends_on: [task-other]
+---
+
+## Problem
+
+Problem.
+
+## Desired Outcome
+
+Outcome.
+
+## Constraints
+
+Constraints.
+
+## Done When
+
+- Done.
+
+## Source / Intent
+
+Owner or research source asks for this because it changes a meaningful operator or architecture outcome.
+
+## Initiative
+
+Strategic quality initiative that groups this task with a larger product or architecture outcome.
+
+## Acceptance Evidence
+
+- Validation command or artifact proves the outcome.
+
+## Unblock Precondition
+
+\`\`\`
+kind: task-done
+ref: task-enabler
+\`\`\`
+`,
+    );
+    execSync("git add data && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    const result = validateTaskQueue(projectDir);
+    expect(result.findings.some((f) => f.code === "blocked-task-done-dependency-mismatch")).toBe(true);
   });
 
   it("reports tasks missing required body sections", () => {

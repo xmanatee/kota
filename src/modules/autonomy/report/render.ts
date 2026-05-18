@@ -116,7 +116,7 @@ function renderQueueBalance(balance: QueueBalance): RenderNode[] {
   const areaLines = balance.byArea.map((a) =>
     line(plain(`  ${a.area.padEnd(16)} ${String(a.count).padStart(3)} (${pct(a.count, balance.total)})`)),
   );
-  return [
+  const lines: RenderNode[] = [
     line(plain("Total: "), span(String(balance.total), "accent")),
     blank(),
     line(span("By state", "muted", true)),
@@ -128,6 +128,19 @@ function renderQueueBalance(balance: QueueBalance): RenderNode[] {
     line(span("By area", "muted", true)),
     ...areaLines,
   ];
+  if (balance.waitingOnTasks.length > 0) {
+    lines.push(blank());
+    lines.push(line(span("Waiting on tasks", "muted", true)));
+    for (const wait of balance.waitingOnTasks) {
+      lines.push(line(
+        plain("  "),
+        span(wait.taskId, "warn"),
+        plain(` (${wait.state}) -> `),
+        plain(wait.waitingOn.join(", ")),
+      ));
+    }
+  }
+  return lines;
 }
 
 function renderExplorerBalance(explorer: ExplorerBalance): RenderNode[] {

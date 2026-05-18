@@ -101,6 +101,7 @@ function makeEmptySnapshot() {
     openCount: 0,
     pullableCount: 0,
     actionableCount: 0,
+    dependencyBlockedTasks: [],
     headSha: "abc1234",
   };
 }
@@ -120,6 +121,7 @@ function makeSnapshot(ready: number, doing: number, backlog = 4) {
     openCount: counts.backlog + counts.ready + counts.doing + counts.blocked,
     pullableCount: counts.backlog + counts.ready + counts.doing,
     actionableCount: ready + doing,
+    dependencyBlockedTasks: [],
     headSha: "abc1234",
   };
 }
@@ -288,6 +290,51 @@ describe("builder workflow", () => {
     expect(result.status).toBe("success");
     expect(result.steps.build.status).toBe("skipped");
     expect(result.steps.commit.status).toBe("skipped");
+  });
+
+  it("skips build when every ready task is waiting on hard dependencies", async () => {
+    const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
+    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue({
+      ...makeSnapshot(1, 0, 0),
+      pullableCount: 0,
+      actionableCount: 0,
+      dependencyBlockedTasks: [
+        {
+          id: "task-dependent",
+          title: "Dependent",
+          state: "ready",
+          dependsOn: ["task-enabler"],
+          waitingOn: ["task-enabler"],
+        },
+      ],
+    });
+
+    const harness = new WorkflowTestHarness(builderWorkflow, {
+      trigger: {
+        event: "autonomy.queue.available",
+        payload: {
+          pullableCount: 0,
+          actionableCount: 0,
+          counts: makeSnapshot(1, 0, 0).counts,
+          dependencyBlockedTasks: [
+            {
+              id: "task-dependent",
+              title: "Dependent",
+              state: "ready",
+              dependsOn: ["task-enabler"],
+              waitingOn: ["task-enabler"],
+            },
+          ],
+        },
+      },
+      stepMocks: {
+        build: { turns: [], totalCostUsd: 0.03 },
+      },
+    });
+
+    const result = await harness.run();
+
+    expect(result.steps.build.status).toBe("skipped");
   });
 
   it("skips commit and write-run-summary when build fails", async () => {

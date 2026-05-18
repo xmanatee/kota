@@ -126,8 +126,8 @@ describe("repo-tasks module daemonClient(link) — tasks namespace", () => {
     const result = await contributed.tasks!.list();
     expect(result).toEqual({
       tasks: [
-        { id: "b1", title: "B-One", priority: "p1", state: "backlog" },
-        { id: "r1", title: "R-One", priority: "p2", state: "ready" },
+        { id: "b1", title: "B-One", priority: "p1", state: "backlog", waitingOnTasks: [] },
+        { id: "r1", title: "R-One", priority: "p2", state: "ready", waitingOnTasks: [] },
       ],
     });
     expect(calls).toHaveLength(1);

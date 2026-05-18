@@ -18,6 +18,7 @@ import type { DaemonTaskDetail, DaemonTaskStatusResponse } from "./repo-tasks-do
 import {
   getRepoInboxDir,
   getRepoTasksDir,
+  listRepoTaskDependencyWaits,
   moveTaskById,
   REPO_TASK_STATES,
   type RepoTaskState,
@@ -135,9 +136,15 @@ function extractBody(content: string): string {
   return match ? match[1].trim() : "";
 }
 
-function readStateTasks(tasksDir: string, state: string): DaemonTaskDetail[] {
+function readStateTasks(projectDir: string, tasksDir: string, state: RepoTaskState): DaemonTaskDetail[] {
   const files = listTaskFiles(tasksDir, state);
   const result: DaemonTaskDetail[] = [];
+  const waitingById = new Map(
+    listRepoTaskDependencyWaits(projectDir, [state]).map((wait) => [
+      wait.id,
+      wait.waitingOn,
+    ]),
+  );
   for (const file of files) {
     const content = tryReadUtf8(join(tasksDir, state, file));
     if (content === null) {
@@ -152,6 +159,7 @@ function readStateTasks(tasksDir: string, state: string): DaemonTaskDetail[] {
         area: fm.area ?? "",
         summary: fm.summary ?? "",
         body: extractBody(content),
+        waitingOnTasks: waitingById.get(fm.id) ?? [],
       });
     }
   }
@@ -377,7 +385,7 @@ export function handleTaskStatus(
     ]),
   ) as DaemonTaskStatusResponse["counts"];
   const tasks = Object.fromEntries(
-    DETAIL_STATES.map((state) => [state, readStateTasks(tasksDir, state)]),
+    DETAIL_STATES.map((state) => [state, readStateTasks(projectDir, tasksDir, state)]),
   ) as DaemonTaskStatusResponse["tasks"];
   jsonResponse(res, 200, { counts, tasks } satisfies DaemonTaskStatusResponse);
 }

@@ -1,17 +1,18 @@
 ---
 id: task-review-inaccessible-research-resources-when-access
 title: Review inaccessible research resources when access is available
-status: blocked
+status: backlog
 priority: p3
 area: research
 summary: Grouped follow-up for 9 research URLs that were captured but never read due to auth walls or fetch failures
+depends_on: [task-enable-autonomous-access-to-auth-walled-sources-so]
 created_at: 2026-04-14T00:29:07.947Z
-updated_at: 2026-05-07T12:27:35.000Z
+updated_at: 2026-05-18T07:10:06Z
 ---
 
 ## Problem
 
-Nine research URLs from the March–April 2026 resource batches plus a later
+Nine research URLs from the March-April 2026 resource batches plus a later
 inbox capture were captured but never read. Automated fetch returned HTTP 402
 (X/Twitter auth wall) or failed due to rate limits / JS rendering. These
 resources cannot be honestly dispositioned without reading them.
@@ -42,7 +43,7 @@ reason based on actual content.
 
 ## Constraints
 
-- Blocked on X/Twitter authentication (operator-configured
+- Waiting on X/Twitter authentication (operator-configured
   `modules.browser.storageStatePath`) for the 6 social posts still in the
   Resources block.
 - Do not infer content from URL shape, author, or surrounding context.
@@ -55,13 +56,6 @@ reason based on actual content.
 - All 9 original URLs have been read and given honest dispositions.
 - The task record reflects the final disposition per URL.
 - Follow-up tasks exist for any adopted or deferred work.
-
-## Unblock Precondition
-
-```
-kind: task-done
-ref: task-enable-autonomous-access-to-auth-walled-sources-so
-```
 
 ## Source / Intent
 
@@ -106,16 +100,24 @@ in the Resources block.
     2026-04-23 00:02 UTC), so the scoped browser tools would fail even
     if a profile path were set.
 
-The retry mechanism (scoped browser tools + research-retry workflow)
-already shipped under `task-enable-autonomous-access-to-auth-walled-sources-so`.
-This task stays `blocked` pending (a) Playwright install and
-(b) operator-configured browser profile; every research-retry run will
-re-confirm the six posts as auth-walled until both are in place.
+The retry mechanism (scoped browser tools + research-retry workflow) already
+shipped under `task-enable-autonomous-access-to-auth-walled-sources-so`. This
+task stays dependency-waiting in `backlog/` pending (a) Playwright install and
+(b) operator-configured browser profile; every premature research-retry run
+would re-confirm the six posts as auth-walled until both are in place.
 
 ## Status (2026-05-07 blocker audit)
 
 The dependency is still real. The enabler's precondition was tightened from
 "Playwright is installed" to a live authenticated-browser capture because
 Playwright alone would not make the six X/Twitter posts readable. This task
-therefore remains blocked on the enabler reaching `done/`, not on another
-autonomous retry against the same auth wall.
+therefore waits on the enabler reaching `done/`, not on another autonomous
+retry against the same auth wall.
+
+## Status (2026-05-18 dependency repair)
+
+This task now declares its hard predecessor in `depends_on` and has moved out
+of `blocked/`; the typed dependency edge is the scheduler-visible wait. The
+live authenticated-browser capture for the enabler is still absent, so this
+task remains dependency-waiting in `backlog/` and is not completed through
+public mirrors or alternate captures.

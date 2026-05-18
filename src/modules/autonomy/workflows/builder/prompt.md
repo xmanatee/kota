@@ -10,6 +10,8 @@ Read and follow the root `AGENTS.md` and local `AGENTS.md` files in directories 
   `backlog-promoter` workflow shapes the ready queue and records its
   rationale before builder runs.
 - Use `pnpm kota task move <id> doing` to pick up the task.
+- Treat typed `depends_on` waiting reasons in queue/list output as hard
+  blockers; pick dependency-clear work instead of inferring order from prose.
 - Treat the task as a contract, not a script. Own the technical plan yourself.
 - Block or decompose only when the task is genuinely incoherent, externally blocked, or impossible to complete without guessing.
 - Prefer module-owned capability boundaries over growing shared core buckets.

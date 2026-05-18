@@ -1,5 +1,6 @@
 import {
   listFullRepoTasks,
+  listRepoTaskDependencyWaits,
   type RepoTaskFullRecord,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 
@@ -147,11 +148,22 @@ export function buildPromotionRationale(
 ): PromotionRationale {
   const batchLimit = options.batchLimit ?? PROMOTION_BATCH_LIMIT;
   const records = listFullRepoTasks(projectDir, ["backlog", "blocked"]);
+  const waitingById = new Map(
+    listRepoTaskDependencyWaits(projectDir, ["backlog", "blocked"]).map((wait) => [
+      wait.id,
+      wait.waitingOn,
+    ]),
+  );
   const allBacklog = records
     .filter((record) => record.state === "backlog")
     .sort(compareBacklogCandidates);
   const anchorBacklog = allBacklog.filter((record) => record.anchor);
-  const promotableBacklog = allBacklog.filter((record) => !record.anchor);
+  const dependencyWaitingBacklog = allBacklog.filter((record) =>
+    !record.anchor && waitingById.has(record.id)
+  );
+  const promotableBacklog = allBacklog.filter((record) =>
+    !record.anchor && !waitingById.has(record.id)
+  );
   const blocked = records
     .filter((record) => record.state === "blocked")
     .sort(compareBacklogCandidates);
@@ -177,12 +189,21 @@ export function buildPromotionRationale(
     state: "backlog" as const,
     reason: ANCHOR_REJECTION_REASON,
   }));
+  const rejectedDependencyWaiting = dependencyWaitingBacklog.map((record) => ({
+    id: record.id,
+    title: record.title,
+    priority: record.priority,
+    state: "backlog" as const,
+    reason: `waiting on task dependencies: ${waitingById.get(record.id)?.join(", ") ?? ""}`,
+  }));
   const rejectedBlocked = blocked.map((record) => ({
     id: record.id,
     title: record.title,
     priority: record.priority,
     state: "blocked" as const,
-    reason: "blocked: cannot be promoted until precondition clears",
+    reason: waitingById.has(record.id)
+      ? `blocked: waiting on task dependencies ${waitingById.get(record.id)?.join(", ")}`
+      : "blocked: cannot be promoted until precondition clears",
   }));
 
   const candidates = [
@@ -210,6 +231,14 @@ export function buildPromotionRationale(
       `Strategic anchors skipped (never promoted): ${anchorIds}. Their work lands through declared sub-slice tasks.`,
     );
   }
+  if (rejectedDependencyWaiting.length > 0) {
+    const waitingIds = rejectedDependencyWaiting
+      .map((r) => `${r.id} (${r.reason})`)
+      .join(", ");
+    summaryLines.push(
+      `Backlog tasks waiting on hard predecessors skipped: ${waitingIds}.`,
+    );
+  }
   if (rejectedBlocked.length > 0) {
     const blockedIds = rejectedBlocked.map((r) => r.id).join(", ");
     summaryLines.push(
@@ -219,7 +248,12 @@ export function buildPromotionRationale(
 
   return {
     selected,
-    rejected: [...rejectedBacklog, ...rejectedAnchors, ...rejectedBlocked],
+    rejected: [
+      ...rejectedBacklog,
+      ...rejectedAnchors,
+      ...rejectedDependencyWaiting,
+      ...rejectedBlocked,
+    ],
     candidates,
     summary: summaryLines.join("\n"),
   };

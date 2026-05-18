@@ -21,6 +21,7 @@ import {
 } from "#modules/repo-tasks/blocked-precondition.js";
 import {
   listFullRepoTasks,
+  listRepoTaskDependencyWaits,
   type RepoTaskFullRecord,
   type RepoTaskState,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
@@ -49,12 +50,19 @@ function normalizePriority(raw: string): ReportPriority {
 export type PriorityCount = { priority: ReportPriority; count: number };
 export type AreaCount = { area: string; count: number };
 export type StateCount = { state: RepoTaskState; count: number };
+export type QueueDependencyWait = {
+  taskId: string;
+  title: string;
+  state: RepoTaskState;
+  waitingOn: string[];
+};
 
 export type QueueBalance = {
   total: number;
   byPriority: PriorityCount[];
   byArea: AreaCount[];
   byState: StateCount[];
+  waitingOnTasks: QueueDependencyWait[];
 };
 
 export type ExplorerTaskAddition = {
@@ -169,6 +177,12 @@ export function aggregateAutonomyReport(
       t.state === "doing" ||
       t.state === "blocked",
     ),
+    listRepoTaskDependencyWaits(input.projectDir, [
+      "backlog",
+      "ready",
+      "doing",
+      "blocked",
+    ]),
   );
 
   const doneInWindow = buildQueueBalance(
@@ -178,6 +192,7 @@ export function aggregateAutonomyReport(
         Date.parse(t.updatedAt) >= windowStartMs &&
         Date.parse(t.updatedAt) <= input.windowEndMs,
     ),
+    [],
   );
 
   const runs = loadRunsInWindow(input.runsDir, windowStartMs).filter(
@@ -206,7 +221,10 @@ export function aggregateAutonomyReport(
   };
 }
 
-function buildQueueBalance(records: RepoTaskFullRecord[]): QueueBalance {
+function buildQueueBalance(
+  records: RepoTaskFullRecord[],
+  waitingOnTasks: ReturnType<typeof listRepoTaskDependencyWaits>,
+): QueueBalance {
   const priorityCounts = new Map<ReportPriority, number>();
   const areaCounts = new Map<string, number>();
   const stateCounts = new Map<RepoTaskState, number>();
@@ -228,6 +246,12 @@ function buildQueueBalance(records: RepoTaskFullRecord[]): QueueBalance {
     byState: [...stateCounts.entries()]
       .map(([state, count]) => ({ state, count }))
       .sort((a, b) => a.state.localeCompare(b.state)),
+    waitingOnTasks: waitingOnTasks.map((wait) => ({
+      taskId: wait.id,
+      title: wait.title,
+      state: wait.state,
+      waitingOn: wait.waitingOn,
+    })),
   };
 }
 

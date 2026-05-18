@@ -1,20 +1,21 @@
 ---
 id: task-read-openai-swe-bench-verified-retirement-post-whe
 title: Read OpenAI SWE-bench Verified retirement post when fetchable
-status: blocked
+status: backlog
 priority: p3
 area: research
-summary: Read OpenAI's SWE-bench Verified retirement post and record a KOTA decision — currently blocked because openai.com/index/* returns HTTP 403 to non-browser fetch and there is no public mirror
+summary: Read OpenAI's SWE-bench Verified retirement post and record a KOTA decision once the rendered-browser source-access enabler is complete
+depends_on: [task-enable-autonomous-access-to-auth-walled-sources-so]
 created_at: 2026-04-20T20:18:43.712Z
-updated_at: 2026-05-07T12:27:35.000Z
+updated_at: 2026-05-18T07:10:06Z
 ---
 
 ## Problem
 
 The OpenAI Research Distillation in `src/modules/autonomy/AGENTS.md` covers
 three of the four autonomy-eval-adjacent OpenAI threads named on the watchlist
-(instruction hierarchy, CoT monitorability, Model Spec). The fourth — "Why we
-no longer evaluate on SWE-bench Verified" — was attempted during the
+(instruction hierarchy, CoT monitorability, Model Spec). The fourth - "Why we
+no longer evaluate on SWE-bench Verified" - was attempted during the
 distillation run (`.kota/runs/2026-04-20T20-14-07-304Z-builder-t2euna/`) but
 every fetch path tested returned HTTP 403:
 
@@ -47,8 +48,9 @@ task is opened in `data/tasks/backlog/`.
 
 ## Constraints
 
-- Blocked on a usable fetch path for `openai.com/index/*`. Browser-paste of the
-  post body is acceptable; do not infer content from third-party summaries.
+- Waiting on a usable fetch path for `openai.com/index/*`. Browser-paste of
+  the post body is acceptable; do not infer content from third-party
+  summaries.
 - Do not silently delete or merge this task into the existing distillation
   entry without reading the post.
 - Keep the resulting takeaway short and decision-focused per the parent
@@ -61,13 +63,6 @@ task is opened in `data/tasks/backlog/`.
   either gains a fourth decision-level takeaway or records the post as
   "read, no action".
 - Any KOTA-specific gap surfaced has a concrete follow-up task opened.
-
-## Unblock Precondition
-
-```
-kind: task-done
-ref: task-enable-autonomous-access-to-auth-walled-sources-so
-```
 
 ## Source / Intent
 
@@ -98,7 +93,8 @@ Playwright through navigation + network-idle + readable-article extraction and
 is the intended unblock path, but requires Playwright to be installed as a
 peer (`pnpm add playwright`) in the operator's environment. The research-retry
 autonomy workflow will re-attempt this URL once the browser module runs with a
-configured environment; until then this task stays `blocked`.
+configured environment; until then this task stays dependency-waiting in
+`backlog/`.
 
 ## Status (2026-05-07 blocker audit)
 
@@ -107,3 +103,11 @@ authenticated/rendered-browser source-access capture, not merely the Playwright
 package resolving. This task stays blocked on that enabler reaching `done/`;
 once it does, the post should be read through `rendered_article_read` and
 distilled into `src/modules/autonomy/AGENTS.md`.
+
+## Status (2026-05-18 dependency repair)
+
+This task now declares its hard predecessor in `depends_on` and has moved out
+of `blocked/`; the typed dependency edge is the scheduler-visible wait. The
+required live `rendered_article_read` evidence is still absent, so this task
+remains dependency-waiting in `backlog/` and no eval-harness decision note is
+recorded from this repair run.

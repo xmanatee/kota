@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
@@ -22,6 +22,7 @@ import type {
 } from "./client.js";
 import { renderRepoTaskSearchPlain } from "./render.js";
 import {
+	listRepoTaskDependencyWaits,
 	REPO_INBOX_DIR,
 	REPO_TASK_STATES,
 	type RepoTaskState,
@@ -53,6 +54,7 @@ type TaskEntry = {
 	priority: string;
 	title: string;
 	state: RepoTaskState;
+	waitingOnTasks: string[];
 };
 
 /**
@@ -61,6 +63,13 @@ type TaskEntry = {
  */
 export function listTasksForStates(tasksDir: string, states: RepoTaskState[]): TaskEntry[] {
 	const results: TaskEntry[] = [];
+	const projectDir = dirname(dirname(tasksDir));
+	const waitingById = new Map(
+		listRepoTaskDependencyWaits(projectDir, states).map((wait) => [
+			wait.id,
+			wait.waitingOn,
+		]),
+	);
 	for (const state of states) {
 		const dir = join(tasksDir, state);
 		let files: string[];
@@ -78,9 +87,16 @@ export function listTasksForStates(tasksDir: string, states: RepoTaskState[]): T
 					priority: String(attrs.priority || ""),
 					title: String(attrs.title || "(no title)"),
 					state,
+					waitingOnTasks: waitingById.get(String(attrs.id || basename(file, ".md"))) ?? [],
 				});
 			} catch {
-				results.push({ id: basename(file, ".md"), priority: "", title: "(unreadable)", state });
+				results.push({
+					id: basename(file, ".md"),
+					priority: "",
+					title: "(unreadable)",
+					state,
+					waitingOnTasks: [],
+				});
 			}
 		}
 	}
@@ -347,7 +363,13 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 }
 
 export function buildTaskListNode(
-	tasks: { id: string; priority: string; state: RepoTaskState; title: string }[],
+	tasks: {
+		id: string;
+		priority: string;
+		state: RepoTaskState;
+		title: string;
+		waitingOnTasks: string[];
+	}[],
 ): ColumnsNode {
 	return columns(
 		[
@@ -355,6 +377,7 @@ export function buildTaskListNode(
 			{ header: "Pri", minWidth: 3 },
 			{ header: "State", minWidth: 5 },
 			{ header: "Title", maxWidth: 60 },
+			{ header: "Waiting On", maxWidth: 42 },
 		],
 		tasks.map((t) => ({
 			cells: [
@@ -362,6 +385,7 @@ export function buildTaskListNode(
 				{ spans: [{ text: t.priority, role: priorityRole(t.priority) }] },
 				{ spans: [{ text: t.state, role: stateRole(t.state) }] },
 				{ spans: [{ text: t.title }] },
+				{ spans: [{ text: t.waitingOnTasks.join(", "), role: "warn" }] },
 			],
 		})),
 	);

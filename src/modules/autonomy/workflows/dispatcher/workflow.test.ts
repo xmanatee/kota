@@ -12,7 +12,12 @@ import dispatcherWorkflow from "./workflow.js";
 function taskFixture(
   id: string,
   state: "ready" | "doing" | "backlog" | "blocked",
-  options: { anchor?: boolean; resources?: string[]; marker?: string } = {},
+  options: {
+    anchor?: boolean;
+    dependsOn?: string[];
+    resources?: string[];
+    marker?: string;
+  } = {},
 ): string {
   return [
     "---",
@@ -25,6 +30,7 @@ function taskFixture(
     "created_at: 2026-05-08T00:00:00.000Z",
     "updated_at: 2026-05-08T00:00:00.000Z",
     ...(options.anchor ? ["anchor: true"] : []),
+    ...(options.dependsOn ? [`depends_on: [${options.dependsOn.join(", ")}]`] : []),
     "---",
     "",
     ...(options.resources
@@ -75,6 +81,50 @@ describe("dispatcher workflow", () => {
     expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(true);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(false);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.needs-promotion")).toBe(false);
+  });
+
+  it("does not treat ready work with unfinished hard dependencies as actionable", async () => {
+    writeFileSync(
+      join(projectDir, "data", "tasks", "ready", "task-dependent.md"),
+      taskFixture("task-dependent", "ready", { dependsOn: ["task-enabler"] }),
+    );
+    writeFileSync(
+      join(projectDir, "data", "tasks", "backlog", "task-enabler.md"),
+      taskFixture("task-enabler", "backlog"),
+    );
+    const harness = new WorkflowTestHarness(dispatcherWorkflow, { projectDir });
+    const result = await harness.run();
+
+    const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
+    expect(output.actionableCount).toBe(0);
+    expect(output.dependencyBlockedTasks).toEqual([
+      {
+        id: "task-dependent",
+        title: "task-dependent",
+        state: "ready",
+        dependsOn: ["task-enabler"],
+        waitingOn: ["task-enabler"],
+      },
+    ]);
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
+  });
+
+  it("treats ready work as actionable once hard dependencies are done", async () => {
+    writeFileSync(
+      join(projectDir, "data", "tasks", "ready", "task-dependent.md"),
+      taskFixture("task-dependent", "ready", { dependsOn: ["task-enabler"] }),
+    );
+    writeFileSync(
+      join(projectDir, "data", "tasks", "done", "task-enabler.md"),
+      taskFixture("task-enabler", "backlog").replace("status: backlog", "status: done"),
+    );
+    const harness = new WorkflowTestHarness(dispatcherWorkflow, { projectDir });
+    const result = await harness.run();
+
+    const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
+    expect(output.actionableCount).toBe(1);
+    expect(output.dependencyBlockedTasks).toEqual([]);
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(true);
   });
 
   it("emits autonomy.inbox.available when inbox has items", async () => {

@@ -30,6 +30,8 @@ export type RepoTaskListEntry = {
   priority: string;
   title: string;
   state: RepoTaskState;
+  /** Hard predecessor task ids that are not yet in done/. */
+  waitingOnTasks: string[];
 };
 
 export type RepoTaskListResult = {

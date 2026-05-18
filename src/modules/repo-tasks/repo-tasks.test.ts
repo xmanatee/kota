@@ -98,8 +98,95 @@ describe("repo task helpers", () => {
       openCount: 3,
       pullableCount: 2,
       actionableCount: 2,
+      dependencyBlockedTasks: [],
       headSha: expect.any(String),
     });
+  });
+
+  it("subtracts unfinished hard dependencies from pullable and actionable counts", () => {
+    writeFileSync(
+      join(projectDir, REPO_TASKS_DIR, "ready", "task-dependent.md"),
+      [
+        "---",
+        "id: task-dependent",
+        "title: Dependent",
+        "status: ready",
+        "priority: p2",
+        "area: modules",
+        "summary: Dependent",
+        "updated_at: 2026-05-08T00:00:00.000Z",
+        "depends_on: [task-enabler]",
+        "---",
+        "",
+      ].join("\n"),
+    );
+    writeFileSync(
+      join(projectDir, REPO_TASKS_DIR, "backlog", "task-enabler.md"),
+      [
+        "---",
+        "id: task-enabler",
+        "title: Enabler",
+        "status: backlog",
+        "priority: p2",
+        "area: modules",
+        "summary: Enabler",
+        "updated_at: 2026-05-08T00:00:00.000Z",
+        "---",
+        "",
+      ].join("\n"),
+    );
+
+    const snapshot = getRepoTaskQueueSnapshot(projectDir);
+
+    expect(snapshot.counts.ready).toBe(1);
+    expect(snapshot.pullableCount).toBe(1);
+    expect(snapshot.actionableCount).toBe(0);
+    expect(snapshot.dependencyBlockedTasks).toEqual([
+      {
+        id: "task-dependent",
+        title: "Dependent",
+        state: "ready",
+        dependsOn: ["task-enabler"],
+        waitingOn: ["task-enabler"],
+      },
+    ]);
+  });
+
+  it("counts dependency-clear backlog work as promotable after predecessors are done", () => {
+    writeFileSync(
+      join(projectDir, REPO_TASKS_DIR, "backlog", "task-dependent.md"),
+      [
+        "---",
+        "id: task-dependent",
+        "title: Dependent",
+        "status: backlog",
+        "priority: p2",
+        "area: modules",
+        "summary: Dependent",
+        "updated_at: 2026-05-08T00:00:00.000Z",
+        "depends_on: [task-enabler]",
+        "---",
+        "",
+      ].join("\n"),
+    );
+    writeFileSync(
+      join(projectDir, REPO_TASKS_DIR, "done", "task-enabler.md"),
+      [
+        "---",
+        "id: task-enabler",
+        "title: Enabler",
+        "status: done",
+        "priority: p2",
+        "area: modules",
+        "summary: Enabler",
+        "updated_at: 2026-05-08T00:00:00.000Z",
+        "---",
+        "",
+      ].join("\n"),
+    );
+
+    expect(countRepoPromotableBacklogTasks(projectDir)).toBe(1);
+    expect(getRepoTaskQueueSnapshot(projectDir).dependencyBlockedTasks).toEqual([]);
   });
 
   it("detects a one-item backlog tail with no ready or doing work", () => {

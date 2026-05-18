@@ -20,6 +20,11 @@ import {
   TASK_INITIATIVE_PLACEHOLDER,
   TASK_SOURCE_INTENT_PLACEHOLDER,
 } from "./repo-tasks-domain.js";
+import {
+  findDuplicateTaskDependencyIds,
+  parseTaskDependencyIds,
+  TASK_DEPENDENCIES_FIELD,
+} from "./task-dependencies.js";
 
 export type TaskQueueValidationSeverity = "error" | "warning";
 
@@ -483,6 +488,42 @@ function formatFindingList(findings: TaskQueueValidationFinding[]): string {
     .join("\n");
 }
 
+function findDependencyCycle(
+  graph: ReadonlyMap<string, readonly string[]>,
+): string[] | null {
+  const visited = new Set<string>();
+  const visiting = new Set<string>();
+  const stack: string[] = [];
+
+  function visit(taskId: string): string[] | null {
+    visited.add(taskId);
+    visiting.add(taskId);
+    stack.push(taskId);
+    for (const dependency of graph.get(taskId) ?? []) {
+      if (!graph.has(dependency)) continue;
+      if (!visited.has(dependency)) {
+        const nested = visit(dependency);
+        if (nested) return nested;
+        continue;
+      }
+      if (visiting.has(dependency)) {
+        const start = stack.indexOf(dependency);
+        return [...stack.slice(start), dependency];
+      }
+    }
+    stack.pop();
+    visiting.delete(taskId);
+    return null;
+  }
+
+  for (const taskId of graph.keys()) {
+    if (visited.has(taskId)) continue;
+    const cycle = visit(taskId);
+    if (cycle) return cycle;
+  }
+  return null;
+}
+
 export function validateTaskQueue(
   projectDir: string,
   options: TaskQueueValidationOptions = {},
@@ -493,6 +534,7 @@ export function validateTaskQueue(
   ) as Record<RepoTaskState, number>;
   const findings: TaskQueueValidationFinding[] = [];
   const seenTaskStates = new Map<string, string[]>();
+  const dependencyGraph = new Map<string, string[]>();
 
   for (const entry of entries) {
     counts[entry.state] += 1;
@@ -510,6 +552,37 @@ export function validateTaskQueue(
           `Fix: set id: ${entry.taskId} in frontmatter, or rename the file to ${actualId}.md`,
         paths: [entry.path],
       });
+    }
+
+    const parsedDependencies = parseTaskDependencyIds(attrs);
+    let dependencies: string[] = [];
+    if (!parsedDependencies.ok) {
+      findings.push({
+        code: "task-dependencies-invalid",
+        severity: "error",
+        message: `${entry.path} has malformed ${TASK_DEPENDENCIES_FIELD}: ${parsedDependencies.error}`,
+        paths: [entry.path],
+      });
+    } else {
+      dependencies = parsedDependencies.dependencies;
+      dependencyGraph.set(entry.taskId, dependencies);
+      const duplicateDependencies = findDuplicateTaskDependencyIds(dependencies);
+      if (duplicateDependencies.length > 0) {
+        findings.push({
+          code: "task-dependency-duplicate",
+          severity: "error",
+          message: `${entry.path} declares duplicate hard predecessor task id(s): ${duplicateDependencies.join(", ")}`,
+          paths: [entry.path],
+        });
+      }
+      if (dependencies.includes(entry.taskId)) {
+        findings.push({
+          code: "task-dependency-self",
+          severity: "error",
+          message: `${entry.path} cannot depend on itself via ${TASK_DEPENDENCIES_FIELD}`,
+          paths: [entry.path],
+        });
+      }
     }
     const actualStatus = String(attrs.status || "");
     if (actualStatus !== entry.state) {
@@ -662,6 +735,21 @@ export function validateTaskQueue(
           paths: [entry.path],
         });
       } else {
+        if (parsed.precondition.kind === "task-done") {
+          const expected = parsed.precondition.ref;
+          if (
+            parsedDependencies.ok &&
+            (dependencies.length !== 1 || dependencies[0] !== expected)
+          ) {
+            findings.push({
+              code: "blocked-task-done-dependency-mismatch",
+              severity: "error",
+              message: `${entry.path} uses a task-done unblock precondition for ${expected}; ` +
+                `${TASK_DEPENDENCIES_FIELD} must be exactly [${expected}] so the hard predecessor edge has one canonical source.`,
+              paths: [entry.path],
+            });
+          }
+        }
         const nowMs = Date.now();
         const ageDays = blockedTaskAgeDays(attrs.updated_at, nowMs);
         const staleAfterDays = options.staleBlockedDays ?? DEFAULT_STALE_BLOCKED_DAYS;
@@ -700,6 +788,29 @@ export function validateTaskQueue(
         message: `${taskId} appears in multiple task states: ${states.join(", ")}`,
       });
     }
+  }
+
+  const knownTaskIds = new Set(seenTaskStates.keys());
+  for (const [taskId, dependencies] of dependencyGraph) {
+    for (const dependency of dependencies) {
+      if (knownTaskIds.has(dependency)) continue;
+      const entry = entries.find((candidate) => candidate.taskId === taskId);
+      findings.push({
+        code: "task-dependency-missing",
+        severity: "error",
+        message: `${entry?.path ?? taskId} depends on missing predecessor task id: ${dependency}`,
+        paths: entry ? [entry.path] : undefined,
+      });
+    }
+  }
+
+  const cycle = findDependencyCycle(dependencyGraph);
+  if (cycle) {
+    findings.push({
+      code: "task-dependency-cycle",
+      severity: "error",
+      message: `Task dependency cycle detected: ${cycle.join(" -> ")}`,
+    });
   }
 
   const maxDoing = options.maxDoing ?? 1;

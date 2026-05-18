@@ -40,6 +40,7 @@ function blockedTask(opts: {
   preconditionLines: string[];
   daysAgo: number;
   priority?: string;
+  dependsOn?: string[];
   bodySuffix?: string;
 }): void {
   const updatedAt = new Date(Date.now() - opts.daysAgo * MS_PER_DAY).toISOString();
@@ -54,6 +55,7 @@ function blockedTask(opts: {
     `summary: ${opts.id}`,
     `created_at: ${updatedAt}`,
     `updated_at: ${updatedAt}`,
+    ...(opts.dependsOn ? [`depends_on: [${opts.dependsOn.join(", ")}]`] : []),
     "---",
     "",
     "## Problem",
@@ -189,6 +191,34 @@ describe("classifyBlockedActions", () => {
     const actions = classifyBlockedActions(records, dir, Date.now());
     expect(actions).toHaveLength(1);
     expect(actions[0].kind).toBe("still-awaiting-capability");
+  });
+
+  it("classifies blocked tasks with unfinished hard dependencies before precondition action", () => {
+    const dir = makeProjectDir();
+    writeFileSync(
+      join(dir, "data", "tasks", "backlog", "task-enabler.md"),
+      "---\nid: task-enabler\nstatus: backlog\n---\n# backlog\n",
+    );
+    blockedTask({
+      projectDir: dir,
+      id: "task-owner-after-dependency",
+      daysAgo: 20,
+      dependsOn: ["task-enabler"],
+      preconditionLines: [
+        "kind: owner-decision",
+        "slot: pick-variant",
+        "question: Which variant?",
+      ],
+    });
+
+    const records = listBlockedTasksWithPreconditions(dir);
+    const actions = classifyBlockedActions(records, dir, Date.now());
+
+    expect(actions).toHaveLength(1);
+    expect(actions[0].kind).toBe("still-awaiting-dependency");
+    if (actions[0].kind === "still-awaiting-dependency") {
+      expect(actions[0].waitingOn).toEqual(["task-enabler"]);
+    }
   });
 
   it("classifies a due owner-decision as owner-ask-due with recommendedAnswer", () => {

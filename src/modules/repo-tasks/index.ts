@@ -265,6 +265,7 @@ function buildRepoTasksDaemonHandler(link: DaemonTransport): RepoTasksClient {
 						area: string;
 						summary: string;
 						body: string;
+						waitingOnTasks?: string[];
 					}[]
 				>;
 			};
@@ -296,6 +297,7 @@ function buildRepoTasksDaemonHandler(link: DaemonTransport): RepoTasksClient {
 							priority: task.priority,
 							title: task.title,
 							state,
+							waitingOnTasks: task.waitingOnTasks ?? [],
 						});
 					}
 				}

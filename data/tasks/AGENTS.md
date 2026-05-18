@@ -13,6 +13,11 @@ describes scheduling and lifecycle.
 
 - Use `pnpm kota task create` to scaffold tasks. The scaffold and validator are
   the schema boundary.
+- Use `depends_on: [task-id, ...]` frontmatter for hard predecessor task
+  edges. This is the canonical dependency representation; do not encode hard
+  ordering only in prose.
+- If a blocked task uses an `## Unblock Precondition` of `kind: task-done`,
+  its `depends_on` list must be exactly the same task id.
 - Tasks describe what must become true and why it matters; builders own the
   implementation plan.
 - Preserve owner wording, runtime evidence, research source, and urgency in

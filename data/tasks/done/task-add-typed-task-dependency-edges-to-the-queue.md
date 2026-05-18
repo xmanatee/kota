@@ -1,12 +1,12 @@
 ---
 id: task-add-typed-task-dependency-edges-to-the-queue
 title: Add typed task dependency edges to the queue
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Model hard task dependencies explicitly in task metadata and teach queue validation, blocked promotion, and builder selection to honor them, so dependency-chain work can be scheduled without relying on prose heuristics.
 created_at: 2026-05-18T06:05:57Z
-updated_at: 2026-05-18T06:05:57Z
+updated_at: 2026-05-18T06:34:29Z
 ---
 
 ## Problem

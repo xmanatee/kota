@@ -12,16 +12,27 @@ function writeTask(
   projectDir: string,
   state: string,
   id: string,
-  attrs: { priority: string; area: string; title?: string; updatedAt?: string; body?: string },
+  attrs: {
+    priority: string;
+    area: string;
+    title?: string;
+    updatedAt?: string;
+    body?: string;
+    dependsOn?: string[];
+  },
 ): void {
   const dir = join(projectDir, "data", "tasks", state);
   mkdirSync(dir, { recursive: true });
   const updatedAt = attrs.updatedAt ?? new Date(NOW).toISOString();
   const title = attrs.title ?? id;
   const body = attrs.body ?? "## Problem\n\nTest body.\n";
+  const dependencyLine = attrs.dependsOn
+    ? `depends_on: [${attrs.dependsOn.join(", ")}]\n`
+    : "";
   const content =
     `---\nid: ${id}\ntitle: ${title}\nstatus: ${state}\npriority: ${attrs.priority}\n` +
-    `area: ${attrs.area}\nsummary: t\ncreated_at: ${updatedAt}\nupdated_at: ${updatedAt}\n---\n\n${body}`;
+    `area: ${attrs.area}\nsummary: t\ncreated_at: ${updatedAt}\nupdated_at: ${updatedAt}\n` +
+    `${dependencyLine}---\n\n${body}`;
   writeFileSync(join(dir, `${id}.md`), content, "utf-8");
 }
 
@@ -168,6 +179,34 @@ describe("aggregateAutonomyReport", () => {
     );
     expect(byArea).toEqual({ architecture: 2, client: 2, modules: 1 });
     expect(report.doneInWindow.total).toBe(0);
+  });
+
+  it("surfaces open tasks waiting on hard predecessor task ids", () => {
+    writeTask(projectDir, "ready", "task-dependent", {
+      priority: "p2",
+      area: "modules",
+      dependsOn: ["task-enabler"],
+    });
+    writeTask(projectDir, "backlog", "task-enabler", {
+      priority: "p2",
+      area: "modules",
+    });
+
+    const report = aggregateAutonomyReport({
+      projectDir,
+      runsDir,
+      windowEndMs: NOW,
+      windowDays: 7,
+    });
+
+    expect(report.openQueue.waitingOnTasks).toEqual([
+      {
+        taskId: "task-dependent",
+        title: "task-dependent",
+        state: "ready",
+        waitingOn: ["task-enabler"],
+      },
+    ]);
   });
 
   it("includes done tasks updated within the window", () => {

@@ -162,6 +162,34 @@ describe("task-routes", () => {
       expect(body.tasks.blocked).toHaveLength(1);
     });
 
+    it("includes waiting-on predecessor ids in task status details", async () => {
+      writeTaskFile(projectDir, "ready", "dependent", {
+        id: "task-dependent",
+        title: "Dependent task",
+        status: "ready",
+        priority: "p2",
+        area: "modules",
+        summary: "Waiting on another task.",
+        updated_at: "2026-05-18T00:00:00.000Z",
+        depends_on: "[task-enabler]",
+      });
+      writeTaskFile(projectDir, "backlog", "enabler", {
+        id: "task-enabler",
+        title: "Enabler task",
+        status: "backlog",
+        priority: "p2",
+        area: "modules",
+        summary: "Not done yet.",
+        updated_at: "2026-05-18T00:00:00.000Z",
+      });
+
+      const { res, result } = mockResponse();
+      handleTaskStatus(res, projectDir);
+      const body = result.body as { tasks: Record<string, Array<Record<string, unknown>>> };
+
+      expect(body.tasks.ready[0].waitingOnTasks).toEqual(["task-enabler"]);
+    });
+
     it("ignores AGENTS.md in task directories", async () => {
       mkdirSync(join(projectDir, "data", "tasks", "ready"), { recursive: true });
       writeFileSync(join(projectDir, "data", "tasks", "ready", "AGENTS.md"), "# Agents");

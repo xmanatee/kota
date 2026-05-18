@@ -26,6 +26,7 @@ function writeTask(
     area?: string;
     updatedAt?: string;
     anchor?: boolean;
+    dependsOn?: string[];
   } = {},
 ): void {
   const priority = attrs.priority ?? "p2";
@@ -43,6 +44,7 @@ function writeTask(
     `updated_at: ${updatedAt}`,
   ];
   if (attrs.anchor) lines.push("anchor: true");
+  if (attrs.dependsOn) lines.push(`depends_on: [${attrs.dependsOn.join(", ")}]`);
   lines.push("---", "");
   writeFileSync(
     join(projectDir, "data", "tasks", state, `${id}.md`),
@@ -64,6 +66,7 @@ describe("compareBacklogCandidates", () => {
         summary: "",
         updatedAt: older,
         body: "",
+        dependsOn: [],
         anchor: false,
       },
       {
@@ -75,6 +78,7 @@ describe("compareBacklogCandidates", () => {
         summary: "",
         updatedAt: newer,
         body: "",
+        dependsOn: [],
         anchor: false,
       },
     ];
@@ -95,6 +99,7 @@ describe("compareBacklogCandidates", () => {
         summary: "",
         updatedAt,
         body: "",
+        dependsOn: [],
         anchor: false,
       },
       {
@@ -106,6 +111,7 @@ describe("compareBacklogCandidates", () => {
         summary: "",
         updatedAt,
         body: "",
+        dependsOn: [],
         anchor: false,
       },
     ];
@@ -125,6 +131,7 @@ describe("compareBacklogCandidates", () => {
         summary: "",
         updatedAt: "2026-04-30T00:00:00.000Z",
         body: "",
+        dependsOn: [],
         anchor: false,
       },
       {
@@ -136,6 +143,7 @@ describe("compareBacklogCandidates", () => {
         summary: "",
         updatedAt: "2026-03-01T00:00:00.000Z",
         body: "",
+        dependsOn: [],
         anchor: false,
       },
     ];
@@ -215,6 +223,22 @@ describe("buildPromotionRationale", () => {
 
     expect(rationale.selected).toHaveLength(1);
     expect(rationale.rejected.filter((r) => r.state === "backlog")).toHaveLength(2);
+  });
+
+  it("rejects backlog candidates with unfinished hard dependencies", () => {
+    const projectDir = makeProjectDir();
+    writeTask(projectDir, "backlog", "task-dependent", {
+      priority: "p1",
+      dependsOn: ["task-enabler"],
+    });
+    writeTask(projectDir, "backlog", "task-enabler", { priority: "p2" });
+
+    const rationale = buildPromotionRationale(projectDir);
+
+    expect(rationale.selected.map((s) => s.id)).toEqual(["task-enabler"]);
+    const rejected = rationale.rejected.find((r) => r.id === "task-dependent");
+    expect(rejected?.reason).toContain("waiting on task dependencies: task-enabler");
+    expect(rationale.summary).toContain("task-dependent");
   });
 
   it("skips strategic anchor tasks even when they would otherwise rank highest", () => {

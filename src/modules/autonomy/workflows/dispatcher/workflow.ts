@@ -49,6 +49,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
             pullableCount: queue.pullableCount,
             actionableCount: queue.actionableCount,
             counts: queue.counts,
+            dependencyBlockedTasks: queue.dependencyBlockedTasks,
           });
         }
         if (queueNeedsPromotion) {
@@ -56,10 +57,14 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
             backlogCount: queue.counts.backlog,
             promotableBacklogCount,
             counts: queue.counts,
+            dependencyBlockedTasks: queue.dependencyBlockedTasks,
           });
         }
         if (queueEmpty) {
-          emit("autonomy.queue.empty", { counts: queue.counts });
+          emit("autonomy.queue.empty", {
+            counts: queue.counts,
+            dependencyBlockedTasks: queue.dependencyBlockedTasks,
+          });
         }
         if (blockedResearchAttemptable) {
           emit("autonomy.blocked-research.attemptable", {
@@ -71,6 +76,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
         if (queueThin) {
           emit("autonomy.queue.thin", {
             pullableCount: queue.pullableCount,
+            dependencyBlockedTasks: queue.dependencyBlockedTasks,
             counts: queue.counts,
           });
         }
@@ -79,6 +85,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           inboxCount: queue.inboxCount,
           pullableCount: queue.pullableCount,
           actionableCount: queue.actionableCount,
+          dependencyBlockedTasks: queue.dependencyBlockedTasks,
           promotableBacklogCount,
           researchRetryCandidateCount: researchRetryAvailability.candidateCount,
           researchRetryAttemptableCount: researchRetryAvailability.attemptableCount,

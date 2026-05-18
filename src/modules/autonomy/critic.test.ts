@@ -167,6 +167,52 @@ describe("createCriticCheck", () => {
     expect(userMessage).toContain("Moved task");
   });
 
+  it("reviews a staged done task before collateral blocked task edits", async () => {
+    const { execFileSync } = await import("node:child_process");
+    const dir = makeTmpDir();
+    const blockedDir = join(dir, "data/tasks/blocked");
+    const doneDir = join(dir, "data/tasks/done");
+    mkdirSync(blockedDir, { recursive: true });
+    mkdirSync(doneDir, { recursive: true });
+    writeFileSync(
+      join(blockedDir, "task-collateral-blocker.md"),
+      "---\ntitle: Collateral blocker\n---\nBlocked task content.",
+    );
+    writeFileSync(
+      join(doneDir, "task-implemented-work.md"),
+      "---\ntitle: Implemented work\n---\nDone task content.",
+    );
+
+    const runDir = join(dir, ".kota/runs/test-run");
+    mkdirSync(runDir, { recursive: true });
+
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const argStr = Array.isArray(args) ? args.join(" ") : "";
+      if (argStr.includes("data/tasks/done/")) {
+        return [
+          "M\tdata/tasks/blocked/task-collateral-blocker.md",
+          "A\tdata/tasks/done/task-implemented-work.md",
+          "",
+        ].join("\n");
+      }
+      return "";
+    });
+
+    setApiResponse({
+      verdict: "pass",
+      critical_issues: [],
+      warnings: [],
+      summary: "Looks good.",
+    });
+
+    const check = createCriticCheck({ runDirPath: runDir });
+    await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
+
+    const userMessage = getPromptArg(mockRunAgentHarness.mock.calls[0]);
+    expect(userMessage).toContain("Implemented work");
+    expect(userMessage).not.toContain("Collateral blocker");
+  });
+
   it("calls the critic agent and passes on pass verdict", async () => {
     const dir = makeTmpDir();
     const doingDir = join(dir, "data/tasks/doing");

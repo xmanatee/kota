@@ -11,8 +11,8 @@ const baseWindow = {
 
 const empty: AutonomyReportData = {
   ...baseWindow,
-  openQueue: { total: 0, byPriority: [], byArea: [], byState: [] },
-  doneInWindow: { total: 0, byPriority: [], byArea: [], byState: [] },
+  openQueue: { total: 0, byPriority: [], byArea: [], byState: [], waitingOnTasks: [] },
+  doneInWindow: { total: 0, byPriority: [], byArea: [], byState: [], waitingOnTasks: [] },
   explorer: {
     totalRuns: 0,
     totalTaskAdditions: 0,
@@ -85,6 +85,14 @@ describe("renderAutonomyReport", () => {
         byState: [
           { state: "backlog", count: 2 },
           { state: "ready", count: 1 },
+        ],
+        waitingOnTasks: [
+          {
+            taskId: "task-waiting",
+            title: "Waiting task",
+            state: "ready",
+            waitingOn: ["task-enabler"],
+          },
         ],
       },
       explorer: {
@@ -171,6 +179,8 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("$0.10");
     expect(text).toContain("owner-decision");
     expect(text).toContain("operator-capture");
+    expect(text).toContain("task-waiting");
+    expect(text).toContain("task-enabler");
     expect(text).toContain("could not be linked");
   });
 });

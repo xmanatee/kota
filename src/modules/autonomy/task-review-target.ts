@@ -51,6 +51,7 @@ function findStagedTask(projectDir: string): TaskReviewTarget | null {
     },
   );
 
+  const candidates: TaskReviewTarget[] = [];
   for (const line of status.split("\n")) {
     const relPath = line.split("\t").at(-1);
     if (!relPath) continue;
@@ -63,12 +64,16 @@ function findStagedTask(projectDir: string): TaskReviewTarget | null {
     const absPath = join(projectDir, relPath);
     if (!existsSync(absPath)) continue;
 
-    return {
+    candidates.push({
       path: relPath,
       state,
       content: readFileSync(absPath, "utf8"),
-    };
+    });
   }
 
-  return null;
+  return (
+    candidates.find((candidate) => candidate.state === "done") ??
+    candidates.find((candidate) => candidate.state === "blocked") ??
+    null
+  );
 }

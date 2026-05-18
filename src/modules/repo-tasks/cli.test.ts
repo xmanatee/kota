@@ -232,6 +232,17 @@ describe("listTasksForStates", () => {
     expect(result[0].priority).toBe("p1");
     expect(result[0].title).toBe("My Task");
   });
+
+  it("returns unfinished hard dependency ids for task list output", () => {
+    writeTaskFile(projectDir, "ready", "task-dependent", {
+      depends_on: "[task-enabler]",
+    });
+    writeTaskFile(projectDir, "backlog", "task-enabler");
+
+    const result = listTasksForStates(join(projectDir, "data", "tasks"), ["ready"]);
+
+    expect(result[0].waitingOnTasks).toEqual(["task-enabler"]);
+  });
 });
 
 describe("kota task list", () => {
@@ -649,6 +660,7 @@ describe("buildTaskListNode", () => {
       priority: "p0",
       state: "ready" as const,
       title: "Stabilize the dispatcher loop after the merge",
+      waitingOnTasks: [],
     },
     {
       id: "task-beta-with-an-extremely-long-title",
@@ -656,12 +668,14 @@ describe("buildTaskListNode", () => {
       state: "doing" as const,
       title:
         "A very long task title that should wrap or truncate cleanly under a narrow terminal width without overflowing into the next column or tearing the alignment of the table.",
+      waitingOnTasks: ["task-alpha"],
     },
     {
       id: "task-gamma",
       priority: "p3",
       state: "blocked" as const,
       title: "Awaiting operator capture",
+      waitingOnTasks: [],
     },
   ];
 
@@ -679,6 +693,7 @@ describe("buildTaskListNode", () => {
       expect(out).toContain("Stabilize the dispatcher loop");
       expect(out).toContain("p0");
       expect(out).toContain("ready");
+      expect(out).toContain("task-alpha");
     });
 
     it(`compresses Title cleanly under a narrow width in ${name} theme`, () => {
@@ -696,7 +711,7 @@ describe("buildTaskListNode", () => {
 
   it("declares ID/Pri/State/Title columns with Title carrying maxWidth", () => {
     const node = buildTaskListNode(SAMPLE);
-    expect(node.columns.map((c) => c.header)).toEqual(["ID", "Pri", "State", "Title"]);
+    expect(node.columns.map((c) => c.header)).toEqual(["ID", "Pri", "State", "Title", "Waiting On"]);
     const titleSpec = node.columns.find((c) => c.header === "Title")!;
     expect(titleSpec.maxWidth).toBeDefined();
   });

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { parseFlatFrontMatter, splitFrontMatter } from "#core/util/frontmatter.js";
 import {
   type BlockedPrecondition,
+  type BlockedPreconditionKind,
   evaluateBlockedPrecondition,
   type OperatorCaptureInstructedMarker,
   type OwnerAskMarker,
@@ -16,9 +17,11 @@ import {
 } from "#modules/repo-tasks/blocked-precondition.js";
 import {
   getRepoTaskStateDir,
+  getUnfinishedTaskDependencies,
   type MoveTaskResult,
   moveTaskById,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { readTaskDependencyIds } from "#modules/repo-tasks/task-dependencies.js";
 
 export type BlockedTaskRecord = {
   id: string;
@@ -26,6 +29,7 @@ export type BlockedTaskRecord = {
   priority: string;
   body: string;
   precondition: BlockedPrecondition;
+  dependsOn: string[];
   /** ISO-8601 timestamp from the task frontmatter `updated_at` field. */
   updatedAt: string;
 };
@@ -65,6 +69,7 @@ export function listBlockedTasksWithPreconditions(
       priority,
       body: split.body,
       precondition: parsed.precondition,
+      dependsOn: readTaskDependencyIds(attrs),
       updatedAt,
     });
   }
@@ -94,6 +99,8 @@ export function promoteSatisfiedBlockedTasks(
   const records = listBlockedTasksWithPreconditions(projectDir);
   const promotions: MoveTaskResult[] = [];
   for (const record of records) {
+    const waitingOn = getUnfinishedTaskDependencies(projectDir, record.dependsOn);
+    if (waitingOn.length > 0) continue;
     const evaluation = evaluateBlockedPrecondition(record.precondition, {
       projectDir,
       taskBody: record.body,
@@ -391,6 +398,13 @@ export type BlockerAction =
       ageDays: number | null;
     }
   | {
+      kind: "still-awaiting-dependency";
+      taskId: string;
+      preconditionKind: BlockedPreconditionKind;
+      waitingOn: string[];
+      ageDays: number | null;
+    }
+  | {
       kind: "still-awaiting-task";
       taskId: string;
       preconditionKind: "task-done";
@@ -460,6 +474,20 @@ export function classifyBlockedActions(
   const actions: BlockerAction[] = [];
   for (const record of records) {
     const age = ageDays(record.updatedAt, nowMs);
+    const waitingOn = getUnfinishedTaskDependencies(projectDir, record.dependsOn);
+    if (
+      waitingOn.length > 0 &&
+      !(record.precondition.kind === "task-done" && waitingOn.length === 1 && waitingOn[0] === record.precondition.ref)
+    ) {
+      actions.push({
+        kind: "still-awaiting-dependency",
+        taskId: record.id,
+        preconditionKind: record.precondition.kind,
+        waitingOn,
+        ageDays: age,
+      });
+      continue;
+    }
     const eval_ = evaluateBlockedPrecondition(record.precondition, {
       projectDir,
       taskBody: record.body,

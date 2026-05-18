@@ -62,6 +62,7 @@ function makeSnapshot({
     openCount: inboxCount + backlog + ready + doing + blocked,
     pullableCount: backlog + ready + doing,
     actionableCount: ready + doing,
+    dependencyBlockedTasks: [],
     headSha: "abc1234",
   };
 }
@@ -508,6 +509,7 @@ describe("explorer exploration-rationale repair check", () => {
         summary: "A strategic architecture problem requiring a daemon-side wire.",
         updatedAt: "2026-04-01T00:00:00.000Z",
         body: blocked.body,
+        dependsOn: [],
         anchor: false,
       },
     ]);
@@ -541,6 +543,7 @@ describe("explorer exploration-rationale repair check", () => {
         summary: "A strategic architecture problem requiring a daemon-side wire.",
         updatedAt: "2026-04-01T00:00:00.000Z",
         body: blocked.body,
+        dependsOn: [],
         anchor: false,
       },
     ]);

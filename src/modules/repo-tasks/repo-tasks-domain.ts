@@ -3,6 +3,10 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { getRepoHeadSha } from "#core/util/repo-worktree.js";
+import {
+  findUnfinishedTaskDependencies,
+  readTaskDependencyIds,
+} from "./task-dependencies.js";
 
 export const REPO_DATA_DIR = "data";
 export const REPO_TASKS_DIR = join(REPO_DATA_DIR, "tasks");
@@ -34,6 +38,7 @@ export type RepoTaskQueueSnapshot = {
   openCount: number;
   pullableCount: number;
   actionableCount: number;
+  dependencyBlockedTasks: RepoTaskDependencyWait[];
   headSha: string;
 };
 
@@ -51,7 +56,9 @@ export function isRepoTaskQueueSnapshot(
     "pullableCount" in value &&
     typeof value.pullableCount === "number" &&
     "actionableCount" in value &&
-    typeof value.actionableCount === "number"
+    typeof value.actionableCount === "number" &&
+    "dependencyBlockedTasks" in value &&
+    Array.isArray(value.dependencyBlockedTasks)
   );
 }
 
@@ -91,6 +98,20 @@ export function getRepoTaskQueueSnapshot(
     REPO_TASK_STATES.map((state) => [state, countRepoTaskState(projectDir, state)]),
   ) as Record<RepoTaskState, number>;
   const inboxCount = countRepoInboxEntries(projectDir);
+  const dependencyBlockedTasks = listRepoTaskDependencyWaits(projectDir, [
+    "backlog",
+    "ready",
+    "doing",
+  ]);
+  const dependencyBlockedByState = new Map<RepoTaskState, number>();
+  for (const wait of dependencyBlockedTasks) {
+    dependencyBlockedByState.set(
+      wait.state,
+      (dependencyBlockedByState.get(wait.state) ?? 0) + 1,
+    );
+  }
+  const dependencyBlockedCount = (state: RepoTaskState): number =>
+    dependencyBlockedByState.get(state) ?? 0;
 
   return {
     counts,
@@ -101,15 +122,30 @@ export function getRepoTaskQueueSnapshot(
       counts.ready +
       counts.doing +
       counts.blocked,
-    pullableCount: counts.backlog + counts.ready + counts.doing,
-    actionableCount: counts.ready + counts.doing,
+    pullableCount:
+      counts.backlog +
+      counts.ready +
+      counts.doing -
+      dependencyBlockedCount("backlog") -
+      dependencyBlockedCount("ready") -
+      dependencyBlockedCount("doing"),
+    actionableCount:
+      counts.ready +
+      counts.doing -
+      dependencyBlockedCount("ready") -
+      dependencyBlockedCount("doing"),
+    dependencyBlockedTasks,
     headSha: getRepoHeadSha(projectDir),
   };
 }
 
 export function countRepoPromotableBacklogTasks(projectDir: string): number {
-  return listFullRepoTasks(projectDir, ["backlog"]).filter((record) => !record.anchor)
-    .length;
+  const waitingIds = new Set(
+    listRepoTaskDependencyWaits(projectDir, ["backlog"]).map((wait) => wait.id),
+  );
+  return listFullRepoTasks(projectDir, ["backlog"]).filter((record) =>
+    !record.anchor && !waitingIds.has(record.id)
+  ).length;
 }
 
 export function isThinPullQueue(snapshot: RepoTaskQueueSnapshot): boolean {
@@ -145,6 +181,8 @@ export type RepoTaskFullRecord = {
   summary: string;
   updatedAt: string;
   body: string;
+  /** Hard predecessor task ids declared in frontmatter `depends_on`. */
+  dependsOn: string[];
   /**
    * Strategic backlog anchor. Anchors track an initiative across a sequenced
    * set of sub-slice tasks; their `Done When` is met by completing the
@@ -152,6 +190,14 @@ export type RepoTaskFullRecord = {
    * backlog-promoter skips anchors so they never land in `ready/`.
    */
   anchor: boolean;
+};
+
+export type RepoTaskDependencyWait = {
+  id: string;
+  title: string;
+  state: RepoTaskState;
+  dependsOn: string[];
+  waitingOn: string[];
 };
 
 /** Indexable body sections: title and summary plus these markdown sections. */
@@ -246,22 +292,61 @@ export function listFullRepoTasks(
       } catch {
         continue;
       }
-      const fm = parseFrontmatterBlock(content);
-      if (!fm || !fm.id || !fm.title || !fm.updated_at) continue;
+      const { attrs, body } = parseFlatFrontMatter(content);
+      if (
+        typeof attrs.id !== "string" ||
+        typeof attrs.title !== "string" ||
+        typeof attrs.updated_at !== "string"
+      ) {
+        continue;
+      }
+      const priority = typeof attrs.priority === "string" ? attrs.priority : "";
+      const area = typeof attrs.area === "string" ? attrs.area : "";
+      const summary = typeof attrs.summary === "string" ? attrs.summary : "";
       result.push({
-        id: fm.id,
-        title: fm.title,
+        id: attrs.id,
+        title: attrs.title,
         state,
-        priority: fm.priority ?? "",
-        area: fm.area ?? "",
-        summary: fm.summary ?? "",
-        updatedAt: fm.updated_at,
-        body: extractBodyAfterFrontmatter(content),
-        anchor: parseAnchorField(fm.anchor),
+        priority,
+        area,
+        summary,
+        updatedAt: attrs.updated_at,
+        body,
+        dependsOn: readTaskDependencyIds(attrs),
+        anchor: parseAnchorField(typeof attrs.anchor === "string" ? attrs.anchor : undefined),
       });
     }
   }
   return result;
+}
+
+export function listRepoTaskDependencyWaits(
+  projectDir: string,
+  states: readonly RepoTaskState[] = REPO_TASK_STATES,
+): RepoTaskDependencyWait[] {
+  const allTasks = listFullRepoTasks(projectDir);
+  const stateByTaskId = new Map(allTasks.map((task) => [task.id, task.state]));
+  const wanted = new Set(states);
+  return allTasks
+    .filter((task) => wanted.has(task.state))
+    .map((task) => ({
+      id: task.id,
+      title: task.title,
+      state: task.state,
+      dependsOn: task.dependsOn,
+      waitingOn: findUnfinishedTaskDependencies(task.dependsOn, stateByTaskId),
+    }))
+    .filter((task) => task.waitingOn.length > 0);
+}
+
+export function getUnfinishedTaskDependencies(
+  projectDir: string,
+  dependencies: readonly string[],
+): string[] {
+  const stateByTaskId = new Map(
+    listFullRepoTasks(projectDir).map((task) => [task.id, task.state]),
+  );
+  return findUnfinishedTaskDependencies(dependencies, stateByTaskId);
 }
 
 /**
@@ -384,6 +469,7 @@ export type DaemonTaskDetail = {
   area: string;
   summary: string;
   body: string;
+  waitingOnTasks: string[];
 };
 
 export type DaemonTaskStatusResponse = {
