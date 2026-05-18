@@ -222,6 +222,33 @@ describe("geminiCliAgentHarness", () => {
     });
   });
 
+  it("terminates stale-auth prompts emitted instead of stream-json events", async () => {
+    const child = mockManualGeminiProcess();
+    child.kill.mockImplementation(() => {
+      child.stdout.end();
+      child.stderr.end();
+      child.emit("close", null, "SIGTERM");
+      return true;
+    });
+
+    const run = geminiCliAgentHarness.run({
+      prompt: "x",
+      model: "gemini-2.5-pro",
+      effort: "xhigh",
+    });
+
+    child.stdout.write(
+      "Opening authentication page in your browser. Do you want to continue? [Y/n]: \n",
+    );
+
+    await expect(run).resolves.toMatchObject({
+      text: expect.stringContaining("non-JSON output"),
+      isError: true,
+      subtype: "gemini_cli_parse_error",
+    });
+    expect(child.kill).toHaveBeenCalledWith("SIGTERM");
+  });
+
   it("rejects unsupported KOTA-owned tool-control surfaces loudly", async () => {
     await expect(
       geminiCliAgentHarness.run({

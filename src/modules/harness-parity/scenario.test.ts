@@ -63,6 +63,7 @@ describe("scenario loader", () => {
     expect(loaded.spec.id).toBe("demo");
     expect(loaded.spec.prompt).toBe("do the thing");
     expect(loaded.spec.verification.timeoutMs).toBe(10_000);
+    expect(loaded.spec.previewArtifacts).toEqual([]);
   });
 
   it("defaults verification.timeoutMs when omitted", () => {
@@ -79,6 +80,54 @@ describe("scenario loader", () => {
     );
     const loaded = loadScenario(scenariosRoot, "demo");
     expect(loaded.spec.verification.timeoutMs).toBe(60_000);
+  });
+
+  it("loads bounded preview artifact declarations", () => {
+    writeScenario(
+      scenariosRoot,
+      "demo",
+      {
+        id: "demo",
+        description: "demo scenario",
+        prompt: "do the thing",
+        verification: { command: "true" },
+        previewArtifacts: ["preview.html", "nested/preview-check.json"],
+      },
+      { "hello.txt": "hi" },
+    );
+    const loaded = loadScenario(scenariosRoot, "demo");
+    expect(loaded.spec.previewArtifacts).toEqual([
+      "preview.html",
+      "nested/preview-check.json",
+    ]);
+  });
+
+  it("rejects malformed preview artifact declarations", () => {
+    const cases: [string, unknown][] = [
+      ["not-array", "preview.html"],
+      ["absolute", ["/tmp/preview.html"]],
+      ["parent", ["../preview.html"]],
+      ["not-normalized", ["./preview.html"]],
+      ["backslash", ["nested\\preview.html"]],
+      ["duplicate", ["preview.html", "preview.html"]],
+      ["empty", [""]],
+    ];
+
+    for (const [id, previewArtifacts] of cases) {
+      writeScenario(
+        scenariosRoot,
+        id,
+        {
+          id,
+          description: "demo scenario",
+          prompt: "do the thing",
+          verification: { command: "true" },
+          previewArtifacts,
+        },
+        { "hello.txt": "hi" },
+      );
+      expect(() => loadScenario(scenariosRoot, id)).toThrow(ScenarioLoadError);
+    }
   });
 
   it("rejects an id mismatch between directory and scenario.json", () => {
@@ -161,7 +210,7 @@ describe("scenario loader", () => {
 });
 
 describe("shipped scenarios", () => {
-  it("covers the arithmetic-fix smoke, the multi-file workload, the failure-and-revise probe, the discovery probe, and the cross-file rename probe", () => {
+  it("covers the arithmetic-fix smoke, the multi-file workload, the failure-and-revise probe, the discovery probe, the cross-file rename probe, and the frontend preview probe", () => {
     const all = loadAllScenarios(SHIPPED_SCENARIOS_ROOT);
     const ids = all.map((s) => s.spec.id);
     expect(ids).toEqual(
@@ -171,11 +220,74 @@ describe("shipped scenarios", () => {
         "revise-from-test-output",
         "discover-failing-source",
         "rename-across-files",
+        "frontend-preview",
       ]),
     );
     // Guard against regressions that accidentally drop coverage back to a
     // single fixture. If a new scenario is added, bump this bound deliberately.
-    expect(all.length).toBeGreaterThanOrEqual(5);
+    expect(all.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it("frontend-preview starts a local preview server, fails before the CSS fix, and writes preview artifacts after the fix", () => {
+    const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "frontend-preview");
+    expect(loaded.spec.id).toBe("frontend-preview");
+    expect(loaded.spec.verification.command).toBe("node verify-preview.js");
+    expect(loaded.spec.previewArtifacts).toEqual([
+      "preview.html",
+      "preview-check.json",
+    ]);
+    expect(loaded.spec.prompt).toMatch(/preview\.html/);
+    expect(loaded.spec.prompt).toMatch(/preview-check\.json/);
+
+    const workDir = mkdtempSync(join(tmpdir(), "kota-harness-parity-preview-"));
+    try {
+      cpSync(loaded.initialStateDir, workDir, { recursive: true });
+      const beforeFix = spawnSync(loaded.spec.verification.command, {
+        shell: true,
+        cwd: workDir,
+        timeout: loaded.spec.verification.timeoutMs,
+        encoding: "utf-8",
+      });
+      expect(beforeFix.status).not.toBe(0);
+      expect(readFileSync(join(workDir, "preview.html"), "utf-8")).toContain(
+        "Sync complete",
+      );
+      const failedCheck = JSON.parse(
+        readFileSync(join(workDir, "preview-check.json"), "utf-8"),
+      ) as { passed: boolean };
+      expect(failedCheck.passed).toBe(false);
+
+      const cssPath = join(workDir, "styles.css");
+      writeFileSync(
+        cssPath,
+        readFileSync(cssPath, "utf-8").replace("display: none;", "display: flex;"),
+      );
+      const afterFix = spawnSync(loaded.spec.verification.command, {
+        shell: true,
+        cwd: workDir,
+        timeout: loaded.spec.verification.timeoutMs,
+        encoding: "utf-8",
+      });
+      expect(afterFix.status).toBe(0);
+      expect(afterFix.stdout).toContain("ok");
+      const previewHtml = readFileSync(join(workDir, "preview.html"), "utf-8");
+      expect(previewHtml).toContain("<style>");
+      expect(previewHtml).toContain("display: flex;");
+      const passedCheck = JSON.parse(
+        readFileSync(join(workDir, "preview-check.json"), "utf-8"),
+      ) as { passed: boolean; transport: string; url: string };
+      expect(passedCheck.passed).toBe(true);
+      expect(["loopback", "filesystem-fallback"]).toContain(
+        passedCheck.transport,
+      );
+      if (passedCheck.transport === "loopback") {
+        expect(passedCheck.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/$/);
+      } else {
+        expect(passedCheck.url).toBe("file://preview/index.html");
+      }
+    } finally {
+      rmSync(workDir, { recursive: true, force: true });
+    }
   });
 
   it("extract-shared-helper loads with prompt and verification resolved", () => {

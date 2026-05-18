@@ -1,12 +1,12 @@
 ---
 id: task-add-a-frontend-preview-scenario-to-harness-parity
 title: Add a frontend preview scenario to harness parity
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Extend harness-parity with a deterministic local web-app scenario and preview artifact so cross-harness coding evidence covers rendered UI work, not only Node CLI fixtures.
 created_at: 2026-05-18T08:43:44Z
-updated_at: 2026-05-18T08:43:44Z
+updated_at: 2026-05-18T09:12:30Z
 ---
 
 ## Problem
@@ -120,10 +120,10 @@ while keeping one harness-parity runner and one artifact contract.
 
 ## Acceptance Evidence
 
-- Focused test transcript for
+- `.kota/runs/2026-05-18T08-48-40-206Z-builder-3oxvjt/focused-test-transcript.txt`
+  captures
   `pnpm test src/modules/harness-parity/scenario.test.ts src/modules/harness-parity/runner.test.ts`.
-- A harness-parity test artifact or fixture showing the frontend-preview
-  scenario writes `preview.html` and `preview-check.json` under a per-harness
-  artifact directory.
-- `parity.json` or `run-meta.json` in the same test output references the
-  preserved preview artifacts.
+- `.kota/runs/2026-05-18T08-48-40-206Z-builder-3oxvjt/harness-parity-preview-artifact/frontend-preview/previewing/preview.html`
+  and `preview-check.json` show the preserved rendered preview artifacts.
+- `.kota/runs/2026-05-18T08-48-40-206Z-builder-3oxvjt/harness-parity-preview-artifact/frontend-preview/parity.json`
+  and `previewing/run-meta.json` reference the preserved preview artifacts.

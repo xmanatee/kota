@@ -58,7 +58,7 @@ opening every child run directory.
 
 ## Scenario Coverage
 
-The shipped scenarios span five coverage points by design, not by accident:
+The shipped scenarios span six coverage points by design, not by accident:
 
 - A minimal smoke scenario that any tool-calling harness can clear in a
   single round trip. Its job is to prove the parity plumbing — scenario
@@ -101,14 +101,18 @@ The shipped scenarios span five coverage points by design, not by accident:
   This isolates cross-file consistency under rename — the property a
   harness that "fixes" only files it already opened, or that stops
   after the obvious first edit, silently fails.
+- A frontend-preview scenario whose verifier starts a deterministic
+  loopback static server, falls back to filesystem reads when sockets are
+  unavailable, checks DOM/CSS-visible state, and writes `preview.html`
+  plus `preview-check.json`. Its job is to probe the local rendered-
+  output workflow that frontend work depends on.
 
-Keep all five coverage points alive. Adding a sixth scenario is fine,
-but do not delete any of the existing fixtures: the smoke fixture is the
-first thing to fail when plumbing regresses, the multi-file fixture
-probes multi-turn coding capability, the failure-and-revise fixture
-probes tool-result carry-over, the discovery fixture probes
-project-navigation capability, and the rename fixture probes cross-file
-consistency under rename. Each isolates a different blast radius.
+Keep all six coverage points alive. Adding another scenario is fine, but
+do not delete existing fixtures: smoke catches plumbing regressions,
+multi-file probes multi-turn coding, failure-and-revise probes tool-
+result carry-over, discovery probes project navigation, rename probes
+cross-file consistency, and frontend-preview probes local rendered-output
+evidence. Each isolates a different blast radius.
 
 ## Capability Gap Handling
 

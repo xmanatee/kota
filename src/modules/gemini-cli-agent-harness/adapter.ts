@@ -355,7 +355,14 @@ function buildGeminiCliPrompt(options: AgentHarnessRunOptions): string {
 function parseGeminiCliEvent(line: string): GeminiCliStreamEvent | null {
   const trimmed = line.trim();
   if (!trimmed) return null;
-  const parsed = JSON.parse(trimmed) as GeminiCliStreamEvent;
+  let parsed: GeminiCliStreamEvent;
+  try {
+    parsed = JSON.parse(trimmed) as GeminiCliStreamEvent;
+  } catch {
+    throw new Error(
+      `Gemini CLI emitted non-JSON output in stream-json mode: ${trimmed}`,
+    );
+  }
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
     throw new Error(`Gemini CLI emitted non-object JSON event: ${trimmed}`);
   }
@@ -535,6 +542,7 @@ async function collectTextFromGeminiCli(args: {
     writer: args.writer,
   }).catch((err) => {
     parseError = err instanceof Error ? err.message : String(err);
+    child.kill("SIGTERM");
     return emptyCollectedGeminiOutput();
   });
 

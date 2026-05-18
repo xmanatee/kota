@@ -1,4 +1,10 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -14,6 +20,8 @@ import type {
 import { resetHarnessHooks } from "#core/agent-harness/index.js";
 import { runScenarioAcrossHarnesses, runScenarioOnHarness } from "./runner.js";
 import { loadScenario } from "./scenario.js";
+
+const SHIPPED_SCENARIOS_ROOT = join(import.meta.dirname, "scenarios");
 
 function writeMinimalScenario(scenariosRoot: string, id = "fix-add"): void {
   const dir = join(scenariosRoot, id);
@@ -34,6 +42,30 @@ function writeMinimalScenario(scenariosRoot: string, id = "fix-add"): void {
     join(dir, "initial", "add.js"),
     "exports.add = (a, b) => a - b;\n",
   );
+}
+
+function writePreviewArtifactScenario(
+  scenariosRoot: string,
+  id: string,
+  previewArtifacts: readonly string[],
+  verificationScript: string,
+): void {
+  const dir = join(scenariosRoot, id);
+  mkdirSync(join(dir, "initial"), { recursive: true });
+  writeFileSync(
+    join(dir, "scenario.json"),
+    JSON.stringify({
+      id,
+      description: "preview artifact scenario",
+      prompt: "run the preview verifier",
+      verification: {
+        command: "node verify-preview.js",
+        timeoutMs: 10_000,
+      },
+      previewArtifacts,
+    }),
+  );
+  writeFileSync(join(dir, "initial", "verify-preview.js"), verificationScript);
 }
 
 function makeHarness(
@@ -878,6 +910,174 @@ describe("harness-parity runner", () => {
     expect(parity.artifacts[1].verificationPassed).toBe(false);
     expect(parity.artifacts[0].effort).toBe("xhigh");
     expect(parity.artifacts[1].effort).toBe("xhigh");
+  });
+
+  it("copies declared preview artifacts after verification and references them from run summaries", async () => {
+    writePreviewArtifactScenario(
+      scenariosRoot,
+      "preview-capture",
+      ["preview.html", "preview-check.json"],
+      'const { writeFileSync } = require("node:fs");\n' +
+        'writeFileSync("preview.html", "<!doctype html><p>visible preview</p>\\n");\n' +
+        'writeFileSync("preview-check.json", JSON.stringify({ passed: true }, null, 2));\n' +
+        'console.log("ok");\n',
+    );
+    const scenario = loadScenario(scenariosRoot, "preview-capture");
+    const harness = makeHarness("previewing", () => {
+      // The verifier owns preview artifact creation.
+    });
+
+    const artifacts = await runScenarioAcrossHarnesses({
+      scenario,
+      harnesses: [harness],
+      callOptions: { model: "test-model" },
+      outBaseDir: outRoot,
+    });
+
+    const artifact = artifacts[0]!;
+    expect(artifact.previewArtifacts).toEqual([
+      {
+        sourcePath: "preview.html",
+        artifactPath: join(artifact.artifactDir, "preview.html"),
+        preserved: true,
+      },
+      {
+        sourcePath: "preview-check.json",
+        artifactPath: join(artifact.artifactDir, "preview-check.json"),
+        preserved: true,
+      },
+    ]);
+    expect(readFileSync(join(artifact.artifactDir, "preview.html"), "utf-8")).toContain(
+      "visible preview",
+    );
+
+    const meta = JSON.parse(
+      readFileSync(join(artifact.artifactDir, "run-meta.json"), "utf-8"),
+    );
+    expect(meta.previewArtifacts).toEqual(artifact.previewArtifacts);
+
+    const summary = readFileSync(
+      join(artifact.artifactDir, "trace-summary.md"),
+      "utf-8",
+    );
+    expect(summary).toContain("- previewArtifacts (2):");
+    expect(summary).toContain("preview-check.json");
+
+    const parity = JSON.parse(
+      readFileSync(join(outRoot, "preview-capture", "parity.json"), "utf-8"),
+    );
+    expect(parity.artifacts[0].previewArtifacts).toEqual(artifact.previewArtifacts);
+  });
+
+  it("preserves preview artifacts for the shipped frontend-preview scenario", async () => {
+    const scenario = loadScenario(SHIPPED_SCENARIOS_ROOT, "frontend-preview");
+    const harness = makeHarness("previewing", (workingDir) => {
+      const cssPath = join(workingDir, "styles.css");
+      writeFileSync(
+        cssPath,
+        readFileSync(cssPath, "utf-8").replace("display: none;", "display: flex;"),
+      );
+    });
+    const evidenceOutRoot = process.env.KOTA_HARNESS_PARITY_PREVIEW_EVIDENCE_DIR;
+    const previewOutRoot = evidenceOutRoot ?? outRoot;
+    if (evidenceOutRoot) {
+      rmSync(evidenceOutRoot, { recursive: true, force: true });
+    }
+
+    const artifacts = await runScenarioAcrossHarnesses({
+      scenario,
+      harnesses: [harness],
+      callOptions: { model: "test-model" },
+      outBaseDir: previewOutRoot,
+    });
+
+    const artifact = artifacts[0]!;
+    expect(artifact.verification.passed).toBe(true);
+    expect(artifact.changedFiles).toContain("styles.css");
+    expect(artifact.previewArtifacts).toEqual([
+      {
+        sourcePath: "preview.html",
+        artifactPath: join(artifact.artifactDir, "preview.html"),
+        preserved: true,
+      },
+      {
+        sourcePath: "preview-check.json",
+        artifactPath: join(artifact.artifactDir, "preview-check.json"),
+        preserved: true,
+      },
+    ]);
+    expect(readFileSync(join(artifact.artifactDir, "preview.html"), "utf-8")).toContain(
+      "Sync complete",
+    );
+    const previewCheck = JSON.parse(
+      readFileSync(join(artifact.artifactDir, "preview-check.json"), "utf-8"),
+    ) as { passed: boolean };
+    expect(previewCheck.passed).toBe(true);
+
+    const parity = JSON.parse(
+      readFileSync(join(previewOutRoot, "frontend-preview", "parity.json"), "utf-8"),
+    );
+    expect(parity.artifacts[0].previewArtifacts).toEqual(artifact.previewArtifacts);
+  });
+
+  it("records missing declared preview artifacts without crashing the runner", async () => {
+    writePreviewArtifactScenario(
+      scenariosRoot,
+      "missing-preview",
+      ["missing.html"],
+      'console.log("ok");\n',
+    );
+    const scenario = loadScenario(scenariosRoot, "missing-preview");
+    const harness = makeHarness("previewing", () => {
+      // no-op
+    });
+
+    const artifact = await runScenarioOnHarness({
+      scenario,
+      harness,
+      callOptions: { model: "test-model" },
+      outBaseDir: outRoot,
+    });
+
+    expect(artifact.previewArtifacts).toEqual([
+      {
+        sourcePath: "missing.html",
+        artifactPath: join(artifact.artifactDir, "missing.html"),
+        preserved: false,
+        reason: "missing",
+      },
+    ]);
+  });
+
+  it("records non-file declared preview artifacts as invalid captures", async () => {
+    writePreviewArtifactScenario(
+      scenariosRoot,
+      "bad-preview",
+      ["preview.html"],
+      'const { mkdirSync } = require("node:fs");\n' +
+        'mkdirSync("preview.html");\n' +
+        'console.log("ok");\n',
+    );
+    const scenario = loadScenario(scenariosRoot, "bad-preview");
+    const harness = makeHarness("previewing", () => {
+      // no-op
+    });
+
+    const artifact = await runScenarioOnHarness({
+      scenario,
+      harness,
+      callOptions: { model: "test-model" },
+      outBaseDir: outRoot,
+    });
+
+    expect(artifact.previewArtifacts).toEqual([
+      {
+        sourcePath: "preview.html",
+        artifactPath: join(artifact.artifactDir, "preview.html"),
+        preserved: false,
+        reason: "not_file",
+      },
+    ]);
   });
 
   it("leaves the scenario initial/ tree untouched", async () => {

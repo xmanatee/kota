@@ -8,9 +8,17 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type {
   AgentEffort,
   AgentHarness,
@@ -71,6 +79,19 @@ export type VerificationResult = {
   output: string;
 };
 
+export type PreviewArtifactResult =
+  | {
+      sourcePath: string;
+      artifactPath: string;
+      preserved: true;
+    }
+  | {
+      sourcePath: string;
+      artifactPath: string;
+      preserved: false;
+      reason: "missing" | "not_file";
+    };
+
 export type HarnessParityArtifact = {
   scenarioId: string;
   harnessName: string;
@@ -95,6 +116,8 @@ export type HarnessParityArtifact = {
   capability: HarnessCapabilitySnapshot;
   /** Files changed under the working directory relative to the initial tree. */
   changedFiles: readonly string[];
+  /** Declared operator preview artifacts copied after verification, if any. */
+  previewArtifacts: readonly PreviewArtifactResult[];
   /** Where artifacts for this harness × scenario run landed. */
   artifactDir: string;
   /** Structured action/observation trajectory captured from `onMessage`. */
@@ -694,6 +717,41 @@ function runVerification(
   };
 }
 
+function capturePreviewArtifacts(args: {
+  workingDir: string;
+  artifactDir: string;
+  previewArtifacts: readonly string[];
+}): PreviewArtifactResult[] {
+  const results: PreviewArtifactResult[] = [];
+  for (const sourcePath of args.previewArtifacts) {
+    const source = join(args.workingDir, sourcePath);
+    const artifactPath = join(args.artifactDir, sourcePath);
+    if (!existsSync(source)) {
+      results.push({
+        sourcePath,
+        artifactPath,
+        preserved: false,
+        reason: "missing",
+      });
+      continue;
+    }
+    if (!statSync(source).isFile()) {
+      results.push({
+        sourcePath,
+        artifactPath,
+        preserved: false,
+        reason: "not_file",
+      });
+      continue;
+    }
+
+    mkdirSync(dirname(artifactPath), { recursive: true });
+    cpSync(source, artifactPath);
+    results.push({ sourcePath, artifactPath, preserved: true });
+  }
+  return results;
+}
+
 /**
  * Compute a git-style diff of the working directory vs the scenario initial
  * tree. The two trees are placed under a shared parent so git diff renders
@@ -822,6 +880,11 @@ export async function runScenarioOnHarness(
     workingDir,
   );
   const verification = runVerification(workingDir, scenario.spec.verification);
+  const previewArtifacts = capturePreviewArtifacts({
+    workingDir,
+    artifactDir,
+    previewArtifacts: scenario.spec.previewArtifacts,
+  });
 
   writeFileSync(join(artifactDir, "prompt.txt"), scenario.spec.prompt);
   writeFileSync(join(artifactDir, "diff.patch"), diff);
@@ -851,6 +914,7 @@ export async function runScenarioOnHarness(
     verification,
     capability,
     changedFiles,
+    previewArtifacts,
     artifactDir,
     trajectory,
     ...(runResult?.inputTokens !== undefined
@@ -922,6 +986,18 @@ function buildTraceSummary(
   );
   lines.push(`- changedFiles (${artifact.changedFiles.length}):`);
   for (const path of artifact.changedFiles) lines.push(`  - ${path}`);
+  if (artifact.previewArtifacts.length > 0) {
+    lines.push(`- previewArtifacts (${artifact.previewArtifacts.length}):`);
+    for (const preview of artifact.previewArtifacts) {
+      if (preview.preserved) {
+        lines.push(`  - ${preview.sourcePath}: ${preview.artifactPath}`);
+      } else {
+        lines.push(
+          `  - ${preview.sourcePath}: ${preview.reason} (${preview.artifactPath})`,
+        );
+      }
+    }
+  }
   lines.push("");
   lines.push("## Capability boundary");
   lines.push("");
@@ -1043,6 +1119,7 @@ export async function runScenarioAcrossHarnesses(params: {
           isError: a.isError,
           capability: summarizeHarnessCapability(a.capability),
           trajectory: a.trajectory,
+          previewArtifacts: a.previewArtifacts,
           totalCostUsd: a.totalCostUsd,
           inputTokens: a.inputTokens,
           outputTokens: a.outputTokens,

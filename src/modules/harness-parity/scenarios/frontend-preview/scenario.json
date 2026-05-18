@@ -1,0 +1,13 @@
+{
+  "id": "frontend-preview",
+  "description": "A tiny static web page has a CSS visibility bug. The agent must make the rendered status banner visible, while the verifier attempts a loopback preview and preserves preview artifacts.",
+  "prompt": "There is a tiny static web app in this directory. The status banner that says \"Sync complete\" is present in index.html but is not visible when the page is previewed because styles.css hides it. Fix the CSS so the banner is visibly rendered as a flex row. Do not modify index.html or verify-preview.js. Run `node verify-preview.js` to confirm; it attempts a local preview server and writes preview.html plus preview-check.json when the rendered state is inspected.",
+  "verification": {
+    "command": "node verify-preview.js",
+    "timeoutMs": 30000
+  },
+  "previewArtifacts": [
+    "preview.html",
+    "preview-check.json"
+  ]
+}

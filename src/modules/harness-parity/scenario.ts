@@ -12,10 +12,22 @@
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 
 const MAX_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_TIMEOUT_MS = 60_000;
+
+type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | readonly JsonValue[]
+  | JsonObject;
+
+type JsonObject = {
+  readonly [key: string]: JsonValue | undefined;
+};
 
 /**
  * Shell command whose exit status determines whether the scenario passed for a
@@ -35,6 +47,11 @@ export type ScenarioSpecFile = {
   /** The prompt delivered verbatim to every harness. */
   prompt: string;
   verification: ScenarioVerification;
+  /**
+   * Files the verification command may write under the scenario working
+   * directory for operator preview. Paths are normalized POSIX-relative paths.
+   */
+  previewArtifacts: readonly string[];
 };
 
 export type LoadedScenario = {
@@ -54,14 +71,22 @@ export class ScenarioLoadError extends Error {
   }
 }
 
-function parseVerification(raw: unknown, scenarioDir: string): ScenarioVerification {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-    throw new ScenarioLoadError(
-      scenarioDir,
-      'missing verification object. Every scenario must declare verification.command (string).',
-    );
+function requireJsonObject(value: unknown, scenarioDir: string, reason: string): JsonObject {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new ScenarioLoadError(scenarioDir, reason);
   }
-  const r = raw as Record<string, unknown>;
+  return value as JsonObject;
+}
+
+function parseVerification(
+  raw: JsonValue | undefined,
+  scenarioDir: string,
+): ScenarioVerification {
+  const r = requireJsonObject(
+    raw,
+    scenarioDir,
+    'missing verification object. Every scenario must declare verification.command (string).',
+  );
   if (typeof r.command !== "string" || r.command.trim().length === 0) {
     throw new ScenarioLoadError(
       scenarioDir,
@@ -88,6 +113,69 @@ function parseVerification(raw: unknown, scenarioDir: string): ScenarioVerificat
   return { command: r.command, timeoutMs };
 }
 
+function parsePreviewArtifacts(
+  raw: JsonValue | undefined,
+  scenarioDir: string,
+): string[] {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw)) {
+    throw new ScenarioLoadError(
+      scenarioDir,
+      "previewArtifacts must be an array of normalized relative paths.",
+    );
+  }
+
+  const paths: string[] = [];
+  const seen = new Set<string>();
+  for (const [index, value] of raw.entries()) {
+    if (typeof value !== "string" || value.length === 0) {
+      throw new ScenarioLoadError(
+        scenarioDir,
+        `previewArtifacts[${index}] must be a non-empty string.`,
+      );
+    }
+    if (value.includes("\\")) {
+      throw new ScenarioLoadError(
+        scenarioDir,
+        `previewArtifacts[${index}] must use POSIX "/" separators, got "${value}".`,
+      );
+    }
+    if (value.includes("\0")) {
+      throw new ScenarioLoadError(
+        scenarioDir,
+        `previewArtifacts[${index}] must not contain NUL bytes.`,
+      );
+    }
+    if (posix.isAbsolute(value)) {
+      throw new ScenarioLoadError(
+        scenarioDir,
+        `previewArtifacts[${index}] must be relative, got "${value}".`,
+      );
+    }
+    const normalized = posix.normalize(value);
+    if (
+      normalized !== value ||
+      normalized === "." ||
+      normalized === ".." ||
+      normalized.startsWith("../")
+    ) {
+      throw new ScenarioLoadError(
+        scenarioDir,
+        `previewArtifacts[${index}] must be a bounded normalized relative path, got "${value}".`,
+      );
+    }
+    if (seen.has(value)) {
+      throw new ScenarioLoadError(
+        scenarioDir,
+        `previewArtifacts contains duplicate path "${value}".`,
+      );
+    }
+    seen.add(value);
+    paths.push(value);
+  }
+  return paths;
+}
+
 function parseScenarioSpec(rawJson: string, scenarioDir: string): ScenarioSpecFile {
   let raw: unknown;
   try {
@@ -99,9 +187,16 @@ function parseScenarioSpec(rawJson: string, scenarioDir: string): ScenarioSpecFi
     );
   }
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-    throw new ScenarioLoadError(scenarioDir, "scenario.json must be a JSON object.");
+    throw new ScenarioLoadError(
+      scenarioDir,
+      "scenario.json must be a JSON object.",
+    );
   }
-  const r = raw as Record<string, unknown>;
+  const r = requireJsonObject(
+    raw,
+    scenarioDir,
+    "scenario.json must be a JSON object.",
+  );
   for (const key of ["id", "description", "prompt"] as const) {
     if (typeof r[key] !== "string" || (r[key] as string).length === 0) {
       throw new ScenarioLoadError(
@@ -115,6 +210,7 @@ function parseScenarioSpec(rawJson: string, scenarioDir: string): ScenarioSpecFi
     description: r.description as string,
     prompt: r.prompt as string,
     verification: parseVerification(r.verification, scenarioDir),
+    previewArtifacts: parsePreviewArtifacts(r.previewArtifacts, scenarioDir),
   };
 }
 
