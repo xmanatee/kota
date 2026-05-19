@@ -83,6 +83,12 @@ resources:
       fingerprint: sha256:7a8177b66c7880e71f52c4ac5f774869
       summary: "SWE-bench still reinforces Docker-backed reproducible evaluation and explicit resource requirements; KOTA's fresh local gap is binding eval-harness ResourceProfile fields to actual executor isolation/preflight rather than only recording caller-supplied metadata."
       last_seen_at: "2026-05-17T06:28:45.237Z"
+  - url: https://arxiv.org/abs/2605.18583
+    added: "2026-05-19"
+    notes: "Overeager Coding Agents / OverEager-Bench measures benign-task scope expansion across Claude Code, OpenHands, Codex CLI, and Gemini CLI. Monitor as a direct autonomy-eval signal for authorization-boundary and over-eager edit behavior, not as a replacement benchmark."
+  - url: https://arxiv.org/abs/2605.07769
+    added: "2026-05-19"
+    notes: "Coding Agents Don't Know When to Act / FixedBench measures stale already-fixed coding tasks where the correct action is no production patch. Monitor as a restraint/no-op eval signal for builder and critic calibration."
   - url: https://github.com/letta-ai/letta
     added: "2026-04-19"
     snapshot:
