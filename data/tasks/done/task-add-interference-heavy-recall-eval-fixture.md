@@ -1,12 +1,12 @@
 ---
 id: task-add-interference-heavy-recall-eval-fixture
 title: Add interference-heavy recall eval fixture
-status: ready
+status: done
 priority: p2
 area: eval-harness
 summary: Seed eval-harness with a memory/recall fixture that proves KOTA handles revised decisions, distractors, and multi-hit aggregation rather than only single static recall.
 created_at: 2026-05-19T21:14:58Z
-updated_at: 2026-05-19T21:14:58Z
+updated_at: 2026-05-19T21:26:26.700Z
 ---
 
 ## Problem
