@@ -38,7 +38,11 @@ import type {
   KotaJsonObject,
   KotaJsonValue,
 } from "#core/agent-harness/message-protocol.js";
-import type { LoadedScenario, ScenarioVerification } from "./scenario.js";
+import type {
+  LoadedScenario,
+  ScenarioStageSpec,
+  ScenarioVerification,
+} from "./scenario.js";
 
 const DEFAULT_EFFORT: AgentEffort = "xhigh";
 
@@ -122,6 +126,54 @@ export type HarnessParityArtifact = {
   artifactDir: string;
   /** Structured action/observation trajectory captured from `onMessage`. */
   trajectory: HarnessParityTrajectoryMetadata;
+  /** Original scenario execution mode. */
+  stageMode: "single" | "staged";
+  /** Ordered stage artifacts. Single-stage scenarios contain one `main` stage. */
+  stages: readonly HarnessParityStageArtifact[];
+  /** Compact per-stage status used by run-meta.json and parity.json. */
+  stagedSummary: HarnessParityStagedSummary;
+};
+
+export type HarnessParityStageArtifact = {
+  stageId: string;
+  scenarioId: string;
+  harnessName: string;
+  model: string;
+  effort: AgentEffort;
+  startedAt: string;
+  durationMs: number;
+  turns: number;
+  isError: boolean;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalCostUsd?: number;
+  subtype?: string;
+  sessionId?: string;
+  verification: VerificationResult;
+  capability: HarnessCapabilitySnapshot;
+  changedFiles: readonly string[];
+  previewArtifacts: readonly PreviewArtifactResult[];
+  artifactDir: string;
+  trajectory: HarnessParityTrajectoryMetadata;
+};
+
+export type HarnessParityStageSummary = {
+  stageId: string;
+  verificationPassed: boolean;
+  changedFiles: readonly string[];
+  isError: boolean;
+  turns: number;
+  durationMs: number;
+  artifactDir: string;
+  previewArtifacts: readonly PreviewArtifactResult[];
+  trajectory: HarnessParityTrajectoryMetadata;
+};
+
+export type HarnessParityStagedSummary = {
+  mode: "single" | "staged";
+  passed: boolean;
+  stageCount: number;
+  stages: readonly HarnessParityStageSummary[];
 };
 
 type CollectingWriter = AgentHarnessWriter & { collected(): string };
@@ -218,6 +270,12 @@ type SanitizedJsonValue = {
 type SanitizedJsonObject = {
   value: KotaJsonObject;
   truncatedFields: string[];
+};
+
+type HarnessParityStageRunRecord = HarnessParityStageArtifact & {
+  diff: string;
+  runError: Error | null;
+  streamedText: string;
 };
 
 function createCollectingWriter(): CollectingWriter {
@@ -824,19 +882,22 @@ function computeDiff(initialDir: string, workingDir: string): {
 }
 
 /**
- * Run one scenario through one harness. The caller is responsible for
- * resolving the harness from the registry; this function stays oblivious to
- * which adapters exist so it can be reused by both CLI and tests.
+ * Run one prompt stage through one harness against an already-materialized
+ * working tree. Staged scenarios call this repeatedly with the same working
+ * directory so each release-note prompt inherits earlier edits.
  */
-export async function runScenarioOnHarness(
-  params: HarnessParityRunParams,
-): Promise<HarnessParityArtifact> {
-  const { scenario, harness, callOptions } = params;
-  const artifactDir = join(params.outBaseDir, harness.name);
+async function runScenarioStageOnHarness(args: {
+  scenario: LoadedScenario;
+  stage: ScenarioStageSpec;
+  harness: AgentHarness;
+  callOptions: HarnessParityCallOptions;
+  artifactDir: string;
+  capability: HarnessCapabilitySnapshot;
+  workingDir: string;
+  effort: AgentEffort;
+}): Promise<HarnessParityStageRunRecord> {
+  const { scenario, stage, harness, callOptions, artifactDir, capability } = args;
   mkdirSync(artifactDir, { recursive: true });
-
-  const capability = buildHarnessCapabilitySnapshot(harness);
-  const workingDir = materializeWorkingDir(scenario);
   const writer = createCollectingWriter();
   const trajectoryMessages: KotaAgentMessage[] = [];
   const startedAt = new Date();
@@ -844,13 +905,12 @@ export async function runScenarioOnHarness(
 
   let runError: Error | null = null;
   let runResult: Awaited<ReturnType<typeof runAgentHarness>> | null = null;
-  const effort: AgentEffort = DEFAULT_EFFORT;
   try {
     const runOptions: AgentHarnessRunOptions = {
-      prompt: scenario.spec.prompt,
+      prompt: stage.prompt,
       model: callOptions.model,
-      cwd: workingDir,
-      effort,
+      cwd: args.workingDir,
+      effort: args.effort,
       ...(callOptions.systemPrompt !== undefined
         ? { systemPrompt: callOptions.systemPrompt }
         : {}),
@@ -877,16 +937,16 @@ export async function runScenarioOnHarness(
   const durationMs = Date.now() - startMs;
   const { diff, changedFiles } = computeDiff(
     scenario.initialStateDir,
-    workingDir,
+    args.workingDir,
   );
-  const verification = runVerification(workingDir, scenario.spec.verification);
+  const verification = runVerification(args.workingDir, stage.verification);
   const previewArtifacts = capturePreviewArtifacts({
-    workingDir,
+    workingDir: args.workingDir,
     artifactDir,
-    previewArtifacts: scenario.spec.previewArtifacts,
+    previewArtifacts: stage.previewArtifacts,
   });
 
-  writeFileSync(join(artifactDir, "prompt.txt"), scenario.spec.prompt);
+  writeFileSync(join(artifactDir, "prompt.txt"), stage.prompt);
   writeFileSync(join(artifactDir, "diff.patch"), diff);
   writeFileSync(
     join(artifactDir, "verification.json"),
@@ -902,11 +962,12 @@ export async function runScenarioOnHarness(
     messages: trajectoryMessages,
   });
 
-  const artifact: HarnessParityArtifact = {
+  const artifact: HarnessParityStageArtifact = {
+    stageId: stage.id,
     scenarioId: scenario.spec.id,
     harnessName: harness.name,
     model: callOptions.model,
-    effort,
+    effort: args.effort,
     startedAt: startedAt.toISOString(),
     durationMs,
     turns: runResult?.turns ?? 0,
@@ -935,7 +996,7 @@ export async function runScenarioOnHarness(
     JSON.stringify(
       {
         ...artifact,
-        workingDir,
+        workingDir: args.workingDir,
         error: runError
           ? { message: runError.message, stack: runError.stack }
           : null,
@@ -950,15 +1011,347 @@ export async function runScenarioOnHarness(
     buildTraceSummary(artifact, runError, writer.collected()),
   );
 
-  if (!params.keepWorkingDir) {
-    rmSync(workingDir, { recursive: true, force: true });
+  return {
+    ...artifact,
+    diff,
+    runError,
+    streamedText: writer.collected(),
+  };
+}
+
+function buildAggregateVerification(
+  stageRecords: readonly HarnessParityStageRunRecord[],
+): VerificationResult {
+  const passed = stageRecords.every((stage) => stage.verification.passed);
+  return {
+    command: stageRecords
+      .map((stage) => `${stage.stageId}: ${stage.verification.command}`)
+      .join(" && "),
+    timeoutMs: stageRecords.reduce(
+      (sum, stage) => sum + stage.verification.timeoutMs,
+      0,
+    ),
+    passed,
+    exitStatus: passed ? 0 : 1,
+    timedOut: stageRecords.some((stage) => stage.verification.timedOut),
+    output: tail(
+      stageRecords
+        .map(
+          (stage) =>
+            `[${stage.stageId}] ${stage.verification.passed ? "pass" : "fail"} exit=${stage.verification.exitStatus ?? "null"}${stage.verification.timedOut ? " timeout" : ""}\n${stage.verification.output}`,
+        )
+        .join("\n\n"),
+      TRACE_TAIL_LIMIT,
+    ),
+  };
+}
+
+function buildStagedSummary(
+  mode: "single" | "staged",
+  stages: readonly HarnessParityStageArtifact[],
+): HarnessParityStagedSummary {
+  return {
+    mode,
+    passed: stages.every((stage) => stage.verification.passed),
+    stageCount: stages.length,
+    stages: stages.map((stage) => ({
+      stageId: stage.stageId,
+      verificationPassed: stage.verification.passed,
+      changedFiles: stage.changedFiles,
+      isError: stage.isError,
+      turns: stage.turns,
+      durationMs: stage.durationMs,
+      artifactDir: stage.artifactDir,
+      previewArtifacts: stage.previewArtifacts,
+      trajectory: stage.trajectory,
+    })),
+  };
+}
+
+function sumOptionalNumber(
+  stages: readonly HarnessParityStageArtifact[],
+  getValue: (stage: HarnessParityStageArtifact) => number | undefined,
+): number | undefined {
+  const values = stages
+    .map((stage) => getValue(stage))
+    .filter((value): value is number => value !== undefined);
+  if (values.length === 0) return undefined;
+  return values.reduce((sum, value) => sum + value, 0);
+}
+
+function buildStagedPromptText(stages: readonly ScenarioStageSpec[]): string {
+  return `${stages
+    .map((stage) => `## ${stage.id}\n\n${stage.prompt}`)
+    .join("\n\n")}\n`;
+}
+
+function buildStagedTraceSummary(artifact: HarnessParityArtifact): string {
+  const lines: string[] = [];
+  lines.push(`# ${artifact.harnessName} — ${artifact.scenarioId}`);
+  lines.push("");
+  lines.push(`- model: ${artifact.model}`);
+  lines.push(`- effort: ${artifact.effort}`);
+  lines.push(`- stageMode: ${artifact.stageMode}`);
+  lines.push(`- stages: ${artifact.stages.length}`);
+  lines.push(`- startedAt: ${artifact.startedAt}`);
+  lines.push(`- durationMs: ${artifact.durationMs}`);
+  lines.push(`- turns: ${artifact.turns}`);
+  lines.push(`- isError: ${artifact.isError}`);
+  lines.push(
+    `- verification: ${artifact.verification.passed ? "pass" : "fail"} (${artifact.stages.filter((stage) => stage.verification.passed).length}/${artifact.stages.length} stages passed)`,
+  );
+  lines.push(`- changedFiles (${artifact.changedFiles.length}):`);
+  for (const path of artifact.changedFiles) lines.push(`  - ${path}`);
+  lines.push("");
+  lines.push("## Stages");
+  lines.push("");
+  for (const stage of artifact.stages) {
+    lines.push(
+      `- ${stage.stageId}: ${stage.verification.passed ? "pass" : "fail"} (exit ${stage.verification.exitStatus ?? "null"}${stage.verification.timedOut ? ", timeout" : ""}), turns=${stage.turns}, changedFiles=${stage.changedFiles.length}`,
+    );
+    lines.push(`  - artifacts: ${stage.artifactDir}`);
+  }
+  lines.push("");
+  lines.push("## Capability boundary");
+  lines.push("");
+  renderCapabilityBoundary(lines, artifact.capability);
+  return `${lines.join("\n")}\n`;
+}
+
+function buildStagedTrajectorySummary(artifact: HarnessParityArtifact): string {
+  const lines: string[] = [];
+  lines.push("# Staged Trajectory");
+  lines.push("");
+  lines.push(`- status: staged`);
+  lines.push(`- stages: ${artifact.stages.length}`);
+  lines.push(
+    `- emitsAgentMessageStream: ${artifact.capability.emitsAgentMessageStream}`,
+  );
+  for (const stage of artifact.stages) {
+    lines.push(
+      `- ${stage.stageId}: ${stage.trajectory.status}, frames=${stage.trajectory.frameCount}, artifact=${stage.trajectory.artifactPath}`,
+    );
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+function writeStagedTrajectoryArtifacts(artifact: HarnessParityArtifact): void {
+  writeFileSync(
+    join(artifact.artifactDir, TRAJECTORY_ARTIFACT_NAME),
+    JSON.stringify(
+      {
+        version: 1,
+        status: "staged",
+        emitsAgentMessageStream: artifact.capability.emitsAgentMessageStream,
+        stages: artifact.stages.map((stage) => ({
+          stageId: stage.stageId,
+          trajectory: stage.trajectory,
+        })),
+      },
+      null,
+      2,
+    ),
+  );
+  writeFileSync(
+    join(artifact.artifactDir, TRAJECTORY_SUMMARY_NAME),
+    buildStagedTrajectorySummary(artifact),
+  );
+}
+
+function buildHarnessArtifact(args: {
+  scenario: LoadedScenario;
+  harness: AgentHarness;
+  callOptions: HarnessParityCallOptions;
+  artifactDir: string;
+  workingDir: string;
+  capability: HarnessCapabilitySnapshot;
+  stageRecords: readonly HarnessParityStageRunRecord[];
+  startedAt: Date;
+  durationMs: number;
+}): HarnessParityArtifact {
+  const stages: readonly HarnessParityStageArtifact[] = args.stageRecords.map(
+    ({ diff: _diff, runError: _runError, streamedText: _streamedText, ...stage }) =>
+      stage,
+  );
+  const finalStage = stages[stages.length - 1]!;
+  const verification =
+    args.scenario.spec.stageMode === "single"
+      ? finalStage.verification
+      : buildAggregateVerification(args.stageRecords);
+  const stagedSummary = buildStagedSummary(args.scenario.spec.stageMode, stages);
+
+  return {
+    scenarioId: args.scenario.spec.id,
+    harnessName: args.harness.name,
+    model: args.callOptions.model,
+    effort: DEFAULT_EFFORT,
+    startedAt: args.startedAt.toISOString(),
+    durationMs: args.durationMs,
+    turns: stages.reduce((sum, stage) => sum + stage.turns, 0),
+    isError: stages.some((stage) => stage.isError),
+    verification,
+    capability: args.capability,
+    changedFiles: finalStage.changedFiles,
+    previewArtifacts: finalStage.previewArtifacts,
+    artifactDir: args.artifactDir,
+    trajectory: finalStage.trajectory,
+    stageMode: args.scenario.spec.stageMode,
+    stages,
+    stagedSummary,
+    ...(sumOptionalNumber(stages, (stage) => stage.inputTokens) !== undefined
+      ? { inputTokens: sumOptionalNumber(stages, (stage) => stage.inputTokens) }
+      : {}),
+    ...(sumOptionalNumber(stages, (stage) => stage.outputTokens) !== undefined
+      ? { outputTokens: sumOptionalNumber(stages, (stage) => stage.outputTokens) }
+      : {}),
+    ...(sumOptionalNumber(stages, (stage) => stage.totalCostUsd) !== undefined
+      ? {
+          totalCostUsd: sumOptionalNumber(
+            stages,
+            (stage) => stage.totalCostUsd,
+          ),
+        }
+      : {}),
+    ...(args.scenario.spec.stageMode === "single" && finalStage.subtype !== undefined
+      ? { subtype: finalStage.subtype }
+      : {}),
+    ...(args.scenario.spec.stageMode === "single" &&
+    finalStage.sessionId !== undefined
+      ? { sessionId: finalStage.sessionId }
+      : {}),
+  };
+}
+
+function writeHarnessArtifact(args: {
+  artifact: HarnessParityArtifact;
+  scenario: LoadedScenario;
+  workingDir: string;
+  stageRecords: readonly HarnessParityStageRunRecord[];
+}): void {
+  const { artifact, scenario, stageRecords } = args;
+  const finalStage = stageRecords[stageRecords.length - 1]!;
+  const firstRunError =
+    stageRecords.find((stage) => stage.runError !== null)?.runError ?? null;
+  if (scenario.spec.stageMode === "staged") {
+    writeFileSync(
+      join(artifact.artifactDir, "prompt.txt"),
+      buildStagedPromptText(scenario.spec.stages),
+    );
+    writeFileSync(join(artifact.artifactDir, "diff.patch"), finalStage.diff);
+    writeFileSync(
+      join(artifact.artifactDir, "verification.json"),
+      JSON.stringify(artifact.verification, null, 2),
+    );
+    writeFileSync(
+      join(artifact.artifactDir, "trace.txt"),
+      tail(
+        stageRecords
+          .map((stage) => `## ${stage.stageId}\n${stage.streamedText}`)
+          .join("\n\n"),
+        TRACE_TAIL_LIMIT,
+      ),
+    );
+    writeStagedTrajectoryArtifacts(artifact);
   }
 
-  return artifact;
+  writeFileSync(
+    join(artifact.artifactDir, "run-meta.json"),
+    JSON.stringify(
+      {
+        ...artifact,
+        workingDir: args.workingDir,
+        error: firstRunError
+          ? { message: firstRunError.message, stack: firstRunError.stack }
+          : null,
+        stages: stageRecords.map(
+          ({ diff: _diff, runError, streamedText: _streamedText, ...stage }) => ({
+            ...stage,
+            error: runError
+              ? { message: runError.message, stack: runError.stack }
+              : null,
+          }),
+        ),
+      },
+      null,
+      2,
+    ),
+  );
+
+  if (scenario.spec.stageMode === "staged") {
+    writeFileSync(
+      join(artifact.artifactDir, "trace-summary.md"),
+      buildStagedTraceSummary(artifact),
+    );
+  }
+}
+
+/**
+ * Run one scenario through one harness. The caller is responsible for
+ * resolving the harness from the registry; this function stays oblivious to
+ * which adapters exist so it can be reused by both CLI and tests.
+ */
+export async function runScenarioOnHarness(
+  params: HarnessParityRunParams,
+): Promise<HarnessParityArtifact> {
+  const { scenario, harness, callOptions } = params;
+  const artifactDir = join(params.outBaseDir, harness.name);
+  mkdirSync(artifactDir, { recursive: true });
+
+  const capability = buildHarnessCapabilitySnapshot(harness);
+  const workingDir = materializeWorkingDir(scenario);
+  const runStartedAt = new Date();
+  const runStartMs = runStartedAt.getTime();
+  const effort: AgentEffort = DEFAULT_EFFORT;
+
+  const stageRecords: HarnessParityStageRunRecord[] = [];
+  try {
+    for (const stage of scenario.spec.stages) {
+      const stageDir =
+        scenario.spec.stageMode === "single"
+          ? artifactDir
+          : join(artifactDir, "stages", stage.id);
+      stageRecords.push(
+        await runScenarioStageOnHarness({
+          scenario,
+          stage,
+          harness,
+          callOptions,
+          artifactDir: stageDir,
+          capability,
+          workingDir,
+          effort,
+        }),
+      );
+    }
+
+    const artifact = buildHarnessArtifact({
+      scenario,
+      harness,
+      callOptions,
+      artifactDir,
+      workingDir,
+      capability,
+      stageRecords,
+      startedAt: runStartedAt,
+      durationMs: Date.now() - runStartMs,
+    });
+    writeHarnessArtifact({
+      artifact,
+      scenario,
+      workingDir,
+      stageRecords,
+    });
+
+    return artifact;
+  } finally {
+    if (!params.keepWorkingDir) {
+      rmSync(workingDir, { recursive: true, force: true });
+    }
+  }
 }
 
 function buildTraceSummary(
-  artifact: HarnessParityArtifact,
+  artifact: HarnessParityArtifact | HarnessParityStageArtifact,
   runError: Error | null,
   streamedText: string,
 ): string {
@@ -1108,6 +1501,7 @@ export async function runScenarioAcrossHarnesses(params: {
     JSON.stringify(
       {
         scenarioId: params.scenario.spec.id,
+        stageMode: params.scenario.spec.stageMode,
         model: params.callOptions.model,
         artifacts: artifacts.map((a) => ({
           harnessName: a.harnessName,
@@ -1119,6 +1513,7 @@ export async function runScenarioAcrossHarnesses(params: {
           isError: a.isError,
           capability: summarizeHarnessCapability(a.capability),
           trajectory: a.trajectory,
+          stagedSummary: a.stagedSummary,
           previewArtifacts: a.previewArtifacts,
           totalCostUsd: a.totalCostUsd,
           inputTokens: a.inputTokens,

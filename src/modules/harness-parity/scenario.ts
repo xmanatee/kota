@@ -2,7 +2,7 @@
  * Coding-task scenario layout for the harness-parity module.
  *
  * A scenario is a self-contained directory under `scenarios/<id>/` containing:
- *   - `scenario.json` — typed `ScenarioSpecFile` (this module)
+ *   - `scenario.json` — single-stage or staged metadata normalized by this module
  *   - `initial/` — initial working tree copied into the isolated run directory
  *
  * The same scenario is fed to every registered `AgentHarness` so the captured
@@ -16,6 +16,8 @@ import { join, posix } from "node:path";
 
 const MAX_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_TIMEOUT_MS = 60_000;
+const STAGED_MIN_STAGE_COUNT = 2;
+const STAGED_MAX_STAGE_COUNT = 3;
 
 type JsonValue =
   | string
@@ -39,19 +41,37 @@ export type ScenarioVerification = {
   timeoutMs: number;
 };
 
+export type ScenarioStageSpec = {
+  /** Stable stage id used for per-stage artifact directories. */
+  id: string;
+  /** The prompt delivered verbatim for this stage. */
+  prompt: string;
+  verification: ScenarioVerification;
+  /**
+   * Files this stage's verification command may write under the scenario
+   * working directory for operator preview.
+   */
+  previewArtifacts: readonly string[];
+};
+
 export type ScenarioSpecFile = {
   /** Stable scenario id; must match the directory name. */
   id: string;
   /** One-line human description surfaced in `harness-parity list`. */
   description: string;
-  /** The prompt delivered verbatim to every harness. */
+  /** Backwards-compatible single prompt; staged scenarios expose the first stage prompt here. */
   prompt: string;
+  /** Backwards-compatible verifier; staged scenarios expose the final stage verifier here. */
   verification: ScenarioVerification;
   /**
    * Files the verification command may write under the scenario working
    * directory for operator preview. Paths are normalized POSIX-relative paths.
    */
   previewArtifacts: readonly string[];
+  /** Whether the source metadata was the original single-stage shape or staged. */
+  stageMode: "single" | "staged";
+  /** Ordered prompts and verifiers executed by the runner. */
+  stages: readonly ScenarioStageSpec[];
 };
 
 export type LoadedScenario = {
@@ -116,12 +136,13 @@ function parseVerification(
 function parsePreviewArtifacts(
   raw: JsonValue | undefined,
   scenarioDir: string,
+  fieldName = "previewArtifacts",
 ): string[] {
   if (raw === undefined) return [];
   if (!Array.isArray(raw)) {
     throw new ScenarioLoadError(
       scenarioDir,
-      "previewArtifacts must be an array of normalized relative paths.",
+      `${fieldName} must be an array of normalized relative paths.`,
     );
   }
 
@@ -131,25 +152,25 @@ function parsePreviewArtifacts(
     if (typeof value !== "string" || value.length === 0) {
       throw new ScenarioLoadError(
         scenarioDir,
-        `previewArtifacts[${index}] must be a non-empty string.`,
+        `${fieldName}[${index}] must be a non-empty string.`,
       );
     }
     if (value.includes("\\")) {
       throw new ScenarioLoadError(
         scenarioDir,
-        `previewArtifacts[${index}] must use POSIX "/" separators, got "${value}".`,
+        `${fieldName}[${index}] must use POSIX "/" separators, got "${value}".`,
       );
     }
     if (value.includes("\0")) {
       throw new ScenarioLoadError(
         scenarioDir,
-        `previewArtifacts[${index}] must not contain NUL bytes.`,
+        `${fieldName}[${index}] must not contain NUL bytes.`,
       );
     }
     if (posix.isAbsolute(value)) {
       throw new ScenarioLoadError(
         scenarioDir,
-        `previewArtifacts[${index}] must be relative, got "${value}".`,
+        `${fieldName}[${index}] must be relative, got "${value}".`,
       );
     }
     const normalized = posix.normalize(value);
@@ -161,19 +182,98 @@ function parsePreviewArtifacts(
     ) {
       throw new ScenarioLoadError(
         scenarioDir,
-        `previewArtifacts[${index}] must be a bounded normalized relative path, got "${value}".`,
+        `${fieldName}[${index}] must be a bounded normalized relative path, got "${value}".`,
       );
     }
     if (seen.has(value)) {
       throw new ScenarioLoadError(
         scenarioDir,
-        `previewArtifacts contains duplicate path "${value}".`,
+        `${fieldName} contains duplicate path "${value}".`,
       );
     }
     seen.add(value);
     paths.push(value);
   }
   return paths;
+}
+
+function parseStageId(
+  raw: JsonValue | undefined,
+  scenarioDir: string,
+  index: number,
+): string {
+  if (typeof raw !== "string" || raw.length === 0) {
+    throw new ScenarioLoadError(
+      scenarioDir,
+      `stages[${index}].id must be a non-empty string.`,
+    );
+  }
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(raw)) {
+    throw new ScenarioLoadError(
+      scenarioDir,
+      `stages[${index}].id must be a lowercase slug, got "${raw}".`,
+    );
+  }
+  return raw;
+}
+
+function parseStage(
+  raw: JsonValue | undefined,
+  scenarioDir: string,
+  index: number,
+): ScenarioStageSpec {
+  const r = requireJsonObject(raw, scenarioDir, `stages[${index}] must be an object.`);
+  const id = parseStageId(r.id, scenarioDir, index);
+  if (typeof r.prompt !== "string" || r.prompt.length === 0) {
+    throw new ScenarioLoadError(
+      scenarioDir,
+      `stages[${index}].prompt must be a non-empty string.`,
+    );
+  }
+  return {
+    id,
+    prompt: r.prompt,
+    verification: parseVerification(r.verification, scenarioDir),
+    previewArtifacts: parsePreviewArtifacts(
+      r.previewArtifacts,
+      scenarioDir,
+      `stages[${index}].previewArtifacts`,
+    ),
+  };
+}
+
+function parseStages(
+  raw: JsonValue | undefined,
+  scenarioDir: string,
+): ScenarioStageSpec[] {
+  if (!Array.isArray(raw)) {
+    throw new ScenarioLoadError(
+      scenarioDir,
+      "stages must be an array of two or three stage objects.",
+    );
+  }
+  if (
+    raw.length < STAGED_MIN_STAGE_COUNT ||
+    raw.length > STAGED_MAX_STAGE_COUNT
+  ) {
+    throw new ScenarioLoadError(
+      scenarioDir,
+      `staged scenarios must declare ${STAGED_MIN_STAGE_COUNT}-${STAGED_MAX_STAGE_COUNT} stages, got ${raw.length}.`,
+    );
+  }
+
+  const stages = raw.map((stage, index) => parseStage(stage, scenarioDir, index));
+  const seen = new Set<string>();
+  for (const stage of stages) {
+    if (seen.has(stage.id)) {
+      throw new ScenarioLoadError(
+        scenarioDir,
+        `stages contains duplicate id "${stage.id}".`,
+      );
+    }
+    seen.add(stage.id);
+  }
+  return stages;
 }
 
 function parseScenarioSpec(rawJson: string, scenarioDir: string): ScenarioSpecFile {
@@ -198,6 +298,7 @@ function parseScenarioSpec(rawJson: string, scenarioDir: string): ScenarioSpecFi
     "scenario.json must be a JSON object.",
   );
   for (const key of ["id", "description", "prompt"] as const) {
+    if (key === "prompt" && r.stages !== undefined) continue;
     if (typeof r[key] !== "string" || (r[key] as string).length === 0) {
       throw new ScenarioLoadError(
         scenarioDir,
@@ -205,12 +306,58 @@ function parseScenarioSpec(rawJson: string, scenarioDir: string): ScenarioSpecFi
       );
     }
   }
+
+  if (r.stages !== undefined) {
+    if (r.prompt !== undefined || r.verification !== undefined) {
+      throw new ScenarioLoadError(
+        scenarioDir,
+        "staged scenarios must declare stages instead of top-level prompt or verification.",
+      );
+    }
+    if (r.previewArtifacts !== undefined) {
+      throw new ScenarioLoadError(
+        scenarioDir,
+        "staged scenarios must declare previewArtifacts on each stage, not at the top level.",
+      );
+    }
+    const stages = parseStages(r.stages, scenarioDir);
+    const firstStage = stages[0]!;
+    const finalStage = stages[stages.length - 1]!;
+    return {
+      id: r.id as string,
+      description: r.description as string,
+      prompt: firstStage.prompt,
+      verification: finalStage.verification,
+      previewArtifacts: [],
+      stageMode: "staged",
+      stages,
+    };
+  }
+
+  if (r.verification === undefined) {
+    throw new ScenarioLoadError(
+      scenarioDir,
+      'missing verification object. Every scenario must declare verification.command (string).',
+    );
+  }
+  const prompt = r.prompt as string;
+  const verification = parseVerification(r.verification, scenarioDir);
+  const previewArtifacts = parsePreviewArtifacts(r.previewArtifacts, scenarioDir);
   return {
     id: r.id as string,
     description: r.description as string,
-    prompt: r.prompt as string,
-    verification: parseVerification(r.verification, scenarioDir),
-    previewArtifacts: parsePreviewArtifacts(r.previewArtifacts, scenarioDir),
+    prompt,
+    verification,
+    previewArtifacts,
+    stageMode: "single",
+    stages: [
+      {
+        id: "main",
+        prompt,
+        verification,
+        previewArtifacts,
+      },
+    ],
   };
 }
 

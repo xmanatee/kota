@@ -1,0 +1,22 @@
+{
+  "id": "package-upgrade-chain",
+  "description": "Apply two release-note-style upgrades to a tiny local ledger-kit package and its caller, preserving the same working tree across stages so the final verifier catches both the latest API change and earlier behavior regressions.",
+  "stages": [
+    {
+      "id": "ledger-kit-v2",
+      "prompt": "Release notes for the local ledger-kit package v2.0:\n\n- `formatMoney(cents)` is replaced by `formatMoney({ minorUnits, currency })` and must render `USD 12.34` style output.\n- `summarize(lines)` now expects each line to be `{ label, amount: { minorUnits, currency } }`.\n- The app entries now provide `minorUnits` and `currency` directly instead of `amountCents`.\n\nUpdate the vendored package and its caller to this v2 API. Do not modify `test-v2.js` or `test-v3.js`. Run `node test-v2.js`; it must print `ok` and exit 0.",
+      "verification": {
+        "command": "node test-v2.js",
+        "timeoutMs": 30000
+      }
+    },
+    {
+      "id": "ledger-kit-v3",
+      "prompt": "Release notes for the local ledger-kit package v3.0:\n\n- `summarize(lines)` is renamed to `renderLedger(lines)`.\n- Each line may include an optional `note`; when present, render it as `Label (note): Amount`.\n- `formatMoney({ minorUnits, currency })` keeps the v2 object signature and now renders negative amounts in accounting style, for example `(USD 1.50)`.\n\nUpgrade the same working tree from v2 to v3 without regressing the positive USD report behavior from v2. Do not modify `test-v2.js` or `test-v3.js`. Run `node test-v3.js`; it must print `ok` and exit 0.",
+      "verification": {
+        "command": "node test-v3.js",
+        "timeoutMs": 30000
+      }
+    }
+  ]
+}

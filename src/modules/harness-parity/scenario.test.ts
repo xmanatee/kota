@@ -38,6 +38,70 @@ function writeScenario(
   return dir;
 }
 
+function writeLedgerKitV2(workDir: string): void {
+  writeFileSync(
+    join(workDir, "packages/ledger-kit/index.js"),
+    "function formatMoney(amount) {\n" +
+      '  return `${amount.currency} ${(amount.minorUnits / 100).toFixed(2)}`;\n' +
+      "}\n\n" +
+      "function summarize(lines) {\n" +
+      '  return lines.map((line) => `${line.label}: ${formatMoney(line.amount)}`).join("\\n");\n' +
+      "}\n\n" +
+      "module.exports = { formatMoney, summarize };\n",
+  );
+  writeFileSync(
+    join(workDir, "src/report.js"),
+    'const { formatMoney, summarize } = require("../packages/ledger-kit");\n\n' +
+      "function renderQuarterReport(entries) {\n" +
+      "  const lines = entries.map((entry) => ({\n" +
+      "    label: entry.account,\n" +
+      "    amount: { minorUnits: entry.minorUnits, currency: entry.currency },\n" +
+      "  }));\n" +
+      "  const total = entries.reduce((sum, entry) => sum + entry.minorUnits, 0);\n" +
+      '  const currency = entries[0]?.currency ?? "USD";\n' +
+      "  return `${summarize(lines)}\\nTotal: ${formatMoney({ minorUnits: total, currency })}`;\n" +
+      "}\n\n" +
+      "module.exports = { renderQuarterReport };\n",
+  );
+}
+
+function writeLedgerKitV3(workDir: string): void {
+  writeFileSync(
+    join(workDir, "packages/ledger-kit/index.js"),
+    "function formatMoney(amount) {\n" +
+      "  const value = `${amount.currency} ${(Math.abs(amount.minorUnits) / 100).toFixed(2)}`;\n" +
+      "  return amount.minorUnits < 0 ? `(${value})` : value;\n" +
+      "}\n\n" +
+      "function renderLedger(lines) {\n" +
+      "  return lines\n" +
+      "    .map((line) => {\n" +
+      '      const label = line.note ? `${line.label} (${line.note})` : line.label;\n' +
+      '      return `${label}: ${formatMoney(line.amount)}`;\n' +
+      "    })\n" +
+      '    .join("\\n");\n' +
+      "}\n\n" +
+      "module.exports = { formatMoney, renderLedger };\n",
+  );
+  writeFileSync(
+    join(workDir, "src/report.js"),
+    'const { formatMoney, renderLedger } = require("../packages/ledger-kit");\n\n' +
+      "function renderQuarterReport(entries) {\n" +
+      "  const lines = entries.map((entry) => {\n" +
+      "    const line = {\n" +
+      "      label: entry.account,\n" +
+      "      amount: { minorUnits: entry.minorUnits, currency: entry.currency },\n" +
+      "    };\n" +
+      "    if (entry.note !== undefined) line.note = entry.note;\n" +
+      "    return line;\n" +
+      "  });\n" +
+      "  const total = entries.reduce((sum, entry) => sum + entry.minorUnits, 0);\n" +
+      '  const currency = entries[0]?.currency ?? "USD";\n' +
+      "  return `${renderLedger(lines)}\\nTotal: ${formatMoney({ minorUnits: total, currency })}`;\n" +
+      "}\n\n" +
+      "module.exports = { renderQuarterReport };\n",
+  );
+}
+
 describe("scenario loader", () => {
   let scenariosRoot: string;
   beforeEach(() => {
@@ -82,6 +146,43 @@ describe("scenario loader", () => {
     expect(loaded.spec.verification.timeoutMs).toBe(60_000);
   });
 
+  it("loads a well-formed staged scenario", () => {
+    writeScenario(
+      scenariosRoot,
+      "demo",
+      {
+        id: "demo",
+        description: "demo staged scenario",
+        stages: [
+          {
+            id: "upgrade-v2",
+            prompt: "apply v2 release notes",
+            verification: { command: "node test-v2.js" },
+          },
+          {
+            id: "upgrade-v3",
+            prompt: "apply v3 release notes",
+            verification: { command: "node test-v3.js", timeoutMs: 10_000 },
+            previewArtifacts: ["stage/v3.json"],
+          },
+        ],
+      },
+      { "hello.txt": "hi" },
+    );
+
+    const loaded = loadScenario(scenariosRoot, "demo");
+    expect(loaded.spec.stageMode).toBe("staged");
+    expect(loaded.spec.prompt).toBe("apply v2 release notes");
+    expect(loaded.spec.verification.command).toBe("node test-v3.js");
+    expect(loaded.spec.previewArtifacts).toEqual([]);
+    expect(loaded.spec.stages.map((stage) => stage.id)).toEqual([
+      "upgrade-v2",
+      "upgrade-v3",
+    ]);
+    expect(loaded.spec.stages[0]?.verification.timeoutMs).toBe(60_000);
+    expect(loaded.spec.stages[1]?.previewArtifacts).toEqual(["stage/v3.json"]);
+  });
+
   it("loads bounded preview artifact declarations", () => {
     writeScenario(
       scenariosRoot,
@@ -123,6 +224,69 @@ describe("scenario loader", () => {
           prompt: "do the thing",
           verification: { command: "true" },
           previewArtifacts,
+        },
+        { "hello.txt": "hi" },
+      );
+      expect(() => loadScenario(scenariosRoot, id)).toThrow(ScenarioLoadError);
+    }
+  });
+
+  it("rejects malformed staged scenario declarations", () => {
+    const baseStages = [
+      {
+        id: "upgrade-v2",
+        prompt: "apply v2",
+        verification: { command: "node test-v2.js" },
+      },
+      {
+        id: "upgrade-v3",
+        prompt: "apply v3",
+        verification: { command: "node test-v3.js" },
+      },
+    ];
+    const cases: [string, Record<string, unknown>][] = [
+      ["stages-not-array", { stages: "nope" }],
+      ["one-stage", { stages: [baseStages[0]] }],
+      [
+        "four-stages",
+        { stages: [...baseStages, { ...baseStages[1], id: "v4" }, { ...baseStages[1], id: "v5" }] },
+      ],
+      ["duplicate-stage", { stages: [baseStages[0], baseStages[0]] }],
+      [
+        "bad-stage-id",
+        { stages: [baseStages[0], { ...baseStages[1], id: "UpgradeV3" }] },
+      ],
+      [
+        "empty-stage-prompt",
+        { stages: [baseStages[0], { ...baseStages[1], prompt: "" }] },
+      ],
+      [
+        "top-level-prompt",
+        { prompt: "do it", stages: baseStages },
+      ],
+      [
+        "top-level-preview",
+        { stages: baseStages, previewArtifacts: ["preview.html"] },
+      ],
+      [
+        "bad-stage-preview",
+        {
+          stages: [
+            baseStages[0],
+            { ...baseStages[1], previewArtifacts: ["../preview.html"] },
+          ],
+        },
+      ],
+    ];
+
+    for (const [id, extraSpec] of cases) {
+      writeScenario(
+        scenariosRoot,
+        id,
+        {
+          id,
+          description: "demo staged scenario",
+          ...extraSpec,
         },
         { "hello.txt": "hi" },
       );
@@ -221,11 +385,84 @@ describe("shipped scenarios", () => {
         "discover-failing-source",
         "rename-across-files",
         "frontend-preview",
+        "package-upgrade-chain",
       ]),
     );
     // Guard against regressions that accidentally drop coverage back to a
     // single fixture. If a new scenario is added, bump this bound deliberately.
-    expect(all.length).toBeGreaterThanOrEqual(6);
+    expect(all.length).toBeGreaterThanOrEqual(7);
+  });
+
+  it("package-upgrade-chain loads as a staged release-note scenario", () => {
+    const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "package-upgrade-chain");
+    expect(loaded.spec.stageMode).toBe("staged");
+    expect(loaded.spec.stages.map((stage) => stage.id)).toEqual([
+      "ledger-kit-v2",
+      "ledger-kit-v3",
+    ]);
+    expect(loaded.spec.stages[0]?.prompt).toMatch(/Release notes/);
+    expect(loaded.spec.stages[0]?.prompt).toMatch(/v2\.0/);
+    expect(loaded.spec.stages[1]?.prompt).toMatch(/v3\.0/);
+    expect(loaded.spec.stages[0]?.verification.command).toBe("node test-v2.js");
+    expect(loaded.spec.stages[1]?.verification.command).toBe("node test-v3.js");
+    expect(existsSync(loaded.initialStateDir)).toBe(true);
+    expect(statSync(loaded.initialStateDir).isDirectory()).toBe(true);
+  });
+
+  it("package-upgrade-chain fails initially, passes v2 after the first upgrade, and passes v3 after preserving v2 behavior", () => {
+    const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "package-upgrade-chain");
+    const workDir = mkdtempSync(join(tmpdir(), "kota-harness-parity-package-upgrade-"));
+    try {
+      cpSync(loaded.initialStateDir, workDir, { recursive: true });
+      expect(existsSync(join(workDir, "packages/ledger-kit/index.js"))).toBe(true);
+      expect(existsSync(join(workDir, "src/report.js"))).toBe(true);
+
+      const beforeFix = spawnSync(loaded.spec.stages[0]!.verification.command, {
+        shell: true,
+        cwd: workDir,
+        timeout: loaded.spec.stages[0]!.verification.timeoutMs,
+        encoding: "utf-8",
+      });
+      expect(beforeFix.status).not.toBe(0);
+
+      writeLedgerKitV2(workDir);
+      const afterV2 = spawnSync(loaded.spec.stages[0]!.verification.command, {
+        shell: true,
+        cwd: workDir,
+        timeout: loaded.spec.stages[0]!.verification.timeoutMs,
+        encoding: "utf-8",
+      });
+      expect(afterV2.status).toBe(0);
+      expect(afterV2.stdout).toContain("ok");
+
+      const beforeV3 = spawnSync(loaded.spec.stages[1]!.verification.command, {
+        shell: true,
+        cwd: workDir,
+        timeout: loaded.spec.stages[1]!.verification.timeoutMs,
+        encoding: "utf-8",
+      });
+      expect(beforeV3.status).not.toBe(0);
+
+      writeLedgerKitV3(workDir);
+      const afterV3 = spawnSync(loaded.spec.stages[1]!.verification.command, {
+        shell: true,
+        cwd: workDir,
+        timeout: loaded.spec.stages[1]!.verification.timeoutMs,
+        encoding: "utf-8",
+      });
+      expect(afterV3.status).toBe(0);
+      expect(afterV3.stdout).toContain("ok");
+
+      const v2StillPasses = spawnSync(loaded.spec.stages[0]!.verification.command, {
+        shell: true,
+        cwd: workDir,
+        timeout: loaded.spec.stages[0]!.verification.timeoutMs,
+        encoding: "utf-8",
+      });
+      expect(v2StillPasses.status).toBe(0);
+    } finally {
+      rmSync(workDir, { recursive: true, force: true });
+    }
   });
 
   it("frontend-preview starts a local preview server, fails before the CSS fix, and writes preview artifacts after the fix", () => {

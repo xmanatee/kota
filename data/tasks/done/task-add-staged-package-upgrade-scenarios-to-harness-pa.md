@@ -1,12 +1,12 @@
 ---
 id: task-add-staged-package-upgrade-scenarios-to-harness-pa
 title: Add staged package-upgrade scenarios to harness parity
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Extend harness-parity with a staged package-upgrade scenario whose release-note prompts build on the same working tree, so paired harness evidence covers chained maintenance work rather than only one-shot fixes.
 created_at: 2026-05-19T22:25:54Z
-updated_at: 2026-05-19T22:25:54Z
+updated_at: 2026-05-19T22:41:38Z
 ---
 
 ## Problem
@@ -122,9 +122,14 @@ dependent edits, not only isolated one-shot fixes.
 
 ## Acceptance Evidence
 
-- Focused test transcript for the staged scenario loader and runner, for
-  example `pnpm test src/modules/harness-parity/scenario.test.ts src/modules/harness-parity/runner.test.ts`.
-- A local harness-parity artifact under `.kota/runs/<run-id>/` showing the
-  package-upgrade scenario's per-stage prompts, diffs, verification records,
-  and final staged summary.
-- Queue validation passes with the new ready task and no duplicate task id.
+- `.kota/runs/2026-05-19T22-28-03-887Z-builder-i3vqry/focused-test-transcript.txt`
+  captures
+  `pnpm test src/modules/harness-parity/scenario.test.ts src/modules/harness-parity/runner.test.ts`
+  passing 39 tests.
+- `.kota/runs/2026-05-19T22-28-03-887Z-builder-i3vqry/harness-parity-evidence/package-upgrade-chain/local-staged-upgrader/stages/ledger-kit-v2/`
+  and `stages/ledger-kit-v3/` contain per-stage prompts, traces, diffs,
+  verification records, trajectories, and run metadata.
+- `.kota/runs/2026-05-19T22-28-03-887Z-builder-i3vqry/harness-parity-evidence/package-upgrade-chain/parity.json`
+  and `local-staged-upgrader/run-meta.json` contain the compact staged
+  summaries.
+- `pnpm validate-tasks` passes after staging the manual task move.

@@ -10,8 +10,9 @@ judged against real runs rather than aspiration.
 ## Scope
 
 - Scenarios are self-contained: `scenarios/<id>/scenario.json` plus an
-  `initial/` tree that defines the starting repo state. Verification is a
-  single shell command whose exit status is the pass/fail signal.
+  `initial/` tree that defines the starting repo state. Single-stage
+  scenarios declare one prompt and verifier; staged scenarios declare two or
+  three ordered stages, each with its own prompt and verifier.
 - The runner reuses `runAgentHarness` — the same entry point the main `kota
   run` path calls. No parallel benchmarking framework lives here.
 - Every harness runs against a fresh `tmpdir` copy of the scenario's
@@ -52,67 +53,38 @@ Per harness run the module writes:
   mode, owner-question tool name, message-stream support, supported hook kinds,
   unsupported neutral run options, and optional local readiness data.
 
+Staged scenarios additionally write `stages/<stage-id>/` directories with the
+same per-stage prompt, trace, trajectory, diff, verifier, and run-meta files.
+The top-level harness directory keeps the final diff plus a compact staged
+summary in `run-meta.json`; `parity.json` carries the same per-stage status for
+side-by-side comparison.
+
 The top-level `parity.json` keeps compact capability and trajectory metadata
 beside each harness outcome so side-by-side comparison does not require
 opening every child run directory.
 
 ## Scenario Coverage
 
-The shipped scenarios span six coverage points by design, not by accident:
+Keep these seven coverage points alive. Adding another scenario is fine,
+but do not delete existing fixtures:
 
-- A minimal smoke scenario that any tool-calling harness can clear in a
-  single round trip. Its job is to prove the parity plumbing — scenario
-  load, working-dir materialization, adapter invocation, verification,
-  diff capture — survives end-to-end without masking trivial wiring bugs.
-- A multi-file, multi-turn scenario that requires reading several files,
-  deriving correct content from what was read, writing more than one
-  file, and running the verification command through the tool loop. Its
-  job is to probe the capability the "general-purpose coding agent
-  across pluggable harnesses" claim actually rests on. A text-only
-  adapter (`thin`) cannot clear it — that failure is evidence, not a bug.
-- A failure-and-revise scenario whose expected value is derived at test
-  time from an opaque transform and only surfaces in the assertion
-  failure output. Its job is to probe tool-result fidelity across turns:
-  a harness that silently truncates, drops, or fails to carry tool-result
-  bytes back into the agent's next turn cannot clear it, because the
-  agent's only path to the expected value runs through the failure
-  message. This is the property every real debugging workflow rests on.
-- A discovery scenario whose prompt names only the symptom — `node
-  test.js` fails — and intentionally does not name the source file the
-  agent must edit. The `initial/` tree carries realistic distractor
-  files alongside the one buggy file, and `test.js` does not import the
-  buggy file directly. Its job is to probe the discovery dimension a
-  real operator's prompt depends on: a harness that can read files but
-  cannot effectively search the project (no grep, glob, or directory
-  listing in the autonomous tool loop, or one that stops after the first
-  file it reads) clears the smoke / multi-file / failure-and-revise
-  fixtures and quietly fails this one. Real operators say "this test is
-  failing" and expect the agent to navigate the project on its own.
-- A cross-file rename scenario whose prompt names only the rename
-  target ("rename function `format` to `renderLine`") and the
-  verification command. The `initial/` tree defines the function in
-  one source file and exercises it through three or more caller files
-  via an entry module that `test.js` imports; `test.js` itself does
-  not import the renamed function. Its job is to probe the rename
-  discipline real refactor work depends on: a harness that touches the
-  definition but misses at least one call site leaves the project in a
-  partial state where the unchanged callers reference an undefined
-  symbol and crash the moment `test.js` exercises their code path.
-  This isolates cross-file consistency under rename — the property a
-  harness that "fixes" only files it already opened, or that stops
-  after the obvious first edit, silently fails.
-- A frontend-preview scenario whose verifier starts a deterministic
-  loopback static server, falls back to filesystem reads when sockets are
-  unavailable, checks DOM/CSS-visible state, and writes `preview.html`
-  plus `preview-check.json`. Its job is to probe the local rendered-
-  output workflow that frontend work depends on.
-
-Keep all six coverage points alive. Adding another scenario is fine, but
-do not delete existing fixtures: smoke catches plumbing regressions,
-multi-file probes multi-turn coding, failure-and-revise probes tool-
-result carry-over, discovery probes project navigation, rename probes
-cross-file consistency, and frontend-preview probes local rendered-output
-evidence. Each isolates a different blast radius.
+- Smoke proves scenario load, working-dir materialization, adapter
+  invocation, verification, and diff capture end to end.
+- Multi-file probes real coding work: read several files, derive content,
+  edit more than one file, and verify through the tool loop. A text-only
+  adapter (`thin`) failing here is evidence, not a bug.
+- Failure-and-revise probes tool-result fidelity across turns. The expected
+  value appears only in assertion failure output, so dropped or truncated
+  tool results prevent success.
+- Discovery probes project navigation from a symptom-only prompt (`node
+  test.js` fails) with distractor files and no named edit target.
+- Cross-file rename probes refactor consistency when the named function is
+  exercised through callers the test does not import directly.
+- Frontend-preview probes local rendered-output work with a deterministic
+  loopback server, filesystem fallback, DOM/CSS checks, `preview.html`, and
+  `preview-check.json`.
+- Package-upgrade-chain probes staged maintenance: apply dependent API
+  upgrades on one working tree while preserving earlier behavior.
 
 ## Capability Gap Handling
 
