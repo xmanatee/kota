@@ -285,3 +285,7 @@ resources:
   - url: https://arxiv.org/abs/2605.14415
     added: "2026-05-19"
     notes: "SWE-Chain evaluates coding agents on chained release-level package upgrades where each transition inherits the prior codebase. Monitor as a harness-parity/eval signal for staged maintenance tasks, upgrade regression retention, and long-horizon package migration evidence."
+    snapshot:
+      fingerprint: sha256:414dee148ffdf253d9cf7db1b5cff8d0
+      summary: "SWE-Chain reinforces KOTA's just-completed staged package-upgrade harness-parity scenario: release-level chained upgrades need inherited working-tree evidence, and no duplicate task is needed."
+      last_seen_at: "2026-05-19T23:01:14.777Z"
