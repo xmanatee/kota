@@ -17,6 +17,7 @@ import { loadDefinitions } from "./runtime-dispatch-definitions.js";
 import { handleDirtyCompletion } from "./runtime-dispatch-dirty-recovery.js";
 import { checkAbortSignal, checkReloadSignal, PAUSE_SIGNAL_FILE } from "./runtime-signals.js";
 import type { ScheduleTriggerManager } from "./schedule-triggers.js";
+import type { AgentRunLimiter } from "./steps/agent-run-limiter.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinition } from "./types.js";
 import type { WorkflowQueueManager } from "./workflow-queue.js";
@@ -42,6 +43,7 @@ export interface WorkflowRuntimeDispatchState {
   backoff: AgentBackoffManager;
   /** Max concurrent agent-step workflow runs. Default 1. */
   agentConcurrency: number;
+  agentRunLimiter: AgentRunLimiter;
   /** Max concurrent code-only workflow runs. Default 4. */
   codeConcurrency: number;
   runtimeConfig: WorkflowRuntimeConfig;
@@ -227,6 +229,7 @@ export async function runWorkflow(
         triggerWorkflowFromStep(state, workflowName, payload, waitFor, signal),
       resolveAgentDef: state.resolveAgentDef,
       resolveSkillsPrompt: state.resolveSkillsPrompt,
+      agentRunLimiter: state.agentRunLimiter,
     },
     abortController,
   );

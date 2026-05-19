@@ -16,6 +16,7 @@ import { buildResumeInitialState, buildRetryInitialState } from "./run-executor-
 import type { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowRunExecutionResult, WorkflowRunStatus, WorkflowRunToolRunner, WorkflowRunWarning, WorkflowStepResult } from "./run-types.js";
 import type { WorkflowBranchStep, WorkflowForeachStep } from "./step-types.js";
+import { type AgentRunLimiter, createAgentRunLimiter } from "./steps/agent-run-limiter.js";
 import { createStepContext } from "./steps/step-context.js";
 import {
   type AgentStepConfig,
@@ -57,6 +58,13 @@ export type RunExecutorDeps = {
   resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
   runTool?: WorkflowRunToolRunner;
   createAgentCanUseTool?: (stepId: string) => AgentCanUseTool;
+  /**
+   * Shared gate for active agent harness runs. Runtime callers pass the
+   * daemon-wide limiter; focused executor tests may pass agentConcurrency to
+   * create a local limiter for the run.
+   */
+  agentRunLimiter?: AgentRunLimiter;
+  agentConcurrency?: number;
 };
 
 export function executeWorkflowRun(
@@ -78,6 +86,8 @@ export function executeWorkflowRun(
   };
   const run = deps.store.createRun(definition, trigger);
   const startedAt = Date.now();
+  const agentRunLimiter =
+    deps.agentRunLimiter ?? createAgentRunLimiter(deps.agentConcurrency);
 
   let runTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
   if (definition.runTimeoutMs !== undefined) {
@@ -138,6 +148,7 @@ export function executeWorkflowRun(
           resolveAgentDef: deps.resolveAgentDef,
           resolveSkillsPrompt: deps.resolveSkillsPrompt,
           createCanUseTool: deps.createAgentCanUseTool,
+          agentRunLimiter,
         };
 
         const runDecision = await evaluateStepRunDecision(step, context);

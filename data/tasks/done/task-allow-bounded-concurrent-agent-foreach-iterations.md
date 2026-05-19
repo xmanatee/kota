@@ -1,12 +1,12 @@
 ---
 id: task-allow-bounded-concurrent-agent-foreach-iterations
 title: Allow bounded concurrent agent foreach iterations
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: Remove the stale foreach validation ban on agent inner steps with maxConcurrency > 1 and route those iterations through the existing agent concurrency back-pressure so dynamic batch-agent workflows stay inside the workflow DSL.
 created_at: 2026-05-19T19:26:17Z
-updated_at: 2026-05-19T19:26:17Z
+updated_at: 2026-05-19T19:39:43Z
 ---
 
 ## Problem
@@ -100,4 +100,14 @@ agent-concurrency rails as every other workflow agent step.
 
 - `pnpm test src/core/workflow/steps/step-executor-foreach.test.ts`
 - `pnpm test src/workflow-run-executor-parallel.integration.test.ts`
-- Queue validation passes with this task in `ready/`.
+- Queue validation passes after this task moves to `done/`.
+
+## Completion Evidence
+
+- `pnpm test src/core/workflow/steps/step-executor-foreach.test.ts` — 27 passed.
+- `pnpm test src/workflow-run-executor-parallel.integration.test.ts` — 11 passed.
+- `pnpm test src/core/workflow/run-executor-utils.test.ts` — 5 passed.
+- `pnpm test src/workflow-runtime.integration.test.ts` — 49 passed.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm validate-tasks` passed after the task move was staged.

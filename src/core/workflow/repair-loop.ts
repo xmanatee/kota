@@ -127,98 +127,107 @@ async function executeRepairAgentIteration(
   );
   const harness = resolveAgentHarness(step.harness);
   const harnessOverrides = step.harnessOptions?.[harness.name];
-  const attemptAbortController = new AbortController();
-  const forwardAbort = () => attemptAbortController.abort(abortController.signal.reason);
-  if (abortController.signal.aborted) {
-    attemptAbortController.abort(abortController.signal.reason);
-  } else {
-    abortController.signal.addEventListener("abort", forwardAbort, { once: true });
-  }
-  const idleMonitor = step.idleTimeoutMs === undefined
-    ? undefined
-    : createStepIdleTimeoutMonitor({
-        stepId: step.id,
-        idleTimeoutMs: step.idleTimeoutMs,
-        abortController: attemptAbortController,
-        createError: (idleForMs) =>
-          new AgentStepIdleTimeoutError(
-            step.id,
-            step.idleTimeoutMs!,
-            idleForMs,
-          ),
-      });
-  const messageCapture = harness.emitsAgentMessageStream
-    ? (message: KotaAgentMessage) => {
-        if (idleMonitor !== undefined && isAgentProgressMessage(message)) {
-          idleMonitor.reportProgress({
-            kind: "agent-message",
-            messageType: message.type,
-          });
-        }
-        appendMessage(message);
-      }
-    : undefined;
 
-  try {
-    const harnessRun = runAgentHarness(
-      harness,
-      {
-        prompt: repairPrompt,
-        model: resolveAgentModel(step, agentConfig),
-        cwd: agentConfig.projectDir,
-        systemPrompt,
-        maxTurns: step.maxTurns,
-        effort: step.effort,
-        thinkingEnabled: step.thinkingEnabled,
-        thinkingBudget: step.thinkingBudget,
-        ...routeKotaToolControlOptions(harness, {
-          allowedTools: step.allowedTools,
-          disallowedTools: step.disallowedTools,
-          canUseTool: createWorkflowAgentGuards(),
-        }),
-        autonomyMode: step.autonomyMode,
-        harnessOverrides,
-        abortController: attemptAbortController,
-        ...(messageCapture !== undefined ? { onMessage: messageCapture } : {}),
-      },
-      { write: () => true },
-    );
-    const result = await (idleMonitor === undefined
-      ? harnessRun
-      : Promise.race([harnessRun, idleMonitor.timeout]));
-    idleMonitor?.reportProgress({ kind: "agent-result" });
-    if (result.isError) {
-      const detail = result.text.trim() || "Repair agent returned an error";
-      const classified = classifyAgentRuntimeFailure({
-        message: detail,
-        subtype: result.subtype,
-      });
-      if (classified) {
-        // Mirror the initial-agent isError path in step-executor-agent.ts: the
-        // SDK already exhausted its internal retry budget, so a fresh step-level
-        // retry would just collide with the same outage. Throw a non-retryable
-        // AgentStepRuntimeError so the run-executor surfaces the classified
-        // backoff signal to AgentBackoffManager (provider-kind ≥5 min dispatch
-        // delay) instead of a plain Error that the manager cannot read.
-        throw new AgentStepRuntimeError(
-          `Repair agent for step "${step.id}" failed: ${detail}`,
-          classified.kind,
-          false,
-        );
+  const runRepairHarness = async () => {
+    const attemptAbortController = new AbortController();
+    const forwardAbort = () => attemptAbortController.abort(abortController.signal.reason);
+    if (abortController.signal.aborted) {
+      attemptAbortController.abort(abortController.signal.reason);
+    } else {
+      abortController.signal.addEventListener("abort", forwardAbort, { once: true });
+    }
+    const idleMonitor = step.idleTimeoutMs === undefined
+      ? undefined
+      : createStepIdleTimeoutMonitor({
+          stepId: step.id,
+          idleTimeoutMs: step.idleTimeoutMs,
+          abortController: attemptAbortController,
+          createError: (idleForMs) =>
+            new AgentStepIdleTimeoutError(
+              step.id,
+              step.idleTimeoutMs!,
+              idleForMs,
+            ),
+        });
+    const messageCapture = harness.emitsAgentMessageStream
+      ? (message: KotaAgentMessage) => {
+          if (idleMonitor !== undefined && isAgentProgressMessage(message)) {
+            idleMonitor.reportProgress({
+              kind: "agent-message",
+              messageType: message.type,
+            });
+          }
+          appendMessage(message);
+        }
+      : undefined;
+
+    try {
+      const harnessRun = runAgentHarness(
+        harness,
+        {
+          prompt: repairPrompt,
+          model: resolveAgentModel(step, agentConfig),
+          cwd: agentConfig.projectDir,
+          systemPrompt,
+          maxTurns: step.maxTurns,
+          effort: step.effort,
+          thinkingEnabled: step.thinkingEnabled,
+          thinkingBudget: step.thinkingBudget,
+          ...routeKotaToolControlOptions(harness, {
+            allowedTools: step.allowedTools,
+            disallowedTools: step.disallowedTools,
+            canUseTool: createWorkflowAgentGuards(),
+          }),
+          autonomyMode: step.autonomyMode,
+          harnessOverrides,
+          abortController: attemptAbortController,
+          ...(messageCapture !== undefined ? { onMessage: messageCapture } : {}),
+        },
+        { write: () => true },
+      );
+      const result = await (idleMonitor === undefined
+        ? harnessRun
+        : Promise.race([harnessRun, idleMonitor.timeout]));
+      idleMonitor?.reportProgress({ kind: "agent-result" });
+      return result;
+    } catch (error) {
+      if (error instanceof AgentStepIdleTimeoutError) throw error;
+      if (attemptAbortController.signal.reason instanceof AgentStepIdleTimeoutError) {
+        throw attemptAbortController.signal.reason;
       }
-      throw new Error(`Repair agent for step "${step.id}" failed: ${detail}`);
+      throw error;
+    } finally {
+      idleMonitor?.dispose();
+      abortController.signal.removeEventListener("abort", forwardAbort);
     }
-    return { text: result.text, turns: result.turns, totalCostUsd: result.totalCostUsd };
-  } catch (error) {
-    if (error instanceof AgentStepIdleTimeoutError) throw error;
-    if (attemptAbortController.signal.reason instanceof AgentStepIdleTimeoutError) {
-      throw attemptAbortController.signal.reason;
+  };
+
+  const result = agentConfig.agentRunLimiter
+    ? await agentConfig.agentRunLimiter.run(runRepairHarness, abortController.signal)
+    : await runRepairHarness();
+
+  if (result.isError) {
+    const detail = result.text.trim() || "Repair agent returned an error";
+    const classified = classifyAgentRuntimeFailure({
+      message: detail,
+      subtype: result.subtype,
+    });
+    if (classified) {
+      // Mirror the initial-agent isError path in step-executor-agent.ts: the
+      // SDK already exhausted its internal retry budget, so a fresh step-level
+      // retry would just collide with the same outage. Throw a non-retryable
+      // AgentStepRuntimeError so the run-executor surfaces the classified
+      // backoff signal to AgentBackoffManager (provider-kind >=5 min dispatch
+      // delay) instead of a plain Error that the manager cannot read.
+      throw new AgentStepRuntimeError(
+        `Repair agent for step "${step.id}" failed: ${detail}`,
+        classified.kind,
+        false,
+      );
     }
-    throw error;
-  } finally {
-    idleMonitor?.dispose();
-    abortController.signal.removeEventListener("abort", forwardAbort);
+    throw new Error(`Repair agent for step "${step.id}" failed: ${detail}`);
   }
+  return { text: result.text, turns: result.turns, totalCostUsd: result.totalCostUsd };
 }
 
 /**

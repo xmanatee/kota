@@ -41,6 +41,7 @@ import {
   RELOAD_SIGNAL_FILE,
 } from "./runtime-signals.js";
 import { ScheduleTriggerManager } from "./schedule-triggers.js";
+import { type AgentRunLimiter, createAgentRunLimiter } from "./steps/agent-run-limiter.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinition } from "./types.js";
 import { WorkflowDefinitionError } from "./validation.js";
 import { WatchTriggerManager } from "./watch-triggers.js";
@@ -66,6 +67,7 @@ export interface WorkflowRuntimeContext {
   readonly watchTriggers: WatchTriggerManager;
   readonly backoff: AgentBackoffManager;
   readonly agentConcurrency: number;
+  readonly agentRunLimiter: AgentRunLimiter;
   readonly codeConcurrency: number;
   readonly runtimeConfig: WorkflowRuntimeConfig;
   /**
@@ -163,6 +165,7 @@ export class WorkflowRuntime {
       runtimeConfig.pbus ??
       new ProjectScopedEventBus(runtimeConfig.bus, deriveProjectId(projectDir));
 
+    const agentConcurrency = runtimeConfig.agentConcurrency ?? 1;
     ctx = {
       projectDir,
       config: runtimeConfig.config,
@@ -171,7 +174,8 @@ export class WorkflowRuntime {
       scheduleTriggers,
       watchTriggers,
       backoff,
-      agentConcurrency: runtimeConfig.agentConcurrency ?? 1,
+      agentConcurrency,
+      agentRunLimiter: createAgentRunLimiter(agentConcurrency)!,
       codeConcurrency: runtimeConfig.codeConcurrency ?? 4,
       runtimeConfig,
       pbus,

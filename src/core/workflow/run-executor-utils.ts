@@ -6,6 +6,7 @@ import type {
   WorkflowRuntimeState,
   WorkflowStepResult,
 } from "./run-types.js";
+import type { WorkflowStep } from "./step-types.js";
 import type { WorkflowFilterValue, WorkflowRunTrigger, WorkflowTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
@@ -224,7 +225,18 @@ export function buildResumeInitialState(
 }
 
 export function workflowUsesAgent(definition: WorkflowDefinition): boolean {
-  return definition.steps.some((step) => step.type === "agent");
+  return definition.steps.some(stepUsesAgent);
+}
+
+function stepUsesAgent(step: WorkflowStep): boolean {
+  if (step.type === "agent") return true;
+  if (step.type === "parallel" || step.type === "foreach") {
+    return step.steps.some((innerStep) => innerStep.type === "agent");
+  }
+  if (step.type === "branch") {
+    return step.ifTrue.some(stepUsesAgent) || step.ifFalse.some(stepUsesAgent);
+  }
+  return false;
 }
 
 function cloneTriggerPayloadValue(

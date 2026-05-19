@@ -62,7 +62,8 @@ export type WorkflowForeachStepInput = WorkflowBaseStep & {
   steps: (WorkflowCodeStepInput | WorkflowAgentStepInput)[];
   /**
    * Maximum number of items to execute concurrently. Defaults to 1 (serial).
-   * Must be a positive integer. Values > 1 are rejected if any inner step is an agent step.
+   * Must be a positive integer. Agent inner steps also honor the runtime
+   * agent-concurrency gate.
    */
   maxConcurrency?: number;
   /**

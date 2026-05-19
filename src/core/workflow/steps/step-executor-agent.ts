@@ -22,6 +22,7 @@ import {
 import type { WorkflowAgentStep } from "../step-types.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 import type { WorkflowDefinition } from "../types.js";
+import type { AgentRunLimiter } from "./agent-run-limiter.js";
 import {
   AgentWriteScopeViolationError,
   diffMutatedPaths,
@@ -68,6 +69,7 @@ export type AgentStepConfig = {
   resolveAgentDef?: (name: string) => AgentDef | undefined;
   resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
   createCanUseTool?: (stepId: string) => AgentCanUseTool;
+  agentRunLimiter?: AgentRunLimiter;
 };
 
 export {
@@ -265,7 +267,7 @@ export async function executeAgentStep(
   };
 
   const retry = step.retry ?? DEFAULT_AGENT_STEP_RETRY;
-  const output = await withRetry(runAttempt, retry, {
+  const runWithRetry = () => withRetry(runAttempt, retry, {
     log: agentConfig.log,
     abortSignal: abortController.signal,
     // Only consume retry attempts for classified-transient failures. Max-turn,
@@ -274,6 +276,9 @@ export async function executeAgentStep(
       err instanceof JsonSchemaValidationError ||
       (err instanceof AgentStepRuntimeError && err.retryable),
   });
+  const output = agentConfig.agentRunLimiter
+    ? await agentConfig.agentRunLimiter.run(runWithRetry, abortController.signal)
+    : await runWithRetry();
 
   if (resolvedHarness.emitsAgentMessageStream) {
     writeToolTelemetryArtifact(step.id, metadata, agentConfig.projectDir, stepTelemetry);

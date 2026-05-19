@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BusEnvelope } from "#core/events/event-bus.js";
-import { enqueueMatchingWorkflows } from "./run-executor-utils.js";
+import { enqueueMatchingWorkflows, workflowUsesAgent } from "./run-executor-utils.js";
 import { safeJsonStringify } from "./run-io.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
@@ -88,5 +88,73 @@ describe("enqueueMatchingWorkflows", () => {
         () => {},
       ),
     ).toThrow("Workflow trigger payload cannot contain circular references");
+  });
+});
+
+describe("workflowUsesAgent", () => {
+  function definitionWithStep(step: WorkflowDefinition["steps"][number]): WorkflowDefinition {
+    return {
+      name: "test",
+      enabled: true,
+      recoveryCapable: false,
+      definitionPath: "test.ts",
+      moduleRoot: process.cwd(),
+      triggers: [],
+      steps: [step],
+      tags: [],
+    };
+  }
+
+  const agentStep = {
+    id: "agent",
+    type: "agent",
+    promptPath: "prompt.md",
+    moduleRoot: process.cwd(),
+    harness: "test-harness",
+    model: "test-model",
+    effort: "low",
+    autonomyMode: "autonomous",
+  } satisfies WorkflowDefinition["steps"][number];
+
+  it("detects agent steps nested in foreach", () => {
+    expect(
+      workflowUsesAgent(
+        definitionWithStep({
+          id: "loop",
+          type: "foreach",
+          items: () => [],
+          as: "item",
+          steps: [agentStep],
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it("detects agent steps nested in branch arms", () => {
+    expect(
+      workflowUsesAgent(
+        definitionWithStep({
+          id: "branch",
+          type: "branch",
+          condition: () => true,
+          ifTrue: [],
+          ifFalse: [agentStep],
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it("leaves code-only nested steps classified as code workflows", () => {
+    expect(
+      workflowUsesAgent(
+        definitionWithStep({
+          id: "loop",
+          type: "foreach",
+          items: () => [],
+          as: "item",
+          steps: [{ id: "code", type: "code", run: () => "ok" }],
+        }),
+      ),
+    ).toBe(false);
   });
 });

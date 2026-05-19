@@ -1,11 +1,17 @@
-import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { registerAgentHarness } from "#core/agent-harness/registry.js";
+import type {
+  AgentHarness,
+  AgentHarnessResult,
+} from "#core/agent-harness/types.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { executeWorkflowRun } from "../run-executor.js";
 import { WorkflowRunStore } from "../run-store.js";
 import type { WorkflowForeachStepInput } from "../step-input-control-flow.js";
+import type { WorkflowAgentStep } from "../step-types.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 import type { WorkflowDefinition } from "../types.js";
 import { validateWorkflowDefinitions } from "../validation.js";
@@ -32,6 +38,56 @@ function makeDefinition(
 }
 
 const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", payload: {} };
+
+const AGENT_OK_RESULT: AgentHarnessResult = {
+  text: "done",
+  streamedText: "done",
+  turns: 1,
+  isError: false,
+};
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function uniqueHarnessName(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function registerWorkflowTestHarness(
+  name: string,
+  run: AgentHarness["run"],
+): void {
+  registerAgentHarness({
+    name,
+    description: "foreach workflow test harness",
+    supportsMultiTurn: false,
+    supportedHookKinds: [],
+    askOwnerToolName: null,
+    emitsAgentMessageStream: false,
+    toolControl: "kota",
+    run,
+  });
+}
+
+function makeAgentStep(
+  projectDir: string,
+  harness: string,
+  overrides: Partial<WorkflowAgentStep> = {},
+): WorkflowAgentStep {
+  writeFileSync(join(projectDir, "prompt.md"), "# Prompt\nRun the item.\n", "utf-8");
+  return {
+    id: "agent-process",
+    type: "agent",
+    promptPath: "prompt.md",
+    moduleRoot: projectDir,
+    harness,
+    model: "test-model",
+    effort: "low",
+    autonomyMode: "autonomous",
+    ...overrides,
+  };
+}
 
 describe("foreach step – executor", () => {
   let projectDir: string;
@@ -453,6 +509,263 @@ describe("foreach step – maxConcurrency", () => {
     expect(result.metadata.status).toBe("completed-with-warnings");
     expect(processed.sort()).toEqual([0, 1, 2, 3]);
   });
+
+  it("runs agent iterations concurrently up to foreach and agent caps", async () => {
+    const harness = uniqueHarnessName("foreach-agent-cap");
+    let active = 0;
+    let maxActive = 0;
+    let calls = 0;
+    registerWorkflowTestHarness(harness, async () => {
+      calls++;
+      active++;
+      maxActive = Math.max(maxActive, active);
+      await delay(20);
+      active--;
+      return { ...AGENT_OK_RESULT };
+    });
+
+    const definition = makeDefinition([
+      {
+        id: "iterate",
+        type: "foreach",
+        maxConcurrency: 3,
+        items: () => [0, 1, 2, 3],
+        as: "n",
+        steps: [makeAgentStep(projectDir, harness)],
+      },
+    ]);
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      projectDir,
+      bus,
+      store,
+      log,
+      agentConcurrency: 2,
+    });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("success");
+    expect(calls).toBe(4);
+    expect(maxActive).toBe(2);
+  });
+
+  it("serializes agent iterations when agentConcurrency is 1", async () => {
+    const harness = uniqueHarnessName("foreach-agent-serial");
+    let active = 0;
+    let maxActive = 0;
+    registerWorkflowTestHarness(harness, async () => {
+      active++;
+      maxActive = Math.max(maxActive, active);
+      await delay(10);
+      active--;
+      return { ...AGENT_OK_RESULT };
+    });
+
+    const definition = makeDefinition([
+      {
+        id: "iterate",
+        type: "foreach",
+        maxConcurrency: 3,
+        items: () => [0, 1, 2],
+        as: "n",
+        steps: [makeAgentStep(projectDir, harness)],
+      },
+    ]);
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      projectDir,
+      bus,
+      store,
+      log,
+      agentConcurrency: 1,
+    });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("success");
+    expect(maxActive).toBe(1);
+  });
+
+  it("serializes repair-loop agent iterations through agentConcurrency", async () => {
+    const harness = uniqueHarnessName("foreach-agent-repair-serial");
+    let active = 0;
+    let maxActive = 0;
+    let calls = 0;
+    registerWorkflowTestHarness(harness, async (options) => {
+      calls++;
+      active++;
+      maxActive = Math.max(maxActive, active);
+      try {
+        const isRepair = options.prompt.includes("Post-check repair attempt");
+        await delay(isRepair ? 30 : 20);
+        return { ...AGENT_OK_RESULT, text: isRepair ? "repaired" : "initial" };
+      } finally {
+        active--;
+      }
+    });
+    const checkCounts = new Map<unknown, number>();
+
+    const definition = makeDefinition([
+      {
+        id: "iterate",
+        type: "foreach",
+        maxConcurrency: 2,
+        items: () => [0, 1],
+        as: "n",
+        steps: [
+          makeAgentStep(projectDir, harness, {
+            repairLoop: {
+              maxRepairAttempts: 1,
+              checks: [
+                {
+                  id: "needs-repair",
+                  type: "code",
+                  run: (context) => {
+                    const key = context.foreach?.n;
+                    const count = checkCounts.get(key) ?? 0;
+                    checkCounts.set(key, count + 1);
+                    if (count === 0) throw new Error(`item ${String(key)} needs repair`);
+                    return "ok";
+                  },
+                },
+              ],
+            },
+          }),
+        ],
+      },
+    ]);
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      projectDir,
+      bus,
+      store,
+      log,
+      agentConcurrency: 1,
+    });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("success");
+    expect(calls).toBe(4);
+    expect([...checkCounts.values()]).toEqual([2, 2]);
+    expect(maxActive).toBe(1);
+  });
+
+  it("preserves ordered agent item results and continues after agent item failures", async () => {
+    const harness = uniqueHarnessName("foreach-agent-failure");
+    let nextCallIndex = 0;
+    registerWorkflowTestHarness(harness, async () => {
+      const callIndex = nextCallIndex++;
+      await delay(callIndex === 0 ? 20 : 0);
+      if (callIndex === 1) throw new Error("agent item 1 failed");
+      return { ...AGENT_OK_RESULT, text: `call:${callIndex}` };
+    });
+
+    const definition = makeDefinition([
+      {
+        id: "iterate",
+        type: "foreach",
+        maxConcurrency: 3,
+        continueOnFailure: true,
+        items: () => [0, 1, 2],
+        as: "n",
+        steps: [makeAgentStep(projectDir, harness)],
+      },
+    ]);
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      projectDir,
+      bus,
+      store,
+      log,
+      agentConcurrency: 3,
+    });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("completed-with-warnings");
+    const output = result.metadata.steps[0].output as {
+      results: Array<{
+        index: number;
+        status: string;
+        steps: Record<string, { status: string; output?: { content?: string } }>;
+      }>;
+    };
+    expect(output.results.map((item) => item.index)).toEqual([0, 1, 2]);
+    expect(output.results.map((item) => item.status)).toEqual([
+      "success",
+      "failed",
+      "success",
+    ]);
+    expect(output.results[0].steps["agent-process"]?.output?.content).toBe("call:0");
+    expect(output.results[2].steps["agent-process"]?.output?.content).toBe("call:2");
+  });
+
+  it("re-runs only failed agent items on retry when retryFailedItems is true", async () => {
+    const harness = uniqueHarnessName("foreach-agent-retry");
+    let nextCallIndex = 0;
+    registerWorkflowTestHarness(harness, async () => {
+      const callIndex = nextCallIndex++;
+      if (callIndex === 1) throw new Error("agent item 1 failed");
+      return { ...AGENT_OK_RESULT, text: `first:${callIndex}` };
+    });
+
+    const definition = makeDefinition([
+      {
+        id: "iterate",
+        type: "foreach",
+        maxConcurrency: 3,
+        continueOnFailure: true,
+        retryFailedItems: true,
+        items: () => [0, 1, 2],
+        as: "n",
+        steps: [makeAgentStep(projectDir, harness)],
+      },
+    ]);
+
+    const { promise: firstRun } = executeWorkflowRun(definition, TRIGGER, {
+      projectDir,
+      bus,
+      store,
+      log,
+      agentConcurrency: 3,
+    });
+    const first = await firstRun;
+    expect(first.metadata.status).toBe("completed-with-warnings");
+
+    let retryCalls = 0;
+    registerWorkflowTestHarness(harness, async () => {
+      const callIndex = retryCalls++;
+      return { ...AGENT_OK_RESULT, text: `retry:${callIndex}` };
+    });
+
+    const { promise: retryRun } = executeWorkflowRun(
+      definition,
+      makeRetryTrigger(first.metadata.id),
+      {
+        projectDir,
+        bus,
+        store,
+        log,
+        agentConcurrency: 3,
+      },
+    );
+    const retried = await retryRun;
+
+    expect(retryCalls).toBe(1);
+    expect(retried.metadata.status).toBe("success");
+    const output = retried.metadata.steps[0].output as {
+      results: Array<{
+        status: string;
+        steps: Record<string, { output?: { content?: string } }>;
+      }>;
+    };
+    expect(output.results.map((item) => item.status)).toEqual([
+      "success",
+      "success",
+      "success",
+    ]);
+    expect(output.results[0].steps["agent-process"]?.output?.content).toBe("first:0");
+    expect(output.results[1].steps["agent-process"]?.output?.content).toBe("retry:0");
+    expect(output.results[2].steps["agent-process"]?.output?.content).toBe("first:2");
+  });
 });
 
 describe("foreach step – validation", () => {
@@ -553,7 +866,7 @@ describe("foreach step – validation", () => {
     ).toThrow(/must be "code" or "agent"/);
   });
 
-  it("accepts maxConcurrency: 1 with agent steps", () => {
+  it("accepts maxConcurrency: 1", () => {
     const defs = validateWorkflowDefinitions([
       {
         definitionPath: "test.ts",
@@ -574,7 +887,51 @@ describe("foreach step – validation", () => {
     expect((defs[0].steps[0] as { maxConcurrency?: number }).maxConcurrency).toBe(1);
   });
 
-  it("rejects maxConcurrency > 1 with agent inner steps", () => {
+  it("accepts maxConcurrency > 1 with agent inner steps", () => {
+    const validationProjectDir = join(
+      tmpdir(),
+      `kota-foreach-validation-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(validationProjectDir, { recursive: true });
+    writeFileSync(join(validationProjectDir, "prompt.md"), "# Prompt\nRun.\n", "utf-8");
+    try {
+      const defs = validateWorkflowDefinitions(
+        [
+          {
+            definitionPath: "test.ts",
+            name: "test",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [
+              {
+                id: "loop",
+                type: "foreach",
+                maxConcurrency: 2,
+                items: () => [],
+                as: "item",
+                steps: [
+                  {
+                    id: "agent-step",
+                    type: "agent",
+                    promptPath: "prompt.md",
+                    harness: "foreach-validation-harness",
+                    model: "test-model",
+                    effort: "low",
+                    autonomyMode: "autonomous",
+                  },
+                ],
+              } satisfies WorkflowForeachStepInput,
+            ],
+          },
+        ],
+        validationProjectDir,
+      );
+      expect((defs[0].steps[0] as { maxConcurrency?: number }).maxConcurrency).toBe(2);
+    } finally {
+      rmSync(validationProjectDir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects unsupported inner step types even when maxConcurrency > 1", () => {
     expect(() =>
       validateWorkflowDefinitions([
         {
@@ -590,18 +947,16 @@ describe("foreach step – validation", () => {
               as: "item",
               steps: [
                 {
-                  id: "agent-step",
-                  type: "agent",
-                  promptPath: "some/prompt.md",
-                  model: "claude-opus-4-7",
-              effort: "xhigh",
-                },
+                  id: "inner-trigger",
+                  type: "trigger",
+                  workflow: "other",
+                } as unknown as { id: string; type: "code"; run: () => void },
               ],
             } satisfies WorkflowForeachStepInput,
           ],
         },
       ]),
-    ).toThrow(/maxConcurrency > 1 is not allowed when inner steps include agent steps/);
+    ).toThrow(/must be "code" or "agent"/);
   });
 
   it("rejects non-integer maxConcurrency", () => {
