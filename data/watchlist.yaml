@@ -86,9 +86,17 @@ resources:
   - url: https://arxiv.org/abs/2605.18583
     added: "2026-05-19"
     notes: "Overeager Coding Agents / OverEager-Bench measures benign-task scope expansion across Claude Code, OpenHands, Codex CLI, and Gemini CLI. Monitor as a direct autonomy-eval signal for authorization-boundary and over-eager edit behavior, not as a replacement benchmark."
+    snapshot:
+      fingerprint: sha256:b47d293218f1310563f501953bd7e62e
+      summary: "Overeager Coding Agents reinforces KOTA's completed autonomy eval fixture work: out-of-scope helpful edits are authorization failures that need artifact-level checks, not prompt-only guidance."
+      last_seen_at: "2026-05-19T18:53:35.088Z"
   - url: https://arxiv.org/abs/2605.07769
     added: "2026-05-19"
     notes: "Coding Agents Don't Know When to Act / FixedBench measures stale already-fixed coding tasks where the correct action is no production patch. Monitor as a restraint/no-op eval signal for builder and critic calibration."
+    snapshot:
+      fingerprint: sha256:a3a17073290f624c610e1023be9c31a1
+      summary: "FixedBench reinforces KOTA's completed no-op restraint fixture: already-satisfied tasks must be a valid success path, while unnecessary production patches should fail."
+      last_seen_at: "2026-05-19T18:53:35.088Z"
   - url: https://github.com/letta-ai/letta
     added: "2026-04-19"
     snapshot:
