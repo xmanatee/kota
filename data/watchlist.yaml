@@ -268,3 +268,6 @@ resources:
       fingerprint: sha256:9e16f5cd8b79431a965813c394429e45
       summary: "GitHub Agentic Workflows now exposes a TrialOps pattern for isolated real workflow execution; KOTA's actionable gap is workflow trial runs that sit between dry-run planning and live project execution."
       last_seen_at: "2026-05-18T11:10:09.573Z"
+  - url: https://github.com/Alienfader/continuity-benchmarks
+    added: "2026-05-19"
+    notes: "Reproducible benchmark for execution-intent memory in long-horizon AI coding agents. Monitor as a peer signal for KOTA's recall/memory eval coverage, action-keyed retrieval, noisy cross-session continuity, and deterministic memory-eval artifacts."
