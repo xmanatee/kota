@@ -271,3 +271,10 @@ resources:
   - url: https://github.com/Alienfader/continuity-benchmarks
     added: "2026-05-19"
     notes: "Reproducible benchmark for execution-intent memory in long-horizon AI coding agents. Monitor as a peer signal for KOTA's recall/memory eval coverage, action-keyed retrieval, noisy cross-session continuity, and deterministic memory-eval artifacts."
+    snapshot:
+      fingerprint: sha256:b7839f8147b6cc1e9cbfb7496aad63f4
+      summary: "Continuity Benchmarks is accessible and still directly maps to KOTA's execution-intent recall gap; that gap is already covered by the completed `task-add-execution-intent-recall-eval-fixture`, so this refresh opened no duplicate task."
+      last_seen_at: "2026-05-19T21:18:58.440Z"
+  - url: https://arxiv.org/abs/2605.18565
+    added: "2026-05-19"
+    notes: "LongMINT evaluates memory under multi-target interference in long-horizon agent systems, including revised facts, noisy long contexts, GitHub commits, single-target recall, and multi-target aggregation. Monitor as a recall/eval signal for stale-decision resistance and aggregation over multiple current memories."
