@@ -46,6 +46,15 @@ export type FixturePredicate =
   | { kind: "file-absent"; path: string }
   | { kind: "file-contains"; path: string; needle: string }
   | {
+      /**
+       * Passes when every repo path changed since the fixture's initial git
+       * commit is inside `allowedPaths`. Runtime artifacts under `.kota/`
+       * are ignored because the workflow host writes them for every run.
+       */
+      kind: "git-changes-within";
+      allowedPaths: readonly string[];
+    }
+  | {
       kind: "shell-succeeds";
       command: string;
       /** Per-command timeout in ms. Capped at 5 minutes. */
@@ -133,6 +142,7 @@ export type PredicateExpectationEvalResult = {
 const SHELL_PREDICATE_MAX_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_SHELL_TIMEOUT_MS = 60_000;
 const OUTPUT_TAIL_LIMIT = 4_000;
+const DEFAULT_GIT_CHANGE_IGNORED_PREFIXES = [".kota/"] as const;
 
 function tail(text: string, limit: number): string {
   if (text.length <= limit) return text;
@@ -195,6 +205,135 @@ function evaluateFileContains(
     detail: found
       ? `file ${predicate.path} contains needle (${predicate.needle.length} chars)`
       : `file ${predicate.path} missing needle`,
+  };
+}
+
+type GitCommandOutput =
+  | { ok: true; stdout: string }
+  | { ok: false; detail: string };
+
+function runGitCapture(workingDir: string, args: readonly string[]): GitCommandOutput {
+  const result = spawnSync("git", args, {
+    cwd: workingDir,
+    encoding: "utf-8",
+    stdio: ["ignore", "pipe", "pipe"],
+    maxBuffer: 4 * 1024 * 1024,
+  });
+  if (result.status === 0 && result.error === undefined) {
+    return { ok: true, stdout: result.stdout };
+  }
+  const combined = [result.stdout, result.stderr, result.error?.message]
+    .filter((s): s is string => typeof s === "string" && s.length > 0)
+    .join("\n")
+    .trim();
+  return {
+    ok: false,
+    detail: `git ${args.join(" ")} failed${combined ? `: ${tail(combined, OUTPUT_TAIL_LIMIT)}` : ""}`,
+  };
+}
+
+function pathsFromNameStatus(stdout: string): string[] {
+  const paths: string[] = [];
+  for (const line of stdout.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) continue;
+    const parts = trimmed.split("\t");
+    const status = parts[0] ?? "";
+    if ((status.startsWith("R") || status.startsWith("C")) && parts.length >= 3) {
+      paths.push(parts[1], parts[2]);
+      continue;
+    }
+    if (parts.length >= 2) paths.push(parts[1]);
+  }
+  return paths;
+}
+
+function pathsFromPorcelain(stdout: string): string[] {
+  const paths: string[] = [];
+  for (const line of stdout.split("\n")) {
+    if (line.trim().length === 0) continue;
+    const pathPart = line.length > 3 ? line.slice(3) : "";
+    if (pathPart.includes(" -> ")) {
+      const [from, to] = pathPart.split(" -> ");
+      if (from) paths.push(from);
+      if (to) paths.push(to);
+      continue;
+    }
+    if (pathPart) paths.push(pathPart);
+  }
+  return paths;
+}
+
+function ignoredGitChangePath(path: string): boolean {
+  return DEFAULT_GIT_CHANGE_IGNORED_PREFIXES.some((prefix) =>
+    path.startsWith(prefix),
+  );
+}
+
+function readGitChangedPaths(workingDir: string): GitCommandOutput & {
+  paths?: string[];
+} {
+  const root = runGitCapture(workingDir, ["rev-list", "--max-parents=0", "HEAD"]);
+  if (!root.ok) return root;
+  const rootCommit = root.stdout.trim().split("\n").find((line) => line.length > 0);
+  if (rootCommit === undefined) {
+    return { ok: false, detail: "git rev-list found no root commit" };
+  }
+
+  const committed = runGitCapture(workingDir, [
+    "diff",
+    "--name-status",
+    "--find-renames",
+    `${rootCommit}..HEAD`,
+  ]);
+  if (!committed.ok) return committed;
+
+  const workingTree = runGitCapture(workingDir, [
+    "status",
+    "--porcelain=v1",
+    "--untracked-files=all",
+  ]);
+  if (!workingTree.ok) return workingTree;
+
+  const paths = new Set<string>();
+  for (const path of [
+    ...pathsFromNameStatus(committed.stdout),
+    ...pathsFromPorcelain(workingTree.stdout),
+  ]) {
+    if (!ignoredGitChangePath(path)) paths.add(path);
+  }
+  return { ok: true, stdout: "", paths: [...paths].sort() };
+}
+
+function evaluateGitChangesWithin(
+  workingDir: string,
+  predicate: Extract<FixturePredicate, { kind: "git-changes-within" }>,
+): PredicateEvalResult {
+  const changed = readGitChangedPaths(workingDir);
+  if (!changed.ok) {
+    return {
+      predicate,
+      passed: false,
+      detail: changed.detail,
+    };
+  }
+  const allowed = new Set(predicate.allowedPaths);
+  const paths = changed.paths ?? [];
+  const offenders = paths.filter((path) => !allowed.has(path));
+  if (offenders.length === 0) {
+    return {
+      predicate,
+      passed: true,
+      detail: `git changed paths are within allowed set (${paths.length} changed path(s))`,
+    };
+  }
+  return {
+    predicate,
+    passed: false,
+    detail:
+      `git changed path(s) outside allowed set: ${offenders.join(", ")}. ` +
+      `Changed: ${paths.join(", ") || "(none)"}. ` +
+      `Allowed: ${predicate.allowedPaths.join(", ") || "(none)"}.`,
   };
 }
 
@@ -535,6 +674,8 @@ export function evaluatePredicate(
       return evaluateFileAbsent(workingDir, predicate);
     case "file-contains":
       return evaluateFileContains(workingDir, predicate);
+    case "git-changes-within":
+      return evaluateGitChangesWithin(workingDir, predicate);
     case "shell-succeeds":
     case "shell-fails":
       return evaluateShell(workingDir, predicate);

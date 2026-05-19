@@ -170,6 +170,8 @@ function isFixturePredicate(value: unknown): value is FixturePredicate {
       return typeof p.path === "string";
     case "file-contains":
       return typeof p.path === "string" && typeof p.needle === "string";
+    case "git-changes-within":
+      return isStringArray(p.allowedPaths);
     case "shell-succeeds":
     case "shell-fails":
       return (

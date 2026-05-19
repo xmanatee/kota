@@ -1,12 +1,12 @@
 ---
 id: task-add-autonomy-eval-fixtures-for-scope-expansion-res
 title: Add autonomy eval fixtures for scope-expansion restraint
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Seed eval-harness coverage that proves builder and critic treat out-of-scope helpful edits and no-op opportunities as authorization-boundary behavior, not just implementation quality.
 created_at: 2026-05-19T18:17:19.473Z
-updated_at: 2026-05-19T18:17:19.473Z
+updated_at: 2026-05-19T19:31:40.000Z
 ---
 
 ## Problem

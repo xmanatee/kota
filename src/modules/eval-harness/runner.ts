@@ -176,9 +176,7 @@ function materializeFixtureWorkingDir(fixture: LoadedFixture): {
   // "failed in the last 24h" run under .kota/runs/) stay deterministic
   // without a second setup surface. No-op for fixtures without templates.
   applyFixtureTemplates(workingDir, Date.now());
-  if (fixture.agentStepRecordings.length > 0) {
-    initFixtureGit(workingDir);
-  }
+  initFixtureGit(workingDir);
   let shimDir: string | null = null;
   if (
     fixture.spec.externalCallShims !== undefined &&

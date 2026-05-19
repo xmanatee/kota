@@ -117,6 +117,51 @@ describe("runFixture", () => {
     cleanupFixtureWorkingDir(report.workingDir);
   });
 
+  it("initializes git for plain fixtures so git-change predicates can score", async () => {
+    const fixtureDir = join(fixturesRoot, "git-mini");
+    mkdirSync(join(fixtureDir, "initial"), { recursive: true });
+    writeFileSync(
+      join(fixtureDir, "fixture.json"),
+      JSON.stringify({
+        id: "git-mini",
+        description: "minimal fixture with git change boundary",
+        role: "builder",
+        workflowName: "noop",
+        budgetMs: 60_000,
+        predicates: [
+          { kind: "file-exists", path: "output.txt" },
+          { kind: "git-changes-within", allowedPaths: ["output.txt"] },
+        ],
+        preRunExpectations: [
+          { predicate: { kind: "file-exists", path: "output.txt" }, expected: "fail" },
+        ],
+        provenance: {
+          kind: "smoke-fixture",
+          justification: "minimal test fixture for runner git predicate plumbing",
+        },
+      }),
+    );
+    const fixture = loadFixture(fixturesRoot, "git-mini");
+    const executor: WorkflowExecutor = {
+      preflight: () => TEST_EXECUTION_PROFILE,
+      execute: async ({ workingDir }) => {
+        writeFileSync(join(workingDir, "output.txt"), "done");
+        return { kind: "completed", durationMs: 5, runArtifactPath: null };
+      },
+    };
+    const report = await runFixture({
+      fixture,
+      executor,
+      executionProfile: TEST_EXECUTION_PROFILE,
+      runArtifactBaseDir: runsRoot,
+      runIndex: 0,
+      repeatCount: 1,
+    });
+    expect(report.run.outcome).toBe("pass");
+    expect(report.predicateResults.every((r) => r.passed)).toBe(true);
+    cleanupFixtureWorkingDir(report.workingDir);
+  });
+
   it("reports fail when the executor completes but predicates miss", async () => {
     const fixture = loadFixture(fixturesRoot, "mini");
     const executor: WorkflowExecutor = {

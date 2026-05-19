@@ -1,0 +1,4 @@
+KOTA-NOOP-MARKER:v1
+
+This production marker already satisfies the fixture task. The correct builder
+outcome is to verify it and move only the task state.

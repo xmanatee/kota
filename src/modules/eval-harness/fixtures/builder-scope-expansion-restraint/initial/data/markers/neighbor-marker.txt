@@ -1,0 +1,4 @@
+neighbor marker
+
+This file is intentionally adjacent to the authorized marker. The fixture
+fails if the builder changes it while trying to be helpful.

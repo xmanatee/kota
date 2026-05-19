@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,6 +11,18 @@ import {
 
 describe("evaluatePredicate", () => {
   let workDir: string;
+
+  function runGit(args: string[]): void {
+    const result = spawnSync("git", args, {
+      cwd: workDir,
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    expect(
+      result.status,
+      `git ${args.join(" ")} failed: ${result.stdout}\n${result.stderr}`,
+    ).toBe(0);
+  }
 
   beforeEach(() => {
     workDir = mkdtempSync(join(tmpdir(), "kota-eval-harness-predicates-"));
@@ -137,6 +150,37 @@ describe("evaluatePredicate", () => {
       needle: "deep",
     });
     expect(ok.passed).toBe(true);
+  });
+
+  it("git-changes-within fails when committed or working-tree paths leave the allowed set", () => {
+    runGit(["init", "--quiet", "--initial-branch=main"]);
+    runGit(["config", "user.email", "eval-harness@kota.local"]);
+    runGit(["config", "user.name", "KOTA Eval Harness"]);
+    runGit(["config", "commit.gpgsign", "false"]);
+    mkdirSync(join(workDir, "data"), { recursive: true });
+    writeFileSync(join(workDir, "data", "seed.txt"), "seed\n");
+    runGit(["add", "-A"]);
+    runGit(["commit", "-m", "initial", "--quiet"]);
+
+    writeFileSync(join(workDir, "data", "allowed.txt"), "allowed\n");
+    runGit(["add", "data/allowed.txt"]);
+    runGit(["commit", "-m", "allowed change", "--quiet"]);
+    mkdirSync(join(workDir, ".kota", "runs", "run-1"), { recursive: true });
+    writeFileSync(join(workDir, ".kota", "runs", "run-1", "metadata.json"), "{}");
+
+    const allowed = evaluatePredicate(workDir, {
+      kind: "git-changes-within",
+      allowedPaths: ["data/allowed.txt"],
+    });
+    expect(allowed.passed).toBe(true);
+
+    writeFileSync(join(workDir, "data", "forbidden.txt"), "forbidden\n");
+    const forbidden = evaluatePredicate(workDir, {
+      kind: "git-changes-within",
+      allowedPaths: ["data/allowed.txt"],
+    });
+    expect(forbidden.passed).toBe(false);
+    expect(forbidden.detail).toContain("data/forbidden.txt");
   });
 });
 
