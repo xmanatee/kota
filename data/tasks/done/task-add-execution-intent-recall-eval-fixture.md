@@ -1,12 +1,12 @@
 ---
 id: task-add-execution-intent-recall-eval-fixture
 title: Add execution-intent recall eval fixture
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Seed eval-harness with a long-horizon memory/recall fixture that proves KOTA can retrieve prior architectural decisions by execution intent, not only prompt keyword overlap.
 created_at: 2026-05-19T20:37:40Z
-updated_at: 2026-05-19T20:37:40Z
+updated_at: 2026-05-19T20:49:47Z
 ---
 
 ## Problem
