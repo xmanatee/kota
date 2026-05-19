@@ -68,8 +68,11 @@ export async function runDelegateHarness(
     projectContext: config.projectContext,
     instructionContext: config.instructionContext,
   };
-  const systemPrompt = buildSubAgentPrompt(basePrompt, promptConfig);
   const allowedTools = isExecute ? EXECUTE_HARNESS_TOOLS : EXPLORE_HARNESS_TOOLS;
+  const systemPrompt = buildSubAgentPrompt(basePrompt, {
+    ...promptConfig,
+    toolNames: allowedTools,
+  });
   const transport = config.transport;
   const taskChars = [...task];
   const taskPreview =

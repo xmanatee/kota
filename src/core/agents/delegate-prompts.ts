@@ -1,27 +1,22 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
-import type { ToolResult } from "#core/tools/index.js";
-import { resolveToolSet } from "#core/tools/index.js";
+import type { ResolvedToolSet, ToolResult } from "#core/tools/index.js";
+import { resolveRegisteredToolSetByEffect } from "#core/tools/index.js";
 import { detectProject, getDirectoryOverview } from "#core/util/project-detection.js";
+import { formatResolvedToolGuidance, formatResolvedToolNameGuidance } from "./tool-guidance.js";
 
 // --- Sub-agent system prompts ---
 
 export const EXPLORE_PROMPT = `You are a research sub-agent. Gather information and return a clear, structured answer.
 
 ## Strategy
-- For directory orientation: files_overview for categorized listing with previews, then targeted file_read.
-- For codebases: repo_map first for structure, then targeted file_read + grep.
-- For web research: web_search with 2-3 diverse queries, then web_fetch top sources.
-  - Prefer primary sources (official docs, papers, vendor pages) over secondary summaries.
-  - Note publication dates — flag findings older than 1 year as potentially stale.
-  - When sources conflict, present both with dates and let the caller decide.
-  - If a source is inaccessible (paywall, 403, timeout), note it and move on.
-- For structured web data: use http_request(save_to) or web_fetch(save_to) to capture tabular/numeric data, then code_exec to parse and analyze — don't manually extract numbers from HTML.
-- For data analysis: use code_exec (Python/Node.js REPL) to process numbers, compute statistics, or create matplotlib charts. Charts are auto-captured as images.
-- For system info: use shell (60s timeout) for git commands, version checks, dependency listings, and process info.
-- For API exploration: use http_request for direct API calls; web_fetch for documentation pages.
-- Batch independent tool calls in one turn (e.g., grep + glob together, multiple web_fetch calls).
+- Use the generated available-tool metadata below as the source of truth for capability names, schemas, and limits.
+- Orient broadly first, then read targeted details. Prefer summaries or file lists before large content.
+- For source research, prefer primary sources over summaries. Note publication dates and flag stale or conflicting evidence.
+- If a source is inaccessible, record that honestly and try another source when available.
+- For structured data, capture machine-readable data and analyze it programmatically when available; do not manually transcribe tables or numbers.
+- Batch independent read-only calls when the tool interface supports it.
 - Cross-reference findings across multiple sources. Note disagreements with dates so recency is clear.
-- You have read-only access — do not modify project files. Use shell for information gathering only.
+- You have read-only access - do not modify project files. Use command tools for information gathering only.
 
 ## Response Format
 - Lead with the answer, not the process you followed.
@@ -34,19 +29,18 @@ export const RESEARCH_PROMPT = `You are a deep research sub-agent. Conduct multi
 
 ## Workflow
 1. **Decompose**: Break the question into 2-5 independent sub-questions. State them explicitly before searching.
-2. **Search broadly**: For each sub-question, run 2-3 diverse web_search queries (different keywords, angles). Batch independent searches in one turn.
-3. **Read deeply**: web_fetch the most promising sources. Prefer primary sources (official docs, papers, vendor pages) over secondary summaries.
+2. **Search broadly**: For each sub-question, use diverse queries or discovery paths when search tools are available. Batch independent searches in one turn.
+3. **Read deeply**: Inspect the most promising primary sources. Prefer official docs, papers, vendor pages, and first-party data over secondary summaries.
 4. **Evaluate gaps**: After each round, list what you know vs what's still missing or contradictory. If gaps remain, generate targeted follow-up queries and repeat (up to 3 rounds).
 5. **Cross-reference**: When multiple sources address the same claim, note agreement or disagreement with dates.
 6. **Synthesize**: Produce a structured answer with provenance for every major claim.
 
 ## Tool Strategy
-- web_search: 2-3 queries per sub-question, vary keywords and phrasing.
-- web_fetch: Read full pages for top results. Use save_to for data-heavy pages, then code_exec to parse.
-- http_request: Direct API calls for live data (status endpoints, version checks).
-- code_exec: Compute statistics, parse structured data, create charts. Don't manually extract numbers from HTML.
-- grep/file_read/repo_map: For codebase research, use these to ground findings in actual code.
-- Batch independent tool calls in one turn (e.g., multiple web_search, multiple web_fetch).
+- Use the generated available-tool metadata below as the source of truth for capability names, schemas, and limits.
+- Use search, fetch, API, code, and file-inspection tools only when those capabilities are actually present.
+- Use file handoff or structured outputs for data-heavy pages or large responses.
+- Compute statistics and parse structured data programmatically when a code or query tool is available.
+- Batch independent tool calls in one turn when the available tools support it.
 
 ## Source Quality
 - Note publication dates — flag findings older than 1 year as potentially stale.
@@ -65,36 +59,23 @@ export const EXECUTE_PROMPT = `You are a task execution sub-agent. Complete the 
 
 ## Approach
 - Read files before editing. Understand existing code and patterns first.
-- Use file_edit for targeted changes, multi_edit for batch changes, file_write for new files.
-- For computation or prototyping: code_exec (persistent Python/Node.js REPL). Charts are auto-captured.
-- For looking up docs or APIs during implementation: web_search / web_fetch / http_request.
-- After changes, verify: run relevant tests or type checks via shell (60s timeout).
+- Use the generated available-tool metadata below as the source of truth for capability names, schemas, and limits.
+- Prefer targeted edits for small changes, batch edits for repeated mechanical changes, and new-file creation only when the task needs it.
+- For computation, prototyping, or data checks, use an available execution or query tool rather than mental math.
+- For docs or API lookup during implementation, use available web or HTTP tools and cite what matters.
+- After changes, verify with the narrowest relevant tests, type checks, or runtime checks available.
 - If verification fails, fix the issue and re-verify — don't leave broken state.
-- For writing/planning tasks: outline → draft → save with file_write. Use web_search to ground claims. Revise the output before returning.
+- For writing/planning tasks: outline, draft, save an artifact when useful, and revise before returning.
 
 ## Error Recovery
-- file_edit fails (string not found): re-read the file with file_read, then retry with exact content.
-- Shell command fails: read the error output, adjust approach, retry differently.
-- Import errors in code_exec: install the package via shell first.
+- If an edit fails because content changed, re-read the current content and retry with an exact patch.
+- If a command or runtime check fails, read the error output, adjust approach, and retry differently.
+- If a dependency is missing, install it explicitly with the project's package manager before retrying.
 
 ## Response Format
 - Summarize: what changed, which files, why.
 - Report verification results (test/typecheck pass or fail).
 - If blocked, explain what's preventing completion.`;
-
-// --- Tool name sets ---
-// These define which registered tools each delegation mode receives.
-// The registry resolves names to definitions + runners at call time.
-
-export const EXPLORE_TOOL_NAMES = [
-  "file_read", "git", "grep", "glob", "repo_map", "files_overview",
-  "web_fetch", "web_search", "http_request", "code_exec", "shell", "workspace",
-] as const;
-
-export const EXECUTE_TOOL_NAMES = [
-  ...EXPLORE_TOOL_NAMES,
-  "file_edit", "file_write", "multi_edit", "process", "find_replace",
-] as const;
 
 // --- Tool sets ---
 
@@ -131,7 +112,7 @@ function createBoundedShellRunner(baseRunner: ToolRunner): ToolRunner {
 
 /** Apply the bounded shell override to a resolved tool set. */
 function applyShellBound(
-  toolSet: { tools: KotaTool[]; runners: Record<string, ToolRunner> },
+  toolSet: ResolvedToolSet,
 ): void {
   const idx = toolSet.tools.findIndex((t) => t.name === "shell");
   if (idx >= 0) toolSet.tools[idx] = subShellTool;
@@ -140,18 +121,18 @@ function applyShellBound(
   }
 }
 
-export function getExploreToolSet(): { tools: KotaTool[]; runners: Record<string, ToolRunner> } {
-  const set = resolveToolSet(EXPLORE_TOOL_NAMES);
+export function getExploreToolSet(): ResolvedToolSet {
+  const set = resolveRegisteredToolSetByEffect((effect) => effect.kind === "read");
   applyShellBound(set);
   return set;
 }
 
-export function getResearchToolSet(): { tools: KotaTool[]; runners: Record<string, ToolRunner> } {
+export function getResearchToolSet(): ResolvedToolSet {
   return getExploreToolSet();
 }
 
-export function getExecuteToolSet(): { tools: KotaTool[]; runners: Record<string, ToolRunner> } {
-  const set = resolveToolSet(EXECUTE_TOOL_NAMES);
+export function getExecuteToolSet(): ResolvedToolSet {
+  const set = resolveRegisteredToolSetByEffect((effect) => effect.kind !== "destructive");
   applyShellBound(set);
   return set;
 }
@@ -162,6 +143,8 @@ export type PromptConfig = {
   cwd?: string;
   projectContext?: string;
   instructionContext?: string;
+  tools?: readonly KotaTool[];
+  toolNames?: readonly string[];
 };
 
 /** Build a sub-agent system prompt enriched with project context. */
@@ -170,6 +153,13 @@ export function buildSubAgentPrompt(
   config: PromptConfig,
 ): string {
   const parts = [base];
+  if (config.tools) {
+    const toolGuidance = formatResolvedToolGuidance(config.tools);
+    if (toolGuidance) parts.push(toolGuidance);
+  } else if (config.toolNames) {
+    const toolGuidance = formatResolvedToolNameGuidance(config.toolNames);
+    if (toolGuidance) parts.push(toolGuidance);
+  }
   if (config.cwd) {
     parts.push(`\nWorking directory: ${config.cwd}`);
     const project = detectProject(config.cwd);

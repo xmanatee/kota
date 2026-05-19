@@ -2,6 +2,7 @@ import type {
   KotaTextBlock,
   KotaToolUseBlock,
 } from "#core/agent-harness/message-protocol.js";
+import { formatResolvedToolGuidance } from "#core/agents/tool-guidance.js";
 import { formatTaskHint, routeTask } from "#core/daemon/task-router.js";
 import { tryEmit } from "#core/events/event-bus.js";
 import { streamMessage } from "#core/model/streaming.js";
@@ -103,7 +104,8 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
     const changesSummary = getChangeTracker()?.getSummary() ?? "";
     const telemetrySummary = getToolTelemetry().getSummary();
     const telemetryBlock = telemetrySummary ? `\n<tool-metrics>${telemetrySummary}</tool-metrics>` : "";
-    const dynamicState = state.context.getDynamicState() + state.verifyTracker.getState() + changesSummary + collectDynamicState({ activeTools: activeToolNames }) + telemetryBlock;
+    const toolGuidance = formatResolvedToolGuidance(activeTools);
+    const dynamicState = toolGuidance + state.context.getDynamicState() + state.verifyTracker.getState() + changesSummary + collectDynamicState({ activeTools: activeToolNames }) + telemetryBlock;
     if (dynamicState) {
       system.push({ type: "text", text: dynamicState });
     }

@@ -10,12 +10,14 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  EXECUTE_TOOL_NAMES,
-  EXPLORE_TOOL_NAMES,
   getExecuteToolSet,
   getExploreToolSet,
 } from "#core/agents/delegate-prompts.js";
-import { legacyEffect } from "#core/tools/effect.js";
+import {
+  localWriteEffect,
+  readOnlyLocalEffect,
+  type ToolEffect,
+} from "#core/tools/effect.js";
 import type { McpManager } from "./core/mcp/manager.js";
 import { type DelegateConfig, setDelegateConfig } from "./core/tools/delegate.js";
 import { clearCustomTools, getAllTools, registerTool } from "./core/tools/index.js";
@@ -53,15 +55,19 @@ function createMockMcpManager(
 
 /** Register stub module tools that the delegate tool sets expect from the registry. */
 function registerStubModuleTools(): void {
-  const allNames = new Set([...EXPLORE_TOOL_NAMES, ...EXECUTE_TOOL_NAMES]);
+  const toolEffects: Array<readonly [string, ToolEffect]> = [
+    ["file_read", readOnlyLocalEffect()],
+    ["grep", readOnlyLocalEffect()],
+    ["file_edit", localWriteEffect()],
+  ];
   const existing = new Set(getAllTools().map((t) => t.name));
-  for (const name of allNames) {
+  for (const [name, effect] of toolEffects) {
     if (!existing.has(name)) {
       registerTool(
         { name, description: `stub: ${name}`, input_schema: { type: "object", properties: {} } },
         async () => ({ content: "stub" }),
         "test",
-        { effect: legacyEffect({ risk: "safe", kind: "discovery" }), },
+        { effect },
       );
     }
   }

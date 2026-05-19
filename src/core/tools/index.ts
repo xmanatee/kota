@@ -17,6 +17,10 @@ import type { ToolResult, ToolResultBlock } from "./tool-result.js";
 export type { ToolResult, ToolResultBlock };
 
 type ToolRunner = (input: Record<string, unknown>) => Promise<ToolResult>;
+export type ResolvedToolSet = {
+  tools: KotaTool[];
+  runners: { [name: string]: ToolRunner };
+};
 
 /** Co-located tool metadata. Each tool file exports one of these. */
 export type ToolRegistration = {
@@ -198,10 +202,10 @@ export function getModuleToolNames(moduleName: string): string[] {
  * Returns matching tool definitions and runners; silently skips unknown names.
  * Callers can override individual entries after resolution (e.g. bounded shell).
  */
-export function resolveToolSet(names: readonly string[]): { tools: KotaTool[]; runners: Record<string, ToolRunner> } {
+export function resolveToolSet(names: readonly string[]): ResolvedToolSet {
   ensureInit();
   const resolvedTools: KotaTool[] = [];
-  const resolvedRunners: Record<string, ToolRunner> = {};
+  const resolvedRunners: { [name: string]: ToolRunner } = {};
   for (const name of names) {
     const tool = tools.find((t) => t.name === name);
     const runner = runners[name];
@@ -209,6 +213,28 @@ export function resolveToolSet(names: readonly string[]): { tools: KotaTool[]; r
       resolvedTools.push(tool);
       resolvedRunners[name] = runner;
     }
+  }
+  return { tools: resolvedTools, runners: resolvedRunners };
+}
+
+/**
+ * Resolve module-registered tools by their declared effect metadata.
+ * This keeps mode-specific capability selection tied to the owning tool
+ * registrations instead of to a second hand-maintained tool-name catalog.
+ */
+export function resolveRegisteredToolSetByEffect(
+  include: (effect: ToolEffect, tool: KotaTool) => boolean,
+): ResolvedToolSet {
+  ensureInit();
+  const resolvedTools: KotaTool[] = [];
+  const resolvedRunners: { [name: string]: ToolRunner } = {};
+  for (const tool of tools) {
+    if (!customToolNames.has(tool.name)) continue;
+    const meta = moduleToolMeta.get(tool.name);
+    const runner = runners[tool.name];
+    if (!meta || !runner || !include(meta.effect, tool)) continue;
+    resolvedTools.push(tool);
+    resolvedRunners[tool.name] = runner;
   }
   return { tools: resolvedTools, runners: resolvedRunners };
 }

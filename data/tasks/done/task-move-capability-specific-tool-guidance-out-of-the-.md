@@ -1,12 +1,12 @@
 ---
 id: task-move-capability-specific-tool-guidance-out-of-the-
 title: Move capability-specific tool guidance out of the core system prompt
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Shrink the base KOTA system prompt back to core rails and move module-owned tool catalogs, workflow heuristics, and capability instructions to loaded-module prompt contributors or discoverable tool metadata.
 created_at: 2026-05-19T20:02:43Z
-updated_at: 2026-05-19T20:02:43Z
+updated_at: 2026-05-19T20:14:18Z
 ---
 
 ## Problem

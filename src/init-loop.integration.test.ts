@@ -169,32 +169,28 @@ describe("init → loop: environment detection for non-code workspaces (cross-mo
   });
 });
 
-describe("system prompt workflow guidance coverage", () => {
-  it("system prompt includes non-code workflow patterns", async () => {
+describe("system prompt capability guidance coverage", () => {
+  it("base system prompt stays focused on core rails", async () => {
     const { SYSTEM_PROMPT } = await import("./core/agents/system-prompt.js");
 
-    // These workflow sections are critical for general-purpose use
-    expect(SYSTEM_PROMPT).toContain("### Research & Investigation");
-    expect(SYSTEM_PROMPT).toContain("### Data Analysis");
-    expect(SYSTEM_PROMPT).toContain("### Writing & Composition");
-    expect(SYSTEM_PROMPT).toContain("### Planning & Strategy");
-    expect(SYSTEM_PROMPT).toContain("### Everyday Assistance");
-    expect(SYSTEM_PROMPT).toContain("### Automation & Monitoring");
-    expect(SYSTEM_PROMPT).toContain("### Debugging & Diagnosis");
+    expect(SYSTEM_PROMPT).toContain("## Approach");
+    expect(SYSTEM_PROMPT).toContain("## Tool Use");
+    expect(SYSTEM_PROMPT).toContain("## Delegation");
+    expect(SYSTEM_PROMPT).not.toContain("Workflow Patterns");
   });
 
-  it("system prompt references key tools for non-code tasks", async () => {
-    const { SYSTEM_PROMPT } = await import("./core/agents/system-prompt.js");
+  it("loaded capability details come from resolved tool metadata", async () => {
+    const { formatResolvedToolGuidance } = await import(
+      "./core/agents/tool-guidance.js"
+    );
+    const { codeExecTool } = await import("./modules/execution/code-exec.js");
+    const { webFetchTool } = await import("./modules/web-access/web-fetch.js");
 
-    // Data analysis tools
-    expect(SYSTEM_PROMPT).toContain("matplotlib");
-    expect(SYSTEM_PROMPT).toContain("code_exec");
-    // Research tools
-    expect(SYSTEM_PROMPT).toContain("web_search");
-    expect(SYSTEM_PROMPT).toContain("web_fetch");
-    // Writing tools
-    expect(SYSTEM_PROMPT).toContain("file_write");
-    // Delegation for large tasks
-    expect(SYSTEM_PROMPT).toContain("delegate");
+    const guidance = formatResolvedToolGuidance([codeExecTool, webFetchTool]);
+
+    expect(guidance).toContain("code_exec");
+    expect(guidance).toContain("language");
+    expect(guidance).toContain("web_fetch");
+    expect(guidance).toContain("save_to");
   });
 });

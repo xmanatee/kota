@@ -136,7 +136,12 @@ export async function runDelegate(
   } else {
     basePrompt = PROMPT_BY_MODE[mode];
   }
-  const systemPrompt = buildSubAgentPrompt(basePrompt, delegateConfig);
+  const systemPrompt = buildSubAgentPrompt(basePrompt, {
+    cwd: delegateConfig.cwd,
+    projectContext: delegateConfig.projectContext,
+    instructionContext: delegateConfig.instructionContext,
+    tools,
+  });
 
   const modifiedFiles = new Set<string>();
   const collectedImages: import("./index.js").ToolResultBlock[] = [];
