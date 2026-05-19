@@ -1,5 +1,7 @@
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import {
+  type AgentCanUseTool,
+  composeCanUseTools,
   createWorkflowAgentGuards,
   type KotaAgentMessage,
   resolveAgentHarness,
@@ -65,6 +67,7 @@ export type AgentStepConfig = {
   log?: (message: string) => void;
   resolveAgentDef?: (name: string) => AgentDef | undefined;
   resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
+  createCanUseTool?: (stepId: string) => AgentCanUseTool;
 };
 
 export {
@@ -180,6 +183,10 @@ export async function executeAgentStep(
       step.disallowedTools,
       resolvedHarness.askOwnerToolName,
     );
+    const trialCanUseTool = agentConfig.createCanUseTool?.(step.id);
+    const canUseTool = trialCanUseTool
+      ? composeCanUseTools(trialCanUseTool, createWorkflowAgentGuards())
+      : createWorkflowAgentGuards();
     try {
       const harnessRun = runAgentHarness(
         resolvedHarness,
@@ -190,7 +197,7 @@ export async function executeAgentStep(
           ...routeKotaToolControlOptions(resolvedHarness, {
             allowedTools: toolScope.allowedTools,
             disallowedTools: toolScope.disallowedTools,
-            canUseTool: createWorkflowAgentGuards(),
+            canUseTool,
           }),
           askOwner: resolvedHarness.askOwnerToolName !== null
             ? { source: `workflow:${metadata.workflow}/${metadata.id}/${step.id}` }

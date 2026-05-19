@@ -226,6 +226,11 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
         ok: false as const,
         reason: "already_queued" as const,
       }),
+      trial: async () => ({
+        ok: false as const,
+        reason: "daemon_required" as const,
+        message: "stub",
+      }),
     },
   };
 }

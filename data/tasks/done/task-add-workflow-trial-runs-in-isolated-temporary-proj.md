@@ -1,12 +1,12 @@
 ---
 id: task-add-workflow-trial-runs-in-isolated-temporary-proj
 title: Add workflow trial runs in isolated temporary projects
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a workflow trial mode that executes real workflow runs against an isolated temporary project copy and captures side effects as run artifacts, closing the gap between dry-run plans and production runs.
 created_at: 2026-05-18T11:07:15.262Z
-updated_at: 2026-05-18T11:07:15.262Z
+updated_at: 2026-05-19T16:05:18.886Z
 ---
 
 ## Problem

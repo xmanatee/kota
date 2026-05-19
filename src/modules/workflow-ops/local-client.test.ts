@@ -124,6 +124,7 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
     expect(await handler.disable("builder")).toEqual({ ok: false, reason: "daemon_required" });
     expect(await handler.cancelRun("run-1")).toEqual({ ok: false, reason: "daemon_required" });
     expect(await handler.abortRun("run-1")).toEqual({ ok: false, reason: "daemon_required" });
+    expect(typeof handler.trial).toBe("function");
   });
 
   it("getRun returns the artifact metadata projected onto WorkflowRunDetail", async () => {

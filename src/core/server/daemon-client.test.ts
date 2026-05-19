@@ -336,6 +336,7 @@ function makeStubWorkflow(): DaemonClientHandlers["workflow"] {
     getRun: async () => ({ found: false }),
     listDefinitions: async () => ({ source: "daemon", definitions: [] }),
     triggerByName: async () => ({ ok: true, path: "daemon", queued: "x" }),
+    trial: async () => ({ ok: false, reason: "daemon_required", message: "stub" }),
   };
 }
 

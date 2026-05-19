@@ -1,3 +1,4 @@
+import type { AgentCanUseTool } from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { deriveProjectId } from "#core/daemon/project-registry.js";
@@ -13,7 +14,7 @@ import { validatePayloadSchema } from "./payload-validator.js";
 import { buildSkippedResult, DEFAULT_STEP_TIMEOUT_MS, executeWorkflowStep } from "./run-executor-step.js";
 import { buildResumeInitialState, buildRetryInitialState } from "./run-executor-utils.js";
 import type { WorkflowRunStore } from "./run-store.js";
-import type { WorkflowRunExecutionResult, WorkflowRunStatus, WorkflowRunWarning, WorkflowStepResult } from "./run-types.js";
+import type { WorkflowRunExecutionResult, WorkflowRunStatus, WorkflowRunToolRunner, WorkflowRunWarning, WorkflowStepResult } from "./run-types.js";
 import type { WorkflowBranchStep, WorkflowForeachStep } from "./step-types.js";
 import { createStepContext } from "./steps/step-context.js";
 import {
@@ -54,6 +55,8 @@ export type RunExecutorDeps = {
   ) => Promise<{ runId: string; status: "queued" | "completed" | "failed"; childOutput?: unknown }>;
   resolveAgentDef?: (name: string) => AgentDef | undefined;
   resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
+  runTool?: WorkflowRunToolRunner;
+  createAgentCanUseTool?: (stepId: string) => AgentCanUseTool;
 };
 
 export function executeWorkflowRun(
@@ -123,7 +126,7 @@ export function executeWorkflowRun(
           stepOutputsById,
           stepResultsById,
           stepOutputs,
-          deps,
+          { ...deps, currentStepId: step.id },
         );
         const stepStartedAt = Date.now();
 
@@ -134,6 +137,7 @@ export function executeWorkflowRun(
           log: deps.log,
           resolveAgentDef: deps.resolveAgentDef,
           resolveSkillsPrompt: deps.resolveSkillsPrompt,
+          createCanUseTool: deps.createAgentCanUseTool,
         };
 
         const runDecision = await evaluateStepRunDecision(step, context);
@@ -234,8 +238,14 @@ export function executeWorkflowRun(
               pbus: deps.pbus,
               log: deps.log,
             };
-            const getContext = () => createStepContext(
-              run.metadata, trigger, previousOutput, stepOutputsById, stepResultsById, stepOutputs, deps,
+            const getContext = (currentStepId = step.id) => createStepContext(
+              run.metadata,
+              trigger,
+              previousOutput,
+              stepOutputsById,
+              stepResultsById,
+              stepOutputs,
+              { ...deps, currentStepId },
             );
             branchGroupResult = await Promise.race([
               executeBranchStepGroup(step as WorkflowBranchStep, context, stepStartedAt, branchDeps, getContext),
@@ -323,8 +333,14 @@ export function executeWorkflowRun(
               log: deps.log,
               priorItemResults,
             };
-            const getContext = () => createStepContext(
-              run.metadata, trigger, previousOutput, stepOutputsById, stepResultsById, stepOutputs, deps,
+            const getContext = (currentStepId = step.id) => createStepContext(
+              run.metadata,
+              trigger,
+              previousOutput,
+              stepOutputsById,
+              stepResultsById,
+              stepOutputs,
+              { ...deps, currentStepId },
             );
             const foreachContext = getContext();
             foreachGroupResult = await Promise.race([

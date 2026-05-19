@@ -58,6 +58,7 @@ function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
       abort: stub({ status: "applied", count: 0 }),
       reload: stub({ status: "applied", count: 0 }),
       triggerByName: stub({ ok: true, path: "queue", queued: "x" }),
+      trial: stub({ ok: false, reason: "daemon_required", message: "stub" }),
       enable: stub({ ok: true } as WorkflowEnableResult),
       disable: stub({ ok: true } as WorkflowEnableResult),
       cancelRun: stub({ ok: true }),

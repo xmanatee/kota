@@ -33,7 +33,7 @@ export function registerRunCommand(wfCmd: Command, ctx: ModuleContext): void {
     });
 
   runCmd
-    .command("<name>", { isDefault: true })
+    .argument("<name>", "Workflow name")
     .description("Validate and preview a workflow execution plan")
     .option("--dry-run", "Validate the workflow and print the step execution plan without executing")
     .option("--payload <json>", "JSON payload to test trigger resolution against")

@@ -80,7 +80,17 @@ export async function executeParallelStepGroup(
     childStep: WorkflowParallelGroup["steps"][number],
   ): Promise<ParallelChildOutcome> => {
     const childStepStartedAt = Date.now();
-    const runDecision = await evaluateStepRunDecision(childStep, context);
+    const childContext: WorkflowStepContext = {
+      ...context,
+      stepOutputs: { ...context.stepOutputs },
+      stepResults: { ...context.stepResults },
+      stepOutputList: [...context.stepOutputList],
+      runTool: (name, input, toolContext) =>
+        context.runTool(name, input, {
+          stepId: toolContext?.stepId ?? childStep.id,
+        }),
+    };
+    const runDecision = await evaluateStepRunDecision(childStep, childContext);
     if (!runDecision.run) {
       return {
         childStep,
@@ -97,12 +107,6 @@ export async function executeParallelStepGroup(
       };
     }
 
-    const childContext: WorkflowStepContext = {
-      ...context,
-      stepOutputs: { ...context.stepOutputs },
-      stepResults: { ...context.stepResults },
-      stepOutputList: [...context.stepOutputList],
-    };
     agentDeps.pbus.emit(
       "workflow.step.started",
       buildStepStartedPayload(

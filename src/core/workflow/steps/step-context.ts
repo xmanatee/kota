@@ -6,6 +6,7 @@ import { executeTool } from "#core/tools/index.js";
 import type { WorkflowRunStore } from "../run-store.js";
 import type {
   WorkflowRunMetadata,
+  WorkflowRunToolRunner,
   WorkflowStepContext,
   WorkflowStepResult,
 } from "../run-types.js";
@@ -47,6 +48,8 @@ export function createStepContext(
     bus: EventBus;
     pbus: ProjectScopedEventBus;
     store: WorkflowRunStore;
+    runTool?: WorkflowRunToolRunner;
+    currentStepId?: string;
     triggerWorkflow?: (
       workflowName: string,
       payload: Record<string, unknown>,
@@ -70,7 +73,12 @@ export function createStepContext(
     stepOutputs: stepOutputsById,
     stepResults: stepResultsById,
     stepOutputList,
-    runTool: async (name, input) => {
+    runTool: async (name, input, toolContext) => {
+      if (deps.runTool) {
+        return deps.runTool(name, input, {
+          stepId: toolContext?.stepId ?? deps.currentStepId ?? "unknown",
+        });
+      }
       const result = await executeTool(name, input);
       if (result.is_error) {
         throw new Error(result.content);

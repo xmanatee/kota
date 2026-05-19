@@ -60,8 +60,15 @@ async function executeInnerStep(
   deps: ForeachRunDeps,
 ): Promise<InnerStepExecution> {
   const stepStartedAt = Date.now();
+  const innerContext: WorkflowStepContext = {
+    ...context,
+    runTool: (name, input, toolContext) =>
+      context.runTool(name, input, {
+        stepId: toolContext?.stepId ?? innerStep.id,
+      }),
+  };
 
-  const runDecision = await evaluateStepRunDecision(innerStep, context);
+  const runDecision = await evaluateStepRunDecision(innerStep, innerContext);
   if (!runDecision.run) {
     return {
       result: buildSkippedResult(
@@ -90,7 +97,7 @@ async function executeInnerStep(
     innerStep,
     deps.run,
     deps.trigger,
-    context,
+    innerContext,
     deps.runAbortController,
     deps.agentConfig,
     deps.acc,

@@ -143,10 +143,7 @@ export type WorkflowStepContext = {
   stepOutputList: unknown[];
   /** Present when this step is executing inside a foreach loop. Maps the foreach `as` name to the current item. */
   foreach?: Record<string, unknown>;
-  runTool: (
-    name: string,
-    input: Record<string, unknown>,
-  ) => Promise<ToolResult>;
+  runTool: WorkflowRunToolRunner;
   emit: (event: string, payload: Record<string, unknown>) => void;
   requestRestart: (reason: string) => void;
   readPrompt: (promptPath: string) => string;
@@ -169,6 +166,16 @@ export type WorkflowStepContext = {
     signal?: AbortSignal,
   ) => Promise<{ runId: string; status: "queued" | "completed" | "failed" }>;
 };
+
+export type WorkflowRunToolCallContext = {
+  stepId: string;
+};
+
+export type WorkflowRunToolRunner = (
+  name: string,
+  input: Record<string, unknown>,
+  context?: WorkflowRunToolCallContext,
+) => Promise<ToolResult>;
 
 export type WorkflowValueResolver<T> =
   | T

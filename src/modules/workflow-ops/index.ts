@@ -43,6 +43,11 @@ import { registerControlCommands } from "./execution/control.js";
 import { registerExecCommand } from "./execution/exec.js";
 import { registerGcCommand } from "./execution/gc.js";
 import { registerRunCommand } from "./execution/run.js";
+import {
+  registerTrialCommand,
+  runLocalWorkflowTrial,
+  workflowTrialControlRoutes,
+} from "./execution/trial.js";
 import { registerTriggerCommands } from "./execution/trigger.js";
 import { registerTriggersCommand } from "./execution/triggers.js";
 import { workflowRoutes } from "./routes/routes.js";
@@ -87,6 +92,7 @@ export function buildWorkflowCommand(ctx: ModuleContext): Command {
   registerValidateCommand(wfCmd, ctx);
   registerControlCommands(wfCmd, ctx);
   registerRunCommand(wfCmd, ctx);
+  registerTrialCommand(wfCmd, ctx);
   registerGcCommand(wfCmd, ctx);
 
   return wfCmd;
@@ -95,10 +101,11 @@ export function buildWorkflowCommand(ctx: ModuleContext): Command {
 const workflowModule: KotaModule = {
   name: "workflow-ops",
   version: "1.0.0",
-  description: "Workflow CLI surface — kota workflow list/show/run/control/validate/definitions/deps/logs/gc/export/diff/cost/stats",
+  description: "Workflow CLI surface — kota workflow list/show/run/trial/control/validate/definitions/deps/logs/gc/export/diff/cost/stats",
   dependencies: ["rendering"],
   commands: (ctx) => [buildWorkflowCommand(ctx)],
   routes: (ctx) => workflowRoutes(ctx),
+  controlRoutes: (ctx) => workflowTrialControlRoutes(ctx),
   localClient: (ctx) => {
     const handler: WorkflowClient = {
       async listRuns(filter) {
@@ -241,6 +248,9 @@ const workflowModule: KotaModule = {
         ]);
         return { ok: true, path: "queue", queued: name, runId };
       },
+      async trial(name, options) {
+        return runLocalWorkflowTrial(ctx, name, options);
+      },
     };
     return { workflow: handler };
   },
@@ -249,7 +259,7 @@ const workflowModule: KotaModule = {
 
 /**
  * Daemon-side `WorkflowClient` backed by the typed `DaemonTransport`. Routes
- * the thirteen `workflow` namespace methods through the daemon HTTP control
+ * the fourteen `workflow` namespace methods through the daemon HTTP control
  * routes.
  *
  * Wire contract per method (preserved byte-for-byte from the prior core stub):
@@ -288,6 +298,9 @@ const workflowModule: KotaModule = {
  *    Throws on transport failure; 409 → `{ ok: false, reason: "already_queued" }`;
  *    success returns `{ ok: true, path: "daemon", queued: result.queued ?? name,
  *    ...(result.runId !== undefined && { runId: result.runId }) }`.
+ *  - `trial(name, options)` → `POST /workflow/trial` with body
+ *    `{ name, ...options }`. Transport failure returns the daemon_required arm
+ *    so the CLI can use the local isolated-project runner.
  */
 export function buildWorkflowDaemonHandler(
   link: DaemonTransport,
@@ -470,6 +483,57 @@ export function buildWorkflowDaemonHandler(
         queued: result.queued ?? name,
         ...(result.runId !== undefined && { runId: result.runId }),
       };
+    },
+    trial: async (name, options) => {
+      const body = {
+        name,
+        ...(options?.payload !== undefined && { payload: options.payload }),
+        ...(options?.repeat !== undefined && { repeat: options.repeat }),
+        ...(options?.compareWorkflows !== undefined && { compareWorkflows: options.compareWorkflows }),
+        ...(options?.comparePayloads !== undefined && { comparePayloads: options.comparePayloads }),
+        ...(options?.projectId !== undefined && { projectId: options.projectId }),
+      };
+      const resp = await fetchJson("POST", "/workflow/trial", body);
+      if (!resp) {
+        return {
+          ok: false,
+          reason: "daemon_required",
+          message: `Daemon unreachable while running workflow trial "${name}"`,
+        };
+      }
+      if (!resp.ok) {
+        let message = `Workflow trial "${name}" failed`;
+        let reason: "invalid_request" | "unknown_workflow" | "unknown_project" = "invalid_request";
+        let unknownProjectId: string | undefined;
+        try {
+          const errorBody = (await resp.json()) as {
+            error?: string;
+            reason?: "invalid_request" | "unknown_workflow" | "unknown_project";
+            projectId?: string;
+          };
+          if (
+            errorBody.reason === "unknown_project" &&
+            typeof errorBody.projectId === "string"
+          ) {
+            unknownProjectId = errorBody.projectId;
+          }
+          if (typeof errorBody.error === "string") message = errorBody.error;
+          if (
+            errorBody.reason === "invalid_request" ||
+            errorBody.reason === "unknown_workflow" ||
+            errorBody.reason === "unknown_project"
+          ) {
+            reason = errorBody.reason;
+          }
+        } catch {
+          // Use the generic message when the daemon returned a non-JSON body.
+        }
+        if (unknownProjectId !== undefined) {
+          throw new Error(`Unknown project: ${unknownProjectId}`);
+        }
+        return { ok: false, reason, message };
+      }
+      return (await resp.json()) as Awaited<ReturnType<WorkflowClient["trial"]>>;
     },
   };
 }

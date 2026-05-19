@@ -24,6 +24,8 @@ type BranchRunDeps = {
   log: (message: string) => void;
 };
 
+type StepContextFactory = (currentStepId?: string) => WorkflowStepContext;
+
 export type BranchGroupResult = {
   branchResult: WorkflowStepResult;
   arm: "ifTrue" | "ifFalse";
@@ -36,7 +38,7 @@ export type BranchGroupResult = {
 async function executeArmSteps(
   armSteps: WorkflowStep[],
   deps: BranchRunDeps,
-  getContext: () => WorkflowStepContext,
+  getContext: StepContextFactory,
 ): Promise<{
   hadWarnings: boolean;
   failed: boolean;
@@ -47,7 +49,7 @@ async function executeArmSteps(
   let agentBackoff: WorkflowAgentBackoffSignal | undefined;
 
   for (const armStep of armSteps) {
-    const context = getContext();
+    const context = getContext(armStep.id);
     const stepStartedAt = Date.now();
 
     const runDecision = await evaluateStepRunDecision(armStep, context);
@@ -221,7 +223,7 @@ export async function executeBranchStepGroup(
   context: WorkflowStepContext,
   stepStartedAt: number,
   deps: BranchRunDeps,
-  getContext: () => WorkflowStepContext,
+  getContext: StepContextFactory,
 ): Promise<BranchGroupResult> {
   let conditionResult: boolean;
   try {

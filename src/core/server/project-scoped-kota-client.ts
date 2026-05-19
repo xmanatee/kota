@@ -49,6 +49,10 @@ export function createProjectScopedKotaClient(
         scoped(selectedProjectId, () =>
           base.workflow.status(withProject(filter, selectedProjectId)),
         ),
+      trial: (name, options) =>
+        scoped(selectedProjectId, () =>
+          base.workflow.trial(name, withProject(options, selectedProjectId)),
+        ),
     },
     memory: {
       list: (filter) =>

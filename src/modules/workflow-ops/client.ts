@@ -9,6 +9,7 @@
  * `buildWorkflowDaemonHandler`) realize this contract.
  */
 
+import type { KotaJsonObject } from "#core/agent-harness/message-protocol.js";
 import type {
   WorkflowDefinitionSummary,
   WorkflowLiveStatus,
@@ -154,6 +155,97 @@ export type WorkflowTriggerResult =
   | { ok: true; path: "daemon" | "queue"; queued: string; runId?: string }
   | { ok: false; reason: "already_queued" };
 
+export type WorkflowTrialBlockedSideEffect = {
+  stepId: string;
+  tool: string;
+  reason: string;
+  effect: {
+    kind: string;
+    scope: string;
+    openWorld: boolean;
+  };
+};
+
+export type WorkflowTrialChangedFile = {
+  path: string;
+  change: "created" | "modified" | "deleted";
+};
+
+export type WorkflowTrialPayload = KotaJsonObject;
+
+export type WorkflowTrialEvent = {
+  type: string;
+  payload: WorkflowTrialPayload;
+};
+
+export type WorkflowTrialAttemptReport = {
+  id: string;
+  workflow: string;
+  payload: WorkflowTrialPayload;
+  status: "passed" | "failed" | "blocked";
+  trialProjectPath: string;
+  workflowRunId?: string;
+  stepStatuses: Array<{
+    id: string;
+    type: string;
+    status: string;
+    durationMs: number;
+  }>;
+  changedFiles: WorkflowTrialChangedFile[];
+  taskMutations: WorkflowTrialChangedFile[];
+  storeMutations: WorkflowTrialChangedFile[];
+  busEvents: WorkflowTrialEvent[];
+  queuedWorkflows: Array<{
+    workflow: string;
+    runId: string;
+    waitFor: "queued" | "completed";
+    payload: WorkflowTrialPayload;
+    status: "queued" | "completed" | "failed";
+  }>;
+  blockedExternalSideEffects: WorkflowTrialBlockedSideEffect[];
+  reportPath: string;
+  error?: string;
+};
+
+export type WorkflowTrialSummary = {
+  runId: string;
+  workflow: string;
+  projectId?: string;
+  sourceProjectPath: string;
+  reportDir: string;
+  payload: WorkflowTrialPayload;
+  repeat: number;
+  attempts: WorkflowTrialAttemptReport[];
+  comparison: {
+    workflows: string[];
+    payloadVariants: WorkflowTrialPayload[];
+  };
+  passed: number;
+  failed: number;
+  blocked: number;
+  status: "passed" | "failed";
+};
+
+export type WorkflowTrialOptions = {
+  payload?: WorkflowTrialPayload;
+  repeat?: number;
+  compareWorkflows?: string[];
+  comparePayloads?: WorkflowTrialPayload[];
+  projectId?: string;
+};
+
+export type WorkflowTrialResult =
+  | {
+      ok: true;
+      summary: WorkflowTrialSummary;
+    }
+  | {
+      ok: false;
+      reason: "daemon_required" | "invalid_request" | "unknown_workflow" | "unknown_project";
+      message: string;
+      summary?: WorkflowTrialSummary;
+    };
+
 /**
  * Result of `workflow.listDefinitions`. `source` carries which side produced
  * the listing so callers can render attribution; the daemon listing includes
@@ -206,6 +298,10 @@ export interface WorkflowClient {
     name: string,
     options?: WorkflowTriggerOptions,
   ): Promise<WorkflowTriggerResult>;
+  trial(
+    name: string,
+    options?: WorkflowTrialOptions,
+  ): Promise<WorkflowTrialResult>;
   enable(
     name: string,
   ): Promise<WorkflowEnableResult | WorkflowDaemonRequiredResult>;

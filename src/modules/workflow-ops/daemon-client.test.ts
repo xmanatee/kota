@@ -6,7 +6,7 @@
  * invariants the migration relies on:
  *
  *  1. The workflow-ops module exposes a `daemonClient(link)` factory and the
- *     factory contributes the `workflow` namespace with the thirteen contract
+ *     factory contributes the `workflow` namespace with the fourteen contract
  *     methods.
  *  2. Each method routes through the expected HTTP method + path with the
  *     expected query/body shape (byte-for-byte against the prior core stub).
@@ -119,6 +119,7 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
     expect(typeof wf.getRun).toBe("function");
     expect(typeof wf.listDefinitions).toBe("function");
     expect(typeof wf.triggerByName).toBe("function");
+    expect(typeof wf.trial).toBe("function");
   });
 
   it("listRuns routes through GET /workflow/runs with no filter", async () => {
@@ -619,6 +620,78 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
     const wf = workflowOpsModule.daemonClient!(transport).workflow!;
     await expect(wf.triggerByName("wf-1")).rejects.toThrow(
       'Daemon unreachable while triggering workflow "wf-1"',
+    );
+  });
+
+  it("trial routes through POST /workflow/trial with comparison options", async () => {
+    const summary = {
+      runId: "trial-run",
+      workflow: "wf-1",
+      sourceProjectPath: "/project",
+      reportDir: ".kota/runs/trial-run/workflow-trial",
+      payload: { extra: "info" },
+      repeat: 2,
+      attempts: [],
+      comparison: {
+        workflows: ["wf-2"],
+        payloadVariants: [{ extra: "variant" }],
+      },
+      passed: 0,
+      failed: 0,
+      blocked: 0,
+      status: "passed",
+    };
+    const { transport, calls } = makeRecordingTransport({
+      respondFetch: () => jsonResponse(200, { ok: true, summary }),
+    });
+    const wf = workflowOpsModule.daemonClient!(transport).workflow!;
+    const result = await wf.trial("wf-1", {
+      payload: { extra: "info" },
+      repeat: 2,
+      compareWorkflows: ["wf-2"],
+      comparePayloads: [{ extra: "variant" }],
+      projectId: "project-a",
+    });
+    expect(result).toEqual({ ok: true, summary });
+    const call = calls[0] as { path: string; init: RequestInit };
+    expect(call.path).toBe("/workflow/trial");
+    expect(call.init.method).toBe("POST");
+    expect(JSON.parse(String(call.init.body))).toEqual({
+      name: "wf-1",
+      payload: { extra: "info" },
+      repeat: 2,
+      compareWorkflows: ["wf-2"],
+      comparePayloads: [{ extra: "variant" }],
+      projectId: "project-a",
+    });
+  });
+
+  it("trial returns daemon_required on transport failure so the CLI can fall back locally", async () => {
+    const { transport } = makeRecordingTransport({
+      respondFetch: () => {
+        throw new TypeError("fetch failed");
+      },
+    });
+    const wf = workflowOpsModule.daemonClient!(transport).workflow!;
+    await expect(wf.trial("wf-1")).resolves.toEqual({
+      ok: false,
+      reason: "daemon_required",
+      message: 'Daemon unreachable while running workflow trial "wf-1"',
+    });
+  });
+
+  it("trial turns daemon unknown-project responses into the scoped client error shape", async () => {
+    const { transport } = makeRecordingTransport({
+      respondFetch: () =>
+        jsonResponse(404, {
+          error: "Unknown project",
+          reason: "unknown_project",
+          projectId: "ghost",
+        }),
+    });
+    const wf = workflowOpsModule.daemonClient!(transport).workflow!;
+    await expect(wf.trial("wf-1", { projectId: "ghost" })).rejects.toThrow(
+      "Unknown project: ghost",
     );
   });
 

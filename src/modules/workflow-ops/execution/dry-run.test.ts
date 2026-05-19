@@ -1,6 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { Command } from "commander";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { EventBus } from "#core/events/event-bus.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 import { buildDryRunPlan, formatDryRunPlan, formatDryRunResult } from "./dry-run.js";
+import { registerRunCommand } from "./run.js";
 
 function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDefinition {
   return {
@@ -15,6 +22,84 @@ function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDe
     tags: overrides.tags ?? [],
   };
 }
+
+function makeProjectDir(): string {
+  const dir = join(
+    tmpdir(),
+    `kota-workflow-dry-run-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  );
+  mkdirSync(join(dir, ".kota"), { recursive: true });
+  writeFileSync(join(dir, "AGENTS.md"), "# Test Project\n", "utf-8");
+  return dir;
+}
+
+function makeRunCliProgram(ctx: ModuleContext): Command {
+  const program = new Command("workflow");
+  program.exitOverride();
+  registerRunCommand(program, ctx);
+  return program;
+}
+
+describe("workflow run --dry-run", () => {
+  const cleanup: string[] = [];
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    process.exitCode = undefined;
+    for (const dir of cleanup.splice(0)) {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("prints the run plan without creating run artifacts, emitting bus events, or executing steps", async () => {
+    const projectDir = makeProjectDir();
+    cleanup.push(projectDir);
+    let stepExecuted = false;
+    const definition = makeDefinition({
+      moduleRoot: projectDir,
+      steps: [
+        {
+          id: "would-execute",
+          type: "code",
+          run: ({ emit }) => {
+            stepExecuted = true;
+            emit("dry-run.executed", { ok: true });
+            writeFileSync(join(projectDir, "executed.txt"), "should not exist", "utf-8");
+            return { ok: true };
+          },
+        },
+      ],
+    });
+    const ctx = {
+      cwd: projectDir,
+      config: {},
+      getContributedWorkflows: () => [definition],
+      listTools: () => [],
+      client: {
+        workflow: {
+          abortRun: vi.fn(),
+        },
+      },
+    } as unknown as ModuleContext;
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const eventSpy = vi.spyOn(EventBus.prototype, "emit");
+    const program = makeRunCliProgram(ctx);
+
+    await program.parseAsync([
+      "node",
+      "workflow",
+      "run",
+      "test-workflow",
+      "--dry-run",
+    ]);
+
+    expect(String(log.mock.calls[0]?.[0] ?? "")).toContain("Result: PASS");
+    expect(stepExecuted).toBe(false);
+    expect(existsSync(join(projectDir, "executed.txt"))).toBe(false);
+    expect(existsSync(join(projectDir, ".kota", "runs"))).toBe(false);
+    expect(eventSpy).not.toHaveBeenCalled();
+  });
+});
 
 describe("buildDryRunPlan", () => {
   it("returns step plan with no-condition for steps without when", async () => {

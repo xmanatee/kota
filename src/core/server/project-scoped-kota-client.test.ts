@@ -24,6 +24,14 @@ describe("createProjectScopedKotaClient", () => {
             codeConcurrency: 4,
           };
         },
+        trial: async (_name: string, options: unknown) => {
+          calls.push(["workflow.trial", options]);
+          return {
+            ok: false as const,
+            reason: "daemon_required" as const,
+            message: "stub",
+          };
+        },
       },
       approvals: {
         list: async (filter: unknown) => {
@@ -57,6 +65,7 @@ describe("createProjectScopedKotaClient", () => {
 
     const scoped = createProjectScopedKotaClient(base, "project-b");
     await scoped.workflow.status();
+    await scoped.workflow.trial("builder", { payload: { x: 1 } });
     await scoped.approvals.list({ status: "all" });
     await scoped.approvals.approve("approval-1", "ok");
     await scoped.approvals.reject("approval-2", "no");
@@ -66,6 +75,7 @@ describe("createProjectScopedKotaClient", () => {
 
     expect(calls).toEqual([
       ["workflow.status", { projectId: "project-b" }],
+      ["workflow.trial", { payload: { x: 1 }, projectId: "project-b" }],
       ["approvals.list", { status: "all", projectId: "project-b" }],
       ["approvals.approve", "approval-1", "ok", { projectId: "project-b" }],
       ["approvals.reject", "approval-2", "no", { projectId: "project-b" }],
