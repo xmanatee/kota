@@ -31,21 +31,21 @@ resources:
   - url: https://github.com/anthropics/claude-code
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:c045392869487a6c99ff564094066481
-      summary: "Claude Code's latest releases reinforce live-session operability, tool-span correlation, and execution-subprocess environment hygiene; KOTA's env-override guardrail and execution subprocess environment policy tasks are now complete, so no new task remains from this snapshot."
-      last_seen_at: "2026-05-20T01:21:27.374Z"
+      fingerprint: sha256:3bc0f065364f31bb322d0106269c898b
+      summary: "Claude Code v2.1.144 surfaced a concrete MCP tools/list pagination gap; KOTA opened task-support-paginated-mcp-toolslist-in-the-client-runtime."
+      last_seen_at: "2026-05-20T02:32:53.824Z"
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:a8d41d665e599e701da0af2715e47072
-      summary: "Codex CLI remains active with local, IDE, desktop, and web entry points; this refresh opened no new nonduplicative KOTA task."
-      last_seen_at: "2026-05-17T07:03:40.826Z"
+      fingerprint: sha256:76d8b07931d08ad5224ee6101b810275
+      summary: "Codex continues to reinforce KOTA's module/tool/preset/telemetry direction; no new nonduplicative task was opened from this refresh."
+      last_seen_at: "2026-05-20T02:32:53.824Z"
   - url: https://github.com/google-gemini/gemini-cli
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:47c833736351ed6376d4370cdee71b7c
-      summary: "Gemini CLI's GitHub Action highlights issue/PR mention-driven assistance; KOTA's typed github-webhook issue_comment mention events are now covered by completed GitHub-webhook tasks."
-      last_seen_at: "2026-05-17T07:03:40.826Z"
+      fingerprint: sha256:ffe372b662a964a67c03df122e167f5e
+      summary: "Gemini CLI remains a useful safety/eval comparator; this refresh opened no new KOTA task beyond the MCP pagination item sourced from the Claude/MCP signal."
+      last_seen_at: "2026-05-20T02:32:53.824Z"
   - url: https://github.com/Aider-AI/aider
     added: "2026-04-19"
     snapshot:
@@ -265,9 +265,9 @@ resources:
     added: "2026-05-17"
     notes: "GitHub Agentic Workflows is a GitHub Actions-hosted agent workflow runtime; monitor for event-trigger, safe-output, input-sanitization, and multi-engine guardrail patterns relevant to KOTA's workflow runtime."
     snapshot:
-      fingerprint: sha256:9e16f5cd8b79431a965813c394429e45
-      summary: "GitHub Agentic Workflows now exposes a TrialOps pattern for isolated real workflow execution; KOTA's workflow trial mode in isolated temporary projects now covers the gap between dry-run planning and live project execution."
-      last_seen_at: "2026-05-18T11:10:09.573Z"
+      fingerprint: sha256:4dc644a8e849ff941737652fd7770c62
+      summary: "GitHub Agentic Workflows still reinforces KOTA's existing workflow guardrail and trial-mode posture; no new task was opened."
+      last_seen_at: "2026-05-20T02:32:53.824Z"
   - url: https://github.com/Alienfader/continuity-benchmarks
     added: "2026-05-19"
     notes: "Reproducible benchmark for execution-intent memory in long-horizon AI coding agents. Monitor as a peer signal for KOTA's recall/memory eval coverage, action-keyed retrieval, noisy cross-session continuity, and deterministic memory-eval artifacts."
