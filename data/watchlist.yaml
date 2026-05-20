@@ -282,6 +282,9 @@ resources:
       fingerprint: sha256:fa986daf106ae1d4cd060bd4335f9c6b
       summary: "MCP draft MRTR now exposes a narrow KOTA gap: input_required fields are independently optional in the spec, while KOTA currently requires both inputRequests and requestState."
       last_seen_at: "2026-05-20T13:04:41.722Z"
+  - url: https://modelcontextprotocol.io/specification/draft/server/utilities/completion
+    added: "2026-05-20"
+    notes: "Official MCP completion utility draft - monitor completion/complete request context, prompt/resource references, bounded completion results, and invalid-param behavior for KOTA's MCP server completions."
   - url: https://github.com/github/gh-aw
     added: "2026-05-17"
     notes: "GitHub Agentic Workflows is a GitHub Actions-hosted agent workflow runtime; monitor for event-trigger, safe-output, input-sanitization, and multi-engine guardrail patterns relevant to KOTA's workflow runtime."
