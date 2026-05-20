@@ -109,6 +109,10 @@ Write a JSON file at `<run-directory>/watchlist-updates.json`:
   snapshot will populate on the next run.
 - Watchlist checks supplement open-ended discovery; do not let them dominate
   the run.
+- Writing `watchlist-updates.json` counts as a committing run because the
+  workflow applies it to `data/watchlist.yaml` after your step finishes. Write
+  `<run-directory>/commit-message.txt` for that case even if `git status` is
+  clean before the apply step runs.
 
 ## Scope
 

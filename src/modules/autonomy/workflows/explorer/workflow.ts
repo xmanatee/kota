@@ -38,6 +38,7 @@ import {
 import { readWatchlist, type WatchlistEntry } from "./watchlist.js";
 import {
   applyWatchlistUpdates,
+  checkWatchlistUpdatesCommitMessage,
   readWatchlistUpdatesFromRun,
 } from "./watchlist-updates.js";
 
@@ -244,6 +245,11 @@ const explorerWorkflow: WorkflowDefinitionInput = {
             id: "no-scratch-artifacts",
             type: "code" as const,
             run: (ctx) => checkNoScratchArtifacts(ctx.projectDir),
+          },
+          {
+            id: "watchlist-update-commit-message",
+            type: "code" as const,
+            run: (ctx) => checkWatchlistUpdatesCommitMessage(ctx.workflow.runDirPath),
           },
           {
             id: "commit-message-exists",

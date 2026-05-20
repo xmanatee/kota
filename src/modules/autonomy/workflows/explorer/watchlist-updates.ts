@@ -150,3 +150,26 @@ export function readWatchlistUpdatesFromRun(
   if (!existsSync(path)) return null;
   return parseUpdatesFile(readFileSync(path, "utf-8"));
 }
+
+export function checkWatchlistUpdatesCommitMessage(runDirPath: string): string {
+  const payload = readWatchlistUpdatesFromRun(runDirPath);
+  if (!payload || payload.updates.length === 0) {
+    return "OK: no watchlist updates — commit message not required";
+  }
+
+  const msgPath = join(runDirPath, "commit-message.txt");
+  if (!existsSync(msgPath)) {
+    throw new Error(
+      `${WATCHLIST_UPDATES_FILE} contains ${payload.updates.length} update(s), ` +
+        "so commit-message.txt is required before apply-watchlist-updates mutates data/watchlist.yaml.",
+    );
+  }
+  const content = readFileSync(msgPath, "utf-8").trim();
+  if (content.length === 0) {
+    throw new Error(
+      `${WATCHLIST_UPDATES_FILE} contains ${payload.updates.length} update(s), ` +
+        "but commit-message.txt is empty.",
+    );
+  }
+  return `OK: commit-message.txt present for ${payload.updates.length} watchlist update(s)`;
+}

@@ -9,6 +9,7 @@ import {
   commitWorkflowChanges,
   listCommitStagePaths,
 } from "./commit.js";
+import { checkCommitMessageExists } from "./shared.js";
 import builderWorkflow from "./workflows/builder/workflow.js";
 
 function initGitRepo(dir: string): void {
@@ -108,6 +109,26 @@ describe("commitWorkflowChanges", () => {
       encoding: "utf-8",
     }).trim();
     expect(stagedFiles).toBe("");
+  });
+
+  it("repair check requires commit-message.txt for unstaged working tree changes", () => {
+    writeFileSync(join(projectDir, "change.txt"), "hello\n");
+
+    expect(() => checkCommitMessageExists(runDirPath, projectDir)).toThrow(
+      "Missing commit-message.txt in the run directory",
+    );
+  });
+
+  it("repair check ignores gitignored residue when deciding whether a message is required", () => {
+    writeFileSync(join(projectDir, ".gitignore"), "ignored.log\n");
+    execSync("git add .gitignore && git commit -q -m 'ignore'", {
+      cwd: projectDir,
+    });
+    writeFileSync(join(projectDir, "ignored.log"), "noise\n");
+
+    expect(checkCommitMessageExists(runDirPath, projectDir)).toBe(
+      "OK: no mutated paths — commit message not required",
+    );
   });
 
   it("rejects an empty commit message before staging changes", () => {

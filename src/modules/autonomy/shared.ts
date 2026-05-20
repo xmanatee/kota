@@ -12,6 +12,7 @@ import type {
   WorkflowRunMetadata,
   WorkflowRunWarning,
 } from "#core/workflow/run-types.js";
+import { listWorkflowMutatedPaths } from "#core/workflow/steps/agent-write-scope.js";
 import { loadRunsInWindow } from "#modules/workflow-ops/runs/workflow-history.js";
 
 const RUN_CHECK_MAX_BUFFER = 10 * 1024 * 1024;
@@ -152,13 +153,9 @@ export function checkNoRegisteredScratchWorktrees(projectDir: string): string {
 
 export function checkCommitMessageExists(runDirPath: string, projectDir?: string): string {
   if (projectDir) {
-    const staged = execFileSync("git", ["diff", "--cached", "--name-only"], {
-      cwd: projectDir,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    }).trim();
-    if (!staged) {
-      return "OK: no staged changes — commit message not required";
+    const mutatedPaths = listWorkflowMutatedPaths(projectDir);
+    if (mutatedPaths.length === 0) {
+      return "OK: no mutated paths — commit message not required";
     }
   }
   const msgPath = join(runDirPath, "commit-message.txt");
