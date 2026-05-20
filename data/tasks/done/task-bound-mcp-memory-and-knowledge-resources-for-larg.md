@@ -1,12 +1,12 @@
 ---
 id: task-bound-mcp-memory-and-knowledge-resources-for-larg
 title: Bound MCP memory and knowledge resources for large stores
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Make the MCP server expose memory and knowledge through bounded list/read/search surfaces instead of dumping entire stores as full-content resources.
 created_at: 2026-05-20T03:06:31Z
-updated_at: 2026-05-20T03:06:31Z
+updated_at: 2026-05-20T03:17:04Z
 ---
 
 ## Problem

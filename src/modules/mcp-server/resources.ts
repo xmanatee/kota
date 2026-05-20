@@ -5,13 +5,14 @@
  *   kota://tasks/ready          – task queue snapshot
  *   kota://workflow/status      – runtime state summary
  *   kota://workflow/runs/recent – 10 most recent run summaries
- *   kota://memory               – all memory entries
- *   kota://knowledge            – all knowledge entries
+ *   kota://memory               – bounded memory index
+ *   kota://knowledge            – bounded knowledge index
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { getKnowledgeProvider, getMemoryProvider } from "#core/modules/provider-registry.js";
+import type { KnowledgeEntry, Memory } from "#core/modules/provider-types.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { getRepoTaskStateDir } from "#modules/repo-tasks/repo-tasks-domain.js";
 
@@ -45,18 +46,184 @@ export const KOTA_RESOURCES: McpResource[] = [
 	{
 		uri: "kota://memory",
 		name: "Memory",
-		description: "All memory entries as a JSON array.",
+		description:
+			"Bounded memory index. Read returned readUri values for entry content or use kota://memory/search?q=...",
 		mimeType: "application/json",
 	},
 	{
 		uri: "kota://knowledge",
 		name: "Knowledge",
-		description: "All knowledge entries as a JSON array.",
+		description:
+			"Bounded knowledge index. Read returned readUri values for entry content or use kota://knowledge/search?q=...",
 		mimeType: "application/json",
 	},
 ];
 
 export const KNOWN_RESOURCE_URIS = new Set(KOTA_RESOURCES.map((r) => r.uri));
+
+const INDEX_LIMIT_DEFAULT = 50;
+const SEARCH_LIMIT_DEFAULT = 10;
+const ENTRY_CONTENT_CHAR_LIMIT = 12_000;
+const SNIPPET_CHAR_LIMIT = 240;
+const OPAQUE_TOKEN_PATTERN = /^[A-Za-z0-9_-]+$/;
+
+export type KotaResourceReadResult =
+	| { ok: true; text: string }
+	| { ok: false; code: number; message: string };
+
+type CursorScope = "memory-index" | "memory-search" | "knowledge-index" | "knowledge-search";
+
+type Page<T> = {
+	items: T[];
+	cursor: string | null;
+	nextCursor: string | null;
+	totalEntries: number;
+	limit: number;
+};
+
+type BoundedText = {
+	text: string;
+	truncated: boolean;
+	charLimit: number;
+	availableChars: number;
+};
+
+type MemoryIndexEntry = {
+	id: string;
+	tags: string[];
+	createdAt: string;
+	readUri: string;
+};
+
+type KnowledgeIndexEntry = {
+	id: string;
+	title: string;
+	type: string;
+	status: string;
+	tags: string[];
+	source: string | null;
+	createdAt: string;
+	updatedAt: string;
+	readUri: string;
+};
+
+function resourceSuccess<T>(value: T): KotaResourceReadResult {
+	return { ok: true, text: JSON.stringify(value, null, 2) };
+}
+
+function protocolError(message: string): KotaResourceReadResult {
+	return { ok: false, code: -32602, message };
+}
+
+function notFoundError(message: string): KotaResourceReadResult {
+	return { ok: false, code: -32002, message };
+}
+
+function encodeToken(value: string): string {
+	return Buffer.from(value, "utf-8").toString("base64url");
+}
+
+function decodeToken(token: string, label: string): string | KotaResourceReadResult {
+	if (!OPAQUE_TOKEN_PATTERN.test(token)) return protocolError(`Invalid ${label}`);
+	const decoded = Buffer.from(token, "base64url").toString("utf-8");
+	if (!decoded || encodeToken(decoded) !== token) return protocolError(`Invalid ${label}`);
+	return decoded;
+}
+
+function encodeEntryUri(kind: "memory" | "knowledge", id: string): string {
+	return `kota://${kind}/entry/${encodeToken(id)}`;
+}
+
+function encodeCursor(scope: CursorScope, offset: number): string {
+	return encodeToken(`${scope}:${offset}`);
+}
+
+function decodeCursor(
+	token: string,
+	scope: CursorScope,
+	label: string,
+): number | KotaResourceReadResult {
+	const decoded = decodeToken(token, label);
+	if (typeof decoded !== "string") return decoded;
+	const prefix = `${scope}:`;
+	if (!decoded.startsWith(prefix)) return protocolError(`Invalid ${label}`);
+	const offsetText = decoded.slice(prefix.length);
+	if (!/^(0|[1-9][0-9]*)$/.test(offsetText)) return protocolError(`Invalid ${label}`);
+	return Number.parseInt(offsetText, 10);
+}
+
+function parseLimit(value: string | null, defaultLimit: number, label: string): number | KotaResourceReadResult {
+	if (value === null) return defaultLimit;
+	if (!/^(0|[1-9][0-9]*)$/.test(value)) {
+		return protocolError(`${label} limit must be an integer from 1 to ${defaultLimit}`);
+	}
+	const limit = Number.parseInt(value, 10);
+	if (limit < 1 || limit > defaultLimit) {
+		return protocolError(`${label} limit must be an integer from 1 to ${defaultLimit}`);
+	}
+	return limit;
+}
+
+function paginate<T>(
+	items: T[],
+	offset: number,
+	limit: number,
+	cursor: string | null,
+	scope: CursorScope,
+	label: string,
+): Page<T> | KotaResourceReadResult {
+	if (offset < 0 || offset > items.length || (cursor !== null && offset === items.length && items.length > 0)) {
+		return protocolError(`${label} cursor is out of range`);
+	}
+	const pageItems = items.slice(offset, offset + limit);
+	const nextOffset = offset + pageItems.length;
+	const nextCursor = nextOffset < items.length ? encodeCursor(scope, nextOffset) : null;
+	return {
+		items: pageItems,
+		cursor,
+		nextCursor,
+		totalEntries: items.length,
+		limit,
+	};
+}
+
+function normalizeWhitespace(value: string): string {
+	return value.replace(/\s+/g, " ").trim();
+}
+
+function boundText(value: string, limit: number): BoundedText {
+	return {
+		text: value.slice(0, limit),
+		truncated: value.length > limit,
+		charLimit: limit,
+		availableChars: value.length,
+	};
+}
+
+function buildSnippet(content: string, query: string): string {
+	const normalized = normalizeWhitespace(content);
+	const lowerContent = normalized.toLowerCase();
+	const lowerQuery = query.toLowerCase();
+	const terms = lowerQuery.split(/\s+/).filter(Boolean);
+	let index = lowerContent.indexOf(lowerQuery);
+	if (index === -1) {
+		const matchingTerm = terms.find((term) => lowerContent.includes(term));
+		index = matchingTerm ? lowerContent.indexOf(matchingTerm) : 0;
+	}
+	const start = Math.max(0, index - 80);
+	return normalizeWhitespace(normalized.slice(start, start + SNIPPET_CHAR_LIMIT));
+}
+
+function parseKotaUrl(uri: string): URL | KotaResourceReadResult {
+	let parsed: URL;
+	try {
+		parsed = new URL(uri);
+	} catch {
+		return notFoundError(`Unknown resource: ${uri}`);
+	}
+	if (parsed.protocol !== "kota:") return notFoundError(`Unknown resource: ${uri}`);
+	return parsed;
+}
 
 function parseFrontmatter(content: string): Record<string, string> {
 	const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
@@ -122,50 +289,212 @@ function readRecentRuns(projectDir: string): unknown {
 	}));
 }
 
-function readMemory(): unknown {
-	const provider = getMemoryProvider();
-	const entries = provider.list();
-	return entries.map((e) => ({
-		id: e.id,
-		content: e.content,
-		tags: e.tags,
-		createdAt: e.created,
-	}));
+function memoryIndexEntry(entry: Memory): MemoryIndexEntry {
+	return {
+		id: entry.id,
+		tags: entry.tags,
+		createdAt: entry.created,
+		readUri: encodeEntryUri("memory", entry.id),
+	};
 }
 
-function readKnowledge(): unknown {
+function readMemoryIndex(parsed: URL): KotaResourceReadResult {
+	const provider = getMemoryProvider();
+	const entries = provider.list();
+	const limit = parseLimit(parsed.searchParams.get("limit"), INDEX_LIMIT_DEFAULT, "memory index");
+	if (typeof limit !== "number") return limit;
+	const cursor = parsed.searchParams.get("cursor");
+	const offset = cursor === null ? 0 : decodeCursor(cursor, "memory-index", "memory cursor");
+	if (typeof offset !== "number") return offset;
+	const page = paginate(entries, offset, limit, cursor, "memory-index", "Memory index");
+	if ("ok" in page) return page;
+	return resourceSuccess({
+		kind: "memory.index",
+		entries: page.items.map(memoryIndexEntry),
+		cursor: page.cursor,
+		nextCursor: page.nextCursor,
+		limit: page.limit,
+		totalEntries: page.totalEntries,
+		searchUriTemplate: "kota://memory/search?q={query}",
+	});
+}
+
+function readMemoryEntry(token: string): KotaResourceReadResult {
+	const id = decodeToken(token, "memory entry id");
+	if (typeof id !== "string") return id;
+	const provider = getMemoryProvider();
+	const entry = provider.list().find((candidate) => candidate.id === id) ?? null;
+	if (!entry) return notFoundError(`Unknown memory entry: ${id}`);
+	const content = boundText(entry.content, ENTRY_CONTENT_CHAR_LIMIT);
+	return resourceSuccess({
+		kind: "memory.entry",
+		id: entry.id,
+		tags: entry.tags,
+		createdAt: entry.created,
+		content: content.text,
+		contentTruncated: content.truncated,
+		contentCharLimit: content.charLimit,
+		availableChars: content.availableChars,
+	});
+}
+
+function readMemorySearch(parsed: URL): KotaResourceReadResult {
+	const query = normalizeWhitespace(parsed.searchParams.get("q") ?? "");
+	if (!query) return protocolError("Missing required memory search query: q");
+	const limit = parseLimit(parsed.searchParams.get("limit"), SEARCH_LIMIT_DEFAULT, "memory search");
+	if (typeof limit !== "number") return limit;
+	const cursor = parsed.searchParams.get("cursor");
+	const offset = cursor === null ? 0 : decodeCursor(cursor, "memory-search", "memory search cursor");
+	if (typeof offset !== "number") return offset;
+	const provider = getMemoryProvider();
+	const entries = provider.search(query);
+	const page = paginate(entries, offset, limit, cursor, "memory-search", "Memory search");
+	if ("ok" in page) return page;
+	return resourceSuccess({
+		kind: "memory.search",
+		query,
+		hits: page.items.map((entry) => ({
+			id: entry.id,
+			tags: entry.tags,
+			createdAt: entry.created,
+			snippet: buildSnippet(entry.content, query),
+			readUri: encodeEntryUri("memory", entry.id),
+		})),
+		cursor: page.cursor,
+		nextCursor: page.nextCursor,
+		limit: page.limit,
+		totalHits: page.totalEntries,
+	});
+}
+
+function knowledgeIndexEntry(entry: KnowledgeEntry): KnowledgeIndexEntry {
+	return {
+		id: entry.id,
+		title: entry.title,
+		type: entry.type,
+		status: entry.status,
+		tags: entry.tags,
+		source: entry.meta.source ?? null,
+		createdAt: entry.created,
+		updatedAt: entry.updated,
+		readUri: encodeEntryUri("knowledge", entry.id),
+	};
+}
+
+function readKnowledgeIndex(parsed: URL): KotaResourceReadResult {
 	const provider = getKnowledgeProvider();
 	const entries = provider.list();
-	return entries.map((e) => ({
-		id: e.id,
-		title: e.title,
-		content: e.content,
-		tags: e.tags,
-		source: e.meta?.source ?? null,
-		createdAt: e.created,
-	}));
+	const limit = parseLimit(parsed.searchParams.get("limit"), INDEX_LIMIT_DEFAULT, "knowledge index");
+	if (typeof limit !== "number") return limit;
+	const cursor = parsed.searchParams.get("cursor");
+	const offset = cursor === null ? 0 : decodeCursor(cursor, "knowledge-index", "knowledge cursor");
+	if (typeof offset !== "number") return offset;
+	const page = paginate(entries, offset, limit, cursor, "knowledge-index", "Knowledge index");
+	if ("ok" in page) return page;
+	return resourceSuccess({
+		kind: "knowledge.index",
+		entries: page.items.map(knowledgeIndexEntry),
+		cursor: page.cursor,
+		nextCursor: page.nextCursor,
+		limit: page.limit,
+		totalEntries: page.totalEntries,
+		searchUriTemplate: "kota://knowledge/search?q={query}",
+	});
+}
+
+function readKnowledgeEntry(token: string): KotaResourceReadResult {
+	const id = decodeToken(token, "knowledge entry id");
+	if (typeof id !== "string") return id;
+	const provider = getKnowledgeProvider();
+	const entry = provider.read(id);
+	if (!entry) return notFoundError(`Unknown knowledge entry: ${id}`);
+	const content = boundText(entry.content, ENTRY_CONTENT_CHAR_LIMIT);
+	return resourceSuccess({
+		kind: "knowledge.entry",
+		id: entry.id,
+		title: entry.title,
+		type: entry.type,
+		status: entry.status,
+		tags: entry.tags,
+		source: entry.meta.source ?? null,
+		createdAt: entry.created,
+		updatedAt: entry.updated,
+		content: content.text,
+		contentTruncated: content.truncated,
+		contentCharLimit: content.charLimit,
+		availableChars: content.availableChars,
+	});
+}
+
+function readKnowledgeSearch(parsed: URL): KotaResourceReadResult {
+	const query = normalizeWhitespace(parsed.searchParams.get("q") ?? "");
+	if (!query) return protocolError("Missing required knowledge search query: q");
+	const limit = parseLimit(parsed.searchParams.get("limit"), SEARCH_LIMIT_DEFAULT, "knowledge search");
+	if (typeof limit !== "number") return limit;
+	const cursor = parsed.searchParams.get("cursor");
+	const offset = cursor === null ? 0 : decodeCursor(cursor, "knowledge-search", "knowledge search cursor");
+	if (typeof offset !== "number") return offset;
+	const provider = getKnowledgeProvider();
+	const entries = provider.search(query);
+	const page = paginate(entries, offset, limit, cursor, "knowledge-search", "Knowledge search");
+	if ("ok" in page) return page;
+	return resourceSuccess({
+		kind: "knowledge.search",
+		query,
+		hits: page.items.map((entry) => ({
+			id: entry.id,
+			title: entry.title,
+			type: entry.type,
+			status: entry.status,
+			tags: entry.tags,
+			source: entry.meta.source ?? null,
+			createdAt: entry.created,
+			updatedAt: entry.updated,
+			snippet: buildSnippet(entry.content, query),
+			readUri: encodeEntryUri("knowledge", entry.id),
+		})),
+		cursor: page.cursor,
+		nextCursor: page.nextCursor,
+		limit: page.limit,
+		totalHits: page.totalEntries,
+	});
+}
+
+function readMemoryResource(parsed: URL): KotaResourceReadResult {
+	if (parsed.pathname === "" || parsed.pathname === "/") return readMemoryIndex(parsed);
+	if (parsed.pathname === "/search") return readMemorySearch(parsed);
+	const entryMatch = parsed.pathname.match(/^\/entry\/([^/]+)$/);
+	if (entryMatch) return readMemoryEntry(entryMatch[1]);
+	return notFoundError(`Unknown resource: ${parsed.toString()}`);
+}
+
+function readKnowledgeResource(parsed: URL): KotaResourceReadResult {
+	if (parsed.pathname === "" || parsed.pathname === "/") return readKnowledgeIndex(parsed);
+	if (parsed.pathname === "/search") return readKnowledgeSearch(parsed);
+	const entryMatch = parsed.pathname.match(/^\/entry\/([^/]+)$/);
+	if (entryMatch) return readKnowledgeEntry(entryMatch[1]);
+	return notFoundError(`Unknown resource: ${parsed.toString()}`);
 }
 
 /**
  * Read the content for a known resource URI.
- * Returns null if the URI is not recognized.
+ * Returns an MCP error envelope if the URI is not recognized.
  */
 export function readKotaResource(
 	uri: string,
 	projectDir: string,
-): string | null {
+): KotaResourceReadResult {
 	switch (uri) {
 		case "kota://tasks/ready":
-			return JSON.stringify(readReadyTasks(projectDir), null, 2);
+			return resourceSuccess(readReadyTasks(projectDir));
 		case "kota://workflow/status":
-			return JSON.stringify(readWorkflowStatus(projectDir), null, 2);
+			return resourceSuccess(readWorkflowStatus(projectDir));
 		case "kota://workflow/runs/recent":
-			return JSON.stringify(readRecentRuns(projectDir), null, 2);
-		case "kota://memory":
-			return JSON.stringify(readMemory(), null, 2);
-		case "kota://knowledge":
-			return JSON.stringify(readKnowledge(), null, 2);
-		default:
-			return null;
+			return resourceSuccess(readRecentRuns(projectDir));
 	}
+	const parsed = parseKotaUrl(uri);
+	if ("ok" in parsed) return parsed;
+	if (parsed.hostname === "memory") return readMemoryResource(parsed);
+	if (parsed.hostname === "knowledge") return readKnowledgeResource(parsed);
+	return notFoundError(`Unknown resource: ${uri}`);
 }

@@ -2204,6 +2204,65 @@ describe("completion/complete", () => {
 });
 
 describe("memory and knowledge resources", () => {
+	function makeMemoryEntries(count: number) {
+		return Array.from({ length: count }, (_, index) => ({
+			id: `memory-${index}`,
+			content: `MEMORY_FULL_CONTENT_${index} remember the bounded resource needle ${"x".repeat(40)}`,
+			tags: index % 2 === 0 ? ["even"] : ["odd"],
+			created: `2026-01-${String((index % 28) + 1).padStart(2, "0")}T00:00:00Z`,
+		}));
+	}
+
+	function makeKnowledgeEntries(count: number) {
+		return Array.from({ length: count }, (_, index) => ({
+			id: `knowledge-${index}`,
+			title: `Knowledge ${index}`,
+			content: `KNOWLEDGE_FULL_CONTENT_${index} explains the bounded resource needle ${"y".repeat(40)}`,
+			tags: index % 2 === 0 ? ["api"] : ["ops"],
+			type: "note",
+			status: "active",
+			created: `2026-02-${String((index % 28) + 1).padStart(2, "0")}T00:00:00Z`,
+			updated: `2026-03-${String((index % 28) + 1).padStart(2, "0")}T00:00:00Z`,
+			meta: { source: `https://example.com/${index}` },
+		}));
+	}
+
+	function mockMemoryProvider(entries: ReturnType<typeof makeMemoryEntries>, searchEntries = entries) {
+		vi.mocked(getMemoryProvider).mockReturnValue({
+			list: () => entries,
+			save: vi.fn(),
+			search: vi.fn(() => searchEntries),
+			update: vi.fn(),
+			delete: vi.fn(),
+			supportsSemanticSearch: vi.fn(() => false),
+			semanticSearch: vi.fn(async () => []),
+			reindex: vi.fn(async () => ({ indexed: 0, failed: 0, skipped: true })),
+		});
+	}
+
+	function mockKnowledgeProvider(
+		entries: ReturnType<typeof makeKnowledgeEntries>,
+		searchEntries = entries,
+	) {
+		vi.mocked(getKnowledgeProvider).mockReturnValue({
+			list: () => entries,
+			read: (id: string) => entries.find((entry) => entry.id === id) ?? null,
+			create: vi.fn(),
+			update: vi.fn(),
+			delete: vi.fn(),
+			search: vi.fn(() => searchEntries),
+			count: vi.fn(),
+			supportsSemanticSearch: vi.fn(() => false),
+			semanticSearch: vi.fn(async () => []),
+			reindex: vi.fn(async () => ({ indexed: 0, failed: 0, skipped: true })),
+		});
+	}
+
+	function resourceJson(resp: Record<string, unknown>) {
+		const result = resp.result as { contents: Array<{ text: string }> };
+		return JSON.parse(result.contents[0].text) as Record<string, unknown>;
+	}
+
 	it("resources/list includes kota://memory and kota://knowledge", async () => {
 		const { input, output } = createTestStreams();
 		const server = new McpServer({ input, output, log: () => {} });
@@ -2220,17 +2279,8 @@ describe("memory and knowledge resources", () => {
 		server.stop();
 	});
 
-	it("resources/read kota://memory returns JSON array of memory entries", async () => {
-		vi.mocked(getMemoryProvider).mockReturnValue({
-			list: () => [{ id: "m1", content: "Remember this", tags: ["important"], created: "2026-01-01T00:00:00Z" }],
-			save: vi.fn(),
-			search: vi.fn(),
-			update: vi.fn(),
-			delete: vi.fn(),
-			supportsSemanticSearch: vi.fn(() => false),
-			semanticSearch: vi.fn(async () => []),
-			reindex: vi.fn(async () => ({ indexed: 0, failed: 0, skipped: true })),
-		});
+	it("resources/read kota://memory returns a bounded shallow index with explicit pagination", async () => {
+		mockMemoryProvider(makeMemoryEntries(55));
 
 		const { input, output } = createTestStreams();
 		const server = new McpServer({ input, output, log: () => {} });
@@ -2244,27 +2294,47 @@ describe("memory and knowledge resources", () => {
 		expect(result.contents).toHaveLength(1);
 		expect(result.contents[0].uri).toBe("kota://memory");
 		expect(result.contents[0].mimeType).toBe("application/json");
-		const entries = JSON.parse(result.contents[0].text) as Array<Record<string, unknown>>;
-		expect(entries).toHaveLength(1);
-		expect(entries[0].id).toBe("m1");
-		expect(entries[0].content).toBe("Remember this");
-		expect(entries[0].tags).toEqual(["important"]);
-		expect(entries[0].createdAt).toBe("2026-01-01T00:00:00Z");
+		expect(result.contents[0].text).not.toContain("MEMORY_FULL_CONTENT");
+		const body = JSON.parse(result.contents[0].text) as {
+			kind: string;
+			entries: Array<Record<string, unknown>>;
+			nextCursor: string | null;
+			limit: number;
+			totalEntries: number;
+			searchUriTemplate: string;
+		};
+		expect(body.kind).toBe("memory.index");
+		expect(body.entries).toHaveLength(50);
+		expect(body.entries[0].id).toBe("memory-0");
+		expect(body.entries[0].content).toBeUndefined();
+		expect(typeof body.entries[0].readUri).toBe("string");
+		expect(body.nextCursor).toEqual(expect.any(String));
+		expect(body.limit).toBe(50);
+		expect(body.totalEntries).toBe(55);
+		expect(body.searchUriTemplate).toBe("kota://memory/search?q={query}");
+
+		sendRequest(input, 3, "resources/read", { uri: `kota://memory?cursor=${body.nextCursor}` });
+		const pageResp = await readResponse(output);
+		const pageBody = resourceJson(pageResp) as {
+			entries: Array<Record<string, unknown>>;
+			nextCursor: string | null;
+			cursor: string | null;
+		};
+		expect(pageBody.entries).toHaveLength(5);
+		expect(pageBody.entries[0].id).toBe("memory-50");
+		expect(pageBody.cursor).toBe(body.nextCursor);
+		expect(pageBody.nextCursor).toBeNull();
 
 		server.stop();
 	});
 
-	it("resources/read kota://memory returns empty array when no entries", async () => {
-		vi.mocked(getMemoryProvider).mockReturnValue({
-			list: () => [],
-			save: vi.fn(),
-			search: vi.fn(),
-			update: vi.fn(),
-			delete: vi.fn(),
-			supportsSemanticSearch: vi.fn(() => false),
-			semanticSearch: vi.fn(async () => []),
-			reindex: vi.fn(async () => ({ indexed: 0, failed: 0, skipped: true })),
-		});
+	it("resources/read memory entry URIs returns bounded content only through the explicit read path", async () => {
+		const entries = makeMemoryEntries(2);
+		entries[1] = {
+			...entries[1],
+			content: `${"a".repeat(12_000)}tail`,
+		};
+		mockMemoryProvider(entries);
 
 		const { input, output } = createTestStreams();
 		const server = new McpServer({ input, output, log: () => {} });
@@ -2272,77 +2342,64 @@ describe("memory and knowledge resources", () => {
 
 		sendRequest(input, 2, "resources/read", { uri: "kota://memory" });
 		const resp = await readResponse(output);
+		const index = resourceJson(resp) as { entries: Array<{ readUri: string }> };
 
-		const result = resp.result as { contents: Array<{ text: string }> };
-		const entries = JSON.parse(result.contents[0].text);
-		expect(entries).toEqual([]);
+		sendRequest(input, 3, "resources/read", { uri: index.entries[0].readUri });
+		const entryResp = await readResponse(output);
+		const entry = resourceJson(entryResp);
+		expect(entry.kind).toBe("memory.entry");
+		expect(entry.id).toBe("memory-0");
+		expect(entry.content).toContain("MEMORY_FULL_CONTENT_0");
+		expect(entry.contentTruncated).toBe(false);
+
+		sendRequest(input, 4, "resources/read", { uri: index.entries[1].readUri });
+		const largeResp = await readResponse(output);
+		const largeEntry = resourceJson(largeResp);
+		expect(String(largeEntry.content)).toHaveLength(12_000);
+		expect(largeEntry.contentTruncated).toBe(true);
+		expect(largeEntry.contentCharLimit).toBe(12_000);
+		expect(largeEntry.availableChars).toBe(12_004);
 
 		server.stop();
 	});
 
-	it("resources/read kota://knowledge returns JSON array of knowledge entries", async () => {
-		vi.mocked(getKnowledgeProvider).mockReturnValue({
-			list: () => [
-				{
-					id: "k1",
-					title: "API Docs",
-					content: "The API does X.",
-					tags: ["api"],
-					type: "note",
-					status: "active",
-					created: "2026-02-01T00:00:00Z",
-					updated: "2026-02-01T00:00:00Z",
-					meta: { source: "https://example.com" },
-				},
-			],
-			read: vi.fn(),
-			create: vi.fn(),
-			update: vi.fn(),
-			delete: vi.fn(),
-			search: vi.fn(),
-			count: vi.fn(),
-			supportsSemanticSearch: vi.fn(() => false),
-			semanticSearch: vi.fn(),
-			reindex: vi.fn(),
-		});
+	it("resources/read memory search returns bounded snippet hits with follow-up read URIs", async () => {
+		const entries = makeMemoryEntries(3);
+		const searchEntries = makeMemoryEntries(12);
+		mockMemoryProvider(entries, searchEntries);
 
 		const { input, output } = createTestStreams();
 		const server = new McpServer({ input, output, log: () => {} });
 		await initServer(server, input, output);
 
-		sendRequest(input, 2, "resources/read", { uri: "kota://knowledge" });
+		sendRequest(input, 2, "resources/read", { uri: "kota://memory/search?q=needle" });
 		const resp = await readResponse(output);
 
 		expect(resp.id).toBe(2);
-		const result = resp.result as { contents: Array<{ uri: string; mimeType: string; text: string }> };
-		expect(result.contents).toHaveLength(1);
-		expect(result.contents[0].uri).toBe("kota://knowledge");
-		expect(result.contents[0].mimeType).toBe("application/json");
-		const entries = JSON.parse(result.contents[0].text) as Array<Record<string, unknown>>;
-		expect(entries).toHaveLength(1);
-		expect(entries[0].id).toBe("k1");
-		expect(entries[0].title).toBe("API Docs");
-		expect(entries[0].content).toBe("The API does X.");
-		expect(entries[0].tags).toEqual(["api"]);
-		expect(entries[0].source).toBe("https://example.com");
-		expect(entries[0].createdAt).toBe("2026-02-01T00:00:00Z");
+		const body = resourceJson(resp) as {
+			kind: string;
+			query: string;
+			hits: Array<Record<string, unknown>>;
+			nextCursor: string | null;
+			limit: number;
+			totalHits: number;
+		};
+		expect(body.kind).toBe("memory.search");
+		expect(body.query).toBe("needle");
+		expect(body.hits).toHaveLength(10);
+		expect(body.hits[0].snippet).toContain("needle");
+		expect(body.hits[0].content).toBeUndefined();
+		expect(typeof body.hits[0].readUri).toBe("string");
+		expect(body.nextCursor).toEqual(expect.any(String));
+		expect(body.limit).toBe(10);
+		expect(body.totalHits).toBe(12);
 
 		server.stop();
 	});
 
-	it("resources/read kota://knowledge returns empty array when no entries", async () => {
-		vi.mocked(getKnowledgeProvider).mockReturnValue({
-			list: () => [],
-			read: vi.fn(),
-			create: vi.fn(),
-			update: vi.fn(),
-			delete: vi.fn(),
-			search: vi.fn(),
-			count: vi.fn(),
-			supportsSemanticSearch: vi.fn(() => false),
-			semanticSearch: vi.fn(),
-			reindex: vi.fn(),
-		});
+	it("resources/read knowledge supports bounded index, explicit reads, and bounded search snippets", async () => {
+		const entries = makeKnowledgeEntries(54);
+		mockKnowledgeProvider(entries, makeKnowledgeEntries(11));
 
 		const { input, output } = createTestStreams();
 		const server = new McpServer({ input, output, log: () => {} });
@@ -2350,10 +2407,89 @@ describe("memory and knowledge resources", () => {
 
 		sendRequest(input, 2, "resources/read", { uri: "kota://knowledge" });
 		const resp = await readResponse(output);
+		const indexResult = resp.result as { contents: Array<{ text: string }> };
+		expect(indexResult.contents[0].text).not.toContain("KNOWLEDGE_FULL_CONTENT");
+		const index = JSON.parse(indexResult.contents[0].text) as {
+			kind: string;
+			entries: Array<Record<string, unknown>>;
+			nextCursor: string | null;
+			totalEntries: number;
+		};
+		expect(index.kind).toBe("knowledge.index");
+		expect(index.entries).toHaveLength(50);
+		expect(index.entries[0].title).toBe("Knowledge 0");
+		expect(index.entries[0].content).toBeUndefined();
+		expect(typeof index.entries[0].readUri).toBe("string");
+		expect(index.nextCursor).toEqual(expect.any(String));
+		expect(index.totalEntries).toBe(54);
 
-		const result = resp.result as { contents: Array<{ text: string }> };
-		const entries = JSON.parse(result.contents[0].text);
-		expect(entries).toEqual([]);
+		sendRequest(input, 3, "resources/read", { uri: index.entries[0].readUri });
+		const entryResp = await readResponse(output);
+		const entry = resourceJson(entryResp);
+		expect(entry.kind).toBe("knowledge.entry");
+		expect(entry.id).toBe("knowledge-0");
+		expect(entry.content).toContain("KNOWLEDGE_FULL_CONTENT_0");
+		expect(entry.contentTruncated).toBe(false);
+
+		sendRequest(input, 4, "resources/read", { uri: "kota://knowledge/search?q=needle" });
+		const searchResp = await readResponse(output);
+		const search = resourceJson(searchResp) as {
+			kind: string;
+			hits: Array<Record<string, unknown>>;
+			nextCursor: string | null;
+			totalHits: number;
+		};
+		expect(search.kind).toBe("knowledge.search");
+		expect(search.hits).toHaveLength(10);
+		expect(search.hits[0].title).toBe("Knowledge 0");
+		expect(search.hits[0].snippet).toContain("needle");
+		expect(search.hits[0].content).toBeUndefined();
+		expect(typeof search.hits[0].readUri).toBe("string");
+		expect(search.nextCursor).toEqual(expect.any(String));
+		expect(search.totalHits).toBe(11);
+
+		server.stop();
+	});
+
+	it("resources/read rejects malformed and out-of-range memory and knowledge resource inputs", async () => {
+		mockMemoryProvider(makeMemoryEntries(55));
+		mockKnowledgeProvider(makeKnowledgeEntries(1));
+
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {} });
+		await initServer(server, input, output);
+
+		sendRequest(input, 2, "resources/read", { uri: "kota://memory/search" });
+		const missingQueryResp = await readResponse(output);
+		expect(missingQueryResp.error).toMatchObject({
+			code: -32602,
+			message: "Missing required memory search query: q",
+		});
+
+		sendRequest(input, 3, "resources/read", { uri: "kota://knowledge?cursor=not-a-cursor" });
+		const badCursorResp = await readResponse(output);
+		expect(badCursorResp.error).toMatchObject({
+			code: -32602,
+			message: "Invalid knowledge cursor",
+		});
+
+		sendRequest(input, 4, "resources/read", { uri: "kota://memory" });
+		const indexResp = await readResponse(output);
+		const index = resourceJson(indexResp) as { nextCursor: string };
+		mockMemoryProvider(makeMemoryEntries(3));
+		sendRequest(input, 5, "resources/read", { uri: `kota://memory?cursor=${index.nextCursor}` });
+		const outOfRangeResp = await readResponse(output);
+		expect(outOfRangeResp.error).toMatchObject({
+			code: -32602,
+			message: "Memory index cursor is out of range",
+		});
+
+		sendRequest(input, 6, "resources/read", { uri: "kota://knowledge/entry/not@base64" });
+		const badEntryResp = await readResponse(output);
+		expect(badEntryResp.error).toMatchObject({
+			code: -32602,
+			message: "Invalid knowledge entry id",
+		});
 
 		server.stop();
 	});

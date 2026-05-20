@@ -71,13 +71,13 @@ export class ResourcesHandler {
 			this.ctx.transport.sendError(msg, -32602, "Missing required parameter: uri");
 			return;
 		}
-		if (!KNOWN_RESOURCE_URIS.has(uri)) {
-			this.ctx.transport.sendError(msg, -32002, `Unknown resource: ${uri}`);
+		const result = readKotaResource(uri, this.resolveProjectDir());
+		if (!result.ok) {
+			this.ctx.transport.sendError(msg, result.code, result.message);
 			return;
 		}
-		const text = readKotaResource(uri, this.resolveProjectDir());
 		this.ctx.transport.sendResult(msg, {
-			contents: [{ uri, mimeType: "application/json", text }],
+			contents: [{ uri, mimeType: "application/json", text: result.text }],
 		});
 	}
 
