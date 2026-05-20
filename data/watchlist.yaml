@@ -258,16 +258,19 @@ resources:
     added: "2026-05-16"
     notes: "Official MCP tools spec draft - monitor tool-result content, structuredContent, _meta, output schema, annotations, and execution-error semantics that affect KOTA's MCP client/server protocol fidelity."
     snapshot:
-      fingerprint: sha256:9bae67a3a2c4b659c6c44e3f0ab2ce1a
-      summary: "MCP draft Tools remains the right protocol-fidelity source, and the current KOTA tools-side gaps from this page are now covered by completed MCP tasks."
-      last_seen_at: "2026-05-20T04:53:06.504Z"
+      fingerprint: sha256:b133954456bfefe1323eae8990fd6e75
+      summary: "MCP draft Tools remains the protocol-fidelity source for tools/list pagination, input-required tool results, outputSchema, structuredContent, x-mcp-header, and tool list change behavior; current KOTA gaps from this page are already covered by completed tasks."
+      last_seen_at: "2026-05-20T10:02:27.469Z"
   - url: https://modelcontextprotocol.io/specification/draft/server/resources
     added: "2026-05-20"
     notes: "Official MCP resources spec draft - monitor resources/list pagination, resources.listChanged, resource subscriptions, resource annotations, and input-required resource reads that affect KOTA's MCP server resource surface."
     snapshot:
-      fingerprint: sha256:40609cb6863b9d66e837cba2d7c91490
-      summary: "MCP draft Resources exposes a KOTA MCP server gap around draft-aligned resources.listChanged and subscriptions/listen resource subscriptions; this refresh opened task-align-kota-mcp-resource-subscriptions-with-the-dra."
-      last_seen_at: "2026-05-20T04:53:06.505Z"
+      fingerprint: sha256:ff32a66cc91a83afe962d1e345b9d4e3
+      summary: "MCP draft Resources still reinforces the recently completed KOTA resource subscription/listChanged alignment work; no additional nonduplicative resource task was opened from this refresh."
+      last_seen_at: "2026-05-20T10:02:27.470Z"
+  - url: https://modelcontextprotocol.io/specification/draft/server/prompts
+    added: "2026-05-20"
+    notes: "Official MCP prompts spec draft - monitor prompts/list pagination, prompt metadata, input-required prompt resolution, completions, and promptsListChanged subscriptions that affect KOTA's MCP prompt-template surface."
   - url: https://github.com/github/gh-aw
     added: "2026-05-17"
     notes: "GitHub Agentic Workflows is a GitHub Actions-hosted agent workflow runtime; monitor for event-trigger, safe-output, input-sanitization, and multi-engine guardrail patterns relevant to KOTA's workflow runtime."
