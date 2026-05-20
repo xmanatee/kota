@@ -37,9 +37,9 @@ resources:
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:de150a14068c5844b3c6bb6684ed4e05
-      summary: "Codex 0.130.0/0.131.0 reinforces bounded app-server thread/history reads; KOTA opened task-add-paged-history-detail-views-for-large-conversati for the matching history-module gap."
-      last_seen_at: "2026-05-20T06:12:04.457Z"
+      fingerprint: sha256:9d5a1d85c54872dac803aba895c34a22
+      summary: "Codex 0.132.0 adds several runtime-quality signals; the nonduplicative KOTA gap from this refresh is explicit original-resolution control for the system module's view_image tool."
+      last_seen_at: "2026-05-20T15:47:06.033Z"
   - url: https://github.com/google-gemini/gemini-cli
     added: "2026-04-19"
     snapshot:
