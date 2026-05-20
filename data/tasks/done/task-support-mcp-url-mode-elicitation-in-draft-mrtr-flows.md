@@ -1,12 +1,12 @@
 ---
 id: task-support-mcp-url-mode-elicitation-in-draft-mrtr-flows
 title: Support MCP URL-mode elicitation in draft MRTR flows
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Model MCP elicitation client capabilities as form/url modes and route URL-mode input_required requests without exposing sensitive data through form responses.
 created_at: 2026-05-20T16:59:27.000Z
-updated_at: 2026-05-20T16:59:27.000Z
+updated_at: 2026-05-20T18:45:27.000Z
 ---
 
 ## Problem
@@ -123,3 +123,10 @@ third-party credentials pass through form elicitation.
 - Test fixtures prove URL-mode `input_required` requests round-trip via MRTR
   without content-bearing form responses, while form-mode validation remains
   strict.
+
+## Completion Evidence
+
+- `pnpm test src/modules/mcp-server/mcp-protocol-types.test.ts src/core/mcp/client.test.ts src/core/mcp/operator-input.test.ts src/core/mcp/manager.test.ts src/modules/mcp-server/server.test.ts` passed.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm validate-tasks` passed after staging the task move.

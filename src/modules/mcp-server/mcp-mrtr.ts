@@ -13,6 +13,7 @@ import type {
 	ElicitationResponse,
 	HandlerContext,
 	JsonRpcRequest,
+	McpElicitationMode,
 	McpInputRequest,
 	McpInputRequests,
 	McpInputRequiredResult,
@@ -129,10 +130,12 @@ function decodeElicitationInputResponseValue(
 		return `inputResponses.${requestId}.action must be accept, reject, or cancel`;
 	}
 	if (value.action === "accept") {
-		if (!isJsonObject(value.content)) {
+		if (value.content !== undefined && !isJsonObject(value.content)) {
 			return `inputResponses.${requestId}.content must be an object when action is accept`;
 		}
-		return { action: "accept", content: value.content };
+		return value.content === undefined
+			? { action: "accept" }
+			: { action: "accept", content: value.content };
 	}
 	if (value.action === "reject") return { action: "reject" };
 	return { action: "cancel" };
@@ -207,11 +210,18 @@ export function decodeMrtrRetryParams(params: KotaJsonObject): MrtrRetryParams {
 export function readElicitationInputResponse(
 	inputResponses: McpInputResponses,
 	requestId: string,
+	mode: McpElicitationMode = "form",
 ): ElicitationResponse | string {
 	const response = inputResponses[requestId];
 	if (!response) return `Missing input response for request "${requestId}"`;
 	if (!isElicitationInputResponse(response)) {
 		return `inputResponses.${requestId} must be an elicitation response`;
+	}
+	if (response.action === "accept" && mode === "form" && !isJsonObject(response.content)) {
+		return `inputResponses.${requestId}.content must be an object when action is accept`;
+	}
+	if (response.action === "accept" && mode === "url" && response.content !== undefined) {
+		return `inputResponses.${requestId}.content must be omitted for URL-mode accept`;
 	}
 	return response;
 }

@@ -118,6 +118,8 @@ export type McpToolInputRequests = KotaJsonObject & {
   [requestId: string]: McpToolInputRequest;
 };
 
+export type McpElicitationMode = "form" | "url";
+
 export type McpToolInputResponse = KotaJsonObject & {
   action: "accept" | "reject" | "cancel";
   content?: KotaJsonObject;
@@ -149,18 +151,42 @@ export type McpCallToolResult =
   | McpInputRequiredCallToolResult;
 
 export type McpCallToolRetry =
-  | {
+  ({
       requestState: string;
       inputResponses?: McpToolInputResponses;
     }
   | {
       requestState?: string;
       inputResponses: McpToolInputResponses;
+    }) & {
+      inputRequests?: McpToolInputRequests;
     };
 
 const CONNECT_TIMEOUT = 10_000;
 const CALL_TIMEOUT = 120_000;
 const MCP_HEADER_ANNOTATION = "x-mcp-header";
+
+export function mcpToolInputRequestElicitationMode(
+  request: McpToolInputRequest,
+): McpElicitationMode | null {
+  if (request.method !== "elicitation/create") return null;
+  return request.params.mode === "url" ? "url" : "form";
+}
+
+export function mcpToolUrlElicitationDetails(
+  request: McpToolInputRequest,
+): { message: string; url: string; elicitationId: string } | null {
+  if (mcpToolInputRequestElicitationMode(request) !== "url") return null;
+  const { message, url, elicitationId } = request.params;
+  if (
+    typeof message !== "string" ||
+    typeof url !== "string" ||
+    typeof elicitationId !== "string"
+  ) {
+    return null;
+  }
+  return { message, url, elicitationId };
+}
 
 class McpHeaderAnnotationError extends Error {
   constructor(
@@ -764,10 +790,27 @@ function decodeInputRequests(value: KotaJsonValue | undefined): McpToolInputRequ
     if (!request) {
       throw malformedMcpResult("tools/call", label, "an object");
     }
+    const method = requireString(request.method, `${label}.method`);
+    const params = requireJsonObject(request.params, `${label}.params`);
+    if (method === "elicitation/create") {
+      const mode = params.mode === undefined
+        ? "form"
+        : requireString(params.mode, `${label}.params.mode`);
+      if (mode !== "form" && mode !== "url") {
+        throw new Error(
+          `Malformed MCP tools/call result: ${label}.params.mode must be form or url`,
+        );
+      }
+      requireString(params.message, `${label}.params.message`);
+      if (mode === "url") {
+        requireString(params.url, `${label}.params.url`);
+        requireString(params.elicitationId, `${label}.params.elicitationId`);
+      }
+    }
     decoded[requestId] = {
       ...request,
-      method: requireString(request.method, `${label}.method`),
-      params: requireJsonObject(request.params, `${label}.params`),
+      method,
+      params,
     };
   }
   if (Object.keys(decoded).length === 0) {
@@ -780,6 +823,7 @@ function decodeInputRequests(value: KotaJsonValue | undefined): McpToolInputRequ
 
 export function decodeMcpToolInputResponses(
   value: KotaJsonValue | undefined,
+  inputRequests?: McpToolInputRequests,
 ): McpToolInputResponses {
   const object = requireJsonObject(value, "inputResponses");
   const decoded: { [requestId: string]: McpToolInputResponse } = {};
@@ -795,16 +839,39 @@ export function decodeMcpToolInputResponses(
         `Malformed MCP tools/call result: ${label}.action must be accept, reject, or cancel`,
       );
     }
+    const inputRequest = inputRequests?.[requestId];
+    if (inputRequests && !inputRequest) {
+      throw new Error(
+        `Malformed MCP tools/call result: ${label} does not match an input request`,
+      );
+    }
+    const mode = inputRequest
+      ? mcpToolInputRequestElicitationMode(inputRequest)
+      : null;
     const content = optionalJsonObject(response.content, `${label}.content`);
+    if (mode === "url" && content !== undefined) {
+      throw new Error(
+        `Malformed MCP tools/call result: ${label}.content must be omitted for URL-mode response`,
+      );
+    }
+    if (mode === "url") {
+      const unexpectedKeys = Object.keys(response).filter((key) => key !== "action");
+      if (unexpectedKeys.length > 0) {
+        throw new Error(
+          `Malformed MCP tools/call result: ${label} must include only action for URL-mode response`,
+        );
+      }
+      decoded[requestId] = { action };
+      continue;
+    }
     if (action === "accept" && !content) {
       throw new Error(
         `Malformed MCP tools/call result: ${label}.content must be an object when action is accept`,
       );
     }
     decoded[requestId] = {
-      ...response,
       action,
-      ...(content ? { content } : {}),
+      ...(content !== undefined ? { content } : {}),
     };
   }
   if (Object.keys(decoded).length === 0) {
@@ -1061,7 +1128,10 @@ export class McpClient {
         params.requestState = retry.requestState;
       }
       if (retry.inputResponses !== undefined) {
-        params.inputResponses = decodeMcpToolInputResponses(retry.inputResponses);
+        params.inputResponses = decodeMcpToolInputResponses(
+          retry.inputResponses,
+          retry.inputRequests,
+        );
       }
     }
     const result = await this.request("tools/call", params, CALL_TIMEOUT);

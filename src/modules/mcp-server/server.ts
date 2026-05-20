@@ -226,7 +226,7 @@ export class McpServer {
 	private readonly session: SessionState = {
 		initialized: false,
 		protocolVersion: MCP_LEGACY_PROTOCOL_VERSION,
-		clientSupportsElicitation: false,
+		clientElicitation: { form: false, url: false },
 		clientSupportsRoots: false,
 	};
 	private readonly requestContext = new AsyncLocalStorage<McpRequestContext>();

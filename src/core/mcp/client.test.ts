@@ -196,6 +196,49 @@ rl.on("line", (line) => {
         requestState: "state-token-1",
         _meta: { traceId: "input-required-1" },
       }}) + "\\n");
+    } else if (msg.params.name === "input_required_url") {
+      if (msg.params.requestState || msg.params.inputResponses) {
+        const response = msg.params.inputResponses?.oauth;
+        process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+          resultType: "complete",
+          content: [{ type: "text", text: "URL retry: " + msg.params.requestState + " " + response?.action + " content:" + Object.prototype.hasOwnProperty.call(response || {}, "content") }],
+          structuredContent: {
+            requestState: msg.params.requestState,
+            inputResponses: msg.params.inputResponses,
+          },
+        }}) + "\\n");
+        return;
+      }
+      process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+        resultType: "input_required",
+        inputRequests: {
+          oauth: {
+            method: "elicitation/create",
+            params: {
+              mode: "url",
+              message: "Please authorize Example Auth.",
+              url: "https://auth.example.test/consent?state=abc",
+              elicitationId: "oauth-abc",
+            },
+          },
+        },
+        requestState: "state-token-url",
+      }}) + "\\n");
+    } else if (msg.params.name === "input_required_url_missing_message") {
+      process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+        resultType: "input_required",
+        inputRequests: {
+          oauth: {
+            method: "elicitation/create",
+            params: {
+              mode: "url",
+              url: "https://auth.example.test/consent?state=abc",
+              elicitationId: "oauth-abc",
+            },
+          },
+        },
+        requestState: "state-token-url",
+      }}) + "\\n");
     } else if (msg.params.name === "malformed_input_required") {
       process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
         resultType: "input_required",
@@ -719,6 +762,81 @@ describe("McpClient lifecycle (fake MCP server)", () => {
         },
       },
     });
+  }, 10_000);
+
+  it("callTool retries URL-mode input_required requests without content", async () => {
+    client = new McpClient(
+      "node",
+      ["-e", FAKE_MCP_SERVER],
+      { MCP_TEST_MODE: "draft" },
+      "url-input-required-retry-test",
+    );
+    await client.connect();
+
+    const inputRequired = await client.callTool("input_required_url", {});
+    expect(inputRequired.resultType).toBe("input_required");
+    if (inputRequired.resultType !== "input_required" || !inputRequired.inputRequests) {
+      throw new Error("Expected URL input_required result");
+    }
+
+    const result = expectCompletedResult(
+      await client.callTool("input_required_url", {}, {
+        requestState: "state-token-url",
+        inputRequests: inputRequired.inputRequests,
+        inputResponses: {
+          oauth: { action: "accept" },
+        },
+      }),
+    );
+
+    expect(result.resultType).toBe("complete");
+    expect(result.text).toBe("URL retry: state-token-url accept content:false");
+    expect(result.structuredContent).toEqual({
+      requestState: "state-token-url",
+      inputResponses: {
+        oauth: { action: "accept" },
+      },
+    });
+  }, 10_000);
+
+  it("callTool rejects URL-mode input_required requests without message", async () => {
+    client = new McpClient(
+      "node",
+      ["-e", FAKE_MCP_SERVER],
+      { MCP_TEST_MODE: "draft" },
+      "url-input-missing-message-test",
+    );
+    await client.connect();
+
+    await expect(client.callTool("input_required_url_missing_message", {})).rejects.toThrow(
+      /inputRequests\.oauth\.params\.message must be a string/,
+    );
+  }, 10_000);
+
+  it("callTool rejects URL-mode retry responses with extra fields", async () => {
+    client = new McpClient(
+      "node",
+      ["-e", FAKE_MCP_SERVER],
+      { MCP_TEST_MODE: "draft" },
+      "url-input-extra-field-test",
+    );
+    await client.connect();
+
+    const inputRequired = await client.callTool("input_required_url", {});
+    expect(inputRequired.resultType).toBe("input_required");
+    if (inputRequired.resultType !== "input_required" || !inputRequired.inputRequests) {
+      throw new Error("Expected URL input_required result");
+    }
+
+    await expect(
+      client.callTool("input_required_url", {}, {
+        requestState: "state-token-url",
+        inputRequests: inputRequired.inputRequests,
+        inputResponses: {
+          oauth: { action: "accept", code: "secret" },
+        },
+      }),
+    ).rejects.toThrow(/inputResponses\.oauth must include only action/);
   }, 10_000);
 
   it("callTool rejects malformed retry inputResponses before sending the retry", async () => {

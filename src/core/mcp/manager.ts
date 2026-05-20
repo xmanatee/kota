@@ -271,6 +271,7 @@ export class McpManager {
         }
         const retry = {
           inputResponses: routed.inputResponses,
+          inputRequests: result.inputRequests,
           ...(result.requestState !== undefined ? { requestState: result.requestState } : {}),
         };
         const retried = await entry.client.callTool(entry.originalName, input, retry);

@@ -81,11 +81,13 @@ export type ElicitationSchema = {
 };
 
 export type ElicitationResponse =
-	| { action: "accept"; content: KotaJsonObject }
+	| { action: "accept"; content?: KotaJsonObject }
 	| { action: "reject" }
 	| { action: "cancel" };
 
-export type McpElicitationInputRequest = {
+export type McpElicitationMode = "form" | "url";
+
+export type McpFormElicitationInputRequest = {
 	method: "elicitation/create";
 	params: {
 		mode: "form";
@@ -93,6 +95,20 @@ export type McpElicitationInputRequest = {
 		requestedSchema: ElicitationSchema;
 	};
 };
+
+export type McpUrlElicitationInputRequest = {
+	method: "elicitation/create";
+	params: {
+		mode: "url";
+		message: string;
+		url: string;
+		elicitationId: string;
+	};
+};
+
+export type McpElicitationInputRequest =
+	| McpFormElicitationInputRequest
+	| McpUrlElicitationInputRequest;
 
 export type McpRootsInputRequest = {
 	method: "roots/list";
@@ -164,6 +180,11 @@ export type McpImplementation = {
 
 export type McpClientCapabilities = KotaJsonObject;
 
+export type McpElicitationClientCapabilities = {
+	form: boolean;
+	url: boolean;
+};
+
 export type McpRequestContext = {
 	protocolVersion: typeof MCP_DRAFT_PROTOCOL_VERSION;
 	clientInfo: McpImplementation;
@@ -179,7 +200,7 @@ export type McpRequestContext = {
 export type SessionState = {
 	initialized: boolean;
 	protocolVersion: McpProtocolVersion;
-	clientSupportsElicitation: boolean;
+	clientElicitation: McpElicitationClientCapabilities;
 	clientSupportsRoots: boolean;
 };
 
@@ -199,6 +220,23 @@ function hasObjectCapability(
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+export function decodeClientElicitationCapabilities(
+	capabilities: McpClientCapabilities,
+): McpElicitationClientCapabilities {
+	const value = capabilities.elicitation;
+	if (typeof value !== "object" || value === null || Array.isArray(value)) {
+		return { form: false, url: false };
+	}
+
+	const form = hasObjectCapability(value, "form");
+	const url = hasObjectCapability(value, "url");
+	const legacyEmptyObject = Object.keys(value).length === 0;
+	return {
+		form: form || legacyEmptyObject,
+		url,
+	};
+}
+
 export function hasLegacySessionContext(session: SessionState): boolean {
 	return session.initialized && session.protocolVersion === MCP_LEGACY_PROTOCOL_VERSION;
 }
@@ -211,12 +249,15 @@ export function activeMcpProtocolVersion(ctx: HandlerContext): McpProtocolVersio
 	return ctx.getRequestContext()?.protocolVersion ?? ctx.session.protocolVersion;
 }
 
-export function activeClientSupportsElicitation(ctx: HandlerContext): boolean {
+export function activeClientSupportsElicitation(
+	ctx: HandlerContext,
+	mode: McpElicitationMode = "form",
+): boolean {
 	const request = ctx.getRequestContext();
 	if (request) {
-		return hasObjectCapability(request.clientCapabilities, "elicitation");
+		return decodeClientElicitationCapabilities(request.clientCapabilities)[mode];
 	}
-	return ctx.session.clientSupportsElicitation;
+	return ctx.session.clientElicitation[mode];
 }
 
 export function activeClientSupportsRoots(ctx: HandlerContext): boolean {

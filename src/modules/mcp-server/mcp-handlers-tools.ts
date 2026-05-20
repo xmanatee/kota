@@ -121,9 +121,9 @@ export class ToolsHandler {
 			return;
 		}
 
-		// When the confirm tool is called over MCP and the client supports elicitation,
+		// When the confirm tool is called over MCP and the client supports form elicitation,
 		// use the standard elicitation protocol instead of falling back to /dev/tty.
-		if (name === "confirm" && activeClientSupportsElicitation(this.ctx)) {
+		if (name === "confirm" && activeClientSupportsElicitation(this.ctx, "form")) {
 			await this.handleConfirmViaElicitation(msg, args);
 			return;
 		}
@@ -148,8 +148,8 @@ export class ToolsHandler {
 		msg: JsonRpcRequest,
 		args: ToolRunnerInput,
 	): void {
-		if (!activeClientSupportsElicitation(this.ctx)) {
-			this.ctx.transport.sendError(msg, -32602, "Client does not support elicitation");
+		if (!activeClientSupportsElicitation(this.ctx, "form")) {
+			this.ctx.transport.sendError(msg, -32602, "Client does not support form elicitation");
 			return;
 		}
 		const result: McpToolInputRequiredResult = this.mrtr.createInputRequiredResult(
@@ -185,8 +185,8 @@ export class ToolsHandler {
 			);
 			return;
 		}
-		if (!activeClientSupportsElicitation(this.ctx)) {
-			this.ctx.transport.sendError(msg, -32602, "Client does not support elicitation");
+		if (!activeClientSupportsElicitation(this.ctx, "form")) {
+			this.ctx.transport.sendError(msg, -32602, "Client does not support form elicitation");
 			return;
 		}
 		const verified = this.mrtr.verify(requestState, msg, ["confirm"]);
@@ -198,7 +198,7 @@ export class ToolsHandler {
 			this.ctx.transport.sendError(msg, -32602, "requestState does not match requested tool");
 			return;
 		}
-		const inputResponse = readElicitationInputResponse(inputResponses, "confirm");
+		const inputResponse = readElicitationInputResponse(inputResponses, "confirm", "form");
 		if (typeof inputResponse === "string") {
 			this.ctx.transport.sendError(msg, -32602, inputResponse);
 			return;
@@ -256,7 +256,7 @@ export class ToolsHandler {
 		} else if (elicitResult.action === "reject") {
 			text = `REJECTED: ${action}`;
 		} else {
-			const approved = elicitResult.content.confirmed === true;
+			const approved = elicitResult.content?.confirmed === true;
 			text = approved ? `APPROVED: ${action}` : `REJECTED: ${action}`;
 		}
 		const tool = this.getExposedTools().find((t) => t.name === "confirm") ?? null;
@@ -360,7 +360,7 @@ function confirmToolResultFromInputResponse(
 	if (response.action === "reject") {
 		return { content: `REJECTED: ${action}` };
 	}
-	const approved = response.content.confirmed === true;
+	const approved = response.content?.confirmed === true;
 	return { content: approved ? `APPROVED: ${action}` : `REJECTED: ${action}` };
 }
 

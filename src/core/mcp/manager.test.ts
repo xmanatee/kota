@@ -1001,6 +1001,105 @@ describe("McpManager", () => {
     await manager.close();
   }, 10_000);
 
+  it("executeTool retries remote URL-mode input_required results without content", async () => {
+    for (const action of ["accept", "reject", "cancel"] as const) {
+      const manager = new McpManager();
+      const server = `
+        const rl = require("readline").createInterface({ input: process.stdin });
+        rl.on("line", (line) => {
+          let msg;
+          try { msg = JSON.parse(line); } catch { return; }
+          if (msg.method === "initialize") {
+            process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+              protocolVersion: "DRAFT-2026-v1",
+              capabilities: {},
+              serverInfo: { name: "needs-url-input" },
+            }}) + "\\n");
+          } else if (msg.method === "tools/list") {
+            process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+              tools: [{ name: "oauth_start", inputSchema: { type: "object" } }],
+            }}) + "\\n");
+          } else if (msg.method === "tools/call" && msg.params.name === "oauth_start") {
+            if (msg.params.requestState || msg.params.inputResponses) {
+              const response = msg.params.inputResponses.oauth;
+              process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+                resultType: "complete",
+                content: [{ type: "text", text: "url retry " + response.action }],
+                structuredContent: {
+                  action: response.action,
+                  hasContent: Object.prototype.hasOwnProperty.call(response, "content"),
+                  requestState: msg.params.requestState,
+                },
+              }}) + "\\n");
+              return;
+            }
+            process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+              resultType: "input_required",
+              inputRequests: {
+                oauth: {
+                  method: "elicitation/create",
+                  params: {
+                    mode: "url",
+                    message: "Please authorize Example Auth.",
+                    url: "https://auth.example.test/consent?state=abc",
+                    elicitationId: "oauth-abc",
+                  },
+                },
+              },
+              requestState: "remote-url-state",
+            }}) + "\\n");
+          } else if (msg.method === "shutdown") {
+            process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {} }) + "\\n");
+          }
+        });
+      `;
+      await manager.initialize({
+        mcpServers: { remote: { command: "node", args: ["-e", server] } },
+      });
+
+      const seenRequests: unknown[] = [];
+      const result = await manager.executeTool("mcp__remote__oauth_start", {}, {
+        inputResolver: async (request) => {
+          seenRequests.push(request);
+          return {
+            kind: "respond",
+            inputResponses: {
+              oauth: { action },
+            },
+          };
+        },
+      });
+
+      expect(result.is_error).toBeUndefined();
+      expect(result.content).toBe(`url retry ${action}`);
+      expect(result.structuredContent).toEqual({
+        action,
+        hasContent: false,
+        requestState: "remote-url-state",
+      });
+      expect(seenRequests).toEqual([
+        {
+          server: "needs-url-input",
+          tool: "oauth_start",
+          inputRequests: {
+            oauth: {
+              method: "elicitation/create",
+              params: {
+                mode: "url",
+                message: "Please authorize Example Auth.",
+                url: "https://auth.example.test/consent?state=abc",
+                elicitationId: "oauth-abc",
+              },
+            },
+          },
+          requestState: "remote-url-state",
+        },
+      ]);
+
+      await manager.close();
+    }
+  }, 10_000);
+
   it("executeTool retries remote input_required results with inputRequests only", async () => {
     const manager = new McpManager();
     const server = `

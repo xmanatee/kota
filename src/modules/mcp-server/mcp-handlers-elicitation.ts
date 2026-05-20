@@ -39,7 +39,7 @@ export class ElicitationHandler {
 		timeoutMs = 300_000,
 	): Promise<ElicitationResponse | null> {
 		if (this.ctx.session.protocolVersion !== MCP_LEGACY_PROTOCOL_VERSION) return null;
-		if (!this.ctx.session.clientSupportsElicitation) return null;
+		if (!this.ctx.session.clientElicitation.form) return null;
 		const id = `elicit-${++this.idCounter}`;
 		return new Promise((resolve, reject) => {
 			const timer = setTimeout(() => {

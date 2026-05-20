@@ -2696,6 +2696,25 @@ describe("McpServer elicitation", () => {
 			server.stop();
 		});
 
+		it("does not send form input_required to URL-only clients", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {}, toolFilter: ["confirm"] });
+			await initDraftServer(server, input, output);
+
+			sendRequest(input, 26, "tools/call", draftRequestParams({
+				name: "confirm",
+				arguments: { action: "Rotate signing key", risk: "high" },
+			}, { elicitation: { url: {} } }));
+			const resp = await readResponse(output);
+
+			expect(resp.result).toBeUndefined();
+			const err = resp.error as { code: number; message: string };
+			expect(err.code).toBe(-32602);
+			expect(err.message).toContain("Client does not support form elicitation");
+
+			server.stop();
+		});
+
 		it("resumes draft confirm reject and cancel responses through tools/call retry", async () => {
 			for (const [action, expectedText] of [
 				["reject", "REJECTED: Publish incident update"],

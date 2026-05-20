@@ -13,6 +13,7 @@ import type {
 	McpRoot,
 } from "./mcp-protocol-types.js";
 import {
+	decodeClientElicitationCapabilities,
 	MCP_DRAFT_PROTOCOL_VERSION,
 	MCP_LEGACY_PROTOCOL_VERSION,
 	MCP_SUPPORTED_PROTOCOL_VERSIONS,
@@ -67,7 +68,7 @@ function buildDraftServerCapabilities(): KotaJsonObject {
 }
 
 function buildLegacyServerCapabilities(args: {
-	clientSupportsElicitation: boolean;
+	clientSupportsFormElicitation: boolean;
 	advertiseSampling: boolean;
 }): KotaJsonObject {
 	const capabilities: KotaJsonObject = {
@@ -77,7 +78,7 @@ function buildLegacyServerCapabilities(args: {
 		completions: {},
 		roots: {},
 	};
-	if (args.clientSupportsElicitation) {
+	if (args.clientSupportsFormElicitation) {
 		capabilities.elicitation = {};
 	}
 	if (args.advertiseSampling) {
@@ -117,8 +118,7 @@ export class InitializeHandler {
 		this.ctx.session.protocolVersion = negotiatedProtocolVersion;
 		this.ctx.session.initialized = true;
 		const clientCaps = (msg.params?.capabilities ?? {}) as McpClientCapabilities;
-		this.ctx.session.clientSupportsElicitation =
-			typeof clientCaps.elicitation === "object" && clientCaps.elicitation !== null;
+		this.ctx.session.clientElicitation = decodeClientElicitationCapabilities(clientCaps);
 		this.ctx.session.clientSupportsRoots =
 			typeof clientCaps.roots === "object" && clientCaps.roots !== null;
 
@@ -126,7 +126,7 @@ export class InitializeHandler {
 			this.ctx.session.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION
 				? buildDraftServerCapabilities()
 				: buildLegacyServerCapabilities({
-					clientSupportsElicitation: this.ctx.session.clientSupportsElicitation,
+					clientSupportsFormElicitation: this.ctx.session.clientElicitation.form,
 					advertiseSampling: this.options.advertiseSampling(),
 				});
 		this.ctx.transport.sendResult(msg, {
@@ -138,7 +138,7 @@ export class InitializeHandler {
 			},
 		});
 		this.ctx.log(
-			`Initialized successfully (elicitation: ${this.ctx.session.clientSupportsElicitation}, sampling: ${this.options.advertiseSampling()}, completions: true, roots: ${this.ctx.session.clientSupportsRoots})`,
+			`Initialized successfully (elicitation.form: ${this.ctx.session.clientElicitation.form}, elicitation.url: ${this.ctx.session.clientElicitation.url}, sampling: ${this.options.advertiseSampling()}, completions: true, roots: ${this.ctx.session.clientSupportsRoots})`,
 		);
 		if (
 			this.ctx.session.protocolVersion === MCP_LEGACY_PROTOCOL_VERSION &&
