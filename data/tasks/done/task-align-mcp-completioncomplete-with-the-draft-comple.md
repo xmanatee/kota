@@ -1,12 +1,12 @@
 ---
 id: task-align-mcp-completioncomplete-with-the-draft-comple
 title: Align MCP completion/complete with the draft completion contract
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Update the MCP server completion handler to validate the current draft completion request shape, support contextual prompt/resource completions where KOTA has finite values, and return bounded result metadata instead of silent empty fallbacks.
 created_at: 2026-05-20T14:28:10.000Z
-updated_at: 2026-05-20T14:28:10.000Z
+updated_at: 2026-05-20T14:39:39.000Z
 ---
 
 ## Problem

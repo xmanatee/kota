@@ -6,6 +6,7 @@ import { pathToFileURL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleLoader } from "#core/modules/module-loader.js";
+import { loadModuleMetadata } from "#core/modules/module-metadata.js";
 import {
 	legacyEffect,
 	networkDestructiveEffect,
@@ -2993,6 +2994,14 @@ describe("sampling", () => {
 });
 
 describe("completion/complete", () => {
+	type CompletionResponse = {
+		completion: { values: string[]; total: number; hasMore: boolean };
+	};
+
+	function expectInvalidParams(resp: Record<string, unknown>, message: string): void {
+		expect(resp.error).toMatchObject({ code: -32602, message });
+	}
+
 	it("returns workflow names for kota-trigger-workflow workflow argument", async () => {
 		const { input, output } = createTestStreams();
 		const server = new McpServer({ input, output, log: () => {} });
@@ -3005,9 +3014,10 @@ describe("completion/complete", () => {
 		const resp = await readResponse(output);
 
 		expect(resp.error).toBeUndefined();
-		const result = resp.result as { completion: { values: string[]; hasMore: boolean } };
+		const result = resp.result as CompletionResponse;
 		expect(Array.isArray(result.completion.values)).toBe(true);
 		expect(result.completion.values.length).toBeGreaterThan(0);
+		expect(result.completion.total).toBe(result.completion.values.length);
 		expect(result.completion.hasMore).toBe(false);
 		expect(result.completion.values).toContain("builder");
 		expect(result.completion.values).toContain("explorer");
@@ -3026,7 +3036,7 @@ describe("completion/complete", () => {
 		});
 		const resp = await readResponse(output);
 
-		const result = resp.result as { completion: { values: string[] } };
+		const result = resp.result as CompletionResponse;
 		expect(result.completion.values).toContain("builder");
 		expect(result.completion.values.every((v) => v.startsWith("bui"))).toBe(true);
 
@@ -3047,9 +3057,33 @@ describe("completion/complete", () => {
 		const resp = await readResponse(output);
 
 		expect(resp.error).toBeUndefined();
-		const result = resp.result as { completion: { values: string[]; hasMore: boolean } };
+		const result = resp.result as CompletionResponse;
 		expect(Array.isArray(result.completion.values)).toBe(true);
+		expect(result.completion.total).toBe(result.completion.values.length);
 		expect(result.completion.hasMore).toBe(false);
+
+		server.stop();
+	});
+
+	it("returns finite contextual prompt completions after validating context arguments", async () => {
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {} });
+		await initServer(server, input, output);
+
+		sendRequest(input, 23, "completion/complete", {
+			ref: { type: "ref/prompt", name: "kota-create-task" },
+			argument: { name: "priority", value: "p" },
+			context: { arguments: { title: "Fix MCP completion", area: "modules" } },
+		});
+		const resp = await readResponse(output);
+
+		expect(resp.error).toBeUndefined();
+		const result = resp.result as CompletionResponse;
+		expect(result.completion).toEqual({
+			values: ["p1", "p2", "p3"],
+			total: 3,
+			hasMore: false,
+		});
 
 		server.stop();
 	});
@@ -3059,30 +3093,117 @@ describe("completion/complete", () => {
 		const server = new McpServer({ input, output, log: () => {} });
 		await initServer(server, input, output);
 
-		sendRequest(input, 23, "completion/complete", {
+		sendRequest(input, 24, "completion/complete", {
 			ref: { type: "ref/prompt", name: "kota-create-task" },
 			argument: { name: "title", value: "fix" },
 		});
 		const resp = await readResponse(output);
 
 		expect(resp.error).toBeUndefined();
-		const result = resp.result as { completion: { values: string[] } };
-		expect(result.completion.values).toEqual([]);
+		const result = resp.result as CompletionResponse;
+		expect(result.completion).toEqual({ values: [], total: 0, hasMore: false });
 
 		server.stop();
 	});
 
-	it("returns empty list when ref or argument is missing", async () => {
+	it("returns empty list for known non-completable resource references", async () => {
 		const { input, output } = createTestStreams();
 		const server = new McpServer({ input, output, log: () => {} });
 		await initServer(server, input, output);
 
-		sendRequest(input, 24, "completion/complete", {});
+		sendRequest(input, 25, "completion/complete", {
+			ref: { type: "ref/resource", uri: "kota://workflow/status" },
+			argument: { name: "anything", value: "" },
+		});
 		const resp = await readResponse(output);
 
 		expect(resp.error).toBeUndefined();
-		const result = resp.result as { completion: { values: string[] } };
-		expect(result.completion.values).toEqual([]);
+		const result = resp.result as CompletionResponse;
+		expect(result.completion).toEqual({ values: [], total: 0, hasMore: false });
+
+		server.stop();
+	});
+
+	it("rejects malformed completion params with invalid params errors", async () => {
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {} });
+		await initServer(server, input, output);
+
+		sendRequest(input, 26, "completion/complete", {});
+		expectInvalidParams(await readResponse(output), "Missing required parameter: ref");
+
+		sendRequest(input, 27, "completion/complete", {
+			ref: { type: "ref/prompt", name: "kota-create-task" },
+		});
+		expectInvalidParams(await readResponse(output), "Missing required parameter: argument");
+
+		sendRequest(input, 28, "completion/complete", {
+			ref: { type: "ref/prompt", name: "kota-create-task" },
+			argument: { name: "priority" },
+		});
+		expectInvalidParams(await readResponse(output), "argument.value must be a string");
+
+		sendRequest(input, 29, "completion/complete", {
+			ref: { type: "ref/prompt", name: "kota-create-task" },
+			argument: { name: "priority", value: "" },
+			context: { arguments: { title: 42 } },
+		});
+		expectInvalidParams(await readResponse(output), "context.arguments.title must be a string");
+
+		server.stop();
+	});
+
+	it("rejects unknown prompt and resource references", async () => {
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {} });
+		await initServer(server, input, output);
+
+		sendRequest(input, 30, "completion/complete", {
+			ref: { type: "ref/prompt", name: "not-a-prompt" },
+			argument: { name: "workflow", value: "" },
+		});
+		expectInvalidParams(await readResponse(output), "Unknown prompt reference: not-a-prompt");
+
+		sendRequest(input, 31, "completion/complete", {
+			ref: { type: "ref/resource", uri: "kota://not-a-resource" },
+			argument: { name: "state", value: "" },
+		});
+		expectInvalidParams(await readResponse(output), "Unknown resource reference: kota://not-a-resource");
+
+		server.stop();
+	});
+
+	it("bounds completion results and reports total matches", async () => {
+		const workflowDefs: ReturnType<ModuleLoader["getContributedWorkflows"]> = Array.from({ length: 105 }, (_value, index) => ({
+			name: `workflow-${String(index).padStart(3, "0")}`,
+			triggers: [],
+			steps: [],
+			enabled: true,
+			moduleRoot: "",
+			recoveryCapable: false,
+			tags: [],
+			definitionPath: "",
+		}));
+		const loader = new ModuleLoader({});
+		vi.spyOn(loader, "getContributedWorkflows").mockReturnValue(workflowDefs);
+		vi.mocked(loadModuleMetadata).mockResolvedValueOnce(loader);
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {} });
+		await initServer(server, input, output);
+
+		sendRequest(input, 32, "completion/complete", {
+			ref: { type: "ref/prompt", name: "kota-trigger-workflow" },
+			argument: { name: "workflow", value: "workflow-" },
+		});
+		const resp = await readResponse(output);
+
+		expect(resp.error).toBeUndefined();
+		const result = resp.result as CompletionResponse;
+		expect(result.completion.values).toHaveLength(100);
+		expect(result.completion.total).toBe(105);
+		expect(result.completion.hasMore).toBe(true);
+		expect(result.completion.values[0]).toBe("workflow-000");
+		expect(result.completion.values.at(-1)).toBe("workflow-099");
 
 		server.stop();
 	});

@@ -294,7 +294,10 @@ export class McpServer {
 			...(options.toolFilter !== undefined && { toolFilter: options.toolFilter }),
 			...(options.moduleTools !== undefined && { moduleTools: options.moduleTools }),
 		});
-		const completion = new CompletionHandler(ctx, projectDir);
+		const completion = new CompletionHandler(
+			ctx,
+			() => this.initialize.getEffectiveProjectDir(),
+		);
 
 		const ack: RequestHandler = (m) => { send({ jsonrpc: "2.0", id: m.id, result: {} }); };
 		this.requestHandlers = new Map<string, RequestHandler>([
