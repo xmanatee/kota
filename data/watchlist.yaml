@@ -258,9 +258,9 @@ resources:
     added: "2026-05-16"
     notes: "Official MCP tools spec draft - monitor tool-result content, structuredContent, _meta, output schema, annotations, and execution-error semantics that affect KOTA's MCP client/server protocol fidelity."
     snapshot:
-      fingerprint: sha256:27b5b174ea5c4de1cd82f00fdaba3f8c
-      summary: "MCP draft Tools still centers structured tool results and draft input-required result variants; KOTA's remote input_required handling is now covered by completed MCP client-runtime and operator-surface tasks."
-      last_seen_at: "2026-05-17T02:18:33.268Z"
+      fingerprint: sha256:56777e633877bc972184106b7d63b2c0
+      summary: "MCP draft Tools still reinforces strict tool discovery; this refresh opened a KOTA task for client-side rejection of malformed x-mcp-header annotations."
+      last_seen_at: "2026-05-20T03:42:37.977Z"
   - url: https://github.com/github/gh-aw
     added: "2026-05-17"
     notes: "GitHub Agentic Workflows is a GitHub Actions-hosted agent workflow runtime; monitor for event-trigger, safe-output, input-sanitization, and multi-engine guardrail patterns relevant to KOTA's workflow runtime."
