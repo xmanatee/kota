@@ -143,6 +143,82 @@ describe("McpManager", () => {
     expect(manager.getToolCount()).toBe(0);
   }, 10_000);
 
+  it("initialize registers tools from every tools/list page", async () => {
+    const manager = new McpManager();
+    const secondOutputSchema = {
+      type: "object",
+      properties: { ok: { type: "boolean" } },
+      required: ["ok"],
+      additionalProperties: false,
+    };
+    const server = `
+      const secondOutputSchema = ${JSON.stringify(secondOutputSchema)};
+      const rl = require("readline").createInterface({ input: process.stdin });
+      rl.on("line", (line) => {
+        let msg;
+        try { msg = JSON.parse(line); } catch { return; }
+        if (msg.method === "initialize") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            protocolVersion: "2024-11-05", capabilities: {},
+            serverInfo: { name: "paged-srv" },
+          }}) + "\\n");
+        } else if (msg.method === "tools/list") {
+          if (!msg.params?.cursor) {
+            process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+              tools: [{ name: "first", description: "First page", inputSchema: { type: "object" } }],
+              nextCursor: "page-2",
+            }}) + "\\n");
+            return;
+          }
+          if (msg.params.cursor === "page-2") {
+            process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+              tools: [{
+                name: "second",
+                description: "Second page",
+                inputSchema: { type: "object" },
+                outputSchema: secondOutputSchema,
+              }],
+            }}) + "\\n");
+            return;
+          }
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, error: {
+            code: -32602,
+            message: "Unexpected cursor",
+          }}) + "\\n");
+        } else if (msg.method === "tools/call" && msg.params.name === "second") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            content: [{ type: "text", text: "second ok" }],
+            structuredContent: { ok: true },
+          }}) + "\\n");
+        } else if (msg.method === "shutdown") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {} }) + "\\n");
+        }
+      });
+    `;
+    await manager.initialize({
+      mcpServers: { paged: { command: "node", args: ["-e", server] } },
+    });
+
+    expect(manager.getServerCount()).toBe(1);
+    expect(manager.getToolCount()).toBe(2);
+    expect(manager.isMcpTool("mcp__paged__first")).toBe(true);
+    expect(manager.isMcpTool("mcp__paged__second")).toBe(true);
+
+    const tools = manager.getTools();
+    expect(tools.map((tool) => tool.name)).toEqual([
+      "mcp__paged__first",
+      "mcp__paged__second",
+    ]);
+    expect(tools[1].output_schema).toEqual(secondOutputSchema);
+
+    const result = await manager.executeTool("mcp__paged__second", {});
+    expect(result.content).toBe("second ok");
+    expect(result.structuredContent).toEqual({ ok: true });
+    expect(result.is_error).toBeUndefined();
+
+    await manager.close();
+  }, 10_000);
+
   it("exposes remote output schemas and accepts matching structuredContent", async () => {
     const manager = new McpManager();
     const outputSchema = {

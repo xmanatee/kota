@@ -47,6 +47,52 @@ rl.on("line", (line) => {
   } else if (msg.method === "notifications/initialized") {
     // notification — no response
   } else if (msg.method === "tools/list") {
+    if (mode === "paginated") {
+      if (!msg.params?.cursor) {
+        process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+          tools: [{ name: "first_page", description: "First page", inputSchema: { type: "object" } }],
+          nextCursor: "page-2",
+        }}) + "\\n");
+        return;
+      }
+      if (msg.params.cursor === "page-2") {
+        process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+          tools: [{ name: "second_page", description: "Second page", inputSchema: { type: "object" } }],
+        }}) + "\\n");
+        return;
+      }
+      process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, error: {
+        code: -32602, message: "Unexpected cursor",
+      }}) + "\\n");
+      return;
+    }
+    if (mode === "malformed_cursor") {
+      process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+        tools: [],
+        nextCursor: 42,
+      }}) + "\\n");
+      return;
+    }
+    if (mode === "repeated_cursor") {
+      process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+        tools: [],
+        nextCursor: "repeat-me",
+      }}) + "\\n");
+      return;
+    }
+    if (mode === "malformed_later_page") {
+      if (!msg.params?.cursor) {
+        process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+          tools: [{ name: "first_page", inputSchema: { type: "object" } }],
+          nextCursor: "bad-page",
+        }}) + "\\n");
+        return;
+      }
+      process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+        tools: [{ name: 123, inputSchema: { type: "object" } }],
+      }}) + "\\n");
+      return;
+    }
     const tools = [
       {
         name: "echo",
@@ -289,6 +335,62 @@ describe("McpClient lifecycle (fake MCP server)", () => {
         additionalProperties: false,
       },
     });
+  }, 10_000);
+
+  it("listTools follows nextCursor and sends it in follow-up tools/list params", async () => {
+    client = new McpClient(
+      "node",
+      ["-e", FAKE_MCP_SERVER],
+      { MCP_TEST_MODE: "paginated" },
+      "paginated-list",
+    );
+    await client.connect();
+
+    const tools = await client.listTools();
+
+    expect(tools.map((tool) => tool.name)).toEqual(["first_page", "second_page"]);
+  }, 10_000);
+
+  it("listTools rejects malformed nextCursor values with server diagnostics", async () => {
+    client = new McpClient(
+      "node",
+      ["-e", FAKE_MCP_SERVER],
+      { MCP_TEST_MODE: "malformed_cursor" },
+      "bad-cursor-list",
+    );
+    await client.connect();
+
+    await expect(client.listTools()).rejects.toThrow(
+      /MCP tools\/list failed for server "test-mcp-server": Malformed MCP tools\/list result: nextCursor must be a string/,
+    );
+  }, 10_000);
+
+  it("listTools rejects repeated nextCursor values as pagination loops", async () => {
+    client = new McpClient(
+      "node",
+      ["-e", FAKE_MCP_SERVER],
+      { MCP_TEST_MODE: "repeated_cursor" },
+      "repeated-cursor-list",
+    );
+    await client.connect();
+
+    await expect(client.listTools()).rejects.toThrow(
+      /Malformed MCP tools\/list result from server "test-mcp-server": repeated nextCursor/,
+    );
+  }, 10_000);
+
+  it("listTools rejects malformed tool data on later pages", async () => {
+    client = new McpClient(
+      "node",
+      ["-e", FAKE_MCP_SERVER],
+      { MCP_TEST_MODE: "malformed_later_page" },
+      "bad-later-page-list",
+    );
+    await client.connect();
+
+    await expect(client.listTools()).rejects.toThrow(
+      /MCP tools\/list failed for server "test-mcp-server": Malformed MCP tools\/list result: tools\[0\]\.name must be a string/,
+    );
   }, 10_000);
 
   it("callTool surfaces JSON-RPC errors", async () => {

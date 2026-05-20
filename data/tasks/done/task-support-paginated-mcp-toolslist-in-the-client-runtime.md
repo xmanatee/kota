@@ -1,12 +1,12 @@
 ---
 id: task-support-paginated-mcp-toolslist-in-the-client-runtime
 title: Support paginated MCP tools/list in the client runtime
-status: ready
+status: done
 priority: p2
 area: core
 summary: Follow MCP cursor pagination for remote tools/list discovery so KOTA does not silently drop tools from servers that advertise more than one page.
 created_at: 2026-05-20T02:26:38Z
-updated_at: 2026-05-20T02:26:38Z
+updated_at: 2026-05-20T02:38:29Z
 ---
 
 ## Problem

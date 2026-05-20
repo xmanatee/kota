@@ -47,6 +47,10 @@ type PendingRequest = {
 };
 
 type McpResultKind = "initialize" | "tools/call" | "tools/list";
+type McpListToolsPage = {
+  tools: McpToolSchema[];
+  nextCursor?: string;
+};
 
 export const MCP_LEGACY_PROTOCOL_VERSION = "2024-11-05";
 export const MCP_DRAFT_PROTOCOL_VERSION = "DRAFT-2026-v1";
@@ -324,13 +328,17 @@ function decodeToolDefinition(value: KotaJsonValue, index: number): McpToolSchem
   };
 }
 
-function decodeListToolsResult(value: JsonRpcResponse["result"]): McpToolSchema[] {
+function decodeListToolsResult(value: JsonRpcResponse["result"]): McpListToolsPage {
   const object = requireJsonObject(value, "result", "tools/list");
   const tools = object.tools;
   if (!Array.isArray(tools)) {
     throw malformedMcpResult("tools/list", "tools", "an array");
   }
-  return tools.map(decodeToolDefinition);
+  const nextCursor = optionalString(object.nextCursor, "nextCursor", "tools/list");
+  return {
+    tools: tools.map(decodeToolDefinition),
+    ...(nextCursor !== undefined ? { nextCursor } : {}),
+  };
 }
 
 function decodeAnnotations(
@@ -768,8 +776,37 @@ export class McpClient {
 
   /** List available tools from the server. */
   async listTools(): Promise<McpToolSchema[]> {
-    const result = await this.request("tools/list");
-    return decodeListToolsResult(result);
+    const tools: McpToolSchema[] = [];
+    const seenCursors = new Set<string>();
+    let cursor: string | undefined;
+
+    do {
+      const result = await this.request(
+        "tools/list",
+        cursor !== undefined ? { cursor } : undefined,
+      );
+      let page: McpListToolsPage;
+      try {
+        page = decodeListToolsResult(result);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        throw new Error(
+          `MCP tools/list failed for server "${this.serverName}": ${message}`,
+        );
+      }
+      tools.push(...page.tools);
+      cursor = page.nextCursor;
+      if (cursor !== undefined) {
+        if (seenCursors.has(cursor)) {
+          throw new Error(
+            `Malformed MCP tools/list result from server "${this.serverName}": repeated nextCursor`,
+          );
+        }
+        seenCursors.add(cursor);
+      }
+    } while (cursor !== undefined);
+
+    return tools;
   }
 
   /** Call a tool on the server. */
