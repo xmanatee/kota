@@ -78,6 +78,42 @@ export const KOTA_PROMPTS: McpPrompt[] = [
 ];
 
 const BUILT_IN_PROMPT_NAMES = new Set(KOTA_PROMPTS.map((p) => p.name));
+const BUILT_IN_PROMPTS_BY_NAME = new Map(KOTA_PROMPTS.map((prompt) => [
+	prompt.name,
+	prompt,
+]));
+
+function requiredPromptArgumentNames(prompt: McpPrompt): string[] {
+	return (prompt.arguments ?? [])
+		.filter((arg) => arg.required === true)
+		.map((arg) => arg.name);
+}
+
+function missingRequiredPromptArguments(
+	prompt: McpPrompt,
+	args: Record<string, string>,
+): string[] {
+	return requiredPromptArgumentNames(prompt).filter((name) => !(name in args));
+}
+
+function missingRequiredPromptArgumentsError(
+	missing: string[],
+): McpPromptCatalogError {
+	const noun = missing.length === 1 ? "argument" : "arguments";
+	return {
+		ok: false,
+		code: -32602,
+		message: `Missing required prompt ${noun}: ${missing.join(", ")}`,
+	};
+}
+
+function validateRequiredPromptArguments(
+	prompt: McpPrompt,
+	args: Record<string, string>,
+): McpPromptCatalogError | null {
+	const missing = missingRequiredPromptArguments(prompt, args);
+	return missing.length > 0 ? missingRequiredPromptArgumentsError(missing) : null;
+}
 
 function clonePrompt(prompt: McpPrompt): McpPrompt {
 	return {
@@ -218,8 +254,13 @@ export function renderPrompt(
 	name: string,
 	args: Record<string, string>,
 ): McpPromptCatalogResult<McpGetPromptResult> {
-	const builtIn = renderBuiltInPrompt(name, args);
-	if (builtIn) return { ok: true, result: builtIn };
+	const builtInPrompt = BUILT_IN_PROMPTS_BY_NAME.get(name);
+	if (builtInPrompt) {
+		const invalid = validateRequiredPromptArguments(builtInPrompt, args);
+		if (invalid) return invalid;
+		const builtIn = renderBuiltInPrompt(name, args);
+		if (builtIn) return { ok: true, result: builtIn };
+	}
 
 	const store = discoverProjectPromptStore(projectDir);
 	if (!store.ok) return store;
@@ -231,6 +272,9 @@ export function renderPrompt(
 			message: `Unknown prompt: ${name}`,
 		};
 	}
+	const prompt = projectTemplateToPrompt(template);
+	const invalid = validateRequiredPromptArguments(prompt, args);
+	if (invalid) return invalid;
 	const rendered = store.result.render(name, args);
 	if (!rendered) {
 		return {
@@ -239,9 +283,6 @@ export function renderPrompt(
 			message: `Failed to render prompt: ${name}`,
 		};
 	}
-	const unresolved = rendered.missing.length > 0
-		? `\n\nUnresolved template variables: ${rendered.missing.join(", ")}`
-		: "";
 	return {
 		ok: true,
 		result: {
@@ -249,7 +290,7 @@ export function renderPrompt(
 			messages: [
 				{
 					role: "user",
-					content: { type: "text", text: rendered.content + unresolved },
+					content: { type: "text", text: rendered.content },
 				},
 			],
 		},

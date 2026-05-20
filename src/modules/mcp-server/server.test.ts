@@ -1512,6 +1512,40 @@ describe("prompts", () => {
 			server.stop();
 		});
 
+		it("advertises built-in prompt required argument metadata", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await initServer(server, input, output);
+
+			sendRequest(input, 2, "prompts/list");
+			const resp = await readResponse(output);
+
+			const result = resp.result as {
+				prompts: Array<{ name: string; arguments?: Array<{ name: string; required?: boolean }> }>;
+			};
+			const createTask = result.prompts.find((prompt) => prompt.name === "kota-create-task");
+			const triggerWorkflow = result.prompts.find((prompt) => prompt.name === "kota-trigger-workflow");
+			const summarizeRun = result.prompts.find((prompt) => prompt.name === "kota-summarize-run");
+			expect(createTask?.arguments).toEqual([
+				{ name: "title", description: "Short task title", required: true },
+				{ name: "area", description: "Task area (e.g. runtime, operator-ux)", required: false },
+				{ name: "priority", description: "Priority: p1, p2, or p3", required: false },
+			]);
+			expect(triggerWorkflow?.arguments).toEqual([
+				{ name: "workflow", description: "Name of the workflow to trigger", required: true },
+				{ name: "payload", description: "Optional JSON payload for the trigger", required: false },
+			]);
+			expect(summarizeRun?.arguments).toEqual([
+				{
+					name: "run_id",
+					description: "The run ID to summarize (e.g. 2026-03-31T11-58-51-088Z-builder-pohafg)",
+					required: true,
+				},
+			]);
+
+			server.stop();
+		});
+
 		it("accepts draft per-request metadata before initialization", async () => {
 			const { input, output } = createTestStreams();
 			const server = new McpServer({ input, output, log: () => {} });
@@ -1708,6 +1742,26 @@ describe("prompts", () => {
 			server.stop();
 		});
 
+		it("rejects missing required built-in prompt arguments", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await initServer(server, input, output);
+
+			sendRequest(input, 2, "prompts/get", {
+				name: "kota-create-task",
+				arguments: { priority: "p1" },
+			});
+			const resp = await readResponse(output);
+
+			expect(resp.result).toBeUndefined();
+			expect(resp.error).toBeDefined();
+			const err = resp.error as { code: number; message: string };
+			expect(err.code).toBe(-32602);
+			expect(err.message).toBe("Missing required prompt argument: title");
+
+			server.stop();
+		});
+
 		it("returns rendered messages for kota-trigger-workflow", async () => {
 			const { input, output } = createTestStreams();
 			const server = new McpServer({ input, output, log: () => {} });
@@ -1748,7 +1802,7 @@ describe("prompts", () => {
 			server.stop();
 		});
 
-		it("renders project prompt templates with unresolved variables explicit", async () => {
+		it("renders project prompt templates when required variables are provided", async () => {
 			const projectDir = mkdtempSync(join(tmpdir(), "kota-mcp-render-prompt-"));
 			writeProjectPrompt(
 				projectDir,
@@ -1761,7 +1815,7 @@ describe("prompts", () => {
 
 			sendRequest(input, 2, "prompts/get", {
 				name: "review-topic",
-				arguments: { topic: "KOTA" },
+				arguments: { topic: "KOTA", focus: "runtime" },
 			});
 			const resp = await readResponse(output);
 
@@ -1776,8 +1830,35 @@ describe("prompts", () => {
 				role: "user",
 				content: { type: "text" },
 			});
-			expect(result.messages[0].content.text).toContain("Review KOTA with focus on {{focus}}.");
-			expect(result.messages[0].content.text).toContain("Unresolved template variables: focus");
+			expect(result.messages[0].content.text).toBe("Review KOTA with focus on runtime.");
+			expect(result.messages[0].content.text).not.toContain("{{focus}}");
+			expect(result.messages[0].content.text).not.toContain("Unresolved template variables");
+
+			server.stop();
+		});
+
+		it("rejects missing required project prompt template variables", async () => {
+			const projectDir = mkdtempSync(join(tmpdir(), "kota-mcp-missing-project-prompt-args-"));
+			writeProjectPrompt(
+				projectDir,
+				"review.md",
+				"---\nname: review-topic\ndescription: Review a topic\nvariables: [topic, focus]\n---\nReview {{topic}} with focus on {{focus}}.",
+			);
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {}, projectDir });
+			await initServer(server, input, output);
+
+			sendRequest(input, 2, "prompts/get", {
+				name: "review-topic",
+				arguments: {},
+			});
+			const resp = await readResponse(output);
+
+			expect(resp.result).toBeUndefined();
+			expect(resp.error).toBeDefined();
+			const err = resp.error as { code: number; message: string };
+			expect(err.code).toBe(-32602);
+			expect(err.message).toBe("Missing required prompt arguments: topic, focus");
 
 			server.stop();
 		});

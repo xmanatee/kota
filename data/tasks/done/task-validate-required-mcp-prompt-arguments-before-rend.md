@@ -1,12 +1,12 @@
 ---
 id: task-validate-required-mcp-prompt-arguments-before-rend
 title: Validate required MCP prompt arguments before rendering
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Align the MCP server prompts/get handler with the draft prompts spec by rejecting missing required prompt arguments instead of rendering placeholders or unresolved template variables.
 created_at: 2026-05-20T11:48:21.242Z
-updated_at: 2026-05-20T11:48:21.242Z
+updated_at: 2026-05-20T12:18:27.000Z
 ---
 
 ## Problem
