@@ -13,6 +13,10 @@ import type {
 import { CostTracker } from "#core/loop/cost.js";
 import type { MessageCreateParams, ModelClient } from "#core/model/model-client.js";
 import type { HandlerContext, JsonRpcRequest } from "./mcp-protocol-types.js";
+import {
+	activeMcpProtocolVersion,
+	MCP_LEGACY_PROTOCOL_VERSION,
+} from "./mcp-protocol-types.js";
 
 export type SamplingOptions = {
 	enabled: boolean;
@@ -33,8 +37,11 @@ export class SamplingHandler {
 	}
 
 	async handleCreateMessage(msg: JsonRpcRequest): Promise<void> {
-		if (!this.ctx.session.initialized) {
-			this.ctx.transport.sendError(msg, -32002, "Server not initialized");
+		if (
+			!this.ctx.session.initialized ||
+			activeMcpProtocolVersion(this.ctx) !== MCP_LEGACY_PROTOCOL_VERSION
+		) {
+			this.ctx.transport.sendError(msg, -32601, "Method not found: sampling/createMessage");
 			return;
 		}
 		if (!this.options.enabled || !this.options.modelClient) {

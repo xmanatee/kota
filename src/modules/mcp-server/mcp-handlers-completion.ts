@@ -8,6 +8,7 @@ import { loadConfig } from "#core/config/config.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { HandlerContext, JsonRpcRequest } from "./mcp-protocol-types.js";
+import { hasActiveMcpContext } from "./mcp-protocol-types.js";
 
 export class CompletionHandler {
 	constructor(
@@ -16,7 +17,7 @@ export class CompletionHandler {
 	) {}
 
 	async handleComplete(msg: JsonRpcRequest): Promise<void> {
-		if (!this.ctx.session.initialized) {
+		if (!hasActiveMcpContext(this.ctx)) {
 			this.ctx.transport.sendError(msg, -32002, "Server not initialized");
 			return;
 		}

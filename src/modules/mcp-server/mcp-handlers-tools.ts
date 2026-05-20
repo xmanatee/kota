@@ -21,7 +21,12 @@ import type {
 	McpToolInputResponses,
 	McpToolResult,
 } from "./mcp-protocol-types.js";
-import { MCP_DRAFT_PROTOCOL_VERSION } from "./mcp-protocol-types.js";
+import {
+	activeClientSupportsElicitation,
+	activeMcpProtocolVersion,
+	hasActiveMcpContext,
+	MCP_DRAFT_PROTOCOL_VERSION,
+} from "./mcp-protocol-types.js";
 
 type ToolRunnerInput = Parameters<ToolDef["runner"]>[0];
 type RequestParamValue = NonNullable<JsonRpcRequest["params"]>[string];
@@ -75,7 +80,7 @@ export class ToolsHandler {
 	}
 
 	handleList(msg: JsonRpcRequest): void {
-		if (!this.ctx.session.initialized) {
+		if (!hasActiveMcpContext(this.ctx)) {
 			this.ctx.transport.sendError(msg, -32002, "Server not initialized");
 			return;
 		}
@@ -89,7 +94,7 @@ export class ToolsHandler {
 	}
 
 	async handleCall(msg: JsonRpcRequest): Promise<void> {
-		if (!this.ctx.session.initialized) {
+		if (!hasActiveMcpContext(this.ctx)) {
 			this.ctx.transport.sendError(msg, -32002, "Server not initialized");
 			return;
 		}
@@ -118,14 +123,14 @@ export class ToolsHandler {
 
 		this.ctx.log(`Calling tool: ${name}`);
 
-		if (name === "confirm" && usesDraftToolResults(this.ctx.session.protocolVersion)) {
+		if (name === "confirm" && usesDraftToolResults(activeMcpProtocolVersion(this.ctx))) {
 			this.handleConfirmViaInputRequired(msg, args);
 			return;
 		}
 
 		// When the confirm tool is called over MCP and the client supports elicitation,
 		// use the standard elicitation protocol instead of falling back to /dev/tty.
-		if (name === "confirm" && this.ctx.session.clientSupportsElicitation) {
+		if (name === "confirm" && activeClientSupportsElicitation(this.ctx)) {
 			await this.handleConfirmViaElicitation(msg, args);
 			return;
 		}
@@ -183,7 +188,7 @@ export class ToolsHandler {
 		requestState: string,
 		inputResponses: McpToolInputResponses,
 	): void {
-		if (!usesDraftToolResults(this.ctx.session.protocolVersion)) {
+		if (!usesDraftToolResults(activeMcpProtocolVersion(this.ctx))) {
 			this.ctx.transport.sendError(
 				msg,
 				-32602,
@@ -230,7 +235,7 @@ export class ToolsHandler {
 		}
 		this.ctx.transport.sendResult(
 			msg,
-			toolResultToMcpCallResult(result, this.ctx.session.protocolVersion),
+			toolResultToMcpCallResult(result, activeMcpProtocolVersion(this.ctx)),
 		);
 	}
 

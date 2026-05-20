@@ -15,7 +15,12 @@ import { getToolMcpAnnotations } from "#core/tools/guardrails-classify.js";
 import { clearCustomTools, registerTool } from "#core/tools/index.js";
 import executionModule from "#modules/execution/index.js";
 import filesystemModule from "#modules/filesystem/index.js";
-import { MCP_DRAFT_PROTOCOL_VERSION } from "./mcp-protocol-types.js";
+import {
+	MCP_DRAFT_PROTOCOL_VERSION,
+	MCP_META_CLIENT_CAPABILITIES_KEY,
+	MCP_META_CLIENT_INFO_KEY,
+	MCP_META_PROTOCOL_VERSION_KEY,
+} from "./mcp-protocol-types.js";
 import { kotaToolToMcp, McpServer, type McpServerOptions, toolResultToMcp } from "./server.js";
 
 vi.mock("#core/modules/provider-registry.js", () => ({
@@ -110,6 +115,20 @@ async function readResponse(output: PassThrough): Promise<Record<string, unknown
 		};
 		output.on("data", onData);
 	});
+}
+
+function draftRequestParams(
+	params: Record<string, unknown> = {},
+	clientCapabilities: Record<string, unknown> = {},
+): Record<string, unknown> {
+	return {
+		...params,
+		_meta: {
+			[MCP_META_PROTOCOL_VERSION_KEY]: MCP_DRAFT_PROTOCOL_VERSION,
+			[MCP_META_CLIENT_INFO_KEY]: { name: "test", version: "1.0.0" },
+			[MCP_META_CLIENT_CAPABILITIES_KEY]: clientCapabilities,
+		},
+	};
 }
 
 /**
@@ -243,6 +262,84 @@ describe("McpServer", () => {
 			server.stop();
 		});
 
+		it("serves server/discover before initialize with draft capabilities and identity", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({
+				input,
+				output,
+				name: "discoverable-kota",
+				version: "9.8.7",
+				log: () => {},
+				samplingEnabled: true,
+				modelClient: {
+					messages: {
+						stream: () => { throw new Error("stream not used by discovery"); },
+						create: async () => { throw new Error("create not used by discovery"); },
+					},
+				},
+			});
+
+			await server.start();
+			sendRequest(input, 1, "server/discover", draftRequestParams());
+			const resp = await readResponse(output);
+
+			expect(resp.error).toBeUndefined();
+			const result = resp.result as Record<string, unknown>;
+			expect(result.supportedVersions).toEqual(
+				expect.arrayContaining([MCP_DRAFT_PROTOCOL_VERSION, "2024-11-05"]),
+			);
+			expect(result.serverInfo).toEqual({ name: "discoverable-kota", version: "9.8.7" });
+			const capabilities = result.capabilities as Record<string, unknown>;
+			expect(capabilities).toEqual({
+				tools: {},
+				resources: { listChanged: true },
+				prompts: {},
+				completions: {},
+			});
+			expect(capabilities.sampling).toBeUndefined();
+			expect(capabilities.elicitation).toBeUndefined();
+
+			server.stop();
+		});
+
+		it("keeps draft initialize capabilities to server-owned features", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({
+				input,
+				output,
+				log: () => {},
+				samplingEnabled: true,
+				modelClient: {
+					messages: {
+						stream: () => { throw new Error("stream not used by initialize"); },
+						create: async () => { throw new Error("create not used by initialize"); },
+					},
+				},
+			});
+
+			await server.start();
+			sendRequest(input, 1, "initialize", {
+				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+				capabilities: { elicitation: {}, sampling: {}, roots: {} },
+				clientInfo: { name: "test", version: "1.0.0" },
+			});
+			const resp = await readResponse(output);
+
+			const result = resp.result as Record<string, unknown>;
+			const capabilities = result.capabilities as Record<string, unknown>;
+			expect(capabilities).toEqual({
+				tools: {},
+				resources: { listChanged: true },
+				prompts: {},
+				completions: {},
+			});
+			expect(capabilities.sampling).toBeUndefined();
+			expect(capabilities.elicitation).toBeUndefined();
+			expect(capabilities.roots).toBeUndefined();
+
+			server.stop();
+		});
+
 		it("rejects unsupported initialize protocol versions", async () => {
 			const { input, output } = createTestStreams();
 			const server = new McpServer({ input, output, log: () => {} });
@@ -288,7 +385,23 @@ describe("McpServer", () => {
 			server.stop();
 		});
 
-		it("rejects tools/list before initialization", async () => {
+		it("returns tools for a draft request with per-request metadata before initialization", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await server.start();
+
+			sendRequest(input, 1, "tools/list", draftRequestParams());
+			const resp = await readResponse(output);
+
+			expect(resp.error).toBeUndefined();
+			const result = resp.result as { tools: unknown[] };
+			expect(Array.isArray(result.tools)).toBe(true);
+			expect(result.tools.length).toBeGreaterThan(0);
+
+			server.stop();
+		});
+
+		it("rejects tools/list before initialization when draft metadata is missing", async () => {
 			const { input, output } = createTestStreams();
 			const server = new McpServer({ input, output, log: () => {} });
 			await server.start();
@@ -298,8 +411,89 @@ describe("McpServer", () => {
 
 			expect(resp.error).toBeDefined();
 			const err = resp.error as { code: number; message: string };
-			expect(err.code).toBe(-32002);
-			expect(err.message).toContain("not initialized");
+			expect(err.code).toBe(-32602);
+			expect(err.message).toContain("Missing required MCP draft _meta");
+			expect(err.message).toContain(MCP_DRAFT_PROTOCOL_VERSION);
+
+			server.stop();
+		});
+
+		it("rejects tools/list after draft initialization when per-request metadata is missing", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await initDraftServer(server, input, output);
+
+			sendRequest(input, 2, "tools/list");
+			const resp = await readResponse(output);
+
+			expect(resp.error).toBeDefined();
+			const err = resp.error as { code: number; message: string };
+			expect(err.code).toBe(-32602);
+			expect(err.message).toContain("Missing required MCP draft _meta");
+			expect(err.message).toContain(MCP_DRAFT_PROTOCOL_VERSION);
+
+			server.stop();
+		});
+
+		it("rejects draft requests with unsupported protocol metadata", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await server.start();
+
+			sendRequest(input, 1, "tools/list", {
+				_meta: {
+					[MCP_META_PROTOCOL_VERSION_KEY]: "1900-01-01",
+					[MCP_META_CLIENT_INFO_KEY]: { name: "test", version: "1.0.0" },
+					[MCP_META_CLIENT_CAPABILITIES_KEY]: {},
+				},
+			});
+			const resp = await readResponse(output);
+
+			const err = resp.error as {
+				code: number;
+				message: string;
+				data: Record<string, unknown>;
+			};
+			expect(err.code).toBe(-32602);
+			expect(err.message).toContain("Unsupported protocol version");
+			expect(err.message).toContain(MCP_DRAFT_PROTOCOL_VERSION);
+			expect(err.data.supportedVersions).toEqual([MCP_DRAFT_PROTOCOL_VERSION]);
+
+			server.stop();
+		});
+
+		it("rejects draft requests with malformed client capabilities metadata", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await server.start();
+
+			sendRequest(input, 1, "tools/list", {
+				_meta: {
+					[MCP_META_PROTOCOL_VERSION_KEY]: MCP_DRAFT_PROTOCOL_VERSION,
+					[MCP_META_CLIENT_INFO_KEY]: { name: "test", version: "1.0.0" },
+					[MCP_META_CLIENT_CAPABILITIES_KEY]: "not an object",
+				},
+			});
+			const resp = await readResponse(output);
+
+			const err = resp.error as { code: number; message: string };
+			expect(err.code).toBe(-32602);
+			expect(err.message).toContain(MCP_META_CLIENT_CAPABILITIES_KEY);
+
+			server.stop();
+		});
+
+		it("does not silently fall back to legacy when a request carries malformed draft metadata", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await initServer(server, input, output);
+
+			sendRequest(input, 2, "tools/list", { _meta: "not an object" });
+			const resp = await readResponse(output);
+
+			const err = resp.error as { code: number; message: string };
+			expect(err.code).toBe(-32602);
+			expect(err.message).toContain("Missing required MCP draft _meta");
 
 			server.stop();
 		});
@@ -545,6 +739,81 @@ describe("McpServer", () => {
 			server.stop();
 		});
 
+		it("keeps request protocol context isolated across overlapping draft and legacy calls", async () => {
+			const { input, output } = createTestStreams();
+			const reader = createQueuedReader(output);
+			let markSlowStarted!: () => void;
+			const slowStarted = new Promise<void>((resolve) => { markSlowStarted = resolve; });
+			let releaseSlow!: () => void;
+			const slowGate = new Promise<void>((resolve) => { releaseSlow = resolve; });
+			const server = new McpServer({
+				input,
+				output,
+				log: () => {},
+				moduleTools: [
+					{
+						tool: {
+							name: "ext_slow_context",
+							description: "Slow context test",
+							input_schema: { type: "object" as const, properties: {}, required: [] },
+						},
+						runner: async () => {
+							markSlowStarted();
+							await slowGate;
+							return { content: "slow draft" };
+						},
+						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+					},
+					{
+						tool: {
+							name: "ext_fast_context",
+							description: "Fast context test",
+							input_schema: { type: "object" as const, properties: {}, required: [] },
+						},
+						runner: async () => ({ content: "fast legacy" }),
+						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+					},
+				],
+			});
+
+			await server.start();
+			sendRequest(input, 1, "initialize", {
+				protocolVersion: "2024-11-05",
+				capabilities: {},
+				clientInfo: { name: "test", version: "1.0.0" },
+			});
+			await reader.read();
+			sendNotification(input, "notifications/initialized");
+
+			sendRequest(input, 2, "tools/call", draftRequestParams({
+				name: "ext_slow_context",
+				arguments: {},
+			}));
+			await slowStarted;
+			sendRequest(input, 3, "tools/call", {
+				name: "ext_fast_context",
+				arguments: {},
+			});
+
+			const legacyResp = await reader.read();
+			expect(legacyResp.id).toBe(3);
+			const legacyResult = legacyResp.result as Record<string, unknown>;
+			expect(legacyResult.resultType).toBeUndefined();
+			expect((legacyResult.content as Array<{ text: string }>)[0].text).toBe("fast legacy");
+
+			releaseSlow();
+			const draftResp = await reader.read();
+			expect(draftResp.id).toBe(2);
+			const draftResult = draftResp.result as {
+				resultType: string;
+				content: Array<{ text: string }>;
+			};
+			expect(draftResult.resultType).toBe("complete");
+			expect(draftResult.content[0].text).toBe("slow draft");
+
+			server.stop();
+		});
+
 		it("returns draft complete results without dropping structured metadata or rich content", async () => {
 			const outputSchema = {
 				type: "object" as const,
@@ -598,10 +867,10 @@ describe("McpServer", () => {
 			});
 			await initDraftServer(server, input, output);
 
-			sendRequest(input, 2, "tools/call", {
+			sendRequest(input, 2, "tools/call", draftRequestParams({
 				name: "ext_rich_result",
 				arguments: {},
-			});
+			}));
 			const resp = await readResponse(output);
 
 			expect(resp.id).toBe(2);
@@ -666,10 +935,10 @@ describe("McpServer", () => {
 			});
 			await initDraftServer(server, input, output);
 
-			sendRequest(input, 2, "tools/call", {
+			sendRequest(input, 2, "tools/call", draftRequestParams({
 				name: "ext_bad_structured_result",
 				arguments: {},
-			});
+			}));
 			const resp = await readResponse(output);
 
 			expect(resp.result).toBeUndefined();
@@ -706,10 +975,10 @@ describe("McpServer", () => {
 			});
 			await initDraftServer(server, input, output);
 
-			sendRequest(input, 2, "tools/call", {
+			sendRequest(input, 2, "tools/call", draftRequestParams({
 				name: "ext_missing_structured_result",
 				arguments: {},
-			});
+			}));
 			const resp = await readResponse(output);
 
 			expect(resp.result).toBeUndefined();
@@ -869,10 +1138,10 @@ describe("McpServer", () => {
 			});
 			await initDraftServer(server, input, output);
 
-			sendRequest(input, 2, "tools/call", {
+			sendRequest(input, 2, "tools/call", draftRequestParams({
 				name: "ext_draft_boom",
 				arguments: {},
-			});
+			}));
 			const resp = await readResponse(output);
 
 			expect(resp.error).toBeUndefined();
@@ -1026,6 +1295,22 @@ describe("resources", () => {
 		server.stop();
 	});
 
+	it("resources/list accepts draft per-request metadata before initialization", async () => {
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {} });
+		await server.start();
+
+		sendRequest(input, 1, "resources/list", draftRequestParams());
+		const resp = await readResponse(output);
+
+		expect(resp.error).toBeUndefined();
+		const result = resp.result as { resources: Array<{ uri: string }> };
+		const uris = result.resources.map((r) => r.uri);
+		expect(uris).toContain("kota://tasks/ready");
+
+		server.stop();
+	});
+
 	it("resources/read returns ready task content", async () => {
 		const projectDir = makeProjectDir();
 		const { input, output } = createTestStreams();
@@ -1095,7 +1380,7 @@ describe("resources", () => {
 		server.stop();
 	});
 
-	it("resources/list rejects before initialization", async () => {
+	it("resources/list rejects before initialization when draft metadata is missing", async () => {
 		const { input, output } = createTestStreams();
 		const server = new McpServer({ input, output, log: () => {} });
 		await server.start();
@@ -1104,8 +1389,9 @@ describe("resources", () => {
 		const resp = await readResponse(output);
 
 		expect(resp.error).toBeDefined();
-		const err = resp.error as { code: number };
-		expect(err.code).toBe(-32002);
+		const err = resp.error as { code: number; message: string };
+		expect(err.code).toBe(-32602);
+		expect(err.message).toContain("Missing required MCP draft _meta");
 
 		server.stop();
 	});
@@ -1216,6 +1502,21 @@ describe("prompts", () => {
 			server.stop();
 		});
 
+		it("accepts draft per-request metadata before initialization", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await server.start();
+
+			sendRequest(input, 1, "prompts/list", draftRequestParams());
+			const resp = await readResponse(output);
+
+			expect(resp.error).toBeUndefined();
+			const result = resp.result as { prompts: Array<{ name: string }> };
+			expect(result.prompts.map((p) => p.name)).toContain("kota-create-task");
+
+			server.stop();
+		});
+
 		it("each prompt has name, description, and arguments", async () => {
 			const { input, output } = createTestStreams();
 			const server = new McpServer({ input, output, log: () => {} });
@@ -1236,7 +1537,7 @@ describe("prompts", () => {
 			server.stop();
 		});
 
-		it("rejects prompts/list before initialization", async () => {
+		it("rejects prompts/list before initialization when draft metadata is missing", async () => {
 			const { input, output } = createTestStreams();
 			const server = new McpServer({ input, output, log: () => {} });
 			await server.start();
@@ -1245,8 +1546,9 @@ describe("prompts", () => {
 			const resp = await readResponse(output);
 
 			expect(resp.error).toBeDefined();
-			const err = resp.error as { code: number };
-			expect(err.code).toBe(-32002);
+			const err = resp.error as { code: number; message: string };
+			expect(err.code).toBe(-32602);
+			expect(err.message).toContain("Missing required MCP draft _meta");
 
 			server.stop();
 		});
@@ -1351,7 +1653,7 @@ describe("prompts", () => {
 			server.stop();
 		});
 
-		it("rejects prompts/get before initialization", async () => {
+		it("rejects prompts/get before initialization when draft metadata is missing", async () => {
 			const { input, output } = createTestStreams();
 			const server = new McpServer({ input, output, log: () => {} });
 			await server.start();
@@ -1360,8 +1662,9 @@ describe("prompts", () => {
 			const resp = await readResponse(output);
 
 			expect(resp.error).toBeDefined();
-			const err = resp.error as { code: number };
-			expect(err.code).toBe(-32002);
+			const err = resp.error as { code: number; message: string };
+			expect(err.code).toBe(-32602);
+			expect(err.message).toContain("Missing required MCP draft _meta");
 
 			server.stop();
 		});
@@ -1478,11 +1781,11 @@ describe("resource subscriptions", () => {
 		const server = new McpServer({ input, output, log: () => {}, eventBus: bus });
 		await initDraftServerWithQueuedReader(server, input, reader);
 
-		sendRequest(input, 2, "subscriptions/listen", {
+		sendRequest(input, 2, "subscriptions/listen", draftRequestParams({
 			notifications: {
 				resourceSubscriptions: ["kota://workflow/status", "kota://tasks/ready"],
 			},
-		});
+		}));
 		const ack = await reader.read();
 		expect(ack.method).toBe("notifications/subscriptions/acknowledged");
 		expect(ack.params).toEqual({
@@ -1531,9 +1834,9 @@ describe("resource subscriptions", () => {
 
 		try {
 			await initDraftServerWithQueuedReader(server, input, reader);
-			sendRequest(input, 2, "subscriptions/listen", {
+			sendRequest(input, 2, "subscriptions/listen", draftRequestParams({
 				notifications: { resourcesListChanged: true },
-			});
+			}));
 			const ack = await reader.read();
 			expect(ack.params).toEqual({
 				_meta: { "io.modelcontextprotocol/subscriptionId": "2" },
@@ -1812,10 +2115,10 @@ describe("McpServer elicitation", () => {
 			const server = new McpServer({ input, output, log: () => {}, toolFilter: ["confirm"] });
 			await initDraftServer(server, input, output);
 
-			sendRequest(input, 20, "tools/call", {
+			sendRequest(input, 20, "tools/call", draftRequestParams({
 				name: "confirm",
 				arguments: { action: "Rotate signing key", risk: "high" },
-			});
+			}));
 			const firstResp = await readResponse(output);
 
 			expect(firstResp.id).toBe(20);
@@ -1844,14 +2147,14 @@ describe("McpServer elicitation", () => {
 			});
 			expect(inputRequired.requestState).toMatch(/^confirm:\d+$/);
 
-			sendRequest(input, 21, "tools/call", {
+			sendRequest(input, 21, "tools/call", draftRequestParams({
 				name: "confirm",
 				arguments: { action: "Rotate signing key", risk: "high" },
 				inputResponses: {
 					confirm: { action: "accept", content: { confirmed: true } },
 				},
 				requestState: inputRequired.requestState,
-			});
+			}));
 			const retryResp = await readResponse(output);
 
 			expect(retryResp.id).toBe(21);
@@ -1872,12 +2175,12 @@ describe("McpServer elicitation", () => {
 			const server = new McpServer({ input, output, log: () => {}, toolFilter: ["confirm"] });
 			await initDraftServer(server, input, output);
 
-			sendRequest(input, 22, "tools/call", {
+			sendRequest(input, 22, "tools/call", draftRequestParams({
 				name: "confirm",
 				arguments: { action: "Deploy" },
 				inputResponses: "not-an-object",
 				requestState: "confirm:missing",
-			});
+			}));
 			const resp = await readResponse(output);
 
 			expect(resp.result).toBeUndefined();
@@ -1893,14 +2196,14 @@ describe("McpServer elicitation", () => {
 			const server = new McpServer({ input, output, log: () => {}, toolFilter: ["confirm"] });
 			await initDraftServer(server, input, output);
 
-			sendRequest(input, 23, "tools/call", {
+			sendRequest(input, 23, "tools/call", draftRequestParams({
 				name: "confirm",
 				arguments: { action: "Deploy" },
 				inputResponses: {
 					confirm: { action: "reject" },
 				},
 				requestState: "confirm:missing",
-			});
+			}));
 			const resp = await readResponse(output);
 
 			expect(resp.result).toBeUndefined();

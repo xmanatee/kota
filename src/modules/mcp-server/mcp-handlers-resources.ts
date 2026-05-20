@@ -12,6 +12,7 @@ import type {
 	JsonRpcNotification,
 	JsonRpcRequest,
 } from "./mcp-protocol-types.js";
+import { hasActiveMcpContext } from "./mcp-protocol-types.js";
 import {
 	isKnownKotaResourceUri,
 	listKotaResources,
@@ -81,7 +82,7 @@ export class ResourcesHandler {
 	}
 
 	handleList(msg: JsonRpcRequest): void {
-		if (!this.ctx.session.initialized) {
+		if (!hasActiveMcpContext(this.ctx)) {
 			this.ctx.transport.sendError(msg, -32002, "Server not initialized");
 			return;
 		}
@@ -91,7 +92,7 @@ export class ResourcesHandler {
 	}
 
 	handleRead(msg: JsonRpcRequest): void {
-		if (!this.ctx.session.initialized) {
+		if (!hasActiveMcpContext(this.ctx)) {
 			this.ctx.transport.sendError(msg, -32002, "Server not initialized");
 			return;
 		}
@@ -111,7 +112,7 @@ export class ResourcesHandler {
 	}
 
 	handleSubscribe(msg: JsonRpcRequest): void {
-		if (!this.ctx.session.initialized) {
+		if (!hasActiveMcpContext(this.ctx)) {
 			this.ctx.transport.sendError(msg, -32002, "Server not initialized");
 			return;
 		}
@@ -129,7 +130,7 @@ export class ResourcesHandler {
 	}
 
 	handleUnsubscribe(msg: JsonRpcRequest): void {
-		if (!this.ctx.session.initialized) {
+		if (!hasActiveMcpContext(this.ctx)) {
 			this.ctx.transport.sendError(msg, -32002, "Server not initialized");
 			return;
 		}
@@ -143,7 +144,7 @@ export class ResourcesHandler {
 	}
 
 	handleListen(msg: JsonRpcRequest): void {
-		if (!this.ctx.session.initialized) {
+		if (!hasActiveMcpContext(this.ctx)) {
 			this.ctx.transport.sendError(msg, -32002, "Server not initialized");
 			return;
 		}

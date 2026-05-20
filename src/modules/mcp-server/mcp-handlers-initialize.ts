@@ -6,15 +6,18 @@
  * directory.
  */
 
+import type { KotaJsonObject } from "#core/agent-harness/message-protocol.js";
 import type {
 	HandlerContext,
 	JsonRpcRequest,
 	JsonRpcResponse,
+	McpClientCapabilities,
 	McpRoot,
 } from "./mcp-protocol-types.js";
 import {
 	MCP_DRAFT_PROTOCOL_VERSION,
 	MCP_LEGACY_PROTOCOL_VERSION,
+	MCP_SUPPORTED_PROTOCOL_VERSIONS,
 	type McpProtocolVersion,
 } from "./mcp-protocol-types.js";
 
@@ -25,23 +28,26 @@ export type InitializeOptions = {
 	advertiseSampling: () => boolean;
 };
 
+function isJsonObject(value: JsonRpcResponse["result"]): value is KotaJsonObject {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 /**
  * Decode a JSON-RPC `roots/list` response payload. Malformed entries
  * (missing `uri`, non-string fields) are dropped — the spec treats the
  * server as best-effort here, and silently skipping a bad entry is less
  * disruptive than rejecting the whole response.
  */
-function decodeRootsListResult(result: unknown): McpRoot[] {
-	if (!result || typeof result !== "object") return [];
-	const rawRoots = (result as { roots?: unknown }).roots;
+function decodeRootsListResult(result: JsonRpcResponse["result"]): McpRoot[] {
+	if (!isJsonObject(result)) return [];
+	const rawRoots = result.roots;
 	if (!Array.isArray(rawRoots)) return [];
 	const out: McpRoot[] = [];
 	for (const raw of rawRoots) {
-		if (!raw || typeof raw !== "object") continue;
-		const r = raw as { uri?: unknown; name?: unknown };
-		if (typeof r.uri !== "string") continue;
-		const root: McpRoot = { uri: r.uri };
-		if (typeof r.name === "string") root.name = r.name;
+		if (!isJsonObject(raw)) continue;
+		if (typeof raw.uri !== "string") continue;
+		const root: McpRoot = { uri: raw.uri };
+		if (typeof raw.name === "string") root.name = raw.name;
 		out.push(root);
 	}
 	return out;
@@ -51,6 +57,35 @@ function negotiateInitializeProtocolVersion(requested: string): McpProtocolVersi
 	if (requested === MCP_DRAFT_PROTOCOL_VERSION) return MCP_DRAFT_PROTOCOL_VERSION;
 	if (requested === MCP_LEGACY_PROTOCOL_VERSION) return MCP_LEGACY_PROTOCOL_VERSION;
 	return null;
+}
+
+function buildDraftServerCapabilities(): KotaJsonObject {
+	return {
+		tools: {},
+		resources: { listChanged: true },
+		prompts: {},
+		completions: {},
+	};
+}
+
+function buildLegacyServerCapabilities(args: {
+	clientSupportsElicitation: boolean;
+	advertiseSampling: boolean;
+}): KotaJsonObject {
+	const capabilities: KotaJsonObject = {
+		tools: {},
+		resources: { subscribe: true },
+		prompts: {},
+		completions: {},
+		roots: {},
+	};
+	if (args.clientSupportsElicitation) {
+		capabilities.elicitation = {};
+	}
+	if (args.advertiseSampling) {
+		capabilities.sampling = {};
+	}
+	return capabilities;
 }
 
 export class InitializeHandler {
@@ -75,33 +110,27 @@ export class InitializeHandler {
 		const negotiatedProtocolVersion =
 			negotiateInitializeProtocolVersion(requestedProtocolVersion);
 		if (!negotiatedProtocolVersion) {
-			this.ctx.transport.sendError(msg, -32602, "Unsupported protocol version");
+			this.ctx.transport.sendError(msg, -32602, "Unsupported protocol version", {
+				supportedVersions: [...MCP_SUPPORTED_PROTOCOL_VERSIONS],
+				requestedVersion: requestedProtocolVersion,
+			});
 			return;
 		}
 		this.ctx.session.protocolVersion = negotiatedProtocolVersion;
 		this.ctx.session.initialized = true;
-		const clientCaps = (msg.params?.capabilities ?? {}) as Record<string, unknown>;
+		const clientCaps = (msg.params?.capabilities ?? {}) as McpClientCapabilities;
 		this.ctx.session.clientSupportsElicitation =
 			typeof clientCaps.elicitation === "object" && clientCaps.elicitation !== null;
 		this.ctx.session.clientSupportsRoots =
 			typeof clientCaps.roots === "object" && clientCaps.roots !== null;
 
-		const capabilities: Record<string, unknown> = {
-			tools: {},
-			resources:
-				this.ctx.session.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION
-					? { listChanged: true }
-					: { subscribe: true },
-			prompts: {},
-			completions: {},
-			roots: {},
-		};
-		if (this.ctx.session.clientSupportsElicitation) {
-			capabilities.elicitation = {};
-		}
-		if (this.options.advertiseSampling()) {
-			capabilities.sampling = {};
-		}
+		const capabilities =
+			this.ctx.session.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION
+				? buildDraftServerCapabilities()
+				: buildLegacyServerCapabilities({
+					clientSupportsElicitation: this.ctx.session.clientSupportsElicitation,
+					advertiseSampling: this.options.advertiseSampling(),
+				});
 		this.ctx.transport.sendResult(msg, {
 			protocolVersion: this.ctx.session.protocolVersion,
 			capabilities,
@@ -124,6 +153,17 @@ export class InitializeHandler {
 				});
 			});
 		}
+	}
+
+	handleDiscover(msg: JsonRpcRequest): void {
+		this.ctx.transport.sendResult(msg, {
+			supportedVersions: [...MCP_SUPPORTED_PROTOCOL_VERSIONS],
+			capabilities: buildDraftServerCapabilities(),
+			serverInfo: {
+				name: this.options.serverName,
+				version: this.options.serverVersion,
+			},
+		});
 	}
 
 	handleRootsListChangedNotification(): void {

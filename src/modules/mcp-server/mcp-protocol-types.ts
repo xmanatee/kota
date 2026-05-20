@@ -6,12 +6,24 @@
 
 import type {
 	KotaJsonObject,
+	KotaJsonValue,
 	KotaMcpAnnotations,
 	KotaMcpPreservedContent,
 } from "#core/agent-harness/message-protocol.js";
 
 export const MCP_LEGACY_PROTOCOL_VERSION = "2024-11-05";
 export const MCP_DRAFT_PROTOCOL_VERSION = "DRAFT-2026-v1";
+export const MCP_DRAFT_PROTOCOL_VERSIONS = [MCP_DRAFT_PROTOCOL_VERSION] as const;
+export const MCP_SUPPORTED_PROTOCOL_VERSIONS = [
+	MCP_DRAFT_PROTOCOL_VERSION,
+	MCP_LEGACY_PROTOCOL_VERSION,
+] as const;
+
+export const MCP_META_PROTOCOL_VERSION_KEY =
+	"io.modelcontextprotocol/protocolVersion";
+export const MCP_META_CLIENT_INFO_KEY = "io.modelcontextprotocol/clientInfo";
+export const MCP_META_CLIENT_CAPABILITIES_KEY =
+	"io.modelcontextprotocol/clientCapabilities";
 
 export type McpProtocolVersion =
 	| typeof MCP_LEGACY_PROTOCOL_VERSION
@@ -21,20 +33,20 @@ export type JsonRpcRequest = {
 	jsonrpc: "2.0";
 	id: number | string;
 	method: string;
-	params?: Record<string, unknown>;
+	params?: KotaJsonObject;
 };
 
 export type JsonRpcNotification = {
 	jsonrpc: "2.0";
 	method: string;
-	params?: Record<string, unknown>;
+	params?: KotaJsonObject;
 };
 
 export type JsonRpcResponse = {
 	jsonrpc: "2.0";
 	id: number | string;
-	result?: unknown;
-	error?: { code: number; message: string };
+	result?: KotaJsonValue;
+	error?: { code: number; message: string; data?: KotaJsonValue };
 };
 
 export type JsonRpcMessage = JsonRpcRequest | JsonRpcNotification;
@@ -69,7 +81,7 @@ export type ElicitationSchema = {
 };
 
 export type ElicitationResponse =
-	| { action: "accept"; content: Record<string, unknown> }
+	| { action: "accept"; content: KotaJsonObject }
 	| { action: "reject" }
 	| { action: "cancel" };
 
@@ -105,11 +117,26 @@ export type McpToolResult = McpToolCompleteResult | McpToolInputRequiredResult;
  * Transport-side surface every per-feature handler uses to write JSON-RPC
  * frames back to the client. The orchestrator owns the underlying writer.
  */
+export type JsonRpcOutboundPayload = object | string | number | boolean | null;
+
 export type McpTransport = {
-	send(msg: unknown): void;
-	sendResult(msg: JsonRpcRequest, result: unknown): void;
-	sendError(msg: JsonRpcRequest, code: number, message: string): void;
-	sendNotification(method: string, params: Record<string, unknown>): void;
+	send(msg: JsonRpcOutboundPayload): void;
+	sendResult(msg: JsonRpcRequest, result: JsonRpcOutboundPayload): void;
+	sendError(msg: JsonRpcRequest, code: number, message: string, data?: JsonRpcOutboundPayload): void;
+	sendNotification(method: string, params: KotaJsonObject): void;
+};
+
+export type McpImplementation = {
+	name: string;
+	version: string;
+};
+
+export type McpClientCapabilities = KotaJsonObject;
+
+export type McpRequestContext = {
+	protocolVersion: typeof MCP_DRAFT_PROTOCOL_VERSION;
+	clientInfo: McpImplementation;
+	clientCapabilities: McpClientCapabilities;
 };
 
 /**
@@ -130,4 +157,41 @@ export type HandlerContext = {
 	transport: McpTransport;
 	log: (msg: string) => void;
 	session: SessionState;
+	getRequestContext: () => McpRequestContext | null;
 };
+
+function hasObjectCapability(
+	capabilities: McpClientCapabilities,
+	key: string,
+): boolean {
+	const value = capabilities[key];
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function hasLegacySessionContext(session: SessionState): boolean {
+	return session.initialized && session.protocolVersion === MCP_LEGACY_PROTOCOL_VERSION;
+}
+
+export function hasActiveMcpContext(ctx: HandlerContext): boolean {
+	return ctx.getRequestContext() !== null || hasLegacySessionContext(ctx.session);
+}
+
+export function activeMcpProtocolVersion(ctx: HandlerContext): McpProtocolVersion {
+	return ctx.getRequestContext()?.protocolVersion ?? ctx.session.protocolVersion;
+}
+
+export function activeClientSupportsElicitation(ctx: HandlerContext): boolean {
+	const request = ctx.getRequestContext();
+	if (request) {
+		return hasObjectCapability(request.clientCapabilities, "elicitation");
+	}
+	return ctx.session.clientSupportsElicitation;
+}
+
+export function activeClientSupportsRoots(ctx: HandlerContext): boolean {
+	const request = ctx.getRequestContext();
+	if (request) {
+		return hasObjectCapability(request.clientCapabilities, "roots");
+	}
+	return ctx.session.clientSupportsRoots;
+}

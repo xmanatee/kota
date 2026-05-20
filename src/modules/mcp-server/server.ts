@@ -7,7 +7,9 @@
  * new method or capability lands in that area.
  */
 
+import { AsyncLocalStorage } from "node:async_hooks";
 import { createInterface, type Interface } from "node:readline";
+import type { KotaJsonObject, KotaJsonValue } from "#core/agent-harness/message-protocol.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
@@ -21,15 +23,24 @@ import { SamplingHandler } from "./mcp-handlers-sampling.js";
 import { ToolsHandler } from "./mcp-handlers-tools.js";
 import type {
 	HandlerContext,
-	JsonRpcMessage,
 	JsonRpcNotification,
+	JsonRpcOutboundPayload,
 	JsonRpcRequest,
 	JsonRpcResponse,
+	McpRequestContext,
 	McpRoot,
 	McpTransport,
 	SessionState,
 } from "./mcp-protocol-types.js";
-import { MCP_LEGACY_PROTOCOL_VERSION } from "./mcp-protocol-types.js";
+import {
+	hasLegacySessionContext,
+	MCP_DRAFT_PROTOCOL_VERSION,
+	MCP_DRAFT_PROTOCOL_VERSIONS,
+	MCP_LEGACY_PROTOCOL_VERSION,
+	MCP_META_CLIENT_CAPABILITIES_KEY,
+	MCP_META_CLIENT_INFO_KEY,
+	MCP_META_PROTOCOL_VERSION_KEY,
+} from "./mcp-protocol-types.js";
 
 export { kotaToolToMcp, toolResultToMcp } from "./mcp-handlers-tools.js";
 export type { ElicitationResponse, ElicitationSchema, McpRoot, McpToolResult } from "./mcp-protocol-types.js";
@@ -51,6 +62,160 @@ export type McpServerOptions = {
 
 type RequestHandler = (msg: JsonRpcRequest) => Promise<void> | void;
 
+type DraftRequestContextResult =
+	| { ok: true; context: McpRequestContext }
+	| { ok: false; code: number; message: string; data?: JsonRpcOutboundPayload };
+
+function protocolErrorData(requestedVersion?: string): KotaJsonObject {
+	return {
+		supportedVersions: [...MCP_DRAFT_PROTOCOL_VERSIONS],
+		...(requestedVersion !== undefined && { requestedVersion }),
+	};
+}
+
+function isJsonObject(value: KotaJsonValue | undefined): value is KotaJsonObject {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isJsonRpcId(value: KotaJsonValue | undefined): value is JsonRpcRequest["id"] {
+	return typeof value === "string" || typeof value === "number";
+}
+
+function decodeJsonRpcError(value: KotaJsonValue | undefined): JsonRpcResponse["error"] | null {
+	if (!isJsonObject(value)) return null;
+	const code = value.code;
+	const message = value.message;
+	if (typeof code !== "number" || typeof message !== "string") return null;
+	return {
+		code,
+		message,
+		...(value.data !== undefined && { data: value.data }),
+	};
+}
+
+function decodeJsonRpcResponse(parsed: KotaJsonObject): JsonRpcResponse | null {
+	if (parsed.jsonrpc !== "2.0" || !isJsonRpcId(parsed.id) || "method" in parsed) {
+		return null;
+	}
+	let error: JsonRpcResponse["error"] | undefined;
+	if (parsed.error !== undefined) {
+		const decodedError = decodeJsonRpcError(parsed.error);
+		if (!decodedError) return null;
+		error = decodedError;
+	}
+	return {
+		jsonrpc: "2.0",
+		id: parsed.id,
+		...(parsed.result !== undefined && { result: parsed.result }),
+		...(error !== undefined && { error }),
+	};
+}
+
+function decodeJsonRpcRequest(parsed: KotaJsonObject): JsonRpcRequest | null {
+	if (
+		parsed.jsonrpc !== "2.0" ||
+		!isJsonRpcId(parsed.id) ||
+		typeof parsed.method !== "string"
+	) {
+		return null;
+	}
+	if (parsed.params !== undefined && !isJsonObject(parsed.params)) return null;
+	return {
+		jsonrpc: "2.0",
+		id: parsed.id,
+		method: parsed.method,
+		...(parsed.params !== undefined && { params: parsed.params }),
+	};
+}
+
+function decodeJsonRpcNotification(parsed: KotaJsonObject): JsonRpcNotification | null {
+	if (parsed.jsonrpc !== "2.0" || typeof parsed.method !== "string") return null;
+	if ("id" in parsed && parsed.id !== undefined) return null;
+	if (parsed.params !== undefined && !isJsonObject(parsed.params)) return null;
+	return {
+		jsonrpc: "2.0",
+		method: parsed.method,
+		...(parsed.params !== undefined && { params: parsed.params }),
+	};
+}
+
+function decodeDraftRequestContext(msg: JsonRpcRequest): DraftRequestContextResult {
+	const meta = msg.params?._meta;
+	if (!isJsonObject(meta)) {
+		return {
+			ok: false,
+			code: -32602,
+			message: `Missing required MCP draft _meta or malformed _meta object. Supported protocol versions: ${MCP_DRAFT_PROTOCOL_VERSIONS.join(", ")}`,
+			data: protocolErrorData(),
+		};
+	}
+
+	const protocolVersion = meta[MCP_META_PROTOCOL_VERSION_KEY];
+	if (typeof protocolVersion !== "string") {
+		return {
+			ok: false,
+			code: -32602,
+			message: `Missing required MCP draft _meta field: ${MCP_META_PROTOCOL_VERSION_KEY}`,
+			data: protocolErrorData(),
+		};
+	}
+	if (protocolVersion !== MCP_DRAFT_PROTOCOL_VERSION) {
+		return {
+			ok: false,
+			code: -32602,
+			message: `Unsupported protocol version: ${protocolVersion}. Supported protocol versions: ${MCP_DRAFT_PROTOCOL_VERSIONS.join(", ")}`,
+			data: protocolErrorData(protocolVersion),
+		};
+	}
+
+	const clientInfo = meta[MCP_META_CLIENT_INFO_KEY];
+	if (!isJsonObject(clientInfo)) {
+		return {
+			ok: false,
+			code: -32602,
+			message: `Malformed MCP draft _meta field: ${MCP_META_CLIENT_INFO_KEY}`,
+		};
+	}
+	const clientName = clientInfo.name;
+	const clientVersion = clientInfo.version;
+	if (typeof clientName !== "string" || typeof clientVersion !== "string") {
+		return {
+			ok: false,
+			code: -32602,
+			message: `Malformed MCP draft _meta field: ${MCP_META_CLIENT_INFO_KEY}`,
+		};
+	}
+
+	const clientCapabilities = meta[MCP_META_CLIENT_CAPABILITIES_KEY];
+	if (!isJsonObject(clientCapabilities)) {
+		return {
+			ok: false,
+			code: -32602,
+			message: `Malformed MCP draft _meta field: ${MCP_META_CLIENT_CAPABILITIES_KEY}`,
+		};
+	}
+
+	for (const key of ["elicitation", "experimental", "roots", "sampling", "tasks"]) {
+		const value = clientCapabilities[key];
+		if (value !== undefined && !isJsonObject(value)) {
+			return {
+				ok: false,
+				code: -32602,
+				message: `Malformed MCP draft client capability: ${key}`,
+			};
+		}
+	}
+
+	return {
+		ok: true,
+		context: {
+			protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+			clientInfo: { name: clientName, version: clientVersion },
+			clientCapabilities,
+		},
+	};
+}
+
 export class McpServer {
 	private rl: Interface | null = null;
 	private running = false;
@@ -63,6 +228,7 @@ export class McpServer {
 		clientSupportsElicitation: false,
 		clientSupportsRoots: false,
 	};
+	private readonly requestContext = new AsyncLocalStorage<McpRequestContext>();
 	private readonly initialize: InitializeHandler;
 	private readonly resources: ResourcesHandler;
 	private readonly elicitation: ElicitationHandler;
@@ -74,14 +240,27 @@ export class McpServer {
 		this.log = options.log ?? ((msg) => process.stderr.write(`[mcp-server] ${msg}\n`));
 		const projectDir = options.projectDir ?? process.cwd();
 
-		const send = (m: unknown) => this.output.write(`${JSON.stringify(m)}\n`);
+		const send = (m: JsonRpcOutboundPayload) => this.output.write(`${JSON.stringify(m)}\n`);
 		const transport: McpTransport = {
 			send,
 			sendResult: (m, result) => send({ jsonrpc: "2.0", id: m.id, result }),
-			sendError: (m, code, message) => send({ jsonrpc: "2.0", id: m.id, error: { code, message } }),
+			sendError: (m, code, message, data) => send({
+				jsonrpc: "2.0",
+				id: m.id,
+				error: {
+					code,
+					message,
+					...(data !== undefined && { data }),
+				},
+			}),
 			sendNotification: (method, params) => send({ jsonrpc: "2.0", method, params }),
 		};
-		const ctx: HandlerContext = { transport, log: this.log, session: this.session };
+		const ctx: HandlerContext = {
+			transport,
+			log: this.log,
+			session: this.session,
+			getRequestContext: () => this.requestContext.getStore() ?? null,
+		};
 
 		this.elicitation = new ElicitationHandler(ctx);
 		const sampling = new SamplingHandler(ctx, {
@@ -111,6 +290,7 @@ export class McpServer {
 		const ack: RequestHandler = (m) => { send({ jsonrpc: "2.0", id: m.id, result: {} }); };
 		this.requestHandlers = new Map<string, RequestHandler>([
 			["initialize", (m) => this.initialize.handleInitialize(m)],
+			["server/discover", (m) => this.initialize.handleDiscover(m)],
 			["tools/list", (m) => tools.handleList(m)],
 			["tools/call", (m) => tools.handleCall(m)],
 			["resources/list", (m) => this.resources.handleList(m)],
@@ -170,24 +350,26 @@ export class McpServer {
 	private handleLine(line: string): void {
 		const trimmed = line.trim();
 		if (!trimmed) return;
-		let parsed: Record<string, unknown>;
-		try { parsed = JSON.parse(trimmed) as Record<string, unknown>; } catch { return; }
-		if (parsed.jsonrpc !== "2.0") return;
+		let parsedValue: KotaJsonValue;
+		try { parsedValue = JSON.parse(trimmed) as KotaJsonValue; } catch { return; }
+		if (!isJsonObject(parsedValue) || parsedValue.jsonrpc !== "2.0") return;
 
-		const hasMethod = "method" in parsed;
-		if ("id" in parsed && parsed.id !== undefined && !hasMethod) {
-			const response = parsed as unknown as JsonRpcResponse;
+		if (!("method" in parsedValue)) {
+			const response = decodeJsonRpcResponse(parsedValue);
+			if (!response) return;
 			if (!this.initialize.tryConsumeResponse(response)) this.elicitation.tryConsumeResponse(response);
 			return;
 		}
 
-		const rpcMsg = parsed as unknown as JsonRpcMessage;
-		if (!("id" in rpcMsg) || rpcMsg.id === undefined) {
-			this.handleNotification(rpcMsg as JsonRpcNotification);
+		if (!("id" in parsedValue) || parsedValue.id === undefined) {
+			const notification = decodeJsonRpcNotification(parsedValue);
+			if (!notification) return;
+			this.handleNotification(notification);
 			return;
 		}
 
-		const request = rpcMsg as JsonRpcRequest;
+		const request = decodeJsonRpcRequest(parsedValue);
+		if (!request) return;
 		Promise.resolve(this.dispatchRequest(request)).catch((err) => {
 			const message = err instanceof Error ? err.message : String(err);
 			this.output.write(
@@ -203,11 +385,45 @@ export class McpServer {
 		// Silently ignore unknown notifications per spec
 	}
 
-	private dispatchRequest(msg: JsonRpcRequest): Promise<void> | void {
+	private async dispatchRequest(msg: JsonRpcRequest): Promise<void> {
 		const handler = this.requestHandlers.get(msg.method);
-		if (handler) return handler(msg);
-		this.output.write(
-			`${JSON.stringify({ jsonrpc: "2.0", id: msg.id, error: { code: -32601, message: `Method not found: ${msg.method}` } })}\n`,
-		);
+		if (!handler) {
+			this.output.write(
+				`${JSON.stringify({ jsonrpc: "2.0", id: msg.id, error: { code: -32601, message: `Method not found: ${msg.method}` } })}\n`,
+			);
+			return;
+		}
+		if (msg.method === "initialize") {
+			await handler(msg);
+			return;
+		}
+
+		const hasMetaField =
+			msg.params !== undefined &&
+			Object.hasOwn(msg.params, "_meta");
+		const requiresDraftContext =
+			msg.method === "server/discover" || hasMetaField || !hasLegacySessionContext(this.session);
+		if (!requiresDraftContext && this.session.initialized) {
+			await handler(msg);
+			return;
+		}
+
+		const decoded = decodeDraftRequestContext(msg);
+		if (!decoded.ok) {
+			this.output.write(
+				`${JSON.stringify({
+					jsonrpc: "2.0",
+					id: msg.id,
+					error: {
+						code: decoded.code,
+						message: decoded.message,
+						...(decoded.data !== undefined && { data: decoded.data }),
+					},
+				})}\n`,
+			);
+			return;
+		}
+
+		await this.requestContext.run(decoded.context, () => Promise.resolve(handler(msg)));
 	}
 }

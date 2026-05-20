@@ -4,13 +4,14 @@
  */
 
 import type { HandlerContext, JsonRpcRequest } from "./mcp-protocol-types.js";
+import { hasActiveMcpContext } from "./mcp-protocol-types.js";
 import { isKnownPrompt, KOTA_PROMPTS, renderPrompt } from "./prompts.js";
 
 export class PromptsHandler {
 	constructor(private readonly ctx: HandlerContext) {}
 
 	handleList(msg: JsonRpcRequest): void {
-		if (!this.ctx.session.initialized) {
+		if (!hasActiveMcpContext(this.ctx)) {
 			this.ctx.transport.sendError(msg, -32002, "Server not initialized");
 			return;
 		}
@@ -18,7 +19,7 @@ export class PromptsHandler {
 	}
 
 	handleGet(msg: JsonRpcRequest): void {
-		if (!this.ctx.session.initialized) {
+		if (!hasActiveMcpContext(this.ctx)) {
 			this.ctx.transport.sendError(msg, -32002, "Server not initialized");
 			return;
 		}

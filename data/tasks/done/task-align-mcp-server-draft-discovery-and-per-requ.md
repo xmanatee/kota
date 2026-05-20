@@ -1,12 +1,12 @@
 ---
 id: task-align-mcp-server-draft-discovery-and-per-requ
 title: Align the MCP server with draft discovery and per-request metadata
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add the draft server/discover and per-request _meta protocol boundary to KOTA's first-party MCP server so DRAFT-2026-v1 clients do not depend on the legacy initialize session state.
 created_at: 2026-05-20T05:26:19Z
-updated_at: 2026-05-20T05:26:19Z
+updated_at: 2026-05-20T05:38:35Z
 ---
 
 ## Problem

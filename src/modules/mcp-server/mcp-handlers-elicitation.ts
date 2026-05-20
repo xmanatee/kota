@@ -4,12 +4,17 @@
  * elicitation path runs through `request()` from the tools handler.
  */
 
+import type { KotaJsonObject } from "#core/agent-harness/message-protocol.js";
 import type {
 	ElicitationResponse,
 	ElicitationSchema,
 	HandlerContext,
 	JsonRpcResponse,
 } from "./mcp-protocol-types.js";
+
+function isJsonObject(value: JsonRpcResponse["result"]): value is KotaJsonObject {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 type Pending = {
 	resolve: (r: ElicitationResponse) => void;
@@ -70,13 +75,11 @@ export class ElicitationHandler {
 			pending.reject(new Error(msg.error.message));
 			return true;
 		}
-		const result = msg.result as
-			| { action?: string; content?: Record<string, unknown> }
-			| undefined;
-		const action = result?.action;
-		if (action === "accept") {
-			pending.resolve({ action: "accept", content: result?.content ?? {} });
-		} else if (action === "reject") {
+		const result = isJsonObject(msg.result) ? msg.result : undefined;
+		if (result && result.action === "accept") {
+			const content = isJsonObject(result.content) ? result.content : {};
+			pending.resolve({ action: "accept", content });
+		} else if (result?.action === "reject") {
 			pending.resolve({ action: "reject" });
 		} else {
 			pending.resolve({ action: "cancel" });
