@@ -37,9 +37,9 @@ resources:
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:9d5a1d85c54872dac803aba895c34a22
-      summary: "Codex 0.132.0 adds several runtime-quality signals; the nonduplicative KOTA gap from this refresh is explicit original-resolution control for the system module's view_image tool."
-      last_seen_at: "2026-05-20T15:47:06.033Z"
+      fingerprint: sha256:e354926491920c3d13e5e028622b7a22
+      summary: "Codex 0.132.0 still reinforces KOTA's already-completed image-fidelity and MCP-result-metadata work; no new nonduplicative KOTA task was opened from this Codex refresh."
+      last_seen_at: "2026-05-20T17:03:48.926Z"
   - url: https://github.com/google-gemini/gemini-cli
     added: "2026-04-19"
     snapshot:
@@ -282,6 +282,9 @@ resources:
       fingerprint: sha256:fa986daf106ae1d4cd060bd4335f9c6b
       summary: "MCP draft MRTR now exposes a narrow KOTA gap: input_required fields are independently optional in the spec, while KOTA currently requires both inputRequests and requestState."
       last_seen_at: "2026-05-20T13:04:41.722Z"
+  - url: https://modelcontextprotocol.io/specification/draft/client/elicitation
+    added: "2026-05-20"
+    notes: "Official MCP elicitation client-feature draft - monitor form/url mode support, URL-mode consent rules, and sensitive-data boundaries for KOTA's MRTR input_required flows."
   - url: https://modelcontextprotocol.io/specification/draft/server/utilities/completion
     added: "2026-05-20"
     notes: "Official MCP completion utility draft - monitor completion/complete request context, prompt/resource references, bounded completion results, and invalid-param behavior for KOTA's MCP server completions."
