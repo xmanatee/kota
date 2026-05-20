@@ -285,6 +285,10 @@ resources:
   - url: https://modelcontextprotocol.io/specification/draft/server/utilities/completion
     added: "2026-05-20"
     notes: "Official MCP completion utility draft - monitor completion/complete request context, prompt/resource references, bounded completion results, and invalid-param behavior for KOTA's MCP server completions."
+    snapshot:
+      fingerprint: sha256:4e75f85c26869c172eb6c9cf9151a01f
+      summary: "MCP draft Completion documents prompt/resource argument completions, context.arguments, bounded result metadata, invalid-params behavior, and validation/security guidance; KOTA's current MCP completion alignment task already covers the nonduplicative server gap."
+      last_seen_at: "2026-05-20T15:04:01.201Z"
   - url: https://github.com/github/gh-aw
     added: "2026-05-17"
     notes: "GitHub Agentic Workflows is a GitHub Actions-hosted agent workflow runtime; monitor for event-trigger, safe-output, input-sanitization, and multi-engine guardrail patterns relevant to KOTA's workflow runtime."
