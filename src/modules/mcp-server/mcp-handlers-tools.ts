@@ -10,6 +10,11 @@ import { getToolMcpAnnotations } from "#core/tools/guardrails-classify.js";
 import { executeTool, getAllTools, type ToolResult } from "#core/tools/index.js";
 import { validateToolStructuredOutput } from "#core/tools/output-schema.js";
 import type { ElicitationHandler } from "./mcp-handlers-elicitation.js";
+import {
+	decodeMrtrRetryParams,
+	type McpMrtrStateCodec,
+	readElicitationInputResponse,
+} from "./mcp-mrtr.js";
 import type {
 	ElicitationResponse,
 	HandlerContext,
@@ -31,17 +36,6 @@ import {
 type ToolRunnerInput = Parameters<ToolDef["runner"]>[0];
 type RequestParamValue = NonNullable<JsonRpcRequest["params"]>[string];
 
-type PendingConfirmInput = {
-	name: "confirm";
-	args: ToolRunnerInput;
-	requestId: "confirm";
-};
-
-type RetryParams =
-	| { kind: "none" }
-	| { kind: "invalid"; message: string }
-	| { kind: "retry"; requestState: string; inputResponses: McpToolInputResponses };
-
 type McpLegacyToolResult = {
 	content: McpContentBlock[];
 	structuredContent?: ToolResult["structuredContent"];
@@ -53,12 +47,11 @@ export class ToolsHandler {
 	private readonly toolFilter: Set<string> | null;
 	private readonly moduleRunners = new Map<string, ToolDef["runner"]>();
 	private readonly moduleToolList: KotaTool[] = [];
-	private readonly pendingInputRequests = new Map<string, PendingConfirmInput>();
-	private inputRequestStateCounter = 0;
 
 	constructor(
 		private readonly ctx: HandlerContext,
 		private readonly elicitation: ElicitationHandler,
+		private readonly mrtr: McpMrtrStateCodec,
 		options: { toolFilter?: string[]; moduleTools?: ToolDef[] } = {},
 	) {
 		this.toolFilter = options.toolFilter?.length ? new Set(options.toolFilter) : null;
@@ -113,7 +106,7 @@ export class ToolsHandler {
 			return this.ctx.transport.sendError(msg, -32602, `Unknown tool: ${name}`);
 		}
 
-		const retry = decodeRetryParams(params);
+		const retry = decodeMrtrRetryParams(params);
 		if (retry.kind === "invalid") {
 			return this.ctx.transport.sendError(msg, -32602, retry.message);
 		}
@@ -155,16 +148,13 @@ export class ToolsHandler {
 		msg: JsonRpcRequest,
 		args: ToolRunnerInput,
 	): void {
-		const requestState = `confirm:${++this.inputRequestStateCounter}`;
-		const pending: PendingConfirmInput = {
-			name: "confirm",
-			args,
-			requestId: "confirm",
-		};
-		this.pendingInputRequests.set(requestState, pending);
-		const result: McpToolInputRequiredResult = {
-			resultType: "input_required",
-			inputRequests: {
+		if (!activeClientSupportsElicitation(this.ctx)) {
+			this.ctx.transport.sendError(msg, -32602, "Client does not support elicitation");
+			return;
+		}
+		const result: McpToolInputRequiredResult = this.mrtr.createInputRequiredResult(
+			msg,
+			{
 				confirm: {
 					method: "elicitation/create",
 					params: {
@@ -177,8 +167,7 @@ export class ToolsHandler {
 					},
 				},
 			},
-			requestState,
-		};
+		);
 		this.ctx.transport.sendResult(msg, result);
 	}
 
@@ -196,30 +185,29 @@ export class ToolsHandler {
 			);
 			return;
 		}
-		const pending = this.pendingInputRequests.get(requestState);
-		if (!pending) {
-			this.ctx.transport.sendError(msg, -32602, "Unknown requestState");
+		if (!activeClientSupportsElicitation(this.ctx)) {
+			this.ctx.transport.sendError(msg, -32602, "Client does not support elicitation");
 			return;
 		}
-		if (pending.name !== name) {
+		const verified = this.mrtr.verify(requestState, msg, ["confirm"]);
+		if (!verified.ok) {
+			this.ctx.transport.sendError(msg, -32602, verified.message);
+			return;
+		}
+		if (name !== "confirm") {
 			this.ctx.transport.sendError(msg, -32602, "requestState does not match requested tool");
 			return;
 		}
-		const inputResponse = inputResponses[pending.requestId];
-		if (!inputResponse) {
-			this.ctx.transport.sendError(
-				msg,
-				-32602,
-				`Missing input response for request "${pending.requestId}"`,
-			);
+		const inputResponse = readElicitationInputResponse(inputResponses, "confirm");
+		if (typeof inputResponse === "string") {
+			this.ctx.transport.sendError(msg, -32602, inputResponse);
 			return;
 		}
-		this.pendingInputRequests.delete(requestState);
 		const tool = this.getExposedTools().find((t) => t.name === name) ?? null;
 		this.sendToolExecutionResult(
 			msg,
 			tool,
-			confirmToolResultFromInputResponse(pending.args, inputResponse),
+			confirmToolResultFromInputResponse(readToolArguments(msg.params?.arguments ?? {}), inputResponse),
 		);
 	}
 
@@ -352,56 +340,6 @@ function usesDraftToolResults(protocolVersion: McpProtocolVersion): boolean {
 function readToolArguments(value: RequestParamValue): ToolRunnerInput {
 	if (!value || typeof value !== "object" || Array.isArray(value)) return {};
 	return value as ToolRunnerInput;
-}
-
-function decodeRetryParams(params: NonNullable<JsonRpcRequest["params"]>): RetryParams {
-	const hasInputResponses = "inputResponses" in params;
-	const hasRequestState = "requestState" in params;
-	if (!hasInputResponses && !hasRequestState) return { kind: "none" };
-	if (!hasInputResponses || !hasRequestState) {
-		return {
-			kind: "invalid",
-			message: "Retry calls must include both inputResponses and requestState",
-		};
-	}
-	if (typeof params.requestState !== "string" || params.requestState.length === 0) {
-		return { kind: "invalid", message: "requestState must be a non-empty string" };
-	}
-	const inputResponses = decodeInputResponses(params.inputResponses);
-	if (typeof inputResponses === "string") {
-		return { kind: "invalid", message: inputResponses };
-	}
-	return {
-		kind: "retry",
-		requestState: params.requestState,
-		inputResponses,
-	};
-}
-
-function decodeInputResponses(value: RequestParamValue): McpToolInputResponses | string {
-	if (!value || typeof value !== "object" || Array.isArray(value)) {
-		return "inputResponses must be an object";
-	}
-	const inputResponses = value as McpToolInputResponses;
-	for (const [requestId, response] of Object.entries(inputResponses)) {
-		if (!response || typeof response !== "object" || Array.isArray(response)) {
-			return `inputResponses.${requestId} must be an object`;
-		}
-		if (
-			response.action !== "accept" &&
-			response.action !== "reject" &&
-			response.action !== "cancel"
-		) {
-			return `inputResponses.${requestId}.action must be accept, reject, or cancel`;
-		}
-		if (
-			response.action === "accept" &&
-			(!response.content || typeof response.content !== "object" || Array.isArray(response.content))
-		) {
-			return `inputResponses.${requestId}.content must be an object when action is accept`;
-		}
-	}
-	return inputResponses;
 }
 
 function buildConfirmElicitationMessage(args: ToolRunnerInput): string {

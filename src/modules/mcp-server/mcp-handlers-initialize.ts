@@ -1,9 +1,7 @@
 /**
- * MCP `initialize` handshake plus workspace-roots state owned by the same
- * lifecycle: capability negotiation, the deferred outbound `roots/list`
- * request, the `notifications/roots/list_changed` re-fetch, and the typed
- * accessors the rest of the server uses to resolve the effective project
- * directory.
+ * MCP `initialize` handshake plus the legacy workspace-roots compatibility
+ * branch. Draft roots are requested through MRTR on the originating request
+ * instead of through standalone server-initiated JSON-RPC calls.
  */
 
 import type { KotaJsonObject } from "#core/agent-harness/message-protocol.js";
@@ -142,7 +140,10 @@ export class InitializeHandler {
 		this.ctx.log(
 			`Initialized successfully (elicitation: ${this.ctx.session.clientSupportsElicitation}, sampling: ${this.options.advertiseSampling()}, completions: true, roots: ${this.ctx.session.clientSupportsRoots})`,
 		);
-		if (this.ctx.session.clientSupportsRoots) {
+		if (
+			this.ctx.session.protocolVersion === MCP_LEGACY_PROTOCOL_VERSION &&
+			this.ctx.session.clientSupportsRoots
+		) {
 			// Defer so the initialize response is fully consumed by the client before
 			// we send the roots/list request — avoids dropped writes on synchronous streams.
 			setImmediate(() => {
@@ -167,6 +168,7 @@ export class InitializeHandler {
 	}
 
 	handleRootsListChangedNotification(): void {
+		if (this.ctx.session.protocolVersion !== MCP_LEGACY_PROTOCOL_VERSION) return;
 		if (!this.ctx.session.clientSupportsRoots) return;
 		setImmediate(() => {
 			this.fetchClientRoots().catch((err) => {
@@ -191,14 +193,15 @@ export class InitializeHandler {
 		return true;
 	}
 
-	/** Returns the client-provided workspace roots, or an empty array if none. */
+	/** Returns legacy cached client workspace roots, or an empty array if none. */
 	getClientRoots(): McpRoot[] {
 		return [...this.clientRoots];
 	}
 
 	/**
-	 * Returns the effective project directory: the first client root's file
-	 * path when roots are provided, otherwise the configured projectDir.
+	 * Returns the legacy effective project directory: the first cached client
+	 * root's file path when roots are provided, otherwise the configured
+	 * projectDir. Draft request handlers resolve roots from MRTR retry payloads.
 	 */
 	getEffectiveProjectDir(): string {
 		if (this.clientRoots.length > 0) {

@@ -10,6 +10,10 @@ import { dirname } from "node:path";
 import type { EventBus } from "#core/events/event-bus.js";
 import { getEventBus } from "#core/events/event-bus.js";
 import { getPromptTemplatesDir } from "#modules/prompt-templates/prompt-template.js";
+import {
+	type McpMrtrStateCodec,
+	resolveProjectDirFromRootsInput,
+} from "./mcp-mrtr.js";
 import type {
 	HandlerContext,
 	JsonRpcNotification,
@@ -77,6 +81,7 @@ export class ResourcesHandler {
 		private readonly ctx: HandlerContext,
 		private readonly eventBusOverride: EventBus | null | undefined,
 		private readonly resolveProjectDir: () => string,
+		private readonly mrtr: McpMrtrStateCodec,
 	) {}
 
 	registerBusListeners(): void {
@@ -133,7 +138,9 @@ export class ResourcesHandler {
 			this.ctx.transport.sendError(msg, -32602, "Missing required parameter: uri");
 			return;
 		}
-		const result = readKotaResource(uri, this.resolveProjectDir());
+		const projectDir = this.resolveProjectDirForRead(msg);
+		if (!projectDir) return;
+		const result = readKotaResource(uri, projectDir);
 		if (!result.ok) {
 			this.ctx.transport.sendError(msg, result.code, result.message);
 			return;
@@ -270,6 +277,22 @@ export class ResourcesHandler {
 				uri,
 			});
 		}
+	}
+
+	private resolveProjectDirForRead(msg: JsonRpcRequest): string | null {
+		const resolved = resolveProjectDirFromRootsInput({
+			ctx: this.ctx,
+			mrtr: this.mrtr,
+			msg,
+			fallbackProjectDir: this.resolveProjectDir(),
+		});
+		if (resolved.kind === "ready") return resolved.projectDir;
+		if (resolved.kind === "input_required") {
+			this.ctx.transport.sendResult(msg, resolved.result);
+			return null;
+		}
+		this.ctx.transport.sendError(msg, -32602, resolved.message);
+		return null;
 	}
 
 	private notifyResourceListChangedIfNeeded(): void {

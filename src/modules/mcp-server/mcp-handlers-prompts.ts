@@ -4,6 +4,10 @@
  */
 
 import type { KotaJsonValue } from "#core/agent-harness/message-protocol.js";
+import {
+	type McpMrtrStateCodec,
+	resolveProjectDirFromRootsInput,
+} from "./mcp-mrtr.js";
 import type { HandlerContext, JsonRpcRequest } from "./mcp-protocol-types.js";
 import { hasActiveMcpContext } from "./mcp-protocol-types.js";
 import { listPromptCatalogPage, renderPrompt } from "./prompts.js";
@@ -33,6 +37,7 @@ export class PromptsHandler {
 	constructor(
 		private readonly ctx: HandlerContext,
 		private readonly resolveProjectDir: () => string,
+		private readonly mrtr: McpMrtrStateCodec,
 	) {}
 
 	handleList(msg: JsonRpcRequest): void {
@@ -67,11 +72,29 @@ export class PromptsHandler {
 			this.ctx.transport.sendError(msg, -32602, decodedArgs.message);
 			return;
 		}
-		const result = renderPrompt(this.resolveProjectDir(), name, decodedArgs.args);
+		const projectDir = this.resolveProjectDirForGet(msg);
+		if (!projectDir) return;
+		const result = renderPrompt(projectDir, name, decodedArgs.args);
 		if (!result.ok) {
 			this.ctx.transport.sendError(msg, result.code, result.message);
 			return;
 		}
 		this.ctx.transport.sendResult(msg, result.result);
+	}
+
+	private resolveProjectDirForGet(msg: JsonRpcRequest): string | null {
+		const resolved = resolveProjectDirFromRootsInput({
+			ctx: this.ctx,
+			mrtr: this.mrtr,
+			msg,
+			fallbackProjectDir: this.resolveProjectDir(),
+		});
+		if (resolved.kind === "ready") return resolved.projectDir;
+		if (resolved.kind === "input_required") {
+			this.ctx.transport.sendResult(msg, resolved.result);
+			return null;
+		}
+		this.ctx.transport.sendError(msg, -32602, resolved.message);
+		return null;
 	}
 }

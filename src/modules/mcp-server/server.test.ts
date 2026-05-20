@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
+import { pathToFileURL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleLoader } from "#core/modules/module-loader.js";
@@ -178,6 +179,13 @@ function createQueuedReader(stream: PassThrough): { read: (timeoutMs?: number) =
 			});
 		},
 	};
+}
+
+async function expectNoQueuedMessage(
+	reader: ReturnType<typeof createQueuedReader>,
+	timeoutMs = 50,
+): Promise<void> {
+	await expect(reader.read(timeoutMs)).rejects.toThrow("Timeout reading response");
 }
 
 async function initServer(
@@ -1348,6 +1356,116 @@ describe("resources", () => {
 		server.stop();
 	});
 
+	it("resources/read requests draft roots through MRTR and retries with root-scoped content", async () => {
+		const fallbackProjectDir = makeProjectDir();
+		const rootProjectDir = makeProjectDir();
+		writeFileSync(
+			join(rootProjectDir, "data", "tasks", "ready", "task-root.md"),
+			[
+				"---",
+				"id: task-root",
+				"title: Root Task",
+				"priority: p1",
+				"summary: Root-scoped task",
+				"status: ready",
+				"---",
+				"Body",
+			].join("\n"),
+		);
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {}, projectDir: fallbackProjectDir });
+		await initDraftServer(server, input, output);
+
+		sendRequest(input, 20, "resources/read", draftRequestParams({
+			uri: "kota://tasks/ready",
+		}, { roots: {} }));
+		const firstResp = await readResponse(output);
+
+		expect(firstResp.id).toBe(20);
+		const inputRequired = firstResp.result as {
+			resultType: string;
+			inputRequests: { roots: { method: string } };
+			requestState: string;
+		};
+		expect(inputRequired.resultType).toBe("input_required");
+		expect(inputRequired.inputRequests.roots.method).toBe("roots/list");
+
+		sendRequest(input, 21, "resources/read", draftRequestParams({
+			uri: "kota://tasks/ready",
+			inputResponses: {
+				roots: { roots: [{ uri: pathToFileURL(rootProjectDir).href }] },
+			},
+			requestState: inputRequired.requestState,
+		}, { roots: {} }));
+		const retryResp = await readResponse(output);
+
+		expect(retryResp.error).toBeUndefined();
+		const result = retryResp.result as {
+			contents: Array<{ text: string }>;
+		};
+		const tasks = JSON.parse(result.contents[0].text) as Array<{ id: string }>;
+		expect(tasks.map((task) => task.id).sort()).toEqual(["task-one", "task-root"]);
+
+		server.stop();
+	});
+
+	it("rejects draft roots requestState reused on a different originating method", async () => {
+		const projectDir = makeProjectDir();
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {}, projectDir });
+		await initDraftServer(server, input, output);
+
+		sendRequest(input, 30, "resources/read", draftRequestParams({
+			uri: "kota://tasks/ready",
+		}, { roots: {} }));
+		const firstResp = await readResponse(output);
+		const inputRequired = firstResp.result as { requestState: string };
+
+		sendRequest(input, 31, "prompts/get", draftRequestParams({
+			name: "kota-create-task",
+			arguments: { title: "Task", priority: "p1" },
+			inputResponses: {
+				roots: { roots: [{ uri: pathToFileURL(projectDir).href }] },
+			},
+			requestState: inputRequired.requestState,
+		}, { roots: {} }));
+		const resp = await readResponse(output);
+
+		expect(resp.result).toBeUndefined();
+		const err = resp.error as { code: number; message: string };
+		expect(err.code).toBe(-32602);
+		expect(err.message).toContain("requestState does not match requested method");
+
+		server.stop();
+	});
+
+	it("rejects draft roots retries missing the requested input response", async () => {
+		const projectDir = makeProjectDir();
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {}, projectDir });
+		await initDraftServer(server, input, output);
+
+		sendRequest(input, 32, "resources/read", draftRequestParams({
+			uri: "kota://tasks/ready",
+		}, { roots: {} }));
+		const firstResp = await readResponse(output);
+		const inputRequired = firstResp.result as { requestState: string };
+
+		sendRequest(input, 33, "resources/read", draftRequestParams({
+			uri: "kota://tasks/ready",
+			inputResponses: {},
+			requestState: inputRequired.requestState,
+		}, { roots: {} }));
+		const resp = await readResponse(output);
+
+		expect(resp.result).toBeUndefined();
+		const err = resp.error as { code: number; message: string };
+		expect(err.code).toBe(-32602);
+		expect(err.message).toContain("Missing input response for request \"roots\"");
+
+		server.stop();
+	});
+
 	it("resources/read returns workflow/status content", async () => {
 		const projectDir = makeProjectDir();
 		const { input, output } = createTestStreams();
@@ -1833,6 +1951,51 @@ describe("prompts", () => {
 			expect(result.messages[0].content.text).toBe("Review KOTA with focus on runtime.");
 			expect(result.messages[0].content.text).not.toContain("{{focus}}");
 			expect(result.messages[0].content.text).not.toContain("Unresolved template variables");
+
+			server.stop();
+		});
+
+		it("prompts/get requests draft roots through MRTR and retries with root-scoped prompts", async () => {
+			const fallbackProjectDir = mkdtempSync(join(tmpdir(), "kota-mcp-fallback-prompt-"));
+			const rootProjectDir = mkdtempSync(join(tmpdir(), "kota-mcp-root-prompt-"));
+			writeProjectPrompt(
+				rootProjectDir,
+				"review.md",
+				"---\nname: review-topic\ndescription: Review a topic\nvariables: [topic]\n---\nReview {{topic}} from the root project.",
+			);
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {}, projectDir: fallbackProjectDir });
+			await initDraftServer(server, input, output);
+
+			sendRequest(input, 40, "prompts/get", draftRequestParams({
+				name: "review-topic",
+				arguments: { topic: "KOTA" },
+			}, { roots: {} }));
+			const firstResp = await readResponse(output);
+
+			const inputRequired = firstResp.result as {
+				resultType: string;
+				inputRequests: { roots: { method: string } };
+				requestState: string;
+			};
+			expect(inputRequired.resultType).toBe("input_required");
+			expect(inputRequired.inputRequests.roots.method).toBe("roots/list");
+
+			sendRequest(input, 41, "prompts/get", draftRequestParams({
+				name: "review-topic",
+				arguments: { topic: "KOTA" },
+				inputResponses: {
+					roots: { roots: [{ uri: pathToFileURL(rootProjectDir).href }] },
+				},
+				requestState: inputRequired.requestState,
+			}, { roots: {} }));
+			const retryResp = await readResponse(output);
+
+			expect(retryResp.error).toBeUndefined();
+			const result = retryResp.result as {
+				messages: Array<{ content: { text: string } }>;
+			};
+			expect(result.messages[0].content.text).toBe("Review KOTA from the root project.");
 
 			server.stop();
 		});
@@ -2474,12 +2637,13 @@ describe("McpServer elicitation", () => {
 			const { input, output } = createTestStreams();
 			const server = new McpServer({ input, output, log: () => {}, toolFilter: ["confirm"] });
 			await initDraftServer(server, input, output);
+			const queue = createQueuedReader(output);
 
 			sendRequest(input, 20, "tools/call", draftRequestParams({
 				name: "confirm",
 				arguments: { action: "Rotate signing key", risk: "high" },
-			}));
-			const firstResp = await readResponse(output);
+			}, { elicitation: {} }));
+			const firstResp = await queue.read();
 
 			expect(firstResp.id).toBe(20);
 			const inputRequired = firstResp.result as {
@@ -2505,7 +2669,8 @@ describe("McpServer elicitation", () => {
 				type: "object",
 				properties: { confirmed: { type: "boolean", title: "Approve?" } },
 			});
-			expect(inputRequired.requestState).toMatch(/^confirm:\d+$/);
+			expect(inputRequired.requestState.length).toBeGreaterThan(20);
+			await expectNoQueuedMessage(queue);
 
 			sendRequest(input, 21, "tools/call", draftRequestParams({
 				name: "confirm",
@@ -2514,8 +2679,8 @@ describe("McpServer elicitation", () => {
 					confirm: { action: "accept", content: { confirmed: true } },
 				},
 				requestState: inputRequired.requestState,
-			}));
-			const retryResp = await readResponse(output);
+			}, { elicitation: {} }));
+			const retryResp = await queue.read();
 
 			expect(retryResp.id).toBe(21);
 			const result = retryResp.result as {
@@ -2530,6 +2695,41 @@ describe("McpServer elicitation", () => {
 			server.stop();
 		});
 
+		it("resumes draft confirm reject and cancel responses through tools/call retry", async () => {
+			for (const [action, expectedText] of [
+				["reject", "REJECTED: Publish incident update"],
+				["cancel", "REJECTED: Publish incident update\nReason: Timed out or cancelled"],
+			] as const) {
+				const { input, output } = createTestStreams();
+				const server = new McpServer({ input, output, log: () => {}, toolFilter: ["confirm"] });
+				await initDraftServer(server, input, output);
+
+				sendRequest(input, 30, "tools/call", draftRequestParams({
+					name: "confirm",
+					arguments: { action: "Publish incident update" },
+				}, { elicitation: {} }));
+				const firstResp = await readResponse(output);
+				const inputRequired = firstResp.result as { requestState: string };
+
+				sendRequest(input, 31, "tools/call", draftRequestParams({
+					name: "confirm",
+					arguments: { action: "Publish incident update" },
+					inputResponses: { confirm: { action } },
+					requestState: inputRequired.requestState,
+				}, { elicitation: {} }));
+				const retryResp = await readResponse(output);
+
+				const result = retryResp.result as {
+					resultType: string;
+					content: Array<{ type: string; text: string }>;
+				};
+				expect(result.resultType).toBe("complete");
+				expect(result.content[0].text).toContain(expectedText);
+
+				server.stop();
+			}
+		});
+
 		it("rejects malformed draft retry payloads as JSON-RPC protocol errors", async () => {
 			const { input, output } = createTestStreams();
 			const server = new McpServer({ input, output, log: () => {}, toolFilter: ["confirm"] });
@@ -2540,7 +2740,7 @@ describe("McpServer elicitation", () => {
 				arguments: { action: "Deploy" },
 				inputResponses: "not-an-object",
 				requestState: "confirm:missing",
-			}));
+			}, { elicitation: {} }));
 			const resp = await readResponse(output);
 
 			expect(resp.result).toBeUndefined();
@@ -2551,7 +2751,7 @@ describe("McpServer elicitation", () => {
 			server.stop();
 		});
 
-		it("rejects unknown draft requestState values as JSON-RPC protocol errors", async () => {
+		it("rejects invalid draft requestState values as JSON-RPC protocol errors", async () => {
 			const { input, output } = createTestStreams();
 			const server = new McpServer({ input, output, log: () => {}, toolFilter: ["confirm"] });
 			await initDraftServer(server, input, output);
@@ -2563,13 +2763,43 @@ describe("McpServer elicitation", () => {
 					confirm: { action: "reject" },
 				},
 				requestState: "confirm:missing",
-			}));
+			}, { elicitation: {} }));
 			const resp = await readResponse(output);
 
 			expect(resp.result).toBeUndefined();
 			const err = resp.error as { code: number; message: string };
 			expect(err.code).toBe(-32602);
-			expect(err.message).toContain("Unknown requestState");
+			expect(err.message).toContain("Invalid requestState");
+
+			server.stop();
+		});
+
+		it("rejects draft requestState retries whose originating parameters changed", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {}, toolFilter: ["confirm"] });
+			await initDraftServer(server, input, output);
+
+			sendRequest(input, 24, "tools/call", draftRequestParams({
+				name: "confirm",
+				arguments: { action: "Deploy" },
+			}, { elicitation: {} }));
+			const firstResp = await readResponse(output);
+			const inputRequired = firstResp.result as { requestState: string };
+
+			sendRequest(input, 25, "tools/call", draftRequestParams({
+				name: "confirm",
+				arguments: { action: "Delete production" },
+				inputResponses: {
+					confirm: { action: "accept", content: { confirmed: true } },
+				},
+				requestState: inputRequired.requestState,
+			}, { elicitation: {} }));
+			const resp = await readResponse(output);
+
+			expect(resp.result).toBeUndefined();
+			const err = resp.error as { code: number; message: string };
+			expect(err.code).toBe(-32602);
+			expect(err.message).toContain("requestState does not match requested parameters");
 
 			server.stop();
 		});
@@ -2659,6 +2889,34 @@ describe("sampling", () => {
 
 		expect(calls).toHaveLength(1);
 		expect(calls[0].model).toBe("claude-haiku-4-5-20251001");
+
+		server.stop();
+	});
+
+	it("keeps sampling/createMessage as legacy-only compatibility", async () => {
+		const projectDir = mkdtempSync(join(tmpdir(), "kota-sampling-draft-"));
+		const { client } = makeMockModelClient("draft should not call");
+		const { input, output } = createTestStreams();
+		const server = new McpServer({
+			input,
+			output,
+			log: () => {},
+			samplingEnabled: true,
+			projectDir,
+			modelClient: client,
+		});
+		await initDraftServer(server, input, output);
+
+		sendRequest(input, 14, "sampling/createMessage", draftRequestParams({
+			messages: [{ role: "user", content: { type: "text", text: "Hello" } }],
+			maxTokens: 64,
+		}, { sampling: {} }));
+		const resp = await readResponse(output);
+
+		expect(resp.result).toBeUndefined();
+		const err = resp.error as { code: number; message: string };
+		expect(err.code).toBe(-32601);
+		expect(err.message).toBe("Method not found: sampling/createMessage");
 
 		server.stop();
 	});
@@ -2850,6 +3108,24 @@ describe("completion/complete", () => {
 			return { initResp, queue };
 		}
 
+		async function initDraftServerWithRoots(
+			server: McpServer,
+			input: PassThrough,
+			output: PassThrough,
+		): Promise<{ initResp: Record<string, unknown>; queue: ReturnType<typeof createQueuedReader> }> {
+			const queue = createQueuedReader(output);
+			await server.start();
+			sendRequest(input, 1, "initialize", {
+				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+				capabilities: { roots: {} },
+				clientInfo: { name: "test", version: "1.0.0" },
+			});
+			const initResp = await queue.read();
+			sendNotification(input, "notifications/initialized");
+			await new Promise((r) => setImmediate(r));
+			return { initResp, queue };
+		}
+
 		it("advertises roots capability in initialize response", async () => {
 			const { input, output } = createTestStreams();
 			const server = new McpServer({ input, output, log: () => {} });
@@ -2872,6 +3148,20 @@ describe("completion/complete", () => {
 			const rootsReq = await queue.read();
 			expect(rootsReq.method).toBe("roots/list");
 			expect(rootsReq.id).toBeDefined();
+
+			server.stop();
+		});
+
+		it("does not send standalone roots/list after draft initialize or root-change notifications", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+
+			const { queue } = await initDraftServerWithRoots(server, input, output);
+
+			await expectNoQueuedMessage(queue);
+			sendNotification(input, "notifications/roots/list_changed");
+			await new Promise((r) => setImmediate(r));
+			await expectNoQueuedMessage(queue);
 
 			server.stop();
 		});

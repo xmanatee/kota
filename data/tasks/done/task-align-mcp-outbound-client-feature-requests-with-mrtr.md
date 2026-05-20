@@ -1,12 +1,12 @@
 ---
 id: task-align-mcp-outbound-client-feature-requests-with-mrtr
 title: Align MCP outbound client-feature requests with MRTR
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Replace KOTA MCP server standalone roots and legacy elicitation client requests with draft MRTR input_required flows, preserving explicit legacy compatibility only where intentional.
 created_at: 2026-05-20T12:25:38Z
-updated_at: 2026-05-20T12:25:38Z
+updated_at: 2026-05-20T12:44:36Z
 ---
 
 ## Problem

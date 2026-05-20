@@ -1,7 +1,7 @@
 /**
- * MCP elicitation handler — outbound `sampling/elicit` requests and the
- * pending-response routing for their replies. The `confirm` tool's
- * elicitation path runs through `request()` from the tools handler.
+ * Legacy MCP elicitation handler — outbound `sampling/elicit` requests and
+ * pending-response routing for their replies. Draft elicitation uses MRTR
+ * `elicitation/create` results on the originating request.
  */
 
 import type { KotaJsonObject } from "#core/agent-harness/message-protocol.js";
@@ -11,6 +11,7 @@ import type {
 	HandlerContext,
 	JsonRpcResponse,
 } from "./mcp-protocol-types.js";
+import { MCP_LEGACY_PROTOCOL_VERSION } from "./mcp-protocol-types.js";
 
 function isJsonObject(value: JsonRpcResponse["result"]): value is KotaJsonObject {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -29,7 +30,7 @@ export class ElicitationHandler {
 
 	/**
 	 * Send a `sampling/elicit` request to the client and await the user's
-	 * response. Returns null if the client does not support elicitation.
+	 * response. Returns null if the client does not support legacy elicitation.
 	 * Rejects if the timeout expires before the client responds.
 	 */
 	async request(
@@ -37,6 +38,7 @@ export class ElicitationHandler {
 		requestedSchema: ElicitationSchema,
 		timeoutMs = 300_000,
 	): Promise<ElicitationResponse | null> {
+		if (this.ctx.session.protocolVersion !== MCP_LEGACY_PROTOCOL_VERSION) return null;
 		if (!this.ctx.session.clientSupportsElicitation) return null;
 		const id = `elicit-${++this.idCounter}`;
 		return new Promise((resolve, reject) => {

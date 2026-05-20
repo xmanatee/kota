@@ -21,6 +21,7 @@ import { PromptsHandler } from "./mcp-handlers-prompts.js";
 import { ResourcesHandler } from "./mcp-handlers-resources.js";
 import { SamplingHandler } from "./mcp-handlers-sampling.js";
 import { ToolsHandler } from "./mcp-handlers-tools.js";
+import { McpMrtrStateCodec } from "./mcp-mrtr.js";
 import type {
 	HandlerContext,
 	JsonRpcNotification,
@@ -261,6 +262,7 @@ export class McpServer {
 			session: this.session,
 			getRequestContext: () => this.requestContext.getStore() ?? null,
 		};
+		const mrtr = new McpMrtrStateCodec();
 
 		this.elicitation = new ElicitationHandler(ctx);
 		const sampling = new SamplingHandler(ctx, {
@@ -277,13 +279,18 @@ export class McpServer {
 			projectDir,
 			advertiseSampling: () => sampling.isAvailable(),
 		});
-		this.resources = new ResourcesHandler(ctx, options.eventBus, () =>
-			this.initialize.getEffectiveProjectDir(),
+		this.resources = new ResourcesHandler(
+			ctx,
+			options.eventBus,
+			() => this.initialize.getEffectiveProjectDir(),
+			mrtr,
 		);
-		const prompts = new PromptsHandler(ctx, () =>
-			this.initialize.getEffectiveProjectDir(),
+		const prompts = new PromptsHandler(
+			ctx,
+			() => this.initialize.getEffectiveProjectDir(),
+			mrtr,
 		);
-		const tools = new ToolsHandler(ctx, this.elicitation, {
+		const tools = new ToolsHandler(ctx, this.elicitation, mrtr, {
 			...(options.toolFilter !== undefined && { toolFilter: options.toolFilter }),
 			...(options.moduleTools !== undefined && { moduleTools: options.moduleTools }),
 		});

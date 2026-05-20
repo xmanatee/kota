@@ -85,7 +85,7 @@ export type ElicitationResponse =
 	| { action: "reject" }
 	| { action: "cancel" };
 
-export type McpToolInputRequest = {
+export type McpElicitationInputRequest = {
 	method: "elicitation/create";
 	params: {
 		mode: "form";
@@ -94,8 +94,26 @@ export type McpToolInputRequest = {
 	};
 };
 
-export type McpToolInputRequests = { [requestId: string]: McpToolInputRequest };
-export type McpToolInputResponses = { [requestId: string]: ElicitationResponse };
+export type McpRootsInputRequest = {
+	method: "roots/list";
+	params?: KotaJsonObject;
+};
+
+export type McpSamplingInputRequest = {
+	method: "sampling/createMessage";
+	params: KotaJsonObject;
+};
+
+export type McpInputRequest =
+	| McpElicitationInputRequest
+	| McpRootsInputRequest
+	| McpSamplingInputRequest;
+
+export type McpInputRequests = { [requestId: string]: McpInputRequest };
+
+export type McpRootsInputResponse = { roots: McpRoot[] };
+export type McpInputResponse = ElicitationResponse | McpRootsInputResponse | KotaJsonObject;
+export type McpInputResponses = { [requestId: string]: McpInputResponse };
 
 export type McpToolCompleteResult = {
 	resultType: "complete";
@@ -105,13 +123,18 @@ export type McpToolCompleteResult = {
 	isError: boolean;
 };
 
-export type McpToolInputRequiredResult = {
+export type McpInputRequiredResult = {
 	resultType: "input_required";
-	inputRequests: McpToolInputRequests;
+	inputRequests: McpInputRequests;
 	requestState: string;
 };
 
-export type McpToolResult = McpToolCompleteResult | McpToolInputRequiredResult;
+export type McpToolInputRequest = McpElicitationInputRequest;
+export type McpToolInputRequests = McpInputRequests;
+export type McpToolInputResponses = McpInputResponses;
+export type McpToolInputRequiredResult = McpInputRequiredResult;
+
+export type McpToolResult = McpToolCompleteResult | McpInputRequiredResult;
 
 /**
  * Transport-side surface every per-feature handler uses to write JSON-RPC
