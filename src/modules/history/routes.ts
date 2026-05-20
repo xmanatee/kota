@@ -5,7 +5,6 @@ import type {
 } from "#core/modules/module-types.js";
 import { getHistoryProvider } from "#core/modules/provider-registry.js";
 import type {
-  ConversationData,
   ConversationRecord,
   HistoryProvider,
 } from "#core/modules/provider-types.js";
@@ -14,6 +13,14 @@ import {
   getDaemonTransport,
 } from "#core/server/daemon-transport.js";
 import { jsonResponse } from "#core/server/session-pool.js";
+import type { HistoryDetail } from "./client.js";
+import {
+  buildHistoryDetailQuery,
+  HistoryDetailParameterError,
+  type HistoryDetailRequest,
+  parseHistoryDetailRequestFromUrl,
+  readHistoryDetail,
+} from "./history-detail.js";
 import {
   createHistoryProjectStores,
   type HistoryProjectStores,
@@ -56,11 +63,13 @@ function loadHistoryLocal(
   res: ServerResponse,
   url: URL,
   id: string,
+  request: HistoryDetailRequest,
   projectStores?: HistoryProjectStores,
-): ConversationData | null {
+): HistoryDetail | null {
   const provider = resolveScopedProvider(res, url, projectStores);
   if (!provider) return null;
-  return provider.load(id) ?? null;
+  const result = readHistoryDetail(provider, id, request);
+  return result.found ? result.detail : null;
 }
 
 function removeHistoryLocal(
@@ -114,22 +123,27 @@ export async function handleGetHistory(
   link: DaemonTransport | null = null,
   projectStores?: HistoryProjectStores,
 ): Promise<void> {
-  const projectQuery = buildProjectQuery(url);
+  const request = parseHistoryDetailRequestOrRespond(res, url);
+  if (!request) return;
+  const projectQuery = buildHistoryDetailQuery(
+    request,
+    url.searchParams.get("projectId") ?? undefined,
+  );
   if (link) {
-    const data = await link.request<ConversationData>(
+    const detail = await link.request<HistoryDetail>(
       "GET",
       `/history/${encodeURIComponent(conversationId)}${projectQuery}`,
     );
-    if (data !== null) {
-      jsonResponse(res, 200, data);
+    if (detail !== null) {
+      jsonResponse(res, 200, detail);
       return;
     }
     // null may mean daemon returned 404 or is unreachable — fall through to local
   }
 
-  const data = loadHistoryLocal(res, url, conversationId, projectStores);
-  if (data) {
-    jsonResponse(res, 200, data);
+  const detail = loadHistoryLocal(res, url, conversationId, request, projectStores);
+  if (detail) {
+    jsonResponse(res, 200, detail);
   } else if (!res.headersSent) {
     jsonResponse(res, 404, { error: "Conversation not found" });
   }
@@ -289,14 +303,16 @@ function handleGetHistoryControl(
   projectStores: HistoryProjectStores,
 ): void {
   const url = new URL(req.url ?? "/history", "http://127.0.0.1");
-  const data = loadHistoryLocal(res, url, params.id, projectStores);
-  if (!data) {
+  const request = parseHistoryDetailRequestOrRespond(res, url);
+  if (!request) return;
+  const detail = loadHistoryLocal(res, url, params.id, request, projectStores);
+  if (!detail) {
     if (!res.headersSent) {
       jsonResponse(res, 404, { error: "Conversation not found" });
     }
     return;
   }
-  jsonResponse(res, 200, data);
+  jsonResponse(res, 200, detail);
 }
 
 function handleDeleteHistoryControl(
@@ -321,6 +337,21 @@ function buildProjectQuery(url: URL): string {
   const params = new URLSearchParams();
   params.set("projectId", projectId);
   return `?${params.toString()}`;
+}
+
+function parseHistoryDetailRequestOrRespond(
+  res: ServerResponse,
+  url: URL,
+): HistoryDetailRequest | null {
+  try {
+    return parseHistoryDetailRequestFromUrl(url);
+  } catch (err) {
+    if (err instanceof HistoryDetailParameterError) {
+      jsonResponse(res, 400, { error: err.message });
+      return null;
+    }
+    throw err;
+  }
 }
 
 export function historyControlRoutes(

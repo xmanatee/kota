@@ -5,11 +5,13 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { buildConfiguredProject } from "#core/daemon/project-registry.js";
 import type {
+  ConversationData,
+  ConversationMessage,
   ConversationRecord,
   HistoryProvider,
 } from "#core/modules/provider-types.js";
 import { HistoryProjectStores } from "./project-scope.js";
-import { handleSearchHistory } from "./routes.js";
+import { handleGetHistory, handleSearchHistory } from "./routes.js";
 
 function mockResponse() {
   const result = { status: 0, body: null as unknown };
@@ -44,6 +46,22 @@ function makeRecord(overrides: Partial<ConversationRecord> = {}): ConversationRe
   };
 }
 
+function makeData(messages: ConversationMessage[]): ConversationData {
+  return {
+    record: makeRecord({ messageCount: messages.length }),
+    messages,
+    compactionCount: 2,
+    lastInputTokens: 1234,
+  };
+}
+
+function longMessages(count: number): ConversationMessage[] {
+  return Array.from({ length: count }, (_, index) => ({
+    role: index % 2 === 0 ? "user" : "assistant",
+    content: `message-${index}-${"x".repeat(40)}`,
+  }));
+}
+
 function makeProvider(records: ConversationRecord[]): HistoryProvider {
   return {
     create: vi.fn(() => "new-id"),
@@ -60,6 +78,10 @@ function makeProvider(records: ConversationRecord[]): HistoryProvider {
   };
 }
 
+function detailUrl(query = ""): URL {
+  return new URL(`/api/history/conv-abc${query}`, "http://localhost");
+}
+
 vi.mock("#core/modules/provider-registry.js", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("#core/modules/provider-registry.js")>();
@@ -73,6 +95,135 @@ vi.mock("#core/modules/provider-registry.js", async (importOriginal) => {
 import { getHistoryProvider } from "#core/modules/provider-registry.js";
 
 describe("history-routes", () => {
+  describe("handleGetHistory", () => {
+    it("returns a bounded middle-page window for a 200+ message conversation", async () => {
+      const messages = longMessages(205);
+      const data = makeData(messages);
+      const provider = makeProvider([data.record]);
+      provider.load = vi.fn(() => data);
+      vi.mocked(getHistoryProvider).mockReturnValue(provider);
+      const { res, result } = mockResponse();
+
+      await handleGetHistory(
+        res,
+        "conv-abc",
+        detailUrl("?view=window&offset=100&limit=5&contentLimit=16"),
+      );
+
+      expect(result.status).toBe(200);
+      expect(provider.load).toHaveBeenCalledWith("conv-abc");
+      const body = result.body as {
+        view: "window";
+        messageWindow: {
+          offset: number;
+          limit: number;
+          total: number;
+          returned: number;
+          hasMoreBefore: boolean;
+          hasMoreAfter: boolean;
+        };
+        messages: Array<{
+          index: number;
+          content: string;
+          contentTruncation: {
+            maxCharacters: number;
+            originalCharacters: number;
+            truncated: boolean;
+          };
+        }>;
+      };
+      expect(body.view).toBe("window");
+      expect(body.messageWindow).toEqual({
+        offset: 100,
+        limit: 5,
+        total: 205,
+        returned: 5,
+        hasMoreBefore: true,
+        hasMoreAfter: true,
+      });
+      expect(body.messages.map((message) => message.index)).toEqual([
+        100,
+        101,
+        102,
+        103,
+        104,
+      ]);
+      expect(body.messages[0].content).toBe("message-100-xxxx");
+      expect(body.messages[0].contentTruncation).toEqual({
+        maxCharacters: 16,
+        originalCharacters: 52,
+        truncated: true,
+      });
+    });
+
+    it("returns metadata-only detail without loading the full conversation", async () => {
+      const record = makeRecord({ messageCount: 205 });
+      const provider = makeProvider([record]);
+      provider.load = vi.fn(() => {
+        throw new Error("metadata view should not load messages");
+      });
+      vi.mocked(getHistoryProvider).mockReturnValue(provider);
+      const { res, result } = mockResponse();
+
+      await handleGetHistory(res, "conv-abc", detailUrl("?view=metadata"));
+
+      expect(result.status).toBe(200);
+      expect(provider.load).not.toHaveBeenCalled();
+      expect(result.body).toEqual({
+        view: "metadata",
+        record,
+        messageWindow: {
+          offset: 0,
+          limit: 0,
+          total: 205,
+          returned: 0,
+          hasMoreBefore: false,
+          hasMoreAfter: true,
+        },
+      });
+    });
+
+    it("returns explicit full detail when requested", async () => {
+      const messages = longMessages(205);
+      const data = makeData(messages);
+      const provider = makeProvider([data.record]);
+      provider.load = vi.fn(() => data);
+      vi.mocked(getHistoryProvider).mockReturnValue(provider);
+      const { res, result } = mockResponse();
+
+      await handleGetHistory(res, "conv-abc", detailUrl("?view=full"));
+
+      expect(result.status).toBe(200);
+      const body = result.body as {
+        view: "full";
+        messages: ConversationMessage[];
+        messageWindow: { total: number; returned: number };
+      };
+      expect(body.view).toBe("full");
+      expect(body.messages).toHaveLength(205);
+      expect(body.messageWindow).toMatchObject({ total: 205, returned: 205 });
+    });
+
+    it.each([
+      ["?view=bogus", "view must be one of metadata, window, full"],
+      ["?view=window&offset=-1", "offset must be a non-negative integer"],
+      ["?view=window&offset=1.5", "offset must be a non-negative integer"],
+      ["?view=window&limit=0", "limit must be a positive integer"],
+      ["?view=window&limit=abc", "limit must be a positive integer"],
+      ["?view=metadata&limit=1", "limit is only valid for view=window"],
+      ["?view=full&contentLimit=10", "contentLimit is only valid for view=window"],
+    ])("rejects malformed detail query %s", async (query, expected) => {
+      const provider = makeProvider([]);
+      vi.mocked(getHistoryProvider).mockReturnValue(provider);
+      const { res, result } = mockResponse();
+
+      await handleGetHistory(res, "conv-abc", detailUrl(query));
+
+      expect(result.status).toBe(400);
+      expect((result.body as { error: string }).error).toContain(expected);
+    });
+  });
+
   describe("handleSearchHistory", () => {
     it("returns ok:true with semantic conversations when semantic search is available", async () => {
       const record = makeRecord();

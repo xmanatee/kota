@@ -23,8 +23,11 @@ import {
 } from "#modules/rendering/transport.js";
 import { registerHistoryCommands } from "./cli-commands.js";
 import type {
+	HistoryDetail,
 	HistorySearchFilter,
 	HistorySearchResult,
+	HistoryShowOptions,
+	HistoryShowResult,
 } from "./client.js";
 
 vi.mock("#core/modules/cli-providers.js", () => ({
@@ -44,6 +47,19 @@ type SearchStub = {
 	) => HistorySearchResult;
 };
 
+type ShowCall = {
+	id: string;
+	options: HistoryShowOptions | undefined;
+};
+
+type ShowStub = {
+	calls: ShowCall[];
+	respond: (
+		id: string,
+		options: HistoryShowOptions | undefined,
+	) => HistoryShowResult;
+};
+
 function makeRecord(overrides: Partial<ConversationRecord> = {}): ConversationRecord {
 	return {
 		id: "conv-aaa",
@@ -58,12 +74,82 @@ function makeRecord(overrides: Partial<ConversationRecord> = {}): ConversationRe
 	};
 }
 
+function makeWindowDetail(record = makeRecord()): HistoryDetail {
+	return {
+		view: "window",
+		record,
+		messages: [
+			{
+				index: 40,
+				role: "user",
+				content: "short bounded",
+				contentTruncation: {
+					maxCharacters: 12,
+					originalCharacters: 12,
+					truncated: false,
+				},
+			},
+			{
+				index: 41,
+				role: "assistant",
+				content: "long assistant reply",
+				contentTruncation: {
+					maxCharacters: 12,
+					originalCharacters: 240,
+					truncated: true,
+				},
+			},
+		],
+		compactionCount: 0,
+		lastInputTokens: 0,
+		contentLimit: 12,
+		messageWindow: {
+			offset: 40,
+			limit: 2,
+			total: 205,
+			returned: 2,
+			hasMoreBefore: true,
+			hasMoreAfter: true,
+		},
+	};
+}
+
+function makeMetadataDetail(record = makeRecord()): HistoryDetail {
+	return {
+		view: "metadata",
+		record,
+		messageWindow: {
+			offset: 0,
+			limit: 0,
+			total: record.messageCount,
+			returned: 0,
+			hasMoreBefore: false,
+			hasMoreAfter: record.messageCount > 0,
+		},
+	};
+}
+
 function installClient(stub: SearchStub): void {
 	const client = {
 		history: {
 			async search(query: string, filter?: HistorySearchFilter) {
 				stub.calls.push({ query, filter });
 				return stub.respond(query, filter);
+			},
+		},
+	} as unknown as KotaClient;
+	setActiveKotaClient(client);
+}
+
+function installShowClient(stub: ShowStub, records: ConversationRecord[]): void {
+	const client = {
+		history: {
+			async list() {
+				return { conversations: records };
+			},
+			async show(id: string, options?: HistoryShowOptions) {
+				stub.calls.push({ id, options });
+				return stub.respond(id, options);
 			},
 		},
 	} as unknown as KotaClient;
@@ -306,5 +392,133 @@ describe("kota history search", () => {
 			"--all",
 		]);
 		expect(stub.calls[0].filter?.cwd).toBeUndefined();
+	});
+});
+
+describe("kota history show", () => {
+	let stub: ShowStub;
+	let captured: ReturnType<typeof captureTransport>;
+	let exitSpy: ReturnType<typeof vi.spyOn>;
+	let record: ConversationRecord;
+
+	beforeEach(() => {
+		record = makeRecord({
+			id: "conv-show",
+			title: "Long conversation",
+			messageCount: 205,
+		});
+		stub = {
+			calls: [],
+			respond: () => ({ found: true, detail: makeWindowDetail(record) }),
+		};
+		installShowClient(stub, [record]);
+		captured = captureTransport();
+		exitSpy = vi
+			.spyOn(process, "exit")
+			.mockImplementation(((code?: number) => {
+				throw new Error(`process.exit:${code ?? 0}`);
+			}) as never);
+	});
+
+	afterEach(() => {
+		captured.restore();
+		exitSpy.mockRestore();
+		resetActiveKotaClient();
+	});
+
+	it("defaults to a bounded window and reports window metadata", async () => {
+		await makeProgram().parseAsync([
+			"node",
+			"kota",
+			"history",
+			"show",
+			"conv-show",
+			"--offset",
+			"40",
+			"--limit",
+			"2",
+			"--content-limit",
+			"12",
+		]);
+
+		expect(stub.calls).toEqual([
+			{
+				id: "conv-show",
+				options: {
+					view: "window",
+					offset: 40,
+					limit: 2,
+					contentLimit: 12,
+				},
+			},
+		]);
+		const out = captured.stdout.join("");
+		expect(out).toContain("Long conversation");
+		expect(out).toContain("View");
+		expect(out).toContain("window");
+		expect(out).toContain("40-41 of 205");
+		expect(out).toContain("[40 user]");
+		expect(out).toContain("[41 assistant]");
+		expect(out).toContain("truncated 12/240");
+	});
+
+	it("supports metadata-only display without rendering messages", async () => {
+		stub.respond = () => ({ found: true, detail: makeMetadataDetail(record) });
+		await makeProgram().parseAsync([
+			"node",
+			"kota",
+			"history",
+			"show",
+			"conv-show",
+			"--view",
+			"metadata",
+		]);
+
+		expect(stub.calls[0]).toEqual({
+			id: "conv-show",
+			options: { view: "metadata" },
+		});
+		const out = captured.stdout.join("");
+		expect(out).toContain("metadata");
+		expect(out).toContain("0-0 of 205");
+		expect(out).not.toContain("[40 user]");
+	});
+
+	it("rejects malformed show view input before calling the client", async () => {
+		await expect(
+			makeProgram().parseAsync([
+				"node",
+				"kota",
+				"history",
+				"show",
+				"conv-show",
+				"--view",
+				"bogus",
+			]),
+		).rejects.toThrow("process.exit:1");
+		expect(stub.calls).toHaveLength(0);
+		expect(captured.stderr.join("")).toContain(
+			"--view must be one of metadata, window, full",
+		);
+	});
+
+	it("rejects window-only flags for non-window views", async () => {
+		await expect(
+			makeProgram().parseAsync([
+				"node",
+				"kota",
+				"history",
+				"show",
+				"conv-show",
+				"--view",
+				"full",
+				"--limit",
+				"2",
+			]),
+		).rejects.toThrow("process.exit:1");
+		expect(stub.calls).toHaveLength(0);
+		expect(captured.stderr.join("")).toContain(
+			"only valid with --view window",
+		);
 	});
 });

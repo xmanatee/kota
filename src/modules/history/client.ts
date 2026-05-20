@@ -13,6 +13,7 @@
 
 import type {
   ConversationData,
+  ConversationMessage,
   ConversationRecord,
   ReindexResult,
 } from "#core/modules/provider-types.js";
@@ -47,9 +48,66 @@ export type HistoryListResult = {
   conversations: ConversationRecord[];
 };
 
-/** Result of `history.show(id)`. Returns the full conversation data on success. */
+export type HistoryDetailView = "metadata" | "window" | "full";
+
+export type HistoryMessageWindow = {
+  offset: number;
+  limit: number;
+  total: number;
+  returned: number;
+  hasMoreBefore: boolean;
+  hasMoreAfter: boolean;
+};
+
+export type HistoryContentTruncation = {
+  maxCharacters: number;
+  originalCharacters: number;
+  truncated: boolean;
+};
+
+export type HistoryBoundedMessage = {
+  index: number;
+  role: ConversationMessage["role"];
+  content: ConversationMessage["content"];
+  contentTruncation: HistoryContentTruncation;
+};
+
+export type HistoryMetadataDetail = {
+  view: "metadata";
+  record: ConversationRecord;
+  messageWindow: HistoryMessageWindow;
+};
+
+export type HistoryWindowDetail = {
+  view: "window";
+  record: ConversationRecord;
+  messages: HistoryBoundedMessage[];
+  compactionCount: number;
+  lastInputTokens: number;
+  contentLimit: number;
+  messageWindow: HistoryMessageWindow;
+};
+
+export type HistoryFullDetail = ConversationData & {
+  view: "full";
+  messageWindow: HistoryMessageWindow;
+};
+
+export type HistoryDetail =
+  | HistoryMetadataDetail
+  | HistoryWindowDetail
+  | HistoryFullDetail;
+
+export type HistoryShowOptions = HistoryProjectSelection & {
+  view?: HistoryDetailView;
+  offset?: number;
+  limit?: number;
+  contentLimit?: number;
+};
+
+/** Result of `history.show(id)`. Returns the requested detail view on success. */
 export type HistoryShowResult =
-  | { found: true; data: ConversationData }
+  | { found: true; detail: HistoryDetail }
   | { found: false };
 
 /** Result of `history.delete(id)`. */
@@ -82,8 +140,8 @@ export type HistorySearchResult =
  * Conversation-history operations.
  *
  * `list` returns conversation records filtered by `search` / `limit` /
- * `cwd` / `source`. `show` returns the full `ConversationData`
- * (record + messages + compaction metadata) for a single conversation.
+ * `cwd` / `source`. `show` returns one explicit detail view for a single
+ * conversation: metadata, a bounded message window, or full persisted state.
  * `delete` removes a conversation. The contract is intentionally minimal:
  * id-prefix and most-recent-by-cwd resolution are derived in the CLI from
  * `list` (see `resolveConversationId`) so the contract stays a single
@@ -91,7 +149,7 @@ export type HistorySearchResult =
  */
 export interface HistoryClient {
   list(filter?: HistoryListFilter): Promise<HistoryListResult>;
-  show(id: string, project?: HistoryProjectSelection): Promise<HistoryShowResult>;
+  show(id: string, options?: HistoryShowOptions): Promise<HistoryShowResult>;
   delete(id: string, project?: HistoryProjectSelection): Promise<HistoryDeleteResult>;
   /**
    * Run semantic or keyword search across stored conversations. Semantic

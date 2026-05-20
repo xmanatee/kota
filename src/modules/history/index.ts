@@ -13,13 +13,13 @@ import {
 	getHistoryProvider,
 	HISTORY_PROVIDER_TOKEN,
 } from "#core/modules/provider-registry.js";
-import type { ConversationData } from "#core/modules/provider-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { readOnlyDaemonEffect } from "#core/tools/effect.js";
 import { createHistoryReadinessSource } from "./capability-readiness.js";
 import type {
 	HistoryClient,
 	HistoryDeleteResult,
+	HistoryDetail,
 	HistoryListResult,
 	HistoryReindexResult,
 	HistorySearchResult,
@@ -30,6 +30,11 @@ import {
 	runConversationRecall,
 } from "./conversation-recall.js";
 import { getProjectHistoryStore } from "./history.js";
+import {
+	buildHistoryDetailQuery,
+	normalizeHistoryShowOptions,
+	readHistoryDetail,
+} from "./history-detail.js";
 import {
 	createHistoryProjectStores,
 	type HistoryProjectStores,
@@ -79,10 +84,13 @@ const historyModule: KotaModule = {
 				const provider = resolveHistoryProvider(projectStores, filter?.projectId);
 				return { conversations: provider.list(filter) };
 			},
-			async show(id, project) {
-				const provider = resolveHistoryProvider(projectStores, project?.projectId);
-				const data = provider.load(id);
-				return data ? { found: true, data } : { found: false };
+			async show(id, options) {
+				const provider = resolveHistoryProvider(projectStores, options?.projectId);
+				return readHistoryDetail(
+					provider,
+					id,
+					normalizeHistoryShowOptions(options),
+				);
 			},
 			async delete(id, project) {
 				const provider = resolveHistoryProvider(projectStores, project?.projectId);
@@ -140,10 +148,11 @@ const historyModule: KotaModule = {
  * `{ conversations: ConversationRecord[] }`; the factory passes that decode
  * shape through unchanged.
  *
- * `show(id)` issues `GET /history/:id` through `fetchRaw`, collapsing a 404
- * missing conversation into `{ found: false }`, throwing the typed
- * unknown-project route error, and returning `{ found: true, data }` for a
- * non-null `ConversationData`. The id runs through `encodeURIComponent`.
+ * `show(id, options)` validates and serializes one detail-read request, issues
+ * `GET /history/:id` through `fetchRaw`, collapsing a 404 missing conversation
+ * into `{ found: false }`, throwing the typed unknown-project route error,
+ * and returning `{ found: true, detail }` for a non-null `HistoryDetail`.
+ * The id runs through `encodeURIComponent`.
  *
  * `delete(id)` issues `DELETE /history/:id` through `fetchRaw`, collapsing a
  * 404 missing conversation into `{ ok: false, reason: "not_found" }`,
@@ -178,14 +187,15 @@ function buildHistoryDaemonHandler(link: DaemonTransport): HistoryClient {
 				`/history${query}`,
 			);
 		},
-		show: async (id, project): Promise<HistoryShowResult> => {
-			const query = projectQuery(project?.projectId);
-			const data = await requestNullableHistoryRoute<ConversationData>(
+		show: async (id, options): Promise<HistoryShowResult> => {
+			const request = normalizeHistoryShowOptions(options);
+			const query = buildHistoryDetailQuery(request, options?.projectId);
+			const detail = await requestNullableHistoryRoute<HistoryDetail>(
 				link,
 				"GET",
 				`/history/${encodeURIComponent(id)}${query}`,
 			);
-			return data ? { found: true, data } : { found: false };
+			return detail ? { found: true, detail } : { found: false };
 		},
 		delete: async (id, project): Promise<HistoryDeleteResult> => {
 			const query = projectQuery(project?.projectId);

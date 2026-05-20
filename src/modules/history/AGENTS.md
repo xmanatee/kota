@@ -14,9 +14,9 @@ This directory owns conversation history — the persistent record of past sessi
 - Owns the `/api/history` HTTP routes (kota serve) and the `/history`,
   `/history/:id` daemon-control routes contributed via
   `KotaModule.controlRoutes`. The two GETs run under capability scope `read`;
-  the DELETE under `control`. Both surfaces share local-only access
-  helpers in `routes.ts` so the wire contract (`{ conversations: ... }`,
-  full record on get, `204` on delete, `404` on missing) stays in one place.
+  the DELETE under `control`. Detail reads share the `history-detail.ts`
+  helper and return an explicit metadata, bounded-window, or full-state
+  view; malformed detail query parameters fail at the route/client boundary.
 - Operator pull-surfaces consume the search seam through one shared HTTP route (`GET /api/history/search`) and one shared line shape (`renderHistorySearchPlain`): Telegram `/history`, terminal `kota history search`, the macOS menu bar `HistoryView`, and the mobile `HistoryScreen`.
 
 ## Boundaries

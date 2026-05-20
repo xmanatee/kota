@@ -18,7 +18,7 @@
  *     containing reserved characters (`%`, `/`, space) round-trips through
  *     `encodeURIComponent`. A 404 missing response collapses into
  *     `{ found: false }`, typed unknown-project 404s throw, and a non-null
- *     `ConversationData` collapses into `{ found: true, data }`.
+ *     `HistoryDetail` collapses into `{ found: true, detail }`.
  *  4. `delete(id)` is wired through `fetchRaw` with method `DELETE`,
  *     path `/history/${encodeURIComponent(id)}`, and an undefined body. An
  *     id containing reserved characters round-trips through
@@ -38,9 +38,9 @@
  *  7. `HistorySearchResult` decodes correctly through `requestStrict<T>`
  *     for both arms (`{ ok: true; conversations }` and
  *     `{ ok: false; reason: "semantic_unavailable" }`).
- *  8. `HistoryShowResult` arms decode correctly: a `200` non-null
- *     response collapses into `{ found: true, data }` and a `null` (404)
- *     response collapses into `{ found: false }`.
+ *  8. `HistoryShowResult` arms decode correctly: `metadata`, `window`, and
+ *     `full` success responses collapse into `{ found: true, detail }`, and
+ *     a `null` (404) response collapses into `{ found: false }`.
  *  9. `HistoryDeleteResult` arms decode correctly: a `200` non-null
  *     response collapses into `{ ok: true }` and a `null` (404) response
  *     collapses into `{ ok: false, reason: "not_found" }`.
@@ -61,6 +61,7 @@ import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
 import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type {
+  HistoryDetail,
   HistoryReindexResult,
   HistorySearchResult,
 } from "./client.js";
@@ -93,6 +94,66 @@ function makeData(id: string): ConversationData {
     messages: [],
     compactionCount: 0,
     lastInputTokens: 0,
+  };
+}
+
+function makeMetadataDetail(id: string): HistoryDetail {
+  return {
+    view: "metadata",
+    record: makeRecord(id),
+    messageWindow: {
+      offset: 0,
+      limit: 0,
+      total: 7,
+      returned: 0,
+      hasMoreBefore: false,
+      hasMoreAfter: true,
+    },
+  };
+}
+
+function makeWindowDetail(id: string): HistoryDetail {
+  return {
+    view: "window",
+    record: makeRecord(id),
+    messages: [
+      {
+        index: 20,
+        role: "user",
+        content: "bounded content",
+        contentTruncation: {
+          maxCharacters: 200,
+          originalCharacters: 15,
+          truncated: false,
+        },
+      },
+    ],
+    compactionCount: 0,
+    lastInputTokens: 0,
+    contentLimit: 200,
+    messageWindow: {
+      offset: 20,
+      limit: 1,
+      total: 42,
+      returned: 1,
+      hasMoreBefore: true,
+      hasMoreAfter: true,
+    },
+  };
+}
+
+function makeFullDetail(id: string): HistoryDetail {
+  return {
+    ...makeData(id),
+    view: "full",
+    messageWindow: {
+      offset: 0,
+      limit: 0,
+      total: 0,
+      returned: 0,
+      hasMoreBefore: false,
+      hasMoreAfter: false,
+    },
   };
 }
 
@@ -215,15 +276,15 @@ describe("history module daemonClient(link)", () => {
   });
 
   it("routes show(id) through GET /history/:id via fetchRaw with encodeURIComponent and no body", async () => {
-    const data = makeData("plain-id");
-    const { transport, calls } = makeRecordingTransport(() => data);
+    const detail = makeWindowDetail("plain-id");
+    const { transport, calls } = makeRecordingTransport(() => detail);
     const contributed = historyModule.daemonClient!(transport);
     const result = await contributed.history!.show(ENCODING_SENSITIVE_ID);
-    expect(result).toEqual({ found: true, data });
+    expect(result).toEqual({ found: true, detail });
     expect(calls).toEqual([
       {
         method: "GET",
-        path: `/history/${encodeURIComponent(ENCODING_SENSITIVE_ID)}`,
+        path: `/history/${encodeURIComponent(ENCODING_SENSITIVE_ID)}?view=window&offset=0&limit=20&contentLimit=200`,
         body: undefined,
         shape: "fetchRaw",
       },
@@ -238,11 +299,63 @@ describe("history module daemonClient(link)", () => {
   });
 
   it("threads an explicit project id through show()", async () => {
-    const data = makeData("plain-id");
-    const { transport, calls } = makeRecordingTransport(() => data);
+    const detail = makeWindowDetail("plain-id");
+    const { transport, calls } = makeRecordingTransport(() => detail);
     const contributed = historyModule.daemonClient!(transport);
     await contributed.history!.show("plain-id", { projectId: "project-b" });
-    expect(calls[0]!.path).toBe("/history/plain-id?projectId=project-b");
+    expect(calls[0]!.path).toBe(
+      "/history/plain-id?view=window&offset=0&limit=20&contentLimit=200&projectId=project-b",
+    );
+  });
+
+  it("routes show(id, { view: 'metadata' }) through the metadata detail arm", async () => {
+    const detail = makeMetadataDetail("plain-id");
+    const { transport, calls } = makeRecordingTransport(() => detail);
+    const contributed = historyModule.daemonClient!(transport);
+    const result = await contributed.history!.show("plain-id", {
+      view: "metadata",
+    });
+    expect(result).toEqual({ found: true, detail });
+    expect(calls[0]!.path).toBe("/history/plain-id?view=metadata");
+  });
+
+  it("routes show(id, { view: 'window' }) with explicit window bounds", async () => {
+    const detail = makeWindowDetail("plain-id");
+    const { transport, calls } = makeRecordingTransport(() => detail);
+    const contributed = historyModule.daemonClient!(transport);
+    const result = await contributed.history!.show("plain-id", {
+      view: "window",
+      offset: 20,
+      limit: 1,
+      contentLimit: 50,
+    });
+    expect(result).toEqual({ found: true, detail });
+    expect(calls[0]!.path).toBe(
+      "/history/plain-id?view=window&offset=20&limit=1&contentLimit=50",
+    );
+  });
+
+  it("routes show(id, { view: 'full' }) through the explicit full detail arm", async () => {
+    const detail = makeFullDetail("plain-id");
+    const { transport, calls } = makeRecordingTransport(() => detail);
+    const contributed = historyModule.daemonClient!(transport);
+    const result = await contributed.history!.show("plain-id", {
+      view: "full",
+    });
+    expect(result).toEqual({ found: true, detail });
+    expect(calls[0]!.path).toBe("/history/plain-id?view=full");
+  });
+
+  it("rejects malformed show options at the daemon-client boundary", async () => {
+    const { transport, calls } = makeRecordingTransport(() => makeWindowDetail("x"));
+    const contributed = historyModule.daemonClient!(transport);
+    await expect(
+      contributed.history!.show("plain-id", {
+        view: "window",
+        offset: -1,
+      }),
+    ).rejects.toThrow("offset must be a non-negative integer");
+    expect(calls).toEqual([]);
   });
 
   it("throws the typed unknown project route error from show()", async () => {

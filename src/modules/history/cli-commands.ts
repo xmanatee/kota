@@ -4,7 +4,10 @@ import { loadConfig } from "#core/config/config.js";
 import { createModelClient } from "#core/model/model-client.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import { ensureCliProvidersFor } from "#core/modules/cli-providers.js";
-import type { ConversationRecord } from "#core/modules/provider-types.js";
+import type {
+  ConversationMessage,
+  ConversationRecord,
+} from "#core/modules/provider-types.js";
 import { getActiveKotaClient } from "#core/server/client-holder.js";
 import type { KotaClient } from "#core/server/kota-client.js";
 import { confirmAction } from "#core/util/confirm.js";
@@ -19,6 +22,12 @@ import {
 } from "#modules/rendering/primitives.js";
 import { print, TerminalTransport } from "#modules/rendering/transport.js";
 import { interactiveMode, parseIntOption, resolveConversationId } from "./cli.js";
+import type {
+  HistoryBoundedMessage,
+  HistoryDetail,
+  HistoryDetailView,
+  HistoryShowOptions,
+} from "./client.js";
 import { renderHistorySearchPlain } from "./render.js";
 
 let stderrRenderer: TerminalTransport | null = null;
@@ -112,42 +121,26 @@ export function registerHistoryCommands(program: Command) {
   historyCmd
     .command("show <id>")
     .description("Show conversation details")
-    .action(async (idOrPrefix) => {
+    .option("--view <view>", "Detail view: metadata, window, full")
+    .option("--offset <n>", "First message offset for view=window")
+    .option("--limit <n>", "Number of messages for view=window")
+    .option("--content-limit <n>", "Characters per message for view=window")
+    .action(async (idOrPrefix, opts: {
+      view?: string;
+      offset?: string;
+      limit?: string;
+      contentLimit?: string;
+    }) => {
       await ensureCliProvidersFor(["history"]);
       const client = getActiveKotaClient();
       const fullId = await resolveConversationId(client, idOrPrefix);
-      const result = await client.history.show(fullId);
+      const showOptions = buildShowOptions(opts);
+      const result = await client.history.show(fullId, showOptions);
       if (!result.found) {
         stderr().write(line(span(`Conversation "${idOrPrefix}" not found.`, "error")));
         process.exit(1);
       }
-      const data = result.data;
-
-      print(kvBlock([
-        { label: "Title", value: data.record.title },
-        { label: "Created", value: new Date(data.record.createdAt).toLocaleString(), role: "muted" },
-        { label: "Updated", value: new Date(data.record.updatedAt).toLocaleString(), role: "muted" },
-        { label: "Model", value: data.record.model, role: "info" },
-        { label: "Messages", value: String(data.record.messageCount), role: "info" },
-        { label: "Dir", value: data.record.cwd, role: "muted" },
-      ]));
-      print(blank());
-
-      for (const msg of data.messages) {
-        if (msg.role === "user" && typeof msg.content === "string") {
-          print(line(span("[user]", "accent", true), plain(` ${msg.content.slice(0, 200)}`)));
-        } else if (msg.role === "assistant" && typeof msg.content === "string") {
-          print(line(span("[assistant]", "agent", true), plain(` ${msg.content.slice(0, 200)}`)));
-        } else if (msg.role === "assistant" && Array.isArray(msg.content)) {
-          const textBlock = msg.content.find((b) => "type" in b && b.type === "text");
-          if (textBlock && "text" in textBlock) {
-            print(line(
-              span("[assistant]", "agent", true),
-              plain(` ${String(textBlock.text).slice(0, 200)}`),
-            ));
-          }
-        }
-      }
+      renderHistoryDetail(result.detail);
     });
 
   historyCmd
@@ -263,6 +256,142 @@ export function registerHistoryCommands(program: Command) {
       }
       print(line(span(`Deleted ${count} conversation(s).`, "success")));
     });
+}
+
+function buildShowOptions(opts: {
+  view?: string;
+  offset?: string;
+  limit?: string;
+  contentLimit?: string;
+}): HistoryShowOptions {
+  const view = parseDetailView(opts.view);
+  const hasOffset = opts.offset !== undefined;
+  const hasLimit = opts.limit !== undefined;
+  const hasContentLimit = opts.contentLimit !== undefined;
+  if (view !== "window" && (hasOffset || hasLimit || hasContentLimit)) {
+    stderr().write(line(span(
+      "--offset, --limit, and --content-limit are only valid with --view window",
+      "error",
+    )));
+    process.exit(1);
+  }
+  if (view !== "window") return { view };
+  return {
+    view,
+    ...(hasOffset && { offset: parseWindowOffset(opts.offset!) }),
+    ...(hasLimit && { limit: parseWindowPositiveInteger(opts.limit!, "limit") }),
+    ...(hasContentLimit && {
+      contentLimit: parseWindowPositiveInteger(
+        opts.contentLimit!,
+        "content-limit",
+      ),
+    }),
+  };
+}
+
+function parseDetailView(value: string | undefined): HistoryDetailView {
+  if (value === undefined) return "window";
+  if (value === "metadata" || value === "window" || value === "full") return value;
+  stderr().write(line(span(
+    `Error: --view must be one of metadata, window, full, got "${value}"`,
+    "error",
+  )));
+  process.exit(1);
+}
+
+function parseWindowOffset(value: string): number {
+  const n = Number.parseInt(value, 10);
+  if (!Number.isFinite(n) || n < 0 || String(n) !== value) {
+    stderr().write(
+      line(span(`Error: --offset must be a non-negative integer, got "${value}"`, "error")),
+    );
+    process.exit(1);
+  }
+  return n;
+}
+
+function parseWindowPositiveInteger(value: string, name: string): number {
+  const n = Number.parseInt(value, 10);
+  if (!Number.isFinite(n) || n <= 0 || String(n) !== value) {
+    stderr().write(
+      line(span(`Error: --${name} must be a positive integer, got "${value}"`, "error")),
+    );
+    process.exit(1);
+  }
+  return n;
+}
+
+function renderHistoryDetail(detail: HistoryDetail): void {
+  print(kvBlock([
+    { label: "Title", value: detail.record.title },
+    { label: "Created", value: new Date(detail.record.createdAt).toLocaleString(), role: "muted" },
+    { label: "Updated", value: new Date(detail.record.updatedAt).toLocaleString(), role: "muted" },
+    { label: "Model", value: detail.record.model, role: "info" },
+    { label: "Messages", value: String(detail.record.messageCount), role: "info" },
+    { label: "View", value: detail.view, role: "info" },
+    { label: "Window", value: formatMessageWindow(detail.messageWindow), role: "info" },
+    { label: "Dir", value: detail.record.cwd, role: "muted" },
+  ]));
+  if (detail.view === "metadata") return;
+  print(blank());
+  if (detail.view === "full") {
+    detail.messages.forEach((message, index) => renderFullMessage(message, index));
+    return;
+  }
+  for (const message of detail.messages) {
+    renderBoundedMessage(message);
+  }
+}
+
+function formatMessageWindow(window: HistoryDetail["messageWindow"]): string {
+  if (window.returned === 0) {
+    return `${window.offset}-${window.offset} of ${window.total} (0 returned)`;
+  }
+  const last = window.offset + window.returned - 1;
+  const before = window.hasMoreBefore ? " earlier" : "";
+  const after = window.hasMoreAfter ? " later" : "";
+  const more = before || after ? `; more:${before}${after}` : "";
+  return `${window.offset}-${last} of ${window.total}${more}`;
+}
+
+function renderBoundedMessage(message: HistoryBoundedMessage): void {
+  const role = message.role === "assistant" ? "agent" : "accent";
+  const truncation = message.contentTruncation.truncated
+    ? ` [truncated ${message.contentTruncation.maxCharacters}/${message.contentTruncation.originalCharacters}]`
+    : "";
+  print(line(
+    span(`[${message.index} ${message.role}]`, role, true),
+    plain(` ${messageContentText(message.content)}${truncation}`),
+  ));
+}
+
+function renderFullMessage(
+  message: ConversationMessage,
+  index: number,
+): void {
+  const role = message.role === "assistant" ? "agent" : "accent";
+  print(line(
+    span(`[${index} ${message.role}]`, role, true),
+    plain(` ${messageContentText(message.content)}`),
+  ));
+}
+
+function messageContentText(content: ConversationMessage["content"]): string {
+  if (typeof content === "string") return content;
+  const parts: string[] = [];
+  for (const block of content) {
+    if (block.type === "text") parts.push(block.text);
+    if (block.type === "thinking") parts.push(block.thinking);
+    if (block.type === "tool_result") {
+      if (typeof block.content === "string") parts.push(block.content);
+      else {
+        for (const nested of block.content) {
+          if (nested.type === "text") parts.push(nested.text);
+        }
+      }
+    }
+  }
+  return parts.join(" ");
 }
 
 export function buildHistoryListNode(conversations: ConversationRecord[]): ColumnsNode {

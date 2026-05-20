@@ -1,12 +1,12 @@
 ---
 id: task-add-paged-history-detail-views-for-large-conversati
 title: Add paged history detail views for large conversations
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Extend the history module so daemon, API, and CLI callers can inspect long conversations through bounded summary/window/full views instead of always returning every stored message.
 created_at: 2026-05-20T06:09:48Z
-updated_at: 2026-05-20T06:09:48Z
+updated_at: 2026-05-20T09:47:42Z
 ---
 
 ## Problem

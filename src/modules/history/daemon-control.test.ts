@@ -7,7 +7,8 @@
  * Covers the wire contract migrated out of core: bearer-token auth, the
  * `read` / `control` capability-scope split (the two GETs are read-only,
  * DELETE requires control), `{ conversations: ... }` envelope on list,
- * 404 for missing conversation, 204 on delete.
+ * explicit detail views on get, 404 for missing conversation, and
+ * `{ deleted: id }` on delete.
  */
 
 import { mkdtempSync, rmSync } from "node:fs";
@@ -242,7 +243,7 @@ describe("history module daemon-control routes", () => {
   });
 
   describe("GET /history/:id", () => {
-    it("returns 200 with full conversation data when found", async () => {
+    it("returns 200 with the default bounded window when found", async () => {
       const { getHistory } = await import("./history.js");
       const history = getHistory();
       const id = history.create("claude-sonnet-4-6", "/tmp/project");
@@ -250,9 +251,36 @@ describe("history module daemon-control routes", () => {
 
       const res = await fetchWith(port, `/history/${id}`);
       expect(res.status).toBe(200);
-      const body = (await res.json()) as { record: { id: string }; lastInputTokens: number };
+      const body = (await res.json()) as {
+        view: string;
+        record: { id: string };
+        messages: unknown[];
+        lastInputTokens: number;
+      };
+      expect(body.view).toBe("window");
       expect(body.record.id).toBe(id);
+      expect(body.messages).toHaveLength(1);
       expect(body.lastInputTokens).toBe(42);
+    });
+
+    it("returns explicit full conversation data when requested", async () => {
+      const { getHistory } = await import("./history.js");
+      const history = getHistory();
+      const id = history.create("claude-sonnet-4-6", "/tmp/project");
+      history.save(id, [{ role: "user", content: "hello" }], 0, 42);
+
+      const res = await fetchWith(port, `/history/${id}?view=full`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        view: string;
+        record: { id: string };
+        messages: unknown[];
+        messageWindow: { total: number; returned: number };
+      };
+      expect(body.view).toBe("full");
+      expect(body.record.id).toBe(id);
+      expect(body.messages).toHaveLength(1);
+      expect(body.messageWindow).toMatchObject({ total: 1, returned: 1 });
     });
 
     it("returns 404 when conversation is missing", async () => {
@@ -260,6 +288,13 @@ describe("history module daemon-control routes", () => {
       expect(res.status).toBe(404);
       const body = (await res.json()) as { error: string };
       expect(body.error).toBeTruthy();
+    });
+
+    it("rejects malformed detail query parameters", async () => {
+      const res = await fetchWith(port, "/history/some-id?view=window&limit=0");
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { error: string };
+      expect(body.error).toContain("limit must be a positive integer");
     });
   });
 
