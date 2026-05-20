@@ -37,9 +37,9 @@ resources:
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:76d8b07931d08ad5224ee6101b810275
-      summary: "Codex continues to reinforce KOTA's module/tool/preset/telemetry direction; no new nonduplicative task was opened from this refresh."
-      last_seen_at: "2026-05-20T02:32:53.824Z"
+      fingerprint: sha256:3723aee9b70aa25bccde1412c9baeb43
+      summary: "Codex 0.129.0's bounded memories MCP work exposes a KOTA gap: KOTA's MCP server still returns full memory and knowledge stores as unbounded resources, so this refresh opened task-bound-mcp-memory-and-knowledge-resources-for-larg."
+      last_seen_at: "2026-05-20T03:08:24.353Z"
   - url: https://github.com/google-gemini/gemini-cli
     added: "2026-04-19"
     snapshot:
