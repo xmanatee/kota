@@ -127,11 +127,19 @@ export type McpToolInputResponses = KotaJsonObject & {
   [requestId: string]: McpToolInputResponse;
 };
 
-export type McpInputRequiredCallToolResult = {
+type McpInputRequiredFields =
+  | {
+      inputRequests: McpToolInputRequests;
+      requestState?: string;
+    }
+  | {
+      inputRequests?: McpToolInputRequests;
+      requestState: string;
+    };
+
+export type McpInputRequiredCallToolResult = McpInputRequiredFields & {
   resultType: "input_required";
   protocolVersion: McpProtocolVersion;
-  inputRequests: McpToolInputRequests;
-  requestState: string;
   _meta?: KotaJsonObject;
 };
 
@@ -140,10 +148,15 @@ export type McpCallToolResult =
   | McpCompleteCallToolResult
   | McpInputRequiredCallToolResult;
 
-export type McpCallToolRetry = {
-  requestState: string;
-  inputResponses: McpToolInputResponses;
-};
+export type McpCallToolRetry =
+  | {
+      requestState: string;
+      inputResponses?: McpToolInputResponses;
+    }
+  | {
+      requestState?: string;
+      inputResponses: McpToolInputResponses;
+    };
 
 const CONNECT_TIMEOUT = 10_000;
 const CALL_TIMEOUT = 120_000;
@@ -806,16 +819,31 @@ function decodeInputRequiredResult(
   object: KotaJsonObject,
   protocolVersion: McpProtocolVersion,
 ): McpInputRequiredCallToolResult {
-  const inputRequests = decodeInputRequests(object.inputRequests);
-  const requestState = requireString(object.requestState, "requestState");
+  const inputRequests = object.inputRequests === undefined
+    ? undefined
+    : decodeInputRequests(object.inputRequests);
+  const requestState = optionalString(object.requestState, "requestState");
   const meta = optionalJsonObject(object._meta, "_meta");
-  return {
+  const base: {
+    resultType: "input_required";
+    protocolVersion: McpProtocolVersion;
+    _meta?: KotaJsonObject;
+  } = {
     resultType: "input_required",
     protocolVersion,
-    inputRequests,
-    requestState,
     ...(meta ? { _meta: meta } : {}),
   };
+  if (inputRequests) {
+    return requestState !== undefined
+      ? { ...base, inputRequests, requestState }
+      : { ...base, inputRequests };
+  }
+  if (requestState !== undefined) {
+    return { ...base, requestState };
+  }
+  throw new Error(
+    "Malformed MCP tools/call result: input_required must include inputRequests or requestState",
+  );
 }
 
 function decodeCallToolResult(
@@ -1021,11 +1049,20 @@ export class McpClient {
   ): Promise<McpCallToolResult> {
     const params: JsonRpcRequest["params"] = { name, arguments: args };
     if (retry) {
-      if (retry.requestState.length === 0) {
-        throw new Error("Malformed MCP tools/call retry: requestState must be a non-empty string");
+      if (retry.requestState === undefined && retry.inputResponses === undefined) {
+        throw new Error(
+          "Malformed MCP tools/call retry: must include inputResponses or requestState",
+        );
       }
-      params.requestState = retry.requestState;
-      params.inputResponses = decodeMcpToolInputResponses(retry.inputResponses);
+      if (retry.requestState !== undefined) {
+        if (retry.requestState.length === 0) {
+          throw new Error("Malformed MCP tools/call retry: requestState must be a non-empty string");
+        }
+        params.requestState = retry.requestState;
+      }
+      if (retry.inputResponses !== undefined) {
+        params.inputResponses = decodeMcpToolInputResponses(retry.inputResponses);
+      }
     }
     const result = await this.request("tools/call", params, CALL_TIMEOUT);
     return decodeCallToolResult(result, this.protocolVersion ?? MCP_LEGACY_PROTOCOL_VERSION);

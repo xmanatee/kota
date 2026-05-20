@@ -1,12 +1,12 @@
 ---
 id: task-align-mcp-mrtr-optional-input-required-fields
 title: Align MCP MRTR optional input-required fields
-status: ready
+status: done
 priority: p2
 area: core
 summary: Update MCP client and server MRTR handling so input_required results accept inputRequests and requestState independently per the current draft while preserving strict requestState verification when state is present.
 created_at: 2026-05-20T13:02:54.000Z
-updated_at: 2026-05-20T13:02:54.000Z
+updated_at: 2026-05-20T13:14:04.000Z
 ---
 
 ## Problem

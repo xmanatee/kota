@@ -202,7 +202,7 @@ rl.on("line", (line) => {
         inputRequests: [],
         requestState: "state-token-1",
       }}) + "\\n");
-    } else if (msg.params.name === "missing_input_required_request_state") {
+    } else if (msg.params.name === "input_required_requests_only") {
       process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
         resultType: "input_required",
         inputRequests: {
@@ -214,6 +214,15 @@ rl.on("line", (line) => {
             },
           },
         },
+      }}) + "\\n");
+    } else if (msg.params.name === "input_required_state_only") {
+      process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+        resultType: "input_required",
+        requestState: "state-token-only",
+      }}) + "\\n");
+    } else if (msg.params.name === "missing_input_required_fields") {
+      process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+        resultType: "input_required",
       }}) + "\\n");
     }
   } else if (msg.method === "shutdown") {
@@ -634,6 +643,50 @@ describe("McpClient lifecycle (fake MCP server)", () => {
     expect(result._meta).toEqual({ traceId: "input-required-1" });
   }, 10_000);
 
+  it("callTool decodes draft input_required results with inputRequests and no requestState", async () => {
+    client = new McpClient(
+      "node",
+      ["-e", FAKE_MCP_SERVER],
+      { MCP_TEST_MODE: "draft" },
+      "input-required-requests-only-test",
+    );
+    await client.connect();
+
+    const result = await client.callTool("input_required_requests_only", {});
+    expect(result.resultType).toBe("input_required");
+    if (result.resultType !== "input_required") {
+      throw new Error("Expected input_required result");
+    }
+    expect(result.inputRequests).toEqual({
+      github_login: {
+        method: "elicitation/create",
+        params: {
+          mode: "form",
+          message: "Please provide your GitHub username",
+        },
+      },
+    });
+    expect(result.requestState).toBeUndefined();
+  }, 10_000);
+
+  it("callTool decodes draft input_required results with requestState and no inputRequests", async () => {
+    client = new McpClient(
+      "node",
+      ["-e", FAKE_MCP_SERVER],
+      { MCP_TEST_MODE: "draft" },
+      "input-required-state-only-test",
+    );
+    await client.connect();
+
+    const result = await client.callTool("input_required_state_only", {});
+    expect(result.resultType).toBe("input_required");
+    if (result.resultType !== "input_required") {
+      throw new Error("Expected input_required result");
+    }
+    expect(result.inputRequests).toBeUndefined();
+    expect(result.requestState).toBe("state-token-only");
+  }, 10_000);
+
   it("callTool retries draft input_required requests with requestState and inputResponses", async () => {
     client = new McpClient(
       "node",
@@ -703,17 +756,17 @@ describe("McpClient lifecycle (fake MCP server)", () => {
     );
   }, 10_000);
 
-  it("callTool rejects draft input_required payloads missing requestState", async () => {
+  it("callTool rejects draft input_required payloads with neither inputRequests nor requestState", async () => {
     client = new McpClient(
       "node",
       ["-e", FAKE_MCP_SERVER],
       { MCP_TEST_MODE: "draft" },
-      "missing-request-state-test",
+      "missing-input-required-fields-test",
     );
     await client.connect();
 
-    await expect(client.callTool("missing_input_required_request_state", {})).rejects.toThrow(
-      /Malformed MCP tools\/call result: requestState must be a string/,
+    await expect(client.callTool("missing_input_required_fields", {})).rejects.toThrow(
+      /Malformed MCP tools\/call result: input_required must include inputRequests or requestState/,
     );
   }, 10_000);
 

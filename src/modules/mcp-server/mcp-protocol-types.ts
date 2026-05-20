@@ -123,10 +123,18 @@ export type McpToolCompleteResult = {
 	isError: boolean;
 };
 
-export type McpInputRequiredResult = {
+type McpInputRequiredResultFields =
+	| {
+			inputRequests: McpInputRequests;
+			requestState?: string;
+		}
+	| {
+			inputRequests?: McpInputRequests;
+			requestState: string;
+		};
+
+export type McpInputRequiredResult = McpInputRequiredResultFields & {
 	resultType: "input_required";
-	inputRequests: McpInputRequests;
-	requestState: string;
 };
 
 export type McpToolInputRequest = McpElicitationInputRequest;

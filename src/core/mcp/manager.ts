@@ -32,7 +32,7 @@ export type McpRemoteInputRequest = {
   server: string;
   tool: string;
   inputRequests: McpToolInputRequests;
-  requestState: string;
+  requestState?: string;
   resultMeta?: KotaJsonObject;
 };
 
@@ -88,8 +88,8 @@ function inputRequiredDiagnostics(
     protocolVersion: result.protocolVersion,
     server: entry.client.getName(),
     tool: entry.originalName,
-    inputRequests: result.inputRequests,
-    requestState: result.requestState,
+    ...(result.inputRequests ? { inputRequests: result.inputRequests } : {}),
+    ...(result.requestState !== undefined ? { requestState: result.requestState } : {}),
     ...(result._meta ? { resultMeta: result._meta } : {}),
   };
 }
@@ -243,6 +243,19 @@ export class McpManager {
     try {
       const result = await entry.client.callTool(entry.originalName, input);
       if (result.resultType === "input_required") {
+        if (!result.inputRequests) {
+          if (result.requestState === undefined) {
+            return unsupportedInputRequiredResult(
+              entry,
+              result,
+              "the remote server returned input_required without inputRequests or requestState.",
+            );
+          }
+          const retried = await entry.client.callTool(entry.originalName, input, {
+            requestState: result.requestState,
+          });
+          return toToolResult(entry, retried);
+        }
         if (!options.inputResolver) {
           return unsupportedInputRequiredResult(entry, result);
         }
@@ -250,16 +263,17 @@ export class McpManager {
           server: entry.client.getName(),
           tool: entry.originalName,
           inputRequests: result.inputRequests,
-          requestState: result.requestState,
+          ...(result.requestState !== undefined ? { requestState: result.requestState } : {}),
           ...(result._meta ? { resultMeta: result._meta } : {}),
         });
         if (routed.kind === "unavailable") {
           return unsupportedInputRequiredResult(entry, result, routed.reason);
         }
-        const retried = await entry.client.callTool(entry.originalName, input, {
-          requestState: result.requestState,
+        const retry = {
           inputResponses: routed.inputResponses,
-        });
+          ...(result.requestState !== undefined ? { requestState: result.requestState } : {}),
+        };
+        const retried = await entry.client.callTool(entry.originalName, input, retry);
         return toToolResult(entry, retried);
       }
       return toToolResult(entry, result);
