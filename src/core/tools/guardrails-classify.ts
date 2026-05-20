@@ -63,6 +63,44 @@ export const DANGEROUS_CODE_PATTERNS = [
 /** HTTP methods that mutate remote state. */
 export const MUTATION_METHODS = new Set(["POST", "PUT", "DELETE", "PATCH"]);
 
+export type EnvironmentOverrideClass =
+  | "credential/token"
+  | "provider/profile"
+  | "endpoint"
+  | "KOTA control"
+  | "telemetry routing"
+  | "preset/harness"
+  | "permission/sandbox"
+  | "project/root"
+  | "unclassified";
+
+export type AuthorityChangingEnvironmentOverride = {
+  name: string;
+  overrideClass: EnvironmentOverrideClass;
+};
+
+const BENIGN_ENVIRONMENT_OVERRIDE_NAMES = new Set([
+  "CI",
+  "FORCE_COLOR",
+  "KOTA_RENDERER_THEME",
+  "NO_COLOR",
+]);
+
+const SHELL_ENV_ASSIGNMENT_PATTERN = /^([A-Za-z_][A-Za-z0-9_]*)=/;
+const CREDENTIAL_ENV_PATTERN =
+  /(^|_)(TOKEN|SECRET|PASSWORD|PASSWD|API_KEY|ACCESS_KEY|PRIVATE_KEY|CREDENTIALS?|AUTH|COOKIE|SESSION|BEARER|OAUTH|PAT)(_|$)/;
+const PROVIDER_PROFILE_ENV_PATTERN =
+  /(^|_)(PROFILE|AWS|AZURE|GOOGLE|GCP|GCLOUD|CLOUDSDK|OPENAI|ANTHROPIC|GITHUB|GH|GITLAB|NPM|PNPM|YARN|HF|HUGGINGFACE)(_|$)/;
+const ENDPOINT_ENV_PATTERN =
+  /(^|_)(ENDPOINT|BASE_URL|API_URL|URL|URI|HOST|PROXY|REGISTRY)(_|$)/;
+const TELEMETRY_ENV_PATTERN =
+  /(^|_)(OTEL|OPENTELEMETRY|TELEMETRY|TRACING|TRACE|OTLP|EXPORTER)(_|$)/;
+const PRESET_HARNESS_ENV_PATTERN = /(^|_)(PRESET|HARNESS|MODEL)(_|$)/;
+const PERMISSION_SANDBOX_ENV_PATTERN =
+  /(^|_)(PERMISSION|SANDBOX|APPROVAL|BYPASS|ALLOWLIST|DENYLIST|UNSAFE)(_|$)/;
+const PROJECT_ROOT_ENV_PATTERN =
+  /(^|_)(PROJECT_DIR|PROJECT_ROOT|WORKSPACE|WORKDIR|REPO_ROOT|ROOT|HOME|PWD)(_|$)/;
+
 // ─── Helpers ──────────────────────────────────────────────────────────
 
 export function extractCommand(input: Record<string, unknown>): string {
@@ -82,6 +120,101 @@ export function isOutsideProject(filePath: string): boolean {
   const resolved = filePath.startsWith("/") ? filePath : `${cwd}/${filePath}`;
   const normalizedCwd = cwd.replace(/\/+$/, "");
   return !resolved.startsWith(normalizedCwd);
+}
+
+function skipShellWhitespace(command: string, index: number): number {
+  let next = index;
+  while (next < command.length && /\s/.test(command[next])) next += 1;
+  return next;
+}
+
+function readShellWordEnd(command: string, index: number): number {
+  let next = index;
+  let quote: "'" | "\"" | null = null;
+
+  while (next < command.length) {
+    const char = command[next];
+    if (quote) {
+      if (char === quote) {
+        quote = null;
+        next += 1;
+        continue;
+      }
+      if (quote === "\"" && char === "\\" && next + 1 < command.length) {
+        next += 2;
+        continue;
+      }
+      next += 1;
+      continue;
+    }
+
+    if (/\s/.test(char)) break;
+    if (char === "'" || char === "\"") {
+      quote = char;
+      next += 1;
+      continue;
+    }
+    if (char === "\\" && next + 1 < command.length) {
+      next += 2;
+      continue;
+    }
+    next += 1;
+  }
+
+  return next;
+}
+
+export function extractLeadingEnvironmentOverrideNames(command: string): string[] {
+  const names: string[] = [];
+  let index = skipShellWhitespace(command, 0);
+
+  while (index < command.length) {
+    const match = SHELL_ENV_ASSIGNMENT_PATTERN.exec(command.slice(index));
+    if (!match) break;
+    names.push(match[1]);
+    index = skipShellWhitespace(
+      command,
+      readShellWordEnd(command, index + match[0].length),
+    );
+  }
+
+  return names;
+}
+
+export function classifyEnvironmentOverride(
+  name: string,
+): EnvironmentOverrideClass | null {
+  const normalized = name.toUpperCase();
+  if (BENIGN_ENVIRONMENT_OVERRIDE_NAMES.has(normalized)) return null;
+  if (CREDENTIAL_ENV_PATTERN.test(normalized)) return "credential/token";
+  if (normalized.startsWith("KOTA_")) return "KOTA control";
+  if (TELEMETRY_ENV_PATTERN.test(normalized)) return "telemetry routing";
+  if (ENDPOINT_ENV_PATTERN.test(normalized)) return "endpoint";
+  if (PROVIDER_PROFILE_ENV_PATTERN.test(normalized)) return "provider/profile";
+  if (PRESET_HARNESS_ENV_PATTERN.test(normalized)) return "preset/harness";
+  if (PERMISSION_SANDBOX_ENV_PATTERN.test(normalized)) return "permission/sandbox";
+  if (PROJECT_ROOT_ENV_PATTERN.test(normalized)) return "project/root";
+  return "unclassified";
+}
+
+export function findAuthorityChangingEnvironmentOverrides(
+  command: string,
+): AuthorityChangingEnvironmentOverride[] {
+  const overrides: AuthorityChangingEnvironmentOverride[] = [];
+  for (const name of extractLeadingEnvironmentOverrideNames(command)) {
+    const overrideClass = classifyEnvironmentOverride(name);
+    if (overrideClass) overrides.push({ name, overrideClass });
+  }
+  return overrides;
+}
+
+function formatEnvironmentOverrideReasons(
+  overrides: AuthorityChangingEnvironmentOverride[],
+): string[] {
+  return overrides.map(
+    ({ name, overrideClass }) =>
+      `${overrideClass} environment override detected (${name})`,
+  );
 }
 
 // ─── Classification ───────────────────────────────────────────────────
@@ -106,8 +239,14 @@ export function classifyRisk(
   // destructive pattern, regardless of the declared base effect.
   if (name === "shell" || name === "process") {
     const command = extractCommand(input);
+    const dangerousReasons = formatEnvironmentOverrideReasons(
+      findAuthorityChangingEnvironmentOverrides(command),
+    );
     if (isDangerousCommand(command)) {
-      return { risk: "dangerous", reason: "destructive command pattern detected" };
+      dangerousReasons.push("destructive command pattern detected");
+    }
+    if (dangerousReasons.length > 0) {
+      return { risk: "dangerous", reason: dangerousReasons.join("; ") };
     }
     if (baseTier) return { risk: baseTier, reason: "shell execution" };
     return { risk: "moderate", reason: "shell execution" };

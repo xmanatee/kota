@@ -1,12 +1,12 @@
 ---
 id: task-gate-shell-environment-overrides-in-tool-guardrails
 title: Gate shell environment overrides in tool guardrails
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Parse leading environment-variable assignments in shell/process commands and gate authority-changing overrides through guardrails so env-based credential, routing, telemetry, or KOTA-control changes cannot bypass approval policy.
 created_at: 2026-05-20T00:09:12Z
-updated_at: 2026-05-20T00:09:12Z
+updated_at: 2026-05-20T00:18:54Z
 ---
 
 ## Problem

@@ -89,6 +89,85 @@ describe("classifyRisk", () => {
     expect(risk).toBe("dangerous");
   });
 
+  it.each(["shell", "process"] as const)(
+    "classifies %s credential environment overrides as dangerous without echoing values",
+    (tool) => {
+      const result = classifyRisk(tool, {
+        command: "GITHUB_TOKEN=super-secret-do-not-log gh auth status",
+      });
+      expect(result.risk).toBe("dangerous");
+      expect(result.reason).toContain("credential/token");
+      expect(result.reason).toContain("GITHUB_TOKEN");
+      expect(result.reason).not.toContain("super-secret-do-not-log");
+    },
+  );
+
+  it("classifies provider profile environment overrides as dangerous", () => {
+    const result = classifyRisk("shell", {
+      command: "AWS_PROFILE=production aws sts get-caller-identity",
+    });
+    expect(result.risk).toBe("dangerous");
+    expect(result.reason).toContain("provider/profile");
+    expect(result.reason).toContain("AWS_PROFILE");
+    expect(result.reason).not.toContain("production");
+  });
+
+  it("classifies KOTA control environment overrides as dangerous", () => {
+    const result = classifyRisk("shell", {
+      command: "KOTA_PROJECT_DIR=/private/tmp/other pnpm test",
+    });
+    expect(result.risk).toBe("dangerous");
+    expect(result.reason).toContain("KOTA control");
+    expect(result.reason).toContain("KOTA_PROJECT_DIR");
+    expect(result.reason).not.toContain("/private/tmp/other");
+  });
+
+  it("classifies telemetry endpoint environment overrides as dangerous", () => {
+    const result = classifyRisk("process", {
+      command: "OTEL_EXPORTER_OTLP_ENDPOINT=https://collector.example/v1/traces pnpm test",
+    });
+    expect(result.risk).toBe("dangerous");
+    expect(result.reason).toContain("telemetry routing");
+    expect(result.reason).toContain("OTEL_EXPORTER_OTLP_ENDPOINT");
+    expect(result.reason).not.toContain("collector.example");
+  });
+
+  it("preserves narrow benign presentation and test environment overrides", () => {
+    const result = classifyRisk("shell", {
+      command: "NO_COLOR=1 FORCE_COLOR=0 CI=1 KOTA_RENDERER_THEME=ascii pnpm test",
+    });
+    expect(result.risk).toBe("moderate");
+    expect(result.reason).toBe("shell execution");
+  });
+
+  it("keeps env override detection and destructive command detection active together", () => {
+    const result = classifyRisk("shell", {
+      command: "GITHUB_TOKEN=fake-token rm -rf /tmp/stuff",
+    });
+    expect(result.risk).toBe("dangerous");
+    expect(result.reason).toContain("credential/token");
+    expect(result.reason).toContain("destructive command pattern detected");
+    expect(result.reason).not.toContain("fake-token");
+  });
+
+  it("classifies unknown leading environment overrides as dangerous", () => {
+    const result = classifyRisk("process", {
+      command: "NODE_OPTIONS=--require=./hook node server.js",
+    });
+    expect(result.risk).toBe("dangerous");
+    expect(result.reason).toContain("unclassified environment override");
+    expect(result.reason).toContain("NODE_OPTIONS");
+    expect(result.reason).not.toContain("./hook");
+  });
+
+  it("does not classify non-leading assignment-looking arguments as environment overrides", () => {
+    const result = classifyRisk("shell", {
+      command: "printf %s GITHUB_TOKEN=super-secret-do-not-log",
+    });
+    expect(result.risk).toBe("moderate");
+    expect(result.reason).not.toContain("super-secret-do-not-log");
+  });
+
   it("classifies code_exec as moderate for normal code", () => {
     const { risk } = classifyRisk("code_exec", { code: "print('hello')" });
     expect(risk).toBe("moderate");
