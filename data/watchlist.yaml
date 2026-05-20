@@ -8,7 +8,7 @@ resources:
     added: "2026-04-14"
     snapshot:
       fingerprint: sha256:9fbe725ae31d8182140a9742ddb5fbca
-      summary: "OpenClaw still maps cleanly to KOTA's daemon/session/channel/tool/skill model; the refreshed signal is skills-registry ergonomics, which reinforces KOTA's new skill-pack import task rather than opening a separate primitive."
+      summary: "OpenClaw still maps cleanly to KOTA's daemon/session/channel/tool/skill model; its skills-registry signal is now covered by completed skill-pack import and runtime-resolution work, so no new primitive is open from this snapshot."
       last_seen_at: "2026-05-18T04:16:37.406Z"
   - url: https://github.com/zeroclaw-labs/zeroclaw
     added: "2026-04-14"
@@ -32,7 +32,7 @@ resources:
     added: "2026-04-19"
     snapshot:
       fingerprint: sha256:c045392869487a6c99ff564094066481
-      summary: "Claude Code's latest releases reinforce live-session operability, tool-span correlation, and execution-subprocess environment hygiene; after KOTA's env-override guardrail task was already completed, the remaining local gap is explicit shell/process child environment policy for session/tool correlation and telemetry isolation."
+      summary: "Claude Code's latest releases reinforce live-session operability, tool-span correlation, and execution-subprocess environment hygiene; KOTA's env-override guardrail and execution subprocess environment policy tasks are now complete, so no new task remains from this snapshot."
       last_seen_at: "2026-05-20T01:21:27.374Z"
   - url: https://github.com/openai/codex
     added: "2026-04-19"
@@ -44,7 +44,7 @@ resources:
     added: "2026-04-19"
     snapshot:
       fingerprint: sha256:47c833736351ed6376d4370cdee71b7c
-      summary: "Gemini CLI's GitHub Action highlights issue/PR mention-driven assistance; KOTA's actionable gap is typed github-webhook issue_comment mention events."
+      summary: "Gemini CLI's GitHub Action highlights issue/PR mention-driven assistance; KOTA's typed github-webhook issue_comment mention events are now covered by completed GitHub-webhook tasks."
       last_seen_at: "2026-05-17T07:03:40.826Z"
   - url: https://github.com/Aider-AI/aider
     added: "2026-04-19"
@@ -81,7 +81,7 @@ resources:
     added: "2026-04-19"
     snapshot:
       fingerprint: sha256:7a8177b66c7880e71f52c4ac5f774869
-      summary: "SWE-bench still reinforces Docker-backed reproducible evaluation and explicit resource requirements; KOTA's fresh local gap is binding eval-harness ResourceProfile fields to actual executor isolation/preflight rather than only recording caller-supplied metadata."
+      summary: "SWE-bench still reinforces Docker-backed reproducible evaluation and explicit resource requirements; KOTA's eval-harness ResourceProfile isolation and preflight gap is now covered by completed executable-isolation work."
       last_seen_at: "2026-05-17T06:28:45.237Z"
   - url: https://arxiv.org/abs/2605.18583
     added: "2026-05-19"
@@ -107,13 +107,13 @@ resources:
     added: "2026-04-19"
     snapshot:
       fingerprint: sha256:10720418c3610cca91cf0d2c6d2fa3f4
-      summary: "AutoGen remains a maintenance-mode pointer to Microsoft Agent Framework; no new KOTA task beyond the existing rejected/read MAF decision and current skill-pack import gap."
+      summary: "AutoGen remains a maintenance-mode pointer to Microsoft Agent Framework; no new KOTA task beyond the existing rejected/read MAF decision and completed skill-pack import work."
       last_seen_at: "2026-05-18T04:16:37.406Z"
   - url: https://github.com/crewAIInc/crewAI
     added: "2026-04-19"
     snapshot:
       fingerprint: sha256:ccd4d66a868ba929bce31950914fa209
-      summary: "CrewAI still reinforces rejected workflow-DSL/control-plane patterns, but its official coding-agent skill-pack instructions expose KOTA's imported-skill runtime-resolution gap."
+      summary: "CrewAI still reinforces rejected workflow-DSL/control-plane patterns; its official coding-agent skill-pack signal is now covered by completed skill import and runtime-resolution tasks."
       last_seen_at: "2026-05-18T03:42:05.722Z"
   - url: https://github.com/langchain-ai/langgraph
     added: "2026-04-19"
@@ -125,7 +125,7 @@ resources:
     added: "2026-04-19"
     snapshot:
       fingerprint: sha256:3bdf213f2be6d9484e059953881a53cb
-      summary: "smolagents still centers code-executing agents; the useful KOTA signal is to keep local code execution honest by removing hidden dependency auto-install side effects from `code_exec`, not to add a second code-agent primitive."
+      summary: "smolagents still centers code-executing agents; its useful KOTA signal is now covered by completed `code_exec` dependency policy work, not a second code-agent primitive."
       last_seen_at: "2026-05-18T03:05:16.251Z"
   - url: https://github.com/mannaandpoem/OpenManus
     added: "2026-04-19"
@@ -143,7 +143,7 @@ resources:
     added: "2026-04-19"
     snapshot:
       fingerprint: sha256:1264ded49500425f701a269a404ec306
-      summary: "Vercel AI SDK now explicitly recommends Skills.sh-style coding-agent skill installation; this refresh opened KOTA's skill-pack import task instead of a new agent or workflow primitive."
+      summary: "Vercel AI SDK now explicitly recommends Skills.sh-style coding-agent skill installation; KOTA's skill-pack import path is complete, so this snapshot does not call for a new agent or workflow primitive."
       last_seen_at: "2026-05-18T04:16:37.406Z"
   - url: https://github.com/noahshinn/reflexion
     added: "2026-04-19"
@@ -180,13 +180,13 @@ resources:
     added: "2026-04-19"
     snapshot:
       fingerprint: sha256:a31ab02acad770b660d45496c034721b
-      summary: "DeepMind's current autonomy-adjacent signal is AlphaEvolve-style objective optimization evidence; KOTA should carry numeric objective metrics in eval artifacts without adding a parallel benchmark or agent framework."
+      summary: "DeepMind's current autonomy-adjacent signal is AlphaEvolve-style objective optimization evidence; KOTA now carries objective metrics in eval artifacts without adding a parallel benchmark or agent framework."
       last_seen_at: "2026-05-17T13:08:55.112Z"
   - url: https://research.google/blog/
     added: "2026-04-19"
     snapshot:
       fingerprint: sha256:2049b8c5ef1abff336748708361e4745
-      summary: "Google Research has added ReasoningBank and empirical-research-assistance posts since the last stored snapshot; they are autonomy-eval reading material, but the current actionable local gap is shipped-preset pricing coverage rather than a new memory or self-reflection primitive."
+      summary: "Google Research has added ReasoningBank and empirical-research-assistance posts since the last stored snapshot; they remain autonomy-eval reading material, while shipped-preset pricing coverage is complete and no new memory or self-reflection primitive is open."
       last_seen_at: "2026-05-16T03:30:30.187Z"
   - url: https://vercel.com/blog/category/ai
     added: "2026-04-19"
@@ -203,21 +203,21 @@ resources:
     notes: "Anthropic's Claude product blog — distinct surface from anthropic.com/engineering, lands Claude Code release notes and model-specific best-practices posts. Relevant to autonomy-loop posture and harness defaults on claude-agent-sdk."
     snapshot:
       fingerprint: sha256:75824b4f5e4e744db4472d0dec572c84
-      summary: "Claude's latest blog feed adds a concrete computer/browser-use guidance thread; the KOTA-relevant action is a strict screenshot-to-GUI-coordinate contract, while Managed Agents remains covered by existing reject/read decisions."
+      summary: "Claude's latest blog feed adds a concrete computer/browser-use guidance thread; KOTA's screenshot-to-GUI-coordinate contract is complete, while Managed Agents remains covered by existing reject/read decisions."
       last_seen_at: "2026-05-16T05:17:13.075Z"
   - url: https://github.com/microsoft/agent-framework
     added: "2026-04-23"
     notes: "Microsoft Agent Framework is the first-party successor to AutoGen (maintenance-mode). The AutoGen watchlist snapshot explicitly names it as the active investment target, so peer-runtime coverage of the Microsoft ecosystem is currently stale. Snapshot and distill on the next explorer cycle."
     snapshot:
       fingerprint: sha256:186ee6d56c2875b8e4c2b308465efbee
-      summary: "Microsoft Agent Framework remains a parallel agent/workflow platform; the fresh KOTA-relevant signal is that production agent frameworks now treat discoverable agent skills as a normal capability."
+      summary: "Microsoft Agent Framework remains a parallel agent/workflow platform; its discoverable-agent-skills signal is now covered by KOTA's completed skill-pack import and runtime-resolution work."
       last_seen_at: "2026-05-18T03:42:05.722Z"
   - url: https://github.com/cline/cline
     added: "2026-04-26"
     notes: "Cline is one of the two most-deployed in-IDE agent runtimes (alongside continuedev/continue) and the dominant fork base for many VS Code agent extensions. KOTA's current peer-runtime coverage is heavy on terminal CLIs and SDK frameworks but missing the in-editor design point — different operator-surface and tool-permission model than terminal-host runtimes. Snapshot and distill on the next explorer cycle."
     snapshot:
       fingerprint: sha256:47242078d37d025cb8c923c11278763c
-      summary: "Cline has broadened from IDE-first HITL coding into a shared agent engine across CLI, SDK, Kanban, scheduled agents, and channels; KOTA already maps most primitives, while dependency-chain task ordering exposes a queue-contract gap."
+      summary: "Cline has broadened from IDE-first HITL coding into a shared agent engine across CLI, SDK, Kanban, scheduled agents, and channels; KOTA already maps most primitives, and dependency-chain task ordering is now covered by typed task dependency edges."
       last_seen_at: "2026-05-18T06:08:15.722Z"
   - url: https://github.com/continuedev/continue
     added: "2026-04-26"
@@ -231,7 +231,7 @@ resources:
     notes: "LiveKit Agents is a real-time multi-modal voice/agent orchestration framework — peer to KOTA's voice module surface. Owner-flagged 2026-05-02 in inbox capture as relevant to voice-stack reevaluation. Snapshot and distill on the next explorer cycle."
     snapshot:
       fingerprint: sha256:9d2a528340e2f412b95f77f1afa4a963
-      summary: "LiveKit Agents reinforces config-update observability through OTLP session logs; KOTA should emit daemon config reload events into its bus/event-ring/tracing path."
+      summary: "LiveKit Agents reinforces config-update observability through OTLP session logs; KOTA's daemon config reload events now flow through typed event and tracing surfaces."
       last_seen_at: "2026-05-17T03:06:13.269Z"
   - url: https://github.com/abhigyanpatwari/GitNexus
     added: "2026-05-02"
@@ -245,7 +245,7 @@ resources:
     notes: "Vercel Labs Open Agents is the open-source reference implementation behind open-agents.dev — a TypeScript Next.js + Vercel Workflows + Sandbox stack that runs coding agents 'infinitely in the cloud' with the agent running outside the sandbox. Direct peer to KOTA's daemon + workflow + session model and a comparison point for the events/hooks vs. workflows debate. Snapshot and distill on the next explorer cycle."
     snapshot:
       fingerprint: sha256:310194637cdcc062e75568ae891640a4
-      summary: "Open Agents still maps mostly to KOTA's existing workflow/session/harness model; the useful new local gap is harness-parity coverage for frontend preview artifacts."
+      summary: "Open Agents still maps mostly to KOTA's existing workflow/session/harness model; its frontend-preview harness-parity signal is now covered by the completed frontend preview scenario."
       last_seen_at: "2026-05-18T08:48:25.077Z"
   - url: https://vercel.com/docs/workflow
     added: "2026-05-07"
@@ -259,14 +259,14 @@ resources:
     notes: "Official MCP tools spec draft - monitor tool-result content, structuredContent, _meta, output schema, annotations, and execution-error semantics that affect KOTA's MCP client/server protocol fidelity."
     snapshot:
       fingerprint: sha256:27b5b174ea5c4de1cd82f00fdaba3f8c
-      summary: "MCP draft Tools still centers structured tool results and draft input-required result variants; KOTA's remaining local gap is inbound client-runtime handling for remote input_required results."
+      summary: "MCP draft Tools still centers structured tool results and draft input-required result variants; KOTA's remote input_required handling is now covered by completed MCP client-runtime and operator-surface tasks."
       last_seen_at: "2026-05-17T02:18:33.268Z"
   - url: https://github.com/github/gh-aw
     added: "2026-05-17"
     notes: "GitHub Agentic Workflows is a GitHub Actions-hosted agent workflow runtime; monitor for event-trigger, safe-output, input-sanitization, and multi-engine guardrail patterns relevant to KOTA's workflow runtime."
     snapshot:
       fingerprint: sha256:9e16f5cd8b79431a965813c394429e45
-      summary: "GitHub Agentic Workflows now exposes a TrialOps pattern for isolated real workflow execution; KOTA's actionable gap is workflow trial runs that sit between dry-run planning and live project execution."
+      summary: "GitHub Agentic Workflows now exposes a TrialOps pattern for isolated real workflow execution; KOTA's workflow trial mode in isolated temporary projects now covers the gap between dry-run planning and live project execution."
       last_seen_at: "2026-05-18T11:10:09.573Z"
   - url: https://github.com/Alienfader/continuity-benchmarks
     added: "2026-05-19"
