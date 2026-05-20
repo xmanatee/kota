@@ -31,9 +31,9 @@ resources:
   - url: https://github.com/anthropics/claude-code
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:856b8e71b3ff8a2c2e73d445cf278d0a
-      summary: "Claude Code's latest release adds agent/session operability signals and a concrete Bash env-assignment permission-bypass fix; KOTA maps the fresh local gap to shell/process env override guardrails."
-      last_seen_at: "2026-05-20T00:12:52.212Z"
+      fingerprint: sha256:c045392869487a6c99ff564094066481
+      summary: "Claude Code's latest releases reinforce live-session operability, tool-span correlation, and execution-subprocess environment hygiene; after KOTA's env-override guardrail task was already completed, the remaining local gap is explicit shell/process child environment policy for session/tool correlation and telemetry isolation."
+      last_seen_at: "2026-05-20T01:21:27.374Z"
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
