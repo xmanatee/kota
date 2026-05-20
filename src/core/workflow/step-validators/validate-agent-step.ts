@@ -289,6 +289,11 @@ export function validateAgentStep(
         : undefined,
     outputFormat: validateOutputFormat(step.outputFormat, stepLabel, definitionPath),
     outputSchema: validateOutputSchema(step.outputSchema, step.outputFormat, stepLabel, definitionPath),
+    validate: expectOptionalFunction(
+      step.validate,
+      `${stepLabel}.validate`,
+      definitionPath,
+    ) as WorkflowAgentStep["validate"],
   };
 }
 

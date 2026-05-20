@@ -1,6 +1,7 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import { assertOutboundGitHubCommentBodyIsSafe } from "#modules/autonomy/github-comment-safety.js";
 import { isGitHubImplementationRequest } from "#modules/autonomy/github-mention-classification.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
@@ -64,6 +65,10 @@ export type PreparedGithubMentionComment = {
   isPullRequest: boolean;
   originalCommentId: number;
   mode: "agent";
+  body: string;
+};
+
+type GithubMentionResponseDraft = {
   body: string;
 };
 
@@ -221,7 +226,19 @@ function validatePreparedComment(
     throw new Error(`prepared comment mode must be agent, got ${obj.mode}`);
   }
   if (!isNonEmptyString(obj.body)) throw new Error("prepared comment missing body");
+  assertOutboundGitHubCommentBodyIsSafe(obj.body);
   return raw as PreparedGithubMentionComment;
+}
+
+function validateResponseDraft(
+  raw: Parameters<typeof expectStructuredOutput<GithubMentionResponseDraft>>[0],
+): GithubMentionResponseDraft {
+  const obj = expectStructuredOutput<GithubMentionResponseDraft>(raw, ["body"]);
+  if (!isNonEmptyString(obj.body)) {
+    throw new Error("draft-response output must include non-empty body");
+  }
+  assertOutboundGitHubCommentBodyIsSafe(obj.body);
+  return { body: obj.body };
 }
 
 function boundedBody(body: string): string {
@@ -275,14 +292,10 @@ const prepareComment = typedCodeStep<PreparedGithubMentionComment>({
     if (assessment.decision === "skip") {
       throw new Error("cannot prepare a comment for a skipped GitHub mention");
     }
-    const draft = ctx.stepOutputs["draft-response"];
-    if (draft === null || typeof draft !== "object" || Array.isArray(draft)) {
-      throw new Error("draft-response output must be an object");
-    }
-    const body = (draft as { body?: string }).body;
-    if (!isNonEmptyString(body)) {
-      throw new Error("draft-response output must include non-empty body");
-    }
+    const draft = validateResponseDraft(ctx.stepOutputs["draft-response"]);
+    const { body } = draft;
+    const bounded = boundedBody(body);
+    assertOutboundGitHubCommentBodyIsSafe(bounded);
 
     return {
       repo: assessment.fields.repo,
@@ -290,7 +303,7 @@ const prepareComment = typedCodeStep<PreparedGithubMentionComment>({
       isPullRequest: assessment.fields.isPullRequest,
       originalCommentId: assessment.fields.commentId,
       mode: "agent",
-      body: boundedBody(body),
+      body: bounded,
     };
   },
 });
@@ -331,6 +344,7 @@ const githubMentionResponderWorkflow: WorkflowDefinitionInput = {
           },
         },
       },
+      validate: validateResponseDraft,
     },
     prepareComment,
     {

@@ -19,6 +19,7 @@ import {
   createStepIdleTimeoutMonitor,
   isAgentProgressMessage,
 } from "../step-idle-timeout.js";
+import { WorkflowStepOutputValidationError } from "../step-input-code.js";
 import type { WorkflowAgentStep } from "../step-types.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 import type { WorkflowDefinition } from "../types.js";
@@ -83,6 +84,19 @@ export function resolveAgentModel(step: WorkflowAgentStep, agentConfig: AgentSte
   return (step.agentName ? agentConfig.config?.agentModels?.[step.agentName] : undefined) ?? step.model;
 }
 
+function validateAgentStepOutput(
+  step: WorkflowAgentStep,
+  output: WorkflowStepOutput,
+): WorkflowStepOutput {
+  if (step.validate === undefined) return output;
+  try {
+    return step.validate(output) as WorkflowStepOutput;
+  } catch (error) {
+    const cause = error instanceof Error ? error : new Error(String(error));
+    throw new WorkflowStepOutputValidationError(step.id, "run", cause);
+  }
+}
+
 // Walk closer-scoped `.kota.md`/`AGENTS.md`/`CLAUDE.md` from the prompt
 // directory when it lives under the project; otherwise fall back to the
 // project root so external module guidance does not leak into discovery.
@@ -144,8 +158,11 @@ export async function executeAgentStep(
   // Snapshot before run so post-step writeScope diff excludes paths another
   // step or pre-existing dirt mutated.
   const preStepMutatedPaths = agentDef && step.agentName ? listWorkflowMutatedPaths(agentConfig.projectDir) : undefined;
+  const bufferAgentMessages = step.validate !== undefined;
+  let successfulAttemptMessages: KotaAgentMessage[] = [];
 
   const runAttempt = async (): Promise<WorkflowStepOutput> => {
+    const attemptMessages: KotaAgentMessage[] = [];
     const attemptAbortController = new AbortController();
     const forwardAbort = () => attemptAbortController.abort(abortController.signal.reason);
     abortController.signal.addEventListener("abort", forwardAbort, { once: true });
@@ -169,7 +186,11 @@ export async function executeAgentStep(
           messageType: message.type,
         });
       }
-      appendMessage(message);
+      if (bufferAgentMessages) {
+        attemptMessages.push(message);
+      } else {
+        appendMessage(message);
+      }
     };
     const trackedMessage = resolvedHarness.emitsAgentMessageStream
       ? makeToolTelemetryTracker(stepTelemetry, captureMessage)
@@ -230,17 +251,23 @@ export async function executeAgentStep(
       }
       if (step.outputFormat === "json") {
         try {
-          return extractJsonOutput(step.id, result.text, step.outputSchema) as WorkflowStepOutput;
+          const output = extractJsonOutput(step.id, result.text, step.outputSchema) as WorkflowStepOutput;
+          const validated = validateAgentStepOutput(step, output);
+          if (bufferAgentMessages) successfulAttemptMessages = attemptMessages;
+          return validated;
         } catch (err) {
           if (err instanceof JsonSchemaValidationError) lastSchemaError = err.validationDetail;
           throw err;
         }
       }
-      return {
+      const output = {
         content: result.text, sessionId: result.sessionId, turns: result.turns,
         totalCostUsd: result.totalCostUsd, inputTokens: result.inputTokens,
         outputTokens: result.outputTokens, subtype: result.subtype,
       };
+      const validated = validateAgentStepOutput(step, output);
+      if (bufferAgentMessages) successfulAttemptMessages = attemptMessages;
+      return validated;
     } catch (error) {
       if (error instanceof AgentStepIdleTimeoutError) throw error;
       if (attemptAbortController.signal.reason instanceof AgentStepIdleTimeoutError) {
@@ -279,6 +306,10 @@ export async function executeAgentStep(
   const output = agentConfig.agentRunLimiter
     ? await agentConfig.agentRunLimiter.run(runWithRetry, abortController.signal)
     : await runWithRetry();
+
+  if (bufferAgentMessages) {
+    for (const message of successfulAttemptMessages) appendMessage(message);
+  }
 
   if (resolvedHarness.emitsAgentMessageStream) {
     writeToolTelemetryArtifact(step.id, metadata, agentConfig.projectDir, stepTelemetry);

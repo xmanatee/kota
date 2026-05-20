@@ -5,6 +5,7 @@ import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
+import { assertOutboundGitHubCommentBodyIsSafe } from "#modules/autonomy/github-comment-safety.js";
 import { isGitHubImplementationRequest } from "#modules/autonomy/github-mention-classification.js";
 import {
   onNormalTrigger,
@@ -442,6 +443,7 @@ function validatePreparedComment(
     throw new Error(`prepared comment mode must be created, existing, or needs_detail, got ${obj.mode}`);
   }
   if (!isNonEmptyString(obj.body)) throw new Error("prepared comment missing body");
+  assertOutboundGitHubCommentBodyIsSafe(obj.body);
   return obj;
 }
 
@@ -659,29 +661,33 @@ const prepareComment = typedCodeStep<PreparedIntakeComment>({
   run: (ctx) => {
     const assessment = assessMentionIntake.outputRequired(ctx);
     if (assessment.decision === "needs_detail") {
+      const body = boundedBody(assessment.responseBody);
+      assertOutboundGitHubCommentBodyIsSafe(body);
       return {
         repo: assessment.fields.repo,
         issueNumber: assessment.fields.issueNumber,
         originalCommentId: assessment.fields.commentId,
         mode: "needs_detail",
-        body: boundedBody(assessment.responseBody),
+        body,
       };
     }
     if (assessment.decision !== "create_task") {
       throw new Error("cannot prepare intake comment for skipped GitHub mention");
     }
     const task = createTask.outputRequired(ctx);
+    const body = boundedBody(
+      taskReferenceResponse(assessment.fields, {
+        ...task,
+        path: relative(ctx.projectDir, task.path),
+      }),
+    );
+    assertOutboundGitHubCommentBodyIsSafe(body);
     return {
       repo: assessment.fields.repo,
       issueNumber: assessment.fields.issueNumber,
       originalCommentId: assessment.fields.commentId,
       mode: task.kind,
-      body: boundedBody(
-        taskReferenceResponse(assessment.fields, {
-          ...task,
-          path: relative(ctx.projectDir, task.path),
-        }),
-      ),
+      body,
     };
   },
 });

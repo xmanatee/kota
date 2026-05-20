@@ -1,4 +1,4 @@
-import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -501,6 +501,55 @@ describe("step timeout", () => {
 
     expect(result.metadata.status).toBe("success");
     expect(result.metadata.steps[0]?.harness).toBe(harness);
+  }, 10_000);
+
+  it("validates agent output before recording step output or streamed agent frames", async () => {
+    const harness = "workflow-agent-output-validator";
+    const token = `${"ghp"}_${"A".repeat(36)}`;
+    const responseText = ["```json", JSON.stringify({ body: `token: ${token}` }), "```"].join("\n");
+    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+      await options.onMessage?.({ type: "text", text: responseText });
+      return {
+        text: responseText,
+        streamedText: responseText,
+        turns: 1,
+        isError: false,
+      };
+    });
+
+    const definition = makeDefinition({
+      moduleRoot: projectDir,
+      steps: [
+        makeAgentStep(projectDir, harness, {
+          outputFormat: "json",
+          outputSchema: {
+            type: "object",
+            required: ["body"],
+            properties: { body: { type: "string" } },
+          },
+          validate: (raw) => {
+            if (JSON.stringify(raw).includes(token)) {
+              throw new Error("github-token");
+            }
+            return raw as object;
+          },
+        }),
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+    const step = result.metadata.steps[0];
+    const runDirPath = join(projectDir, result.metadata.runDir);
+
+    expect(result.metadata.status).toBe("failed");
+    expect(step?.status).toBe("failed");
+    expect(step?.output).toBeUndefined();
+    expect(step?.error).toContain("github-token");
+    expect(step?.error).not.toContain(token);
+    expect(existsSync(join(runDirPath, "steps", "agent.events.jsonl"))).toBe(false);
+    expect(readFileSync(join(runDirPath, "metadata.json"), "utf-8")).not.toContain(token);
+    expect(readFileSync(join(runDirPath, "error.txt"), "utf-8")).not.toContain(token);
   }, 10_000);
 
   it("retries agent idle timeouts through the agent retry classifier", async () => {

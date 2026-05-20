@@ -1,12 +1,12 @@
 ---
 id: task-block-high-confidence-secret-patterns-in-github-wor
 title: Block high-confidence secret patterns in GitHub workflow comments
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a deterministic outbound safety gate for agent-authored GitHub comment bodies so PR-review and mention workflows fail before posting high-confidence secret or token patterns.
 created_at: 2026-05-19T23:34:36Z
-updated_at: 2026-05-19T23:34:36Z
+updated_at: 2026-05-19T23:42:48Z
 ---
 
 ## Problem

@@ -131,6 +131,21 @@ function makeStepResult(
   return { harness, internal };
 }
 
+function validateWorkflowStepOutput<T>(
+  step: WorkflowCodeStepInput | WorkflowStepInput,
+  rawOutput: T,
+) {
+  if ((step.type !== "code" && step.type !== "agent") || step.validate === undefined) {
+    return rawOutput;
+  }
+  try {
+    return step.validate(rawOutput);
+  } catch (error) {
+    const cause = error instanceof Error ? error : new Error(String(error));
+    throw new WorkflowStepOutputValidationError(step.id, "run", cause);
+  }
+}
+
 /**
  * A lightweight harness for unit-testing workflow definitions without a running
  * daemon or real agent session.
@@ -385,20 +400,11 @@ export class WorkflowTestHarness {
                 if (!(innerStep.id in stepMocks)) {
                   throw new Error(`Agent step "${innerStep.id}" requires a mock. Add stepMocks["${innerStep.id}"] to HarnessOptions.`);
                 }
-                innerOutput = stepMocks[innerStep.id];
+                innerOutput = validateWorkflowStepOutput(innerStep, stepMocks[innerStep.id]);
               } else {
                 const innerCode = innerStep as WorkflowCodeStepInput;
                 const innerRaw = await innerCode.run(iterContext);
-                if (innerCode.validate !== undefined) {
-                  try {
-                    innerOutput = innerCode.validate(innerRaw);
-                  } catch (vErr) {
-                    const cause = vErr instanceof Error ? vErr : new Error(String(vErr));
-                    throw new WorkflowStepOutputValidationError(innerStep.id, "run", cause);
-                  }
-                } else {
-                  innerOutput = innerRaw;
-                }
+                innerOutput = validateWorkflowStepOutput(innerCode, innerRaw);
               }
             } catch (err) {
               innerError = err instanceof Error ? err.message : String(err);
@@ -506,23 +512,14 @@ export class WorkflowTestHarness {
         if (step.type === "code") {
           const codeStep = step as WorkflowCodeStepInput;
           const rawOutput = await codeStep.run(context);
-          if (codeStep.validate !== undefined) {
-            try {
-              output = codeStep.validate(rawOutput);
-            } catch (error) {
-              const cause = error instanceof Error ? error : new Error(String(error));
-              throw new WorkflowStepOutputValidationError(step.id, "run", cause);
-            }
-          } else {
-            output = rawOutput;
-          }
+          output = validateWorkflowStepOutput(codeStep, rawOutput);
         } else if (step.type === "agent") {
           if (!(step.id in stepMocks)) {
             throw new Error(
               `Agent step "${step.id}" requires a mock. Add stepMocks["${step.id}"] to HarnessOptions.`,
             );
           }
-          output = stepMocks[step.id];
+          output = validateWorkflowStepOutput(step, stepMocks[step.id]);
         } else if (step.type === "tool") {
           if (step.id in stepMocks) {
             output = stepMocks[step.id];

@@ -5,6 +5,7 @@ import { getToolEffect } from "#core/tools/index.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import { assertOutboundGitHubCommentBodyIsSafe } from "#modules/autonomy/github-comment-safety.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
@@ -101,6 +102,7 @@ function validateReviewDraft(raw: Parameters<typeof expectStructuredOutput<PrRev
   if (!isNonEmptyString(obj.body)) {
     throw new Error("review output body must be a non-empty string");
   }
+  assertOutboundGitHubCommentBodyIsSafe(obj.body);
   return {
     recommendation: obj.recommendation,
     body: obj.body,
@@ -126,6 +128,7 @@ function validatePreparedComment(
   if (!isNonEmptyString(obj.body)) {
     throw new Error("prepared review comment missing body");
   }
+  assertOutboundGitHubCommentBodyIsSafe(obj.body);
   return {
     repo: obj.repo,
     prNumber: obj.prNumber,
@@ -278,11 +281,13 @@ const prepareComment = typedCodeStep<PreparedPrReviewComment>({
       throw new Error("cannot prepare a PR review comment for a skipped assessment");
     }
     const draft = validateReviewDraft(ctx.stepOutputs.review);
+    const body = boundedReviewBody(draft);
+    assertOutboundGitHubCommentBodyIsSafe(body);
     return {
       repo: assessment.repo,
       prNumber: assessment.prNumber,
       recommendation: draft.recommendation,
-      body: boundedReviewBody(draft),
+      body,
     };
   },
 });
@@ -340,6 +345,7 @@ const prReviewerWorkflow: WorkflowDefinitionInput = {
           },
         },
       },
+      validate: validateReviewDraft,
     },
     prepareComment,
     commentPolicy,

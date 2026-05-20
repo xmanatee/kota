@@ -5,7 +5,12 @@ import type {
   WorkflowRepairLoopConfig,
   WorkflowValueResolver,
 } from "./run-types.js";
+import type { CodeStepOutputValidator } from "./step-input-code.js";
 import type { WorkflowRetryConfig } from "./trigger-types.js";
+
+export type WorkflowAgentStepOutputValidator = CodeStepOutputValidator<
+  object | string | number | boolean | null | undefined
+>;
 
 export type WorkflowBaseStep = {
   id: string;
@@ -118,6 +123,12 @@ export type WorkflowAgentStepInput = WorkflowBaseStep & {
    * outputFormat: "json". A schema mismatch fails the step with a descriptive error.
    */
   outputSchema?: Record<string, unknown>;
+  /**
+   * Optional decoder for final agent output. It runs before the step output
+   * is recorded, and before streamed agent frames are flushed for validated
+   * steps.
+   */
+  validate?: WorkflowAgentStepOutputValidator;
 };
 
 export type WorkflowEmitStepInput = WorkflowBaseStep & {

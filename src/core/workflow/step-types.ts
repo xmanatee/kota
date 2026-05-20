@@ -7,7 +7,7 @@ import type {
   WorkflowStepContext,
   WorkflowValueResolver,
 } from "./run-types.js";
-import type { WorkflowBaseStep } from "./step-input-base.js";
+import type { WorkflowAgentStepOutputValidator, WorkflowBaseStep } from "./step-input-base.js";
 import type { CodeStepOutputValidator } from "./step-input-code.js";
 import type { WorkflowRetryConfig } from "./trigger-types.js";
 
@@ -73,6 +73,7 @@ export type WorkflowAgentStep = WorkflowBaseStep & {
   repairLoop?: WorkflowRepairLoopConfig;
   outputFormat?: "json";
   outputSchema?: Record<string, unknown>;
+  validate?: WorkflowAgentStepOutputValidator;
 };
 
 export type WorkflowEmitStep = WorkflowBaseStep & {

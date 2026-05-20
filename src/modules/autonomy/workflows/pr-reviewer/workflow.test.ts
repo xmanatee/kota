@@ -353,9 +353,10 @@ describe("pr-reviewer workflow — assess-pr step", () => {
     const result = await harness.run();
 
     expect(result.status).toBe("failed");
-    expect(result.steps.review.status).toBe("success");
-    expect(result.steps["prepare-comment"].status).toBe("failed");
-    expect(result.steps["prepare-comment"].error).toContain("recommendation must be approve or request-changes");
+    expect(result.steps.review.status).toBe("failed");
+    expect(result.steps.review.output).toBeUndefined();
+    expect(result.steps.review.error).toContain("recommendation must be approve or request-changes");
+    expect(result.steps["prepare-comment"]).toBeUndefined();
     expect(result.steps["post-comment"]).toBeUndefined();
     expect(tools.calls).toEqual([]);
   });
@@ -375,8 +376,35 @@ describe("pr-reviewer workflow — assess-pr step", () => {
     const result = await harness.run();
 
     expect(result.status).toBe("failed");
-    expect(result.steps["prepare-comment"].status).toBe("failed");
-    expect(result.steps["prepare-comment"].error).toContain("body must be a non-empty string");
+    expect(result.steps.review.status).toBe("failed");
+    expect(result.steps.review.output).toBeUndefined();
+    expect(result.steps.review.error).toContain("body must be a non-empty string");
+    expect(result.steps["prepare-comment"]).toBeUndefined();
+    expect(result.steps["post-comment"]).toBeUndefined();
+    expect(tools.calls).toEqual([]);
+  });
+
+  it("blocks suspected tokens from review output before persisting the agent body or writing a GitHub comment", async () => {
+    const tools = toolSpy();
+    const token = `${"ghp"}_${"A".repeat(36)}`;
+    const harness = new WorkflowTestHarness(prReviewerWorkflow, {
+      trigger: makeTrigger(),
+      stepMocks: {
+        review: reviewDraft({ body: `This should never be posted: ${token}` }),
+      },
+      contextOverrides: {
+        runTool: tools.runTool,
+      },
+    });
+
+    const result = await harness.run();
+
+    expect(result.status).toBe("failed");
+    expect(result.steps.review.status).toBe("failed");
+    expect(result.steps.review.output).toBeUndefined();
+    expect(result.steps.review.error).toContain("github-token");
+    expect(result.steps.review.error).not.toContain(token);
+    expect(result.steps["prepare-comment"]).toBeUndefined();
     expect(result.steps["post-comment"]).toBeUndefined();
     expect(tools.calls).toEqual([]);
   });
