@@ -271,6 +271,10 @@ resources:
   - url: https://modelcontextprotocol.io/specification/draft/server/prompts
     added: "2026-05-20"
     notes: "Official MCP prompts spec draft - monitor prompts/list pagination, prompt metadata, input-required prompt resolution, completions, and promptsListChanged subscriptions that affect KOTA's MCP prompt-template surface."
+    snapshot:
+      fingerprint: sha256:42f4bfd37efd244df1d236f10e1737d8
+      summary: "MCP draft Prompts documents prompt listing, pagination, get arguments, prompt-list change notifications, optional display metadata, multimodal content, input-required responses, and required-argument validation; KOTA already covers the major prompt transport pieces, and this run opened the remaining required-argument validation slice."
+      last_seen_at: "2026-05-20T11:52:09.168Z"
   - url: https://github.com/github/gh-aw
     added: "2026-05-17"
     notes: "GitHub Agentic Workflows is a GitHub Actions-hosted agent workflow runtime; monitor for event-trigger, safe-output, input-sanitization, and multi-engine guardrail patterns relevant to KOTA's workflow runtime."
