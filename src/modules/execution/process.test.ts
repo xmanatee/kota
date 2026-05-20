@@ -1,9 +1,34 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { clearProcesses, getActiveProcessCount, runProcess } from "./process.js";
 
+const envKeys = [
+  "KOTA_SESSION_ID",
+  "KOTA_TOOL_USE_ID",
+  "OTEL_EXPORTER_OTLP_ENDPOINT",
+  "OTLP_ENDPOINT",
+] as const;
+let savedEnv: Partial<Record<(typeof envKeys)[number], string>>;
+
+beforeEach(() => {
+  savedEnv = {};
+  for (const key of envKeys) savedEnv[key] = process.env[key];
+});
+
 afterEach(() => {
+  for (const key of envKeys) {
+    const value = savedEnv[key];
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
   clearProcesses();
 });
+
+const envProbeCommand =
+  "printf '%s|%s|%s|%s' " +
+  "\"${KOTA_SESSION_ID-missing}\" " +
+  "\"${KOTA_TOOL_USE_ID-missing}\" " +
+  "\"${OTEL_EXPORTER_OTLP_ENDPOINT-missing}\" " +
+  "\"${OTLP_ENDPOINT-missing}\"";
 
 /** Poll getOutput until the process shows "exited" or maxWaitMs is reached. */
 async function waitForExit(processId: string, maxWaitMs = 5000): Promise<string> {
@@ -35,6 +60,29 @@ describe("process tool", () => {
     it("captures initial output", async () => {
       const result = await runProcess({ action: "start", command: "echo 'server ready'" });
       expect(result.content).toContain("server ready");
+    });
+
+    it("injects context ids and scrubs inherited telemetry routing env", async () => {
+      process.env.OTEL_EXPORTER_OTLP_ENDPOINT = "http://kota-collector";
+      process.env.OTLP_ENDPOINT = "http://legacy-collector";
+
+      const result = await runProcess(
+        { action: "start", command: envProbeCommand },
+        { sessionId: "session-bg", toolUseId: "tool-bg" },
+      );
+
+      expect(result.is_error).toBeUndefined();
+      expect(result.content).toContain("session-bg|tool-bg|missing|missing");
+    });
+
+    it("does not synthesize correlation ids for no-context direct calls", async () => {
+      process.env.KOTA_SESSION_ID = "parent-session";
+      process.env.KOTA_TOOL_USE_ID = "parent-tool";
+
+      const result = await runProcess({ action: "start", command: envProbeCommand });
+
+      expect(result.is_error).toBeUndefined();
+      expect(result.content).toContain("missing|missing|missing|missing");
     });
 
     it("increments process IDs", async () => {

@@ -1,8 +1,10 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type { ToolRunnerContext } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { enrichWithSourceContext } from "./error-context.js";
+import { buildExecutionEnv } from "./execution-env.js";
 import { smartErrorTruncate } from "./shell-diagnostics.js";
 
 export const shellTool: KotaTool = {
@@ -50,6 +52,7 @@ function truncateOutput(text: string): string {
 
 export async function runShell(
   input: Record<string, unknown>,
+  context?: ToolRunnerContext,
 ): Promise<ToolResult> {
   const command = input.command as string;
   const timeout = (input.timeout_ms as number) || 120_000;
@@ -77,7 +80,7 @@ export async function runShell(
 
     const proc = spawn("sh", ["-c", command], {
       cwd,
-      env: process.env,
+      env: buildExecutionEnv(context),
       stdio: ["pipe", "pipe", "pipe"],
     });
 

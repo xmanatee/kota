@@ -1,12 +1,12 @@
 ---
 id: task-define-execution-subprocess-environment-policy
 title: Define execution subprocess environment policy
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Route tool-call context into the execution module so shell/process children get explicit KOTA session/tool correlation ids and no longer inherit KOTA-owned telemetry routing accidentally.
 created_at: 2026-05-20T01:19:05Z
-updated_at: 2026-05-20T01:19:05Z
+updated_at: 2026-05-20T01:31:05Z
 ---
 
 ## Problem
@@ -132,3 +132,12 @@ of KOTA's own telemetry pipeline.
   env output without logging unrelated environment values.
 - Negative tests show inherited `OTEL_*` / `OTLP_*` variables are absent from
   shell and process children by default.
+
+## Completion Evidence
+
+- `.kota/runs/2026-05-20T01-21-40-431Z-builder-e7mm1v/focused-test-transcript.txt`
+  captures the focused runner/shell/process test pass.
+- `pnpm typecheck`, `pnpm lint`, `pnpm test src/strict-types-policy.integration.test.ts`,
+  `pnpm test src/core/modules/module-loader.test.ts src/modules/execution/custom-tool-integration.test.ts`,
+  `pnpm test src/core/tools/ask-owner.test.ts`, `pnpm build`, and
+  `pnpm run validate-tasks -- --min-ready 0` passed.

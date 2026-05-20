@@ -19,12 +19,14 @@ import type { ToolResult } from "./index.js";
 /**
  * Session-level context that tool-runner attaches to a tool call so middleware
  * can make posture-aware decisions (e.g. injection defense only applies on
- * autonomous runs). Absent when a caller invokes a tool outside a session
- * (e.g. `ctx.callTool`); middleware must choose a safe default in that case.
+ * autonomous runs) or correlate work to a tool-use block. Absent when a caller
+ * invokes a tool outside a session (e.g. `ctx.callTool`); middleware must
+ * choose a safe default in that case.
  */
 export type ToolCallContext = {
 	autonomyMode?: AutonomyMode;
 	sessionId?: string;
+	toolUseId?: string;
 };
 
 export type ToolCall = {

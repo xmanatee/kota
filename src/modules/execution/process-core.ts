@@ -1,5 +1,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
+import type { ToolRunnerContext } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
+import { buildExecutionEnv } from "./execution-env.js";
 
 const MAX_BUFFER_LINES = 500;
 const MAX_PROCESSES = 5;
@@ -78,7 +80,10 @@ function purgeStale(): void {
   }
 }
 
-export async function startProcess(command: string): Promise<ToolResult> {
+export async function startProcess(
+  command: string,
+  context?: ToolRunnerContext,
+): Promise<ToolResult> {
   if (!command || !command.trim()) {
     return { content: "Error: command is required for 'start' action", is_error: true };
   }
@@ -97,7 +102,7 @@ export async function startProcess(command: string): Promise<ToolResult> {
   const id = generateId();
   const proc = spawn("sh", ["-c", command], {
     cwd: process.cwd(),
-    env: process.env,
+    env: buildExecutionEnv(context),
     stdio: ["pipe", "pipe", "pipe"],
     detached: false,
   });

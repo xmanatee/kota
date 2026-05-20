@@ -153,7 +153,7 @@ function normalizeProposed(value: unknown): string[] | undefined {
 
 export const registration = {
   tool: askOwnerTool,
-  runner: runAskOwner,
+  runner: (input: Parameters<typeof runAskOwner>[0]) => runAskOwner(input),
   effect: operatorSurfaceEffect(),
   group: "management",
 };

@@ -287,10 +287,14 @@ export async function executeToolCalls(
         inputBytes,
       });
       const middleware = getToolMiddleware();
+      const runnerContext = {
+        ...(sessionId && { sessionId }),
+        toolUseId: block.id,
+      };
       const call = {
         name: block.name,
         input,
-        context: { autonomyMode, ...(sessionId && { sessionId }) },
+        context: { autonomyMode, ...runnerContext },
       };
       const baseFn = () =>
         mcpManager?.isMcpTool(call.name)
@@ -299,7 +303,7 @@ export async function executeToolCalls(
                 inputResolver: mcpInputResolver,
               })
             : mcpManager.executeTool(call.name, call.input)
-          : executeTool(call.name, call.input);
+          : executeTool(call.name, call.input, runnerContext);
       const result = await middleware.execute(call, baseFn);
 
       const durationMs = Math.round(performance.now() - startMs);

@@ -3,14 +3,35 @@ import { runShell } from "./shell.js";
 
 // Suppress stderr output during tests
 let stderrSpy: ReturnType<typeof vi.spyOn>;
+const envKeys = [
+  "KOTA_SESSION_ID",
+  "KOTA_TOOL_USE_ID",
+  "OTEL_EXPORTER_OTLP_ENDPOINT",
+  "OTLP_ENDPOINT",
+] as const;
+let savedEnv: Partial<Record<(typeof envKeys)[number], string>>;
 
 beforeEach(() => {
+  savedEnv = {};
+  for (const key of envKeys) savedEnv[key] = process.env[key];
   stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
 });
 
 afterEach(() => {
+  for (const key of envKeys) {
+    const value = savedEnv[key];
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
   stderrSpy.mockRestore();
 });
+
+const envProbeCommand =
+  "printf '%s|%s|%s|%s' " +
+  "\"${KOTA_SESSION_ID-missing}\" " +
+  "\"${KOTA_TOOL_USE_ID-missing}\" " +
+  "\"${OTEL_EXPORTER_OTLP_ENDPOINT-missing}\" " +
+  "\"${OTLP_ENDPOINT-missing}\"";
 
 describe("shell: input validation", () => {
   it("returns error when command is empty", async () => {
@@ -58,6 +79,32 @@ describe("shell: successful commands", () => {
     });
     expect(result.content).toBe("quiet");
     expect(stderrSpy).not.toHaveBeenCalled();
+  });
+
+  it("injects context ids and scrubs inherited telemetry routing env", async () => {
+    process.env.OTEL_EXPORTER_OTLP_ENDPOINT = "http://kota-collector";
+    process.env.OTLP_ENDPOINT = "http://legacy-collector";
+
+    const result = await runShell(
+      { command: envProbeCommand, stream_output: false },
+      { sessionId: "session-123", toolUseId: "tool-456" },
+    );
+
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toBe("session-123|tool-456|missing|missing");
+  });
+
+  it("does not synthesize correlation ids for no-context direct calls", async () => {
+    process.env.KOTA_SESSION_ID = "parent-session";
+    process.env.KOTA_TOOL_USE_ID = "parent-tool";
+
+    const result = await runShell({
+      command: envProbeCommand,
+      stream_output: false,
+    });
+
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toBe("missing|missing|missing|missing");
   });
 });
 
@@ -139,4 +186,3 @@ describe("shell: output truncation", () => {
     expect(result.content).not.toContain("truncated");
   });
 });
-

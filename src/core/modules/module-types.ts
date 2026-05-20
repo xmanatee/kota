@@ -29,6 +29,7 @@ import type {
   LocalClientHandlers,
 } from "#core/server/kota-client.js";
 import type { ToolEffect } from "#core/tools/effect.js";
+import type { ToolRunner } from "#core/tools/index.js";
 import type { ToolMiddlewareFn } from "#core/tools/tool-middleware.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "#core/workflow/types.js";
@@ -158,7 +159,7 @@ export type CreateSessionOptions = {
 /** A tool definition contributed by a module. */
 export type ToolDef = {
   tool: KotaTool;
-  runner: (input: Record<string, unknown>) => Promise<ToolResult>;
+  runner: ToolRunner;
   /** Tool group for progressive disclosure. Ungrouped tools are always available. */
   group?: string;
   /**

@@ -124,6 +124,30 @@ describe("executeTool", () => {
     expect(result.content).toBe("Unknown tool: nonexistent_tool");
   });
 
+  it("passes optional runner context to registered tools", async () => {
+    registerTool(makeTool("context_reader"), async (_input, context) => ({
+      content: `${context?.sessionId ?? "missing"}:${context?.toolUseId ?? "missing"}`,
+    }));
+
+    const result = await executeTool(
+      "context_reader",
+      {},
+      { sessionId: "session-a", toolUseId: "tool-b" },
+    );
+
+    expect(result.content).toBe("session-a:tool-b");
+  });
+
+  it("keeps direct calls valid without runner context", async () => {
+    registerTool(makeTool("context_optional"), async (_input, context) => ({
+      content: context ? "has-context" : "no-context",
+    }));
+
+    const result = await executeTool("context_optional", {});
+
+    expect(result.content).toBe("no-context");
+  });
+
   it("returns valid structuredContent for a tool with output_schema", async () => {
     registerTool(
       {

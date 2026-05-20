@@ -1,4 +1,5 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type { ToolRunnerContext } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import {
   cleanupProcesses,
@@ -47,12 +48,15 @@ export const processTool: KotaTool = {
   },
 };
 
-export async function runProcess(input: Record<string, unknown>): Promise<ToolResult> {
+export async function runProcess(
+  input: Record<string, unknown>,
+  context?: ToolRunnerContext,
+): Promise<ToolResult> {
   const action = input.action as string;
 
   switch (action) {
     case "start":
-      return startProcess(input.command as string);
+      return startProcess(input.command as string, context);
     case "output":
       return getOutput(
         input.process_id as string,
@@ -69,4 +73,3 @@ export async function runProcess(input: Record<string, unknown>): Promise<ToolRe
       return { content: `Error: unknown action "${action}". Use: start, output, signal, list`, is_error: true };
   }
 }
-

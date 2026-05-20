@@ -16,7 +16,15 @@ import type { ToolResult, ToolResultBlock } from "./tool-result.js";
 
 export type { ToolResult, ToolResultBlock };
 
-type ToolRunner = (input: Record<string, unknown>) => Promise<ToolResult>;
+export type ToolRunnerContext = {
+  sessionId?: string;
+  toolUseId?: string;
+};
+
+export type ToolRunner = (
+  input: Record<string, unknown>,
+  context?: ToolRunnerContext,
+) => Promise<ToolResult>;
 export type ResolvedToolSet = {
   tools: KotaTool[];
   runners: { [name: string]: ToolRunner };
@@ -102,6 +110,7 @@ export function getAllTools(): readonly KotaTool[] {
 export async function executeTool(
   name: string,
   input: Record<string, unknown>,
+  context?: ToolRunnerContext,
 ): Promise<ToolResult> {
   ensureInit();
   const runner = runners[name];
@@ -109,7 +118,7 @@ export async function executeTool(
     return { content: `Unknown tool: ${name}`, is_error: true };
   }
   try {
-    const result = await runner(input);
+    const result = await runner(input, context);
     const tool = tools.find((t) => t.name === name);
     if (tool) assertToolStructuredOutput(tool, result);
     return result;

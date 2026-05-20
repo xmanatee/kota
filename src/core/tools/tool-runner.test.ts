@@ -185,11 +185,28 @@ describe("executeToolCalls", () => {
     );
     expect(mockExecuteTool).toHaveBeenCalledWith("file_read", {
       path: "/a.txt",
+    }, {
+      toolUseId: "t1",
     });
     expect(results).toHaveLength(1);
     expect(results[0].tool_use_id).toBe("t1");
     expect(results[0].content).toBe("file contents");
     expect(results[0].is_error).toBeUndefined();
+  });
+
+  it("passes session and tool-use context to local tool runners", async () => {
+    mockExecuteTool.mockResolvedValue({ content: "ok" });
+
+    await executeToolCalls(
+      [toolBlock("shell", { command: "pwd" }, "tool-42")],
+      runOptions({ sessionId: "session-7" }),
+    );
+
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      "shell",
+      { command: "pwd" },
+      { sessionId: "session-7", toolUseId: "tool-42" },
+    );
   });
 
   it("executes multiple tools in parallel", async () => {
@@ -276,7 +293,9 @@ describe("executeToolCalls", () => {
       [toolBlock("shell", { command: "ls" })],
       runOptions({ mcpManager: mcpManager as never }),
     );
-    expect(mockExecuteTool).toHaveBeenCalledWith("shell", { command: "ls" });
+    expect(mockExecuteTool).toHaveBeenCalledWith("shell", { command: "ls" }, {
+      toolUseId: "t1",
+    });
     expect(mcpManager.executeTool).not.toHaveBeenCalled();
   });
 
@@ -407,7 +426,9 @@ describe("guardrails confirm gate", () => {
 
     expect(results[0].is_error).toBeUndefined();
     expect(results[0].content).toBe("reset done");
-    expect(mockExecuteTool).toHaveBeenCalledWith("shell", { command: "git reset --hard HEAD~1" });
+    expect(mockExecuteTool).toHaveBeenCalledWith("shell", { command: "git reset --hard HEAD~1" }, {
+      toolUseId: "t1",
+    });
   });
 
   it("blocks a tool call when policy is deny", async () => {
