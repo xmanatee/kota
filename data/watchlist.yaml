@@ -285,6 +285,10 @@ resources:
   - url: https://modelcontextprotocol.io/specification/draft/client/elicitation
     added: "2026-05-20"
     notes: "Official MCP elicitation client-feature draft - monitor form/url mode support, URL-mode consent rules, and sensitive-data boundaries for KOTA's MRTR input_required flows."
+    snapshot:
+      fingerprint: sha256:b153d609d9944ee266273341d7a21905
+      summary: "MCP draft Elicitation now exposes a remaining KOTA gap after completed MRTR/URL-mode work: KOTA can route remote elicitation but still needs current-draft client capability advertisement and decline-action alignment."
+      last_seen_at: "2026-05-20T23:42:05.340Z"
   - url: https://modelcontextprotocol.io/specification/draft/server/utilities/completion
     added: "2026-05-20"
     notes: "Official MCP completion utility draft - monitor completion/complete request context, prompt/resource references, bounded completion results, and invalid-param behavior for KOTA's MCP server completions."
