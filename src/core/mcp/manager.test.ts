@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { MCP_DRAFT_PROTOCOL_VERSION } from "./client.js";
 import { McpManager, namespaceTool, parseToolName } from "./manager.js";
 
@@ -141,6 +141,78 @@ describe("McpManager", () => {
     await manager.close();
     expect(manager.getServerCount()).toBe(0);
     expect(manager.getToolCount()).toBe(0);
+  }, 10_000);
+
+  it("initialize skips invalid x-mcp-header tools while registering valid tools", async () => {
+    const manager = new McpManager();
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const server = `
+      const rl = require("readline").createInterface({ input: process.stdin });
+      rl.on("line", (line) => {
+        let msg;
+        try { msg = JSON.parse(line); } catch { return; }
+        if (msg.method === "initialize") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            protocolVersion: "2024-11-05", capabilities: {},
+            serverInfo: { name: "header-srv" },
+          }}) + "\\n");
+        } else if (msg.method === "tools/list") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            tools: [
+              {
+                name: "kept",
+                description: "Valid header mapping",
+                inputSchema: {
+                  type: "object",
+                  properties: { token: { type: "string", "x-mcp-header": "X-Token" } },
+                },
+              },
+              {
+                name: "bad_header",
+                description: "Invalid header mapping",
+                inputSchema: {
+                  type: "object",
+                  properties: { token: { type: "string", "x-mcp-header": "" } },
+                },
+              },
+            ],
+          }}) + "\\n");
+        } else if (msg.method === "tools/call" && msg.params.name === "kept") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            content: [{ type: "text", text: "kept ok" }],
+          }}) + "\\n");
+        } else if (msg.method === "shutdown") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {} }) + "\\n");
+        }
+      });
+    `;
+
+    await manager.initialize({
+      mcpServers: { configured: { command: "node", args: ["-e", server] } },
+    });
+
+    const warning = errorSpy.mock.calls
+      .map((call) => call.join(" "))
+      .find((line) => line.includes("rejected MCP tool"));
+    expect(manager.getServerCount()).toBe(1);
+    expect(manager.getToolCount()).toBe(1);
+    expect(manager.isMcpTool("mcp__configured__kept")).toBe(true);
+    expect(manager.isMcpTool("mcp__configured__bad_header")).toBe(false);
+    expect(manager.getTools().map((tool) => tool.name)).toEqual([
+      "mcp__configured__kept",
+    ]);
+    expect(warning).toContain('server "header-srv"');
+    expect(warning).toContain('tool "bad_header"');
+    expect(warning).toContain("empty value");
+
+    const result = await manager.executeTool("mcp__configured__kept", {
+      token: "secret",
+    });
+    expect(result.content).toBe("kept ok");
+    expect(result.is_error).toBeUndefined();
+
+    await manager.close();
+    errorSpy.mockRestore();
   }, 10_000);
 
   it("initialize registers tools from every tools/list page", async () => {

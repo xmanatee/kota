@@ -1,12 +1,12 @@
 ---
 id: task-reject-invalid-mcp-x-mcp-header-annotations-during
 title: Reject invalid MCP x-mcp-header annotations during tool discovery
-status: ready
+status: done
 priority: p2
 area: core
 summary: Reject remote MCP tools whose input schema uses malformed x-mcp-header annotations so KOTA follows the draft Tools boundary instead of registering unsafe or unroutable header mappings.
 created_at: 2026-05-20T03:41:09Z
-updated_at: 2026-05-20T03:41:09Z
+updated_at: 2026-05-20T03:51:26Z
 ---
 
 ## Problem

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   MCP_DRAFT_PROTOCOL_VERSION,
   MCP_LEGACY_PROTOCOL_VERSION,
@@ -220,6 +220,31 @@ rl.on("line", (line) => {
   }
 });
 `;
+
+function listToolsServerScript(tools: object[], serverName = "header-test-server"): string {
+  return `
+    const tools = ${JSON.stringify(tools)};
+    const serverName = ${JSON.stringify(serverName)};
+    const rl = require("readline").createInterface({ input: process.stdin });
+    rl.on("line", (line) => {
+      let msg;
+      try { msg = JSON.parse(line); } catch { return; }
+      if (msg.method === "initialize") {
+        process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+          protocolVersion: "2024-11-05",
+          capabilities: {},
+          serverInfo: { name: serverName },
+        }}) + "\\n");
+      } else if (msg.method === "notifications/initialized") {
+        // notification — no response
+      } else if (msg.method === "tools/list") {
+        process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: { tools } }) + "\\n");
+      } else if (msg.method === "shutdown") {
+        process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {} }) + "\\n");
+      }
+    });
+  `;
+}
 
 describe("McpClient", () => {
   let client: McpClient | null = null;
@@ -719,6 +744,218 @@ describe("McpClient lifecycle (fake MCP server)", () => {
 
     // Server will exit; next call should be rejected
     await expect(client.listTools()).rejects.toThrow(/exited/);
+  }, 10_000);
+});
+
+describe("McpClient x-mcp-header validation", () => {
+  let client: McpClient | null = null;
+
+  afterEach(async () => {
+    if (client) {
+      await client.close();
+      client = null;
+    }
+  });
+
+  it("accepts valid annotated primitive properties", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    client = new McpClient(
+      "node",
+      [
+        "-e",
+        listToolsServerScript([
+          {
+            name: "headers_ok",
+            inputSchema: {
+              type: "object",
+              properties: {
+                token: { type: "string", "x-mcp-header": "X-Token" },
+                retries: { type: "number", "x-mcp-header": "X-Retry" },
+                dryRun: { type: "boolean", "x-mcp-header": "X-Dry-Run" },
+              },
+            },
+          },
+        ]),
+      ],
+      {},
+      "configured-header-server",
+    );
+    await client.connect();
+
+    const tools = await client.listTools();
+
+    expect(tools).toHaveLength(1);
+    expect(tools[0].name).toBe("headers_ok");
+    expect(tools[0].inputSchema.properties.token).toEqual({
+      type: "string",
+      "x-mcp-header": "X-Token",
+    });
+    expect(errorSpy).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  }, 10_000);
+
+  it("excludes tools with empty x-mcp-header values while preserving valid tools", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    client = new McpClient(
+      "node",
+      [
+        "-e",
+        listToolsServerScript([
+          { name: "kept", inputSchema: { type: "object" } },
+          {
+            name: "empty_header",
+            inputSchema: {
+              type: "object",
+              properties: {
+                token: { type: "string", "x-mcp-header": "" },
+              },
+            },
+          },
+        ]),
+      ],
+      {},
+      "configured-header-server",
+    );
+    await client.connect();
+
+    const tools = await client.listTools();
+    const warnings = errorSpy.mock.calls.map((call) => call.join(" "));
+
+    expect(tools.map((tool) => tool.name)).toEqual(["kept"]);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('server "header-test-server"');
+    expect(warnings[0]).toContain('tool "empty_header"');
+    expect(warnings[0]).toContain("empty value");
+    errorSpy.mockRestore();
+  }, 10_000);
+
+  it("excludes tools whose x-mcp-header contains a space or colon", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    client = new McpClient(
+      "node",
+      [
+        "-e",
+        listToolsServerScript([
+          { name: "kept", inputSchema: { type: "object" } },
+          {
+            name: "space_header",
+            inputSchema: {
+              type: "object",
+              properties: {
+                query: { type: "string", "x-mcp-header": "X Query" },
+              },
+            },
+          },
+          {
+            name: "colon_header",
+            inputSchema: {
+              type: "object",
+              properties: {
+                trace: { type: "string", "x-mcp-header": "X:Trace" },
+              },
+            },
+          },
+        ]),
+      ],
+      {},
+      "configured-header-server",
+    );
+    await client.connect();
+
+    const tools = await client.listTools();
+    const warnings = errorSpy.mock.calls.map((call) => call.join(" "));
+
+    expect(tools.map((tool) => tool.name)).toEqual(["kept"]);
+    expect(warnings).toHaveLength(2);
+    expect(warnings[0]).toContain('tool "space_header"');
+    expect(warnings[0]).toContain("forbidden character");
+    expect(warnings[1]).toContain('tool "colon_header"');
+    expect(warnings[1]).toContain("forbidden character");
+    errorSpy.mockRestore();
+  }, 10_000);
+
+  it("excludes duplicate x-mcp-header values case-insensitively", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    client = new McpClient(
+      "node",
+      [
+        "-e",
+        listToolsServerScript([
+          {
+            name: "duplicate_header",
+            inputSchema: {
+              type: "object",
+              properties: {
+                first: { type: "string", "x-mcp-header": "X-Trace" },
+                second: { type: "string", "x-mcp-header": "x-trace" },
+              },
+            },
+          },
+        ]),
+      ],
+      {},
+      "configured-header-server",
+    );
+    await client.connect();
+
+    const tools = await client.listTools();
+    const warnings = errorSpy.mock.calls.map((call) => call.join(" "));
+
+    expect(tools).toEqual([]);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('tool "duplicate_header"');
+    expect(warnings[0]).toContain("duplicates header");
+    expect(errorSpy.mock.calls[0][0]).toContain("case-insensitively");
+    errorSpy.mockRestore();
+  }, 10_000);
+
+  it("excludes x-mcp-header annotations on object or array properties", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    client = new McpClient(
+      "node",
+      [
+        "-e",
+        listToolsServerScript([
+          { name: "kept", inputSchema: { type: "object" } },
+          {
+            name: "object_header",
+            inputSchema: {
+              type: "object",
+              properties: {
+                filter: {
+                  type: "object",
+                  "x-mcp-header": "X-Filter",
+                  properties: { value: { type: "string" } },
+                },
+              },
+            },
+          },
+          {
+            name: "array_header",
+            inputSchema: {
+              type: "object",
+              properties: {
+                tags: { type: "array", "x-mcp-header": "X-Tags" },
+              },
+            },
+          },
+        ]),
+      ],
+      {},
+      "configured-header-server",
+    );
+    await client.connect();
+
+    const tools = await client.listTools();
+    const warnings = errorSpy.mock.calls.map((call) => call.join(" "));
+
+    expect(tools.map((tool) => tool.name)).toEqual(["kept"]);
+    expect(warnings).toHaveLength(2);
+    expect(warnings[0]).toContain('tool "object_header"');
+    expect(warnings[0]).toContain("primitive string, number, or boolean");
+    expect(warnings[1]).toContain('tool "array_header"');
+    expect(warnings[1]).toContain("primitive string, number, or boolean");
+    errorSpy.mockRestore();
   }, 10_000);
 });
 
