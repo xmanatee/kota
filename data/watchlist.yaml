@@ -37,9 +37,9 @@ resources:
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:3723aee9b70aa25bccde1412c9baeb43
-      summary: "Codex 0.129.0's bounded memories MCP work exposes a KOTA gap: KOTA's MCP server still returns full memory and knowledge stores as unbounded resources, so this refresh opened task-bound-mcp-memory-and-knowledge-resources-for-larg."
-      last_seen_at: "2026-05-20T03:08:24.353Z"
+      fingerprint: sha256:de150a14068c5844b3c6bb6684ed4e05
+      summary: "Codex 0.130.0/0.131.0 reinforces bounded app-server thread/history reads; KOTA opened task-add-paged-history-detail-views-for-large-conversati for the matching history-module gap."
+      last_seen_at: "2026-05-20T06:12:04.457Z"
   - url: https://github.com/google-gemini/gemini-cli
     added: "2026-04-19"
     snapshot:
