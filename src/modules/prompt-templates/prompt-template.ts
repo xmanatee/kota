@@ -34,6 +34,16 @@ export interface PromptTemplate extends PromptTemplateMeta {
 	filePath: string;
 }
 
+export class PromptTemplateParseError extends Error {
+	readonly filePath: string;
+
+	constructor(filePath: string, message: string) {
+		super(`Invalid prompt template file ${filePath}: ${message}`);
+		this.name = "PromptTemplateParseError";
+		this.filePath = filePath;
+	}
+}
+
 // --- Front matter parsing (local, minimal, no deps) ---
 
 export function parseFrontMatter(raw: string): {
@@ -73,23 +83,55 @@ export function extractVariables(body: string): string[] {
 
 // --- PromptStore ---
 
+export function getPromptTemplatesDir(baseDir: string): string {
+	return resolve(baseDir, ".kota", "prompts");
+}
+
+function readTemplateName(filePath: string, attrs: Record<string, string | string[]>): string | null {
+	const value = attrs.name;
+	if (value === undefined) return null;
+	if (typeof value !== "string") {
+		throw new PromptTemplateParseError(filePath, 'front matter "name" must be a string');
+	}
+	const name = value.trim();
+	return name.length > 0 ? name : null;
+}
+
+function readOptionalStringAttr(
+	filePath: string,
+	attrs: Record<string, string | string[]>,
+	key: string,
+): string | undefined {
+	const value = attrs[key];
+	if (value === undefined || value === "") return undefined;
+	if (typeof value !== "string") {
+		throw new PromptTemplateParseError(filePath, `front matter "${key}" must be a string`);
+	}
+	return value;
+}
+
+function readOptionalStringListAttr(
+	filePath: string,
+	attrs: Record<string, string | string[]>,
+	key: string,
+): string[] | undefined {
+	const value = attrs[key];
+	if (value === undefined || value === "") return undefined;
+	if (typeof value === "string") return [value];
+	if (Array.isArray(value)) return value;
+	throw new PromptTemplateParseError(filePath, `front matter "${key}" must be a string or string array`);
+}
+
 function parseTemplate(filePath: string, raw: string): PromptTemplate | null {
 	const { attrs, body } = parseFrontMatter(raw);
-	const name = (attrs.name as string) || "";
+	const name = readTemplateName(filePath, attrs);
 	if (!name) return null;
+	const variables = readOptionalStringListAttr(filePath, attrs, "variables");
 	return {
 		name,
-		description: (attrs.description as string) || undefined,
-		variables: Array.isArray(attrs.variables)
-			? attrs.variables
-			: attrs.variables
-				? [attrs.variables as string]
-				: extractVariables(body),
-		tags: Array.isArray(attrs.tags)
-			? attrs.tags
-			: attrs.tags
-				? [attrs.tags as string]
-				: undefined,
+		description: readOptionalStringAttr(filePath, attrs, "description"),
+		variables: variables ?? extractVariables(body),
+		tags: readOptionalStringListAttr(filePath, attrs, "tags"),
 		body: body.trim(),
 		filePath,
 	};
@@ -100,7 +142,7 @@ export class PromptStore {
 	private readonly dir: string;
 
 	constructor(baseDir: string) {
-		this.dir = resolve(baseDir, ".kota", "prompts");
+		this.dir = getPromptTemplatesDir(baseDir);
 	}
 
 	/** Scan prompts directory and load all .md files. Returns count loaded. */
@@ -108,7 +150,7 @@ export class PromptStore {
 		this.templates.clear();
 		if (!existsSync(this.dir)) return 0;
 
-		const files = readdirSync(this.dir).filter((f) => f.endsWith(".md"));
+		const files = readdirSync(this.dir).filter((f) => f.endsWith(".md")).sort();
 		for (const file of files) {
 			const filePath = join(this.dir, file);
 			const raw = readFileSync(filePath, "utf-8");

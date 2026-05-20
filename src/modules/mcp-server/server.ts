@@ -280,7 +280,9 @@ export class McpServer {
 		this.resources = new ResourcesHandler(ctx, options.eventBus, () =>
 			this.initialize.getEffectiveProjectDir(),
 		);
-		const prompts = new PromptsHandler(ctx);
+		const prompts = new PromptsHandler(ctx, () =>
+			this.initialize.getEffectiveProjectDir(),
+		);
 		const tools = new ToolsHandler(ctx, this.elicitation, {
 			...(options.toolFilter !== undefined && { toolFilter: options.toolFilter }),
 			...(options.moduleTools !== undefined && { moduleTools: options.moduleTools }),

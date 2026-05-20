@@ -20,7 +20,7 @@ const mcpServerModule: KotaModule = {
 	name: "mcp-server",
 	version: "1.0.0",
 	description: "Expose KOTA tools via the Model Context Protocol (stdio)",
-	dependencies: ["repo-tasks"],
+	dependencies: ["prompt-templates", "repo-tasks"],
 	configSlices: [mcpConfigSlice],
 
 	commands: (ctx: ModuleContext) => {

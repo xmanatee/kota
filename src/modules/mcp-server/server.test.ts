@@ -131,6 +131,16 @@ function draftRequestParams(
 	};
 }
 
+function writeProjectPrompt(
+	projectDir: string,
+	fileName: string,
+	content: string,
+): void {
+	const promptsDir = join(projectDir, ".kota", "prompts");
+	mkdirSync(promptsDir, { recursive: true });
+	writeFileSync(join(promptsDir, fileName), content, "utf-8");
+}
+
 /**
  * Creates a queued reader for a stream that captures all output into a buffer.
  * Unlike readResponse(), this never misses writes that occur while no listener
@@ -293,7 +303,7 @@ describe("McpServer", () => {
 			expect(capabilities).toEqual({
 				tools: {},
 				resources: { listChanged: true },
-				prompts: {},
+				prompts: { listChanged: true },
 				completions: {},
 			});
 			expect(capabilities.sampling).toBeUndefined();
@@ -330,7 +340,7 @@ describe("McpServer", () => {
 			expect(capabilities).toEqual({
 				tools: {},
 				resources: { listChanged: true },
-				prompts: {},
+				prompts: { listChanged: true },
 				completions: {},
 			});
 			expect(capabilities.sampling).toBeUndefined();
@@ -1537,6 +1547,122 @@ describe("prompts", () => {
 			server.stop();
 		});
 
+		it("returns project prompt templates with discovered arguments", async () => {
+			const projectDir = mkdtempSync(join(tmpdir(), "kota-mcp-project-prompts-"));
+			writeProjectPrompt(
+				projectDir,
+				"review.md",
+				"---\nname: review-topic\ndescription: Review a topic\nvariables: [topic, focus]\n---\nReview {{topic}} with focus on {{focus}}.",
+			);
+			writeProjectPrompt(
+				projectDir,
+				"brief.md",
+				"---\nname: brief-topic\ndescription: Brief a topic\n---\nBrief {{topic}}.",
+			);
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {}, projectDir });
+			await initServer(server, input, output);
+
+			sendRequest(input, 2, "prompts/list");
+			const resp = await readResponse(output);
+
+			const result = resp.result as {
+				prompts: Array<{ name: string; description: string; arguments?: Array<{ name: string; required?: boolean }> }>;
+			};
+			const review = result.prompts.find((prompt) => prompt.name === "review-topic");
+			const brief = result.prompts.find((prompt) => prompt.name === "brief-topic");
+			expect(review).toMatchObject({
+				description: "Review a topic",
+				arguments: [
+					{ name: "topic", required: true },
+					{ name: "focus", required: true },
+				],
+			});
+			expect(brief?.arguments).toEqual([{ name: "topic", description: "Template variable: topic", required: true }]);
+
+			server.stop();
+		});
+
+		it("rejects project prompt templates with malformed names", async () => {
+			const projectDir = mkdtempSync(join(tmpdir(), "kota-mcp-malformed-project-prompt-list-"));
+			writeProjectPrompt(
+				projectDir,
+				"bad.md",
+				"---\nname: [bad]\ndescription: Bad prompt\n---\nBody.",
+			);
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {}, projectDir });
+			await initServer(server, input, output);
+
+			sendRequest(input, 2, "prompts/list");
+			const resp = await readResponse(output);
+
+			expect(resp.error).toBeDefined();
+			const err = resp.error as { code: number; message: string };
+			expect(err.code).toBe(-32602);
+			expect(err.message).toContain("Invalid prompt template file");
+			expect(err.message).toContain('front matter "name" must be a string');
+
+			server.stop();
+		});
+
+		it("returns deterministic cursor pages for larger prompt catalogs", async () => {
+			const projectDir = mkdtempSync(join(tmpdir(), "kota-mcp-paged-prompts-"));
+			for (let i = 0; i < 48; i++) {
+				const suffix = String(i).padStart(2, "0");
+				writeProjectPrompt(
+					projectDir,
+					`template-${suffix}.md`,
+					`---\nname: page-template-${suffix}\ndescription: Page ${suffix}\n---\nTemplate ${suffix}.`,
+				);
+			}
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {}, projectDir });
+			await initServer(server, input, output);
+
+			sendRequest(input, 2, "prompts/list");
+			const first = await readResponse(output);
+			const firstResult = first.result as {
+				prompts: Array<{ name: string }>;
+				nextCursor?: string;
+			};
+			expect(firstResult.prompts).toHaveLength(50);
+			expect(firstResult.nextCursor).toBe("50");
+			expect(firstResult.prompts.map((prompt) => prompt.name).slice(0, 3)).toEqual([
+				"kota-create-task",
+				"kota-trigger-workflow",
+				"kota-summarize-run",
+			]);
+			expect(firstResult.prompts.at(-1)?.name).toBe("page-template-46");
+
+			sendRequest(input, 3, "prompts/list", { cursor: firstResult.nextCursor });
+			const second = await readResponse(output);
+			const secondResult = second.result as {
+				prompts: Array<{ name: string }>;
+				nextCursor?: string;
+			};
+			expect(secondResult.prompts.map((prompt) => prompt.name)).toEqual(["page-template-47"]);
+			expect(secondResult.nextCursor).toBeUndefined();
+
+			server.stop();
+		});
+
+		it("rejects malformed prompt list cursors", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await initServer(server, input, output);
+
+			sendRequest(input, 2, "prompts/list", { cursor: "not-a-cursor" });
+			const resp = await readResponse(output);
+
+			expect(resp.error).toBeDefined();
+			const err = resp.error as { code: number; message: string };
+			expect(err.code).toBe(-32602);
+			expect(err.message).toContain("Invalid cursor");
+
+			server.stop();
+		});
+
 		it("rejects prompts/list before initialization when draft metadata is missing", async () => {
 			const { input, output } = createTestStreams();
 			const server = new McpServer({ input, output, log: () => {} });
@@ -1622,6 +1748,63 @@ describe("prompts", () => {
 			server.stop();
 		});
 
+		it("renders project prompt templates with unresolved variables explicit", async () => {
+			const projectDir = mkdtempSync(join(tmpdir(), "kota-mcp-render-prompt-"));
+			writeProjectPrompt(
+				projectDir,
+				"review.md",
+				"---\nname: review-topic\ndescription: Review a topic\nvariables: [topic, focus]\n---\nReview {{topic}} with focus on {{focus}}.",
+			);
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {}, projectDir });
+			await initServer(server, input, output);
+
+			sendRequest(input, 2, "prompts/get", {
+				name: "review-topic",
+				arguments: { topic: "KOTA" },
+			});
+			const resp = await readResponse(output);
+
+			expect(resp.error).toBeUndefined();
+			const result = resp.result as {
+				description: string;
+				messages: Array<{ role: string; content: { type: string; text: string } }>;
+			};
+			expect(result.description).toBe("Review a topic");
+			expect(result.messages).toHaveLength(1);
+			expect(result.messages[0]).toMatchObject({
+				role: "user",
+				content: { type: "text" },
+			});
+			expect(result.messages[0].content.text).toContain("Review KOTA with focus on {{focus}}.");
+			expect(result.messages[0].content.text).toContain("Unresolved template variables: focus");
+
+			server.stop();
+		});
+
+		it("rejects project prompt rendering when a template file has a malformed name", async () => {
+			const projectDir = mkdtempSync(join(tmpdir(), "kota-mcp-malformed-project-prompt-get-"));
+			writeProjectPrompt(
+				projectDir,
+				"bad.md",
+				"---\nname: [bad]\ndescription: Bad prompt\n---\nBody.",
+			);
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {}, projectDir });
+			await initServer(server, input, output);
+
+			sendRequest(input, 2, "prompts/get", { name: "bad" });
+			const resp = await readResponse(output);
+
+			expect(resp.error).toBeDefined();
+			const err = resp.error as { code: number; message: string };
+			expect(err.code).toBe(-32602);
+			expect(err.message).toContain("Invalid prompt template file");
+			expect(err.message).toContain('front matter "name" must be a string');
+
+			server.stop();
+		});
+
 		it("returns error for unknown prompt name", async () => {
 			const { input, output } = createTestStreams();
 			const server = new McpServer({ input, output, log: () => {} });
@@ -1634,6 +1817,25 @@ describe("prompts", () => {
 			const err = resp.error as { code: number; message: string };
 			expect(err.code).toBe(-32602);
 			expect(err.message).toContain("Unknown prompt");
+
+			server.stop();
+		});
+
+		it("rejects malformed prompt arguments", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await initServer(server, input, output);
+
+			sendRequest(input, 2, "prompts/get", {
+				name: "kota-create-task",
+				arguments: { title: 42 },
+			});
+			const resp = await readResponse(output);
+
+			expect(resp.error).toBeDefined();
+			const err = resp.error as { code: number; message: string };
+			expect(err.code).toBe(-32602);
+			expect(err.message).toBe("arguments.title must be a string");
 
 			server.stop();
 		});
@@ -1868,6 +2070,83 @@ describe("resource subscriptions", () => {
 			vi.mocked(getMemoryProvider).mockReturnValue(defaultMemoryProvider);
 			server.stop();
 		}
+	});
+
+	it("acknowledges promptsListChanged and emits prompt list notifications for visible template changes", async () => {
+		const projectDir = mkdtempSync(join(tmpdir(), "kota-mcp-prompt-subscribe-"));
+		mkdirSync(join(projectDir, ".kota", "prompts"), { recursive: true });
+		const { input, output } = createTestStreams();
+		const reader = createQueuedReader(output);
+		const server = new McpServer({ input, output, log: () => {}, eventBus: null, projectDir });
+		await initDraftServerWithQueuedReader(server, input, reader);
+
+		sendRequest(input, 2, "subscriptions/listen", draftRequestParams({
+			notifications: { promptsListChanged: true },
+		}));
+		const ack = await reader.read();
+		expect(ack.method).toBe("notifications/subscriptions/acknowledged");
+		expect(ack.params).toEqual({
+			_meta: { "io.modelcontextprotocol/subscriptionId": "2" },
+			notifications: { promptsListChanged: true },
+		});
+
+		writeProjectPrompt(
+			projectDir,
+			"new-prompt.md",
+			"---\nname: subscribed-prompt\ndescription: Subscribed\n---\nHello.",
+		);
+
+		const listChanged = await reader.read();
+		expect(listChanged.method).toBe("notifications/prompts/list_changed");
+		expect(listChanged.params).toEqual({
+			_meta: { "io.modelcontextprotocol/subscriptionId": "2" },
+		});
+
+		server.stop();
+	});
+
+	it("cancels promptsListChanged delivery through notifications/cancelled", async () => {
+		const projectDir = mkdtempSync(join(tmpdir(), "kota-mcp-prompt-cancel-"));
+		mkdirSync(join(projectDir, ".kota", "prompts"), { recursive: true });
+		const { input, output } = createTestStreams();
+		const reader = createQueuedReader(output);
+		const server = new McpServer({ input, output, log: () => {}, eventBus: null, projectDir });
+		await initDraftServerWithQueuedReader(server, input, reader);
+
+		sendRequest(input, 2, "subscriptions/listen", draftRequestParams({
+			notifications: { promptsListChanged: true },
+		}));
+		await reader.read();
+		sendNotification(input, "notifications/cancelled", { requestId: 2 });
+
+		writeProjectPrompt(
+			projectDir,
+			"new-prompt.md",
+			"---\nname: cancelled-prompt\ndescription: Cancelled\n---\nHello.",
+		);
+
+		await expect(reader.read(150)).rejects.toThrow("Timeout reading response");
+
+		server.stop();
+	});
+
+	it("rejects malformed promptsListChanged subscription flags", async () => {
+		const { input, output } = createTestStreams();
+		const reader = createQueuedReader(output);
+		const server = new McpServer({ input, output, log: () => {}, eventBus: null });
+		await initDraftServerWithQueuedReader(server, input, reader);
+
+		sendRequest(input, 2, "subscriptions/listen", draftRequestParams({
+			notifications: { promptsListChanged: "yes" },
+		}));
+		const resp = await reader.read();
+
+		expect(resp.error).toBeDefined();
+		const err = resp.error as { code: number; message: string };
+		expect(err.code).toBe(-32602);
+		expect(err.message).toBe("notifications.promptsListChanged must be a boolean");
+
+		server.stop();
 	});
 
 	it("sends notifications/resources/updated when workflow.completed fires for subscribed URI", async () => {

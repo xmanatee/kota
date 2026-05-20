@@ -1,4 +1,11 @@
-/** Static MCP prompt definitions for the KOTA MCP server. */
+/** MCP prompt catalog backed by KOTA built-ins and project prompt templates. */
+
+import type { KotaJsonValue } from "#core/agent-harness/message-protocol.js";
+import {
+	PromptStore,
+	type PromptTemplateMeta,
+	PromptTemplateParseError,
+} from "#modules/prompt-templates/prompt-template.js";
 
 export type McpPromptArgument = {
 	name: string;
@@ -21,6 +28,23 @@ export type McpGetPromptResult = {
 	description: string;
 	messages: McpPromptMessage[];
 };
+
+export type McpPromptListPage = {
+	prompts: McpPrompt[];
+	nextCursor?: string;
+};
+
+export type McpPromptCatalogError = {
+	ok: false;
+	code: number;
+	message: string;
+};
+
+export type McpPromptCatalogResult<T> =
+	| { ok: true; result: T }
+	| McpPromptCatalogError;
+
+export const PROMPT_LIST_PAGE_SIZE = 50;
 
 export const KOTA_PROMPTS: McpPrompt[] = [
 	{
@@ -53,14 +77,126 @@ export const KOTA_PROMPTS: McpPrompt[] = [
 	},
 ];
 
-const PROMPT_NAMES = new Set(KOTA_PROMPTS.map((p) => p.name));
+const BUILT_IN_PROMPT_NAMES = new Set(KOTA_PROMPTS.map((p) => p.name));
 
-export function isKnownPrompt(name: string): boolean {
-	return PROMPT_NAMES.has(name);
+function clonePrompt(prompt: McpPrompt): McpPrompt {
+	return {
+		name: prompt.name,
+		description: prompt.description,
+		...(prompt.arguments !== undefined && {
+			arguments: prompt.arguments.map((arg) => ({ ...arg })),
+		}),
+	};
 }
 
-/** Render a prompt into a messages array given its arguments. */
-export function renderPrompt(
+function projectTemplateToPrompt(template: PromptTemplateMeta): McpPrompt {
+	const args = (template.variables ?? []).map((variable) => ({
+		name: variable,
+		description: `Template variable: ${variable}`,
+		required: true,
+	}));
+	return {
+		name: template.name,
+		description: template.description ?? `Project prompt template: ${template.name}`,
+		arguments: args,
+	};
+}
+
+function invalidPromptTemplateFile(err: PromptTemplateParseError): McpPromptCatalogError {
+	return {
+		ok: false,
+		code: -32602,
+		message: err.message,
+	};
+}
+
+function discoverProjectPromptStore(projectDir: string): McpPromptCatalogResult<PromptStore> {
+	const store = new PromptStore(projectDir);
+	try {
+		store.discover();
+	} catch (err) {
+		if (err instanceof PromptTemplateParseError) return invalidPromptTemplateFile(err);
+		throw err;
+	}
+	return { ok: true, result: store };
+}
+
+function listProjectTemplatePrompts(projectDir: string): McpPromptCatalogResult<McpPrompt[]> {
+	const store = discoverProjectPromptStore(projectDir);
+	if (!store.ok) return store;
+	const prompts = store.result.list()
+		.filter((template) => !BUILT_IN_PROMPT_NAMES.has(template.name))
+		.sort((a, b) => a.name.localeCompare(b.name))
+		.map(projectTemplateToPrompt);
+	return { ok: true, result: prompts };
+}
+
+export function listPromptCatalog(projectDir: string): McpPromptCatalogResult<McpPrompt[]> {
+	const projectPrompts = listProjectTemplatePrompts(projectDir);
+	if (!projectPrompts.ok) return projectPrompts;
+	return { ok: true, result: [
+		...KOTA_PROMPTS.map(clonePrompt),
+		...projectPrompts.result,
+	] };
+}
+
+export function getPromptCatalogSignature(projectDir: string): string {
+	const catalog = listPromptCatalog(projectDir);
+	if (!catalog.ok) {
+		return JSON.stringify({ error: catalog.message });
+	}
+	return JSON.stringify(catalog.result);
+}
+
+function decodeCursor(cursor: KotaJsonValue | undefined): McpPromptCatalogResult<number> {
+	if (cursor === undefined) return { ok: true, result: 0 };
+	if (typeof cursor !== "string" || !/^(0|[1-9]\d*)$/.test(cursor)) {
+		return {
+			ok: false,
+			code: -32602,
+			message: "Invalid cursor: expected a non-negative integer string",
+		};
+	}
+	const offset = Number.parseInt(cursor, 10);
+	if (!Number.isSafeInteger(offset)) {
+		return {
+			ok: false,
+			code: -32602,
+			message: "Invalid cursor: value is outside the supported range",
+		};
+	}
+	return { ok: true, result: offset };
+}
+
+export function listPromptCatalogPage(
+	projectDir: string,
+	cursor: KotaJsonValue | undefined,
+): McpPromptCatalogResult<McpPromptListPage> {
+	const decoded = decodeCursor(cursor);
+	if (!decoded.ok) return decoded;
+	const offset = decoded.result;
+	const catalog = listPromptCatalog(projectDir);
+	if (!catalog.ok) return catalog;
+	const prompts = catalog.result;
+	if (offset > prompts.length) {
+		return {
+			ok: false,
+			code: -32602,
+			message: "Invalid cursor: value is outside the prompt catalog",
+		};
+	}
+	const page = prompts.slice(offset, offset + PROMPT_LIST_PAGE_SIZE);
+	const nextOffset = offset + page.length;
+	return {
+		ok: true,
+		result: {
+			prompts: page,
+			...(nextOffset < prompts.length && { nextCursor: String(nextOffset) }),
+		},
+	};
+}
+
+function renderBuiltInPrompt(
 	name: string,
 	args: Record<string, string>,
 ): McpGetPromptResult | null {
@@ -74,6 +210,50 @@ export function renderPrompt(
 		default:
 			return null;
 	}
+}
+
+/** Render a prompt into a messages array given its arguments. */
+export function renderPrompt(
+	projectDir: string,
+	name: string,
+	args: Record<string, string>,
+): McpPromptCatalogResult<McpGetPromptResult> {
+	const builtIn = renderBuiltInPrompt(name, args);
+	if (builtIn) return { ok: true, result: builtIn };
+
+	const store = discoverProjectPromptStore(projectDir);
+	if (!store.ok) return store;
+	const template = store.result.get(name);
+	if (!template) {
+		return {
+			ok: false,
+			code: -32602,
+			message: `Unknown prompt: ${name}`,
+		};
+	}
+	const rendered = store.result.render(name, args);
+	if (!rendered) {
+		return {
+			ok: false,
+			code: -32603,
+			message: `Failed to render prompt: ${name}`,
+		};
+	}
+	const unresolved = rendered.missing.length > 0
+		? `\n\nUnresolved template variables: ${rendered.missing.join(", ")}`
+		: "";
+	return {
+		ok: true,
+		result: {
+			description: template.description ?? `Project prompt template: ${template.name}`,
+			messages: [
+				{
+					role: "user",
+					content: { type: "text", text: rendered.content + unresolved },
+				},
+			],
+		},
+	};
 }
 
 function renderCreateTask(args: Record<string, string>): McpGetPromptResult {

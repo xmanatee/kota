@@ -1,12 +1,12 @@
 ---
 id: task-expose-project-prompt-templates-through-mcp-prompt
 title: Expose project prompt templates through MCP prompts
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Adapt the MCP prompts surface to the existing .kota/prompts template store so MCP hosts see project prompt templates with draft prompt pagination, completion, and prompt-list change behavior instead of only a static MCP-only catalog.
 created_at: 2026-05-20T09:59:15.550Z
-updated_at: 2026-05-20T09:59:15.550Z
+updated_at: 2026-05-20T10:14:47.000Z
 ---
 
 ## Problem

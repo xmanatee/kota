@@ -63,7 +63,7 @@ function buildDraftServerCapabilities(): KotaJsonObject {
 	return {
 		tools: {},
 		resources: { listChanged: true },
-		prompts: {},
+		prompts: { listChanged: true },
 		completions: {},
 	};
 }

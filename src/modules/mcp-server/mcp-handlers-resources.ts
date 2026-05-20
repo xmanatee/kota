@@ -5,14 +5,18 @@
  * over the same per-resource update path.
  */
 
+import { existsSync, type FSWatcher, watch } from "node:fs";
+import { dirname } from "node:path";
 import type { EventBus } from "#core/events/event-bus.js";
 import { getEventBus } from "#core/events/event-bus.js";
+import { getPromptTemplatesDir } from "#modules/prompt-templates/prompt-template.js";
 import type {
 	HandlerContext,
 	JsonRpcNotification,
 	JsonRpcRequest,
 } from "./mcp-protocol-types.js";
 import { hasActiveMcpContext } from "./mcp-protocol-types.js";
+import { getPromptCatalogSignature } from "./prompts.js";
 import {
 	isKnownKotaResourceUri,
 	listKotaResources,
@@ -20,16 +24,20 @@ import {
 } from "./resources.js";
 
 const SUBSCRIPTION_ID_META_KEY = "io.modelcontextprotocol/subscriptionId";
+const PROMPT_LIST_CHANGED_DEBOUNCE_MS = 25;
+const PROMPT_LIST_CHANGED_POLL_MS = 100;
 
 type DraftResourceSubscription = {
 	resourceUris: Set<string>;
 	resourcesListChanged: boolean;
+	promptsListChanged: boolean;
 };
 
 type ListenParams = {
 	notifications?: {
 		resourceSubscriptions?: string[];
 		resourcesListChanged?: boolean;
+		promptsListChanged?: boolean;
 	};
 };
 
@@ -44,11 +52,26 @@ function currentResourceCatalogSignature(): string {
 		.join("\n");
 }
 
+function currentPromptCatalogSignature(projectDir: string): string {
+	return getPromptCatalogSignature(projectDir);
+}
+
+function sameStringArray(left: string[], right: string[]): boolean {
+	if (left.length !== right.length) return false;
+	return left.every((value, index) => value === right[index]);
+}
+
 export class ResourcesHandler {
 	private readonly legacyResourceSubscriptions = new Set<string>();
 	private readonly draftResourceSubscriptions = new Map<string, DraftResourceSubscription>();
 	private busUnsubs: (() => void)[] = [];
 	private resourceCatalogSignature = currentResourceCatalogSignature();
+	private promptCatalogSignature: string | null = null;
+	private promptWatchers: FSWatcher[] = [];
+	private promptWatchedPaths: string[] = [];
+	private promptWatcherProjectDir: string | null = null;
+	private promptListChangedTimer: ReturnType<typeof setTimeout> | null = null;
+	private promptListChangedPollTimer: ReturnType<typeof setInterval> | null = null;
 
 	constructor(
 		private readonly ctx: HandlerContext,
@@ -79,6 +102,15 @@ export class ResourcesHandler {
 		this.busUnsubs = [];
 		this.draftResourceSubscriptions.clear();
 		this.legacyResourceSubscriptions.clear();
+		this.closePromptWatchers();
+		if (this.promptListChangedTimer) {
+			clearTimeout(this.promptListChangedTimer);
+			this.promptListChangedTimer = null;
+		}
+		if (this.promptListChangedPollTimer) {
+			clearInterval(this.promptListChangedPollTimer);
+			this.promptListChangedPollTimer = null;
+		}
 	}
 
 	handleList(msg: JsonRpcRequest): void {
@@ -163,6 +195,20 @@ export class ResourcesHandler {
 			this.ctx.transport.sendError(msg, -32602, "notifications.resourceSubscriptions must be an array");
 			return;
 		}
+		if (
+			notifications?.resourcesListChanged !== undefined &&
+			typeof notifications.resourcesListChanged !== "boolean"
+		) {
+			this.ctx.transport.sendError(msg, -32602, "notifications.resourcesListChanged must be a boolean");
+			return;
+		}
+		if (
+			notifications?.promptsListChanged !== undefined &&
+			typeof notifications.promptsListChanged !== "boolean"
+		) {
+			this.ctx.transport.sendError(msg, -32602, "notifications.promptsListChanged must be a boolean");
+			return;
+		}
 
 		const resourceUris = rawResourceSubscriptions ?? [];
 		for (const uri of resourceUris) {
@@ -178,18 +224,26 @@ export class ResourcesHandler {
 
 		const subscriptionId = String(msg.id);
 		const resourcesListChanged = notifications?.resourcesListChanged === true;
+		const promptsListChanged = notifications?.promptsListChanged === true;
 		const acknowledgedNotifications: {
 			resourceSubscriptions?: string[];
 			resourcesListChanged?: boolean;
+			promptsListChanged?: boolean;
 		} = {};
 		if (resourceUris.length > 0) acknowledgedNotifications.resourceSubscriptions = resourceUris;
 		if (resourcesListChanged) acknowledgedNotifications.resourcesListChanged = true;
+		if (promptsListChanged) acknowledgedNotifications.promptsListChanged = true;
 
-		if (resourceUris.length > 0 || resourcesListChanged) {
+		if (resourceUris.length > 0 || resourcesListChanged || promptsListChanged) {
 			this.draftResourceSubscriptions.set(subscriptionId, {
 				resourceUris: new Set(resourceUris),
 				resourcesListChanged,
+				promptsListChanged,
 			});
+		}
+		if (promptsListChanged) {
+			this.promptCatalogSignature = currentPromptCatalogSignature(this.resolveProjectDir());
+			this.startPromptCatalogMonitoring();
 		}
 
 		this.ctx.transport.sendNotification("notifications/subscriptions/acknowledged", {
@@ -202,6 +256,7 @@ export class ResourcesHandler {
 		const requestId = msg.params?.requestId;
 		if (typeof requestId !== "string" && typeof requestId !== "number") return;
 		this.draftResourceSubscriptions.delete(String(requestId));
+		this.stopPromptWatchersIfUnused();
 	}
 
 	private notifyResourceUpdated(uri: string): void {
@@ -224,6 +279,102 @@ export class ResourcesHandler {
 		for (const [subscriptionId, subscription] of this.draftResourceSubscriptions) {
 			if (!subscription.resourcesListChanged) continue;
 			this.ctx.transport.sendNotification("notifications/resources/list_changed", {
+				_meta: subscriptionMeta(subscriptionId),
+			});
+		}
+	}
+
+	private hasPromptListSubscriptions(): boolean {
+		for (const subscription of this.draftResourceSubscriptions.values()) {
+			if (subscription.promptsListChanged) return true;
+		}
+		return false;
+	}
+
+	private promptWatchPaths(projectDir: string): string[] {
+		const promptsDir = getPromptTemplatesDir(projectDir);
+		const kotaDir = dirname(promptsDir);
+		if (existsSync(promptsDir)) return [promptsDir];
+		if (existsSync(kotaDir)) return [kotaDir];
+		return [projectDir].filter((path) => existsSync(path));
+	}
+
+	private ensurePromptWatchers(): void {
+		if (!this.hasPromptListSubscriptions()) return;
+		const projectDir = this.resolveProjectDir();
+		const paths = this.promptWatchPaths(projectDir);
+		if (
+			this.promptWatcherProjectDir === projectDir &&
+			sameStringArray(paths, this.promptWatchedPaths)
+		) {
+			return;
+		}
+		this.closePromptWatchers();
+		this.promptWatcherProjectDir = projectDir;
+		this.promptWatchedPaths = paths;
+		for (const path of paths) {
+			try {
+				const watcher = watch(path, { persistent: false }, () => {
+					this.ensurePromptWatchers();
+					this.schedulePromptListChangedCheck();
+				});
+				watcher.on("error", (err) => {
+					this.ctx.log(
+						`Prompt catalog watcher failed for ${path}: ${err instanceof Error ? err.message : String(err)}`,
+					);
+				});
+				this.promptWatchers.push(watcher);
+			} catch (err) {
+				this.ctx.log(
+					`Failed to watch prompt catalog path ${path}: ${err instanceof Error ? err.message : String(err)}`,
+				);
+			}
+		}
+	}
+
+	private closePromptWatchers(): void {
+		for (const watcher of this.promptWatchers) watcher.close();
+		this.promptWatchers = [];
+		this.promptWatchedPaths = [];
+		this.promptWatcherProjectDir = null;
+	}
+
+	private stopPromptWatchersIfUnused(): void {
+		if (this.hasPromptListSubscriptions()) return;
+		this.closePromptWatchers();
+		this.promptCatalogSignature = null;
+		if (this.promptListChangedPollTimer) {
+			clearInterval(this.promptListChangedPollTimer);
+			this.promptListChangedPollTimer = null;
+		}
+	}
+
+	private startPromptCatalogMonitoring(): void {
+		this.ensurePromptWatchers();
+		if (this.promptListChangedPollTimer) return;
+		this.promptListChangedPollTimer = setInterval(() => {
+			this.notifyPromptListChangedIfNeeded();
+		}, PROMPT_LIST_CHANGED_POLL_MS);
+		this.promptListChangedPollTimer.unref();
+	}
+
+	private schedulePromptListChangedCheck(): void {
+		if (this.promptListChangedTimer) return;
+		this.promptListChangedTimer = setTimeout(() => {
+			this.promptListChangedTimer = null;
+			this.notifyPromptListChangedIfNeeded();
+		}, PROMPT_LIST_CHANGED_DEBOUNCE_MS);
+	}
+
+	private notifyPromptListChangedIfNeeded(): void {
+		if (!this.hasPromptListSubscriptions()) return;
+		this.ensurePromptWatchers();
+		const nextSignature = currentPromptCatalogSignature(this.resolveProjectDir());
+		if (nextSignature === this.promptCatalogSignature) return;
+		this.promptCatalogSignature = nextSignature;
+		for (const [subscriptionId, subscription] of this.draftResourceSubscriptions) {
+			if (!subscription.promptsListChanged) continue;
+			this.ctx.transport.sendNotification("notifications/prompts/list_changed", {
 				_meta: subscriptionMeta(subscriptionId),
 			});
 		}

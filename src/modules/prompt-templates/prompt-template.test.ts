@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
 	extractVariables,
 	PromptStore,
+	PromptTemplateParseError,
 	parseFrontMatter,
 	renderTemplate,
 	serializeFrontMatter,
@@ -163,6 +164,13 @@ describe("PromptStore", () => {
 		const store = setup();
 		writeTemplate("bad", "---\ndescription: no name\n---\nBody");
 		expect(store.discover()).toBe(0);
+	});
+
+	it("rejects non-string names in front matter", () => {
+		const store = setup();
+		writeTemplate("bad", "---\nname: [bad]\n---\nBody");
+		expect(() => store.discover()).toThrow(PromptTemplateParseError);
+		expect(() => store.discover()).toThrow('front matter "name" must be a string');
 	});
 
 	it("ignores non-md files", () => {
