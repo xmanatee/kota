@@ -31,9 +31,9 @@ resources:
   - url: https://github.com/anthropics/claude-code
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:ff74b12e791f1e9be0c92dbc9028acd0
-      summary: "Claude Code now advertises GitHub @claude tagging and repo-local plugins; KOTA already covers plugin/skill primitives, while GitHub comment mention routing remains the nonduplicative local gap."
-      last_seen_at: "2026-05-17T07:03:40.826Z"
+      fingerprint: sha256:856b8e71b3ff8a2c2e73d445cf278d0a
+      summary: "Claude Code's latest release adds agent/session operability signals and a concrete Bash env-assignment permission-bypass fix; KOTA maps the fresh local gap to shell/process env override guardrails."
+      last_seen_at: "2026-05-20T00:12:52.212Z"
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
