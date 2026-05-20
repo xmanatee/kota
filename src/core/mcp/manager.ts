@@ -139,8 +139,13 @@ function toToolResult(entry: McpToolEntry, result: McpCallToolResult): ToolResul
  */
 export class McpManager {
   private clients = new Map<string, McpClient>();
+  private serverTools = new Map<string, McpToolEntry[]>();
   private toolMap = new Map<string, McpToolEntry>();
   private kotaTools: KotaTool[] = [];
+  private toolListUnsubscribers = new Map<string, () => void>();
+  private initializingServers = new Set<string>();
+  private pendingServerRefreshes = new Set<string>();
+  private refreshQueues = new Map<string, Promise<void>>();
 
   /** Load MCP config from .kota/mcp.json in the given directory. */
   static loadConfig(cwd?: string): McpConfig | null {
@@ -169,14 +174,33 @@ export class McpManager {
           serverConfig.env || {},
           name,
         );
+        this.serverTools.set(name, []);
         try {
           await client.connect();
+          this.clients.set(name, client);
+          this.initializingServers.add(name);
+          const unsubscribe = client.onToolListChanged(() => {
+            this.queueServerToolRefresh(name);
+          });
+          this.toolListUnsubscribers.set(name, unsubscribe);
           const tools = await client.listTools();
-          return { name, client, tools };
+          this.replaceServerTools(name, client, tools);
+          this.initializingServers.delete(name);
+          if (this.pendingServerRefreshes.delete(name)) {
+            this.queueServerToolRefresh(name);
+          }
+          return { name, tools };
         } catch (err) {
           console.error(
             `[kota] MCP server "${name}" failed to connect: ${(err as Error).message}`,
           );
+          this.initializingServers.delete(name);
+          this.pendingServerRefreshes.delete(name);
+          this.refreshQueues.delete(name);
+          this.toolListUnsubscribers.get(name)?.();
+          this.toolListUnsubscribers.delete(name);
+          this.clients.delete(name);
+          this.serverTools.delete(name);
           await client.close().catch(() => {});
           return null;
         }
@@ -185,15 +209,7 @@ export class McpManager {
 
     for (const result of results) {
       if (result.status !== "fulfilled" || !result.value) continue;
-      const { name, client, tools } = result.value;
-      this.clients.set(name, client);
-
-      for (const tool of tools) {
-        const nsName = namespaceTool(name, tool.name);
-        const kotaTool = toKotaTool(name, tool);
-        this.toolMap.set(nsName, { client, originalName: tool.name, tool: kotaTool });
-        this.kotaTools.push(kotaTool);
-      }
+      const { name, tools } = result.value;
 
       console.error(
         `[kota] MCP server "${name}" connected — ${tools.length} tool${tools.length !== 1 ? "s" : ""}`,
@@ -257,9 +273,17 @@ export class McpManager {
 
   /** Disconnect all MCP servers. */
   async close(): Promise<void> {
+    for (const unsubscribe of this.toolListUnsubscribers.values()) {
+      unsubscribe();
+    }
+    this.toolListUnsubscribers.clear();
+    this.initializingServers.clear();
+    this.pendingServerRefreshes.clear();
+    this.refreshQueues.clear();
     const closers = [...this.clients.values()].map((c) => c.close().catch(() => {}));
     await Promise.all(closers);
     this.clients.clear();
+    this.serverTools.clear();
     this.toolMap.clear();
     this.kotaTools = [];
   }
@@ -272,5 +296,72 @@ export class McpManager {
   /** Get total number of MCP tools available. */
   getToolCount(): number {
     return this.toolMap.size;
+  }
+
+  private replaceServerTools(
+    serverName: string,
+    client: McpClient,
+    tools: McpToolSchema[],
+  ): void {
+    const entries = tools.map((tool) => {
+      const kotaTool = toKotaTool(serverName, tool);
+      return { client, originalName: tool.name, tool: kotaTool };
+    });
+    const nextToolMap = new Map(this.toolMap);
+    for (const entry of this.serverTools.get(serverName) ?? []) {
+      nextToolMap.delete(entry.tool.name);
+    }
+    for (const entry of entries) {
+      nextToolMap.set(entry.tool.name, entry);
+    }
+    this.serverTools.set(serverName, entries);
+    this.toolMap = nextToolMap;
+    this.kotaTools = [...this.serverTools.values()].flatMap((serverEntries) =>
+      serverEntries.map((entry) => entry.tool),
+    );
+  }
+
+  private queueServerToolRefresh(serverName: string): void {
+    if (this.initializingServers.has(serverName)) {
+      this.pendingServerRefreshes.add(serverName);
+      return;
+    }
+    const previous = this.refreshQueues.get(serverName) ?? Promise.resolve();
+    const next = previous
+      .catch(() => {})
+      .then(() => this.refreshServerTools(serverName))
+      .finally(() => {
+        if (this.refreshQueues.get(serverName) === next) {
+          this.refreshQueues.delete(serverName);
+        }
+      });
+    this.refreshQueues.set(serverName, next);
+  }
+
+  private async refreshServerTools(serverName: string): Promise<void> {
+    const client = this.clients.get(serverName);
+    if (!client) return;
+    if (!client.isConnected()) {
+      console.error(
+        `[kota] Warning: MCP server "${serverName}" tool refresh skipped: server is disconnected`,
+      );
+      return;
+    }
+    let tools: McpToolSchema[];
+    try {
+      tools = await client.listTools();
+    } catch (err) {
+      console.error(
+        `[kota] Warning: MCP server "${serverName}" tool refresh failed; keeping previous registry: ${(err as Error).message}`,
+      );
+      return;
+    }
+    if (this.clients.get(serverName) !== client || !client.isConnected()) {
+      return;
+    }
+    this.replaceServerTools(serverName, client, tools);
+    console.error(
+      `[kota] MCP server "${serverName}" tool registry refreshed — ${tools.length} tool${tools.length !== 1 ? "s" : ""}`,
+    );
   }
 }

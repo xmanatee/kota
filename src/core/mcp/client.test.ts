@@ -6,6 +6,7 @@ import {
   McpClient,
   type McpCompleteCallToolResult,
   type McpLegacyCallToolResult,
+  type McpToolSchema,
 } from "./client.js";
 
 function expectCompletedResult(
@@ -246,6 +247,55 @@ function listToolsServerScript(tools: object[], serverName = "header-test-server
   `;
 }
 
+const LIST_CHANGED_MCP_SERVER = `
+const rl = require("readline").createInterface({ input: process.stdin });
+let subscriptionId = null;
+let subscribed = false;
+let listCount = 0;
+
+function write(message) {
+  process.stdout.write(JSON.stringify(message) + "\\n");
+}
+
+rl.on("line", (line) => {
+  let msg;
+  try { msg = JSON.parse(line); } catch { return; }
+  if (msg.method === "initialize") {
+    write({ jsonrpc: "2.0", id: msg.id, result: {
+      protocolVersion: "DRAFT-2026-v1",
+      capabilities: { tools: { listChanged: true } },
+      serverInfo: { name: "list-changing-server" },
+    }});
+  } else if (msg.method === "notifications/initialized") {
+    // notification - no response
+  } else if (msg.method === "subscriptions/listen") {
+    subscriptionId = String(msg.id);
+    subscribed = msg.params?.notifications?.toolsListChanged === true;
+    write({ jsonrpc: "2.0", method: "notifications/subscriptions/acknowledged", params: {
+      _meta: { "io.modelcontextprotocol/subscriptionId": subscriptionId },
+      notifications: { toolsListChanged: subscribed },
+    }});
+  } else if (msg.method === "tools/list") {
+    listCount += 1;
+    const toolName = listCount === 1
+      ? (subscribed ? "before_subscribed" : "before_unsubscribed")
+      : "after_refresh";
+    write({ jsonrpc: "2.0", id: msg.id, result: {
+      tools: [{ name: toolName, inputSchema: { type: "object" } }],
+    }});
+    if (listCount === 1) {
+      setTimeout(() => {
+        write({ jsonrpc: "2.0", method: "notifications/tools/list_changed", params: {
+          _meta: { "io.modelcontextprotocol/subscriptionId": subscriptionId },
+        }});
+      }, 20);
+    }
+  } else if (msg.method === "shutdown") {
+    write({ jsonrpc: "2.0", id: msg.id, result: {} });
+  }
+});
+`;
+
 describe("McpClient", () => {
   let client: McpClient | null = null;
 
@@ -331,6 +381,29 @@ describe("McpClient lifecycle (fake MCP server)", () => {
 
     expect(client.getProtocolVersion()).toBe(MCP_DRAFT_PROTOCOL_VERSION);
     expect(client.getToolResultContract()).toBe("draft-tool-result");
+  }, 10_000);
+
+  it("records tools.listChanged, opens a toolsListChanged subscription, and handles list_changed notifications", async () => {
+    client = new McpClient(
+      "node",
+      ["-e", LIST_CHANGED_MCP_SERVER],
+      {},
+      "list-change-test",
+    );
+    const refreshed = new Promise<McpToolSchema[]>((resolve, reject) => {
+      client.onToolListChanged(() => {
+        client.listTools().then(resolve, reject);
+      });
+    });
+
+    await client.connect();
+
+    expect(client.getProtocolVersion()).toBe(MCP_DRAFT_PROTOCOL_VERSION);
+    expect(client.supportsToolListChanged()).toBe(true);
+
+    const initialTools = await client.listTools();
+    expect(initialTools.map((tool) => tool.name)).toEqual(["before_subscribed"]);
+    await expect(refreshed).resolves.toMatchObject([{ name: "after_refresh" }]);
   }, 10_000);
 
   it("falls back to the legacy handshake when a server rejects draft", async () => {

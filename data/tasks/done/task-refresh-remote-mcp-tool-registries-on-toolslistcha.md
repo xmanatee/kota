@@ -1,12 +1,12 @@
 ---
 id: task-refresh-remote-mcp-tool-registries-on-toolslistcha
 title: Refresh remote MCP tool registries on tools/list_changed notifications
-status: ready
+status: done
 priority: p2
 area: core
 summary: Subscribe to remote MCP tool-list change notifications and refresh KOTA's namespaced MCP tool registry so long-lived sessions do not keep stale or missing remote tools after a server's advertised tools change.
 created_at: 2026-05-20T04:15:00Z
-updated_at: 2026-05-20T04:15:00Z
+updated_at: 2026-05-20T04:25:59Z
 ---
 
 ## Problem
@@ -118,3 +118,6 @@ long-lived client boundary, not only through one-time startup discovery.
   initialization, KOTA refreshing only that server's namespaced registry, and a
   malformed refresh preserving the last known-good registry with a visible
   diagnostic.
+- Completed in run `2026-05-20T04-18-02-490Z-builder-3cnbgh` with:
+  `pnpm test src/core/mcp/client.test.ts src/core/mcp/manager.test.ts`,
+  `pnpm lint`, and `pnpm typecheck`.

@@ -41,6 +41,8 @@ type JsonRpcResponse = {
   error?: { code: number; message: string; data?: unknown };
 };
 
+type JsonRpcIncomingMessage = Partial<JsonRpcNotification & JsonRpcResponse>;
+
 type PendingRequest = {
   resolve: (value: unknown) => void;
   reject: (reason: Error) => void;
@@ -65,6 +67,8 @@ export type McpProtocolVersion =
   | typeof MCP_DRAFT_PROTOCOL_VERSION;
 
 export type McpToolResultContract = "legacy-content" | "draft-tool-result";
+
+export type McpToolListChangedHandler = () => void;
 
 export type McpToolTextContent = {
   type: "text";
@@ -260,6 +264,7 @@ function optionalJsonObject(
 
 type McpInitializeResult = {
   protocolVersion: McpProtocolVersion;
+  toolsListChanged: boolean;
   serverInfo?: { name?: string };
 };
 
@@ -279,7 +284,21 @@ function decodeInitializeResult(value: JsonRpcResponse["result"]): McpInitialize
       `Malformed MCP initialize result: protocolVersion must be ${MCP_DRAFT_PROTOCOL_VERSION} or ${MCP_LEGACY_PROTOCOL_VERSION}`,
     );
   }
-  optionalJsonObject(object.capabilities, "capabilities", "initialize");
+  const capabilities = optionalJsonObject(
+    object.capabilities,
+    "capabilities",
+    "initialize",
+  );
+  const toolsCapability = capabilities
+    ? optionalJsonObject(capabilities.tools, "capabilities.tools", "initialize")
+    : undefined;
+  const toolsListChanged = toolsCapability
+    ? optionalBoolean(
+      toolsCapability.listChanged,
+      "capabilities.tools.listChanged",
+      "initialize",
+    ) === true
+    : false;
   const rawServerInfo = optionalJsonObject(
     object.serverInfo,
     "serverInfo",
@@ -290,6 +309,7 @@ function decodeInitializeResult(value: JsonRpcResponse["result"]): McpInitialize
     : undefined;
   return {
     protocolVersion,
+    toolsListChanged,
     ...(rawServerInfo ? { serverInfo: { ...(name !== undefined ? { name } : {}) } } : {}),
   };
 }
@@ -846,6 +866,10 @@ export class McpClient {
   private serverName: string;
   private protocolVersion: McpProtocolVersion | null = null;
   private toolResultContract: McpToolResultContract | null = null;
+  private toolsListChanged = false;
+  private toolListSubscriptionId: number | null = null;
+  private streamingRequestIds = new Set<number>();
+  private toolListChangedHandlers = new Set<McpToolListChangedHandler>();
 
   constructor(
     private command: string,
@@ -866,6 +890,17 @@ export class McpClient {
 
   getToolResultContract(): McpToolResultContract | null {
     return this.toolResultContract;
+  }
+
+  supportsToolListChanged(): boolean {
+    return this.toolsListChanged;
+  }
+
+  onToolListChanged(handler: McpToolListChangedHandler): () => void {
+    this.toolListChangedHandlers.add(handler);
+    return () => {
+      this.toolListChangedHandlers.delete(handler);
+    };
   }
 
   isConnected(): boolean {
@@ -930,7 +965,11 @@ export class McpClient {
       this.toolResultContract = result.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION
         ? "draft-tool-result"
         : "legacy-content";
+      this.toolsListChanged = result.toolsListChanged;
       this.connected = true;
+      if (this.toolsListChanged && result.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION) {
+        this.openToolListChangedSubscription();
+      }
     } finally {
       this.connecting = false;
     }
@@ -998,6 +1037,9 @@ export class McpClient {
     this.closing = true;
     this.connected = false;
     this.rejectAll(new Error(`MCP server "${this.serverName}" is closing`));
+    this.streamingRequestIds.clear();
+    this.toolListSubscriptionId = null;
+    this.toolListChangedHandlers.clear();
 
     const proc = this.proc;
     this.proc = null;
@@ -1036,8 +1078,8 @@ export class McpClient {
   private handleLine(line: string): void {
     if (!line.trim()) return;
     try {
-      const msg = JSON.parse(line) as JsonRpcResponse;
-      if (msg.id !== undefined && this.pending.has(msg.id)) {
+      const msg = JSON.parse(line) as JsonRpcIncomingMessage;
+      if (typeof msg.id === "number" && this.pending.has(msg.id)) {
         const { resolve, reject } = this.pending.get(msg.id)!;
         this.pending.delete(msg.id);
         if (msg.error) {
@@ -1045,11 +1087,50 @@ export class McpClient {
         } else {
           resolve(msg.result);
         }
+        return;
       }
-      // Notifications from server (no id) are silently ignored
+      if (typeof msg.id === "number" && this.streamingRequestIds.has(msg.id)) {
+        this.handleStreamingRequestResponse(msg);
+        return;
+      }
+      if (typeof msg.method === "string") {
+        this.handleNotification(msg);
+      }
     } catch {
       // Non-JSON lines (e.g. server startup messages) are ignored
     }
+  }
+
+  private handleStreamingRequestResponse(msg: JsonRpcIncomingMessage): void {
+    if (typeof msg.id !== "number") return;
+    this.streamingRequestIds.delete(msg.id);
+    if (msg.id === this.toolListSubscriptionId) {
+      this.toolListSubscriptionId = null;
+    }
+    if (msg.error) {
+      console.error(
+        `[kota] Warning: MCP server "${this.serverName}" failed to open subscription: MCP error ${msg.error.code}: ${msg.error.message}`,
+      );
+    }
+  }
+
+  private handleNotification(msg: JsonRpcIncomingMessage): void {
+    if (msg.method !== "notifications/tools/list_changed") return;
+    if (!this.isToolListChangedNotificationForThisClient(msg.params)) return;
+    for (const handler of this.toolListChangedHandlers) {
+      handler();
+    }
+  }
+
+  private isToolListChangedNotificationForThisClient(
+    params: JsonRpcNotification["params"],
+  ): boolean {
+    if (this.toolListSubscriptionId === null) return true;
+    const meta = params ? params._meta : undefined;
+    if (!isJsonObject(meta)) return true;
+    const subscriptionId = meta["io.modelcontextprotocol/subscriptionId"];
+    if (subscriptionId === undefined) return true;
+    return String(subscriptionId) === String(this.toolListSubscriptionId);
   }
 
   private async initializeServer(): Promise<McpInitializeResult> {
@@ -1100,6 +1181,27 @@ export class McpClient {
 
       this.proc?.stdin?.write(`${JSON.stringify(msg)}\n`);
     });
+  }
+
+  private openToolListChangedSubscription(): void {
+    if (!this.proc?.stdin?.writable || this.toolListSubscriptionId !== null) return;
+    const id = this.nextId++;
+    this.toolListSubscriptionId = id;
+    this.streamingRequestIds.add(id);
+    const msg: JsonRpcRequest = {
+      jsonrpc: "2.0",
+      id,
+      method: "subscriptions/listen",
+      params: {
+        _meta: {
+          "io.modelcontextprotocol/protocolVersion": this.protocolVersion,
+          "io.modelcontextprotocol/clientInfo": { name: "kota", version: "0.1.0" },
+          "io.modelcontextprotocol/clientCapabilities": {},
+        },
+        notifications: { toolsListChanged: true },
+      },
+    };
+    this.proc.stdin.write(`${JSON.stringify(msg)}\n`);
   }
 
   private notify(method: string, params?: Record<string, unknown>): void {
