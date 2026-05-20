@@ -50,6 +50,19 @@ describe("ToolCache", () => {
 		expect(cache.get("file_read", { path: "/b.txt" })?.content).toBe("B");
 	});
 
+	it("separates view_image cache entries by fidelity detail", () => {
+		const cache = new ToolCache();
+		cache.set("view_image", { path: "/img.png", detail: "resized" }, ok("resized"));
+		cache.set("view_image", { path: "/img.png", detail: "original" }, ok("original"));
+
+		expect(
+			cache.get("view_image", { detail: "resized", path: "/img.png" })?.content,
+		).toBe("resized");
+		expect(
+			cache.get("view_image", { detail: "original", path: "/img.png" })?.content,
+		).toBe("original");
+	});
+
 	it("invalidate clears all cached entries", () => {
 		const cache = new ToolCache();
 		cache.set("file_read", { path: "/a.txt" }, ok("A"));

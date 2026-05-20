@@ -136,19 +136,7 @@ async function executeRepairAgentIteration(
     } else {
       abortController.signal.addEventListener("abort", forwardAbort, { once: true });
     }
-    const idleMonitor = step.idleTimeoutMs === undefined
-      ? undefined
-      : createStepIdleTimeoutMonitor({
-          stepId: step.id,
-          idleTimeoutMs: step.idleTimeoutMs,
-          abortController: attemptAbortController,
-          createError: (idleForMs) =>
-            new AgentStepIdleTimeoutError(
-              step.id,
-              step.idleTimeoutMs!,
-              idleForMs,
-            ),
-        });
+    let idleMonitor: ReturnType<typeof createStepIdleTimeoutMonitor> | undefined;
     const messageCapture = harness.emitsAgentMessageStream
       ? (message: KotaAgentMessage) => {
           if (idleMonitor !== undefined && isAgentProgressMessage(message)) {
@@ -185,6 +173,20 @@ async function executeRepairAgentIteration(
         },
         { write: () => true },
       );
+      const idleTimeoutMs = step.idleTimeoutMs;
+      idleMonitor = idleTimeoutMs === undefined
+        ? undefined
+        : createStepIdleTimeoutMonitor({
+            stepId: step.id,
+            idleTimeoutMs,
+            abortController: attemptAbortController,
+            createError: (idleForMs) =>
+              new AgentStepIdleTimeoutError(
+                step.id,
+                idleTimeoutMs,
+                idleForMs,
+              ),
+          });
       const result = await (idleMonitor === undefined
         ? harnessRun
         : Promise.race([harnessRun, idleMonitor.timeout]));

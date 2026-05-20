@@ -166,19 +166,7 @@ export async function executeAgentStep(
     const attemptAbortController = new AbortController();
     const forwardAbort = () => attemptAbortController.abort(abortController.signal.reason);
     abortController.signal.addEventListener("abort", forwardAbort, { once: true });
-    const idleMonitor = step.idleTimeoutMs === undefined
-      ? undefined
-      : createStepIdleTimeoutMonitor({
-          stepId: step.id,
-          idleTimeoutMs: step.idleTimeoutMs,
-          abortController: attemptAbortController,
-          createError: (idleForMs) =>
-            new AgentStepIdleTimeoutError(
-              step.id,
-              step.idleTimeoutMs!,
-              idleForMs,
-            ),
-        });
+    let idleMonitor: ReturnType<typeof createStepIdleTimeoutMonitor> | undefined;
     const captureMessage = (message: KotaAgentMessage) => {
       if (idleMonitor !== undefined && isAgentProgressMessage(message)) {
         idleMonitor.reportProgress({
@@ -230,6 +218,20 @@ export async function executeAgentStep(
         },
         { write: () => true },
       );
+      const idleTimeoutMs = step.idleTimeoutMs;
+      idleMonitor = idleTimeoutMs === undefined
+        ? undefined
+        : createStepIdleTimeoutMonitor({
+            stepId: step.id,
+            idleTimeoutMs,
+            abortController: attemptAbortController,
+            createError: (idleForMs) =>
+              new AgentStepIdleTimeoutError(
+                step.id,
+                idleTimeoutMs,
+                idleForMs,
+              ),
+          });
       const result = await (idleMonitor === undefined
         ? harnessRun
         : Promise.race([harnessRun, idleMonitor.timeout]));

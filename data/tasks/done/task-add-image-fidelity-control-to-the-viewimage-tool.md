@@ -1,12 +1,12 @@
 ---
 id: task-add-image-fidelity-control-to-the-viewimage-tool
 title: Add image fidelity control to the view_image tool
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Let callers request resized or original-resolution image reads through the system module's view_image tool so visual QA and screenshot inspection do not silently lose detail.
 created_at: 2026-05-20T15:40:40.021Z
-updated_at: 2026-05-20T15:40:40.021Z
+updated_at: 2026-05-20T16:22:58.835Z
 ---
 
 ## Problem
@@ -110,5 +110,5 @@ generated-image review depend on their artifacts.
 - Focused system-module tests pass, for example:
   `pnpm test src/modules/system/view-image.test.ts src/modules/tool-cache/cache.test.ts`.
 - Diff review shows one `view_image` fidelity contract, no duplicate image
-  tool, no core migration, and no silent resize fallback when original fidelity
-  is requested.
+  tool, no core migration, and no silent resize fallback when original
+  fidelity is requested.

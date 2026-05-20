@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { runViewImage } from "./view-image.js";
+import { runViewImage, viewImageTool } from "./view-image.js";
 
 vi.mock("node:fs", () => ({
 	readFileSync: vi.fn(),
@@ -21,6 +21,60 @@ const mockUnlink = unlinkSync as ReturnType<typeof vi.fn>;
 const mockCopy = copyFileSync as ReturnType<typeof vi.fn>;
 const mockExec = execFileSync as ReturnType<typeof vi.fn>;
 
+function pngBuffer(width: number, height: number, totalBytes?: number): Buffer {
+	const length = Math.max(totalBytes ?? 33, 33);
+	const buffer = Buffer.alloc(length);
+	buffer.writeUInt32BE(0x89504e47, 0);
+	buffer.writeUInt32BE(0x0d0a1a0a, 4);
+	buffer.writeUInt32BE(13, 8);
+	buffer.write("IHDR", 12, "ascii");
+	buffer.writeUInt32BE(width, 16);
+	buffer.writeUInt32BE(height, 20);
+	return buffer;
+}
+
+function jpegBuffer(width: number, height: number): Buffer {
+	return Buffer.from([
+		0xff, 0xd8,
+		0xff, 0xe0, 0x00, 0x04, 0x00, 0x00,
+		0xff, 0xc0, 0x00, 0x0b, 0x08,
+		(height >> 8) & 0xff, height & 0xff,
+		(width >> 8) & 0xff, width & 0xff,
+		0x01, 0x01, 0x11, 0x00,
+		0xff, 0xd9,
+	]);
+}
+
+function gifBuffer(width: number, height: number): Buffer {
+	const buffer = Buffer.alloc(10);
+	buffer.write("GIF89a", 0, "ascii");
+	buffer.writeUInt16LE(width, 6);
+	buffer.writeUInt16LE(height, 8);
+	return buffer;
+}
+
+function webpBuffer(width: number, height: number): Buffer {
+	const buffer = Buffer.alloc(30);
+	buffer.write("RIFF", 0, "ascii");
+	buffer.writeUInt32LE(22, 4);
+	buffer.write("WEBP", 8, "ascii");
+	buffer.write("VP8X", 12, "ascii");
+	buffer.writeUInt32LE(10, 16);
+	buffer.writeUIntLE(width - 1, 24, 3);
+	buffer.writeUIntLE(height - 1, 27, 3);
+	return buffer;
+}
+
+function imageBufferForPath(path: string): Buffer {
+	const lower = path.toLowerCase();
+	if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
+		return jpegBuffer(640, 480);
+	}
+	if (lower.endsWith(".gif")) return gifBuffer(320, 200);
+	if (lower.endsWith(".webp")) return webpBuffer(512, 256);
+	return pngBuffer(800, 600);
+}
+
 describe("runViewImage", () => {
 	const originalPlatform = process.platform;
 
@@ -30,9 +84,11 @@ describe("runViewImage", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
-		const fakePng = Buffer.from("fake-png-data");
-		mockRead.mockReturnValue(fakePng);
-		mockStat.mockReturnValue({ isFile: () => true, size: 1024 });
+		mockRead.mockImplementation((path: string) => imageBufferForPath(path));
+		mockStat.mockImplementation((path: string) => {
+			const buffer = imageBufferForPath(path);
+			return { isFile: () => true, size: buffer.length };
+		});
 		mockUnlink.mockImplementation(() => {});
 		mockCopy.mockImplementation(() => {});
 	});
@@ -92,6 +148,20 @@ describe("runViewImage", () => {
 		expect(result.content).toContain("20MB");
 	});
 
+	it("errors on oversized original fidelity", async () => {
+		mockStat.mockReturnValue({
+			isFile: () => true,
+			size: 25 * 1024 * 1024,
+		});
+		const result = await runViewImage({
+			path: "/tmp/huge.png",
+			detail: "original",
+		});
+		expect(result.is_error).toBe(true);
+		expect(result.content).toContain("too large for original fidelity");
+		expect(mockCopy).not.toHaveBeenCalled();
+	});
+
 	it("errors on stat failure (non-ENOENT)", async () => {
 		mockStat.mockImplementation(() => {
 			throw new Error("Permission denied");
@@ -110,12 +180,17 @@ describe("runViewImage", () => {
 			return "";
 		});
 
-		const pngData = Buffer.from("test-png-data");
-		mockRead.mockReturnValue(pngData);
+		const imageData = pngBuffer(800, 600, 128);
+		mockRead.mockReturnValue(imageData);
+		mockStat.mockReturnValue({ isFile: () => true, size: imageData.length });
 
 		const result = await runViewImage({ path: "/tmp/test.png" });
 		expect(result.is_error).toBeUndefined();
 		expect(result.content).toContain("Image loaded");
+		expect(result.content).toContain("Fidelity: resized");
+		expect(result.content).toContain("Original: 800x600px");
+		expect(result.content).toContain("Returned: 800x600px");
+		expect(result.content).toContain("Resized: no");
 		expect(result.blocks).toHaveLength(2);
 		expect(result.blocks![0].type).toBe("image");
 		expect(result.blocks![1].type).toBe("text");
@@ -123,9 +198,51 @@ describe("runViewImage", () => {
 		if (result.blocks![0].type === "image") {
 			expect(result.blocks![0].source.media_type).toBe("image/png");
 			expect(result.blocks![0].source.data).toBe(
-				pngData.toString("base64"),
+				imageData.toString("base64"),
 			);
 		}
+	});
+
+	it("declares a strict fidelity option in the tool schema", () => {
+		const detail = viewImageTool.input_schema.properties.detail as {
+			type: string;
+			enum: string[];
+		};
+		expect(detail.type).toBe("string");
+		expect(detail.enum).toEqual(["resized", "original"]);
+		expect(viewImageTool.input_schema.additionalProperties).toBe(false);
+	});
+
+	it("returns original bytes when original fidelity is requested", async () => {
+		setPlatform("darwin");
+		const original = pngBuffer(3840, 2160, 256);
+		mockRead.mockReturnValue(original);
+		mockStat.mockReturnValue({ isFile: () => true, size: original.length });
+
+		const result = await runViewImage({
+			path: "/tmp/full.png",
+			detail: "original",
+		});
+
+		expect(result.is_error).toBeUndefined();
+		expect(mockExec).not.toHaveBeenCalled();
+		expect(mockCopy).not.toHaveBeenCalled();
+		expect(result.content).toContain("Fidelity: original");
+		expect(result.content).toContain("Original: 3840x2160px");
+		expect(result.content).toContain("Returned: 3840x2160px");
+		expect(result.content).toContain("Resized: no");
+		if (result.blocks![0].type === "image") {
+			expect(result.blocks![0].source.data).toBe(original.toString("base64"));
+		}
+	});
+
+	it("rejects invalid fidelity detail", async () => {
+		const result = await runViewImage({
+			path: "/tmp/test.png",
+			detail: "full",
+		});
+		expect(result.is_error).toBe(true);
+		expect(result.content).toContain("Invalid detail");
 	});
 
 	it("loads JPEG file with correct media type", async () => {
@@ -185,15 +302,15 @@ describe("runViewImage", () => {
 
 	it("shows size in KB", async () => {
 		setPlatform("win32");
-		const data = Buffer.alloc(3072, 0);
+		const data = pngBuffer(32, 32, 3072);
 		mockRead.mockReturnValue(data);
 		const result = await runViewImage({ path: "/tmp/photo.png" });
-		expect(result.content).toContain("3KB");
+		expect(result.content).toContain("3072 bytes (3KB)");
 	});
 
 	// --- Resize on macOS ---
 
-	it("does not resize when image is within MAX_DIM on macOS", async () => {
+	it("does not resize when image is within the resized max dimension on macOS", async () => {
 		setPlatform("darwin");
 		mockExec.mockImplementation((cmd: string, args: string[]) => {
 			if (cmd === "sips" && args[0] === "-g") return "pixelWidth: 1200\n";
@@ -206,14 +323,20 @@ describe("runViewImage", () => {
 		expect(mockCopy).not.toHaveBeenCalled();
 	});
 
-	it("copies and resizes when image exceeds MAX_DIM on macOS", async () => {
+	it("copies and resizes when image exceeds the resized max dimension on macOS", async () => {
 		setPlatform("darwin");
 		mockExec.mockImplementation((cmd: string, args: string[]) => {
 			if (cmd === "sips" && args[0] === "-g") return "pixelWidth: 3840\n";
 			return "";
 		});
+		mockRead.mockImplementation((path: string) =>
+			path.includes("kota-viewimg")
+				? pngBuffer(1568, 882, 128)
+				: pngBuffer(3840, 2160, 256),
+		);
+		mockStat.mockReturnValue({ isFile: () => true, size: 256 });
 
-		await runViewImage({ path: "/tmp/big.png" });
+		const result = await runViewImage({ path: "/tmp/big.png" });
 
 		expect(mockCopy).toHaveBeenCalled();
 		expect(mockExec).toHaveBeenCalledWith(
@@ -221,6 +344,9 @@ describe("runViewImage", () => {
 			expect.arrayContaining(["--resampleWidth", "1568"]),
 			expect.any(Object),
 		);
+		expect(result.content).toContain("Original: 3840x2160px");
+		expect(result.content).toContain("Returned: 1568x882px");
+		expect(result.content).toContain("Resized: yes");
 	});
 
 	it("cleans up temp file after resize on macOS", async () => {
@@ -253,8 +379,14 @@ describe("runViewImage", () => {
 	it("copies and resizes on Linux", async () => {
 		setPlatform("linux");
 		mockExec.mockImplementation(() => "");
+		mockRead.mockImplementation((path: string) =>
+			path.includes("kota-viewimg")
+				? pngBuffer(1568, 882, 128)
+				: pngBuffer(3840, 2160, 256),
+		);
+		mockStat.mockReturnValue({ isFile: () => true, size: 256 });
 
-		await runViewImage({ path: "/tmp/photo.png" });
+		const result = await runViewImage({ path: "/tmp/photo.png" });
 
 		expect(mockCopy).toHaveBeenCalled();
 		expect(mockExec).toHaveBeenCalledWith(
@@ -262,6 +394,7 @@ describe("runViewImage", () => {
 			expect.arrayContaining(["-resize", "1568x>"]),
 			expect.any(Object),
 		);
+		expect(result.content).toContain("Resized: yes");
 	});
 
 	it("cleans up temp file after resize on Linux", async () => {
