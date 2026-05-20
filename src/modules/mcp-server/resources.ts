@@ -1,7 +1,7 @@
 /**
  * MCP resource definitions and readers for KOTA state.
  *
- * Exposes five read-only resources over the MCP protocol:
+ * Exposes KOTA's read-only resources over the MCP protocol:
  *   kota://tasks/ready          – task queue snapshot
  *   kota://workflow/status      – runtime state summary
  *   kota://workflow/runs/recent – 10 most recent run summaries
@@ -23,7 +23,7 @@ export type McpResource = {
 	mimeType: string;
 };
 
-export const KOTA_RESOURCES: McpResource[] = [
+const CORE_KOTA_RESOURCES: McpResource[] = [
 	{
 		uri: "kota://tasks/ready",
 		name: "Ready Tasks",
@@ -43,23 +43,53 @@ export const KOTA_RESOURCES: McpResource[] = [
 		description: "The 10 most recent workflow run summaries.",
 		mimeType: "application/json",
 	},
-	{
-		uri: "kota://memory",
-		name: "Memory",
-		description:
-			"Bounded memory index. Read returned readUri values for entry content or use kota://memory/search?q=...",
-		mimeType: "application/json",
-	},
-	{
-		uri: "kota://knowledge",
-		name: "Knowledge",
-		description:
-			"Bounded knowledge index. Read returned readUri values for entry content or use kota://knowledge/search?q=...",
-		mimeType: "application/json",
-	},
 ];
 
-export const KNOWN_RESOURCE_URIS = new Set(KOTA_RESOURCES.map((r) => r.uri));
+const MEMORY_RESOURCE: McpResource = {
+	uri: "kota://memory",
+	name: "Memory",
+	description:
+		"Bounded memory index. Read returned readUri values for entry content or use kota://memory/search?q=...",
+	mimeType: "application/json",
+};
+
+const KNOWLEDGE_RESOURCE: McpResource = {
+	uri: "kota://knowledge",
+	name: "Knowledge",
+	description:
+		"Bounded knowledge index. Read returned readUri values for entry content or use kota://knowledge/search?q=...",
+	mimeType: "application/json",
+};
+
+function hasMemoryProvider(): boolean {
+	try {
+		getMemoryProvider();
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+function hasKnowledgeProvider(): boolean {
+	try {
+		getKnowledgeProvider();
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+export function listKotaResources(): McpResource[] {
+	return [
+		...CORE_KOTA_RESOURCES,
+		...(hasMemoryProvider() ? [MEMORY_RESOURCE] : []),
+		...(hasKnowledgeProvider() ? [KNOWLEDGE_RESOURCE] : []),
+	];
+}
+
+export function isKnownKotaResourceUri(uri: string): boolean {
+	return listKotaResources().some((resource) => resource.uri === uri);
+}
 
 const INDEX_LIMIT_DEFAULT = 50;
 const SEARCH_LIMIT_DEFAULT = 10;
@@ -494,7 +524,13 @@ export function readKotaResource(
 	}
 	const parsed = parseKotaUrl(uri);
 	if ("ok" in parsed) return parsed;
-	if (parsed.hostname === "memory") return readMemoryResource(parsed);
-	if (parsed.hostname === "knowledge") return readKnowledgeResource(parsed);
+	if (parsed.hostname === "memory") {
+		if (!hasMemoryProvider()) return notFoundError(`Unknown resource: ${uri}`);
+		return readMemoryResource(parsed);
+	}
+	if (parsed.hostname === "knowledge") {
+		if (!hasKnowledgeProvider()) return notFoundError(`Unknown resource: ${uri}`);
+		return readKnowledgeResource(parsed);
+	}
 	return notFoundError(`Unknown resource: ${uri}`);
 }

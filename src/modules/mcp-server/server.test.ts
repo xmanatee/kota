@@ -118,7 +118,7 @@ async function readResponse(output: PassThrough): Promise<Record<string, unknown
  * is attached (which happens after readResponse() removes its listener but the
  * stream stays in flowing mode).
  */
-function createQueuedReader(stream: PassThrough): { read: () => Promise<Record<string, unknown>> } {
+function createQueuedReader(stream: PassThrough): { read: (timeoutMs?: number) => Promise<Record<string, unknown>> } {
 	const buffer: string[] = [];
 	const waiters: Array<{ resolve: (v: Record<string, unknown>) => void; timer: ReturnType<typeof setTimeout> }> = [];
 
@@ -137,14 +137,14 @@ function createQueuedReader(stream: PassThrough): { read: () => Promise<Record<s
 	});
 
 	return {
-		read(): Promise<Record<string, unknown>> {
+		read(timeoutMs = 2000): Promise<Record<string, unknown>> {
 			if (buffer.length > 0) return Promise.resolve(JSON.parse(buffer.shift()!));
 			return new Promise((resolve, reject) => {
 				const timer = setTimeout(() => {
 					const idx = waiters.findIndex((w) => w.resolve === resolve);
 					if (idx >= 0) waiters.splice(idx, 1);
 					reject(new Error("Timeout reading response"));
-				}, 2000);
+				}, timeoutMs);
 				waiters.push({ resolve, timer });
 			});
 		},
@@ -234,6 +234,11 @@ describe("McpServer", () => {
 
 			const result = resp.result as Record<string, unknown>;
 			expect(result.protocolVersion).toBe(MCP_DRAFT_PROTOCOL_VERSION);
+			expect(result.capabilities).toMatchObject({
+				resources: { listChanged: true },
+			});
+			const capabilities = result.capabilities as Record<string, Record<string, unknown>>;
+			expect(capabilities.resources.subscribe).toBeUndefined();
 
 			server.stop();
 		});
@@ -1002,7 +1007,7 @@ describe("resources", () => {
 		return dir;
 	}
 
-	it("resources/list returns three KOTA resources", async () => {
+	it("resources/list returns KOTA resources", async () => {
 		const { input, output } = createTestStreams();
 		const server = new McpServer({ input, output, log: () => {} });
 		await initServer(server, input, output);
@@ -1364,6 +1369,36 @@ describe("prompts", () => {
 });
 
 describe("resource subscriptions", () => {
+	async function initDraftServerWithQueuedReader(
+		server: McpServer,
+		input: PassThrough,
+		reader: ReturnType<typeof createQueuedReader>,
+	): Promise<Record<string, unknown>> {
+		await server.start();
+		sendRequest(input, 1, "initialize", {
+			protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+			capabilities: {},
+			clientInfo: { name: "test", version: "1.0.0" },
+		});
+		const resp = await reader.read();
+		sendNotification(input, "notifications/initialized");
+		return resp;
+	}
+
+	function emitWorkflowCompleted(bus: EventBus): void {
+		bus.emit("workflow.completed", {
+			projectId: "test-project",
+			workflow: "builder",
+			runId: "test-run-id",
+			status: "success",
+			triggerEvent: "runtime.idle",
+			durationMs: 1000,
+			definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+			runDir: ".kota/runs/test-run-id",
+			tags: [],
+		});
+	}
+
 	async function readNotification(output: PassThrough): Promise<Record<string, unknown>> {
 		return new Promise((resolve, reject) => {
 			const timeout = setTimeout(() => reject(new Error("Timeout waiting for notification")), 2000);
@@ -1436,6 +1471,102 @@ describe("resource subscriptions", () => {
 		server.stop();
 	});
 
+	it("subscriptions/listen opens draft resource subscriptions and receives workflow and task updates", async () => {
+		const bus = new EventBus();
+		const { input, output } = createTestStreams();
+		const reader = createQueuedReader(output);
+		const server = new McpServer({ input, output, log: () => {}, eventBus: bus });
+		await initDraftServerWithQueuedReader(server, input, reader);
+
+		sendRequest(input, 2, "subscriptions/listen", {
+			notifications: {
+				resourceSubscriptions: ["kota://workflow/status", "kota://tasks/ready"],
+			},
+		});
+		const ack = await reader.read();
+		expect(ack.method).toBe("notifications/subscriptions/acknowledged");
+		expect(ack.params).toEqual({
+			_meta: { "io.modelcontextprotocol/subscriptionId": "2" },
+			notifications: {
+				resourceSubscriptions: ["kota://workflow/status", "kota://tasks/ready"],
+			},
+		});
+
+		emitWorkflowCompleted(bus);
+		const workflowNotif = await reader.read();
+		expect(workflowNotif.method).toBe("notifications/resources/updated");
+		expect(workflowNotif.params).toEqual({
+			_meta: { "io.modelcontextprotocol/subscriptionId": "2" },
+			uri: "kota://workflow/status",
+		});
+
+		bus.emit("task.changed", { counts: { pending: 1, in_progress: 0, done: 0 } });
+		const taskNotif = await reader.read();
+		expect(taskNotif.method).toBe("notifications/resources/updated");
+		expect(taskNotif.params).toEqual({
+			_meta: { "io.modelcontextprotocol/subscriptionId": "2" },
+			uri: "kota://tasks/ready",
+		});
+
+		server.stop();
+	});
+
+	it("sends resources/list_changed only when the listed resource catalog changes", async () => {
+		const defaultMemoryProvider: ReturnType<typeof getMemoryProvider> = {
+			list: () => [],
+			save: vi.fn(() => "memory-id"),
+			search: vi.fn(() => []),
+			update: vi.fn(() => false),
+			delete: vi.fn(() => false),
+			supportsSemanticSearch: vi.fn(() => false),
+			semanticSearch: vi.fn(async () => []),
+			reindex: vi.fn(async () => ({ indexed: 0, failed: 0, skipped: true })),
+		};
+		vi.mocked(getMemoryProvider).mockReturnValue(defaultMemoryProvider);
+
+		const bus = new EventBus();
+		const { input, output } = createTestStreams();
+		const reader = createQueuedReader(output);
+		const server = new McpServer({ input, output, log: () => {}, eventBus: bus });
+
+		try {
+			await initDraftServerWithQueuedReader(server, input, reader);
+			sendRequest(input, 2, "subscriptions/listen", {
+				notifications: { resourcesListChanged: true },
+			});
+			const ack = await reader.read();
+			expect(ack.params).toEqual({
+				_meta: { "io.modelcontextprotocol/subscriptionId": "2" },
+				notifications: { resourcesListChanged: true },
+			});
+
+			bus.emit("task.changed", { counts: { pending: 1, in_progress: 0, done: 0 } });
+			await expect(reader.read(100)).rejects.toThrow("Timeout reading response");
+
+			vi.mocked(getMemoryProvider).mockImplementation(() => {
+				throw new Error("No memory provider registered");
+			});
+			bus.emit("daemon.config.reload", {
+				timestamp: "2026-05-20T00:00:00.000Z",
+				scope: "daemon",
+				outcome: "success",
+				reloadKind: "module-scoped",
+				fullReload: false,
+				changedModules: ["memory"],
+				workflowCount: 0,
+			});
+
+			const listChanged = await reader.read();
+			expect(listChanged.method).toBe("notifications/resources/list_changed");
+			expect(listChanged.params).toEqual({
+				_meta: { "io.modelcontextprotocol/subscriptionId": "2" },
+			});
+		} finally {
+			vi.mocked(getMemoryProvider).mockReturnValue(defaultMemoryProvider);
+			server.stop();
+		}
+	});
+
 	it("sends notifications/resources/updated when workflow.completed fires for subscribed URI", async () => {
 		const bus = new EventBus();
 		const { input, output } = createTestStreams();
@@ -1446,15 +1577,7 @@ describe("resource subscriptions", () => {
 		await readResponse(output);
 
 		const notifPromise = readNotification(output);
-		bus.emit("workflow.completed", {
-			workflow: "builder",
-			runId: "test-run-id",
-			status: "success",
-			triggerEvent: "runtime.idle",
-			durationMs: 1000,
-			definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
-			runDir: ".kota/runs/test-run-id",
-		});
+		emitWorkflowCompleted(bus);
 
 		const notif = await notifPromise;
 		expect(notif.method).toBe("notifications/resources/updated");
@@ -1493,15 +1616,7 @@ describe("resource subscriptions", () => {
 		sendRequest(input, 2, "resources/subscribe", { uri: "kota://tasks/ready" });
 		await readResponse(output);
 
-		bus.emit("workflow.completed", {
-			workflow: "builder",
-			runId: "test-run-id",
-			status: "success",
-			triggerEvent: "runtime.idle",
-			durationMs: 1000,
-			definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
-			runDir: ".kota/runs/test-run-id",
-		});
+		emitWorkflowCompleted(bus);
 
 		const noNotif = await Promise.race([
 			readNotification(output).then(() => "got-notif"),

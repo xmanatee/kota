@@ -117,6 +117,7 @@ export class McpServer {
 			["resources/read", (m) => this.resources.handleRead(m)],
 			["resources/subscribe", (m) => this.resources.handleSubscribe(m)],
 			["resources/unsubscribe", (m) => this.resources.handleUnsubscribe(m)],
+			["subscriptions/listen", (m) => this.resources.handleListen(m)],
 			["prompts/list", (m) => prompts.handleList(m)],
 			["prompts/get", (m) => prompts.handleGet(m)],
 			["sampling/createMessage", (m) => sampling.handleCreateMessage(m)],
@@ -198,6 +199,7 @@ export class McpServer {
 	private handleNotification(msg: JsonRpcNotification): void {
 		if (msg.method === "notifications/initialized") this.log("Client confirmed initialization");
 		else if (msg.method === "notifications/roots/list_changed") this.initialize.handleRootsListChangedNotification();
+		else if (msg.method === "notifications/cancelled") this.resources.handleCancelledNotification(msg);
 		// Silently ignore unknown notifications per spec
 	}
 

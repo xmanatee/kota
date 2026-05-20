@@ -88,7 +88,10 @@ export class InitializeHandler {
 
 		const capabilities: Record<string, unknown> = {
 			tools: {},
-			resources: { subscribe: true },
+			resources:
+				this.ctx.session.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION
+					? { listChanged: true }
+					: { subscribe: true },
 			prompts: {},
 			completions: {},
 			roots: {},

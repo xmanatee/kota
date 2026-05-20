@@ -1,12 +1,12 @@
 ---
 id: task-align-kota-mcp-resource-subscriptions-with-the-dra
 title: Align KOTA MCP resource subscriptions with the draft resources protocol
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Update the MCP server resource capability and subscription path to match the current draft resources protocol while preserving existing resource-read behavior.
 created_at: 2026-05-20T04:50:42.532Z
-updated_at: 2026-05-20T04:50:42.532Z
+updated_at: 2026-05-20T05:03:48.000Z
 ---
 
 ## Problem
