@@ -1,12 +1,12 @@
 ---
 id: task-handle-mcp-task-status-result-list-and-cancel-requests
 title: Handle MCP task status result list and cancel requests
-status: backlog
+status: ready
 priority: p2
 area: modules
 summary: Wire tasks/get, tasks/result, tasks/list, and tasks/cancel handlers over the MCP task lifecycle store with strict validation, wait semantics, pagination, cancellation, and precise JSON-RPC errors.
 created_at: 2026-05-21T11:19:59Z
-updated_at: 2026-05-21T11:19:59Z
+updated_at: 2026-05-21T11:53:48.656Z
 depends_on: [task-add-mcp-server-task-protocol-types-and-lifecycle-store]
 ---
 
