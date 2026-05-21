@@ -64,6 +64,10 @@ function buildDraftServerCapabilities(): KotaJsonObject {
 		resources: { listChanged: true },
 		prompts: { listChanged: true },
 		completions: {},
+		tasks: {
+			list: {},
+			cancel: {},
+		},
 	};
 }
 

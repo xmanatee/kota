@@ -137,12 +137,12 @@ export class McpTaskStore {
 	}
 
 	read(taskId: string): McpTask {
-		this.expire();
+		this.#expireForTask(taskId);
 		return cloneTask(this.#requireTask(taskId).task);
 	}
 
 	transition(taskId: string, transition: McpTaskTransition): McpTask {
-		this.expire();
+		this.#expireForTask(taskId);
 		const stored = this.#requireTask(taskId);
 		this.#assertTransitionAllowed(stored, transition.status);
 		const clock = this.#readClock();
@@ -200,7 +200,7 @@ export class McpTaskStore {
 	}
 
 	waitForResult(taskId: string): Promise<McpTaskResultSettlement> {
-		this.expire();
+		this.#expireForTask(taskId);
 		const stored = this.#requireTask(taskId);
 		const settlement = taskSettlement(stored);
 		if (settlement) return Promise.resolve(settlement);
@@ -246,7 +246,7 @@ export class McpTaskStore {
 		terminal: McpStoredTaskTerminalResult,
 		statusMessage?: string,
 	): McpTask {
-		this.expire();
+		this.#expireForTask(taskId);
 		const stored = this.#requireTask(taskId);
 		this.#assertTransitionAllowed(stored, status);
 		assertTerminalResult(terminal);
@@ -303,6 +303,12 @@ export class McpTaskStore {
 		const task = this.#tasks.get(taskId);
 		if (!task) throw new Error(`MCP task "${taskId}" not found`);
 		return task;
+	}
+
+	#expireForTask(taskId: string): void {
+		if (this.expire().includes(taskId)) {
+			throw new Error(`MCP task "${taskId}" expired`);
+		}
 	}
 
 	#nextTaskId(): string {

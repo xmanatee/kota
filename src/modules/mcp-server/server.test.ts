@@ -22,7 +22,10 @@ import {
 	MCP_META_CLIENT_CAPABILITIES_KEY,
 	MCP_META_CLIENT_INFO_KEY,
 	MCP_META_PROTOCOL_VERSION_KEY,
+	MCP_RELATED_TASK_META_KEY,
+	type McpInputRequiredResult,
 } from "./mcp-protocol-types.js";
+import { McpTaskStore } from "./mcp-task-store.js";
 import { kotaToolToMcp, McpServer, type McpServerOptions, toolResultToMcp } from "./server.js";
 
 vi.mock("#core/modules/provider-registry.js", () => ({
@@ -140,6 +143,44 @@ function draftRequestParamsWithProgress(
 	const next = draftRequestParams(params);
 	(next._meta as Record<string, unknown>).progressToken = progressToken;
 	return next;
+}
+
+function manualClock(start = Date.parse("2026-05-21T00:00:00.000Z")) {
+	let now = start;
+	return {
+		now: () => new Date(now),
+		advance: (ms: number) => {
+			now += ms;
+		},
+		iso: () => new Date(now).toISOString(),
+	};
+}
+
+function taskIdGenerator(ids: string[]): () => string {
+	let index = 0;
+	return () => ids[index++] ?? `task-generated-${index}`;
+}
+
+function inputRequiredResult(): McpInputRequiredResult {
+	return {
+		resultType: "input_required",
+		inputRequests: {
+			confirm: {
+				method: "elicitation/create",
+				params: {
+					mode: "form",
+					message: "Approve?",
+					requestedSchema: {
+						type: "object",
+						properties: {
+							confirmed: { type: "boolean", title: "Approve?" },
+						},
+					},
+				},
+			},
+		},
+		requestState: "state-token",
+	};
 }
 
 function writeProjectPrompt(
@@ -323,7 +364,10 @@ describe("McpServer", () => {
 				resources: { listChanged: true },
 				prompts: { listChanged: true },
 				completions: {},
+				tasks: { list: {}, cancel: {} },
 			});
+			const taskCaps = capabilities.tasks as Record<string, unknown>;
+			expect(taskCaps.requests).toBeUndefined();
 			expect(capabilities.sampling).toBeUndefined();
 			expect(capabilities.elicitation).toBeUndefined();
 
@@ -360,7 +404,10 @@ describe("McpServer", () => {
 				resources: { listChanged: true },
 				prompts: { listChanged: true },
 				completions: {},
+				tasks: { list: {}, cancel: {} },
 			});
+			const taskCaps = capabilities.tasks as Record<string, unknown>;
+			expect(taskCaps.requests).toBeUndefined();
 			expect(capabilities.sampling).toBeUndefined();
 			expect(capabilities.elicitation).toBeUndefined();
 			expect(capabilities.roots).toBeUndefined();
@@ -384,6 +431,211 @@ describe("McpServer", () => {
 			const err = resp.error as { code: number; message: string };
 			expect(err.code).toBe(-32602);
 			expect(err.message).toBe("Unsupported protocol version");
+
+			server.stop();
+		});
+	});
+
+	describe("tasks", () => {
+		function expectInvalidParams(resp: Record<string, unknown>, message: string): void {
+			expect(resp.error).toMatchObject({ code: -32602, message });
+		}
+
+		it("gets and lists seeded task states with opaque cursor pagination", async () => {
+			const clock = manualClock();
+			const store = new McpTaskStore({
+				now: clock.now,
+				generateTaskId: taskIdGenerator(["task-working", "task-input", "task-done"]),
+				defaultTtlMs: 60_000,
+				pollIntervalMs: 2_000,
+				pageSize: 2,
+			});
+			const working = store.create({ statusMessage: "Running" }).task;
+			store.create();
+			store.transition("task-input", {
+				status: "input_required",
+				inputRequired: inputRequiredResult(),
+				statusMessage: "Waiting for input",
+			});
+			store.create();
+			store.complete("task-done", { content: [{ type: "text", text: "done" }], isError: false });
+
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {}, taskStore: store });
+			await initDraftServer(server, input, output);
+
+			const getParams = draftRequestParams({ taskId: "task-working" });
+			(getParams._meta as Record<string, unknown>)[MCP_RELATED_TASK_META_KEY] = {
+				taskId: "ignored-related-task",
+			};
+			sendRequest(input, 2, "tasks/get", getParams);
+			const getResp = await readResponse(output);
+			expect(getResp.error).toBeUndefined();
+			expect(getResp.result).toEqual(working);
+
+			sendRequest(input, 3, "tasks/list", draftRequestParams());
+			const firstPage = await readResponse(output);
+			expect(firstPage.error).toBeUndefined();
+			const firstResult = firstPage.result as { tasks: Array<{ taskId: string }>; nextCursor?: string };
+			expect(firstResult.tasks.map((task) => task.taskId)).toEqual(["task-working", "task-input"]);
+			expect(firstResult.nextCursor).toEqual(expect.any(String));
+
+			sendRequest(input, 4, "tasks/list", draftRequestParams({ cursor: firstResult.nextCursor }));
+			const secondPage = await readResponse(output);
+			expect(secondPage.error).toBeUndefined();
+			const secondResult = secondPage.result as { tasks: Array<{ taskId: string }>; nextCursor?: string };
+			expect(secondResult.tasks.map((task) => task.taskId)).toEqual(["task-done"]);
+			expect(secondResult.nextCursor).toBeUndefined();
+
+			server.stop();
+		});
+
+		it("returns terminal and input-required task results without wrapper formats", async () => {
+			const store = new McpTaskStore({
+				now: manualClock().now,
+				generateTaskId: taskIdGenerator(["task-complete", "task-fail", "task-input"]),
+				defaultTtlMs: 60_000,
+			});
+			store.create();
+			store.complete("task-complete", {
+				content: [{ type: "text", text: "done" }],
+				isError: false,
+			});
+			store.create();
+			store.fail("task-fail", {
+				code: -32099,
+				message: "Underlying request failed",
+				data: { retryable: false },
+			});
+			store.create();
+			store.transition("task-input", {
+				status: "input_required",
+				inputRequired: inputRequiredResult(),
+				statusMessage: "Waiting for input",
+			});
+
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {}, taskStore: store });
+			await initDraftServer(server, input, output);
+
+			sendRequest(input, 2, "tasks/result", draftRequestParams({ taskId: "task-complete" }));
+			const completeResp = await readResponse(output);
+			expect(completeResp.error).toBeUndefined();
+			expect(completeResp.result).toMatchObject({
+				content: [{ type: "text", text: "done" }],
+				isError: false,
+				_meta: { [MCP_RELATED_TASK_META_KEY]: { taskId: "task-complete" } },
+			});
+
+			sendRequest(input, 3, "tasks/result", draftRequestParams({ taskId: "task-fail" }));
+			const failedResp = await readResponse(output);
+			expect(failedResp.error).toEqual({
+				code: -32099,
+				message: "Underlying request failed",
+				data: { retryable: false },
+			});
+
+			sendRequest(input, 4, "tasks/result", draftRequestParams({ taskId: "task-input" }));
+			const inputResp = await readResponse(output);
+			expect(inputResp.error).toBeUndefined();
+			expect(inputResp.result).toMatchObject({
+				resultType: "input_required",
+				requestState: "state-token",
+				_meta: { [MCP_RELATED_TASK_META_KEY]: { taskId: "task-input" } },
+			});
+
+			server.stop();
+		});
+
+		it("waits for working task results and settles waiters when tasks are cancelled", async () => {
+			const store = new McpTaskStore({
+				now: manualClock().now,
+				generateTaskId: taskIdGenerator(["task-wait", "task-cancel"]),
+				defaultTtlMs: 60_000,
+			});
+			store.create();
+			store.create();
+
+			const { input, output } = createTestStreams();
+			const reader = createQueuedReader(output);
+			const server = new McpServer({ input, output, log: () => {}, taskStore: store });
+			await server.start();
+			sendRequest(input, 1, "initialize", {
+				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+				capabilities: {},
+				clientInfo: { name: "test", version: "1.0.0" },
+			});
+			await reader.read();
+			sendNotification(input, "notifications/initialized");
+
+			sendRequest(input, 2, "tasks/result", draftRequestParams({ taskId: "task-wait" }));
+			await expectNoQueuedMessage(reader);
+			store.complete("task-wait", {
+				content: [{ type: "text", text: "eventual result" }],
+				isError: false,
+			});
+			const waited = await reader.read();
+			expect(waited.id).toBe(2);
+			expect(waited.result).toMatchObject({
+				content: [{ type: "text", text: "eventual result" }],
+				_meta: { [MCP_RELATED_TASK_META_KEY]: { taskId: "task-wait" } },
+			});
+
+			sendRequest(input, 3, "tasks/result", draftRequestParams({ taskId: "task-cancel" }));
+			await expectNoQueuedMessage(reader);
+			sendRequest(input, 4, "tasks/cancel", draftRequestParams({ taskId: "task-cancel" }));
+			const responses = [await reader.read(), await reader.read()].sort((left, right) =>
+				Number(left.id) - Number(right.id),
+			);
+			expect(responses[0]).toMatchObject({
+				id: 3,
+				error: { code: -32800, message: "The task was cancelled by request." },
+			});
+			expect(responses[1]).toMatchObject({
+				id: 4,
+				result: {
+					taskId: "task-cancel",
+					status: "cancelled",
+					statusMessage: "The task was cancelled by request.",
+				},
+			});
+
+			server.stop();
+		});
+
+		it("maps malformed, unknown, expired, invalid-cursor, and terminal-cancel cases to invalid params", async () => {
+			const clock = manualClock();
+			const store = new McpTaskStore({
+				now: clock.now,
+				generateTaskId: taskIdGenerator(["task-expiring", "task-terminal"]),
+				defaultTtlMs: 60_000,
+			});
+			store.create({ requestedTtlMs: 10 });
+			store.create();
+			store.complete("task-terminal", { content: [{ type: "text", text: "done" }], isError: false });
+			clock.advance(11);
+
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {}, taskStore: store });
+			await initDraftServer(server, input, output);
+
+			sendRequest(input, 2, "tasks/get", draftRequestParams({ taskId: 42 }));
+			expectInvalidParams(await readResponse(output), "Missing required parameter: taskId");
+
+			sendRequest(input, 3, "tasks/result", draftRequestParams({ taskId: "task-expiring" }));
+			expectInvalidParams(await readResponse(output), "Failed to retrieve task: Task has expired");
+
+			sendRequest(input, 4, "tasks/get", draftRequestParams({ taskId: "task-missing" }));
+			expectInvalidParams(await readResponse(output), "Failed to retrieve task: Task not found");
+
+			sendRequest(input, 5, "tasks/list", draftRequestParams({ cursor: "not-a-cursor" }));
+			expectInvalidParams(await readResponse(output), "Invalid MCP task cursor");
+
+			sendRequest(input, 6, "tasks/cancel", draftRequestParams({ taskId: "task-terminal" }));
+			expectInvalidParams(
+				await readResponse(output),
+				"Cannot cancel task: already in terminal status 'completed'",
+			);
 
 			server.stop();
 		});

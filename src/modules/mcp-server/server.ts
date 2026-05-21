@@ -20,6 +20,7 @@ import { InitializeHandler } from "./mcp-handlers-initialize.js";
 import { PromptsHandler } from "./mcp-handlers-prompts.js";
 import { ResourcesHandler } from "./mcp-handlers-resources.js";
 import { SamplingHandler } from "./mcp-handlers-sampling.js";
+import { TasksHandler } from "./mcp-handlers-tasks.js";
 import { ToolsHandler } from "./mcp-handlers-tools.js";
 import { McpMrtrStateCodec } from "./mcp-mrtr.js";
 import type {
@@ -45,6 +46,7 @@ import {
 	MCP_META_PROTOCOL_VERSION_KEY,
 	mcpProgressTokenKey,
 } from "./mcp-protocol-types.js";
+import { McpTaskStore } from "./mcp-task-store.js";
 
 export { kotaToolToMcp, toolResultToMcp } from "./mcp-handlers-tools.js";
 export type { ElicitationResponse, ElicitationSchema, McpRoot, McpToolResult } from "./mcp-protocol-types.js";
@@ -62,6 +64,7 @@ export type McpServerOptions = {
 	modelClient?: ModelClient;
 	samplingModel?: string;
 	samplingEnabled?: boolean;
+	taskStore?: McpTaskStore;
 };
 
 type RequestHandler = (msg: JsonRpcRequest) => Promise<void> | void;
@@ -322,6 +325,7 @@ export class McpServer {
 			ctx,
 			() => this.initialize.getEffectiveProjectDir(),
 		);
+		const tasks = new TasksHandler(ctx, options.taskStore ?? new McpTaskStore());
 
 		const ack: RequestHandler = (m) => { send({ jsonrpc: "2.0", id: m.id, result: {} }); };
 		this.requestHandlers = new Map<string, RequestHandler>([
@@ -338,6 +342,10 @@ export class McpServer {
 			["prompts/get", (m) => prompts.handleGet(m)],
 			["sampling/createMessage", (m) => sampling.handleCreateMessage(m)],
 			["completion/complete", (m) => completion.handleComplete(m)],
+			["tasks/get", (m) => tasks.handleGet(m)],
+			["tasks/result", (m) => tasks.handleResult(m)],
+			["tasks/list", (m) => tasks.handleList(m)],
+			["tasks/cancel", (m) => tasks.handleCancel(m)],
 			["ping", ack],
 			["shutdown", ack],
 		]);
