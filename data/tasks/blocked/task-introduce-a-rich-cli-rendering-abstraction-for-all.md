@@ -197,7 +197,7 @@ work until `.kota/runs/peer-cli-comparison/` is captured or the Done-When bar is
 explicitly changed in a new task. blocked-promoter should re-instruct this
 operator capture after the 14-day cadence if the artifact remains absent.
 
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-05-07T12:27:35.000Z -->
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-05-21T12:40:49.403Z -->
 
 ## Status
 
