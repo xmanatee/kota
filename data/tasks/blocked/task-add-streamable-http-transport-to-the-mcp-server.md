@@ -6,7 +6,7 @@ priority: p2
 area: modules
 summary: Expose KOTA's first-party MCP server over the current Streamable HTTP transport with strict draft header validation, localhost-safe defaults, and transcript evidence while preserving the existing stdio path.
 created_at: 2026-05-21T13:26:26.757Z
-updated_at: 2026-05-21T17:34:08.116Z
+updated_at: 2026-05-21T17:42:44Z
 ---
 
 ## Problem
@@ -79,8 +79,8 @@ advertised.
 
 ```
 kind: operator-capture
-path: .kota/runs/2026-05-21T16-38-28-976Z-builder-3qw64n/http-transcript.txt
-description: live endpoint transcript captured on a host that allows local listen(); run `kota mcp-server --http --host 127.0.0.1 --port 0`, record the printed endpoint URL, call `server/discover`, `tools/list`, and one state-changing `tools/call` through that endpoint with valid Streamable HTTP draft headers, then record at least one mismatched-header rejection. The current repair sandbox returns EPERM for every local bind attempt, so adapter-only evidence cannot satisfy this task.
+path: .kota/runs/2026-05-21T16-38-28-976Z-builder-3qw64n/operator-http-transcript.txt
+description: live endpoint transcript captured on a host that allows local listen(); run `kota mcp-server --http --host 127.0.0.1 --port 0`, record the printed endpoint URL, call `server/discover`, `tools/list`, and one state-changing `tools/call` through that endpoint with valid Streamable HTTP draft headers, then record at least one mismatched-header rejection. The existing `http-transcript.txt` in this run records the sandbox `listen EPERM` blocker plus adapter-only checks, so it intentionally does not satisfy this precondition.
 ```
 
 ## Source / Intent
@@ -149,7 +149,8 @@ Implementation progress in run `2026-05-21T16-38-28-976Z-builder-3qw64n`:
 - `pnpm build`
 - `pnpm test src/built-cli-mcp-server.integration.test.ts`
 - `.kota/runs/2026-05-21T16-38-28-976Z-builder-3qw64n/http-transcript.txt`
-  currently records the sandbox `listen EPERM` blocker and adapter-level
-  request exercise. It must be replaced by the operator-captured live endpoint
-  transcript named in the unblock precondition before this task can return to
-  `done/`.
+  records the sandbox `listen EPERM` blocker and adapter-level request
+  exercise. It does not satisfy the unblock precondition; the
+  operator-captured live endpoint transcript must be written to
+  `.kota/runs/2026-05-21T16-38-28-976Z-builder-3qw64n/operator-http-transcript.txt`
+  before this task can return to `done/`.
