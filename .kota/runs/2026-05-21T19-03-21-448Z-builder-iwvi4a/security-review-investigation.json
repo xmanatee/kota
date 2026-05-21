@@ -1,0 +1,34 @@
+{
+  "findings": [
+    {
+      "id": "confirmed-fetch",
+      "candidateId": "external-fetch:src/modules/web-access/web-fetch.ts:1",
+      "claim": "Caller-controlled URL reaches fetch without validation.",
+      "severity": "high",
+      "affectedPath": "src/modules/web-access/web-fetch.ts",
+      "evidence": [
+        {
+          "path": "src/modules/web-access/web-fetch.ts",
+          "line": 1,
+          "excerpt": "await fetch(url, { headers });"
+        }
+      ],
+      "recommendedOutcome": "Add explicit URL validation before fetch."
+    },
+    {
+      "id": "rejected-secret",
+      "candidateId": "secret-handling:src/modules/secrets/index.ts:1",
+      "claim": "Secret is logged.",
+      "severity": "medium",
+      "affectedPath": "src/modules/secrets/index.ts",
+      "evidence": [
+        {
+          "path": "src/modules/secrets/index.ts",
+          "line": 1,
+          "excerpt": "const token = await get_secret('TOKEN');"
+        }
+      ],
+      "recommendedOutcome": "No task needed."
+    }
+  ]
+}

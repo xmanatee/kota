@@ -1,12 +1,12 @@
 ---
 id: task-add-an-agentic-security-review-workflow
 title: Add an agentic security-review workflow
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Add an explicit KOTA workflow that scans for security-sensitive code candidates, runs bounded agent investigation and revalidation, and turns confirmed findings into run artifacts or follow-up tasks without adding a parallel audit store.
 created_at: 2026-05-21T19:01:14.623Z
-updated_at: 2026-05-21T19:01:14.623Z
+updated_at: 2026-05-21T19:19:17Z
 ---
 
 ## Problem

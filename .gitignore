@@ -2,7 +2,17 @@ node_modules/
 dist/
 logs/
 .loop-state
-.kota/
+**/.kota/
+!/.kota/
+/.kota/*
+!/.kota/runs/
+/.kota/runs/*
+!/.kota/runs/2026-05-21T19-03-21-448Z-builder-iwvi4a/
+/.kota/runs/2026-05-21T19-03-21-448Z-builder-iwvi4a/*
+!/.kota/runs/2026-05-21T19-03-21-448Z-builder-iwvi4a/security-review-investigation.json
+!/.kota/runs/2026-05-21T19-03-21-448Z-builder-iwvi4a/security-review-outcome.json
+!/.kota/runs/2026-05-21T19-03-21-448Z-builder-iwvi4a/security-review-revalidation.json
+!/.kota/runs/2026-05-21T19-03-21-448Z-builder-iwvi4a/security-review-task-fixture.md
 # Eval-harness fixtures legitimately seed prior run state; the runner copies
 # `initial/` verbatim into an isolated tmpdir at fixture-run time.
 !src/modules/eval-harness/fixtures/**/initial/.kota/
