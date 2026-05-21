@@ -364,10 +364,10 @@ describe("McpServer", () => {
 				resources: { listChanged: true },
 				prompts: { listChanged: true },
 				completions: {},
-				tasks: { list: {}, cancel: {} },
+				tasks: { list: {}, cancel: {}, requests: { tools: { call: {} } } },
 			});
 			const taskCaps = capabilities.tasks as Record<string, unknown>;
-			expect(taskCaps.requests).toBeUndefined();
+			expect(taskCaps.requests).toEqual({ tools: { call: {} } });
 			expect(capabilities.sampling).toBeUndefined();
 			expect(capabilities.elicitation).toBeUndefined();
 
@@ -404,10 +404,10 @@ describe("McpServer", () => {
 				resources: { listChanged: true },
 				prompts: { listChanged: true },
 				completions: {},
-				tasks: { list: {}, cancel: {} },
+				tasks: { list: {}, cancel: {}, requests: { tools: { call: {} } } },
 			});
 			const taskCaps = capabilities.tasks as Record<string, unknown>;
-			expect(taskCaps.requests).toBeUndefined();
+			expect(taskCaps.requests).toEqual({ tools: { call: {} } });
 			expect(capabilities.sampling).toBeUndefined();
 			expect(capabilities.elicitation).toBeUndefined();
 			expect(capabilities.roots).toBeUndefined();
@@ -677,6 +677,36 @@ describe("McpServer", () => {
 			const result = resp.result as { tools: unknown[] };
 			expect(Array.isArray(result.tools)).toBe(true);
 			expect(result.tools.length).toBeGreaterThan(0);
+
+			server.stop();
+		});
+
+		it("advertises optional task support on draft tools/list results", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({
+				input,
+				output,
+				log: () => {},
+				moduleTools: [
+					{
+						tool: {
+							name: "ext_task_list_support",
+							description: "Task support list test",
+							input_schema: { type: "object" as const, properties: {}, required: [] },
+						},
+						runner: async () => ({ content: "ok" }),
+						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+					},
+				],
+			});
+			await initDraftServer(server, input, output);
+
+			sendRequest(input, 2, "tools/list", draftRequestParams());
+			const resp = await readResponse(output);
+
+			const result = resp.result as { tools: Array<Record<string, unknown>> };
+			const tool = result.tools.find((candidate) => candidate.name === "ext_task_list_support");
+			expect(tool?.execution).toEqual({ taskSupport: "optional" });
 
 			server.stop();
 		});
@@ -1116,6 +1146,290 @@ describe("McpServer", () => {
 			expect(response.id).toBe(2);
 			expect(response.result).toBeDefined();
 			await expectNoQueuedMessage(reader);
+
+			server.stop();
+		});
+
+		it("runs task-augmented draft tools/call asynchronously and returns the final result through tasks/result", async () => {
+			const { input, output } = createTestStreams();
+			const reader = createQueuedReader(output);
+			const clock = manualClock();
+			const store = new McpTaskStore({
+				now: clock.now,
+				generateTaskId: taskIdGenerator(["task-tool-ok"]),
+				defaultTtlMs: 60_000,
+				pollIntervalMs: 2_000,
+			});
+			let markStarted!: () => void;
+			const started = new Promise<void>((resolve) => { markStarted = resolve; });
+			let releaseTool!: () => void;
+			const toolGate = new Promise<void>((resolve) => { releaseTool = resolve; });
+			const server = new McpServer({
+				input,
+				output,
+				log: () => {},
+				taskStore: store,
+				moduleTools: [
+					{
+						tool: {
+							name: "ext_task_success",
+							description: "Task success test",
+							input_schema: { type: "object" as const, properties: {}, required: [] },
+						},
+						runner: async () => {
+							markStarted();
+							await toolGate;
+							return { content: "task result" };
+						},
+						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+					},
+				],
+			});
+			await server.start();
+			sendRequest(input, 1, "initialize", {
+				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+				capabilities: {},
+				clientInfo: { name: "test", version: "1.0.0" },
+			});
+			await reader.read();
+			sendNotification(input, "notifications/initialized");
+
+			sendRequest(input, 2, "tools/call", draftRequestParams({
+				name: "ext_task_success",
+				arguments: {},
+				task: { ttl: 120_000 },
+			}));
+			const created = await reader.read();
+			expect(created.id).toBe(2);
+			expect(created.result).toMatchObject({
+				task: {
+					taskId: "task-tool-ok",
+					status: "working",
+					statusMessage: "The operation is now in progress.",
+					createdAt: clock.iso(),
+					lastUpdatedAt: clock.iso(),
+					ttl: 120_000,
+					pollInterval: 2_000,
+				},
+				_meta: { [MCP_RELATED_TASK_META_KEY]: { taskId: "task-tool-ok" } },
+			});
+			await started;
+
+			sendRequest(input, 3, "tasks/get", draftRequestParams({ taskId: "task-tool-ok" }));
+			const working = await reader.read();
+			expect(working.result).toMatchObject({ taskId: "task-tool-ok", status: "working" });
+
+			sendRequest(input, 4, "tasks/result", draftRequestParams({ taskId: "task-tool-ok" }));
+			await expectNoQueuedMessage(reader);
+			releaseTool();
+			const result = await reader.read();
+
+			expect(result.id).toBe(4);
+			expect(result.result).toMatchObject({
+				resultType: "complete",
+				content: [{ type: "text", text: "task result" }],
+				isError: false,
+				_meta: { [MCP_RELATED_TASK_META_KEY]: { taskId: "task-tool-ok" } },
+			});
+
+			server.stop();
+		});
+
+		it("keeps cancelled task-owned tool calls terminal when the runner finishes late", async () => {
+			const { input, output } = createTestStreams();
+			const reader = createQueuedReader(output);
+			const store = new McpTaskStore({
+				now: manualClock().now,
+				generateTaskId: taskIdGenerator(["task-tool-cancel"]),
+				defaultTtlMs: 60_000,
+			});
+			let markStarted!: () => void;
+			const started = new Promise<void>((resolve) => { markStarted = resolve; });
+			let releaseTool!: () => void;
+			const toolGate = new Promise<void>((resolve) => { releaseTool = resolve; });
+			const server = new McpServer({
+				input,
+				output,
+				log: () => {},
+				taskStore: store,
+				moduleTools: [
+					{
+						tool: {
+							name: "ext_task_cancel",
+							description: "Task cancel test",
+							input_schema: { type: "object" as const, properties: {}, required: [] },
+						},
+						runner: async () => {
+							markStarted();
+							await toolGate;
+							return { content: "late result" };
+						},
+						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+					},
+				],
+			});
+			await server.start();
+			sendRequest(input, 1, "initialize", {
+				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+				capabilities: {},
+				clientInfo: { name: "test", version: "1.0.0" },
+			});
+			await reader.read();
+			sendNotification(input, "notifications/initialized");
+
+			sendRequest(input, 2, "tools/call", draftRequestParams({
+				name: "ext_task_cancel",
+				arguments: {},
+				task: {},
+			}));
+			await reader.read();
+			await started;
+
+			sendRequest(input, 3, "tasks/result", draftRequestParams({ taskId: "task-tool-cancel" }));
+			await expectNoQueuedMessage(reader);
+			sendRequest(input, 4, "tasks/cancel", draftRequestParams({ taskId: "task-tool-cancel" }));
+			const responses = [await reader.read(), await reader.read()].sort((left, right) =>
+				Number(left.id) - Number(right.id),
+			);
+			expect(responses[0]).toMatchObject({
+				id: 3,
+				error: { code: -32800, message: "The task was cancelled by request." },
+			});
+			expect(responses[1]).toMatchObject({
+				id: 4,
+				result: {
+					taskId: "task-tool-cancel",
+					status: "cancelled",
+					statusMessage: "The task was cancelled by request.",
+				},
+			});
+
+			releaseTool();
+			await new Promise<void>((resolve) => { setImmediate(resolve); });
+			sendRequest(input, 5, "tasks/get", draftRequestParams({ taskId: "task-tool-cancel" }));
+			const afterLateCompletion = await reader.read();
+			expect(afterLateCompletion.result).toMatchObject({
+				taskId: "task-tool-cancel",
+				status: "cancelled",
+			});
+
+			server.stop();
+		});
+
+		it("stores task failures for tool exceptions, isError results, output-schema errors, and handler errors", async () => {
+			const { input, output } = createTestStreams();
+			const reader = createQueuedReader(output);
+			const store = new McpTaskStore({
+				now: manualClock().now,
+				generateTaskId: taskIdGenerator([
+					"task-tool-throw",
+					"task-tool-is-error",
+					"task-tool-schema",
+					"task-tool-unknown",
+				]),
+				defaultTtlMs: 60_000,
+			});
+			const server = new McpServer({
+				input,
+				output,
+				log: () => {},
+				taskStore: store,
+				moduleTools: [
+					{
+						tool: {
+							name: "ext_task_throw",
+							description: "Task throw test",
+							input_schema: { type: "object" as const, properties: {}, required: [] },
+						},
+						runner: async () => { throw new Error("throw task boom"); },
+						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+					},
+					{
+						tool: {
+							name: "ext_task_is_error",
+							description: "Task isError test",
+							input_schema: { type: "object" as const, properties: {}, required: [] },
+						},
+						runner: async () => ({ content: "tool reported failure", is_error: true }),
+						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+					},
+					{
+						tool: {
+							name: "ext_task_bad_schema",
+							description: "Task schema test",
+							input_schema: { type: "object" as const, properties: {}, required: [] },
+							output_schema: {
+								type: "object" as const,
+								properties: { ok: { type: "boolean" } },
+								required: ["ok"],
+							},
+						},
+						runner: async () => ({
+							content: "bad schema",
+							structuredContent: { ok: "no" },
+						}),
+						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+					},
+				],
+			});
+			await server.start();
+			sendRequest(input, 1, "initialize", {
+				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+				capabilities: {},
+				clientInfo: { name: "test", version: "1.0.0" },
+			});
+			await reader.read();
+			sendNotification(input, "notifications/initialized");
+
+			async function createTaskAndReadResult(name: string, taskId: string) {
+				sendRequest(input, `create-${taskId}`, "tools/call", draftRequestParams({
+					name,
+					arguments: {},
+					task: {},
+				}));
+				const created = await reader.read();
+				expect(created.result).toMatchObject({ task: { taskId, status: "working" } });
+				sendRequest(input, `result-${taskId}`, "tasks/result", draftRequestParams({ taskId }));
+				return reader.read();
+			}
+
+			async function expectFailedStatus(taskId: string): Promise<void> {
+				sendRequest(input, `get-${taskId}`, "tasks/get", draftRequestParams({ taskId }));
+				const status = await reader.read();
+				expect(status.result).toMatchObject({ taskId, status: "failed" });
+			}
+
+			const thrown = await createTaskAndReadResult("ext_task_throw", "task-tool-throw");
+			expect(thrown.result).toMatchObject({
+				resultType: "complete",
+				isError: true,
+				content: [{ type: "text", text: expect.stringContaining("throw task boom") }],
+				_meta: { [MCP_RELATED_TASK_META_KEY]: { taskId: "task-tool-throw" } },
+			});
+			await expectFailedStatus("task-tool-throw");
+
+			const isError = await createTaskAndReadResult("ext_task_is_error", "task-tool-is-error");
+			expect(isError.result).toMatchObject({
+				resultType: "complete",
+				isError: true,
+				content: [{ type: "text", text: "tool reported failure" }],
+				_meta: { [MCP_RELATED_TASK_META_KEY]: { taskId: "task-tool-is-error" } },
+			});
+			await expectFailedStatus("task-tool-is-error");
+
+			const schema = await createTaskAndReadResult("ext_task_bad_schema", "task-tool-schema");
+			expect(schema.error).toMatchObject({
+				code: -32603,
+				message: expect.stringContaining("structuredContent does not match output_schema"),
+			});
+			await expectFailedStatus("task-tool-schema");
+
+			const unknown = await createTaskAndReadResult("ext_task_missing", "task-tool-unknown");
+			expect(unknown.error).toMatchObject({
+				code: -32602,
+				message: "Unknown tool: ext_task_missing",
+			});
+			await expectFailedStatus("task-tool-unknown");
 
 			server.stop();
 		});

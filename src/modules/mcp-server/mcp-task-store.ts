@@ -185,6 +185,19 @@ export class McpTaskStore {
 		return this.#settleTerminal(taskId, "failed", { kind: "error", error }, options.statusMessage);
 	}
 
+	failWithResult(
+		taskId: string,
+		result: KotaJsonValue,
+		options: McpTaskTerminalOptions = {},
+	): McpTask {
+		return this.#settleTerminal(
+			taskId,
+			"failed",
+			{ kind: "result", result },
+			options.statusMessage,
+		);
+	}
+
 	cancel(taskId: string, options: CancelMcpTaskOptions = {}): McpTask {
 		const terminalResult = options.terminalResult ?? {
 			kind: "error" as const,

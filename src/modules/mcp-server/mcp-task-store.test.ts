@@ -107,9 +107,10 @@ describe("McpTaskStore", () => {
 		const clock = manualClock();
 		const store = new McpTaskStore({
 			now: clock.now,
-			generateTaskId: idGenerator(["task-ok", "task-fail"]),
+			generateTaskId: idGenerator(["task-ok", "task-fail", "task-failed-result"]),
 			defaultTtlMs: 60_000,
 		});
+		store.create();
 		store.create();
 		store.create();
 
@@ -138,6 +139,24 @@ describe("McpTaskStore", () => {
 		expect(() => store.complete("task-fail", null)).toThrow(
 			'Cannot transition MCP task "task-fail" from terminal state "failed"',
 		);
+
+		store.failWithResult("task-failed-result", {
+			resultType: "complete",
+			content: [{ type: "text", text: "tool-level failure" }],
+			isError: true,
+		});
+		await expect(store.waitForResult("task-failed-result")).resolves.toMatchObject({
+			kind: "terminal",
+			task: { status: "failed" },
+			terminal: {
+				kind: "result",
+				result: {
+					resultType: "complete",
+					content: [{ type: "text", text: "tool-level failure" }],
+					isError: true,
+				},
+			},
+		});
 	});
 
 	it("settles cancellation waiters and blocks late completion", async () => {

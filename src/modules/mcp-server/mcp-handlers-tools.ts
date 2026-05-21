@@ -4,7 +4,7 @@
  * representation.
  */
 
-import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type { KotaJsonValue, KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolDef } from "#core/modules/module-types.js";
 import { getToolMcpAnnotations } from "#core/tools/guardrails-classify.js";
 import { executeTool, getAllTools, type ToolResult } from "#core/tools/index.js";
@@ -18,8 +18,11 @@ import {
 import type {
 	ElicitationResponse,
 	HandlerContext,
+	JsonRpcErrorObject,
+	JsonRpcOutboundPayload,
 	JsonRpcRequest,
 	McpContentBlock,
+	McpCreateTaskResult,
 	McpProtocolVersion,
 	McpToolCompleteResult,
 	McpToolInputRequiredResult,
@@ -31,7 +34,9 @@ import {
 	activeMcpProtocolVersion,
 	hasActiveMcpContext,
 	MCP_DRAFT_PROTOCOL_VERSION,
+	MCP_RELATED_TASK_META_KEY,
 } from "./mcp-protocol-types.js";
+import type { McpTaskStore } from "./mcp-task-store.js";
 
 type ToolRunnerInput = Parameters<ToolDef["runner"]>[0];
 type RequestParamValue = NonNullable<JsonRpcRequest["params"]>[string];
@@ -43,6 +48,24 @@ type McpLegacyToolResult = {
 	isError?: true;
 };
 
+type McpToolTaskSupport = "required" | "optional" | "forbidden";
+
+type ToolCallTaskAugmentation =
+	| { kind: "none" }
+	| { kind: "invalid"; message: string }
+	| { kind: "task"; requestedTtlMs?: number };
+
+type ToolCallOutcome =
+	| {
+			kind: "result";
+			result: McpToolResult | McpLegacyToolResult;
+			failed: boolean;
+		}
+	| {
+			kind: "jsonrpc_error";
+			error: JsonRpcErrorObject;
+		};
+
 export class ToolsHandler {
 	private readonly toolFilter: Set<string> | null;
 	private readonly moduleRunners = new Map<string, ToolDef["runner"]>();
@@ -52,6 +75,7 @@ export class ToolsHandler {
 		private readonly ctx: HandlerContext,
 		private readonly elicitation: ElicitationHandler,
 		private readonly mrtr: McpMrtrStateCodec,
+		private readonly taskStore: McpTaskStore,
 		options: { toolFilter?: string[]; moduleTools?: ToolDef[] } = {},
 	) {
 		this.toolFilter = options.toolFilter?.length ? new Set(options.toolFilter) : null;
@@ -78,8 +102,11 @@ export class ToolsHandler {
 			return;
 		}
 
+		const taskSupport = usesDraftToolResults(activeMcpProtocolVersion(this.ctx))
+			? "optional"
+			: undefined;
 		const tools = this.getExposedTools().map((t) => {
-			const mcp = kotaToolToMcp(t);
+			const mcp = kotaToolToMcp(t, { taskSupport });
 			const annotations = getToolMcpAnnotations(t.name);
 			return annotations ? { ...mcp, annotations } : mcp;
 		});
@@ -93,68 +120,116 @@ export class ToolsHandler {
 		}
 
 		const params = msg.params ?? {};
-		const name = params.name as string;
+		const taskAugmentation = usesDraftToolResults(activeMcpProtocolVersion(this.ctx))
+			? decodeToolCallTaskAugmentation(params.task)
+			: { kind: "none" as const };
+		if (taskAugmentation.kind === "invalid") {
+			this.ctx.transport.sendError(msg, -32602, taskAugmentation.message);
+			return;
+		}
+		if (taskAugmentation.kind === "task") {
+			this.handleTaskAugmentedCall(msg, taskAugmentation);
+			return;
+		}
+
+		this.sendToolCallOutcome(msg, await this.executeToolCall(msg, { progress: true }));
+	}
+
+	private handleTaskAugmentedCall(
+		msg: JsonRpcRequest,
+		taskAugmentation: Extract<ToolCallTaskAugmentation, { kind: "task" }>,
+	): void {
+		const created = this.taskStore.create({
+			...(taskAugmentation.requestedTtlMs !== undefined && {
+				requestedTtlMs: taskAugmentation.requestedTtlMs,
+			}),
+			statusMessage: "The operation is now in progress.",
+		});
+		this.ctx.transport.sendResult(msg, createTaskResultWithRelatedTaskMeta(created));
+		setImmediate(() => {
+			this.executeTaskAugmentedToolCall(msg, created.task.taskId).catch((err) => {
+				const message = err instanceof Error ? err.message : String(err);
+				this.settleTaskWithJsonRpcError(created.task.taskId, {
+					code: -32603,
+					message: `Internal tool task error: ${message}`,
+				});
+			});
+		});
+	}
+
+	private async executeTaskAugmentedToolCall(
+		msg: JsonRpcRequest,
+		taskId: string,
+	): Promise<void> {
+		const outcome = await this.executeToolCall(msg, { progress: false });
+		this.settleToolTask(taskId, outcome);
+	}
+
+	private async executeToolCall(
+		msg: JsonRpcRequest,
+		options: { progress: boolean },
+	): Promise<ToolCallOutcome> {
+		const params = msg.params ?? {};
+		const name = params.name;
 		const args = readToolArguments(params.arguments);
 
 		if (!name || typeof name !== "string") {
-			return this.ctx.transport.sendError(msg, -32602, "Missing required parameter: name");
+			return jsonRpcError(-32602, "Missing required parameter: name");
 		}
 
 		const exposed = this.getExposedTools();
-		const tool = exposed.find((t) => t.name === name);
+		const tool = exposed.find((t) => t.name === name) ?? null;
 		if (!tool) {
-			return this.ctx.transport.sendError(msg, -32602, `Unknown tool: ${name}`);
+			return jsonRpcError(-32602, `Unknown tool: ${name}`);
 		}
 
 		const retry = decodeMrtrRetryParams(params);
 		if (retry.kind === "invalid") {
-			return this.ctx.transport.sendError(msg, -32602, retry.message);
+			return jsonRpcError(-32602, retry.message);
 		}
 		if (retry.kind === "retry") {
-			return this.handleInputRequiredRetry(msg, name, retry.requestState, retry.inputResponses);
+			return this.inputRequiredRetryOutcome(msg, name, retry.requestState, retry.inputResponses);
 		}
 
 		this.ctx.log(`Calling tool: ${name}`);
-		this.ctx.sendProgress(0, {
-			total: 1,
-			message: `Calling tool: ${name}`,
-		});
-
-		if (name === "confirm" && usesDraftToolResults(activeMcpProtocolVersion(this.ctx))) {
-			this.handleConfirmViaInputRequired(msg, args);
-			return;
+		if (options.progress) {
+			this.ctx.sendProgress(0, {
+				total: 1,
+				message: `Calling tool: ${name}`,
+			});
 		}
 
-		// When the confirm tool is called over MCP and the client supports form elicitation,
-		// use the standard elicitation protocol instead of falling back to /dev/tty.
-		if (name === "confirm" && activeClientSupportsElicitation(this.ctx, "form")) {
-			await this.handleConfirmViaElicitation(msg, args);
-			return;
+		if (name === "confirm" && usesDraftToolResults(activeMcpProtocolVersion(this.ctx))) {
+			return this.confirmInputRequiredOutcome(msg, args);
 		}
 
 		let result: ToolResult;
-		const extRunner = this.moduleRunners.get(name);
-		if (extRunner) {
-			try {
-				result = await extRunner(args);
-			} catch (err) {
-				const errMsg = err instanceof Error ? err.message : String(err);
-				result = { content: `Tool error: ${errMsg}`, is_error: true };
-			}
+		if (name === "confirm" && activeClientSupportsElicitation(this.ctx, "form")) {
+			result = await this.confirmViaElicitationResult(args);
 		} else {
-			result = await executeTool(name, args);
+			result = await this.runTool(name, args);
 		}
 
-		this.sendToolExecutionResult(msg, tool, result);
+		const outcome = this.toolResultOutcome(tool, result);
+		if (
+			options.progress &&
+			outcome.kind === "result" &&
+			!isInputRequiredResult(outcome.result)
+		) {
+			this.ctx.sendProgress(1, {
+				total: 1,
+				message: "Tool call complete",
+			});
+		}
+		return outcome;
 	}
 
-	private handleConfirmViaInputRequired(
+	private confirmInputRequiredOutcome(
 		msg: JsonRpcRequest,
 		args: ToolRunnerInput,
-	): void {
+	): ToolCallOutcome {
 		if (!activeClientSupportsElicitation(this.ctx, "form")) {
-			this.ctx.transport.sendError(msg, -32602, "Client does not support form elicitation");
-			return;
+			return jsonRpcError(-32602, "Client does not support form elicitation");
 		}
 		const result: McpToolInputRequiredResult = this.mrtr.createInputRequiredResult(
 			msg,
@@ -172,73 +247,144 @@ export class ToolsHandler {
 				},
 			},
 		);
-		this.ctx.transport.sendResult(msg, result);
+		return { kind: "result", result, failed: false };
 	}
 
-	private handleInputRequiredRetry(
+	private inputRequiredRetryOutcome(
 		msg: JsonRpcRequest,
 		name: string,
 		requestState: string,
 		inputResponses: McpToolInputResponses,
-	): void {
+	): ToolCallOutcome {
 		if (!usesDraftToolResults(activeMcpProtocolVersion(this.ctx))) {
-			this.ctx.transport.sendError(
-				msg,
+			return jsonRpcError(
 				-32602,
 				"inputResponses are only supported by the draft tool result protocol",
 			);
-			return;
 		}
 		if (!activeClientSupportsElicitation(this.ctx, "form")) {
-			this.ctx.transport.sendError(msg, -32602, "Client does not support form elicitation");
-			return;
+			return jsonRpcError(-32602, "Client does not support form elicitation");
 		}
 		const verified = this.mrtr.verify(requestState, msg, ["confirm"]);
 		if (!verified.ok) {
-			this.ctx.transport.sendError(msg, -32602, verified.message);
-			return;
+			return jsonRpcError(-32602, verified.message);
 		}
 		if (name !== "confirm") {
-			this.ctx.transport.sendError(msg, -32602, "requestState does not match requested tool");
-			return;
+			return jsonRpcError(-32602, "requestState does not match requested tool");
 		}
 		const inputResponse = readElicitationInputResponse(inputResponses, "confirm", "form");
 		if (typeof inputResponse === "string") {
-			this.ctx.transport.sendError(msg, -32602, inputResponse);
-			return;
+			return jsonRpcError(-32602, inputResponse);
 		}
 		const tool = this.getExposedTools().find((t) => t.name === name) ?? null;
-		this.sendToolExecutionResult(
-			msg,
+		return this.toolResultOutcome(
 			tool,
 			confirmToolResultFromInputResponse(readToolArguments(msg.params?.arguments ?? {}), inputResponse),
 		);
 	}
 
-	private sendToolExecutionResult(
-		msg: JsonRpcRequest,
-		tool: KotaTool | null,
-		result: ToolResult,
-	): void {
-		const outputSchemaError = tool ? validateToolStructuredOutput(tool, result) : null;
-		if (outputSchemaError) {
-			this.ctx.transport.sendError(msg, -32603, outputSchemaError);
+	private sendToolCallOutcome(msg: JsonRpcRequest, outcome: ToolCallOutcome): void {
+		if (outcome.kind === "jsonrpc_error") {
+			this.ctx.transport.sendError(
+				msg,
+				outcome.error.code,
+				outcome.error.message,
+				outcome.error.data,
+			);
 			return;
 		}
-		this.ctx.sendProgress(1, {
-			total: 1,
-			message: "Tool call complete",
-		});
-		this.ctx.transport.sendResult(
-			msg,
-			toolResultToMcpCallResult(result, activeMcpProtocolVersion(this.ctx)),
-		);
+		this.ctx.transport.sendResult(msg, outcome.result as JsonRpcOutboundPayload);
 	}
 
-	private async handleConfirmViaElicitation(
-		msg: JsonRpcRequest,
+	private settleToolTask(taskId: string, outcome: ToolCallOutcome): void {
+		if (outcome.kind === "jsonrpc_error") {
+			this.settleTaskWithJsonRpcError(taskId, outcome.error);
+			return;
+		}
+		if (isInputRequiredResult(outcome.result)) {
+			this.settleTaskInputRequired(taskId, outcome.result);
+			return;
+		}
+		if (outcome.failed) {
+			this.settleTaskWithFailedResult(taskId, outcome.result);
+			return;
+		}
+		this.settleTaskCompleted(taskId, outcome.result);
+	}
+
+	private settleTaskCompleted(taskId: string, result: KotaJsonValue): void {
+		try {
+			this.taskStore.complete(taskId, result, { statusMessage: "Tool call complete" });
+		} catch (err) {
+			this.logUnexpectedTaskSettlementError(taskId, err);
+		}
+	}
+
+	private settleTaskWithFailedResult(taskId: string, result: KotaJsonValue): void {
+		try {
+			this.taskStore.failWithResult(taskId, result, {
+				statusMessage: "Tool execution failed",
+			});
+		} catch (err) {
+			this.logUnexpectedTaskSettlementError(taskId, err);
+		}
+	}
+
+	private settleTaskWithJsonRpcError(taskId: string, error: JsonRpcErrorObject): void {
+		try {
+			this.taskStore.fail(taskId, error, { statusMessage: error.message });
+		} catch (err) {
+			this.logUnexpectedTaskSettlementError(taskId, err);
+		}
+	}
+
+	private settleTaskInputRequired(
+		taskId: string,
+		inputRequired: McpToolInputRequiredResult,
+	): void {
+		try {
+			this.taskStore.transition(taskId, {
+				status: "input_required",
+				inputRequired,
+				statusMessage: "Tool call requires input.",
+			});
+		} catch (err) {
+			this.logUnexpectedTaskSettlementError(taskId, err);
+		}
+	}
+
+	private logUnexpectedTaskSettlementError(taskId: string, err: unknown): void {
+		const message = err instanceof Error ? err.message : String(err);
+		if (message.includes("from terminal state")) return;
+		this.ctx.log(`Failed to settle MCP tool task ${taskId}: ${message}`);
+	}
+
+	private async runTool(name: string, args: ToolRunnerInput): Promise<ToolResult> {
+		const extRunner = this.moduleRunners.get(name);
+		if (!extRunner) return executeTool(name, args);
+		try {
+			return await extRunner(args);
+		} catch (err) {
+			const errMsg = err instanceof Error ? err.message : String(err);
+			return { content: `Tool error: ${errMsg}`, is_error: true };
+		}
+	}
+
+	private toolResultOutcome(tool: KotaTool | null, result: ToolResult): ToolCallOutcome {
+		const outputSchemaError = tool ? validateToolStructuredOutput(tool, result) : null;
+		if (outputSchemaError) {
+			return jsonRpcError(-32603, outputSchemaError);
+		}
+		return {
+			kind: "result",
+			result: toolResultToMcpCallResult(result, activeMcpProtocolVersion(this.ctx)),
+			failed: result.is_error === true,
+		};
+	}
+
+	private async confirmViaElicitationResult(
 		args: ToolRunnerInput,
-	): Promise<void> {
+	): Promise<ToolResult> {
 		const action = readConfirmAction(args);
 		const risk = readConfirmRisk(args);
 		const timeoutSec =
@@ -267,23 +413,78 @@ export class ToolsHandler {
 			const approved = elicitResult.content?.confirmed === true;
 			text = approved ? `APPROVED: ${action}` : `REJECTED: ${action}`;
 		}
-		const tool = this.getExposedTools().find((t) => t.name === "confirm") ?? null;
-		this.sendToolExecutionResult(msg, tool, { content: text });
+		return { content: text };
 	}
 }
 
+function jsonRpcError(
+	code: number,
+	message: string,
+	data?: KotaJsonValue,
+): ToolCallOutcome {
+	return {
+		kind: "jsonrpc_error",
+		error: {
+			code,
+			message,
+			...(data !== undefined && { data }),
+		},
+	};
+}
+
+function decodeToolCallTaskAugmentation(
+	value: RequestParamValue,
+): ToolCallTaskAugmentation {
+	if (value === undefined) return { kind: "none" };
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		return { kind: "invalid", message: "task must be an object" };
+	}
+	const ttl = value.ttl;
+	if (
+		ttl !== undefined &&
+		(typeof ttl !== "number" || !Number.isSafeInteger(ttl) || ttl <= 0)
+	) {
+		return { kind: "invalid", message: "task.ttl must be a positive integer" };
+	}
+	return {
+		kind: "task",
+		...(ttl !== undefined && { requestedTtlMs: ttl }),
+	};
+}
+
+function createTaskResultWithRelatedTaskMeta(
+	created: McpCreateTaskResult,
+): McpCreateTaskResult {
+	const existingMeta = created._meta ?? {};
+	return {
+		...created,
+		_meta: {
+			...existingMeta,
+			[MCP_RELATED_TASK_META_KEY]: { taskId: created.task.taskId },
+		},
+	};
+}
+
+function isInputRequiredResult(
+	result: McpToolResult | McpLegacyToolResult,
+): result is McpToolInputRequiredResult {
+	return "resultType" in result && result.resultType === "input_required";
+}
+
 /** Convert a neutral KotaTool to MCP tool format. */
-export function kotaToolToMcp(tool: KotaTool): {
+export function kotaToolToMcp(tool: KotaTool, options: { taskSupport?: McpToolTaskSupport } = {}): {
 	name: string;
 	description: string;
 	inputSchema: KotaTool["input_schema"];
 	outputSchema?: NonNullable<KotaTool["output_schema"]>;
+	execution?: { taskSupport: McpToolTaskSupport };
 } {
 	return {
 		name: tool.name,
 		description: tool.description,
 		inputSchema: tool.input_schema,
 		...(tool.output_schema ? { outputSchema: tool.output_schema } : {}),
+		...(options.taskSupport ? { execution: { taskSupport: options.taskSupport } } : {}),
 	};
 }
 

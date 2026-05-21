@@ -317,7 +317,8 @@ export class McpServer {
 			() => this.initialize.getEffectiveProjectDir(),
 			mrtr,
 		);
-		const tools = new ToolsHandler(ctx, this.elicitation, mrtr, {
+		const taskStore = options.taskStore ?? new McpTaskStore();
+		const tools = new ToolsHandler(ctx, this.elicitation, mrtr, taskStore, {
 			...(options.toolFilter !== undefined && { toolFilter: options.toolFilter }),
 			...(options.moduleTools !== undefined && { moduleTools: options.moduleTools }),
 		});
@@ -325,7 +326,7 @@ export class McpServer {
 			ctx,
 			() => this.initialize.getEffectiveProjectDir(),
 		);
-		const tasks = new TasksHandler(ctx, options.taskStore ?? new McpTaskStore());
+		const tasks = new TasksHandler(ctx, taskStore);
 
 		const ack: RequestHandler = (m) => { send({ jsonrpc: "2.0", id: m.id, result: {} }); };
 		this.requestHandlers = new Map<string, RequestHandler>([
