@@ -306,6 +306,10 @@ resources:
   - url: https://modelcontextprotocol.io/specification/draft/basic/utilities/tasks
     added: "2026-05-21"
     notes: "Official MCP Tasks utility draft - monitor task-augmented requests, CreateTaskResult, task polling/result retrieval, cancellation, task input responses, status notifications, TTL handling, and lifecycle transition rules for KOTA's MCP server."
+    snapshot:
+      fingerprint: sha256:e0c5b83dabaf5b046d33d05de535b3c0
+      summary: "MCP draft Tasks is accessible and already covered by the active decomposed MCP task sequence: lifecycle store done, task control handlers ready, and tool-call/input-response slices dependency-queued; no new KOTA task was opened."
+      last_seen_at: "2026-05-21T11:57:45.474Z"
   - url: https://github.com/github/gh-aw
     added: "2026-05-17"
     notes: "GitHub Agentic Workflows is a GitHub Actions-hosted agent workflow runtime; monitor for event-trigger, safe-output, input-sanitization, and multi-engine guardrail patterns relevant to KOTA's workflow runtime."
