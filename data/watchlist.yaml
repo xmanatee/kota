@@ -31,15 +31,15 @@ resources:
   - url: https://github.com/anthropics/claude-code
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:3bc0f065364f31bb322d0106269c898b
-      summary: "Claude Code v2.1.144 surfaced a concrete MCP tools/list pagination gap; KOTA opened task-support-paginated-mcp-toolslist-in-the-client-runtime."
-      last_seen_at: "2026-05-20T02:32:53.824Z"
+      fingerprint: sha256:374ca9ab5d7af6d708eb0995f0106848
+      summary: "Claude Code v2.1.146 surfaced a concrete MCP resource/template pagination failure; KOTA opened task-add-mcp-resource-template-listing-and-resource-list-pagi for the remaining server-side resource discovery gap."
+      last_seen_at: "2026-05-21T20:37:21.985Z"
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:e354926491920c3d13e5e028622b7a22
-      summary: "Codex 0.132.0 still reinforces KOTA's already-completed image-fidelity and MCP-result-metadata work; no new nonduplicative KOTA task was opened from this Codex refresh."
-      last_seen_at: "2026-05-20T17:03:48.926Z"
+      fingerprint: sha256:c2da79e6ea4b63d88ec5e8814952232b
+      summary: "Codex 0.133.0 reinforces KOTA's session state, daemon-client, module discovery, and lifecycle-observability directions; no new nonduplicative KOTA task was opened from this refresh."
+      last_seen_at: "2026-05-21T20:37:21.985Z"
   - url: https://github.com/google-gemini/gemini-cli
     added: "2026-04-19"
     snapshot:
@@ -279,9 +279,9 @@ resources:
     added: "2026-05-20"
     notes: "Official MCP resources spec draft - monitor resources/list pagination, resources.listChanged, resource subscriptions, resource annotations, and input-required resource reads that affect KOTA's MCP server resource surface."
     snapshot:
-      fingerprint: sha256:ff32a66cc91a83afe962d1e345b9d4e3
-      summary: "MCP draft Resources still reinforces the recently completed KOTA resource subscription/listChanged alignment work; no additional nonduplicative resource task was opened from this refresh."
-      last_seen_at: "2026-05-20T10:02:27.470Z"
+      fingerprint: sha256:fb90899c8cdd64371af9270140312129
+      summary: "MCP draft Resources confirms both resources/list and resources/templates/list are paginated; KOTA opened task-add-mcp-resource-template-listing-and-resource-list-pagi to align the MCP server resource surface."
+      last_seen_at: "2026-05-21T20:37:21.985Z"
   - url: https://modelcontextprotocol.io/specification/draft/server/prompts
     added: "2026-05-20"
     notes: "Official MCP prompts spec draft - monitor prompts/list pagination, prompt metadata, input-required prompt resolution, completions, and promptsListChanged subscriptions that affect KOTA's MCP prompt-template surface."
