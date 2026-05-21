@@ -9,7 +9,7 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createInterface, type Interface } from "node:readline";
-import type { KotaJsonObject, KotaJsonValue } from "#core/agent-harness/message-protocol.js";
+import type { KotaJsonObject, KotaJsonValue, KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
@@ -68,6 +68,12 @@ export type McpServerOptions = {
 };
 
 type RequestHandler = (msg: JsonRpcRequest) => Promise<void> | void;
+
+export type McpServerDispatchResult =
+	| { kind: "invalid" }
+	| { kind: "accepted" }
+	| { kind: "response"; response: JsonRpcOutboundPayload }
+	| { kind: "stream"; messages: JsonRpcOutboundPayload[] };
 
 type DraftRequestContextResult =
 	| { ok: true; context: McpRequestContext }
@@ -247,6 +253,7 @@ export class McpServer {
 	private readonly input: NodeJS.ReadableStream;
 	private readonly output: NodeJS.WritableStream;
 	private readonly log: (msg: string) => void;
+	private readonly outboundSink = new AsyncLocalStorage<(msg: JsonRpcOutboundPayload) => void>();
 	private readonly session: SessionState = {
 		initialized: false,
 		protocolVersion: MCP_LEGACY_PROTOCOL_VERSION,
@@ -259,6 +266,7 @@ export class McpServer {
 	private readonly initialize: InitializeHandler;
 	private readonly resources: ResourcesHandler;
 	private readonly elicitation: ElicitationHandler;
+	private readonly tools: ToolsHandler;
 	private readonly requestHandlers: Map<string, RequestHandler>;
 
 	constructor(options: McpServerOptions = {}) {
@@ -267,7 +275,7 @@ export class McpServer {
 		this.log = options.log ?? ((msg) => process.stderr.write(`[mcp-server] ${msg}\n`));
 		const projectDir = options.projectDir ?? process.cwd();
 
-		const send = (m: JsonRpcOutboundPayload) => this.output.write(`${JSON.stringify(m)}\n`);
+		const send = (m: JsonRpcOutboundPayload) => this.sendPayload(m);
 		const transport: McpTransport = {
 			send,
 			sendResult: (m, result) => send({ jsonrpc: "2.0", id: m.id, result }),
@@ -318,7 +326,7 @@ export class McpServer {
 			mrtr,
 		);
 		const taskStore = options.taskStore ?? new McpTaskStore();
-		const tools = new ToolsHandler(ctx, this.elicitation, mrtr, taskStore, {
+		this.tools = new ToolsHandler(ctx, this.elicitation, mrtr, taskStore, {
 			...(options.toolFilter !== undefined && { toolFilter: options.toolFilter }),
 			...(options.moduleTools !== undefined && { moduleTools: options.moduleTools }),
 		});
@@ -327,16 +335,16 @@ export class McpServer {
 			() => this.initialize.getEffectiveProjectDir(),
 		);
 		const tasks = new TasksHandler(ctx, taskStore, {
-			resumeInput: (args) => tools.prepareTaskInputResponse(args),
-			forgetTaskContinuation: (taskId) => tools.forgetTaskContinuation(taskId),
+			resumeInput: (args) => this.tools.prepareTaskInputResponse(args),
+			forgetTaskContinuation: (taskId) => this.tools.forgetTaskContinuation(taskId),
 		});
 
 		const ack: RequestHandler = (m) => { send({ jsonrpc: "2.0", id: m.id, result: {} }); };
 		this.requestHandlers = new Map<string, RequestHandler>([
 			["initialize", (m) => this.initialize.handleInitialize(m)],
 			["server/discover", (m) => this.initialize.handleDiscover(m)],
-			["tools/list", (m) => tools.handleList(m)],
-			["tools/call", (m) => tools.handleCall(m)],
+			["tools/list", (m) => this.tools.handleList(m)],
+			["tools/call", (m) => this.tools.handleCall(m)],
 			["resources/list", (m) => this.resources.handleList(m)],
 			["resources/read", (m) => this.resources.handleRead(m)],
 			["resources/subscribe", (m) => this.resources.handleSubscribe(m)],
@@ -388,12 +396,62 @@ export class McpServer {
 		return this.initialize.getEffectiveProjectDir();
 	}
 
+	getExposedTools(): KotaTool[] {
+		return this.tools.getExposedTools();
+	}
+
 	requestElicitation(
 		message: string,
 		requestedSchema: Parameters<ElicitationHandler["request"]>[1],
 		timeoutMs?: number,
 	) {
 		return this.elicitation.request(message, requestedSchema, timeoutMs);
+	}
+
+	async handleJsonRpcMessage(parsedValue: KotaJsonValue): Promise<McpServerDispatchResult> {
+		if (!isJsonObject(parsedValue) || parsedValue.jsonrpc !== "2.0") return { kind: "invalid" };
+
+		if (!("method" in parsedValue)) {
+			const response = decodeJsonRpcResponse(parsedValue);
+			if (!response) return { kind: "invalid" };
+			if (!this.initialize.tryConsumeResponse(response)) this.elicitation.tryConsumeResponse(response);
+			return { kind: "accepted" };
+		}
+
+		if (!("id" in parsedValue) || parsedValue.id === undefined) {
+			const notification = decodeJsonRpcNotification(parsedValue);
+			if (!notification) return { kind: "invalid" };
+			this.handleNotification(notification);
+			return { kind: "accepted" };
+		}
+
+		const request = decodeJsonRpcRequest(parsedValue);
+		if (!request) return { kind: "invalid" };
+		const messages: JsonRpcOutboundPayload[] = [];
+		await this.outboundSink.run((msg) => messages.push(msg), async () => {
+			try {
+				await this.dispatchRequest(request);
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				this.sendPayload({
+					jsonrpc: "2.0",
+					id: request.id,
+					error: { code: -32603, message: `Internal error: ${message}` },
+				});
+			}
+		});
+		if (messages.length === 0) return { kind: "accepted" };
+		if (messages.length === 1) return { kind: "response", response: messages[0]! };
+		return { kind: "stream", messages };
+	}
+
+	private sendPayload(msg: JsonRpcOutboundPayload): void {
+		const sink = this.outboundSink.getStore();
+		if (sink) {
+			sink(msg);
+			return;
+		}
+		this.output.write(`${JSON.stringify(msg)}\n`);
 	}
 
 	private handleLine(line: string): void {
@@ -421,9 +479,7 @@ export class McpServer {
 		if (!request) return;
 		Promise.resolve(this.dispatchRequest(request)).catch((err) => {
 			const message = err instanceof Error ? err.message : String(err);
-			this.output.write(
-				`${JSON.stringify({ jsonrpc: "2.0", id: request.id, error: { code: -32603, message: `Internal error: ${message}` } })}\n`,
-			);
+			this.sendPayload({ jsonrpc: "2.0", id: request.id, error: { code: -32603, message: `Internal error: ${message}` } });
 		});
 	}
 
@@ -440,9 +496,7 @@ export class McpServer {
 	private async dispatchRequest(msg: JsonRpcRequest): Promise<void> {
 		const handler = this.requestHandlers.get(msg.method);
 		if (!handler) {
-			this.output.write(
-				`${JSON.stringify({ jsonrpc: "2.0", id: msg.id, error: { code: -32601, message: `Method not found: ${msg.method}` } })}\n`,
-			);
+			this.sendPayload({ jsonrpc: "2.0", id: msg.id, error: { code: -32601, message: `Method not found: ${msg.method}` } });
 			return;
 		}
 		if (msg.method === "initialize") {
@@ -462,31 +516,27 @@ export class McpServer {
 
 		const decoded = decodeDraftRequestContext(msg);
 		if (!decoded.ok) {
-			this.output.write(
-				`${JSON.stringify({
-					jsonrpc: "2.0",
-					id: msg.id,
-					error: {
-						code: decoded.code,
-						message: decoded.message,
-						...(decoded.data !== undefined && { data: decoded.data }),
-					},
-				})}\n`,
-			);
+			this.sendPayload({
+				jsonrpc: "2.0",
+				id: msg.id,
+				error: {
+					code: decoded.code,
+					message: decoded.message,
+					...(decoded.data !== undefined && { data: decoded.data }),
+				},
+			});
 			return;
 		}
 
 		if (!this.activateProgress(decoded.context)) {
-			this.output.write(
-				`${JSON.stringify({
-					jsonrpc: "2.0",
-					id: msg.id,
-					error: {
-						code: -32602,
-						message: "Duplicate active MCP progressToken",
-					},
-				})}\n`,
-			);
+			this.sendPayload({
+				jsonrpc: "2.0",
+				id: msg.id,
+				error: {
+					code: -32602,
+					message: "Duplicate active MCP progressToken",
+				},
+			});
 			return;
 		}
 		try {
@@ -540,7 +590,7 @@ export class McpServer {
 		progress: number,
 		details: { total?: number; message?: string },
 	): void {
-		this.output.write(`${JSON.stringify({
+		this.sendPayload({
 			jsonrpc: "2.0",
 			method: "notifications/progress",
 			params: {
@@ -549,7 +599,7 @@ export class McpServer {
 				...(details.total !== undefined ? { total: details.total } : {}),
 				...(details.message !== undefined ? { message: details.message } : {}),
 			},
-		})}\n`);
+		});
 	}
 
 	private clearProgressFromCancelledNotification(msg: JsonRpcNotification): void {

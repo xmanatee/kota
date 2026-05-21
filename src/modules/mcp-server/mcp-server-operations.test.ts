@@ -14,12 +14,20 @@ import { localMcpServerClient } from "./mcp-server-operations.js";
 
 const mockStart = vi.fn().mockResolvedValue(undefined);
 const mockStop = vi.fn();
+const mockStartHttp = vi.fn().mockResolvedValue({
+	url: "http://127.0.0.1:0/mcp",
+	close: vi.fn(),
+});
 
 vi.mock("./server.js", () => ({
   McpServer: vi.fn(function (this: Record<string, unknown>) {
     this.start = mockStart;
     this.stop = mockStop;
   }),
+}));
+
+vi.mock("./streamable-http.js", () => ({
+  startMcpStreamableHttpServer: mockStartHttp,
 }));
 
 vi.mock("#core/config/config.js", () => ({
@@ -104,6 +112,34 @@ describe("mcp-server local handler", () => {
 
     const opts = MockedMcpServer.mock.calls[0]![0]!;
     expect(opts.name).toBe("my-server");
+  });
+
+  it("starts the Streamable HTTP transport and returns its endpoint", async () => {
+    mockStartHttp.mockClear();
+    const { McpServer } = await import("./server.js");
+    const MockedMcpServer = vi.mocked(McpServer);
+    MockedMcpServer.mockClear();
+
+    const result = await localMcpServerClient().start({
+      name: "kota-http",
+      transport: "http",
+      host: "127.0.0.1",
+      port: 8181,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      transport: "http",
+      url: "http://127.0.0.1:0/mcp",
+    });
+    expect(MockedMcpServer).toHaveBeenCalledOnce();
+    expect(mockStartHttp).toHaveBeenCalledWith({
+      server: expect.any(Object),
+      host: "127.0.0.1",
+      port: 8181,
+      endpointPath: "/mcp",
+      log: expect.any(Function),
+    });
   });
 
   it("enables sampling when config has mcp.sampling.enabled", async () => {

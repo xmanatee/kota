@@ -22,11 +22,16 @@
  *
  * `toolFilter` restricts which KOTA tools the MCP server exposes; absent /
  * empty means every registered tool. `name` is the server identity reported
- * to MCP clients and defaults to `"kota"`.
+ * to MCP clients and defaults to `"kota"`. `transport` selects stdio or
+ * Streamable HTTP; HTTP binds to localhost by default.
  */
 export type McpServerStartOptions = {
   toolFilter?: string[];
   name: string;
+  transport?: "stdio" | "http";
+  host?: string;
+  port?: number;
+  endpointPath?: string;
 };
 
 /**
@@ -38,6 +43,7 @@ export type McpServerStartOptions = {
  */
 export type McpServerStartResult =
   | { ok: true }
+  | { ok: true; transport: "http"; url: string }
   | { ok: false; reason: "daemon_required" };
 
 export interface McpServerClient {

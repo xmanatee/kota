@@ -11,7 +11,9 @@ import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
 import mcpServerModule from "./index.js";
 
-function makeStubCtx(): ModuleRuntimeContext {
+type McpServerStart = ModuleRuntimeContext["client"]["mcpServer"]["start"];
+
+function makeStubCtx(start: McpServerStart = vi.fn(async () => ({ ok: true as const }))): ModuleRuntimeContext {
 	const bus = new EventBus();
 	return {
 		cwd: "/tmp/test",
@@ -47,7 +49,11 @@ function makeStubCtx(): ModuleRuntimeContext {
 		resolveSkillsPrompt: () => "",
 		probeHealthChecks: async () => ({}),
 		getRegisteredConfigKeys: () => new Set<string>(),
-		client: {} as never,
+		client: {
+			mcpServer: {
+				start,
+			},
+		} as never,
 	};
 }
 
@@ -70,13 +76,19 @@ describe("mcp-server commands", () => {
 		expect(cmds[0].name()).toBe("mcp-server");
 	});
 
-	it("accepts --tools and --name options", () => {
+	it("accepts --tools, --name, and Streamable HTTP options", () => {
 		const ctx = makeStubCtx();
 		const cmd = mcpServerModule.commands!(ctx)[0];
 		const toolsOpt = cmd.options.find((o) => o.long === "--tools");
 		const nameOpt = cmd.options.find((o) => o.long === "--name");
+		const httpOpt = cmd.options.find((o) => o.long === "--http");
+		const hostOpt = cmd.options.find((o) => o.long === "--host");
+		const portOpt = cmd.options.find((o) => o.long === "--port");
 		expect(toolsOpt).toBeDefined();
 		expect(nameOpt).toBeDefined();
+		expect(httpOpt).toBeDefined();
+		expect(hostOpt).toBeDefined();
+		expect(portOpt).toBeDefined();
 	});
 
 	it("--name defaults to 'kota'", () => {
@@ -84,5 +96,40 @@ describe("mcp-server commands", () => {
 		const cmd = mcpServerModule.commands!(ctx)[0];
 		const nameOpt = cmd.options.find((o) => o.long === "--name");
 		expect(nameOpt!.defaultValue).toBe("kota");
+	});
+
+	it("prints the local endpoint when started in Streamable HTTP mode", async () => {
+		const start = vi.fn(async () => ({
+			ok: true as const,
+			transport: "http" as const,
+			url: "http://127.0.0.1:8181/mcp",
+		}));
+		const ctx = makeStubCtx(start);
+		const cmd = mcpServerModule.commands!(ctx)[0];
+		const output: string[] = [];
+		const logSpy = vi.spyOn(console, "log").mockImplementation((line) => {
+			output.push(String(line));
+		});
+		try {
+			await cmd.parseAsync([
+				"node",
+				"kota",
+				"--http",
+				"--host",
+				"127.0.0.1",
+				"--port",
+				"8181",
+			]);
+		} finally {
+			logSpy.mockRestore();
+		}
+
+		expect(start).toHaveBeenCalledWith({
+			name: "kota",
+			transport: "http",
+			host: "127.0.0.1",
+			port: 8181,
+		});
+		expect(output).toEqual(["MCP Streamable HTTP endpoint: http://127.0.0.1:8181/mcp"]);
 	});
 });

@@ -1,11 +1,12 @@
 /**
  * Local-side handler for the `mcpServer` namespace.
  *
- * `kota mcp-server` boots a JSON-RPC stdio MCP server so any MCP-compatible
- * host (Claude Code, Cursor, VS Code) can use KOTA's tools. The work is
- * fundamentally local: it spins up a server in the operator's address
- * space using stdin/stdout, so the daemon-side handler returns
- * `daemon_required` and the local handler runs the boot logic directly.
+ * `kota mcp-server` boots a JSON-RPC MCP server so any MCP-compatible host
+ * can use KOTA's tools. The default transport is stdio; `--http` starts the
+ * module-owned Streamable HTTP endpoint. The work is fundamentally local:
+ * it spins up a server in the operator's address space, so the daemon-side
+ * handler returns `daemon_required` and the local handler runs the boot
+ * logic directly.
  *
  * The server requires fully-loaded modules (lifecycle mode `"runtime"`,
  * not `"commands"`) because tool dispatch needs every contributed tool
@@ -48,6 +49,24 @@ export function localMcpServerClient(): McpServerClient {
         modelClient,
         ...(config.model !== undefined && { samplingModel: config.model }),
       });
+
+      if (options.transport === "http") {
+        const { startMcpStreamableHttpServer } = await import("./streamable-http.js");
+        const handle = await startMcpStreamableHttpServer({
+          server,
+          host: options.host ?? "127.0.0.1",
+          port: options.port ?? 0,
+          endpointPath: options.endpointPath ?? "/mcp",
+          log: (message) => process.stderr.write(`[mcp-server] ${message}\n`),
+        });
+        process.on("SIGINT", () => {
+          handle.close().finally(() => process.exit(0));
+        });
+        process.on("SIGTERM", () => {
+          handle.close().finally(() => process.exit(0));
+        });
+        return { ok: true, transport: "http", url: handle.url };
+      }
 
       process.on("SIGINT", () => {
         server.stop();
