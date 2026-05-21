@@ -51,7 +51,59 @@ export type JsonRpcResponse = {
 	error?: { code: number; message: string; data?: KotaJsonValue };
 };
 
+export type JsonRpcErrorObject = NonNullable<JsonRpcResponse["error"]>;
+
 export type JsonRpcMessage = JsonRpcRequest | JsonRpcNotification;
+
+export const MCP_RELATED_TASK_META_KEY = "io.modelcontextprotocol/related-task";
+
+export const MCP_TASK_STATUSES = [
+	"working",
+	"input_required",
+	"completed",
+	"failed",
+	"cancelled",
+] as const;
+
+export type McpTaskStatus = typeof MCP_TASK_STATUSES[number];
+
+export const MCP_TASK_TERMINAL_STATUSES = [
+	"completed",
+	"failed",
+	"cancelled",
+] as const;
+
+export type McpTaskTerminalStatus = typeof MCP_TASK_TERMINAL_STATUSES[number];
+
+export type McpTask = {
+	taskId: string;
+	status: McpTaskStatus;
+	statusMessage?: string;
+	createdAt: string;
+	lastUpdatedAt: string;
+	ttl: number | null;
+	pollInterval?: number;
+};
+
+export type McpCreateTaskResult = {
+	task: McpTask;
+	_meta?: KotaJsonObject;
+};
+
+export type McpStoredTaskTerminalResult =
+	| { kind: "result"; result: KotaJsonValue }
+	| { kind: "error"; error: JsonRpcErrorObject };
+
+export type McpTaskListPage = {
+	tasks: McpTask[];
+	nextCursor?: string;
+};
+
+export function isMcpTaskTerminalStatus(
+	status: McpTaskStatus,
+): status is McpTaskTerminalStatus {
+	return (MCP_TASK_TERMINAL_STATUSES as readonly McpTaskStatus[]).includes(status);
+}
 
 export type McpContentBlock =
 	| {
@@ -154,6 +206,18 @@ type McpInputRequiredResultFields =
 export type McpInputRequiredResult = McpInputRequiredResultFields & {
 	resultType: "input_required";
 };
+
+export type McpTaskResultSettlement =
+	| {
+			kind: "terminal";
+			task: McpTask;
+			terminal: McpStoredTaskTerminalResult;
+		}
+	| {
+			kind: "input_required";
+			task: McpTask;
+			inputRequired: McpInputRequiredResult;
+		};
 
 export type McpToolInputRequest = McpElicitationInputRequest;
 export type McpToolInputRequests = McpInputRequests;

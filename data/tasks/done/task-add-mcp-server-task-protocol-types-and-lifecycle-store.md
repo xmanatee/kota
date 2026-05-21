@@ -1,12 +1,12 @@
 ---
 id: task-add-mcp-server-task-protocol-types-and-lifecycle-store
 title: Add MCP server task protocol types and lifecycle store
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Introduce a strict in-memory MCP task model, transition validator, TTL cleanup, cursor pagination, and focused tests without wiring task-augmented tool execution yet.
 created_at: 2026-05-21T11:19:59Z
-updated_at: 2026-05-21T11:19:59Z
+updated_at: 2026-05-21T11:33:38Z
 ---
 
 ## Problem

@@ -4,10 +4,17 @@ import {
 	activeClientSupportsElicitation,
 	decodeClientElicitationCapabilities,
 	type HandlerContext,
+	isMcpTaskTerminalStatus,
 	MCP_DRAFT_PROTOCOL_VERSION,
+	MCP_TASK_STATUSES,
+	MCP_TASK_TERMINAL_STATUSES,
 	type McpClientCapabilities,
+	type McpCreateTaskResult,
 	type McpElicitationInputRequest,
 	type McpInputRequests,
+	type McpStoredTaskTerminalResult,
+	type McpTaskListPage,
+	type McpTaskResultSettlement,
 } from "./mcp-protocol-types.js";
 
 function ctxWithClientCapabilities(clientCapabilities: McpClientCapabilities): HandlerContext {
@@ -84,6 +91,58 @@ describe("MCP elicitation capability modes", () => {
 			ctxWithClientCapabilities({ elicitation: {} }),
 			urlRequest.params.mode,
 		)).toBe(false);
+	});
+});
+
+describe("MCP task protocol types", () => {
+	it("names the draft task statuses and terminal subset", () => {
+		expect([...MCP_TASK_STATUSES]).toEqual([
+			"working",
+			"input_required",
+			"completed",
+			"failed",
+			"cancelled",
+		]);
+		expect([...MCP_TASK_TERMINAL_STATUSES]).toEqual([
+			"completed",
+			"failed",
+			"cancelled",
+		]);
+		expect(isMcpTaskTerminalStatus("working")).toBe(false);
+		expect(isMcpTaskTerminalStatus("completed")).toBe(true);
+	});
+
+	it("keeps task creation, listing, terminal, and input-required shapes typed", () => {
+		const created: McpCreateTaskResult = {
+			task: {
+				taskId: "task-a",
+				status: "working",
+				createdAt: "2026-05-21T00:00:00.000Z",
+				lastUpdatedAt: "2026-05-21T00:00:00.000Z",
+				ttl: 60_000,
+				pollInterval: 1_000,
+			},
+		};
+		const page: McpTaskListPage = {
+			tasks: [created.task],
+			nextCursor: "opaque",
+		};
+		const terminal: McpStoredTaskTerminalResult = {
+			kind: "error",
+			error: { code: -32603, message: "Tool failed", data: { retryable: false } },
+		};
+		const inputRequired: McpTaskResultSettlement = {
+			kind: "input_required",
+			task: created.task,
+			inputRequired: {
+				resultType: "input_required",
+				requestState: "state-token",
+			},
+		};
+
+		expect(page.tasks[0]?.taskId).toBe("task-a");
+		expect(terminal.kind).toBe("error");
+		expect(inputRequired.inputRequired.resultType).toBe("input_required");
 	});
 });
 
