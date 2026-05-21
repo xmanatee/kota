@@ -296,6 +296,9 @@ resources:
       fingerprint: sha256:4e75f85c26869c172eb6c9cf9151a01f
       summary: "MCP draft Completion documents prompt/resource argument completions, context.arguments, bounded result metadata, invalid-params behavior, and validation/security guidance; KOTA's current MCP completion alignment task already covers the nonduplicative server gap."
       last_seen_at: "2026-05-20T15:04:01.201Z"
+  - url: https://modelcontextprotocol.io/specification/draft/basic/utilities/progress
+    added: "2026-05-21"
+    notes: "Official MCP progress utility draft - monitor progressToken metadata, notifications/progress, monotonic progress validation, cancellation cleanup, and flood/coalescing behavior for KOTA's external MCP client and first-party MCP server."
   - url: https://github.com/github/gh-aw
     added: "2026-05-17"
     notes: "GitHub Agentic Workflows is a GitHub Actions-hosted agent workflow runtime; monitor for event-trigger, safe-output, input-sanitization, and multi-engine guardrail patterns relevant to KOTA's workflow runtime."
