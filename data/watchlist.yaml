@@ -254,6 +254,9 @@ resources:
       fingerprint: sha256:4a2817002fbaf71eac1cc4dde99eaf5f
       summary: "Vercel Workflow continues to reinforce already-covered durable workflow, await-event, and observability patterns; no new KOTA workflow primitive was opened from this refresh."
       last_seen_at: "2026-05-18T08:48:25.077Z"
+  - url: https://modelcontextprotocol.io/specification/draft/basic/transports
+    added: "2026-05-21"
+    notes: "Official MCP transport draft - monitor stdio, Streamable HTTP, origin validation, request metadata headers, header/body validation, SSE response streams, cancellation, and HTTP+SSE compatibility for KOTA's first-party MCP server."
   - url: https://modelcontextprotocol.io/specification/draft/server/tools
     added: "2026-05-16"
     notes: "Official MCP tools spec draft - monitor tool-result content, structuredContent, _meta, output schema, annotations, and execution-error semantics that affect KOTA's MCP client/server protocol fidelity."
