@@ -11,6 +11,7 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { KotaJsonValue } from "#core/agent-harness/message-protocol.js";
 import { getKnowledgeProvider, getMemoryProvider } from "#core/modules/provider-registry.js";
 import type { KnowledgeEntry, Memory } from "#core/modules/provider-types.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
@@ -22,6 +23,32 @@ export type McpResource = {
 	description: string;
 	mimeType: string;
 };
+
+export type McpResourceTemplate = {
+	uriTemplate: string;
+	name: string;
+	description: string;
+	mimeType: string;
+};
+
+export type McpResourceListPage = {
+	resources: McpResource[];
+	nextCursor?: string;
+};
+
+export type McpResourceTemplateListPage = {
+	resourceTemplates: McpResourceTemplate[];
+	nextCursor?: string;
+};
+
+type KotaResourceError = { ok: false; code: number; message: string };
+
+export type McpResourceCatalogResult<T> =
+	| { ok: true; result: T }
+	| KotaResourceError;
+
+export const RESOURCE_LIST_PAGE_SIZE = 3;
+export const RESOURCE_TEMPLATE_LIST_PAGE_SIZE = 3;
 
 const CORE_KOTA_RESOURCES: McpResource[] = [
 	{
@@ -61,6 +88,54 @@ const KNOWLEDGE_RESOURCE: McpResource = {
 	mimeType: "application/json",
 };
 
+const MEMORY_RESOURCE_TEMPLATES: McpResourceTemplate[] = [
+	{
+		uriTemplate: "kota://memory{?cursor,limit}",
+		name: "Memory Index",
+		description:
+			"List bounded memory entries. Use returned readUri values for entry content.",
+		mimeType: "application/json",
+	},
+	{
+		uriTemplate: "kota://memory/search{?q,cursor,limit}",
+		name: "Memory Search",
+		description:
+			"Search memory entries by query and return bounded snippets plus readUri values.",
+		mimeType: "application/json",
+	},
+	{
+		uriTemplate: "kota://memory/entry/{encodedId}",
+		name: "Memory Entry",
+		description:
+			"Read bounded content for an encoded memory entry id returned by memory index or search.",
+		mimeType: "application/json",
+	},
+];
+
+const KNOWLEDGE_RESOURCE_TEMPLATES: McpResourceTemplate[] = [
+	{
+		uriTemplate: "kota://knowledge{?cursor,limit}",
+		name: "Knowledge Index",
+		description:
+			"List bounded knowledge entries. Use returned readUri values for entry content.",
+		mimeType: "application/json",
+	},
+	{
+		uriTemplate: "kota://knowledge/search{?q,cursor,limit}",
+		name: "Knowledge Search",
+		description:
+			"Search knowledge entries by query and return bounded snippets plus readUri values.",
+		mimeType: "application/json",
+	},
+	{
+		uriTemplate: "kota://knowledge/entry/{encodedId}",
+		name: "Knowledge Entry",
+		description:
+			"Read bounded content for an encoded knowledge entry id returned by knowledge index or search.",
+		mimeType: "application/json",
+	},
+];
+
 function hasMemoryProvider(): boolean {
 	try {
 		getMemoryProvider();
@@ -87,6 +162,13 @@ export function listKotaResources(): McpResource[] {
 	];
 }
 
+export function listKotaResourceTemplates(): McpResourceTemplate[] {
+	return [
+		...(hasMemoryProvider() ? MEMORY_RESOURCE_TEMPLATES : []),
+		...(hasKnowledgeProvider() ? KNOWLEDGE_RESOURCE_TEMPLATES : []),
+	].map((template) => ({ ...template }));
+}
+
 export function isKnownKotaResourceUri(uri: string): boolean {
 	return listKotaResources().some((resource) => resource.uri === uri);
 }
@@ -99,9 +181,15 @@ const OPAQUE_TOKEN_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 export type KotaResourceReadResult =
 	| { ok: true; text: string }
-	| { ok: false; code: number; message: string };
+	| KotaResourceError;
 
-type CursorScope = "memory-index" | "memory-search" | "knowledge-index" | "knowledge-search";
+type CursorScope =
+	| "resources-list"
+	| "resource-templates-list"
+	| "memory-index"
+	| "memory-search"
+	| "knowledge-index"
+	| "knowledge-search";
 
 type Page<T> = {
 	items: T[];
@@ -141,11 +229,15 @@ function resourceSuccess<T>(value: T): KotaResourceReadResult {
 	return { ok: true, text: JSON.stringify(value, null, 2) };
 }
 
-function protocolError(message: string): KotaResourceReadResult {
+function catalogSuccess<T>(result: T): McpResourceCatalogResult<T> {
+	return { ok: true, result };
+}
+
+function protocolError(message: string): KotaResourceError {
 	return { ok: false, code: -32602, message };
 }
 
-function notFoundError(message: string): KotaResourceReadResult {
+function notFoundError(message: string): KotaResourceError {
 	return { ok: false, code: -32002, message };
 }
 
@@ -153,7 +245,7 @@ function encodeToken(value: string): string {
 	return Buffer.from(value, "utf-8").toString("base64url");
 }
 
-function decodeToken(token: string, label: string): string | KotaResourceReadResult {
+function decodeToken(token: string, label: string): string | KotaResourceError {
 	if (!OPAQUE_TOKEN_PATTERN.test(token)) return protocolError(`Invalid ${label}`);
 	const decoded = Buffer.from(token, "base64url").toString("utf-8");
 	if (!decoded || encodeToken(decoded) !== token) return protocolError(`Invalid ${label}`);
@@ -172,7 +264,7 @@ function decodeCursor(
 	token: string,
 	scope: CursorScope,
 	label: string,
-): number | KotaResourceReadResult {
+): number | KotaResourceError {
 	const decoded = decodeToken(token, label);
 	if (typeof decoded !== "string") return decoded;
 	const prefix = `${scope}:`;
@@ -201,7 +293,7 @@ function paginate<T>(
 	cursor: string | null,
 	scope: CursorScope,
 	label: string,
-): Page<T> | KotaResourceReadResult {
+): Page<T> | KotaResourceError {
 	if (offset < 0 || offset > items.length || (cursor !== null && offset === items.length && items.length > 0)) {
 		return protocolError(`${label} cursor is out of range`);
 	}
@@ -215,6 +307,76 @@ function paginate<T>(
 		totalEntries: items.length,
 		limit,
 	};
+}
+
+function decodeCatalogCursor(
+	cursor: KotaJsonValue | undefined,
+	scope: CursorScope,
+	label: string,
+): { ok: true; cursor: string | null; offset: number } | KotaResourceError {
+	if (cursor === undefined) return { ok: true, cursor: null, offset: 0 };
+	if (typeof cursor !== "string") return protocolError(`Invalid ${label}`);
+	const offset = decodeCursor(cursor, scope, label);
+	if (typeof offset !== "number") return offset;
+	return { ok: true, cursor, offset };
+}
+
+function paginateCatalog<T>(
+	items: T[],
+	cursorValue: KotaJsonValue | undefined,
+	limit: number,
+	scope: CursorScope,
+	label: string,
+): McpResourceCatalogResult<{ items: T[]; nextCursor?: string }> {
+	const decoded = decodeCatalogCursor(cursorValue, scope, `${label.toLowerCase()} cursor`);
+	if (!decoded.ok) return decoded;
+	if (
+		decoded.offset < 0 ||
+		decoded.offset > items.length ||
+		(decoded.cursor !== null && decoded.offset === items.length)
+	) {
+		return protocolError(`${label} cursor is out of range`);
+	}
+	const pageItems = items.slice(decoded.offset, decoded.offset + limit);
+	const nextOffset = decoded.offset + pageItems.length;
+	return catalogSuccess({
+		items: pageItems,
+		...(nextOffset < items.length && { nextCursor: encodeCursor(scope, nextOffset) }),
+	});
+}
+
+export function listKotaResourcesPage(
+	cursor: KotaJsonValue | undefined,
+): McpResourceCatalogResult<McpResourceListPage> {
+	const page = paginateCatalog(
+		listKotaResources(),
+		cursor,
+		RESOURCE_LIST_PAGE_SIZE,
+		"resources-list",
+		"Resources",
+	);
+	if (!page.ok) return page;
+	return catalogSuccess({
+		resources: page.result.items,
+		...(page.result.nextCursor !== undefined && { nextCursor: page.result.nextCursor }),
+	});
+}
+
+export function listKotaResourceTemplatesPage(
+	cursor: KotaJsonValue | undefined,
+): McpResourceCatalogResult<McpResourceTemplateListPage> {
+	const page = paginateCatalog(
+		listKotaResourceTemplates(),
+		cursor,
+		RESOURCE_TEMPLATE_LIST_PAGE_SIZE,
+		"resource-templates-list",
+		"Resource templates",
+	);
+	if (!page.ok) return page;
+	return catalogSuccess({
+		resourceTemplates: page.result.items,
+		...(page.result.nextCursor !== undefined && { nextCursor: page.result.nextCursor }),
+	});
 }
 
 function normalizeWhitespace(value: string): string {

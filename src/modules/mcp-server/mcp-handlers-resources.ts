@@ -24,6 +24,8 @@ import { getPromptCatalogSignature } from "./prompts.js";
 import {
 	isKnownKotaResourceUri,
 	listKotaResources,
+	listKotaResourcesPage,
+	listKotaResourceTemplatesPage,
 	readKotaResource,
 } from "./resources.js";
 
@@ -123,9 +125,26 @@ export class ResourcesHandler {
 			this.ctx.transport.sendError(msg, -32002, "Server not initialized");
 			return;
 		}
-		const resources = listKotaResources();
+		const result = listKotaResourcesPage(msg.params?.cursor);
+		if (!result.ok) {
+			this.ctx.transport.sendError(msg, result.code, result.message);
+			return;
+		}
 		this.resourceCatalogSignature = currentResourceCatalogSignature();
-		this.ctx.transport.sendResult(msg, { resources });
+		this.ctx.transport.sendResult(msg, result.result);
+	}
+
+	handleTemplatesList(msg: JsonRpcRequest): void {
+		if (!hasActiveMcpContext(this.ctx)) {
+			this.ctx.transport.sendError(msg, -32002, "Server not initialized");
+			return;
+		}
+		const result = listKotaResourceTemplatesPage(msg.params?.cursor);
+		if (!result.ok) {
+			this.ctx.transport.sendError(msg, result.code, result.message);
+			return;
+		}
+		this.ctx.transport.sendResult(msg, result.result);
 	}
 
 	handleRead(msg: JsonRpcRequest): void {

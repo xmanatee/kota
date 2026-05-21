@@ -346,6 +346,7 @@ export class McpServer {
 			["tools/list", (m) => this.tools.handleList(m)],
 			["tools/call", (m) => this.tools.handleCall(m)],
 			["resources/list", (m) => this.resources.handleList(m)],
+			["resources/templates/list", (m) => this.resources.handleTemplatesList(m)],
 			["resources/read", (m) => this.resources.handleRead(m)],
 			["resources/subscribe", (m) => this.resources.handleSubscribe(m)],
 			["resources/unsubscribe", (m) => this.resources.handleUnsubscribe(m)],

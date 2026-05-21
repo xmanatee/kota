@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { pathToFileURL } from "node:url";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleLoader } from "#core/modules/module-loader.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
@@ -48,6 +48,31 @@ vi.mock("#core/modules/module-metadata.js", () => ({
 
 import { getKnowledgeProvider, getMemoryProvider } from "#core/modules/provider-registry.js";
 
+function mockDefaultProviders(): void {
+	vi.mocked(getMemoryProvider).mockReturnValue({
+		list: () => [],
+		save: vi.fn(),
+		search: vi.fn(() => []),
+		update: vi.fn(),
+		delete: vi.fn(),
+		supportsSemanticSearch: vi.fn(() => false),
+		semanticSearch: vi.fn(async () => []),
+		reindex: vi.fn(async () => ({ indexed: 0, failed: 0, skipped: true })),
+	});
+	vi.mocked(getKnowledgeProvider).mockReturnValue({
+		list: () => [],
+		read: () => null,
+		create: vi.fn(),
+		update: vi.fn(),
+		delete: vi.fn(),
+		search: vi.fn(() => []),
+		count: vi.fn(() => 0),
+		supportsSemanticSearch: vi.fn(() => false),
+		semanticSearch: vi.fn(async () => []),
+		reindex: vi.fn(async () => ({ indexed: 0, failed: 0, skipped: true })),
+	});
+}
+
 beforeAll(async () => {
 	const loader = new ModuleLoader({});
 	await loader.loadAll([filesystemModule, executionModule]);
@@ -74,6 +99,10 @@ beforeAll(async () => {
 		"web-access",
 		{ effect: networkWriteEffect() },
 	);
+});
+
+beforeEach(() => {
+	mockDefaultProviders();
 });
 
 afterAll(() => {
@@ -2364,6 +2393,59 @@ describe("resources", () => {
 		server.stop();
 	});
 
+	it("resources/list returns deterministic cursor pages and rejects malformed or out-of-range cursors", async () => {
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {} });
+		await initServer(server, input, output);
+
+		sendRequest(input, 2, "resources/list");
+		const first = await readResponse(output);
+		const firstResult = first.result as {
+			resources: Array<{ uri: string }>;
+			nextCursor?: string;
+		};
+		expect(firstResult.resources.map((resource) => resource.uri)).toEqual([
+			"kota://tasks/ready",
+			"kota://workflow/status",
+			"kota://workflow/runs/recent",
+		]);
+		expect(firstResult.nextCursor).toEqual(expect.any(String));
+
+		sendRequest(input, 3, "resources/list", { cursor: firstResult.nextCursor });
+		const second = await readResponse(output);
+		const secondResult = second.result as {
+			resources: Array<{ uri: string }>;
+			nextCursor?: string;
+		};
+		expect(secondResult.resources.map((resource) => resource.uri)).toEqual([
+			"kota://memory",
+			"kota://knowledge",
+		]);
+		expect(secondResult.nextCursor).toBeUndefined();
+
+		sendRequest(input, 4, "resources/list", { cursor: "not-a-cursor" });
+		const malformed = await readResponse(output);
+		expect(malformed.error).toMatchObject({
+			code: -32602,
+			message: "Invalid resources cursor",
+		});
+
+		vi.mocked(getMemoryProvider).mockImplementation(() => {
+			throw new Error("memory unavailable");
+		});
+		vi.mocked(getKnowledgeProvider).mockImplementation(() => {
+			throw new Error("knowledge unavailable");
+		});
+		sendRequest(input, 5, "resources/list", { cursor: firstResult.nextCursor });
+		const outOfRange = await readResponse(output);
+		expect(outOfRange.error).toMatchObject({
+			code: -32602,
+			message: "Resources cursor is out of range",
+		});
+
+		server.stop();
+	});
+
 	it("resources/list accepts draft per-request metadata before initialization", async () => {
 		const { input, output } = createTestStreams();
 		const server = new McpServer({ input, output, log: () => {} });
@@ -2571,6 +2653,79 @@ describe("resources", () => {
 		const err = resp.error as { code: number; message: string };
 		expect(err.code).toBe(-32602);
 		expect(err.message).toContain("Missing required MCP draft _meta");
+
+		server.stop();
+	});
+
+	it("resources/templates/list returns paged memory and knowledge resource templates", async () => {
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {} });
+		await initServer(server, input, output);
+
+		sendRequest(input, 2, "resources/templates/list");
+		const first = await readResponse(output);
+		const firstResult = first.result as {
+			resourceTemplates: Array<{ uriTemplate: string; name: string }>;
+			nextCursor?: string;
+		};
+		expect(firstResult.resourceTemplates.map((template) => template.uriTemplate)).toEqual([
+			"kota://memory{?cursor,limit}",
+			"kota://memory/search{?q,cursor,limit}",
+			"kota://memory/entry/{encodedId}",
+		]);
+		expect(firstResult.nextCursor).toEqual(expect.any(String));
+
+		sendRequest(input, 3, "resources/templates/list", { cursor: firstResult.nextCursor });
+		const second = await readResponse(output);
+		const secondResult = second.result as {
+			resourceTemplates: Array<{ uriTemplate: string; name: string; description: string; mimeType: string }>;
+			nextCursor?: string;
+		};
+		expect(secondResult.resourceTemplates.map((template) => template.uriTemplate)).toEqual([
+			"kota://knowledge{?cursor,limit}",
+			"kota://knowledge/search{?q,cursor,limit}",
+			"kota://knowledge/entry/{encodedId}",
+		]);
+		expect(secondResult.nextCursor).toBeUndefined();
+		expect([...firstResult.resourceTemplates, ...secondResult.resourceTemplates]).toHaveLength(6);
+		for (const template of secondResult.resourceTemplates) {
+			expect(typeof template.name).toBe("string");
+			expect(typeof template.description).toBe("string");
+			expect(template.mimeType).toBe("application/json");
+		}
+
+		server.stop();
+	});
+
+	it("resources/templates/list rejects malformed and out-of-range cursors", async () => {
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {} });
+		await initServer(server, input, output);
+
+		sendRequest(input, 2, "resources/templates/list");
+		const first = await readResponse(output);
+		const firstResult = first.result as { nextCursor?: string };
+		expect(firstResult.nextCursor).toEqual(expect.any(String));
+
+		sendRequest(input, 3, "resources/templates/list", { cursor: "not-a-cursor" });
+		const malformed = await readResponse(output);
+		expect(malformed.error).toMatchObject({
+			code: -32602,
+			message: "Invalid resource templates cursor",
+		});
+
+		vi.mocked(getMemoryProvider).mockImplementation(() => {
+			throw new Error("memory unavailable");
+		});
+		vi.mocked(getKnowledgeProvider).mockImplementation(() => {
+			throw new Error("knowledge unavailable");
+		});
+		sendRequest(input, 4, "resources/templates/list", { cursor: firstResult.nextCursor });
+		const outOfRange = await readResponse(output);
+		expect(outOfRange.error).toMatchObject({
+			code: -32602,
+			message: "Resource templates cursor is out of range",
+		});
 
 		server.stop();
 	});
@@ -4543,8 +4698,14 @@ describe("memory and knowledge resources", () => {
 		sendRequest(input, 2, "resources/list");
 		const resp = await readResponse(output);
 
-		const result = resp.result as { resources: Array<{ uri: string }> };
+		const result = resp.result as { resources: Array<{ uri: string }>; nextCursor?: string };
 		const uris = result.resources.map((r) => r.uri);
+		if (result.nextCursor) {
+			sendRequest(input, 3, "resources/list", { cursor: result.nextCursor });
+			const nextResp = await readResponse(output);
+			const nextResult = nextResp.result as { resources: Array<{ uri: string }> };
+			uris.push(...nextResult.resources.map((r) => r.uri));
+		}
 		expect(uris).toContain("kota://memory");
 		expect(uris).toContain("kota://knowledge");
 

@@ -1,7 +1,7 @@
 ---
 id: task-add-mcp-resource-template-listing-and-resource-list-pagi
 title: Add MCP resource template listing and resource-list pagination
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Align KOTA's MCP server resource surface with the draft Resources spec by adding paginated resources/list handling plus resources/templates/list for parameterized memory and knowledge reads.
