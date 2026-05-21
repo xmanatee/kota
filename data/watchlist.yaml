@@ -279,16 +279,16 @@ resources:
     added: "2026-05-20"
     notes: "Official MCP resources spec draft - monitor resources/list pagination, resources.listChanged, resource subscriptions, resource annotations, and input-required resource reads that affect KOTA's MCP server resource surface."
     snapshot:
-      fingerprint: sha256:fb90899c8cdd64371af9270140312129
-      summary: "MCP draft Resources confirms both resources/list and resources/templates/list are paginated; KOTA opened task-add-mcp-resource-template-listing-and-resource-list-pagi to align the MCP server resource surface."
-      last_seen_at: "2026-05-21T20:37:21.985Z"
+      fingerprint: sha256:7bb13dfb1e23f7b0530f62970a383e4f
+      summary: "MCP draft Resources still reinforces KOTA's completed first-party server resource work and exposes a remaining client-side gap: external MCP resources are not discoverable or readable through src/core/mcp."
+      last_seen_at: "2026-05-21T21:12:29.258Z"
   - url: https://modelcontextprotocol.io/specification/draft/server/prompts
     added: "2026-05-20"
     notes: "Official MCP prompts spec draft - monitor prompts/list pagination, prompt metadata, input-required prompt resolution, completions, and promptsListChanged subscriptions that affect KOTA's MCP prompt-template surface."
     snapshot:
-      fingerprint: sha256:42f4bfd37efd244df1d236f10e1737d8
-      summary: "MCP draft Prompts documents prompt listing, pagination, get arguments, prompt-list change notifications, optional display metadata, multimodal content, input-required responses, and required-argument validation; KOTA already covers the major prompt transport pieces, and this run opened the remaining required-argument validation slice."
-      last_seen_at: "2026-05-20T11:52:09.168Z"
+      fingerprint: sha256:533b0854f5413ac8bd77a078ebb3e3c9
+      summary: "MCP draft Prompts still matches KOTA's first-party server prompt alignment and exposes the paired client-side gap: external MCP prompts are not listed or explicitly retrievable by the runtime."
+      last_seen_at: "2026-05-21T21:12:29.258Z"
   - url: https://modelcontextprotocol.io/specification/draft/basic/utilities/mrtr
     added: "2026-05-20"
     notes: "Official MCP Multi Round-Trip Requests draft - monitor input_required requestState, inputRequests/inputResponses, and server-to-client request association rules for roots, elicitation, and sampling."
