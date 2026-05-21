@@ -268,6 +268,12 @@ resources:
       fingerprint: sha256:bc77c54a6318f2677ae2bec9395aac04
       summary: "MCP draft Transports confirms Streamable HTTP as the standard HTTP transport beside stdio; KOTA already has server-side HTTP work blocked on operator capture, and this refresh opened the separate client-manager HTTP transport task."
       last_seen_at: "2026-05-21T17:46:45.314Z"
+  - url: https://modelcontextprotocol.io/specification/draft/basic/authorization
+    added: "2026-05-21"
+    notes: "Official MCP authorization draft - monitor HTTP protected-resource metadata, WWW-Authenticate discovery, OAuth authorization-server discovery, Bearer token validation, resource/audience binding, scope step-up, and token-handling constraints for KOTA's Streamable HTTP MCP client and server."
+  - url: https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices
+    added: "2026-05-21"
+    notes: "Official MCP security guidance - monitor confused-deputy, token-passthrough, OAuth-discovery SSRF, session hijacking, local HTTP server exposure, and scope-minimization guidance that affects KOTA's MCP client/server security boundaries."
   - url: https://modelcontextprotocol.io/specification/draft/server/tools
     added: "2026-05-16"
     notes: "Official MCP tools spec draft - monitor tool-result content, structuredContent, _meta, output schema, annotations, and execution-error semantics that affect KOTA's MCP client/server protocol fidelity."
