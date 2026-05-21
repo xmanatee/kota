@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { MCP_DRAFT_PROTOCOL_VERSION } from "./client.js";
-import { McpManager, namespaceTool, parseToolName } from "./manager.js";
+import { type McpInputResolver, McpManager, namespaceTool, parseToolName } from "./manager.js";
 
 type RecordedHttpRequest = {
   url: string;
@@ -177,7 +177,7 @@ describe("McpManager", () => {
             }
             write({ jsonrpc: "2.0", id: msg.id, result: {
               protocolVersion: "DRAFT-2026-v1",
-              capabilities: {},
+              capabilities: { tools: {} },
               serverInfo: { name: "capability-check" },
             }});
           } else if (msg.method === "tools/list") {
@@ -365,6 +365,367 @@ describe("McpManager", () => {
     }
   });
 
+  it("exposes remote resources and prompts as explicit namespaced operations without colliding with tool names", async () => {
+    const { fetchSpy } = mockMcpHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: {}, resources: {}, prompts: {} },
+          serverInfo: { name: "catalog-server" },
+        });
+      }
+      if (request.body.method === "tools/list") {
+        return jsonRpcResponse(request.body.id, {
+          tools: [{ name: "resources_list", inputSchema: { type: "object" } }],
+        });
+      }
+      if (request.body.method === "resources/list") {
+        return jsonRpcResponse(request.body.id, {
+          resources: [{ uri: "file:///tmp/a.md", name: "a" }],
+        });
+      }
+      if (request.body.method === "resources/templates/list") {
+        return jsonRpcResponse(request.body.id, {
+          resourceTemplates: [{ uriTemplate: "file:///{name}.md", name: "file-template" }],
+        });
+      }
+      if (request.body.method === "resources/read") {
+        return jsonRpcResponse(request.body.id, {
+          resultType: "complete",
+          contents: [{ uri: request.body.params?.uri, text: "resource text" }],
+        });
+      }
+      if (request.body.method === "prompts/list") {
+        return jsonRpcResponse(request.body.id, {
+          prompts: [{ name: "triage", arguments: [{ name: "topic", required: true }] }],
+        });
+      }
+      if (request.body.method === "prompts/get") {
+        return jsonRpcResponse(request.body.id, {
+          resultType: "complete",
+          description: "Remote prompt",
+          messages: [{
+            role: "user",
+            content: {
+              type: "text",
+              text: `Review ${request.body.params?.arguments?.topic}`,
+            },
+          }],
+        });
+      }
+      if (request.body.method === "tools/call") {
+        return jsonRpcResponse(request.body.id, {
+          resultType: "complete",
+          content: [{ type: "text", text: "tool still routed" }],
+        });
+      }
+      return jsonRpcResponse(request.body.id, {});
+    });
+    const manager = new McpManager();
+
+    try {
+      await manager.initialize({
+        mcpServers: {
+          remote: { type: "http", url: "https://mcp.example.test/mcp" },
+        },
+      });
+
+      expect(manager.getToolCount()).toBe(1);
+      expect(manager.getTools().map((tool) => tool.name)).toEqual([
+        "mcp__remote__resources_list",
+        "mcp_resources__remote__list",
+        "mcp_resource_templates__remote__list",
+        "mcp_resources__remote__read",
+        "mcp_prompts__remote__list",
+        "mcp_prompts__remote__get",
+      ]);
+
+      const tool = await manager.executeTool("mcp__remote__resources_list", {});
+      expect(tool.content).toBe("tool still routed");
+
+      const resources = await manager.executeTool("mcp_resources__remote__list", {});
+      expect(resources.is_error).toBeUndefined();
+      expect(resources.structuredContent).toEqual({
+        resources: [{ uri: "file:///tmp/a.md", name: "a" }],
+      });
+
+      const templates = await manager.executeTool("mcp_resource_templates__remote__list", {});
+      expect(templates.structuredContent).toEqual({
+        resourceTemplates: [{ uriTemplate: "file:///{name}.md", name: "file-template" }],
+      });
+
+      const resource = await manager.executeTool("mcp_resources__remote__read", {
+        uri: "file:///tmp/a.md",
+      });
+      expect(resource.structuredContent).toEqual({
+        resultType: "complete",
+        protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+        contents: [{ uri: "file:///tmp/a.md", text: "resource text" }],
+      });
+
+      const prompts = await manager.executeTool("mcp_prompts__remote__list", {});
+      expect(prompts.structuredContent).toEqual({
+        prompts: [{
+          name: "triage",
+          arguments: [{ name: "topic", required: true }],
+        }],
+      });
+
+      const prompt = await manager.executeTool("mcp_prompts__remote__get", {
+        name: "triage",
+        arguments: { topic: "build state" },
+      });
+      expect(prompt.blocks).toBeUndefined();
+      expect(prompt.structuredContent).toEqual({
+        resultType: "complete",
+        protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+        description: "Remote prompt",
+        messages: [{
+          role: "user",
+          content: { type: "text", text: "Review build state" },
+        }],
+      });
+      expect(prompt.content).toContain('"messages"');
+    } finally {
+      await manager.close();
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("routes resource and prompt input_required results through the existing input resolver", async () => {
+    const attempts: string[] = [];
+    const { fetchSpy } = mockMcpHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { resources: {}, prompts: {} },
+          serverInfo: { name: "input-server" },
+        });
+      }
+      if (request.body.method === "tools/list") {
+        return jsonRpcResponse(request.body.id, { tools: [] });
+      }
+      if (request.body.method === "resources/read") {
+        attempts.push(`resource:${request.body.params?.requestState ?? "first"}`);
+        if (!request.body.params?.requestState) {
+          return jsonRpcResponse(request.body.id, {
+            resultType: "input_required",
+            inputRequests: {
+              approve: {
+                method: "elicitation/create",
+                params: { message: "Approve resource read" },
+              },
+            },
+            requestState: "resource-state",
+          });
+        }
+        return jsonRpcResponse(request.body.id, {
+          resultType: "complete",
+          contents: [{ uri: request.body.params?.uri, text: "approved resource" }],
+        });
+      }
+      if (request.body.method === "prompts/get") {
+        attempts.push(
+          `prompt:${request.body.params?.requestState ?? (request.body.params?.inputResponses ? "responses" : "first")}`,
+        );
+        if (!request.body.params?.requestState && !request.body.params?.inputResponses) {
+          return jsonRpcResponse(request.body.id, {
+            resultType: "input_required",
+            inputRequests: {
+              approve: {
+                method: "elicitation/create",
+                params: { message: "Approve prompt" },
+              },
+            },
+          });
+        }
+        return jsonRpcResponse(request.body.id, {
+          resultType: "complete",
+          messages: [{ role: "user", content: { type: "text", text: "approved prompt" } }],
+        });
+      }
+      return jsonRpcResponse(request.body.id, {});
+    });
+    const manager = new McpManager();
+
+    try {
+      await manager.initialize({
+        mcpServers: {
+          remote: { type: "http", url: "https://mcp.example.test/mcp" },
+        },
+      }, { inputResolverAvailable: true });
+
+      const resolverCalls: Array<{ server: string; tool: string; requestState?: string }> = [];
+      const inputResolver: McpInputResolver = async (request) => {
+        resolverCalls.push({
+          server: request.server,
+          tool: request.tool,
+          ...(request.requestState !== undefined ? { requestState: request.requestState } : {}),
+        });
+        return {
+          kind: "respond" as const,
+          inputResponses: { approve: { action: "accept", content: { ok: true } } },
+        };
+      };
+
+      const resource = await manager.executeTool("mcp_resources__remote__read", {
+        uri: "secret://resource",
+      }, { inputResolver });
+      const prompt = await manager.executeTool("mcp_prompts__remote__get", {
+        name: "confirmable",
+      }, { inputResolver });
+
+      expect(resource.structuredContent).toMatchObject({
+        contents: [{ uri: "secret://resource", text: "approved resource" }],
+      });
+      expect(prompt.structuredContent).toMatchObject({
+        messages: [{ role: "user", content: { type: "text", text: "approved prompt" } }],
+      });
+      expect(resolverCalls).toEqual([
+        { server: "input-server", tool: "resources/read", requestState: "resource-state" },
+        { server: "input-server", tool: "prompts/get" },
+      ]);
+      expect(attempts).toEqual([
+        "resource:first",
+        "resource:resource-state",
+        "prompt:first",
+        "prompt:responses",
+      ]);
+    } finally {
+      await manager.close();
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("connects resource-only HTTP servers without requiring tools/list", async () => {
+    const { requests, fetchSpy } = mockMcpHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { resources: {} },
+          serverInfo: { name: "resource-only" },
+        });
+      }
+      if (request.body.method === "resources/list") {
+        return jsonRpcResponse(request.body.id, {
+          resources: [{ uri: "file:///tmp/only.md", name: "only" }],
+        });
+      }
+      return new Response(JSON.stringify({
+        jsonrpc: "2.0",
+        id: request.body.id,
+        error: { code: -32601, message: `unexpected ${request.body.method}` },
+      }), {
+        status: 404,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    const manager = new McpManager();
+
+    try {
+      await manager.initialize({
+        mcpServers: {
+          remote: { type: "http", url: "https://mcp.example.test/mcp" },
+        },
+      });
+
+      expect(manager.getToolCount()).toBe(0);
+      expect(manager.getTools().map((tool) => tool.name)).toEqual([
+        "mcp_resources__remote__list",
+        "mcp_resource_templates__remote__list",
+        "mcp_resources__remote__read",
+      ]);
+      const resources = await manager.executeTool("mcp_resources__remote__list", {});
+      expect(resources.structuredContent).toEqual({
+        resources: [{ uri: "file:///tmp/only.md", name: "only" }],
+      });
+      expect(requests.map((request) => request.body.method)).toEqual([
+        "server/discover",
+        "resources/list",
+      ]);
+    } finally {
+      await manager.close();
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("connects stdio servers that advertise resources and prompts without tools", async () => {
+    const catalogOnlyServer = `
+      const rl = require("readline").createInterface({ input: process.stdin });
+      function write(message) {
+        process.stdout.write(JSON.stringify(message) + "\\n");
+      }
+      rl.on("line", (line) => {
+        let msg;
+        try { msg = JSON.parse(line); } catch { return; }
+        if (msg.method === "initialize") {
+          write({ jsonrpc: "2.0", id: msg.id, result: {
+            protocolVersion: "DRAFT-2026-v1",
+            capabilities: { resources: {}, prompts: {} },
+            serverInfo: { name: "catalog-only" },
+          }});
+          return;
+        }
+        if (msg.method === "notifications/initialized") return;
+        if (msg.method === "resources/list") {
+          write({ jsonrpc: "2.0", id: msg.id, result: {
+            resources: [{ uri: "file:///tmp/only.md", name: "only" }],
+          }});
+          return;
+        }
+        if (msg.method === "prompts/list") {
+          write({ jsonrpc: "2.0", id: msg.id, result: {
+            prompts: [{ name: "summarize", description: "Summarize context" }],
+          }});
+          return;
+        }
+        if (msg.method === "shutdown") {
+          write({ jsonrpc: "2.0", id: msg.id, result: {} });
+          return;
+        }
+        write({ jsonrpc: "2.0", id: msg.id, error: {
+          code: -32601,
+          message: "unexpected " + msg.method,
+        }});
+      });
+    `;
+    const manager = new McpManager();
+
+    try {
+      await manager.initialize({
+        mcpServers: {
+          remote: { command: "node", args: ["-e", catalogOnlyServer] },
+        },
+      });
+
+      expect(manager.getServerCount()).toBe(1);
+      expect(manager.getToolCount()).toBe(0);
+      expect(manager.getTools().map((tool) => tool.name)).toEqual([
+        "mcp_resources__remote__list",
+        "mcp_resource_templates__remote__list",
+        "mcp_resources__remote__read",
+        "mcp_prompts__remote__list",
+        "mcp_prompts__remote__get",
+      ]);
+      await expect(
+        manager.executeTool("mcp_resources__remote__list", {}),
+      ).resolves.toMatchObject({
+        structuredContent: {
+          resources: [{ uri: "file:///tmp/only.md", name: "only" }],
+        },
+      });
+      await expect(
+        manager.executeTool("mcp_prompts__remote__list", {}),
+      ).resolves.toMatchObject({
+        structuredContent: {
+          prompts: [{ name: "summarize", description: "Summarize context" }],
+        },
+      });
+    } finally {
+      await manager.close();
+    }
+  }, 10_000);
+
   it("reports ambiguous MCP server config without coercing it into stdio", async () => {
     const manager = new McpManager();
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -470,7 +831,7 @@ describe("McpManager", () => {
         if (msg.method === "initialize") {
           write({ jsonrpc: "2.0", id: msg.id, result: {
             protocolVersion: "DRAFT-2026-v1",
-            capabilities: {},
+            capabilities: { tools: {} },
             serverInfo: { name: "progress-srv" },
           }});
         } else if (msg.method === "tools/list") {
@@ -1140,7 +1501,7 @@ describe("McpManager", () => {
         if (msg.method === "initialize") {
           process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
             protocolVersion: "DRAFT-2026-v1",
-            capabilities: {},
+            capabilities: { tools: {} },
             serverInfo: { name: "needs-input" },
           }}) + "\\n");
         } else if (msg.method === "tools/list") {
@@ -1219,7 +1580,7 @@ describe("McpManager", () => {
         if (msg.method === "initialize") {
           process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
             protocolVersion: "DRAFT-2026-v1",
-            capabilities: {},
+            capabilities: { tools: {} },
           }}) + "\\n");
         } else if (msg.method === "tools/list") {
           process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
@@ -1274,7 +1635,7 @@ describe("McpManager", () => {
         if (msg.method === "initialize") {
           process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
             protocolVersion: "DRAFT-2026-v1",
-            capabilities: {},
+            capabilities: { tools: {} },
             serverInfo: { name: "needs-input" },
           }}) + "\\n");
         } else if (msg.method === "tools/list") {
@@ -1381,7 +1742,7 @@ describe("McpManager", () => {
           if (msg.method === "initialize") {
             process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
               protocolVersion: "DRAFT-2026-v1",
-              capabilities: {},
+              capabilities: { tools: {} },
               serverInfo: { name: "needs-url-input" },
             }}) + "\\n");
           } else if (msg.method === "tools/list") {
@@ -1479,7 +1840,7 @@ describe("McpManager", () => {
         if (msg.method === "initialize") {
           process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
             protocolVersion: "DRAFT-2026-v1",
-            capabilities: {},
+            capabilities: { tools: {} },
           }}) + "\\n");
         } else if (msg.method === "tools/list") {
           process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
@@ -1560,7 +1921,7 @@ describe("McpManager", () => {
         if (msg.method === "initialize") {
           process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
             protocolVersion: "DRAFT-2026-v1",
-            capabilities: {},
+            capabilities: { tools: {} },
           }}) + "\\n");
         } else if (msg.method === "tools/list") {
           process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
@@ -1609,7 +1970,7 @@ describe("McpManager", () => {
         if (msg.method === "initialize") {
           process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
             protocolVersion: "DRAFT-2026-v1",
-            capabilities: {},
+            capabilities: { tools: {} },
           }}) + "\\n");
         } else if (msg.method === "tools/list") {
           process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
@@ -1669,7 +2030,7 @@ describe("McpManager", () => {
         if (msg.method === "initialize") {
           process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
             protocolVersion: "DRAFT-2026-v1",
-            capabilities: {},
+            capabilities: { tools: {} },
           }}) + "\\n");
         } else if (msg.method === "tools/list") {
           process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {

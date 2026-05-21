@@ -12,8 +12,11 @@ import {
   McpClient,
   type McpClientTransportConfig,
   type McpElicitationMode,
+  type McpGetPromptResult,
   type McpInputRequiredCallToolResult,
+  type McpInputRequiredResult,
   type McpProgressEvent,
+  type McpReadResourceResult,
   type McpStdioClientTransportConfig,
   type McpStreamableHttpClientTransportConfig,
   McpToolError,
@@ -37,6 +40,19 @@ export type McpManagerInitializeOptions = {
 type McpToolEntry = {
   client: McpClient;
   originalName: string;
+  tool: KotaTool;
+};
+
+type McpOperationKind =
+  | "resources/list"
+  | "resources/templates/list"
+  | "resources/read"
+  | "prompts/list"
+  | "prompts/get";
+
+type McpOperationEntry = {
+  client: McpClient;
+  kind: McpOperationKind;
   tool: KotaTool;
 };
 
@@ -79,6 +95,18 @@ export function namespaceTool(serverName: string, toolName: string): string {
   return `mcp${SEPARATOR}${serverName}${SEPARATOR}${toolName}`;
 }
 
+function namespaceResourceOperation(serverName: string, action: "list" | "read"): string {
+  return `mcp_resources${SEPARATOR}${serverName}${SEPARATOR}${action}`;
+}
+
+function namespaceResourceTemplateOperation(serverName: string): string {
+  return `mcp_resource_templates${SEPARATOR}${serverName}${SEPARATOR}list`;
+}
+
+function namespacePromptOperation(serverName: string, action: "list" | "get"): string {
+  return `mcp_prompts${SEPARATOR}${serverName}${SEPARATOR}${action}`;
+}
+
 /** Parse a namespaced tool name back to server + tool. Returns null if not an MCP tool. */
 export function parseToolName(name: string): { server: string; tool: string } | null {
   if (!name.startsWith(`mcp${SEPARATOR}`)) return null;
@@ -103,6 +131,79 @@ function toKotaTool(serverName: string, tool: McpToolSchema): KotaTool {
   };
 }
 
+function operationTool(name: string, description: string, input_schema: KotaTool["input_schema"]): KotaTool {
+  return {
+    name,
+    description,
+    input_schema,
+  };
+}
+
+function toKotaOperations(serverName: string, client: McpClient): McpOperationEntry[] {
+  const entries: McpOperationEntry[] = [];
+  if (client.supportsResources()) {
+    entries.push({
+      client,
+      kind: "resources/list",
+      tool: operationTool(
+        namespaceResourceOperation(serverName, "list"),
+        `[${serverName}] List remote MCP resources exposed by this server.`,
+        { type: "object", properties: {} },
+      ),
+    });
+    entries.push({
+      client,
+      kind: "resources/templates/list",
+      tool: operationTool(
+        namespaceResourceTemplateOperation(serverName),
+        `[${serverName}] List remote MCP resource templates exposed by this server.`,
+        { type: "object", properties: {} },
+      ),
+    });
+    entries.push({
+      client,
+      kind: "resources/read",
+      tool: operationTool(
+        namespaceResourceOperation(serverName, "read"),
+        `[${serverName}] Read one remote MCP resource by URI.`,
+        {
+          type: "object",
+          properties: { uri: { type: "string" } },
+          required: ["uri"],
+        },
+      ),
+    });
+  }
+  if (client.supportsPrompts()) {
+    entries.push({
+      client,
+      kind: "prompts/list",
+      tool: operationTool(
+        namespacePromptOperation(serverName, "list"),
+        `[${serverName}] List remote MCP prompts exposed by this server.`,
+        { type: "object", properties: {} },
+      ),
+    });
+    entries.push({
+      client,
+      kind: "prompts/get",
+      tool: operationTool(
+        namespacePromptOperation(serverName, "get"),
+        `[${serverName}] Get one remote MCP prompt by name and arguments.`,
+        {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            arguments: { type: "object" },
+          },
+          required: ["name"],
+        },
+      ),
+    });
+  }
+  return entries;
+}
+
 function inputRequiredDiagnostics(
   entry: McpToolEntry,
   result: McpInputRequiredCallToolResult,
@@ -112,6 +213,21 @@ function inputRequiredDiagnostics(
     protocolVersion: result.protocolVersion,
     server: entry.client.getName(),
     tool: entry.originalName,
+    ...(result.inputRequests ? { inputRequests: result.inputRequests } : {}),
+    ...(result.requestState !== undefined ? { requestState: result.requestState } : {}),
+    ...(result._meta ? { resultMeta: result._meta } : {}),
+  };
+}
+
+function operationInputRequiredDiagnostics(
+  entry: McpOperationEntry,
+  result: McpInputRequiredResult,
+): KotaJsonObject {
+  return {
+    resultType: "input_required",
+    protocolVersion: result.protocolVersion,
+    server: entry.client.getName(),
+    tool: entry.kind,
     ...(result.inputRequests ? { inputRequests: result.inputRequests } : {}),
     ...(result.requestState !== undefined ? { requestState: result.requestState } : {}),
     ...(result._meta ? { resultMeta: result._meta } : {}),
@@ -132,6 +248,23 @@ function unsupportedInputRequiredResult(
       `"${entry.client.getName()}" requires additional input, but${detail}`,
     is_error: true,
     _meta: { mcp: inputRequiredDiagnostics(entry, result) },
+  };
+}
+
+function unsupportedOperationInputRequiredResult(
+  entry: McpOperationEntry,
+  result: McpInputRequiredResult,
+  reason?: string,
+): ToolResult {
+  const detail = reason
+    ? ` ${reason}`
+    : " this KOTA runtime cannot route remote input_required results yet.";
+  return {
+    content:
+      `MCP operation error: remote MCP operation "${entry.kind}" on server ` +
+      `"${entry.client.getName()}" requires additional input, but${detail}`,
+    is_error: true,
+    _meta: { mcp: operationInputRequiredDiagnostics(entry, result) },
   };
 }
 
@@ -268,6 +401,52 @@ function toToolResult(entry: McpToolEntry, result: McpCallToolResult): ToolResul
   return toolResult;
 }
 
+function toStructuredContent(value: object): KotaJsonObject {
+  return JSON.parse(JSON.stringify(value)) as KotaJsonObject;
+}
+
+function toOperationResult(value: KotaJsonObject): ToolResult {
+  return {
+    content: JSON.stringify(value, null, 2),
+    structuredContent: value,
+  };
+}
+
+function stringInput(
+  input: KotaJsonObject,
+  key: string,
+  operationName: string,
+): { ok: true; value: string } | { ok: false; result: ToolResult } {
+  const value = input[key];
+  if (typeof value !== "string" || value.length === 0) {
+    return {
+      ok: false,
+      result: {
+        content: `MCP operation error: ${operationName} requires non-empty string input "${key}"`,
+        is_error: true,
+      },
+    };
+  }
+  return { ok: true, value };
+}
+
+function promptArgumentsInput(
+  input: KotaJsonObject,
+): { ok: true; value: KotaJsonObject } | { ok: false; result: ToolResult } {
+  const value = input.arguments;
+  if (value === undefined) return { ok: true, value: {} };
+  if (!isJsonObject(value)) {
+    return {
+      ok: false,
+      result: {
+        content: 'MCP operation error: prompts/get input "arguments" must be an object',
+        is_error: true,
+      },
+    };
+  }
+  return { ok: true, value };
+}
+
 /**
  * Manages multiple MCP server connections and their tools.
  * Handles config loading, lifecycle, and tool routing.
@@ -275,7 +454,9 @@ function toToolResult(entry: McpToolEntry, result: McpCallToolResult): ToolResul
 export class McpManager {
   private clients = new Map<string, McpClient>();
   private serverTools = new Map<string, McpToolEntry[]>();
+  private serverOperations = new Map<string, McpOperationEntry[]>();
   private toolMap = new Map<string, McpToolEntry>();
+  private operationMap = new Map<string, McpOperationEntry>();
   private kotaTools: KotaTool[] = [];
   private toolListUnsubscribers = new Map<string, () => void>();
   private initializingServers = new Set<string>();
@@ -320,11 +501,25 @@ export class McpManager {
           await client.connect();
           this.clients.set(name, client);
           this.initializingServers.add(name);
-          const unsubscribe = client.onToolListChanged(() => {
+          const unsubscribeTool = client.onToolListChanged(() => {
             this.queueServerToolRefresh(name);
           });
-          this.toolListUnsubscribers.set(name, unsubscribe);
-          const tools = await client.listTools();
+          const unsubscribeResource = client.onResourceListChanged(() => {
+            console.error(
+              `[kota] MCP server "${name}" resource catalog changed — explicit resource operations will read fresh data on their next call`,
+            );
+          });
+          const unsubscribePrompt = client.onPromptListChanged(() => {
+            console.error(
+              `[kota] MCP server "${name}" prompt catalog changed — explicit prompt operations will read fresh data on their next call`,
+            );
+          });
+          this.toolListUnsubscribers.set(name, () => {
+            unsubscribeTool();
+            unsubscribeResource();
+            unsubscribePrompt();
+          });
+          const tools = client.supportsTools() ? await client.listTools() : [];
           this.replaceServerTools(name, client, tools);
           this.initializingServers.delete(name);
           if (this.pendingServerRefreshes.delete(name)) {
@@ -342,6 +537,7 @@ export class McpManager {
           this.toolListUnsubscribers.delete(name);
           this.clients.delete(name);
           this.serverTools.delete(name);
+          this.serverOperations.delete(name);
           await client?.close().catch(() => {});
           return null;
         }
@@ -365,7 +561,7 @@ export class McpManager {
 
   /** Check if a tool name belongs to an MCP server. */
   isMcpTool(name: string): boolean {
-    return this.toolMap.has(name);
+    return this.toolMap.has(name) || this.operationMap.has(name);
   }
 
   /** Execute an MCP tool by its namespaced name. */
@@ -375,7 +571,13 @@ export class McpManager {
     options: McpExecuteToolOptions = {},
   ): Promise<ToolResult> {
     const entry = this.toolMap.get(name);
-    if (!entry) return { content: `Unknown MCP tool: ${name}`, is_error: true };
+    if (!entry) {
+      const operation = this.operationMap.get(name);
+      if (operation) {
+        return this.executeOperation(operation, input as KotaJsonObject, options);
+      }
+      return { content: `Unknown MCP tool: ${name}`, is_error: true };
+    }
 
     if (!entry.client.isConnected()) {
       return { content: `MCP server disconnected for tool: ${name}`, is_error: true };
@@ -439,6 +641,139 @@ export class McpManager {
     }
   }
 
+  private async executeOperation(
+    entry: McpOperationEntry,
+    input: KotaJsonObject,
+    options: McpExecuteToolOptions,
+  ): Promise<ToolResult> {
+    if (!entry.client.isConnected()) {
+      return {
+        content: `MCP server disconnected for operation: ${entry.tool.name}`,
+        is_error: true,
+      };
+    }
+
+    try {
+      if (entry.kind === "resources/list") {
+        const resources = await entry.client.listResources();
+        return toOperationResult(toStructuredContent({ resources }));
+      }
+      if (entry.kind === "resources/templates/list") {
+        const resourceTemplates = await entry.client.listResourceTemplates();
+        return toOperationResult(toStructuredContent({ resourceTemplates }));
+      }
+      if (entry.kind === "resources/read") {
+        const uri = stringInput(input, "uri", entry.tool.name);
+        if (!uri.ok) return uri.result;
+        const result = await entry.client.readResource(uri.value);
+        return this.toOperationInvocationResult(entry, result, input, options);
+      }
+      if (entry.kind === "prompts/list") {
+        const prompts = await entry.client.listPrompts();
+        return toOperationResult(toStructuredContent({ prompts }));
+      }
+      const name = stringInput(input, "name", entry.tool.name);
+      if (!name.ok) return name.result;
+      const args = promptArgumentsInput(input);
+      if (!args.ok) return args.result;
+      const result = await entry.client.getPrompt(name.value, args.value);
+      return this.toOperationInvocationResult(entry, result, input, options);
+    } catch (err) {
+      if (!entry.client.isConnected()) {
+        return {
+          content: `MCP server disconnected for operation: ${entry.tool.name}`,
+          is_error: true,
+        };
+      }
+      const message = err instanceof McpToolError
+        ? err.message
+        : `MCP operation error: ${(err as Error).message}`;
+      return { content: message, is_error: true };
+    }
+  }
+
+  private async toOperationInvocationResult(
+    entry: McpOperationEntry,
+    result: McpReadResourceResult | McpGetPromptResult,
+    input: KotaJsonObject,
+    options: McpExecuteToolOptions,
+  ): Promise<ToolResult> {
+    if (result.resultType !== "input_required") {
+      return toOperationResult(toStructuredContent(result));
+    }
+    if (!result.inputRequests) {
+      if (result.requestState === undefined) {
+        return unsupportedOperationInputRequiredResult(
+          entry,
+          result,
+          "the remote server returned input_required without inputRequests or requestState.",
+        );
+      }
+      const retried = await this.retryOperation(entry, input, {
+        requestState: result.requestState,
+      });
+      return retried.resultType === "input_required"
+        ? unsupportedOperationInputRequiredResult(
+          entry,
+          retried,
+          "the remote server requested additional input again after the retry.",
+        )
+        : toOperationResult(toStructuredContent(retried));
+    }
+    if (!options.inputResolver) {
+      return unsupportedOperationInputRequiredResult(entry, result);
+    }
+    const routed = await options.inputResolver({
+      server: entry.client.getName(),
+      tool: entry.kind,
+      inputRequests: result.inputRequests,
+      ...(result.requestState !== undefined ? { requestState: result.requestState } : {}),
+      ...(result._meta ? { resultMeta: result._meta } : {}),
+    });
+    if (routed.kind === "unavailable") {
+      return unsupportedOperationInputRequiredResult(entry, result, routed.reason);
+    }
+    const retry = {
+      inputResponses: routed.inputResponses,
+      inputRequests: result.inputRequests,
+      ...(result.requestState !== undefined ? { requestState: result.requestState } : {}),
+    };
+    const retried = await this.retryOperation(entry, input, retry);
+    return retried.resultType === "input_required"
+      ? unsupportedOperationInputRequiredResult(
+        entry,
+        retried,
+        "the remote server requested additional input again after the retry.",
+      )
+      : toOperationResult(toStructuredContent(retried));
+  }
+
+  private async retryOperation(
+    entry: McpOperationEntry,
+    input: KotaJsonObject,
+    retry: Parameters<McpClient["readResource"]>[1],
+  ): Promise<McpReadResourceResult | McpGetPromptResult> {
+    if (entry.kind === "resources/read") {
+      const uri = stringInput(input, "uri", entry.tool.name);
+      if (!uri.ok) {
+        throw new Error(uri.result.content);
+      }
+      return entry.client.readResource(uri.value, retry);
+    }
+    if (entry.kind === "prompts/get") {
+      const name = stringInput(input, "name", entry.tool.name);
+      if (!name.ok) {
+        throw new Error(name.result.content);
+      }
+      const args = promptArgumentsInput(input);
+      if (!args.ok) {
+        throw new Error(args.result.content);
+      }
+      return entry.client.getPrompt(name.value, args.value, retry);
+    }
+    throw new Error(`MCP operation ${entry.kind} does not support input retry`);
+  }
+
   /** Disconnect all MCP servers. */
   async close(): Promise<void> {
     for (const unsubscribe of this.toolListUnsubscribers.values()) {
@@ -452,7 +787,9 @@ export class McpManager {
     await Promise.all(closers);
     this.clients.clear();
     this.serverTools.clear();
+    this.serverOperations.clear();
     this.toolMap.clear();
+    this.operationMap.clear();
     this.kotaTools = [];
   }
 
@@ -484,9 +821,31 @@ export class McpManager {
     }
     this.serverTools.set(serverName, entries);
     this.toolMap = nextToolMap;
-    this.kotaTools = [...this.serverTools.values()].flatMap((serverEntries) =>
+    this.replaceServerOperations(serverName, client);
+    this.rebuildKotaTools();
+  }
+
+  private replaceServerOperations(serverName: string, client: McpClient): void {
+    const entries = toKotaOperations(serverName, client);
+    const nextOperationMap = new Map(this.operationMap);
+    for (const entry of this.serverOperations.get(serverName) ?? []) {
+      nextOperationMap.delete(entry.tool.name);
+    }
+    for (const entry of entries) {
+      nextOperationMap.set(entry.tool.name, entry);
+    }
+    this.serverOperations.set(serverName, entries);
+    this.operationMap = nextOperationMap;
+  }
+
+  private rebuildKotaTools(): void {
+    const remoteTools = [...this.serverTools.values()].flatMap((serverEntries) =>
       serverEntries.map((entry) => entry.tool),
     );
+    const remoteOperations = [...this.serverOperations.values()].flatMap((serverEntries) =>
+      serverEntries.map((entry) => entry.tool),
+    );
+    this.kotaTools = [...remoteTools, ...remoteOperations];
   }
 
   private progressOptionsFor(

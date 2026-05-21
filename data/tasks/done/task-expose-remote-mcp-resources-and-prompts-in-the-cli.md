@@ -1,12 +1,12 @@
 ---
 id: task-expose-remote-mcp-resources-and-prompts-in-the-cli
 title: Expose remote MCP resources and prompts in the client runtime
-status: ready
+status: done
 priority: p2
 area: core
 summary: Extend KOTA's external MCP client path beyond remote tools so connected MCP servers' resources and prompts are discoverable, paginated, and explicitly invokable without automatic context injection.
 created_at: 2026-05-21T21:10:17Z
-updated_at: 2026-05-21T21:10:17Z
+updated_at: 2026-05-21T21:35:50Z
 ---
 
 ## Problem

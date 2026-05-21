@@ -849,6 +849,81 @@ describe("McpClient lifecycle (fake MCP server)", () => {
     await expect(refreshed).resolves.toMatchObject([{ name: "after_refresh" }]);
   }, 10_000);
 
+  it("opens resource and prompt listChanged subscriptions and dispatches notifications", async () => {
+    const catalogChangedServer = `
+      const rl = require("readline").createInterface({ input: process.stdin });
+      function write(message) {
+        process.stdout.write(JSON.stringify(message) + "\\n");
+      }
+      rl.on("line", (line) => {
+        let msg;
+        try { msg = JSON.parse(line); } catch { return; }
+        if (msg.method === "initialize") {
+          write({ jsonrpc: "2.0", id: msg.id, result: {
+            protocolVersion: "DRAFT-2026-v1",
+            capabilities: {
+              resources: { listChanged: true },
+              prompts: { listChanged: true },
+            },
+            serverInfo: { name: "catalog-changing-server" },
+          }});
+        } else if (msg.method === "notifications/initialized") {
+          // notification - no response
+        } else if (msg.method === "subscriptions/listen") {
+          const subscriptionId = String(msg.id);
+          if (
+            msg.params?.notifications?.resourcesListChanged !== true ||
+            msg.params?.notifications?.promptsListChanged !== true
+          ) {
+            write({ jsonrpc: "2.0", id: msg.id, error: {
+              code: -32602,
+              message: "missing catalog subscriptions",
+            }});
+            return;
+          }
+          write({ jsonrpc: "2.0", method: "notifications/subscriptions/acknowledged", params: {
+            _meta: { "io.modelcontextprotocol/subscriptionId": subscriptionId },
+            notifications: {
+              resourcesListChanged: true,
+              promptsListChanged: true,
+            },
+          }});
+          setTimeout(() => {
+            write({ jsonrpc: "2.0", method: "notifications/resources/list_changed", params: {
+              _meta: { "io.modelcontextprotocol/subscriptionId": subscriptionId },
+            }});
+            write({ jsonrpc: "2.0", method: "notifications/prompts/list_changed", params: {
+              _meta: { "io.modelcontextprotocol/subscriptionId": subscriptionId },
+            }});
+          }, 20);
+        } else if (msg.method === "shutdown") {
+          write({ jsonrpc: "2.0", id: msg.id, result: {} });
+        }
+      });
+    `;
+    client = new McpClient(
+      "node",
+      ["-e", catalogChangedServer],
+      {},
+      "catalog-change-test",
+    );
+    const resourceChanged = new Promise<void>((resolve) => {
+      client?.onResourceListChanged(() => resolve());
+    });
+    const promptChanged = new Promise<void>((resolve) => {
+      client?.onPromptListChanged(() => resolve());
+    });
+
+    await client.connect();
+
+    expect(client.supportsResources()).toBe(true);
+    expect(client.supportsResourceListChanged()).toBe(true);
+    expect(client.supportsPrompts()).toBe(true);
+    expect(client.supportsPromptListChanged()).toBe(true);
+    await expect(resourceChanged).resolves.toBeUndefined();
+    await expect(promptChanged).resolves.toBeUndefined();
+  }, 10_000);
+
   it("falls back to the legacy handshake when a server rejects draft", async () => {
     client = new McpClient(
       "node",
@@ -1563,6 +1638,197 @@ describe("McpClient Streamable HTTP transport", () => {
       method: "server/discover",
       message: expect.stringMatching(/tools\.listChanged.*Streamable HTTP/),
     });
+  });
+
+  it("rejects HTTP servers that advertise unsupported resource or prompt listChanged streams", async () => {
+    mockClientHttpFetch((request) => jsonRpcHttpResponse(request.body.id, {
+      supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+      capabilities: {
+        resources: { listChanged: true },
+        prompts: { listChanged: true },
+      },
+      serverInfo: { name: "http-catalog-list-changed-fixture" },
+    }));
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "http-catalog-list-changed-client",
+    );
+
+    await expect(client.connect()).rejects.toMatchObject({
+      name: "McpConnectionError",
+      serverName: "http-catalog-list-changed-fixture",
+      method: "server/discover",
+      message: expect.stringMatching(/resources\.listChanged.*prompts\.listChanged.*Streamable HTTP/),
+    });
+  });
+
+  it("lists and retrieves remote resources, templates, and prompts across pages", async () => {
+    const seenMethods: string[] = [];
+    mockClientHttpFetch((request) => {
+      seenMethods.push(request.body.method ?? "");
+      if (request.body.method === "server/discover") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { resources: {}, prompts: {} },
+          serverInfo: { name: "catalog-http-fixture" },
+        });
+      }
+      if (request.body.method === "resources/list") {
+        expect(request.headers.get("mcp-method")).toBe("resources/list");
+        if (!request.body.params?.cursor) {
+          return jsonRpcHttpResponse(request.body.id, {
+            resources: [{
+              uri: "file:///tmp/first.md",
+              name: "first",
+              title: "First",
+              description: "First page",
+              mimeType: "text/markdown",
+            }],
+            nextCursor: "resources-page-2",
+          });
+        }
+        return jsonRpcHttpResponse(request.body.id, {
+          resources: [{ uri: "file:///tmp/second.md", name: "second" }],
+        });
+      }
+      if (request.body.method === "resources/templates/list") {
+        if (!request.body.params?.cursor) {
+          return jsonRpcHttpResponse(request.body.id, {
+            resourceTemplates: [{
+              uriTemplate: "file:///tmp/{name}.md",
+              name: "tmp-file",
+              title: "Temp file",
+            }],
+            nextCursor: "templates-page-2",
+          });
+        }
+        return jsonRpcHttpResponse(request.body.id, {
+          resourceTemplates: [{
+            uriTemplate: "repo://{path}",
+            name: "repo-path",
+            description: "Repo path",
+          }],
+        });
+      }
+      if (request.body.method === "prompts/list") {
+        if (!request.body.params?.cursor) {
+          return jsonRpcHttpResponse(request.body.id, {
+            prompts: [{
+              name: "summarize",
+              title: "Summarize",
+              arguments: [{ name: "topic", required: true }],
+            }],
+            nextCursor: "prompts-page-2",
+          });
+        }
+        return jsonRpcHttpResponse(request.body.id, {
+          prompts: [{ name: "triage", description: "Triage prompt" }],
+        });
+      }
+      if (request.body.method === "resources/read") {
+        expect(request.headers.get("mcp-name")).toBe("file:///tmp/first.md");
+        return jsonRpcHttpResponse(request.body.id, {
+          resultType: "complete",
+          contents: [{
+            uri: "file:///tmp/first.md",
+            mimeType: "text/markdown",
+            text: "# First",
+          }],
+          _meta: { trace: "resource-read" },
+        });
+      }
+      if (request.body.method === "prompts/get") {
+        expect(request.headers.get("mcp-name")).toBe("summarize");
+        return jsonRpcHttpResponse(request.body.id, {
+          resultType: "complete",
+          description: "Prompt text from the remote server",
+          messages: [
+            { role: "user", content: { type: "text", text: "Summarize runtime state" } },
+            {
+              role: "assistant",
+              content: {
+                type: "resource",
+                resource: {
+                  uri: "file:///tmp/context.md",
+                  text: "remote context",
+                },
+              },
+            },
+          ],
+          _meta: { trace: "prompt-get" },
+        });
+      }
+      return jsonRpcHttpResponse(request.body.id, {});
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "catalog-http-client",
+    );
+
+    await client.connect();
+    const resources = await client.listResources();
+    const templates = await client.listResourceTemplates();
+    const prompts = await client.listPrompts();
+    const resource = await client.readResource("file:///tmp/first.md");
+    const prompt = await client.getPrompt("summarize", { topic: "runtime" });
+
+    expect(resources.map((entry) => entry.name)).toEqual(["first", "second"]);
+    expect(templates.map((entry) => entry.name)).toEqual(["tmp-file", "repo-path"]);
+    expect(prompts.map((entry) => entry.name)).toEqual(["summarize", "triage"]);
+    expect(resource).toMatchObject({
+      resultType: "complete",
+      contents: [{ uri: "file:///tmp/first.md", text: "# First" }],
+      _meta: { trace: "resource-read" },
+    });
+    expect(prompt).toMatchObject({
+      resultType: "complete",
+      description: "Prompt text from the remote server",
+      messages: [
+        { role: "user", content: { type: "text", text: "Summarize runtime state" } },
+        {
+          role: "assistant",
+          content: {
+            type: "resource",
+            resource: { uri: "file:///tmp/context.md", text: "remote context" },
+          },
+        },
+      ],
+      _meta: { trace: "prompt-get" },
+    });
+    expect(seenMethods).toEqual([
+      "server/discover",
+      "resources/list",
+      "resources/list",
+      "resources/templates/list",
+      "resources/templates/list",
+      "prompts/list",
+      "prompts/list",
+      "resources/read",
+      "prompts/get",
+    ]);
+  });
+
+  it("rejects malformed resource catalogs with method-specific diagnostics", async () => {
+    mockClientHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { resources: {} },
+        });
+      }
+      return jsonRpcHttpResponse(request.body.id, {
+        resources: [{ uri: 42, name: "bad" }],
+      });
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "bad-resource-client",
+    );
+    await client.connect();
+
+    await expect(client.listResources()).rejects.toThrow(
+      /MCP resources\/list failed.*resources\[0\]\.uri must be a string/,
+    );
   });
 
   it("mirrors annotated tool arguments into HTTP Mcp-Param headers", async () => {
