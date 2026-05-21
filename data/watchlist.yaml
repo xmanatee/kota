@@ -303,6 +303,9 @@ resources:
       fingerprint: sha256:0d76da2fb252903c9b09e413433c18b0
       summary: "MCP draft Progress is accessible and now matches KOTA's already-completed client/server progress notification task; no new nonduplicative task is open from this snapshot."
       last_seen_at: "2026-05-21T03:46:55.929Z"
+  - url: https://modelcontextprotocol.io/specification/draft/basic/utilities/tasks
+    added: "2026-05-21"
+    notes: "Official MCP Tasks utility draft - monitor task-augmented requests, CreateTaskResult, task polling/result retrieval, cancellation, task input responses, status notifications, TTL handling, and lifecycle transition rules for KOTA's MCP server."
   - url: https://github.com/github/gh-aw
     added: "2026-05-17"
     notes: "GitHub Agentic Workflows is a GitHub Actions-hosted agent workflow runtime; monitor for event-trigger, safe-output, input-sanitization, and multi-engine guardrail patterns relevant to KOTA's workflow runtime."
