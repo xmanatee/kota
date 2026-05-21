@@ -1235,6 +1235,293 @@ describe("McpServer", () => {
 			server.stop();
 		});
 
+		async function startConfirmTaskServer(store: McpTaskStore) {
+			const { input, output } = createTestStreams();
+			const reader = createQueuedReader(output);
+			const server = new McpServer({
+				input,
+				output,
+				log: () => {},
+				taskStore: store,
+				toolFilter: ["confirm"],
+			});
+			await server.start();
+			sendRequest(input, 1, "initialize", {
+				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+				capabilities: {},
+				clientInfo: { name: "test", version: "1.0.0" },
+			});
+			await reader.read();
+			sendNotification(input, "notifications/initialized");
+			return { input, reader, server };
+		}
+
+		async function createConfirmTaskInputRequest(args: {
+			input: PassThrough;
+			reader: ReturnType<typeof createQueuedReader>;
+			taskId: string;
+			action?: string;
+			task?: Record<string, unknown>;
+		}) {
+			const action = args.action ?? "Rotate signing key";
+			sendRequest(args.input, `create-${args.taskId}`, "tools/call", draftRequestParams({
+				name: "confirm",
+				arguments: { action, risk: "high" },
+				task: args.task ?? {},
+			}, { elicitation: {} }));
+			const created = await args.reader.read();
+			expect(created.result).toMatchObject({
+				task: { taskId: args.taskId, status: "working" },
+				_meta: { [MCP_RELATED_TASK_META_KEY]: { taskId: args.taskId } },
+			});
+
+			sendRequest(
+				args.input,
+				`input-${args.taskId}`,
+				"tasks/result",
+				draftRequestParams({ taskId: args.taskId }),
+			);
+			const inputRequiredResponse = await args.reader.read();
+			expect(inputRequiredResponse.result).toMatchObject({
+				resultType: "input_required",
+				inputRequests: { confirm: { method: "elicitation/create" } },
+				_meta: { [MCP_RELATED_TASK_META_KEY]: { taskId: args.taskId } },
+			});
+			const inputRequired = inputRequiredResponse.result as {
+				requestState: string;
+				inputRequests: Record<string, unknown>;
+			};
+			expect(inputRequired.requestState).toEqual(expect.any(String));
+			return inputRequired;
+		}
+
+		it("resumes task-owned input_required tool calls through tasks/input_response", async () => {
+			const store = new McpTaskStore({
+				now: manualClock().now,
+				generateTaskId: taskIdGenerator(["task-tool-input"]),
+				defaultTtlMs: 60_000,
+			});
+			const { input, reader, server } = await startConfirmTaskServer(store);
+			const inputRequired = await createConfirmTaskInputRequest({
+				input,
+				reader,
+				taskId: "task-tool-input",
+			});
+
+			sendRequest(input, "respond-task-tool-input", "tasks/input_response", draftRequestParams({
+				taskId: "task-tool-input",
+				inputResponses: {
+					confirm: { action: "accept", content: { confirmed: true } },
+				},
+				requestState: inputRequired.requestState,
+			}, { elicitation: {} }));
+			const accepted = await reader.read();
+			expect(accepted.result).toMatchObject({
+				taskId: "task-tool-input",
+				status: "working",
+				statusMessage: "Input received; resuming tool call.",
+			});
+
+			sendRequest(input, "final-task-tool-input", "tasks/result", draftRequestParams({
+				taskId: "task-tool-input",
+			}));
+			const final = await reader.read();
+			expect(final.result).toMatchObject({
+				resultType: "complete",
+				isError: false,
+				content: [{ type: "text", text: expect.stringContaining("APPROVED: Rotate signing key") }],
+				_meta: { [MCP_RELATED_TASK_META_KEY]: { taskId: "task-tool-input" } },
+			});
+			sendRequest(input, "get-task-tool-input", "tasks/get", draftRequestParams({
+				taskId: "task-tool-input",
+			}));
+			const status = await reader.read();
+			expect(status.result).toMatchObject({ taskId: "task-tool-input", status: "completed" });
+
+			server.stop();
+		});
+
+		it("resumes task-owned decline and cancel input responses", async () => {
+			for (const [action, expectedText] of [
+				["decline", "REJECTED: Publish incident update"],
+				["cancel", "REJECTED: Publish incident update\nReason: Timed out or cancelled"],
+			] as const) {
+				const taskId = `task-tool-${action}`;
+				const store = new McpTaskStore({
+					now: manualClock().now,
+					generateTaskId: taskIdGenerator([taskId]),
+					defaultTtlMs: 60_000,
+				});
+				const { input, reader, server } = await startConfirmTaskServer(store);
+				const inputRequired = await createConfirmTaskInputRequest({
+					input,
+					reader,
+					taskId,
+					action: "Publish incident update",
+				});
+
+				sendRequest(input, `respond-${taskId}`, "tasks/input_response", draftRequestParams({
+					taskId,
+					inputResponses: { confirm: { action } },
+					...(action === "decline" ? { requestState: inputRequired.requestState } : {}),
+				}, { elicitation: {} }));
+				expect(await reader.read()).toMatchObject({
+					result: { taskId, status: "working" },
+				});
+
+				sendRequest(input, `final-${taskId}`, "tasks/result", draftRequestParams({ taskId }));
+				const final = await reader.read();
+				expect(final.result).toMatchObject({
+					resultType: "complete",
+					content: [{ type: "text", text: expect.stringContaining(expectedText) }],
+				});
+
+				server.stop();
+			}
+		});
+
+		it("rejects malformed, stale, wrong-task, and expired task input responses", async () => {
+			{
+				const store = new McpTaskStore({
+					now: manualClock().now,
+					generateTaskId: taskIdGenerator(["task-tool-malformed"]),
+					defaultTtlMs: 60_000,
+				});
+				const { input, reader, server } = await startConfirmTaskServer(store);
+				await createConfirmTaskInputRequest({ input, reader, taskId: "task-tool-malformed" });
+
+				sendRequest(input, "malformed-input", "tasks/input_response", draftRequestParams({
+					taskId: "task-tool-malformed",
+					inputResponses: "not-an-object",
+				}, { elicitation: {} }));
+				const malformed = await reader.read();
+				expect(malformed.error).toMatchObject({
+					code: -32602,
+					message: "inputResponses must be an object",
+				});
+				server.stop();
+			}
+
+			{
+				const store = new McpTaskStore({
+					now: manualClock().now,
+					generateTaskId: taskIdGenerator(["task-tool-first", "task-tool-second"]),
+					defaultTtlMs: 60_000,
+				});
+				const { input, reader, server } = await startConfirmTaskServer(store);
+				const first = await createConfirmTaskInputRequest({
+					input,
+					reader,
+					taskId: "task-tool-first",
+					action: "First action",
+				});
+				const second = await createConfirmTaskInputRequest({
+					input,
+					reader,
+					taskId: "task-tool-second",
+					action: "Second action",
+				});
+
+				sendRequest(input, "stale-input", "tasks/input_response", draftRequestParams({
+					taskId: "task-tool-first",
+					inputResponses: { confirm: { action: "accept", content: { confirmed: true } } },
+					requestState: "stale-state",
+				}, { elicitation: {} }));
+				const stale = await reader.read();
+				expect(stale.error).toMatchObject({
+					code: -32602,
+					message: "Stale requestState for task input",
+				});
+
+				sendRequest(input, "wrong-task-input", "tasks/input_response", draftRequestParams({
+					taskId: "task-tool-second",
+					inputResponses: { confirm: { action: "accept", content: { confirmed: true } } },
+					requestState: first.requestState,
+				}, { elicitation: {} }));
+				const wrongTask = await reader.read();
+				expect(wrongTask.error).toMatchObject({
+					code: -32602,
+					message: "Stale requestState for task input",
+				});
+				expect(second.requestState).not.toBe(first.requestState);
+				server.stop();
+			}
+
+			{
+				const clock = manualClock();
+				const store = new McpTaskStore({
+					now: clock.now,
+					generateTaskId: taskIdGenerator(["task-tool-expiring"]),
+					defaultTtlMs: 60_000,
+				});
+				const { input, reader, server } = await startConfirmTaskServer(store);
+				const inputRequired = await createConfirmTaskInputRequest({
+					input,
+					reader,
+					taskId: "task-tool-expiring",
+					task: { ttl: 10 },
+				});
+				clock.advance(11);
+
+				sendRequest(input, "expired-input", "tasks/input_response", draftRequestParams({
+					taskId: "task-tool-expiring",
+					inputResponses: { confirm: { action: "accept", content: { confirmed: true } } },
+					requestState: inputRequired.requestState,
+				}, { elicitation: {} }));
+				const expired = await reader.read();
+				expect(expired.error).toMatchObject({
+					code: -32602,
+					message: "Failed to respond to task input: Task has expired",
+				});
+				server.stop();
+			}
+		});
+
+		it("keeps cancelled input-required task-owned tool calls terminal", async () => {
+			const store = new McpTaskStore({
+				now: manualClock().now,
+				generateTaskId: taskIdGenerator(["task-tool-input-cancel"]),
+				defaultTtlMs: 60_000,
+			});
+			const { input, reader, server } = await startConfirmTaskServer(store);
+			const inputRequired = await createConfirmTaskInputRequest({
+				input,
+				reader,
+				taskId: "task-tool-input-cancel",
+			});
+
+			sendRequest(input, "cancel-input-task", "tasks/cancel", draftRequestParams({
+				taskId: "task-tool-input-cancel",
+			}));
+			const cancelled = await reader.read();
+			expect(cancelled.result).toMatchObject({
+				taskId: "task-tool-input-cancel",
+				status: "cancelled",
+			});
+
+			sendRequest(input, "late-input-response", "tasks/input_response", draftRequestParams({
+				taskId: "task-tool-input-cancel",
+				inputResponses: { confirm: { action: "accept", content: { confirmed: true } } },
+				requestState: inputRequired.requestState,
+			}, { elicitation: {} }));
+			const lateInput = await reader.read();
+			expect(lateInput.error).toMatchObject({
+				code: -32602,
+				message: "Task is not waiting for input",
+			});
+
+			sendRequest(input, "final-input-cancel", "tasks/result", draftRequestParams({
+				taskId: "task-tool-input-cancel",
+			}));
+			const final = await reader.read();
+			expect(final.error).toMatchObject({
+				code: -32800,
+				message: "The task was cancelled by request.",
+			});
+
+			server.stop();
+		});
+
 		it("keeps cancelled task-owned tool calls terminal when the runner finishes late", async () => {
 			const { input, output } = createTestStreams();
 			const reader = createQueuedReader(output);

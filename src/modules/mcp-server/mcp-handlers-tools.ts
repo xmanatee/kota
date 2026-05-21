@@ -66,10 +66,15 @@ type ToolCallOutcome =
 			error: JsonRpcErrorObject;
 		};
 
+export type TaskInputResumePreparation =
+	| { ok: true; run: () => void }
+	| { ok: false; message: string };
+
 export class ToolsHandler {
 	private readonly toolFilter: Set<string> | null;
 	private readonly moduleRunners = new Map<string, ToolDef["runner"]>();
 	private readonly moduleToolList: KotaTool[] = [];
+	private readonly taskContinuations = new Map<string, JsonRpcRequest>();
 
 	constructor(
 		private readonly ctx: HandlerContext,
@@ -145,6 +150,7 @@ export class ToolsHandler {
 			}),
 			statusMessage: "The operation is now in progress.",
 		});
+		this.taskContinuations.set(created.task.taskId, msg);
 		this.ctx.transport.sendResult(msg, createTaskResultWithRelatedTaskMeta(created));
 		setImmediate(() => {
 			this.executeTaskAugmentedToolCall(msg, created.task.taskId).catch((err) => {
@@ -155,6 +161,53 @@ export class ToolsHandler {
 				});
 			});
 		});
+	}
+
+	prepareTaskInputResponse(args: {
+		taskId: string;
+		inputResponses: McpToolInputResponses;
+		requestState: string;
+		inputRequestIds: string[];
+	}): TaskInputResumePreparation {
+		const original = this.taskContinuations.get(args.taskId);
+		if (!original) {
+			return {
+				ok: false,
+				message: "Task input cannot be resumed: original request state is unavailable",
+			};
+		}
+		const retryMsg: JsonRpcRequest = {
+			...original,
+			params: {
+				...(original.params ?? {}),
+				inputResponses: args.inputResponses,
+				requestState: args.requestState,
+			},
+		};
+		const verified = this.mrtr.verify(args.requestState, retryMsg, args.inputRequestIds);
+		if (!verified.ok) return { ok: false, message: verified.message };
+		for (const inputRequestId of verified.inputRequestIds) {
+			if (!Object.hasOwn(args.inputResponses, inputRequestId)) {
+				return {
+					ok: false,
+					message: `Missing input response for request "${inputRequestId}"`,
+				};
+			}
+		}
+		return {
+			ok: true,
+			run: () => {
+				setImmediate(() => {
+					this.executeTaskAugmentedToolCall(retryMsg, args.taskId).catch((err) => {
+						const message = err instanceof Error ? err.message : String(err);
+						this.settleTaskWithJsonRpcError(args.taskId, {
+							code: -32603,
+							message: `Internal tool task error: ${message}`,
+						});
+					});
+				});
+			},
+		};
 	}
 
 	private async executeTaskAugmentedToolCall(
@@ -315,6 +368,7 @@ export class ToolsHandler {
 	private settleTaskCompleted(taskId: string, result: KotaJsonValue): void {
 		try {
 			this.taskStore.complete(taskId, result, { statusMessage: "Tool call complete" });
+			this.taskContinuations.delete(taskId);
 		} catch (err) {
 			this.logUnexpectedTaskSettlementError(taskId, err);
 		}
@@ -325,6 +379,7 @@ export class ToolsHandler {
 			this.taskStore.failWithResult(taskId, result, {
 				statusMessage: "Tool execution failed",
 			});
+			this.taskContinuations.delete(taskId);
 		} catch (err) {
 			this.logUnexpectedTaskSettlementError(taskId, err);
 		}
@@ -333,9 +388,14 @@ export class ToolsHandler {
 	private settleTaskWithJsonRpcError(taskId: string, error: JsonRpcErrorObject): void {
 		try {
 			this.taskStore.fail(taskId, error, { statusMessage: error.message });
+			this.taskContinuations.delete(taskId);
 		} catch (err) {
 			this.logUnexpectedTaskSettlementError(taskId, err);
 		}
+	}
+
+	forgetTaskContinuation(taskId: string): void {
+		this.taskContinuations.delete(taskId);
 	}
 
 	private settleTaskInputRequired(

@@ -1,12 +1,12 @@
 ---
 id: task-resume-mcp-input-required-tasks-through-input-response
 title: Resume MCP input-required tasks through input_response
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Bridge tasks/input_response to the existing MRTR requestState/inputResponses path so task-owned input_required tool calls resume without a second owner-question channel.
 created_at: 2026-05-21T11:19:59Z
-updated_at: 2026-05-21T12:39:23.814Z
+updated_at: 2026-05-21T12:55:41.822Z
 depends_on: [task-run-mcp-tool-calls-through-task-augmentation]
 ---
 

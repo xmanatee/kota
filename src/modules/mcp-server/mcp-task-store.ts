@@ -141,6 +141,18 @@ export class McpTaskStore {
 		return cloneTask(this.#requireTask(taskId).task);
 	}
 
+	readInputRequired(taskId: string): { task: McpTask; inputRequired: McpInputRequiredResult } {
+		this.#expireForTask(taskId);
+		const stored = this.#requireTask(taskId);
+		if (stored.task.status !== "input_required" || !stored.inputRequired) {
+			throw new Error(`MCP task "${taskId}" is not waiting for input`);
+		}
+		return {
+			task: cloneTask(stored.task),
+			inputRequired: cloneInputRequired(stored.inputRequired),
+		};
+	}
+
 	transition(taskId: string, transition: McpTaskTransition): McpTask {
 		this.#expireForTask(taskId);
 		const stored = this.#requireTask(taskId);

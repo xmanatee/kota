@@ -326,7 +326,10 @@ export class McpServer {
 			ctx,
 			() => this.initialize.getEffectiveProjectDir(),
 		);
-		const tasks = new TasksHandler(ctx, taskStore);
+		const tasks = new TasksHandler(ctx, taskStore, {
+			resumeInput: (args) => tools.prepareTaskInputResponse(args),
+			forgetTaskContinuation: (taskId) => tools.forgetTaskContinuation(taskId),
+		});
 
 		const ack: RequestHandler = (m) => { send({ jsonrpc: "2.0", id: m.id, result: {} }); };
 		this.requestHandlers = new Map<string, RequestHandler>([
@@ -345,6 +348,7 @@ export class McpServer {
 			["completion/complete", (m) => completion.handleComplete(m)],
 			["tasks/get", (m) => tasks.handleGet(m)],
 			["tasks/result", (m) => tasks.handleResult(m)],
+			["tasks/input_response", (m) => tasks.handleInputResponse(m)],
 			["tasks/list", (m) => tasks.handleList(m)],
 			["tasks/cancel", (m) => tasks.handleCancel(m)],
 			["ping", ack],

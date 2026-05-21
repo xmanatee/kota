@@ -34,6 +34,10 @@ type MrtrRetryParams =
 	| { kind: "invalid"; message: string }
 	| { kind: "retry"; requestState: string; inputResponses: McpInputResponses };
 
+export type MrtrInputResponsesDecode =
+	| { ok: true; inputResponses: McpInputResponses }
+	| { ok: false; message: string };
+
 type MrtrStatePayload = {
 	version: 1;
 	method: string;
@@ -196,20 +200,26 @@ export function decodeMrtrRetryParams(params: KotaJsonObject): MrtrRetryParams {
 	if (typeof params.requestState !== "string" || params.requestState.length === 0) {
 		return { kind: "invalid", message: "requestState must be a non-empty string" };
 	}
-	if (!isJsonObject(params.inputResponses)) {
-		return { kind: "invalid", message: "inputResponses must be an object" };
-	}
-	const inputResponses: McpInputResponses = {};
-	for (const [requestId, response] of Object.entries(params.inputResponses)) {
-		const decoded = decodeInputResponse(response, requestId);
-		if (typeof decoded === "string") return { kind: "invalid", message: decoded };
-		inputResponses[requestId] = decoded;
-	}
+	const decoded = decodeMrtrInputResponses(params.inputResponses);
+	if (!decoded.ok) return { kind: "invalid", message: decoded.message };
 	return {
 		kind: "retry",
 		requestState: params.requestState,
-		inputResponses,
+		inputResponses: decoded.inputResponses,
 	};
+}
+
+export function decodeMrtrInputResponses(
+	value: KotaJsonValue | undefined,
+): MrtrInputResponsesDecode {
+	if (!isJsonObject(value)) return { ok: false, message: "inputResponses must be an object" };
+	const inputResponses: McpInputResponses = {};
+	for (const [requestId, response] of Object.entries(value)) {
+		const decoded = decodeInputResponse(response, requestId);
+		if (typeof decoded === "string") return { ok: false, message: decoded };
+		inputResponses[requestId] = decoded;
+	}
+	return { ok: true, inputResponses };
 }
 
 export function readElicitationInputResponse(

@@ -7,11 +7,13 @@ import type {
 	KotaJsonObject,
 	KotaJsonValue,
 } from "#core/agent-harness/message-protocol.js";
+import { decodeMrtrInputResponses } from "./mcp-mrtr.js";
 import type {
 	HandlerContext,
 	JsonRpcErrorObject,
 	JsonRpcOutboundPayload,
 	JsonRpcRequest,
+	McpInputResponses,
 	McpTaskResultSettlement,
 } from "./mcp-protocol-types.js";
 import {
@@ -24,6 +26,12 @@ type TaskIdParams = {
 	taskId: string;
 };
 
+type InputResponseParams = {
+	taskId: string;
+	inputResponses: McpInputResponses;
+	requestState?: string;
+};
+
 type ListParams = {
 	cursor?: string;
 	limit?: number;
@@ -32,6 +40,24 @@ type ListParams = {
 type DecodeResult<T> =
 	| { ok: true; params: T }
 	| { ok: false; message: string };
+
+type TaskProtocolOperation = "retrieve" | "cancel" | "list" | "input_response";
+
+type TaskInputResumePreparation =
+	| { ok: true; run: () => void }
+	| { ok: false; message: string };
+
+type TaskInputResume = (args: {
+	taskId: string;
+	inputResponses: McpInputResponses;
+	requestState: string;
+	inputRequestIds: string[];
+}) => TaskInputResumePreparation;
+
+type TasksHandlerOptions = {
+	resumeInput?: TaskInputResume;
+	forgetTaskContinuation?: (taskId: string) => void;
+};
 
 function isJsonObject(value: KotaJsonValue | undefined): value is KotaJsonObject {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -43,6 +69,34 @@ function decodeTaskIdParams(params: JsonRpcRequest["params"]): DecodeResult<Task
 		return { ok: false, message: "Missing required parameter: taskId" };
 	}
 	return { ok: true, params: { taskId } };
+}
+
+function decodeInputResponseParams(
+	params: JsonRpcRequest["params"],
+): DecodeResult<InputResponseParams> {
+	const taskId = params?.taskId;
+	if (typeof taskId !== "string" || taskId.length === 0) {
+		return { ok: false, message: "Missing required parameter: taskId" };
+	}
+	const decodedInputResponses = decodeMrtrInputResponses(params?.inputResponses);
+	if (!decodedInputResponses.ok) {
+		return { ok: false, message: decodedInputResponses.message };
+	}
+	const requestState = params?.requestState;
+	if (
+		requestState !== undefined &&
+		(typeof requestState !== "string" || requestState.length === 0)
+	) {
+		return { ok: false, message: "requestState must be a non-empty string" };
+	}
+	return {
+		ok: true,
+		params: {
+			taskId,
+			inputResponses: decodedInputResponses.inputResponses,
+			...(requestState !== undefined && { requestState }),
+		},
+	};
 }
 
 function decodeListParams(params: JsonRpcRequest["params"]): DecodeResult<ListParams> {
@@ -93,13 +147,19 @@ function terminalStatusFromMessage(message: string): string | null {
 
 function taskProtocolError(
 	message: string,
-	operation: "retrieve" | "cancel" | "list",
+	operation: TaskProtocolOperation,
 ): JsonRpcErrorObject {
+	if (message.includes("not waiting for input")) {
+		return { code: -32602, message: "Task is not waiting for input" };
+	}
+	const operationPrefix = operation === "input_response"
+		? "respond to task input"
+		: `${operation} task`;
 	if (message.includes("expired")) {
-		return { code: -32602, message: `Failed to ${operation} task: Task has expired` };
+		return { code: -32602, message: `Failed to ${operationPrefix}: Task has expired` };
 	}
 	if (message.includes("not found")) {
-		return { code: -32602, message: `Failed to ${operation} task: Task not found` };
+		return { code: -32602, message: `Failed to ${operationPrefix}: Task not found` };
 	}
 	if (message.includes("Invalid MCP task cursor")) {
 		return { code: -32602, message };
@@ -123,6 +183,7 @@ export class TasksHandler {
 	constructor(
 		private readonly ctx: HandlerContext,
 		private readonly store: McpTaskStore,
+		private readonly options: TasksHandlerOptions = {},
 	) {}
 
 	handleGet(msg: JsonRpcRequest): void {
@@ -187,9 +248,67 @@ export class TasksHandler {
 					statusMessage: "The task was cancelled by request.",
 				}),
 			);
+			this.options.forgetTaskContinuation?.(decoded.params.taskId);
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
 			this.sendTaskError(msg, taskProtocolError(message, "cancel"));
+		}
+	}
+
+	handleInputResponse(msg: JsonRpcRequest): void {
+		if (!this.assertActive(msg)) return;
+		const decoded = decodeInputResponseParams(msg.params);
+		if (!decoded.ok) {
+			this.ctx.transport.sendError(msg, -32602, decoded.message);
+			return;
+		}
+		if (!this.options.resumeInput) {
+			this.ctx.transport.sendError(
+				msg,
+				-32602,
+				"Task input cannot be resumed: original request state is unavailable",
+			);
+			return;
+		}
+
+		const { taskId, inputResponses } = decoded.params;
+		try {
+			const current = this.store.readInputRequired(taskId);
+			const storedRequestState = current.inputRequired.requestState;
+			if (typeof storedRequestState !== "string" || storedRequestState.length === 0) {
+				this.ctx.transport.sendError(
+					msg,
+					-32602,
+					"Task input request is missing requestState",
+				);
+				return;
+			}
+			if (
+				decoded.params.requestState !== undefined &&
+				decoded.params.requestState !== storedRequestState
+			) {
+				this.ctx.transport.sendError(msg, -32602, "Stale requestState for task input");
+				return;
+			}
+			const resume = this.options.resumeInput({
+				taskId,
+				inputResponses,
+				requestState: decoded.params.requestState ?? storedRequestState,
+				inputRequestIds: Object.keys(current.inputRequired.inputRequests ?? {}),
+			});
+			if (!resume.ok) {
+				this.ctx.transport.sendError(msg, -32602, resume.message);
+				return;
+			}
+			const working = this.store.transition(taskId, {
+				status: "working",
+				statusMessage: "Input received; resuming tool call.",
+			});
+			this.ctx.transport.sendResult(msg, working);
+			resume.run();
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			this.sendTaskError(msg, taskProtocolError(message, "input_response"));
 		}
 	}
 

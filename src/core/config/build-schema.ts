@@ -1,22 +1,42 @@
-import { execSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { createGenerator } from "ts-json-schema-generator";
 import { discoverProjectModules } from "../modules/project-discovery.js";
 import { getRegisteredConfigSlices } from "./config-slice.js";
 
 const ROOT = resolve(import.meta.dirname, "../../..");
 const OUT = process.env.KOTA_SCHEMA_OUT ?? resolve(ROOT, "schema/kota-config.schema.json");
 
-function runGenerator(args: string[]): unknown {
-  const cmd = `pnpm exec ts-json-schema-generator ${args.join(" ")}`;
-  const raw = execSync(cmd, { cwd: ROOT, encoding: "utf-8" });
-  return JSON.parse(raw);
+type GeneratedSchema = {
+  definitions?: Record<string, unknown>;
+};
+
+function runGenerator(relativePath: string, typeName: string): GeneratedSchema {
+  const schema = createGenerator({
+    path: resolve(ROOT, relativePath),
+    type: typeName,
+    tsconfig: resolve(ROOT, "tsconfig.json"),
+    skipTypeCheck: true,
+  }).createSchema(typeName);
+  return sortObjectKeys(schema) as GeneratedSchema;
 }
 
 function objectRecord(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
+}
+
+function sortObjectKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortObjectKeys);
+  const record = objectRecord(value);
+  if (!record) return value;
+
+  const result: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(record).sort(([a], [b]) => a.localeCompare(b))) {
+    result[key] = sortObjectKeys(child);
+  }
+  return result;
 }
 
 function resolveRefs(obj: unknown, defs: Record<string, unknown>): unknown {
@@ -38,17 +58,12 @@ function resolveRefs(obj: unknown, defs: Record<string, unknown>): unknown {
   return result;
 }
 
-const baseGenerated = runGenerator([
-  "--path src/core/config/config.ts",
-  "--type KotaConfig",
-  "--tsconfig tsconfig.json",
-  "--no-type-check",
-]) as { definitions: Record<string, unknown> };
+const baseGenerated = runGenerator("src/core/config/config.ts", "KotaConfig");
 
-const kotaDef = baseGenerated.definitions.KotaConfig;
+const kotaDef = baseGenerated.definitions?.KotaConfig;
 if (!kotaDef) throw new Error("KotaConfig definition not found in generated schema");
 
-const inlinedBase = resolveRefs(kotaDef, baseGenerated.definitions) as Record<string, unknown>;
+const inlinedBase = resolveRefs(kotaDef, baseGenerated.definitions ?? {}) as Record<string, unknown>;
 const baseProperties = objectRecord(inlinedBase.properties) ?? {};
 
 // Discover modules to populate the global slice registry.
@@ -56,19 +71,17 @@ await discoverProjectModules();
 
 const sliceProperties: Record<string, unknown> = {};
 for (const slice of getRegisteredConfigSlices()) {
-  const generated = runGenerator([
-    `--path ${slice.schemaSource.relativePath}`,
-    `--type ${slice.schemaSource.typeName}`,
-    "--tsconfig tsconfig.json",
-    "--no-type-check",
-  ]) as { definitions: Record<string, unknown> };
-  const def = generated.definitions[slice.schemaSource.typeName];
+  const generated = runGenerator(
+    slice.schemaSource.relativePath,
+    slice.schemaSource.typeName,
+  );
+  const def = generated.definitions?.[slice.schemaSource.typeName];
   if (!def) {
     throw new Error(
       `Slice "${slice.key}" expected JSON Schema definition for "${slice.schemaSource.typeName}" in ${slice.schemaSource.relativePath} but none was generated`,
     );
   }
-  const inlinedSlice = resolveRefs(def, generated.definitions) as Record<string, unknown>;
+  const inlinedSlice = resolveRefs(def, generated.definitions ?? {}) as Record<string, unknown>;
   inlinedSlice.description = slice.description;
   sliceProperties[slice.key] = inlinedSlice;
 }
@@ -108,5 +121,5 @@ const schema = {
 
 const output = `${JSON.stringify(schema, null, 2)}\n`;
 writeFileSync(OUT, output, "utf-8");
-const propCount = Object.keys((schema as Record<string, unknown>).properties as object).length;
+const propCount = Object.keys(mergedProperties).length;
 process.stderr.write(`schema/kota-config.schema.json generated (${propCount} top-level properties)\n`);

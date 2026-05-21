@@ -379,10 +379,13 @@ describe("kota config schema", () => {
     const { execSync } = require("node:child_process") as typeof import("node:child_process");
     const root = resolve(import.meta.dirname, "../../..");
     const tmpOut = join(tmpdir(), `kota-schema-drift-check-${Date.now()}.json`);
-    execSync(`KOTA_SCHEMA_OUT=${tmpOut} NODE_OPTIONS=--conditions=source tsx src/core/config/build-schema.ts`, {
-      cwd: root,
-      stdio: "ignore",
-    });
+    execSync(
+      `KOTA_SCHEMA_OUT=${tmpOut} node --conditions=source --import tsx src/core/config/build-schema.ts`,
+      {
+        cwd: root,
+        stdio: "ignore",
+      },
+    );
     const generated = readFileSync(tmpOut, "utf-8");
     const committed = readFileSync(resolve(root, "schema/kota-config.schema.json"), "utf-8");
     try {

@@ -40,7 +40,7 @@
     "test:preset-parity": "NODE_OPTIONS=--conditions=source vitest run src/preset-parity-model-sweep.integration.test.ts src/preset-parity.integration.test.ts",
     "lint": "biome check src/",
     "lint:fix": "biome check --write src/",
-    "build:schema": "NODE_OPTIONS=--conditions=source tsx src/core/config/build-schema.ts",
+    "build:schema": "node --conditions=source --import tsx src/core/config/build-schema.ts",
     "validate-tasks": "node dist/validate-queue.js",
     "kota": "node bin/kota.mjs"
   },

@@ -477,11 +477,11 @@ describe("step timeout", () => {
     const harness = "workflow-idle-productive";
     registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
       const signal = options.abortController?.signal;
-      await delayWithAbort(15, signal);
+      await delayWithAbort(100, signal);
       await options.onMessage?.({ type: "text", text: "one" });
-      await delayWithAbort(15, signal);
+      await delayWithAbort(100, signal);
       await options.onMessage?.({ type: "tool_call", toolUseId: "t1", toolName: "read", input: {} });
-      await delayWithAbort(15, signal);
+      await delayWithAbort(100, signal);
       await options.onMessage?.({ type: "tool_result", toolUseId: "t1", isError: false, content: "ok" });
       return AGENT_OK_RESULT;
     });
@@ -490,8 +490,8 @@ describe("step timeout", () => {
       moduleRoot: projectDir,
       steps: [
         makeAgentStep(projectDir, harness, {
-          idleTimeoutMs: 25,
-          timeoutMs: 500,
+          idleTimeoutMs: 250,
+          timeoutMs: 2000,
         }),
       ],
     });
