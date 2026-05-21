@@ -92,6 +92,7 @@ type PendingRequest = {
 
 type McpResultKind =
   | "initialize"
+  | "protected-resource-metadata"
   | "server/discover"
   | "tools/call"
   | "tools/list"
@@ -329,6 +330,66 @@ export class McpConnectionError extends Error {
   }
 }
 
+export type McpAuthorizationChallenge = {
+  scheme: "Bearer";
+  resourceMetadataUrl?: string;
+  metadataDiscovery?: McpProtectedResourceMetadataDiscovery;
+  scopes: string[];
+  error?: string;
+};
+
+export type McpProtectedResourceMetadata = {
+  resource: string;
+  authorizationServers: string[];
+  bearerMethodsSupported: string[];
+  scopesSupported: string[];
+};
+
+export type McpProtectedResourceMetadataDiscovery =
+  | {
+      status: "found";
+      url: string;
+      metadata: McpProtectedResourceMetadata;
+    }
+  | {
+      status: "unavailable";
+      attemptedUrls: string[];
+      error: string;
+    };
+
+export class McpAuthorizationError extends Error {
+  readonly name = "McpAuthorizationError";
+
+  constructor(
+    readonly serverName: string,
+    readonly method: string,
+    readonly status: 401 | 403,
+    readonly challenge: McpAuthorizationChallenge,
+  ) {
+    const details: string[] = [];
+    if (challenge.error) details.push(`error=${challenge.error}`);
+    if (challenge.resourceMetadataUrl) {
+      details.push(`resource_metadata=${challenge.resourceMetadataUrl}`);
+    }
+    if (challenge.scopes.length > 0) {
+      details.push(`scope=${challenge.scopes.join(" ")}`);
+    }
+    if (challenge.metadataDiscovery?.status === "found") {
+      const { authorizationServers } = challenge.metadataDiscovery.metadata;
+      if (authorizationServers.length > 0) {
+        details.push(`authorization_servers=${authorizationServers.join(" ")}`);
+      }
+    }
+    const reason = status === 403
+      ? "insufficient authorization scope"
+      : "authorization required";
+    super(
+      `MCP authorization failed for server "${serverName}" during ${method}: ` +
+        `HTTP ${status} ${reason}${details.length > 0 ? ` (${details.join("; ")})` : ""}`,
+    );
+  }
+}
+
 export class McpToolError extends Error {
   readonly name = "McpToolError";
 
@@ -404,6 +465,88 @@ function isJsonObject(value: JsonRpcResponse["result"]): value is KotaJsonObject
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function parseWwwAuthenticateChallenge(
+  header: string | null,
+): McpAuthorizationChallenge | null {
+  if (!header) return null;
+  const trimmed = header.trim();
+  if (!trimmed.toLowerCase().startsWith("bearer")) return null;
+  const params = parseAuthenticateParams(trimmed.slice("bearer".length));
+  const scopes = splitScopeParam(params.scope);
+  return {
+    scheme: "Bearer",
+    scopes,
+    ...(params.resource_metadata !== undefined && {
+      resourceMetadataUrl: params.resource_metadata,
+    }),
+    ...(params.error !== undefined && { error: params.error }),
+  };
+}
+
+function parseAuthenticateParams(value: string): Record<string, string> {
+  const params: Record<string, string> = {};
+  let index = 0;
+  while (index < value.length) {
+    while (index < value.length && /[\s,]/.test(value[index] ?? "")) index += 1;
+    const keyStart = index;
+    while (index < value.length && /[A-Za-z0-9_-]/.test(value[index] ?? "")) index += 1;
+    const key = value.slice(keyStart, index).toLowerCase();
+    while (index < value.length && /\s/.test(value[index] ?? "")) index += 1;
+    if (!key || value[index] !== "=") break;
+    index += 1;
+    while (index < value.length && /\s/.test(value[index] ?? "")) index += 1;
+    const parsed = parseAuthenticateParamValue(value, index);
+    if (!parsed) break;
+    params[key] = parsed.value;
+    index = parsed.nextIndex;
+  }
+  return params;
+}
+
+function parseAuthenticateParamValue(
+  value: string,
+  start: number,
+): { value: string; nextIndex: number } | null {
+  if (value[start] !== "\"") {
+    let index = start;
+    while (index < value.length && value[index] !== ",") index += 1;
+    return { value: value.slice(start, index).trim(), nextIndex: index };
+  }
+  let index = start + 1;
+  let out = "";
+  while (index < value.length) {
+    const char = value[index];
+    if (char === "\"") {
+      return { value: out, nextIndex: index + 1 };
+    }
+    if (char === "\\" && index + 1 < value.length) {
+      out += value[index + 1];
+      index += 2;
+      continue;
+    }
+    out += char;
+    index += 1;
+  }
+  return null;
+}
+
+function splitScopeParam(value: string | undefined): string[] {
+  if (value === undefined) return [];
+  return value.split(/\s+/).filter((scope) => scope.length > 0);
+}
+
+function protectedResourceMetadataWellKnownUrls(resourceUrl: string): string[] {
+  const url = new URL(resourceUrl);
+  const basePath = url.pathname === "/"
+    ? ""
+    : url.pathname.replace(/\/+$/, "");
+  const candidates = [
+    new URL(`/.well-known/oauth-protected-resource${basePath}`, url.origin).toString(),
+    new URL("/.well-known/oauth-protected-resource", url.origin).toString(),
+  ];
+  return [...new Set(candidates)];
+}
+
 function malformedMcpResult(kind: McpResultKind, label: string, expected: string): Error {
   return new Error(`Malformed MCP ${kind} result: ${label} must be ${expected}`);
 }
@@ -426,6 +569,17 @@ function requireString(
 ): string {
   if (typeof value !== "string") {
     throw malformedMcpResult(kind, label, "a string");
+  }
+  return value;
+}
+
+function requireStringArray(
+  value: KotaJsonValue | undefined,
+  label: string,
+  kind: McpResultKind = "tools/call",
+): string[] {
+  if (!Array.isArray(value) || !value.every((entry) => typeof entry === "string")) {
+    throw malformedMcpResult(kind, label, "a string array");
   }
   return value;
 }
@@ -631,6 +785,34 @@ function decodeDiscoverResult(value: JsonRpcResponse["result"]): McpInitializeRe
     promptsSupported: prompts.supported,
     promptsListChanged: prompts.listChanged,
     ...(rawServerInfo ? { serverInfo: { ...(name !== undefined ? { name } : {}) } } : {}),
+  };
+}
+
+function decodeProtectedResourceMetadata(
+  value: JsonRpcResult,
+): McpProtectedResourceMetadata {
+  const object = requireJsonObject(value, "metadata", "protected-resource-metadata");
+  return {
+    resource: requireString(
+      object.resource,
+      "resource",
+      "protected-resource-metadata",
+    ),
+    authorizationServers: requireStringArray(
+      object.authorization_servers,
+      "authorization_servers",
+      "protected-resource-metadata",
+    ),
+    bearerMethodsSupported: optionalStringArray(
+      object.bearer_methods_supported,
+      "bearer_methods_supported",
+      "protected-resource-metadata",
+    ) ?? [],
+    scopesSupported: optionalStringArray(
+      object.scopes_supported,
+      "scopes_supported",
+      "protected-resource-metadata",
+    ) ?? [],
   };
 }
 
@@ -1797,7 +1979,9 @@ export class McpClient {
     try {
       result = decodeDiscoverResult(await this.request("server/discover"));
     } catch (err) {
-      if (err instanceof McpConnectionError) throw err;
+      if (err instanceof McpConnectionError || err instanceof McpAuthorizationError) {
+        throw err;
+      }
       const message = err instanceof Error ? err.message : String(err);
       throw this.requestErrorForMethod("server/discover", message);
     }
@@ -2513,6 +2697,9 @@ export class McpClient {
     method: string,
     requestId: number,
   ): Promise<JsonRpcResult> {
+    const authorizationError = await this.authorizationErrorForHttpResponse(response, method);
+    if (authorizationError) throw authorizationError;
+
     const text = await response.text();
     const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
     if (!contentType.includes("application/json") && !contentType.includes("text/event-stream")) {
@@ -2549,6 +2736,149 @@ export class McpClient {
       );
     }
     return message.result;
+  }
+
+  private async authorizationErrorForHttpResponse(
+    response: Response,
+    method: string,
+  ): Promise<McpAuthorizationError | null> {
+    if (response.status !== 401 && response.status !== 403) return null;
+    const parsedChallenge = parseWwwAuthenticateChallenge(
+      response.headers.get("www-authenticate"),
+    ) ?? { scheme: "Bearer" as const, scopes: [] };
+    const challenge = await this.challengeWithProtectedResourceMetadata(parsedChallenge);
+    return new McpAuthorizationError(
+      this.serverName,
+      method,
+      response.status,
+      challenge,
+    );
+  }
+
+  private async challengeWithProtectedResourceMetadata(
+    challenge: McpAuthorizationChallenge,
+  ): Promise<McpAuthorizationChallenge> {
+    if (this.transport.type !== "http") return challenge;
+    const metadataDiscovery = await this.discoverProtectedResourceMetadata(
+      challenge.resourceMetadataUrl,
+    );
+    return {
+      ...challenge,
+      ...(metadataDiscovery.status === "found"
+        ? { resourceMetadataUrl: metadataDiscovery.url }
+        : {}),
+      metadataDiscovery,
+    };
+  }
+
+  private async discoverProtectedResourceMetadata(
+    challengeResourceMetadataUrl: string | undefined,
+  ): Promise<McpProtectedResourceMetadataDiscovery> {
+    let candidateUrls: string[];
+    try {
+      candidateUrls = this.protectedResourceMetadataCandidateUrls(
+        challengeResourceMetadataUrl,
+      );
+    } catch (err) {
+      return {
+        status: "unavailable",
+        attemptedUrls: challengeResourceMetadataUrl ? [challengeResourceMetadataUrl] : [],
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+
+    const errors: string[] = [];
+    for (const url of candidateUrls) {
+      const result = await this.fetchProtectedResourceMetadata(url);
+      if (result.status === "found") return result;
+      errors.push(result.error);
+    }
+
+    return {
+      status: "unavailable",
+      attemptedUrls: candidateUrls,
+      error: errors.join("; ") || "no protected-resource metadata URL available",
+    };
+  }
+
+  private protectedResourceMetadataCandidateUrls(
+    challengeResourceMetadataUrl: string | undefined,
+  ): string[] {
+    if (this.transport.type !== "http") return [];
+    if (challengeResourceMetadataUrl === undefined) {
+      return protectedResourceMetadataWellKnownUrls(this.transport.url);
+    }
+
+    const metadataUrl = new URL(challengeResourceMetadataUrl);
+    if (metadataUrl.protocol !== "http:" && metadataUrl.protocol !== "https:") {
+      throw new Error("resource_metadata URL must use http or https");
+    }
+    const resourceUrl = new URL(this.transport.url);
+    if (metadataUrl.origin !== resourceUrl.origin) {
+      throw new Error("resource_metadata URL must use the MCP HTTP origin");
+    }
+    return [metadataUrl.toString()];
+  }
+
+  private async fetchProtectedResourceMetadata(
+    url: string,
+  ): Promise<McpProtectedResourceMetadataDiscovery> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), CONNECT_TIMEOUT);
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      });
+    } catch (err) {
+      const message = err instanceof Error && err.name === "AbortError"
+        ? `request timed out after ${CONNECT_TIMEOUT}ms`
+        : err instanceof Error ? err.message : String(err);
+      return {
+        status: "unavailable",
+        attemptedUrls: [url],
+        error: `${url}: ${message}`,
+      };
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (!response.ok) {
+      return {
+        status: "unavailable",
+        attemptedUrls: [url],
+        error: `${url}: HTTP ${response.status}`,
+      };
+    }
+
+    const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+    if (!contentType.includes("application/json")) {
+      return {
+        status: "unavailable",
+        attemptedUrls: [url],
+        error: `${url}: unsupported response content-type "${contentType || "(missing)"}"`,
+      };
+    }
+
+    let parsed: JsonRpcResult;
+    try {
+      parsed = JSON.parse(await response.text()) as JsonRpcResult;
+      return {
+        status: "found",
+        url,
+        metadata: decodeProtectedResourceMetadata(parsed),
+      };
+    } catch (err) {
+      return {
+        status: "unavailable",
+        attemptedUrls: [url],
+        error: `${url}: malformed protected-resource metadata: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      };
+    }
   }
 
   private parseJsonRpcHttpMessage(text: string, method: string): JsonRpcIncomingMessage {

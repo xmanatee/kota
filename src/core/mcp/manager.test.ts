@@ -365,6 +365,40 @@ describe("McpManager", () => {
     }
   });
 
+  it("reports Streamable HTTP authorization challenges without leaking configured bearer headers", async () => {
+    const { fetchSpy } = mockMcpHttpFetch(() => new Response("configured-token should not surface", {
+      status: 401,
+      headers: {
+        "content-type": "text/plain",
+        "www-authenticate": 'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", scope="mcp:tools"',
+      },
+    }));
+    const manager = new McpManager();
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      await manager.initialize({
+        mcpServers: {
+          remote: {
+            type: "http",
+            url: "https://mcp.example.test/mcp",
+            headers: { Authorization: "Bearer configured-token" },
+          },
+        },
+      });
+
+      expect(manager.getServerCount()).toBe(0);
+      const output = errorSpy.mock.calls.map((call) => call.join(" ")).join("\n");
+      expect(output).toContain('MCP server "remote" failed to connect');
+      expect(output).toContain("authorization required");
+      expect(output).toContain("mcp:tools");
+      expect(output).not.toContain("configured-token");
+    } finally {
+      errorSpy.mockRestore();
+      fetchSpy.mockRestore();
+    }
+  });
+
   it("exposes remote resources and prompts as explicit namespaced operations without colliding with tool names", async () => {
     const { fetchSpy } = mockMcpHttpFetch((request) => {
       if (request.body.method === "server/discover") {

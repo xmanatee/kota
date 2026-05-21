@@ -10,6 +10,7 @@ import {
 import type { McpServer } from "./server.js";
 
 const HEADER_MISMATCH_CODE = -32001;
+const AUTHORIZATION_ERROR_CODE = -32005;
 const UNSUPPORTED_PROTOCOL_VERSION_CODE = -32004;
 const DEFAULT_ENDPOINT_PATH = "/mcp";
 const HTTP_UNAVAILABLE_METHODS = new Set([
@@ -31,9 +32,40 @@ export type StreamableHttpResponse = {
 	body?: string;
 };
 
+export type StreamableHttpTokenVerification =
+	| {
+		ok: true;
+		audience: string | string[];
+		scopes: string[];
+		subject?: string;
+	}
+	| {
+		ok: false;
+		reason: "invalid" | "expired" | "wrong_audience";
+	};
+
+export type StreamableHttpTokenVerifier = (
+	token: string,
+	context: {
+		resource: string;
+		requiredScopes: string[];
+		request: StreamableHttpRequest;
+	},
+) => Promise<StreamableHttpTokenVerification> | StreamableHttpTokenVerification;
+
+export type StreamableHttpAuthorizationOptions = {
+	resource: string;
+	authorizationServers: string[];
+	requiredScopes: string[];
+	scopesSupported?: string[];
+	metadataPath?: string;
+	tokenVerifier: StreamableHttpTokenVerifier;
+};
+
 export type StreamableHttpHandlerOptions = {
 	endpointPath?: string;
 	allowedOrigins?: string[];
+	authorization?: StreamableHttpAuthorizationOptions;
 };
 
 export type StartStreamableHttpServerOptions = StreamableHttpHandlerOptions & {
@@ -54,6 +86,10 @@ type HeaderValidationResult =
 	| { ok: true; body: KotaJsonObject }
 	| { ok: false; response: StreamableHttpResponse };
 
+type AuthorizationValidationResult =
+	| { ok: true }
+	| { ok: false; response: StreamableHttpResponse };
+
 type RecognizedParamHeader = {
 	headerName: string;
 	paramName: string;
@@ -67,12 +103,24 @@ export async function handleStreamableHttpRequest(
 	options: StreamableHttpHandlerOptions = {},
 ): Promise<StreamableHttpResponse> {
 	const endpointPath = options.endpointPath ?? DEFAULT_ENDPOINT_PATH;
-	if (new URL(request.url, "http://127.0.0.1").pathname !== endpointPath) {
+	const requestPath = new URL(request.url, "http://127.0.0.1").pathname;
+	if (options.authorization && requestPath === protectedResourceMetadataPath(endpointPath, options.authorization)) {
+		if (request.method !== "GET") {
+			return { status: 405, headers: { allow: "GET", "content-type": "text/plain" }, body: "Method not allowed" };
+		}
+		return jsonResponse(200, protectedResourceMetadata(options.authorization));
+	}
+	if (requestPath !== endpointPath) {
 		return { status: 404, headers: { "content-type": "text/plain" }, body: "Not found" };
 	}
 
 	if (!isOriginAllowed(readHeader(request.headers, "origin"), options.allowedOrigins)) {
 		return jsonErrorResponse(403, undefined, HEADER_MISMATCH_CODE, "Forbidden: invalid Origin header");
+	}
+
+	if (options.authorization) {
+		const authorization = await validateProtectedResourceAuthorization(request, endpointPath, options.authorization);
+		if (!authorization.ok) return authorization.response;
 	}
 
 	if (request.method === "GET") {
@@ -118,7 +166,7 @@ export async function startMcpStreamableHttpServer(
 	options: StartStreamableHttpServerOptions,
 ): Promise<StartedStreamableHttpServer> {
 	const host = options.host ?? "127.0.0.1";
-	assertLocalBindHost(host);
+	assertLocalBindHost(host, options.authorization);
 	const port = options.port ?? 0;
 	const endpointPath = options.endpointPath ?? DEFAULT_ENDPOINT_PATH;
 	const httpServer = createServer(async (req, res) => {
@@ -136,6 +184,9 @@ export async function startMcpStreamableHttpServer(
 					endpointPath,
 					...(options.allowedOrigins !== undefined && {
 						allowedOrigins: options.allowedOrigins,
+					}),
+					...(options.authorization !== undefined && {
+						authorization: options.authorization,
 					}),
 				},
 			);
@@ -156,6 +207,158 @@ export async function startMcpStreamableHttpServer(
 		url,
 		close: () => closeServer(httpServer),
 	};
+}
+
+async function validateProtectedResourceAuthorization(
+	request: StreamableHttpRequest,
+	endpointPath: string,
+	authorization: StreamableHttpAuthorizationOptions,
+): Promise<AuthorizationValidationResult> {
+	const authorizationHeader = readHeader(request.headers, "authorization");
+	if (!authorizationHeader) {
+		return {
+			ok: false,
+			response: authorizationChallengeResponse(401, endpointPath, authorization),
+		};
+	}
+	const token = readBearerToken(authorizationHeader);
+	if (!token) {
+		return {
+			ok: false,
+			response: authorizationChallengeResponse(
+				401,
+				endpointPath,
+				authorization,
+				"invalid_request",
+			),
+		};
+	}
+
+	let verification: StreamableHttpTokenVerification;
+	try {
+		verification = await authorization.tokenVerifier(token, {
+			resource: authorization.resource,
+			requiredScopes: authorization.requiredScopes,
+			request,
+		});
+	} catch {
+		verification = { ok: false, reason: "invalid" };
+	}
+
+	if (!verification.ok) {
+		return {
+			ok: false,
+			response: authorizationChallengeResponse(
+				401,
+				endpointPath,
+				authorization,
+				"invalid_token",
+			),
+		};
+	}
+
+	if (!audienceMatches(verification.audience, authorization.resource)) {
+		return {
+			ok: false,
+			response: authorizationChallengeResponse(
+				401,
+				endpointPath,
+				authorization,
+				"invalid_token",
+			),
+		};
+	}
+
+	const missingScopes = authorization.requiredScopes.filter((scope) => !verification.scopes.includes(scope));
+	if (missingScopes.length > 0) {
+		return {
+			ok: false,
+			response: authorizationChallengeResponse(
+				403,
+				endpointPath,
+				authorization,
+				"insufficient_scope",
+				missingScopes,
+			),
+		};
+	}
+
+	return { ok: true };
+}
+
+function readBearerToken(value: string): string | null {
+	const match = /^Bearer ([A-Za-z0-9._~+/=-]+)$/.exec(value);
+	return match?.[1] ?? null;
+}
+
+function audienceMatches(audience: string | string[], resource: string): boolean {
+	return Array.isArray(audience) ? audience.includes(resource) : audience === resource;
+}
+
+function protectedResourceMetadata(
+	authorization: StreamableHttpAuthorizationOptions,
+): KotaJsonObject {
+	const scopesSupported = authorization.scopesSupported ?? authorization.requiredScopes;
+	return {
+		resource: authorization.resource,
+		authorization_servers: [...authorization.authorizationServers],
+		bearer_methods_supported: ["header"],
+		...(scopesSupported.length > 0 && {
+			scopes_supported: [...scopesSupported],
+		}),
+	};
+}
+
+function protectedResourceMetadataPath(
+	endpointPath: string,
+	authorization: StreamableHttpAuthorizationOptions,
+): string {
+	if (authorization.metadataPath !== undefined) return authorization.metadataPath;
+	return endpointPath === "/"
+		? "/.well-known/oauth-protected-resource"
+		: `/.well-known/oauth-protected-resource${endpointPath}`;
+}
+
+function protectedResourceMetadataUrl(
+	endpointPath: string,
+	authorization: StreamableHttpAuthorizationOptions,
+): string {
+	return new URL(protectedResourceMetadataPath(endpointPath, authorization), authorization.resource).toString();
+}
+
+function authorizationChallengeResponse(
+	status: 401 | 403,
+	endpointPath: string,
+	authorization: StreamableHttpAuthorizationOptions,
+	error?: "invalid_request" | "invalid_token" | "insufficient_scope",
+	scopes = authorization.requiredScopes,
+): StreamableHttpResponse {
+	const params: string[] = [];
+	if (error) params.push(headerParam("error", error));
+	params.push(headerParam("resource_metadata", protectedResourceMetadataUrl(endpointPath, authorization)));
+	if (scopes.length > 0) params.push(headerParam("scope", scopes.join(" ")));
+	const response = jsonErrorResponse(
+		status,
+		undefined,
+		AUTHORIZATION_ERROR_CODE,
+		status === 403
+			? "Forbidden: insufficient MCP authorization scope"
+			: "Unauthorized: MCP authorization required",
+	);
+	return {
+		...response,
+		headers: {
+			...response.headers,
+			"www-authenticate": `Bearer ${params.join(", ")}`,
+		},
+	};
+}
+
+function headerParam(name: string, value: string): string {
+	if (/[\r\n]/.test(value)) {
+		throw new Error("MCP authorization challenge values must not contain newlines");
+	}
+	return `${name}="${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
 function validatePostBodyAndHeaders(
@@ -460,8 +663,12 @@ function isLocalHostname(hostname: string): boolean {
 	return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "[::1]";
 }
 
-function assertLocalBindHost(host: string): void {
+function assertLocalBindHost(
+	host: string,
+	authorization?: StreamableHttpAuthorizationOptions,
+): void {
 	if (isLocalHostname(host)) return;
+	if (authorization) return;
 	throw new Error(
 		"Non-local MCP HTTP binding is not available without an authentication story; bind to 127.0.0.1 or localhost.",
 	);

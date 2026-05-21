@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   MCP_DRAFT_PROTOCOL_VERSION,
   MCP_LEGACY_PROTOCOL_VERSION,
+  McpAuthorizationError,
   type McpCallToolResult,
   McpClient,
   type McpCompleteCallToolResult,
@@ -13,6 +14,8 @@ import {
 } from "./client.js";
 
 type RecordedClientHttpRequest = {
+  url: string;
+  method: string;
   headers: Headers;
   body: {
     id?: number;
@@ -35,7 +38,14 @@ function mockClientHttpFetch(
 ): { mockRestore: () => void } {
   return vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
     const body = JSON.parse(String(init?.body ?? "{}"));
+    const inputRequest = typeof _input === "object" && "method" in _input ? _input : null;
     return handler({
+      url: typeof _input === "string"
+        ? _input
+        : _input instanceof URL
+          ? _input.toString()
+          : _input.url,
+      method: init?.method ?? inputRequest?.method ?? "GET",
       headers: new Headers(init?.headers),
       body,
     });
@@ -1619,6 +1629,200 @@ describe("McpClient Streamable HTTP transport", () => {
       method: "tools/call",
     });
     await expect(client.callTool("missing", {})).rejects.toThrow(McpToolError);
+  });
+
+  it("parses 401 protected-resource authorization challenges as typed redacted errors", async () => {
+    mockClientHttpFetch(() => new Response("access token leaked-token", {
+      status: 401,
+      headers: {
+        "content-type": "text/plain",
+        "www-authenticate": 'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", scope="files:read files:write"',
+      },
+    }));
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "auth-http-client",
+    );
+
+    await expect(client.connect()).rejects.toMatchObject({
+      name: "McpAuthorizationError",
+      serverName: "auth-http-client",
+      method: "server/discover",
+      status: 401,
+      challenge: {
+        resourceMetadataUrl: "https://mcp.example.test/.well-known/oauth-protected-resource/mcp",
+        scopes: ["files:read", "files:write"],
+      },
+    });
+    await expect(client.connect()).rejects.toThrow(McpAuthorizationError);
+    await expect(client.connect()).rejects.not.toThrow(/leaked-token/);
+  });
+
+  it("fetches protected-resource metadata from 401 challenge hints", async () => {
+    const requests: RecordedClientHttpRequest[] = [];
+    mockClientHttpFetch((request) => {
+      requests.push(request);
+      if (
+        request.method === "GET" &&
+        request.url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp"
+      ) {
+        expect(request.headers.get("authorization")).toBeNull();
+        return new Response(JSON.stringify({
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+          bearer_methods_supported: ["header"],
+          scopes_supported: ["files:read", "files:write"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return new Response("access token leaked-token", {
+        status: 401,
+        headers: {
+          "content-type": "text/plain",
+          "www-authenticate": 'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", scope="files:read files:write"',
+        },
+      });
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "auth-metadata-client",
+    );
+
+    let thrown: unknown;
+    try {
+      await client.connect();
+    } catch (err) {
+      thrown = err;
+    }
+
+    expect(thrown).toBeInstanceOf(McpAuthorizationError);
+    expect(thrown).toMatchObject({
+      name: "McpAuthorizationError",
+      challenge: {
+        resourceMetadataUrl: "https://mcp.example.test/.well-known/oauth-protected-resource/mcp",
+        metadataDiscovery: {
+          status: "found",
+          url: "https://mcp.example.test/.well-known/oauth-protected-resource/mcp",
+          metadata: {
+            resource: "https://mcp.example.test/mcp",
+            authorizationServers: ["https://auth.example.test"],
+            bearerMethodsSupported: ["header"],
+            scopesSupported: ["files:read", "files:write"],
+          },
+        },
+      },
+    });
+    expect(thrown instanceof Error ? thrown.message : "").toMatch(
+      /authorization_servers=https:\/\/auth\.example\.test/,
+    );
+    expect(thrown instanceof Error ? thrown.message : "").not.toContain("leaked-token");
+    expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
+      "POST https://mcp.example.test/mcp",
+      "GET https://mcp.example.test/.well-known/oauth-protected-resource/mcp",
+    ]);
+  });
+
+  it("falls back to well-known protected-resource metadata URLs when challenges omit resource_metadata", async () => {
+    const requests: RecordedClientHttpRequest[] = [];
+    mockClientHttpFetch((request) => {
+      requests.push(request);
+      if (
+        request.method === "GET" &&
+        request.url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp"
+      ) {
+        return new Response("not found", { status: 404 });
+      }
+      if (
+        request.method === "GET" &&
+        request.url === "https://mcp.example.test/.well-known/oauth-protected-resource"
+      ) {
+        return new Response(JSON.stringify({
+          resource: "https://mcp.example.test",
+          authorization_servers: ["https://auth.example.test"],
+          bearer_methods_supported: ["header"],
+          scopes_supported: ["mcp:tools"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return new Response("missing token", {
+        status: 401,
+        headers: {
+          "content-type": "text/plain",
+          "www-authenticate": 'Bearer scope="mcp:tools"',
+        },
+      });
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "auth-well-known-client",
+    );
+
+    await expect(client.connect()).rejects.toMatchObject({
+      name: "McpAuthorizationError",
+      challenge: {
+        resourceMetadataUrl: "https://mcp.example.test/.well-known/oauth-protected-resource",
+        metadataDiscovery: {
+          status: "found",
+          url: "https://mcp.example.test/.well-known/oauth-protected-resource",
+          metadata: {
+            resource: "https://mcp.example.test",
+            authorizationServers: ["https://auth.example.test"],
+            scopesSupported: ["mcp:tools"],
+          },
+        },
+      },
+    });
+    expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
+      "POST https://mcp.example.test/mcp",
+      "GET https://mcp.example.test/.well-known/oauth-protected-resource/mcp",
+      "GET https://mcp.example.test/.well-known/oauth-protected-resource",
+    ]);
+  });
+
+  it("parses 403 insufficient-scope challenges without leaking bearer tokens", async () => {
+    mockClientHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: {} },
+          serverInfo: { name: "scope-http-fixture" },
+        });
+      }
+      return new Response("configured token: configured-secret", {
+        status: 403,
+        headers: {
+          "content-type": "text/plain",
+          "www-authenticate": 'Bearer error="insufficient_scope", scope="files:write", resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", error_description="configured-secret"',
+        },
+      });
+    });
+    client = new McpClient(
+      {
+        type: "http",
+        url: "https://mcp.example.test/mcp",
+        headers: { Authorization: "Bearer configured-secret" },
+      },
+      "scope-http-client",
+    );
+    await client.connect();
+
+    await expect(client.callTool("write_file", {})).rejects.toMatchObject({
+      name: "McpAuthorizationError",
+      serverName: "scope-http-fixture",
+      method: "tools/call",
+      status: 403,
+      challenge: {
+        error: "insufficient_scope",
+        resourceMetadataUrl: "https://mcp.example.test/.well-known/oauth-protected-resource/mcp",
+        scopes: ["files:write"],
+      },
+    });
+    await expect(client.callTool("write_file", {})).rejects.toThrow(McpAuthorizationError);
+    await expect(client.callTool("write_file", {})).rejects.not.toThrow(/configured-secret/);
   });
 
   it("rejects HTTP servers that advertise unsupported tools.listChanged streams", async () => {

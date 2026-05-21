@@ -258,6 +258,184 @@ describe("Streamable HTTP MCP transport", () => {
 		});
 	});
 
+	it("serves protected-resource metadata and challenges missing tokens before dispatch", async () => {
+		let toolCalls = 0;
+		let verifierCalls = 0;
+		const server = new McpServer({
+			log: () => {},
+			moduleTools: [
+				{
+					tool: {
+						name: "protected_tool",
+						description: "requires authorization",
+						input_schema: { type: "object", properties: {} },
+					},
+					runner: async () => {
+						toolCalls += 1;
+						return { content: "authorized" };
+					},
+					effect: networkWriteEffect(),
+				},
+			],
+		});
+		const options = {
+			authorization: {
+				resource: "https://mcp.example.test/mcp",
+				authorizationServers: ["https://auth.example.test"],
+				scopesSupported: ["mcp:tools"],
+				requiredScopes: ["mcp:tools"],
+				tokenVerifier: async () => {
+					verifierCalls += 1;
+					return {
+						ok: true as const,
+						audience: "https://mcp.example.test/mcp",
+						scopes: ["mcp:tools"],
+					};
+				},
+			},
+		};
+
+		const metadata = await handleStreamableHttpRequest(server, {
+			method: "GET",
+			url: "/.well-known/oauth-protected-resource/mcp",
+			headers: {},
+		}, options);
+		expect(metadata.status).toBe(200);
+		expect(parseBody(metadata)).toEqual({
+			resource: "https://mcp.example.test/mcp",
+			authorization_servers: ["https://auth.example.test"],
+			bearer_methods_supported: ["header"],
+			scopes_supported: ["mcp:tools"],
+		});
+
+		const unauthorized = await handleStreamableHttpRequest(server, request({
+			jsonrpc: "2.0",
+			id: 50,
+			method: "tools/call",
+			params: draftParams({ name: "protected_tool", arguments: {} }),
+		}, { "mcp-name": "protected_tool" }), options);
+
+		expect(unauthorized.status).toBe(401);
+		expect(unauthorized.headers["www-authenticate"]).toContain("Bearer");
+		expect(unauthorized.headers["www-authenticate"]).toContain(
+			'resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp"',
+		);
+		expect(unauthorized.headers["www-authenticate"]).toContain('scope="mcp:tools"');
+		expect(verifierCalls).toBe(0);
+		expect(toolCalls).toBe(0);
+	});
+
+	it("rejects malformed, invalid, wrong-audience, and insufficient-scope tokens before successful scoped dispatch", async () => {
+		let calls = 0;
+		const server = new McpServer({
+			log: () => {},
+			moduleTools: [
+				{
+					tool: {
+						name: "protected_counter",
+						description: "requires authorization",
+						input_schema: { type: "object", properties: {} },
+					},
+					runner: async () => {
+						calls += 1;
+						return { content: `calls=${calls}` };
+					},
+					effect: networkWriteEffect(),
+				},
+			],
+		});
+		const options = {
+			authorization: {
+				resource: "https://mcp.example.test/mcp",
+				authorizationServers: ["https://auth.example.test"],
+				scopesSupported: ["mcp:tools"],
+				requiredScopes: ["mcp:tools"],
+				tokenVerifier: async (token: string) => {
+					if (token === "valid-token") {
+						return {
+							ok: true as const,
+							audience: "https://mcp.example.test/mcp",
+							scopes: ["mcp:tools"],
+						};
+					}
+					if (token === "wrong-audience-token") {
+						return {
+							ok: true as const,
+							audience: "https://other.example.test/mcp",
+							scopes: ["mcp:tools"],
+						};
+					}
+					if (token === "narrow-token") {
+						return {
+							ok: true as const,
+							audience: "https://mcp.example.test/mcp",
+							scopes: [],
+						};
+					}
+					if (token === "expired-token") {
+						return { ok: false as const, reason: "expired" as const };
+					}
+					return { ok: false as const, reason: "invalid" as const };
+				},
+			},
+		};
+		const body = {
+			jsonrpc: "2.0",
+			id: 51,
+			method: "tools/call",
+			params: draftParams({ name: "protected_counter", arguments: {} }),
+		};
+
+		const malformed = await handleStreamableHttpRequest(server, request(body, {
+			authorization: "Basic secret-token",
+			"mcp-name": "protected_counter",
+		}), options);
+		expect(malformed.status).toBe(401);
+		expect(malformed.headers["www-authenticate"]).toContain('error="invalid_request"');
+		expect(JSON.stringify(malformed)).not.toContain("secret-token");
+
+		const invalid = await handleStreamableHttpRequest(server, request(body, {
+			authorization: "Bearer secret-token",
+			"mcp-name": "protected_counter",
+		}), options);
+		expect(invalid.status).toBe(401);
+		expect(invalid.headers["www-authenticate"]).toContain('error="invalid_token"');
+		expect(JSON.stringify(invalid)).not.toContain("secret-token");
+
+		const expired = await handleStreamableHttpRequest(server, request(body, {
+			authorization: "Bearer expired-token",
+			"mcp-name": "protected_counter",
+		}), options);
+		expect(expired.status).toBe(401);
+		expect(expired.headers["www-authenticate"]).toContain('error="invalid_token"');
+
+		const wrongAudience = await handleStreamableHttpRequest(server, request(body, {
+			authorization: "Bearer wrong-audience-token",
+			"mcp-name": "protected_counter",
+		}), options);
+		expect(wrongAudience.status).toBe(401);
+		expect(wrongAudience.headers["www-authenticate"]).toContain('error="invalid_token"');
+
+		const insufficientScope = await handleStreamableHttpRequest(server, request(body, {
+			authorization: "Bearer narrow-token",
+			"mcp-name": "protected_counter",
+		}), options);
+		expect(insufficientScope.status).toBe(403);
+		expect(insufficientScope.headers["www-authenticate"]).toContain('error="insufficient_scope"');
+		expect(insufficientScope.headers["www-authenticate"]).toContain('scope="mcp:tools"');
+		expect(calls).toBe(0);
+
+		const authorized = await handleStreamableHttpRequest(server, request(body, {
+			authorization: "Bearer valid-token",
+			"mcp-name": "protected_counter",
+		}), options);
+		expect(authorized.status).toBe(200);
+		expect(parseBody(authorized).result).toMatchObject({
+			content: [{ type: "text", text: "calls=1" }],
+		});
+		expect(calls).toBe(1);
+	});
+
 	it("does not accept SSE-dependent behavior in the first HTTP slice", async () => {
 		const server = new McpServer({ log: () => {} });
 		const get = await handleStreamableHttpRequest(server, {

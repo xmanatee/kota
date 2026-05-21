@@ -1,12 +1,12 @@
 ---
 id: task-add-mcp-streamable-http-authorization-support
 title: Add MCP Streamable HTTP authorization support
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Align KOTA's Streamable HTTP MCP client and first-party server with the draft authorization and security guidance: protected-resource metadata discovery, bearer-token validation, scoped 401/403 challenges, and no token passthrough.
 created_at: 2026-05-21T22:30:45Z
-updated_at: 2026-05-21T22:30:45Z
+updated_at: 2026-05-21T23:47:00Z
 ---
 
 ## Problem
