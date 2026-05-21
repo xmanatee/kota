@@ -250,6 +250,10 @@ resources:
   - url: https://github.com/vercel-labs/deepsec
     added: "2026-05-21"
     notes: "Vercel Labs deepsec is an agent-powered vulnerability scanner with deterministic candidate scans, agent investigation, revalidation, enrichment, export, resumable local runs, and optional sandbox fan-out. Monitor as a peer signal for KOTA security-review workflow design, run-artifact shape, false-positive reduction, and bounded high-cost security automation."
+    snapshot:
+      fingerprint: sha256:a7e5c1899496337ef905558c2011bcea
+      summary: "DeepSec is now accessible and reinforces KOTA's already-completed agentic security-review workflow: deterministic candidate scanning, bounded agent investigation, revalidation, run artifacts, and normal follow-up tasks cover the nonduplicative signal."
+      last_seen_at: "2026-05-21T20:02:27.803Z"
   - url: https://vercel.com/docs/workflow
     added: "2026-05-07"
     notes: "Vercel Workflow SDK docs — durable, resumable orchestration with checkpointing. Peer to KOTA's workflow runtime; useful comparison for workflow durability and resume semantics. Snapshot and distill on the next explorer cycle."
