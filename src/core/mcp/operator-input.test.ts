@@ -167,6 +167,7 @@ describe("buildMcpInputResponseQuestion", () => {
     expect(question).toContain("remote");
     expect(question).toContain("approval");
     expect(question).toContain("input response objects");
+    expect(question).toContain('Use action "decline"');
   });
 
   it("includes URL-mode identity and consent-only instructions", () => {

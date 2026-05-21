@@ -41,7 +41,7 @@ export function buildMcpInputResponseQuestion(request: McpRemoteInputRequest): s
     "Reply with a JSON object named by request id using MCP input response objects. " +
     'For form mode, accept requires content: {"request_id":{"action":"accept","content":{}}}. ' +
     'For URL mode, accept only with explicit consent: {"request_id":{"action":"accept"}}. ' +
-    'Use action "reject" or "cancel" to decline.'
+    'Use action "decline" for explicit refusal or "cancel" for dismissal.'
   );
 }
 

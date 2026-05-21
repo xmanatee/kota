@@ -253,7 +253,7 @@ export class ToolsHandler {
 		let text: string;
 		if (!elicitResult || elicitResult.action === "cancel") {
 			text = `REJECTED: ${action}\nReason: Timed out or cancelled`;
-		} else if (elicitResult.action === "reject") {
+		} else if (elicitResult.action === "decline") {
 			text = `REJECTED: ${action}`;
 		} else {
 			const approved = elicitResult.content?.confirmed === true;
@@ -357,7 +357,7 @@ function confirmToolResultFromInputResponse(
 	if (response.action === "cancel") {
 		return { content: `REJECTED: ${action}\nReason: Timed out or cancelled` };
 	}
-	if (response.action === "reject") {
+	if (response.action === "decline") {
 		return { content: `REJECTED: ${action}` };
 	}
 	const approved = response.content?.confirmed === true;

@@ -124,10 +124,11 @@ function decodeElicitationInputResponseValue(
 ): ElicitationResponse | string {
 	if (
 		value.action !== "accept" &&
+		value.action !== "decline" &&
 		value.action !== "reject" &&
 		value.action !== "cancel"
 	) {
-		return `inputResponses.${requestId}.action must be accept, reject, or cancel`;
+		return `inputResponses.${requestId}.action must be accept, decline, or cancel`;
 	}
 	if (value.action === "accept") {
 		if (value.content !== undefined && !isJsonObject(value.content)) {
@@ -137,7 +138,11 @@ function decodeElicitationInputResponseValue(
 			? { action: "accept" }
 			: { action: "accept", content: value.content };
 	}
-	if (value.action === "reject") return { action: "reject" };
+	// Legacy draft examples used `reject`; keep it as a narrow inbound alias
+	// while normalizing the first-party server boundary to current `decline`.
+	if (value.action === "decline" || value.action === "reject") {
+		return { action: "decline" };
+	}
 	return { action: "cancel" };
 }
 

@@ -1,12 +1,12 @@
 ---
 id: task-align-mcp-client-elicitation-with-the-current-draft
 title: Align MCP client elicitation with the current draft
-status: ready
+status: done
 priority: p2
 area: core
 summary: Advertise KOTA's remote MCP elicitation support in draft per-request metadata and align elicitation responses with the current decline/cancel semantics without weakening URL-mode safety.
 created_at: 2026-05-20T23:40:02Z
-updated_at: 2026-05-20T23:40:02Z
+updated_at: 2026-05-20T23:54:16Z
 ---
 
 ## Problem

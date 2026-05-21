@@ -26,6 +26,7 @@ function expectCompletedResult(
 const FAKE_MCP_SERVER = `
 const rl = require("readline").createInterface({ input: process.stdin });
 const mode = process.env.MCP_TEST_MODE || "normal";
+const isDraftMode = mode.startsWith("draft");
 rl.on("line", (line) => {
   let msg;
   try { msg = JSON.parse(line); } catch { return; }
@@ -38,7 +39,7 @@ rl.on("line", (line) => {
       }}) + "\\n");
       return;
     }
-    const protocolVersion = mode === "draft" ? "DRAFT-2026-v1" : "2024-11-05";
+    const protocolVersion = isDraftMode ? "DRAFT-2026-v1" : "2024-11-05";
     const resp = { jsonrpc: "2.0", id: msg.id, result: {
       protocolVersion,
       capabilities: {},
@@ -209,6 +210,11 @@ rl.on("line", (line) => {
         }}) + "\\n");
         return;
       }
+      if (mode === "draft_notify_complete") {
+        process.stdout.write(JSON.stringify({ jsonrpc: "2.0", method: "notifications/elicitation/complete", params: {
+          elicitationId: "unknown-or-stale",
+        }}) + "\\n");
+      }
       process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
         resultType: "input_required",
         inputRequests: {
@@ -305,6 +311,19 @@ let subscriptionId = null;
 let subscribed = false;
 let listCount = 0;
 
+function isObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value);
+}
+
+function hasDraftRequestMeta(meta) {
+  return isObject(meta)
+    && meta["io.modelcontextprotocol/protocolVersion"] === "DRAFT-2026-v1"
+    && isObject(meta["io.modelcontextprotocol/clientInfo"])
+    && meta["io.modelcontextprotocol/clientInfo"].name === "kota"
+    && meta["io.modelcontextprotocol/clientInfo"].version === "0.1.0"
+    && isObject(meta["io.modelcontextprotocol/clientCapabilities"]);
+}
+
 function write(message) {
   process.stdout.write(JSON.stringify(message) + "\\n");
 }
@@ -322,7 +341,8 @@ rl.on("line", (line) => {
     // notification - no response
   } else if (msg.method === "subscriptions/listen") {
     subscriptionId = String(msg.id);
-    subscribed = msg.params?.notifications?.toolsListChanged === true;
+    subscribed = msg.params?.notifications?.toolsListChanged === true
+      && hasDraftRequestMeta(msg.params?._meta);
     write({ jsonrpc: "2.0", method: "notifications/subscriptions/acknowledged", params: {
       _meta: { "io.modelcontextprotocol/subscriptionId": subscriptionId },
       notifications: { toolsListChanged: subscribed },
@@ -342,6 +362,94 @@ rl.on("line", (line) => {
         }});
       }, 20);
     }
+  } else if (msg.method === "shutdown") {
+    write({ jsonrpc: "2.0", id: msg.id, result: {} });
+  }
+});
+`;
+
+const DRAFT_META_MCP_SERVER = `
+const rl = require("readline").createInterface({ input: process.stdin });
+const expectElicitation = process.env.MCP_EXPECT_ELICITATION === "1";
+let initializeCapabilities = null;
+
+function isObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value);
+}
+
+function expectedCapabilities() {
+  return expectElicitation ? { elicitation: { form: {}, url: {} } } : {};
+}
+
+function sameJson(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function write(message) {
+  process.stdout.write(JSON.stringify(message) + "\\n");
+}
+
+function writeProtocolError(msg, message) {
+  write({ jsonrpc: "2.0", id: msg.id, error: { code: -32602, message } });
+}
+
+function readDraftRequestCapabilities(msg) {
+  const meta = msg.params?._meta;
+  if (!isObject(meta)) return null;
+  if (meta["io.modelcontextprotocol/protocolVersion"] !== "DRAFT-2026-v1") return null;
+  const clientInfo = meta["io.modelcontextprotocol/clientInfo"];
+  if (!isObject(clientInfo) || clientInfo.name !== "kota" || clientInfo.version !== "0.1.0") return null;
+  const capabilities = meta["io.modelcontextprotocol/clientCapabilities"];
+  if (!isObject(capabilities)) return null;
+  if (!sameJson(capabilities, expectedCapabilities())) return null;
+  return capabilities;
+}
+
+rl.on("line", (line) => {
+  let msg;
+  try { msg = JSON.parse(line); } catch { return; }
+  if (msg.method === "initialize") {
+    initializeCapabilities = msg.params?.capabilities;
+    if (!sameJson(initializeCapabilities, expectedCapabilities())) {
+      writeProtocolError(msg, "unexpected initialize capabilities");
+      return;
+    }
+    write({ jsonrpc: "2.0", id: msg.id, result: {
+      protocolVersion: "DRAFT-2026-v1",
+      capabilities: {},
+      serverInfo: { name: "draft-meta-inspector" },
+    }});
+  } else if (msg.method === "notifications/initialized") {
+    // notification - no response
+  } else if (msg.method === "tools/list") {
+    const capabilities = readDraftRequestCapabilities(msg);
+    if (!capabilities) {
+      writeProtocolError(msg, "missing draft tools/list request metadata");
+      return;
+    }
+    write({ jsonrpc: "2.0", id: msg.id, result: {
+      tools: [{
+        name: "inspect",
+        description: JSON.stringify({ initializeCapabilities, listCapabilities: capabilities }),
+        inputSchema: { type: "object" },
+      }],
+    }});
+  } else if (msg.method === "tools/call") {
+    const capabilities = readDraftRequestCapabilities(msg);
+    if (!capabilities) {
+      writeProtocolError(msg, "missing draft tools/call request metadata");
+      return;
+    }
+    write({ jsonrpc: "2.0", id: msg.id, result: {
+      resultType: "complete",
+      content: [{ type: "text", text: "ok" }],
+      structuredContent: {
+        callProtocolVersion: msg.params._meta["io.modelcontextprotocol/protocolVersion"],
+        callClientInfo: msg.params._meta["io.modelcontextprotocol/clientInfo"],
+        callCapabilities: capabilities,
+      },
+      isError: false,
+    }});
   } else if (msg.method === "shutdown") {
     write({ jsonrpc: "2.0", id: msg.id, result: {} });
   }
@@ -433,6 +541,62 @@ describe("McpClient lifecycle (fake MCP server)", () => {
 
     expect(client.getProtocolVersion()).toBe(MCP_DRAFT_PROTOCOL_VERSION);
     expect(client.getToolResultContract()).toBe("draft-tool-result");
+  }, 10_000);
+
+  it("sends draft request metadata without elicitation when no input bridge is configured", async () => {
+    client = new McpClient(
+      "node",
+      ["-e", DRAFT_META_MCP_SERVER],
+      {},
+      "draft-meta-no-input",
+    );
+    await client.connect();
+
+    const tools = await client.listTools();
+    const description = JSON.parse(tools[0].description ?? "{}") as {
+      initializeCapabilities: Record<string, unknown>;
+      listCapabilities: Record<string, unknown>;
+    };
+    expect(description).toEqual({
+      initializeCapabilities: {},
+      listCapabilities: {},
+    });
+
+    const result = expectCompletedResult(await client.callTool("inspect", {}));
+    expect(result.structuredContent).toEqual({
+      callProtocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+      callClientInfo: { name: "kota", version: "0.1.0" },
+      callCapabilities: {},
+    });
+  }, 10_000);
+
+  it("advertises form and URL elicitation in draft metadata when input modes are configured", async () => {
+    client = new McpClient(
+      "node",
+      ["-e", DRAFT_META_MCP_SERVER],
+      { MCP_EXPECT_ELICITATION: "1" },
+      "draft-meta-with-input",
+      { supportedElicitationModes: ["form", "url"] },
+    );
+    await client.connect();
+
+    const expectedCapabilities = { elicitation: { form: {}, url: {} } };
+    const tools = await client.listTools();
+    const description = JSON.parse(tools[0].description ?? "{}") as {
+      initializeCapabilities: Record<string, unknown>;
+      listCapabilities: Record<string, unknown>;
+    };
+    expect(description).toEqual({
+      initializeCapabilities: expectedCapabilities,
+      listCapabilities: expectedCapabilities,
+    });
+
+    const result = expectCompletedResult(await client.callTool("inspect", {}));
+    expect(result.structuredContent).toMatchObject({
+      callProtocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+      callClientInfo: { name: "kota", version: "0.1.0" },
+      callCapabilities: expectedCapabilities,
+    });
   }, 10_000);
 
   it("records tools.listChanged, opens a toolsListChanged subscription, and handles list_changed notifications", async () => {
@@ -764,6 +928,39 @@ describe("McpClient lifecycle (fake MCP server)", () => {
     });
   }, 10_000);
 
+  it("callTool sends decline for explicit draft input_required refusals", async () => {
+    client = new McpClient(
+      "node",
+      ["-e", FAKE_MCP_SERVER],
+      { MCP_TEST_MODE: "draft" },
+      "input-required-decline-test",
+    );
+    await client.connect();
+
+    for (const operatorAction of ["decline", "reject"] as const) {
+      const inputResponses = operatorAction === "reject"
+        // Legacy `reject` arrives from untyped operator JSON; the public type
+        // stays on the current draft `decline` action.
+        ? ({ github_login: { action: "reject" } } as never)
+        : { github_login: { action: "decline" as const } };
+      const result = expectCompletedResult(
+        await client.callTool("input_required", {}, {
+          requestState: "state-token-1",
+          inputResponses,
+        }),
+      );
+
+      expect(result.resultType).toBe("complete");
+      expect(result.text).toBe("Retry: state-token-1 decline ");
+      expect(result.structuredContent).toEqual({
+        requestState: "state-token-1",
+        inputResponses: {
+          github_login: { action: "decline" },
+        },
+      });
+    }
+  }, 10_000);
+
   it("callTool retries URL-mode input_required requests without content", async () => {
     client = new McpClient(
       "node",
@@ -796,6 +993,27 @@ describe("McpClient lifecycle (fake MCP server)", () => {
       inputResponses: {
         oauth: { action: "accept" },
       },
+    });
+  }, 10_000);
+
+  it("ignores unknown URL-mode elicitation completion notifications", async () => {
+    client = new McpClient(
+      "node",
+      ["-e", FAKE_MCP_SERVER],
+      { MCP_TEST_MODE: "draft_notify_complete" },
+      "url-input-complete-notification-test",
+    );
+    await client.connect();
+
+    const inputRequired = await client.callTool("input_required_url", {});
+    expect(inputRequired.resultType).toBe("input_required");
+    if (inputRequired.resultType !== "input_required" || !inputRequired.inputRequests) {
+      throw new Error("Expected URL input_required result");
+    }
+
+    expect(inputRequired.inputRequests.oauth.params).toMatchObject({
+      url: "https://auth.example.test/consent?state=abc",
+      elicitationId: "oauth-abc",
     });
   }, 10_000);
 

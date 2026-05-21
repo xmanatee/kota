@@ -2544,7 +2544,21 @@ describe("McpServer elicitation", () => {
 			server.stop();
 		});
 
-		it("resolves with reject when client rejects", async () => {
+		it("resolves with decline when client declines", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await initServerWithElicitation(server, input, output);
+
+			const elicitPromise = server.requestElicitation("Approve?", { type: "object", properties: { confirmed: { type: "boolean" } } });
+			const sentMsg = await readResponse(output);
+			input.write(`${JSON.stringify({ jsonrpc: "2.0", id: sentMsg.id, result: { action: "decline" } })}\n`);
+
+			const result = await elicitPromise;
+			expect(result?.action).toBe("decline");
+			server.stop();
+		});
+
+		it("normalizes legacy sampling/elicit reject responses to decline", async () => {
 			const { input, output } = createTestStreams();
 			const server = new McpServer({ input, output, log: () => {} });
 			await initServerWithElicitation(server, input, output);
@@ -2554,7 +2568,7 @@ describe("McpServer elicitation", () => {
 			input.write(`${JSON.stringify({ jsonrpc: "2.0", id: sentMsg.id, result: { action: "reject" } })}\n`);
 
 			const result = await elicitPromise;
-			expect(result?.action).toBe("reject");
+			expect(result?.action).toBe("decline");
 			server.stop();
 		});
 
@@ -2597,14 +2611,14 @@ describe("McpServer elicitation", () => {
 			server.stop();
 		});
 
-		it("returns REJECTED when elicitation client rejects confirm", async () => {
+		it("returns REJECTED when elicitation client declines confirm", async () => {
 			const { input, output } = createTestStreams();
 			const server = new McpServer({ input, output, log: () => {}, toolFilter: ["confirm"] });
 			await initServerWithElicitation(server, input, output);
 
 			sendRequest(input, 11, "tools/call", { name: "confirm", arguments: { action: "Send email to all users" } });
 			const elicitMsg = await readResponse(output);
-			input.write(`${JSON.stringify({ jsonrpc: "2.0", id: elicitMsg.id, result: { action: "reject" } })}\n`);
+			input.write(`${JSON.stringify({ jsonrpc: "2.0", id: elicitMsg.id, result: { action: "decline" } })}\n`);
 
 			const toolResp = await readResponse(output);
 			expect(toolResp.id).toBe(11);
@@ -2715,9 +2729,9 @@ describe("McpServer elicitation", () => {
 			server.stop();
 		});
 
-		it("resumes draft confirm reject and cancel responses through tools/call retry", async () => {
+		it("resumes draft confirm decline and cancel responses through tools/call retry", async () => {
 			for (const [action, expectedText] of [
-				["reject", "REJECTED: Publish incident update"],
+				["decline", "REJECTED: Publish incident update"],
 				["cancel", "REJECTED: Publish incident update\nReason: Timed out or cancelled"],
 			] as const) {
 				const { input, output } = createTestStreams();
@@ -2780,7 +2794,7 @@ describe("McpServer elicitation", () => {
 				name: "confirm",
 				arguments: { action: "Deploy" },
 				inputResponses: {
-					confirm: { action: "reject" },
+					confirm: { action: "decline" },
 				},
 				requestState: "confirm:missing",
 			}, { elicitation: {} }));

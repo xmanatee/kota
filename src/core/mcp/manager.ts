@@ -6,6 +6,7 @@ import { validateToolStructuredOutput } from "#core/tools/output-schema.js";
 import {
   type McpCallToolResult,
   McpClient,
+  type McpElicitationMode,
   type McpInputRequiredCallToolResult,
   type McpToolInputRequests,
   type McpToolInputResponses,
@@ -20,6 +21,10 @@ type McpServerConfig = {
 
 type McpConfig = {
   mcpServers: Record<string, McpServerConfig>;
+};
+
+export type McpManagerInitializeOptions = {
+  inputResolverAvailable?: boolean;
 };
 
 type McpToolEntry = {
@@ -162,9 +167,14 @@ export class McpManager {
   }
 
   /** Connect to all configured MCP servers. Logs warnings for failures. */
-  async initialize(config: McpConfig): Promise<void> {
+  async initialize(
+    config: McpConfig,
+    options: McpManagerInitializeOptions = {},
+  ): Promise<void> {
     const entries = Object.entries(config.mcpServers || {});
     if (entries.length === 0) return;
+    const supportedElicitationModes: readonly McpElicitationMode[] =
+      options.inputResolverAvailable === true ? ["form", "url"] : [];
 
     const results = await Promise.allSettled(
       entries.map(async ([name, serverConfig]) => {
@@ -173,6 +183,7 @@ export class McpManager {
           serverConfig.args || [],
           serverConfig.env || {},
           name,
+          { supportedElicitationModes },
         );
         this.serverTools.set(name, []);
         try {

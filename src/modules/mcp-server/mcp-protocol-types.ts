@@ -82,7 +82,7 @@ export type ElicitationSchema = {
 
 export type ElicitationResponse =
 	| { action: "accept"; content?: KotaJsonObject }
-	| { action: "reject" }
+	| { action: "decline" }
 	| { action: "cancel" };
 
 export type McpElicitationMode = "form" | "url";

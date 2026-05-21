@@ -115,4 +115,19 @@ describe("MRTR elicitation response modes", () => {
 			"inputResponses.confirm.content must be an object when action is accept",
 		);
 	});
+
+	it("normalizes legacy draft reject retry responses to decline", () => {
+		const decoded = decodeMrtrRetryParams({
+			requestState: "state-token",
+			inputResponses: {
+				confirm: { action: "reject" },
+			},
+		});
+
+		expect(decoded.kind).toBe("retry");
+		if (decoded.kind !== "retry") throw new Error("Expected retry params");
+		expect(readElicitationInputResponse(decoded.inputResponses, "confirm", "form")).toEqual({
+			action: "decline",
+		});
+	});
 });

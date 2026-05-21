@@ -121,7 +121,7 @@ export type McpToolInputRequests = KotaJsonObject & {
 export type McpElicitationMode = "form" | "url";
 
 export type McpToolInputResponse = KotaJsonObject & {
-  action: "accept" | "reject" | "cancel";
+  action: "accept" | "decline" | "cancel";
   content?: KotaJsonObject;
 };
 
@@ -165,6 +165,15 @@ export type McpCallToolRetry =
 const CONNECT_TIMEOUT = 10_000;
 const CALL_TIMEOUT = 120_000;
 const MCP_HEADER_ANNOTATION = "x-mcp-header";
+const KOTA_MCP_CLIENT_INFO = { name: "kota", version: "0.1.0" } as const;
+const MCP_META_PROTOCOL_VERSION_KEY = "io.modelcontextprotocol/protocolVersion";
+const MCP_META_CLIENT_INFO_KEY = "io.modelcontextprotocol/clientInfo";
+const MCP_META_CLIENT_CAPABILITIES_KEY =
+  "io.modelcontextprotocol/clientCapabilities";
+
+export type McpClientOptions = {
+  supportedElicitationModes?: readonly McpElicitationMode[];
+};
 
 export function mcpToolInputRequestElicitationMode(
   request: McpToolInputRequest,
@@ -186,6 +195,20 @@ export function mcpToolUrlElicitationDetails(
     return null;
   }
   return { message, url, elicitationId };
+}
+
+function uniqueSupportedElicitationModes(
+  modes: readonly McpElicitationMode[] | undefined,
+): readonly McpElicitationMode[] {
+  if (!modes) return [];
+  const supported = new Set<McpElicitationMode>();
+  for (const mode of modes) {
+    if (mode !== "form" && mode !== "url") {
+      throw new Error(`Unsupported MCP elicitation mode: ${String(mode)}`);
+    }
+    supported.add(mode);
+  }
+  return [...supported];
 }
 
 class McpHeaderAnnotationError extends Error {
@@ -833,12 +856,20 @@ export function decodeMcpToolInputResponses(
     if (!response) {
       throw malformedMcpResult("tools/call", label, "an object");
     }
-    const action = requireString(response.action, `${label}.action`);
-    if (action !== "accept" && action !== "reject" && action !== "cancel") {
+    const rawAction = requireString(response.action, `${label}.action`);
+    if (
+      rawAction !== "accept" &&
+      rawAction !== "decline" &&
+      rawAction !== "cancel" &&
+      rawAction !== "reject"
+    ) {
       throw new Error(
-        `Malformed MCP tools/call result: ${label}.action must be accept, reject, or cancel`,
+        `Malformed MCP tools/call result: ${label}.action must be accept, decline, or cancel`,
       );
     }
+    // Older draft examples used `reject`; accept that operator-facing alias
+    // narrowly, but normalize before sending current draft inputResponses.
+    const action = rawAction === "reject" ? "decline" : rawAction;
     const inputRequest = inputRequests?.[requestId];
     if (inputRequests && !inputRequest) {
       throw new Error(
@@ -965,14 +996,19 @@ export class McpClient {
   private toolListSubscriptionId: number | null = null;
   private streamingRequestIds = new Set<number>();
   private toolListChangedHandlers = new Set<McpToolListChangedHandler>();
+  private readonly supportedElicitationModes: readonly McpElicitationMode[];
 
   constructor(
     private command: string,
     private args: string[] = [],
     private env: Record<string, string> = {},
     name?: string,
+    options: McpClientOptions = {},
   ) {
     this.serverName = name || command;
+    this.supportedElicitationModes = uniqueSupportedElicitationModes(
+      options.supportedElicitationModes,
+    );
   }
 
   getName(): string {
@@ -1255,10 +1291,52 @@ export class McpClient {
   ): Promise<McpInitializeResult> {
     const result = await this.request("initialize", {
       protocolVersion,
-      capabilities: {},
-      clientInfo: { name: "kota", version: "0.1.0" },
+      capabilities: this.clientCapabilitiesForProtocol(protocolVersion),
+      clientInfo: KOTA_MCP_CLIENT_INFO,
     });
     return decodeInitializeResult(result);
+  }
+
+  private clientCapabilitiesForProtocol(
+    protocolVersion: McpProtocolVersion | null = this.protocolVersion,
+  ): KotaJsonObject {
+    const capabilities: KotaJsonObject = {};
+    if (
+      protocolVersion === MCP_DRAFT_PROTOCOL_VERSION &&
+      this.supportedElicitationModes.length > 0
+    ) {
+      const elicitation: KotaJsonObject = {};
+      for (const mode of this.supportedElicitationModes) {
+        elicitation[mode] = {};
+      }
+      capabilities.elicitation = elicitation;
+    }
+    return capabilities;
+  }
+
+  private draftRequestMeta(): KotaJsonObject {
+    return {
+      [MCP_META_PROTOCOL_VERSION_KEY]: this.protocolVersion ?? MCP_DRAFT_PROTOCOL_VERSION,
+      [MCP_META_CLIENT_INFO_KEY]: KOTA_MCP_CLIENT_INFO,
+      [MCP_META_CLIENT_CAPABILITIES_KEY]: this.clientCapabilitiesForProtocol(),
+    };
+  }
+
+  private paramsWithDraftMetadata(
+    params: Record<string, unknown> | undefined,
+  ): Record<string, unknown> | undefined {
+    if (this.protocolVersion !== MCP_DRAFT_PROTOCOL_VERSION) return params;
+    const rawMeta = params?._meta;
+    if (rawMeta !== undefined && !isJsonObject(rawMeta)) {
+      throw new Error("Malformed MCP request params: _meta must be an object");
+    }
+    return {
+      ...(params ?? {}),
+      _meta: {
+        ...(rawMeta ?? {}),
+        ...this.draftRequestMeta(),
+      },
+    };
   }
 
   private request(
@@ -1273,7 +1351,13 @@ export class McpClient {
     }
 
     const id = this.nextId++;
-    const msg: JsonRpcRequest = { jsonrpc: "2.0", id, method, ...(params && { params }) };
+    const requestParams = this.paramsWithDraftMetadata(params);
+    const msg: JsonRpcRequest = {
+      jsonrpc: "2.0",
+      id,
+      method,
+      ...(requestParams && { params: requestParams }),
+    };
 
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -1300,11 +1384,7 @@ export class McpClient {
       id,
       method: "subscriptions/listen",
       params: {
-        _meta: {
-          "io.modelcontextprotocol/protocolVersion": this.protocolVersion,
-          "io.modelcontextprotocol/clientInfo": { name: "kota", version: "0.1.0" },
-          "io.modelcontextprotocol/clientCapabilities": {},
-        },
+        _meta: this.draftRequestMeta(),
         notifications: { toolsListChanged: true },
       },
     };

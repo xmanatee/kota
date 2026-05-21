@@ -112,6 +112,78 @@ describe("McpManager", () => {
     expect(manager.getToolCount()).toBe(0);
   });
 
+  it("advertises remote elicitation modes only when an input resolver bridge is available", async () => {
+    for (const inputResolverAvailable of [false, true] as const) {
+      const manager = new McpManager();
+      const server = `
+        const rl = require("readline").createInterface({ input: process.stdin });
+        const expectElicitation = process.env.EXPECT_ELICITATION === "1";
+        function expectedCapabilities() {
+          return expectElicitation ? { elicitation: { form: {}, url: {} } } : {};
+        }
+        function sameJson(left, right) {
+          return JSON.stringify(left) === JSON.stringify(right);
+        }
+        function write(message) {
+          process.stdout.write(JSON.stringify(message) + "\\n");
+        }
+        function protocolError(msg, message) {
+          write({ jsonrpc: "2.0", id: msg.id, error: { code: -32602, message } });
+        }
+        rl.on("line", (line) => {
+          let msg;
+          try { msg = JSON.parse(line); } catch { return; }
+          if (msg.method === "initialize") {
+            if (!sameJson(msg.params.capabilities, expectedCapabilities())) {
+              protocolError(msg, "unexpected initialize capabilities");
+              return;
+            }
+            write({ jsonrpc: "2.0", id: msg.id, result: {
+              protocolVersion: "DRAFT-2026-v1",
+              capabilities: {},
+              serverInfo: { name: "capability-check" },
+            }});
+          } else if (msg.method === "tools/list") {
+            const caps = msg.params?._meta?.["io.modelcontextprotocol/clientCapabilities"];
+            if (!sameJson(caps, expectedCapabilities())) {
+              protocolError(msg, "unexpected per-request capabilities");
+              return;
+            }
+            write({ jsonrpc: "2.0", id: msg.id, result: {
+              tools: [{
+                name: "capability_snapshot",
+                description: JSON.stringify(caps),
+                inputSchema: { type: "object" },
+              }],
+            }});
+          } else if (msg.method === "shutdown") {
+            write({ jsonrpc: "2.0", id: msg.id, result: {} });
+          }
+        });
+      `;
+      await manager.initialize(
+        {
+          mcpServers: {
+            remote: {
+              command: "node",
+              args: ["-e", server],
+              env: { EXPECT_ELICITATION: inputResolverAvailable ? "1" : "0" },
+            },
+          },
+        },
+        { inputResolverAvailable },
+      );
+
+      const expectedCapabilities = inputResolverAvailable
+        ? { elicitation: { form: {}, url: {} } }
+        : {};
+      expect(manager.getTools()[0]?.description).toContain(
+        JSON.stringify(expectedCapabilities),
+      );
+      await manager.close();
+    }
+  }, 10_000);
+
   it("initialize connects to working server and lists tools", async () => {
     const manager = new McpManager();
     const server = `
@@ -1002,7 +1074,7 @@ describe("McpManager", () => {
   }, 10_000);
 
   it("executeTool retries remote URL-mode input_required results without content", async () => {
-    for (const action of ["accept", "reject", "cancel"] as const) {
+    for (const action of ["accept", "decline", "cancel"] as const) {
       const manager = new McpManager();
       const server = `
         const rl = require("readline").createInterface({ input: process.stdin });
@@ -1153,7 +1225,7 @@ describe("McpManager", () => {
         return {
           kind: "respond",
           inputResponses: {
-            approval: { action: "reject" },
+            approval: { action: "decline" },
           },
         };
       },
@@ -1163,7 +1235,7 @@ describe("McpManager", () => {
     expect(result.content).toBe("remote retry without state");
     expect(result.structuredContent).toEqual({
       hasRequestState: false,
-      action: "reject",
+      action: "decline",
     });
     expect(seenRequests).toEqual([
       {
@@ -1230,7 +1302,7 @@ describe("McpManager", () => {
     await manager.close();
   }, 10_000);
 
-  it("executeTool can retry remote draft input_required results with explicit rejection", async () => {
+  it("executeTool can retry remote draft input_required results with explicit decline", async () => {
     const manager = new McpManager();
     const server = `
       const rl = require("readline").createInterface({ input: process.stdin });
@@ -1279,13 +1351,13 @@ describe("McpManager", () => {
       inputResolver: async () => ({
         kind: "respond",
         inputResponses: {
-          approval: { action: "reject" },
+          approval: { action: "decline" },
         },
       }),
     });
 
     expect(result.is_error).toBe(true);
-    expect(result.content).toBe("remote retry reject");
+    expect(result.content).toBe("remote retry decline");
 
     await manager.close();
   }, 10_000);

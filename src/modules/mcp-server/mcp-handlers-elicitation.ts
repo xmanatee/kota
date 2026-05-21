@@ -81,8 +81,10 @@ export class ElicitationHandler {
 		if (result && result.action === "accept") {
 			const content = isJsonObject(result.content) ? result.content : {};
 			pending.resolve({ action: "accept", content });
-		} else if (result?.action === "reject") {
-			pending.resolve({ action: "reject" });
+		} else if (result?.action === "decline" || result?.action === "reject") {
+			// `sampling/elicit` is the legacy elicitation path; accept older
+			// `reject` clients but expose the current action internally.
+			pending.resolve({ action: "decline" });
 		} else {
 			pending.resolve({ action: "cancel" });
 		}

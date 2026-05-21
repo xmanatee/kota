@@ -84,7 +84,9 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
   const config = McpManager.loadConfig();
   if (config) {
     state.mcpManager = new McpManager();
-    await state.mcpManager.initialize(config);
+    await state.mcpManager.initialize(config, {
+      inputResolverAvailable: state.mcpInputResolver !== undefined,
+    });
     if (state.mcpManager.getToolCount() > 0) {
       // Preserve any harness name the loop constructor already wired in from
       // `config.defaultAgentHarness` — re-calling setDelegateConfig here must
