@@ -1,12 +1,12 @@
 ---
 id: task-support-mcp-task-augmented-requests-in-the-mcp-ser
 title: Support MCP task-augmented requests in the MCP server
-status: ready
+status: dropped
 priority: p2
 area: modules
 summary: Implement the experimental MCP Tasks utility for task-augmented tool calls, task polling/result retrieval, cancellation, and task input responses so long-running MCP operations have a strict protocol path instead of ad-hoc waiting.
 created_at: 2026-05-21T05:39:28.823Z
-updated_at: 2026-05-21T05:39:28.823Z
+updated_at: 2026-05-21T11:19:59Z
 ---
 
 ## Problem
@@ -117,3 +117,15 @@ operator-visible cancellation.
   result with `tasks/result`, and cancelling a second long-running task.
 - A fixture covering `input_required` task continuation through
   `tasks/input_response` without a separate owner-question path.
+
+## Decomposed
+
+Dropped because builder run
+`.kota/runs/2026-05-21T06-37-01-293Z-builder-kj321d/` timed out while trying
+to implement the full MCP task utility in one slice. The work is now split
+into smaller, dependency-ordered tasks:
+
+- `task-add-mcp-server-task-protocol-types-and-lifecycle-store`
+- `task-handle-mcp-task-status-result-list-and-cancel-requests`
+- `task-run-mcp-tool-calls-through-task-augmentation`
+- `task-resume-mcp-input-required-tasks-through-input-response`
