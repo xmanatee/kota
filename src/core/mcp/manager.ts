@@ -8,6 +8,7 @@ import {
   McpClient,
   type McpElicitationMode,
   type McpInputRequiredCallToolResult,
+  type McpProgressEvent,
   type McpToolInputRequests,
   type McpToolInputResponses,
   type McpToolSchema,
@@ -49,8 +50,17 @@ export type McpInputResolver = (
   request: McpRemoteInputRequest,
 ) => Promise<McpInputResolverResult>;
 
+export type McpRemoteProgressEvent = McpProgressEvent & {
+  server: string;
+  tool: string;
+};
+
+export type McpProgressResolver = (event: McpRemoteProgressEvent) => void;
+
 export type McpExecuteToolOptions = {
   inputResolver?: McpInputResolver;
+  progressResolver?: McpProgressResolver;
+  maxProgressEvents?: number;
 };
 
 const SEPARATOR = "__";
@@ -252,7 +262,13 @@ export class McpManager {
     }
 
     try {
-      const result = await entry.client.callTool(entry.originalName, input);
+      const progress = this.progressOptionsFor(entry, options);
+      const result = await entry.client.callTool(
+        entry.originalName,
+        input,
+        undefined,
+        progress,
+      );
       if (result.resultType === "input_required") {
         if (!result.inputRequests) {
           if (result.requestState === undefined) {
@@ -262,9 +278,12 @@ export class McpManager {
               "the remote server returned input_required without inputRequests or requestState.",
             );
           }
-          const retried = await entry.client.callTool(entry.originalName, input, {
-            requestState: result.requestState,
-          });
+          const retried = await entry.client.callTool(
+            entry.originalName,
+            input,
+            { requestState: result.requestState },
+            progress,
+          );
           return toToolResult(entry, retried);
         }
         if (!options.inputResolver) {
@@ -285,7 +304,7 @@ export class McpManager {
           inputRequests: result.inputRequests,
           ...(result.requestState !== undefined ? { requestState: result.requestState } : {}),
         };
-        const retried = await entry.client.callTool(entry.originalName, input, retry);
+        const retried = await entry.client.callTool(entry.originalName, input, retry, progress);
         return toToolResult(entry, retried);
       }
       return toToolResult(entry, result);
@@ -345,6 +364,27 @@ export class McpManager {
     this.kotaTools = [...this.serverTools.values()].flatMap((serverEntries) =>
       serverEntries.map((entry) => entry.tool),
     );
+  }
+
+  private progressOptionsFor(
+    entry: McpToolEntry,
+    options: McpExecuteToolOptions,
+  ): Parameters<McpClient["callTool"]>[3] {
+    if (!options.progressResolver) return {};
+    return {
+      progress: {
+        ...(options.maxProgressEvents !== undefined
+          ? { maxEvents: options.maxProgressEvents }
+          : {}),
+        onProgress: (event) => {
+          options.progressResolver?.({
+            ...event,
+            server: entry.client.getName(),
+            tool: entry.originalName,
+          });
+        },
+      },
+    };
   }
 
   private queueServerToolRefresh(serverName: string): void {

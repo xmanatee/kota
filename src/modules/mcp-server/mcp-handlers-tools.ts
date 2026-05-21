@@ -115,6 +115,10 @@ export class ToolsHandler {
 		}
 
 		this.ctx.log(`Calling tool: ${name}`);
+		this.ctx.sendProgress(0, {
+			total: 1,
+			message: `Calling tool: ${name}`,
+		});
 
 		if (name === "confirm" && usesDraftToolResults(activeMcpProtocolVersion(this.ctx))) {
 			this.handleConfirmViaInputRequired(msg, args);
@@ -221,6 +225,10 @@ export class ToolsHandler {
 			this.ctx.transport.sendError(msg, -32603, outputSchemaError);
 			return;
 		}
+		this.ctx.sendProgress(1, {
+			total: 1,
+			message: "Tool call complete",
+		});
 		this.ctx.transport.sendResult(
 			msg,
 			toolResultToMcpCallResult(result, activeMcpProtocolVersion(this.ctx)),

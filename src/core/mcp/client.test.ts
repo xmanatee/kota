@@ -6,6 +6,7 @@ import {
   McpClient,
   type McpCompleteCallToolResult,
   type McpLegacyCallToolResult,
+  type McpProgressEvent,
   type McpToolSchema,
 } from "./client.js";
 
@@ -280,6 +281,93 @@ rl.on("line", (line) => {
 });
 `;
 
+const PROGRESS_MCP_SERVER = `
+const rl = require("readline").createInterface({ input: process.stdin });
+function write(message) {
+  process.stdout.write(JSON.stringify(message) + "\\n");
+}
+function complete(msg, text) {
+  write({ jsonrpc: "2.0", id: msg.id, result: {
+    resultType: "complete",
+    content: [{ type: "text", text }],
+    isError: false,
+  }});
+}
+rl.on("line", (line) => {
+  let msg;
+  try { msg = JSON.parse(line); } catch { return; }
+  if (msg.method === "initialize") {
+    write({ jsonrpc: "2.0", id: msg.id, result: {
+      protocolVersion: "DRAFT-2026-v1",
+      capabilities: {},
+      serverInfo: { name: "progress-server" },
+    }});
+    return;
+  }
+  if (msg.method === "notifications/initialized") return;
+  if (msg.method === "shutdown") {
+    write({ jsonrpc: "2.0", id: msg.id, result: {} });
+    return;
+  }
+  if (msg.method !== "tools/call") return;
+  const token = msg.params?._meta?.progressToken;
+  if (msg.params.name === "long") {
+    if (token !== undefined) {
+      write({ jsonrpc: "2.0", method: "notifications/progress", params: {
+        progressToken: token,
+        progress: 1,
+        total: 2,
+        message: "half",
+      }});
+      write({ jsonrpc: "2.0", method: "notifications/progress", params: {
+        progressToken: token,
+        progress: 2,
+        total: 2,
+        message: "done",
+      }});
+    }
+    complete(msg, token === undefined ? "has-token:false" : "has-token:true");
+    return;
+  }
+  if (msg.params.name === "negative") {
+    write({ jsonrpc: "2.0", method: "notifications/progress", params: {
+      progressToken: "unknown-token",
+      progress: 1,
+    }});
+    write({ jsonrpc: "2.0", method: "notifications/progress", params: {
+      progressToken: token,
+      progress: 1,
+      message: "accepted",
+    }});
+    write({ jsonrpc: "2.0", method: "notifications/progress", params: {
+      progressToken: token,
+      progress: 1,
+      message: "non-monotonic",
+    }});
+    write({ jsonrpc: "2.0", method: "notifications/cancelled", params: {
+      requestId: msg.id,
+      reason: "test cancellation",
+    }});
+    write({ jsonrpc: "2.0", method: "notifications/progress", params: {
+      progressToken: token,
+      progress: 2,
+      message: "late",
+    }});
+    complete(msg, "negative-complete");
+    return;
+  }
+  if (msg.params.name === "flood") {
+    for (let progress = 1; progress <= 5; progress += 1) {
+      write({ jsonrpc: "2.0", method: "notifications/progress", params: {
+        progressToken: token,
+        progress,
+      }});
+    }
+    complete(msg, "flood-complete");
+  }
+});
+`;
+
 function listToolsServerScript(tools: object[], serverName = "header-test-server"): string {
   return `
     const tools = ${JSON.stringify(tools)};
@@ -541,6 +629,108 @@ describe("McpClient lifecycle (fake MCP server)", () => {
 
     expect(client.getProtocolVersion()).toBe(MCP_DRAFT_PROTOCOL_VERSION);
     expect(client.getToolResultContract()).toBe("draft-tool-result");
+  }, 10_000);
+
+  it("sends progressToken metadata and records bounded progress side-channel events", async () => {
+    client = new McpClient("node", ["-e", PROGRESS_MCP_SERVER], {}, "progress");
+    await client.connect();
+    const events: McpProgressEvent[] = [];
+
+    const result = expectCompletedResult(
+      await client.callTool("long", {}, undefined, {
+        progress: {
+          token: "progress-1",
+          onProgress: (event) => events.push(event),
+        },
+      }),
+    );
+
+    expect(result.text).toBe("has-token:true");
+    expect(result.structuredContent).toBeUndefined();
+    expect(events).toEqual([
+      {
+        requestId: 2,
+        progressToken: "progress-1",
+        progress: 1,
+        sequence: 1,
+        total: 2,
+        message: "half",
+      },
+      {
+        requestId: 2,
+        progressToken: "progress-1",
+        progress: 2,
+        sequence: 2,
+        total: 2,
+        message: "done",
+      },
+    ]);
+  }, 10_000);
+
+  it("omits progressToken metadata unless the caller opts into progress", async () => {
+    client = new McpClient("node", ["-e", PROGRESS_MCP_SERVER], {}, "progress-none");
+    await client.connect();
+
+    const result = expectCompletedResult(await client.callTool("long", {}));
+
+    expect(result.text).toBe("has-token:false");
+  }, 10_000);
+
+  it("ignores unknown, non-monotonic, and post-cancel progress without mutating the result", async () => {
+    client = new McpClient("node", ["-e", PROGRESS_MCP_SERVER], {}, "progress-negative");
+    await client.connect();
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const events: McpProgressEvent[] = [];
+
+    const result = expectCompletedResult(
+      await client.callTool("negative", {}, undefined, {
+        progress: {
+          token: "progress-negative",
+          onProgress: (event) => events.push(event),
+        },
+      }),
+    );
+
+    expect(result.text).toBe("negative-complete");
+    expect(events).toEqual([
+      {
+        requestId: 2,
+        progressToken: "progress-negative",
+        progress: 1,
+        sequence: 1,
+        message: "accepted",
+      },
+    ]);
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("ignored progress notification for inactive token"),
+    );
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("ignored non-monotonic progress notification"),
+    );
+    errorSpy.mockRestore();
+  }, 10_000);
+
+  it("coalesces progress floods to the per-call event limit", async () => {
+    client = new McpClient("node", ["-e", PROGRESS_MCP_SERVER], {}, "progress-flood");
+    await client.connect();
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const events: McpProgressEvent[] = [];
+
+    const result = expectCompletedResult(
+      await client.callTool("flood", {}, undefined, {
+        progress: {
+          maxEvents: 2,
+          onProgress: (event) => events.push(event),
+        },
+      }),
+    );
+
+    expect(result.text).toBe("flood-complete");
+    expect(events.map((event) => event.progress)).toEqual([1, 2]);
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("coalescing progress notifications"),
+    );
+    errorSpy.mockRestore();
   }, 10_000);
 
   it("sends draft request metadata without elicitation when no input bridge is configured", async () => {

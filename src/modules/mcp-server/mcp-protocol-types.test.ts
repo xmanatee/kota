@@ -29,7 +29,9 @@ function ctxWithClientCapabilities(clientCapabilities: McpClientCapabilities): H
 			protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
 			clientInfo: { name: "test", version: "1.0.0" },
 			clientCapabilities,
+			requestId: 1,
 		}),
+		sendProgress: () => {},
 	};
 }
 

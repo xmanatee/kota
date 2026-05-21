@@ -230,6 +230,76 @@ describe("McpManager", () => {
     expect(manager.getToolCount()).toBe(0);
   }, 10_000);
 
+  it("routes MCP progress side-channel events without mutating the tool result", async () => {
+    const manager = new McpManager();
+    const server = `
+      const rl = require("readline").createInterface({ input: process.stdin });
+      function write(message) {
+        process.stdout.write(JSON.stringify(message) + "\\n");
+      }
+      rl.on("line", (line) => {
+        let msg;
+        try { msg = JSON.parse(line); } catch { return; }
+        if (msg.method === "initialize") {
+          write({ jsonrpc: "2.0", id: msg.id, result: {
+            protocolVersion: "DRAFT-2026-v1",
+            capabilities: {},
+            serverInfo: { name: "progress-srv" },
+          }});
+        } else if (msg.method === "tools/list") {
+          write({ jsonrpc: "2.0", id: msg.id, result: {
+            tools: [{ name: "long", description: "Long task", inputSchema: { type: "object" } }],
+          }});
+        } else if (msg.method === "tools/call" && msg.params.name === "long") {
+          const token = msg.params?._meta?.progressToken;
+          write({ jsonrpc: "2.0", method: "notifications/progress", params: {
+            progressToken: token,
+            progress: 1,
+            total: 2,
+            message: "half",
+          }});
+          write({ jsonrpc: "2.0", method: "notifications/progress", params: {
+            progressToken: token,
+            progress: 2,
+            total: 2,
+            message: "done",
+          }});
+          write({ jsonrpc: "2.0", id: msg.id, result: {
+            resultType: "complete",
+            content: [{ type: "text", text: "final result" }],
+            isError: false,
+          }});
+        } else if (msg.method === "shutdown") {
+          write({ jsonrpc: "2.0", id: msg.id, result: {} });
+        }
+      });
+    `;
+    await manager.initialize({
+      mcpServers: { remote: { command: "node", args: ["-e", server] } },
+    });
+    const progressEvents: Array<{ server: string; tool: string; progress: number; message?: string }> = [];
+
+    const result = await manager.executeTool("mcp__remote__long", {}, {
+      progressResolver: (event) => {
+        progressEvents.push({
+          server: event.server,
+          tool: event.tool,
+          progress: event.progress,
+          ...(event.message !== undefined ? { message: event.message } : {}),
+        });
+      },
+    });
+
+    expect(result.content).toBe("final result");
+    expect(result._meta).toBeUndefined();
+    expect(progressEvents).toEqual([
+      { server: "progress-srv", tool: "long", progress: 1, message: "half" },
+      { server: "progress-srv", tool: "long", progress: 2, message: "done" },
+    ]);
+
+    await manager.close();
+  }, 10_000);
+
   it("initialize skips invalid x-mcp-header tools while registering valid tools", async () => {
     const manager = new McpManager();
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});

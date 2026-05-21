@@ -1,12 +1,12 @@
 ---
 id: task-support-mcp-progress-notifications-for-long-runnin
 title: Support MCP progress notifications for long-running operations
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Align KOTA's MCP client and server with the draft progress utility so long-running MCP requests can request, emit, validate, and surface notifications/progress without leaking stale or unbounded updates.
 created_at: 2026-05-21T02:08:00Z
-updated_at: 2026-05-21T02:08:00Z
+updated_at: 2026-05-21T02:23:32.678Z
 ---
 
 ## Problem

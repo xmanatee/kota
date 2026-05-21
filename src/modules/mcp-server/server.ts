@@ -28,6 +28,7 @@ import type {
 	JsonRpcOutboundPayload,
 	JsonRpcRequest,
 	JsonRpcResponse,
+	McpProgressToken,
 	McpRequestContext,
 	McpRoot,
 	McpTransport,
@@ -35,12 +36,14 @@ import type {
 } from "./mcp-protocol-types.js";
 import {
 	hasLegacySessionContext,
+	isMcpProgressToken,
 	MCP_DRAFT_PROTOCOL_VERSION,
 	MCP_DRAFT_PROTOCOL_VERSIONS,
 	MCP_LEGACY_PROTOCOL_VERSION,
 	MCP_META_CLIENT_CAPABILITIES_KEY,
 	MCP_META_CLIENT_INFO_KEY,
 	MCP_META_PROTOCOL_VERSION_KEY,
+	mcpProgressTokenKey,
 } from "./mcp-protocol-types.js";
 
 export { kotaToolToMcp, toolResultToMcp } from "./mcp-handlers-tools.js";
@@ -66,6 +69,13 @@ type RequestHandler = (msg: JsonRpcRequest) => Promise<void> | void;
 type DraftRequestContextResult =
 	| { ok: true; context: McpRequestContext }
 	| { ok: false; code: number; message: string; data?: JsonRpcOutboundPayload };
+
+type ActiveProgressRequest = {
+	requestId: JsonRpcRequest["id"];
+	token: McpProgressToken;
+	tokenKey: string;
+	lastProgress: number | null;
+};
 
 function protocolErrorData(requestedVersion?: string): KotaJsonObject {
 	return {
@@ -207,12 +217,23 @@ function decodeDraftRequestContext(msg: JsonRpcRequest): DraftRequestContextResu
 		}
 	}
 
+	const progressToken = meta.progressToken;
+	if (progressToken !== undefined && !isMcpProgressToken(progressToken)) {
+		return {
+			ok: false,
+			code: -32602,
+			message: "Malformed MCP draft _meta field: progressToken",
+		};
+	}
+
 	return {
 		ok: true,
 		context: {
 			protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
 			clientInfo: { name: clientName, version: clientVersion },
 			clientCapabilities,
+			requestId: msg.id,
+			...(progressToken !== undefined ? { progressToken } : {}),
 		},
 	};
 }
@@ -230,6 +251,8 @@ export class McpServer {
 		clientSupportsRoots: false,
 	};
 	private readonly requestContext = new AsyncLocalStorage<McpRequestContext>();
+	private readonly activeProgressByRequestId = new Map<string, ActiveProgressRequest>();
+	private readonly activeProgressByToken = new Map<string, JsonRpcRequest["id"]>();
 	private readonly initialize: InitializeHandler;
 	private readonly resources: ResourcesHandler;
 	private readonly elicitation: ElicitationHandler;
@@ -261,6 +284,7 @@ export class McpServer {
 			log: this.log,
 			session: this.session,
 			getRequestContext: () => this.requestContext.getStore() ?? null,
+			sendProgress: (progress, details) => this.sendProgress(progress, details),
 		};
 		const mrtr = new McpMrtrStateCodec();
 
@@ -393,7 +417,10 @@ export class McpServer {
 	private handleNotification(msg: JsonRpcNotification): void {
 		if (msg.method === "notifications/initialized") this.log("Client confirmed initialization");
 		else if (msg.method === "notifications/roots/list_changed") this.initialize.handleRootsListChangedNotification();
-		else if (msg.method === "notifications/cancelled") this.resources.handleCancelledNotification(msg);
+		else if (msg.method === "notifications/cancelled") {
+			this.clearProgressFromCancelledNotification(msg);
+			this.resources.handleCancelledNotification(msg);
+		}
 		// Silently ignore unknown notifications per spec
 	}
 
@@ -436,6 +463,92 @@ export class McpServer {
 			return;
 		}
 
-		await this.requestContext.run(decoded.context, () => Promise.resolve(handler(msg)));
+		if (!this.activateProgress(decoded.context)) {
+			this.output.write(
+				`${JSON.stringify({
+					jsonrpc: "2.0",
+					id: msg.id,
+					error: {
+						code: -32602,
+						message: "Duplicate active MCP progressToken",
+					},
+				})}\n`,
+			);
+			return;
+		}
+		try {
+			await this.requestContext.run(decoded.context, () => Promise.resolve(handler(msg)));
+		} finally {
+			this.clearProgressForRequest(msg.id);
+		}
+	}
+
+	private activateProgress(context: McpRequestContext): boolean {
+		if (context.progressToken === undefined) return true;
+		const tokenKey = mcpProgressTokenKey(context.progressToken);
+		if (this.activeProgressByToken.has(tokenKey)) return false;
+		const requestKey = String(context.requestId);
+		this.activeProgressByRequestId.set(requestKey, {
+			requestId: context.requestId,
+			token: context.progressToken,
+			tokenKey,
+			lastProgress: null,
+		});
+		this.activeProgressByToken.set(tokenKey, context.requestId);
+		return true;
+	}
+
+	private sendProgress(
+		progress: number,
+		details: { total?: number; message?: string } = {},
+	): void {
+		const context = this.requestContext.getStore();
+		if (!context || context.progressToken === undefined) return;
+		const active = this.activeProgressByRequestId.get(String(context.requestId));
+		if (!active || active.tokenKey !== mcpProgressTokenKey(context.progressToken)) return;
+		if (!Number.isFinite(progress)) {
+			this.log(`Ignored invalid MCP progress value for request ${String(context.requestId)}`);
+			return;
+		}
+		if (active.lastProgress !== null && progress <= active.lastProgress) {
+			this.log(`Ignored non-monotonic MCP progress value for request ${String(context.requestId)}`);
+			return;
+		}
+		if (details.total !== undefined && !Number.isFinite(details.total)) {
+			this.log(`Ignored invalid MCP progress total for request ${String(context.requestId)}`);
+			return;
+		}
+		active.lastProgress = progress;
+		this.ctxSendProgress(active.token, progress, details);
+	}
+
+	private ctxSendProgress(
+		progressToken: McpProgressToken,
+		progress: number,
+		details: { total?: number; message?: string },
+	): void {
+		this.output.write(`${JSON.stringify({
+			jsonrpc: "2.0",
+			method: "notifications/progress",
+			params: {
+				progressToken,
+				progress,
+				...(details.total !== undefined ? { total: details.total } : {}),
+				...(details.message !== undefined ? { message: details.message } : {}),
+			},
+		})}\n`);
+	}
+
+	private clearProgressFromCancelledNotification(msg: JsonRpcNotification): void {
+		const requestId = msg.params?.requestId;
+		if (typeof requestId !== "string" && typeof requestId !== "number") return;
+		this.clearProgressForRequest(requestId);
+	}
+
+	private clearProgressForRequest(requestId: JsonRpcRequest["id"]): void {
+		const active = this.activeProgressByRequestId.get(String(requestId));
+		if (!active) return;
+		this.activeProgressByRequestId.delete(String(requestId));
+		this.activeProgressByToken.delete(active.tokenKey);
 	}
 }

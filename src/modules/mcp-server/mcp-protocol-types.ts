@@ -29,6 +29,8 @@ export type McpProtocolVersion =
 	| typeof MCP_LEGACY_PROTOCOL_VERSION
 	| typeof MCP_DRAFT_PROTOCOL_VERSION;
 
+export type McpProgressToken = string | number;
+
 export type JsonRpcRequest = {
 	jsonrpc: "2.0";
 	id: number | string;
@@ -189,6 +191,8 @@ export type McpRequestContext = {
 	protocolVersion: typeof MCP_DRAFT_PROTOCOL_VERSION;
 	clientInfo: McpImplementation;
 	clientCapabilities: McpClientCapabilities;
+	requestId: JsonRpcRequest["id"];
+	progressToken?: McpProgressToken;
 };
 
 /**
@@ -210,7 +214,19 @@ export type HandlerContext = {
 	log: (msg: string) => void;
 	session: SessionState;
 	getRequestContext: () => McpRequestContext | null;
+	sendProgress: (
+		progress: number,
+		details?: { total?: number; message?: string },
+	) => void;
 };
+
+export function isMcpProgressToken(value: KotaJsonValue | undefined): value is McpProgressToken {
+	return typeof value === "string" || (typeof value === "number" && Number.isInteger(value));
+}
+
+export function mcpProgressTokenKey(token: McpProgressToken): string {
+	return `${typeof token}:${String(token)}`;
+}
 
 function hasObjectCapability(
 	capabilities: McpClientCapabilities,

@@ -133,6 +133,15 @@ function draftRequestParams(
 	};
 }
 
+function draftRequestParamsWithProgress(
+	params: Record<string, unknown>,
+	progressToken: string | number,
+): Record<string, unknown> {
+	const next = draftRequestParams(params);
+	(next._meta as Record<string, unknown>).progressToken = progressToken;
+	return next;
+}
+
 function writeProjectPrompt(
 	projectDir: string,
 	fileName: string,
@@ -754,6 +763,194 @@ describe("McpServer", () => {
 			const result = resp.result as Record<string, unknown>;
 			expect(result.resultType).toBeUndefined();
 			expect((result.content as Array<{ text: string }>)[0].text).toBe("legacy");
+
+			server.stop();
+		});
+
+		it("emits progress notifications for draft tools/call when progressToken is requested", async () => {
+			const { input, output } = createTestStreams();
+			const reader = createQueuedReader(output);
+			const server = new McpServer({
+				input,
+				output,
+				log: () => {},
+				moduleTools: [
+					{
+						tool: {
+							name: "ext_progress",
+							description: "Progress test",
+							input_schema: { type: "object" as const, properties: {}, required: [] },
+						},
+						runner: async () => ({ content: "progress result" }),
+						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+					},
+				],
+			});
+			await server.start();
+			sendRequest(input, 1, "initialize", {
+				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+				capabilities: {},
+				clientInfo: { name: "test", version: "1.0.0" },
+			});
+			await reader.read();
+			sendNotification(input, "notifications/initialized");
+
+			sendRequest(input, 2, "tools/call", draftRequestParamsWithProgress({
+				name: "ext_progress",
+				arguments: {},
+			}, "server-progress"));
+			const started = await reader.read();
+			const completed = await reader.read();
+			const response = await reader.read();
+
+			expect(started).toMatchObject({
+				method: "notifications/progress",
+				params: {
+					progressToken: "server-progress",
+					progress: 0,
+					total: 1,
+					message: "Calling tool: ext_progress",
+				},
+			});
+			expect(completed).toMatchObject({
+				method: "notifications/progress",
+				params: {
+					progressToken: "server-progress",
+					progress: 1,
+					total: 1,
+					message: "Tool call complete",
+				},
+			});
+			expect(response.id).toBe(2);
+			expect(response.result).toBeDefined();
+
+			server.stop();
+		});
+
+		it("does not emit tools/call progress when the request has no progressToken", async () => {
+			const { input, output } = createTestStreams();
+			const reader = createQueuedReader(output);
+			const server = new McpServer({
+				input,
+				output,
+				log: () => {},
+				moduleTools: [
+					{
+						tool: {
+							name: "ext_no_progress",
+							description: "No progress test",
+							input_schema: { type: "object" as const, properties: {}, required: [] },
+						},
+						runner: async () => ({ content: "done" }),
+						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+					},
+				],
+			});
+			await server.start();
+			sendRequest(input, 1, "initialize", {
+				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+				capabilities: {},
+				clientInfo: { name: "test", version: "1.0.0" },
+			});
+			await reader.read();
+			sendNotification(input, "notifications/initialized");
+
+			sendRequest(input, 2, "tools/call", draftRequestParams({
+				name: "ext_no_progress",
+				arguments: {},
+			}));
+			const response = await reader.read();
+
+			expect(response.id).toBe(2);
+			expect(response.result).toBeDefined();
+			await expectNoQueuedMessage(reader);
+
+			server.stop();
+		});
+
+		it("clears server progress state on cancellation before a delayed tools/call finishes", async () => {
+			const { input, output } = createTestStreams();
+			const reader = createQueuedReader(output);
+			let releaseTool!: () => void;
+			const toolGate = new Promise<void>((resolve) => { releaseTool = resolve; });
+			const server = new McpServer({
+				input,
+				output,
+				log: () => {},
+				moduleTools: [
+					{
+						tool: {
+							name: "ext_cancel_progress",
+							description: "Cancel progress test",
+							input_schema: { type: "object" as const, properties: {}, required: [] },
+						},
+						runner: async () => {
+							await toolGate;
+							return { content: "cancelled progress result" };
+						},
+						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+					},
+				],
+			});
+			await server.start();
+			sendRequest(input, 1, "initialize", {
+				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+				capabilities: {},
+				clientInfo: { name: "test", version: "1.0.0" },
+			});
+			await reader.read();
+			sendNotification(input, "notifications/initialized");
+
+			sendRequest(input, 2, "tools/call", draftRequestParamsWithProgress({
+				name: "ext_cancel_progress",
+				arguments: {},
+			}, "cancel-progress"));
+			const started = await reader.read();
+			expect(started.method).toBe("notifications/progress");
+
+			sendNotification(input, "notifications/cancelled", { requestId: 2 });
+			releaseTool();
+			const response = await reader.read();
+
+			expect(response.id).toBe(2);
+			expect(response.result).toBeDefined();
+			await expectNoQueuedMessage(reader);
+
+			server.stop();
+		});
+
+		it("rejects malformed draft progressToken metadata", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({
+				input,
+				output,
+				log: () => {},
+				moduleTools: [
+					{
+						tool: {
+							name: "ext_malformed_progress",
+							description: "Malformed progress test",
+							input_schema: { type: "object" as const, properties: {}, required: [] },
+						},
+						runner: async () => ({ content: "should not run" }),
+						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+					},
+				],
+			});
+			await initDraftServer(server, input, output);
+			const params = draftRequestParams({
+				name: "ext_malformed_progress",
+				arguments: {},
+			});
+			(params._meta as Record<string, unknown>).progressToken = 1.5;
+
+			sendRequest(input, 2, "tools/call", params);
+			const response = await readResponse(output);
+
+			expect(response.error).toMatchObject({
+				code: -32602,
+				message: "Malformed MCP draft _meta field: progressToken",
+			});
 
 			server.stop();
 		});

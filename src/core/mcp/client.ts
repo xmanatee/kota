@@ -49,6 +49,24 @@ type PendingRequest = {
 };
 
 type McpResultKind = "initialize" | "tools/call" | "tools/list";
+export type McpProgressToken = string | number;
+export type McpProgressEvent = {
+  requestId: number;
+  progressToken: McpProgressToken;
+  progress: number;
+  sequence: number;
+  total?: number;
+  message?: string;
+};
+export type McpProgressHandler = (event: McpProgressEvent) => void;
+export type McpRequestProgressOptions = {
+  onProgress: McpProgressHandler;
+  token?: McpProgressToken;
+  maxEvents?: number;
+};
+export type McpCallToolOptions = {
+  progress?: McpRequestProgressOptions;
+};
 type McpRejectedToolDefinition = {
   toolName?: string;
   reason: string;
@@ -164,6 +182,8 @@ export type McpCallToolRetry =
 
 const CONNECT_TIMEOUT = 10_000;
 const CALL_TIMEOUT = 120_000;
+const DEFAULT_MAX_PROGRESS_EVENTS = 20;
+const MAX_PROGRESS_WARNINGS = 20;
 const MCP_HEADER_ANNOTATION = "x-mcp-header";
 const KOTA_MCP_CLIENT_INFO = { name: "kota", version: "0.1.0" } as const;
 const MCP_META_PROTOCOL_VERSION_KEY = "io.modelcontextprotocol/protocolVersion";
@@ -330,8 +350,31 @@ type McpInitializeResult = {
   serverInfo?: { name?: string };
 };
 
+type ActiveProgressRequest = {
+  requestId: number;
+  progressToken: McpProgressToken;
+  lastProgress: number | null;
+  sequence: number;
+  maxEvents: number;
+  droppedEvents: number;
+  dropWarningEmitted: boolean;
+  onProgress: McpProgressHandler;
+};
+
 function isMcpProtocolVersion(value: string): value is McpProtocolVersion {
   return value === MCP_DRAFT_PROTOCOL_VERSION || value === MCP_LEGACY_PROTOCOL_VERSION;
+}
+
+function isMcpProgressToken(value: KotaJsonValue | undefined): value is McpProgressToken {
+  return typeof value === "string" || (typeof value === "number" && Number.isInteger(value));
+}
+
+function progressTokenKey(token: McpProgressToken): string {
+  return `${typeof token}:${String(token)}`;
+}
+
+function generatedProgressToken(requestId: number): McpProgressToken {
+  return `kota-progress-${requestId}`;
 }
 
 function decodeInitializeResult(value: JsonRpcResponse["result"]): McpInitializeResult {
@@ -996,6 +1039,9 @@ export class McpClient {
   private toolListSubscriptionId: number | null = null;
   private streamingRequestIds = new Set<number>();
   private toolListChangedHandlers = new Set<McpToolListChangedHandler>();
+  private activeProgressByRequestId = new Map<number, string>();
+  private activeProgressByToken = new Map<string, ActiveProgressRequest>();
+  private progressWarningCount = 0;
   private readonly supportedElicitationModes: readonly McpElicitationMode[];
 
   constructor(
@@ -1149,6 +1195,7 @@ export class McpClient {
     name: string,
     args: Record<string, unknown>,
     retry?: McpCallToolRetry,
+    options: McpCallToolOptions = {},
   ): Promise<McpCallToolResult> {
     const params: JsonRpcRequest["params"] = { name, arguments: args };
     if (retry) {
@@ -1170,7 +1217,7 @@ export class McpClient {
         );
       }
     }
-    const result = await this.request("tools/call", params, CALL_TIMEOUT);
+    const result = await this.request("tools/call", params, CALL_TIMEOUT, options.progress);
     return decodeCallToolResult(result, this.protocolVersion ?? MCP_LEGACY_PROTOCOL_VERSION);
   }
 
@@ -1181,6 +1228,7 @@ export class McpClient {
     this.connected = false;
     this.rejectAll(new Error(`MCP server "${this.serverName}" is closing`));
     this.streamingRequestIds.clear();
+    this.clearAllProgress();
     this.toolListSubscriptionId = null;
     this.toolListChangedHandlers.clear();
 
@@ -1225,6 +1273,7 @@ export class McpClient {
       if (typeof msg.id === "number" && this.pending.has(msg.id)) {
         const { resolve, reject } = this.pending.get(msg.id)!;
         this.pending.delete(msg.id);
+        this.clearProgressForRequest(msg.id);
         if (msg.error) {
           reject(new Error(`MCP error ${msg.error.code}: ${msg.error.message}`));
         } else {
@@ -1258,10 +1307,19 @@ export class McpClient {
   }
 
   private handleNotification(msg: JsonRpcIncomingMessage): void {
-    if (msg.method !== "notifications/tools/list_changed") return;
-    if (!this.isToolListChangedNotificationForThisClient(msg.params)) return;
-    for (const handler of this.toolListChangedHandlers) {
-      handler();
+    if (msg.method === "notifications/progress") {
+      this.handleProgressNotification(msg.params);
+      return;
+    }
+    if (msg.method === "notifications/cancelled") {
+      this.handleCancelledNotification(msg.params);
+      return;
+    }
+    if (msg.method === "notifications/tools/list_changed") {
+      if (!this.isToolListChangedNotificationForThisClient(msg.params)) return;
+      for (const handler of this.toolListChangedHandlers) {
+        handler();
+      }
     }
   }
 
@@ -1274,6 +1332,95 @@ export class McpClient {
     const subscriptionId = meta["io.modelcontextprotocol/subscriptionId"];
     if (subscriptionId === undefined) return true;
     return String(subscriptionId) === String(this.toolListSubscriptionId);
+  }
+
+  private handleProgressNotification(params: JsonRpcNotification["params"]): void {
+    if (!isJsonObject(params)) {
+      this.warnProgress("ignored malformed progress notification: params must be an object");
+      return;
+    }
+    const token = params.progressToken;
+    if (!isMcpProgressToken(token)) {
+      this.warnProgress(
+        "ignored malformed progress notification: progressToken must be a string or integer",
+      );
+      return;
+    }
+    const state = this.activeProgressByToken.get(progressTokenKey(token));
+    if (!state) {
+      this.warnProgress(
+        `ignored progress notification for inactive token "${String(token)}"`,
+      );
+      return;
+    }
+    if (typeof params.progress !== "number" || !Number.isFinite(params.progress)) {
+      this.warnProgress(
+        `ignored malformed progress notification for token "${String(token)}": progress must be a finite number`,
+      );
+      return;
+    }
+    if (
+      params.total !== undefined &&
+      (typeof params.total !== "number" || !Number.isFinite(params.total))
+    ) {
+      this.warnProgress(
+        `ignored malformed progress notification for token "${String(token)}": total must be a finite number`,
+      );
+      return;
+    }
+    if (params.message !== undefined && typeof params.message !== "string") {
+      this.warnProgress(
+        `ignored malformed progress notification for token "${String(token)}": message must be a string`,
+      );
+      return;
+    }
+    if (state.lastProgress !== null && params.progress <= state.lastProgress) {
+      this.warnProgress(
+        `ignored non-monotonic progress notification for token "${String(token)}"`,
+      );
+      return;
+    }
+
+    state.lastProgress = params.progress;
+    state.sequence += 1;
+    if (state.sequence > state.maxEvents) {
+      state.droppedEvents += 1;
+      if (!state.dropWarningEmitted) {
+        state.dropWarningEmitted = true;
+        this.warnProgress(
+          `coalescing progress notifications for token "${String(token)}" after ${state.maxEvents} event(s)`,
+        );
+      }
+      return;
+    }
+
+    try {
+      state.onProgress({
+        requestId: state.requestId,
+        progressToken: state.progressToken,
+        progress: params.progress,
+        sequence: state.sequence,
+        ...(params.total !== undefined ? { total: params.total } : {}),
+        ...(params.message !== undefined ? { message: params.message } : {}),
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.warnProgress(`ignored MCP progress callback error: ${message}`);
+    }
+  }
+
+  private handleCancelledNotification(params: JsonRpcNotification["params"]): void {
+    if (!isJsonObject(params)) return;
+    const requestId = params.requestId;
+    if (typeof requestId === "number" && Number.isInteger(requestId)) {
+      this.clearProgressForRequest(requestId);
+      return;
+    }
+    if (typeof requestId !== "string") return;
+    const parsed = Number(requestId);
+    if (Number.isInteger(parsed)) {
+      this.clearProgressForRequest(parsed);
+    }
   }
 
   private async initializeServer(): Promise<McpInitializeResult> {
@@ -1324,6 +1471,7 @@ export class McpClient {
 
   private paramsWithDraftMetadata(
     params: Record<string, unknown> | undefined,
+    progressToken?: McpProgressToken,
   ): Record<string, unknown> | undefined {
     if (this.protocolVersion !== MCP_DRAFT_PROTOCOL_VERSION) return params;
     const rawMeta = params?._meta;
@@ -1334,6 +1482,7 @@ export class McpClient {
       ...(params ?? {}),
       _meta: {
         ...(rawMeta ?? {}),
+        ...(progressToken !== undefined ? { progressToken } : {}),
         ...this.draftRequestMeta(),
       },
     };
@@ -1343,6 +1492,7 @@ export class McpClient {
     method: string,
     params?: Record<string, unknown>,
     timeout = CONNECT_TIMEOUT,
+    progress?: McpRequestProgressOptions,
   ): Promise<unknown> {
     if (!this.proc?.stdin?.writable) {
       return Promise.reject(
@@ -1351,7 +1501,11 @@ export class McpClient {
     }
 
     const id = this.nextId++;
-    const requestParams = this.paramsWithDraftMetadata(params);
+    let progressToken: McpProgressToken | undefined;
+    if (progress && this.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION) {
+      progressToken = progress.token ?? generatedProgressToken(id);
+    }
+    const requestParams = this.paramsWithDraftMetadata(params, progressToken);
     const msg: JsonRpcRequest = {
       jsonrpc: "2.0",
       id,
@@ -1360,8 +1514,17 @@ export class McpClient {
     };
 
     return new Promise((resolve, reject) => {
+      if (progress && progressToken !== undefined) {
+        try {
+          this.trackProgressRequest(id, progressToken, progress);
+        } catch (err) {
+          reject(err instanceof Error ? err : new Error(String(err)));
+          return;
+        }
+      }
       const timer = setTimeout(() => {
         this.pending.delete(id);
+        this.clearProgressForRequest(id);
         reject(new Error(`MCP request "${method}" timed out after ${timeout}ms`));
       }, timeout);
 
@@ -1402,5 +1565,55 @@ export class McpClient {
       reject(error);
     }
     this.pending.clear();
+    this.clearAllProgress();
+  }
+
+  private trackProgressRequest(
+    requestId: number,
+    progressToken: McpProgressToken,
+    options: McpRequestProgressOptions,
+  ): void {
+    const key = progressTokenKey(progressToken);
+    if (this.activeProgressByToken.has(key)) {
+      throw new Error(`MCP progress token is already active: ${String(progressToken)}`);
+    }
+    const maxEvents = options.maxEvents ?? DEFAULT_MAX_PROGRESS_EVENTS;
+    if (!Number.isInteger(maxEvents) || maxEvents <= 0) {
+      throw new Error("MCP progress maxEvents must be a positive integer");
+    }
+    this.activeProgressByRequestId.set(requestId, key);
+    this.activeProgressByToken.set(key, {
+      requestId,
+      progressToken,
+      lastProgress: null,
+      sequence: 0,
+      maxEvents,
+      droppedEvents: 0,
+      dropWarningEmitted: false,
+      onProgress: options.onProgress,
+    });
+  }
+
+  private clearProgressForRequest(requestId: number): void {
+    const key = this.activeProgressByRequestId.get(requestId);
+    if (!key) return;
+    this.activeProgressByRequestId.delete(requestId);
+    this.activeProgressByToken.delete(key);
+  }
+
+  private clearAllProgress(): void {
+    this.activeProgressByRequestId.clear();
+    this.activeProgressByToken.clear();
+  }
+
+  private warnProgress(message: string): void {
+    if (this.progressWarningCount < MAX_PROGRESS_WARNINGS) {
+      console.error(`[kota] Warning: MCP server "${this.serverName}" ${message}`);
+    } else if (this.progressWarningCount === MAX_PROGRESS_WARNINGS) {
+      console.error(
+        `[kota] Warning: MCP server "${this.serverName}" suppressed further progress warnings`,
+      );
+    }
+    this.progressWarningCount += 1;
   }
 }
