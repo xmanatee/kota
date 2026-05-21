@@ -247,6 +247,9 @@ resources:
       fingerprint: sha256:310194637cdcc062e75568ae891640a4
       summary: "Open Agents still maps mostly to KOTA's existing workflow/session/harness model; its frontend-preview harness-parity signal is now covered by the completed frontend preview scenario."
       last_seen_at: "2026-05-18T08:48:25.077Z"
+  - url: https://github.com/vercel-labs/deepsec
+    added: "2026-05-21"
+    notes: "Vercel Labs deepsec is an agent-powered vulnerability scanner with deterministic candidate scans, agent investigation, revalidation, enrichment, export, resumable local runs, and optional sandbox fan-out. Monitor as a peer signal for KOTA security-review workflow design, run-artifact shape, false-positive reduction, and bounded high-cost security automation."
   - url: https://vercel.com/docs/workflow
     added: "2026-05-07"
     notes: "Vercel Workflow SDK docs — durable, resumable orchestration with checkpointing. Peer to KOTA's workflow runtime; useful comparison for workflow durability and resume semantics. Snapshot and distill on the next explorer cycle."
