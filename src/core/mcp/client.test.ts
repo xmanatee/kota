@@ -5,10 +5,21 @@ import {
   type McpCallToolResult,
   McpClient,
   type McpCompleteCallToolResult,
+  McpConnectionError,
   type McpLegacyCallToolResult,
   type McpProgressEvent,
+  McpToolError,
   type McpToolSchema,
 } from "./client.js";
+
+type RecordedClientHttpRequest = {
+  headers: Headers;
+  body: {
+    id?: number;
+    method?: string;
+    params?: Record<string, any>;
+  };
+};
 
 function expectCompletedResult(
   result: McpCallToolResult,
@@ -17,6 +28,32 @@ function expectCompletedResult(
     throw new Error("Expected a completed MCP tool result");
   }
   return result;
+}
+
+function mockClientHttpFetch(
+  handler: (request: RecordedClientHttpRequest) => Response,
+): { mockRestore: () => void } {
+  return vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+    const body = JSON.parse(String(init?.body ?? "{}"));
+    return handler({
+      headers: new Headers(init?.headers),
+      body,
+    });
+  });
+}
+
+function jsonRpcHttpResponse(id: number | undefined, result: Record<string, any>): Response {
+  return new Response(JSON.stringify({ jsonrpc: "2.0", id, result }), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+function sseJsonRpcHttpResponse(id: number | undefined, result: Record<string, any>): Response {
+  return new Response(`event: message\ndata: ${JSON.stringify({ jsonrpc: "2.0", id, result })}\n\n`, {
+    status: 200,
+    headers: { "content-type": "text/event-stream" },
+  });
 }
 
 /**
@@ -1397,6 +1434,215 @@ describe("McpClient lifecycle (fake MCP server)", () => {
     // Server will exit; next call should be rejected
     await expect(client.listTools()).rejects.toThrow(/exited/);
   }, 10_000);
+});
+
+describe("McpClient Streamable HTTP transport", () => {
+  let client: McpClient | null = null;
+
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    if (client) {
+      await client.close();
+      client = null;
+    }
+  });
+
+  it("connects with server/discover and parses SSE tools/list responses", async () => {
+    mockClientHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: {} },
+          serverInfo: { name: "sse-http-fixture" },
+        });
+      }
+      if (request.body.method === "tools/list") {
+        expect(request.headers.get("mcp-method")).toBe("tools/list");
+        return sseJsonRpcHttpResponse(request.body.id, {
+          tools: [{ name: "from_sse", inputSchema: { type: "object" } }],
+        });
+      }
+      return jsonRpcHttpResponse(request.body.id, {
+        resultType: "complete",
+        content: [{ type: "text", text: "ok" }],
+      });
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "sse-client",
+    );
+
+    await client.connect();
+    const tools = await client.listTools();
+
+    expect(client.getName()).toBe("sse-http-fixture");
+    expect(client.getProtocolVersion()).toBe(MCP_DRAFT_PROTOCOL_VERSION);
+    expect(tools.map((tool) => tool.name)).toEqual(["from_sse"]);
+  });
+
+  it("rejects unsupported discover protocol versions as a typed connection error", async () => {
+    mockClientHttpFetch((request) => jsonRpcHttpResponse(request.body.id, {
+      supportedVersions: ["2024-11-05"],
+      capabilities: {},
+      serverInfo: { name: "legacy-only" },
+    }));
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "http-client",
+    );
+
+    await expect(client.connect()).rejects.toMatchObject({
+      name: "McpConnectionError",
+      serverName: "http-client",
+      method: "server/discover",
+    });
+    await expect(client.connect()).rejects.toThrow(McpConnectionError);
+  });
+
+  it("wraps HTTP transport failures as typed connection errors that name the server", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("fetch failed"));
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "offline-http-client",
+    );
+
+    await expect(client.connect()).rejects.toMatchObject({
+      name: "McpConnectionError",
+      serverName: "offline-http-client",
+      method: "server/discover",
+    });
+    await expect(client.connect()).rejects.toThrow(/fetch failed/);
+  });
+
+  it("wraps HTTP JSON-RPC method failures as typed tool errors that name the server", async () => {
+    mockClientHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: {} },
+          serverInfo: { name: "http-tool-errors" },
+        });
+      }
+      return new Response(JSON.stringify({
+        jsonrpc: "2.0",
+        id: request.body.id,
+        error: { code: -32601, message: `Method not found: ${request.body.method}` },
+      }), {
+        status: 404,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "http-tool-client",
+    );
+    await client.connect();
+
+    await expect(client.callTool("missing", {})).rejects.toMatchObject({
+      name: "McpToolError",
+      serverName: "http-tool-errors",
+      method: "tools/call",
+    });
+    await expect(client.callTool("missing", {})).rejects.toThrow(McpToolError);
+  });
+
+  it("rejects HTTP servers that advertise unsupported tools.listChanged streams", async () => {
+    mockClientHttpFetch((request) => jsonRpcHttpResponse(request.body.id, {
+      supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+      capabilities: { tools: { listChanged: true } },
+      serverInfo: { name: "http-list-changed-fixture" },
+    }));
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "http-list-changed-client",
+    );
+
+    await expect(client.connect()).rejects.toMatchObject({
+      name: "McpConnectionError",
+      serverName: "http-list-changed-fixture",
+      method: "server/discover",
+      message: expect.stringMatching(/tools\.listChanged.*Streamable HTTP/),
+    });
+  });
+
+  it("mirrors annotated tool arguments into HTTP Mcp-Param headers", async () => {
+    const toolCalls: RecordedClientHttpRequest[] = [];
+    mockClientHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: {} },
+          serverInfo: { name: "http-header-fixture" },
+        });
+      }
+      if (request.body.method === "tools/list") {
+        return jsonRpcHttpResponse(request.body.id, {
+          tools: [{
+            name: "annotated",
+            inputSchema: {
+              type: "object",
+              properties: {
+                token: { type: "string", "x-mcp-header": "X-Token" },
+                retries: { type: "number", "x-mcp-header": "X-Retry" },
+                dryRun: { type: "boolean", "x-mcp-header": "X-Dry-Run" },
+              },
+            },
+          }],
+        });
+      }
+      if (request.body.method === "tools/call") {
+        toolCalls.push(request);
+      }
+      return jsonRpcHttpResponse(request.body.id, {
+        resultType: "complete",
+        content: [{ type: "text", text: "ok" }],
+      });
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "http-header-client",
+    );
+    await client.connect();
+    await client.listTools();
+
+    const result = expectCompletedResult(await client.callTool("annotated", {
+      token: "secret",
+      retries: 3,
+      dryRun: false,
+    }));
+
+    expect(result.text).toBe("ok");
+    expect(toolCalls).toHaveLength(1);
+    expect(toolCalls[0].headers.get("mcp-param-x-token")).toBe("secret");
+    expect(toolCalls[0].headers.get("mcp-param-x-retry")).toBe("3");
+    expect(toolCalls[0].headers.get("mcp-param-x-dry-run")).toBe("false");
+  });
+
+  it("fails progress-enabled HTTP tool calls explicitly instead of opening an SSE stream", async () => {
+    mockClientHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: {} },
+        });
+      }
+      return jsonRpcHttpResponse(request.body.id, {
+        resultType: "complete",
+        content: [{ type: "text", text: "ok" }],
+      });
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "progress-http-client",
+    );
+    await client.connect();
+
+    await expect(
+      client.callTool("long", {}, undefined, {
+        progress: { onProgress: () => {} },
+      }),
+    ).rejects.toThrow(/SSE progress streams are not implemented/);
+  });
 });
 
 describe("McpClient x-mcp-header validation", () => {

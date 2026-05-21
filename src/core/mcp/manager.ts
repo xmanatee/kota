@@ -1,24 +1,30 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { KotaJsonObject, KotaTool } from "#core/agent-harness/message-protocol.js";
+import type {
+  KotaJsonObject,
+  KotaJsonValue,
+  KotaTool,
+} from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/index.js";
 import { validateToolStructuredOutput } from "#core/tools/output-schema.js";
 import {
   type McpCallToolResult,
   McpClient,
+  type McpClientTransportConfig,
   type McpElicitationMode,
   type McpInputRequiredCallToolResult,
   type McpProgressEvent,
+  type McpStdioClientTransportConfig,
+  type McpStreamableHttpClientTransportConfig,
+  McpToolError,
   type McpToolInputRequests,
   type McpToolInputResponses,
   type McpToolSchema,
 } from "./client.js";
 
-type McpServerConfig = {
-  command: string;
-  args?: string[];
-  env?: Record<string, string>;
-};
+export type McpServerStdioConfig = McpStdioClientTransportConfig;
+export type McpServerHttpConfig = McpStreamableHttpClientTransportConfig;
+export type McpServerConfig = McpServerStdioConfig | McpServerHttpConfig;
 
 type McpConfig = {
   mcpServers: Record<string, McpServerConfig>;
@@ -64,6 +70,9 @@ export type McpExecuteToolOptions = {
 };
 
 const SEPARATOR = "__";
+const MCP_CONFIG_FIELDS = new Set(["type", "command", "args", "env", "url", "headers"]);
+const MCP_STDIO_FIELDS = ["command", "args", "env"] as const;
+const MCP_HTTP_FIELDS = ["url", "headers"] as const;
 
 /** Build a namespaced tool name: mcp__<server>__<tool> */
 export function namespaceTool(serverName: string, toolName: string): string {
@@ -124,6 +133,117 @@ function unsupportedInputRequiredResult(
     is_error: true,
     _meta: { mcp: inputRequiredDiagnostics(entry, result) },
   };
+}
+
+function isJsonObject(value: McpServerConfig | KotaJsonValue): value is KotaJsonObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function presentFields(raw: KotaJsonObject, fields: readonly string[]): string[] {
+  return fields.filter((field) => raw[field] !== undefined);
+}
+
+function assertNoUnknownConfigFields(serverName: string, raw: KotaJsonObject): void {
+  const unknownFields = Object.keys(raw).filter((field) => !MCP_CONFIG_FIELDS.has(field));
+  if (unknownFields.length === 0) return;
+  throw new Error(
+    `Invalid MCP server config for "${serverName}": unexpected field${unknownFields.length === 1 ? "" : "s"} ${unknownFields.join(", ")}`,
+  );
+}
+
+function decodeTransportType(
+  serverName: string,
+  value: KotaJsonValue | undefined,
+): "stdio" | "http" {
+  if (value === undefined) return "stdio";
+  if (value === "stdio" || value === "http") return value;
+  throw new Error(
+    `Invalid MCP server config for "${serverName}": type must be "stdio" or "http"`,
+  );
+}
+
+function optionalStringArray(
+  value: KotaJsonValue | undefined,
+  label: string,
+): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || !value.every((entry) => typeof entry === "string")) {
+    throw new Error(`${label} must be an array of strings`);
+  }
+  return [...value];
+}
+
+function optionalStringRecord(
+  value: KotaJsonValue | undefined,
+  label: string,
+): Record<string, string> | undefined {
+  if (value === undefined) return undefined;
+  if (!isJsonObject(value)) {
+    throw new Error(`${label} must be an object with string values`);
+  }
+  const out: Record<string, string> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (typeof entry !== "string") {
+      throw new Error(`${label}.${key} must be a string`);
+    }
+    out[key] = entry;
+  }
+  return out;
+}
+
+function normalizeMcpServerConfig(
+  serverName: string,
+  config: McpServerConfig,
+): McpClientTransportConfig {
+  if (!isJsonObject(config)) {
+    throw new Error(`Invalid MCP server config for "${serverName}": config must be an object`);
+  }
+  const raw = config as KotaJsonObject;
+  assertNoUnknownConfigFields(serverName, raw);
+  const type = decodeTransportType(serverName, raw.type);
+  if (type === "stdio") {
+    const httpFields = presentFields(raw, MCP_HTTP_FIELDS);
+    if (httpFields.length > 0) {
+      throw new Error(
+        `Invalid MCP server config for "${serverName}": stdio transport cannot define http field${httpFields.length === 1 ? "" : "s"} ${httpFields.join(", ")}`,
+      );
+    }
+    if (typeof raw.command !== "string" || raw.command.length === 0) {
+      throw new Error(
+        `Invalid MCP server config for "${serverName}": stdio transport requires command`,
+      );
+    }
+    const args = optionalStringArray(raw.args, "args");
+    const env = optionalStringRecord(raw.env, "env");
+    return {
+      type: "stdio",
+      command: raw.command,
+      ...(args ? { args } : {}),
+      ...(env ? { env } : {}),
+    };
+  }
+  if (type === "http") {
+    const stdioFields = presentFields(raw, MCP_STDIO_FIELDS);
+    if (stdioFields.length > 0) {
+      throw new Error(
+        `Invalid MCP server config for "${serverName}": http transport cannot also define stdio fields`,
+      );
+    }
+    if (typeof raw.url !== "string" || raw.url.length === 0) {
+      throw new Error(
+        `Invalid MCP server config for "${serverName}": http transport requires url`,
+      );
+    }
+    const headers = optionalStringRecord(raw.headers, "headers");
+    return {
+      type: "http",
+      url: raw.url,
+      ...(headers ? { headers } : {}),
+    };
+  }
+  throw new Error(
+    `Invalid MCP server config for "${serverName}": type must be "stdio" or "http"`,
+  );
 }
 
 function toToolResult(entry: McpToolEntry, result: McpCallToolResult): ToolResult {
@@ -188,15 +308,15 @@ export class McpManager {
 
     const results = await Promise.allSettled(
       entries.map(async ([name, serverConfig]) => {
-        const client = new McpClient(
-          serverConfig.command,
-          serverConfig.args || [],
-          serverConfig.env || {},
-          name,
-          { supportedElicitationModes },
-        );
-        this.serverTools.set(name, []);
+        let client: McpClient | null = null;
         try {
+          const transport = normalizeMcpServerConfig(name, serverConfig);
+          client = new McpClient(
+            transport,
+            name,
+            { supportedElicitationModes },
+          );
+          this.serverTools.set(name, []);
           await client.connect();
           this.clients.set(name, client);
           this.initializingServers.add(name);
@@ -222,7 +342,7 @@ export class McpManager {
           this.toolListUnsubscribers.delete(name);
           this.clients.delete(name);
           this.serverTools.delete(name);
-          await client.close().catch(() => {});
+          await client?.close().catch(() => {});
           return null;
         }
       }),
@@ -312,7 +432,10 @@ export class McpManager {
       if (!entry.client.isConnected()) {
         return { content: `MCP server disconnected for tool: ${name}`, is_error: true };
       }
-      return { content: `MCP tool error: ${(err as Error).message}`, is_error: true };
+      const message = err instanceof McpToolError
+        ? err.message
+        : `MCP tool error: ${(err as Error).message}`;
+      return { content: message, is_error: true };
     }
   }
 

@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { type ChildProcess, spawn } from "node:child_process";
 import { createInterface, type Interface } from "node:readline";
 import type {
@@ -41,6 +42,8 @@ type JsonRpcResponse = {
   error?: { code: number; message: string; data?: unknown };
 };
 
+type JsonRpcParams = JsonRpcRequest["params"];
+type JsonRpcResult = JsonRpcResponse["result"];
 type JsonRpcIncomingMessage = Partial<JsonRpcNotification & JsonRpcResponse>;
 
 type PendingRequest = {
@@ -48,7 +51,7 @@ type PendingRequest = {
   reject: (reason: Error) => void;
 };
 
-type McpResultKind = "initialize" | "tools/call" | "tools/list";
+type McpResultKind = "initialize" | "server/discover" | "tools/call" | "tools/list";
 export type McpProgressToken = string | number;
 export type McpProgressEvent = {
   requestId: number;
@@ -194,6 +197,51 @@ const MCP_META_CLIENT_CAPABILITIES_KEY =
 export type McpClientOptions = {
   supportedElicitationModes?: readonly McpElicitationMode[];
 };
+
+export type McpStdioClientTransportConfig = {
+  type?: "stdio";
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+};
+
+export type McpStreamableHttpClientTransportConfig = {
+  type: "http";
+  url: string;
+  headers?: Record<string, string>;
+};
+
+export type McpClientTransportConfig =
+  | McpStdioClientTransportConfig
+  | McpStreamableHttpClientTransportConfig;
+
+type NormalizedMcpClientTransport =
+  | (McpStdioClientTransportConfig & { type: "stdio" })
+  | McpStreamableHttpClientTransportConfig;
+
+export class McpConnectionError extends Error {
+  readonly name = "McpConnectionError";
+
+  constructor(
+    readonly serverName: string,
+    readonly method: string,
+    message: string,
+  ) {
+    super(`MCP connection error for server "${serverName}" during ${method}: ${message}`);
+  }
+}
+
+export class McpToolError extends Error {
+  readonly name = "McpToolError";
+
+  constructor(
+    readonly serverName: string,
+    readonly method: string,
+    message: string,
+  ) {
+    super(`MCP tool error for server "${serverName}" during ${method}: ${message}`);
+  }
+}
 
 export function mcpToolInputRequestElicitationMode(
   request: McpToolInputRequest,
@@ -361,6 +409,27 @@ type ActiveProgressRequest = {
   onProgress: McpProgressHandler;
 };
 
+type McpHeaderParameterSpec = {
+  paramName: string;
+  headerName: string;
+};
+
+function decodeToolsListChangedCapability(
+  capabilities: KotaJsonObject | undefined,
+  kind: McpResultKind,
+): boolean {
+  const toolsCapability = capabilities
+    ? optionalJsonObject(capabilities.tools, "capabilities.tools", kind)
+    : undefined;
+  return toolsCapability
+    ? optionalBoolean(
+      toolsCapability.listChanged,
+      "capabilities.tools.listChanged",
+      kind,
+    ) === true
+    : false;
+}
+
 function isMcpProtocolVersion(value: string): value is McpProtocolVersion {
   return value === MCP_DRAFT_PROTOCOL_VERSION || value === MCP_LEGACY_PROTOCOL_VERSION;
 }
@@ -394,16 +463,7 @@ function decodeInitializeResult(value: JsonRpcResponse["result"]): McpInitialize
     "capabilities",
     "initialize",
   );
-  const toolsCapability = capabilities
-    ? optionalJsonObject(capabilities.tools, "capabilities.tools", "initialize")
-    : undefined;
-  const toolsListChanged = toolsCapability
-    ? optionalBoolean(
-      toolsCapability.listChanged,
-      "capabilities.tools.listChanged",
-      "initialize",
-    ) === true
-    : false;
+  const toolsListChanged = decodeToolsListChangedCapability(capabilities, "initialize");
   const rawServerInfo = optionalJsonObject(
     object.serverInfo,
     "serverInfo",
@@ -414,6 +474,42 @@ function decodeInitializeResult(value: JsonRpcResponse["result"]): McpInitialize
     : undefined;
   return {
     protocolVersion,
+    toolsListChanged,
+    ...(rawServerInfo ? { serverInfo: { ...(name !== undefined ? { name } : {}) } } : {}),
+  };
+}
+
+function decodeDiscoverResult(value: JsonRpcResponse["result"]): McpInitializeResult {
+  const object = requireJsonObject(value, "result", "server/discover");
+  const supportedVersions = optionalStringArray(
+    object.supportedVersions,
+    "supportedVersions",
+    "server/discover",
+  );
+  if (!supportedVersions?.includes(MCP_DRAFT_PROTOCOL_VERSION)) {
+    throw new Error(
+      `Malformed MCP server/discover result: supportedVersions must include ${MCP_DRAFT_PROTOCOL_VERSION}`,
+    );
+  }
+  const capabilities = optionalJsonObject(
+    object.capabilities,
+    "capabilities",
+    "server/discover",
+  );
+  const toolsListChanged = decodeToolsListChangedCapability(
+    capabilities,
+    "server/discover",
+  );
+  const rawServerInfo = optionalJsonObject(
+    object.serverInfo,
+    "serverInfo",
+    "server/discover",
+  );
+  const name = rawServerInfo
+    ? optionalString(rawServerInfo.name, "serverInfo.name", "server/discover")
+    : undefined;
+  return {
+    protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
     toolsListChanged,
     ...(rawServerInfo ? { serverInfo: { ...(name !== undefined ? { name } : {}) } } : {}),
   };
@@ -567,6 +663,18 @@ function validateMcpHeaderAnnotations(
   });
 }
 
+function collectMcpHeaderParameters(tool: McpToolSchema): McpHeaderParameterSpec[] {
+  const specs: McpHeaderParameterSpec[] = [];
+  for (const [paramName, rawPropertySchema] of Object.entries(tool.inputSchema.properties)) {
+    if (!isJsonObject(rawPropertySchema)) continue;
+    const headerName = rawPropertySchema[MCP_HEADER_ANNOTATION];
+    if (typeof headerName !== "string") continue;
+    if (!isPrimitiveHeaderPropertyType(rawPropertySchema.type)) continue;
+    specs.push({ paramName, headerName });
+  }
+  return specs;
+}
+
 function decodeToolDefinition(value: KotaJsonValue, index: number): McpToolSchema {
   const label = `tools[${index}]`;
   const object = optionalJsonObject(value, label, "tools/list");
@@ -626,6 +734,31 @@ function warnRejectedTool(serverName: string, rejected: McpRejectedToolDefinitio
   console.error(
     `[kota] Warning: rejected MCP ${toolLabel} from server "${serverName}": ${rejected.reason}`,
   );
+}
+
+function isPlainMcpParamHeaderValue(value: string): boolean {
+  if (value.length === 0 || value.trim() !== value) return false;
+  if (value.startsWith("=?base64?") && value.endsWith("?=")) return false;
+  for (const char of value) {
+    const code = char.charCodeAt(0);
+    if (code !== 0x09 && (code < 0x20 || code > 0x7e)) return false;
+  }
+  return true;
+}
+
+function mcpParamHeaderValue(value: KotaJsonValue | undefined): string | null {
+  let raw: string;
+  if (typeof value === "string") {
+    raw = value;
+  } else if (typeof value === "number" && Number.isFinite(value)) {
+    raw = String(value);
+  } else if (typeof value === "boolean") {
+    raw = value ? "true" : "false";
+  } else {
+    return null;
+  }
+  if (isPlainMcpParamHeaderValue(raw)) return raw;
+  return `=?base64?${Buffer.from(raw, "utf8").toString("base64")}?=`;
 }
 
 function decodeAnnotations(
@@ -1019,11 +1152,34 @@ function isUnsupportedProtocolVersionError(err: Error): boolean {
   return /MCP error -32602: Unsupported protocol version/.test(err.message);
 }
 
+function normalizeClientTransportConfig(
+  config: McpClientTransportConfig,
+): NormalizedMcpClientTransport {
+  if (config.type === "http") {
+    const url = new URL(config.url);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      throw new Error("MCP HTTP transport URL must use http or https");
+    }
+    return {
+      type: "http",
+      url: url.toString(),
+      ...(config.headers ? { headers: { ...config.headers } } : {}),
+    };
+  }
+  return {
+    type: "stdio",
+    command: config.command,
+    ...(config.args ? { args: [...config.args] } : {}),
+    ...(config.env ? { env: { ...config.env } } : {}),
+  };
+}
+
 /**
- * Lightweight MCP client using JSON-RPC 2.0 over stdio.
+ * Lightweight MCP client using JSON-RPC 2.0 over stdio or Streamable HTTP.
  * Handles the MCP lifecycle: initialize → list tools → call tools → close.
  */
 export class McpClient {
+  private readonly transport: NormalizedMcpClientTransport;
   private proc: ChildProcess | null = null;
   private rl: Interface | null = null;
   private nextId = 1;
@@ -1042,18 +1198,48 @@ export class McpClient {
   private activeProgressByRequestId = new Map<number, string>();
   private activeProgressByToken = new Map<string, ActiveProgressRequest>();
   private progressWarningCount = 0;
+  private readonly headerParametersByTool = new Map<string, McpHeaderParameterSpec[]>();
   private readonly supportedElicitationModes: readonly McpElicitationMode[];
 
   constructor(
-    private command: string,
-    private args: string[] = [],
-    private env: Record<string, string> = {},
+    command: string,
+    args?: string[],
+    env?: Record<string, string>,
+    name?: string,
+    options?: McpClientOptions,
+  );
+  constructor(
+    transport: McpClientTransportConfig,
+    name?: string,
+    options?: McpClientOptions,
+  );
+  constructor(
+    commandOrTransport: string | McpClientTransportConfig,
+    argsOrName: string[] | string = [],
+    envOrOptions: Record<string, string> | McpClientOptions = {},
     name?: string,
     options: McpClientOptions = {},
   ) {
-    this.serverName = name || command;
+    let resolvedOptions: McpClientOptions;
+    if (typeof commandOrTransport === "string") {
+      const args = Array.isArray(argsOrName) ? argsOrName : [];
+      const env = envOrOptions as Record<string, string>;
+      this.transport = {
+        type: "stdio",
+        command: commandOrTransport,
+        args,
+        env,
+      };
+      this.serverName = name || commandOrTransport;
+      resolvedOptions = options;
+    } else {
+      this.transport = normalizeClientTransportConfig(commandOrTransport);
+      const explicitName = typeof argsOrName === "string" ? argsOrName : undefined;
+      this.serverName = explicitName || this.defaultServerNameForTransport();
+      resolvedOptions = envOrOptions as McpClientOptions;
+    }
     this.supportedElicitationModes = uniqueSupportedElicitationModes(
-      options.supportedElicitationModes,
+      resolvedOptions.supportedElicitationModes,
     );
   }
 
@@ -1084,7 +1270,7 @@ export class McpClient {
     return this.connected;
   }
 
-  /** Spawn the server process and complete the MCP handshake. */
+  /** Connect the configured transport and complete the MCP handshake. */
   async connect(): Promise<void> {
     if (this.connected) {
       throw new Error(`MCP server "${this.serverName}" is already connected`);
@@ -1098,58 +1284,98 @@ export class McpClient {
 
     this.connecting = true;
     try {
-      this.proc = spawn(this.command, this.args, {
-        stdio: ["pipe", "pipe", "pipe"],
-        env: { ...process.env, ...this.env },
-      });
-
-      this.proc.on("error", (err) => {
-        this.rejectAll(new Error(`MCP server "${this.serverName}" failed: ${err.message}`));
-        this.connected = false;
-      });
-
-      this.proc.on("exit", (code) => {
-        this.rejectAll(new Error(`MCP server "${this.serverName}" exited with code ${code}`));
-        this.connected = false;
-      });
-
-      // Absorb stdin write errors (server may have exited)
-      this.proc.stdin?.on("error", () => {});
-
-      // Capture stderr for diagnostics but don't block
-      this.proc.stderr?.on("data", (chunk: Buffer) => {
-        const text = chunk.toString().trim();
-        if (text) console.error(`[mcp:${this.serverName}] ${text}`);
-      });
-
-      this.rl = createInterface({ input: this.proc.stdout! });
-      this.rl.on("line", (line) => this.handleLine(line));
-
-      const result = await this.initializeServer();
-
-      // Send initialized notification
-      this.notify("notifications/initialized");
-
-      // close() may have been called during the handshake await
-      if (this.closing) {
-        throw new Error(`MCP server "${this.serverName}" was closed during connection`);
-      }
-
-      if (result.serverInfo?.name) {
-        this.serverName = result.serverInfo.name;
-      }
-      this.protocolVersion = result.protocolVersion;
-      this.toolResultContract = result.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION
-        ? "draft-tool-result"
-        : "legacy-content";
-      this.toolsListChanged = result.toolsListChanged;
-      this.connected = true;
-      if (this.toolsListChanged && result.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION) {
-        this.openToolListChangedSubscription();
+      if (this.transport.type === "http") {
+        await this.connectHttp();
+      } else {
+        await this.connectStdio();
       }
     } finally {
       this.connecting = false;
     }
+  }
+
+  private async connectStdio(): Promise<void> {
+    if (this.transport.type !== "stdio") return;
+    this.proc = spawn(this.transport.command, this.transport.args ?? [], {
+      stdio: ["pipe", "pipe", "pipe"],
+      env: { ...process.env, ...(this.transport.env ?? {}) },
+    });
+
+    this.proc.on("error", (err) => {
+      this.rejectAll(new Error(`MCP server "${this.serverName}" failed: ${err.message}`));
+      this.connected = false;
+    });
+
+    this.proc.on("exit", (code) => {
+      this.rejectAll(new Error(`MCP server "${this.serverName}" exited with code ${code}`));
+      this.connected = false;
+    });
+
+    // Absorb stdin write errors (server may have exited)
+    this.proc.stdin?.on("error", () => {});
+
+    // Capture stderr for diagnostics but don't block
+    this.proc.stderr?.on("data", (chunk: Buffer) => {
+      const text = chunk.toString().trim();
+      if (text) console.error(`[mcp:${this.serverName}] ${text}`);
+    });
+
+    this.rl = createInterface({ input: this.proc.stdout! });
+    this.rl.on("line", (line) => this.handleLine(line));
+
+    const result = await this.initializeServer();
+
+    // Send initialized notification
+    this.notify("notifications/initialized");
+
+    // close() may have been called during the handshake await
+    if (this.closing) {
+      throw new Error(`MCP server "${this.serverName}" was closed during connection`);
+    }
+
+    if (result.serverInfo?.name) {
+      this.serverName = result.serverInfo.name;
+    }
+    this.protocolVersion = result.protocolVersion;
+    this.toolResultContract = result.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION
+      ? "draft-tool-result"
+      : "legacy-content";
+    this.toolsListChanged = result.toolsListChanged;
+    this.connected = true;
+    if (this.toolsListChanged && result.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION) {
+      this.openToolListChangedSubscription();
+    }
+  }
+
+  private async connectHttp(): Promise<void> {
+    this.protocolVersion = MCP_DRAFT_PROTOCOL_VERSION;
+    this.toolResultContract = "draft-tool-result";
+    let result: McpInitializeResult;
+    try {
+      result = decodeDiscoverResult(await this.request("server/discover"));
+    } catch (err) {
+      if (err instanceof McpConnectionError) throw err;
+      const message = err instanceof Error ? err.message : String(err);
+      throw this.requestErrorForMethod("server/discover", message);
+    }
+
+    if (this.closing) {
+      throw new Error(`MCP server "${this.serverName}" was closed during connection`);
+    }
+
+    if (result.serverInfo?.name) {
+      this.serverName = result.serverInfo.name;
+    }
+    if (result.toolsListChanged) {
+      throw this.requestErrorForMethod(
+        "server/discover",
+        "tools.listChanged requires a long-lived subscriptions/listen stream, which is not implemented for Streamable HTTP client connections",
+      );
+    }
+    this.protocolVersion = result.protocolVersion;
+    this.toolResultContract = "draft-tool-result";
+    this.toolsListChanged = result.toolsListChanged;
+    this.connected = true;
   }
 
   /** List available tools from the server. */
@@ -1187,6 +1413,7 @@ export class McpClient {
       }
     } while (cursor !== undefined);
 
+    this.cacheHeaderParameters(tools);
     return tools;
   }
 
@@ -1223,6 +1450,16 @@ export class McpClient {
 
   /** Gracefully shut down the server. */
   async close(): Promise<void> {
+    if (this.transport.type === "http") {
+      if (this.closing) return;
+      this.closing = true;
+      this.connected = false;
+      this.streamingRequestIds.clear();
+      this.clearAllProgress();
+      this.toolListSubscriptionId = null;
+      this.toolListChangedHandlers.clear();
+      return;
+    }
     if (!this.proc || this.closing) return;
     this.closing = true;
     this.connected = false;
@@ -1470,9 +1707,9 @@ export class McpClient {
   }
 
   private paramsWithDraftMetadata(
-    params: Record<string, unknown> | undefined,
+    params: JsonRpcParams,
     progressToken?: McpProgressToken,
-  ): Record<string, unknown> | undefined {
+  ): JsonRpcParams {
     if (this.protocolVersion !== MCP_DRAFT_PROTOCOL_VERSION) return params;
     const rawMeta = params?._meta;
     if (rawMeta !== undefined && !isJsonObject(rawMeta)) {
@@ -1490,10 +1727,22 @@ export class McpClient {
 
   private request(
     method: string,
-    params?: Record<string, unknown>,
+    params?: JsonRpcParams,
     timeout = CONNECT_TIMEOUT,
     progress?: McpRequestProgressOptions,
-  ): Promise<unknown> {
+  ): Promise<JsonRpcResult> {
+    if (this.transport.type === "http") {
+      return this.httpRequest(method, params, timeout, progress);
+    }
+    return this.stdioRequest(method, params, timeout, progress);
+  }
+
+  private stdioRequest(
+    method: string,
+    params?: JsonRpcParams,
+    timeout = CONNECT_TIMEOUT,
+    progress?: McpRequestProgressOptions,
+  ): Promise<JsonRpcResult> {
     if (!this.proc?.stdin?.writable) {
       return Promise.reject(
         new Error(`MCP server "${this.serverName}" is not connected`),
@@ -1535,6 +1784,218 @@ export class McpClient {
 
       this.proc?.stdin?.write(`${JSON.stringify(msg)}\n`);
     });
+  }
+
+  private async httpRequest(
+    method: string,
+    params?: JsonRpcParams,
+    timeout = CONNECT_TIMEOUT,
+    progress?: McpRequestProgressOptions,
+  ): Promise<JsonRpcResult> {
+    if (progress) {
+      throw this.requestErrorForMethod(
+        method,
+        "SSE progress streams are not implemented for Streamable HTTP",
+      );
+    }
+    if (this.closing) {
+      throw new Error(`MCP server "${this.serverName}" is closed`);
+    }
+    if (method !== "server/discover" && !this.connected) {
+      throw new Error(`MCP server "${this.serverName}" is not connected`);
+    }
+    if (this.transport.type !== "http") {
+      throw new Error(`MCP server "${this.serverName}" is not an HTTP transport`);
+    }
+
+    const id = this.nextId++;
+    const requestParams = this.paramsWithDraftMetadata(params);
+    const msg: JsonRpcRequest = {
+      jsonrpc: "2.0",
+      id,
+      method,
+      ...(requestParams && { params: requestParams }),
+    };
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    let response: Response;
+    try {
+      response = await fetch(this.transport.url, {
+        method: "POST",
+        headers: this.httpHeadersForRequest(method, requestParams),
+        body: JSON.stringify(msg),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      const message = err instanceof Error && err.name === "AbortError"
+        ? `request timed out after ${timeout}ms`
+        : err instanceof Error ? err.message : String(err);
+      throw this.requestErrorForMethod(method, message);
+    } finally {
+      clearTimeout(timer);
+    }
+    return await this.decodeHttpResponse(response, method, id);
+  }
+
+  private httpHeadersForRequest(
+    method: string,
+    params: JsonRpcParams,
+  ): Headers {
+    if (this.transport.type !== "http") {
+      throw new Error(`MCP server "${this.serverName}" is not an HTTP transport`);
+    }
+    const headers = new Headers(this.transport.headers ?? {});
+    headers.set("Accept", "application/json, text/event-stream");
+    headers.set("Content-Type", "application/json");
+    headers.set("MCP-Protocol-Version", this.protocolVersion ?? MCP_DRAFT_PROTOCOL_VERSION);
+    headers.set("Mcp-Method", method);
+    const name = this.httpMcpNameForRequest(method, params);
+    if (name !== null) headers.set("Mcp-Name", name);
+    this.setHttpParamHeaders(headers, method, params);
+    return headers;
+  }
+
+  private cacheHeaderParameters(tools: readonly McpToolSchema[]): void {
+    this.headerParametersByTool.clear();
+    for (const tool of tools) {
+      const specs = collectMcpHeaderParameters(tool);
+      if (specs.length === 0) continue;
+      this.headerParametersByTool.set(tool.name, specs);
+    }
+  }
+
+  private setHttpParamHeaders(
+    headers: Headers,
+    method: string,
+    params: JsonRpcParams,
+  ): void {
+    if (method !== "tools/call") return;
+    const toolName = typeof params?.name === "string" ? params.name : null;
+    if (toolName === null) return;
+    const specs = this.headerParametersByTool.get(toolName);
+    if (!specs) return;
+    const args = isJsonObject(params?.arguments) ? params.arguments : {};
+    for (const spec of specs) {
+      const value = mcpParamHeaderValue(args[spec.paramName]);
+      if (value === null) continue;
+      headers.set(`Mcp-Param-${spec.headerName}`, value);
+    }
+  }
+
+  private httpMcpNameForRequest(
+    method: string,
+    params: JsonRpcParams,
+  ): string | null {
+    if (method === "tools/call" || method === "prompts/get") {
+      return typeof params?.name === "string" ? params.name : "";
+    }
+    if (method === "resources/read") {
+      return typeof params?.uri === "string" ? params.uri : "";
+    }
+    return null;
+  }
+
+  private async decodeHttpResponse(
+    response: Response,
+    method: string,
+    requestId: number,
+  ): Promise<JsonRpcResult> {
+    const text = await response.text();
+    const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+    if (!contentType.includes("application/json") && !contentType.includes("text/event-stream")) {
+      if (!response.ok) {
+        throw this.requestErrorForMethod(
+          method,
+          `HTTP ${response.status}: ${text || response.statusText || "empty response"}`,
+        );
+      }
+      throw this.requestErrorForMethod(
+        method,
+        `unsupported response content-type "${contentType || "(missing)"}"`,
+      );
+    }
+    const message = contentType.includes("text/event-stream")
+      ? this.parseSingleSseJsonRpcMessage(text, method)
+      : this.parseJsonRpcHttpMessage(text, method);
+    if (typeof message.id === "number" && message.id !== requestId) {
+      throw this.requestErrorForMethod(
+        method,
+        `response id ${message.id} did not match request id ${requestId}`,
+      );
+    }
+    if (message.error) {
+      throw this.requestErrorForMethod(
+        method,
+        `HTTP ${response.status}: MCP error ${message.error.code}: ${message.error.message}`,
+      );
+    }
+    if (!response.ok) {
+      throw this.requestErrorForMethod(
+        method,
+        `HTTP ${response.status}: ${text || response.statusText || "empty response"}`,
+      );
+    }
+    return message.result;
+  }
+
+  private parseJsonRpcHttpMessage(text: string, method: string): JsonRpcIncomingMessage {
+    try {
+      const parsed = JSON.parse(text) as JsonRpcIncomingMessage;
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+        throw new Error("response body must be a JSON-RPC object");
+      }
+      return parsed;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw this.requestErrorForMethod(method, `malformed JSON response: ${message}`);
+    }
+  }
+
+  private parseSingleSseJsonRpcMessage(
+    text: string,
+    method: string,
+  ): JsonRpcIncomingMessage {
+    const messages = this.parseSseDataMessages(text);
+    if (messages.length !== 1) {
+      throw this.requestErrorForMethod(
+        method,
+        "SSE response streams with zero or multiple messages are not implemented for Streamable HTTP",
+      );
+    }
+    return this.parseJsonRpcHttpMessage(messages[0], method);
+  }
+
+  private parseSseDataMessages(text: string): string[] {
+    const messages: string[] = [];
+    let dataLines: string[] = [];
+    const flush = () => {
+      if (dataLines.length === 0) return;
+      messages.push(dataLines.join("\n"));
+      dataLines = [];
+    };
+    for (const line of text.split(/\r?\n/)) {
+      if (line.length === 0) {
+        flush();
+        continue;
+      }
+      if (line.startsWith("data:")) {
+        dataLines.push(line.slice(5).trimStart());
+      }
+    }
+    flush();
+    return messages;
+  }
+
+  private requestErrorForMethod(method: string, message: string): Error {
+    if (method === "tools/call") {
+      return new McpToolError(this.serverName, method, message);
+    }
+    return new McpConnectionError(this.serverName, method, message);
+  }
+
+  private defaultServerNameForTransport(): string {
+    if (this.transport.type === "stdio") return this.transport.command;
+    return this.transport.url;
   }
 
   private openToolListChangedSubscription(): void {

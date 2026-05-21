@@ -2,6 +2,43 @@ import { describe, expect, it, vi } from "vitest";
 import { MCP_DRAFT_PROTOCOL_VERSION } from "./client.js";
 import { McpManager, namespaceTool, parseToolName } from "./manager.js";
 
+type RecordedHttpRequest = {
+  url: string;
+  headers: Headers;
+  body: {
+    id?: number;
+    method?: string;
+    params?: Record<string, any>;
+  };
+};
+
+function mockMcpHttpFetch(
+  handler: (request: RecordedHttpRequest) => Response,
+): {
+  requests: RecordedHttpRequest[];
+  fetchSpy: { mockRestore: () => void };
+} {
+  const requests: RecordedHttpRequest[] = [];
+  const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+    const body = JSON.parse(String(init?.body ?? "{}"));
+    const request = {
+      url: String(input),
+      headers: new Headers(init?.headers),
+      body,
+    };
+    requests.push(request);
+    return handler(request);
+  });
+  return { requests, fetchSpy };
+}
+
+function jsonRpcResponse(id: number | undefined, result: Record<string, any>): Response {
+  return new Response(JSON.stringify({ jsonrpc: "2.0", id, result }), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+}
+
 async function waitFor(assertion: () => void, timeoutMs = 2_000): Promise<void> {
   const started = Date.now();
   let lastError: Error | null = null;
@@ -229,6 +266,196 @@ describe("McpManager", () => {
     expect(manager.getServerCount()).toBe(0);
     expect(manager.getToolCount()).toBe(0);
   }, 10_000);
+
+  it("connects Streamable HTTP servers and routes tools through the normal MCP surface", async () => {
+    const { requests, fetchSpy } = mockMcpHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: {} },
+          serverInfo: { name: "http-fixture" },
+        });
+      }
+      if (request.body.method === "tools/list") {
+        return jsonRpcResponse(request.body.id, {
+          tools: [{
+            name: "echo",
+            description: "Echoes input",
+            inputSchema: {
+              type: "object",
+              properties: { text: { type: "string" } },
+              required: ["text"],
+            },
+            outputSchema: {
+              type: "object",
+              properties: { echoed: { type: "string" } },
+              required: ["echoed"],
+            },
+          }],
+        });
+      }
+      if (request.body.method === "tools/call") {
+        return jsonRpcResponse(request.body.id, {
+          resultType: "complete",
+          content: [{ type: "text", text: `Echo: ${request.body.params?.arguments?.text}` }],
+          structuredContent: { echoed: request.body.params?.arguments?.text },
+          isError: false,
+        });
+      }
+      return new Response(JSON.stringify({
+        jsonrpc: "2.0",
+        id: request.body.id,
+        error: { code: -32601, message: `unknown method ${request.body.method}` },
+      }), {
+        status: 404,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    const manager = new McpManager();
+
+    try {
+      await manager.initialize({
+        mcpServers: {
+          remote: {
+            type: "http",
+            url: "https://mcp.example.test/mcp",
+            headers: { Authorization: "Bearer test-token" },
+          },
+        },
+      });
+
+      expect(manager.getServerCount()).toBe(1);
+      expect(manager.getToolCount()).toBe(1);
+      expect(manager.getTools()[0]).toMatchObject({
+        name: "mcp__remote__echo",
+        output_schema: {
+          type: "object",
+          properties: { echoed: { type: "string" } },
+          required: ["echoed"],
+        },
+      });
+
+      const result = await manager.executeTool("mcp__remote__echo", { text: "hello" });
+      expect(result.is_error).toBe(false);
+      expect(result.content).toBe("Echo: hello");
+      expect(result.structuredContent).toEqual({ echoed: "hello" });
+
+      expect(requests.map((request) => request.body.method)).toEqual([
+        "server/discover",
+        "tools/list",
+        "tools/call",
+      ]);
+      for (const request of requests) {
+        expect(request.url).toBe("https://mcp.example.test/mcp");
+        expect(request.headers.get("accept")).toBe("application/json, text/event-stream");
+        expect(request.headers.get("content-type")).toBe("application/json");
+        expect(request.headers.get("mcp-protocol-version")).toBe(MCP_DRAFT_PROTOCOL_VERSION);
+        expect(request.headers.get("mcp-method")).toBe(request.body.method);
+        expect(request.headers.get("authorization")).toBe("Bearer test-token");
+        expect(request.body.params?._meta).toMatchObject({
+          "io.modelcontextprotocol/protocolVersion": MCP_DRAFT_PROTOCOL_VERSION,
+          "io.modelcontextprotocol/clientInfo": { name: "kota", version: "0.1.0" },
+          "io.modelcontextprotocol/clientCapabilities": {},
+        });
+      }
+      expect(requests[2].headers.get("mcp-name")).toBe("echo");
+    } finally {
+      await manager.close();
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("reports ambiguous MCP server config without coercing it into stdio", async () => {
+    const manager = new McpManager();
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      await manager.initialize({
+        mcpServers: {
+          ambiguous: {
+            type: "http",
+            url: "https://mcp.example.test/mcp",
+            command: "node",
+          } as never,
+        },
+      });
+
+      expect(manager.getServerCount()).toBe(0);
+      expect(errorSpy.mock.calls.map((call) => call.join(" ")).join("\n")).toContain(
+        'MCP server "ambiguous" failed to connect',
+      );
+      expect(errorSpy.mock.calls.map((call) => call.join(" ")).join("\n")).toContain(
+        "http transport cannot also define stdio fields",
+      );
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it("rejects malformed transport config instead of coercing boundary values", async () => {
+    const cases = [
+      {
+        serverName: "stdioHeaders",
+        config: {
+          command: "node",
+          headers: { Authorization: "Bearer token" },
+        } as never,
+        expected: "stdio transport cannot define http field headers",
+      },
+      {
+        serverName: "envString",
+        config: {
+          command: "node",
+          env: "TOKEN=value",
+        } as never,
+        expected: "env must be an object with string values",
+      },
+      {
+        serverName: "envNumber",
+        config: {
+          command: "node",
+          env: 123,
+        } as never,
+        expected: "env must be an object with string values",
+      },
+      {
+        serverName: "headersString",
+        config: {
+          type: "http",
+          url: "https://mcp.example.test/mcp",
+          headers: "Authorization: token",
+        } as never,
+        expected: "headers must be an object with string values",
+      },
+      {
+        serverName: "headersNumber",
+        config: {
+          type: "http",
+          url: "https://mcp.example.test/mcp",
+          headers: 123,
+        } as never,
+        expected: "headers must be an object with string values",
+      },
+    ];
+
+    for (const { serverName, config, expected } of cases) {
+      const manager = new McpManager();
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      try {
+        await manager.initialize({
+          mcpServers: { [serverName]: config },
+        });
+
+        expect(manager.getServerCount()).toBe(0);
+        const errorOutput = errorSpy.mock.calls.map((call) => call.join(" ")).join("\n");
+        expect(errorOutput).toContain(`MCP server "${serverName}" failed to connect`);
+        expect(errorOutput).toContain(expected);
+      } finally {
+        errorSpy.mockRestore();
+      }
+    }
+  });
 
   it("routes MCP progress side-channel events without mutating the tool result", async () => {
     const manager = new McpManager();

@@ -1,12 +1,12 @@
 ---
 id: task-add-streamable-http-client-transport-for-mcp-servers
 title: Add Streamable HTTP client transport for MCP servers
-status: ready
+status: done
 priority: p2
 area: core
 summary: Let KOTA's MCP manager connect to remote Streamable HTTP MCP servers in addition to stdio subprocess servers, using a strict transport config union and current draft request metadata.
 created_at: 2026-05-21T17:42:44Z
-updated_at: 2026-05-21T17:42:44Z
+updated_at: 2026-05-21T18:05:40Z
 ---
 
 ## Problem
