@@ -1,12 +1,12 @@
 ---
 id: task-run-mcp-tool-calls-through-task-augmentation
 title: Run MCP tool calls through task augmentation
-status: backlog
+status: ready
 priority: p2
 area: modules
 summary: Let draft tools/call with params.task create receiver-owned MCP tasks, execute tools asynchronously, preserve the legacy synchronous path, advertise implemented task support, and return final results through tasks/result.
 created_at: 2026-05-21T11:19:59Z
-updated_at: 2026-05-21T11:19:59Z
+updated_at: 2026-05-21T12:17:13.427Z
 depends_on: [task-handle-mcp-task-status-result-list-and-cancel-requests]
 ---
 
