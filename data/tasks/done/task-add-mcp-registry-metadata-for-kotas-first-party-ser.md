@@ -1,12 +1,12 @@
 ---
 id: task-add-mcp-registry-metadata-for-kotas-first-party-ser
 title: Add MCP registry metadata for KOTA's first-party server
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add official MCP Registry metadata and validation for KOTA's first-party MCP server so its stdio package and future remote transport are discoverable without inventing a second registry.
 created_at: 2026-05-22T06:09:41Z
-updated_at: 2026-05-22T06:09:41Z
+updated_at: 2026-05-22T06:20:02.000Z
 ---
 
 ## Problem

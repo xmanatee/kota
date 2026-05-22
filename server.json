@@ -1,0 +1,27 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.xmanatee/kota",
+  "title": "KOTA",
+  "description": "Keep Only The Awesome. An AI coding agent MCP server exposing KOTA tools.",
+  "repository": {
+    "source": "github",
+    "url": "https://github.com/xmanatee/kota"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "kota",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp-server"
+        }
+      ]
+    }
+  ]
+}
