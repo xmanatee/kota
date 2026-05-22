@@ -45,6 +45,7 @@ export function initAgentSession(
   }
   state.autonomyMode = options.autonomyMode;
   state.mcpInputResolver = options.mcpInputResolver;
+  state.mcpAuthorizationResolver = options.mcpAuthorizationResolver;
   state.model =
     options.model || resolveActivePresetFromConfig(options.config).defaultModel;
   state.editorModel = options.editorModel || state.model;

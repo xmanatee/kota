@@ -1,7 +1,10 @@
+import { writeFile } from "node:fs/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setPromptOverride } from "#core/tools/ask-user.js";
 import {
+  buildMcpAuthorizationQuestion,
   buildMcpInputResponseQuestion,
+  createAskUserMcpAuthorizationResolver,
   createAskUserMcpInputResolver,
 } from "./operator-input.js";
 
@@ -195,5 +198,68 @@ describe("buildMcpInputResponseQuestion", () => {
     expect(question).toContain("https://auth.example.test/consent?state=abc");
     expect(question).toContain("oauth-abc");
     expect(question).toContain('{"request_id":{"action":"accept"}}');
+  });
+});
+
+describe("MCP ask_user authorization resolver", () => {
+  afterEach(() => {
+    setPromptOverride(null);
+  });
+
+  it("returns the trimmed OAuth callback URL from the operator answer", async () => {
+    const prompt = vi.fn(async (question: string) => {
+      const callbackFilePath = question.match(/local file:\n(.+)\n\nThen reply/)?.[1];
+      if (!callbackFilePath) {
+        throw new Error("Expected callback file path in authorization question");
+      }
+      await writeFile(
+        callbackFilePath,
+        " https://client.example.test/callback?code=code-1&state=state-1 \n",
+      );
+      return "done";
+    });
+    setPromptOverride(prompt);
+
+    const resolver = createAskUserMcpAuthorizationResolver();
+    const result = await resolver({
+      server: "remote",
+      resource: "https://mcp.example.test/mcp",
+      issuer: "https://auth.example.test",
+      scopes: ["files:read"],
+      authorizationUrl: "https://auth.example.test/authorize?state=state-1",
+      state: "state-1",
+    });
+
+    expect(result.callbackUrl.reveal()).toBe("https://client.example.test/callback?code=code-1&state=state-1");
+    expect(String(result.callbackUrl)).toBe("[redacted]");
+    expect(JSON.stringify(result)).toBe('{"callbackUrl":"[redacted]"}');
+    expect(JSON.stringify(result)).not.toContain("code-1");
+    expect(prompt).toHaveBeenCalledWith(expect.stringContaining("remote"));
+    expect(prompt).toHaveBeenCalledWith(expect.stringContaining("https://auth.example.test/authorize?state=state-1"));
+    expect(prompt).not.toHaveBeenCalledWith(expect.stringContaining("code-1"));
+  });
+});
+
+describe("buildMcpAuthorizationQuestion", () => {
+  it("names the protected resource, issuer, scopes, and callback instructions without asking for tokens", () => {
+    const question = buildMcpAuthorizationQuestion({
+      server: "remote",
+      resource: "https://mcp.example.test/mcp",
+      issuer: "https://auth.example.test",
+      scopes: ["files:read", "files:write"],
+      authorizationUrl: "https://auth.example.test/authorize?state=state-1",
+      state: "state-1",
+    }, "/tmp/kota-mcp-oauth/callback-url.txt");
+
+    expect(question).toContain("remote");
+    expect(question).toContain("https://mcp.example.test/mcp");
+    expect(question).toContain("https://auth.example.test");
+    expect(question).toContain("files:read files:write");
+    expect(question).toContain("https://auth.example.test/authorize?state=state-1");
+    expect(question).toContain("/tmp/kota-mcp-oauth/callback-url.txt");
+    expect(question).toContain('reply "done"');
+    expect(question).not.toContain("reply with the full redirect callback URL");
+    expect(question).toContain("authorization code");
+    expect(question).toContain("access tokens");
   });
 });

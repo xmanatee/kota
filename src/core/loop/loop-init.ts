@@ -3,6 +3,7 @@ import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import { getEventBus, tryEmit } from "#core/events/event-bus.js";
 import { runCleanupHooks } from "#core/loop/cleanup-hooks.js";
 import { listManifestModules } from "#core/manifest/index.js";
+import type { McpAuthorizationResolver } from "#core/mcp/client.js";
 import { type McpInputResolver, McpManager } from "#core/mcp/manager.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import type { ModelTiers } from "#core/model/model-router.js";
@@ -60,6 +61,7 @@ export interface AgentLoopState {
   verifyTracker: VerifyTracker;
   mcpManager: McpManager | null;
   mcpInputResolver: McpInputResolver | undefined;
+  mcpAuthorizationResolver: McpAuthorizationResolver | undefined;
   costTracker: CostTracker;
   reflectionEnabled: boolean;
   stateMachine: SessionStateMachine;
@@ -86,6 +88,9 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
     state.mcpManager = new McpManager();
     await state.mcpManager.initialize(config, {
       inputResolverAvailable: state.mcpInputResolver !== undefined,
+      ...(state.mcpAuthorizationResolver
+        ? { authorizationResolver: state.mcpAuthorizationResolver }
+        : {}),
     });
     if (state.mcpManager.getToolCount() > 0) {
       // Preserve any harness name the loop constructor already wired in from

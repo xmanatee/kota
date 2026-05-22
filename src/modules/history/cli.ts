@@ -3,7 +3,10 @@ import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.
 import { expandAlias, type KotaConfig, loadConfig } from "#core/config/config.js";
 import { getScheduler, resetScheduler } from "#core/daemon/scheduler.js";
 import { AgentSession, type LoopOptions, runAgentLoop } from "#core/loop/loop.js";
-import { createAskUserMcpInputResolver } from "#core/mcp/operator-input.js";
+import {
+  createAskUserMcpAuthorizationResolver,
+  createAskUserMcpInputResolver,
+} from "#core/mcp/operator-input.js";
 import { formatAuthError } from "#core/model/auth-error.js";
 import { createModelClient } from "#core/model/model-client.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
@@ -257,5 +260,6 @@ export async function runPipeLoop(piped: string): Promise<void> {
     config,
     client: resolved.client,
     mcpInputResolver: createAskUserMcpInputResolver(),
+    mcpAuthorizationResolver: createAskUserMcpAuthorizationResolver(),
   });
 }

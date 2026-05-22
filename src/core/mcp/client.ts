@@ -1,6 +1,6 @@
 import { Buffer } from "node:buffer";
 import { type ChildProcess, spawn } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { createInterface, type Interface } from "node:readline";
 import type {
   KotaJsonObject,
@@ -93,6 +93,8 @@ type PendingRequest = {
 
 type McpResultKind =
   | "initialize"
+  | "authorization-server-metadata"
+  | "oauth-token"
   | "protected-resource-metadata"
   | "server/discover"
   | "tools/call"
@@ -391,6 +393,7 @@ const MCP_META_CLIENT_CAPABILITIES_KEY =
 
 export type McpClientOptions = {
   supportedElicitationModes?: readonly McpElicitationMode[];
+  authorizationResolver?: McpAuthorizationResolver;
 };
 
 export type McpStdioClientTransportConfig = {
@@ -404,7 +407,86 @@ export type McpStreamableHttpClientTransportConfig = {
   type: "http";
   url: string;
   headers?: Record<string, string>;
+  authorization?: McpStreamableHttpAuthorizationConfig;
 };
+
+export type McpOAuthRegisteredClientConfig = {
+  kind: "registered";
+  clientId: string;
+  clientSecret?: string;
+};
+
+export type McpOAuthClientIdMetadataUrlConfig = {
+  kind: "client-id-metadata-url";
+  clientId: string;
+};
+
+export type McpOAuthDynamicClientConfig = {
+  kind: "dynamic";
+  clientName: string;
+  dynamicClientRegistration: { enabled: boolean };
+};
+
+export type McpOAuthClientIdentityConfig =
+  | McpOAuthRegisteredClientConfig
+  | McpOAuthClientIdMetadataUrlConfig
+  | McpOAuthDynamicClientConfig;
+
+export type McpStreamableHttpAuthorizationConfig = {
+  type: "oauth";
+  issuer: string;
+  redirectUri: string;
+  scopes: string[];
+  client: McpOAuthClientIdentityConfig;
+};
+
+export type McpAuthorizationResolverRequest = {
+  server: string;
+  resource: string;
+  issuer: string;
+  scopes: string[];
+  authorizationUrl: string;
+  state: string;
+};
+
+export class McpOAuthSecret {
+  #value: string;
+
+  constructor(value: string) {
+    if (value.length === 0) {
+      throw new Error("OAuth secret value must be non-empty");
+    }
+    this.#value = value;
+  }
+
+  reveal(): string {
+    return this.#value;
+  }
+
+  toString(): string {
+    return "[redacted]";
+  }
+
+  toJSON(): string {
+    return "[redacted]";
+  }
+
+  [Symbol.toPrimitive](): string {
+    return "[redacted]";
+  }
+}
+
+export function mcpOAuthSecret(value: string): McpOAuthSecret {
+  return new McpOAuthSecret(value);
+}
+
+export type McpAuthorizationResolverResult = {
+  callbackUrl: McpOAuthSecret;
+};
+
+export type McpAuthorizationResolver = (
+  request: McpAuthorizationResolverRequest,
+) => Promise<McpAuthorizationResolverResult>;
 
 export type McpClientTransportConfig =
   | McpStdioClientTransportConfig
@@ -412,7 +494,9 @@ export type McpClientTransportConfig =
 
 type NormalizedMcpClientTransport =
   | (McpStdioClientTransportConfig & { type: "stdio" })
-  | McpStreamableHttpClientTransportConfig;
+  | (McpStreamableHttpClientTransportConfig & {
+      authorization?: NormalizedMcpStreamableHttpAuthorizationConfig;
+    });
 
 export class McpConnectionError extends Error {
   readonly name = "McpConnectionError";
@@ -453,6 +537,64 @@ export type McpProtectedResourceMetadataDiscovery =
       error: string;
     };
 
+type NormalizedMcpOAuthRegisteredClient = {
+  kind: "registered";
+  clientId: string;
+  clientSecret?: string;
+};
+
+type NormalizedMcpOAuthClientIdMetadataUrl = {
+  kind: "client-id-metadata-url";
+  clientId: string;
+};
+
+type NormalizedMcpOAuthDynamicClient = {
+  kind: "dynamic";
+  clientName: string;
+  dynamicClientRegistration: { enabled: true };
+};
+
+type NormalizedMcpOAuthClientIdentity =
+  | NormalizedMcpOAuthRegisteredClient
+  | NormalizedMcpOAuthClientIdMetadataUrl
+  | NormalizedMcpOAuthDynamicClient;
+
+type NormalizedMcpStreamableHttpAuthorizationConfig = {
+  type: "oauth";
+  issuer: string;
+  redirectUri: string;
+  scopes: string[];
+  client: NormalizedMcpOAuthClientIdentity;
+};
+
+type McpAuthorizationServerMetadata = {
+  issuer: string;
+  authorizationEndpoint: string;
+  tokenEndpoint: string;
+  registrationEndpoint?: string;
+  scopesSupported: string[];
+  codeChallengeMethodsSupported: string[];
+  authorizationResponseIssuerRequired: boolean;
+};
+
+type McpOAuthResolvedClient = {
+  clientId: string;
+  clientSecret?: string;
+};
+
+type McpOAuthTokenSet = {
+  accessToken: string;
+  refreshToken?: string;
+  scopes: string[];
+  expiresAtMs?: number;
+};
+
+type McpOAuthTokenBinding = {
+  resource: string;
+  issuer: string;
+  token: McpOAuthTokenSet;
+};
+
 export class McpAuthorizationError extends Error {
   readonly name = "McpAuthorizationError";
 
@@ -482,6 +624,23 @@ export class McpAuthorizationError extends Error {
     super(
       `MCP authorization failed for server "${serverName}" during ${method}: ` +
         `HTTP ${status} ${reason}${details.length > 0 ? ` (${details.join("; ")})` : ""}`,
+    );
+  }
+}
+
+export class McpAuthorizationFlowError extends Error {
+  readonly name = "McpAuthorizationFlowError";
+
+  constructor(
+    readonly serverName: string,
+    readonly resource: string,
+    readonly issuer: string,
+    readonly scopes: readonly string[],
+    reason: string,
+  ) {
+    super(
+      `MCP authorization flow failed for server "${serverName}" ` +
+        `resource "${resource}" issuer "${issuer}" scopes="${scopes.join(" ")}": ${reason}`,
     );
   }
 }
@@ -632,6 +791,30 @@ function splitScopeParam(value: string | undefined): string[] {
   return value.split(/\s+/).filter((scope) => scope.length > 0);
 }
 
+function uniqueScopes(scopes: readonly string[]): string[] {
+  return [...new Set(scopes.filter((scope) => scope.length > 0))];
+}
+
+function scopeSetIncludesAll(granted: readonly string[], required: readonly string[]): boolean {
+  const grantedSet = new Set(granted);
+  return required.every((scope) => grantedSet.has(scope));
+}
+
+function base64Url(buffer: Buffer): string {
+  return buffer.toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function generateOAuthVerifier(): string {
+  return base64Url(randomBytes(64));
+}
+
+function generateOAuthState(): string {
+  return base64Url(randomBytes(32));
+}
+
 function protectedResourceMetadataWellKnownUrls(resourceUrl: string): string[] {
   const url = new URL(resourceUrl);
   const basePath = url.pathname === "/"
@@ -642,6 +825,34 @@ function protectedResourceMetadataWellKnownUrls(resourceUrl: string): string[] {
     new URL("/.well-known/oauth-protected-resource", url.origin).toString(),
   ];
   return [...new Set(candidates)];
+}
+
+function authorizationServerMetadataUrls(issuer: string): string[] {
+  const url = new URL(issuer);
+  const basePath = url.pathname === "/"
+    ? ""
+    : url.pathname.replace(/\/+$/, "");
+  const oauthMetadata = new URL(
+    `/.well-known/oauth-authorization-server${basePath}`,
+    url.origin,
+  ).toString();
+  const oauthStyleOpenIdMetadata = new URL(
+    `/.well-known/openid-configuration${basePath}`,
+    url.origin,
+  ).toString();
+  const openIdDiscoveryMetadata = new URL(
+    `${basePath}/.well-known/openid-configuration`,
+    url.origin,
+  ).toString();
+  return [...new Set([
+    oauthMetadata,
+    oauthStyleOpenIdMetadata,
+    openIdDiscoveryMetadata,
+  ])];
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function malformedMcpResult(kind: McpResultKind, label: string, expected: string): Error {
@@ -952,6 +1163,75 @@ function decodeProtectedResourceMetadata(
       "scopes_supported",
       "protected-resource-metadata",
     ) ?? [],
+  };
+}
+
+function decodeAuthorizationServerMetadata(
+  value: JsonRpcResult,
+): McpAuthorizationServerMetadata {
+  const object = requireJsonObject(value, "metadata", "authorization-server-metadata");
+  return {
+    issuer: requireString(object.issuer, "issuer", "authorization-server-metadata"),
+    authorizationEndpoint: requireString(
+      object.authorization_endpoint,
+      "authorization_endpoint",
+      "authorization-server-metadata",
+    ),
+    tokenEndpoint: requireString(
+      object.token_endpoint,
+      "token_endpoint",
+      "authorization-server-metadata",
+    ),
+    ...(object.registration_endpoint !== undefined
+      ? {
+          registrationEndpoint: requireString(
+            object.registration_endpoint,
+            "registration_endpoint",
+            "authorization-server-metadata",
+          ),
+        }
+      : {}),
+    scopesSupported: optionalStringArray(
+      object.scopes_supported,
+      "scopes_supported",
+      "authorization-server-metadata",
+    ) ?? [],
+    codeChallengeMethodsSupported: optionalStringArray(
+      object.code_challenge_methods_supported,
+      "code_challenge_methods_supported",
+      "authorization-server-metadata",
+    ) ?? [],
+    authorizationResponseIssuerRequired: optionalBoolean(
+      object.authorization_response_iss_parameter_supported,
+      "authorization_response_iss_parameter_supported",
+      "authorization-server-metadata",
+    ) ?? false,
+  };
+}
+
+function decodeOAuthTokenSet(
+  value: JsonRpcResult,
+  previousRefreshToken?: string,
+): McpOAuthTokenSet {
+  const object = requireJsonObject(value, "token", "oauth-token");
+  const tokenType = requireString(object.token_type, "token_type", "oauth-token");
+  if (tokenType.toLowerCase() !== "bearer") {
+    throw new Error("Malformed OAuth token response: token_type must be Bearer");
+  }
+  const scope = optionalString(object.scope, "scope", "oauth-token");
+  const expiresIn = optionalNumber(object.expires_in, "expires_in", "oauth-token");
+  const refreshToken = optionalString(object.refresh_token, "refresh_token", "oauth-token");
+  return {
+    accessToken: requireString(object.access_token, "access_token", "oauth-token"),
+    scopes: splitScopeParam(scope),
+    ...(refreshToken !== undefined
+      ? { refreshToken }
+      : previousRefreshToken !== undefined
+        ? { refreshToken: previousRefreshToken }
+        : {}),
+    ...(expiresIn !== undefined
+      ? { expiresAtMs: Date.now() + Math.max(0, expiresIn) * 1000 }
+      : {}),
   };
 }
 
@@ -2272,6 +2552,91 @@ function isUnsupportedProtocolVersionError(err: Error): boolean {
   return /MCP error -32602: Unsupported protocol version/.test(err.message);
 }
 
+function normalizeHttpUrl(value: string, label: string): string {
+  const url = new URL(value);
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error(`${label} must use http or https`);
+  }
+  return url.toString();
+}
+
+function normalizeHttpsUrl(value: string, label: string): string {
+  const url = new URL(value);
+  if (url.protocol !== "https:") {
+    throw new Error(`${label} must use https`);
+  }
+  return url.toString();
+}
+
+function validateOAuthIssuer(value: string): string {
+  const url = new URL(value);
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw new Error("OAuth issuer must use http or https");
+  }
+  if (url.search.length > 0 || url.hash.length > 0) {
+    throw new Error("OAuth issuer must not include query or fragment");
+  }
+  return value;
+}
+
+function normalizeOAuthClientIdentity(
+  client: McpOAuthClientIdentityConfig,
+): NormalizedMcpOAuthClientIdentity {
+  if (client.kind === "registered") {
+    if (client.clientId.length === 0) {
+      throw new Error("OAuth registered clientId must not be empty");
+    }
+    return {
+      kind: "registered",
+      clientId: client.clientId,
+      ...(client.clientSecret !== undefined ? { clientSecret: client.clientSecret } : {}),
+    };
+  }
+  if (client.kind === "client-id-metadata-url") {
+    return {
+      kind: "client-id-metadata-url",
+      clientId: normalizeHttpsUrl(
+        client.clientId,
+        "OAuth client-id metadata document URL",
+      ),
+    };
+  }
+  if (client.kind === "dynamic") {
+    if (client.dynamicClientRegistration.enabled !== true) {
+      throw new Error("OAuth dynamic client registration is disabled");
+    }
+    if (client.clientName.length === 0) {
+      throw new Error("OAuth dynamic clientName must not be empty");
+    }
+    return {
+      kind: "dynamic",
+      clientName: client.clientName,
+      dynamicClientRegistration: { enabled: true },
+    };
+  }
+  throw new Error("OAuth client identity kind is unsupported");
+}
+
+function normalizeMcpAuthorizationConfig(
+  authorization: McpStreamableHttpAuthorizationConfig,
+): NormalizedMcpStreamableHttpAuthorizationConfig {
+  if (authorization.type !== "oauth") {
+    throw new Error("MCP HTTP authorization type must be oauth");
+  }
+  return {
+    type: "oauth",
+    issuer: validateOAuthIssuer(authorization.issuer),
+    redirectUri: normalizeHttpUrl(authorization.redirectUri, "OAuth redirectUri"),
+    scopes: [...new Set(authorization.scopes)],
+    client: normalizeOAuthClientIdentity(authorization.client),
+  };
+}
+
+function hasStaticAuthorizationHeader(headers: Record<string, string> | undefined): boolean {
+  if (!headers) return false;
+  return Object.keys(headers).some((key) => key.toLowerCase() === "authorization");
+}
+
 function normalizeClientTransportConfig(
   config: McpClientTransportConfig,
 ): NormalizedMcpClientTransport {
@@ -2280,10 +2645,18 @@ function normalizeClientTransportConfig(
     if (url.protocol !== "http:" && url.protocol !== "https:") {
       throw new Error("MCP HTTP transport URL must use http or https");
     }
+    if (hasStaticAuthorizationHeader(config.headers) && config.authorization) {
+      throw new Error(
+        "MCP HTTP transport cannot combine static Authorization headers with acquired OAuth tokens",
+      );
+    }
     return {
       type: "http",
       url: url.toString(),
       ...(config.headers ? { headers: { ...config.headers } } : {}),
+      ...(config.authorization
+        ? { authorization: normalizeMcpAuthorizationConfig(config.authorization) }
+        : {}),
     };
   }
   return {
@@ -2305,6 +2678,21 @@ function authorizationContextKey(transport: NormalizedMcpClientTransport): strin
         type: "http",
         url: transport.url,
         headers: stableRecordEntries(transport.headers),
+        authorization: transport.authorization
+          ? {
+              type: transport.authorization.type,
+              issuer: transport.authorization.issuer,
+              redirectUri: transport.authorization.redirectUri,
+              scopes: transport.authorization.scopes,
+              client: transport.authorization.client.kind === "registered"
+                ? {
+                    kind: "registered",
+                    clientId: transport.authorization.client.clientId,
+                    hasClientSecret: transport.authorization.client.clientSecret !== undefined,
+                  }
+                : transport.authorization.client,
+            }
+          : null,
       }
     : {
         type: "stdio",
@@ -2350,6 +2738,9 @@ export class McpClient {
   private readonly deprecatedCapabilityWarnings = new Set<DeprecatedMcpFeature>();
   private readonly headerParametersByTool = new Map<string, McpHeaderParameterSpec[]>();
   private readonly supportedElicitationModes: readonly McpElicitationMode[];
+  private readonly authorizationResolver?: McpAuthorizationResolver;
+  private oauthTokenBinding: McpOAuthTokenBinding | null = null;
+  private readonly oauthClients = new Map<string, McpOAuthResolvedClient>();
 
   constructor(
     command: string,
@@ -2392,6 +2783,7 @@ export class McpClient {
     this.supportedElicitationModes = uniqueSupportedElicitationModes(
       resolvedOptions.supportedElicitationModes,
     );
+    this.authorizationResolver = resolvedOptions.authorizationResolver;
   }
 
   getName(): string {
@@ -3202,34 +3594,55 @@ export class McpClient {
     if (this.transport.type !== "http") {
       throw new Error(`MCP server "${this.serverName}" is not an HTTP transport`);
     }
+    const transport = this.transport;
 
-    const id = this.nextId++;
-    const requestParams = this.paramsWithDraftMetadata(params);
-    const msg: JsonRpcRequest = {
-      jsonrpc: "2.0",
-      id,
-      method,
-      ...(requestParams && { params: requestParams }),
+    const send = async (
+      skipRefresh: boolean,
+    ): Promise<{ response: Response; id: number }> => {
+      if (!skipRefresh) {
+        await this.refreshExpiredOAuthTokenIfNeeded();
+      }
+      const id = this.nextId++;
+      const requestParams = this.paramsWithDraftMetadata(params);
+      const msg: JsonRpcRequest = {
+        jsonrpc: "2.0",
+        id,
+        method,
+        ...(requestParams && { params: requestParams }),
+      };
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeout);
+      try {
+        return {
+          id,
+          response: await fetch(transport.url, {
+            method: "POST",
+            headers: this.httpHeadersForRequest(method, requestParams),
+            body: JSON.stringify(msg),
+            signal: controller.signal,
+          }),
+        };
+      } catch (err) {
+        const message = err instanceof Error && err.name === "AbortError"
+          ? `request timed out after ${timeout}ms`
+          : err instanceof Error ? err.message : String(err);
+        throw this.requestErrorForMethod(method, message);
+      } finally {
+        clearTimeout(timer);
+      }
     };
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeout);
-    let response: Response;
-    try {
-      response = await fetch(this.transport.url, {
-        method: "POST",
-        headers: this.httpHeadersForRequest(method, requestParams),
-        body: JSON.stringify(msg),
-        signal: controller.signal,
-      });
-    } catch (err) {
-      const message = err instanceof Error && err.name === "AbortError"
-        ? `request timed out after ${timeout}ms`
-        : err instanceof Error ? err.message : String(err);
-      throw this.requestErrorForMethod(method, message);
-    } finally {
-      clearTimeout(timer);
+
+    let sent = await send(false);
+    const authorizationError = await this.authorizationErrorForHttpResponse(
+      sent.response,
+      method,
+    );
+    if (authorizationError && await this.authorizeForHttpChallenge(authorizationError)) {
+      sent = await send(true);
+    } else if (authorizationError) {
+      throw authorizationError;
     }
-    return await this.decodeHttpResponse(response, method, id);
+    return await this.decodeHttpResponse(sent.response, method, sent.id);
   }
 
   private httpHeadersForRequest(
@@ -3240,6 +3653,8 @@ export class McpClient {
       throw new Error(`MCP server "${this.serverName}" is not an HTTP transport`);
     }
     const headers = new Headers(this.transport.headers ?? {});
+    const token = this.oauthTokenBinding?.token.accessToken;
+    if (token) headers.set("Authorization", `Bearer ${token}`);
     headers.set("Accept", "application/json, text/event-stream");
     headers.set("Content-Type", "application/json");
     headers.set("MCP-Protocol-Version", this.protocolVersion ?? MCP_DRAFT_PROTOCOL_VERSION);
@@ -3351,6 +3766,518 @@ export class McpClient {
       response.status,
       challenge,
     );
+  }
+
+  private async authorizeForHttpChallenge(
+    error: McpAuthorizationError,
+  ): Promise<boolean> {
+    if (this.transport.type !== "http" || !this.transport.authorization) {
+      return false;
+    }
+    const config = this.transport.authorization;
+    const challenge = error.challenge;
+    if (challenge.metadataDiscovery?.status !== "found") {
+      const resource = this.oauthTokenBinding?.resource ?? this.transport.url;
+      throw this.authorizationFlowError(
+        resource,
+        config.issuer,
+        uniqueScopes([...config.scopes, ...challenge.scopes]),
+        `protected-resource metadata unavailable: ${
+          challenge.metadataDiscovery?.error ?? "no protected-resource metadata"
+        }`,
+      );
+    }
+
+    const resourceMetadata = challenge.metadataDiscovery.metadata;
+    if (!resourceMetadata.authorizationServers.includes(config.issuer)) {
+      throw this.authorizationFlowError(
+        resourceMetadata.resource,
+        config.issuer,
+        uniqueScopes([...config.scopes, ...challenge.scopes]),
+        `issuer "${config.issuer}" is not advertised by protected resource metadata`,
+      );
+    }
+
+    const requestedScopes = uniqueScopes([
+      ...config.scopes,
+      ...(challenge.error === "insufficient_scope" && this.oauthTokenBinding
+        ? this.oauthTokenBinding.token.scopes
+        : []),
+      ...challenge.scopes,
+    ]);
+    const metadata = await this.fetchAuthorizationServerMetadata(
+      config,
+      resourceMetadata.resource,
+      requestedScopes,
+    );
+    const client = await this.resolveOAuthClient(
+      config,
+      metadata,
+      resourceMetadata.resource,
+      requestedScopes,
+    );
+    const token = await this.runAuthorizationCodeFlow(
+      config,
+      metadata,
+      client,
+      resourceMetadata.resource,
+      requestedScopes,
+    );
+    if (!scopeSetIncludesAll(token.scopes, requestedScopes)) {
+      throw this.authorizationFlowError(
+        resourceMetadata.resource,
+        config.issuer,
+        requestedScopes,
+        "authorization did not grant the required scopes",
+      );
+    }
+    this.oauthTokenBinding = {
+      resource: resourceMetadata.resource,
+      issuer: config.issuer,
+      token,
+    };
+    return true;
+  }
+
+  private authorizationFlowError(
+    resource: string,
+    issuer: string,
+    scopes: readonly string[],
+    reason: string,
+  ): McpAuthorizationFlowError {
+    return new McpAuthorizationFlowError(
+      this.serverName,
+      resource,
+      issuer,
+      scopes,
+      reason,
+    );
+  }
+
+  private async fetchAuthorizationServerMetadata(
+    config: NormalizedMcpStreamableHttpAuthorizationConfig,
+    resource: string,
+    scopes: readonly string[],
+  ): Promise<McpAuthorizationServerMetadata> {
+    const errors: string[] = [];
+    for (const url of authorizationServerMetadataUrls(config.issuer)) {
+      let response: JsonRpcResult;
+      try {
+        response = await this.fetchOAuthJson(
+          url,
+          { method: "GET", headers: { Accept: "application/json" } },
+          resource,
+          config.issuer,
+          scopes,
+          `authorization-server metadata discovery at ${url}`,
+        );
+      } catch (err) {
+        errors.push(err instanceof Error ? err.message : String(err));
+        continue;
+      }
+
+      let metadata: McpAuthorizationServerMetadata;
+      try {
+        metadata = decodeAuthorizationServerMetadata(response);
+      } catch (err) {
+        errors.push(`${url}: ${err instanceof Error ? err.message : String(err)}`);
+        continue;
+      }
+      if (metadata.issuer !== config.issuer) {
+        errors.push(
+          `${url}: authorization-server metadata issuer mismatch: expected "${config.issuer}"`,
+        );
+        continue;
+      }
+      if (!metadata.codeChallengeMethodsSupported.includes("S256")) {
+        errors.push(`${url}: authorization server does not support PKCE S256`);
+        continue;
+      }
+      return {
+        ...metadata,
+        authorizationEndpoint: normalizeHttpUrl(
+          metadata.authorizationEndpoint,
+          "authorization_endpoint",
+        ),
+        tokenEndpoint: normalizeHttpUrl(metadata.tokenEndpoint, "token_endpoint"),
+        ...(metadata.registrationEndpoint !== undefined
+          ? {
+              registrationEndpoint: normalizeHttpUrl(
+                metadata.registrationEndpoint,
+                "registration_endpoint",
+              ),
+            }
+          : {}),
+      };
+    }
+
+    throw this.authorizationFlowError(
+      resource,
+      config.issuer,
+      scopes,
+      `authorization-server metadata discovery failed: ${errors.join("; ")}`,
+    );
+  }
+
+  private async resolveOAuthClient(
+    config: NormalizedMcpStreamableHttpAuthorizationConfig,
+    metadata: McpAuthorizationServerMetadata,
+    resource: string,
+    scopes: readonly string[],
+  ): Promise<McpOAuthResolvedClient> {
+    const cacheKey = `${resource}\n${config.issuer}`;
+    const cached = this.oauthClients.get(cacheKey);
+    if (cached) return cached;
+
+    if (config.client.kind === "registered") {
+      const client = {
+        clientId: config.client.clientId,
+        ...(config.client.clientSecret !== undefined
+          ? { clientSecret: config.client.clientSecret }
+          : {}),
+      };
+      this.oauthClients.set(cacheKey, client);
+      return client;
+    }
+    if (config.client.kind === "client-id-metadata-url") {
+      const client = { clientId: config.client.clientId };
+      this.oauthClients.set(cacheKey, client);
+      return client;
+    }
+    if (!metadata.registrationEndpoint) {
+      throw this.authorizationFlowError(
+        resource,
+        config.issuer,
+        scopes,
+        "authorization server does not advertise dynamic client registration",
+      );
+    }
+
+    const registration = await this.fetchOAuthJson(
+      metadata.registrationEndpoint,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          client_name: config.client.clientName,
+          redirect_uris: [config.redirectUri],
+          grant_types: ["authorization_code", "refresh_token"],
+          response_types: ["code"],
+          token_endpoint_auth_method: "none",
+        }),
+      },
+      resource,
+      config.issuer,
+      scopes,
+      "dynamic client registration",
+    );
+    const object = requireJsonObject(
+      registration,
+      "registration",
+      "authorization-server-metadata",
+    );
+    const clientId = requireString(
+      object.client_id,
+      "client_id",
+      "authorization-server-metadata",
+    );
+    const clientSecret = optionalString(
+      object.client_secret,
+      "client_secret",
+      "authorization-server-metadata",
+    );
+    const client = {
+      clientId,
+      ...(clientSecret !== undefined ? { clientSecret } : {}),
+    };
+    this.oauthClients.set(cacheKey, client);
+    return client;
+  }
+
+  private async runAuthorizationCodeFlow(
+    config: NormalizedMcpStreamableHttpAuthorizationConfig,
+    metadata: McpAuthorizationServerMetadata,
+    client: McpOAuthResolvedClient,
+    resource: string,
+    scopes: readonly string[],
+  ): Promise<McpOAuthTokenSet> {
+    if (!this.authorizationResolver) {
+      throw this.authorizationFlowError(
+        resource,
+        config.issuer,
+        scopes,
+        "interactive authorization is required but no MCP authorization resolver is configured; configure an operator authorization resolver or static headers for this server",
+      );
+    }
+
+    const codeVerifier = generateOAuthVerifier();
+    const codeChallenge = base64Url(createHash("sha256").update(codeVerifier).digest());
+    const state = generateOAuthState();
+    const authorizationUrl = new URL(metadata.authorizationEndpoint);
+    authorizationUrl.searchParams.set("response_type", "code");
+    authorizationUrl.searchParams.set("client_id", client.clientId);
+    authorizationUrl.searchParams.set("redirect_uri", config.redirectUri);
+    authorizationUrl.searchParams.set("code_challenge", codeChallenge);
+    authorizationUrl.searchParams.set("code_challenge_method", "S256");
+    authorizationUrl.searchParams.set("resource", resource);
+    authorizationUrl.searchParams.set("scope", scopes.join(" "));
+    authorizationUrl.searchParams.set("state", state);
+
+    const callback = await this.authorizationResolver({
+      server: this.serverName,
+      resource,
+      issuer: config.issuer,
+      scopes: [...scopes],
+      authorizationUrl: authorizationUrl.toString(),
+      state,
+    });
+    const code = this.validateAuthorizationCallback(
+      callback.callbackUrl.reveal(),
+      config,
+      metadata,
+      resource,
+      scopes,
+      state,
+    );
+    const token = await this.exchangeAuthorizationCode(
+      metadata,
+      config,
+      client,
+      resource,
+      scopes,
+      code,
+      codeVerifier,
+    );
+    return token.scopes.length > 0 ? token : { ...token, scopes: [...scopes] };
+  }
+
+  private validateAuthorizationCallback(
+    callbackUrl: string,
+    config: NormalizedMcpStreamableHttpAuthorizationConfig,
+    metadata: McpAuthorizationServerMetadata,
+    resource: string,
+    scopes: readonly string[],
+    state: string,
+  ): string {
+    const callback = new URL(callbackUrl);
+    const expectedRedirect = new URL(config.redirectUri);
+    if (
+      callback.origin !== expectedRedirect.origin ||
+      callback.pathname !== expectedRedirect.pathname
+    ) {
+      throw this.authorizationFlowError(
+        resource,
+        config.issuer,
+        scopes,
+        "OAuth callback URL did not match the configured redirectUri",
+      );
+    }
+    const returnedState = callback.searchParams.get("state");
+    if (returnedState !== state) {
+      throw this.authorizationFlowError(
+        resource,
+        config.issuer,
+        scopes,
+        "OAuth callback state did not match the authorization request",
+      );
+    }
+    const callbackIssuer = callback.searchParams.get("iss");
+    if (metadata.authorizationResponseIssuerRequired && callbackIssuer === null) {
+      throw this.authorizationFlowError(
+        resource,
+        config.issuer,
+        scopes,
+        "OAuth callback issuer parameter is required by authorization-server metadata",
+      );
+    }
+    if (callbackIssuer !== null && callbackIssuer !== config.issuer) {
+      throw this.authorizationFlowError(
+        resource,
+        config.issuer,
+        scopes,
+        "OAuth callback issuer did not match the selected authorization server",
+      );
+    }
+    const callbackError = callback.searchParams.get("error");
+    if (callbackError !== null) {
+      throw this.authorizationFlowError(
+        resource,
+        config.issuer,
+        scopes,
+        `OAuth callback returned error "${callbackError}"`,
+      );
+    }
+    const code = callback.searchParams.get("code");
+    if (code === null || code.length === 0) {
+      throw this.authorizationFlowError(
+        resource,
+        config.issuer,
+        scopes,
+        "OAuth callback did not include an authorization code",
+      );
+    }
+    return code;
+  }
+
+  private async exchangeAuthorizationCode(
+    metadata: McpAuthorizationServerMetadata,
+    config: NormalizedMcpStreamableHttpAuthorizationConfig,
+    client: McpOAuthResolvedClient,
+    resource: string,
+    scopes: readonly string[],
+    code: string,
+    codeVerifier: string,
+  ): Promise<McpOAuthTokenSet> {
+    const form = new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: config.redirectUri,
+      client_id: client.clientId,
+      code_verifier: codeVerifier,
+      resource,
+      scope: scopes.join(" "),
+    });
+    if (client.clientSecret !== undefined) {
+      form.set("client_secret", client.clientSecret);
+    }
+    const tokenJson = await this.fetchOAuthJson(
+      metadata.tokenEndpoint,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: form.toString(),
+      },
+      resource,
+      config.issuer,
+      scopes,
+      "token endpoint",
+    );
+    return decodeOAuthTokenSet(tokenJson);
+  }
+
+  private async refreshExpiredOAuthTokenIfNeeded(): Promise<void> {
+    if (this.transport.type !== "http" || !this.transport.authorization) return;
+    const binding = this.oauthTokenBinding;
+    if (!binding?.token.refreshToken || binding.token.expiresAtMs === undefined) return;
+    if (Date.now() < binding.token.expiresAtMs) return;
+
+    const config = this.transport.authorization;
+    const scopes = binding.token.scopes.length > 0
+      ? binding.token.scopes
+      : config.scopes;
+    const metadata = await this.fetchAuthorizationServerMetadata(
+      config,
+      binding.resource,
+      scopes,
+    );
+    const client = await this.resolveOAuthClient(
+      config,
+      metadata,
+      binding.resource,
+      scopes,
+    );
+    const refreshed = await this.refreshOAuthToken(
+      metadata,
+      config,
+      client,
+      binding,
+      scopes,
+    );
+    this.oauthTokenBinding = {
+      resource: binding.resource,
+      issuer: binding.issuer,
+      token: refreshed.scopes.length > 0
+        ? refreshed
+        : { ...refreshed, scopes: binding.token.scopes },
+    };
+  }
+
+  private async refreshOAuthToken(
+    metadata: McpAuthorizationServerMetadata,
+    config: NormalizedMcpStreamableHttpAuthorizationConfig,
+    client: McpOAuthResolvedClient,
+    binding: McpOAuthTokenBinding,
+    scopes: readonly string[],
+  ): Promise<McpOAuthTokenSet> {
+    if (!binding.token.refreshToken) return binding.token;
+    const form = new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: binding.token.refreshToken,
+      client_id: client.clientId,
+      resource: binding.resource,
+      scope: scopes.join(" "),
+    });
+    if (client.clientSecret !== undefined) {
+      form.set("client_secret", client.clientSecret);
+    }
+    const tokenJson = await this.fetchOAuthJson(
+      metadata.tokenEndpoint,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: form.toString(),
+      },
+      binding.resource,
+      config.issuer,
+      scopes,
+      "token endpoint",
+    );
+    return decodeOAuthTokenSet(tokenJson, binding.token.refreshToken);
+  }
+
+  private async fetchOAuthJson(
+    url: string,
+    init: RequestInit,
+    resource: string,
+    issuer: string,
+    scopes: readonly string[],
+    label: string,
+  ): Promise<JsonRpcResult> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), CONNECT_TIMEOUT);
+    let response: Response;
+    try {
+      response = await fetch(url, { ...init, signal: controller.signal });
+    } catch (err) {
+      const message = err instanceof Error && err.name === "AbortError"
+        ? `request timed out after ${CONNECT_TIMEOUT}ms`
+        : err instanceof Error ? err.message : String(err);
+      throw this.authorizationFlowError(resource, issuer, scopes, `${label} failed: ${message}`);
+    } finally {
+      clearTimeout(timer);
+    }
+    if (!response.ok) {
+      throw this.authorizationFlowError(
+        resource,
+        issuer,
+        scopes,
+        `${label} failed: HTTP ${response.status}`,
+      );
+    }
+    const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+    if (!contentType.includes("application/json")) {
+      throw this.authorizationFlowError(
+        resource,
+        issuer,
+        scopes,
+        `${label} failed: unsupported response content-type "${contentType || "(missing)"}"`,
+      );
+    }
+    try {
+      return JSON.parse(await response.text()) as JsonRpcResult;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw this.authorizationFlowError(resource, issuer, scopes, `${label} returned malformed JSON: ${message}`);
+    }
   }
 
   private async challengeWithProtectedResourceMetadata(
@@ -3527,11 +4454,42 @@ export class McpClient {
     return messages;
   }
 
-  private requestErrorForMethod(method: string, message: string): Error {
-    if (method === "tools/call" || method === "resources/read" || method === "prompts/get") {
-      return new McpToolError(this.serverName, method, message);
+  private sensitiveValuesForRedaction(): string[] {
+    const values: string[] = [];
+    const add = (value: string | undefined) => {
+      if (value && value.length > 0) values.push(value);
+    };
+    if (this.transport.type === "http") {
+      for (const [key, value] of Object.entries(this.transport.headers ?? {})) {
+        if (key.toLowerCase() !== "authorization") continue;
+        add(value);
+        const bearer = /^Bearer\s+(.+)$/i.exec(value);
+        add(bearer?.[1]);
+      }
+      const client = this.transport.authorization?.client;
+      if (client?.kind === "registered") {
+        add(client.clientSecret);
+      }
     }
-    return new McpConnectionError(this.serverName, method, message);
+    add(this.oauthTokenBinding?.token.accessToken);
+    add(this.oauthTokenBinding?.token.refreshToken);
+    return [...new Set(values)].sort((left, right) => right.length - left.length);
+  }
+
+  private redactSensitiveErrorMessage(message: string): string {
+    let redacted = message;
+    for (const value of this.sensitiveValuesForRedaction()) {
+      redacted = redacted.replace(new RegExp(escapeRegExp(value), "g"), "[redacted]");
+    }
+    return redacted;
+  }
+
+  private requestErrorForMethod(method: string, message: string): Error {
+    const redactedMessage = this.redactSensitiveErrorMessage(message);
+    if (method === "tools/call" || method === "resources/read" || method === "prompts/get") {
+      return new McpToolError(this.serverName, method, redactedMessage);
+    }
+    return new McpConnectionError(this.serverName, method, redactedMessage);
   }
 
   private defaultServerNameForTransport(): string {

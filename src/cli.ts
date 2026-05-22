@@ -10,7 +10,10 @@ import { TerminalTransport } from "#modules/rendering/transport.js";
 import { resolveAgentHarness, runAgentHarness } from "./core/agent-harness/index.js";
 import { runAgentLoop } from "./core/loop/loop.js";
 import { buildKotaSystemPrompt } from "./core/loop/system-prompt.js";
-import { createAskUserMcpInputResolver } from "./core/mcp/operator-input.js";
+import {
+  createAskUserMcpAuthorizationResolver,
+  createAskUserMcpInputResolver,
+} from "./core/mcp/operator-input.js";
 import { formatAuthError } from "./core/model/auth-error.js";
 import { createModelClient } from "./core/model/model-client.js";
 import {
@@ -299,6 +302,7 @@ program
       client: resolved.client,
       showCost: opts.cost !== false && (config.serve?.showCost ?? true),
       mcpInputResolver: createAskUserMcpInputResolver(),
+      mcpAuthorizationResolver: createAskUserMcpAuthorizationResolver(),
     };
 
     let prompt = promptWords.join(" ");

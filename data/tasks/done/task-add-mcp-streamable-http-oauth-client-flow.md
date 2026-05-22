@@ -1,12 +1,12 @@
 ---
 id: task-add-mcp-streamable-http-oauth-client-flow
 title: Add MCP Streamable HTTP OAuth client flow
-status: ready
+status: done
 priority: p2
 area: core
 summary: Let KOTA's HTTP MCP client turn protected-resource authorization challenges into an operator-approved OAuth flow with registration-state binding, PKCE, issuer validation, scoped token storage, and redacted retry behavior.
 created_at: 2026-05-22T03:54:39Z
-updated_at: 2026-05-22T03:54:39Z
+updated_at: 2026-05-22T04:15:25Z
 ---
 
 ## Problem

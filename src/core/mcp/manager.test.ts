@@ -1,15 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
-import { MCP_DRAFT_PROTOCOL_VERSION } from "./client.js";
+import { MCP_DRAFT_PROTOCOL_VERSION, mcpOAuthSecret } from "./client.js";
 import { type McpInputResolver, McpManager, namespaceTool, parseToolName } from "./manager.js";
 
 type RecordedHttpRequest = {
   url: string;
+  method: string;
   headers: Headers;
+  bodyText: string;
   body: {
     id?: number;
     method?: string;
     params?: Record<string, any>;
   };
+  form: URLSearchParams;
 };
 
 function mockMcpHttpFetch(
@@ -20,11 +23,15 @@ function mockMcpHttpFetch(
 } {
   const requests: RecordedHttpRequest[] = [];
   const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
-    const body = JSON.parse(String(init?.body ?? "{}"));
+    const bodyText = String(init?.body ?? "");
+    const body = bodyText.startsWith("{") ? JSON.parse(bodyText) : {};
     const request = {
       url: String(input),
+      method: init?.method ?? "GET",
       headers: new Headers(init?.headers),
+      bodyText,
       body,
+      form: new URLSearchParams(bodyText),
     };
     requests.push(request);
     return handler(request);
@@ -393,6 +400,86 @@ describe("McpManager", () => {
       expect(output).toContain("authorization required");
       expect(output).toContain("mcp:tools");
       expect(output).not.toContain("configured-token");
+    } finally {
+      errorSpy.mockRestore();
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("redacts acquired OAuth bearer tokens from manager connection diagnostics", async () => {
+    const { fetchSpy } = mockMcpHttpFetch((request) => {
+      if (request.method === "GET" && request.url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp") {
+        return new Response(JSON.stringify({
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "GET" && request.url === "https://auth.example.test/.well-known/oauth-authorization-server") {
+        return new Response(JSON.stringify({
+          issuer: "https://auth.example.test",
+          authorization_endpoint: "https://auth.example.test/authorize",
+          token_endpoint: "https://auth.example.test/token",
+          code_challenge_methods_supported: ["S256"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "POST" && request.url === "https://auth.example.test/token") {
+        return new Response(JSON.stringify({
+          access_token: "access-token-secret",
+          token_type: "Bearer",
+          scope: "files:read",
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.body.method === "server/discover" && request.headers.get("authorization") === "Bearer access-token-secret") {
+        return new Response("upstream echoed access-token-secret", {
+          status: 500,
+          headers: { "content-type": "text/plain" },
+        });
+      }
+      return new Response("missing token", {
+        status: 401,
+        headers: {
+          "www-authenticate": 'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", scope="files:read"',
+        },
+      });
+    });
+    const manager = new McpManager();
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      await manager.initialize({
+        mcpServers: {
+          remote: {
+            type: "http",
+            url: "https://mcp.example.test/mcp",
+            authorization: {
+              type: "oauth",
+              issuer: "https://auth.example.test",
+              redirectUri: "https://client.example.test/callback",
+              scopes: ["files:read"],
+              client: { kind: "registered", clientId: "kota-client" },
+            },
+          },
+        },
+      }, {
+        authorizationResolver: async (request) => ({
+          callbackUrl: mcpOAuthSecret(`https://client.example.test/callback?code=code-1&state=${request.state}`),
+        }),
+      });
+
+      expect(manager.getServerCount()).toBe(0);
+      const output = errorSpy.mock.calls.map((call) => call.join(" ")).join("\n");
+      expect(output).toContain('MCP server "remote" failed to connect');
+      expect(output).toContain("upstream echoed [redacted]");
+      expect(output).not.toContain("access-token-secret");
     } finally {
       errorSpy.mockRestore();
       fetchSpy.mockRestore();
@@ -1005,6 +1092,20 @@ describe("McpManager", () => {
         expected: "stdio transport cannot define http field headers",
       },
       {
+        serverName: "stdioOAuthAuthorization",
+        config: {
+          command: "node",
+          authorization: {
+            type: "oauth",
+            issuer: "https://auth.example.test",
+            redirectUri: "https://client.example.test/callback",
+            scopes: ["files:read"],
+            client: { kind: "registered", clientId: "kota-client" },
+          },
+        } as never,
+        expected: "stdio transport cannot define http field authorization",
+      },
+      {
         serverName: "envString",
         config: {
           command: "node",
@@ -1037,6 +1138,59 @@ describe("McpManager", () => {
           headers: 123,
         } as never,
         expected: "headers must be an object with string values",
+      },
+      {
+        serverName: "mixedStaticAndOAuth",
+        config: {
+          type: "http",
+          url: "https://mcp.example.test/mcp",
+          headers: { Authorization: "Bearer static-token" },
+          authorization: {
+            type: "oauth",
+            issuer: "https://auth.example.test",
+            redirectUri: "https://client.example.test/callback",
+            scopes: ["files:read"],
+            client: { kind: "registered", clientId: "kota-client" },
+          },
+        } as never,
+        expected: "cannot combine static Authorization headers with acquired OAuth tokens",
+      },
+      {
+        serverName: "dynamicDisabled",
+        config: {
+          type: "http",
+          url: "https://mcp.example.test/mcp",
+          authorization: {
+            type: "oauth",
+            issuer: "https://auth.example.test",
+            redirectUri: "https://client.example.test/callback",
+            scopes: ["files:read"],
+            client: {
+              kind: "dynamic",
+              clientName: "KOTA",
+              dynamicClientRegistration: { enabled: false },
+            },
+          },
+        } as never,
+        expected: "dynamic client registration is disabled",
+      },
+      {
+        serverName: "clientMetadataUrlNotHttps",
+        config: {
+          type: "http",
+          url: "https://mcp.example.test/mcp",
+          authorization: {
+            type: "oauth",
+            issuer: "https://auth.example.test",
+            redirectUri: "https://client.example.test/callback",
+            scopes: ["files:read"],
+            client: {
+              kind: "client-id-metadata-url",
+              clientId: "http://client.example.test/metadata.json",
+            },
+          },
+        } as never,
+        expected: "client-id metadata document URL must use https",
       },
     ];
 

@@ -8,6 +8,7 @@ import type {
 import type { ToolResult } from "#core/tools/index.js";
 import { validateToolStructuredOutput } from "#core/tools/output-schema.js";
 import {
+  type McpAuthorizationResolver,
   type McpCacheHints,
   type McpCallToolResult,
   McpClient,
@@ -19,9 +20,11 @@ import {
   type McpListPromptsPage,
   type McpListResourcesPage,
   type McpListResourceTemplatesPage,
+  type McpOAuthClientIdentityConfig,
   type McpProgressEvent,
   type McpReadResourceResult,
   type McpStdioClientTransportConfig,
+  type McpStreamableHttpAuthorizationConfig,
   type McpStreamableHttpClientTransportConfig,
   McpToolError,
   type McpToolInputRequests,
@@ -39,6 +42,7 @@ type McpConfig = {
 
 export type McpManagerInitializeOptions = {
   inputResolverAvailable?: boolean;
+  authorizationResolver?: McpAuthorizationResolver;
 };
 
 type McpToolEntry = {
@@ -125,9 +129,9 @@ export type McpExecuteToolOptions = {
 };
 
 const SEPARATOR = "__";
-const MCP_CONFIG_FIELDS = new Set(["type", "command", "args", "env", "url", "headers"]);
+const MCP_CONFIG_FIELDS = new Set(["type", "command", "args", "env", "url", "headers", "authorization"]);
 const MCP_STDIO_FIELDS = ["command", "args", "env"] as const;
-const MCP_HTTP_FIELDS = ["url", "headers"] as const;
+const MCP_HTTP_FIELDS = ["url", "headers", "authorization"] as const;
 
 /** Build a namespaced tool name: mcp__<server>__<tool> */
 export function namespaceTool(serverName: string, toolName: string): string {
@@ -325,7 +329,7 @@ function unsupportedOperationInputRequiredResult(
   };
 }
 
-function isJsonObject(value: McpServerConfig | KotaJsonValue): value is KotaJsonObject {
+function isJsonObject(value: McpServerConfig | KotaJsonValue | undefined): value is KotaJsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -381,6 +385,96 @@ function optionalStringRecord(
   return out;
 }
 
+function requiredString(value: KotaJsonValue | undefined, label: string): string {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`${label} must be a non-empty string`);
+  }
+  return value;
+}
+
+function hasAuthorizationHeader(headers: Record<string, string> | undefined): boolean {
+  if (!headers) return false;
+  return Object.keys(headers).some((key) => key.toLowerCase() === "authorization");
+}
+
+function decodeMcpOAuthClientIdentity(
+  value: KotaJsonValue | undefined,
+): McpOAuthClientIdentityConfig {
+  if (!isJsonObject(value)) {
+    throw new Error("authorization.client must be an object");
+  }
+  const kind = requiredString(value.kind, "authorization.client.kind");
+  if (kind === "registered") {
+    const clientId = requiredString(
+      value.clientId,
+      "authorization.client.clientId",
+    );
+    if (value.clientSecret !== undefined && typeof value.clientSecret !== "string") {
+      throw new Error("authorization.client.clientSecret must be a string");
+    }
+    return {
+      kind,
+      clientId,
+      ...(value.clientSecret !== undefined ? { clientSecret: value.clientSecret } : {}),
+    };
+  }
+  if (kind === "client-id-metadata-url") {
+    const clientId = requiredString(
+      value.clientId,
+      "authorization.client.clientId",
+    );
+    return { kind, clientId };
+  }
+  if (kind === "dynamic") {
+    const clientName = requiredString(
+      value.clientName,
+      "authorization.client.clientName",
+    );
+    const registration = value.dynamicClientRegistration;
+    if (!isJsonObject(registration)) {
+      throw new Error("authorization.client.dynamicClientRegistration must be an object");
+    }
+    if (registration.enabled !== true) {
+      throw new Error("OAuth dynamic client registration is disabled");
+    }
+    return {
+      kind,
+      clientName,
+      dynamicClientRegistration: { enabled: true },
+    };
+  }
+  throw new Error(
+    "authorization.client.kind must be registered, client-id-metadata-url, or dynamic",
+  );
+}
+
+function decodeMcpAuthorizationConfig(
+  value: KotaJsonValue | undefined,
+  headers: Record<string, string> | undefined,
+): McpStreamableHttpAuthorizationConfig | undefined {
+  if (value === undefined) return undefined;
+  if (hasAuthorizationHeader(headers)) {
+    throw new Error(
+      "MCP HTTP transport cannot combine static Authorization headers with acquired OAuth tokens",
+    );
+  }
+  if (!isJsonObject(value)) {
+    throw new Error("authorization must be an object");
+  }
+  const type = requiredString(value.type, "authorization.type");
+  if (type !== "oauth") {
+    throw new Error("authorization.type must be oauth");
+  }
+  const scopes = optionalStringArray(value.scopes, "authorization.scopes");
+  return {
+    type,
+    issuer: requiredString(value.issuer, "authorization.issuer"),
+    redirectUri: requiredString(value.redirectUri, "authorization.redirectUri"),
+    scopes: scopes ?? [],
+    client: decodeMcpOAuthClientIdentity(value.client),
+  };
+}
+
 function normalizeMcpServerConfig(
   serverName: string,
   config: McpServerConfig,
@@ -425,10 +519,12 @@ function normalizeMcpServerConfig(
       );
     }
     const headers = optionalStringRecord(raw.headers, "headers");
+    const authorization = decodeMcpAuthorizationConfig(raw.authorization, headers);
     return {
       type: "http",
       url: raw.url,
       ...(headers ? { headers } : {}),
+      ...(authorization ? { authorization } : {}),
     };
   }
   throw new Error(
@@ -555,7 +651,12 @@ export class McpManager {
           client = new McpClient(
             transport,
             name,
-            { supportedElicitationModes },
+            {
+              supportedElicitationModes,
+              ...(options.authorizationResolver
+                ? { authorizationResolver: options.authorizationResolver }
+                : {}),
+            },
           );
           this.serverTools.set(name, []);
           await client.connect();

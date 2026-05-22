@@ -1,8 +1,14 @@
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { KotaJsonValue } from "#core/agent-harness/message-protocol.js";
 import { runAskUser } from "#core/tools/ask-user.js";
 import {
   decodeMcpToolInputResponses,
+  type McpAuthorizationResolver,
+  type McpAuthorizationResolverRequest,
   type McpToolInputResponses,
+  mcpOAuthSecret,
   mcpToolUrlElicitationDetails,
 } from "./client.js";
 import type {
@@ -69,6 +75,45 @@ export function createAskUserMcpInputResolver(): McpInputResolver {
         kind: "unavailable",
         reason: `operator input did not produce valid MCP inputResponses: ${message}`,
       };
+    }
+  };
+}
+
+export function buildMcpAuthorizationQuestion(
+  request: McpAuthorizationResolverRequest,
+  callbackFilePath: string,
+): string {
+  return (
+    `Remote MCP server "${request.server}" requires OAuth authorization.\n\n` +
+    `Resource: ${request.resource}\n` +
+    `Issuer: ${request.issuer}\n` +
+    `Scopes: ${request.scopes.join(" ") || "(none)"}\n\n` +
+    `Open this authorization URL:\n${request.authorizationUrl}\n\n` +
+    "After approving, save the browser redirect callback URL into this local file:\n" +
+    `${callbackFilePath}\n\n` +
+    'Then reply "done" here. Do not paste the redirect URL, authorization code, ' +
+    "access tokens, refresh tokens, authorization server logs, or client secrets into this chat."
+  );
+}
+
+export function createAskUserMcpAuthorizationResolver(): McpAuthorizationResolver {
+  return async (request) => {
+    const dir = await mkdtemp(join(tmpdir(), "kota-mcp-oauth-"));
+    const callbackFilePath = join(dir, "callback-url.txt");
+    await writeFile(callbackFilePath, "", { mode: 0o600 });
+    try {
+      await runAskUser({
+        question: buildMcpAuthorizationQuestion(request, callbackFilePath),
+      });
+      const callbackUrl = (await readFile(callbackFilePath, "utf-8")).trim();
+      if (callbackUrl.length === 0) {
+        throw new Error(
+          "MCP OAuth authorization callback file was empty; authorization was not completed.",
+        );
+      }
+      return { callbackUrl: mcpOAuthSecret(callbackUrl) };
+    } finally {
+      await rm(dir, { recursive: true, force: true });
     }
   };
 }

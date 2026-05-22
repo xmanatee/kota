@@ -3,6 +3,7 @@ import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
 import { tryEmit } from "#core/events/event-bus.js";
+import type { McpAuthorizationResolver } from "#core/mcp/client.js";
 import type { McpInputResolver, McpManager } from "#core/mcp/manager.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import type { ModelTiers } from "#core/model/model-router.js";
@@ -59,6 +60,7 @@ export type LoopOptions = {
   projectRuntime?: ProjectRuntime;
   /** Optional existing operator surface bridge for remote MCP input_required retries. */
   mcpInputResolver?: McpInputResolver;
+  mcpAuthorizationResolver?: McpAuthorizationResolver;
 };
 
 /**
@@ -79,6 +81,7 @@ export class AgentSession implements AgentLoopState {
   verifyTracker!: VerifyTracker;
   mcpManager: McpManager | null = null;
   mcpInputResolver: McpInputResolver | undefined;
+  mcpAuthorizationResolver: McpAuthorizationResolver | undefined;
   moduleLoader!: ModuleLoader;
   transport!: Transport;
   defaultTransportProxy: ProxyTransport | undefined;
@@ -118,6 +121,7 @@ export class AgentSession implements AgentLoopState {
         projectDir: this.projectDir,
         projectRuntime: options.projectRuntime,
         mcpInputResolver: this.mcpInputResolver,
+        mcpAuthorizationResolver: this.mcpAuthorizationResolver,
       });
       return {
         send: (prompt: string) => session.send(prompt),
