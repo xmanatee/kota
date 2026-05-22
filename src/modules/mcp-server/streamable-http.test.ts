@@ -129,7 +129,7 @@ describe("Streamable HTTP MCP transport", () => {
 			process.chdir(clientProjectDir);
 			response = await handleStreamableHttpRequest(server, {
 				method: "GET",
-				url: "/.well-known/mcp/server-card.json",
+				url: "/.well-known/mcp/server-card",
 				headers: { origin: "https://browser.example.test" },
 			});
 		} finally {
@@ -144,35 +144,29 @@ describe("Streamable HTTP MCP transport", () => {
 			"cache-control": "public, max-age=3600",
 		});
 		const card = parseBody(response);
-		expect(card).toMatchObject({
-			$schema: "https://static.modelcontextprotocol.io/schemas/mcp-server-card/v1.json",
-			version: "1.0",
-			protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
-			serverInfo: {
-				name: "io.github.xmanatee/kota",
-				title: "KOTA",
-				version: "0.1.0",
+		expect(card).toEqual({
+			$schema: "https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json",
+			name: "io.github.xmanatee/kota",
+			title: "KOTA",
+			description: "Keep Only The Awesome. An AI coding agent MCP server exposing KOTA tools.",
+			repository: {
+				source: "github",
+				url: "https://github.com/xmanatee/kota",
 			},
-			transport: {
-				type: "streamable-http",
-				endpoint: "/mcp",
-			},
-			capabilities: {
-				tools: {},
-				resources: { listChanged: true },
-				prompts: { listChanged: true },
-				completions: {},
-				logging: {},
-			},
+			version: "0.1.0",
 		});
-		expect(card.name).toBeUndefined();
-		expect(card.repository).toBeUndefined();
+		expect(card.serverInfo).toBeUndefined();
+		expect(card.protocolVersion).toBeUndefined();
+		expect(card.transport).toBeUndefined();
+		expect(card.capabilities).toBeUndefined();
+		expect(card.packages).toBeUndefined();
+		expect(card.remotes).toBeUndefined();
 		expect(JSON.stringify(card)).not.toMatch(/127\.0\.0\.1|localhost|\/Users\/|\/private\/|authorization|token|secret/i);
 		expect(calls).toBe(0);
 
 		const nonGet = await handleStreamableHttpRequest(server, {
 			method: "POST",
-			url: "/.well-known/mcp/server-card.json",
+			url: "/.well-known/mcp/server-card",
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({
 				jsonrpc: "2.0",
@@ -183,6 +177,14 @@ describe("Streamable HTTP MCP transport", () => {
 		});
 		expect(nonGet.status).toBe(405);
 		expect(nonGet.headers.allow).toBe("GET");
+		expect(calls).toBe(0);
+
+		const oldDraftPath = await handleStreamableHttpRequest(server, {
+			method: "GET",
+			url: "/.well-known/mcp/server-card.json",
+			headers: {},
+		});
+		expect(oldDraftPath.status).toBe(404);
 		expect(calls).toBe(0);
 	});
 

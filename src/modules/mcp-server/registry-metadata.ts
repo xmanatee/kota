@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { isIP } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { KotaJsonObject } from "#core/agent-harness/message-protocol.js";
 
 const MCP_REGISTRY_SCHEMA_URL =
 	"https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json";
@@ -24,7 +25,7 @@ type McpRegistryPackage = {
 	packageArguments: McpRegistryPackageArgument[];
 };
 
-type McpRegistryRemote = {
+type McpRegistryRemote = KotaJsonObject & {
 	type: "streamable-http" | "sse";
 	url: string;
 };
@@ -43,6 +44,7 @@ export type McpRegistryServerJson = {
 	version: string;
 	packages: McpRegistryPackage[];
 	remotes?: McpRegistryRemote[];
+	_meta?: KotaJsonObject;
 };
 
 const MCP_SERVER_PACKAGE_ARGUMENTS: McpRegistryPackageArgument[] = [
@@ -167,7 +169,7 @@ function parseUrl(rawUrl: string): URL | null {
 	}
 }
 
-function isPublicHttpsEndpoint(url: URL): boolean {
+export function isPublicHttpsEndpoint(url: URL): boolean {
 	if (url.protocol !== "https:") return false;
 	const host = normalizeDnsHostname(url.hostname.toLowerCase());
 	if (!host.includes(".")) return false;
@@ -189,7 +191,7 @@ function isPublicHttpsEndpoint(url: URL): boolean {
 	return true;
 }
 
-function hasSecretLikeQueryParameter(url: URL): boolean {
+export function hasSecretLikeQueryParameter(url: URL): boolean {
 	for (const key of url.searchParams.keys()) {
 		if (/authorization|api[-_]?key|credential|password|secret|token/i.test(key)) {
 			return true;

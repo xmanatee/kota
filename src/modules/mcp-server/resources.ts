@@ -2,7 +2,8 @@
  * MCP resource definitions and readers for KOTA state.
  *
  * Exposes KOTA's read-only resources over the MCP protocol:
- *   kota://tasks/ready          – task queue snapshot
+ *   mcp://server-card.json    - public first-party MCP server metadata
+ *   kota://tasks/ready          - task queue snapshot
  *   kota://workflow/status      – runtime state summary
  *   kota://workflow/runs/recent – 10 most recent run summaries
  *   kota://memory               – bounded memory index
@@ -59,7 +60,7 @@ const CORE_KOTA_RESOURCES: McpResource[] = [
 		uri: MCP_SERVER_CARD_RESOURCE_URI,
 		name: "MCP Server Card",
 		description:
-			"Public pre-connection metadata for KOTA's first-party MCP server.",
+			"Public metadata for KOTA's first-party MCP server.",
 		mimeType: "application/json",
 	},
 	{

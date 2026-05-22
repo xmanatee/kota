@@ -129,9 +129,7 @@ export async function handleStreamableHttpRequest(
 			};
 		}
 		try {
-			return serverCardResponse(readMcpServerCard({
-				streamableHttpPath: endpointPath,
-			}));
+			return serverCardResponse(readMcpServerCard());
 		} catch {
 			return {
 				status: 500,

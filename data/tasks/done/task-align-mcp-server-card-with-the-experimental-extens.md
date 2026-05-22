@@ -1,12 +1,12 @@
 ---
 id: task-align-mcp-server-card-with-the-experimental-extens
 title: Align MCP Server Card with the experimental extension schema
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Update KOTA's first-party MCP Server Card projection and well-known discovery endpoint to match the active MCP experimental Server Card extension instead of the older draft shape.
 created_at: 2026-05-22T08:15:16Z
-updated_at: 2026-05-22T08:15:16Z
+updated_at: 2026-05-22T08:29:26Z
 ---
 
 ## Problem
@@ -128,3 +128,20 @@ protocol operations and preserving module-owned implementation boundaries.
   showing schema-valid public metadata and no primitive listings, secrets,
   private endpoints, project-local paths, or user/session state.
 - `pnpm test src/modules/mcp-server/*.test.ts` passes.
+
+## Completion Evidence
+
+- Updated KOTA's Server Card projection to the experimental extension shape:
+  top-level identity fields, public absolute `remotes` only when declared in
+  registry metadata, optional public `_meta`, and no primitive listings or old
+  draft `serverInfo`/`transport`/`capabilities` fields.
+- Switched Streamable HTTP discovery to `/.well-known/mcp/server-card` while
+  retaining `mcp://server-card.json` as the post-connection MCP resource for
+  the same current projection.
+- Captured the current well-known and MCP resource responses in
+  `.kota/runs/2026-05-22T08-18-46-933Z-builder-nyfjov/server-card-responses.json`
+  and the full focused test transcript in
+  `.kota/runs/2026-05-22T08-18-46-933Z-builder-nyfjov/mcp-server-focused-test-transcript.txt`.
+- Verification passed:
+  `pnpm test src/modules/mcp-server/*.test.ts`, `pnpm typecheck`, and
+  `pnpm lint`.
