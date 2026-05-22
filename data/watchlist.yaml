@@ -324,6 +324,9 @@ resources:
       fingerprint: sha256:4e75f85c26869c172eb6c9cf9151a01f
       summary: "MCP draft Completion is covered by completed completion/complete alignment for prompt/resource references, bounded metadata, contextual arguments, and invalid-params behavior; no new completion task is open from this snapshot."
       last_seen_at: "2026-05-20T15:04:01.201Z"
+  - url: https://modelcontextprotocol.io/specification/draft/server/utilities/logging
+    added: "2026-05-22"
+    notes: "Official MCP logging utility draft - monitor deprecated request-scoped logLevel metadata, notifications/message response-stream behavior, invalid-level handling, and HTTP diagnostics implications for KOTA's first-party MCP server."
   - url: https://modelcontextprotocol.io/specification/draft/server/utilities/caching
     added: "2026-05-21"
     notes: "Official MCP caching utility draft - monitor ttlMs/cacheScope hints, cache scope security, TTL freshness, pagination interaction, and list-changed invalidation for KOTA's MCP server and external MCP client."
