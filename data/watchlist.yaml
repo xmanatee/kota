@@ -272,9 +272,9 @@ resources:
     added: "2026-05-21"
     notes: "Official MCP authorization draft - monitor HTTP protected-resource metadata, WWW-Authenticate discovery, OAuth authorization-server discovery, Bearer token validation, resource/audience binding, scope step-up, and token-handling constraints for KOTA's Streamable HTTP MCP client and server."
     snapshot:
-      fingerprint: sha256:865684dad113b8056804f5bab1d2ac79
-      summary: "MCP draft Authorization is now covered by KOTA's completed Streamable HTTP authorization task: protected-resource metadata, challenge parsing, bearer validation, audience checks, scoped errors, and no token passthrough are already represented, so no new task is open from this snapshot."
-      last_seen_at: "2026-05-21T23:15:25.196Z"
+      fingerprint: sha256:61dca1ecc81e50c552249f72153895a7
+      summary: "MCP draft Authorization now exposes a remaining KOTA client-side gap: challenge parsing and protected-resource metadata are covered, but a typed OAuth client registration, PKCE, issuer-validation, token-storage, retry, and step-up flow is not; opened task-add-mcp-streamable-http-oauth-client-flow."
+      last_seen_at: "2026-05-22T03:56:53.994Z"
   - url: https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices
     added: "2026-05-21"
     notes: "Official MCP security guidance - monitor confused-deputy, token-passthrough, OAuth-discovery SSRF, session hijacking, local HTTP server exposure, and scope-minimization guidance that affects KOTA's MCP client/server security boundaries."
