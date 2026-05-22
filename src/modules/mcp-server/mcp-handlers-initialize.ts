@@ -9,6 +9,7 @@ import {
 	type DeprecatedMcpCapabilityWarning,
 	hasDeprecatedClientCapability,
 } from "./deprecated-capabilities.js";
+import { buildMcpServerDiscoverCapabilities } from "./mcp-capabilities.js";
 import type {
 	HandlerContext,
 	JsonRpcRequest,
@@ -75,25 +76,6 @@ function initializePeer(params: JsonRpcRequest["params"]): McpImplementation {
 	return { name: "unknown", version: "unknown" };
 }
 
-function buildDraftServerCapabilities(): KotaJsonObject {
-	return {
-		tools: {},
-		resources: { listChanged: true },
-		prompts: { listChanged: true },
-		completions: {},
-		logging: {},
-		tasks: {
-			list: {},
-			cancel: {},
-			requests: {
-				tools: {
-					call: {},
-				},
-			},
-		},
-	};
-}
-
 function buildLegacyServerCapabilities(args: {
 	clientSupportsFormElicitation: boolean;
 	advertiseSampling: boolean;
@@ -152,7 +134,7 @@ export class InitializeHandler {
 		const peer = initializePeer(msg.params);
 		const capabilities =
 			this.ctx.session.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION
-				? buildDraftServerCapabilities()
+				? buildMcpServerDiscoverCapabilities()
 				: buildLegacyServerCapabilities({
 					clientSupportsFormElicitation: this.ctx.session.clientElicitation.form,
 					advertiseSampling: this.options.advertiseSampling(),
@@ -222,7 +204,7 @@ export class InitializeHandler {
 		}
 		this.ctx.transport.sendResult(msg, {
 			supportedVersions: [...MCP_SUPPORTED_PROTOCOL_VERSIONS],
-			capabilities: buildDraftServerCapabilities(),
+			capabilities: buildMcpServerDiscoverCapabilities(),
 			serverInfo: {
 				name: this.options.serverName,
 				version: this.options.serverVersion,

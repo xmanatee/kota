@@ -134,4 +134,29 @@ describe("MCP registry metadata", () => {
 			'server.json.remotes[12].url "https://service.lan./mcp" must be a public HTTPS endpoint',
 		);
 	});
+
+	it("rejects publication-sensitive remote URL credentials and secret-like query fields", () => {
+		const { packageJson, serverJson } = readMcpRegistryMetadata();
+		const errors = validateMcpRegistryMetadata({
+			packageJson,
+			serverJson: {
+				...serverJson,
+				remotes: [
+					{ type: "streamable-http", url: "https://user:secret@mcp.example.test/mcp" },
+					{ type: "streamable-http", url: "https://mcp.example.test/mcp?token=secret" },
+					{ type: "streamable-http", url: "https://mcp.example.test/mcp?api_key=secret" },
+				],
+			},
+		});
+
+		expect(errors).toContain(
+			'server.json.remotes[0].url "https://user:secret@mcp.example.test/mcp" must not include credentials',
+		);
+		expect(errors).toContain(
+			'server.json.remotes[1].url "https://mcp.example.test/mcp?token=secret" must not include secret-like query parameters',
+		);
+		expect(errors).toContain(
+			'server.json.remotes[2].url "https://mcp.example.test/mcp?api_key=secret" must not include secret-like query parameters',
+		);
+	});
 });

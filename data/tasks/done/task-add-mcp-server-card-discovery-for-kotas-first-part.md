@@ -1,12 +1,12 @@
 ---
 id: task-add-mcp-server-card-discovery-for-kotas-first-part
 title: Add MCP Server Card discovery for KOTA's first-party MCP server
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Expose KOTA's first-party MCP server metadata through the emerging MCP Server Card discovery shape, reusing existing server.json metadata and MCP resources instead of adding a parallel registry.
 created_at: 2026-05-22T07:27:38Z
-updated_at: 2026-05-22T07:27:38Z
+updated_at: 2026-05-22T08:01:37Z
 ---
 
 ## Problem
@@ -134,3 +134,15 @@ boundary and strict registry metadata source of truth.
   `mcp://server-card.json` resource response and the well-known HTTP response,
   showing the shared JSON card and the absence of secrets, private endpoints,
   project-local paths, or user/session state.
+
+## Completion Evidence
+
+- Implemented the Server Card projection, MCP resource, and SEP-1649
+  `/.well-known/mcp/server-card.json` HTTP discovery endpoint in
+  `src/modules/mcp-server/`.
+- Captured matching resource and HTTP responses in
+  `.kota/runs/2026-05-22T07-30-47-828Z-builder-v51slv/server-card-responses.json`.
+- Verification passed:
+  `pnpm test src/modules/mcp-server/*.test.ts`,
+  `pnpm test src/built-cli-mcp-server.integration.test.ts`, and
+  `pnpm typecheck`.

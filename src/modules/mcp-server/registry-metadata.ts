@@ -139,22 +139,35 @@ function validatePackageEntry(
 
 function validatePublicRemotes(errors: string[], remotes: McpRegistryRemote[]): void {
 	remotes.forEach((remote, index) => {
-		if (!isPublicHttpsEndpoint(remote.url)) {
+		const url = parseUrl(remote.url);
+		if (!url || !isPublicHttpsEndpoint(url)) {
 			errors.push(
 				`server.json.remotes[${index}].url "${remote.url}" must be a public HTTPS endpoint`,
+			);
+			return;
+		}
+		if (url.username || url.password) {
+			errors.push(
+				`server.json.remotes[${index}].url "${remote.url}" must not include credentials`,
+			);
+		}
+		if (hasSecretLikeQueryParameter(url)) {
+			errors.push(
+				`server.json.remotes[${index}].url "${remote.url}" must not include secret-like query parameters`,
 			);
 		}
 	});
 }
 
-function isPublicHttpsEndpoint(rawUrl: string): boolean {
-	let url: URL;
+function parseUrl(rawUrl: string): URL | null {
 	try {
-		url = new URL(rawUrl);
+		return new URL(rawUrl);
 	} catch {
-		return false;
+		return null;
 	}
+}
 
+function isPublicHttpsEndpoint(url: URL): boolean {
 	if (url.protocol !== "https:") return false;
 	const host = normalizeDnsHostname(url.hostname.toLowerCase());
 	if (!host.includes(".")) return false;
@@ -174,6 +187,15 @@ function isPublicHttpsEndpoint(rawUrl: string): boolean {
 	if (ipVersion === 4) return isPublicIpv4(host);
 	if (ipVersion === 6) return isPublicIpv6(host);
 	return true;
+}
+
+function hasSecretLikeQueryParameter(url: URL): boolean {
+	for (const key of url.searchParams.keys()) {
+		if (/authorization|api[-_]?key|credential|password|secret|token/i.test(key)) {
+			return true;
+		}
+	}
+	return false;
 }
 
 function normalizeDnsHostname(host: string): string {

@@ -9,6 +9,10 @@ import {
 	MCP_META_PROTOCOL_VERSION_KEY,
 } from "./mcp-protocol-types.js";
 import type { McpServer } from "./server.js";
+import {
+	MCP_SERVER_CARD_WELL_KNOWN_PATH,
+	readMcpServerCard,
+} from "./server-card.js";
 
 const HEADER_MISMATCH_CODE = -32001;
 const AUTHORIZATION_ERROR_CODE = -32005;
@@ -113,6 +117,29 @@ export async function handleStreamableHttpRequest(
 ): Promise<StreamableHttpResponse> {
 	const endpointPath = options.endpointPath ?? DEFAULT_ENDPOINT_PATH;
 	const requestPath = new URL(request.url, "http://127.0.0.1").pathname;
+	if (requestPath === MCP_SERVER_CARD_WELL_KNOWN_PATH) {
+		if (request.method !== "GET") {
+			return {
+				status: 405,
+				headers: {
+					allow: "GET",
+					"content-type": "text/plain",
+				},
+				body: "Method not allowed",
+			};
+		}
+		try {
+			return serverCardResponse(readMcpServerCard({
+				streamableHttpPath: endpointPath,
+			}));
+		} catch {
+			return {
+				status: 500,
+				headers: { "content-type": "text/plain" },
+				body: "Server Card unavailable",
+			};
+		}
+	}
 	if (options.authorization && requestPath === protectedResourceMetadataPath(endpointPath, options.authorization)) {
 		if (request.method !== "GET") {
 			return { status: 405, headers: { allow: "GET", "content-type": "text/plain" }, body: "Method not allowed" };
@@ -825,6 +852,20 @@ function jsonResponse(status: number, payload: JsonRpcOutboundPayload): Streamab
 	return {
 		status,
 		headers: { "content-type": "application/json" },
+		body: JSON.stringify(payload),
+	};
+}
+
+function serverCardResponse(payload: KotaJsonObject): StreamableHttpResponse {
+	return {
+		status: 200,
+		headers: {
+			"content-type": "application/json",
+			"access-control-allow-origin": "*",
+			"access-control-allow-methods": "GET",
+			"access-control-allow-headers": "content-type",
+			"cache-control": "public, max-age=3600",
+		},
 		body: JSON.stringify(payload),
 	};
 }

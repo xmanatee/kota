@@ -16,6 +16,10 @@ import { getKnowledgeProvider, getMemoryProvider } from "#core/modules/provider-
 import type { KnowledgeEntry, Memory } from "#core/modules/provider-types.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { getRepoTaskStateDir } from "#modules/repo-tasks/repo-tasks-domain.js";
+import {
+	MCP_SERVER_CARD_RESOURCE_URI,
+	readMcpServerCard,
+} from "./server-card.js";
 
 export type McpResource = {
 	uri: string;
@@ -51,6 +55,13 @@ export const RESOURCE_LIST_PAGE_SIZE = 3;
 export const RESOURCE_TEMPLATE_LIST_PAGE_SIZE = 3;
 
 const CORE_KOTA_RESOURCES: McpResource[] = [
+	{
+		uri: MCP_SERVER_CARD_RESOURCE_URI,
+		name: "MCP Server Card",
+		description:
+			"Public pre-connection metadata for KOTA's first-party MCP server.",
+		mimeType: "application/json",
+	},
 	{
 		uri: "kota://tasks/ready",
 		name: "Ready Tasks",
@@ -239,6 +250,10 @@ function protocolError(message: string): KotaResourceError {
 
 function notFoundError(message: string): KotaResourceError {
 	return { ok: false, code: -32002, message };
+}
+
+function internalError(message: string): KotaResourceError {
+	return { ok: false, code: -32603, message };
 }
 
 function encodeToken(value: string): string {
@@ -677,6 +692,13 @@ export function readKotaResource(
 	projectDir: string,
 ): KotaResourceReadResult {
 	switch (uri) {
+		case MCP_SERVER_CARD_RESOURCE_URI:
+			try {
+				return resourceSuccess(readMcpServerCard());
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				return internalError(message);
+			}
 		case "kota://tasks/ready":
 			return resourceSuccess(readReadyTasks(projectDir));
 		case "kota://workflow/status":

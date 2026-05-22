@@ -1,3 +1,6 @@
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
@@ -99,6 +102,90 @@ async function waitForAssertion(assertion: () => void, timeoutMs = 2_000): Promi
 }
 
 describe("Streamable HTTP MCP transport", () => {
+	it("serves the Server Card well-known endpoint without MCP dispatch", async () => {
+		let calls = 0;
+		const server = new McpServer({
+			log: () => {},
+			moduleTools: [
+				{
+					tool: {
+						name: "should_not_run",
+						description: "test dispatch guard",
+						input_schema: { type: "object", properties: {} },
+					},
+					runner: async () => {
+						calls += 1;
+						return { content: "called" };
+					},
+					effect: networkWriteEffect(),
+				},
+			],
+		});
+
+		const originalCwd = process.cwd();
+		const clientProjectDir = mkdtempSync(join(tmpdir(), "kota-mcp-client-cwd-"));
+		let response: Awaited<ReturnType<typeof handleStreamableHttpRequest>>;
+		try {
+			process.chdir(clientProjectDir);
+			response = await handleStreamableHttpRequest(server, {
+				method: "GET",
+				url: "/.well-known/mcp/server-card.json",
+				headers: { origin: "https://browser.example.test" },
+			});
+		} finally {
+			process.chdir(originalCwd);
+		}
+
+		expect(response.status).toBe(200);
+		expect(response.headers).toMatchObject({
+			"content-type": "application/json",
+			"access-control-allow-origin": "*",
+			"access-control-allow-methods": "GET",
+			"cache-control": "public, max-age=3600",
+		});
+		const card = parseBody(response);
+		expect(card).toMatchObject({
+			$schema: "https://static.modelcontextprotocol.io/schemas/mcp-server-card/v1.json",
+			version: "1.0",
+			protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+			serverInfo: {
+				name: "io.github.xmanatee/kota",
+				title: "KOTA",
+				version: "0.1.0",
+			},
+			transport: {
+				type: "streamable-http",
+				endpoint: "/mcp",
+			},
+			capabilities: {
+				tools: {},
+				resources: { listChanged: true },
+				prompts: { listChanged: true },
+				completions: {},
+				logging: {},
+			},
+		});
+		expect(card.name).toBeUndefined();
+		expect(card.repository).toBeUndefined();
+		expect(JSON.stringify(card)).not.toMatch(/127\.0\.0\.1|localhost|\/Users\/|\/private\/|authorization|token|secret/i);
+		expect(calls).toBe(0);
+
+		const nonGet = await handleStreamableHttpRequest(server, {
+			method: "POST",
+			url: "/.well-known/mcp/server-card.json",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({
+				jsonrpc: "2.0",
+				id: 1,
+				method: "tools/call",
+				params: draftParams({ name: "should_not_run", arguments: {} }),
+			}),
+		});
+		expect(nonGet.status).toBe(405);
+		expect(nonGet.headers.allow).toBe("GET");
+		expect(calls).toBe(0);
+	});
+
 	it("serves discover, tools/list, and tools/call through the existing MCP handlers", async () => {
 		let calls = 0;
 		const incrementTool: ToolDef = {

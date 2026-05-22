@@ -2723,6 +2723,40 @@ describe("resources", () => {
 		return dir;
 	}
 
+	function writeServerCardMetadata(projectDir: string, options: { serverVersion?: string } = {}): void {
+		writeFileSync(
+			join(projectDir, "package.json"),
+			JSON.stringify({
+				name: "kota",
+				version: "1.2.3",
+				mcpName: "io.github.xmanatee/kota",
+			}),
+		);
+		writeFileSync(
+			join(projectDir, "server.json"),
+			JSON.stringify({
+				$schema: "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+				name: "io.github.xmanatee/kota",
+				title: "KOTA",
+				description: "Keep Only The Awesome. An AI coding agent MCP server exposing KOTA tools.",
+				repository: {
+					source: "github",
+					url: "https://github.com/xmanatee/kota",
+				},
+				version: options.serverVersion ?? "1.2.3",
+				packages: [
+					{
+						registryType: "npm",
+						identifier: "kota",
+						version: "1.2.3",
+						transport: { type: "stdio" },
+						packageArguments: [{ type: "positional", value: "mcp-server" }],
+					},
+				],
+			}),
+		);
+	}
+
 	it("resources/list returns KOTA resources", async () => {
 		const { input, output } = createTestStreams();
 		const server = new McpServer({ input, output, log: () => {} });
@@ -2732,11 +2766,19 @@ describe("resources", () => {
 		const resp = await readResponse(output);
 
 		expect(resp.id).toBe(2);
-		const result = resp.result as { resources: Array<{ uri: string }>; ttlMs?: number; cacheScope?: string };
+		const result = resp.result as { resources: Array<{ uri: string }>; nextCursor?: string; ttlMs?: number; cacheScope?: string };
 		expect(Array.isArray(result.resources)).toBe(true);
 		expect(result.ttlMs).toBe(60_000);
 		expect(result.cacheScope).toBe("public");
-		const uris = result.resources.map((r) => r.uri);
+		const resources = [...result.resources];
+		if (result.nextCursor) {
+			sendRequest(input, 3, "resources/list", { cursor: result.nextCursor });
+			const nextResp = await readResponse(output);
+			const nextResult = nextResp.result as { resources: Array<{ uri: string }> };
+			resources.push(...nextResult.resources);
+		}
+		const uris = resources.map((r) => r.uri);
+		expect(uris).toContain("mcp://server-card.json");
 		expect(uris).toContain("kota://tasks/ready");
 		expect(uris).toContain("kota://workflow/status");
 		expect(uris).toContain("kota://workflow/runs/recent");
@@ -2760,9 +2802,9 @@ describe("resources", () => {
 		expect(firstResult.ttlMs).toBe(60_000);
 		expect(firstResult.cacheScope).toBe("public");
 		expect(firstResult.resources.map((resource) => resource.uri)).toEqual([
+			"mcp://server-card.json",
 			"kota://tasks/ready",
 			"kota://workflow/status",
-			"kota://workflow/runs/recent",
 		]);
 		expect(firstResult.nextCursor).toEqual(expect.any(String));
 
@@ -2773,6 +2815,7 @@ describe("resources", () => {
 			nextCursor?: string;
 		};
 		expect(secondResult.resources.map((resource) => resource.uri)).toEqual([
+			"kota://workflow/runs/recent",
 			"kota://memory",
 			"kota://knowledge",
 		]);
@@ -2791,7 +2834,8 @@ describe("resources", () => {
 		vi.mocked(getKnowledgeProvider).mockImplementation(() => {
 			throw new Error("knowledge unavailable");
 		});
-		sendRequest(input, 5, "resources/list", { cursor: firstResult.nextCursor });
+		const staleEndCursor = Buffer.from("resources-list:6", "utf-8").toString("base64url");
+		sendRequest(input, 5, "resources/list", { cursor: staleEndCursor });
 		const outOfRange = await readResponse(output);
 		expect(outOfRange.error).toMatchObject({
 			code: -32602,
@@ -2813,6 +2857,117 @@ describe("resources", () => {
 		const result = resp.result as { resources: Array<{ uri: string }> };
 		const uris = result.resources.map((r) => r.uri);
 		expect(uris).toContain("kota://tasks/ready");
+
+		server.stop();
+	});
+
+	it("resources/read returns the public MCP Server Card resource", async () => {
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {} });
+		await initServer(server, input, output);
+
+		sendRequest(input, 2, "resources/read", { uri: "mcp://server-card.json" });
+		const resp = await readResponse(output);
+
+		expect(resp.error).toBeUndefined();
+		const result = resp.result as {
+			contents: Array<{ uri: string; mimeType: string; text: string }>;
+		};
+		expect(result.contents).toHaveLength(1);
+		expect(result.contents[0].uri).toBe("mcp://server-card.json");
+		expect(result.contents[0].mimeType).toBe("application/json");
+		const card = JSON.parse(result.contents[0].text) as Record<string, unknown>;
+		expect(card).toMatchObject({
+			$schema: "https://static.modelcontextprotocol.io/schemas/mcp-server-card/v1.json",
+			version: "1.0",
+			protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+			serverInfo: {
+				name: "io.github.xmanatee/kota",
+				title: "KOTA",
+				version: "0.1.0",
+			},
+			transport: {
+				type: "streamable-http",
+				endpoint: "/mcp",
+			},
+			capabilities: {
+				tools: {},
+				resources: { listChanged: true },
+				prompts: { listChanged: true },
+				completions: {},
+				logging: {},
+			},
+		});
+		expect(card.name).toBeUndefined();
+		expect(card.repository).toBeUndefined();
+		expect(card.packages).toBeUndefined();
+		expect(card.tools).toBeUndefined();
+		expect(card.resources).toBeUndefined();
+		expect(card.prompts).toBeUndefined();
+		const serialized = JSON.stringify(card);
+		expect(serialized).not.toMatch(/127\.0\.0\.1|localhost|\/Users\/|\/private\/|authorization|token|secret/i);
+
+		server.stop();
+	});
+
+	it("keeps the Server Card capability summary aligned with server/discover", async () => {
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {} });
+		await server.start();
+
+		sendRequest(input, 1, "server/discover", draftRequestParams());
+		const discover = await readResponse(output);
+		sendRequest(input, 2, "resources/read", draftRequestParams({
+			uri: "mcp://server-card.json",
+		}));
+		const resource = await readResponse(output);
+
+		const discoverCapabilities = (discover.result as Record<string, unknown>)
+			.capabilities as Record<string, unknown>;
+		const result = resource.result as { contents: Array<{ text: string }> };
+		const card = JSON.parse(result.contents[0].text) as Record<string, unknown>;
+		const cardCapabilities = card.capabilities as Record<string, unknown>;
+		const discoverTasks = discoverCapabilities.tasks as Record<string, unknown>;
+		const discoverTaskRequests = discoverTasks.requests as Record<string, unknown>;
+		const discoverToolRequests = discoverTaskRequests.tools as Record<string, unknown>;
+
+		expect(cardCapabilities).toEqual({
+			tools: discoverCapabilities.tools,
+			resources: { listChanged: true },
+			prompts: { listChanged: true },
+			completions: discoverCapabilities.completions,
+			logging: discoverCapabilities.logging,
+			tasks: {
+				list: discoverTasks.list,
+				cancel: discoverTasks.cancel,
+				requests: {
+					tools: {
+						call: discoverToolRequests.call,
+					},
+				},
+			},
+		});
+
+		server.stop();
+	});
+
+	it("resources/read uses first-party Server Card metadata instead of client project roots", async () => {
+		const projectDir = makeProjectDir();
+		writeServerCardMetadata(projectDir, { serverVersion: "9.9.9" });
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {}, projectDir });
+		await initServer(server, input, output);
+
+		sendRequest(input, 2, "resources/read", { uri: "mcp://server-card.json" });
+		const resp = await readResponse(output);
+
+		expect(resp.error).toBeUndefined();
+		const result = resp.result as { contents: Array<{ text: string }> };
+		const card = JSON.parse(result.contents[0].text) as Record<string, unknown>;
+		expect(card.serverInfo).toMatchObject({
+			name: "io.github.xmanatee/kota",
+			version: "0.1.0",
+		});
 
 		server.stop();
 	});
