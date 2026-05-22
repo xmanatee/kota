@@ -191,4 +191,41 @@ describe("MRTR elicitation response modes", () => {
 			action: "decline",
 		});
 	});
+
+	it("decodes sampling/createMessage input responses as typed message results", () => {
+		const decoded = decodeMrtrRetryParams({
+			requestState: "state-token",
+			inputResponses: {
+				sample: {
+					role: "assistant",
+					content: [
+						{
+							type: "tool_use",
+							id: "call_weather",
+							name: "get_weather",
+							input: { city: "Paris" },
+						},
+					],
+					model: "claude-sonnet-test",
+					stopReason: "toolUse",
+				},
+			},
+		});
+
+		expect(decoded.kind).toBe("retry");
+		if (decoded.kind !== "retry") throw new Error("Expected retry params");
+		expect(decoded.inputResponses.sample).toEqual({
+			role: "assistant",
+			content: [
+				{
+					type: "tool_use",
+					id: "call_weather",
+					name: "get_weather",
+					input: { city: "Paris" },
+				},
+			],
+			model: "claude-sonnet-test",
+			stopReason: "toolUse",
+		});
+	});
 });

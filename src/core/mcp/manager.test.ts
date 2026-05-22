@@ -1866,6 +1866,90 @@ describe("McpManager", () => {
     await manager.close();
   }, 10_000);
 
+  it("executeTool returns a sampling-specific diagnostic without registering request-scoped tools", async () => {
+    const manager = new McpManager();
+    const server = `
+      const rl = require("readline").createInterface({ input: process.stdin });
+      rl.on("line", (line) => {
+        let msg;
+        try { msg = JSON.parse(line); } catch { return; }
+        if (msg.method === "initialize") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            protocolVersion: "DRAFT-2026-v1",
+            capabilities: { tools: {} },
+          }}) + "\\n");
+        } else if (msg.method === "tools/list") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            tools: [{ name: "agentic", inputSchema: { type: "object" } }],
+          }}) + "\\n");
+        } else if (msg.method === "tools/call" && msg.params.name === "agentic") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            resultType: "input_required",
+            inputRequests: {
+              sample: {
+                method: "sampling/createMessage",
+                params: {
+                  messages: [{ role: "user", content: { type: "text", text: "Use a local tool." } }],
+                  maxTokens: 128,
+                  tools: [
+                    {
+                      name: "local_weather",
+                      description: "Request-scoped tool.",
+                      inputSchema: { type: "object", properties: { city: { type: "string" } } },
+                    },
+                  ],
+                  toolChoice: { mode: "auto" },
+                },
+              },
+            },
+            requestState: "sampling-state",
+          }}) + "\\n");
+        } else if (msg.method === "shutdown") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {} }) + "\\n");
+        }
+      });
+    `;
+    await manager.initialize({
+      mcpServers: { remote: { command: "node", args: ["-e", server] } },
+    });
+
+    expect(manager.getToolCount()).toBe(1);
+    const result = await manager.executeTool("mcp__remote__agentic", {});
+
+    expect(manager.getToolCount()).toBe(1);
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("sampling/createMessage");
+    expect(result.content).toContain("no operator-approved sampling bridge is configured");
+    expect(result._meta).toEqual({
+      mcp: {
+        resultType: "input_required",
+        protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+        server: "remote",
+        tool: "agentic",
+        inputRequests: {
+          sample: {
+            method: "sampling/createMessage",
+            params: {
+              messages: [{ role: "user", content: { type: "text", text: "Use a local tool." } }],
+              maxTokens: 128,
+              tools: [
+                {
+                  name: "local_weather",
+                  description: "Request-scoped tool.",
+                  inputSchema: { type: "object", properties: { city: { type: "string" } } },
+                },
+              ],
+              toolChoice: { mode: "auto" },
+            },
+          },
+        },
+        requestState: "sampling-state",
+      },
+    });
+
+    await manager.close();
+  }, 10_000);
+
   it("executeTool retries remote draft input_required results through an input resolver", async () => {
     const manager = new McpManager();
     const server = `

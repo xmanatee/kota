@@ -263,6 +263,19 @@ function inputRequiredDiagnostics(
   };
 }
 
+function hasSamplingInputRequest(result: McpInputRequiredResult): boolean {
+  return Object.values(result.inputRequests ?? {}).some(
+    (request) => request.method === "sampling/createMessage",
+  );
+}
+
+function inputRequiredUnavailableDetail(result: McpInputRequiredResult): string {
+  if (hasSamplingInputRequest(result)) {
+    return " the remote server requested sampling/createMessage, but no operator-approved sampling bridge is configured.";
+  }
+  return " this KOTA runtime cannot route remote input_required results yet.";
+}
+
 function operationInputRequiredDiagnostics(
   entry: McpOperationEntry,
   result: McpInputRequiredResult,
@@ -285,7 +298,7 @@ function unsupportedInputRequiredResult(
 ): ToolResult {
   const detail = reason
     ? ` ${reason}`
-    : " this KOTA runtime cannot route remote input_required results yet.";
+    : inputRequiredUnavailableDetail(result);
   return {
     content:
       `MCP tool error: remote MCP tool "${entry.originalName}" on server ` +
@@ -302,7 +315,7 @@ function unsupportedOperationInputRequiredResult(
 ): ToolResult {
   const detail = reason
     ? ` ${reason}`
-    : " this KOTA runtime cannot route remote input_required results yet.";
+    : inputRequiredUnavailableDetail(result);
   return {
     content:
       `MCP operation error: remote MCP operation "${entry.kind}" on server ` +

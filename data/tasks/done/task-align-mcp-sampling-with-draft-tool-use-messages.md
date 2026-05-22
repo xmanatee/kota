@@ -1,12 +1,12 @@
 ---
 id: task-align-mcp-sampling-with-draft-tool-use-messages
 title: Align MCP sampling with draft tool-use messages
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Implement draft MCP sampling/createMessage as a typed MRTR client-feature path with request-scoped tools, tool-use and tool-result message validation, and explicit legacy sampling compatibility.
 created_at: 2026-05-22T02:10:59Z
-updated_at: 2026-05-22T02:10:59Z
+updated_at: 2026-05-22T02:30:32Z
 ---
 
 ## Problem

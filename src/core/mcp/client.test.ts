@@ -293,6 +293,152 @@ rl.on("line", (line) => {
         },
         requestState: "state-token-url",
       }}) + "\\n");
+    } else if (msg.params.name === "input_required_sampling") {
+      if (msg.params.requestState || msg.params.inputResponses) {
+        const response = msg.params.inputResponses?.sample;
+        process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+          resultType: "complete",
+          content: [{ type: "text", text: "Sampling retry " + response.model + " " + response.stopReason }],
+          structuredContent: {
+            samplingContent: response.content,
+          },
+        }}) + "\\n");
+        return;
+      }
+      process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+        resultType: "input_required",
+        inputRequests: {
+          sample: {
+            method: "sampling/createMessage",
+            params: {
+              messages: [
+                { role: "user", content: { type: "text", text: "Use the scoped weather tool." } },
+                {
+                  role: "assistant",
+                  content: [
+                    {
+                      type: "tool_use",
+                      id: "call_weather",
+                      name: "get_weather",
+                      input: { city: "Paris" },
+                      _meta: { cache: "tool-use" },
+                    },
+                  ],
+                },
+                {
+                  role: "user",
+                  content: {
+                    type: "tool_result",
+                    toolUseId: "call_weather",
+                    content: [
+                      { type: "text", text: "18 C" },
+                      { type: "image", data: "chart-bytes", mimeType: "image/png" },
+                      { type: "audio", data: "spoken-bytes", mimeType: "audio/mpeg" },
+                    ],
+                    structuredContent: { tempC: 18 },
+                    isError: false,
+                    _meta: { cache: "tool-result" },
+                  },
+                },
+              ],
+              modelPreferences: {
+                hints: [{ name: "sonnet" }],
+                costPriority: 0.2,
+                speedPriority: 0.4,
+                intelligencePriority: 0.9,
+              },
+              systemPrompt: "Answer tersely.",
+              includeContext: "none",
+              temperature: 0.1,
+              maxTokens: 300,
+              stopSequences: ["STOP"],
+              metadata: { provider: "test" },
+              tools: [
+                {
+                  name: "get_weather",
+                  description: "Get weather by city.",
+                  inputSchema: {
+                    type: "object",
+                    properties: { city: { type: "string" } },
+                    required: ["city"],
+                  },
+                },
+              ],
+              toolChoice: { mode: "required" },
+            },
+          },
+        },
+        requestState: "sampling-state-1",
+      }}) + "\\n");
+    } else if (msg.params.name === "input_required_sampling_bad_tool_choice") {
+      process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+        resultType: "input_required",
+        inputRequests: {
+          sample: {
+            method: "sampling/createMessage",
+            params: {
+              messages: [{ role: "user", content: { type: "text", text: "Hi" } }],
+              maxTokens: 64,
+              toolChoice: { mode: "always" },
+            },
+          },
+        },
+      }}) + "\\n");
+    } else if (msg.params.name === "input_required_sampling_mixed_tool_result") {
+      process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+        resultType: "input_required",
+        inputRequests: {
+          sample: {
+            method: "sampling/createMessage",
+            params: {
+              messages: [
+                {
+                  role: "user",
+                  content: [
+                    { type: "text", text: "Result:" },
+                    { type: "tool_result", toolUseId: "call_1", content: [{ type: "text", text: "ok" }] },
+                  ],
+                },
+              ],
+              maxTokens: 64,
+            },
+          },
+        },
+      }}) + "\\n");
+    } else if (msg.params.name === "input_required_sampling_missing_tool_result") {
+      process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+        resultType: "input_required",
+        inputRequests: {
+          sample: {
+            method: "sampling/createMessage",
+            params: {
+              messages: [
+                {
+                  role: "assistant",
+                  content: [{ type: "tool_use", id: "call_1", name: "lookup", input: {} }],
+                },
+                { role: "user", content: { type: "text", text: "continue" } },
+              ],
+              maxTokens: 64,
+            },
+          },
+        },
+      }}) + "\\n");
+    } else if (msg.params.name === "input_required_sampling_unknown_content") {
+      process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+        resultType: "input_required",
+        inputRequests: {
+          sample: {
+            method: "sampling/createMessage",
+            params: {
+              messages: [
+                { role: "user", content: { type: "video", data: "bytes", mimeType: "video/mp4" } },
+              ],
+              maxTokens: 64,
+            },
+          },
+        },
+      }}) + "\\n");
     } else if (msg.params.name === "malformed_input_required") {
       process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
         resultType: "input_required",
@@ -1306,6 +1452,97 @@ describe("McpClient lifecycle (fake MCP server)", () => {
         oauth: { action: "accept" },
       },
     });
+  }, 10_000);
+
+  it("callTool decodes and retries draft sampling input_required requests", async () => {
+    client = new McpClient(
+      "node",
+      ["-e", FAKE_MCP_SERVER],
+      { MCP_TEST_MODE: "draft" },
+      "sampling-input-required-retry-test",
+    );
+    await client.connect();
+
+    const inputRequired = await client.callTool("input_required_sampling", {});
+    expect(inputRequired.resultType).toBe("input_required");
+    if (inputRequired.resultType !== "input_required" || !inputRequired.inputRequests) {
+      throw new Error("Expected sampling input_required result");
+    }
+    expect(inputRequired.inputRequests.sample).toMatchObject({
+      method: "sampling/createMessage",
+      params: {
+        includeContext: "none",
+        maxTokens: 300,
+        toolChoice: { mode: "required" },
+        tools: [
+          {
+            name: "get_weather",
+            inputSchema: {
+              type: "object",
+              properties: { city: { type: "string" } },
+              required: ["city"],
+            },
+          },
+        ],
+      },
+    });
+
+    const result = expectCompletedResult(
+      await client.callTool("input_required_sampling", {}, {
+        requestState: "sampling-state-1",
+        inputRequests: inputRequired.inputRequests,
+        inputResponses: {
+          sample: {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_use",
+                id: "call_weather_2",
+                name: "get_weather",
+                input: { city: "London" },
+              },
+            ],
+            model: "claude-sonnet-test",
+            stopReason: "toolUse",
+          },
+        },
+      }),
+    );
+
+    expect(result.text).toBe("Sampling retry claude-sonnet-test toolUse");
+    expect(result.structuredContent).toEqual({
+      samplingContent: [
+        {
+          type: "tool_use",
+          id: "call_weather_2",
+          name: "get_weather",
+          input: { city: "London" },
+        },
+      ],
+    });
+  }, 10_000);
+
+  it("callTool rejects malformed sampling input_required payloads at the MCP boundary", async () => {
+    client = new McpClient(
+      "node",
+      ["-e", FAKE_MCP_SERVER],
+      { MCP_TEST_MODE: "draft" },
+      "bad-sampling-input-required-test",
+    );
+    await client.connect();
+
+    await expect(client.callTool("input_required_sampling_bad_tool_choice", {})).rejects.toThrow(
+      /inputRequests\.sample\.params\.toolChoice\.mode must be none, required, or auto/,
+    );
+    await expect(client.callTool("input_required_sampling_mixed_tool_result", {})).rejects.toThrow(
+      /inputRequests\.sample\.params\.messages\[0\]\.content must contain only tool_result blocks/,
+    );
+    await expect(client.callTool("input_required_sampling_missing_tool_result", {})).rejects.toThrow(
+      /inputRequests\.sample\.params\.messages\[1\] must answer pending tool_use ids call_1 before normal conversation continues/,
+    );
+    await expect(client.callTool("input_required_sampling_unknown_content", {})).rejects.toThrow(
+      /inputRequests\.sample\.params\.messages\[0\]\.content\.type must be text, image, audio, tool_use, or tool_result/,
+    );
   }, 10_000);
 
   it("ignores unknown URL-mode elicitation completion notifications", async () => {

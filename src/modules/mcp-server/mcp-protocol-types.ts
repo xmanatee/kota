@@ -200,9 +200,78 @@ export type McpRootsInputRequest = {
 	params?: KotaJsonObject;
 };
 
+export type McpSamplingAudioContent = {
+	type: "audio";
+	data: string;
+	mimeType: string;
+	annotations?: KotaMcpAnnotations;
+	_meta?: KotaJsonObject;
+};
+
+export type McpSamplingToolUseContent = {
+	type: "tool_use";
+	id: string;
+	name: string;
+	input: KotaJsonObject;
+	_meta?: KotaJsonObject;
+};
+
+export type McpSamplingToolResultContent = {
+	type: "tool_result";
+	toolUseId: string;
+	content: McpContentBlock[];
+	structuredContent?: KotaJsonObject;
+	isError?: boolean;
+	_meta?: KotaJsonObject;
+};
+
+export type McpSamplingContentBlock =
+	| Extract<McpContentBlock, { type: "text" | "image" }>
+	| McpSamplingAudioContent
+	| McpSamplingToolUseContent
+	| McpSamplingToolResultContent;
+
+export type McpSamplingMessage = {
+	role: "user" | "assistant";
+	content: McpSamplingContentBlock | McpSamplingContentBlock[];
+	_meta?: KotaJsonObject;
+};
+
+export type McpSamplingModelPreferences = {
+	hints?: Array<{ name?: string }>;
+	costPriority?: number;
+	speedPriority?: number;
+	intelligencePriority?: number;
+};
+
+export type McpSamplingTool = {
+	name: string;
+	description?: string;
+	inputSchema: KotaJsonObject;
+	outputSchema?: KotaJsonObject;
+};
+
+export type McpSamplingToolChoice = {
+	mode?: "none" | "required" | "auto";
+};
+
+export type McpSamplingCreateMessageParams = {
+	messages: McpSamplingMessage[];
+	modelPreferences?: McpSamplingModelPreferences;
+	systemPrompt?: string;
+	includeContext?: "none" | "thisServer" | "allServers";
+	temperature?: number;
+	maxTokens: number;
+	stopSequences?: string[];
+	metadata?: KotaJsonObject;
+	tools?: McpSamplingTool[];
+	toolChoice?: McpSamplingToolChoice;
+	_meta?: KotaJsonObject;
+};
+
 export type McpSamplingInputRequest = {
 	method: "sampling/createMessage";
-	params: KotaJsonObject;
+	params: McpSamplingCreateMessageParams;
 };
 
 export type McpInputRequest =
@@ -213,7 +282,17 @@ export type McpInputRequest =
 export type McpInputRequests = { [requestId: string]: McpInputRequest };
 
 export type McpRootsInputResponse = { roots: McpRoot[] };
-export type McpInputResponse = ElicitationResponse | McpRootsInputResponse | KotaJsonObject;
+export type McpSamplingCreateMessageResult = {
+	role: "user" | "assistant";
+	content: McpSamplingContentBlock | McpSamplingContentBlock[];
+	model: string;
+	stopReason?: string;
+	_meta?: KotaJsonObject;
+};
+export type McpInputResponse =
+	| ElicitationResponse
+	| McpRootsInputResponse
+	| McpSamplingCreateMessageResult;
 export type McpInputResponses = { [requestId: string]: McpInputResponse };
 
 export type McpToolCompleteResult = {
