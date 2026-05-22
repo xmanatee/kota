@@ -1,12 +1,12 @@
 ---
 id: task-split-the-core-mcp-client-into-protocol-focused-si
 title: Split the core MCP client into protocol-focused siblings
-status: ready
+status: done
 priority: p2
 area: core
 summary: Break the oversized external MCP client into typed transport, authorization, protocol-decoding, and feature-operation siblings while preserving the core session-loop client contract.
 created_at: 2026-05-22T09:55:15Z
-updated_at: 2026-05-22T09:55:15Z
+updated_at: 2026-05-22T10:18:32Z
 ---
 
 ## Problem
@@ -131,3 +131,18 @@ re-reading one multi-thousand-line file.
   `pnpm test src/core/mcp/client.test.ts src/core/mcp/manager.test.ts`.
 - `pnpm typecheck` transcript captured under `.kota/runs/<run-id>/typecheck.txt`.
 - Lint or formatting transcript captured under `.kota/runs/<run-id>/lint.txt`.
+
+## Completion Notes
+
+- Split the MCP client into protocol-focused siblings under `src/core/mcp/`:
+  public facade, protocol/auth types, JSON-RPC decode utilities, transport
+  runtime layers, OAuth/protected-resource runtime, and feature decoders.
+- `src/core/mcp/client.ts` is now 126 lines; all new production
+  `client*.ts` siblings are below 500 lines. See
+  `.kota/runs/2026-05-22T09-58-31-870Z-builder-rrzb0w/mcp-client-wc.txt`.
+- Focused MCP tests passed:
+  `.kota/runs/2026-05-22T09-58-31-870Z-builder-rrzb0w/mcp-focused-tests.txt`.
+- `pnpm typecheck`, `pnpm lint`, and the strict-types ratchet passed with
+  transcripts under `.kota/runs/2026-05-22T09-58-31-870Z-builder-rrzb0w/`.
+- `pnpm kota task move ...` failed with the existing `Fatal: fetch failed`
+  path, so this task state transition was applied manually.
