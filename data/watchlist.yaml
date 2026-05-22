@@ -327,6 +327,10 @@ resources:
   - url: https://modelcontextprotocol.io/specification/draft/server/utilities/logging
     added: "2026-05-22"
     notes: "Official MCP logging utility draft - monitor deprecated request-scoped logLevel metadata, notifications/message response-stream behavior, invalid-level handling, and HTTP diagnostics implications for KOTA's first-party MCP server."
+    snapshot:
+      fingerprint: sha256:e0ca0d8d930692a405e46607b6475e23
+      summary: "MCP draft Logging is accessible and now maps to KOTA's completed request-scoped MCP logging work: per-request logLevel metadata, notifications/message streaming, invalid-level handling, no default log emission, sanitized payloads, and explicit deprecated-feature boundaries are already covered."
+      last_seen_at: "2026-05-22T01:38:45.443Z"
   - url: https://modelcontextprotocol.io/specification/draft/server/utilities/caching
     added: "2026-05-21"
     notes: "Official MCP caching utility draft - monitor ttlMs/cacheScope hints, cache scope security, TTL freshness, pagination interaction, and list-changed invalidation for KOTA's MCP server and external MCP client."
