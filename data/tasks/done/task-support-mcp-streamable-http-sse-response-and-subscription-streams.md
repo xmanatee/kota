@@ -1,12 +1,12 @@
 ---
 id: task-support-mcp-streamable-http-sse-response-and-subscription-streams
 title: Support MCP Streamable HTTP SSE response and subscription streams
-status: ready
+status: done
 priority: p2
 area: core
 summary: Teach KOTA's HTTP MCP client and first-party Streamable HTTP server to consume and serve SSE response streams, including request-scoped notifications and subscriptions/listen catalog-change streams, instead of rejecting listChanged capabilities.
 created_at: 2026-05-22T05:07:20Z
-updated_at: 2026-05-22T05:07:20Z
+updated_at: 2026-05-22T05:58:29Z
 ---
 
 ## Problem
@@ -144,3 +144,12 @@ core client and first-party server module boundaries clean.
 - A regression fixture proves a remote HTTP MCP server advertising
   `tools.listChanged` no longer fails connection and still refreshes the
   manager's registry when the SSE notification arrives.
+
+Completed evidence:
+
+- `pnpm test src/core/mcp/client.test.ts`
+- `pnpm test src/modules/mcp-server/streamable-http.test.ts`
+- `pnpm test src/modules/mcp-server/server.test.ts src/core/mcp/manager.test.ts`
+- `pnpm typecheck`
+- `pnpm lint`
+- `pnpm test src/task-files.test.ts`

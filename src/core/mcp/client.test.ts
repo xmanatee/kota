@@ -18,6 +18,7 @@ type RecordedClientHttpRequest = {
   url: string;
   method: string;
   headers: Headers;
+  signal?: AbortSignal;
   bodyText: string;
   body: {
     id?: number;
@@ -26,6 +27,25 @@ type RecordedClientHttpRequest = {
   };
   form: URLSearchParams;
 };
+
+function sseMessage(message: Record<string, any>): string {
+  return `event: message\ndata: ${JSON.stringify(message)}\n\n`;
+}
+
+async function waitForAssertion(assertion: () => void, timeoutMs = 2_000): Promise<void> {
+  const started = Date.now();
+  let lastError: Error | null = null;
+  while (Date.now() - started < timeoutMs) {
+    try {
+      assertion();
+      return;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  }
+  throw lastError ?? new Error("Timed out waiting for assertion");
+}
 
 function expectCompletedResult(
   result: McpCallToolResult,
@@ -51,6 +71,7 @@ function mockClientHttpFetch(
           : _input.url,
       method: init?.method ?? inputRequest?.method ?? "GET",
       headers: new Headers(init?.headers),
+      ...(init?.signal ? { signal: init.signal } : {}),
       bodyText,
       body,
       form: new URLSearchParams(bodyText),
@@ -66,7 +87,7 @@ function jsonRpcHttpResponse(id: number | undefined, result: Record<string, any>
 }
 
 function sseJsonRpcHttpResponse(id: number | undefined, result: Record<string, any>): Response {
-  return new Response(`event: message\ndata: ${JSON.stringify({ jsonrpc: "2.0", id, result })}\n\n`, {
+  return new Response(sseMessage({ jsonrpc: "2.0", id, result }), {
     status: 200,
     headers: { "content-type": "text/event-stream" },
   });
@@ -1845,6 +1866,174 @@ describe("McpClient Streamable HTTP transport", () => {
     expect(tools.map((tool) => tool.name)).toEqual(["from_sse"]);
   });
 
+  it("dispatches HTTP SSE progress and log notifications before the final response", async () => {
+    const encoder = new TextEncoder();
+    let stream: ReadableStreamDefaultController<Uint8Array> | null = null;
+    const progressEvents: McpProgressEvent[] = [];
+    const logMessages: Array<{ level: string; data?: unknown }> = [];
+    mockClientHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: {} },
+          serverInfo: { name: "sse-progress-fixture" },
+        });
+      }
+      if (request.body.method === "tools/call") {
+        const token = request.body.params?._meta?.progressToken;
+        return new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              stream = controller;
+              controller.enqueue(encoder.encode(sseMessage({
+                jsonrpc: "2.0",
+                method: "notifications/message",
+                params: {
+                  level: "info",
+                  data: { message: "started" },
+                },
+              })));
+              controller.enqueue(encoder.encode(sseMessage({
+                jsonrpc: "2.0",
+                method: "notifications/progress",
+                params: {
+                  progressToken: token,
+                  progress: 1,
+                  total: 2,
+                  message: "half",
+                },
+              })));
+            },
+          }),
+          { status: 200, headers: { "content-type": "text/event-stream" } },
+        );
+      }
+      return jsonRpcHttpResponse(request.body.id, {});
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "sse-progress-client",
+      {
+        onLogMessage: (event) => {
+          logMessages.push({ level: event.level, data: event.data });
+        },
+      },
+    );
+    await client.connect();
+
+    const resultPromise = client.callTool("long", {}, undefined, {
+      progress: {
+        token: "http-progress-1",
+        onProgress: (event) => progressEvents.push(event),
+      },
+    });
+
+    await waitForAssertion(() => {
+      expect(progressEvents).toHaveLength(1);
+      expect(logMessages).toHaveLength(1);
+    });
+    expect(stream).not.toBeNull();
+    stream!.enqueue(encoder.encode(sseMessage({
+      jsonrpc: "2.0",
+      id: 2,
+      result: {
+        resultType: "complete",
+        content: [{ type: "text", text: "done" }],
+      },
+    })));
+    stream!.close();
+
+    const result = expectCompletedResult(await resultPromise);
+
+    expect(result.text).toBe("done");
+    expect(progressEvents).toEqual([
+      {
+        requestId: 2,
+        progressToken: "http-progress-1",
+        progress: 1,
+        sequence: 1,
+        total: 2,
+        message: "half",
+      },
+    ]);
+    expect(logMessages).toEqual([
+      { level: "info", data: { message: "started" } },
+    ]);
+  });
+
+  it("fails HTTP SSE responses that end without a final JSON-RPC response", async () => {
+    mockClientHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: {} },
+        });
+      }
+      return new Response(
+        sseMessage({
+          jsonrpc: "2.0",
+          method: "notifications/message",
+          params: { level: "info", data: { message: "no final" } },
+        }),
+        { status: 200, headers: { "content-type": "text/event-stream" } },
+      );
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "missing-final-client",
+    );
+    await client.connect();
+
+    await expect(client.callTool("never_finishes", {})).rejects.toThrow(
+      /SSE response stream ended without a final JSON-RPC response/,
+    );
+  });
+
+  it("times out HTTP SSE responses that never send a final JSON-RPC response", async () => {
+    const encoder = new TextEncoder();
+    mockClientHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: {} },
+        });
+      }
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(encoder.encode(sseMessage({
+              jsonrpc: "2.0",
+              method: "notifications/message",
+              params: { level: "info", data: { message: "still running" } },
+            })));
+            request.signal?.addEventListener("abort", () => {
+              const err = new Error("aborted");
+              err.name = "AbortError";
+              controller.error(err);
+            });
+          },
+        }),
+        { status: 200, headers: { "content-type": "text/event-stream" } },
+      );
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "timeout-sse-client",
+    );
+    await client.connect();
+
+    vi.useFakeTimers();
+    try {
+      const result = client.callTool("never_finishes", {});
+      const rejection = expect(result).rejects.toThrow(/request timed out after 120000ms/);
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(120_000);
+      await rejection;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("warns once when an HTTP MCP server advertises deprecated logging support", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     mockClientHttpFetch((request) => {
@@ -2974,44 +3163,110 @@ describe("McpClient Streamable HTTP transport", () => {
     await expect(client.callTool("json_error", {})).rejects.not.toThrow(/access-token-secret/);
   });
 
-  it("rejects HTTP servers that advertise unsupported tools.listChanged streams", async () => {
-    mockClientHttpFetch((request) => jsonRpcHttpResponse(request.body.id, {
-      supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
-      capabilities: { tools: { listChanged: true } },
-      serverInfo: { name: "http-list-changed-fixture" },
-    }));
+  it("opens an HTTP subscriptions/listen SSE stream for advertised tools.listChanged", async () => {
+    const requests: RecordedClientHttpRequest[] = [];
+    mockClientHttpFetch((request) => {
+      requests.push(request);
+      if (request.body.method === "server/discover") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: { listChanged: true } },
+          serverInfo: { name: "http-list-changed-fixture" },
+        });
+      }
+      if (request.body.method === "subscriptions/listen") {
+        return new Response(new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(sseMessage({
+              jsonrpc: "2.0",
+              method: "notifications/subscriptions/acknowledged",
+              params: {
+                _meta: {
+                  "io.modelcontextprotocol/subscriptionId": String(request.body.id),
+                },
+                notifications: { toolsListChanged: true },
+              },
+            })));
+          },
+        }), {
+          status: 200,
+          headers: { "content-type": "text/event-stream" },
+        });
+      }
+      return jsonRpcHttpResponse(request.body.id, {});
+    });
     client = new McpClient(
       { type: "http", url: "https://mcp.example.test/mcp" },
       "http-list-changed-client",
     );
 
-    await expect(client.connect()).rejects.toMatchObject({
-      name: "McpConnectionError",
-      serverName: "http-list-changed-fixture",
-      method: "server/discover",
-      message: expect.stringMatching(/tools\.listChanged.*Streamable HTTP/),
+    await client.connect();
+
+    expect(client.getName()).toBe("http-list-changed-fixture");
+    expect(client.supportsToolListChanged()).toBe(true);
+    await waitForAssertion(() => {
+      expect(requests.map((request) => request.body.method)).toContain("subscriptions/listen");
+    });
+    const listen = requests.find((request) => request.body.method === "subscriptions/listen");
+    expect(listen?.body.params?.notifications).toEqual({
+      toolsListChanged: true,
     });
   });
 
-  it("rejects HTTP servers that advertise unsupported resource or prompt listChanged streams", async () => {
-    mockClientHttpFetch((request) => jsonRpcHttpResponse(request.body.id, {
-      supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
-      capabilities: {
-        resources: { listChanged: true },
-        prompts: { listChanged: true },
-      },
-      serverInfo: { name: "http-catalog-list-changed-fixture" },
-    }));
+  it("opens an HTTP subscriptions/listen SSE stream for resource and prompt listChanged", async () => {
+    const requests: RecordedClientHttpRequest[] = [];
+    mockClientHttpFetch((request) => {
+      requests.push(request);
+      if (request.body.method === "server/discover") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: {
+            resources: { listChanged: true },
+            prompts: { listChanged: true },
+          },
+          serverInfo: { name: "http-catalog-list-changed-fixture" },
+        });
+      }
+      if (request.body.method === "subscriptions/listen") {
+        return new Response(new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(sseMessage({
+              jsonrpc: "2.0",
+              method: "notifications/subscriptions/acknowledged",
+              params: {
+                _meta: {
+                  "io.modelcontextprotocol/subscriptionId": String(request.body.id),
+                },
+                notifications: {
+                  resourcesListChanged: true,
+                  promptsListChanged: true,
+                },
+              },
+            })));
+          },
+        }), {
+          status: 200,
+          headers: { "content-type": "text/event-stream" },
+        });
+      }
+      return jsonRpcHttpResponse(request.body.id, {});
+    });
     client = new McpClient(
       { type: "http", url: "https://mcp.example.test/mcp" },
       "http-catalog-list-changed-client",
     );
 
-    await expect(client.connect()).rejects.toMatchObject({
-      name: "McpConnectionError",
-      serverName: "http-catalog-list-changed-fixture",
-      method: "server/discover",
-      message: expect.stringMatching(/resources\.listChanged.*prompts\.listChanged.*Streamable HTTP/),
+    await client.connect();
+
+    expect(client.supportsResourceListChanged()).toBe(true);
+    expect(client.supportsPromptListChanged()).toBe(true);
+    await waitForAssertion(() => {
+      expect(requests.map((request) => request.body.method)).toContain("subscriptions/listen");
+    });
+    const listen = requests.find((request) => request.body.method === "subscriptions/listen");
+    expect(listen?.body.params?.notifications).toEqual({
+      resourcesListChanged: true,
+      promptsListChanged: true,
     });
   });
 
@@ -3376,13 +3631,17 @@ describe("McpClient Streamable HTTP transport", () => {
     expect(toolCalls[0].headers.get("mcp-param-x-dry-run")).toBe("false");
   });
 
-  it("fails progress-enabled HTTP tool calls explicitly instead of opening an SSE stream", async () => {
+  it("sends progressToken metadata for progress-enabled HTTP tool calls", async () => {
+    const callRequests: RecordedClientHttpRequest[] = [];
     mockClientHttpFetch((request) => {
       if (request.body.method === "server/discover") {
         return jsonRpcHttpResponse(request.body.id, {
           supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
           capabilities: { tools: {} },
         });
+      }
+      if (request.body.method === "tools/call") {
+        callRequests.push(request);
       }
       return jsonRpcHttpResponse(request.body.id, {
         resultType: "complete",
@@ -3395,11 +3654,13 @@ describe("McpClient Streamable HTTP transport", () => {
     );
     await client.connect();
 
-    await expect(
-      client.callTool("long", {}, undefined, {
-        progress: { onProgress: () => {} },
-      }),
-    ).rejects.toThrow(/SSE progress streams are not implemented/);
+    const result = expectCompletedResult(await client.callTool("long", {}, undefined, {
+      progress: { token: "http-progress-token", onProgress: () => {} },
+    }));
+
+    expect(result.text).toBe("ok");
+    expect(callRequests).toHaveLength(1);
+    expect(callRequests[0].body.params?._meta?.progressToken).toBe("http-progress-token");
   });
 });
 

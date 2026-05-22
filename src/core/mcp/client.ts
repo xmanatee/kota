@@ -114,6 +114,21 @@ export type McpProgressEvent = {
   message?: string;
 };
 export type McpProgressHandler = (event: McpProgressEvent) => void;
+export type McpLogLevel =
+  | "debug"
+  | "info"
+  | "notice"
+  | "warning"
+  | "error"
+  | "critical"
+  | "alert"
+  | "emergency";
+export type McpLogMessageEvent = {
+  level: McpLogLevel;
+  data?: KotaJsonValue;
+  logger?: string;
+};
+export type McpLogMessageHandler = (event: McpLogMessageEvent) => void;
 export type McpRequestProgressOptions = {
   onProgress: McpProgressHandler;
   token?: McpProgressToken;
@@ -390,10 +405,21 @@ const MCP_META_PROTOCOL_VERSION_KEY = "io.modelcontextprotocol/protocolVersion";
 const MCP_META_CLIENT_INFO_KEY = "io.modelcontextprotocol/clientInfo";
 const MCP_META_CLIENT_CAPABILITIES_KEY =
   "io.modelcontextprotocol/clientCapabilities";
+const MCP_LOG_LEVELS = [
+  "debug",
+  "info",
+  "notice",
+  "warning",
+  "error",
+  "critical",
+  "alert",
+  "emergency",
+] as const satisfies readonly McpLogLevel[];
 
 export type McpClientOptions = {
   supportedElicitationModes?: readonly McpElicitationMode[];
   authorizationResolver?: McpAuthorizationResolver;
+  onLogMessage?: McpLogMessageHandler;
 };
 
 export type McpStdioClientTransportConfig = {
@@ -1044,6 +1070,11 @@ function isMcpProtocolVersion(value: string): value is McpProtocolVersion {
 
 function isMcpProgressToken(value: KotaJsonValue | undefined): value is McpProgressToken {
   return typeof value === "string" || (typeof value === "number" && Number.isInteger(value));
+}
+
+function isMcpLogLevel(value: KotaJsonValue | undefined): value is McpLogLevel {
+  return typeof value === "string" &&
+    (MCP_LOG_LEVELS as readonly string[]).includes(value);
 }
 
 function progressTokenKey(token: McpProgressToken): string {
@@ -2727,6 +2758,7 @@ export class McpClient {
   private resourcesListChanged = false;
   private promptsSupported = false;
   private promptsListChanged = false;
+  private httpListSubscriptionAbort: AbortController | null = null;
   private toolListSubscriptionId: number | null = null;
   private streamingRequestIds = new Set<number>();
   private toolListChangedHandlers = new Set<McpToolListChangedHandler>();
@@ -2739,6 +2771,7 @@ export class McpClient {
   private readonly headerParametersByTool = new Map<string, McpHeaderParameterSpec[]>();
   private readonly supportedElicitationModes: readonly McpElicitationMode[];
   private readonly authorizationResolver?: McpAuthorizationResolver;
+  private readonly logMessageHandler?: McpLogMessageHandler;
   private oauthTokenBinding: McpOAuthTokenBinding | null = null;
   private readonly oauthClients = new Map<string, McpOAuthResolvedClient>();
 
@@ -2784,6 +2817,7 @@ export class McpClient {
       resolvedOptions.supportedElicitationModes,
     );
     this.authorizationResolver = resolvedOptions.authorizationResolver;
+    this.logMessageHandler = resolvedOptions.onLogMessage;
   }
 
   getName(): string {
@@ -2959,17 +2993,6 @@ export class McpClient {
       this.serverName = result.serverInfo.name;
     }
     this.warnDeprecatedServerCapabilities(result);
-    const unsupportedListChanged = [
-      result.toolsListChanged ? "tools.listChanged" : null,
-      result.resourcesListChanged ? "resources.listChanged" : null,
-      result.promptsListChanged ? "prompts.listChanged" : null,
-    ].filter((entry): entry is string => entry !== null);
-    if (unsupportedListChanged.length > 0) {
-      throw this.requestErrorForMethod(
-        "server/discover",
-        `${unsupportedListChanged.join(", ")} requires a long-lived subscriptions/listen stream, which is not implemented for Streamable HTTP client connections`,
-      );
-    }
     this.protocolVersion = result.protocolVersion;
     this.toolResultContract = "draft-tool-result";
     this.toolsSupported = result.toolsSupported;
@@ -2979,6 +3002,9 @@ export class McpClient {
     this.promptsSupported = result.promptsSupported;
     this.promptsListChanged = result.promptsListChanged;
     this.connected = true;
+    if (this.toolsListChanged || this.resourcesListChanged || this.promptsListChanged) {
+      this.openListChangedSubscription();
+    }
   }
 
   async listToolsPage(cursor?: string): Promise<McpListToolsPage> {
@@ -3223,6 +3249,8 @@ export class McpClient {
       if (this.closing) return;
       this.closing = true;
       this.connected = false;
+      this.httpListSubscriptionAbort?.abort();
+      this.httpListSubscriptionAbort = null;
       this.streamingRequestIds.clear();
       this.clearAllProgress();
       this.toolListSubscriptionId = null;
@@ -3321,6 +3349,10 @@ export class McpClient {
       this.handleProgressNotification(msg.params);
       return;
     }
+    if (msg.method === "notifications/message") {
+      this.handleLogMessageNotification(msg.params);
+      return;
+    }
     if (msg.method === "notifications/cancelled") {
       this.handleCancelledNotification(msg.params);
       return;
@@ -3344,6 +3376,34 @@ export class McpClient {
       for (const handler of this.promptListChangedHandlers) {
         handler();
       }
+    }
+  }
+
+  private handleLogMessageNotification(params: JsonRpcNotification["params"]): void {
+    if (!this.logMessageHandler) return;
+    if (!isJsonObject(params)) {
+      this.warnProgress("ignored malformed message notification: params must be an object");
+      return;
+    }
+    if (!isMcpLogLevel(params.level)) {
+      this.warnProgress(
+        "ignored malformed message notification: level must be a known MCP log level",
+      );
+      return;
+    }
+    if (params.logger !== undefined && typeof params.logger !== "string") {
+      this.warnProgress("ignored malformed message notification: logger must be a string");
+      return;
+    }
+    try {
+      this.logMessageHandler({
+        level: params.level,
+        ...(params.data !== undefined ? { data: params.data } : {}),
+        ...(params.logger !== undefined ? { logger: params.logger } : {}),
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.warnProgress(`ignored MCP log callback error: ${message}`);
     }
   }
 
@@ -3579,12 +3639,6 @@ export class McpClient {
     timeout = CONNECT_TIMEOUT,
     progress?: McpRequestProgressOptions,
   ): Promise<JsonRpcResult> {
-    if (progress) {
-      throw this.requestErrorForMethod(
-        method,
-        "SSE progress streams are not implemented for Streamable HTTP",
-      );
-    }
     if (this.closing) {
       throw new Error(`MCP server "${this.serverName}" is closed`);
     }
@@ -3595,54 +3649,92 @@ export class McpClient {
       throw new Error(`MCP server "${this.serverName}" is not an HTTP transport`);
     }
     const transport = this.transport;
+    let latestRequestId: number | null = null;
 
     const send = async (
       skipRefresh: boolean,
-    ): Promise<{ response: Response; id: number }> => {
+    ): Promise<{
+      response: Response;
+      id: number;
+      complete: () => void;
+      timedOut: () => boolean;
+    }> => {
       if (!skipRefresh) {
         await this.refreshExpiredOAuthTokenIfNeeded();
       }
       const id = this.nextId++;
-      const requestParams = this.paramsWithDraftMetadata(params);
+      latestRequestId = id;
+      const progressToken = progress ? progress.token ?? generatedProgressToken(id) : undefined;
+      const requestParams = this.paramsWithDraftMetadata(params, progressToken);
       const msg: JsonRpcRequest = {
         jsonrpc: "2.0",
         id,
         method,
         ...(requestParams && { params: requestParams }),
       };
+      if (progress && progressToken !== undefined) {
+        try {
+          this.trackProgressRequest(id, progressToken, progress);
+        } catch (err) {
+          throw err instanceof Error ? err : new Error(String(err));
+        }
+      }
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeout);
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, timeout);
       try {
+        const response = await fetch(transport.url, {
+          method: "POST",
+          headers: this.httpHeadersForRequest(method, requestParams),
+          body: JSON.stringify(msg),
+          signal: controller.signal,
+        });
         return {
           id,
-          response: await fetch(transport.url, {
-            method: "POST",
-            headers: this.httpHeadersForRequest(method, requestParams),
-            body: JSON.stringify(msg),
-            signal: controller.signal,
-          }),
+          response,
+          complete: () => clearTimeout(timer),
+          timedOut: () => timedOut,
         };
       } catch (err) {
+        clearTimeout(timer);
         const message = err instanceof Error && err.name === "AbortError"
           ? `request timed out after ${timeout}ms`
           : err instanceof Error ? err.message : String(err);
         throw this.requestErrorForMethod(method, message);
-      } finally {
-        clearTimeout(timer);
       }
     };
 
-    let sent = await send(false);
-    const authorizationError = await this.authorizationErrorForHttpResponse(
-      sent.response,
-      method,
-    );
-    if (authorizationError && await this.authorizeForHttpChallenge(authorizationError)) {
-      sent = await send(true);
-    } else if (authorizationError) {
-      throw authorizationError;
+    try {
+      let sent = await send(false);
+      try {
+        const authorizationError = await this.authorizationErrorForHttpResponse(
+          sent.response,
+          method,
+        );
+        if (authorizationError && await this.authorizeForHttpChallenge(authorizationError)) {
+          sent.complete();
+          this.clearProgressForRequest(sent.id);
+          sent = await send(true);
+        } else if (authorizationError) {
+          throw authorizationError;
+        }
+        return await this.decodeHttpResponse(sent.response, method, sent.id);
+      } catch (err) {
+        if (sent.timedOut() || (err instanceof Error && err.name === "AbortError")) {
+          throw this.requestErrorForMethod(method, `request timed out after ${timeout}ms`);
+        }
+        throw err;
+      } finally {
+        sent.complete();
+      }
+    } finally {
+      if (latestRequestId !== null) {
+        this.clearProgressForRequest(latestRequestId);
+      }
     }
-    return await this.decodeHttpResponse(sent.response, method, sent.id);
   }
 
   private httpHeadersForRequest(
@@ -3713,9 +3805,9 @@ export class McpClient {
     const authorizationError = await this.authorizationErrorForHttpResponse(response, method);
     if (authorizationError) throw authorizationError;
 
-    const text = await response.text();
     const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
     if (!contentType.includes("application/json") && !contentType.includes("text/event-stream")) {
+      const text = await response.text();
       if (!response.ok) {
         throw this.requestErrorForMethod(
           method,
@@ -3727,9 +3819,10 @@ export class McpClient {
         `unsupported response content-type "${contentType || "(missing)"}"`,
       );
     }
+    let responseText: string | null = null;
     const message = contentType.includes("text/event-stream")
-      ? this.parseSingleSseJsonRpcMessage(text, method)
-      : this.parseJsonRpcHttpMessage(text, method);
+      ? await this.decodeHttpSseResponse(response, method, requestId)
+      : this.parseJsonRpcHttpMessage((responseText = await response.text()), method);
     if (typeof message.id === "number" && message.id !== requestId) {
       throw this.requestErrorForMethod(
         method,
@@ -3745,10 +3838,51 @@ export class McpClient {
     if (!response.ok) {
       throw this.requestErrorForMethod(
         method,
-        `HTTP ${response.status}: ${text || response.statusText || "empty response"}`,
+        `HTTP ${response.status}: ${responseText || response.statusText || "empty response"}`,
       );
     }
     return message.result;
+  }
+
+  private async decodeHttpSseResponse(
+    response: Response,
+    method: string,
+    requestId: number,
+  ): Promise<JsonRpcIncomingMessage> {
+    let finalMessage: JsonRpcIncomingMessage | null = null;
+    await this.consumeSseJsonRpcMessageStream(response, method, (message) => {
+      if (typeof message.method === "string") {
+        this.handleNotification(message);
+        return;
+      }
+      if (typeof message.id !== "number") {
+        throw this.requestErrorForMethod(
+          method,
+          "SSE response stream included a JSON-RPC message without method or numeric id",
+        );
+      }
+      if (message.id !== requestId) {
+        throw this.requestErrorForMethod(
+          method,
+          `response id ${message.id} did not match request id ${requestId}`,
+        );
+      }
+      if (finalMessage !== null) {
+        throw this.requestErrorForMethod(
+          method,
+          `SSE response stream included multiple final JSON-RPC responses for request id ${requestId}`,
+        );
+      }
+      finalMessage = message;
+      return true;
+    });
+    if (finalMessage === null) {
+      throw this.requestErrorForMethod(
+        method,
+        `SSE response stream ended without a final JSON-RPC response for request id ${requestId}`,
+      );
+    }
+    return finalMessage;
   }
 
   private async authorizationErrorForHttpResponse(
@@ -4419,18 +4553,46 @@ export class McpClient {
     }
   }
 
-  private parseSingleSseJsonRpcMessage(
+  private parseSseJsonRpcResponse(
     text: string,
     method: string,
+    requestId: number,
   ): JsonRpcIncomingMessage {
     const messages = this.parseSseDataMessages(text);
-    if (messages.length !== 1) {
+    let finalMessage: JsonRpcIncomingMessage | null = null;
+    for (const data of messages) {
+      const message = this.parseJsonRpcHttpMessage(data, method);
+      if (typeof message.method === "string") {
+        this.handleNotification(message);
+        continue;
+      }
+      if (typeof message.id !== "number") {
+        throw this.requestErrorForMethod(
+          method,
+          "SSE response stream included a JSON-RPC message without method or numeric id",
+        );
+      }
+      if (message.id !== requestId) {
+        throw this.requestErrorForMethod(
+          method,
+          `response id ${message.id} did not match request id ${requestId}`,
+        );
+      }
+      if (finalMessage !== null) {
+        throw this.requestErrorForMethod(
+          method,
+          `SSE response stream included multiple final JSON-RPC responses for request id ${requestId}`,
+        );
+      }
+      finalMessage = message;
+    }
+    if (finalMessage === null) {
       throw this.requestErrorForMethod(
         method,
-        "SSE response streams with zero or multiple messages are not implemented for Streamable HTTP",
+        `SSE response stream ended without a final JSON-RPC response for request id ${requestId}`,
       );
     }
-    return this.parseJsonRpcHttpMessage(messages[0], method);
+    return finalMessage;
   }
 
   private parseSseDataMessages(text: string): string[] {
@@ -4498,6 +4660,10 @@ export class McpClient {
   }
 
   private openListChangedSubscription(): void {
+    if (this.transport.type === "http") {
+      this.openHttpListChangedSubscription();
+      return;
+    }
     if (!this.proc?.stdin?.writable || this.toolListSubscriptionId !== null) return;
     const id = this.nextId++;
     this.toolListSubscriptionId = id;
@@ -4517,6 +4683,160 @@ export class McpClient {
       },
     };
     this.proc.stdin.write(`${JSON.stringify(msg)}\n`);
+  }
+
+  private openHttpListChangedSubscription(): void {
+    if (this.transport.type !== "http" || this.httpListSubscriptionAbort !== null) return;
+    const id = this.nextId++;
+    this.toolListSubscriptionId = id;
+    const notifications = {
+      ...(this.toolsListChanged ? { toolsListChanged: true } : {}),
+      ...(this.resourcesListChanged ? { resourcesListChanged: true } : {}),
+      ...(this.promptsListChanged ? { promptsListChanged: true } : {}),
+    };
+    const params: JsonRpcParams = {
+      _meta: this.draftRequestMeta(),
+      notifications,
+    };
+    const msg: JsonRpcRequest = {
+      jsonrpc: "2.0",
+      id,
+      method: "subscriptions/listen",
+      params,
+    };
+    const controller = new AbortController();
+    this.httpListSubscriptionAbort = controller;
+    void this.runHttpListChangedSubscription(id, msg, params, controller).catch((err) => {
+      if (this.closing || controller.signal.aborted) return;
+      this.httpListSubscriptionAbort = null;
+      this.toolListSubscriptionId = null;
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(
+        `[kota] Warning: MCP server "${this.serverName}" failed to open subscription: ${message}`,
+      );
+    });
+  }
+
+  private async runHttpListChangedSubscription(
+    id: number,
+    msg: JsonRpcRequest,
+    params: JsonRpcParams,
+    controller: AbortController,
+  ): Promise<void> {
+    if (this.transport.type !== "http") return;
+    await this.refreshExpiredOAuthTokenIfNeeded();
+    let response: Response;
+    try {
+      response = await fetch(this.transport.url, {
+        method: "POST",
+        headers: this.httpHeadersForRequest("subscriptions/listen", params),
+        body: JSON.stringify(msg),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return;
+      throw err instanceof Error ? err : new Error(String(err));
+    }
+    const authorizationError = await this.authorizationErrorForHttpResponse(
+      response,
+      "subscriptions/listen",
+    );
+    if (authorizationError) throw authorizationError;
+    const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+    if (!contentType.includes("text/event-stream")) {
+      throw this.requestErrorForMethod(
+        "subscriptions/listen",
+        `unsupported response content-type "${contentType || "(missing)"}"`,
+      );
+    }
+    if (!response.ok) {
+      const text = await response.text();
+      throw this.requestErrorForMethod(
+        "subscriptions/listen",
+        `HTTP ${response.status}: ${text || response.statusText || "empty response"}`,
+      );
+    }
+    await this.consumeSseJsonRpcMessageStream(
+      response,
+      "subscriptions/listen",
+      (message) => {
+        if (typeof message.id === "number" && message.id === id) {
+          this.handleStreamingRequestResponse(message);
+          return;
+        }
+        if (typeof message.method === "string") {
+          this.handleNotification(message);
+        }
+      },
+      { ignoreAbort: true },
+    );
+    if (this.httpListSubscriptionAbort === controller) {
+      this.httpListSubscriptionAbort = null;
+      this.toolListSubscriptionId = null;
+    }
+  }
+
+  private async consumeSseJsonRpcMessageStream(
+    response: Response,
+    method: string,
+    onMessage: (message: JsonRpcIncomingMessage) => boolean | void,
+    options: { ignoreAbort?: boolean } = {},
+  ): Promise<void> {
+    if (!response.body) {
+      for (const data of this.parseSseDataMessages(await response.text())) {
+        if (onMessage(this.parseJsonRpcHttpMessage(data, method)) === true) return;
+      }
+      return;
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let dataLines: string[] = [];
+    let shouldStop = false;
+    const flush = () => {
+      if (dataLines.length === 0) return;
+      shouldStop =
+        onMessage(this.parseJsonRpcHttpMessage(dataLines.join("\n"), method)) === true;
+      dataLines = [];
+    };
+    const consumeLine = (line: string) => {
+      if (line.length === 0) {
+        flush();
+        return;
+      }
+      if (line.startsWith("data:")) {
+        dataLines.push(line.slice(5).trimStart());
+      }
+    };
+    try {
+      while (true) {
+        if (shouldStop) break;
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let newlineIndex = buffer.search(/\r?\n/);
+        while (newlineIndex !== -1 && !shouldStop) {
+          const line = buffer.slice(0, newlineIndex).replace(/\r$/, "");
+          const newlineLength = buffer[newlineIndex] === "\r" && buffer[newlineIndex + 1] === "\n" ? 2 : 1;
+          buffer = buffer.slice(newlineIndex + newlineLength);
+          consumeLine(line);
+          newlineIndex = buffer.search(/\r?\n/);
+        }
+      }
+      if (shouldStop) {
+        await reader.cancel();
+      } else {
+        const tail = decoder.decode();
+        if (tail) buffer += tail;
+        if (buffer.length > 0) consumeLine(buffer);
+        flush();
+      }
+    } catch (err) {
+      if (options.ignoreAbort && err instanceof Error && err.name === "AbortError") return;
+      throw err;
+    } finally {
+      reader.releaseLock();
+    }
   }
 
   private notify(method: string, params?: Record<string, unknown>): void {

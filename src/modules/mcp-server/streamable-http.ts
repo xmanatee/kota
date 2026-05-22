@@ -17,7 +17,6 @@ const DEFAULT_ENDPOINT_PATH = "/mcp";
 const HTTP_UNAVAILABLE_METHODS = new Set([
 	"resources/subscribe",
 	"resources/unsubscribe",
-	"subscriptions/listen",
 ]);
 
 export type StreamableHttpRequest = {
@@ -31,6 +30,15 @@ export type StreamableHttpResponse = {
 	status: number;
 	headers: Record<string, string>;
 	body?: string;
+	stream?: StreamableHttpSseStream;
+};
+
+type StreamableHttpSseStream = {
+	initialMessages: JsonRpcOutboundPayload[];
+	subscribe: (
+		send: (message: JsonRpcOutboundPayload) => void,
+		close?: () => void,
+	) => () => void;
 };
 
 export type StreamableHttpTokenVerification =
@@ -135,7 +143,7 @@ export async function handleStreamableHttpRequest(
 	if (!bodyValidation.ok) return bodyValidation.response;
 
 	if (
-		hasHttpLogLevel(bodyValidation.body) &&
+		requiresHttpResponseStream(bodyValidation.body) &&
 		!accepts(readHeader(request.headers, "accept"), "text/event-stream")
 	) {
 		return jsonErrorResponse(
@@ -153,6 +161,32 @@ export async function handleStreamableHttpRequest(
 			-32601,
 			`Method not found: ${String(bodyValidation.body.method)}`,
 		);
+	}
+
+	if (bodyValidation.body.method === "subscriptions/listen") {
+		const dispatch = await server.handleJsonRpcMessage(bodyValidation.body);
+		if (dispatch.kind === "invalid") {
+			return jsonErrorResponse(400, readJsonRpcId(bodyValidation.body), -32600, "Invalid JSON-RPC message");
+		}
+		const messages = dispatchMessages(dispatch).map((message) =>
+			normalizeHttpResponse(bodyValidation.body, message)
+		);
+		const error = messages.find(isJsonRpcErrorPayload);
+		if (error) return jsonResponse(responseStatusForPayload(error), error);
+		const requestId = readJsonRpcId(bodyValidation.body);
+		if (requestId === null || requestId === undefined) {
+			return jsonErrorResponse(400, null, -32600, "Invalid JSON-RPC message");
+		}
+		return sseResponse(200, messages, {
+			subscribe: (send) =>
+				server.registerStreamSink(requestId, (message) =>
+					send(normalizeHttpResponse(bodyValidation.body, message))
+				),
+		});
+	}
+
+	if (hasHttpRequestScopedStream(bodyValidation.body)) {
+		return requestScopedSseResponse(server, bodyValidation.body);
 	}
 
 	const dispatch = await server.handleJsonRpcMessage(bodyValidation.body);
@@ -517,17 +551,6 @@ function validateMethodHeaders(
 
 	const paramValidation = validateRecognizedParamHeaders(server, body, headers);
 	if (!paramValidation.ok) return paramValidation;
-	if (hasHttpProgressToken(body)) {
-		return {
-			ok: false,
-			response: jsonErrorResponse(
-				400,
-				id,
-				-32602,
-				"SSE progress streams are not implemented for Streamable HTTP",
-			),
-		};
-	}
 	return { ok: true, body };
 }
 
@@ -650,6 +673,14 @@ function hasHttpLogLevel(body: KotaJsonObject): boolean {
 	return meta[MCP_META_LOG_LEVEL_KEY] !== undefined;
 }
 
+function hasHttpRequestScopedStream(body: KotaJsonObject): boolean {
+	return hasHttpProgressToken(body) || hasHttpLogLevel(body);
+}
+
+function requiresHttpResponseStream(body: KotaJsonObject): boolean {
+	return body.method === "subscriptions/listen" || hasHttpRequestScopedStream(body);
+}
+
 function readHeader(
 	headers: StreamableHttpRequest["headers"],
 	name: string,
@@ -743,10 +774,6 @@ function normalizeHttpResponse(
 	if (!isJsonObject(payload)) return payload;
 	if (!isJsonObject(payload.result)) return payload;
 	const result: KotaJsonObject = { ...payload.result };
-	const capabilities = result.capabilities;
-	if (isJsonObject(capabilities)) {
-		result.capabilities = stripListChangedCapabilities(capabilities);
-	}
 	if (request.method === "server/discover") {
 		result.supportedVersions = [...MCP_DRAFT_PROTOCOL_VERSIONS];
 	}
@@ -756,30 +783,23 @@ function normalizeHttpResponse(
 	};
 }
 
-function stripListChangedCapabilities(capabilities: KotaJsonObject): KotaJsonObject {
-	const out: KotaJsonObject = { ...capabilities };
-	for (const key of ["tools", "resources", "prompts"]) {
-		const value = capabilities[key];
-		if (!isJsonObject(value)) continue;
-		out[key] = omitCapabilityFlag(value, "listChanged");
-	}
-	return out;
-}
-
-function omitCapabilityFlag(capability: KotaJsonObject, flag: string): KotaJsonObject {
-	const out: KotaJsonObject = {};
-	for (const [key, value] of Object.entries(capability)) {
-		if (key === flag) continue;
-		out[key] = value;
-	}
-	return out;
-}
-
 function responseStatusForPayload(payload: JsonRpcOutboundPayload): number {
 	if (!isJsonObject(payload)) return 200;
 	if (!isJsonObject(payload.error)) return 200;
 	if (payload.error.code === -32601) return 404;
 	return 200;
+}
+
+function isJsonRpcErrorPayload(payload: JsonRpcOutboundPayload): boolean {
+	return isJsonObject(payload) && isJsonObject(payload.error);
+}
+
+function dispatchMessages(
+	dispatch: Awaited<ReturnType<McpServer["handleJsonRpcMessage"]>>,
+): JsonRpcOutboundPayload[] {
+	if (dispatch.kind === "accepted" || dispatch.kind === "invalid") return [];
+	if (dispatch.kind === "response") return [dispatch.response];
+	return dispatch.messages;
 }
 
 function jsonErrorResponse(
@@ -809,17 +829,83 @@ function jsonResponse(status: number, payload: JsonRpcOutboundPayload): Streamab
 	};
 }
 
-function sseResponse(status: number, messages: JsonRpcOutboundPayload[]): StreamableHttpResponse {
+function sseResponse(
+	status: number,
+	messages: JsonRpcOutboundPayload[],
+	stream?: Pick<StreamableHttpSseStream, "subscribe">,
+): StreamableHttpResponse {
+	const body = encodeSseMessages(messages);
 	return {
 		status,
 		headers: {
 			"content-type": "text/event-stream",
 			"cache-control": "no-cache",
 		},
-		body: messages
-			.map((message) => `event: message\ndata: ${JSON.stringify(message)}\n\n`)
-			.join(""),
+		body,
+		...(stream ? { stream: { initialMessages: messages, subscribe: stream.subscribe } } : {}),
 	};
+}
+
+function requestScopedSseResponse(
+	server: McpServer,
+	request: KotaJsonObject,
+): StreamableHttpResponse {
+	const requestId = readJsonRpcId(request);
+	if (requestId === null || requestId === undefined) {
+		return jsonErrorResponse(400, null, -32600, "Invalid JSON-RPC message");
+	}
+	return sseResponse(200, [], {
+		subscribe: (send, close) => {
+			let closed = false;
+			let completed = false;
+			const sendIfOpen = (message: JsonRpcOutboundPayload) => {
+				if (closed) return;
+				send(normalizeHttpResponse(request, message));
+			};
+			void server.handleJsonRpcMessage(request, sendIfOpen)
+				.then((dispatch) => {
+					if (dispatch.kind !== "invalid") return;
+					sendIfOpen({
+						jsonrpc: "2.0",
+						id: requestId,
+						error: { code: -32600, message: "Invalid JSON-RPC message" },
+					});
+				})
+				.catch((err) => {
+					const message = err instanceof Error ? err.message : String(err);
+					sendIfOpen({
+						jsonrpc: "2.0",
+						id: requestId,
+						error: { code: -32603, message: `Internal error: ${message}` },
+					});
+				})
+				.finally(() => {
+					completed = true;
+					if (closed) return;
+					closed = true;
+					close?.();
+				});
+			return () => {
+				if (closed) return;
+				closed = true;
+				if (!completed) {
+					void server.handleJsonRpcMessage({
+						jsonrpc: "2.0",
+						method: "notifications/cancelled",
+						params: { requestId },
+					});
+				}
+			};
+		},
+	});
+}
+
+function encodeSseMessage(message: JsonRpcOutboundPayload): string {
+	return `event: message\ndata: ${JSON.stringify(message)}\n\n`;
+}
+
+function encodeSseMessages(messages: JsonRpcOutboundPayload[]): string {
+	return messages.map(encodeSseMessage).join("");
 }
 
 function formatAddressHost(address: AddressInfo): string {
@@ -837,6 +923,32 @@ async function readRequestBody(req: IncomingMessage): Promise<string> {
 
 function writeResponse(res: ServerResponse, response: StreamableHttpResponse): void {
 	res.writeHead(response.status, response.headers);
+	if (response.stream) {
+		for (const message of response.stream.initialMessages) {
+			res.write(encodeSseMessage(message));
+		}
+		let unsubscribe = () => {};
+		let closed = false;
+		const cleanup = () => {
+			if (closed) return;
+			closed = true;
+			unsubscribe();
+		};
+		const close = () => {
+			if (!res.destroyed && !res.writableEnded) {
+				res.end();
+			}
+			cleanup();
+		};
+		unsubscribe = response.stream.subscribe((message) => {
+			if (!res.destroyed && !res.writableEnded) {
+				res.write(encodeSseMessage(message));
+			}
+		}, close);
+		res.on("close", cleanup);
+		res.on("error", cleanup);
+		return;
+	}
 	res.end(response.body ?? "");
 }
 

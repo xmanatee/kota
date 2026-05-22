@@ -83,6 +83,8 @@ export type McpServerDispatchResult =
 	| { kind: "response"; response: JsonRpcOutboundPayload }
 	| { kind: "stream"; messages: JsonRpcOutboundPayload[] };
 
+export type McpServerStreamSink = (payload: JsonRpcOutboundPayload) => void;
+
 type DraftRequestContextResult =
 	| { ok: true; context: McpRequestContext }
 	| { ok: false; code: number; message: string; data?: JsonRpcOutboundPayload };
@@ -102,6 +104,12 @@ function protocolErrorData(requestedVersion?: string): KotaJsonObject {
 }
 
 function isJsonObject(value: KotaJsonValue | undefined): value is KotaJsonObject {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isOutboundObject(
+	value: JsonRpcOutboundPayload | undefined,
+): value is { [key: string]: JsonRpcOutboundPayload } {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -313,6 +321,7 @@ export class McpServer {
 	private readonly output: NodeJS.WritableStream;
 	private readonly log: (msg: string) => void;
 	private readonly outboundSink = new AsyncLocalStorage<(msg: JsonRpcOutboundPayload) => void>();
+	private readonly streamSinksBySubscriptionId = new Map<string, McpServerStreamSink>();
 	private readonly deprecatedWarnings: DeprecatedMcpCapabilityWarnings;
 	private readonly session: SessionState = {
 		initialized: false,
@@ -436,6 +445,7 @@ export class McpServer {
 		this.rl.on("line", (line) => this.handleLine(line));
 		this.rl.on("close", () => {
 			this.running = false;
+			this.streamSinksBySubscriptionId.clear();
 			this.resources.cleanup();
 		});
 		this.resources.registerBusListeners();
@@ -444,6 +454,7 @@ export class McpServer {
 
 	stop(): void {
 		this.running = false;
+		this.streamSinksBySubscriptionId.clear();
 		this.resources.cleanup();
 		this.rl?.close();
 		this.rl = null;
@@ -473,7 +484,10 @@ export class McpServer {
 		return this.elicitation.request(message, requestedSchema, timeoutMs);
 	}
 
-	async handleJsonRpcMessage(parsedValue: KotaJsonValue): Promise<McpServerDispatchResult> {
+	async handleJsonRpcMessage(
+		parsedValue: KotaJsonValue,
+		streamSink?: McpServerStreamSink,
+	): Promise<McpServerDispatchResult> {
 		if (!isJsonObject(parsedValue) || parsedValue.jsonrpc !== "2.0") return { kind: "invalid" };
 
 		if (!("method" in parsedValue)) {
@@ -493,7 +507,8 @@ export class McpServer {
 		const request = decodeJsonRpcRequest(parsedValue);
 		if (!request) return { kind: "invalid" };
 		const messages: JsonRpcOutboundPayload[] = [];
-		await this.outboundSink.run((msg) => messages.push(msg), async () => {
+		const sink = streamSink ?? ((msg: JsonRpcOutboundPayload) => messages.push(msg));
+		await this.outboundSink.run(sink, async () => {
 			try {
 				await this.dispatchRequest(request);
 			} catch (err) {
@@ -505,9 +520,29 @@ export class McpServer {
 				});
 			}
 		});
+		if (streamSink) return { kind: "accepted" };
 		if (messages.length === 0) return { kind: "accepted" };
 		if (messages.length === 1) return { kind: "response", response: messages[0]! };
 		return { kind: "stream", messages };
+	}
+
+	registerStreamSink(
+		requestId: JsonRpcRequest["id"],
+		sink: McpServerStreamSink,
+	): () => void {
+		const key = String(requestId);
+		this.streamSinksBySubscriptionId.set(key, sink);
+		let closed = false;
+		return () => {
+			if (closed) return;
+			closed = true;
+			this.streamSinksBySubscriptionId.delete(key);
+			void this.handleJsonRpcMessage({
+				jsonrpc: "2.0",
+				method: "notifications/cancelled",
+				params: { requestId },
+			});
+		};
 	}
 
 	private sendPayload(msg: JsonRpcOutboundPayload): void {
@@ -516,7 +551,22 @@ export class McpServer {
 			sink(msg);
 			return;
 		}
+		if (this.sendToRegisteredStreamSink(msg)) return;
 		this.output.write(`${JSON.stringify(msg)}\n`);
+	}
+
+	private sendToRegisteredStreamSink(msg: JsonRpcOutboundPayload): boolean {
+		if (!isOutboundObject(msg) || typeof msg.method !== "string") return false;
+		const params = isOutboundObject(msg.params) ? msg.params : undefined;
+		const meta = isOutboundObject(params?._meta) ? params._meta : undefined;
+		const subscriptionId = meta?.["io.modelcontextprotocol/subscriptionId"];
+		if (typeof subscriptionId !== "string" && typeof subscriptionId !== "number") {
+			return false;
+		}
+		const sink = this.streamSinksBySubscriptionId.get(String(subscriptionId));
+		if (!sink) return false;
+		sink(msg);
+		return true;
 	}
 
 	private logFromHandler(message: string, options: McpLogOptions = {}): void {

@@ -46,6 +46,10 @@ function jsonRpcResponse(id: number | undefined, result: Record<string, any>): R
   });
 }
 
+function sseMessage(message: Record<string, any>): string {
+  return `event: message\ndata: ${JSON.stringify(message)}\n\n`;
+}
+
 async function waitFor(assertion: () => void, timeoutMs = 2_000): Promise<void> {
   const started = Date.now();
   let lastError: Error | null = null;
@@ -366,6 +370,99 @@ describe("McpManager", () => {
         });
       }
       expect(requests[2].headers.get("mcp-name")).toBe("echo");
+    } finally {
+      await manager.close();
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("refreshes the registry when an HTTP MCP server sends tools/list_changed on subscriptions/listen", async () => {
+    const encoder = new TextEncoder();
+    let listCount = 0;
+    let subscription: ReadableStreamDefaultController<Uint8Array> | null = null;
+    let subscriptionId = "";
+    const { fetchSpy } = mockMcpHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: { listChanged: true } },
+          serverInfo: { name: "http-dynamic" },
+        });
+      }
+      if (request.body.method === "subscriptions/listen") {
+        expect(request.body.params?.notifications).toEqual({ toolsListChanged: true });
+        subscriptionId = String(request.body.id);
+        return new Response(new ReadableStream<Uint8Array>({
+          start(controller) {
+            subscription = controller;
+            controller.enqueue(encoder.encode(sseMessage({
+              jsonrpc: "2.0",
+              method: "notifications/subscriptions/acknowledged",
+              params: {
+                _meta: {
+                  "io.modelcontextprotocol/subscriptionId": String(request.body.id),
+                },
+                notifications: { toolsListChanged: true },
+              },
+            })));
+          },
+        }), {
+          status: 200,
+          headers: { "content-type": "text/event-stream" },
+        });
+      }
+      if (request.body.method === "tools/list") {
+        listCount += 1;
+        return jsonRpcResponse(request.body.id, {
+          tools: [{
+            name: listCount === 1 ? "old_tool" : "new_tool",
+            inputSchema: { type: "object" },
+          }],
+        });
+      }
+      if (request.body.method === "tools/call") {
+        return jsonRpcResponse(request.body.id, {
+          resultType: "complete",
+          content: [{ type: "text", text: `${request.body.params?.name} route` }],
+        });
+      }
+      return jsonRpcResponse(request.body.id, {});
+    });
+    const manager = new McpManager();
+
+    try {
+      await manager.initialize({
+        mcpServers: {
+          dynamic: {
+            type: "http",
+            url: "https://mcp.example.test/mcp",
+          },
+        },
+      });
+
+      expect(manager.getTools().map((tool) => tool.name)).toEqual([
+        "mcp__dynamic__old_tool",
+      ]);
+      expect(subscription).not.toBeNull();
+      subscription!.enqueue(encoder.encode(sseMessage({
+        jsonrpc: "2.0",
+        method: "notifications/tools/list_changed",
+        params: {
+          _meta: { "io.modelcontextprotocol/subscriptionId": subscriptionId },
+        },
+      })));
+
+      await waitFor(() => {
+        expect(manager.getTools().map((tool) => tool.name)).toEqual([
+          "mcp__dynamic__new_tool",
+        ]);
+      });
+
+      const removed = await manager.executeTool("mcp__dynamic__old_tool", {});
+      expect(removed.is_error).toBe(true);
+      const refreshed = await manager.executeTool("mcp__dynamic__new_tool", {});
+      expect(refreshed.content).toBe("new_tool route");
+      expect(fetchSpy).toHaveBeenCalled();
     } finally {
       await manager.close();
       fetchSpy.mockRestore();

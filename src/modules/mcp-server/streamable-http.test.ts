@@ -1,4 +1,6 @@
+import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vitest";
+import { EventBus } from "#core/events/event-bus.js";
 import type { ToolDef } from "#core/modules/module-types.js";
 import { networkWriteEffect } from "#core/tools/effect.js";
 import {
@@ -28,6 +30,15 @@ function draftParamsWithLogLevel(
 ): Record<string, unknown> {
 	const next = draftParams(params);
 	(next._meta as Record<string, unknown>)[MCP_META_LOG_LEVEL_KEY] = logLevel;
+	return next;
+}
+
+function draftParamsWithProgress(
+	params: Record<string, unknown>,
+	progressToken: string,
+): Record<string, unknown> {
+	const next = draftParams(params);
+	(next._meta as Record<string, unknown>).progressToken = progressToken;
 	return next;
 }
 
@@ -66,12 +77,25 @@ function parseSseBody(response: { body?: string }): Record<string, unknown>[] {
 		});
 }
 
-function expectNoListChangedCapabilities(capabilities: Record<string, unknown>): void {
-	for (const key of ["tools", "resources", "prompts"]) {
-		const capability = capabilities[key];
-		expect(capability).toBeDefined();
-		expect(capability).not.toMatchObject({ listChanged: true });
+function expectHttpListChangedCapabilities(capabilities: Record<string, unknown>): void {
+	expect(capabilities.tools).toEqual({});
+	expect(capabilities.resources).toMatchObject({ listChanged: true });
+	expect(capabilities.prompts).toMatchObject({ listChanged: true });
+}
+
+async function waitForAssertion(assertion: () => void, timeoutMs = 2_000): Promise<void> {
+	const started = Date.now();
+	let lastError: Error | null = null;
+	while (Date.now() - started < timeoutMs) {
+		try {
+			assertion();
+			return;
+		} catch (err) {
+			lastError = err instanceof Error ? err : new Error(String(err));
+			await new Promise((resolve) => setTimeout(resolve, 20));
+		}
 	}
+	throw lastError ?? new Error("Timed out waiting for assertion");
 }
 
 describe("Streamable HTTP MCP transport", () => {
@@ -113,7 +137,7 @@ describe("Streamable HTTP MCP transport", () => {
 			capabilities: Record<string, unknown>;
 		};
 		expect(discoverResult.supportedVersions).toEqual([MCP_DRAFT_PROTOCOL_VERSION]);
-		expectNoListChangedCapabilities(discoverResult.capabilities);
+		expectHttpListChangedCapabilities(discoverResult.capabilities);
 
 		const list = await handleStreamableHttpRequest(server, request({
 			jsonrpc: "2.0",
@@ -148,7 +172,7 @@ describe("Streamable HTTP MCP transport", () => {
 		});
 	});
 
-	it("does not advertise listen-backed list-change capabilities over HTTP initialize", async () => {
+	it("advertises listen-backed list-change capabilities over HTTP initialize", async () => {
 		const server = new McpServer({ log: () => {} });
 		const initialize = await handleStreamableHttpRequest(server, request({
 			jsonrpc: "2.0",
@@ -163,7 +187,7 @@ describe("Streamable HTTP MCP transport", () => {
 		const result = parseBody(initialize).result as {
 			capabilities: Record<string, unknown>;
 		};
-		expectNoListChangedCapabilities(result.capabilities);
+		expectHttpListChangedCapabilities(result.capabilities);
 	});
 
 	it("rejects mismatched or missing standard headers before dispatch", async () => {
@@ -487,22 +511,107 @@ describe("Streamable HTTP MCP transport", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toBe("text/event-stream");
-		const messages = parseSseBody(response);
-		expect(messages[0]).toMatchObject({
-			jsonrpc: "2.0",
-			method: "notifications/message",
-			params: {
-				level: "info",
-				data: { message: "Calling tool: http_logged_tool" },
-			},
+		const messages: Record<string, unknown>[] = [];
+		const unsubscribe = response.stream!.subscribe((message) => {
+			messages.push(message as Record<string, unknown>);
 		});
-		expect(messages[1]).toMatchObject({
-			jsonrpc: "2.0",
-			id: 60,
-			result: {
-				content: [{ type: "text", text: "http logged" }],
-			},
+		try {
+			await waitForAssertion(() => {
+				expect(messages[0]).toMatchObject({
+					jsonrpc: "2.0",
+					method: "notifications/message",
+					params: {
+						level: "info",
+						data: { message: "Calling tool: http_logged_tool" },
+					},
+				});
+				expect(messages[1]).toMatchObject({
+					jsonrpc: "2.0",
+					id: 60,
+					result: expect.objectContaining({
+						content: [{ type: "text", text: "http logged" }],
+					}),
+				});
+			});
+		} finally {
+			unsubscribe();
+		}
+	});
+
+	it("serves request-scoped progress notifications as a live SSE stream before the final response", async () => {
+		let releaseTool!: () => void;
+		const toolGate = new Promise<void>((resolve) => {
+			releaseTool = resolve;
 		});
+		const server = new McpServer({
+			log: () => {},
+			moduleTools: [
+				{
+					tool: {
+						name: "http_progress_tool",
+						description: "HTTP progress test",
+						input_schema: { type: "object", properties: {} },
+					},
+					runner: async () => {
+						await toolGate;
+						return { content: "progress complete" };
+					},
+					effect: networkWriteEffect(),
+				},
+			],
+		});
+
+		const responsePromise = handleStreamableHttpRequest(server, request({
+			jsonrpc: "2.0",
+			id: 64,
+			method: "tools/call",
+			params: draftParamsWithProgress({
+				name: "http_progress_tool",
+				arguments: {},
+			}, "http-progress"),
+		}, { "mcp-name": "http_progress_tool" }));
+
+		const response = await Promise.race([
+			responsePromise,
+			new Promise<"pending">((resolve) => setTimeout(() => resolve("pending"), 20)),
+		]);
+		expect(response).not.toBe("pending");
+		if (response === "pending") throw new Error("HTTP response did not open before tool completion");
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toBe("text/event-stream");
+		expect(response.stream).toBeDefined();
+
+		const streamed: Record<string, unknown>[] = [];
+		const unsubscribe = response.stream!.subscribe((message) => {
+			streamed.push(message as Record<string, unknown>);
+		});
+		try {
+			await waitForAssertion(() => {
+				expect(streamed).toContainEqual(expect.objectContaining({
+					jsonrpc: "2.0",
+					method: "notifications/progress",
+					params: {
+						progressToken: "http-progress",
+						progress: 0,
+						total: 1,
+						message: "Calling tool: http_progress_tool",
+					},
+				}));
+			});
+			releaseTool();
+			await waitForAssertion(() => {
+				expect(streamed).toContainEqual(expect.objectContaining({
+					jsonrpc: "2.0",
+					id: 64,
+					result: expect.objectContaining({
+						content: [{ type: "text", text: "progress complete" }],
+					}),
+				}));
+			});
+		} finally {
+			unsubscribe();
+			releaseTool();
+		}
 	});
 
 	it("streams request-scoped initialize log notifications before the final HTTP response", async () => {
@@ -521,22 +630,31 @@ describe("Streamable HTTP MCP transport", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toBe("text/event-stream");
-		const messages = parseSseBody(response);
-		expect(messages[0]).toMatchObject({
-			jsonrpc: "2.0",
-			method: "notifications/message",
-			params: {
-				level: "info",
-				data: { message: expect.stringContaining("Initialized successfully") },
-			},
+		const messages: Record<string, unknown>[] = [];
+		const unsubscribe = response.stream!.subscribe((message) => {
+			messages.push(message as Record<string, unknown>);
 		});
-		expect(messages[1]).toMatchObject({
-			jsonrpc: "2.0",
-			id: 63,
-			result: {
-				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
-			},
-		});
+		try {
+			await waitForAssertion(() => {
+				expect(messages[0]).toMatchObject({
+					jsonrpc: "2.0",
+					method: "notifications/message",
+					params: {
+						level: "info",
+						data: { message: expect.stringContaining("Initialized successfully") },
+					},
+				});
+				expect(messages[1]).toMatchObject({
+					jsonrpc: "2.0",
+					id: 63,
+					result: expect.objectContaining({
+						protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+					}),
+				});
+			});
+		} finally {
+			unsubscribe();
+		}
 	});
 
 	it("keeps JSON-only HTTP requests working unless requested logging requires a stream", async () => {
@@ -599,7 +717,71 @@ describe("Streamable HTTP MCP transport", () => {
 		expect(calls).toBe(1);
 	});
 
-	it("does not accept SSE-dependent behavior in the first HTTP slice", async () => {
+	it("serves subscriptions/listen as a live SSE stream for draft resource notifications", async () => {
+		const input = new PassThrough();
+		const output = new PassThrough();
+		const bus = new EventBus();
+		const server = new McpServer({ input, output, log: () => {}, eventBus: bus });
+		await server.start();
+		const response = await handleStreamableHttpRequest(server, request({
+			jsonrpc: "2.0",
+			id: 70,
+			method: "subscriptions/listen",
+			params: draftParams({
+				notifications: {
+					resourceSubscriptions: ["kota://tasks/ready"],
+					resourcesListChanged: true,
+					promptsListChanged: true,
+				},
+			}),
+		}));
+		try {
+			expect(response.status).toBe(200);
+			expect(response.headers["content-type"]).toBe("text/event-stream");
+			const ack = parseSseBody(response);
+			expect(ack[0]).toMatchObject({
+				jsonrpc: "2.0",
+				method: "notifications/subscriptions/acknowledged",
+				params: {
+					_meta: { "io.modelcontextprotocol/subscriptionId": "70" },
+					notifications: {
+						resourceSubscriptions: ["kota://tasks/ready"],
+						resourcesListChanged: true,
+						promptsListChanged: true,
+					},
+				},
+			});
+			const streamed: Record<string, unknown>[] = [];
+			const unsubscribe = response.stream!.subscribe((message) => {
+				streamed.push(message as Record<string, unknown>);
+			});
+			try {
+				bus.emit("task.changed", { counts: { pending: 1, in_progress: 0, done: 0 } });
+
+				await waitForAssertion(() => {
+					expect(streamed).toContainEqual(expect.objectContaining({
+						jsonrpc: "2.0",
+						method: "notifications/resources/updated",
+						params: {
+							_meta: { "io.modelcontextprotocol/subscriptionId": "70" },
+							uri: "kota://tasks/ready",
+						},
+					}));
+				});
+				const countAfterFirstEmit = streamed.length;
+				unsubscribe();
+				bus.emit("task.changed", { counts: { pending: 2, in_progress: 0, done: 0 } });
+				await new Promise((resolve) => setTimeout(resolve, 20));
+				expect(streamed).toHaveLength(countAfterFirstEmit);
+			} finally {
+				unsubscribe();
+			}
+		} finally {
+			server.stop();
+		}
+	});
+
+	it("keeps unsupported HTTP streaming cases explicit", async () => {
 		const server = new McpServer({ log: () => {} });
 		const get = await handleStreamableHttpRequest(server, {
 			method: "GET",
@@ -607,17 +789,6 @@ describe("Streamable HTTP MCP transport", () => {
 			headers: { accept: "text/event-stream" },
 		});
 		expect(get.status).toBe(405);
-
-		const listen = await handleStreamableHttpRequest(server, request({
-			jsonrpc: "2.0",
-			id: 40,
-			method: "subscriptions/listen",
-			params: draftParams({ subscriptions: [] }),
-		}));
-		expect(listen.status).toBe(404);
-		expect(parseBody(listen).error).toMatchObject({
-			code: -32601,
-		});
 
 		const subscribe = await handleStreamableHttpRequest(server, request({
 			jsonrpc: "2.0",
@@ -652,10 +823,11 @@ describe("Streamable HTTP MCP transport", () => {
 					progressToken: "p1",
 				},
 			},
-		}));
-		expect(progress.status).toBe(400);
+		}, { accept: "application/json" }));
+		expect(progress.status).toBe(406);
 		expect(parseBody(progress).error).toMatchObject({
 			code: -32602,
+			message: "Response stream requires Accept: text/event-stream",
 		});
 	});
 });
