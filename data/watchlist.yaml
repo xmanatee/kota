@@ -327,6 +327,10 @@ resources:
   - url: https://modelcontextprotocol.io/specification/draft/server/utilities/caching
     added: "2026-05-21"
     notes: "Official MCP caching utility draft - monitor ttlMs/cacheScope hints, cache scope security, TTL freshness, pagination interaction, and list-changed invalidation for KOTA's MCP server and external MCP client."
+    snapshot:
+      fingerprint: sha256:01ba6c019b48761f2bd11d2d2849e9ea
+      summary: "MCP draft Caching is accessible and already covered by KOTA's completed cacheable-results alignment: typed ttlMs/cacheScope hints, conservative stale defaults, per-page freshness, notification invalidation, and no cache-scope authorization bypass."
+      last_seen_at: "2026-05-22T00:29:27.187Z"
   - url: https://modelcontextprotocol.io/specification/draft/basic/utilities/progress
     added: "2026-05-21"
     notes: "Official MCP progress utility draft - monitor progressToken metadata, notifications/progress, monotonic progress validation, cancellation cleanup, and flood/coalescing behavior for KOTA's external MCP client and first-party MCP server."
