@@ -317,6 +317,9 @@ resources:
       fingerprint: sha256:b153d609d9944ee266273341d7a21905
       summary: "MCP draft Elicitation is covered by completed client capability advertisement, decline-action alignment, and URL-mode safety work; no new elicitation task is open from this snapshot."
       last_seen_at: "2026-05-20T23:42:05.340Z"
+  - url: https://modelcontextprotocol.io/specification/draft/client/sampling
+    added: "2026-05-22"
+    notes: "Official MCP sampling client-feature draft - monitor tool-enabled sampling, request-scoped tool definitions, tool-use/tool-result message balance, content block variants, and context-inclusion deprecation for KOTA's MRTR and MCP client/server protocol fidelity."
   - url: https://modelcontextprotocol.io/specification/draft/server/utilities/completion
     added: "2026-05-20"
     notes: "Official MCP completion utility draft - monitor completion/complete request context, prompt/resource references, bounded completion results, and invalid-param behavior for KOTA's MCP server completions."
