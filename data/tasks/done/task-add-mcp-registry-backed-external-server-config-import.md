@@ -1,12 +1,12 @@
 ---
 id: task-add-mcp-registry-backed-external-server-config-import
 title: Add MCP registry-backed external server config import
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Resolve MCP Registry-compatible server metadata into strict KOTA external MCP server config so operators can adopt portable server entries without manual JSON transcription or a second capability registry.
 created_at: 2026-05-22T06:49:29Z
-updated_at: 2026-05-22T06:49:29Z
+updated_at: 2026-05-22T07:07:53Z
 ---
 
 ## Problem
