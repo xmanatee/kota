@@ -1,5 +1,6 @@
 import { Buffer } from "node:buffer";
 import { type ChildProcess, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { createInterface, type Interface } from "node:readline";
 import type {
   KotaJsonObject,
@@ -123,25 +124,36 @@ type McpRejectedToolDefinition = {
   toolName?: string;
   reason: string;
 };
-type McpListToolsPage = {
+export type McpListToolsPage = {
   tools: McpToolSchema[];
   rejectedTools: McpRejectedToolDefinition[];
   nextCursor?: string;
+  cache: McpCacheHints;
 };
 
-type McpListResourcesPage = {
+export type McpCacheScope = "public" | "private";
+
+export type McpCacheHints = {
+  ttlMs: number;
+  cacheScope: McpCacheScope;
+};
+
+export type McpListResourcesPage = {
   resources: McpResourceSchema[];
   nextCursor?: string;
+  cache: McpCacheHints;
 };
 
-type McpListResourceTemplatesPage = {
+export type McpListResourceTemplatesPage = {
   resourceTemplates: McpResourceTemplateSchema[];
   nextCursor?: string;
+  cache: McpCacheHints;
 };
 
-type McpListPromptsPage = {
+export type McpListPromptsPage = {
   prompts: McpPromptSchema[];
   nextCursor?: string;
+  cache: McpCacheHints;
 };
 
 export const MCP_LEGACY_PROTOCOL_VERSION = "2024-11-05";
@@ -257,6 +269,7 @@ export type McpReadResourceCompleteResult = {
   resultType: "complete";
   protocolVersion: McpProtocolVersion;
   contents: KotaMcpResourceContents[];
+  cache: McpCacheHints;
   _meta?: KotaJsonObject;
 };
 
@@ -644,6 +657,30 @@ function optionalJsonObject(
   return value;
 }
 
+function decodeCacheHints(
+  object: KotaJsonObject,
+  kind: McpResultKind,
+): McpCacheHints {
+  const rawTtlMs = optionalNumber(object.ttlMs, "ttlMs", kind);
+  if (rawTtlMs !== undefined && !Number.isFinite(rawTtlMs)) {
+    throw malformedMcpResult(kind, "ttlMs", "a finite number");
+  }
+  const rawCacheScope = object.cacheScope;
+  let cacheScope: McpCacheScope = "private";
+  if (rawCacheScope !== undefined) {
+    if (rawCacheScope !== "public" && rawCacheScope !== "private") {
+      throw new Error(
+        `Malformed MCP ${kind} result: cacheScope must be "public" or "private"`,
+      );
+    }
+    cacheScope = rawCacheScope;
+  }
+  return {
+    ttlMs: rawTtlMs === undefined ? 0 : Math.max(0, rawTtlMs),
+    cacheScope,
+  };
+}
+
 type McpInitializeResult = {
   protocolVersion: McpProtocolVersion;
   toolsSupported: boolean;
@@ -1024,6 +1061,7 @@ function decodeListToolsResult(value: JsonRpcResponse["result"]): McpListToolsPa
   return {
     tools: decodedTools,
     rejectedTools,
+    cache: decodeCacheHints(object, "tools/list"),
     ...(nextCursor !== undefined ? { nextCursor } : {}),
   };
 }
@@ -1073,6 +1111,7 @@ function decodeListResourcesResult(value: JsonRpcResponse["result"]): McpListRes
   const nextCursor = optionalString(object.nextCursor, "nextCursor", "resources/list");
   return {
     resources: object.resources.map(decodeResourceDefinition),
+    cache: decodeCacheHints(object, "resources/list"),
     ...(nextCursor !== undefined ? { nextCursor } : {}),
   };
 }
@@ -1142,6 +1181,7 @@ function decodeListResourceTemplatesResult(
   );
   return {
     resourceTemplates: object.resourceTemplates.map(decodeResourceTemplateDefinition),
+    cache: decodeCacheHints(object, "resources/templates/list"),
     ...(nextCursor !== undefined ? { nextCursor } : {}),
   };
 }
@@ -1202,6 +1242,7 @@ function decodeListPromptsResult(value: JsonRpcResponse["result"]): McpListPromp
   const nextCursor = optionalString(object.nextCursor, "nextCursor", "prompts/list");
   return {
     prompts: object.prompts.map(decodePromptDefinition),
+    cache: decodeCacheHints(object, "prompts/list"),
     ...(nextCursor !== undefined ? { nextCursor } : {}),
   };
 }
@@ -1670,6 +1711,7 @@ function decodeReadResourceResult(
     contents: object.contents.map((entry, index) =>
       decodeResourceContents(entry, `contents[${index}]`, "resources/read"),
     ),
+    cache: decodeCacheHints(object, "resources/read"),
     ...(meta ? { _meta: meta } : {}),
   };
 }
@@ -1750,12 +1792,34 @@ function normalizeClientTransportConfig(
   };
 }
 
+function stableRecordEntries(record: Record<string, string> | undefined): [string, string][] {
+  if (!record) return [];
+  return Object.entries(record).sort(([left], [right]) => left.localeCompare(right));
+}
+
+function authorizationContextKey(transport: NormalizedMcpClientTransport): string {
+  const context = transport.type === "http"
+    ? {
+        type: "http",
+        url: transport.url,
+        headers: stableRecordEntries(transport.headers),
+      }
+    : {
+        type: "stdio",
+        command: transport.command,
+        args: transport.args ?? [],
+        env: stableRecordEntries(transport.env),
+      };
+  return createHash("sha256").update(JSON.stringify(context)).digest("hex");
+}
+
 /**
  * Lightweight MCP client using JSON-RPC 2.0 over stdio or Streamable HTTP.
  * Handles the MCP lifecycle: initialize → list tools → call tools → close.
  */
 export class McpClient {
   private readonly transport: NormalizedMcpClientTransport;
+  private readonly cacheAuthorizationContextKey: string;
   private proc: ChildProcess | null = null;
   private rl: Interface | null = null;
   private nextId = 1;
@@ -1821,6 +1885,7 @@ export class McpClient {
       this.serverName = explicitName || this.defaultServerNameForTransport();
       resolvedOptions = envOrOptions as McpClientOptions;
     }
+    this.cacheAuthorizationContextKey = authorizationContextKey(this.transport);
     this.supportedElicitationModes = uniqueSupportedElicitationModes(
       resolvedOptions.supportedElicitationModes,
     );
@@ -1828,6 +1893,10 @@ export class McpClient {
 
   getName(): string {
     return this.serverName;
+  }
+
+  getCacheAuthorizationContextKey(): string {
+    return this.cacheAuthorizationContextKey;
   }
 
   getProtocolVersion(): McpProtocolVersion | null {
@@ -2015,6 +2084,27 @@ export class McpClient {
     this.connected = true;
   }
 
+  async listToolsPage(cursor?: string): Promise<McpListToolsPage> {
+    const result = await this.request(
+      "tools/list",
+      cursor !== undefined ? { cursor } : undefined,
+    );
+    let page: McpListToolsPage;
+    try {
+      page = decodeListToolsResult(result);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        `MCP tools/list failed for server "${this.serverName}": ${message}`,
+      );
+    }
+    for (const rejected of page.rejectedTools) {
+      warnRejectedTool(this.serverName, rejected);
+    }
+    this.cacheHeaderParameters(page.tools);
+    return page;
+  }
+
   /** List available tools from the server. */
   async listTools(): Promise<McpToolSchema[]> {
     const tools: McpToolSchema[] = [];
@@ -2022,22 +2112,7 @@ export class McpClient {
     let cursor: string | undefined;
 
     do {
-      const result = await this.request(
-        "tools/list",
-        cursor !== undefined ? { cursor } : undefined,
-      );
-      let page: McpListToolsPage;
-      try {
-        page = decodeListToolsResult(result);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        throw new Error(
-          `MCP tools/list failed for server "${this.serverName}": ${message}`,
-        );
-      }
-      for (const rejected of page.rejectedTools) {
-        warnRejectedTool(this.serverName, rejected);
-      }
+      const page = await this.listToolsPage(cursor);
       tools.push(...page.tools);
       cursor = page.nextCursor;
       if (cursor !== undefined) {
@@ -2054,6 +2129,21 @@ export class McpClient {
     return tools;
   }
 
+  async listResourcesPage(cursor?: string): Promise<McpListResourcesPage> {
+    const result = await this.request(
+      "resources/list",
+      cursor !== undefined ? { cursor } : undefined,
+    );
+    try {
+      return decodeListResourcesResult(result);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        `MCP resources/list failed for server "${this.serverName}": ${message}`,
+      );
+    }
+  }
+
   /** List available resources from the server across all pages. */
   async listResources(): Promise<McpResourceSchema[]> {
     const resources: McpResourceSchema[] = [];
@@ -2061,19 +2151,7 @@ export class McpClient {
     let cursor: string | undefined;
 
     do {
-      const result = await this.request(
-        "resources/list",
-        cursor !== undefined ? { cursor } : undefined,
-      );
-      let page: McpListResourcesPage;
-      try {
-        page = decodeListResourcesResult(result);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        throw new Error(
-          `MCP resources/list failed for server "${this.serverName}": ${message}`,
-        );
-      }
+      const page = await this.listResourcesPage(cursor);
       resources.push(...page.resources);
       cursor = page.nextCursor;
       if (cursor !== undefined) {
@@ -2089,6 +2167,21 @@ export class McpClient {
     return resources;
   }
 
+  async listResourceTemplatesPage(cursor?: string): Promise<McpListResourceTemplatesPage> {
+    const result = await this.request(
+      "resources/templates/list",
+      cursor !== undefined ? { cursor } : undefined,
+    );
+    try {
+      return decodeListResourceTemplatesResult(result);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        `MCP resources/templates/list failed for server "${this.serverName}": ${message}`,
+      );
+    }
+  }
+
   /** List available resource templates from the server across all pages. */
   async listResourceTemplates(): Promise<McpResourceTemplateSchema[]> {
     const resourceTemplates: McpResourceTemplateSchema[] = [];
@@ -2096,19 +2189,7 @@ export class McpClient {
     let cursor: string | undefined;
 
     do {
-      const result = await this.request(
-        "resources/templates/list",
-        cursor !== undefined ? { cursor } : undefined,
-      );
-      let page: McpListResourceTemplatesPage;
-      try {
-        page = decodeListResourceTemplatesResult(result);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        throw new Error(
-          `MCP resources/templates/list failed for server "${this.serverName}": ${message}`,
-        );
-      }
+      const page = await this.listResourceTemplatesPage(cursor);
       resourceTemplates.push(...page.resourceTemplates);
       cursor = page.nextCursor;
       if (cursor !== undefined) {
@@ -2124,6 +2205,21 @@ export class McpClient {
     return resourceTemplates;
   }
 
+  async listPromptsPage(cursor?: string): Promise<McpListPromptsPage> {
+    const result = await this.request(
+      "prompts/list",
+      cursor !== undefined ? { cursor } : undefined,
+    );
+    try {
+      return decodeListPromptsResult(result);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        `MCP prompts/list failed for server "${this.serverName}": ${message}`,
+      );
+    }
+  }
+
   /** List available prompts from the server across all pages. */
   async listPrompts(): Promise<McpPromptSchema[]> {
     const prompts: McpPromptSchema[] = [];
@@ -2131,19 +2227,7 @@ export class McpClient {
     let cursor: string | undefined;
 
     do {
-      const result = await this.request(
-        "prompts/list",
-        cursor !== undefined ? { cursor } : undefined,
-      );
-      let page: McpListPromptsPage;
-      try {
-        page = decodeListPromptsResult(result);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        throw new Error(
-          `MCP prompts/list failed for server "${this.serverName}": ${message}`,
-        );
-      }
+      const page = await this.listPromptsPage(cursor);
       prompts.push(...page.prompts);
       cursor = page.nextCursor;
       if (cursor !== undefined) {

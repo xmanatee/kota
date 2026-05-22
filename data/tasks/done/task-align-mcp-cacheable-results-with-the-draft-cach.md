@@ -1,12 +1,12 @@
 ---
 id: task-align-mcp-cacheable-results-with-the-draft-cach
 title: Align MCP cacheable results with the draft caching model
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add draft ttlMs/cacheScope cache hints to KOTA's first-party MCP list/read results and preserve remote MCP cache hints in the client runtime without adding a parallel cache registry.
 created_at: 2026-05-21T23:48:20Z
-updated_at: 2026-05-21T23:48:20Z
+updated_at: 2026-05-22T00:10:18Z
 ---
 
 ## Problem
@@ -136,3 +136,9 @@ into a second capability system.
   `pnpm test src/core/mcp/client.test.ts src/core/mcp/manager.test.ts`.
 - A regression fixture or test demonstrates TTL reuse, TTL expiry refresh, and
   list-changed invalidation for at least one remote resource or prompt list.
+
+## Completion Evidence
+
+- `pnpm test src/modules/mcp-server/server.test.ts src/core/mcp/client.test.ts src/core/mcp/manager.test.ts` passes.
+- `pnpm typecheck` passes.
+- `pnpm lint` passes.

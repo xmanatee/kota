@@ -34,6 +34,7 @@ import {
 	activeMcpProtocolVersion,
 	hasActiveMcpContext,
 	MCP_DRAFT_PROTOCOL_VERSION,
+	MCP_PUBLIC_CATALOG_CACHE_HINTS,
 	MCP_RELATED_TASK_META_KEY,
 } from "./mcp-protocol-types.js";
 import type { McpTaskStore } from "./mcp-task-store.js";
@@ -115,7 +116,7 @@ export class ToolsHandler {
 			const annotations = getToolMcpAnnotations(t.name);
 			return annotations ? { ...mcp, annotations } : mcp;
 		});
-		this.ctx.transport.sendResult(msg, { tools });
+		this.ctx.transport.sendResult(msg, { tools, ...MCP_PUBLIC_CATALOG_CACHE_HINTS });
 	}
 
 	async handleCall(msg: JsonRpcRequest): Promise<void> {

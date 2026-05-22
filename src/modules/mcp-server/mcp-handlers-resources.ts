@@ -19,7 +19,11 @@ import type {
 	JsonRpcNotification,
 	JsonRpcRequest,
 } from "./mcp-protocol-types.js";
-import { hasActiveMcpContext } from "./mcp-protocol-types.js";
+import {
+	hasActiveMcpContext,
+	MCP_PRIVATE_RESOURCE_CACHE_HINTS,
+	MCP_PUBLIC_CATALOG_CACHE_HINTS,
+} from "./mcp-protocol-types.js";
 import { getPromptCatalogSignature } from "./prompts.js";
 import {
 	isKnownKotaResourceUri,
@@ -131,7 +135,10 @@ export class ResourcesHandler {
 			return;
 		}
 		this.resourceCatalogSignature = currentResourceCatalogSignature();
-		this.ctx.transport.sendResult(msg, result.result);
+		this.ctx.transport.sendResult(msg, {
+			...result.result,
+			...MCP_PUBLIC_CATALOG_CACHE_HINTS,
+		});
 	}
 
 	handleTemplatesList(msg: JsonRpcRequest): void {
@@ -144,7 +151,10 @@ export class ResourcesHandler {
 			this.ctx.transport.sendError(msg, result.code, result.message);
 			return;
 		}
-		this.ctx.transport.sendResult(msg, result.result);
+		this.ctx.transport.sendResult(msg, {
+			...result.result,
+			...MCP_PUBLIC_CATALOG_CACHE_HINTS,
+		});
 	}
 
 	handleRead(msg: JsonRpcRequest): void {
@@ -166,6 +176,7 @@ export class ResourcesHandler {
 		}
 		this.ctx.transport.sendResult(msg, {
 			contents: [{ uri, mimeType: "application/json", text: result.text }],
+			...MCP_PRIVATE_RESOURCE_CACHE_HINTS,
 		});
 	}
 

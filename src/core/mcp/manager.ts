@@ -8,6 +8,7 @@ import type {
 import type { ToolResult } from "#core/tools/index.js";
 import { validateToolStructuredOutput } from "#core/tools/output-schema.js";
 import {
+  type McpCacheHints,
   type McpCallToolResult,
   McpClient,
   type McpClientTransportConfig,
@@ -15,6 +16,9 @@ import {
   type McpGetPromptResult,
   type McpInputRequiredCallToolResult,
   type McpInputRequiredResult,
+  type McpListPromptsPage,
+  type McpListResourcesPage,
+  type McpListResourceTemplatesPage,
   type McpProgressEvent,
   type McpReadResourceResult,
   type McpStdioClientTransportConfig,
@@ -50,10 +54,45 @@ type McpOperationKind =
   | "prompts/list"
   | "prompts/get";
 
+type McpCachedListOperationKind =
+  | "resources/list"
+  | "resources/templates/list"
+  | "prompts/list";
+
 type McpOperationEntry = {
+  serverName: string;
   client: McpClient;
   kind: McpOperationKind;
   tool: KotaTool;
+};
+
+type McpCacheableListPage =
+  | McpListResourcesPage
+  | McpListResourceTemplatesPage
+  | McpListPromptsPage;
+
+type McpListCacheEntry<TPage extends McpCacheableListPage> = {
+  page: TPage;
+  receivedAtMs: number;
+};
+
+type McpListCacheSource = "cache" | "server";
+
+type McpListCacheReason =
+  | "fresh"
+  | "missing"
+  | "expired"
+  | "ttl-not-positive"
+  | "list_changed";
+
+type McpListCacheMetadata = McpCacheHints & {
+  server: string;
+  operation: McpCachedListOperationKind;
+  cursor: string | null;
+  source: McpListCacheSource;
+  reason: McpListCacheReason;
+  receivedAt: string;
+  expiresAt: string | null;
 };
 
 export type McpRemoteInputRequest = {
@@ -143,6 +182,7 @@ function toKotaOperations(serverName: string, client: McpClient): McpOperationEn
   const entries: McpOperationEntry[] = [];
   if (client.supportsResources()) {
     entries.push({
+      serverName,
       client,
       kind: "resources/list",
       tool: operationTool(
@@ -152,6 +192,7 @@ function toKotaOperations(serverName: string, client: McpClient): McpOperationEn
       ),
     });
     entries.push({
+      serverName,
       client,
       kind: "resources/templates/list",
       tool: operationTool(
@@ -161,6 +202,7 @@ function toKotaOperations(serverName: string, client: McpClient): McpOperationEn
       ),
     });
     entries.push({
+      serverName,
       client,
       kind: "resources/read",
       tool: operationTool(
@@ -176,6 +218,7 @@ function toKotaOperations(serverName: string, client: McpClient): McpOperationEn
   }
   if (client.supportsPrompts()) {
     entries.push({
+      serverName,
       client,
       kind: "prompts/list",
       tool: operationTool(
@@ -185,6 +228,7 @@ function toKotaOperations(serverName: string, client: McpClient): McpOperationEn
       ),
     });
     entries.push({
+      serverName,
       client,
       kind: "prompts/get",
       tool: operationTool(
@@ -405,10 +449,11 @@ function toStructuredContent(value: object): KotaJsonObject {
   return JSON.parse(JSON.stringify(value)) as KotaJsonObject;
 }
 
-function toOperationResult(value: KotaJsonObject): ToolResult {
+function toOperationResult(value: KotaJsonObject, meta?: KotaJsonObject): ToolResult {
   return {
     content: JSON.stringify(value, null, 2),
     structuredContent: value,
+    ...(meta ? { _meta: meta } : {}),
   };
 }
 
@@ -457,6 +502,8 @@ export class McpManager {
   private serverOperations = new Map<string, McpOperationEntry[]>();
   private toolMap = new Map<string, McpToolEntry>();
   private operationMap = new Map<string, McpOperationEntry>();
+  private listCache = new Map<string, McpListCacheEntry<McpCacheableListPage>>();
+  private listCacheInvalidations = new Map<string, "list_changed">();
   private kotaTools: KotaTool[] = [];
   private toolListUnsubscribers = new Map<string, () => void>();
   private initializingServers = new Set<string>();
@@ -505,11 +552,13 @@ export class McpManager {
             this.queueServerToolRefresh(name);
           });
           const unsubscribeResource = client.onResourceListChanged(() => {
+            this.invalidateListCache(name, ["resources/list", "resources/templates/list"]);
             console.error(
               `[kota] MCP server "${name}" resource catalog changed — explicit resource operations will read fresh data on their next call`,
             );
           });
           const unsubscribePrompt = client.onPromptListChanged(() => {
+            this.invalidateListCache(name, ["prompts/list"]);
             console.error(
               `[kota] MCP server "${name}" prompt catalog changed — explicit prompt operations will read fresh data on their next call`,
             );
@@ -641,6 +690,151 @@ export class McpManager {
     }
   }
 
+  private listCacheOperationPrefix(
+    serverName: string,
+    operation: McpCachedListOperationKind,
+  ): string {
+    return `${serverName}\u0000${operation}\u0000`;
+  }
+
+  private listCacheAuthPrefix(
+    entry: McpOperationEntry,
+    operation: McpCachedListOperationKind,
+  ): string {
+    return `${this.listCacheOperationPrefix(entry.serverName, operation)}${entry.client.getCacheAuthorizationContextKey()}\u0000`;
+  }
+
+  private listCacheKey(
+    entry: McpOperationEntry,
+    operation: McpCachedListOperationKind,
+    cursor: string | undefined,
+  ): string {
+    return `${this.listCacheAuthPrefix(entry, operation)}${cursor ?? ""}`;
+  }
+
+  private invalidateListCache(
+    serverName: string,
+    operations: McpCachedListOperationKind[],
+  ): void {
+    for (const operation of operations) {
+      const operationPrefix = this.listCacheOperationPrefix(serverName, operation);
+      for (const key of [...this.listCache.keys()]) {
+        if (key.startsWith(operationPrefix)) {
+          this.listCache.delete(key);
+        }
+      }
+      this.listCacheInvalidations.set(operationPrefix, "list_changed");
+    }
+  }
+
+  private listCacheMetadata(args: {
+    entry: McpOperationEntry;
+    operation: McpCachedListOperationKind;
+    cursor: string | undefined;
+    source: McpListCacheSource;
+    reason: McpListCacheReason;
+    page: McpCacheableListPage;
+    receivedAtMs: number;
+  }): McpListCacheMetadata {
+    const expiresAtMs = args.receivedAtMs + args.page.cache.ttlMs;
+    return {
+      server: args.entry.serverName,
+      operation: args.operation,
+      cursor: args.cursor ?? null,
+      source: args.source,
+      reason: args.reason,
+      ttlMs: args.page.cache.ttlMs,
+      cacheScope: args.page.cache.cacheScope,
+      receivedAt: new Date(args.receivedAtMs).toISOString(),
+      expiresAt: args.page.cache.ttlMs > 0 ? new Date(expiresAtMs).toISOString() : null,
+    };
+  }
+
+  private async cachedListPage<TPage extends McpCacheableListPage>(
+    entry: McpOperationEntry,
+    operation: McpCachedListOperationKind,
+    cursor: string | undefined,
+    fetchPage: (cursor: string | undefined) => Promise<TPage>,
+  ): Promise<{ page: TPage; cache: McpListCacheMetadata }> {
+    const key = this.listCacheKey(entry, operation, cursor);
+    const operationPrefix = this.listCacheOperationPrefix(entry.serverName, operation);
+    const cached = this.listCache.get(key) as McpListCacheEntry<TPage> | undefined;
+    const now = Date.now();
+    if (cached && cached.page.cache.ttlMs > 0) {
+      const expiresAtMs = cached.receivedAtMs + cached.page.cache.ttlMs;
+      if (now < expiresAtMs) {
+        return {
+          page: cached.page,
+          cache: this.listCacheMetadata({
+            entry,
+            operation,
+            cursor,
+            source: "cache",
+            reason: "fresh",
+            page: cached.page,
+            receivedAtMs: cached.receivedAtMs,
+          }),
+        };
+      }
+    }
+
+    const invalidated = this.listCacheInvalidations.get(operationPrefix);
+    const reason: McpListCacheReason = invalidated
+      ?? (cached
+        ? cached.page.cache.ttlMs <= 0 ? "ttl-not-positive" : "expired"
+        : "missing");
+    const page = await fetchPage(cursor);
+    const receivedAtMs = Date.now();
+    if (page.cache.ttlMs > 0) {
+      this.listCache.set(key, { page, receivedAtMs });
+    } else {
+      this.listCache.delete(key);
+    }
+    this.listCacheInvalidations.delete(operationPrefix);
+    return {
+      page,
+      cache: this.listCacheMetadata({
+        entry,
+        operation,
+        cursor,
+        source: "server",
+        reason: page.cache.ttlMs <= 0 && reason === "missing" ? "ttl-not-positive" : reason,
+        page,
+        receivedAtMs,
+      }),
+    };
+  }
+
+  private async cachedListPages<TPage extends McpCacheableListPage>(
+    entry: McpOperationEntry,
+    operation: McpCachedListOperationKind,
+    fetchPage: (cursor: string | undefined) => Promise<TPage>,
+  ): Promise<{ pages: TPage[]; cache: McpListCacheMetadata[] }> {
+    const pages: TPage[] = [];
+    const cache: McpListCacheMetadata[] = [];
+    const seenCursors = new Set<string>();
+    let cursor: string | undefined;
+
+    do {
+      const result = await this.cachedListPage(entry, operation, cursor, fetchPage);
+      pages.push(result.page);
+      cache.push(result.cache);
+      cursor = result.page.nextCursor;
+      if (cursor !== undefined) {
+        if (seenCursors.has(cursor)) {
+          throw new Error(`Malformed MCP ${operation} result: repeated nextCursor`);
+        }
+        seenCursors.add(cursor);
+      }
+    } while (cursor !== undefined);
+
+    return { pages, cache };
+  }
+
+  private listCacheResultMeta(cache: McpListCacheMetadata[]): KotaJsonObject {
+    return toStructuredContent({ mcp: { cache } });
+  }
+
   private async executeOperation(
     entry: McpOperationEntry,
     input: KotaJsonObject,
@@ -655,12 +849,28 @@ export class McpManager {
 
     try {
       if (entry.kind === "resources/list") {
-        const resources = await entry.client.listResources();
-        return toOperationResult(toStructuredContent({ resources }));
+        const result = await this.cachedListPages(
+          entry,
+          "resources/list",
+          (cursor) => entry.client.listResourcesPage(cursor),
+        );
+        const resources = result.pages.flatMap((page) => page.resources);
+        return toOperationResult(
+          toStructuredContent({ resources }),
+          this.listCacheResultMeta(result.cache),
+        );
       }
       if (entry.kind === "resources/templates/list") {
-        const resourceTemplates = await entry.client.listResourceTemplates();
-        return toOperationResult(toStructuredContent({ resourceTemplates }));
+        const result = await this.cachedListPages(
+          entry,
+          "resources/templates/list",
+          (cursor) => entry.client.listResourceTemplatesPage(cursor),
+        );
+        const resourceTemplates = result.pages.flatMap((page) => page.resourceTemplates);
+        return toOperationResult(
+          toStructuredContent({ resourceTemplates }),
+          this.listCacheResultMeta(result.cache),
+        );
       }
       if (entry.kind === "resources/read") {
         const uri = stringInput(input, "uri", entry.tool.name);
@@ -669,8 +879,16 @@ export class McpManager {
         return this.toOperationInvocationResult(entry, result, input, options);
       }
       if (entry.kind === "prompts/list") {
-        const prompts = await entry.client.listPrompts();
-        return toOperationResult(toStructuredContent({ prompts }));
+        const result = await this.cachedListPages(
+          entry,
+          "prompts/list",
+          (cursor) => entry.client.listPromptsPage(cursor),
+        );
+        const prompts = result.pages.flatMap((page) => page.prompts);
+        return toOperationResult(
+          toStructuredContent({ prompts }),
+          this.listCacheResultMeta(result.cache),
+        );
       }
       const name = stringInput(input, "name", entry.tool.name);
       if (!name.ok) return name.result;
@@ -790,6 +1008,8 @@ export class McpManager {
     this.serverOperations.clear();
     this.toolMap.clear();
     this.operationMap.clear();
+    this.listCache.clear();
+    this.listCacheInvalidations.clear();
     this.kotaTools = [];
   }
 

@@ -680,9 +680,11 @@ describe("McpServer", () => {
 			const resp = await readResponse(output);
 
 			expect(resp.id).toBe(2);
-			const result = resp.result as { tools: unknown[] };
+			const result = resp.result as { tools: unknown[]; ttlMs?: number; cacheScope?: string };
 			expect(Array.isArray(result.tools)).toBe(true);
 			expect(result.tools.length).toBeGreaterThan(0);
+			expect(result.ttlMs).toBe(60_000);
+			expect(result.cacheScope).toBe("public");
 
 			// Verify MCP tool format
 			const firstTool = result.tools[0] as Record<string, unknown>;
@@ -2383,8 +2385,10 @@ describe("resources", () => {
 		const resp = await readResponse(output);
 
 		expect(resp.id).toBe(2);
-		const result = resp.result as { resources: Array<{ uri: string }> };
+		const result = resp.result as { resources: Array<{ uri: string }>; ttlMs?: number; cacheScope?: string };
 		expect(Array.isArray(result.resources)).toBe(true);
+		expect(result.ttlMs).toBe(60_000);
+		expect(result.cacheScope).toBe("public");
 		const uris = result.resources.map((r) => r.uri);
 		expect(uris).toContain("kota://tasks/ready");
 		expect(uris).toContain("kota://workflow/status");
@@ -2403,7 +2407,11 @@ describe("resources", () => {
 		const firstResult = first.result as {
 			resources: Array<{ uri: string }>;
 			nextCursor?: string;
+			ttlMs?: number;
+			cacheScope?: string;
 		};
+		expect(firstResult.ttlMs).toBe(60_000);
+		expect(firstResult.cacheScope).toBe("public");
 		expect(firstResult.resources.map((resource) => resource.uri)).toEqual([
 			"kota://tasks/ready",
 			"kota://workflow/status",
@@ -2474,7 +2482,11 @@ describe("resources", () => {
 		expect(resp.id).toBe(2);
 		const result = resp.result as {
 			contents: Array<{ uri: string; mimeType: string; text: string }>;
+			ttlMs?: number;
+			cacheScope?: string;
 		};
+		expect(result.ttlMs).toBe(0);
+		expect(result.cacheScope).toBe("private");
 		expect(result.contents).toHaveLength(1);
 		expect(result.contents[0].uri).toBe("kota://tasks/ready");
 		expect(result.contents[0].mimeType).toBe("application/json");
@@ -2667,7 +2679,11 @@ describe("resources", () => {
 		const firstResult = first.result as {
 			resourceTemplates: Array<{ uriTemplate: string; name: string }>;
 			nextCursor?: string;
+			ttlMs?: number;
+			cacheScope?: string;
 		};
+		expect(firstResult.ttlMs).toBe(60_000);
+		expect(firstResult.cacheScope).toBe("public");
 		expect(firstResult.resourceTemplates.map((template) => template.uriTemplate)).toEqual([
 			"kota://memory{?cursor,limit}",
 			"kota://memory/search{?q,cursor,limit}",
@@ -2826,8 +2842,14 @@ describe("prompts", () => {
 			const resp = await readResponse(output);
 
 			expect(resp.id).toBe(2);
-			const result = resp.result as { prompts: Array<{ name: string; description: string }> };
+			const result = resp.result as {
+				prompts: Array<{ name: string; description: string }>;
+				ttlMs?: number;
+				cacheScope?: string;
+			};
 			expect(Array.isArray(result.prompts)).toBe(true);
+			expect(result.ttlMs).toBe(60_000);
+			expect(result.cacheScope).toBe("public");
 			const names = result.prompts.map((p) => p.name);
 			expect(names).toContain("kota-create-task");
 			expect(names).toContain("kota-trigger-workflow");

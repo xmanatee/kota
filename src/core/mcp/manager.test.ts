@@ -494,6 +494,7 @@ describe("McpManager", () => {
       expect(resource.structuredContent).toEqual({
         resultType: "complete",
         protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+        cache: { ttlMs: 0, cacheScope: "private" },
         contents: [{ uri: "file:///tmp/a.md", text: "resource text" }],
       });
 
@@ -525,6 +526,212 @@ describe("McpManager", () => {
       fetchSpy.mockRestore();
     }
   });
+
+  it("reuses fresh cached resource and prompt list pages and refreshes them after TTL expiry", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-21T12:00:00.000Z"));
+    let resourceListCalls = 0;
+    let promptListCalls = 0;
+    const { fetchSpy } = mockMcpHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { resources: {}, prompts: {} },
+          serverInfo: { name: "cache-server" },
+        });
+      }
+      if (request.body.method === "resources/list") {
+        resourceListCalls += 1;
+        return jsonRpcResponse(request.body.id, {
+          resources: [{ uri: `file:///tmp/resource-${resourceListCalls}.md`, name: `resource-${resourceListCalls}` }],
+          ttlMs: 1_000,
+          cacheScope: "private",
+        });
+      }
+      if (request.body.method === "prompts/list") {
+        promptListCalls += 1;
+        return jsonRpcResponse(request.body.id, {
+          prompts: [{ name: `prompt-${promptListCalls}` }],
+          ttlMs: 1_000,
+          cacheScope: "public",
+        });
+      }
+      return jsonRpcResponse(request.body.id, {});
+    });
+    const manager = new McpManager();
+
+    try {
+      await manager.initialize({
+        mcpServers: {
+          remote: { type: "http", url: "https://mcp.example.test/mcp" },
+        },
+      });
+
+      const firstResources = await manager.executeTool("mcp_resources__remote__list", {});
+      expect(firstResources.structuredContent).toEqual({
+        resources: [{ uri: "file:///tmp/resource-1.md", name: "resource-1" }],
+      });
+      expect(firstResources._meta).toMatchObject({
+        mcp: {
+          cache: [{
+            operation: "resources/list",
+            source: "server",
+            reason: "missing",
+            ttlMs: 1_000,
+            cacheScope: "private",
+          }],
+        },
+      });
+
+      const secondResources = await manager.executeTool("mcp_resources__remote__list", {});
+      expect(secondResources.structuredContent).toEqual(firstResources.structuredContent);
+      expect(secondResources._meta).toMatchObject({
+        mcp: { cache: [{ source: "cache", reason: "fresh" }] },
+      });
+      expect(resourceListCalls).toBe(1);
+
+      const firstPrompts = await manager.executeTool("mcp_prompts__remote__list", {});
+      const secondPrompts = await manager.executeTool("mcp_prompts__remote__list", {});
+      expect(secondPrompts.structuredContent).toEqual(firstPrompts.structuredContent);
+      expect(secondPrompts._meta).toMatchObject({
+        mcp: { cache: [{ operation: "prompts/list", source: "cache", reason: "fresh" }] },
+      });
+      expect(promptListCalls).toBe(1);
+
+      vi.advanceTimersByTime(1_001);
+
+      const expiredResources = await manager.executeTool("mcp_resources__remote__list", {});
+      expect(expiredResources.structuredContent).toEqual({
+        resources: [{ uri: "file:///tmp/resource-2.md", name: "resource-2" }],
+      });
+      expect(expiredResources._meta).toMatchObject({
+        mcp: { cache: [{ source: "server", reason: "expired" }] },
+      });
+      expect(resourceListCalls).toBe(2);
+
+      const expiredPrompts = await manager.executeTool("mcp_prompts__remote__list", {});
+      expect(expiredPrompts.structuredContent).toEqual({
+        prompts: [{ name: "prompt-2" }],
+      });
+      expect(expiredPrompts._meta).toMatchObject({
+        mcp: { cache: [{ source: "server", reason: "expired" }] },
+      });
+      expect(promptListCalls).toBe(2);
+    } finally {
+      await manager.close();
+      fetchSpy.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it("invalidates cached resource and prompt list pages after matching list-changed notifications", async () => {
+    const server = `
+      const rl = require("readline").createInterface({ input: process.stdin });
+      let subscriptionId = null;
+      let resourceListCalls = 0;
+      let promptListCalls = 0;
+      function write(message) {
+        process.stdout.write(JSON.stringify(message) + "\\n");
+      }
+      rl.on("line", (line) => {
+        let msg;
+        try { msg = JSON.parse(line); } catch { return; }
+        if (msg.method === "initialize") {
+          write({ jsonrpc: "2.0", id: msg.id, result: {
+            protocolVersion: "DRAFT-2026-v1",
+            capabilities: { resources: { listChanged: true }, prompts: { listChanged: true } },
+            serverInfo: { name: "cache-invalidation-server" },
+          }});
+          return;
+        }
+        if (msg.method === "notifications/initialized") return;
+        if (msg.method === "subscriptions/listen") {
+          subscriptionId = String(msg.id);
+          write({ jsonrpc: "2.0", method: "notifications/subscriptions/acknowledged", params: {
+            _meta: { "io.modelcontextprotocol/subscriptionId": subscriptionId },
+            notifications: { resourcesListChanged: true, promptsListChanged: true },
+          }});
+          return;
+        }
+        if (msg.method === "resources/list") {
+          resourceListCalls += 1;
+          write({ jsonrpc: "2.0", id: msg.id, result: {
+            resources: [{ uri: "file:///tmp/resource-" + resourceListCalls + ".md", name: "resource-" + resourceListCalls }],
+            ttlMs: 60000,
+            cacheScope: "private",
+          }});
+          if (resourceListCalls === 1) {
+            setTimeout(() => write({ jsonrpc: "2.0", method: "notifications/resources/list_changed", params: {
+              _meta: { "io.modelcontextprotocol/subscriptionId": subscriptionId },
+            }}), 20);
+          }
+          return;
+        }
+        if (msg.method === "prompts/list") {
+          promptListCalls += 1;
+          write({ jsonrpc: "2.0", id: msg.id, result: {
+            prompts: [{ name: "prompt-" + promptListCalls }],
+            ttlMs: 60000,
+            cacheScope: "public",
+          }});
+          if (promptListCalls === 1) {
+            setTimeout(() => write({ jsonrpc: "2.0", method: "notifications/prompts/list_changed", params: {
+              _meta: { "io.modelcontextprotocol/subscriptionId": subscriptionId },
+            }}), 20);
+          }
+          return;
+        }
+        if (msg.method === "shutdown") {
+          write({ jsonrpc: "2.0", id: msg.id, result: {} });
+          return;
+        }
+        write({ jsonrpc: "2.0", id: msg.id, result: {} });
+      });
+    `;
+    const manager = new McpManager();
+
+    try {
+      await manager.initialize({
+        mcpServers: {
+          remote: { command: "node", args: ["-e", server] },
+        },
+      });
+
+      const firstResources = await manager.executeTool("mcp_resources__remote__list", {});
+      const cachedResources = await manager.executeTool("mcp_resources__remote__list", {});
+      expect(cachedResources.structuredContent).toEqual(firstResources.structuredContent);
+      expect(cachedResources._meta).toMatchObject({
+        mcp: { cache: [{ source: "cache", reason: "fresh" }] },
+      });
+
+      const firstPrompts = await manager.executeTool("mcp_prompts__remote__list", {});
+      const cachedPrompts = await manager.executeTool("mcp_prompts__remote__list", {});
+      expect(cachedPrompts.structuredContent).toEqual(firstPrompts.structuredContent);
+      expect(cachedPrompts._meta).toMatchObject({
+        mcp: { cache: [{ source: "cache", reason: "fresh" }] },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 80));
+
+      const refreshedResources = await manager.executeTool("mcp_resources__remote__list", {});
+      expect(refreshedResources.structuredContent).toEqual({
+        resources: [{ uri: "file:///tmp/resource-2.md", name: "resource-2" }],
+      });
+      expect(refreshedResources._meta).toMatchObject({
+        mcp: { cache: [{ source: "server", reason: "list_changed" }] },
+      });
+
+      const refreshedPrompts = await manager.executeTool("mcp_prompts__remote__list", {});
+      expect(refreshedPrompts.structuredContent).toEqual({
+        prompts: [{ name: "prompt-2" }],
+      });
+      expect(refreshedPrompts._meta).toMatchObject({
+        mcp: { cache: [{ source: "server", reason: "list_changed" }] },
+      });
+    } finally {
+      await manager.close();
+    }
+  }, 10_000);
 
   it("routes resource and prompt input_required results through the existing input resolver", async () => {
     const attempts: string[] = [];

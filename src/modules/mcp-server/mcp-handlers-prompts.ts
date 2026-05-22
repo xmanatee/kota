@@ -9,7 +9,7 @@ import {
 	resolveProjectDirFromRootsInput,
 } from "./mcp-mrtr.js";
 import type { HandlerContext, JsonRpcRequest } from "./mcp-protocol-types.js";
-import { hasActiveMcpContext } from "./mcp-protocol-types.js";
+import { hasActiveMcpContext, MCP_PUBLIC_CATALOG_CACHE_HINTS } from "./mcp-protocol-types.js";
 import { listPromptCatalogPage, renderPrompt } from "./prompts.js";
 
 function decodePromptArguments(value: KotaJsonValue | undefined): {
@@ -53,7 +53,10 @@ export class PromptsHandler {
 			this.ctx.transport.sendError(msg, result.code, result.message);
 			return;
 		}
-		this.ctx.transport.sendResult(msg, result.result);
+		this.ctx.transport.sendResult(msg, {
+			...result.result,
+			...MCP_PUBLIC_CATALOG_CACHE_HINTS,
+		});
 	}
 
 	handleGet(msg: JsonRpcRequest): void {

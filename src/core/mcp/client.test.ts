@@ -2012,6 +2012,145 @@ describe("McpClient Streamable HTTP transport", () => {
     ]);
   });
 
+  it("decodes cache hints on tools, resource, prompt, and resource-read results", async () => {
+    mockClientHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: {}, resources: {}, prompts: {} },
+          serverInfo: { name: "cache-hints-fixture" },
+        });
+      }
+      if (request.body.method === "tools/list") {
+        return jsonRpcHttpResponse(request.body.id, {
+          tools: [{ name: "cacheable_tool", inputSchema: { type: "object" } }],
+          ttlMs: 5_000,
+          cacheScope: "public",
+        });
+      }
+      if (request.body.method === "resources/list") {
+        return jsonRpcHttpResponse(request.body.id, {
+          resources: [{ uri: "file:///tmp/cache.md", name: "cache" }],
+          ttlMs: 4_000,
+          cacheScope: "private",
+        });
+      }
+      if (request.body.method === "resources/templates/list") {
+        return jsonRpcHttpResponse(request.body.id, {
+          resourceTemplates: [{ uriTemplate: "file:///{name}.md", name: "file" }],
+          ttlMs: 3_000,
+          cacheScope: "public",
+        });
+      }
+      if (request.body.method === "prompts/list") {
+        return jsonRpcHttpResponse(request.body.id, {
+          prompts: [{ name: "brief" }],
+          ttlMs: 2_000,
+          cacheScope: "public",
+        });
+      }
+      if (request.body.method === "resources/read") {
+        return jsonRpcHttpResponse(request.body.id, {
+          resultType: "complete",
+          contents: [{ uri: "file:///tmp/cache.md", text: "cached resource" }],
+          ttlMs: 1_000,
+          cacheScope: "private",
+        });
+      }
+      return jsonRpcHttpResponse(request.body.id, {});
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "cache-hints-client",
+    );
+
+    await client.connect();
+
+    await expect(client.listToolsPage()).resolves.toMatchObject({
+      tools: [{ name: "cacheable_tool" }],
+      cache: { ttlMs: 5_000, cacheScope: "public" },
+    });
+    await expect(client.listResourcesPage()).resolves.toMatchObject({
+      resources: [{ uri: "file:///tmp/cache.md", name: "cache" }],
+      cache: { ttlMs: 4_000, cacheScope: "private" },
+    });
+    await expect(client.listResourceTemplatesPage()).resolves.toMatchObject({
+      resourceTemplates: [{ uriTemplate: "file:///{name}.md", name: "file" }],
+      cache: { ttlMs: 3_000, cacheScope: "public" },
+    });
+    await expect(client.listPromptsPage()).resolves.toMatchObject({
+      prompts: [{ name: "brief" }],
+      cache: { ttlMs: 2_000, cacheScope: "public" },
+    });
+    await expect(client.readResource("file:///tmp/cache.md")).resolves.toMatchObject({
+      resultType: "complete",
+      cache: { ttlMs: 1_000, cacheScope: "private" },
+      contents: [{ uri: "file:///tmp/cache.md", text: "cached resource" }],
+    });
+  });
+
+  it("normalizes absent or negative ttl cache hints to immediately stale private cache hints", async () => {
+    mockClientHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { resources: {}, prompts: {} },
+        });
+      }
+      if (request.body.method === "resources/list") {
+        return jsonRpcHttpResponse(request.body.id, {
+          resources: [{ uri: "file:///tmp/old.md", name: "old" }],
+        });
+      }
+      if (request.body.method === "prompts/list") {
+        return jsonRpcHttpResponse(request.body.id, {
+          prompts: [{ name: "negative-ttl" }],
+          ttlMs: -1,
+          cacheScope: "public",
+        });
+      }
+      return jsonRpcHttpResponse(request.body.id, {});
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "missing-cache-hints-client",
+    );
+
+    await client.connect();
+
+    await expect(client.listResourcesPage()).resolves.toMatchObject({
+      cache: { ttlMs: 0, cacheScope: "private" },
+    });
+    await expect(client.listPromptsPage()).resolves.toMatchObject({
+      cache: { ttlMs: 0, cacheScope: "public" },
+    });
+  });
+
+  it("rejects malformed cacheScope values on cacheable result pages", async () => {
+    mockClientHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { resources: {} },
+        });
+      }
+      return jsonRpcHttpResponse(request.body.id, {
+        resources: [{ uri: "file:///tmp/bad.md", name: "bad" }],
+        ttlMs: 100,
+        cacheScope: "shared",
+      });
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "bad-cache-scope-client",
+    );
+    await client.connect();
+
+    await expect(client.listResourcesPage()).rejects.toThrow(
+      /Malformed MCP resources\/list result: cacheScope must be "public" or "private"/,
+    );
+  });
+
   it("rejects malformed resource catalogs with method-specific diagnostics", async () => {
     mockClientHttpFetch((request) => {
       if (request.body.method === "server/discover") {

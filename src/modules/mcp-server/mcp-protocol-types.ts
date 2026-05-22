@@ -31,6 +31,23 @@ export type McpProtocolVersion =
 
 export type McpProgressToken = string | number;
 
+export type McpCacheScope = "public" | "private";
+
+export type McpCacheHints = {
+	ttlMs: number;
+	cacheScope: McpCacheScope;
+};
+
+export const MCP_PUBLIC_CATALOG_CACHE_HINTS: McpCacheHints = {
+	ttlMs: 60_000,
+	cacheScope: "public",
+};
+
+export const MCP_PRIVATE_RESOURCE_CACHE_HINTS: McpCacheHints = {
+	ttlMs: 0,
+	cacheScope: "private",
+};
+
 export type JsonRpcRequest = {
 	jsonrpc: "2.0";
 	id: number | string;
