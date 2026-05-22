@@ -362,6 +362,10 @@ resources:
   - url: https://modelcontextprotocol.io/registry/about
     added: "2026-05-22"
     notes: "Official MCP Registry documentation - monitor server.json schema, package verification, remote-server metadata, registry publication flow, server-card discovery direction, and configuration portability for KOTA's first-party MCP server."
+    snapshot:
+      fingerprint: sha256:0fb9062f3ed2b1e4cdea58ba7fee4c82
+      summary: "MCP Registry docs are now accessible; KOTA already covers first-party server metadata, and this refresh opened task-add-mcp-registry-backed-external-server-config-import for the remaining external-server config import gap."
+      last_seen_at: "2026-05-22T06:52:59.541Z"
   - url: https://github.com/github/gh-aw
     added: "2026-05-17"
     notes: "GitHub Agentic Workflows is a GitHub Actions-hosted agent workflow runtime; monitor for event-trigger, safe-output, input-sanitization, and multi-engine guardrail patterns relevant to KOTA's workflow runtime."
