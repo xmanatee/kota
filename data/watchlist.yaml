@@ -369,6 +369,13 @@ resources:
   - url: https://modelcontextprotocol.io/community/server-card/charter
     added: "2026-05-22"
     notes: "Official MCP Server Card Working Group charter - monitor the server-card document format, .well-known/resource discovery paths, server.json alignment, public-metadata constraints, and reference implementation status for KOTA's first-party MCP server."
+    snapshot:
+      fingerprint: sha256:6a620929f05f869244566685035b16cd
+      summary: "MCP Server Card WG charter is accessible; the linked SEP and experimental extension show KOTA's completed first-party card has drifted from the current experimental schema, so this run opened task-align-mcp-server-card-with-the-experimental-extens."
+      last_seen_at: "2026-05-22T08:18:26.863Z"
+  - url: https://github.com/modelcontextprotocol/experimental-ext-server-card
+    added: "2026-05-22"
+    notes: "Official experimental MCP Server Card extension repo - monitor schema, examples, path conventions, graduation status, and KOTA's first-party MCP server projection."
   - url: https://github.com/github/gh-aw
     added: "2026-05-17"
     notes: "GitHub Agentic Workflows is a GitHub Actions-hosted agent workflow runtime; monitor for event-trigger, safe-output, input-sanitization, and multi-engine guardrail patterns relevant to KOTA's workflow runtime."
