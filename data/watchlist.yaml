@@ -376,6 +376,10 @@ resources:
   - url: https://github.com/modelcontextprotocol/experimental-ext-server-card
     added: "2026-05-22"
     notes: "Official experimental MCP Server Card extension repo - monitor schema, examples, path conventions, graduation status, and KOTA's first-party MCP server projection."
+    snapshot:
+      fingerprint: sha256:96d6246b5fcd8353aa85d48d07817d0a
+      summary: "The official experimental MCP Server Card extension remains the active schema/path source, and KOTA's completed Server Card alignment already covers its nonduplicative signal: current well-known path, public remote metadata, no primitive listings, and strict schema drift tests."
+      last_seen_at: "2026-05-22T09:22:51.529Z"
   - url: https://github.com/github/gh-aw
     added: "2026-05-17"
     notes: "GitHub Agentic Workflows is a GitHub Actions-hosted agent workflow runtime; monitor for event-trigger, safe-output, input-sanitization, and multi-engine guardrail patterns relevant to KOTA's workflow runtime."
