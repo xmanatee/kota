@@ -773,6 +773,7 @@ type McpInitializeResult = {
   resourcesListChanged: boolean;
   promptsSupported: boolean;
   promptsListChanged: boolean;
+  loggingSupported: boolean;
   serverInfo?: { name?: string };
 };
 
@@ -791,6 +792,8 @@ type McpHeaderParameterSpec = {
   paramName: string;
   headerName: string;
 };
+
+type DeprecatedMcpFeature = "roots" | "sampling" | "logging";
 
 function decodeListChangedCapability(
   capabilities: KotaJsonObject | undefined,
@@ -811,6 +814,17 @@ function decodeListChangedCapability(
       ) === true
       : false,
   };
+}
+
+function decodeDeprecatedObjectCapability(
+  capabilities: KotaJsonObject | undefined,
+  capabilityName: DeprecatedMcpFeature,
+  kind: McpResultKind,
+): boolean {
+  const rawCapability = capabilities ? capabilities[capabilityName] : undefined;
+  if (rawCapability === undefined) return false;
+  optionalJsonObject(rawCapability, `capabilities.${capabilityName}`, kind);
+  return true;
 }
 
 function isMcpProtocolVersion(value: string): value is McpProtocolVersion {
@@ -849,6 +863,7 @@ function decodeInitializeResult(value: JsonRpcResponse["result"]): McpInitialize
   const tools = decodeListChangedCapability(capabilities, "tools", "initialize");
   const resources = decodeListChangedCapability(capabilities, "resources", "initialize");
   const prompts = decodeListChangedCapability(capabilities, "prompts", "initialize");
+  const loggingSupported = decodeDeprecatedObjectCapability(capabilities, "logging", "initialize");
   const rawServerInfo = optionalJsonObject(
     object.serverInfo,
     "serverInfo",
@@ -865,6 +880,7 @@ function decodeInitializeResult(value: JsonRpcResponse["result"]): McpInitialize
     resourcesListChanged: resources.listChanged,
     promptsSupported: prompts.supported,
     promptsListChanged: prompts.listChanged,
+    loggingSupported,
     ...(rawServerInfo ? { serverInfo: { ...(name !== undefined ? { name } : {}) } } : {}),
   };
 }
@@ -889,6 +905,7 @@ function decodeDiscoverResult(value: JsonRpcResponse["result"]): McpInitializeRe
   const tools = decodeListChangedCapability(capabilities, "tools", "server/discover");
   const resources = decodeListChangedCapability(capabilities, "resources", "server/discover");
   const prompts = decodeListChangedCapability(capabilities, "prompts", "server/discover");
+  const loggingSupported = decodeDeprecatedObjectCapability(capabilities, "logging", "server/discover");
   const rawServerInfo = optionalJsonObject(
     object.serverInfo,
     "serverInfo",
@@ -905,6 +922,7 @@ function decodeDiscoverResult(value: JsonRpcResponse["result"]): McpInitializeRe
     resourcesListChanged: resources.listChanged,
     promptsSupported: prompts.supported,
     promptsListChanged: prompts.listChanged,
+    loggingSupported,
     ...(rawServerInfo ? { serverInfo: { ...(name !== undefined ? { name } : {}) } } : {}),
   };
 }
@@ -2329,6 +2347,7 @@ export class McpClient {
   private activeProgressByRequestId = new Map<number, string>();
   private activeProgressByToken = new Map<string, ActiveProgressRequest>();
   private progressWarningCount = 0;
+  private readonly deprecatedCapabilityWarnings = new Set<DeprecatedMcpFeature>();
   private readonly headerParametersByTool = new Map<string, McpHeaderParameterSpec[]>();
   private readonly supportedElicitationModes: readonly McpElicitationMode[];
 
@@ -2506,6 +2525,7 @@ export class McpClient {
     if (result.serverInfo?.name) {
       this.serverName = result.serverInfo.name;
     }
+    this.warnDeprecatedServerCapabilities(result);
     this.protocolVersion = result.protocolVersion;
     this.toolResultContract = result.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION
       ? "draft-tool-result"
@@ -2546,6 +2566,7 @@ export class McpClient {
     if (result.serverInfo?.name) {
       this.serverName = result.serverInfo.name;
     }
+    this.warnDeprecatedServerCapabilities(result);
     const unsupportedListChanged = [
       result.toolsListChanged ? "tools.listChanged" : null,
       result.resourcesListChanged ? "resources.listChanged" : null,
@@ -2735,10 +2756,12 @@ export class McpClient {
     const params: JsonRpcRequest["params"] = { uri };
     this.applyInputRetryParams(params, retry, "resources/read");
     const result = await this.request("resources/read", params, CALL_TIMEOUT);
-    return decodeReadResourceResult(
+    const decoded = decodeReadResourceResult(
       result,
       this.protocolVersion ?? MCP_DRAFT_PROTOCOL_VERSION,
     );
+    this.warnDeprecatedInputRequiredResult(decoded);
+    return decoded;
   }
 
   /** Get a prompt from the server. */
@@ -2750,10 +2773,12 @@ export class McpClient {
     const params: JsonRpcRequest["params"] = { name, arguments: args };
     this.applyInputRetryParams(params, retry, "prompts/get");
     const result = await this.request("prompts/get", params, CALL_TIMEOUT);
-    return decodeGetPromptResult(
+    const decoded = decodeGetPromptResult(
       result,
       this.protocolVersion ?? MCP_DRAFT_PROTOCOL_VERSION,
     );
+    this.warnDeprecatedInputRequiredResult(decoded);
+    return decoded;
   }
 
   /** Call a tool on the server. */
@@ -2766,7 +2791,12 @@ export class McpClient {
     const params: JsonRpcRequest["params"] = { name, arguments: args };
     this.applyInputRetryParams(params, retry, "tools/call");
     const result = await this.request("tools/call", params, CALL_TIMEOUT, options.progress);
-    return decodeCallToolResult(result, this.protocolVersion ?? MCP_LEGACY_PROTOCOL_VERSION);
+    const decoded = decodeCallToolResult(
+      result,
+      this.protocolVersion ?? MCP_LEGACY_PROTOCOL_VERSION,
+    );
+    this.warnDeprecatedInputRequiredResult(decoded);
+    return decoded;
   }
 
   private applyInputRetryParams(
@@ -3581,6 +3611,50 @@ export class McpClient {
   private clearAllProgress(): void {
     this.activeProgressByRequestId.clear();
     this.activeProgressByToken.clear();
+  }
+
+  private warnDeprecatedServerCapabilities(result: McpInitializeResult): void {
+    if (!result.loggingSupported) return;
+    this.warnDeprecatedCapability(
+      "logging",
+      result.protocolVersion,
+      "server logging capability",
+    );
+  }
+
+  private warnDeprecatedInputRequiredResult(
+    result: McpCallToolResult | McpReadResourceResult | McpGetPromptResult,
+  ): void {
+    if (result.resultType !== "input_required" || !result.inputRequests) return;
+    for (const request of Object.values(result.inputRequests)) {
+      if (request.method === "roots/list") {
+        this.warnDeprecatedCapability(
+          "roots",
+          result.protocolVersion,
+          "remote roots/list input request",
+        );
+      } else if (request.method === "sampling/createMessage") {
+        this.warnDeprecatedCapability(
+          "sampling",
+          result.protocolVersion,
+          "remote sampling/createMessage input request",
+        );
+      }
+    }
+  }
+
+  private warnDeprecatedCapability(
+    feature: DeprecatedMcpFeature,
+    protocolVersion: McpProtocolVersion,
+    source: string,
+  ): void {
+    if (this.deprecatedCapabilityWarnings.has(feature)) return;
+    this.deprecatedCapabilityWarnings.add(feature);
+    console.error(
+      `[kota] Warning: MCP server "${this.serverName}" negotiated deprecated MCP ` +
+        `capability feature "${feature}" using protocol ${protocolVersion}; ` +
+        `${source} is compatibility-only during the SEP-2577 deprecation window.`,
+    );
   }
 
   private warnProgress(message: string): void {

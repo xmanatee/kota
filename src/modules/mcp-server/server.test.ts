@@ -370,14 +370,80 @@ describe("McpServer", () => {
 			server.stop();
 		});
 
+		it("warns once for legacy deprecated roots and sampling negotiation without changing initialize", async () => {
+			const { input, output } = createTestStreams();
+			const logs: string[] = [];
+			const server = new McpServer({
+				input,
+				output,
+				log: (message) => logs.push(message),
+				samplingEnabled: true,
+				modelClient: {
+					messages: {
+						stream: () => { throw new Error("stream not used by initialize"); },
+						create: async () => { throw new Error("create not used by initialize"); },
+					},
+				},
+			});
+
+			await server.start();
+			const params = {
+				protocolVersion: "2024-11-05",
+				capabilities: { roots: {} },
+				clientInfo: { name: "legacy-client", version: "2.3.4" },
+			};
+			sendRequest(input, 1, "initialize", params);
+			const first = await readResponse(output);
+			sendRequest(input, 2, "initialize", params);
+			const second = await readResponse(output);
+
+			expect(first.result).toMatchObject({
+				protocolVersion: "2024-11-05",
+				capabilities: { roots: {}, sampling: {} },
+			});
+			expect(second.result).toEqual(first.result);
+			const warnings = logs.filter((message) => message.includes("deprecated MCP"));
+			expect(warnings).toHaveLength(2);
+			expect(warnings[0]).toContain('feature "roots"');
+			expect(warnings[0]).toContain('peer "legacy-client"');
+			expect(warnings[0]).toContain("protocol 2024-11-05");
+			expect(warnings[0]).toContain("legacy server roots capability");
+			expect(warnings[0]).toContain("compatibility-only");
+			expect(warnings[1]).toContain('feature "sampling"');
+
+			server.stop();
+		});
+
+		it("warns for legacy server roots advertisement when the client omits roots", async () => {
+			const { input, output } = createTestStreams();
+			const logs: string[] = [];
+			const server = new McpServer({ input, output, log: (message) => logs.push(message) });
+
+			const resp = await initServer(server, input, output);
+			const result = resp.result as Record<string, unknown>;
+			const capabilities = result.capabilities as Record<string, unknown>;
+			expect(capabilities.roots).toEqual({});
+
+			const warnings = logs.filter((message) => message.includes("deprecated MCP"));
+			expect(warnings).toHaveLength(1);
+			expect(warnings[0]).toContain('feature "roots"');
+			expect(warnings[0]).toContain('peer "test"');
+			expect(warnings[0]).toContain("protocol 2024-11-05");
+			expect(warnings[0]).toContain("legacy server roots capability");
+			expect(warnings[0]).toContain("compatibility-only");
+
+			server.stop();
+		});
+
 		it("serves server/discover before initialize with draft capabilities and identity", async () => {
 			const { input, output } = createTestStreams();
+			const logs: string[] = [];
 			const server = new McpServer({
 				input,
 				output,
 				name: "discoverable-kota",
 				version: "9.8.7",
-				log: () => {},
+				log: (message) => logs.push(message),
 				samplingEnabled: true,
 				modelClient: {
 					messages: {
@@ -410,16 +476,23 @@ describe("McpServer", () => {
 			expect(taskCaps.requests).toEqual({ tools: { call: {} } });
 			expect(capabilities.sampling).toBeUndefined();
 			expect(capabilities.elicitation).toBeUndefined();
+			const warnings = logs.filter((message) => message.includes("deprecated MCP"));
+			expect(warnings).toHaveLength(1);
+			expect(warnings[0]).toContain('feature "logging"');
+			expect(warnings[0]).toContain('peer "test"');
+			expect(warnings[0]).toContain(`protocol ${MCP_DRAFT_PROTOCOL_VERSION}`);
+			expect(warnings[0]).toContain("compatibility-only");
 
 			server.stop();
 		});
 
 		it("keeps draft initialize capabilities to server-owned features", async () => {
 			const { input, output } = createTestStreams();
+			const logs: string[] = [];
 			const server = new McpServer({
 				input,
 				output,
-				log: () => {},
+				log: (message) => logs.push(message),
 				samplingEnabled: true,
 				modelClient: {
 					messages: {
@@ -452,6 +525,44 @@ describe("McpServer", () => {
 			expect(capabilities.sampling).toBeUndefined();
 			expect(capabilities.elicitation).toBeUndefined();
 			expect(capabilities.roots).toBeUndefined();
+			const warnings = logs.filter((message) => message.includes("deprecated MCP"));
+			expect(warnings).toHaveLength(3);
+			expect(warnings.map((message) => message.match(/feature "([^"]+)"/)?.[1]).sort()).toEqual([
+				"logging",
+				"roots",
+				"sampling",
+			]);
+
+			server.stop();
+		});
+
+		it("warns once for draft request deprecated client capabilities and request logging", async () => {
+			const { input, output } = createTestStreams();
+			const logs: string[] = [];
+			const server = new McpServer({ input, output, log: (message) => logs.push(message) });
+			await server.start();
+			const params = draftRequestParams({}, { roots: {}, sampling: {} });
+			(params._meta as Record<string, unknown>)[MCP_META_LOG_LEVEL_KEY] = "warning";
+
+			sendRequest(input, 1, "tools/list", params);
+			const first = await readResponse(output);
+			sendRequest(input, 2, "tools/list", params);
+			const second = await readResponse(output);
+
+			expect(first.error).toBeUndefined();
+			expect(second.error).toBeUndefined();
+			const warnings = logs.filter((message) => message.includes("deprecated MCP"));
+			expect(warnings).toHaveLength(3);
+			expect(warnings.map((message) => message.match(/feature "([^"]+)"/)?.[1]).sort()).toEqual([
+				"logging",
+				"roots",
+				"sampling",
+			]);
+			for (const warning of warnings) {
+				expect(warning).toContain('peer "test"');
+				expect(warning).toContain(`protocol ${MCP_DRAFT_PROTOCOL_VERSION}`);
+				expect(warning).toContain("compatibility-only");
+			}
 
 			server.stop();
 		});

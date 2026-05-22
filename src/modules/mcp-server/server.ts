@@ -14,6 +14,10 @@ import type { EventBus } from "#core/events/event-bus.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import type { ToolDef } from "#core/modules/module-types.js";
+import {
+	DeprecatedMcpCapabilityWarnings,
+	hasDeprecatedClientCapability,
+} from "./deprecated-capabilities.js";
 import { CompletionHandler } from "./mcp-handlers-completion.js";
 import { ElicitationHandler } from "./mcp-handlers-elicitation.js";
 import { InitializeHandler } from "./mcp-handlers-initialize.js";
@@ -309,6 +313,7 @@ export class McpServer {
 	private readonly output: NodeJS.WritableStream;
 	private readonly log: (msg: string) => void;
 	private readonly outboundSink = new AsyncLocalStorage<(msg: JsonRpcOutboundPayload) => void>();
+	private readonly deprecatedWarnings: DeprecatedMcpCapabilityWarnings;
 	private readonly session: SessionState = {
 		initialized: false,
 		protocolVersion: MCP_LEGACY_PROTOCOL_VERSION,
@@ -328,6 +333,9 @@ export class McpServer {
 		this.input = options.input ?? process.stdin;
 		this.output = options.output ?? process.stdout;
 		this.log = options.log ?? ((msg) => process.stderr.write(`[mcp-server] ${msg}\n`));
+		this.deprecatedWarnings = new DeprecatedMcpCapabilityWarnings((message) =>
+			this.log(message),
+		);
 		const projectDir = options.projectDir ?? process.cwd();
 
 		const send = (m: JsonRpcOutboundPayload) => this.sendPayload(m);
@@ -368,6 +376,7 @@ export class McpServer {
 			serverVersion: options.version ?? "0.1.0",
 			projectDir,
 			advertiseSampling: () => sampling.isAvailable(),
+			warnDeprecatedCapability: (warning) => this.deprecatedWarnings.warn(warning),
 		});
 		this.resources = new ResourcesHandler(
 			ctx,
@@ -625,9 +634,30 @@ export class McpServer {
 			return;
 		}
 		try {
+			this.warnDeprecatedDraftRequestContext(decoded.context);
 			await this.requestContext.run(decoded.context, () => Promise.resolve(handler(msg)));
 		} finally {
 			this.clearProgressForRequest(msg.id);
+		}
+	}
+
+	private warnDeprecatedDraftRequestContext(context: McpRequestContext): void {
+		for (const feature of ["roots", "sampling"] as const) {
+			if (!hasDeprecatedClientCapability(context.clientCapabilities, feature)) continue;
+			this.deprecatedWarnings.warn({
+				feature,
+				peer: context.clientInfo,
+				protocolVersion: context.protocolVersion,
+				source: `client ${feature} capability`,
+			});
+		}
+		if (context.logLevel !== undefined) {
+			this.deprecatedWarnings.warn({
+				feature: "logging",
+				peer: context.clientInfo,
+				protocolVersion: context.protocolVersion,
+				source: `${MCP_META_LOG_LEVEL_KEY} request metadata`,
+			});
 		}
 	}
 

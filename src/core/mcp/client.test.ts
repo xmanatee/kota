@@ -370,6 +370,17 @@ rl.on("line", (line) => {
         },
         requestState: "sampling-state-1",
       }}) + "\\n");
+    } else if (msg.params.name === "input_required_roots") {
+      process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+        resultType: "input_required",
+        inputRequests: {
+          roots: {
+            method: "roots/list",
+            params: {},
+          },
+        },
+        requestState: "roots-state-1",
+      }}) + "\\n");
     } else if (msg.params.name === "input_required_sampling_bad_tool_choice") {
       process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
         resultType: "input_required",
@@ -1522,6 +1533,32 @@ describe("McpClient lifecycle (fake MCP server)", () => {
     });
   }, 10_000);
 
+  it("warns once per deprecated client-feature input request returned by a remote server", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    client = new McpClient(
+      "node",
+      ["-e", FAKE_MCP_SERVER],
+      { MCP_TEST_MODE: "draft" },
+      "deprecated-input-request-test",
+    );
+    await client.connect();
+
+    const roots = await client.callTool("input_required_roots", {});
+    const sampling = await client.callTool("input_required_sampling", {});
+    await client.callTool("input_required_roots", {});
+    await client.callTool("input_required_sampling", {});
+
+    expect(roots.resultType).toBe("input_required");
+    expect(sampling.resultType).toBe("input_required");
+    const warnings = errorSpy.mock.calls.map((call) => call.join(" "));
+    expect(warnings).toHaveLength(2);
+    expect(warnings[0]).toContain('MCP server "test-mcp-server"');
+    expect(warnings[0]).toContain('feature "roots"');
+    expect(warnings[0]).toContain(`protocol ${MCP_DRAFT_PROTOCOL_VERSION}`);
+    expect(warnings[0]).toContain("compatibility-only");
+    expect(warnings[1]).toContain('feature "sampling"');
+  }, 10_000);
+
   it("callTool rejects malformed sampling input_required payloads at the MCP boundary", async () => {
     client = new McpClient(
       "node",
@@ -1800,6 +1837,32 @@ describe("McpClient Streamable HTTP transport", () => {
     expect(client.getName()).toBe("sse-http-fixture");
     expect(client.getProtocolVersion()).toBe(MCP_DRAFT_PROTOCOL_VERSION);
     expect(tools.map((tool) => tool.name)).toEqual(["from_sse"]);
+  });
+
+  it("warns once when an HTTP MCP server advertises deprecated logging support", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    mockClientHttpFetch((request) => {
+      expect(request.body.method).toBe("server/discover");
+      return jsonRpcHttpResponse(request.body.id, {
+        supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+        capabilities: { tools: {}, logging: {} },
+        serverInfo: { name: "deprecated-http" },
+      });
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "http-before-discover",
+    );
+
+    await client.connect();
+
+    expect(client.supportsTools()).toBe(true);
+    const warnings = errorSpy.mock.calls.map((call) => call.join(" "));
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('MCP server "deprecated-http"');
+    expect(warnings[0]).toContain('feature "logging"');
+    expect(warnings[0]).toContain(`protocol ${MCP_DRAFT_PROTOCOL_VERSION}`);
+    expect(warnings[0]).toContain("compatibility-only");
   });
 
   it("rejects unsupported discover protocol versions as a typed connection error", async () => {

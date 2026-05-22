@@ -1914,6 +1914,7 @@ describe("McpManager", () => {
     });
 
     expect(manager.getToolCount()).toBe(1);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const result = await manager.executeTool("mcp__remote__agentic", {});
 
     expect(manager.getToolCount()).toBe(1);
@@ -1946,6 +1947,13 @@ describe("McpManager", () => {
         requestState: "sampling-state",
       },
     });
+    const warnings = errorSpy.mock.calls.map((call) => call.join(" "));
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('MCP server "remote"');
+    expect(warnings[0]).toContain('feature "sampling"');
+    expect(warnings[0]).toContain(`protocol ${MCP_DRAFT_PROTOCOL_VERSION}`);
+    expect(warnings[0]).toContain("compatibility-only");
+    errorSpy.mockRestore();
 
     await manager.close();
   }, 10_000);

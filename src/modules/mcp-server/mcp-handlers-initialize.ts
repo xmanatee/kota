@@ -5,11 +5,16 @@
  */
 
 import type { KotaJsonObject } from "#core/agent-harness/message-protocol.js";
+import {
+	type DeprecatedMcpCapabilityWarning,
+	hasDeprecatedClientCapability,
+} from "./deprecated-capabilities.js";
 import type {
 	HandlerContext,
 	JsonRpcRequest,
 	JsonRpcResponse,
 	McpClientCapabilities,
+	McpImplementation,
 	McpRoot,
 } from "./mcp-protocol-types.js";
 import {
@@ -25,6 +30,7 @@ export type InitializeOptions = {
 	serverVersion: string;
 	projectDir: string;
 	advertiseSampling: () => boolean;
+	warnDeprecatedCapability: (warning: DeprecatedMcpCapabilityWarning) => void;
 };
 
 function isJsonObject(value: JsonRpcResponse["result"]): value is KotaJsonObject {
@@ -56,6 +62,17 @@ function negotiateInitializeProtocolVersion(requested: string): McpProtocolVersi
 	if (requested === MCP_DRAFT_PROTOCOL_VERSION) return MCP_DRAFT_PROTOCOL_VERSION;
 	if (requested === MCP_LEGACY_PROTOCOL_VERSION) return MCP_LEGACY_PROTOCOL_VERSION;
 	return null;
+}
+
+function initializePeer(params: JsonRpcRequest["params"]): McpImplementation {
+	const clientInfo = params?.clientInfo;
+	if (typeof clientInfo === "object" && clientInfo !== null && !Array.isArray(clientInfo)) {
+		const info = clientInfo as Record<string, unknown>;
+		if (typeof info.name === "string" && typeof info.version === "string") {
+			return { name: info.name, version: info.version };
+		}
+	}
+	return { name: "unknown", version: "unknown" };
 }
 
 function buildDraftServerCapabilities(): KotaJsonObject {
@@ -132,6 +149,7 @@ export class InitializeHandler {
 		this.ctx.session.clientSupportsRoots =
 			typeof clientCaps.roots === "object" && clientCaps.roots !== null;
 
+		const peer = initializePeer(msg.params);
 		const capabilities =
 			this.ctx.session.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION
 				? buildDraftServerCapabilities()
@@ -139,6 +157,32 @@ export class InitializeHandler {
 					clientSupportsFormElicitation: this.ctx.session.clientElicitation.form,
 					advertiseSampling: this.options.advertiseSampling(),
 				});
+		if (this.ctx.session.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION) {
+			this.warnDeprecatedClientCapabilities(peer, clientCaps);
+			this.options.warnDeprecatedCapability({
+				feature: "logging",
+				peer,
+				protocolVersion: this.ctx.session.protocolVersion,
+				source: "server logging capability",
+			});
+		} else {
+			this.options.warnDeprecatedCapability({
+				feature: "roots",
+				peer,
+				protocolVersion: this.ctx.session.protocolVersion,
+				source: this.ctx.session.clientSupportsRoots
+					? "legacy server roots capability advertisement with legacy client roots capability"
+					: "legacy server roots capability advertisement",
+			});
+			if (this.options.advertiseSampling()) {
+				this.options.warnDeprecatedCapability({
+					feature: "sampling",
+					peer,
+					protocolVersion: this.ctx.session.protocolVersion,
+					source: "legacy server sampling capability",
+				});
+			}
+		}
 		this.ctx.log(
 			`Initialized successfully (elicitation.form: ${this.ctx.session.clientElicitation.form}, elicitation.url: ${this.ctx.session.clientElicitation.url}, sampling: ${this.options.advertiseSampling()}, completions: true, roots: ${this.ctx.session.clientSupportsRoots})`,
 		);
@@ -167,6 +211,15 @@ export class InitializeHandler {
 	}
 
 	handleDiscover(msg: JsonRpcRequest): void {
+		const context = this.ctx.getRequestContext();
+		if (context) {
+			this.options.warnDeprecatedCapability({
+				feature: "logging",
+				peer: context.clientInfo,
+				protocolVersion: context.protocolVersion,
+				source: "server logging capability",
+			});
+		}
 		this.ctx.transport.sendResult(msg, {
 			supportedVersions: [...MCP_SUPPORTED_PROTOCOL_VERSIONS],
 			capabilities: buildDraftServerCapabilities(),
@@ -175,6 +228,21 @@ export class InitializeHandler {
 				version: this.options.serverVersion,
 			},
 		});
+	}
+
+	private warnDeprecatedClientCapabilities(
+		peer: McpImplementation,
+		clientCaps: McpClientCapabilities,
+	): void {
+		for (const feature of ["roots", "sampling"] as const) {
+			if (!hasDeprecatedClientCapability(clientCaps, feature)) continue;
+			this.options.warnDeprecatedCapability({
+				feature,
+				peer,
+				protocolVersion: this.ctx.session.protocolVersion,
+				source: `client ${feature} capability`,
+			});
+		}
 	}
 
 	handleRootsListChangedNotification(): void {

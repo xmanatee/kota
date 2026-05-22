@@ -1,12 +1,12 @@
 ---
 id: task-warn-on-deprecated-mcp-capability-negotiation
 title: Warn on deprecated MCP capability negotiation
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Emit focused diagnostics when KOTA negotiates MCP roots, sampling, or logging support so deprecated protocol features remain compatibility-only and visible to operators.
 created_at: 2026-05-22T03:19:21Z
-updated_at: 2026-05-22T03:19:21Z
+updated_at: 2026-05-22T03:35:03Z
 ---
 
 ## Problem
