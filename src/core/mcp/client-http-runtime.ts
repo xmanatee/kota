@@ -1,5 +1,9 @@
 import { McpClientAuthorizationRuntime } from "./client-authorization-runtime.js";
-import { generatedProgressToken } from "./client-decode-utils.js";
+import {
+  formatJsonRpcId,
+  generatedProgressToken,
+  isJsonRpcId,
+} from "./client-decode-utils.js";
 import type {
   JsonRpcIncomingMessage,
   JsonRpcParams,
@@ -163,10 +167,19 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
     const message = contentType.includes("text/event-stream")
       ? await this.decodeHttpSseResponse(response, method, requestId)
       : this.parseJsonRpcHttpMessage((responseText = await response.text()), method);
-    if (typeof message.id === "number" && message.id !== requestId) {
+    if (this.isServerRequestMessage(message)) {
+      throw this.unsupportedHttpServerRequestError(method, message, "HTTP response");
+    }
+    if (message.id !== undefined && !isJsonRpcId(message.id)) {
       throw this.requestErrorForMethod(
         method,
-        `response id ${message.id} did not match request id ${requestId}`,
+        "response id must be a string or integer",
+      );
+    }
+    if (message.id !== undefined && message.id !== requestId) {
+      throw this.requestErrorForMethod(
+        method,
+        `response id ${formatJsonRpcId(message.id)} did not match request id ${requestId}`,
       );
     }
     if (message.error) {
@@ -191,6 +204,15 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
   ): Promise<JsonRpcIncomingMessage> {
     let finalMessage: JsonRpcIncomingMessage | null = null;
     await this.consumeSseJsonRpcMessageStream(response, method, (message) => {
+      if (this.isServerRequestMessage(message)) {
+        throw this.unsupportedHttpServerRequestError(method, message, "HTTP SSE response stream");
+      }
+      if (message.id !== undefined && !isJsonRpcId(message.id)) {
+        throw this.requestErrorForMethod(
+          method,
+          "SSE response stream included a JSON-RPC message with invalid id: id must be a string or integer",
+        );
+      }
       if (typeof message.method === "string") {
         this.handleNotification(message);
         return;
@@ -204,7 +226,7 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
       if (message.id !== requestId) {
         throw this.requestErrorForMethod(
           method,
-          `response id ${message.id} did not match request id ${requestId}`,
+          `response id ${formatJsonRpcId(message.id)} did not match request id ${requestId}`,
         );
       }
       if (finalMessage !== null) {
@@ -248,6 +270,15 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
     let finalMessage: JsonRpcIncomingMessage | null = null;
     for (const data of messages) {
       const message = this.parseJsonRpcHttpMessage(data, method);
+      if (this.isServerRequestMessage(message)) {
+        throw this.unsupportedHttpServerRequestError(method, message, "HTTP SSE response stream");
+      }
+      if (message.id !== undefined && !isJsonRpcId(message.id)) {
+        throw this.requestErrorForMethod(
+          method,
+          "SSE response stream included a JSON-RPC message with invalid id: id must be a string or integer",
+        );
+      }
       if (typeof message.method === "string") {
         this.handleNotification(message);
         continue;
@@ -261,7 +292,7 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
       if (message.id !== requestId) {
         throw this.requestErrorForMethod(
           method,
-          `response id ${message.id} did not match request id ${requestId}`,
+          `response id ${formatJsonRpcId(message.id)} did not match request id ${requestId}`,
         );
       }
       if (finalMessage !== null) {
@@ -378,6 +409,19 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
       response,
       "subscriptions/listen",
       (message) => {
+        if (this.isServerRequestMessage(message)) {
+          throw this.unsupportedHttpServerRequestError(
+            "subscriptions/listen",
+            message,
+            "HTTP SSE response stream",
+          );
+        }
+        if (message.id !== undefined && !isJsonRpcId(message.id)) {
+          throw this.requestErrorForMethod(
+            "subscriptions/listen",
+            "SSE response stream included a JSON-RPC message with invalid id: id must be a string or integer",
+          );
+        }
         if (typeof message.id === "number" && message.id === id) {
           this.handleStreamingRequestResponse(message);
           return;
@@ -392,6 +436,17 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
       this.httpListSubscriptionAbort = null;
       this.toolListSubscriptionId = null;
     }
+  }
+
+  protected unsupportedHttpServerRequestError(
+    requestMethod: string,
+    message: JsonRpcIncomingMessage & { id: NonNullable<JsonRpcIncomingMessage["id"]>; method: string },
+    path: string,
+  ): Error {
+    return this.requestErrorForMethod(
+      requestMethod,
+      `server-to-client request "${message.method}" with id ${formatJsonRpcId(message.id)} arrived on ${path}; ${path} cannot send JSON-RPC responses`,
+    );
   }
 
   protected async consumeSseJsonRpcMessageStream(

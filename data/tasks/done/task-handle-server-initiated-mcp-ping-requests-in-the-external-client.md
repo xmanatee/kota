@@ -1,12 +1,12 @@
 ---
 id: task-handle-server-initiated-mcp-ping-requests-in-the-external-client
 title: Handle server-initiated MCP ping requests in the external client
-status: ready
+status: done
 priority: p2
 area: core
 summary: Teach KOTA's external MCP client to treat server-initiated ping as a real JSON-RPC request, preserve string-or-number request ids at the protocol boundary, and respond promptly across stdio and supported Streamable HTTP/SSE paths.
 created_at: 2026-05-22T12:05:34Z
-updated_at: 2026-05-22T12:05:34Z
+updated_at: 2026-05-22T16:54:47Z
 ---
 
 ## Problem

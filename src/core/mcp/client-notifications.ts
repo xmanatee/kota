@@ -1,14 +1,18 @@
 import { McpClientBase } from "./client-base.js";
 import {
+  formatJsonRpcId,
   isJsonObject,
+  isJsonRpcId,
   isMcpLogLevel,
   isMcpProgressToken,
   progressTokenKey,
 } from "./client-decode-utils.js";
 import type {
   DeprecatedMcpFeature,
+  JsonRpcId,
   JsonRpcIncomingMessage,
   JsonRpcNotification,
+  JsonRpcResponse,
   McpCallToolResult,
   McpGetPromptResult,
   McpInitializeResult,
@@ -24,6 +28,14 @@ export abstract class McpClientNotifications extends McpClientBase {
     if (!line.trim()) return;
     try {
       const msg = JSON.parse(line) as JsonRpcIncomingMessage;
+      if (msg.id !== undefined && !isJsonRpcId(msg.id)) {
+        this.warnProgress("ignored JSON-RPC message with invalid id: id must be a string or integer");
+        return;
+      }
+      if (this.isServerRequestMessage(msg)) {
+        this.handleServerRequest(msg);
+        return;
+      }
       if (typeof msg.id === "number" && this.pending.has(msg.id)) {
         const { resolve, reject } = this.pending.get(msg.id)!;
         this.pending.delete(msg.id);
@@ -45,6 +57,45 @@ export abstract class McpClientNotifications extends McpClientBase {
     } catch {
       // Non-JSON lines (e.g. server startup messages) are ignored
     }
+  }
+
+  protected isServerRequestMessage(
+    msg: JsonRpcIncomingMessage,
+  ): msg is JsonRpcIncomingMessage & { id: JsonRpcId; method: string } {
+    return typeof msg.method === "string" && msg.id !== undefined && isJsonRpcId(msg.id);
+  }
+
+  protected handleServerRequest(
+    msg: JsonRpcIncomingMessage & { id: JsonRpcId; method: string },
+  ): void {
+    if (msg.method === "ping") {
+      this.writeServerRequestResponse({ jsonrpc: "2.0", id: msg.id, result: {} });
+      return;
+    }
+    this.writeServerRequestResponse({
+      jsonrpc: "2.0",
+      id: msg.id,
+      error: this.unsupportedServerRequestError(msg.method),
+    });
+  }
+
+  protected unsupportedServerRequestError(
+    method: string,
+  ): NonNullable<JsonRpcResponse["error"]> {
+    return {
+      code: -32601,
+      message: `Unsupported server-to-client MCP request method "${method}"`,
+    };
+  }
+
+  protected writeServerRequestResponse(response: JsonRpcResponse): void {
+    if (this.transport.type !== "stdio" || !this.proc?.stdin?.writable) {
+      this.warnProgress(
+        `cannot answer server-to-client request id ${formatJsonRpcId(response.id)}: transport is not writable`,
+      );
+      return;
+    }
+    this.proc.stdin.write(`${JSON.stringify(response)}\n`);
   }
 
   protected handleStreamingRequestResponse(msg: JsonRpcIncomingMessage): void {

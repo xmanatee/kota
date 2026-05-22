@@ -1,6 +1,8 @@
 import type { KotaJsonObject, KotaJsonValue } from "#core/agent-harness/message-protocol.js";
 import type {
   DeprecatedMcpFeature,
+  JsonRpcId,
+  JsonRpcIncomingMessage,
   JsonRpcResponse,
   McpCacheHints,
   McpCacheScope,
@@ -31,6 +33,14 @@ export function isJsonValue(value: JsonRpcResponse["result"]): value is KotaJson
 
 export function isJsonObject(value: JsonRpcResponse["result"]): value is KotaJsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function isJsonRpcId(value: JsonRpcIncomingMessage["id"]): value is JsonRpcId {
+  return typeof value === "string" || (typeof value === "number" && Number.isInteger(value));
+}
+
+export function formatJsonRpcId(value: JsonRpcId): string {
+  return typeof value === "string" ? JSON.stringify(value) : String(value);
 }
 
 export function escapeRegExp(value: string): string {

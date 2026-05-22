@@ -58,9 +58,11 @@ export type McpPromptSchema = {
 
 export type McpToolArguments = Record<string, unknown>;
 
+export type JsonRpcId = string | number;
+
 export type JsonRpcRequest = {
   jsonrpc: "2.0";
-  id: number;
+  id: JsonRpcId;
   method: string;
   params?: McpToolArguments;
 };
@@ -73,14 +75,22 @@ export type JsonRpcNotification = {
 
 export type JsonRpcResponse = {
   jsonrpc: "2.0";
-  id: number;
+  id: JsonRpcId;
   result?: unknown;
   error?: { code: number; message: string; data?: unknown };
 };
 
 export type JsonRpcParams = JsonRpcRequest["params"];
 export type JsonRpcResult = JsonRpcResponse["result"];
-export type JsonRpcIncomingMessage = Partial<JsonRpcNotification & JsonRpcResponse>;
+export type JsonRpcError = NonNullable<JsonRpcResponse["error"]>;
+export type JsonRpcIncomingMessage = {
+  jsonrpc?: "2.0";
+  id?: JsonRpcId;
+  method?: string;
+  params?: McpToolArguments;
+  result?: JsonRpcResult;
+  error?: JsonRpcError;
+};
 
 export type PendingRequest = {
   resolve: (value: unknown) => void;

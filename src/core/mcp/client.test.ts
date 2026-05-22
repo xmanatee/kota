@@ -512,6 +512,123 @@ rl.on("line", (line) => {
 });
 `;
 
+const SERVER_INITIATED_REQUESTS_MCP_SERVER = `
+const rl = require("readline").createInterface({ input: process.stdin });
+const observed = {
+  stringPing: false,
+  numericPing: false,
+  collidingNumericPing: false,
+  unsupportedError: false,
+};
+let pendingToolsList = null;
+let fallbackTimer = null;
+
+function write(message) {
+  process.stdout.write(JSON.stringify(message) + "\\n");
+}
+
+function emptyObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length === 0;
+}
+
+function answerToolsList() {
+  if (!pendingToolsList) return;
+  if (fallbackTimer) {
+    clearTimeout(fallbackTimer);
+    fallbackTimer = null;
+  }
+  const msg = pendingToolsList;
+  pendingToolsList = null;
+  write({ jsonrpc: "2.0", id: msg.id, result: {
+    tools: [
+      {
+        name: observed.stringPing ? "string_ping_ok" : "string_ping_missing",
+        inputSchema: { type: "object" },
+      },
+      {
+        name: observed.numericPing ? "numeric_ping_ok" : "numeric_ping_missing",
+        inputSchema: { type: "object" },
+      },
+      {
+        name: observed.collidingNumericPing ? "colliding_numeric_ping_ok" : "colliding_numeric_ping_missing",
+        inputSchema: { type: "object" },
+      },
+      {
+        name: observed.unsupportedError ? "unsupported_request_error_ok" : "unsupported_request_error_missing",
+        inputSchema: { type: "object" },
+      },
+    ],
+  }});
+}
+
+function maybeAnswerToolsList() {
+  if (!pendingToolsList) return;
+  if (
+    observed.stringPing &&
+    observed.numericPing &&
+    observed.collidingNumericPing &&
+    observed.unsupportedError
+  ) {
+    answerToolsList();
+    return;
+  }
+  if (!fallbackTimer) fallbackTimer = setTimeout(answerToolsList, 250);
+}
+
+rl.on("line", (line) => {
+  let msg;
+  try { msg = JSON.parse(line); } catch { return; }
+  if (msg.method === "initialize") {
+    write({ jsonrpc: "2.0", id: msg.id, result: {
+      protocolVersion: "DRAFT-2026-v1",
+      capabilities: {},
+      serverInfo: { name: "server-initiated-requests" },
+    }});
+    return;
+  }
+  if (msg.method === "notifications/initialized") {
+    write({ jsonrpc: "2.0", id: "server-ping-1", method: "ping" });
+    write({ jsonrpc: "2.0", id: 777, method: "ping" });
+    write({ jsonrpc: "2.0", id: "server-unsupported-1", method: "server/unsupported" });
+    return;
+  }
+  if (msg.id === "server-ping-1" && emptyObject(msg.result)) {
+    observed.stringPing = true;
+    maybeAnswerToolsList();
+    return;
+  }
+  if (msg.id === 777 && emptyObject(msg.result)) {
+    observed.numericPing = true;
+    maybeAnswerToolsList();
+    return;
+  }
+  if (pendingToolsList && msg.id === pendingToolsList.id && emptyObject(msg.result)) {
+    observed.collidingNumericPing = true;
+    maybeAnswerToolsList();
+    return;
+  }
+  if (
+    msg.id === "server-unsupported-1" &&
+    msg.error?.code === -32601 &&
+    typeof msg.error.message === "string" &&
+    msg.error.message.includes("server/unsupported")
+  ) {
+    observed.unsupportedError = true;
+    maybeAnswerToolsList();
+    return;
+  }
+  if (msg.method === "tools/list") {
+    pendingToolsList = msg;
+    write({ jsonrpc: "2.0", id: msg.id, method: "ping" });
+    maybeAnswerToolsList();
+    return;
+  }
+  if (msg.method === "shutdown") {
+    write({ jsonrpc: "2.0", id: msg.id, result: {} });
+  }
+});
+`;
+
 const PROGRESS_MCP_SERVER = `
 const rl = require("readline").createInterface({ input: process.stdin });
 function write(message) {
@@ -860,6 +977,25 @@ describe("McpClient lifecycle (fake MCP server)", () => {
 
     expect(client.getProtocolVersion()).toBe(MCP_DRAFT_PROTOCOL_VERSION);
     expect(client.getToolResultContract()).toBe("draft-tool-result");
+  }, 10_000);
+
+  it("answers server-initiated stdio requests before matching pending numeric responses", async () => {
+    client = new McpClient(
+      "node",
+      ["-e", SERVER_INITIATED_REQUESTS_MCP_SERVER],
+      {},
+      "server-requests",
+    );
+    await client.connect();
+
+    const tools = await client.listTools();
+
+    expect(tools.map((tool) => tool.name)).toEqual([
+      "string_ping_ok",
+      "numeric_ping_ok",
+      "colliding_numeric_ping_ok",
+      "unsupported_request_error_ok",
+    ]);
   }, 10_000);
 
   it("sends progressToken metadata and records bounded progress side-channel events", async () => {
@@ -1959,6 +2095,44 @@ describe("McpClient Streamable HTTP transport", () => {
     expect(logMessages).toEqual([
       { level: "info", data: { message: "started" } },
     ]);
+  });
+
+  it("rejects server-to-client requests on HTTP SSE response streams", async () => {
+    mockClientHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: {} },
+          serverInfo: { name: "sse-peer-request-fixture" },
+        });
+      }
+      if (request.body.method === "tools/call") {
+        return new Response(
+          [
+            sseMessage({ jsonrpc: "2.0", id: "server-ping-1", method: "ping" }),
+            sseMessage({
+              jsonrpc: "2.0",
+              id: request.body.id,
+              result: {
+                resultType: "complete",
+                content: [{ type: "text", text: "done" }],
+              },
+            }),
+          ].join(""),
+          { status: 200, headers: { "content-type": "text/event-stream" } },
+        );
+      }
+      return jsonRpcHttpResponse(request.body.id, {});
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "sse-peer-request-client",
+    );
+    await client.connect();
+
+    await expect(client.callTool("needs_ping", {})).rejects.toThrow(
+      /server-to-client request "ping".*HTTP SSE response stream cannot send JSON-RPC responses/,
+    );
   });
 
   it("fails HTTP SSE responses that end without a final JSON-RPC response", async () => {
@@ -3210,6 +3384,42 @@ describe("McpClient Streamable HTTP transport", () => {
     const listen = requests.find((request) => request.body.method === "subscriptions/listen");
     expect(listen?.body.params?.notifications).toEqual({
       toolsListChanged: true,
+    });
+  });
+
+  it("rejects server-to-client requests that collide with HTTP subscriptions/listen ids", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    mockClientHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: { listChanged: true } },
+          serverInfo: { name: "http-list-changed-peer-request-fixture" },
+        });
+      }
+      if (request.body.method === "subscriptions/listen") {
+        return new Response(sseMessage({
+          jsonrpc: "2.0",
+          id: request.body.id,
+          method: "ping",
+        }), {
+          status: 200,
+          headers: { "content-type": "text/event-stream" },
+        });
+      }
+      return jsonRpcHttpResponse(request.body.id, {});
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "http-list-changed-peer-request-client",
+    );
+
+    await client.connect();
+
+    await waitForAssertion(() => {
+      expect(consoleError).toHaveBeenCalledWith(expect.stringMatching(
+        /failed to open subscription: .*server-to-client request "ping" with id 2 arrived on HTTP SSE response stream; HTTP SSE response stream cannot send JSON-RPC responses/,
+      ));
     });
   });
 
