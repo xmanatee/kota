@@ -366,6 +366,9 @@ resources:
       fingerprint: sha256:0fb9062f3ed2b1e4cdea58ba7fee4c82
       summary: "MCP Registry docs are now accessible; KOTA already covers first-party server metadata, and this refresh opened task-add-mcp-registry-backed-external-server-config-import for the remaining external-server config import gap."
       last_seen_at: "2026-05-22T06:52:59.541Z"
+  - url: https://modelcontextprotocol.io/community/server-card/charter
+    added: "2026-05-22"
+    notes: "Official MCP Server Card Working Group charter - monitor the server-card document format, .well-known/resource discovery paths, server.json alignment, public-metadata constraints, and reference implementation status for KOTA's first-party MCP server."
   - url: https://github.com/github/gh-aw
     added: "2026-05-17"
     notes: "GitHub Agentic Workflows is a GitHub Actions-hosted agent workflow runtime; monitor for event-trigger, safe-output, input-sanitization, and multi-engine guardrail patterns relevant to KOTA's workflow runtime."
