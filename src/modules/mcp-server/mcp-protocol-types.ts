@@ -24,6 +24,20 @@ export const MCP_META_PROTOCOL_VERSION_KEY =
 export const MCP_META_CLIENT_INFO_KEY = "io.modelcontextprotocol/clientInfo";
 export const MCP_META_CLIENT_CAPABILITIES_KEY =
 	"io.modelcontextprotocol/clientCapabilities";
+export const MCP_META_LOG_LEVEL_KEY = "io.modelcontextprotocol/logLevel";
+
+export const MCP_LOG_LEVELS = [
+	"debug",
+	"info",
+	"notice",
+	"warning",
+	"error",
+	"critical",
+	"alert",
+	"emergency",
+] as const;
+
+export type McpLogLevel = typeof MCP_LOG_LEVELS[number];
 
 export type McpProtocolVersion =
 	| typeof MCP_LEGACY_PROTOCOL_VERSION
@@ -273,7 +287,14 @@ export type McpRequestContext = {
 	clientInfo: McpImplementation;
 	clientCapabilities: McpClientCapabilities;
 	requestId: JsonRpcRequest["id"];
+	logLevel?: McpLogLevel;
 	progressToken?: McpProgressToken;
+};
+
+export type McpLogOptions = {
+	level?: McpLogLevel;
+	logger?: string;
+	data?: KotaJsonValue;
 };
 
 /**
@@ -292,7 +313,7 @@ export type SessionState = {
 /** Shared dependencies every feature handler receives from the orchestrator. */
 export type HandlerContext = {
 	transport: McpTransport;
-	log: (msg: string) => void;
+	log: (msg: string, options?: McpLogOptions) => void;
 	session: SessionState;
 	getRequestContext: () => McpRequestContext | null;
 	sendProgress: (

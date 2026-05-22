@@ -5,6 +5,7 @@ import {
 	type JsonRpcOutboundPayload,
 	MCP_DRAFT_PROTOCOL_VERSION,
 	MCP_DRAFT_PROTOCOL_VERSIONS,
+	MCP_META_LOG_LEVEL_KEY,
 	MCP_META_PROTOCOL_VERSION_KEY,
 } from "./mcp-protocol-types.js";
 import type { McpServer } from "./server.js";
@@ -133,6 +134,18 @@ export async function handleStreamableHttpRequest(
 	const bodyValidation = validatePostBodyAndHeaders(server, request);
 	if (!bodyValidation.ok) return bodyValidation.response;
 
+	if (
+		hasHttpLogLevel(bodyValidation.body) &&
+		!accepts(readHeader(request.headers, "accept"), "text/event-stream")
+	) {
+		return jsonErrorResponse(
+			406,
+			readJsonRpcId(bodyValidation.body),
+			-32602,
+			"Response stream requires Accept: text/event-stream",
+		);
+	}
+
 	if (HTTP_UNAVAILABLE_METHODS.has(String(bodyValidation.body.method))) {
 		return jsonErrorResponse(
 			404,
@@ -150,11 +163,17 @@ export async function handleStreamableHttpRequest(
 		return { status: 202, headers: {} };
 	}
 	if (dispatch.kind === "stream") {
-		return jsonErrorResponse(
-			400,
-			readJsonRpcId(bodyValidation.body),
-			-32602,
-			"SSE response streams are not implemented for Streamable HTTP",
+		if (!accepts(readHeader(request.headers, "accept"), "text/event-stream")) {
+			return jsonErrorResponse(
+				406,
+				readJsonRpcId(bodyValidation.body),
+				-32602,
+				"Response stream requires Accept: text/event-stream",
+			);
+		}
+		return sseResponse(
+			200,
+			dispatch.messages.map((message) => normalizeHttpResponse(bodyValidation.body, message)),
 		);
 	}
 	const response = normalizeHttpResponse(bodyValidation.body, dispatch.response);
@@ -366,14 +385,14 @@ function validatePostBodyAndHeaders(
 	request: StreamableHttpRequest,
 ): HeaderValidationResult {
 	const accept = readHeader(request.headers, "accept");
-	if (!accepts(accept, "application/json") || !accepts(accept, "text/event-stream")) {
+	if (!accepts(accept, "application/json")) {
 		return {
 			ok: false,
 			response: jsonErrorResponse(
 				406,
 				undefined,
 				HEADER_MISMATCH_CODE,
-				"Accept header must include application/json and text/event-stream",
+				"Accept header must include application/json",
 			),
 		};
 	}
@@ -625,6 +644,12 @@ function hasHttpProgressToken(body: KotaJsonObject): boolean {
 	return meta.progressToken !== undefined;
 }
 
+function hasHttpLogLevel(body: KotaJsonObject): boolean {
+	const params = isJsonObject(body.params) ? body.params : {};
+	const meta = isJsonObject(params._meta) ? params._meta : {};
+	return meta[MCP_META_LOG_LEVEL_KEY] !== undefined;
+}
+
 function readHeader(
 	headers: StreamableHttpRequest["headers"],
 	name: string,
@@ -781,6 +806,19 @@ function jsonResponse(status: number, payload: JsonRpcOutboundPayload): Streamab
 		status,
 		headers: { "content-type": "application/json" },
 		body: JSON.stringify(payload),
+	};
+}
+
+function sseResponse(status: number, messages: JsonRpcOutboundPayload[]): StreamableHttpResponse {
+	return {
+		status,
+		headers: {
+			"content-type": "text/event-stream",
+			"cache-control": "no-cache",
+		},
+		body: messages
+			.map((message) => `event: message\ndata: ${JSON.stringify(message)}\n\n`)
+			.join(""),
 	};
 }
 

@@ -5,6 +5,7 @@ import {
 	MCP_DRAFT_PROTOCOL_VERSION,
 	MCP_META_CLIENT_CAPABILITIES_KEY,
 	MCP_META_CLIENT_INFO_KEY,
+	MCP_META_LOG_LEVEL_KEY,
 	MCP_META_PROTOCOL_VERSION_KEY,
 } from "./mcp-protocol-types.js";
 import { McpServer } from "./server.js";
@@ -19,6 +20,15 @@ function draftParams(params: Record<string, unknown> = {}): Record<string, unkno
 			[MCP_META_CLIENT_CAPABILITIES_KEY]: {},
 		},
 	};
+}
+
+function draftParamsWithLogLevel(
+	params: Record<string, unknown>,
+	logLevel: string,
+): Record<string, unknown> {
+	const next = draftParams(params);
+	(next._meta as Record<string, unknown>)[MCP_META_LOG_LEVEL_KEY] = logLevel;
+	return next;
 }
 
 function request(
@@ -41,6 +51,19 @@ function request(
 
 function parseBody(response: { body?: string }): Record<string, unknown> {
 	return JSON.parse(response.body ?? "{}") as Record<string, unknown>;
+}
+
+function parseSseBody(response: { body?: string }): Record<string, unknown>[] {
+	const body = response.body ?? "";
+	return body
+		.trim()
+		.split("\n\n")
+		.filter(Boolean)
+		.map((event) => {
+			const data = event.split("\n").find((line) => line.startsWith("data: "));
+			expect(data).toBeDefined();
+			return JSON.parse(data!.slice("data: ".length)) as Record<string, unknown>;
+		});
 }
 
 function expectNoListChangedCapabilities(capabilities: Record<string, unknown>): void {
@@ -433,6 +456,146 @@ describe("Streamable HTTP MCP transport", () => {
 		expect(parseBody(authorized).result).toMatchObject({
 			content: [{ type: "text", text: "calls=1" }],
 		});
+		expect(calls).toBe(1);
+	});
+
+	it("streams request-scoped log notifications before the final HTTP response when SSE is accepted", async () => {
+		const server = new McpServer({
+			log: () => {},
+			moduleTools: [
+				{
+					tool: {
+						name: "http_logged_tool",
+						description: "HTTP logging test",
+						input_schema: { type: "object", properties: {} },
+					},
+					runner: async () => ({ content: "http logged" }),
+					effect: networkWriteEffect(),
+				},
+			],
+		});
+
+		const response = await handleStreamableHttpRequest(server, request({
+			jsonrpc: "2.0",
+			id: 60,
+			method: "tools/call",
+			params: draftParamsWithLogLevel({
+				name: "http_logged_tool",
+				arguments: {},
+			}, "info"),
+		}, { "mcp-name": "http_logged_tool" }));
+
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toBe("text/event-stream");
+		const messages = parseSseBody(response);
+		expect(messages[0]).toMatchObject({
+			jsonrpc: "2.0",
+			method: "notifications/message",
+			params: {
+				level: "info",
+				data: { message: "Calling tool: http_logged_tool" },
+			},
+		});
+		expect(messages[1]).toMatchObject({
+			jsonrpc: "2.0",
+			id: 60,
+			result: {
+				content: [{ type: "text", text: "http logged" }],
+			},
+		});
+	});
+
+	it("streams request-scoped initialize log notifications before the final HTTP response", async () => {
+		const server = new McpServer({ log: () => {} });
+
+		const response = await handleStreamableHttpRequest(server, request({
+			jsonrpc: "2.0",
+			id: 63,
+			method: "initialize",
+			params: draftParamsWithLogLevel({
+				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+				capabilities: {},
+				clientInfo: { name: "http-test", version: "1.0.0" },
+			}, "info"),
+		}));
+
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toBe("text/event-stream");
+		const messages = parseSseBody(response);
+		expect(messages[0]).toMatchObject({
+			jsonrpc: "2.0",
+			method: "notifications/message",
+			params: {
+				level: "info",
+				data: { message: expect.stringContaining("Initialized successfully") },
+			},
+		});
+		expect(messages[1]).toMatchObject({
+			jsonrpc: "2.0",
+			id: 63,
+			result: {
+				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+			},
+		});
+	});
+
+	it("keeps JSON-only HTTP requests working unless requested logging requires a stream", async () => {
+		let calls = 0;
+		const server = new McpServer({
+			log: () => {},
+			moduleTools: [
+				{
+					tool: {
+						name: "http_json_tool",
+						description: "HTTP JSON-only logging test",
+						input_schema: { type: "object", properties: {} },
+					},
+					runner: async () => {
+						calls += 1;
+						return { content: "json result" };
+					},
+					effect: networkWriteEffect(),
+				},
+			],
+		});
+		const body = {
+			jsonrpc: "2.0",
+			id: 61,
+			method: "tools/call",
+			params: draftParams({
+				name: "http_json_tool",
+				arguments: {},
+			}),
+		};
+
+		const jsonOnly = await handleStreamableHttpRequest(server, request(body, {
+			accept: "application/json",
+			"mcp-name": "http_json_tool",
+		}));
+		expect(jsonOnly.status).toBe(200);
+		expect(jsonOnly.headers["content-type"]).toBe("application/json");
+		expect(parseBody(jsonOnly).result).toMatchObject({
+			content: [{ type: "text", text: "json result" }],
+		});
+		expect(calls).toBe(1);
+
+		const withLogging = await handleStreamableHttpRequest(server, request({
+			...body,
+			id: 62,
+			params: draftParamsWithLogLevel({
+				name: "http_json_tool",
+				arguments: {},
+			}, "info"),
+		}, {
+			accept: "application/json",
+			"mcp-name": "http_json_tool",
+		}));
+		expect(withLogging.status).toBe(406);
+		expect(parseBody(withLogging).error).toMatchObject({
+			code: -32602,
+			message: "Response stream requires Accept: text/event-stream",
+		});
+		expect((parseBody(withLogging).error as { message: string }).message).not.toContain("not implemented");
 		expect(calls).toBe(1);
 	});
 

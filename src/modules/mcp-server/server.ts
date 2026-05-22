@@ -29,6 +29,8 @@ import type {
 	JsonRpcOutboundPayload,
 	JsonRpcRequest,
 	JsonRpcResponse,
+	McpLogLevel,
+	McpLogOptions,
 	McpProgressToken,
 	McpRequestContext,
 	McpRoot,
@@ -41,8 +43,10 @@ import {
 	MCP_DRAFT_PROTOCOL_VERSION,
 	MCP_DRAFT_PROTOCOL_VERSIONS,
 	MCP_LEGACY_PROTOCOL_VERSION,
+	MCP_LOG_LEVELS,
 	MCP_META_CLIENT_CAPABILITIES_KEY,
 	MCP_META_CLIENT_INFO_KEY,
+	MCP_META_LOG_LEVEL_KEY,
 	MCP_META_PROTOCOL_VERSION_KEY,
 	mcpProgressTokenKey,
 } from "./mcp-protocol-types.js";
@@ -99,6 +103,47 @@ function isJsonObject(value: KotaJsonValue | undefined): value is KotaJsonObject
 
 function isJsonRpcId(value: KotaJsonValue | undefined): value is JsonRpcRequest["id"] {
 	return typeof value === "string" || typeof value === "number";
+}
+
+function isMcpLogLevel(value: string): value is McpLogLevel {
+	return (MCP_LOG_LEVELS as readonly string[]).includes(value);
+}
+
+function logLevelRank(level: McpLogLevel): number {
+	return MCP_LOG_LEVELS.indexOf(level);
+}
+
+function shouldEmitLogMessage(level: McpLogLevel, threshold: McpLogLevel): boolean {
+	return logLevelRank(level) >= logLevelRank(threshold);
+}
+
+function isSensitiveLogKey(key: string): boolean {
+	return /authorization|api[-_]?key|cookie|credential|password|secret|token/i.test(key);
+}
+
+function sanitizeLogString(value: string): string {
+	return value
+		.replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, "$1 [redacted]")
+		.replace(/\b(api[-_]?key|authorization|cookie|credential|password|secret|token)\s*[:=]\s*[^,\s;]+/gi, "$1=[redacted]")
+		.replace(/\/(?:Users|home|private|tmp|var|etc)\/[^\s"',)]+/g, "[redacted-path]");
+}
+
+function sanitizeLogData(value: KotaJsonValue, depth = 0): KotaJsonValue {
+	if (depth > 6) return "[truncated]";
+	if (value === null) return null;
+	if (typeof value === "string") return sanitizeLogString(value);
+	if (typeof value === "number") return Number.isFinite(value) ? value : null;
+	if (typeof value === "boolean") return value;
+	if (Array.isArray(value)) {
+		return value.map((item) => sanitizeLogData(item, depth + 1));
+	}
+	const out: KotaJsonObject = {};
+	for (const [key, entry] of Object.entries(value)) {
+		out[key] = isSensitiveLogKey(key)
+			? "[redacted]"
+			: sanitizeLogData(entry, depth + 1);
+	}
+	return out;
 }
 
 function decodeJsonRpcError(value: KotaJsonValue | undefined): JsonRpcResponse["error"] | null {
@@ -235,6 +280,15 @@ function decodeDraftRequestContext(msg: JsonRpcRequest): DraftRequestContextResu
 		};
 	}
 
+	const logLevel = meta[MCP_META_LOG_LEVEL_KEY];
+	if (logLevel !== undefined && (typeof logLevel !== "string" || !isMcpLogLevel(logLevel))) {
+		return {
+			ok: false,
+			code: -32602,
+			message: `Malformed MCP draft _meta field: ${MCP_META_LOG_LEVEL_KEY}`,
+		};
+	}
+
 	return {
 		ok: true,
 		context: {
@@ -242,6 +296,7 @@ function decodeDraftRequestContext(msg: JsonRpcRequest): DraftRequestContextResu
 			clientInfo: { name: clientName, version: clientVersion },
 			clientCapabilities,
 			requestId: msg.id,
+			...(logLevel !== undefined ? { logLevel } : {}),
 			...(progressToken !== undefined ? { progressToken } : {}),
 		},
 	};
@@ -292,7 +347,7 @@ export class McpServer {
 		};
 		const ctx: HandlerContext = {
 			transport,
-			log: this.log,
+			log: (message, options) => this.logFromHandler(message, options),
 			session: this.session,
 			getRequestContext: () => this.requestContext.getStore() ?? null,
 			sendProgress: (progress, details) => this.sendProgress(progress, details),
@@ -455,6 +510,27 @@ export class McpServer {
 		this.output.write(`${JSON.stringify(msg)}\n`);
 	}
 
+	private logFromHandler(message: string, options: McpLogOptions = {}): void {
+		this.log(message);
+		const context = this.requestContext.getStore();
+		if (!context?.logLevel) return;
+		const level = options.level ?? "info";
+		if (!shouldEmitLogMessage(level, context.logLevel)) return;
+		const params: KotaJsonObject = {
+			level,
+			data: sanitizeLogData(options.data ?? { message }),
+		};
+		if (options.logger) {
+			const logger = sanitizeLogString(options.logger);
+			if (logger.length > 0) params.logger = logger;
+		}
+		this.sendPayload({
+			jsonrpc: "2.0",
+			method: "notifications/message",
+			params,
+		});
+	}
+
 	private handleLine(line: string): void {
 		const trimmed = line.trim();
 		if (!trimmed) return;
@@ -500,14 +576,18 @@ export class McpServer {
 			this.sendPayload({ jsonrpc: "2.0", id: msg.id, error: { code: -32601, message: `Method not found: ${msg.method}` } });
 			return;
 		}
+		const hasMetaField =
+			msg.params !== undefined &&
+			Object.hasOwn(msg.params, "_meta");
 		if (msg.method === "initialize") {
+			if (hasMetaField) {
+				await this.dispatchDraftRequest(msg, handler);
+				return;
+			}
 			await handler(msg);
 			return;
 		}
 
-		const hasMetaField =
-			msg.params !== undefined &&
-			Object.hasOwn(msg.params, "_meta");
 		const requiresDraftContext =
 			msg.method === "server/discover" || hasMetaField || !hasLegacySessionContext(this.session);
 		if (!requiresDraftContext && this.session.initialized) {
@@ -515,6 +595,10 @@ export class McpServer {
 			return;
 		}
 
+		await this.dispatchDraftRequest(msg, handler);
+	}
+
+	private async dispatchDraftRequest(msg: JsonRpcRequest, handler: RequestHandler): Promise<void> {
 		const decoded = decodeDraftRequestContext(msg);
 		if (!decoded.ok) {
 			this.sendPayload({

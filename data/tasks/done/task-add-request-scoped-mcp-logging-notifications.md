@@ -1,12 +1,12 @@
 ---
 id: task-add-request-scoped-mcp-logging-notifications
 title: Add request-scoped MCP logging notifications
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Align KOTA's MCP server with the draft logging utility by accepting request-scoped logLevel metadata, emitting sanitized notifications/message entries on the same response stream, and documenting the deprecated capability boundary without relying on stderr for Streamable HTTP diagnostics.
 created_at: 2026-05-22T01:02:09Z
-updated_at: 2026-05-22T01:02:09Z
+updated_at: 2026-05-22T01:14:07Z
 ---
 
 ## Problem

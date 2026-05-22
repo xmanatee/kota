@@ -21,6 +21,7 @@ import {
 	MCP_DRAFT_PROTOCOL_VERSION,
 	MCP_META_CLIENT_CAPABILITIES_KEY,
 	MCP_META_CLIENT_INFO_KEY,
+	MCP_META_LOG_LEVEL_KEY,
 	MCP_META_PROTOCOL_VERSION_KEY,
 	MCP_RELATED_TASK_META_KEY,
 	type McpInputRequiredResult,
@@ -171,6 +172,15 @@ function draftRequestParamsWithProgress(
 ): Record<string, unknown> {
 	const next = draftRequestParams(params);
 	(next._meta as Record<string, unknown>).progressToken = progressToken;
+	return next;
+}
+
+function draftRequestParamsWithLogLevel(
+	params: Record<string, unknown>,
+	logLevel: string,
+): Record<string, unknown> {
+	const next = draftRequestParams(params);
+	(next._meta as Record<string, unknown>)[MCP_META_LOG_LEVEL_KEY] = logLevel;
 	return next;
 }
 
@@ -393,6 +403,7 @@ describe("McpServer", () => {
 				resources: { listChanged: true },
 				prompts: { listChanged: true },
 				completions: {},
+				logging: {},
 				tasks: { list: {}, cancel: {}, requests: { tools: { call: {} } } },
 			});
 			const taskCaps = capabilities.tasks as Record<string, unknown>;
@@ -433,6 +444,7 @@ describe("McpServer", () => {
 				resources: { listChanged: true },
 				prompts: { listChanged: true },
 				completions: {},
+				logging: {},
 				tasks: { list: {}, cancel: {}, requests: { tools: { call: {} } } },
 			});
 			const taskCaps = capabilities.tasks as Record<string, unknown>;
@@ -1023,6 +1035,230 @@ describe("McpServer", () => {
 			expect(annotations).toBeDefined();
 			expect(annotations?.readOnlyHint).toBe(false);
 			expect(annotations?.destructiveHint).toBe(false);
+		});
+	});
+
+	describe("request-scoped logging", () => {
+		it("rejects unrecognized draft initialize log levels as invalid params", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await server.start();
+
+			sendRequest(input, 1, "initialize", draftRequestParamsWithLogLevel({
+				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+				capabilities: {},
+				clientInfo: { name: "test", version: "1.0.0" },
+			}, "verbose"));
+			const resp = await readResponse(output);
+
+			expect(resp.error).toMatchObject({
+				code: -32602,
+			});
+			expect((resp.error as { message: string }).message).toContain(MCP_META_LOG_LEVEL_KEY);
+
+			server.stop();
+		});
+
+		it("rejects unrecognized draft log levels as invalid params", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await server.start();
+
+			sendRequest(input, 1, "tools/list", draftRequestParamsWithLogLevel({}, "verbose"));
+			const resp = await readResponse(output);
+
+			expect(resp.error).toMatchObject({
+				code: -32602,
+			});
+			expect((resp.error as { message: string }).message).toContain(MCP_META_LOG_LEVEL_KEY);
+
+			server.stop();
+		});
+
+		it("emits requested initialize log messages before the final stdio response", async () => {
+			const { input, output } = createTestStreams();
+			const reader = createQueuedReader(output);
+			const localLogs: string[] = [];
+			const server = new McpServer({
+				input,
+				output,
+				log: (message) => localLogs.push(message),
+			});
+			await server.start();
+
+			sendRequest(input, 1, "initialize", draftRequestParamsWithLogLevel({
+				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+				capabilities: {},
+				clientInfo: { name: "test", version: "1.0.0" },
+			}, "info"));
+			const notification = await reader.read();
+			const response = await reader.read();
+
+			expect(notification).toMatchObject({
+				jsonrpc: "2.0",
+				method: "notifications/message",
+				params: {
+					level: "info",
+					data: { message: expect.stringContaining("Initialized successfully") },
+				},
+			});
+			expect(response.id).toBe(1);
+			expect(response.result).toMatchObject({
+				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+			});
+			expect(localLogs.some((entry) => entry.includes("Initialized successfully"))).toBe(true);
+
+			server.stop();
+		});
+
+		it("emits no protocol log notifications when draft requests omit logLevel", async () => {
+			const { input, output } = createTestStreams();
+			const reader = createQueuedReader(output);
+			const localLogs: string[] = [];
+			const server = new McpServer({
+				input,
+				output,
+				log: (message) => localLogs.push(message),
+				moduleTools: [
+					{
+						tool: {
+							name: "ext_log_default",
+							description: "Default logging test",
+							input_schema: { type: "object" as const, properties: {}, required: [] },
+						},
+						runner: async () => ({ content: "done" }),
+						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+					},
+				],
+			});
+			await server.start();
+			sendRequest(input, 1, "initialize", {
+				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+				capabilities: {},
+				clientInfo: { name: "test", version: "1.0.0" },
+			});
+			await reader.read();
+			sendNotification(input, "notifications/initialized");
+
+			sendRequest(input, 2, "tools/call", draftRequestParams({
+				name: "ext_log_default",
+				arguments: {},
+			}));
+			const response = await reader.read();
+
+			expect(response.id).toBe(2);
+			expect(response.result).toBeDefined();
+			expect(localLogs).toContain("Calling tool: ext_log_default");
+			await expectNoQueuedMessage(reader);
+
+			server.stop();
+		});
+
+		it("emits requested log messages before the final stdio response", async () => {
+			const { input, output } = createTestStreams();
+			const reader = createQueuedReader(output);
+			const localLogs: string[] = [];
+			const server = new McpServer({
+				input,
+				output,
+				log: (message) => localLogs.push(message),
+				moduleTools: [
+					{
+						tool: {
+							name: "ext_log_info",
+							description: "Requested logging test",
+							input_schema: { type: "object" as const, properties: {}, required: [] },
+						},
+						runner: async () => ({ content: "logged" }),
+						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+					},
+				],
+			});
+			await server.start();
+			sendRequest(input, 1, "initialize", {
+				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+				capabilities: {},
+				clientInfo: { name: "test", version: "1.0.0" },
+			});
+			await reader.read();
+			sendNotification(input, "notifications/initialized");
+
+			sendRequest(input, 2, "tools/call", draftRequestParamsWithLogLevel({
+				name: "ext_log_info",
+				arguments: {},
+			}, "info"));
+			const notification = await reader.read();
+			const response = await reader.read();
+
+			expect(notification).toMatchObject({
+				jsonrpc: "2.0",
+				method: "notifications/message",
+				params: {
+					level: "info",
+					data: { message: "Calling tool: ext_log_info" },
+				},
+			});
+			expect(response.id).toBe(2);
+			expect(response.result).toBeDefined();
+			expect(localLogs).toContain("Calling tool: ext_log_info");
+
+			server.stop();
+		});
+
+		it("filters by requested severity and sanitizes log notification data", async () => {
+			const { input, output } = createTestStreams();
+			const reader = createQueuedReader(output);
+			const server = new McpServer({
+				input,
+				output,
+				log: () => {},
+				moduleTools: [
+					{
+						tool: {
+							name: "ext_log_error",
+							description: "Error logging test",
+							input_schema: { type: "object" as const, properties: {}, required: [] },
+						},
+						runner: async () => ({
+							content: "Authorization: Bearer secret-token at /Users/xmanatee/Desktop/mono/apps/kota/secret.ts",
+							is_error: true,
+						}),
+						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+					},
+				],
+			});
+			await server.start();
+			sendRequest(input, 1, "initialize", {
+				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+				capabilities: {},
+				clientInfo: { name: "test", version: "1.0.0" },
+			});
+			await reader.read();
+			sendNotification(input, "notifications/initialized");
+
+			sendRequest(input, 2, "tools/call", draftRequestParamsWithLogLevel({
+				name: "ext_log_error",
+				arguments: {},
+			}, "warning"));
+			const notification = await reader.read();
+			const response = await reader.read();
+
+			expect(notification).toMatchObject({
+				method: "notifications/message",
+				params: {
+					level: "error",
+					logger: "tools",
+				},
+			});
+			const params = notification.params as { data: unknown };
+			const serializedData = JSON.stringify(params.data);
+			expect(serializedData).toContain("Tool execution failed");
+			expect(serializedData).not.toContain("Bearer secret-token");
+			expect(serializedData).not.toContain("/Users/xmanatee/Desktop/mono/apps/kota");
+			expect(response.id).toBe(2);
+			expect(response.result).toBeDefined();
+
+			server.stop();
 		});
 	});
 

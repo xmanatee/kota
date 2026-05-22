@@ -265,6 +265,17 @@ export class ToolsHandler {
 		}
 
 		const outcome = this.toolResultOutcome(tool, result);
+		if (outcome.kind === "result" && outcome.failed) {
+			this.ctx.log("Tool execution failed", {
+				level: "error",
+				logger: "tools",
+				data: {
+					message: "Tool execution failed",
+					tool: name,
+					result: result.content,
+				},
+			});
+		}
 		if (
 			options.progress &&
 			outcome.kind === "result" &&

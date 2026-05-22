@@ -64,6 +64,7 @@ function buildDraftServerCapabilities(): KotaJsonObject {
 		resources: { listChanged: true },
 		prompts: { listChanged: true },
 		completions: {},
+		logging: {},
 		tasks: {
 			list: {},
 			cancel: {},
@@ -138,6 +139,9 @@ export class InitializeHandler {
 					clientSupportsFormElicitation: this.ctx.session.clientElicitation.form,
 					advertiseSampling: this.options.advertiseSampling(),
 				});
+		this.ctx.log(
+			`Initialized successfully (elicitation.form: ${this.ctx.session.clientElicitation.form}, elicitation.url: ${this.ctx.session.clientElicitation.url}, sampling: ${this.options.advertiseSampling()}, completions: true, roots: ${this.ctx.session.clientSupportsRoots})`,
+		);
 		this.ctx.transport.sendResult(msg, {
 			protocolVersion: this.ctx.session.protocolVersion,
 			capabilities,
@@ -146,9 +150,6 @@ export class InitializeHandler {
 				version: this.options.serverVersion,
 			},
 		});
-		this.ctx.log(
-			`Initialized successfully (elicitation.form: ${this.ctx.session.clientElicitation.form}, elicitation.url: ${this.ctx.session.clientElicitation.url}, sampling: ${this.options.advertiseSampling()}, completions: true, roots: ${this.ctx.session.clientSupportsRoots})`,
-		);
 		if (
 			this.ctx.session.protocolVersion === MCP_LEGACY_PROTOCOL_VERSION &&
 			this.ctx.session.clientSupportsRoots
