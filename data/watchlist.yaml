@@ -272,9 +272,9 @@ resources:
     added: "2026-05-21"
     notes: "Official MCP authorization draft - monitor HTTP protected-resource metadata, WWW-Authenticate discovery, OAuth authorization-server discovery, Bearer token validation, resource/audience binding, scope step-up, and token-handling constraints for KOTA's Streamable HTTP MCP client and server."
     snapshot:
-      fingerprint: sha256:9df37bac28680770df52d08726c0258f
-      summary: "MCP draft Authorization still matches the stored OAuth protected-resource/client-flow signal; the existing KOTA OAuth client-flow task remains the right queue item."
-      last_seen_at: "2026-05-25T04:12:28.483Z"
+      fingerprint: sha256:3cfd1e9ac207635208803aef43b60fb6
+      summary: "MCP Authorization still matches KOTA's completed protected-resource, OAuth client-flow, client-credentials, private_key_jwt, and enterprise-managed authorization work; no new task was opened."
+      last_seen_at: "2026-05-25T12:55:16.472Z"
   - url: https://modelcontextprotocol.io/extensions/auth/oauth-client-credentials
     added: "2026-05-25"
     notes: "Official MCP Authorization extension for OAuth client-credentials machine-to-machine HTTP MCP access. Monitor token-endpoint auth methods, protected-resource metadata, resource/audience binding, and noninteractive remote MCP authorization; opened task-add-mcp-oauth-client-credentials-support-for-http- for client_secret_basic and task-add-private-key-jwt-support-to-mcp-oauth-client-cr for the recommended private_key_jwt credential format."
@@ -377,9 +377,9 @@ resources:
     added: "2026-05-25"
     notes: "Official MCP Tasks extension overview - monitor extension negotiation, server-directed task creation, resultType task handles, tasks/get polling, tasks/update input continuation, cooperative cancellation, and drift from KOTA's earlier draft utility implementation."
     snapshot:
-      fingerprint: sha256:16fe56c7db84b4e6eb99f2fb0e493183
-      summary: "Official MCP Tasks overview is accessible; KOTA's completed Tasks extension alignment covers the main negotiation and method contract, while this run opened task-emit-mcp-task-status-notifications-for-tasks-exten for the remaining optional task-status notification gap."
-      last_seen_at: "2026-05-25T10:27:13.115Z"
+      fingerprint: sha256:0c605473dbbcccde6f4b40658f5cf77f
+      summary: "Official MCP Tasks still defines the client-side task consumption contract; this run opened task-consume-mcp-tasks-extension-results-in-the-externa for KOTA's remaining external-client resultType=task gap."
+      last_seen_at: "2026-05-25T12:55:16.472Z"
   - url: https://modelcontextprotocol.io/registry/about
     added: "2026-05-22"
     notes: "Official MCP Registry documentation - monitor server.json schema, package verification, remote-server metadata, registry publication flow, server-card discovery direction, and configuration portability for KOTA's first-party MCP server."
@@ -405,9 +405,9 @@ resources:
     added: "2026-05-25"
     notes: "Official MCP Apps extension overview - monitor io.modelcontextprotocol/ui capability negotiation, ui:// resources, _meta.ui.resourceUri tool metadata, CSP/permission fields, postMessage App Bridge behavior, and host support for KOTA's first-party MCP server."
     snapshot:
-      fingerprint: sha256:cb12719030aa7ec99e5b283d896bb161
-      summary: "Official MCP Apps overview is accessible; its UI-extension/server-resource signal is already covered by completed task-add-mcp-apps-extension-support-to-kotas-first-part, so no new KOTA task is open from this snapshot."
-      last_seen_at: "2026-05-25T06:47:17.754Z"
+      fingerprint: sha256:de242626687bcf55256bf60549b337e6
+      summary: "MCP Apps still matches KOTA's completed first-party MCP server UI-resource slice; no new nonduplicative task was opened from this refresh."
+      last_seen_at: "2026-05-25T12:55:16.472Z"
   - url: https://github.com/github/gh-aw
     added: "2026-05-17"
     notes: "GitHub Agentic Workflows is a GitHub Actions-hosted agent workflow runtime; monitor for event-trigger, safe-output, input-sanitization, and multi-engine guardrail patterns relevant to KOTA's workflow runtime."
