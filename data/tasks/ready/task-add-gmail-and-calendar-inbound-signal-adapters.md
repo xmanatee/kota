@@ -1,12 +1,12 @@
 ---
 id: task-add-gmail-and-calendar-inbound-signal-adapters
 title: Add Gmail and Calendar inbound-signal adapters
-status: backlog
+status: ready
 priority: p2
 area: modules
 summary: Normalize configured Gmail and Calendar changes into inbound.signal.received events for bounded workflows.
 created_at: 2026-05-25T02:48:53.897Z
-updated_at: 2026-05-25T02:48:53.897Z
+updated_at: 2026-05-25T03:17:35.344Z
 ---
 
 ## Problem
