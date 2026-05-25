@@ -1,12 +1,12 @@
 ---
 id: task-security-review-httprequest-can-issue-arbitrary-ou
 title: Security review: http_request can issue arbitrary outbound HTTP/HTTPS GET requests, but guardrails force GET to safe, bypassing passive/supervised approval for open-world network access.
-status: ready
+status: done
 priority: p2
 area: security
 summary: http_request can issue arbitrary outbound HTTP/HTTPS GET requests, but guardrails force GET to safe, bypassing passive/supervised approval for open-world network access.
 created_at: 2026-05-25T23:36:19.121Z
-updated_at: 2026-05-25T23:36:19.121Z
+updated_at: 2026-05-25T23:51:11.000Z
 ---
 
 ## Problem
@@ -56,3 +56,4 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Verified with `pnpm test src/core/tools/guardrails.test.ts src/core/tools/autonomy-mode.test.ts`, `pnpm test src/task-files.test.ts`, `pnpm lint`, `pnpm typecheck`, and `node --conditions=source --import tsx src/validate-queue.ts`.

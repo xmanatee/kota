@@ -446,13 +446,14 @@ export function classifyRisk(
     return { risk: "moderate", reason: "code execution" };
   }
 
-  // http_request: GET keeps the safe-tier baseline; mutating methods are moderate.
+  // http_request: every outbound request is open-world network access.
   if (name === "http_request") {
     const method = ((input.method as string) || "GET").toUpperCase();
+    const networkRisk: RiskLevel = baseTier === "dangerous" ? "dangerous" : "moderate";
     if (MUTATION_METHODS.has(method)) {
-      return { risk: "moderate", reason: `HTTP ${method} request` };
+      return { risk: networkRisk, reason: `HTTP ${method} request` };
     }
-    return { risk: "safe", reason: "HTTP GET request" };
+    return { risk: networkRisk, reason: `HTTP ${method} open-world network request` };
   }
 
   // Tools with a declared effect: derive tier directly.

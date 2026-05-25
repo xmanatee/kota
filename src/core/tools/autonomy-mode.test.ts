@@ -5,7 +5,7 @@ import {
   resolveAutonomyGate,
   supervisedGuardrailsConfig,
 } from "./autonomy-mode.js";
-import type { Assessment } from "./guardrails.js";
+import { type Assessment, assess } from "./guardrails.js";
 
 function assessment(
   risk: Assessment["risk"],
@@ -69,6 +69,17 @@ describe("resolveAutonomyGate", () => {
 
     const dangerous = resolveAutonomyGate("supervised", assessment("dangerous"));
     expect(dangerous.action).toBe("queue");
+  });
+
+  it("passive denies and supervised queues arbitrary http_request GET calls", () => {
+    const httpGet = assess("http_request", {
+      url: "https://example.com/arbitrary",
+      method: "GET",
+    });
+    expect(httpGet.risk).toBe("moderate");
+
+    expect(resolveAutonomyGate("passive", httpGet).action).toBe("deny");
+    expect(resolveAutonomyGate("supervised", httpGet).action).toBe("queue");
   });
 });
 

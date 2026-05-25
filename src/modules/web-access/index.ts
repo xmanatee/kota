@@ -8,9 +8,8 @@
  *
  * All three tools are in the "web" group for progressive disclosure.
  * web_search and web_fetch are open-world reads (moderate risk via
- * exfiltration); http_request is an open-world write (moderate). The
- * guardrails layer further classifies http_request at call time based on
- * HTTP method and treats any save_to path as a local filesystem write.
+ * exfiltration); http_request is open-world network access even for GET.
+ * The guardrails layer treats any save_to path as a local filesystem write.
  */
 
 

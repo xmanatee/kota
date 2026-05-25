@@ -254,9 +254,16 @@ describe("classifyRisk", () => {
     expect(risk).toBe("dangerous");
   });
 
-  it("classifies http_request GET as safe", () => {
-    const { risk } = classifyRisk("http_request", { url: "https://example.com", method: "GET" });
-    expect(risk).toBe("safe");
+  it("classifies http_request GET as open-world network access", () => {
+    const result = classifyRisk("http_request", { url: "https://example.com", method: "GET" });
+    expect(result.risk).toBe("moderate");
+    expect(result.reason).toContain("open-world network request");
+  });
+
+  it("classifies http_request default GET as open-world network access", () => {
+    const result = classifyRisk("http_request", { url: "https://example.com" });
+    expect(result.risk).toBe("moderate");
+    expect(result.reason).toContain("HTTP GET");
   });
 
   it("classifies http_request GET with save_to as a local filesystem write", () => {
