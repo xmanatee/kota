@@ -33,6 +33,7 @@ export type InitializeOptions = {
 	serverVersion: string;
 	projectDir: string;
 	advertiseSampling: () => boolean;
+	advertiseSkills: () => boolean;
 	warnDeprecatedCapability: (warning: DeprecatedMcpCapabilityWarning) => void;
 };
 
@@ -149,9 +150,10 @@ export class InitializeHandler {
 			typeof clientCaps.roots === "object" && clientCaps.roots !== null;
 
 		const peer = initializePeer(msg.params);
+		const advertiseSkills = this.options.advertiseSkills();
 		const capabilities =
 			this.ctx.session.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION
-				? buildMcpServerDiscoverCapabilities()
+				? buildMcpServerDiscoverCapabilities({ includeSkills: advertiseSkills })
 				: buildLegacyServerCapabilities({
 					clientSupportsFormElicitation: this.ctx.session.clientElicitation.form,
 					advertiseSampling: this.options.advertiseSampling(),
@@ -183,7 +185,7 @@ export class InitializeHandler {
 			}
 		}
 		this.ctx.log(
-			`Initialized successfully (elicitation.form: ${this.ctx.session.clientElicitation.form}, elicitation.url: ${this.ctx.session.clientElicitation.url}, sampling: ${this.options.advertiseSampling()}, completions: true, roots: ${this.ctx.session.clientSupportsRoots}, mcpUi: ${clientMcpUi.capabilities.supported}, mcpTasks: ${clientMcpTasks.capabilities.supported})`,
+			`Initialized successfully (elicitation.form: ${this.ctx.session.clientElicitation.form}, elicitation.url: ${this.ctx.session.clientElicitation.url}, sampling: ${this.options.advertiseSampling()}, completions: true, roots: ${this.ctx.session.clientSupportsRoots}, mcpUi: ${clientMcpUi.capabilities.supported}, mcpTasks: ${clientMcpTasks.capabilities.supported}, skills: ${advertiseSkills})`,
 		);
 		this.ctx.transport.sendResult(msg, {
 			protocolVersion: this.ctx.session.protocolVersion,
@@ -221,7 +223,9 @@ export class InitializeHandler {
 		}
 		this.ctx.transport.sendResult(msg, {
 			supportedVersions: [...MCP_SUPPORTED_PROTOCOL_VERSIONS],
-			capabilities: buildMcpServerDiscoverCapabilities(),
+			capabilities: buildMcpServerDiscoverCapabilities({
+				includeSkills: this.options.advertiseSkills(),
+			}),
 			serverInfo: {
 				name: this.options.serverName,
 				version: this.options.serverVersion,

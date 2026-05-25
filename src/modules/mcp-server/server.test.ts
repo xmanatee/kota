@@ -5,7 +5,8 @@ import { PassThrough } from "node:stream";
 import { pathToFileURL } from "node:url";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
-import { ModuleLoader } from "#core/modules/module-loader.js";
+import { IMPORTED_SKILL_PROVENANCE_FILE } from "#core/modules/imported-skills.js";
+import { ModuleLoader, type ModuleSummary } from "#core/modules/module-loader.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
 import {
 	legacyEffect,
@@ -33,6 +34,7 @@ import {
 	type McpInputRequiredResult,
 } from "./mcp-protocol-types.js";
 import { McpTaskStore } from "./mcp-task-store.js";
+import { MCP_SKILLS_EXTENSION_ID, SKILL_INDEX_RESOURCE_URI } from "./resources.js";
 import { kotaToolToMcp, McpServer, type McpServerOptions, toolResultToMcp } from "./server.js";
 
 vi.mock("#core/modules/provider-registry.js", () => ({
@@ -3149,6 +3151,103 @@ describe("resources", () => {
 		return dir;
 	}
 
+	function makeModuleSummary(name: string, skills: ModuleSummary["skills"]): ModuleSummary {
+		return {
+			name,
+			source: "project",
+			dependencies: [],
+			toolNames: [],
+			workflowNames: [],
+			channelNames: [],
+			skillNames: skills.map((skill) => skill.name),
+			agentNames: [],
+			agents: [],
+			skills,
+			commandNames: [],
+			routeSummaries: [],
+		};
+	}
+
+	function makeSkillProjectDir(): string {
+		const dir = makeProjectDir();
+		writeFileSync(
+			join(dir, "module-skill.md"),
+			[
+				"# Module skill body",
+				"",
+				"Use the module skill guidance.",
+			].join("\n"),
+		);
+		const importedDir = join(dir, ".kota", "skills", "imported-skill");
+		mkdirSync(join(importedDir, "references"), { recursive: true });
+		writeFileSync(
+			join(importedDir, "SKILL.md"),
+			[
+				"---",
+				"name: imported-skill",
+				"description: Imported skill guidance",
+				"---",
+				"Imported skill body.",
+			].join("\n"),
+		);
+		writeFileSync(
+			join(importedDir, "references", "guide.md"),
+			"# Imported reference\n\nUse this preserved sibling file.\n",
+		);
+		writeFileSync(
+			join(importedDir, IMPORTED_SKILL_PROVENANCE_FILE),
+			`${JSON.stringify({
+				version: 1,
+				skillName: "imported-skill",
+				source: "/tmp/source",
+				sourceKind: "local-dir",
+				selectedSkillPath: "/tmp/source/imported-skill/SKILL.md",
+				provenance: "skill-directory: /tmp/source/imported-skill",
+				importedFiles: ["SKILL.md", "references/guide.md"],
+				skippedFiles: [],
+			}, null, 2)}\n`,
+		);
+		return dir;
+	}
+
+	function skillModuleSummaries(): ModuleSummary[] {
+		return [
+			makeModuleSummary("skill-fixture", [{
+				name: "module-skill",
+				description: "Module skill guidance",
+				promptPath: "module-skill.md",
+				roles: ["builder"],
+			}]),
+		];
+	}
+
+	async function collectResourceUris(
+		input: PassThrough,
+		output: PassThrough,
+		startId: number,
+	): Promise<string[]> {
+		let id = startId;
+		let cursor: string | undefined;
+		const uris: string[] = [];
+		do {
+			sendRequest(
+				input,
+				id,
+				"resources/list",
+				draftRequestParams(cursor === undefined ? {} : { cursor }),
+			);
+			const resp = await readResponse(output);
+			const result = resp.result as {
+				resources: Array<{ uri: string }>;
+				nextCursor?: string;
+			};
+			uris.push(...result.resources.map((resource) => resource.uri));
+			cursor = result.nextCursor;
+			id += 1;
+		} while (cursor !== undefined);
+		return uris;
+	}
+
 	it("resources/list returns KOTA resources", async () => {
 		const { input, output } = createTestStreams();
 		const server = new McpServer({ input, output, log: () => {} });
@@ -3174,6 +3273,164 @@ describe("resources", () => {
 		expect(uris).toContain("kota://tasks/ready");
 		expect(uris).toContain("kota://workflow/status");
 		expect(uris).toContain("kota://workflow/runs/recent");
+
+		server.stop();
+	});
+
+	it("exposes module and imported skills through skill resources", async () => {
+		const projectDir = makeSkillProjectDir();
+		const { input, output } = createTestStreams();
+		const server = new McpServer({
+			input,
+			output,
+			log: () => {},
+			projectDir,
+			moduleSummaries: skillModuleSummaries,
+		});
+		await server.start();
+
+		sendRequest(input, 1, "server/discover", draftRequestParams());
+		const discoverResp = await readResponse(output);
+		const discover = discoverResp.result as {
+			capabilities: { extensions: Record<string, unknown> };
+		};
+		expect(discover.capabilities.extensions[MCP_SKILLS_EXTENSION_ID]).toEqual({});
+
+		sendRequest(input, 2, "initialize", {
+			protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+			capabilities: {},
+			clientInfo: { name: "test", version: "1.0.0" },
+		});
+		const initResp = await readResponse(output);
+		sendNotification(input, "notifications/initialized");
+		const init = initResp.result as {
+			capabilities: { extensions: Record<string, unknown> };
+		};
+		expect(init.capabilities.extensions[MCP_SKILLS_EXTENSION_ID]).toEqual({});
+
+		const uris = await collectResourceUris(input, output, 3);
+		expect(uris).toContain(SKILL_INDEX_RESOURCE_URI);
+
+		sendRequest(input, 10, "resources/read", draftRequestParams({ uri: SKILL_INDEX_RESOURCE_URI }));
+		const indexResp = await readResponse(output);
+		const indexResult = indexResp.result as {
+			contents: Array<{ uri: string; mimeType: string; text: string }>;
+		};
+		expect(indexResult.contents[0]).toMatchObject({
+			uri: SKILL_INDEX_RESOURCE_URI,
+			mimeType: "application/json",
+		});
+		const index = JSON.parse(indexResult.contents[0].text) as {
+			$schema: string;
+			skills: Array<{ name: string; type: string; description: string; url: string }>;
+		};
+		expect(index.$schema).toBe("https://schemas.agentskills.io/discovery/0.2.0/schema.json");
+		expect(index.skills).toEqual(expect.arrayContaining([
+			{
+				name: "module-skill",
+				type: "skill-md",
+				description: "Module skill guidance",
+				url: "skill://module-skill/SKILL.md",
+			},
+			{
+				name: "imported-skill",
+				type: "skill-md",
+				description: "Imported skill guidance",
+				url: "skill://imported-skill/SKILL.md",
+			},
+		]));
+
+		sendRequest(input, 11, "resources/read", draftRequestParams({ uri: "skill://module-skill/SKILL.md" }));
+		const moduleSkillResp = await readResponse(output);
+		const moduleSkill = moduleSkillResp.result as {
+			contents: Array<{ mimeType: string; text: string }>;
+		};
+		expect(moduleSkill.contents[0].mimeType).toBe("text/markdown");
+		expect(moduleSkill.contents[0].text).toContain('name: "module-skill"');
+		expect(moduleSkill.contents[0].text).toContain('description: "Module skill guidance"');
+		expect(moduleSkill.contents[0].text).toContain('roles: ["builder"]');
+		expect(moduleSkill.contents[0].text).toContain("Use the module skill guidance.");
+
+		sendRequest(input, 12, "resources/read", draftRequestParams({ uri: "skill://imported-skill/SKILL.md" }));
+		const importedSkillResp = await readResponse(output);
+		const importedSkill = importedSkillResp.result as {
+			contents: Array<{ mimeType: string; text: string }>;
+		};
+		expect(importedSkill.contents[0].mimeType).toBe("text/markdown");
+		expect(importedSkill.contents[0].text).toContain("name: imported-skill");
+		expect(importedSkill.contents[0].text).toContain("Imported skill body.");
+
+		sendRequest(input, 13, "resources/read", {
+			...draftRequestParams({ uri: "skill://imported-skill/references/guide.md" }),
+		});
+		const importedReferenceResp = await readResponse(output);
+		const importedReference = importedReferenceResp.result as {
+			contents: Array<{ mimeType: string; text: string }>;
+		};
+		expect(importedReference.contents[0]).toMatchObject({
+			mimeType: "text/markdown",
+			text: "# Imported reference\n\nUse this preserved sibling file.\n",
+		});
+
+		sendRequest(input, 14, "resources/read", draftRequestParams({ uri: "skill://module-skill/../secret.md" }));
+		const traversalResp = await readResponse(output);
+		expect(traversalResp.error).toMatchObject({
+			code: -32602,
+			message: "Invalid skill resource path",
+		});
+
+		sendRequest(input, 15, "resources/read", draftRequestParams({ uri: "skill://missing/SKILL.md" }));
+		const missingResp = await readResponse(output);
+		expect(missingResp.error).toMatchObject({
+			code: -32002,
+			message: "Unknown skill: missing",
+		});
+
+		sendRequest(input, 16, "resources/read", {
+			...draftRequestParams({ uri: "skill://module-skill/references/guide.md" }),
+		});
+		const moduleSiblingResp = await readResponse(output);
+		expect(moduleSiblingResp.error).toMatchObject({
+			code: -32002,
+			message: "Unknown skill resource: skill://module-skill/references/guide.md",
+		});
+
+		server.stop();
+	});
+
+	it("returns protocol errors for malformed imported skill records", async () => {
+		const projectDir = makeProjectDir();
+		const brokenDir = join(projectDir, ".kota", "skills", "broken-skill");
+		mkdirSync(brokenDir, { recursive: true });
+		writeFileSync(
+			join(brokenDir, "SKILL.md"),
+			[
+				"---",
+				"name: broken-skill",
+				"description: Broken skill guidance",
+				"---",
+				"Broken skill body.",
+			].join("\n"),
+		);
+		const { input, output } = createTestStreams();
+		const server = new McpServer({
+			input,
+			output,
+			log: () => {},
+			projectDir,
+			moduleSummaries: () => [],
+		});
+		await initDraftServer(server, input, output);
+
+		sendRequest(input, 2, "resources/read", draftRequestParams({ uri: SKILL_INDEX_RESOURCE_URI }));
+		const resp = await readResponse(output);
+		expect(resp.error).toMatchObject({
+			code: -32603,
+		});
+		const error = resp.error as { message: string };
+		expect(error.message).toContain(
+			`missing ${IMPORTED_SKILL_PROVENANCE_FILE}`,
+		);
 
 		server.stop();
 	});

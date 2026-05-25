@@ -34,6 +34,8 @@ import {
 	listKotaResources,
 	listKotaResourcesPage,
 	listKotaResourceTemplatesPage,
+	type McpSkillCatalogContext,
+	type McpSkillModuleSummaryProvider,
 	readKotaResource,
 } from "./resources.js";
 
@@ -62,11 +64,17 @@ function subscriptionMeta(subscriptionId: string): Record<string, string> {
 	return { [SUBSCRIPTION_ID_META_KEY]: subscriptionId };
 }
 
-function currentResourceCatalogSignature(): string {
-	return listKotaResources()
-		.map((resource) => resource.uri)
-		.sort()
-		.join("\n");
+function currentResourceCatalogSignature(skillCatalog: McpSkillCatalogContext | undefined): string {
+	try {
+		return listKotaResources({
+			...(skillCatalog !== undefined && { skillCatalog }),
+		})
+			.map((resource) => resource.uri)
+			.sort()
+			.join("\n");
+	} catch {
+		return "";
+	}
 }
 
 function currentPromptCatalogSignature(projectDir: string): string {
@@ -82,7 +90,7 @@ export class ResourcesHandler {
 	private readonly legacyResourceSubscriptions = new Set<string>();
 	private readonly draftSubscriptions = new Map<string, DraftSubscription>();
 	private busUnsubs: (() => void)[] = [];
-	private resourceCatalogSignature = currentResourceCatalogSignature();
+	private resourceCatalogSignature = currentResourceCatalogSignature(undefined);
 	private promptCatalogSignature: string | null = null;
 	private promptWatchers: FSWatcher[] = [];
 	private promptWatchedPaths: string[] = [];
@@ -95,7 +103,13 @@ export class ResourcesHandler {
 		private readonly eventBusOverride: EventBus | null | undefined,
 		private readonly resolveProjectDir: () => string,
 		private readonly mrtr: McpMrtrStateCodec,
+		private readonly moduleSummaries: McpSkillModuleSummaryProvider | null,
 	) {}
+
+	private skillCatalog(projectDir: string = this.resolveProjectDir()): McpSkillCatalogContext | undefined {
+		if (this.moduleSummaries === null) return undefined;
+		return { projectDir, moduleSummaries: this.moduleSummaries };
+	}
 
 	registerBusListeners(): void {
 		const bus = this.eventBusOverride !== undefined ? this.eventBusOverride : getEventBus();
@@ -136,14 +150,16 @@ export class ResourcesHandler {
 			this.ctx.transport.sendError(msg, -32002, "Server not initialized");
 			return;
 		}
+		const skillCatalog = this.skillCatalog();
 		const result = listKotaResourcesPage(msg.params?.cursor, {
 			includeMcpApps: activeClientSupportsMcpUi(this.ctx),
+			...(skillCatalog !== undefined && { skillCatalog }),
 		});
 		if (!result.ok) {
 			this.ctx.transport.sendError(msg, result.code, result.message);
 			return;
 		}
-		this.resourceCatalogSignature = currentResourceCatalogSignature();
+		this.resourceCatalogSignature = currentResourceCatalogSignature(skillCatalog);
 		this.ctx.transport.sendResult(msg, {
 			...result.result,
 			...MCP_PUBLIC_CATALOG_CACHE_HINTS,
@@ -178,8 +194,10 @@ export class ResourcesHandler {
 		}
 		const projectDir = this.resolveProjectDirForRead(msg);
 		if (!projectDir) return;
+		const skillCatalog = this.skillCatalog(projectDir);
 		const result = readKotaResource(uri, projectDir, {
 			includeMcpApps: activeClientSupportsMcpUi(this.ctx),
+			...(skillCatalog !== undefined && { skillCatalog }),
 		});
 		if (!result.ok) {
 			this.ctx.transport.sendError(msg, result.code, result.message);
@@ -206,7 +224,11 @@ export class ResourcesHandler {
 			this.ctx.transport.sendError(msg, -32602, "Missing required parameter: uri");
 			return;
 		}
-		if (!isKnownKotaResourceUri(uri, { includeMcpApps: activeClientSupportsMcpUi(this.ctx) })) {
+		const skillCatalog = this.skillCatalog();
+		if (!isKnownKotaResourceUri(uri, {
+			includeMcpApps: activeClientSupportsMcpUi(this.ctx),
+			...(skillCatalog !== undefined && { skillCatalog }),
+		})) {
 			this.ctx.transport.sendError(msg, -32002, `Unknown resource: ${uri}`);
 			return;
 		}
@@ -276,7 +298,11 @@ export class ResourcesHandler {
 				this.ctx.transport.sendError(msg, -32602, "notifications.resourceSubscriptions must contain strings");
 				return;
 			}
-			if (!isKnownKotaResourceUri(uri, { includeMcpApps: activeClientSupportsMcpUi(this.ctx) })) {
+			const skillCatalog = this.skillCatalog();
+			if (!isKnownKotaResourceUri(uri, {
+				includeMcpApps: activeClientSupportsMcpUi(this.ctx),
+				...(skillCatalog !== undefined && { skillCatalog }),
+			})) {
 				this.ctx.transport.sendError(msg, -32002, `Unknown resource: ${uri}`);
 				return;
 			}
@@ -371,7 +397,7 @@ export class ResourcesHandler {
 	}
 
 	private notifyResourceListChangedIfNeeded(): void {
-		const nextSignature = currentResourceCatalogSignature();
+		const nextSignature = currentResourceCatalogSignature(this.skillCatalog());
 		if (nextSignature === this.resourceCatalogSignature) return;
 		this.resourceCatalogSignature = nextSignature;
 		for (const [subscriptionId, subscription] of this.draftSubscriptions) {

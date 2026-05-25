@@ -30,7 +30,7 @@ export function localMcpServerClient(): McpServerClient {
       const { McpServer } = await import("./server.js");
 
       const config = loadConfig(process.cwd());
-      await loadRuntimeModules({ config, cwd: process.cwd() });
+      const loader = await loadRuntimeModules({ config, cwd: process.cwd() });
 
       const samplingEnabled = config.mcp?.sampling?.enabled === true;
       let modelClient: ModelClient | undefined;
@@ -48,6 +48,7 @@ export function localMcpServerClient(): McpServerClient {
         samplingEnabled,
         modelClient,
         ...(config.model !== undefined && { samplingModel: config.model }),
+        moduleSummaries: () => loader.getModuleSummaries(),
       });
 
       if (options.transport === "http") {

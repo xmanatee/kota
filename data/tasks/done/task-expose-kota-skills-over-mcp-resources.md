@@ -1,12 +1,12 @@
 ---
 id: task-expose-kota-skills-over-mcp-resources
 title: Expose KOTA skills over MCP resources
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Project KOTA's registered skill catalog through the first-party MCP server as skill resources, following the Skills Over MCP extension shape without creating a second skill registry.
 created_at: 2026-05-25T21:25:23.666Z
-updated_at: 2026-05-25T21:25:23.666Z
+updated_at: 2026-05-25T21:41:36.000Z
 ---
 
 ## Problem

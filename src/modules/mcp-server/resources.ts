@@ -11,8 +11,14 @@
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { extname, join, resolve } from "node:path";
 import type { KotaJsonObject, KotaJsonValue } from "#core/agent-harness/message-protocol.js";
+import type { SkillDef } from "#core/agents/agent-types.js";
+import {
+	importedSkillsDir,
+	readImportedSkillRecords,
+} from "#core/modules/imported-skills.js";
+import type { ModuleSummary } from "#core/modules/module-types.js";
 import { getKnowledgeProvider, getMemoryProvider } from "#core/modules/provider-registry.js";
 import type { KnowledgeEntry, Memory } from "#core/modules/provider-types.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
@@ -54,12 +60,21 @@ export type McpResourceTemplateListPage = {
 
 type KotaResourceError = { ok: false; code: number; message: string };
 
+export type McpSkillModuleSummaryProvider = () => ModuleSummary[];
+
+export type McpSkillCatalogContext = {
+	projectDir: string;
+	moduleSummaries: McpSkillModuleSummaryProvider;
+};
+
 type McpResourceListOptions = {
 	includeMcpApps?: boolean;
+	skillCatalog?: McpSkillCatalogContext;
 };
 
 type McpResourceReadOptions = {
 	includeMcpApps?: boolean;
+	skillCatalog?: McpSkillCatalogContext;
 };
 
 export type McpResourceCatalogResult<T> =
@@ -68,6 +83,11 @@ export type McpResourceCatalogResult<T> =
 
 export const RESOURCE_LIST_PAGE_SIZE = 3;
 export const RESOURCE_TEMPLATE_LIST_PAGE_SIZE = 3;
+export const MCP_SKILLS_EXTENSION_ID = "io.modelcontextprotocol/skills";
+export const SKILL_INDEX_RESOURCE_URI = "skill://index.json";
+
+const AGENT_SKILLS_DISCOVERY_SCHEMA =
+	"https://schemas.agentskills.io/discovery/0.2.0/schema.json";
 
 const CORE_KOTA_RESOURCES: McpResource[] = [
 	{
@@ -111,6 +131,14 @@ const KNOWLEDGE_RESOURCE: McpResource = {
 	name: "Knowledge",
 	description:
 		"Bounded knowledge index. Read returned readUri values for entry content or use kota://knowledge/search?q=...",
+	mimeType: "application/json",
+};
+
+const SKILL_INDEX_RESOURCE: McpResource = {
+	uri: SKILL_INDEX_RESOURCE_URI,
+	name: "Agent Skills Index",
+	description:
+		"Discovery index for KOTA skills exposed as MCP resources.",
 	mimeType: "application/json",
 };
 
@@ -180,10 +208,73 @@ function hasKnowledgeProvider(): boolean {
 	}
 }
 
+type SkillResourceRecord = {
+	name: string;
+	description?: string;
+	promptPath: string;
+	sourceType: "module" | "imported";
+	roles?: string[];
+	importedFiles?: string[];
+};
+
+function addModuleSkillRecord(
+	records: SkillResourceRecord[],
+	seenNames: Set<string>,
+	skill: SkillDef,
+): void {
+	if (seenNames.has(skill.name)) return;
+	seenNames.add(skill.name);
+	records.push({
+		name: skill.name,
+		...(skill.description !== undefined && { description: skill.description }),
+		promptPath: skill.promptPath,
+		sourceType: "module",
+		...(skill.roles !== undefined && { roles: skill.roles }),
+	});
+}
+
+function collectSkillResourceRecords(
+	catalog: McpSkillCatalogContext,
+): SkillResourceRecord[] {
+	const records: SkillResourceRecord[] = [];
+	const seenNames = new Set<string>();
+	for (const summary of catalog.moduleSummaries()) {
+		for (const skill of summary.skills) {
+			addModuleSkillRecord(records, seenNames, skill);
+		}
+	}
+	for (const record of readImportedSkillRecords(catalog.projectDir)) {
+		if (seenNames.has(record.def.name)) continue;
+		if (record.importedFiles === undefined) {
+			throw new Error(`${record.def.promptPath}: imported skill record is missing importedFiles`);
+		}
+		seenNames.add(record.def.name);
+		records.push({
+			name: record.def.name,
+			...(record.def.description !== undefined && { description: record.def.description }),
+			promptPath: record.def.promptPath,
+			sourceType: "imported",
+			...(record.def.roles !== undefined && { roles: record.def.roles }),
+			importedFiles: record.importedFiles,
+		});
+	}
+	return records;
+}
+
+export function hasSkillResourceProjection(catalog: McpSkillCatalogContext | undefined): boolean {
+	if (catalog === undefined) return false;
+	return collectSkillResourceRecords(catalog).length > 0;
+}
+
 export function listKotaResources(options: McpResourceListOptions = {}): McpResource[] {
+	const skillResources =
+		options.skillCatalog !== undefined && hasSkillResourceProjection(options.skillCatalog)
+			? [SKILL_INDEX_RESOURCE]
+			: [];
 	return [
 		...(options.includeMcpApps ? [buildKotaStatusUiResource()] : []),
 		...CORE_KOTA_RESOURCES,
+		...skillResources,
 		...(hasMemoryProvider() ? [MEMORY_RESOURCE] : []),
 		...(hasKnowledgeProvider() ? [KNOWLEDGE_RESOURCE] : []),
 	];
@@ -200,7 +291,14 @@ export function isKnownKotaResourceUri(
 	uri: string,
 	options: McpResourceListOptions = {},
 ): boolean {
-	return listKotaResources(options).some((resource) => resource.uri === uri);
+	if (options.skillCatalog !== undefined && isKnownSkillResourceUri(uri, options.skillCatalog)) {
+		return true;
+	}
+	try {
+		return listKotaResources(options).some((resource) => resource.uri === uri);
+	} catch {
+		return false;
+	}
 }
 
 const INDEX_LIMIT_DEFAULT = 50;
@@ -273,6 +371,10 @@ function notFoundError(message: string): KotaResourceError {
 
 function internalError(message: string): KotaResourceError {
 	return { ok: false, code: -32603, message };
+}
+
+function safeInternalError(error: Error | string): KotaResourceError {
+	return internalError(error instanceof Error ? error.message : error);
 }
 
 function encodeToken(value: string): string {
@@ -383,8 +485,14 @@ export function listKotaResourcesPage(
 	cursor: KotaJsonValue | undefined,
 	options: McpResourceListOptions = {},
 ): McpResourceCatalogResult<McpResourceListPage> {
+	let resources: McpResource[];
+	try {
+		resources = listKotaResources(options);
+	} catch (err) {
+		return safeInternalError(err instanceof Error ? err : String(err));
+	}
 	const page = paginateCatalog(
-		listKotaResources(options),
+		resources,
 		cursor,
 		RESOURCE_LIST_PAGE_SIZE,
 		"resources-list",
@@ -703,6 +811,199 @@ function readKnowledgeResource(parsed: URL): KotaResourceReadResult {
 	return notFoundError(`Unknown resource: ${parsed.toString()}`);
 }
 
+type ParsedSkillResourceUri =
+	| { kind: "index" }
+	| { kind: "file"; skillName: string; relativePath: string };
+
+function decodeSkillUriSegment(
+	value: string,
+	label: string,
+): string | KotaResourceError {
+	let decoded: string;
+	try {
+		decoded = decodeURIComponent(value);
+	} catch {
+		return protocolError(`Invalid ${label}`);
+	}
+	if (
+		decoded.length === 0 ||
+		decoded === "." ||
+		decoded === ".." ||
+		decoded.includes("/") ||
+		decoded.includes("\\")
+	) {
+		return protocolError(`Invalid ${label}`);
+	}
+	return decoded;
+}
+
+function parseSkillResourceUri(uri: string): ParsedSkillResourceUri | KotaResourceError {
+	if (uri === SKILL_INDEX_RESOURCE_URI) return { kind: "index" };
+	if (!uri.startsWith("skill://")) return notFoundError(`Unknown resource: ${uri}`);
+	const rest = uri.slice("skill://".length);
+	if (rest.includes("?") || rest.includes("#")) {
+		return protocolError(`Invalid skill resource URI: ${uri}`);
+	}
+	const firstSlash = rest.indexOf("/");
+	if (firstSlash <= 0 || firstSlash === rest.length - 1) {
+		return protocolError(`Invalid skill resource URI: ${uri}`);
+	}
+	const skillName = decodeSkillUriSegment(rest.slice(0, firstSlash), "skill name");
+	if (typeof skillName !== "string") return skillName;
+	const pathSegments: string[] = [];
+	for (const rawSegment of rest.slice(firstSlash + 1).split("/")) {
+		const segment = decodeSkillUriSegment(rawSegment, "skill resource path");
+		if (typeof segment !== "string") return segment;
+		pathSegments.push(segment);
+	}
+	const relativePath = pathSegments.join("/");
+	if (relativePath !== "SKILL.md" && pathSegments.includes("SKILL.md")) {
+		return protocolError(`Invalid skill resource URI: ${uri}`);
+	}
+	return { kind: "file", skillName, relativePath };
+}
+
+function encodeSkillPathSegment(value: string): string {
+	return encodeURIComponent(value);
+}
+
+function skillResourceUri(name: string, relativePath: string): string {
+	return `skill://${encodeSkillPathSegment(name)}/${relativePath
+		.split("/")
+		.map(encodeSkillPathSegment)
+		.join("/")}`;
+}
+
+function skillDescription(record: SkillResourceRecord): string {
+	return record.description ?? `${record.name} guidance`;
+}
+
+function buildSkillIndex(records: readonly SkillResourceRecord[]): KotaJsonObject {
+	return {
+		$schema: AGENT_SKILLS_DISCOVERY_SCHEMA,
+		skills: records.map((record) => ({
+			name: record.name,
+			type: "skill-md",
+			description: skillDescription(record),
+			url: skillResourceUri(record.name, "SKILL.md"),
+		})),
+	};
+}
+
+function yamlString(value: string): string {
+	return JSON.stringify(value);
+}
+
+function buildGeneratedSkillFrontmatter(record: SkillResourceRecord): string {
+	const lines = [
+		"---",
+		`name: ${yamlString(record.name)}`,
+		`description: ${yamlString(skillDescription(record))}`,
+	];
+	if (record.roles !== undefined) {
+		lines.push(`roles: [${record.roles.map(yamlString).join(", ")}]`);
+	}
+	lines.push("---");
+	return `${lines.join("\n")}\n`;
+}
+
+function readModuleSkillResource(
+	record: SkillResourceRecord,
+	relativePath: string,
+	projectDir: string,
+	uri: string,
+): KotaResourceReadResult {
+	if (relativePath !== "SKILL.md") {
+		return notFoundError(`Unknown skill resource: ${uri}`);
+	}
+	try {
+		const body = readFileSync(resolve(projectDir, record.promptPath), "utf8").trim();
+		return {
+			ok: true,
+			mimeType: "text/markdown",
+			text: `${buildGeneratedSkillFrontmatter(record)}${body}\n`,
+		};
+	} catch (err) {
+		return safeInternalError(err instanceof Error ? err : String(err));
+	}
+}
+
+function skillFileMimeType(relativePath: string): string {
+	const ext = extname(relativePath).toLowerCase();
+	if (ext === ".md" || ext === ".markdown") return "text/markdown";
+	if (ext === ".json") return "application/json";
+	if (ext === ".txt" || ext === ".log") return "text/plain";
+	if (ext === ".yaml" || ext === ".yml") return "application/yaml";
+	if (ext === ".js" || ext === ".ts" || ext === ".py" || ext === ".sh") return "text/plain";
+	return "text/plain";
+}
+
+function readImportedSkillResource(
+	record: SkillResourceRecord,
+	relativePath: string,
+	projectDir: string,
+	uri: string,
+): KotaResourceReadResult {
+	if (record.importedFiles === undefined) {
+		return internalError(`${record.promptPath}: imported skill record is missing importedFiles`);
+	}
+	if (!record.importedFiles.includes(relativePath)) {
+		return notFoundError(`Unknown skill resource: ${uri}`);
+	}
+	try {
+		const text = readFileSync(
+			join(importedSkillsDir(projectDir), record.name, relativePath),
+			"utf8",
+		);
+		return { ok: true, mimeType: skillFileMimeType(relativePath), text };
+	} catch (err) {
+		return safeInternalError(err instanceof Error ? err : String(err));
+	}
+}
+
+function readSkillResource(
+	uri: string,
+	catalog: McpSkillCatalogContext | undefined,
+): KotaResourceReadResult {
+	if (catalog === undefined) return notFoundError(`Unknown resource: ${uri}`);
+	const parsed = parseSkillResourceUri(uri);
+	if ("ok" in parsed) return parsed;
+	let records: SkillResourceRecord[];
+	try {
+		records = collectSkillResourceRecords(catalog);
+	} catch (err) {
+		return safeInternalError(err instanceof Error ? err : String(err));
+	}
+	if (records.length === 0) return notFoundError(`Unknown resource: ${uri}`);
+	if (parsed.kind === "index") return resourceSuccess(buildSkillIndex(records));
+	const record = records.find((candidate) => candidate.name === parsed.skillName);
+	if (!record) return notFoundError(`Unknown skill: ${parsed.skillName}`);
+	if (record.sourceType === "module") {
+		return readModuleSkillResource(record, parsed.relativePath, catalog.projectDir, uri);
+	}
+	return readImportedSkillResource(record, parsed.relativePath, catalog.projectDir, uri);
+}
+
+function isKnownSkillResourceUri(
+	uri: string,
+	catalog: McpSkillCatalogContext,
+): boolean {
+	const parsed = parseSkillResourceUri(uri);
+	if ("ok" in parsed) return false;
+	let records: SkillResourceRecord[];
+	try {
+		records = collectSkillResourceRecords(catalog);
+	} catch {
+		return false;
+	}
+	if (records.length === 0) return false;
+	if (parsed.kind === "index") return true;
+	const record = records.find((candidate) => candidate.name === parsed.skillName);
+	if (!record) return false;
+	if (record.sourceType === "module") return parsed.relativePath === "SKILL.md";
+	return record.importedFiles?.includes(parsed.relativePath) === true;
+}
+
 /**
  * Read the content for a known resource URI.
  * Returns an MCP error envelope if the URI is not recognized.
@@ -712,6 +1013,9 @@ export function readKotaResource(
 	projectDir: string,
 	options: McpResourceReadOptions = {},
 ): KotaResourceReadResult {
+	if (uri.startsWith("skill://")) {
+		return readSkillResource(uri, options.skillCatalog);
+	}
 	if (options.includeMcpApps && isMcpUiResourceUri(uri)) {
 		const resource = readKotaStatusUiResource();
 		return {

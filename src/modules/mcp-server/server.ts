@@ -57,6 +57,10 @@ import {
 	mcpProgressTokenKey,
 } from "./mcp-protocol-types.js";
 import { McpTaskStore } from "./mcp-task-store.js";
+import {
+	hasSkillResourceProjection,
+	type McpSkillModuleSummaryProvider,
+} from "./resources.js";
 
 export { kotaToolToMcp, toolResultToMcp } from "./mcp-handlers-tools.js";
 export type { ElicitationResponse, ElicitationSchema, McpRoot, McpToolResult } from "./mcp-protocol-types.js";
@@ -75,6 +79,7 @@ export type McpServerOptions = {
 	samplingModel?: string;
 	samplingEnabled?: boolean;
 	taskStore?: McpTaskStore;
+	moduleSummaries?: McpSkillModuleSummaryProvider;
 };
 
 type RequestHandler = (msg: JsonRpcRequest) => Promise<void> | void;
@@ -390,6 +395,21 @@ export class McpServer {
 			sendProgress: (progress, details) => this.sendProgress(progress, details),
 		};
 		const mrtr = new McpMrtrStateCodec();
+		let resolveEffectiveProjectDir = () => projectDir;
+		const advertiseSkills = () => {
+			if (options.moduleSummaries === undefined) return false;
+			try {
+				return hasSkillResourceProjection({
+					projectDir: resolveEffectiveProjectDir(),
+					moduleSummaries: options.moduleSummaries,
+				});
+			} catch (err) {
+				this.log(
+					`Skill resource projection unavailable: ${err instanceof Error ? err.message : String(err)}`,
+				);
+				return false;
+			}
+		};
 
 		this.elicitation = new ElicitationHandler(ctx);
 		const sampling = new SamplingHandler(ctx, {
@@ -405,13 +425,16 @@ export class McpServer {
 			serverVersion: options.version ?? "0.1.0",
 			projectDir,
 			advertiseSampling: () => sampling.isAvailable(),
+			advertiseSkills,
 			warnDeprecatedCapability: (warning) => this.deprecatedWarnings.warn(warning),
 		});
+		resolveEffectiveProjectDir = () => this.initialize.getEffectiveProjectDir();
 		this.resources = new ResourcesHandler(
 			ctx,
 			options.eventBus,
 			() => this.initialize.getEffectiveProjectDir(),
 			mrtr,
+			options.moduleSummaries ?? null,
 		);
 		const prompts = new PromptsHandler(
 			ctx,
