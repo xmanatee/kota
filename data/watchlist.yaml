@@ -408,6 +408,9 @@ resources:
       fingerprint: sha256:de242626687bcf55256bf60549b337e6
       summary: "MCP Apps still matches KOTA's completed first-party MCP server UI-resource slice; no new nonduplicative task was opened from this refresh."
       last_seen_at: "2026-05-25T12:55:16.472Z"
+  - url: https://github.com/modelcontextprotocol/experimental-ext-skills
+    added: "2026-05-25"
+    notes: "Official experimental Skills Over MCP Working Group repo - monitor SEP-2640, io.modelcontextprotocol/skills negotiation, skill://index.json, skill://<name>/SKILL.md resource mapping, sibling skill resources, host/client adoption, and security guidance that MCP-served skill content remains untrusted text with no implicit local execution."
   - url: https://github.com/github/gh-aw
     added: "2026-05-17"
     notes: "GitHub Agentic Workflows is a GitHub Actions-hosted agent workflow runtime; monitor for event-trigger, safe-output, input-sanitization, and multi-engine guardrail patterns relevant to KOTA's workflow runtime."
