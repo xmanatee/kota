@@ -275,6 +275,9 @@ resources:
       fingerprint: sha256:9df37bac28680770df52d08726c0258f
       summary: "MCP draft Authorization still matches the stored OAuth protected-resource/client-flow signal; the existing KOTA OAuth client-flow task remains the right queue item."
       last_seen_at: "2026-05-25T04:12:28.483Z"
+  - url: https://modelcontextprotocol.io/extensions/auth/oauth-client-credentials
+    added: "2026-05-25"
+    notes: "Official MCP Authorization extension for OAuth client-credentials machine-to-machine HTTP MCP access. Monitor token-endpoint auth methods, protected-resource metadata, resource/audience binding, and noninteractive remote MCP authorization; opened task-add-mcp-oauth-client-credentials-support-for-http- for KOTA's first support slice."
   - url: https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices
     added: "2026-05-21"
     notes: "Official MCP security guidance - monitor confused-deputy, token-passthrough, OAuth-discovery SSRF, session hijacking, local HTTP server exposure, and scope-minimization guidance that affects KOTA's MCP client/server security boundaries."
