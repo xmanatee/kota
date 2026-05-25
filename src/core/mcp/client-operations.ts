@@ -29,6 +29,16 @@ import {
   MCP_LEGACY_PROTOCOL_VERSION,
 } from "./client-protocol.js";
 import {
+  assertValidRemoteSkillResourceUri,
+  decodeRemoteSkillIndexResource,
+  MCP_SKILL_INDEX_RESOURCE_URI,
+  type McpRemoteSkillCatalog,
+  type McpRemoteSkillReadResult,
+  type McpRemoteSkillSource,
+  toRemoteSkillReadResult,
+  unavailableRemoteSkillCatalog,
+} from "./client-remote-skills.js";
+import {
   decodeListPromptsResult,
   decodeListResourcesResult,
   decodeListResourceTemplatesResult,
@@ -228,6 +238,36 @@ export abstract class McpClientOperations extends McpClientConnection {
     );
     this.warnDeprecatedInputRequiredResult(decoded);
     return decoded;
+  }
+
+  async listRemoteSkills(): Promise<McpRemoteSkillCatalog> {
+    let result: McpReadResourceResult;
+    try {
+      result = await this.readResource(MCP_SKILL_INDEX_RESOURCE_URI);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return unavailableRemoteSkillCatalog(message, this.supportsSkills());
+    }
+    if (result.resultType === "input_required") {
+      throw new Error(
+        `MCP remote skill index on server "${this.serverName}" requires additional input`,
+      );
+    }
+    return decodeRemoteSkillIndexResource(
+      result,
+      this.serverName,
+      this.supportsSkills(),
+    );
+  }
+
+  async readRemoteSkill(
+    uri: string,
+    source: McpRemoteSkillSource = "direct",
+    retry?: McpOperationRetry,
+  ): Promise<McpRemoteSkillReadResult> {
+    assertValidRemoteSkillResourceUri(uri);
+    const result = await this.readResource(uri, retry);
+    return toRemoteSkillReadResult(result, this.serverName, uri, source);
   }
 
   /** Get a prompt from the server. */

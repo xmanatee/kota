@@ -1,11 +1,15 @@
 import { Buffer } from "node:buffer";
 import { generateKeyPairSync } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { ModuleLoader } from "#core/modules/module-loader.js";
 import {
+  AGENT_SKILLS_DISCOVERY_SCHEMA,
   MCP_DRAFT_PROTOCOL_VERSION,
+  MCP_SKILL_INDEX_RESOURCE_URI,
+  MCP_SKILLS_EXTENSION_ID,
   MCP_TASKS_EXTENSION_ID,
   mcpOAuthSecret,
 } from "./client.js";
@@ -1815,6 +1819,8 @@ describe("McpManager", () => {
         "mcp_resources__remote__list",
         "mcp_resource_templates__remote__list",
         "mcp_resources__remote__read",
+        "mcp_skills__remote__list",
+        "mcp_skills__remote__read",
         "mcp_prompts__remote__list",
         "mcp_prompts__remote__get",
       ]);
@@ -1871,6 +1877,265 @@ describe("McpManager", () => {
       fetchSpy.mockRestore();
     }
   });
+
+  it("exposes MCP-served skills as explicit list and read operations with untrusted provenance", async () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "kota-remote-skills-"));
+    const { fetchSpy } = mockMcpHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: {
+            resources: {},
+            extensions: { [MCP_SKILLS_EXTENSION_ID]: {} },
+          },
+          serverInfo: { name: "skill-server" },
+        });
+      }
+      if (request.body.method === "resources/list") {
+        return jsonRpcResponse(request.body.id, {
+          resources: [{ uri: MCP_SKILL_INDEX_RESOURCE_URI, name: "Agent Skills Index" }],
+        });
+      }
+      if (request.body.method === "resources/read") {
+        if (request.body.params?.uri === MCP_SKILL_INDEX_RESOURCE_URI) {
+          return jsonRpcResponse(request.body.id, {
+            resultType: "complete",
+            contents: [{
+              uri: MCP_SKILL_INDEX_RESOURCE_URI,
+              mimeType: "application/json",
+              text: JSON.stringify({
+                $schema: AGENT_SKILLS_DISCOVERY_SCHEMA,
+                skills: [
+                  {
+                    name: "git-workflow",
+                    type: "skill-md",
+                    description: "Follow Git workflow",
+                    url: "skill://git-workflow/SKILL.md",
+                  },
+                  {
+                    type: "mcp-resource-template",
+                    description: "Generated API skill",
+                    url: "skill://api/{endpoint}/SKILL.md",
+                  },
+                ],
+              }),
+            }],
+            ttlMs: 60_000,
+            cacheScope: "public",
+          });
+        }
+        if (request.body.params?.uri === "skill://git-workflow/references/guide.md") {
+          return jsonRpcResponse(request.body.id, {
+            resultType: "complete",
+            contents: [{
+              uri: "skill://git-workflow/references/guide.md",
+              mimeType: "text/markdown",
+              text: "Reference guidance.",
+            }],
+          });
+        }
+        return jsonRpcResponse(request.body.id, {
+          resultType: "complete",
+          contents: [{
+            uri: request.body.params?.uri,
+            mimeType: "text/markdown",
+            text: "---\nname: git-workflow\n---\nRemote skill guidance.",
+          }],
+        });
+      }
+      return jsonRpcResponse(request.body.id, {});
+    });
+    const manager = new McpManager({ projectDir });
+
+    try {
+      await manager.initialize({
+        mcpServers: {
+          remote: { type: "http", url: "https://mcp.example.test/mcp" },
+        },
+      });
+
+      expect(manager.getTools().map((tool) => tool.name)).toContain("mcp_skills__remote__list");
+      expect(manager.getTools().map((tool) => tool.name)).toContain("mcp_skills__remote__read");
+
+      const skills = await manager.executeTool("mcp_skills__remote__list", {});
+      expect(skills.structuredContent).toMatchObject({
+        server: "remote",
+        displayName: "skill-server",
+        status: "enumerated",
+        advertised: true,
+        enumerationExhaustive: false,
+        skills: [
+          {
+            type: "skill-md",
+            name: "git-workflow",
+            uri: "skill://git-workflow/SKILL.md",
+            source: "enumerated",
+          },
+          {
+            type: "mcp-resource-template",
+            uriTemplate: "skill://api/{endpoint}/SKILL.md",
+            source: "enumerated",
+          },
+        ],
+      });
+
+      const byName = await manager.executeTool("mcp_skills__remote__read", {
+        name: "git-workflow",
+      });
+      expect(byName.structuredContent).toMatchObject({
+        resultType: "complete",
+        provenance: {
+          server: "skill-server",
+          uri: "skill://git-workflow/SKILL.md",
+          source: "enumerated",
+          untrusted: true,
+        },
+        contents: [{
+          uri: "skill://git-workflow/SKILL.md",
+          text: "---\nname: git-workflow\n---\nRemote skill guidance.",
+          textTruncated: false,
+        }],
+      });
+
+      const sibling = await manager.executeTool("mcp_skills__remote__read", {
+        name: "git-workflow",
+        relativePath: "references/guide.md",
+      });
+      expect(sibling.structuredContent).toMatchObject({
+        provenance: {
+          uri: "skill://git-workflow/references/guide.md",
+          source: "enumerated",
+        },
+        contents: [{ text: "Reference guidance." }],
+      });
+
+      const direct = await manager.executeTool("mcp_skills__remote__read", {
+        uri: "skill://uri-only/SKILL.md",
+      });
+      expect(direct.structuredContent).toMatchObject({
+        provenance: {
+          uri: "skill://uri-only/SKILL.md",
+          source: "direct",
+          untrusted: true,
+        },
+      });
+
+      const unresolvedTemplate = await manager.executeTool("mcp_skills__remote__read", {
+        uri: "skill://api/{endpoint}/SKILL.md",
+      });
+      expect(unresolvedTemplate.is_error).toBe(true);
+      expect(unresolvedTemplate.content).toContain("URI templates must be resolved before reading");
+
+      expect(existsSync(join(projectDir, ".kota", "skills"))).toBe(false);
+      const loader = new ModuleLoader({});
+      loader.setCwd(projectDir);
+      await loader.load({ name: "empty-module" });
+      expect(loader.getSkillsPromptFor("all", "builder")).not.toContain("Remote skill guidance");
+      expect(loader.getSkillsPromptFor(["git-workflow"], "builder")).not.toContain("Remote skill guidance");
+    } finally {
+      await manager.close();
+      fetchSpy.mockRestore();
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+
+  it("refreshes cached MCP-served skill catalogs after resource list-changed notifications", async () => {
+    const server = `
+      const rl = require("readline").createInterface({ input: process.stdin });
+      let subscriptionId = null;
+      let indexReads = 0;
+      function write(message) {
+        process.stdout.write(JSON.stringify(message) + "\\n");
+      }
+      function skillIndex(name) {
+        return {
+          $schema: "${AGENT_SKILLS_DISCOVERY_SCHEMA}",
+          skills: [{
+            name,
+            type: "skill-md",
+            description: "Skill " + name,
+            url: "skill://" + name + "/SKILL.md",
+          }],
+        };
+      }
+      rl.on("line", (line) => {
+        let msg;
+        try { msg = JSON.parse(line); } catch { return; }
+        if (msg.method === "initialize") {
+          write({ jsonrpc: "2.0", id: msg.id, result: {
+            protocolVersion: "DRAFT-2026-v1",
+            capabilities: {
+              resources: { listChanged: true },
+              extensions: { "io.modelcontextprotocol/skills": {} },
+            },
+            serverInfo: { name: "skill-cache-server" },
+          }});
+          return;
+        }
+        if (msg.method === "notifications/initialized") return;
+        if (msg.method === "subscriptions/listen") {
+          subscriptionId = String(msg.id);
+          write({ jsonrpc: "2.0", method: "notifications/subscriptions/acknowledged", params: {
+            _meta: { "io.modelcontextprotocol/subscriptionId": subscriptionId },
+            notifications: { resourcesListChanged: true },
+          }});
+          return;
+        }
+        if (msg.method === "resources/read") {
+          indexReads += 1;
+          const name = indexReads === 1 ? "first-skill" : "second-skill";
+          write({ jsonrpc: "2.0", id: msg.id, result: {
+            resultType: "complete",
+            contents: [{ uri: "skill://index.json", text: JSON.stringify(skillIndex(name)) }],
+            ttlMs: 60000,
+            cacheScope: "public",
+          }});
+          if (indexReads === 1) {
+            setTimeout(() => write({ jsonrpc: "2.0", method: "notifications/resources/list_changed", params: {
+              _meta: { "io.modelcontextprotocol/subscriptionId": subscriptionId },
+            }}), 20);
+          }
+          return;
+        }
+        if (msg.method === "shutdown") {
+          write({ jsonrpc: "2.0", id: msg.id, result: {} });
+          return;
+        }
+        write({ jsonrpc: "2.0", id: msg.id, result: {} });
+      });
+    `;
+    const manager = new McpManager();
+
+    try {
+      await manager.initialize({
+        mcpServers: {
+          remote: { command: "node", args: ["-e", server] },
+        },
+      });
+
+      const first = await manager.executeTool("mcp_skills__remote__list", {});
+      expect(first.structuredContent).toMatchObject({
+        skills: [{ name: "first-skill" }],
+      });
+      const cached = await manager.executeTool("mcp_skills__remote__list", {});
+      expect(cached.structuredContent).toEqual(first.structuredContent);
+      expect(cached._meta).toMatchObject({
+        mcp: { cache: [{ source: "cache", reason: "fresh" }] },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 80));
+
+      const refreshed = await manager.executeTool("mcp_skills__remote__list", {});
+      expect(refreshed.structuredContent).toMatchObject({
+        skills: [{ name: "second-skill" }],
+      });
+      expect(refreshed._meta).toMatchObject({
+        mcp: { cache: [{ source: "server", reason: "list_changed" }] },
+      });
+    } finally {
+      await manager.close();
+    }
+  }, 10_000);
 
   it("reuses fresh cached resource and prompt list pages and refreshes them after TTL expiry", async () => {
     vi.useFakeTimers();
@@ -2220,6 +2485,8 @@ describe("McpManager", () => {
         "mcp_resources__remote__list",
         "mcp_resource_templates__remote__list",
         "mcp_resources__remote__read",
+        "mcp_skills__remote__list",
+        "mcp_skills__remote__read",
       ]);
       const resources = await manager.executeTool("mcp_resources__remote__list", {});
       expect(resources.structuredContent).toEqual({
@@ -2290,6 +2557,8 @@ describe("McpManager", () => {
         "mcp_resources__remote__list",
         "mcp_resource_templates__remote__list",
         "mcp_resources__remote__read",
+        "mcp_skills__remote__list",
+        "mcp_skills__remote__read",
         "mcp_prompts__remote__list",
         "mcp_prompts__remote__get",
       ]);

@@ -82,6 +82,7 @@ export abstract class McpClientBase {
   protected promptsSupported = false;
   protected promptsListChanged = false;
   protected tasksSupported = false;
+  protected skillsSupported = false;
   protected httpListSubscriptionAbort: AbortController | null = null;
   protected toolListSubscriptionId: number | null = null;
   protected streamingRequestIds = new Set<number>();
@@ -197,6 +198,12 @@ export abstract class McpClientBase {
   supportsTasks(): boolean {
     return this.remoteTasksEnabled &&
       this.tasksSupported &&
+      this.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION;
+  }
+
+  supportsSkills(): boolean {
+    return this.skillsSupported &&
+      this.resourcesSupported &&
       this.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION;
   }
 

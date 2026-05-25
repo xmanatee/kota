@@ -5,8 +5,11 @@ import {
 } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  AGENT_SKILLS_DISCOVERY_SCHEMA,
   MCP_DRAFT_PROTOCOL_VERSION,
   MCP_LEGACY_PROTOCOL_VERSION,
+  MCP_SKILL_INDEX_RESOURCE_URI,
+  MCP_SKILLS_EXTENSION_ID,
   MCP_TASKS_EXTENSION_ID,
   McpAuthorizationError,
   type McpCallToolResult,
@@ -6014,6 +6017,230 @@ describe("McpClient Streamable HTTP transport", () => {
       "resources/read",
       "prompts/get",
     ]);
+  });
+
+  it("decodes MCP-served skill catalogs and reads direct skill URIs without enumeration", async () => {
+    const seenReads: string[] = [];
+    mockClientHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: {
+            resources: {},
+            extensions: { [MCP_SKILLS_EXTENSION_ID]: {} },
+          },
+          serverInfo: { name: "skills-http-fixture" },
+        });
+      }
+      if (request.body.method === "resources/read") {
+        seenReads.push(String(request.body.params?.uri));
+        if (request.body.params?.uri === MCP_SKILL_INDEX_RESOURCE_URI) {
+          return jsonRpcHttpResponse(request.body.id, {
+            resultType: "complete",
+            contents: [{
+              uri: MCP_SKILL_INDEX_RESOURCE_URI,
+              mimeType: "application/json",
+              text: JSON.stringify({
+                $schema: AGENT_SKILLS_DISCOVERY_SCHEMA,
+                skills: [
+                  {
+                    name: "git-workflow",
+                    type: "skill-md",
+                    description: "Follow Git workflow",
+                    url: "skill://git-workflow/SKILL.md",
+                  },
+                  {
+                    type: "mcp-resource-template",
+                    description: "Product docs skill",
+                    url: "skill://docs/{product}/SKILL.md",
+                  },
+                ],
+              }),
+            }],
+            ttlMs: 5_000,
+            cacheScope: "public",
+          });
+        }
+        return jsonRpcHttpResponse(request.body.id, {
+          resultType: "complete",
+          contents: [{
+            uri: request.body.params?.uri,
+            mimeType: "text/markdown",
+            text: "---\nname: direct-skill\n---\nDirect guidance.",
+          }],
+        });
+      }
+      return jsonRpcHttpResponse(request.body.id, {});
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "skills-client",
+    );
+
+    await client.connect();
+
+    expect(client.supportsSkills()).toBe(true);
+    await expect(client.listRemoteSkills()).resolves.toMatchObject({
+      status: "enumerated",
+      advertised: true,
+      skills: [
+        {
+          type: "skill-md",
+          name: "git-workflow",
+          description: "Follow Git workflow",
+          uri: "skill://git-workflow/SKILL.md",
+          source: "enumerated",
+        },
+        {
+          type: "mcp-resource-template",
+          description: "Product docs skill",
+          uriTemplate: "skill://docs/{product}/SKILL.md",
+          source: "enumerated",
+        },
+      ],
+      cache: { ttlMs: 5_000, cacheScope: "public" },
+    });
+
+    await expect(client.readRemoteSkill("skill://direct-skill/SKILL.md")).resolves.toMatchObject({
+      resultType: "complete",
+      provenance: {
+        server: "skills-http-fixture",
+        uri: "skill://direct-skill/SKILL.md",
+        source: "direct",
+        untrusted: true,
+      },
+      contents: [{
+        uri: "skill://direct-skill/SKILL.md",
+        text: "---\nname: direct-skill\n---\nDirect guidance.",
+        textTruncated: false,
+      }],
+    });
+    expect(seenReads).toEqual([
+      MCP_SKILL_INDEX_RESOURCE_URI,
+      "skill://direct-skill/SKILL.md",
+    ]);
+  });
+
+  it("treats an absent MCP skill index as unavailable without blocking direct URI reads", async () => {
+    mockClientHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { resources: {} },
+          serverInfo: { name: "direct-only-skills" },
+        });
+      }
+      if (
+        request.body.method === "resources/read" &&
+        request.body.params?.uri === MCP_SKILL_INDEX_RESOURCE_URI
+      ) {
+        return new Response(JSON.stringify({
+          jsonrpc: "2.0",
+          id: request.body.id,
+          error: { code: -32002, message: "resource not found" },
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.body.method === "resources/read") {
+        return jsonRpcHttpResponse(request.body.id, {
+          resultType: "complete",
+          contents: [{ uri: request.body.params?.uri, text: "Direct only." }],
+        });
+      }
+      return jsonRpcHttpResponse(request.body.id, {});
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "direct-only-client",
+    );
+
+    await client.connect();
+
+    await expect(client.listRemoteSkills()).resolves.toMatchObject({
+      status: "unavailable",
+      advertised: false,
+      skills: [],
+    });
+    await expect(client.readRemoteSkill("skill://direct-only/SKILL.md")).resolves.toMatchObject({
+      resultType: "complete",
+      provenance: {
+        server: "direct-only-skills",
+        uri: "skill://direct-only/SKILL.md",
+        source: "direct",
+      },
+      contents: [{ text: "Direct only." }],
+    });
+  });
+
+  it("fails loudly on malformed MCP skill indexes, duplicate names, and unresolved template reads", async () => {
+    let indexText = JSON.stringify({
+      $schema: AGENT_SKILLS_DISCOVERY_SCHEMA,
+      skills: [
+        {
+          name: "duplicate",
+          type: "skill-md",
+          description: "First",
+          url: "skill://duplicate/SKILL.md",
+        },
+        {
+          name: "duplicate",
+          type: "skill-md",
+          description: "Second",
+          url: "skill://duplicate/SKILL.md",
+        },
+      ],
+    });
+    mockClientHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: {
+            resources: {},
+            extensions: { [MCP_SKILLS_EXTENSION_ID]: {} },
+          },
+        });
+      }
+      if (request.body.method === "resources/read") {
+        return jsonRpcHttpResponse(request.body.id, {
+          resultType: "complete",
+          contents: [{
+            uri: request.body.params?.uri,
+            mimeType: "application/json",
+            text: indexText,
+          }],
+        });
+      }
+      return jsonRpcHttpResponse(request.body.id, {});
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "malformed-skills-client",
+    );
+
+    await client.connect();
+
+    await expect(client.listRemoteSkills()).rejects.toThrow(
+      'duplicate skill name "duplicate"',
+    );
+
+    indexText = JSON.stringify({
+      $schema: AGENT_SKILLS_DISCOVERY_SCHEMA,
+      skills: [{
+        name: "bad-name",
+        type: "skill-md",
+        description: "Bad URI",
+        url: "skill://not-matching/SKILL.md",
+      }],
+    });
+    await expect(client.listRemoteSkills()).rejects.toThrow(
+      'url skill name "not-matching" must match name "bad-name"',
+    );
+
+    await expect(
+      client.readRemoteSkill("skill://docs/{product}/SKILL.md"),
+    ).rejects.toThrow("URI templates must be resolved before reading");
   });
 
   it("decodes cache hints on tools, resource, prompt, and resource-read results", async () => {

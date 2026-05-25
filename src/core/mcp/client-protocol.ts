@@ -185,6 +185,7 @@ export type McpListPromptsPage = {
 export const MCP_LEGACY_PROTOCOL_VERSION = "2024-11-05";
 export const MCP_DRAFT_PROTOCOL_VERSION = "DRAFT-2026-v1";
 export const MCP_TASKS_EXTENSION_ID = "io.modelcontextprotocol/tasks";
+export const MCP_SKILLS_EXTENSION_ID = "io.modelcontextprotocol/skills";
 
 export type McpProtocolVersion =
   | typeof MCP_LEGACY_PROTOCOL_VERSION
@@ -480,6 +481,7 @@ export type McpInitializeResult = {
   promptsListChanged: boolean;
   loggingSupported: boolean;
   tasksSupported: boolean;
+  skillsSupported: boolean;
   serverInfo?: { name?: string };
 };
 

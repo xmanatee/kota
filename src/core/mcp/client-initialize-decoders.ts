@@ -12,6 +12,7 @@ import type { JsonRpcResponse, McpInitializeResult } from "./client-protocol.js"
 import {
   MCP_DRAFT_PROTOCOL_VERSION,
   MCP_LEGACY_PROTOCOL_VERSION,
+  MCP_SKILLS_EXTENSION_ID,
   MCP_TASKS_EXTENSION_ID,
 } from "./client-protocol.js";
 
@@ -56,6 +57,8 @@ export function decodeInitializeResult(value: JsonRpcResponse["result"]): McpIni
   const loggingSupported = decodeDeprecatedObjectCapability(capabilities, "logging", "initialize");
   const tasksSupported = protocolVersion === MCP_DRAFT_PROTOCOL_VERSION &&
     decodeExtensionSupport(capabilities, MCP_TASKS_EXTENSION_ID, "initialize");
+  const skillsSupported = protocolVersion === MCP_DRAFT_PROTOCOL_VERSION &&
+    decodeExtensionSupport(capabilities, MCP_SKILLS_EXTENSION_ID, "initialize");
   const rawServerInfo = optionalJsonObject(
     object.serverInfo,
     "serverInfo",
@@ -74,6 +77,7 @@ export function decodeInitializeResult(value: JsonRpcResponse["result"]): McpIni
     promptsListChanged: prompts.listChanged,
     loggingSupported,
     tasksSupported,
+    skillsSupported,
     ...(rawServerInfo ? { serverInfo: { ...(name !== undefined ? { name } : {}) } } : {}),
   };
 }
@@ -104,6 +108,11 @@ export function decodeDiscoverResult(value: JsonRpcResponse["result"]): McpIniti
     MCP_TASKS_EXTENSION_ID,
     "server/discover",
   );
+  const skillsSupported = decodeExtensionSupport(
+    capabilities,
+    MCP_SKILLS_EXTENSION_ID,
+    "server/discover",
+  );
   const rawServerInfo = optionalJsonObject(
     object.serverInfo,
     "serverInfo",
@@ -122,6 +131,7 @@ export function decodeDiscoverResult(value: JsonRpcResponse["result"]): McpIniti
     promptsListChanged: prompts.listChanged,
     loggingSupported,
     tasksSupported,
+    skillsSupported,
     ...(rawServerInfo ? { serverInfo: { ...(name !== undefined ? { name } : {}) } } : {}),
   };
 }

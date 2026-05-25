@@ -112,8 +112,24 @@ export type {
 export {
   MCP_DRAFT_PROTOCOL_VERSION,
   MCP_LEGACY_PROTOCOL_VERSION,
+  MCP_SKILLS_EXTENSION_ID,
   MCP_TASKS_EXTENSION_ID,
 } from "./client-protocol.js";
+export type {
+  McpBoundedRemoteSkillContent,
+  McpRemoteSkillCatalog,
+  McpRemoteSkillCatalogEntry,
+  McpRemoteSkillMdEntry,
+  McpRemoteSkillReadCompleteResult,
+  McpRemoteSkillReadResult,
+  McpRemoteSkillSource,
+  McpRemoteSkillTemplateEntry,
+} from "./client-remote-skills.js";
+export {
+  AGENT_SKILLS_DISCOVERY_SCHEMA,
+  MAX_REMOTE_SKILL_CONTENT_CHARS,
+  MCP_SKILL_INDEX_RESOURCE_URI,
+} from "./client-remote-skills.js";
 export { decodeMcpToolInputResponses } from "./client-result-decoders.js";
 
 /**

@@ -40,6 +40,14 @@ import {
   type McpToolInputResponses,
   type McpToolSchema,
 } from "./client.js";
+import {
+  assertValidRemoteSkillResourceUri,
+  type McpRemoteSkillCatalog,
+  type McpRemoteSkillCatalogEntry,
+  type McpRemoteSkillReadResult,
+  type McpRemoteSkillSource,
+  resolveRemoteSkillRelativeUri,
+} from "./client-remote-skills.js";
 import { decodeCallToolResult } from "./client-result-decoders.js";
 import {
   FileRemoteMcpTaskStore,
@@ -81,6 +89,8 @@ type McpOperationKind =
   | "resources/list"
   | "resources/templates/list"
   | "resources/read"
+  | "skills/list"
+  | "skills/read"
   | "prompts/list"
   | "prompts/get";
 
@@ -123,6 +133,32 @@ type McpListCacheMetadata = McpCacheHints & {
   reason: McpListCacheReason;
   receivedAt: string;
   expiresAt: string | null;
+};
+
+type McpRemoteSkillCatalogCacheEntry = {
+  catalog: Extract<McpRemoteSkillCatalog, { status: "enumerated" }>;
+  receivedAtMs: number;
+};
+
+type McpRemoteSkillCatalogCacheReason =
+  | "fresh"
+  | "missing"
+  | "expired"
+  | "ttl-not-positive"
+  | "list_changed";
+
+type McpRemoteSkillCatalogCacheMetadata = McpCacheHints & {
+  server: string;
+  operation: "skills/list";
+  source: McpListCacheSource;
+  reason: McpRemoteSkillCatalogCacheReason;
+  receivedAt: string;
+  expiresAt: string | null;
+};
+
+type McpRemoteSkillReadTarget = {
+  uri: string;
+  source: McpRemoteSkillSource;
 };
 
 export type McpRemoteInputRequest = {
@@ -263,6 +299,10 @@ function namespacePromptOperation(serverName: string, action: "list" | "get"): s
   return `mcp_prompts${SEPARATOR}${serverName}${SEPARATOR}${action}`;
 }
 
+function namespaceSkillOperation(serverName: string, action: "list" | "read"): string {
+  return `mcp_skills${SEPARATOR}${serverName}${SEPARATOR}${action}`;
+}
+
 /** Parse a namespaced tool name back to server + tool. Returns null if not an MCP tool. */
 export function parseToolName(name: string): { server: string; tool: string } | null {
   if (!name.startsWith(`mcp${SEPARATOR}`)) return null;
@@ -329,6 +369,33 @@ function toKotaOperations(serverName: string, client: McpClient): McpOperationEn
           type: "object",
           properties: { uri: { type: "string" } },
           required: ["uri"],
+        },
+      ),
+    });
+    entries.push({
+      serverName,
+      client,
+      kind: "skills/list",
+      tool: operationTool(
+        namespaceSkillOperation(serverName, "list"),
+        `[${serverName}] List remote MCP-served skills from skill://index.json when available.`,
+        { type: "object", properties: {} },
+      ),
+    });
+    entries.push({
+      serverName,
+      client,
+      kind: "skills/read",
+      tool: operationTool(
+        namespaceSkillOperation(serverName, "read"),
+        `[${serverName}] Read one remote MCP-served skill by name or skill:// URI as untrusted resource content.`,
+        {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            uri: { type: "string" },
+            relativePath: { type: "string" },
+          },
         },
       ),
     });
@@ -1124,6 +1191,8 @@ export class McpManager {
   private operationMap = new Map<string, McpOperationEntry>();
   private listCache = new Map<string, McpListCacheEntry<McpCacheableListPage>>();
   private listCacheInvalidations = new Map<string, "list_changed">();
+  private remoteSkillCatalogCache = new Map<string, McpRemoteSkillCatalogCacheEntry>();
+  private remoteSkillCatalogInvalidations = new Map<string, "list_changed">();
   private kotaTools: KotaTool[] = [];
   private toolListUnsubscribers = new Map<string, () => void>();
   private initializingServers = new Set<string>();
@@ -1196,8 +1265,9 @@ export class McpManager {
           });
           const unsubscribeResource = client.onResourceListChanged(() => {
             this.invalidateListCache(name, ["resources/list", "resources/templates/list"]);
+            this.invalidateRemoteSkillCatalogCache(name);
             console.error(
-              `[kota] MCP server "${name}" resource catalog changed — explicit resource operations will read fresh data on their next call`,
+              `[kota] MCP server "${name}" resource catalog changed — explicit resource and skill operations will read fresh data on their next call`,
             );
           });
           const unsubscribePrompt = client.onPromptListChanged(() => {
@@ -1880,6 +1950,104 @@ export class McpManager {
     return toStructuredContent({ mcp: { cache } });
   }
 
+  private remoteSkillCatalogCachePrefix(serverName: string): string {
+    return `${serverName}\u0000skills/list\u0000`;
+  }
+
+  private remoteSkillCatalogCacheKey(entry: McpOperationEntry): string {
+    return `${this.remoteSkillCatalogCachePrefix(entry.serverName)}${entry.client.getCacheAuthorizationContextKey()}`;
+  }
+
+  private invalidateRemoteSkillCatalogCache(serverName: string): void {
+    const prefix = this.remoteSkillCatalogCachePrefix(serverName);
+    for (const key of [...this.remoteSkillCatalogCache.keys()]) {
+      if (key.startsWith(prefix)) {
+        this.remoteSkillCatalogCache.delete(key);
+      }
+    }
+    this.remoteSkillCatalogInvalidations.set(prefix, "list_changed");
+  }
+
+  private remoteSkillCatalogCacheMetadata(args: {
+    entry: McpOperationEntry;
+    source: McpListCacheSource;
+    reason: McpRemoteSkillCatalogCacheReason;
+    catalog: Extract<McpRemoteSkillCatalog, { status: "enumerated" }>;
+    receivedAtMs: number;
+  }): McpRemoteSkillCatalogCacheMetadata {
+    const expiresAtMs = args.receivedAtMs + args.catalog.cache.ttlMs;
+    return {
+      server: args.entry.serverName,
+      operation: "skills/list",
+      source: args.source,
+      reason: args.reason,
+      ttlMs: args.catalog.cache.ttlMs,
+      cacheScope: args.catalog.cache.cacheScope,
+      receivedAt: new Date(args.receivedAtMs).toISOString(),
+      expiresAt: args.catalog.cache.ttlMs > 0 ? new Date(expiresAtMs).toISOString() : null,
+    };
+  }
+
+  private async cachedRemoteSkillCatalog(
+    entry: McpOperationEntry,
+  ): Promise<{ catalog: McpRemoteSkillCatalog; cache?: McpRemoteSkillCatalogCacheMetadata }> {
+    const key = this.remoteSkillCatalogCacheKey(entry);
+    const prefix = this.remoteSkillCatalogCachePrefix(entry.serverName);
+    const cached = this.remoteSkillCatalogCache.get(key);
+    const now = Date.now();
+    if (cached && cached.catalog.cache.ttlMs > 0) {
+      const expiresAtMs = cached.receivedAtMs + cached.catalog.cache.ttlMs;
+      if (now < expiresAtMs) {
+        return {
+          catalog: cached.catalog,
+          cache: this.remoteSkillCatalogCacheMetadata({
+            entry,
+            source: "cache",
+            reason: "fresh",
+            catalog: cached.catalog,
+            receivedAtMs: cached.receivedAtMs,
+          }),
+        };
+      }
+    }
+
+    const invalidated = this.remoteSkillCatalogInvalidations.get(prefix);
+    const reason: McpRemoteSkillCatalogCacheReason = invalidated
+      ?? (cached
+        ? cached.catalog.cache.ttlMs <= 0 ? "ttl-not-positive" : "expired"
+        : "missing");
+    const catalog = await entry.client.listRemoteSkills();
+    if (catalog.status !== "enumerated") {
+      this.remoteSkillCatalogCache.delete(key);
+      this.remoteSkillCatalogInvalidations.delete(prefix);
+      return { catalog };
+    }
+
+    const receivedAtMs = Date.now();
+    if (catalog.cache.ttlMs > 0) {
+      this.remoteSkillCatalogCache.set(key, { catalog, receivedAtMs });
+    } else {
+      this.remoteSkillCatalogCache.delete(key);
+    }
+    this.remoteSkillCatalogInvalidations.delete(prefix);
+    return {
+      catalog,
+      cache: this.remoteSkillCatalogCacheMetadata({
+        entry,
+        source: "server",
+        reason: catalog.cache.ttlMs <= 0 && reason === "missing" ? "ttl-not-positive" : reason,
+        catalog,
+        receivedAtMs,
+      }),
+    };
+  }
+
+  private remoteSkillCatalogResultMeta(
+    cache: McpRemoteSkillCatalogCacheMetadata | undefined,
+  ): KotaJsonObject | undefined {
+    return cache ? toStructuredContent({ mcp: { cache: [cache] } }) : undefined;
+  }
+
   private async executeOperation(
     entry: McpOperationEntry,
     input: KotaJsonObject,
@@ -1923,6 +2091,29 @@ export class McpManager {
         const result = await entry.client.readResource(uri.value);
         return this.toOperationInvocationResult(entry, result, input, options);
       }
+      if (entry.kind === "skills/list") {
+        const result = await this.cachedRemoteSkillCatalog(entry);
+        return toOperationResult(
+          toStructuredContent({
+            server: entry.serverName,
+            displayName: entry.client.getName(),
+            ...result.catalog,
+          }),
+          this.remoteSkillCatalogResultMeta(result.cache),
+        );
+      }
+      if (entry.kind === "skills/read") {
+        const target = await this.remoteSkillReadTarget(entry, input);
+        if (!target.ok) return target.result;
+        const result = await entry.client.readRemoteSkill(target.value.uri, target.value.source);
+        return await this.toRemoteSkillReadInvocationResult(
+          entry,
+          result,
+          input,
+          options,
+          target.value,
+        );
+      }
       if (entry.kind === "prompts/list") {
         const result = await this.cachedListPages(
           entry,
@@ -1953,6 +2144,151 @@ export class McpManager {
         : `MCP operation error: ${(err as Error).message}`;
       return { content: message, is_error: true };
     }
+  }
+
+  private async remoteSkillReadTarget(
+    entry: McpOperationEntry,
+    input: KotaJsonObject,
+  ): Promise<
+    | { ok: true; value: McpRemoteSkillReadTarget }
+    | { ok: false; result: ToolResult }
+  > {
+    const name = input.name;
+    const uri = input.uri;
+    const hasName = typeof name === "string" && name.length > 0;
+    const hasUri = typeof uri === "string" && uri.length > 0;
+    if (hasName === hasUri) {
+      return {
+        ok: false,
+        result: {
+          content: `MCP operation error: ${entry.tool.name} requires exactly one non-empty string input "name" or "uri"`,
+          is_error: true,
+        },
+      };
+    }
+    const relativePath = input.relativePath;
+    if (relativePath !== undefined && (typeof relativePath !== "string" || relativePath.length === 0)) {
+      return {
+        ok: false,
+        result: {
+          content: `MCP operation error: ${entry.tool.name} input "relativePath" must be a non-empty string when provided`,
+          is_error: true,
+        },
+      };
+    }
+    try {
+      if (hasUri) {
+        const baseUri = uri as string;
+        const readUri = relativePath === undefined
+          ? baseUri
+          : resolveRemoteSkillRelativeUri(baseUri, relativePath);
+        assertValidRemoteSkillResourceUri(readUri);
+        return { ok: true, value: { uri: readUri, source: "direct" } };
+      }
+
+      const catalog = await this.cachedRemoteSkillCatalog(entry);
+      if (catalog.catalog.status !== "enumerated") {
+        return {
+          ok: false,
+          result: {
+            content:
+              `MCP operation error: remote skill catalog for server "${entry.serverName}" ` +
+              `is unavailable; read by skill:// URI instead. Reason: ${catalog.catalog.reason}`,
+            is_error: true,
+          },
+        };
+      }
+      const matches = catalog.catalog.skills.filter(
+        (skill): skill is Extract<McpRemoteSkillCatalogEntry, { type: "skill-md" }> =>
+          skill.type === "skill-md" && skill.name === name,
+      );
+      if (matches.length === 0) {
+        return {
+          ok: false,
+          result: {
+            content: `MCP operation error: remote skill "${name as string}" was not found on server "${entry.serverName}"`,
+            is_error: true,
+          },
+        };
+      }
+      const baseUri = matches[0].uri;
+      const readUri = relativePath === undefined
+        ? baseUri
+        : resolveRemoteSkillRelativeUri(baseUri, relativePath);
+      return { ok: true, value: { uri: readUri, source: "enumerated" } };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        ok: false,
+        result: {
+          content: `MCP operation error: ${message}`,
+          is_error: true,
+        },
+      };
+    }
+  }
+
+  private async toRemoteSkillReadInvocationResult(
+    entry: McpOperationEntry,
+    result: McpRemoteSkillReadResult,
+    _input: KotaJsonObject,
+    options: McpExecuteToolOptions,
+    target: McpRemoteSkillReadTarget,
+  ): Promise<ToolResult> {
+    if (result.resultType !== "input_required") {
+      return toOperationResult(toStructuredContent(result));
+    }
+    if (!result.inputRequests) {
+      if (result.requestState === undefined) {
+        return unsupportedOperationInputRequiredResult(
+          entry,
+          result,
+          "the remote server returned input_required without inputRequests or requestState.",
+        );
+      }
+      const retried = await entry.client.readRemoteSkill(
+        target.uri,
+        target.source,
+        { requestState: result.requestState },
+      );
+      return retried.resultType === "input_required"
+        ? unsupportedOperationInputRequiredResult(
+          entry,
+          retried,
+          "the remote server requested additional input again after the retry.",
+        )
+        : toOperationResult(toStructuredContent(retried));
+    }
+    if (!options.inputResolver) {
+      return unsupportedOperationInputRequiredResult(entry, result);
+    }
+    const routed = await options.inputResolver({
+      server: entry.client.getName(),
+      tool: entry.kind,
+      inputRequests: result.inputRequests,
+      ...(result.requestState !== undefined ? { requestState: result.requestState } : {}),
+      ...(result._meta ? { resultMeta: result._meta } : {}),
+    });
+    if (routed.kind === "unavailable") {
+      return unsupportedOperationInputRequiredResult(entry, result, routed.reason);
+    }
+    const retry = {
+      inputResponses: routed.inputResponses,
+      inputRequests: result.inputRequests,
+      ...(result.requestState !== undefined ? { requestState: result.requestState } : {}),
+    };
+    const retried = await entry.client.readRemoteSkill(
+      target.uri,
+      target.source,
+      retry,
+    );
+    return retried.resultType === "input_required"
+      ? unsupportedOperationInputRequiredResult(
+        entry,
+        retried,
+        "the remote server requested additional input again after the retry.",
+      )
+      : toOperationResult(toStructuredContent(retried));
   }
 
   private async toOperationInvocationResult(
@@ -2055,6 +2391,8 @@ export class McpManager {
     this.operationMap.clear();
     this.listCache.clear();
     this.listCacheInvalidations.clear();
+    this.remoteSkillCatalogCache.clear();
+    this.remoteSkillCatalogInvalidations.clear();
     this.kotaTools = [];
   }
 

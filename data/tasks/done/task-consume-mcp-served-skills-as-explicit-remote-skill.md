@@ -1,12 +1,12 @@
 ---
 id: task-consume-mcp-served-skills-as-explicit-remote-skill
 title: Consume MCP-served skills as explicit remote skill candidates
-status: ready
+status: done
 priority: p2
 area: core
 summary: Teach the external MCP client path to recognize Skills Over MCP catalogs as remote skills with provenance, explicit activation, and resource-backed reads instead of leaving skill:// entries as opaque generic resources.
 created_at: 2026-05-25T23:01:09.091Z
-updated_at: 2026-05-25T23:01:09.091Z
+updated_at: 2026-05-25T23:18:02.000Z
 ---
 
 ## Problem
