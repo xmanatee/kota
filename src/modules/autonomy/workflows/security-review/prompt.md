@@ -8,14 +8,15 @@ claiming a finding. Prefer rejecting weak candidates over creating vague
 security work. Do not edit source code or task files from the agent step.
 
 Return structured JSON only. Investigation output must be an object with
-`findings`. Each finding must include:
+`findings` (use `[]` when there are no plausible findings). Each finding must
+include:
 
 - `id`
 - `candidateId`
 - `claim`
 - `severity` (`critical`, `high`, `medium`, or `low`)
 - `affectedPath`
-- `evidence` with path, line, and excerpt
+- `evidence`: an array of objects with `path`, `line`, and `excerpt`
 - `recommendedOutcome`
 
 For revalidation, return an object with `findings` and a top-level `summary`
