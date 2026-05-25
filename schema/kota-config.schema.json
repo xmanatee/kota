@@ -371,6 +371,79 @@
       "description": "Per-module configuration. Keys are module names, values are module-specific settings.",
       "type": "object",
       "properties": {
+        "google-workspace": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "clientId",
+            "clientSecret",
+            "refreshToken"
+          ],
+          "properties": {
+            "clientId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "clientSecret": {
+              "type": "string",
+              "minLength": 1
+            },
+            "refreshToken": {
+              "type": "string",
+              "minLength": 1
+            },
+            "userId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "calendarId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "inbound": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "accountId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "trustedSenders": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueItems": true
+                },
+                "blockedSenders": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueItems": true
+                },
+                "trustedOrganizers": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueItems": true
+                },
+                "blockedOrganizers": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueItems": true
+                }
+              }
+            }
+          }
+        },
         "slack-channel": {
           "type": "object",
           "additionalProperties": false,

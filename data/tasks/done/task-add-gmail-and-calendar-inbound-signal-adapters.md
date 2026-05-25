@@ -1,12 +1,12 @@
 ---
 id: task-add-gmail-and-calendar-inbound-signal-adapters
 title: Add Gmail and Calendar inbound-signal adapters
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Normalize configured Gmail and Calendar changes into inbound.signal.received events for bounded workflows.
 created_at: 2026-05-25T02:48:53.897Z
-updated_at: 2026-05-25T03:17:35.344Z
+updated_at: 2026-05-25T03:26:55Z
 ---
 
 ## Problem
@@ -51,7 +51,11 @@ Channel-driven automation.
 
 ## Acceptance Evidence
 
-- Tests covering Gmail and Calendar adapter normalization, event validation,
-  and workflow dispatch from at least one Google-origin signal.
-- Transcript or fixture showing project scope and trust metadata on a sample
-  Gmail or Calendar inbound signal.
+- `pnpm test src/modules/google-workspace`
+- `pnpm test src/core/modules/module-deps.test.ts src/strict-types-policy.integration.test.ts`
+- `pnpm typecheck`
+- `pnpm lint`
+- `pnpm kota workflow validate`
+- `.kota/runs/2026-05-25T03-18-08-875Z-builder-lkx4so/google-workspace-inbound-signal.json`
+  shows project scope and trust metadata on a sample Gmail inbound signal that
+  reaches a bounded workflow-dispatch decision.

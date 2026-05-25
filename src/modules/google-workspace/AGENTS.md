@@ -38,6 +38,7 @@ Values starting with `$` are resolved from environment variables. Alternatively,
 | `refreshToken` | yes      | —           | OAuth 2.0 refresh token or `$ENV_VAR`|
 | `userId`       | no       | `"me"`      | Gmail user ID                        |
 | `calendarId`   | no       | `"primary"` | Google Calendar ID                   |
+| `inbound`      | no       | —           | Sender/organizer trust lists for inbound Gmail and Calendar signal adapters |
 
 ## Boundaries
 
@@ -45,3 +46,12 @@ Values starting with `$` are resolved from environment variables. Alternatively,
 - Write tools (`gmail_send`, `calendar_create_event`) are classified as dangerous and queue for approval in autonomous mode.
 - The access token is cached in-process and refreshed automatically before expiry.
 - Credentials are never logged or included in error messages.
+- When `inbound` is configured, the module contributes bearer-token-protected
+  `POST /api/webhooks/google-workspace/gmail` and
+  `POST /api/webhooks/google-workspace/calendar` routes. Those routes accept
+  Google API-shaped message/event JSON or the module's normalized adapter
+  shape, then emit `inbound.signal.received`.
+- Gmail and Calendar inbound routes only normalize Google source metadata,
+  actor trust, and content into `inbound.signal.received`; workflows own
+  downstream task capture, replies, owner questions, retries, audit, and no-op
+  decisions.
