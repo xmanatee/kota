@@ -37,9 +37,9 @@ resources:
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:cbc6746e91b0d4b980af4b301cb34924
-      summary: "Codex still shows latest release 0.133.0 from 2026-05-21 and no new nonduplicative KOTA task was opened from this refresh."
-      last_seen_at: "2026-05-25T04:12:28.483Z"
+      fingerprint: sha256:821fad86f43bde0c7ea1176a99e8cb21
+      summary: "Codex now reinforces a project-config trust boundary for external worktrees; opened task-gate-project-local-authority-config-behind-trust for KOTA's analogous .kota/config.json authority gap."
+      last_seen_at: "2026-05-25T04:59:36.032Z"
   - url: https://github.com/google-gemini/gemini-cli
     added: "2026-04-19"
     snapshot:
