@@ -1,12 +1,12 @@
 ---
 id: task-persist-remote-mcp-task-handles-for-crash-resume
 title: Persist remote MCP task handles for crash resume
-status: backlog
-priority: p3
+status: ready
+priority: p2
 area: core
 summary: Add a core-side persistence path for remote MCP Tasks extension handles so task-backed external tool calls can resume after process restart instead of only recording completed-attempt diagnostics.
 created_at: 2026-05-25T13:14:32.000Z
-updated_at: 2026-05-25T13:14:32.000Z
+updated_at: 2026-05-25T14:18:02Z
 ---
 
 ## Problem
@@ -52,6 +52,12 @@ after reconnecting to the same remote server.
 Follow-up from `task-consume-mcp-tasks-extension-results-in-the-externa`: that
 task implemented live remote task consumption and result diagnostics but left
 full crash-resume persistence as an explicit storage limitation.
+
+## Initiative
+
+MCP client crash resilience: external task-backed tool calls should retain
+enough core-owned state to survive daemon restarts without duplicating the
+first-party MCP server task store or leaking remote payload data.
 
 ## Acceptance Evidence
 
