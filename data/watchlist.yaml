@@ -376,6 +376,10 @@ resources:
   - url: https://modelcontextprotocol.io/extensions/tasks/overview
     added: "2026-05-25"
     notes: "Official MCP Tasks extension overview - monitor extension negotiation, server-directed task creation, resultType task handles, tasks/get polling, tasks/update input continuation, cooperative cancellation, and drift from KOTA's earlier draft utility implementation."
+    snapshot:
+      fingerprint: sha256:16fe56c7db84b4e6eb99f2fb0e493183
+      summary: "Official MCP Tasks overview is accessible; KOTA's completed Tasks extension alignment covers the main negotiation and method contract, while this run opened task-emit-mcp-task-status-notifications-for-tasks-exten for the remaining optional task-status notification gap."
+      last_seen_at: "2026-05-25T10:27:13.115Z"
   - url: https://modelcontextprotocol.io/registry/about
     added: "2026-05-22"
     notes: "Official MCP Registry documentation - monitor server.json schema, package verification, remote-server metadata, registry publication flow, server-card discovery direction, and configuration portability for KOTA's first-party MCP server."
