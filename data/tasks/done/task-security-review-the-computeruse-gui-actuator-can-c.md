@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-computeruse-gui-actuator-can-c
 title: Security review: The computer_use GUI actuator can click/type through native OS automation but is classified as safe, so passive/supervised autonomy gates allow it without approval.
-status: ready
+status: done
 priority: p1
 area: security
 summary: The computer_use GUI actuator can click/type through native OS automation but is classified as safe, so passive/supervised autonomy gates allow it without approval.
 created_at: 2026-05-25T23:36:19.101Z
-updated_at: 2026-05-25T23:36:19.101Z
+updated_at: 2026-05-25T23:41:47.229Z
 ---
 
 ## Problem
@@ -53,6 +53,15 @@ Evidence:
 
 Agentic security review for autonomous coding infrastructure.
 
+## Completion Notes
+
+`computer_use` now declares a destructive operator-surface effect, making it
+dangerous under the existing risk derivation. The focused regression test
+registers the contributed tool through the guardrails registry and proves
+passive mode denies it while supervised mode queues it.
+
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `pnpm test src/core/tools/effect.test.ts src/core/tools/guardrails.test.ts src/core/tools/autonomy-mode.test.ts src/modules/execution/index.test.ts`
+- `pnpm typecheck`
+- `pnpm lint`

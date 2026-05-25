@@ -46,7 +46,7 @@ const tools: ToolDef[] = [
   {
     tool: computerUseTool,
     runner: runComputerUse,
-    effect: { kind: "write", scope: "operator-surface", idempotent: false, openWorld: true },
+    effect: { kind: "destructive", scope: "operator-surface", idempotent: false, openWorld: true },
     group: "gui",
   },
   {
