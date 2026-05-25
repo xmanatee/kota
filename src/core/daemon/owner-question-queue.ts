@@ -18,11 +18,35 @@ import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 
 export type OwnerQuestionStatus = "pending" | "answered" | "dismissed" | "expired";
 
+export type OwnerQuestionAnswerBehavior =
+  | "workflow-resume"
+  | "record-only"
+  | "unknown";
+
+export type OwnerQuestionOrigin =
+  | {
+      kind: "workflow";
+      workflowName: string;
+      runId: string;
+      stepId: string | null;
+      taskId: string | null;
+    }
+  | {
+      kind: "session";
+      sessionId: string | null;
+    }
+  | {
+      kind: "manual";
+      source: string;
+    };
+
 export type OwnerQuestionEnqueueInput = {
   context: string;
   question: string;
   reason: string;
   source: string;
+  answerBehavior: Exclude<OwnerQuestionAnswerBehavior, "unknown">;
+  origin: OwnerQuestionOrigin;
   proposedAnswers?: string[];
   timeoutMs?: number;
   defaultResolution?: "dismiss" | "answer";
@@ -36,6 +60,8 @@ export type PendingOwnerQuestion = {
   question: string;
   reason: string;
   source: string;
+  answerBehavior: OwnerQuestionAnswerBehavior;
+  origin: OwnerQuestionOrigin;
   createdAt: string;
   status: OwnerQuestionStatus;
   proposedAnswers?: string[];
@@ -48,7 +74,56 @@ export type PendingOwnerQuestion = {
   resolutionSource?: string;
 };
 
+type StoredOwnerQuestion = Omit<PendingOwnerQuestion, "answerBehavior" | "origin"> & {
+  answerBehavior?: OwnerQuestionAnswerBehavior;
+  origin?: OwnerQuestionOrigin | null;
+};
+
 let _enqueueSeq = 0;
+
+function legacyOwnerQuestionOrigin(): OwnerQuestionOrigin {
+  return { kind: "manual", source: "not recorded" };
+}
+
+function normalizeStoredAnswerBehavior(
+  value: StoredOwnerQuestion["answerBehavior"],
+  path: string,
+): OwnerQuestionAnswerBehavior {
+  switch (value) {
+    case undefined:
+      return "unknown";
+    case "workflow-resume":
+    case "record-only":
+    case "unknown":
+      return value;
+    default:
+      throw new Error(`Malformed owner question record at ${path}: invalid answerBehavior`);
+  }
+}
+
+function normalizeStoredOrigin(
+  value: StoredOwnerQuestion["origin"],
+  path: string,
+): OwnerQuestionOrigin {
+  if (!value) return legacyOwnerQuestionOrigin();
+  switch (value.kind) {
+    case "workflow":
+    case "session":
+    case "manual":
+      return value;
+    default:
+      throw new Error(`Malformed owner question record at ${path}: invalid origin`);
+  }
+}
+
+function normalizeStoredOwnerQuestion(
+  item: StoredOwnerQuestion,
+  path: string,
+): PendingOwnerQuestion {
+  const answerBehavior = normalizeStoredAnswerBehavior(item.answerBehavior, path);
+  const origin = normalizeStoredOrigin(item.origin, path);
+  return { ...item, answerBehavior, origin };
+}
 
 export class OwnerQuestionQueue {
   private pbus: ProjectScopedEventBus | null;
@@ -66,6 +141,8 @@ export class OwnerQuestionQueue {
       question: input.question,
       reason: input.reason,
       source: input.source,
+      answerBehavior: input.answerBehavior,
+      origin: input.origin,
       createdAt: new Date().toISOString(),
       status: "pending",
       ...(input.proposedAnswers && input.proposedAnswers.length > 0 && { proposedAnswers: input.proposedAnswers }),
@@ -80,6 +157,13 @@ export class OwnerQuestionQueue {
         question: item.question,
         reason: item.reason,
         source: item.source,
+        context: item.context,
+        answerBehavior: item.answerBehavior,
+        origin: item.origin,
+        proposedAnswers: item.proposedAnswers ?? [],
+        timeoutMs: item.timeoutMs ?? null,
+        defaultResolution: item.defaultResolution ?? null,
+        defaultAnswer: item.defaultAnswer ?? null,
       });
       this.pbus.emit("owner.question.changed", { id: item.id, pendingCount: this.count("pending") });
     }
@@ -89,14 +173,14 @@ export class OwnerQuestionQueue {
   get(id: string): PendingOwnerQuestion | null {
     const path = join(this.dir, `${id}.json`);
     if (!existsSync(path)) return null;
-    return JSON.parse(readFileSync(path, "utf-8"));
+    return this.read(path);
   }
 
   list(status?: OwnerQuestionStatus): PendingOwnerQuestion[] {
     if (!existsSync(this.dir)) return [];
     return readdirSync(this.dir)
       .filter((f) => f.endsWith(".json"))
-      .map((f) => JSON.parse(readFileSync(join(this.dir, f), "utf-8")) as PendingOwnerQuestion)
+      .map((f) => this.read(join(this.dir, f)))
       .filter((item) => !status || item.status === status)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.seq - b.seq);
   }
@@ -203,6 +287,13 @@ export class OwnerQuestionQueue {
 
   private write(item: PendingOwnerQuestion): void {
     writeFileSync(join(this.dir, `${item.id}.json`), JSON.stringify(item, null, 2));
+  }
+
+  private read(path: string): PendingOwnerQuestion {
+    return normalizeStoredOwnerQuestion(
+      JSON.parse(readFileSync(path, "utf-8")) as StoredOwnerQuestion,
+      path,
+    );
   }
 }
 

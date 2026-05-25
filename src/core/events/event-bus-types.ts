@@ -338,6 +338,22 @@ export type BusEvents = {
     question: string;
     reason: string;
     source: string;
+    context: string;
+    answerBehavior: "workflow-resume" | "record-only" | "unknown";
+    origin:
+      | {
+          kind: "workflow";
+          workflowName: string;
+          runId: string;
+          stepId: string | null;
+          taskId: string | null;
+        }
+      | { kind: "session"; sessionId: string | null }
+      | { kind: "manual"; source: string };
+    proposedAnswers: string[];
+    timeoutMs: number | null;
+    defaultResolution: "dismiss" | "answer" | null;
+    defaultAnswer: string | null;
   };
   "owner.question.resolved": {
     projectId: ProjectId;

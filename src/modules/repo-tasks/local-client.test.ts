@@ -2,8 +2,8 @@ import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { resetProviderRegistry } from "#core/modules/provider-registry.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { resetProviderRegistry } from "#core/modules/provider-registry.js";
 import repoTasksModule from "./index.js";
 
 describe("repo-tasks localClient", () => {

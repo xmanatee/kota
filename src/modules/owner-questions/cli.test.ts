@@ -1,9 +1,10 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  type OwnerQuestionEnqueueInput,
   OwnerQuestionQueue,
   type OwnerQuestionStatus,
   resetOwnerQuestionQueue,
@@ -70,12 +71,18 @@ async function captureOutput(fn: () => Promise<void>): Promise<string> {
   return lines.join("");
 }
 
-function seed(queue: OwnerQuestionQueue) {
+function seed(
+  queue: OwnerQuestionQueue,
+  overrides: Partial<OwnerQuestionEnqueueInput> = {},
+) {
   return queue.enqueue({
     context: "Working on the escalation flow for autonomous runs.",
     question: "Should the timeout default to 10 minutes or 1 hour?",
     reason: "The default affects how long workflow steps block on owner input.",
     source: "session-42",
+    answerBehavior: "record-only",
+    origin: { kind: "session", sessionId: "session-42" },
+    ...overrides,
   });
 }
 
@@ -108,6 +115,73 @@ describe("owner-question CLI", () => {
     expect(output).toContain("1 pending owner question(s)");
     expect(output).toContain("session-42");
     expect(output).toContain("Should the timeout default");
+    expect(output).toContain("kota owner-question show");
+    expect(output).toContain("Answer is recorded only");
+  });
+
+  it("show prints full pending details without truncating context", async () => {
+    const longContext =
+      "The owner needs the entire detail body because the decision depends on " +
+      "the migration history, the failed recovery path, the current run metadata, " +
+      "and the exact operator-facing timeout semantics that would be hidden by a list preview.";
+    const item = seed(testQueue, {
+      context: longContext,
+      source: "blocked-promoter",
+      answerBehavior: "workflow-resume",
+      origin: {
+        kind: "workflow",
+        workflowName: "blocked-promoter",
+        runId: "run-123",
+        stepId: "blocked-promoter-ask-ask",
+        taskId: "task-owner-decision",
+      },
+      proposedAnswers: ["unblock", "refresh marker"],
+      timeoutMs: 10 * 60 * 1000,
+      defaultResolution: "dismiss",
+    });
+    const output = await captureOutput(async () => {
+      await run(makeProgram(), "owner-question", "show", item.id);
+    });
+    expect(output).toContain("The owner needs the entire detail body");
+    expect(output).toContain("exact operator-facing timeout semantics");
+    expect(output).not.toContain("...");
+    expect(output).toContain("Workflow: blocked-promoter");
+    expect(output).toContain("Run:      run-123");
+    expect(output).toContain("Task:     task-owner-decision");
+    expect(output).toContain("Answer resumes the waiting workflow");
+    expect(output).toContain("Proposed 1: unblock");
+    expect(output).toContain("Timeout:  10m");
+    expect(output).toContain(`kota owner-question answer ${item.id}`);
+  });
+
+  it("show and history render not-recorded metadata for legacy persisted questions", async () => {
+    writeFileSync(join(dir, "legacy1.json"), JSON.stringify({
+      id: "legacy1",
+      seq: 0,
+      context: "Legacy context should remain readable even though the stored record predates new metadata.",
+      question: "Should this old owner question still be auditable?",
+      reason: "The queue directory is the source of truth for existing owner questions.",
+      source: "blocked-promoter",
+      createdAt: "2026-05-08T03:46:22.179Z",
+      status: "answered",
+      resolvedAt: "2026-05-08T03:56:51.427Z",
+      answer: "yes",
+      resolutionSource: "http",
+    }, null, 2));
+
+    const detail = await captureOutput(async () => {
+      await run(makeProgram(), "owner-question", "show", "legacy1");
+    });
+    expect(detail).toContain("Origin:   not recorded");
+    expect(detail).toContain("Answer behavior was not recorded");
+    expect(detail).toContain("Legacy context should remain readable");
+
+    const history = await captureOutput(async () => {
+      await run(makeProgram(), "owner-question", "history");
+    });
+    expect(history).toContain("Origin:   not recorded");
+    expect(history).toContain("Answer behavior was not recorded");
+    expect(history).toContain("Should this old owner question still be auditable?");
   });
 
   it("count prints the pending count", async () => {
@@ -126,6 +200,22 @@ describe("owner-question CLI", () => {
     expect(output).toContain("10 minutes");
     expect(testQueue.get(item.id)?.status).toBe("answered");
     expect(testQueue.get(item.id)?.answer).toBe("10 minutes");
+  });
+
+  it("show prints resolved details and resolution source after answer", async () => {
+    const item = seed(testQueue, {
+      context: "Resolved detail context should remain visible after the answer.",
+    });
+    await captureOutput(async () => {
+      await run(makeProgram(), "owner-question", "answer", item.id, "10 minutes");
+    });
+    const output = await captureOutput(async () => {
+      await run(makeProgram(), "owner-question", "show", item.id);
+    });
+    expect(output).toContain("status=answered");
+    expect(output).toContain("Resolved detail context should remain visible");
+    expect(output).toContain("Resolved by: cli");
+    expect(output).toContain("Final answer: 10 minutes");
   });
 
   it("answer errors on nonexistent id", async () => {
@@ -157,6 +247,9 @@ describe("owner-question CLI", () => {
     });
     expect(output).toContain("status=answered");
     expect(output).toContain("10 minutes");
+    expect(output).toContain("Working on the escalation flow");
+    expect(output).toContain("The default affects how long workflow steps block");
+    expect(output).toContain("Answer is recorded only");
   });
 
   it("history --status filters", async () => {
@@ -167,6 +260,8 @@ describe("owner-question CLI", () => {
       question: "Some completely different question for the owner?",
       reason: "Another reason that is distinct from the first for dedup.",
       source: "session",
+      answerBehavior: "record-only",
+      origin: { kind: "session", sessionId: "session" },
     });
     testQueue.dismiss(b.id, "not needed");
     const output = await captureOutput(async () => {

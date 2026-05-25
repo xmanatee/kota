@@ -427,6 +427,8 @@ describe("daemon remote-client reconnect contract", () => {
       question: "Should the waiting client continue after reconnect?",
       reason: "The probe must prove owner-input state survives stream reconnect.",
       source: RUN_ID,
+      answerBehavior: "record-only",
+      origin: { kind: "manual", source: RUN_ID },
       proposedAnswers: ["continue", "stop"],
     });
 

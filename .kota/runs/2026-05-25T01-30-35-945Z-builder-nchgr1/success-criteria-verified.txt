@@ -1,0 +1,6 @@
+1. Verified by `kota owner-question show` implementation, CLI tests for pending and resolved detail, and `owner-question-detail/transcript.txt`.
+2. Verified by expanded `kota owner-question history` output and CLI history tests covering context, reason, source behavior, and answer detail.
+3. Verified by Telegram and email formatter tests showing context, origin metadata, behavior text, and `kota owner-question show <id>`.
+4. Verified by queue metadata from `askOwnerSteps` (`workflow-resume`) and direct `ask_owner` (`record-only`), surfaced in CLI and notifications.
+5. Verified by focused tests covering pending detail, resolved detail/history, formatter output, and answer/dismiss `owner.question.resolved` emission.
+6. Verified by `.kota/runs/2026-05-25T01-30-35-945Z-builder-nchgr1/owner-question-detail/transcript.txt`.

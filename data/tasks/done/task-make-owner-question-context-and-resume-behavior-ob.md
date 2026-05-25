@@ -1,12 +1,12 @@
 ---
 id: task-make-owner-question-context-and-resume-behavior-ob
 title: Make owner-question context and resume behavior obvious to the owner
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Improve owner-question discovery/detail surfaces so the owner can see full context, source/run/task metadata, proposed answers, timeout behavior, and whether answering resumes a waiting workflow.
 created_at: 2026-05-25T01:27:33.009Z
-updated_at: 2026-05-25T01:28:18Z
+updated_at: 2026-05-25T01:44:18Z
 ---
 
 ## Problem
@@ -90,3 +90,17 @@ notice, answer, audit, and reason about without hidden workflow semantics.
   with long context and proposed answers.
 - Rendered Telegram and email formatter fixtures or tests showing the updated
   owner-question notification body.
+
+## Completion Notes
+
+- Added `kota owner-question show` / `detail` for full pending and resolved
+  question detail, and expanded history with source, origin, timeout/default,
+  context, behavior, and resolution metadata.
+- `OwnerQuestionQueue` now records origin and answer behavior; `askOwnerSteps`
+  marks questions as workflow-resuming, while direct `ask_owner` marks them as
+  record-only.
+- Telegram, email, and Slack owner-question notifications now include context,
+  workflow/run/task metadata when available, answer behavior, and the exact
+  `kota owner-question show <id>` detail command.
+- Acceptance transcript:
+  `.kota/runs/2026-05-25T01-30-35-945Z-builder-nchgr1/owner-question-detail/transcript.txt`.

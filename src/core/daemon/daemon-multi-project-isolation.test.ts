@@ -201,12 +201,16 @@ describe("Daemon — two-project isolation across emit/persist/session boundarie
           question: "decide A?",
           reason: "needed for A",
           source: "test-A",
+          answerBehavior: "record-only",
+          origin: { kind: "manual", source: "test-A" },
         });
         ownerQB.enqueue({
           context: "context B",
           question: "decide B?",
           reason: "needed for B",
           source: "test-B",
+          answerBehavior: "record-only",
+          origin: { kind: "manual", source: "test-B" },
         });
 
         // Project-scoped lifecycle events emitted directly through the

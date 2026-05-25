@@ -76,6 +76,8 @@ describe("createProjectRuntime", () => {
       question: "q?",
       reason: "reason",
       source: "src",
+      answerBehavior: "record-only",
+      origin: { kind: "manual", source: "src" },
     });
     expect(bundle.ownerQuestionQueue.list("pending")).toHaveLength(1);
 

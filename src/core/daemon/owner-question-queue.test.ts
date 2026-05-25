@@ -26,6 +26,8 @@ function validEnqueue(overrides: Partial<Parameters<OwnerQuestionQueue["enqueue"
     question: "Should the timeout default to 10 minutes or 1 hour?",
     reason: "The default affects how long a workflow step can block on owner input.",
     source: "session-42",
+    answerBehavior: "record-only" as const,
+    origin: { kind: "session" as const, sessionId: "session-42" },
     ...overrides,
   };
 }
@@ -67,6 +69,33 @@ describe("OwnerQuestionQueue", () => {
     expect(queue.list("pending")).toHaveLength(1);
     expect(queue.list("answered")).toHaveLength(1);
     expect(queue.list()).toHaveLength(2);
+  });
+
+  it("normalizes legacy persisted questions without origin or answer behavior", () => {
+    const legacy = {
+      id: "legacy1",
+      seq: 0,
+      context: "Legacy context from a persisted owner-question file before origin metadata existed.",
+      question: "Should the old record still render in owner-facing surfaces?",
+      reason: "Operators need history to remain readable after the metadata shape changes.",
+      source: "blocked-promoter",
+      createdAt: "2026-05-08T03:46:22.179Z",
+      status: "answered",
+      resolvedAt: "2026-05-08T03:56:51.427Z",
+      answer: "yes",
+      resolutionSource: "http",
+    };
+    writeFileSync(join(dir, "legacy1.json"), JSON.stringify(legacy, null, 2));
+
+    expect(queue.get("legacy1")).toMatchObject({
+      answerBehavior: "unknown",
+      origin: { kind: "manual", source: "not recorded" },
+    });
+    expect(queue.list("answered")[0]).toMatchObject({
+      id: "legacy1",
+      answerBehavior: "unknown",
+      origin: { kind: "manual", source: "not recorded" },
+    });
   });
 
   it("answers a pending question", () => {
@@ -193,7 +222,18 @@ describe("OwnerQuestionQueue", () => {
       const item = queue.enqueue(validEnqueue());
       const asked = received.filter(({ event }) => event === "owner.question.asked");
       expect(asked).toHaveLength(1);
-      expect(asked[0]?.payload).toMatchObject({ projectId: "test-project", id: item.id, source: "session-42" });
+      expect(asked[0]?.payload).toMatchObject({
+        projectId: "test-project",
+        id: item.id,
+        source: "session-42",
+        context: item.context,
+        answerBehavior: "record-only",
+        origin: { kind: "session", sessionId: "session-42" },
+        proposedAnswers: [],
+        timeoutMs: null,
+        defaultResolution: null,
+        defaultAnswer: null,
+      });
     });
 
     it("emits owner.question.changed on enqueue and resolution", () => {
@@ -212,6 +252,20 @@ describe("OwnerQuestionQueue", () => {
       const resolved = received.filter(({ event }) => event === "owner.question.resolved");
       expect(resolved).toHaveLength(1);
       expect(resolved[0]?.payload).toMatchObject({ projectId: "test-project", id: item.id, answered: true, answer: "yes" });
+    });
+
+    it("emits owner.question.resolved with answered=false on dismiss", () => {
+      const item = queue.enqueue(validEnqueue());
+      received.length = 0;
+      queue.dismiss(item.id, "no longer needed");
+      const resolved = received.filter(({ event }) => event === "owner.question.resolved");
+      expect(resolved).toHaveLength(1);
+      expect(resolved[0]?.payload).toMatchObject({
+        projectId: "test-project",
+        id: item.id,
+        answered: false,
+        answer: "",
+      });
     });
 
     it("emits owner.question.dismissed on dismiss", () => {

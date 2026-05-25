@@ -147,6 +147,7 @@ const askSteps = askOwnerSteps({
           "refreshes the asked marker.",
       proposedAnswers: ensureUnblock,
       source: "blocked-promoter",
+      taskId: candidate.taskId,
     };
   },
 });

@@ -74,6 +74,8 @@ function makeStubQueue(state: StubQueueState) {
       question: string;
       reason: string;
       source: string;
+      answerBehavior: "workflow-resume" | "record-only";
+      origin: PendingOwnerQuestion["origin"];
       proposedAnswers?: string[];
       timeoutMs?: number;
       defaultResolution?: "dismiss" | "answer";
@@ -85,6 +87,8 @@ function makeStubQueue(state: StubQueueState) {
         question: input.question,
         reason: input.reason,
         source: input.source,
+        answerBehavior: input.answerBehavior,
+        origin: input.origin,
         createdAt: "2026-04-25T00:00:00Z",
         status: "pending",
         ...(input.proposedAnswers && { proposedAnswers: input.proposedAnswers }),

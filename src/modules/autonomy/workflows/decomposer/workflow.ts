@@ -332,6 +332,7 @@ const escalationSteps = askOwnerSteps({
         "reason loses the failure signal.",
       proposedAnswers: [`decompose ${candidate}`, "drop trigger"],
       source: "decomposer",
+      taskId: candidate,
     };
   },
 });

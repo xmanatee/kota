@@ -1,8 +1,8 @@
 import { join } from "node:path";
 import { resolveProjectDir } from "#core/config/project-dir.js";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control.js";
-import { isProcessAlive } from "#core/util/process-alive.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { isProcessAlive } from "#core/util/process-alive.js";
 
 /**
  * Read the published daemon-control address only when it still points at a

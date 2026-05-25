@@ -126,12 +126,16 @@ describe("two-project core daemon events", () => {
       question: "should A?",
       reason: "project-a reason",
       source: "project-a source",
+      answerBehavior: "record-only",
+      origin: { kind: "manual", source: "project-a source" },
     });
     projectB.runtime.ownerQuestionQueue.enqueue({
       context: "project-b context",
       question: "should B?",
       reason: "project-b reason",
       source: "project-b source",
+      answerBehavior: "record-only",
+      origin: { kind: "manual", source: "project-b source" },
     });
 
     // Filter the cross-project bus listener by projectId; each project's

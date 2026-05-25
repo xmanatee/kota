@@ -98,6 +98,8 @@ function makeQuestion(id: string, status: PendingOwnerQuestion["status"] = "answ
     context: "ctx",
     reason: "because",
     source: "agent",
+    answerBehavior: "record-only",
+    origin: { kind: "manual", source: "agent" },
     createdAt: "2026-05-03T00:00:00.000Z",
     status,
     resolvedAt: "2026-05-03T01:00:00.000Z",

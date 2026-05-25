@@ -1,11 +1,15 @@
 import type { Command } from "commander";
-import type { OwnerQuestionStatus, PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
+import type {
+  OwnerQuestionStatus,
+  PendingOwnerQuestion,
+} from "#core/daemon/owner-question-queue.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import {
   blank,
   type LineNode,
   line,
   plain,
+  prose,
   type RenderNode,
   span,
   stack,
@@ -46,6 +50,112 @@ function statusRole(status: OwnerQuestionStatus): "success" | "warn" | "muted" |
   }
 }
 
+function formatDurationMs(ms: number): string {
+  if (ms % 86_400_000 === 0) return `${ms / 86_400_000}d`;
+  if (ms % 3_600_000 === 0) return `${ms / 3_600_000}h`;
+  if (ms % 60_000 === 0) return `${ms / 60_000}m`;
+  return `${Math.round(ms / 1000)}s`;
+}
+
+function answerBehaviorText(item: PendingOwnerQuestion): string {
+  switch (item.answerBehavior ?? "unknown") {
+    case "workflow-resume":
+      return "Answer resumes the waiting workflow after owner.question.resolved.";
+    case "record-only":
+      return "Answer is recorded only; no suspended workflow resumes automatically.";
+    case "unknown":
+      return "Answer behavior was not recorded for this question.";
+  }
+}
+
+function originRows(item: PendingOwnerQuestion): LineNode[] {
+  const origin = item.origin;
+  if (!origin) {
+    return [
+      line(span("    Origin:   ", "muted"), plain("not recorded")),
+      line(span("    Source:   ", "muted"), plain(item.source)),
+    ];
+  }
+  if (origin.kind === "workflow") {
+    return [
+      line(span("    Workflow: ", "muted"), plain(origin.workflowName)),
+      line(span("    Run:      ", "muted"), plain(origin.runId)),
+      line(span("    Step:     ", "muted"), plain(origin.stepId ?? "not recorded")),
+      line(span("    Task:     ", "muted"), plain(origin.taskId ?? "not recorded")),
+      line(span("    Source:   ", "muted"), plain(item.source)),
+    ];
+  }
+  if (origin.kind === "session") {
+    return [
+      line(span("    Session:  ", "muted"), plain(origin.sessionId ?? "not recorded")),
+      line(span("    Source:   ", "muted"), plain(item.source)),
+    ];
+  }
+  return [
+    line(span("    Origin:   ", "muted"), plain(origin.source)),
+    line(span("    Source:   ", "muted"), plain(item.source)),
+  ];
+}
+
+function timeoutRows(item: PendingOwnerQuestion): LineNode[] {
+  const rows: LineNode[] = [
+    line(
+      span("    Timeout:  ", "muted"),
+      plain(item.timeoutMs === undefined ? "not recorded" : formatDurationMs(item.timeoutMs)),
+    ),
+  ];
+  if (item.defaultResolution) {
+    rows.push(line(span("    Default:  ", "muted"), plain(item.defaultResolution)));
+  }
+  if (item.defaultAnswer) {
+    rows.push(line(span("    Default answer: ", "muted"), plain(item.defaultAnswer)));
+  }
+  return rows;
+}
+
+function proposedAnswerRows(item: PendingOwnerQuestion): LineNode[] {
+  if (!item.proposedAnswers || item.proposedAnswers.length === 0) {
+    return [line(span("    Proposed: ", "muted"), plain("none"))];
+  }
+  return item.proposedAnswers.map((answer, index) =>
+    line(span(`    Proposed ${index + 1}: `, "muted"), plain(answer)),
+  );
+}
+
+function renderDetail(item: PendingOwnerQuestion): RenderNode {
+  const rows: RenderNode[] = [
+    line(
+      span(`Owner question [${item.id}]`, "accent", true),
+      plain(" status="),
+      span(item.status, statusRole(item.status)),
+    ),
+    line(span("    Created:  ", "muted"), plain(item.createdAt)),
+    ...originRows(item),
+    line(span("    Behavior: ", "muted"), plain(answerBehaviorText(item))),
+    line(span("    Question: ", "muted"), plain(item.question)),
+    line(span("    Reason:   ", "muted"), plain(item.reason)),
+    line(span("    Context:", "muted")),
+    prose(item.context),
+    ...proposedAnswerRows(item),
+    ...timeoutRows(item),
+  ];
+  if (item.status === "pending") {
+    rows.push(
+      line(span("    Answer:   ", "muted"), plain(`kota owner-question answer ${item.id} <your answer>`)),
+      line(span("    Dismiss:  ", "muted"), plain(`kota owner-question dismiss ${item.id}`)),
+    );
+  }
+  if (item.resolvedAt) rows.push(line(span("    Resolved: ", "muted"), plain(item.resolvedAt)));
+  if (item.resolutionSource) {
+    rows.push(line(span("    Resolved by: ", "muted"), plain(item.resolutionSource)));
+  }
+  if (item.answer) rows.push(line(span("    Final answer: ", "muted"), plain(item.answer)));
+  if (item.dismissalReason) {
+    rows.push(line(span("    Dismissal reason: ", "muted"), plain(item.dismissalReason)));
+  }
+  return stack(...rows, blank());
+}
+
 function renderPending(item: PendingOwnerQuestion): RenderNode {
   const rows: LineNode[] = [
     line(
@@ -58,6 +168,8 @@ function renderPending(item: PendingOwnerQuestion): RenderNode {
       item.context.length > 160 ? `${item.context.slice(0, 157)}...` : item.context,
     )),
     line(span("    Reason:   ", "muted"), plain(item.reason)),
+    line(span("    Detail:   ", "muted"), plain(`kota owner-question show ${item.id}`)),
+    line(span("    Behavior: ", "muted"), plain(answerBehaviorText(item))),
   ];
   if (item.proposedAnswers && item.proposedAnswers.length > 0) {
     rows.push(line(
@@ -70,20 +182,37 @@ function renderPending(item: PendingOwnerQuestion): RenderNode {
 
 function renderResolved(item: PendingOwnerQuestion): RenderNode {
   const resolvedAgo = item.resolvedAt ? formatAge(item.resolvedAt) : "—";
-  const rows: LineNode[] = [
+  const rows: RenderNode[] = [
     line(
       span(`  [${item.id}]`, "accent", true),
       plain(" status="),
       span(item.status, statusRole(item.status)),
       plain(`  resolved=${resolvedAgo}`),
     ),
+    ...originRows(item),
+    line(span("    Behavior: ", "muted"), plain(answerBehaviorText(item))),
     line(span("    Question: ", "muted"), plain(item.question)),
+    line(span("    Reason:   ", "muted"), plain(item.reason)),
+    line(span("    Context:", "muted")),
+    prose(item.context),
+    ...timeoutRows(item),
   ];
   if (item.answer) rows.push(line(span("    Answer:   ", "muted"), plain(item.answer)));
+  if (item.resolutionSource) {
+    rows.push(line(span("    Resolved by: ", "muted"), plain(item.resolutionSource)));
+  }
   if (item.dismissalReason && item.dismissalReason !== "expired") {
-    rows.push(line(span("    Reason:   ", "muted"), plain(item.dismissalReason)));
+    rows.push(line(span("    Dismissal reason: ", "muted"), plain(item.dismissalReason)));
   }
   return stack(...rows, blank());
+}
+
+async function loadOwnerQuestionById(
+  ctx: ModuleContext,
+  id: string,
+): Promise<PendingOwnerQuestion | null> {
+  const result = await ctx.client.ownerQuestions.list({ status: "all" });
+  return result.questions.find((item) => item.id === id) ?? null;
 }
 
 export function registerOwnerQuestionCommands(program: Command, ctx: ModuleContext): void {
@@ -109,6 +238,19 @@ export function registerOwnerQuestionCommands(program: Command, ctx: ModuleConte
         blank(),
         ...items.map(renderPending),
       ));
+    });
+
+  cmd
+    .command("show <id>")
+    .alias("detail")
+    .description("Show full details for a pending or resolved owner question")
+    .action(async (id: string) => {
+      const item = await loadOwnerQuestionById(ctx, id);
+      if (!item) {
+        console.error(`Error: owner question "${id}" not found.`);
+        process.exit(1);
+      }
+      print(renderDetail(item));
     });
 
   cmd

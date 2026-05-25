@@ -248,12 +248,16 @@ describe("aggregateDailyDigest", () => {
       question: "older?",
       reason: "r",
       source: "test",
+      answerBehavior: "record-only",
+      origin: { kind: "manual", source: "test" },
     };
     const newerInput: OwnerQuestionEnqueueInput = {
       context: "ctx",
       question: "newer?",
       reason: "r",
       source: "test",
+      answerBehavior: "record-only",
+      origin: { kind: "manual", source: "test" },
     };
     const older = ownerQuestions.enqueue(olderInput);
     const newer = ownerQuestions.enqueue(newerInput);

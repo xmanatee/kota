@@ -125,6 +125,8 @@ function seed(queue: OwnerQuestionQueue) {
     question: "Should the timeout default to 10 minutes or 1 hour?",
     reason: "The default affects how long workflow steps block on owner input.",
     source: "session",
+    answerBehavior: "record-only",
+    origin: { kind: "session", sessionId: "session" },
   });
 }
 
@@ -235,6 +237,8 @@ describe("owner-questions module daemon-control routes", () => {
         question: "Should I tag this commit as v2?",
         reason: "User-visible release tag should not be set without owner sign-off.",
         source: "release-bot",
+        answerBehavior: "record-only",
+        origin: { kind: "manual", source: "release-bot" },
       });
 
       const res = await fetchWith(port, "/owner-questions");

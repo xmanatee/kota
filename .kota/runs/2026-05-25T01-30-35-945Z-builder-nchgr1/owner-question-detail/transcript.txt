@@ -1,0 +1,58 @@
+$ kota owner-question list
+1 pending owner question(s):
+
+  [329e2a9d] 0m ago  source=blocked-promoter
+    Question: Should the blocked owner-decision task be unblocked now?
+    Context:  This is a deliberately long owner-question context. It includes the source workflow, the run id, the active task id, the proposed answers, and the timeout/de...
+    Reason:   The blocked-promoter workflow needs the owner to decide whether the stale blocker should resume queue capacity.
+    Detail:   kota owner-question show 329e2a9d
+    Behavior: Answer resumes the waiting workflow after owner.question.resolved.
+    Proposed: [1] unblock  [2] refresh marker
+
+$ kota owner-question show 329e2a9d
+Owner question [329e2a9d] status=pending
+    Created:  2026-05-25T01:43:17.261Z
+    Workflow: blocked-promoter
+    Run:      2026-05-25T01-30-35-945Z-builder-nchgr1
+    Step:     blocked-promoter-ask-ask
+    Task:     task-owner-decision-demo
+    Source:   blocked-promoter
+    Behavior: Answer resumes the waiting workflow after owner.question.resolved.
+    Question: Should the blocked owner-decision task be unblocked now?
+    Reason:   The blocked-promoter workflow needs the owner to decide whether the stale blocker should resume queue capacity.
+    Context:
+This is a deliberately long owner-question context. It includes the source workflow, the run id, the
+active task id, the proposed answers, and the timeout/default behavior so the owner can answer
+without opening .kota/owner-questions JSON by hand. The final sentence proves the detail view keeps
+the stored context instead of cutting it at the list preview length.
+    Proposed 1: unblock
+    Proposed 2: refresh marker
+    Timeout:  10m
+    Default:  dismiss
+    Answer:   kota owner-question answer 329e2a9d <your answer>
+    Dismiss:  kota owner-question dismiss 329e2a9d
+
+$ kota owner-question answer 329e2a9d unblock
+Answered [329e2a9d]: unblock
+
+$ kota owner-question history
+1 resolved owner question(s):
+
+  [329e2a9d] status=answered  resolved=0m ago
+    Workflow: blocked-promoter
+    Run:      2026-05-25T01-30-35-945Z-builder-nchgr1
+    Step:     blocked-promoter-ask-ask
+    Task:     task-owner-decision-demo
+    Source:   blocked-promoter
+    Behavior: Answer resumes the waiting workflow after owner.question.resolved.
+    Question: Should the blocked owner-decision task be unblocked now?
+    Reason:   The blocked-promoter workflow needs the owner to decide whether the stale blocker should resume queue capacity.
+    Context:
+This is a deliberately long owner-question context. It includes the source workflow, the run id, the
+active task id, the proposed answers, and the timeout/default behavior so the owner can answer
+without opening .kota/owner-questions JSON by hand. The final sentence proves the detail view keeps
+the stored context instead of cutting it at the list preview length.
+    Timeout:  10m
+    Default:  dismiss
+    Answer:   unblock
+    Resolved by: cli

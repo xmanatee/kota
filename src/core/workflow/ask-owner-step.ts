@@ -40,6 +40,7 @@ export type AskOwnerStepInput = {
   question: string;
   reason: string;
   proposedAnswers?: string[];
+  taskId?: string;
   /** Source string recorded on the queued question. Defaults to `agent`. */
   source?: string;
   /**
@@ -193,6 +194,14 @@ export function askOwnerSteps(config: AskOwnerStepsConfig): AskOwnerSteps {
         question: input.question,
         reason: input.reason,
         source: input.source ?? "agent",
+        answerBehavior: "workflow-resume",
+        origin: {
+          kind: "workflow",
+          workflowName: ctx.workflow.name,
+          runId: ctx.workflow.runId,
+          stepId: askId,
+          taskId: input.taskId ?? null,
+        },
         ...(input.proposedAnswers && input.proposedAnswers.length > 0 && {
           proposedAnswers: input.proposedAnswers,
         }),

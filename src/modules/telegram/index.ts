@@ -8,6 +8,7 @@
 import type { ChannelDef } from "#core/channels/channel.js";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
+import type { BusEvents } from "#core/events/event-bus.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { KotaClient } from "#core/server/kota-client.js";
 import { AUTONOMY_MODES, type AutonomyMode } from "#core/tools/autonomy-mode.js";
@@ -95,6 +96,39 @@ function buildOwnerQuestionKeyboard(
   return rows;
 }
 
+type OwnerQuestionAskedPayload = BusEvents["owner.question.asked"];
+
+function ownerQuestionBehaviorText(value: OwnerQuestionAskedPayload["answerBehavior"] | undefined): string {
+  if (value === "workflow-resume") {
+    return "Answer resumes the waiting workflow.";
+  }
+  if (value === "record-only") {
+    return "Answer is recorded only; no suspended workflow resumes.";
+  }
+  return "Answer behavior not recorded.";
+}
+
+function compactOwnerQuestionContext(value: string | null | undefined): string | null {
+  if (value === null || value === undefined || value.trim() === "") return null;
+  const compact = value.replace(/\s+/g, " ").trim();
+  return compact.length > 240 ? `${compact.slice(0, 237)}...` : compact;
+}
+
+function ownerQuestionOriginLines(origin: OwnerQuestionAskedPayload["origin"] | undefined): string[] {
+  if (!origin) return ["Origin: not recorded"];
+  if (origin.kind === "workflow") {
+    return [
+      `Workflow: ${origin.workflowName}`,
+      `Run: \`${origin.runId}\``,
+      `Task: ${origin.taskId ?? "not recorded"}`,
+    ];
+  }
+  if (origin.kind === "session") {
+    return [`Session: \`${origin.sessionId ?? "not recorded"}\``];
+  }
+  return [`Origin: ${origin.source}`];
+}
+
 async function sendOwnerQuestionMessage(
   token: string,
   chatId: string,
@@ -102,19 +136,26 @@ async function sendOwnerQuestionMessage(
   question: string,
   reason: string,
   source: string,
+  context: string | null,
+  answerBehavior: OwnerQuestionAskedPayload["answerBehavior"] | undefined,
+  origin: OwnerQuestionAskedPayload["origin"] | undefined,
   proposedAnswers: string[],
   projectLabelPrefix: string,
   log: ModuleContext["log"],
 ): Promise<number | null> {
   const text = [
     `${projectLabelPrefix}Owner question from *${source}*`,
+    ...ownerQuestionOriginLines(origin),
+    `Behavior: ${ownerQuestionBehaviorText(answerBehavior)}`,
     `Reason: ${reason}`,
     `Question: ${question}`,
+    context ? `Context: ${context}` : null,
     `ID: \`${id}\``,
     ``,
+    `kota owner-question show ${id}`,
     `kota owner-question answer ${id} <your answer>`,
     `kota owner-question dismiss ${id}`,
-  ].join("\n");
+  ].filter((line): line is string => line !== null).join("\n");
   try {
     const msg = await callTelegramApi<TelegramMessage>(token, "sendMessage", {
       chat_id: chatId,
@@ -546,13 +587,18 @@ const telegramModule: KotaModule = {
         const reason = payload.reason as string;
         const source = payload.source as string;
         const projectId = payload.projectId as string;
+        const payloadProposedAnswers = Array.isArray(payload.proposedAnswers)
+          ? payload.proposedAnswers.filter((answer): answer is string => typeof answer === "string")
+          : [];
         void (async () => {
           const projectRouting = resolveTelegramProjectRouting(ctx, chatProjectBindings);
           const listed = projectRouting
             ? await projectRouting.client.forProject(projectId).ownerQuestions.list()
             : { questions: [] };
           const entry = listed.questions.find((question) => question.id === id);
-          const proposedAnswers = entry?.proposedAnswers ?? [];
+          const proposedAnswers = payloadProposedAnswers.length > 0
+            ? payloadProposedAnswers
+            : entry?.proposedAnswers ?? [];
           const messageId = await sendOwnerQuestionMessage(
             creds.token,
             creds.chatId,
@@ -560,6 +606,9 @@ const telegramModule: KotaModule = {
             question,
             reason,
             source,
+            compactOwnerQuestionContext(payload.context ?? entry?.context),
+            payload.answerBehavior ?? entry?.answerBehavior,
+            payload.origin ?? entry?.origin,
             proposedAnswers,
             await renderProjectLabelPrefix(projectId, projectRouting?.selection, ctx.log),
             ctx.log,

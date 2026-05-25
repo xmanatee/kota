@@ -59,11 +59,31 @@ describe("formatEmail", () => {
       question: "Should we rewrite the caching layer?",
       reason: "Architectural decision blocks progress",
       source: "builder",
+      context: "The cache rewrite affects every daemon route.",
+      answerBehavior: "workflow-resume",
+      origin: {
+        kind: "workflow",
+        workflowName: "builder",
+        runId: "run-email",
+        stepId: "ask-owner",
+        taskId: "task-cache",
+      },
+      proposedAnswers: ["rewrite now", "defer"],
+      timeoutMs: 600_000,
+      defaultResolution: "dismiss",
     });
     expect(msg.subject).toContain("Owner Question");
     expect(msg.subject).toContain("builder");
     expect(msg.text).toContain("Should we rewrite the caching layer?");
     expect(msg.text).toContain("Architectural decision blocks progress");
+    expect(msg.text).toContain("The cache rewrite affects every daemon route.");
+    expect(msg.text).toContain("Workflow: builder");
+    expect(msg.text).toContain("Run: run-email");
+    expect(msg.text).toContain("Task: task-cache");
+    expect(msg.text).toContain("Answer resumes the waiting workflow");
+    expect(msg.text).toContain("Proposed answers: [1] rewrite now");
+    expect(msg.text).toContain("Timeout: 10m");
+    expect(msg.text).toContain("Full detail: kota owner-question show oq-abc");
     expect(msg.text).toContain("builder");
     expect(msg.text).toContain("kota owner-question answer oq-abc");
     expect(msg.text).toContain("kota owner-question dismiss oq-abc");

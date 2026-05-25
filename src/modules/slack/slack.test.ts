@@ -150,6 +150,9 @@ describe("slackModule notifications", () => {
       question: "Promote explorer to dispatcher?",
       reason: "Architectural branch decision",
       source: "explorer",
+      context: "The explorer found a branch decision that needs owner input.",
+      answerBehavior: "record-only",
+      origin: { kind: "manual", source: "explorer" },
     });
     await Promise.resolve();
     expect(mockFetch).toHaveBeenCalledOnce();
@@ -162,6 +165,9 @@ describe("slackModule notifications", () => {
     expect(text).toContain("explorer");
     expect(text).toContain("Promote explorer to dispatcher?");
     expect(text).toContain("Architectural branch decision");
+    expect(text).toContain("The explorer found a branch decision");
+    expect(text).toContain("Answer is recorded only");
+    expect(text).toContain("kota owner-question show oq-42");
     expect(text).toContain("kota owner-question answer oq-42");
     expect(text).toContain("kota owner-question dismiss oq-42");
   });

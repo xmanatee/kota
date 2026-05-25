@@ -78,6 +78,8 @@ describe("owner-questions routes", () => {
       question: "Should the timeout default to 10 minutes or 1 hour?",
       reason: "The default affects how long workflow steps block on owner input.",
       source: "session",
+      answerBehavior: "record-only",
+      origin: { kind: "session", sessionId: "session" },
     });
   }
 

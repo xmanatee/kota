@@ -1,0 +1,6 @@
+1. CLI provides a full-detail owner-question view for pending and resolved questions without truncating stored context.
+2. CLI history exposes original question metadata needed to audit answers and dismissals.
+3. Telegram and email owner-question notifications include useful context or an exact CLI detail command.
+4. Owner-facing text distinguishes questions that resume a waiting askOwnerSteps workflow from record-only ask_owner questions.
+5. Tests cover pending detail, resolved history detail, notification formatting, and continued owner.question.resolved emission on answer and dismiss.
+6. Acceptance evidence includes a CLI transcript under this run directory showing list, full detail, answer or dismiss, and history for a seeded long-context question with proposed answers.

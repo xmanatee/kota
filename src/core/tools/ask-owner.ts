@@ -91,6 +91,24 @@ function envFallbackSource(): string {
   );
 }
 
+function originFromSource(source: string) {
+  const workflow = /^workflow:([^/]+)\/([^/]+)\/(.+)$/.exec(source);
+  if (workflow) {
+    return {
+      kind: "workflow" as const,
+      workflowName: workflow[1],
+      runId: workflow[2],
+      stepId: workflow[3],
+      taskId: null,
+    };
+  }
+  const sessionId = process.env.KOTA_SESSION_ID;
+  if (sessionId && source === sessionId) {
+    return { kind: "session" as const, sessionId };
+  }
+  return { kind: "manual" as const, source };
+}
+
 let currentDeps: Deps = {
   queue: () => getOwnerQuestionQueue(),
   source: envFallbackSource,
@@ -126,11 +144,14 @@ export async function runAskOwner(
     return { content: `Question rejected by review gate: ${review.reason}`, is_error: true };
   }
 
+  const source = activeDeps.source();
   const item = queue.enqueue({
     context,
     question,
     reason,
-    source: activeDeps.source(),
+    source,
+    answerBehavior: "record-only",
+    origin: originFromSource(source),
     ...(proposedAnswers && proposedAnswers.length > 0 && { proposedAnswers }),
     timeoutMs,
     defaultResolution: "dismiss",
@@ -140,8 +161,8 @@ export async function runAskOwner(
     content:
       `Owner question [${item.id}] enqueued. ` +
       `An operator will be notified through configured channels; ` +
-      `the answer flows back through the workflow runtime via the await-event step. ` +
-      `Your turn ends here — do not poll, the runtime owns the wait.`,
+      `this ask_owner question only records the answer and does not resume a suspended workflow by itself. ` +
+      `In workflow use, the runtime owns the wait. Your turn ends here; do not poll.`,
   };
 }
 

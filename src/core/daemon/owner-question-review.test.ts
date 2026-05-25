@@ -19,6 +19,8 @@ function pending(overrides: Partial<PendingOwnerQuestion> = {}): PendingOwnerQue
     question: "previous question?",
     reason: "prior reason",
     source: "session",
+    answerBehavior: "record-only",
+    origin: { kind: "session", sessionId: "session" },
     createdAt: new Date().toISOString(),
     status: "pending",
     ...overrides,

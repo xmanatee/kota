@@ -2,10 +2,48 @@
  * Email formatting — converts bus event payloads into email subject + text body.
  */
 
+import type { BusEvents } from "#core/events/event-bus.js";
+
 export type EmailMessage = {
   subject: string;
   text: string;
 };
+
+type OwnerQuestionAskedPayload = BusEvents["owner.question.asked"];
+
+function ownerQuestionBehaviorText(value: OwnerQuestionAskedPayload["answerBehavior"] | undefined): string {
+  if (value === "workflow-resume") {
+    return "Answer resumes the waiting workflow after owner.question.resolved.";
+  }
+  if (value === "record-only") {
+    return "Answer is recorded only; no suspended workflow resumes automatically.";
+  }
+  return "Answer behavior was not recorded for this question.";
+}
+
+function formatDurationMs(value: number | null | undefined): string | null {
+  if (value === null || value === undefined) return null;
+  if (value % 86_400_000 === 0) return `${value / 86_400_000}d`;
+  if (value % 3_600_000 === 0) return `${value / 3_600_000}h`;
+  if (value % 60_000 === 0) return `${value / 60_000}m`;
+  return `${Math.round(value / 1000)}s`;
+}
+
+function ownerQuestionOriginLines(origin: OwnerQuestionAskedPayload["origin"] | undefined): string[] {
+  if (!origin) return ["Origin: not recorded"];
+  if (origin.kind === "workflow") {
+    return [
+      `Workflow: ${origin.workflowName}`,
+      `Run: ${origin.runId}`,
+      `Step: ${origin.stepId ?? "not recorded"}`,
+      `Task: ${origin.taskId ?? "not recorded"}`,
+    ];
+  }
+  if (origin.kind === "session") {
+    return [`Session: ${origin.sessionId ?? "not recorded"}`];
+  }
+  return [`Origin: ${origin.source}`];
+}
 
 export function formatEmail(event: string, payload: Record<string, unknown>): EmailMessage {
   switch (event) {
@@ -84,15 +122,31 @@ export function formatEmail(event: string, payload: Record<string, unknown>): Em
     }
 
     case "owner.question.asked": {
-      const id = payload.id as string | undefined;
-      const question = payload.question as string | undefined;
-      const reason = payload.reason as string | undefined;
-      const source = payload.source as string | undefined;
+      const ownerPayload = payload as Partial<OwnerQuestionAskedPayload>;
+      const id = ownerPayload.id;
+      const question = ownerPayload.question;
+      const reason = ownerPayload.reason;
+      const source = ownerPayload.source;
+      const context = ownerPayload.context;
+      const proposedAnswers = ownerPayload.proposedAnswers ?? [];
+      const timeout = formatDurationMs(ownerPayload.timeoutMs);
+      const defaultResolution = ownerPayload.defaultResolution;
+      const defaultAnswer = ownerPayload.defaultAnswer;
       const subject = `[KOTA] Owner Question: ${source ?? "agent"}`;
       const lines = [`Owner question from: ${source ?? "agent"}`];
+      lines.push(...ownerQuestionOriginLines(ownerPayload.origin));
+      lines.push(`Behavior: ${ownerQuestionBehaviorText(ownerPayload.answerBehavior)}`);
       if (question) lines.push(`Question: ${question}`);
       if (reason) lines.push(`Reason: ${reason}`);
+      if (context) lines.push(`Context:\n${context}`);
+      if (proposedAnswers.length > 0) {
+        lines.push(`Proposed answers: ${proposedAnswers.map((answer, index) => `[${index + 1}] ${answer}`).join("  ")}`);
+      }
+      if (timeout) lines.push(`Timeout: ${timeout}`);
+      if (defaultResolution) lines.push(`Default: ${defaultResolution}`);
+      if (defaultAnswer) lines.push(`Default answer: ${defaultAnswer}`);
       if (id) {
+        lines.push("", `Full detail: kota owner-question show ${id}`);
         lines.push("", `To answer:   kota owner-question answer ${id} <your answer>`);
         lines.push(`To dismiss:  kota owner-question dismiss ${id}`);
       }

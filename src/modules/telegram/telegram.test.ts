@@ -278,6 +278,19 @@ describe("telegramModule notifications via onLoad", () => {
       question: "Split this migration into two phases?",
       reason: "Risky one-shot migration",
       source: "builder",
+      context: "The migration touches the queue schema and notification transport.",
+      answerBehavior: "workflow-resume",
+      origin: {
+        kind: "workflow",
+        workflowName: "builder",
+        runId: "run-telegram",
+        stepId: "ask-owner",
+        taskId: "task-migration",
+      },
+      proposedAnswers: [],
+      timeoutMs: 600_000,
+      defaultResolution: "dismiss",
+      defaultAnswer: null,
     });
     await flushAsyncNotifications();
     expect(mockedCallTelegramApi).toHaveBeenCalledOnce();
@@ -289,6 +302,12 @@ describe("telegramModule notifications via onLoad", () => {
     expect(body.text).toContain("builder");
     expect(body.text).toContain("Split this migration into two phases?");
     expect(body.text).toContain("Risky one-shot migration");
+    expect(body.text).toContain("The migration touches the queue schema");
+    expect(body.text).toContain("Workflow: builder");
+    expect(body.text).toContain("run-telegram");
+    expect(body.text).toContain("task-migration");
+    expect(body.text).toContain("Answer resumes the waiting workflow");
+    expect(body.text).toContain("kota owner-question show oq-xyz");
     expect(body.text).toContain("kota owner-question answer oq-xyz");
     expect(body.text).toContain("kota owner-question dismiss oq-xyz");
     const keyboard = body.reply_markup?.inline_keyboard ?? [];
@@ -305,6 +324,14 @@ describe("telegramModule notifications via onLoad", () => {
       question: "Pick cluster region",
       reason: "multiregion rollout",
       source: "builder",
+      answerBehavior: "workflow-resume",
+      origin: {
+        kind: "workflow",
+        workflowName: "builder",
+        runId: "run-telegram",
+        stepId: "ask-owner",
+        taskId: "task-region",
+      },
       createdAt: "2026-05-14T00:00:00.000Z",
       status: "pending",
       proposedAnswers: ["us-east-1", "us-west-2", "eu-central-1"],
@@ -332,6 +359,19 @@ describe("telegramModule notifications via onLoad", () => {
       question: "Pick cluster region",
       reason: "multiregion rollout",
       source: "builder",
+      context: "Pick the region before rollout.",
+      answerBehavior: "workflow-resume",
+      origin: {
+        kind: "workflow",
+        workflowName: "builder",
+        runId: "run-telegram",
+        stepId: "ask-owner",
+        taskId: "task-region",
+      },
+      proposedAnswers: ["us-east-1", "us-west-2", "eu-central-1"],
+      timeoutMs: 600_000,
+      defaultResolution: "dismiss",
+      defaultAnswer: null,
     });
     await flushAsyncNotifications();
     const body = mockedCallTelegramApi.mock.calls[0][2] as {

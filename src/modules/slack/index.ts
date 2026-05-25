@@ -56,6 +56,39 @@ function section(text: string): Block {
 
 const divider: Block = { type: "divider" };
 
+type OwnerQuestionAskedPayload = BusEvents["owner.question.asked"];
+
+function ownerQuestionBehaviorText(value: OwnerQuestionAskedPayload["answerBehavior"] | undefined): string {
+  if (value === "workflow-resume") {
+    return "Answer resumes the waiting workflow.";
+  }
+  if (value === "record-only") {
+    return "Answer is recorded only; no suspended workflow resumes.";
+  }
+  return "Answer behavior not recorded.";
+}
+
+function compactOwnerQuestionContext(value: string | undefined): string | null {
+  if (value === undefined || value.trim() === "") return null;
+  const compact = value.replace(/\s+/g, " ").trim();
+  return compact.length > 240 ? `${compact.slice(0, 237)}...` : compact;
+}
+
+function ownerQuestionOriginLines(origin: OwnerQuestionAskedPayload["origin"] | undefined): string[] {
+  if (!origin) return ["*Origin:* not recorded"];
+  if (origin.kind === "workflow") {
+    return [
+      `*Workflow:* \`${origin.workflowName}\``,
+      `*Run:* \`${origin.runId}\``,
+      `*Task:* \`${origin.taskId ?? "not recorded"}\``,
+    ];
+  }
+  if (origin.kind === "session") {
+    return [`*Session:* \`${origin.sessionId ?? "not recorded"}\``];
+  }
+  return [`*Origin:* \`${origin.source}\``];
+}
+
 function buildBlocks(event: string, payload: Record<string, unknown>): Block[] {
   switch (event) {
     case "workflow.failure.alert": {
@@ -158,20 +191,25 @@ function buildBlocks(event: string, payload: Record<string, unknown>): Block[] {
       ];
     }
     case "owner.question.asked": {
-      const id = payload.id as string | undefined;
-      const question = payload.question as string | undefined;
-      const reason = payload.reason as string | undefined;
-      const source = payload.source as string | undefined;
+      const ownerPayload = payload as Partial<OwnerQuestionAskedPayload>;
+      const id = ownerPayload.id;
+      const question = ownerPayload.question;
+      const reason = ownerPayload.reason;
+      const source = ownerPayload.source;
+      const context = compactOwnerQuestionContext(ownerPayload.context);
       return [
         header("Owner Question"),
         divider,
         section(
           [
             source ? `*Source:* \`${source}\`` : null,
+            ...ownerQuestionOriginLines(ownerPayload.origin),
+            `*Behavior:* ${ownerQuestionBehaviorText(ownerPayload.answerBehavior)}`,
             reason ? `*Reason:* ${reason}` : null,
             question ? `*Question:* ${question}` : null,
+            context ? `*Context:* ${context}` : null,
             id
-              ? `*Answer:* \`kota owner-question answer ${id} <your answer>\`\n*Dismiss:* \`kota owner-question dismiss ${id}\``
+              ? `*Detail:* \`kota owner-question show ${id}\`\n*Answer:* \`kota owner-question answer ${id} <your answer>\`\n*Dismiss:* \`kota owner-question dismiss ${id}\``
               : null,
           ]
             .filter(Boolean)
