@@ -6,7 +6,7 @@ priority: p2
 area: architecture
 summary: Give autonomy a reliable path to read auth-walled or JS-gated sources (X/Twitter, openai.com/index, etc.) via authenticated browser automation plus a scoped X-post capture tool, so 'inaccessible source' tasks do not stay blocked indefinitely.
 created_at: 2026-04-22T16:47:00.746Z
-updated_at: 2026-05-16T04:14:40.000Z
+updated_at: 2026-05-25T01:28:18Z
 ---
 
 ## Problem
@@ -153,5 +153,24 @@ Mechanism landed in this repo:
 - Once that capture exists, blocked-promoter can promote this task for final
   verification; after it moves to `done`, the two dependent research tasks
   unblock through their `task-done` preconditions.
+
+## Status (2026-05-25 inbox sorter)
+
+Rechecked the X/Twitter processing path while sorting
+`data/inbox/task-assess-and-complete-x-com-link-processing-support.md`.
+`src/modules/browser/AGENTS.md` still names `x_post_read` as the scoped
+X/Twitter status reader and the authenticated browser profile as the required
+operator capability. The current local environment cannot exercise it:
+`pnpm exec playwright --version` reports the command missing,
+`import('playwright')` fails with `ERR_MODULE_NOT_FOUND`, and no
+`modules.browser.storageStatePath` setting was found in local `.kota` config.
+
+The new 2026-05-25 owner resource batch contains three X status URLs. They are
+tracked in
+`task-review-owner-resource-batch-from-2026-05-25-for-ko`; they must be read
+through `x_post_read` when the operator capability exists or recorded as
+auth-walled with the same retry condition. No separate X-support task is needed
+today; the remaining blocker is still this task's operator-capture
+precondition.
 
 <!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-05-07T12:27:35.000Z -->
