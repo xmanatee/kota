@@ -264,7 +264,6 @@ const securityReviewWorkflow: WorkflowDefinitionInput = {
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
       timeoutMs: Math.min(AUTONOMY_AGENT_HANG_TIMEOUT_MS, 45 * 60 * 1000),
       maxTurns: 8,
-      thinkingBudget: 6_000,
       outputFormat: "json",
       validate: decodeSecurityInvestigationOutput,
       when: (ctx) => (scanCandidates.output(ctx)?.candidateCount ?? 0) > 0,
@@ -282,7 +281,6 @@ const securityReviewWorkflow: WorkflowDefinitionInput = {
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
       timeoutMs: Math.min(AUTONOMY_AGENT_HANG_TIMEOUT_MS, 30 * 60 * 1000),
       maxTurns: 4,
-      thinkingBudget: 4_000,
       outputFormat: "json",
       validate: decodeSecurityRevalidationOutput,
       when: (ctx) =>

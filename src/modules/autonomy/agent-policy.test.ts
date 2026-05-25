@@ -8,6 +8,8 @@ import explorerWorkflow from "./workflows/explorer/workflow.js";
 import improverWorkflow from "./workflows/improver/workflow.js";
 import inboxSorterWorkflow from "./workflows/inbox-sorter/workflow.js";
 import prReviewerWorkflow from "./workflows/pr-reviewer/workflow.js";
+import researchRetryWorkflow from "./workflows/research-retry/workflow.js";
+import securityReviewWorkflow from "./workflows/security-review/workflow.js";
 
 const MUTATING_AGENT_WORKFLOWS = [
   builderWorkflow,
@@ -20,6 +22,12 @@ const MUTATING_AGENT_WORKFLOWS = [
 const TOP_LEVEL_AGENT_WORKFLOWS = [
   ...MUTATING_AGENT_WORKFLOWS,
   prReviewerWorkflow,
+];
+
+const PORTABLE_AGENT_OPTION_WORKFLOWS = [
+  ...TOP_LEVEL_AGENT_WORKFLOWS,
+  researchRetryWorkflow,
+  securityReviewWorkflow,
 ];
 
 function agentSteps(workflow: WorkflowDefinitionInput): WorkflowAgentStepInput[] {
@@ -44,6 +52,16 @@ describe("autonomy agent policy", () => {
         expect(step.disallowedTools, `${workflow.name}.${step.id}.disallowedTools`).toEqual(
           AUTONOMY_DISALLOWED_TOOLS,
         );
+      }
+    }
+  });
+
+  it("uses portable effort instead of provider-specific thinking controls", () => {
+    for (const workflow of PORTABLE_AGENT_OPTION_WORKFLOWS) {
+      for (const step of agentSteps(workflow)) {
+        expect(step.effort, `${workflow.name}.${step.id}.effort`).toBeDefined();
+        expect(step.thinkingEnabled, `${workflow.name}.${step.id}.thinkingEnabled`).toBeUndefined();
+        expect(step.thinkingBudget, `${workflow.name}.${step.id}.thinkingBudget`).toBeUndefined();
       }
     }
   });
