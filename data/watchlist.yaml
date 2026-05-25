@@ -160,9 +160,9 @@ resources:
   - url: https://www.anthropic.com/engineering
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:72fc277ebf4ef4b35d9f37cd3b06b5b7
-      summary: "Anthropic engineering had no new post beyond the previously distilled autonomy and harness guidance; this refresh opened no new KOTA task."
-      last_seen_at: "2026-05-18T03:42:05.722Z"
+      fingerprint: sha256:8ed189b3532e5f2578c24d1ab1a9d0a0
+      summary: "Anthropic engineering now surfaces a Claude Code quality post whose stale-session thinking-pruning failure maps to KOTA's compaction path; opened task-preserve-assistant-thinking-context-through-compac for the local gap."
+      last_seen_at: "2026-05-25T11:03:03.585Z"
   - url: https://openai.com/research
     added: "2026-04-19"
     snapshot:
