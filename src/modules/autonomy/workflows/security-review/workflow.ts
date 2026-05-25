@@ -80,6 +80,7 @@ const recordEmptyScan = typedCodeStep<{ written: true; artifactPath: string }>({
 });
 
 function investigationOutput(ctx: WorkflowStepContext): SecurityInvestigationOutput | undefined {
+  if (!stepSucceeded("investigate-candidates")(ctx)) return undefined;
   const raw = ctx.stepOutputs["investigate-candidates"];
   if (raw === undefined) return undefined;
   return decodeSecurityInvestigationOutput(raw);
@@ -91,7 +92,7 @@ const recordInvestigationFindings = typedCodeStep<
   id: "record-investigation-findings",
   type: "code",
   exposeOutputToAgent: true,
-  when: (ctx) => investigationOutput(ctx) !== undefined,
+  when: stepSucceeded("investigate-candidates"),
   validate: (raw) =>
     expectStructuredOutput<SecurityInvestigationOutput & { artifactPath: string }>(raw, [
       "findings",
@@ -127,6 +128,7 @@ const recordNoFindings = typedCodeStep<{ written: true; artifactPath: string }>(
 });
 
 function revalidationOutput(ctx: WorkflowStepContext): SecurityRevalidationOutput | undefined {
+  if (!stepSucceeded("revalidate-findings")(ctx)) return undefined;
   const raw = ctx.stepOutputs["revalidate-findings"];
   if (raw === undefined) return undefined;
   const investigation = recordInvestigationFindings.output(ctx);
@@ -140,7 +142,7 @@ const recordRevalidation = typedCodeStep<SecurityRevalidationOutput & { artifact
   id: "record-revalidation",
   type: "code",
   exposeOutputToAgent: true,
-  when: (ctx) => ctx.stepOutputs["revalidate-findings"] !== undefined,
+  when: stepSucceeded("revalidate-findings"),
   validate: (raw) =>
     expectStructuredOutput<SecurityRevalidationOutput & { artifactPath: string }>(raw, [
       "findings",
