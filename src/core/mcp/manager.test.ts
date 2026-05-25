@@ -1,3 +1,4 @@
+import { generateKeyPairSync } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { MCP_DRAFT_PROTOCOL_VERSION, mcpOAuthSecret } from "./client.js";
 import { type McpInputResolver, McpManager, namespaceTool, parseToolName } from "./manager.js";
@@ -14,6 +15,24 @@ type RecordedHttpRequest = {
   };
   form: URLSearchParams;
 };
+
+function privateKeyJwtTestPrivateKey(): string {
+  const keyPair = generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    privateKeyEncoding: { format: "pem", type: "pkcs8" },
+    publicKeyEncoding: { format: "pem", type: "spki" },
+  });
+  return keyPair.privateKey;
+}
+
+function privateKeyJwtEcPrivateKey(): string {
+  const keyPair = generateKeyPairSync("ec", {
+    namedCurve: "P-256",
+    privateKeyEncoding: { format: "pem", type: "pkcs8" },
+    publicKeyEncoding: { format: "pem", type: "spki" },
+  });
+  return keyPair.privateKey;
+}
 
 function mockMcpHttpFetch(
   handler: (request: RecordedHttpRequest) => Response,
@@ -574,6 +593,108 @@ describe("McpManager", () => {
                 kind: "registered",
                 clientId: "kota-client",
                 clientSecret: "client-secret",
+              },
+            },
+          },
+        },
+      }, {
+        authorizationResolver: async (request) => {
+          resolverCalled = true;
+          return {
+            callbackUrl: mcpOAuthSecret(`https://client.example.test/callback?code=unused&state=${request.state}`),
+          };
+        },
+      });
+
+      expect(manager.getServerCount()).toBe(1);
+      expect(manager.getTools().map((tool) => tool.name)).toEqual(["mcp__remote__read_file"]);
+      expect(resolverCalled).toBe(false);
+    } finally {
+      await manager.close();
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("accepts explicit Streamable HTTP OAuth private_key_jwt client credentials config", async () => {
+    const privateKeyPem = privateKeyJwtTestPrivateKey();
+    let resolverCalled = false;
+    const { fetchSpy } = mockMcpHttpFetch((request) => {
+      if (request.method === "GET" && request.url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp") {
+        return new Response(JSON.stringify({
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "GET" && request.url === "https://auth.example.test/.well-known/oauth-authorization-server") {
+        return new Response(JSON.stringify({
+          issuer: "https://auth.example.test",
+          token_endpoint: "https://auth.example.test/token",
+          token_endpoint_auth_methods_supported: ["private_key_jwt"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "POST" && request.url === "https://auth.example.test/token") {
+        expect(request.headers.get("authorization")).toBeNull();
+        expect(request.form.get("grant_type")).toBe("client_credentials");
+        expect(request.form.get("resource")).toBe("https://mcp.example.test/mcp");
+        expect(request.form.get("scope")).toBe("files:read");
+        expect(request.form.get("client_assertion_type")).toBe(
+          "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+        );
+        expect(request.form.get("client_assertion")).toMatch(
+          /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/,
+        );
+        return new Response(JSON.stringify({
+          access_token: "access-token-secret",
+          token_type: "Bearer",
+          scope: "files:read",
+          expires_in: 3600,
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.body.method === "server/discover" && request.headers.get("authorization") === "Bearer access-token-secret") {
+        return jsonRpcResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: {} },
+        });
+      }
+      if (request.body.method === "tools/list" && request.headers.get("authorization") === "Bearer access-token-secret") {
+        return jsonRpcResponse(request.body.id, {
+          tools: [{ name: "read_file", inputSchema: { type: "object" } }],
+        });
+      }
+      return new Response("missing token", {
+        status: 401,
+        headers: {
+          "www-authenticate": 'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", scope="files:read"',
+        },
+      });
+    });
+    const manager = new McpManager();
+
+    try {
+      await manager.initialize({
+        mcpServers: {
+          remote: {
+            type: "http",
+            url: "https://mcp.example.test/mcp",
+            authorization: {
+              type: "oauth-client-credentials",
+              issuer: "https://auth.example.test",
+              scopes: ["files:read"],
+              tokenEndpointAuthMethod: "private_key_jwt",
+              client: {
+                kind: "registered",
+                clientId: "kota-client",
+                privateKeyPem,
+                signingAlgorithm: "RS256",
               },
             },
           },
@@ -1342,6 +1463,8 @@ describe("McpManager", () => {
   });
 
   it("rejects malformed transport config instead of coercing boundary values", async () => {
+    const privateKeyPem = privateKeyJwtTestPrivateKey();
+    const ecPrivateKeyPem = privateKeyJwtEcPrivateKey();
     const cases = [
       {
         serverName: "stdioHeaders",
@@ -1460,7 +1583,7 @@ describe("McpManager", () => {
             type: "oauth-client-credentials",
             issuer: "https://auth.example.test",
             scopes: ["files:read"],
-            tokenEndpointAuthMethod: "private_key_jwt",
+            tokenEndpointAuthMethod: "client_secret_post",
             client: {
               kind: "registered",
               clientId: "kota-client",
@@ -1468,7 +1591,7 @@ describe("McpManager", () => {
             },
           },
         } as never,
-        expected: "authorization.tokenEndpointAuthMethod must be client_secret_basic",
+        expected: "authorization.tokenEndpointAuthMethod must be client_secret_basic or private_key_jwt",
       },
       {
         serverName: "clientCredentialsMissingSecret",
@@ -1487,6 +1610,106 @@ describe("McpManager", () => {
           },
         } as never,
         expected: "authorization.client.clientSecret must be a non-empty string",
+      },
+      {
+        serverName: "clientCredentialsPrivateKeyJwtMixedSecret",
+        config: {
+          type: "http",
+          url: "https://mcp.example.test/mcp",
+          authorization: {
+            type: "oauth-client-credentials",
+            issuer: "https://auth.example.test",
+            scopes: ["files:read"],
+            tokenEndpointAuthMethod: "private_key_jwt",
+            client: {
+              kind: "registered",
+              clientId: "kota-client",
+              clientSecret: "client-secret",
+              privateKeyPem,
+              signingAlgorithm: "RS256",
+            },
+          },
+        } as never,
+        expected: "authorization.client has unexpected field clientSecret",
+      },
+      {
+        serverName: "clientCredentialsPrivateKeyJwtMissingKey",
+        config: {
+          type: "http",
+          url: "https://mcp.example.test/mcp",
+          authorization: {
+            type: "oauth-client-credentials",
+            issuer: "https://auth.example.test",
+            scopes: ["files:read"],
+            tokenEndpointAuthMethod: "private_key_jwt",
+            client: {
+              kind: "registered",
+              clientId: "kota-client",
+              signingAlgorithm: "RS256",
+            },
+          },
+        } as never,
+        expected: "authorization.client.privateKeyPem must be a non-empty string",
+      },
+      {
+        serverName: "clientCredentialsPrivateKeyJwtMalformedKey",
+        config: {
+          type: "http",
+          url: "https://mcp.example.test/mcp",
+          authorization: {
+            type: "oauth-client-credentials",
+            issuer: "https://auth.example.test",
+            scopes: ["files:read"],
+            tokenEndpointAuthMethod: "private_key_jwt",
+            client: {
+              kind: "registered",
+              clientId: "kota-client",
+              privateKeyPem: "not a private key",
+              signingAlgorithm: "RS256",
+            },
+          },
+        } as never,
+        expected: "privateKeyPem must be a valid PEM private key",
+      },
+      {
+        serverName: "clientCredentialsPrivateKeyJwtNonRsaKey",
+        config: {
+          type: "http",
+          url: "https://mcp.example.test/mcp",
+          authorization: {
+            type: "oauth-client-credentials",
+            issuer: "https://auth.example.test",
+            scopes: ["files:read"],
+            tokenEndpointAuthMethod: "private_key_jwt",
+            client: {
+              kind: "registered",
+              clientId: "kota-client",
+              privateKeyPem: ecPrivateKeyPem,
+              signingAlgorithm: "RS256",
+            },
+          },
+        } as never,
+        expected: "privateKeyPem must be an RSA private key usable with RS256",
+      },
+      {
+        serverName: "clientCredentialsPrivateKeyJwtUnsupportedAlgorithm",
+        config: {
+          type: "http",
+          url: "https://mcp.example.test/mcp",
+          authorization: {
+            type: "oauth-client-credentials",
+            issuer: "https://auth.example.test",
+            scopes: ["files:read"],
+            tokenEndpointAuthMethod: "private_key_jwt",
+            client: {
+              kind: "registered",
+              clientId: "kota-client",
+              privateKeyPem,
+              signingAlgorithm: "HS256",
+            },
+          },
+        } as never,
+        expected: "authorization.client.signingAlgorithm must be RS256 for private_key_jwt",
       },
       {
         serverName: "clientCredentialsDynamicClient",

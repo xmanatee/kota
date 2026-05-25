@@ -20,6 +20,10 @@ import {
   requireJsonObject,
   requireString,
 } from "./client-decode-utils.js";
+import {
+  createPrivateKeyJwtClientAssertion,
+  MCP_PRIVATE_KEY_JWT_CLIENT_ASSERTION_TYPE,
+} from "./client-oauth-private-key-jwt.js";
 import { McpClientProtectedResourceRuntime } from "./client-protected-resource-runtime.js";
 import type { JsonRpcResult } from "./client-protocol.js";
 import { CONNECT_TIMEOUT } from "./client-protocol.js";
@@ -146,7 +150,9 @@ export abstract class McpClientOAuthTokenRuntime extends McpClientProtectedResou
     if (config.type === "oauth-client-credentials") {
       const client = {
         clientId: config.client.clientId,
-        clientSecret: config.client.clientSecret,
+        ...(config.tokenEndpointAuthMethod === "client_secret_basic"
+          ? { clientSecret: config.client.clientSecret }
+          : { privateKeyJwt: config.client }),
       };
       this.oauthClients.set(cacheKey, client);
       return client;
@@ -301,31 +307,61 @@ export abstract class McpClientOAuthTokenRuntime extends McpClientProtectedResou
         "client credentials flow requires client-credentials authorization config",
       );
     }
-    if (client.clientSecret === undefined) {
-      throw this.authorizationFlowError(
-        resource,
-        config.issuer,
-        scopes,
-        "client credentials flow requires a configured client secret",
-      );
-    }
     const form = new URLSearchParams({
       grant_type: "client_credentials",
       resource,
       scope: scopes.join(" "),
     });
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+      "Content-Type": "application/x-www-form-urlencoded",
+    };
+    if (config.tokenEndpointAuthMethod === "client_secret_basic") {
+      if (client.clientSecret === undefined) {
+        throw this.authorizationFlowError(
+          resource,
+          config.issuer,
+          scopes,
+          "client credentials flow requires a configured client secret",
+        );
+      }
+      headers.Authorization = clientSecretBasicAuthorizationHeader(
+        client.clientId,
+        client.clientSecret,
+      );
+    } else {
+      if (client.privateKeyJwt === undefined) {
+        throw this.authorizationFlowError(
+          resource,
+          config.issuer,
+          scopes,
+          "client credentials flow requires a configured private_key_jwt signing key",
+        );
+      }
+      let assertion: string;
+      try {
+        assertion = createPrivateKeyJwtClientAssertion(
+          client.privateKeyJwt,
+          metadata.tokenEndpoint,
+        );
+      } catch (err) {
+        throw this.authorizationFlowError(
+          resource,
+          config.issuer,
+          scopes,
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+      this.oauthClientAssertions.add(assertion);
+      form.set("client_id", client.clientId);
+      form.set("client_assertion_type", MCP_PRIVATE_KEY_JWT_CLIENT_ASSERTION_TYPE);
+      form.set("client_assertion", assertion);
+    }
     const tokenJson = await this.fetchOAuthJson(
       metadata.tokenEndpoint,
       {
         method: "POST",
-        headers: {
-          Accept: "application/json",
-          Authorization: clientSecretBasicAuthorizationHeader(
-            client.clientId,
-            client.clientSecret,
-          ),
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
+        headers,
         body: form.toString(),
       },
       resource,

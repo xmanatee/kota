@@ -53,21 +53,49 @@ export type McpOAuthAuthorizationCodeConfig = {
   client: McpOAuthClientIdentityConfig;
 };
 
-export type McpOAuthClientCredentialsTokenEndpointAuthMethod = "client_secret_basic";
+export type McpOAuthClientCredentialsTokenEndpointAuthMethod =
+  | "client_secret_basic"
+  | "private_key_jwt";
 
-export type McpOAuthClientCredentialsClientConfig = {
+export type McpOAuthClientCredentialsPrivateKeyJwtSigningAlgorithm = "RS256";
+
+export type McpOAuthClientCredentialsClientSecretBasicClientConfig = {
   kind: "registered";
   clientId: string;
   clientSecret: string;
 };
 
-export type McpOAuthClientCredentialsAuthorizationConfig = {
+export type McpOAuthClientCredentialsPrivateKeyJwtClientConfig = {
+  kind: "registered";
+  clientId: string;
+  privateKeyPem: string;
+  signingAlgorithm: McpOAuthClientCredentialsPrivateKeyJwtSigningAlgorithm;
+  keyId?: string;
+};
+
+export type McpOAuthClientCredentialsClientConfig =
+  | McpOAuthClientCredentialsClientSecretBasicClientConfig
+  | McpOAuthClientCredentialsPrivateKeyJwtClientConfig;
+
+export type McpOAuthClientCredentialsClientSecretBasicAuthorizationConfig = {
   type: "oauth-client-credentials";
   issuer: string;
   scopes: string[];
-  tokenEndpointAuthMethod: McpOAuthClientCredentialsTokenEndpointAuthMethod;
-  client: McpOAuthClientCredentialsClientConfig;
+  tokenEndpointAuthMethod: "client_secret_basic";
+  client: McpOAuthClientCredentialsClientSecretBasicClientConfig;
 };
+
+export type McpOAuthClientCredentialsPrivateKeyJwtAuthorizationConfig = {
+  type: "oauth-client-credentials";
+  issuer: string;
+  scopes: string[];
+  tokenEndpointAuthMethod: "private_key_jwt";
+  client: McpOAuthClientCredentialsPrivateKeyJwtClientConfig;
+};
+
+export type McpOAuthClientCredentialsAuthorizationConfig =
+  | McpOAuthClientCredentialsClientSecretBasicAuthorizationConfig
+  | McpOAuthClientCredentialsPrivateKeyJwtAuthorizationConfig;
 
 export type McpStreamableHttpAuthorizationConfig =
   | McpOAuthAuthorizationCodeConfig
@@ -200,19 +228,43 @@ export type NormalizedMcpOAuthAuthorizationCodeConfig = {
   client: NormalizedMcpOAuthClientIdentity;
 };
 
-export type NormalizedMcpOAuthClientCredentialsClient = {
+export type NormalizedMcpOAuthClientCredentialsClientSecretBasicClient = {
   kind: "registered";
   clientId: string;
   clientSecret: string;
 };
 
-export type NormalizedMcpOAuthClientCredentialsAuthorizationConfig = {
+export type NormalizedMcpOAuthClientCredentialsPrivateKeyJwtClient = {
+  kind: "registered";
+  clientId: string;
+  privateKeyPem: string;
+  signingAlgorithm: McpOAuthClientCredentialsPrivateKeyJwtSigningAlgorithm;
+  keyId?: string;
+};
+
+export type NormalizedMcpOAuthClientCredentialsClient =
+  | NormalizedMcpOAuthClientCredentialsClientSecretBasicClient
+  | NormalizedMcpOAuthClientCredentialsPrivateKeyJwtClient;
+
+export type NormalizedMcpOAuthClientCredentialsClientSecretBasicAuthorizationConfig = {
   type: "oauth-client-credentials";
   issuer: string;
   scopes: string[];
-  tokenEndpointAuthMethod: McpOAuthClientCredentialsTokenEndpointAuthMethod;
-  client: NormalizedMcpOAuthClientCredentialsClient;
+  tokenEndpointAuthMethod: "client_secret_basic";
+  client: NormalizedMcpOAuthClientCredentialsClientSecretBasicClient;
 };
+
+export type NormalizedMcpOAuthClientCredentialsPrivateKeyJwtAuthorizationConfig = {
+  type: "oauth-client-credentials";
+  issuer: string;
+  scopes: string[];
+  tokenEndpointAuthMethod: "private_key_jwt";
+  client: NormalizedMcpOAuthClientCredentialsPrivateKeyJwtClient;
+};
+
+export type NormalizedMcpOAuthClientCredentialsAuthorizationConfig =
+  | NormalizedMcpOAuthClientCredentialsClientSecretBasicAuthorizationConfig
+  | NormalizedMcpOAuthClientCredentialsPrivateKeyJwtAuthorizationConfig;
 
 export type NormalizedMcpStreamableHttpAuthorizationConfig =
   | NormalizedMcpOAuthAuthorizationCodeConfig
@@ -232,6 +284,7 @@ export type McpAuthorizationServerMetadata = {
 export type McpOAuthResolvedClient = {
   clientId: string;
   clientSecret?: string;
+  privateKeyJwt?: NormalizedMcpOAuthClientCredentialsPrivateKeyJwtClient;
 };
 
 export type McpOAuthTokenSet = {

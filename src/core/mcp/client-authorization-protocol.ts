@@ -5,12 +5,16 @@ import type {
   McpAuthorizationServerMetadata,
   McpClientTransportConfig,
   McpOAuthClientCredentialsClientConfig,
+  McpOAuthClientCredentialsClientSecretBasicClientConfig,
+  McpOAuthClientCredentialsPrivateKeyJwtClientConfig,
   McpOAuthClientIdentityConfig,
   McpOAuthTokenSet,
   McpProtectedResourceMetadata,
   McpStreamableHttpAuthorizationConfig,
   NormalizedMcpClientTransport,
   NormalizedMcpOAuthClientCredentialsClient,
+  NormalizedMcpOAuthClientCredentialsClientSecretBasicClient,
+  NormalizedMcpOAuthClientCredentialsPrivateKeyJwtClient,
   NormalizedMcpOAuthClientIdentity,
   NormalizedMcpStreamableHttpAuthorizationConfig,
 } from "./client-auth-types.js";
@@ -23,6 +27,7 @@ import {
   requireString,
   requireStringArray,
 } from "./client-decode-utils.js";
+import { validatePrivateKeyJwtSigningConfig } from "./client-oauth-private-key-jwt.js";
 import type { JsonRpcResult } from "./client-protocol.js";
 
 export const MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION_ID =
@@ -339,6 +344,23 @@ export function normalizeOAuthClientIdentity(
 export function normalizeOAuthClientCredentialsClient(
   client: McpOAuthClientCredentialsClientConfig,
 ): NormalizedMcpOAuthClientCredentialsClient {
+  if ("clientSecret" in client) {
+    return normalizeOAuthClientCredentialsClientSecretBasic(client);
+  }
+  if ("privateKeyPem" in client) {
+    return normalizeOAuthClientCredentialsPrivateKeyJwtClient(client);
+  }
+  throw new Error("OAuth client credentials client is malformed");
+}
+
+export function normalizeOAuthClientCredentialsClientSecretBasic(
+  client: McpOAuthClientCredentialsClientSecretBasicClientConfig,
+): NormalizedMcpOAuthClientCredentialsClientSecretBasicClient {
+  assertNoUnexpectedClientCredentialsFields(
+    client,
+    ["kind", "clientId", "clientSecret"],
+    "client_secret_basic",
+  );
   if (client.kind !== "registered") {
     throw new Error("OAuth client credentials require a registered client");
   }
@@ -353,6 +375,58 @@ export function normalizeOAuthClientCredentialsClient(
     clientId: client.clientId,
     clientSecret: client.clientSecret,
   };
+}
+
+export function normalizeOAuthClientCredentialsPrivateKeyJwtClient(
+  client: McpOAuthClientCredentialsPrivateKeyJwtClientConfig,
+): NormalizedMcpOAuthClientCredentialsPrivateKeyJwtClient {
+  assertNoUnexpectedClientCredentialsFields(
+    client,
+    ["kind", "clientId", "privateKeyPem", "signingAlgorithm", "keyId"],
+    "private_key_jwt",
+  );
+  if (client.kind !== "registered") {
+    throw new Error("OAuth client credentials require a registered client");
+  }
+  if (typeof client.clientId !== "string" || client.clientId.length === 0) {
+    throw new Error("OAuth client credentials clientId must be a non-empty string");
+  }
+  if (typeof client.privateKeyPem !== "string" || client.privateKeyPem.length === 0) {
+    throw new Error("OAuth client credentials privateKeyPem must be a non-empty string");
+  }
+  if (client.signingAlgorithm !== "RS256") {
+    throw new Error(
+      "OAuth client credentials private_key_jwt signingAlgorithm must be RS256",
+    );
+  }
+  if (
+    client.keyId !== undefined &&
+    (typeof client.keyId !== "string" || client.keyId.length === 0)
+  ) {
+    throw new Error("OAuth client credentials keyId must be a non-empty string");
+  }
+  const normalized = {
+    kind: "registered" as const,
+    clientId: client.clientId,
+    privateKeyPem: client.privateKeyPem,
+    signingAlgorithm: client.signingAlgorithm,
+    ...(client.keyId !== undefined ? { keyId: client.keyId } : {}),
+  };
+  validatePrivateKeyJwtSigningConfig(normalized);
+  return normalized;
+}
+
+function assertNoUnexpectedClientCredentialsFields(
+  client: McpOAuthClientCredentialsClientConfig,
+  allowedFields: readonly string[],
+  tokenEndpointAuthMethod: string,
+): void {
+  const allowed = new Set(allowedFields);
+  const unexpectedFields = Object.keys(client).filter((field) => !allowed.has(field));
+  if (unexpectedFields.length === 0) return;
+  throw new Error(
+    `OAuth client credentials ${tokenEndpointAuthMethod} client has unexpected field${unexpectedFields.length === 1 ? "" : "s"} ${unexpectedFields.join(", ")}`,
+  );
 }
 
 export function clientSecretBasicAuthorizationHeader(
@@ -382,20 +456,33 @@ export function normalizeMcpAuthorizationConfig(
     };
   }
   if (authorization.type === "oauth-client-credentials") {
-    if (authorization.tokenEndpointAuthMethod !== "client_secret_basic") {
-      throw new Error(
-        "OAuth client credentials tokenEndpointAuthMethod must be client_secret_basic",
-      );
+    if (authorization.tokenEndpointAuthMethod === "client_secret_basic") {
+      return {
+        type: "oauth-client-credentials",
+        issuer: validateOAuthIssuer(authorization.issuer),
+        scopes: [...new Set(authorization.scopes)],
+        tokenEndpointAuthMethod: authorization.tokenEndpointAuthMethod,
+        client: normalizeOAuthClientCredentialsClientSecretBasic(authorization.client),
+      };
     }
-    return {
-      type: "oauth-client-credentials",
-      issuer: validateOAuthIssuer(authorization.issuer),
-      scopes: [...new Set(authorization.scopes)],
-      tokenEndpointAuthMethod: authorization.tokenEndpointAuthMethod,
-      client: normalizeOAuthClientCredentialsClient(authorization.client),
-    };
+    if (authorization.tokenEndpointAuthMethod === "private_key_jwt") {
+      return {
+        type: "oauth-client-credentials",
+        issuer: validateOAuthIssuer(authorization.issuer),
+        scopes: [...new Set(authorization.scopes)],
+        tokenEndpointAuthMethod: authorization.tokenEndpointAuthMethod,
+        client: normalizeOAuthClientCredentialsPrivateKeyJwtClient(authorization.client),
+      };
+    }
+    unsupportedTokenEndpointAuthMethod();
   }
   throw new Error("MCP HTTP authorization type must be oauth or oauth-client-credentials");
+}
+
+function unsupportedTokenEndpointAuthMethod(): never {
+  throw new Error(
+    "OAuth client credentials tokenEndpointAuthMethod must be client_secret_basic or private_key_jwt",
+  );
 }
 
 export function hasStaticAuthorizationHeader(headers: Record<string, string> | undefined): boolean {
@@ -465,7 +552,18 @@ export function authorizationContextKey(transport: NormalizedMcpClientTransport)
                     client: {
                       kind: "registered",
                       clientId: transport.authorization.client.clientId,
-                      hasClientSecret: true,
+                      credential:
+                        transport.authorization.tokenEndpointAuthMethod === "client_secret_basic"
+                          ? "client_secret"
+                          : "private_key_jwt",
+                      ...(transport.authorization.tokenEndpointAuthMethod === "private_key_jwt"
+                        ? {
+                            signingAlgorithm:
+                              transport.authorization.client.signingAlgorithm,
+                            hasKeyId:
+                              transport.authorization.client.keyId !== undefined,
+                          }
+                        : {}),
                     },
                   }),
             }

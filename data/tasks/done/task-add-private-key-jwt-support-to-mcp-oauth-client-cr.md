@@ -1,12 +1,12 @@
 ---
 id: task-add-private-key-jwt-support-to-mcp-oauth-client-cr
 title: Add private-key JWT support to MCP OAuth client credentials
-status: ready
+status: done
 priority: p2
 area: core
 summary: Let KOTA's HTTP MCP client use the official private_key_jwt credential format for OAuth Client Credentials MCP servers, with strict JWT assertion construction, metadata validation, scoped token binding, and redacted diagnostics.
 created_at: 2026-05-25T08:08:51.922Z
-updated_at: 2026-05-25T08:08:51.922Z
+updated_at: 2026-05-25T09:30:27Z
 ---
 
 ## Problem

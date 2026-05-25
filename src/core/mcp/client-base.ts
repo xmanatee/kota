@@ -95,6 +95,7 @@ export abstract class McpClientBase {
   protected readonly logMessageHandler?: McpLogMessageHandler;
   protected oauthTokenBinding: McpOAuthTokenBinding | null = null;
   protected readonly oauthClients = new Map<string, McpOAuthResolvedClient>();
+  protected readonly oauthClientAssertions = new Set<string>();
 
   constructor(
     command: string,
@@ -348,12 +349,14 @@ export abstract class McpClientBase {
       }
       const client = this.transport.authorization?.client;
       if (client?.kind === "registered") {
-        add(client.clientSecret);
-        if (client.clientSecret !== undefined) {
+        if ("clientSecret" in client && client.clientSecret !== undefined) {
+          add(client.clientSecret);
           add(clientSecretBasicAuthorizationHeader(client.clientId, client.clientSecret));
         }
+        if ("privateKeyPem" in client) add(client.privateKeyPem);
       }
     }
+    for (const assertion of this.oauthClientAssertions) add(assertion);
     add(this.oauthTokenBinding?.token.accessToken);
     add(this.oauthTokenBinding?.token.refreshToken);
     return [...new Set(values)].sort((left, right) => right.length - left.length);

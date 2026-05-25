@@ -20,7 +20,8 @@ import {
   type McpListPromptsPage,
   type McpListResourcesPage,
   type McpListResourceTemplatesPage,
-  type McpOAuthClientCredentialsClientConfig,
+  type McpOAuthClientCredentialsClientSecretBasicClientConfig,
+  type McpOAuthClientCredentialsPrivateKeyJwtClientConfig,
   type McpOAuthClientIdentityConfig,
   type McpProgressEvent,
   type McpReadResourceResult,
@@ -154,10 +155,17 @@ const MCP_OAUTH_DYNAMIC_CLIENT_FIELDS = new Set([
   "clientName",
   "dynamicClientRegistration",
 ]);
-const MCP_OAUTH_CLIENT_CREDENTIALS_CLIENT_FIELDS = new Set([
+const MCP_OAUTH_CLIENT_CREDENTIALS_CLIENT_SECRET_BASIC_FIELDS = new Set([
   "kind",
   "clientId",
   "clientSecret",
+]);
+const MCP_OAUTH_CLIENT_CREDENTIALS_PRIVATE_KEY_JWT_FIELDS = new Set([
+  "kind",
+  "clientId",
+  "privateKeyPem",
+  "signingAlgorithm",
+  "keyId",
 ]);
 
 /** Build a namespaced tool name: mcp__<server>__<tool> */
@@ -502,16 +510,16 @@ function decodeMcpOAuthClientIdentity(
   );
 }
 
-function decodeMcpOAuthClientCredentialsClient(
+function decodeMcpOAuthClientCredentialsClientSecretBasic(
   value: KotaJsonValue | undefined,
-): McpOAuthClientCredentialsClientConfig {
+): McpOAuthClientCredentialsClientSecretBasicClientConfig {
   if (!isJsonObject(value)) {
     throw new Error("authorization.client must be an object");
   }
   assertNoUnknownObjectFields(
     "authorization.client",
     value,
-    MCP_OAUTH_CLIENT_CREDENTIALS_CLIENT_FIELDS,
+    MCP_OAUTH_CLIENT_CREDENTIALS_CLIENT_SECRET_BASIC_FIELDS,
   );
   const kind = requiredString(value.kind, "authorization.client.kind");
   if (kind !== "registered") {
@@ -525,6 +533,47 @@ function decodeMcpOAuthClientCredentialsClient(
       "authorization.client.clientSecret",
     ),
   };
+}
+
+function decodeMcpOAuthClientCredentialsPrivateKeyJwtClient(
+  value: KotaJsonValue | undefined,
+): McpOAuthClientCredentialsPrivateKeyJwtClientConfig {
+  if (!isJsonObject(value)) {
+    throw new Error("authorization.client must be an object");
+  }
+  assertNoUnknownObjectFields(
+    "authorization.client",
+    value,
+    MCP_OAUTH_CLIENT_CREDENTIALS_PRIVATE_KEY_JWT_FIELDS,
+  );
+  const kind = requiredString(value.kind, "authorization.client.kind");
+  if (kind !== "registered") {
+    throw new Error("authorization.client.kind must be registered for client credentials");
+  }
+  const keyId = value.keyId === undefined
+    ? undefined
+    : requiredString(value.keyId, "authorization.client.keyId");
+  return {
+    kind,
+    clientId: requiredString(value.clientId, "authorization.client.clientId"),
+    privateKeyPem: requiredString(
+      value.privateKeyPem,
+      "authorization.client.privateKeyPem",
+    ),
+    signingAlgorithm: decodePrivateKeyJwtSigningAlgorithm(value.signingAlgorithm),
+    ...(keyId !== undefined ? { keyId } : {}),
+  };
+}
+
+function decodePrivateKeyJwtSigningAlgorithm(
+  value: KotaJsonValue | undefined,
+): "RS256" {
+  if (value !== "RS256") {
+    throw new Error(
+      "authorization.client.signingAlgorithm must be RS256 for private_key_jwt",
+    );
+  }
+  return value;
 }
 
 function decodeMcpAuthorizationConfig(
@@ -566,19 +615,28 @@ function decodeMcpAuthorizationConfig(
       value.tokenEndpointAuthMethod,
       "authorization.tokenEndpointAuthMethod",
     );
-    if (tokenEndpointAuthMethod !== "client_secret_basic") {
-      throw new Error(
-        "authorization.tokenEndpointAuthMethod must be client_secret_basic",
-      );
-    }
     const scopes = optionalStringArray(value.scopes, "authorization.scopes");
-    return {
-      type,
-      issuer: requiredString(value.issuer, "authorization.issuer"),
-      scopes: scopes ?? [],
-      tokenEndpointAuthMethod,
-      client: decodeMcpOAuthClientCredentialsClient(value.client),
-    };
+    if (tokenEndpointAuthMethod === "client_secret_basic") {
+      return {
+        type,
+        issuer: requiredString(value.issuer, "authorization.issuer"),
+        scopes: scopes ?? [],
+        tokenEndpointAuthMethod,
+        client: decodeMcpOAuthClientCredentialsClientSecretBasic(value.client),
+      };
+    }
+    if (tokenEndpointAuthMethod === "private_key_jwt") {
+      return {
+        type,
+        issuer: requiredString(value.issuer, "authorization.issuer"),
+        scopes: scopes ?? [],
+        tokenEndpointAuthMethod,
+        client: decodeMcpOAuthClientCredentialsPrivateKeyJwtClient(value.client),
+      };
+    }
+    throw new Error(
+      "authorization.tokenEndpointAuthMethod must be client_secret_basic or private_key_jwt",
+    );
   }
   throw new Error("authorization.type must be oauth or oauth-client-credentials");
 }

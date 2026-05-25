@@ -1,3 +1,8 @@
+import { Buffer } from "node:buffer";
+import {
+  generateKeyPairSync,
+  verify as verifySignature,
+} from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   MCP_DRAFT_PROTOCOL_VERSION,
@@ -26,6 +31,20 @@ type RecordedClientHttpRequest = {
     params?: Record<string, any>;
   };
   form: URLSearchParams;
+};
+
+type PrivateKeyJwtTestKeyPair = {
+  privateKeyPem: string;
+  publicKeyPem: string;
+};
+
+type PrivateKeyJwtPayload = {
+  iss: string;
+  sub: string;
+  aud: string;
+  iat: number;
+  exp: number;
+  jti: string;
 };
 
 function sseMessage(message: Record<string, any>): string {
@@ -84,6 +103,71 @@ function jsonRpcHttpResponse(id: number | undefined, result: Record<string, any>
     status: 200,
     headers: { "content-type": "application/json" },
   });
+}
+
+function privateKeyJwtTestKeyPair(): PrivateKeyJwtTestKeyPair {
+  const keyPair = generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    privateKeyEncoding: { format: "pem", type: "pkcs8" },
+    publicKeyEncoding: { format: "pem", type: "spki" },
+  });
+  return {
+    privateKeyPem: keyPair.privateKey,
+    publicKeyPem: keyPair.publicKey,
+  };
+}
+
+function privateKeyJwtEcPrivateKey(): string {
+  const keyPair = generateKeyPairSync("ec", {
+    namedCurve: "P-256",
+    privateKeyEncoding: { format: "pem", type: "pkcs8" },
+    publicKeyEncoding: { format: "pem", type: "spki" },
+  });
+  return keyPair.privateKey;
+}
+
+function decodeBase64Url(value: string): Buffer {
+  const base64 = value
+    .replace(/-/g, "+")
+    .replace(/_/g, "/")
+    .padEnd(Math.ceil(value.length / 4) * 4, "=");
+  return Buffer.from(base64, "base64");
+}
+
+function decodeBase64UrlJson(value: string): Record<string, any> {
+  return JSON.parse(decodeBase64Url(value).toString("utf8"));
+}
+
+function verifyPrivateKeyJwtAssertion(
+  assertion: string,
+  publicKeyPem: string,
+  options: { audience: string; clientId: string; keyId?: string },
+): PrivateKeyJwtPayload {
+  const parts = assertion.split(".");
+  expect(parts).toHaveLength(3);
+  const [encodedHeader, encodedPayload, encodedSignature] = parts as [string, string, string];
+  const header = decodeBase64UrlJson(encodedHeader);
+  const payload = decodeBase64UrlJson(encodedPayload) as PrivateKeyJwtPayload;
+  expect(header).toEqual({
+    alg: "RS256",
+    typ: "JWT",
+    ...(options.keyId !== undefined ? { kid: options.keyId } : {}),
+  });
+  expect(payload.iss).toBe(options.clientId);
+  expect(payload.sub).toBe(options.clientId);
+  expect(payload.aud).toBe(options.audience);
+  expect(payload.exp - payload.iat).toBe(300);
+  expect(payload.exp).toBeGreaterThan(payload.iat);
+  expect(payload.jti).toMatch(/^[0-9a-f-]{36}$/);
+  expect(
+    verifySignature(
+      "RSA-SHA256",
+      Buffer.from(`${encodedHeader}.${encodedPayload}`, "utf8"),
+      publicKeyPem,
+      decodeBase64Url(encodedSignature),
+    ),
+  ).toBe(true);
+  return payload;
 }
 
 function sseJsonRpcHttpResponse(id: number | undefined, result: Record<string, any>): Response {
@@ -2741,7 +2825,138 @@ describe("McpClient Streamable HTTP transport", () => {
     ]);
   });
 
+  it("completes OAuth client credentials private_key_jwt authorization with a signed assertion and scoped retry", async () => {
+    const requests: RecordedClientHttpRequest[] = [];
+    const { privateKeyPem, publicKeyPem } = privateKeyJwtTestKeyPair();
+    let resolverCalled = false;
+    let submittedAssertion = "";
+    mockClientHttpFetch((request) => {
+      requests.push(request);
+      if (
+        request.body.method === "server/discover" &&
+        request.headers.get("authorization") === null
+      ) {
+        expect(
+          request.body.params?._meta?.["io.modelcontextprotocol/clientCapabilities"]
+            ?.extensions?.["io.modelcontextprotocol/oauth-client-credentials"],
+        ).toEqual({});
+      }
+      if (request.method === "GET" && request.url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp") {
+        return new Response(JSON.stringify({
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+          scopes_supported: ["files:read"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "GET" && request.url === "https://auth.example.test/.well-known/oauth-authorization-server") {
+        return new Response(JSON.stringify({
+          issuer: "https://auth.example.test",
+          token_endpoint: "https://auth.example.test/token",
+          token_endpoint_auth_methods_supported: ["private_key_jwt"],
+          scopes_supported: ["files:read"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "POST" && request.url === "https://auth.example.test/token") {
+        expect(request.headers.get("authorization")).toBeNull();
+        expect(request.form.get("grant_type")).toBe("client_credentials");
+        expect(request.form.get("resource")).toBe("https://mcp.example.test/mcp");
+        expect(request.form.get("scope")).toBe("files:read");
+        expect(request.form.get("client_id")).toBe("kota-client");
+        expect(request.form.get("client_secret")).toBeNull();
+        expect(request.form.get("client_assertion_type")).toBe(
+          "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+        );
+        submittedAssertion = request.form.get("client_assertion") ?? "";
+        verifyPrivateKeyJwtAssertion(submittedAssertion, publicKeyPem, {
+          audience: "https://auth.example.test/token",
+          clientId: "kota-client",
+          keyId: "key-1",
+        });
+        return new Response(JSON.stringify({
+          access_token: "private-key-jwt-token-secret",
+          token_type: "Bearer",
+          scope: "files:read",
+          expires_in: 3600,
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.body.method === "server/discover" && request.headers.get("authorization") === "Bearer private-key-jwt-token-secret") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: {} },
+          serverInfo: { name: "private-key-jwt-fixture" },
+        });
+      }
+      if (request.body.method === "tools/list" && request.headers.get("authorization") === "Bearer private-key-jwt-token-secret") {
+        return jsonRpcHttpResponse(request.body.id, {
+          tools: [{ name: "read_file", inputSchema: { type: "object" } }],
+        });
+      }
+      return new Response("missing private_key_jwt token", {
+        status: 401,
+        headers: {
+          "www-authenticate": 'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", scope="files:read"',
+        },
+      });
+    });
+    client = new McpClient(
+      {
+        type: "http",
+        url: "https://mcp.example.test/mcp",
+        authorization: {
+          type: "oauth-client-credentials",
+          issuer: "https://auth.example.test",
+          scopes: ["files:read"],
+          tokenEndpointAuthMethod: "private_key_jwt",
+          client: {
+            kind: "registered",
+            clientId: "kota-client",
+            privateKeyPem,
+            signingAlgorithm: "RS256",
+            keyId: "key-1",
+          },
+        },
+      },
+      "private-key-jwt-http-client",
+      {
+        authorizationResolver: async () => {
+          resolverCalled = true;
+          return {
+            callbackUrl: mcpOAuthSecret("https://client.example.test/callback?code=unused&state=unused"),
+          };
+        },
+      },
+    );
+
+    await client.connect();
+    const tools = await client.listTools();
+
+    expect(client.getName()).toBe("private-key-jwt-fixture");
+    expect(tools.map((tool) => tool.name)).toEqual(["read_file"]);
+    expect(resolverCalled).toBe(false);
+    expect(submittedAssertion).toMatch(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
+    expect(submittedAssertion).not.toContain(privateKeyPem);
+    expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
+      "POST https://mcp.example.test/mcp",
+      "GET https://mcp.example.test/.well-known/oauth-protected-resource/mcp",
+      "GET https://auth.example.test/.well-known/oauth-authorization-server",
+      "POST https://auth.example.test/token",
+      "POST https://mcp.example.test/mcp",
+      "POST https://mcp.example.test/mcp",
+    ]);
+  });
+
   it("rejects malformed OAuth client credentials configuration before authorization", () => {
+    const { privateKeyPem } = privateKeyJwtTestKeyPair();
+    const ecPrivateKeyPem = privateKeyJwtEcPrivateKey();
     expect(() => new McpClient({
       type: "http",
       url: "https://mcp.example.test/mcp",
@@ -2771,7 +2986,93 @@ describe("McpClient Streamable HTTP transport", () => {
           clientSecret: "client-secret",
         },
       } as never,
-    }, "unsupported-client-auth-method")).toThrow(/tokenEndpointAuthMethod must be client_secret_basic/);
+    }, "mixed-private-key-jwt-client-secret")).toThrow(/unexpected field clientSecret/);
+
+    expect(() => new McpClient({
+      type: "http",
+      url: "https://mcp.example.test/mcp",
+      authorization: {
+        type: "oauth-client-credentials",
+        issuer: "https://auth.example.test",
+        scopes: ["files:read"],
+        tokenEndpointAuthMethod: "client_secret_post",
+        client: {
+          kind: "registered",
+          clientId: "kota-client",
+          clientSecret: "client-secret",
+        },
+      } as never,
+    }, "unsupported-client-auth-method")).toThrow(
+      /tokenEndpointAuthMethod must be client_secret_basic or private_key_jwt/,
+    );
+
+    expect(() => new McpClient({
+      type: "http",
+      url: "https://mcp.example.test/mcp",
+      authorization: {
+        type: "oauth-client-credentials",
+        issuer: "https://auth.example.test",
+        scopes: ["files:read"],
+        tokenEndpointAuthMethod: "private_key_jwt",
+        client: {
+          kind: "registered",
+          clientId: "kota-client",
+        },
+      } as never,
+    }, "missing-private-key-jwt-key")).toThrow(/privateKeyPem must be a non-empty string/);
+
+    expect(() => new McpClient({
+      type: "http",
+      url: "https://mcp.example.test/mcp",
+      authorization: {
+        type: "oauth-client-credentials",
+        issuer: "https://auth.example.test",
+        scopes: ["files:read"],
+        tokenEndpointAuthMethod: "private_key_jwt",
+        client: {
+          kind: "registered",
+          clientId: "kota-client",
+          privateKeyPem: "not a private key",
+          signingAlgorithm: "RS256",
+        },
+      },
+    }, "malformed-private-key-jwt-key")).toThrow(/privateKeyPem must be a valid PEM private key/);
+
+    expect(() => new McpClient({
+      type: "http",
+      url: "https://mcp.example.test/mcp",
+      authorization: {
+        type: "oauth-client-credentials",
+        issuer: "https://auth.example.test",
+        scopes: ["files:read"],
+        tokenEndpointAuthMethod: "private_key_jwt",
+        client: {
+          kind: "registered",
+          clientId: "kota-client",
+          privateKeyPem: ecPrivateKeyPem,
+          signingAlgorithm: "RS256",
+        },
+      },
+    }, "non-rsa-private-key-jwt-key")).toThrow(
+      /privateKeyPem must be an RSA private key usable with RS256/,
+    );
+
+    expect(() => new McpClient({
+      type: "http",
+      url: "https://mcp.example.test/mcp",
+      authorization: {
+        type: "oauth-client-credentials",
+        issuer: "https://auth.example.test",
+        scopes: ["files:read"],
+        tokenEndpointAuthMethod: "private_key_jwt",
+        client: {
+          kind: "registered",
+          clientId: "kota-client",
+          privateKeyPem,
+          signingAlgorithm: "HS256",
+        },
+      } as never,
+    }, "unsupported-private-key-jwt-algorithm")).toThrow(/signingAlgorithm must be RS256/);
   });
 
   it("rejects OAuth client credentials metadata mismatches before using configured secrets", async () => {
@@ -2888,6 +3189,163 @@ describe("McpClient Streamable HTTP transport", () => {
           },
         },
         `client-credentials-${variant.name}`,
+      );
+
+      await expect(client.connect()).rejects.toThrow(variant.expected);
+      expect(tokenEndpointCalled).toBe(false);
+      await client.close();
+      client = null;
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("rejects private_key_jwt before signing when authorization-server metadata does not advertise it", async () => {
+    const { privateKeyPem } = privateKeyJwtTestKeyPair();
+    let tokenEndpointCalled = false;
+    mockClientHttpFetch((request) => {
+      if (request.method === "GET" && request.url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp") {
+        return new Response(JSON.stringify({
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "GET" && request.url === "https://auth.example.test/.well-known/oauth-authorization-server") {
+        return new Response(JSON.stringify({
+          issuer: "https://auth.example.test",
+          token_endpoint: "https://auth.example.test/token",
+          token_endpoint_auth_methods_supported: ["client_secret_basic"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "POST" && request.url === "https://auth.example.test/token") {
+        tokenEndpointCalled = true;
+      }
+      return new Response("missing private_key_jwt token", {
+        status: 401,
+        headers: {
+          "www-authenticate": 'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", scope="files:read"',
+        },
+      });
+    });
+    client = new McpClient(
+      {
+        type: "http",
+        url: "https://mcp.example.test/mcp",
+        authorization: {
+          type: "oauth-client-credentials",
+          issuer: "https://auth.example.test",
+          scopes: ["files:read"],
+          tokenEndpointAuthMethod: "private_key_jwt",
+          client: {
+            kind: "registered",
+            clientId: "kota-client",
+            privateKeyPem,
+            signingAlgorithm: "RS256",
+          },
+        },
+      },
+      "private-key-jwt-unsupported-method-client",
+    );
+
+    await expect(client.connect()).rejects.toThrow(
+      /does not advertise token endpoint auth method private_key_jwt/,
+    );
+    expect(tokenEndpointCalled).toBe(false);
+  });
+
+  it("rejects private_key_jwt issuer, resource, and scope metadata mismatches before signing", async () => {
+    for (const variant of [
+      {
+        name: "issuer-mismatch",
+        protectedResource: {
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://other-auth.example.test"],
+        },
+        authorizationServer: null,
+        expected: /issuer "https:\/\/auth\.example\.test".*not advertised/,
+      },
+      {
+        name: "resource-mismatch",
+        protectedResource: {
+          resource: "https://mcp.example.test/other",
+          authorization_servers: ["https://auth.example.test"],
+        },
+        authorizationServer: null,
+        expected: /protected-resource metadata resource does not match configured MCP HTTP URL/,
+      },
+      {
+        name: "protected-resource-scope-mismatch",
+        protectedResource: {
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+          scopes_supported: ["files:write"],
+        },
+        authorizationServer: null,
+        expected: /protected-resource metadata does not advertise configured scope files:read/,
+      },
+      {
+        name: "authorization-server-scope-mismatch",
+        protectedResource: {
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+        },
+        authorizationServer: {
+          issuer: "https://auth.example.test",
+          token_endpoint: "https://auth.example.test/token",
+          token_endpoint_auth_methods_supported: ["private_key_jwt"],
+          scopes_supported: ["files:write"],
+        },
+        expected: /authorization server does not advertise configured scope files:read/,
+      },
+    ]) {
+      const { privateKeyPem } = privateKeyJwtTestKeyPair();
+      let tokenEndpointCalled = false;
+      mockClientHttpFetch((request) => {
+        if (request.method === "GET" && request.url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp") {
+          return new Response(JSON.stringify(variant.protectedResource), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (variant.authorizationServer && request.method === "GET" && request.url === "https://auth.example.test/.well-known/oauth-authorization-server") {
+          return new Response(JSON.stringify(variant.authorizationServer), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (request.method === "POST" && request.url === "https://auth.example.test/token") {
+          tokenEndpointCalled = true;
+        }
+        return new Response("missing private_key_jwt token", {
+          status: 401,
+          headers: {
+            "www-authenticate": 'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", scope="files:read"',
+          },
+        });
+      });
+      client = new McpClient(
+        {
+          type: "http",
+          url: "https://mcp.example.test/mcp",
+          authorization: {
+            type: "oauth-client-credentials",
+            issuer: "https://auth.example.test",
+            scopes: ["files:read"],
+            tokenEndpointAuthMethod: "private_key_jwt",
+            client: {
+              kind: "registered",
+              clientId: "kota-client",
+              privateKeyPem,
+              signingAlgorithm: "RS256",
+            },
+          },
+        },
+        `private-key-jwt-${variant.name}`,
       );
 
       await expect(client.connect()).rejects.toThrow(variant.expected);
@@ -3285,6 +3743,279 @@ describe("McpClient Streamable HTTP transport", () => {
     await expect(client.callTool("raw_error", {})).rejects.not.toThrow(
       /client-secret|a290YS1jbGllbnQ6Y2xpZW50LXNlY3JldA==|client-credentials-token-secret/,
     );
+  });
+
+  it("rejects private_key_jwt token endpoint assertion validation failures without leaking key material or assertions", async () => {
+    for (const variant of [
+      {
+        name: "bad-audience",
+        reject: (payload: PrivateKeyJwtPayload) => payload.aud !== "https://auth.example.test/other-token",
+      },
+      {
+        name: "bad-expiry",
+        reject: (payload: PrivateKeyJwtPayload) => payload.exp > payload.iat + 1,
+      },
+    ]) {
+      const { privateKeyPem, publicKeyPem } = privateKeyJwtTestKeyPair();
+      let submittedAssertion = "";
+      mockClientHttpFetch((request) => {
+        if (request.method === "GET" && request.url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp") {
+          return new Response(JSON.stringify({
+            resource: "https://mcp.example.test/mcp",
+            authorization_servers: ["https://auth.example.test"],
+          }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (request.method === "GET" && request.url === "https://auth.example.test/.well-known/oauth-authorization-server") {
+          return new Response(JSON.stringify({
+            issuer: "https://auth.example.test",
+            token_endpoint: "https://auth.example.test/token",
+            token_endpoint_auth_methods_supported: ["private_key_jwt"],
+          }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (request.method === "POST" && request.url === "https://auth.example.test/token") {
+          submittedAssertion = request.form.get("client_assertion") ?? "";
+          const payload = verifyPrivateKeyJwtAssertion(submittedAssertion, publicKeyPem, {
+            audience: "https://auth.example.test/token",
+            clientId: "kota-client",
+          });
+          if (variant.reject(payload)) {
+            return new Response(`${privateKeyPem} ${submittedAssertion}`, {
+              status: 400,
+              headers: { "content-type": "text/plain" },
+            });
+          }
+        }
+        return new Response("missing private_key_jwt token", {
+          status: 401,
+          headers: {
+            "www-authenticate": 'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", scope="files:read"',
+          },
+        });
+      });
+      client = new McpClient(
+        {
+          type: "http",
+          url: "https://mcp.example.test/mcp",
+          authorization: {
+            type: "oauth-client-credentials",
+            issuer: "https://auth.example.test",
+            scopes: ["files:read"],
+            tokenEndpointAuthMethod: "private_key_jwt",
+            client: {
+              kind: "registered",
+              clientId: "kota-client",
+              privateKeyPem,
+              signingAlgorithm: "RS256",
+            },
+          },
+        },
+        `private-key-jwt-${variant.name}`,
+      );
+
+      let thrown: unknown = null;
+      try {
+        await client.connect();
+      } catch (err) {
+        thrown = err;
+      }
+      expect(thrown).toBeInstanceOf(Error);
+      expect(String(thrown)).toMatch(/token endpoint failed: HTTP 400/);
+      expect(String(thrown)).not.toContain(privateKeyPem);
+      expect(String(thrown)).not.toContain(submittedAssertion);
+      await client.close();
+      client = null;
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("reacquires expired private_key_jwt client credentials tokens with fresh assertions", async () => {
+    const { privateKeyPem, publicKeyPem } = privateKeyJwtTestKeyPair();
+    const assertions: string[] = [];
+    let tokenRequests = 0;
+    mockClientHttpFetch((request) => {
+      if (request.method === "GET" && request.url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp") {
+        return new Response(JSON.stringify({
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "GET" && request.url === "https://auth.example.test/.well-known/oauth-authorization-server") {
+        return new Response(JSON.stringify({
+          issuer: "https://auth.example.test",
+          token_endpoint: "https://auth.example.test/token",
+          token_endpoint_auth_methods_supported: ["private_key_jwt"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "POST" && request.url === "https://auth.example.test/token") {
+        tokenRequests += 1;
+        const assertion = request.form.get("client_assertion") ?? "";
+        assertions.push(assertion);
+        verifyPrivateKeyJwtAssertion(assertion, publicKeyPem, {
+          audience: "https://auth.example.test/token",
+          clientId: "kota-client",
+        });
+        return new Response(JSON.stringify({
+          access_token: tokenRequests === 1 ? "expired-private-key-token-secret" : "fresh-private-key-token-secret",
+          token_type: "Bearer",
+          scope: "files:read",
+          expires_in: tokenRequests === 1 ? 0 : 3600,
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.body.method === "server/discover" && request.headers.get("authorization") === "Bearer expired-private-key-token-secret") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: {} },
+        });
+      }
+      if (request.body.method === "tools/list" && request.headers.get("authorization") === "Bearer fresh-private-key-token-secret") {
+        return jsonRpcHttpResponse(request.body.id, {
+          tools: [{ name: "read_file", inputSchema: { type: "object" } }],
+        });
+      }
+      return new Response("missing private_key_jwt token", {
+        status: 401,
+        headers: {
+          "www-authenticate": 'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", scope="files:read"',
+        },
+      });
+    });
+    client = new McpClient(
+      {
+        type: "http",
+        url: "https://mcp.example.test/mcp",
+        authorization: {
+          type: "oauth-client-credentials",
+          issuer: "https://auth.example.test",
+          scopes: ["files:read"],
+          tokenEndpointAuthMethod: "private_key_jwt",
+          client: {
+            kind: "registered",
+            clientId: "kota-client",
+            privateKeyPem,
+            signingAlgorithm: "RS256",
+          },
+        },
+      },
+      "private-key-jwt-expiry-client",
+    );
+
+    await client.connect();
+    const tools = await client.listTools();
+
+    expect(tools.map((tool) => tool.name)).toEqual(["read_file"]);
+    expect(tokenRequests).toBe(2);
+    expect(assertions).toHaveLength(2);
+    expect(assertions[0]).not.toBe(assertions[1]);
+  });
+
+  it("redacts private_key_jwt private keys, assertions, and acquired bearer tokens from runtime failures", async () => {
+    const { privateKeyPem } = privateKeyJwtTestKeyPair();
+    let submittedAssertion = "";
+    mockClientHttpFetch((request) => {
+      if (request.method === "GET" && request.url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp") {
+        return new Response(JSON.stringify({
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "GET" && request.url === "https://auth.example.test/.well-known/oauth-authorization-server") {
+        return new Response(JSON.stringify({
+          issuer: "https://auth.example.test",
+          token_endpoint: "https://auth.example.test/token",
+          token_endpoint_auth_methods_supported: ["private_key_jwt"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "POST" && request.url === "https://auth.example.test/token") {
+        submittedAssertion = request.form.get("client_assertion") ?? "";
+        return new Response(JSON.stringify({
+          access_token: "private-key-jwt-token-secret",
+          token_type: "Bearer",
+          scope: "files:read",
+          expires_in: 3600,
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.body.method === "server/discover" && request.headers.get("authorization") === "Bearer private-key-jwt-token-secret") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: {} },
+        });
+      }
+      if (request.body.method === "tools/list" && request.headers.get("authorization") === "Bearer private-key-jwt-token-secret") {
+        return jsonRpcHttpResponse(request.body.id, {
+          tools: [{ name: "raw_error", inputSchema: { type: "object" } }],
+        });
+      }
+      if (request.body.method === "tools/call") {
+        return new Response(
+          `${privateKeyPem} ${submittedAssertion} private-key-jwt-token-secret`,
+          {
+            status: 500,
+            headers: { "content-type": "text/plain" },
+          },
+        );
+      }
+      return new Response("missing private_key_jwt token", {
+        status: 401,
+        headers: {
+          "www-authenticate": 'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", scope="files:read"',
+        },
+      });
+    });
+    client = new McpClient(
+      {
+        type: "http",
+        url: "https://mcp.example.test/mcp",
+        authorization: {
+          type: "oauth-client-credentials",
+          issuer: "https://auth.example.test",
+          scopes: ["files:read"],
+          tokenEndpointAuthMethod: "private_key_jwt",
+          client: {
+            kind: "registered",
+            clientId: "kota-client",
+            privateKeyPem,
+            signingAlgorithm: "RS256",
+          },
+        },
+      },
+      "private-key-jwt-redaction-client",
+    );
+
+    await client.connect();
+    await client.listTools();
+
+    await expect(client.callTool("raw_error", {})).rejects.toThrow(
+      /\[redacted\] \[redacted\] \[redacted\]/,
+    );
+    await expect(client.callTool("raw_error", {})).rejects.not.toThrow(
+      /private-key-jwt-token-secret/,
+    );
+    await expect(client.callTool("raw_error", {})).rejects.not.toThrow(submittedAssertion);
+    await expect(client.callTool("raw_error", {})).rejects.not.toThrow(privateKeyPem);
   });
 
   it("falls back to OpenID Connect discovery when OAuth authorization-server metadata is unavailable", async () => {
