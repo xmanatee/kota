@@ -249,6 +249,13 @@ export function classifyAgentRuntimeFailure(
     return { kind: "provider", retryable: true };
   }
   if (
+    /stream disconnected before completion:\s*failed to lookup address information:\s*nodename nor servname provided, or not known/i.test(
+      input.message,
+    )
+  ) {
+    return { kind: "provider", retryable: true };
+  }
+  if (
     /error running remote compact task:\s*stream disconnected before completion:\s*error sending request for url \(https:\/\/chatgpt\.com\/backend-api\/codex\/responses\/compact\)/i.test(
       input.message,
     )

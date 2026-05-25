@@ -22,6 +22,15 @@ describe("classifyAgentRuntimeFailure", () => {
     ).toEqual({ kind: "provider", retryable: true });
   });
 
+  it("classifies Codex CLI DNS lookup stream disconnects as provider failures", () => {
+    expect(
+      classifyAgentRuntimeFailure({
+        message:
+          'Repair agent for step "build" failed: Reconnecting... 5/5 (stream disconnected before completion: failed to lookup address information: nodename nor servname provided, or not known)',
+      }),
+    ).toEqual({ kind: "provider", retryable: true });
+  });
+
   it("classifies Codex CLI remote compact disconnects as provider failures", () => {
     expect(
       classifyAgentRuntimeFailure({

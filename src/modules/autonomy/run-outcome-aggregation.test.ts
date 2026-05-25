@@ -693,6 +693,13 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
       'Agent step "build" failed (codex_cli_error): Reconnecting... 2/5 (stream disconnected before completion: idle timeout waiting for websocket)',
     );
     writeAgentRuntimeFailureRun(
+      "codex-dns-lookup-disconnect",
+      "builder",
+      "build",
+      "2026-04-21T03:45:00.000Z",
+      'Repair agent for step "build" failed: Reconnecting... 5/5 (stream disconnected before completion: failed to lookup address information: nodename nor servname provided, or not known)',
+    );
+    writeAgentRuntimeFailureRun(
       "codex-response-disconnect",
       "explorer",
       "explore",
