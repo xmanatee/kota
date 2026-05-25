@@ -50,6 +50,8 @@ export type McpTaskListOptions = {
 	limit?: number;
 };
 
+export type McpTaskStatusListener = (task: McpTask) => void;
+
 type ClockReading = {
 	ms: number;
 	iso: string;
@@ -89,6 +91,7 @@ export class McpTaskStore {
 	readonly #pollIntervalMs: number;
 	readonly #pageSize: number;
 	readonly #tasks = new Map<string, StoredTask>();
+	readonly #statusListeners = new Set<McpTaskStatusListener>();
 	#nextSequence = 0;
 
 	constructor(options: McpTaskStoreOptions = {}) {
@@ -125,15 +128,24 @@ export class McpTaskStore {
 			pollIntervalMs,
 			...(options.statusMessage !== undefined && { statusMessage: options.statusMessage }),
 		};
-		this.#tasks.set(task.taskId, {
+		const stored: StoredTask = {
 			task,
 			createdAtMs: created.ms,
 			expiresAtMs: created.ms + ttlMs,
 			sequence: this.#nextSequence,
 			waiters: [],
-		});
+		};
+		this.#tasks.set(task.taskId, stored);
 		this.#nextSequence += 1;
+		this.#notifyStatusListeners(stored);
 		return { resultType: "task", ...cloneTask(task) };
+	}
+
+	subscribeStatus(listener: McpTaskStatusListener): () => void {
+		this.#statusListeners.add(listener);
+		return () => {
+			this.#statusListeners.delete(listener);
+		};
 	}
 
 	read(taskId: string): McpTask {
@@ -168,11 +180,15 @@ export class McpTaskStore {
 				task: cloneTask(stored.task),
 				inputRequired,
 			});
-			return cloneTask(stored.task);
+			const task = taskSnapshot(stored);
+			this.#notifyStatusListeners(stored);
+			return task;
 		}
 		stored.inputRequired = undefined;
 		this.#updateTask(stored, transition.status, clock, transition.statusMessage);
-		return cloneTask(stored.task);
+		const task = taskSnapshot(stored);
+		this.#notifyStatusListeners(stored);
+		return task;
 	}
 
 	complete(
@@ -284,7 +300,9 @@ export class McpTaskStore {
 			task: cloneTask(stored.task),
 			terminal: terminalResult,
 		});
-		return cloneTask(stored.task);
+		const task = taskSnapshot(stored);
+		this.#notifyStatusListeners(stored);
+		return task;
 	}
 
 	#assertTransitionAllowed(stored: StoredTask, nextStatus: McpTaskStatus): void {
@@ -328,6 +346,14 @@ export class McpTaskStore {
 		const task = this.#tasks.get(taskId);
 		if (!task) throw new Error(`MCP task "${taskId}" not found`);
 		return task;
+	}
+
+	#notifyStatusListeners(stored: StoredTask): void {
+		if (this.#statusListeners.size === 0) return;
+		const task = taskSnapshot(stored);
+		for (const listener of this.#statusListeners) {
+			listener(structuredClone(task));
+		}
 	}
 
 	#expireForTask(taskId: string): void {

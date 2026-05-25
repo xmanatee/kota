@@ -161,6 +161,32 @@ describe("McpTaskStore", () => {
 		});
 	});
 
+	it("notifies subscribed listeners with full task snapshots", () => {
+		const store = new McpTaskStore({
+			now: manualClock().now,
+			generateTaskId: idGenerator(["task-a", "task-b"]),
+			defaultTtlMs: 60_000,
+		});
+		const snapshots: Array<{ taskId: string; status: string; result?: unknown }> = [];
+		const unsubscribe = store.subscribeStatus((task) => {
+			snapshots.push(task);
+		});
+
+		store.create({ statusMessage: "Running" });
+		store.complete("task-a", { content: [{ type: "text", text: "done" }] });
+		unsubscribe();
+		store.create();
+
+		expect(snapshots).toEqual([
+			expect.objectContaining({ taskId: "task-a", status: "working" }),
+			expect.objectContaining({
+				taskId: "task-a",
+				status: "completed",
+				result: { content: [{ type: "text", text: "done" }] },
+			}),
+		]);
+	});
+
 	it("settles cancellation waiters and blocks late completion", async () => {
 		const store = new McpTaskStore({
 			now: manualClock().now,

@@ -832,6 +832,149 @@ describe("McpServer", () => {
 
 			server.stop();
 		});
+
+		it("emits subscribed task status notifications for lifecycle snapshots", async () => {
+			const clock = manualClock();
+			const store = new McpTaskStore({
+				now: clock.now,
+				generateTaskId: taskIdGenerator(["task-input", "task-fail", "task-cancel"]),
+				defaultTtlMs: 60_000,
+				pollIntervalMs: 2_000,
+			});
+			const { input, output } = createTestStreams();
+			const reader = createQueuedReader(output);
+			const server = new McpServer({ input, output, log: () => {}, taskStore: store });
+			await server.start();
+			sendRequest(input, 1, "initialize", {
+				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+				capabilities: {},
+				clientInfo: { name: "test", version: "1.0.0" },
+			});
+			await reader.read();
+			sendNotification(input, "notifications/initialized");
+
+			sendRequest(input, 2, "subscriptions/listen", draftRequestParams({
+				notifications: { taskStatus: true },
+			}, mcpTasksClientCapabilities()));
+			const ack = await reader.read();
+			expect(ack.method).toBe("notifications/subscriptions/acknowledged");
+			expect(ack.params).toEqual({
+				_meta: { "io.modelcontextprotocol/subscriptionId": "2" },
+				notifications: { taskStatus: true },
+			});
+
+			store.create({ statusMessage: "Created input task" });
+			const createdInput = await reader.read();
+			expect(createdInput).toMatchObject({
+				method: "notifications/tasks/status",
+				params: {
+					_meta: { "io.modelcontextprotocol/subscriptionId": "2" },
+					taskId: "task-input",
+					status: "working",
+					statusMessage: "Created input task",
+					ttlMs: 60_000,
+					pollIntervalMs: 2_000,
+				},
+			});
+
+			store.transition("task-input", {
+				status: "input_required",
+				inputRequired: inputRequiredResult(),
+				statusMessage: "Waiting for input",
+			});
+			const inputRequired = await reader.read();
+			expect(inputRequired).toMatchObject({
+				method: "notifications/tasks/status",
+				params: {
+					_meta: { "io.modelcontextprotocol/subscriptionId": "2" },
+					taskId: "task-input",
+					status: "input_required",
+					statusMessage: "Waiting for input",
+					inputRequests: { confirm: { method: "elicitation/create" } },
+					requestState: "state-token",
+				},
+			});
+
+			store.transition("task-input", { status: "working", statusMessage: "Resumed" });
+			expect(await reader.read()).toMatchObject({
+				method: "notifications/tasks/status",
+				params: {
+					_meta: { "io.modelcontextprotocol/subscriptionId": "2" },
+					taskId: "task-input",
+					status: "working",
+					statusMessage: "Resumed",
+				},
+			});
+
+			store.create();
+			await reader.read();
+			store.fail("task-fail", { code: -32603, message: "Tool failed" });
+			expect(await reader.read()).toMatchObject({
+				method: "notifications/tasks/status",
+				params: {
+					_meta: { "io.modelcontextprotocol/subscriptionId": "2" },
+					taskId: "task-fail",
+					status: "failed",
+					error: { code: -32603, message: "Tool failed" },
+				},
+			});
+
+			store.create();
+			await reader.read();
+			store.cancel("task-cancel", { statusMessage: "Cancelled by client" });
+			expect(await reader.read()).toMatchObject({
+				method: "notifications/tasks/status",
+				params: {
+					_meta: { "io.modelcontextprotocol/subscriptionId": "2" },
+					taskId: "task-cancel",
+					status: "cancelled",
+					error: { code: -32800, message: "Cancelled by client" },
+				},
+			});
+			expect(() => store.complete("task-cancel", { late: true })).toThrow(
+				'Cannot transition MCP task "task-cancel" from terminal state "cancelled"',
+			);
+			await expectNoQueuedMessage(reader);
+
+			sendNotification(input, "notifications/cancelled", { requestId: 2 });
+			await new Promise<void>((resolve) => { setImmediate(resolve); });
+			store.create({ statusMessage: "After subscription cancellation" });
+			await expectNoQueuedMessage(reader);
+
+			server.stop();
+		});
+
+		it("rejects task status subscriptions without the official Tasks extension capability", async () => {
+			const store = new McpTaskStore({
+				now: manualClock().now,
+				generateTaskId: taskIdGenerator(["task-unsubscribed"]),
+				defaultTtlMs: 60_000,
+			});
+			const { input, output } = createTestStreams();
+			const reader = createQueuedReader(output);
+			const server = new McpServer({ input, output, log: () => {}, taskStore: store });
+			await server.start();
+			sendRequest(input, 1, "initialize", {
+				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+				capabilities: {},
+				clientInfo: { name: "test", version: "1.0.0" },
+			});
+			await reader.read();
+			sendNotification(input, "notifications/initialized");
+
+			sendRequest(input, 2, "subscriptions/listen", draftRequestParams({
+				notifications: { taskStatus: true },
+			}));
+			const rejected = await reader.read();
+			expect(rejected.error).toMatchObject({
+				code: -32602,
+				message: `MCP Tasks extension not negotiated: declare ${JSON.stringify(MCP_TASKS_EXTENSION_ID)} in client capabilities extensions`,
+			});
+			store.create();
+			await expectNoQueuedMessage(reader);
+
+			server.stop();
+		});
 	});
 
 	describe("tools/list", () => {
@@ -1680,6 +1823,17 @@ describe("McpServer", () => {
 			await reader.read();
 			sendNotification(input, "notifications/initialized");
 
+			sendRequest(input, "task-status-sub", "subscriptions/listen", draftRequestParams({
+				notifications: { taskStatus: true },
+			}, mcpTasksClientCapabilities()));
+			expect(await reader.read()).toMatchObject({
+				method: "notifications/subscriptions/acknowledged",
+				params: {
+					_meta: { "io.modelcontextprotocol/subscriptionId": "task-status-sub" },
+					notifications: { taskStatus: true },
+				},
+			});
+
 			sendRequest(input, 2, "tools/call", draftRequestParams({
 				name: "ext_task_success",
 				arguments: {},
@@ -1697,6 +1851,18 @@ describe("McpServer", () => {
 				pollIntervalMs: 2_000,
 				_meta: { [MCP_RELATED_TASK_META_KEY]: { taskId: "task-tool-ok" } },
 			});
+			const createdNotification = await reader.read();
+			expect(createdNotification).toMatchObject({
+				method: "notifications/tasks/status",
+				params: {
+					_meta: { "io.modelcontextprotocol/subscriptionId": "task-status-sub" },
+					taskId: "task-tool-ok",
+					status: "working",
+					statusMessage: "The operation is now in progress.",
+				},
+			});
+			const createdNotificationTask = { ...(createdNotification.params as Record<string, unknown>) };
+			delete createdNotificationTask._meta;
 			await started;
 
 			sendRequest(input, 3, "tasks/get", draftRequestParams(
@@ -1705,9 +1871,24 @@ describe("McpServer", () => {
 			));
 			const working = await reader.read();
 			expect(working.result).toMatchObject({ taskId: "task-tool-ok", status: "working" });
+			expect(working.result).toEqual(createdNotificationTask);
 
 			releaseTool();
 			await new Promise<void>((resolve) => { setImmediate(resolve); });
+			const completedNotification = await reader.read();
+			expect(completedNotification).toMatchObject({
+				method: "notifications/tasks/status",
+				params: {
+					_meta: { "io.modelcontextprotocol/subscriptionId": "task-status-sub" },
+					taskId: "task-tool-ok",
+					status: "completed",
+					result: {
+						resultType: "complete",
+						content: [{ type: "text", text: "task result" }],
+						isError: false,
+					},
+				},
+			});
 			sendRequest(input, 4, "tasks/get", draftRequestParams(
 				{ taskId: "task-tool-ok" },
 				mcpTasksClientCapabilities(),
@@ -1724,6 +1905,9 @@ describe("McpServer", () => {
 					isError: false,
 				},
 			});
+			const completedNotificationTask = { ...(completedNotification.params as Record<string, unknown>) };
+			delete completedNotificationTask._meta;
+			expect(result.result).toEqual(completedNotificationTask);
 
 			server.stop();
 		});

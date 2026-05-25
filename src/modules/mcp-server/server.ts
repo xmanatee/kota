@@ -354,6 +354,8 @@ export class McpServer {
 	private readonly resources: ResourcesHandler;
 	private readonly elicitation: ElicitationHandler;
 	private readonly tools: ToolsHandler;
+	private readonly taskStore: McpTaskStore;
+	private taskStatusUnsubscribe: (() => void) | null = null;
 	private readonly requestHandlers: Map<string, RequestHandler>;
 
 	constructor(options: McpServerOptions = {}) {
@@ -416,8 +418,9 @@ export class McpServer {
 			() => this.initialize.getEffectiveProjectDir(),
 			mrtr,
 		);
-		const taskStore = options.taskStore ?? new McpTaskStore();
-		this.tools = new ToolsHandler(ctx, this.elicitation, mrtr, taskStore, {
+		this.taskStore = options.taskStore ?? new McpTaskStore();
+		this.registerTaskStatusListener();
+		this.tools = new ToolsHandler(ctx, this.elicitation, mrtr, this.taskStore, {
 			...(options.toolFilter !== undefined && { toolFilter: options.toolFilter }),
 			...(options.moduleTools !== undefined && { moduleTools: options.moduleTools }),
 		});
@@ -425,7 +428,7 @@ export class McpServer {
 			ctx,
 			() => this.initialize.getEffectiveProjectDir(),
 		);
-		const tasks = new TasksHandler(ctx, taskStore, {
+		const tasks = new TasksHandler(ctx, this.taskStore, {
 			resumeInput: (args) => this.tools.prepareTaskInputResponse(args),
 			forgetTaskContinuation: (taskId) => this.tools.forgetTaskContinuation(taskId),
 		});
@@ -464,17 +467,16 @@ export class McpServer {
 		this.rl.on("line", (line) => this.handleLine(line));
 		this.rl.on("close", () => {
 			this.running = false;
-			this.streamSinksBySubscriptionId.clear();
-			this.resources.cleanup();
+			this.cleanupRuntimeSubscriptions();
 		});
 		this.resources.registerBusListeners();
+		this.registerTaskStatusListener();
 		this.log("MCP server started, waiting for initialize...");
 	}
 
 	stop(): void {
 		this.running = false;
-		this.streamSinksBySubscriptionId.clear();
-		this.resources.cleanup();
+		this.cleanupRuntimeSubscriptions();
 		this.rl?.close();
 		this.rl = null;
 	}
@@ -562,6 +564,22 @@ export class McpServer {
 				params: { requestId },
 			});
 		};
+	}
+
+	private registerTaskStatusListener(): void {
+		if (this.taskStatusUnsubscribe) return;
+		this.taskStatusUnsubscribe = this.taskStore.subscribeStatus((task) => {
+			this.outboundSink.exit(() => {
+				setImmediate(() => this.resources.notifyTaskStatusChanged(task));
+			});
+		});
+	}
+
+	private cleanupRuntimeSubscriptions(): void {
+		this.streamSinksBySubscriptionId.clear();
+		this.resources.cleanup();
+		this.taskStatusUnsubscribe?.();
+		this.taskStatusUnsubscribe = null;
 	}
 
 	private sendPayload(msg: JsonRpcOutboundPayload): void {

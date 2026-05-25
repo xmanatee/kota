@@ -18,12 +18,15 @@ import type {
 	HandlerContext,
 	JsonRpcNotification,
 	JsonRpcRequest,
+	McpTask,
 } from "./mcp-protocol-types.js";
 import {
+	activeClientSupportsMcpTasks,
 	activeClientSupportsMcpUi,
 	hasActiveMcpContext,
 	MCP_PRIVATE_RESOURCE_CACHE_HINTS,
 	MCP_PUBLIC_CATALOG_CACHE_HINTS,
+	MCP_TASKS_EXTENSION_ID,
 } from "./mcp-protocol-types.js";
 import { getPromptCatalogSignature } from "./prompts.js";
 import {
@@ -35,13 +38,15 @@ import {
 } from "./resources.js";
 
 const SUBSCRIPTION_ID_META_KEY = "io.modelcontextprotocol/subscriptionId";
+const TASK_STATUS_NOTIFICATION_METHOD = "notifications/tasks/status";
 const PROMPT_LIST_CHANGED_DEBOUNCE_MS = 25;
 const PROMPT_LIST_CHANGED_POLL_MS = 100;
 
-type DraftResourceSubscription = {
+type DraftSubscription = {
 	resourceUris: Set<string>;
 	resourcesListChanged: boolean;
 	promptsListChanged: boolean;
+	taskStatus: boolean;
 };
 
 type ListenParams = {
@@ -49,6 +54,7 @@ type ListenParams = {
 		resourceSubscriptions?: string[];
 		resourcesListChanged?: boolean;
 		promptsListChanged?: boolean;
+		taskStatus?: boolean;
 	};
 };
 
@@ -74,7 +80,7 @@ function sameStringArray(left: string[], right: string[]): boolean {
 
 export class ResourcesHandler {
 	private readonly legacyResourceSubscriptions = new Set<string>();
-	private readonly draftResourceSubscriptions = new Map<string, DraftResourceSubscription>();
+	private readonly draftSubscriptions = new Map<string, DraftSubscription>();
 	private busUnsubs: (() => void)[] = [];
 	private resourceCatalogSignature = currentResourceCatalogSignature();
 	private promptCatalogSignature: string | null = null;
@@ -112,7 +118,7 @@ export class ResourcesHandler {
 	cleanup(): void {
 		for (const unsub of this.busUnsubs) unsub();
 		this.busUnsubs = [];
-		this.draftResourceSubscriptions.clear();
+		this.draftSubscriptions.clear();
 		this.legacyResourceSubscriptions.clear();
 		this.closePromptWatchers();
 		if (this.promptListChangedTimer) {
@@ -256,6 +262,13 @@ export class ResourcesHandler {
 			this.ctx.transport.sendError(msg, -32602, "notifications.promptsListChanged must be a boolean");
 			return;
 		}
+		if (
+			notifications?.taskStatus !== undefined &&
+			typeof notifications.taskStatus !== "boolean"
+		) {
+			this.ctx.transport.sendError(msg, -32602, "notifications.taskStatus must be a boolean");
+			return;
+		}
 
 		const resourceUris = rawResourceSubscriptions ?? [];
 		for (const uri of resourceUris) {
@@ -272,20 +285,32 @@ export class ResourcesHandler {
 		const subscriptionId = String(msg.id);
 		const resourcesListChanged = notifications?.resourcesListChanged === true;
 		const promptsListChanged = notifications?.promptsListChanged === true;
+		const taskStatus = notifications?.taskStatus === true;
+		if (taskStatus && !activeClientSupportsMcpTasks(this.ctx)) {
+			this.ctx.transport.sendError(
+				msg,
+				-32602,
+				`MCP Tasks extension not negotiated: declare ${JSON.stringify(MCP_TASKS_EXTENSION_ID)} in client capabilities extensions`,
+			);
+			return;
+		}
 		const acknowledgedNotifications: {
 			resourceSubscriptions?: string[];
 			resourcesListChanged?: boolean;
 			promptsListChanged?: boolean;
+			taskStatus?: boolean;
 		} = {};
 		if (resourceUris.length > 0) acknowledgedNotifications.resourceSubscriptions = resourceUris;
 		if (resourcesListChanged) acknowledgedNotifications.resourcesListChanged = true;
 		if (promptsListChanged) acknowledgedNotifications.promptsListChanged = true;
+		if (taskStatus) acknowledgedNotifications.taskStatus = true;
 
-		if (resourceUris.length > 0 || resourcesListChanged || promptsListChanged) {
-			this.draftResourceSubscriptions.set(subscriptionId, {
+		if (resourceUris.length > 0 || resourcesListChanged || promptsListChanged || taskStatus) {
+			this.draftSubscriptions.set(subscriptionId, {
 				resourceUris: new Set(resourceUris),
 				resourcesListChanged,
 				promptsListChanged,
+				taskStatus,
 			});
 		}
 		if (promptsListChanged) {
@@ -302,15 +327,25 @@ export class ResourcesHandler {
 	handleCancelledNotification(msg: JsonRpcNotification): void {
 		const requestId = msg.params?.requestId;
 		if (typeof requestId !== "string" && typeof requestId !== "number") return;
-		this.draftResourceSubscriptions.delete(String(requestId));
+		this.draftSubscriptions.delete(String(requestId));
 		this.stopPromptWatchersIfUnused();
+	}
+
+	notifyTaskStatusChanged(task: McpTask): void {
+		for (const [subscriptionId, subscription] of this.draftSubscriptions) {
+			if (!subscription.taskStatus) continue;
+			this.ctx.transport.sendNotification(TASK_STATUS_NOTIFICATION_METHOD, {
+				...structuredClone(task),
+				_meta: subscriptionMeta(subscriptionId),
+			});
+		}
 	}
 
 	private notifyResourceUpdated(uri: string): void {
 		if (this.legacyResourceSubscriptions.has(uri)) {
 			this.ctx.transport.sendNotification("notifications/resources/updated", { uri });
 		}
-		for (const [subscriptionId, subscription] of this.draftResourceSubscriptions) {
+		for (const [subscriptionId, subscription] of this.draftSubscriptions) {
 			if (!subscription.resourceUris.has(uri)) continue;
 			this.ctx.transport.sendNotification("notifications/resources/updated", {
 				_meta: subscriptionMeta(subscriptionId),
@@ -339,7 +374,7 @@ export class ResourcesHandler {
 		const nextSignature = currentResourceCatalogSignature();
 		if (nextSignature === this.resourceCatalogSignature) return;
 		this.resourceCatalogSignature = nextSignature;
-		for (const [subscriptionId, subscription] of this.draftResourceSubscriptions) {
+		for (const [subscriptionId, subscription] of this.draftSubscriptions) {
 			if (!subscription.resourcesListChanged) continue;
 			this.ctx.transport.sendNotification("notifications/resources/list_changed", {
 				_meta: subscriptionMeta(subscriptionId),
@@ -348,7 +383,7 @@ export class ResourcesHandler {
 	}
 
 	private hasPromptListSubscriptions(): boolean {
-		for (const subscription of this.draftResourceSubscriptions.values()) {
+		for (const subscription of this.draftSubscriptions.values()) {
 			if (subscription.promptsListChanged) return true;
 		}
 		return false;
@@ -435,7 +470,7 @@ export class ResourcesHandler {
 		const nextSignature = currentPromptCatalogSignature(this.resolveProjectDir());
 		if (nextSignature === this.promptCatalogSignature) return;
 		this.promptCatalogSignature = nextSignature;
-		for (const [subscriptionId, subscription] of this.draftResourceSubscriptions) {
+		for (const [subscriptionId, subscription] of this.draftSubscriptions) {
 			if (!subscription.promptsListChanged) continue;
 			this.ctx.transport.sendNotification("notifications/prompts/list_changed", {
 				_meta: subscriptionMeta(subscriptionId),

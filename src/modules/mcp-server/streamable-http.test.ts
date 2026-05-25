@@ -12,7 +12,9 @@ import {
 	MCP_META_CLIENT_INFO_KEY,
 	MCP_META_LOG_LEVEL_KEY,
 	MCP_META_PROTOCOL_VERSION_KEY,
+	MCP_TASKS_EXTENSION_ID,
 } from "./mcp-protocol-types.js";
+import { McpTaskStore } from "./mcp-task-store.js";
 import { McpServer } from "./server.js";
 import { handleStreamableHttpRequest } from "./streamable-http.js";
 
@@ -25,6 +27,14 @@ function draftParams(params: Record<string, unknown> = {}): Record<string, unkno
 			[MCP_META_CLIENT_CAPABILITIES_KEY]: {},
 		},
 	};
+}
+
+function draftParamsWithTasks(params: Record<string, unknown> = {}): Record<string, unknown> {
+	const next = draftParams(params);
+	(next._meta as Record<string, unknown>)[MCP_META_CLIENT_CAPABILITIES_KEY] = {
+		extensions: { [MCP_TASKS_EXTENSION_ID]: {} },
+	};
+	return next;
 }
 
 function draftParamsWithLogLevel(
@@ -862,6 +872,119 @@ describe("Streamable HTTP MCP transport", () => {
 				bus.emit("task.changed", { counts: { pending: 2, in_progress: 0, done: 0 } });
 				await new Promise((resolve) => setTimeout(resolve, 20));
 				expect(streamed).toHaveLength(countAfterFirstEmit);
+			} finally {
+				unsubscribe();
+			}
+		} finally {
+			server.stop();
+		}
+	});
+
+	it("serves task status notifications through a live subscriptions/listen SSE stream", async () => {
+		const ids = ["http-task-ok", "http-task-after-close"];
+		let idIndex = 0;
+		const store = new McpTaskStore({
+			generateTaskId: () => ids[idIndex++] ?? `http-task-generated-${idIndex}`,
+			defaultTtlMs: 60_000,
+			pollIntervalMs: 2_000,
+		});
+		let releaseTool!: () => void;
+		const toolGate = new Promise<void>((resolve) => { releaseTool = resolve; });
+		const server = new McpServer({
+			log: () => {},
+			taskStore: store,
+			moduleTools: [
+				{
+					tool: {
+						name: "http_task_status_tool",
+						description: "HTTP task status notification test",
+						input_schema: { type: "object", properties: {}, required: [] },
+					},
+					runner: async () => {
+						await toolGate;
+						return { content: "http task complete" };
+					},
+					effect: networkWriteEffect(),
+				},
+			],
+		});
+
+		const response = await handleStreamableHttpRequest(server, request({
+			jsonrpc: "2.0",
+			id: 71,
+			method: "subscriptions/listen",
+			params: draftParamsWithTasks({
+				notifications: { taskStatus: true },
+			}),
+		}));
+		try {
+			expect(response.status).toBe(200);
+			expect(response.headers["content-type"]).toBe("text/event-stream");
+			expect(parseSseBody(response)[0]).toMatchObject({
+				jsonrpc: "2.0",
+				method: "notifications/subscriptions/acknowledged",
+				params: {
+					_meta: { "io.modelcontextprotocol/subscriptionId": "71" },
+					notifications: { taskStatus: true },
+				},
+			});
+
+			const streamed: Record<string, unknown>[] = [];
+			const unsubscribe = response.stream!.subscribe((message) => {
+				streamed.push(message as Record<string, unknown>);
+			});
+			try {
+				const call = await handleStreamableHttpRequest(server, request({
+					jsonrpc: "2.0",
+					id: 72,
+					method: "tools/call",
+					params: draftParamsWithTasks({
+						name: "http_task_status_tool",
+						arguments: {},
+					}),
+				}, { "mcp-name": "http_task_status_tool" }));
+				expect(call.status).toBe(200);
+				expect(parseBody(call).result).toMatchObject({
+					resultType: "task",
+					taskId: "http-task-ok",
+					status: "working",
+				});
+
+				await waitForAssertion(() => {
+					expect(streamed).toContainEqual(expect.objectContaining({
+						jsonrpc: "2.0",
+						method: "notifications/tasks/status",
+						params: expect.objectContaining({
+							_meta: { "io.modelcontextprotocol/subscriptionId": "71" },
+							taskId: "http-task-ok",
+							status: "working",
+						}),
+					}));
+				});
+
+				releaseTool();
+				await waitForAssertion(() => {
+					expect(streamed).toContainEqual(expect.objectContaining({
+						jsonrpc: "2.0",
+						method: "notifications/tasks/status",
+						params: expect.objectContaining({
+							_meta: { "io.modelcontextprotocol/subscriptionId": "71" },
+							taskId: "http-task-ok",
+							status: "completed",
+							result: {
+								resultType: "complete",
+								content: [{ type: "text", text: "http task complete" }],
+								isError: false,
+							},
+						}),
+					}));
+				});
+
+				const countAfterCompletion = streamed.length;
+				unsubscribe();
+				store.create();
+				await new Promise((resolve) => setTimeout(resolve, 20));
+				expect(streamed).toHaveLength(countAfterCompletion);
 			} finally {
 				unsubscribe();
 			}

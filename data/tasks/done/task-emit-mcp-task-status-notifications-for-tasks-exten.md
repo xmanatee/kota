@@ -1,12 +1,12 @@
 ---
 id: task-emit-mcp-task-status-notifications-for-tasks-exten
 title: Emit MCP task status notifications for Tasks extension subscriptions
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add optional notifications/tasks/status support to KOTA's first-party MCP Tasks extension path so subscribed clients can receive task state changes over subscriptions/listen instead of polling only.
 created_at: 2026-05-25T10:25:17.090Z
-updated_at: 2026-05-25T10:25:17.090Z
+updated_at: 2026-05-25T10:40:38.000Z
 ---
 
 ## Problem
