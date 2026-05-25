@@ -1,7 +1,9 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { DONE_MARKER, NODE_WRAPPER, PYTHON_WRAPPER, SENTINEL } from "./code-wrappers.js";
+import type { ToolRunnerContext } from "#core/tools/index.js";
+import { DONE_MARKER, ENV_MARKER, NODE_WRAPPER, PYTHON_WRAPPER, SENTINEL } from "./code-wrappers.js";
+import { buildExecutionEnv } from "./execution-env.js";
 
 export type Language = "python" | "node";
 const SETTLE_STDERR_GRACE_MS = 10;
@@ -22,6 +24,15 @@ function sendSignal(proc: ChildProcess, signal: NodeJS.Signals): void {
   }
 }
 
+function buildCallEnvPayload(
+  context?: ToolRunnerContext,
+): Record<string, string> {
+  const payload: Record<string, string> = {};
+  if (context?.sessionId) payload.KOTA_SESSION_ID = context.sessionId;
+  if (context?.toolUseId) payload.KOTA_TOOL_USE_ID = context.toolUseId;
+  return payload;
+}
+
 /** Find the best Python binary, preferring a local virtualenv over system python3. */
 export function findPythonBinary(cwd: string): string {
   for (const dir of [".venv", "venv"]) {
@@ -40,7 +51,7 @@ export class REPLSession {
     this.language = language;
   }
 
-  private start(): void {
+  private start(context?: ToolRunnerContext): void {
     if (this.alive) return;
 
     const [cmd, args] =
@@ -50,7 +61,7 @@ export class REPLSession {
 
     this.proc = spawn(cmd, args, {
       cwd: process.cwd(),
-      env: process.env,
+      env: buildExecutionEnv(context),
       stdio: ["pipe", "pipe", "pipe"],
     });
 
@@ -65,9 +76,10 @@ export class REPLSession {
   async execute(
     code: string,
     timeoutMs: number,
+    context?: ToolRunnerContext,
   ): Promise<{ output: string; isError: boolean }> {
     const crashRestarted = !this.alive && this.proc !== null;
-    if (!this.alive || !this.proc) this.start();
+    if (!this.alive || !this.proc) this.start(context);
     const proc = this.proc!;
     if (!proc.stdin || !proc.stdout || !proc.stderr) {
       return { output: "Process stdio not available", isError: true };
@@ -155,7 +167,8 @@ export class REPLSession {
       proc.stderr!.on("data", onStderr);
       proc.on("exit", onExit);
 
-      proc.stdin!.write(`${code}\n${SENTINEL}\n`);
+      const envPayload = JSON.stringify(buildCallEnvPayload(context));
+      proc.stdin!.write(`${ENV_MARKER}:${envPayload}\n${code}\n${SENTINEL}\n`);
     });
     if (crashRestarted) {
       return {

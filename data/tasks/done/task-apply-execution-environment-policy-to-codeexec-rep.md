@@ -1,12 +1,12 @@
 ---
 id: task-apply-execution-environment-policy-to-codeexec-rep
 title: Apply execution environment policy to code_exec REPL sessions
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Route code_exec, custom_tool, and manifest-code REPL subprocesses through the execution module's explicit environment helper so persistent Python/Node sessions get tool-call correlation ids and stop inheriting KOTA-owned telemetry or credentials by accident.
 created_at: 2026-05-25T05:35:52.720Z
-updated_at: 2026-05-25T05:35:52.720Z
+updated_at: 2026-05-25T05:46:31Z
 ---
 
 ## Problem
@@ -134,3 +134,12 @@ instead of relying on whatever the daemon process happened to carry.
   `OTLP_*` values.
 - Queue validation passes with the new ready task and no stale deletes or
   duplicate ids.
+
+Completed evidence:
+
+- `pnpm test src/core/tools/custom-tool.test.ts src/core/manifest/module-factory.test.ts src/modules/execution/code-exec.test.ts src/modules/execution/custom-tool-integration.test.ts src/modules/execution/repl-session.test.ts src/modules/execution/code-wrappers.test.ts`
+  passed.
+- `pnpm typecheck` passed.
+- `.kota/runs/2026-05-25T05-38-05-154Z-builder-pr3h3u/code-exec-env-policy.txt`
+  records the contextual and context-free `code_exec` environment probe.
+- `pnpm validate-tasks` passed after staging the task move.

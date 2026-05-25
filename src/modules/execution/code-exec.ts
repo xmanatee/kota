@@ -1,4 +1,5 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type { ToolRunnerContext } from "#core/tools/index.js";
 import { which } from "#core/tools/runtime-check.js";
 import type { ToolResult, ToolResultBlock } from "#core/tools/tool-result.js";
 import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "./code-wrappers.js";
@@ -40,6 +41,7 @@ export const codeExecTool: KotaTool = {
 
 export async function runCodeExec(
   input: Record<string, unknown>,
+  context?: ToolRunnerContext,
 ): Promise<ToolResult> {
   const code = input.code as string;
   const language = (input.language as Language) || "python";
@@ -68,7 +70,7 @@ export async function runCodeExec(
   const session = sessions[language];
   if (reset) session.kill();
 
-  const { output, isError } = await session.execute(code, timeoutMs);
+  const { output, isError } = await session.execute(code, timeoutMs, context);
 
   // Separate plot markers from text output (Python matplotlib auto-capture)
   const { text: cleanOutput, plotPaths } = extractPlots(output);

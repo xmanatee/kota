@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_TIMEOUT,
   DONE_MARKER,
+  ENV_MARKER,
   MAX_OUTPUT,
   NODE_WRAPPER,
   PYTHON_WRAPPER,
@@ -48,6 +49,7 @@ describe("code-wrappers constants", () => {
   it("exports expected protocol markers", () => {
     expect(SENTINEL).toBe("__KOTA_EXEC__");
     expect(DONE_MARKER).toBe("__KOTA_DONE__");
+    expect(ENV_MARKER).toBe("__KOTA_ENV__");
   });
 
   it("exports valid default limits", () => {

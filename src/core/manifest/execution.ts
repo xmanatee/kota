@@ -6,16 +6,17 @@ import type { KotaToolInputSchema } from "#core/agent-harness/message-protocol.j
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
 import { type CodeLanguage, runCode } from "#core/tools/code-runner.js";
 import { localWriteEffect } from "#core/tools/effect.js";
+import type { ToolRunner } from "#core/tools/index.js";
 import type { ManifestToolDef, ModuleManifest } from "./types.js";
 
 // ─── Tool runner builder ─────────────────────────────────────────────
 
 function buildToolRunner(
 	toolDef: ManifestToolDef,
-): (input: Record<string, unknown>) => Promise<{ content: string; is_error?: boolean }> {
+): ToolRunner {
 	const lang: CodeLanguage = toolDef.language || "python";
-	return async (input) => {
-		const { output, isError } = await runCode(lang, toolDef.code, input);
+	return async (input, context) => {
+		const { output, isError } = await runCode(lang, toolDef.code, input, undefined, context);
 		return { content: output, is_error: isError };
 	};
 }

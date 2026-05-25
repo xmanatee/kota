@@ -12,13 +12,19 @@ import {
   deregisterCodeRunner,
   registerCodeRunner,
 } from "#core/tools/code-runner.js";
+import type { ToolRunnerContext } from "#core/tools/index.js";
 import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "./code-wrappers.js";
 import { sessions } from "./repl-session.js";
 
 function createRunner(language: CodeLanguage): CodeRunner {
   return {
     language,
-    async execute(code, params, timeoutMs): Promise<CodeRunResult> {
+    async execute(
+      code,
+      params,
+      timeoutMs,
+      context?: ToolRunnerContext,
+    ): Promise<CodeRunResult> {
       const ms = timeoutMs ?? DEFAULT_TIMEOUT;
       const paramsJson = JSON.stringify(params);
       const b64 = Buffer.from(paramsJson).toString("base64");
@@ -26,10 +32,10 @@ function createRunner(language: CodeLanguage): CodeRunner {
       const wrapper =
         language === "python"
           ? `import json as __j, base64 as __b\nparams = __j.loads(__b.b64decode('${b64}').decode())\n${code}`
-          : `const params = JSON.parse(Buffer.from('${b64}','base64').toString());\n${code}`;
+          : `globalThis.params = JSON.parse(Buffer.from('${b64}','base64').toString());\n${code}`;
 
       const session = sessions[language];
-      const { output, isError } = await session.execute(wrapper, ms);
+      const { output, isError } = await session.execute(wrapper, ms, context);
 
       const truncated =
         output.length > MAX_OUTPUT

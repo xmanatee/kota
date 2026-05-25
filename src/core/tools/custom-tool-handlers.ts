@@ -6,6 +6,7 @@
 import { existsSync, unlinkSync } from "node:fs";
 import type { KotaTool, KotaToolInputSchema } from "#core/agent-harness/message-protocol.js";
 import { runCode } from "#core/tools/code-runner.js";
+import type { ToolRunnerContext } from "#core/tools/index.js";
 import {
   type CustomToolDef,
   getToolPath,
@@ -17,7 +18,11 @@ import {
 
 export type ToolResult = { content: string; is_error?: boolean };
 
-type RegisterFn = (tool: KotaTool, runner: (input: Record<string, unknown>) => Promise<ToolResult>, moduleName?: string) => void;
+type CustomToolRunner = (
+  input: Record<string, unknown>,
+  context?: ToolRunnerContext,
+) => Promise<ToolResult>;
+type RegisterFn = (tool: KotaTool, runner: CustomToolRunner, moduleName?: string) => void;
 type DeregisterFn = (name: string) => boolean;
 
 // ─── Create ───────────────────────────────────────────────────────────
@@ -121,9 +126,15 @@ export function handleRemove(
 
 // ─── Execution builder ────────────────────────────────────────────────
 
-export function buildRunner(def: CustomToolDef): (input: Record<string, unknown>) => Promise<ToolResult> {
-  return async (input) => {
-    const { output, isError } = await runCode(def.language, def.code, input);
+export function buildRunner(def: CustomToolDef): CustomToolRunner {
+  return async (input, context) => {
+    const { output, isError } = await runCode(
+      def.language,
+      def.code,
+      input,
+      undefined,
+      context,
+    );
     return { content: output, is_error: isError };
   };
 }

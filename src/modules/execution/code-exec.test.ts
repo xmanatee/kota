@@ -21,6 +21,27 @@ vi.mock("node:child_process", async () => {
   return { ...actual, execFile: execFileMock };
 });
 
+const envKeys = [
+  "KOTA_SESSION_ID",
+  "KOTA_TOOL_USE_ID",
+  "OTEL_EXPORTER_OTLP_ENDPOINT",
+  "OTLP_ENDPOINT",
+] as const;
+
+function snapshotEnv(): Record<(typeof envKeys)[number], string | undefined> {
+  const saved = {} as Record<(typeof envKeys)[number], string | undefined>;
+  for (const key of envKeys) saved[key] = process.env[key];
+  return saved;
+}
+
+function restoreEnv(saved: Record<(typeof envKeys)[number], string | undefined>): void {
+  for (const key of envKeys) {
+    const value = saved[key];
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+}
+
 afterAll(() => {
   cleanupSessions();
 });
@@ -182,6 +203,100 @@ describe("code_exec tool", () => {
       });
       expect(result.is_error).toBeFalsy();
       expect(result.content).toContain("2");
+    });
+  });
+
+  describe("execution environment policy", () => {
+    it("passes tool runner context into fresh code_exec REPL sessions", async () => {
+      const result = await runCodeExec(
+        {
+          code: "import os; print(os.environ.get('KOTA_SESSION_ID', 'missing'), os.environ.get('KOTA_TOOL_USE_ID', 'missing'))",
+          language: "python",
+          reset: true,
+        },
+        { sessionId: "session-code-exec", toolUseId: "tool-code-exec" },
+      );
+
+      expect(result.is_error).toBeFalsy();
+      expect(result.content).toContain("session-code-exec tool-code-exec");
+    });
+
+    it("scrubs parent KOTA and telemetry variables when code_exec has no context", async () => {
+      const saved = snapshotEnv();
+      try {
+        process.env.KOTA_SESSION_ID = "parent-session";
+        process.env.KOTA_TOOL_USE_ID = "parent-tool";
+        process.env.OTEL_EXPORTER_OTLP_ENDPOINT = "http://kota-collector";
+        process.env.OTLP_ENDPOINT = "http://legacy-collector";
+
+        const result = await runCodeExec({
+          code: [
+            "import os",
+            "print(os.environ.get('KOTA_SESSION_ID', 'missing'))",
+            "print(os.environ.get('KOTA_TOOL_USE_ID', 'missing'))",
+            "print(os.environ.get('OTEL_EXPORTER_OTLP_ENDPOINT', 'missing'))",
+            "print(os.environ.get('OTLP_ENDPOINT', 'missing'))",
+          ].join("\n"),
+          language: "python",
+          reset: true,
+        });
+
+        expect(result.is_error).toBeFalsy();
+        expect(result.content).toContain("missing\nmissing\nmissing\nmissing");
+        expect(result.content).not.toContain("parent-session");
+        expect(result.content).not.toContain("parent-tool");
+        expect(result.content).not.toContain("kota-collector");
+        expect(result.content).not.toContain("legacy-collector");
+      } finally {
+        restoreEnv(saved);
+      }
+    });
+
+    it("updates per-call context without losing persistent Python state", async () => {
+      await runCodeExec(
+        { code: "persisted_for_env_policy = 41", language: "python", reset: true },
+        { sessionId: "session-env-policy", toolUseId: "tool-one" },
+      );
+
+      const result = await runCodeExec(
+        {
+          code: [
+            "import os",
+            "print(persisted_for_env_policy + 1)",
+            "print(os.environ.get('KOTA_SESSION_ID', 'missing'))",
+            "print(os.environ.get('KOTA_TOOL_USE_ID', 'missing'))",
+          ].join("\n"),
+          language: "python",
+        },
+        { sessionId: "session-env-policy", toolUseId: "tool-two" },
+      );
+
+      expect(result.is_error).toBeFalsy();
+      expect(result.content).toContain("42\nsession-env-policy\ntool-two");
+    });
+
+    it("scrubs parent telemetry variables in Node code_exec sessions", async () => {
+      const saved = snapshotEnv();
+      try {
+        process.env.OTEL_EXPORTER_OTLP_ENDPOINT = "http://kota-collector";
+        process.env.OTLP_ENDPOINT = "http://legacy-collector";
+
+        const result = await runCodeExec({
+          code: [
+            "console.log(process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? 'missing')",
+            "console.log(process.env.OTLP_ENDPOINT ?? 'missing')",
+          ].join("\n"),
+          language: "node",
+          reset: true,
+        });
+
+        expect(result.is_error).toBeFalsy();
+        expect(result.content).toContain("missing\nmissing");
+        expect(result.content).not.toContain("kota-collector");
+        expect(result.content).not.toContain("legacy-collector");
+      } finally {
+        restoreEnv(saved);
+      }
     });
   });
 

@@ -30,6 +30,7 @@ export type CodeRunner = {
     code: string,
     params: Record<string, unknown>,
     timeoutMs?: number,
+    context?: import("./index.js").ToolRunnerContext,
   ): Promise<CodeRunResult>;
 };
 
@@ -61,6 +62,7 @@ export async function runCode(
   code: string,
   params: Record<string, unknown>,
   timeoutMs?: number,
+  context?: import("./index.js").ToolRunnerContext,
 ): Promise<CodeRunResult> {
   const runner = runners.get(language);
   if (!runner) {
@@ -72,5 +74,5 @@ export async function runCode(
       isError: true,
     };
   }
-  return runner.execute(code, params, timeoutMs);
+  return runner.execute(code, params, timeoutMs, context);
 }

@@ -16,10 +16,11 @@ import {
   normalizeSchema,
 } from "./custom-tool-persistence.js";
 import { localWriteEffect } from "./effect.js";
+import type { ToolRunner } from "./index.js";
 
 // Avoid circular dependency: index.ts imports from us, so we accept
 // registerTool/deregisterTool via injection instead of importing them.
-type RegisterFn = (tool: KotaTool, runner: (input: Record<string, unknown>) => Promise<ToolResult>, moduleName?: string) => void;
+type RegisterFn = (tool: KotaTool, runner: ToolRunner, moduleName?: string) => void;
 type DeregisterFn = (name: string) => boolean;
 
 let _register: RegisterFn;
