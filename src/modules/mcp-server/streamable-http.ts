@@ -22,6 +22,11 @@ const HTTP_UNAVAILABLE_METHODS = new Set([
 	"resources/subscribe",
 	"resources/unsubscribe",
 ]);
+const TASK_ID_ROUTED_METHODS = new Set([
+	"tasks/get",
+	"tasks/update",
+	"tasks/cancel",
+]);
 
 export type StreamableHttpRequest = {
 	method: string;
@@ -682,6 +687,9 @@ function expectedMcpName(body: KotaJsonObject): string | null {
 	}
 	if (body.method === "resources/read") {
 		return typeof params.uri === "string" ? params.uri : "";
+	}
+	if (typeof body.method === "string" && TASK_ID_ROUTED_METHODS.has(body.method)) {
+		return typeof params.taskId === "string" ? params.taskId : "";
 	}
 	return null;
 }

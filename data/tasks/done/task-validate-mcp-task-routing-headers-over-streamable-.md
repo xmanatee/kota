@@ -1,12 +1,12 @@
 ---
 id: task-validate-mcp-task-routing-headers-over-streamable-
 title: Validate MCP task routing headers over Streamable HTTP
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Require Streamable HTTP tasks/get, tasks/update, and tasks/cancel requests to carry Mcp-Name equal to params.taskId so task polling, updates, and cancellation satisfy SEP-2663 routing semantics.
 created_at: 2026-05-25T12:16:22.457Z
-updated_at: 2026-05-25T12:16:22.457Z
+updated_at: 2026-05-25T12:22:51.000Z
 ---
 
 ## Problem

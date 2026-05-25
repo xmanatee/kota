@@ -111,6 +111,11 @@ async function waitForAssertion(assertion: () => void, timeoutMs = 2_000): Promi
 	throw lastError ?? new Error("Timed out waiting for assertion");
 }
 
+function taskIdGenerator(ids: string[]): () => string {
+	let index = 0;
+	return () => ids[index++] ?? `task-generated-${index}`;
+}
+
 describe("Streamable HTTP MCP transport", () => {
 	it("serves the Server Card well-known endpoint without MCP dispatch", async () => {
 		let calls = 0;
@@ -337,6 +342,74 @@ describe("Streamable HTTP MCP transport", () => {
 		expect((parseBody(wrongName).error as { code: number; message: string }).code).toBe(-32001);
 		expect((parseBody(wrongName).error as { message: string }).message).toContain("Mcp-Name");
 		expect(calls).toBe(0);
+	});
+
+	it("requires task lifecycle Mcp-Name headers to match params.taskId", async () => {
+		const store = new McpTaskStore({
+			generateTaskId: taskIdGenerator(["http-task-get", "http-task-update", "http-task-cancel"]),
+		});
+		const server = new McpServer({ log: () => {}, taskStore: store });
+		const getTask = store.create();
+		const updateTask = store.create();
+		const cancelTask = store.create();
+		const cases = [
+			{
+				method: "tasks/get",
+				id: 101,
+				taskId: getTask.taskId,
+				extraParams: {},
+				expectedResult: { taskId: getTask.taskId, status: "working" },
+			},
+			{
+				method: "tasks/update",
+				id: 102,
+				taskId: updateTask.taskId,
+				extraParams: { inputResponses: {} },
+				expectedResult: {},
+			},
+			{
+				method: "tasks/cancel",
+				id: 103,
+				taskId: cancelTask.taskId,
+				extraParams: {},
+				expectedResult: {},
+			},
+		];
+		const negativeCases: Array<{ headers: Record<string, string>; message: string }> = [
+			{ headers: {}, message: "missing Mcp-Name" },
+			{ headers: { "mcp-name": "bad value" }, message: "malformed Mcp-Name" },
+			{ headers: { "mcp-name": "wrong-task" }, message: "does not match" },
+		];
+
+		for (const item of cases) {
+			const body = {
+				jsonrpc: "2.0",
+				id: item.id,
+				method: item.method,
+				params: draftParamsWithTasks({
+					taskId: item.taskId,
+					...item.extraParams,
+				}),
+			};
+
+			for (const negative of negativeCases) {
+				const response = await handleStreamableHttpRequest(server, request(body, negative.headers));
+				expect(response.status).toBe(400);
+				expect(parseBody(response).error).toMatchObject({
+					code: -32001,
+					message: expect.stringContaining(negative.message),
+				});
+			}
+
+			const response = await handleStreamableHttpRequest(server, request(
+				body,
+				{ "mcp-name": item.taskId },
+			));
+			expect(response.status).toBe(200);
+			expect(parseBody(response).result).toMatchObject(item.expectedResult);
+		}
+
+		expect(store.read(cancelTask.taskId).status).toBe("cancelled");
 	});
 
 	it("reports unsupported versions and unknown methods with the HTTP status required by the draft", async () => {
