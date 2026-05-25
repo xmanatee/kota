@@ -4,11 +4,12 @@
  * representation.
  */
 
-import type { KotaJsonValue, KotaTool } from "#core/agent-harness/message-protocol.js";
+import type { KotaJsonObject, KotaJsonValue, KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolDef } from "#core/modules/module-types.js";
 import { getToolMcpAnnotations } from "#core/tools/guardrails-classify.js";
 import { executeTool, getAllTools, type ToolResult } from "#core/tools/index.js";
 import { validateToolStructuredOutput } from "#core/tools/output-schema.js";
+import { buildMcpUiToolMeta } from "./mcp-apps.js";
 import type { ElicitationHandler } from "./mcp-handlers-elicitation.js";
 import {
 	decodeMrtrRetryParams,
@@ -31,6 +32,7 @@ import type {
 } from "./mcp-protocol-types.js";
 import {
 	activeClientSupportsElicitation,
+	activeClientSupportsMcpUi,
 	activeMcpProtocolVersion,
 	hasActiveMcpContext,
 	MCP_DRAFT_PROTOCOL_VERSION,
@@ -111,8 +113,9 @@ export class ToolsHandler {
 		const taskSupport = usesDraftToolResults(activeMcpProtocolVersion(this.ctx))
 			? "optional"
 			: undefined;
+		const includeMcpApps = activeClientSupportsMcpUi(this.ctx);
 		const tools = this.getExposedTools().map((t) => {
-			const mcp = kotaToolToMcp(t, { taskSupport });
+			const mcp = kotaToolToMcp(t, { taskSupport, includeMcpApps });
 			const annotations = getToolMcpAnnotations(t.name);
 			return annotations ? { ...mcp, annotations } : mcp;
 		});
@@ -544,19 +547,25 @@ function isInputRequiredResult(
 }
 
 /** Convert a neutral KotaTool to MCP tool format. */
-export function kotaToolToMcp(tool: KotaTool, options: { taskSupport?: McpToolTaskSupport } = {}): {
+export function kotaToolToMcp(
+	tool: KotaTool,
+	options: { taskSupport?: McpToolTaskSupport; includeMcpApps?: boolean } = {},
+): {
 	name: string;
 	description: string;
 	inputSchema: KotaTool["input_schema"];
 	outputSchema?: NonNullable<KotaTool["output_schema"]>;
 	execution?: { taskSupport: McpToolTaskSupport };
+	_meta?: KotaJsonObject;
 } {
+	const uiMeta = options.includeMcpApps ? buildMcpUiToolMeta(tool.name) : null;
 	return {
 		name: tool.name,
 		description: tool.description,
 		inputSchema: tool.input_schema,
 		...(tool.output_schema ? { outputSchema: tool.output_schema } : {}),
 		...(options.taskSupport ? { execution: { taskSupport: options.taskSupport } } : {}),
+		...(uiMeta ? { _meta: uiMeta } : {}),
 	};
 }
 

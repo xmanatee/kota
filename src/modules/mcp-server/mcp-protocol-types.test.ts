@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { MCP_UI_EXTENSION_ID, MCP_UI_RESOURCE_MIME_TYPE } from "./mcp-apps.js";
 import { decodeMrtrRetryParams, readElicitationInputResponse } from "./mcp-mrtr.js";
 import {
 	activeClientSupportsElicitation,
+	activeClientSupportsMcpUi,
 	decodeClientElicitationCapabilities,
+	decodeClientMcpUiCapabilities,
 	type HandlerContext,
 	isMcpTaskTerminalStatus,
 	MCP_DRAFT_PROTOCOL_VERSION,
@@ -91,6 +94,49 @@ describe("MCP elicitation capability modes", () => {
 			ctxWithClientCapabilities({ elicitation: {} }),
 			urlRequest.params.mode,
 		)).toBe(false);
+	});
+});
+
+describe("MCP Apps capability decoding", () => {
+	it("requires the official UI MIME type for app support", () => {
+		const capabilities = {
+			extensions: {
+				[MCP_UI_EXTENSION_ID]: {
+					mimeTypes: [MCP_UI_RESOURCE_MIME_TYPE],
+				},
+			},
+		};
+
+		expect(decodeClientMcpUiCapabilities(capabilities)).toEqual({
+			ok: true,
+			capabilities: { supported: true },
+		});
+		expect(activeClientSupportsMcpUi(ctxWithClientCapabilities(capabilities))).toBe(true);
+		expect(decodeClientMcpUiCapabilities({
+			extensions: {
+				[MCP_UI_EXTENSION_ID]: {
+					mimeTypes: ["text/html"],
+				},
+			},
+		})).toEqual({
+			ok: true,
+			capabilities: { supported: false },
+		});
+	});
+
+	it("rejects malformed UI extension metadata", () => {
+		expect(decodeClientMcpUiCapabilities({ extensions: [] })).toEqual({
+			ok: false,
+			message: "Malformed MCP client capability: extensions",
+		});
+		expect(decodeClientMcpUiCapabilities({
+			extensions: {
+				[MCP_UI_EXTENSION_ID]: { mimeTypes: [MCP_UI_RESOURCE_MIME_TYPE, false] },
+			},
+		})).toEqual({
+			ok: false,
+			message: `Malformed MCP client extension capability: ${MCP_UI_EXTENSION_ID}.mimeTypes`,
+		});
 	});
 });
 

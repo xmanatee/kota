@@ -42,6 +42,7 @@ import type {
 	SessionState,
 } from "./mcp-protocol-types.js";
 import {
+	decodeClientMcpUiCapabilities,
 	hasLegacySessionContext,
 	isMcpProgressToken,
 	MCP_DRAFT_PROTOCOL_VERSION,
@@ -269,6 +270,14 @@ function decodeDraftRequestContext(msg: JsonRpcRequest): DraftRequestContextResu
 			ok: false,
 			code: -32602,
 			message: `Malformed MCP draft _meta field: ${MCP_META_CLIENT_CAPABILITIES_KEY}`,
+		};
+	}
+	const uiCapabilities = decodeClientMcpUiCapabilities(clientCapabilities);
+	if (!uiCapabilities.ok) {
+		return {
+			ok: false,
+			code: -32602,
+			message: uiCapabilities.message,
 		};
 	}
 

@@ -1,12 +1,12 @@
 ---
 id: task-add-mcp-apps-extension-support-to-kotas-first-part
 title: Add MCP Apps extension support to KOTA's first-party MCP server
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Expose a minimal MCP Apps extension surface from KOTA's first-party MCP server so app-capable hosts can discover sandboxed interactive UI resources without turning apps into a second capability registry.
 created_at: 2026-05-25T06:10:08.455Z
-updated_at: 2026-05-25T06:10:08.455Z
+updated_at: 2026-05-25T07:25:00.000Z
 ---
 
 ## Problem
@@ -134,3 +134,8 @@ not a parallel product framework.
   tool/resource result through the plain fallback path.
 - Diff review shows no new MCP Apps registry, frontend build surface, or
   client-specific UI dependency outside the `mcp-server` adapter.
+
+Completed evidence:
+
+- `pnpm test src/modules/mcp-server/server.test.ts src/modules/mcp-server/mcp-protocol-types.test.ts src/modules/mcp-server/server-card.test.ts` passed.
+- `.kota/runs/2026-05-25T06-12-51-421Z-builder-azlfsl/mcp-apps-protocol-fixture.json` captures app-capable negotiation, `ui://` list/read, tool UI metadata, plain fallback, and malformed metadata rejection.

@@ -20,6 +20,7 @@ import type {
 } from "./mcp-protocol-types.js";
 import {
 	decodeClientElicitationCapabilities,
+	decodeClientMcpUiCapabilities,
 	MCP_DRAFT_PROTOCOL_VERSION,
 	MCP_LEGACY_PROTOCOL_VERSION,
 	MCP_SUPPORTED_PROTOCOL_VERSIONS,
@@ -124,9 +125,19 @@ export class InitializeHandler {
 			});
 			return;
 		}
+		const rawClientCaps = msg.params?.capabilities ?? {};
+		if (!isJsonObject(rawClientCaps)) {
+			this.ctx.transport.sendError(msg, -32602, "Malformed initialize capabilities");
+			return;
+		}
+		const clientCaps = rawClientCaps as McpClientCapabilities;
+		const clientMcpUi = decodeClientMcpUiCapabilities(clientCaps);
+		if (!clientMcpUi.ok) {
+			this.ctx.transport.sendError(msg, -32602, clientMcpUi.message);
+			return;
+		}
 		this.ctx.session.protocolVersion = negotiatedProtocolVersion;
 		this.ctx.session.initialized = true;
-		const clientCaps = (msg.params?.capabilities ?? {}) as McpClientCapabilities;
 		this.ctx.session.clientElicitation = decodeClientElicitationCapabilities(clientCaps);
 		this.ctx.session.clientSupportsRoots =
 			typeof clientCaps.roots === "object" && clientCaps.roots !== null;
@@ -166,7 +177,7 @@ export class InitializeHandler {
 			}
 		}
 		this.ctx.log(
-			`Initialized successfully (elicitation.form: ${this.ctx.session.clientElicitation.form}, elicitation.url: ${this.ctx.session.clientElicitation.url}, sampling: ${this.options.advertiseSampling()}, completions: true, roots: ${this.ctx.session.clientSupportsRoots})`,
+			`Initialized successfully (elicitation.form: ${this.ctx.session.clientElicitation.form}, elicitation.url: ${this.ctx.session.clientElicitation.url}, sampling: ${this.options.advertiseSampling()}, completions: true, roots: ${this.ctx.session.clientSupportsRoots}, mcpUi: ${clientMcpUi.capabilities.supported})`,
 		);
 		this.ctx.transport.sendResult(msg, {
 			protocolVersion: this.ctx.session.protocolVersion,

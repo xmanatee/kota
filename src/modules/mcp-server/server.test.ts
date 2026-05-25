@@ -18,6 +18,11 @@ import { clearCustomTools, registerTool } from "#core/tools/index.js";
 import executionModule from "#modules/execution/index.js";
 import filesystemModule from "#modules/filesystem/index.js";
 import {
+	KOTA_STATUS_UI_RESOURCE_URI,
+	MCP_UI_EXTENSION_ID,
+	MCP_UI_RESOURCE_MIME_TYPE,
+} from "./mcp-apps.js";
+import {
 	MCP_DRAFT_PROTOCOL_VERSION,
 	MCP_META_CLIENT_CAPABILITIES_KEY,
 	MCP_META_CLIENT_INFO_KEY,
@@ -182,6 +187,16 @@ function draftRequestParamsWithLogLevel(
 	const next = draftRequestParams(params);
 	(next._meta as Record<string, unknown>)[MCP_META_LOG_LEVEL_KEY] = logLevel;
 	return next;
+}
+
+function mcpUiClientCapabilities(): Record<string, unknown> {
+	return {
+		extensions: {
+			[MCP_UI_EXTENSION_ID]: {
+				mimeTypes: [MCP_UI_RESOURCE_MIME_TYPE],
+			},
+		},
+	};
 }
 
 function manualClock(start = Date.parse("2026-05-21T00:00:00.000Z")) {
@@ -470,6 +485,9 @@ describe("McpServer", () => {
 				prompts: { listChanged: true },
 				completions: {},
 				logging: {},
+				extensions: {
+					[MCP_UI_EXTENSION_ID]: { mimeTypes: [MCP_UI_RESOURCE_MIME_TYPE] },
+				},
 				tasks: { list: {}, cancel: {}, requests: { tools: { call: {} } } },
 			});
 			const taskCaps = capabilities.tasks as Record<string, unknown>;
@@ -518,6 +536,9 @@ describe("McpServer", () => {
 				prompts: { listChanged: true },
 				completions: {},
 				logging: {},
+				extensions: {
+					[MCP_UI_EXTENSION_ID]: { mimeTypes: [MCP_UI_RESOURCE_MIME_TYPE] },
+				},
 				tasks: { list: {}, cancel: {}, requests: { tools: { call: {} } } },
 			});
 			const taskCaps = capabilities.tasks as Record<string, unknown>;
@@ -532,6 +553,30 @@ describe("McpServer", () => {
 				"roots",
 				"sampling",
 			]);
+
+			server.stop();
+		});
+
+		it("rejects malformed MCP Apps initialize extension metadata", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await server.start();
+
+			sendRequest(input, 1, "initialize", {
+				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+				capabilities: {
+					extensions: {
+						[MCP_UI_EXTENSION_ID]: { mimeTypes: [MCP_UI_RESOURCE_MIME_TYPE, 42] },
+					},
+				},
+				clientInfo: { name: "test", version: "1.0.0" },
+			});
+			const resp = await readResponse(output);
+
+			expect(resp.error).toMatchObject({
+				code: -32602,
+				message: `Malformed MCP client extension capability: ${MCP_UI_EXTENSION_ID}.mimeTypes`,
+			});
 
 			server.stop();
 		});
@@ -835,6 +880,44 @@ describe("McpServer", () => {
 			server.stop();
 		});
 
+		it("adds MCP Apps tool metadata only for app-capable clients and keeps text fallback", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await server.start();
+
+			sendRequest(input, 1, "tools/list", draftRequestParams());
+			const plainResp = await readResponse(output);
+			const plainResult = plainResp.result as { tools: Array<Record<string, unknown>> };
+			const plainTool = plainResult.tools.find((candidate) => candidate.name === "agent_status");
+			expect(plainTool?._meta).toBeUndefined();
+
+			sendRequest(input, 2, "tools/list", draftRequestParams({}, mcpUiClientCapabilities()));
+			const appResp = await readResponse(output);
+			const appResult = appResp.result as { tools: Array<Record<string, unknown>> };
+			const appTool = appResult.tools.find((candidate) => candidate.name === "agent_status");
+			expect(appTool?._meta).toEqual({
+				ui: {
+					resourceUri: KOTA_STATUS_UI_RESOURCE_URI,
+				},
+			});
+
+			sendRequest(input, 3, "tools/call", draftRequestParams({
+				name: "agent_status",
+				arguments: { query: "tools", filter: "agent_status" },
+			}, mcpUiClientCapabilities()));
+			const callResp = await readResponse(output);
+			const callResult = callResp.result as {
+				resultType: string;
+				content: Array<{ type: string; text: string }>;
+				isError: boolean;
+			};
+			expect(callResult.resultType).toBe("complete");
+			expect(callResult.isError).toBe(false);
+			expect(callResult.content[0]?.text).toContain("agent_status");
+
+			server.stop();
+		});
+
 		it("advertises optional task support on draft tools/list results", async () => {
 			const { input, output } = createTestStreams();
 			const server = new McpServer({
@@ -943,6 +1026,26 @@ describe("McpServer", () => {
 			const err = resp.error as { code: number; message: string };
 			expect(err.code).toBe(-32602);
 			expect(err.message).toContain(MCP_META_CLIENT_CAPABILITIES_KEY);
+
+			server.stop();
+		});
+
+		it("rejects draft requests with malformed MCP Apps extension metadata", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+			await server.start();
+
+			sendRequest(input, 1, "tools/list", draftRequestParams({}, {
+				extensions: {
+					[MCP_UI_EXTENSION_ID]: "not an object",
+				},
+			}));
+			const resp = await readResponse(output);
+
+			expect(resp.error).toMatchObject({
+				code: -32602,
+				message: `Malformed MCP client extension capability: ${MCP_UI_EXTENSION_ID}`,
+			});
 
 			server.stop();
 		});
@@ -2823,6 +2926,82 @@ describe("resources", () => {
 		const result = resp.result as { resources: Array<{ uri: string }> };
 		const uris = result.resources.map((r) => r.uri);
 		expect(uris).toContain("kota://tasks/ready");
+
+		server.stop();
+	});
+
+	it("exposes the MCP Apps ui resource only to app-capable clients", async () => {
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {} });
+		await server.start();
+
+		sendRequest(input, 1, "resources/list", draftRequestParams());
+		const plainListResp = await readResponse(output);
+		const plainList = plainListResp.result as { resources: Array<{ uri: string }> };
+		expect(plainList.resources.map((resource) => resource.uri)).not.toContain(
+			KOTA_STATUS_UI_RESOURCE_URI,
+		);
+
+		sendRequest(input, 2, "resources/read", draftRequestParams({
+			uri: KOTA_STATUS_UI_RESOURCE_URI,
+		}));
+		const plainReadResp = await readResponse(output);
+		expect(plainReadResp.error).toMatchObject({
+			code: -32002,
+			message: `Unknown resource: ${KOTA_STATUS_UI_RESOURCE_URI}`,
+		});
+
+		sendRequest(input, 3, "resources/list", draftRequestParams(
+			{},
+			mcpUiClientCapabilities(),
+		));
+		const appListResp = await readResponse(output);
+		const appList = appListResp.result as {
+			resources: Array<{ uri: string; mimeType: string; _meta?: Record<string, unknown> }>;
+		};
+		const appResource = appList.resources.find((resource) =>
+			resource.uri === KOTA_STATUS_UI_RESOURCE_URI
+		);
+		expect(appResource).toMatchObject({
+			uri: KOTA_STATUS_UI_RESOURCE_URI,
+			mimeType: MCP_UI_RESOURCE_MIME_TYPE,
+			_meta: {
+				ui: {
+					csp: {
+						baseUriDomains: [],
+						connectDomains: [],
+						frameDomains: [],
+						resourceDomains: [],
+					},
+					permissions: {},
+					prefersBorder: true,
+				},
+			},
+		});
+		const appResourceMeta = appResource?._meta;
+		expect(appResourceMeta).toBeDefined();
+
+		sendRequest(input, 4, "resources/read", draftRequestParams({
+			uri: KOTA_STATUS_UI_RESOURCE_URI,
+		}, mcpUiClientCapabilities()));
+		const appReadResp = await readResponse(output);
+		const appRead = appReadResp.result as {
+			contents: Array<{
+				uri: string;
+				mimeType: string;
+				text: string;
+				_meta?: Record<string, unknown>;
+			}>;
+		};
+		expect(appRead.contents).toHaveLength(1);
+		expect(appRead.contents[0]).toMatchObject({
+			uri: KOTA_STATUS_UI_RESOURCE_URI,
+			mimeType: MCP_UI_RESOURCE_MIME_TYPE,
+			_meta: appResourceMeta,
+		});
+		expect(appRead.contents[0]?.text).toContain("<!doctype html>");
+		expect(appRead.contents[0]?.text.length).toBeLessThan(12_000);
+		expect(appRead.contents[0]?.text).not.toMatch(/<script|https?:\/\//i);
 
 		server.stop();
 	});

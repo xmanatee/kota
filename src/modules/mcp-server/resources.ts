@@ -12,11 +12,16 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { KotaJsonValue } from "#core/agent-harness/message-protocol.js";
+import type { KotaJsonObject, KotaJsonValue } from "#core/agent-harness/message-protocol.js";
 import { getKnowledgeProvider, getMemoryProvider } from "#core/modules/provider-registry.js";
 import type { KnowledgeEntry, Memory } from "#core/modules/provider-types.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { getRepoTaskStateDir } from "#modules/repo-tasks/repo-tasks-domain.js";
+import {
+	buildKotaStatusUiResource,
+	isMcpUiResourceUri,
+	readKotaStatusUiResource,
+} from "./mcp-apps.js";
 import {
 	MCP_SERVER_CARD_RESOURCE_URI,
 	readMcpServerCard,
@@ -27,6 +32,7 @@ export type McpResource = {
 	name: string;
 	description: string;
 	mimeType: string;
+	_meta?: KotaJsonObject;
 };
 
 export type McpResourceTemplate = {
@@ -47,6 +53,14 @@ export type McpResourceTemplateListPage = {
 };
 
 type KotaResourceError = { ok: false; code: number; message: string };
+
+type McpResourceListOptions = {
+	includeMcpApps?: boolean;
+};
+
+type McpResourceReadOptions = {
+	includeMcpApps?: boolean;
+};
 
 export type McpResourceCatalogResult<T> =
 	| { ok: true; result: T }
@@ -166,8 +180,9 @@ function hasKnowledgeProvider(): boolean {
 	}
 }
 
-export function listKotaResources(): McpResource[] {
+export function listKotaResources(options: McpResourceListOptions = {}): McpResource[] {
 	return [
+		...(options.includeMcpApps ? [buildKotaStatusUiResource()] : []),
 		...CORE_KOTA_RESOURCES,
 		...(hasMemoryProvider() ? [MEMORY_RESOURCE] : []),
 		...(hasKnowledgeProvider() ? [KNOWLEDGE_RESOURCE] : []),
@@ -181,8 +196,11 @@ export function listKotaResourceTemplates(): McpResourceTemplate[] {
 	].map((template) => ({ ...template }));
 }
 
-export function isKnownKotaResourceUri(uri: string): boolean {
-	return listKotaResources().some((resource) => resource.uri === uri);
+export function isKnownKotaResourceUri(
+	uri: string,
+	options: McpResourceListOptions = {},
+): boolean {
+	return listKotaResources(options).some((resource) => resource.uri === uri);
 }
 
 const INDEX_LIMIT_DEFAULT = 50;
@@ -192,7 +210,7 @@ const SNIPPET_CHAR_LIMIT = 240;
 const OPAQUE_TOKEN_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 export type KotaResourceReadResult =
-	| { ok: true; text: string }
+	| { ok: true; text: string; mimeType?: string; _meta?: KotaJsonObject }
 	| KotaResourceError;
 
 type CursorScope =
@@ -363,9 +381,10 @@ function paginateCatalog<T>(
 
 export function listKotaResourcesPage(
 	cursor: KotaJsonValue | undefined,
+	options: McpResourceListOptions = {},
 ): McpResourceCatalogResult<McpResourceListPage> {
 	const page = paginateCatalog(
-		listKotaResources(),
+		listKotaResources(options),
 		cursor,
 		RESOURCE_LIST_PAGE_SIZE,
 		"resources-list",
@@ -691,7 +710,17 @@ function readKnowledgeResource(parsed: URL): KotaResourceReadResult {
 export function readKotaResource(
 	uri: string,
 	projectDir: string,
+	options: McpResourceReadOptions = {},
 ): KotaResourceReadResult {
+	if (options.includeMcpApps && isMcpUiResourceUri(uri)) {
+		const resource = readKotaStatusUiResource();
+		return {
+			ok: true,
+			text: resource.text,
+			mimeType: resource.mimeType,
+			_meta: resource._meta,
+		};
+	}
 	switch (uri) {
 		case MCP_SERVER_CARD_RESOURCE_URI:
 			try {

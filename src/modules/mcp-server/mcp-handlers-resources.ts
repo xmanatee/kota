@@ -20,6 +20,7 @@ import type {
 	JsonRpcRequest,
 } from "./mcp-protocol-types.js";
 import {
+	activeClientSupportsMcpUi,
 	hasActiveMcpContext,
 	MCP_PRIVATE_RESOURCE_CACHE_HINTS,
 	MCP_PUBLIC_CATALOG_CACHE_HINTS,
@@ -129,7 +130,9 @@ export class ResourcesHandler {
 			this.ctx.transport.sendError(msg, -32002, "Server not initialized");
 			return;
 		}
-		const result = listKotaResourcesPage(msg.params?.cursor);
+		const result = listKotaResourcesPage(msg.params?.cursor, {
+			includeMcpApps: activeClientSupportsMcpUi(this.ctx),
+		});
 		if (!result.ok) {
 			this.ctx.transport.sendError(msg, result.code, result.message);
 			return;
@@ -169,13 +172,20 @@ export class ResourcesHandler {
 		}
 		const projectDir = this.resolveProjectDirForRead(msg);
 		if (!projectDir) return;
-		const result = readKotaResource(uri, projectDir);
+		const result = readKotaResource(uri, projectDir, {
+			includeMcpApps: activeClientSupportsMcpUi(this.ctx),
+		});
 		if (!result.ok) {
 			this.ctx.transport.sendError(msg, result.code, result.message);
 			return;
 		}
 		this.ctx.transport.sendResult(msg, {
-			contents: [{ uri, mimeType: "application/json", text: result.text }],
+			contents: [{
+				uri,
+				mimeType: result.mimeType ?? "application/json",
+				text: result.text,
+				...(result._meta !== undefined && { _meta: result._meta }),
+			}],
 			...MCP_PRIVATE_RESOURCE_CACHE_HINTS,
 		});
 	}
@@ -190,7 +200,7 @@ export class ResourcesHandler {
 			this.ctx.transport.sendError(msg, -32602, "Missing required parameter: uri");
 			return;
 		}
-		if (!isKnownKotaResourceUri(uri)) {
+		if (!isKnownKotaResourceUri(uri, { includeMcpApps: activeClientSupportsMcpUi(this.ctx) })) {
 			this.ctx.transport.sendError(msg, -32002, `Unknown resource: ${uri}`);
 			return;
 		}
@@ -253,7 +263,7 @@ export class ResourcesHandler {
 				this.ctx.transport.sendError(msg, -32602, "notifications.resourceSubscriptions must contain strings");
 				return;
 			}
-			if (!isKnownKotaResourceUri(uri)) {
+			if (!isKnownKotaResourceUri(uri, { includeMcpApps: activeClientSupportsMcpUi(this.ctx) })) {
 				this.ctx.transport.sendError(msg, -32002, `Unknown resource: ${uri}`);
 				return;
 			}

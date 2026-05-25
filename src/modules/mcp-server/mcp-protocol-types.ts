@@ -10,6 +10,10 @@ import type {
 	KotaMcpAnnotations,
 	KotaMcpPreservedContent,
 } from "#core/agent-harness/message-protocol.js";
+import {
+	MCP_UI_EXTENSION_ID,
+	MCP_UI_RESOURCE_MIME_TYPE,
+} from "./mcp-apps.js";
 
 export const MCP_LEGACY_PROTOCOL_VERSION = "2024-11-05";
 export const MCP_DRAFT_PROTOCOL_VERSION = "DRAFT-2026-v1";
@@ -361,6 +365,14 @@ export type McpElicitationClientCapabilities = {
 	url: boolean;
 };
 
+export type McpUiClientCapabilities = {
+	supported: boolean;
+};
+
+export type McpUiClientCapabilityDecodeResult =
+	| { ok: true; capabilities: McpUiClientCapabilities }
+	| { ok: false; message: string };
+
 export type McpRequestContext = {
 	protocolVersion: typeof MCP_DRAFT_PROTOCOL_VERSION;
 	clientInfo: McpImplementation;
@@ -417,6 +429,10 @@ function hasObjectCapability(
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function isProtocolObject(value: KotaJsonValue | undefined): value is KotaJsonObject {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export function decodeClientElicitationCapabilities(
 	capabilities: McpClientCapabilities,
 ): McpElicitationClientCapabilities {
@@ -431,6 +447,39 @@ export function decodeClientElicitationCapabilities(
 	return {
 		form: form || legacyEmptyObject,
 		url,
+	};
+}
+
+export function decodeClientMcpUiCapabilities(
+	capabilities: McpClientCapabilities,
+): McpUiClientCapabilityDecodeResult {
+	const extensions = capabilities.extensions;
+	if (extensions === undefined) return { ok: true, capabilities: { supported: false } };
+	if (!isProtocolObject(extensions)) {
+		return { ok: false, message: "Malformed MCP client capability: extensions" };
+	}
+
+	const uiCapability = extensions[MCP_UI_EXTENSION_ID];
+	if (uiCapability === undefined) return { ok: true, capabilities: { supported: false } };
+	if (!isProtocolObject(uiCapability)) {
+		return {
+			ok: false,
+			message: `Malformed MCP client extension capability: ${MCP_UI_EXTENSION_ID}`,
+		};
+	}
+
+	const mimeTypes = uiCapability.mimeTypes;
+	if (mimeTypes === undefined) return { ok: true, capabilities: { supported: false } };
+	if (!Array.isArray(mimeTypes) || mimeTypes.some((mimeType) => typeof mimeType !== "string")) {
+		return {
+			ok: false,
+			message: `Malformed MCP client extension capability: ${MCP_UI_EXTENSION_ID}.mimeTypes`,
+		};
+	}
+
+	return {
+		ok: true,
+		capabilities: { supported: mimeTypes.includes(MCP_UI_RESOURCE_MIME_TYPE) },
 	};
 }
 
@@ -455,6 +504,13 @@ export function activeClientSupportsElicitation(
 		return decodeClientElicitationCapabilities(request.clientCapabilities)[mode];
 	}
 	return ctx.session.clientElicitation[mode];
+}
+
+export function activeClientSupportsMcpUi(ctx: HandlerContext): boolean {
+	const request = ctx.getRequestContext();
+	if (!request) return false;
+	const decoded = decodeClientMcpUiCapabilities(request.clientCapabilities);
+	return decoded.ok && decoded.capabilities.supported;
 }
 
 export function activeClientSupportsRoots(ctx: HandlerContext): boolean {
