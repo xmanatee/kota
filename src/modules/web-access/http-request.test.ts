@@ -33,6 +33,14 @@ describe("runHttpRequest", () => {
     });
   }
 
+  async function makeProjectTempDir(prefix: string): Promise<string> {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const baseDir = path.join(process.cwd(), ".kota", "test-tmp");
+    fs.mkdirSync(baseDir, { recursive: true });
+    return fs.mkdtempSync(path.join(baseDir, prefix));
+  }
+
   // --- Input validation ---
 
   it("rejects missing url", async () => {
@@ -246,11 +254,48 @@ describe("runHttpRequest", () => {
 
   // --- save_to ---
 
+  it("rejects outside-project save_to before fetching", async () => {
+    globalThis.fetch = vi.fn();
+    const result = await runHttpRequest({
+      url: "https://api.example.com/export",
+      save_to: "/tmp/kota-http-outside.txt",
+    });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("project directory");
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects dangling save_to symlinks before fetching", async () => {
+    const fs = await import("node:fs");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const projectDir = await makeProjectTempDir("kota-http-link-");
+    const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "kota-http-outside-"));
+    const outsideTarget = path.join(outsideDir, "response.txt");
+    const link = path.join(projectDir, "response.txt");
+    fs.symlinkSync(outsideTarget, link);
+    globalThis.fetch = vi.fn();
+
+    try {
+      const result = await runHttpRequest({
+        url: "https://api.example.com/export",
+        save_to: link,
+      });
+
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("project directory");
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+      expect(fs.existsSync(outsideTarget)).toBe(false);
+    } finally {
+      fs.rmSync(projectDir, { recursive: true, force: true });
+      fs.rmSync(outsideDir, { recursive: true, force: true });
+    }
+  });
+
   it("saves text response to file", async () => {
     const fs = await import("node:fs");
     const path = await import("node:path");
-    const os = await import("node:os");
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kota-http-"));
+    const dir = await makeProjectTempDir("kota-http-");
     const savePath = path.join(dir, "data.json");
 
     mockFetch({ body: '{"records":[1,2,3]}', contentType: "application/json" });
@@ -268,8 +313,7 @@ describe("runHttpRequest", () => {
   it("saves binary response to file instead of rejecting", async () => {
     const fs = await import("node:fs");
     const path = await import("node:path");
-    const os = await import("node:os");
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kota-http-"));
+    const dir = await makeProjectTempDir("kota-http-");
     const savePath = path.join(dir, "image.bin");
 
     const binaryData = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
@@ -294,8 +338,7 @@ describe("runHttpRequest", () => {
   it("marks saved 4xx response as error", async () => {
     const fs = await import("node:fs");
     const path = await import("node:path");
-    const os = await import("node:os");
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kota-http-"));
+    const dir = await makeProjectTempDir("kota-http-");
     const savePath = path.join(dir, "error.txt");
 
     mockFetch({ status: 404, statusText: "Not Found", body: "not found" });
@@ -312,7 +355,7 @@ describe("runHttpRequest", () => {
     mockFetch({ body: "data" });
     const result = await runHttpRequest({
       url: "https://api.example.com/data",
-      save_to: "/nonexistent_kota_test_path/file.txt",
+      save_to: "src",
     });
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("Error saving response");
@@ -495,7 +538,7 @@ describe("runHttpRequest", () => {
     });
     const result = await runHttpRequest({
       url: "https://api.example.com",
-      save_to: "/tmp/kota-test-save.txt",
+      save_to: "data/kota-test-save.txt",
     });
     expect(result.is_error).toBe(true);
     // Body read abort during save_to should bubble up as timeout
@@ -593,8 +636,7 @@ describe("runHttpRequest", () => {
   it("auto-creates parent directories for save_to", async () => {
     const fs = await import("node:fs");
     const path = await import("node:path");
-    const os = await import("node:os");
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kota-http-"));
+    const dir = await makeProjectTempDir("kota-http-");
     const savePath = path.join(dir, "nested", "deep", "data.json");
 
     mockFetch({ body: '{"saved":true}', contentType: "application/json" });
@@ -612,8 +654,7 @@ describe("runHttpRequest", () => {
   it("auto-creates parent directories for binary save_to", async () => {
     const fs = await import("node:fs");
     const path = await import("node:path");
-    const os = await import("node:os");
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kota-http-"));
+    const dir = await makeProjectTempDir("kota-http-");
     const savePath = path.join(dir, "sub", "image.bin");
 
     const binaryData = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
@@ -635,8 +676,7 @@ describe("runHttpRequest", () => {
   it("shows redirect note with save_to", async () => {
     const fs = await import("node:fs");
     const path = await import("node:path");
-    const os = await import("node:os");
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kota-http-"));
+    const dir = await makeProjectTempDir("kota-http-");
     const savePath = path.join(dir, "data.txt");
 
     const responseHeaders = new Map<string, string>([["content-type", "text/plain"]]);

@@ -10,7 +10,7 @@
  * web_search and web_fetch are open-world reads (moderate risk via
  * exfiltration); http_request is an open-world write (moderate). The
  * guardrails layer further classifies http_request at call time based on
- * HTTP method.
+ * HTTP method and treats any save_to path as a local filesystem write.
  */
 
 

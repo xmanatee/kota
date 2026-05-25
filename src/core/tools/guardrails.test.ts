@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { legacyEffect, riskFromEffect } from "./effect.js";
 import {
@@ -254,6 +257,69 @@ describe("classifyRisk", () => {
   it("classifies http_request GET as safe", () => {
     const { risk } = classifyRisk("http_request", { url: "https://example.com", method: "GET" });
     expect(risk).toBe("safe");
+  });
+
+  it("classifies http_request GET with save_to as a local filesystem write", () => {
+    const result = classifyRisk("http_request", {
+      url: "https://example.com",
+      method: "GET",
+      save_to: "data/http-response.txt",
+    });
+    expect(result.risk).toBe("moderate");
+    expect(result.reason).toContain("local filesystem write");
+  });
+
+  it("classifies http_request GET with outside-project save_to as dangerous", () => {
+    const result = classifyRisk("http_request", {
+      url: "https://example.com",
+      method: "GET",
+      save_to: "/tmp/http-response.txt",
+    });
+    expect(result.risk).toBe("dangerous");
+    expect(result.reason).toContain("outside project directory");
+    expect(result.reason).not.toContain("/tmp");
+  });
+
+  it("classifies http_request GET with dangling outside-project save_to symlink as dangerous", () => {
+    const baseDir = join(process.cwd(), ".kota", "test-tmp");
+    mkdirSync(baseDir, { recursive: true });
+    const projectDir = mkdtempSync(join(baseDir, "guardrails-save-to-link-"));
+    const outsideDir = mkdtempSync(join(tmpdir(), "guardrails-save-to-outside-"));
+    const link = join(projectDir, "response.txt");
+    symlinkSync(join(outsideDir, "response.txt"), link);
+
+    try {
+      const result = classifyRisk("http_request", {
+        url: "https://example.com",
+        method: "GET",
+        save_to: link,
+      });
+
+      expect(result.risk).toBe("dangerous");
+      expect(result.reason).toContain("outside project directory");
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(outsideDir, { recursive: true, force: true });
+    }
+  });
+
+  it("classifies web_fetch with save_to as a local filesystem write", () => {
+    const result = classifyRisk("web_fetch", {
+      url: "https://example.com",
+      save_to: "data/page.md",
+    });
+    expect(result.risk).toBe("moderate");
+    expect(result.reason).toContain("local filesystem write");
+  });
+
+  it("classifies web_fetch with outside-project save_to as dangerous", () => {
+    const result = classifyRisk("web_fetch", {
+      url: "https://example.com",
+      save_to: "/tmp/page.md",
+    });
+    expect(result.risk).toBe("dangerous");
+    expect(result.reason).toContain("outside project directory");
+    expect(result.reason).not.toContain("/tmp");
   });
 
   it("classifies http_request POST as moderate", () => {

@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { dirname } from "node:path";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import { resolveProjectPath } from "#core/tools/project-path-policy.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { extractPage, formatMetadataHeader } from "./html-page-extract.js";
 
@@ -24,7 +25,7 @@ export const webFetchTool: KotaTool = {
       save_to: {
         type: "string",
         description:
-          "Save response to this file path instead of returning content. " +
+          "Save response to this project file path instead of returning content. " +
           "Works for both binary (PDF, images, ZIP) and text files. Returns file metadata.",
       },
     },
@@ -79,6 +80,10 @@ export async function runWebFetch(
 ): Promise<ToolResult> {
   const url = input.url as string;
   const maxLength = Math.max(1, (input.max_length as number) || 20_000);
+  const saveTo = typeof input.save_to === "string" && input.save_to.length > 0
+    ? input.save_to
+    : undefined;
+  const savePath = saveTo ? resolveProjectPath(saveTo) : undefined;
 
   if (!url) {
     return { content: "Error: url is required", is_error: true };
@@ -86,6 +91,13 @@ export async function runWebFetch(
 
   if (!url.startsWith("http://") && !url.startsWith("https://")) {
     return { content: "Error: url must start with http:// or https://", is_error: true };
+  }
+
+  if (savePath && !savePath.ok) {
+    return {
+      content: "Error: save_to must target a file inside the project directory",
+      is_error: true,
+    };
   }
 
   try {
@@ -113,23 +125,22 @@ export async function runWebFetch(
     const contentType = response.headers.get("content-type") || "";
 
     // Download mode: save to file instead of returning content
-    if (input.save_to) {
-      const savePath = path.resolve(input.save_to as string);
+    if (savePath?.ok) {
       const mime = contentType.split(";")[0].trim();
       try {
-        await mkdir(path.dirname(savePath), { recursive: true });
+        await mkdir(dirname(savePath.path), { recursive: true });
         if (isBinaryContentType(contentType)) {
           const buffer = await response.arrayBuffer();
-          await writeFile(savePath, Buffer.from(buffer));
+          await writeFile(savePath.path, Buffer.from(buffer));
           return {
-            content: `Downloaded ${mime} to ${savePath} (${formatBytes(buffer.byteLength)})`,
+            content: `Downloaded ${mime} to ${savePath.path} (${formatBytes(buffer.byteLength)})`,
           };
         }
         const text = await response.text();
-        await writeFile(savePath, text, "utf-8");
+        await writeFile(savePath.path, text, "utf-8");
         const preview = text.slice(0, 500);
         return {
-          content: `Saved to ${savePath} (${formatBytes(Buffer.byteLength(text))}, ${mime})\n\nPreview:\n${preview}${text.length > 500 ? "\n..." : ""}`,
+          content: `Saved to ${savePath.path} (${formatBytes(Buffer.byteLength(text))}, ${mime})\n\nPreview:\n${preview}${text.length > 500 ? "\n..." : ""}`,
         };
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);

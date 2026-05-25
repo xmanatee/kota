@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-web-access-tools-accept-an-arb
 title: Security review: The web-access tools accept an arbitrary save_to path and write fetched response bodies there, but guardrail classification does not treat that input as a local filesystem write. This lets an agent use web_fetch or a safe-classified http_request GET to create or overwrite files outside the project, bypassing the existing outside-project file-write guardrail.
-status: ready
+status: done
 priority: p1
 area: security
 summary: The web-access tools accept an arbitrary save_to path and write fetched response bodies there, but guardrail classification does not treat that input as a local filesystem write. This lets an agent use web_fetch or a safe-classified http_request GET to create or overwrite files outside the project, bypassing the existing outside-project file-write guardrail.
 created_at: 2026-05-25T21:56:42.180Z
-updated_at: 2026-05-25T21:56:42.180Z
+updated_at: 2026-05-25T22:43:22Z
 ---
 
 ## Problem
@@ -59,3 +59,4 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Verified with `pnpm test src/core/tools/project-path-policy.test.ts src/core/tools/guardrails.test.ts src/modules/web-access/http-request.test.ts src/modules/web-access/web-fetch.test.ts src/http-data-pipeline.integration.test.ts`, `pnpm typecheck`, and `pnpm test`.

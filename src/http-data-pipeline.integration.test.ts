@@ -1,5 +1,4 @@
-import { existsSync, readFileSync, unlinkSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearCustomGroups, detectToolGroups, enableGroup, getActiveToolNames, registerCustomGroup, resetGroups } from "./core/tools/tool-groups.js";
@@ -40,7 +39,7 @@ function mockFetch(opts: {
 
 describe("http_request → code_exec data pipeline", () => {
   const originalFetch = globalThis.fetch;
-  const tempFiles: string[] = [];
+  const tempDirs: string[] = [];
 
   beforeEach(() => {
     registerCustomGroup("web", ["web_search", "web_fetch", "http_request"]);
@@ -52,16 +51,18 @@ describe("http_request → code_exec data pipeline", () => {
     vi.restoreAllMocks();
     clearCustomGroups();
     resetGroups();
-    for (const f of tempFiles) {
-      try { unlinkSync(f); } catch { /* ignore */ }
+    for (const dir of tempDirs) {
+      rmSync(dir, { recursive: true, force: true });
     }
-    tempFiles.length = 0;
+    tempDirs.length = 0;
   });
 
   function tempPath(name: string): string {
-    const p = join(tmpdir(), `kota-test-${Date.now()}-${name}`);
-    tempFiles.push(p);
-    return p;
+    const baseDir = join(process.cwd(), ".kota", "test-tmp");
+    mkdirSync(baseDir, { recursive: true });
+    const dir = mkdtempSync(join(baseDir, "http-data-pipeline-"));
+    tempDirs.push(dir);
+    return join(dir, name);
   }
 
   it("saves CSV data that Python could parse with pandas", async () => {

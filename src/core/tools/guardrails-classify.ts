@@ -16,8 +16,6 @@
  * effects own that information now.
  */
 
-import { realpathSync } from "node:fs";
-import { isAbsolute, relative, resolve } from "node:path";
 import {
   type McpToolAnnotations,
   mcpAnnotationsFromEffect,
@@ -25,9 +23,12 @@ import {
   riskFromEffect,
 } from "./effect.js";
 import { getToolEffect } from "./index.js";
+import { isOutsideProject, resolvePathFrom } from "./project-path-policy.js";
 
 export type RiskLevel = RiskTier;
 export type { McpToolAnnotations };
+
+type ToolCallInput = Record<string, unknown>;
 
 // ─── Input-pattern guards ─────────────────────────────────────────────
 
@@ -106,7 +107,7 @@ const DIRECTORY_CHANGING_COMMANDS = new Set(["cd", "pushd"]);
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
-export function extractCommand(input: Record<string, unknown>): string {
+export function extractCommand(input: ToolCallInput): string {
   return ((input.command as string) || "").trim();
 }
 
@@ -116,33 +117,6 @@ export function isDangerousCommand(command: string): boolean {
 
 export function isDangerousCode(code: string): boolean {
   return DANGEROUS_CODE_PATTERNS.some((p) => p.test(code));
-}
-
-function resolvePathFrom(baseDirectory: string, targetPath: string): string {
-  return isAbsolute(targetPath)
-    ? resolve(targetPath)
-    : resolve(baseDirectory, targetPath);
-}
-
-function resolveBoundaryPath(path: string): string {
-  try {
-    return realpathSync.native(path);
-  } catch {
-    return path;
-  }
-}
-
-function isPathInsideProject(resolvedPath: string): boolean {
-  const projectRoot = resolveBoundaryPath(resolve(process.cwd()));
-  const relativePath = relative(projectRoot, resolvedPath);
-  return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath));
-}
-
-export function isOutsideProject(
-  filePath: string,
-  baseDirectory = process.cwd(),
-): boolean {
-  return !isPathInsideProject(resolveBoundaryPath(resolvePathFrom(baseDirectory, filePath)));
 }
 
 function skipShellWhitespace(command: string, index: number): number {
@@ -381,6 +355,20 @@ function formatWorkingDirectoryReasons(
   return reasons;
 }
 
+function classifySaveToLocalWrite(
+  input: ToolCallInput,
+): { risk: RiskLevel; reason: string } | null {
+  const saveTo = input.save_to;
+  if (typeof saveTo !== "string" || saveTo.length === 0) return null;
+  if (isOutsideProject(saveTo)) {
+    return {
+      risk: "dangerous",
+      reason: "save_to file operation outside project directory",
+    };
+  }
+  return { risk: "moderate", reason: "save_to local filesystem write" };
+}
+
 // ─── Classification ───────────────────────────────────────────────────
 
 /**
@@ -394,7 +382,7 @@ function formatWorkingDirectoryReasons(
  */
 export function classifyRisk(
   name: string,
-  input: Record<string, unknown>,
+  input: ToolCallInput,
 ): { risk: RiskLevel; reason: string } {
   const effect = getToolEffect(name);
   const baseTier: RiskLevel | undefined = effect ? riskFromEffect(effect) : undefined;
@@ -441,6 +429,11 @@ export function classifyRisk(
     }
     if (baseTier) return { risk: baseTier, reason: "file modification" };
     return { risk: "moderate", reason: "file modification" };
+  }
+
+  if (name === "web_fetch" || name === "http_request") {
+    const saveToRisk = classifySaveToLocalWrite(input);
+    if (saveToRisk) return saveToRisk;
   }
 
   // code_exec: escalate when code contains a system-level operation.

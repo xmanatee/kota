@@ -1,3 +1,4 @@
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { formatJsonResponse, isBinaryContentType, runWebFetch } from "./web-fetch.js";
 
@@ -138,6 +139,43 @@ describe("runWebFetch", () => {
     expect(result.content).toContain("http://");
   });
 
+  it("rejects outside-project save_to before fetching", async () => {
+    const result = await runWebFetch({
+      url: "https://example.com/file.txt",
+      save_to: "/tmp/kota-web-fetch-outside.txt",
+    });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("project directory");
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects dangling save_to symlinks before fetching", async () => {
+    const fs = await import("node:fs");
+    const os = await import("node:os");
+    const baseDir = path.join(process.cwd(), ".kota", "test-tmp");
+    fs.mkdirSync(baseDir, { recursive: true });
+    const projectDir = fs.mkdtempSync(path.join(baseDir, "kota-web-fetch-link-"));
+    const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "kota-web-fetch-outside-"));
+    const outsideTarget = path.join(outsideDir, "response.txt");
+    const link = path.join(projectDir, "response.txt");
+    fs.symlinkSync(outsideTarget, link);
+
+    try {
+      const result = await runWebFetch({
+        url: "https://example.com/file.txt",
+        save_to: link,
+      });
+
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("project directory");
+      expect(global.fetch).not.toHaveBeenCalled();
+      expect(fs.existsSync(outsideTarget)).toBe(false);
+    } finally {
+      fs.rmSync(projectDir, { recursive: true, force: true });
+      fs.rmSync(outsideDir, { recursive: true, force: true });
+    }
+  });
+
   it("returns error for HTTP error status", async () => {
     vi.mocked(global.fetch).mockResolvedValue(
       mockResponse("", { status: 404, statusText: "Not Found" }) as never,
@@ -234,6 +272,8 @@ describe("runWebFetch", () => {
 
   it("saves text content to file with save_to", async () => {
     const { writeFile: wf, mkdir: mk } = await import("node:fs/promises");
+    const savePath = "data/test-data.txt";
+    const resolvedSavePath = path.resolve(savePath);
     vi.mocked(global.fetch).mockResolvedValue(
       mockResponse("Hello world content here", {
         headers: { "content-type": "text/plain" },
@@ -241,15 +281,15 @@ describe("runWebFetch", () => {
     );
     const result = await runWebFetch({
       url: "https://example.com/data.txt",
-      save_to: "/tmp/test-data.txt",
+      save_to: savePath,
     });
     expect(result.is_error).toBeUndefined();
     expect(result.content).toContain("Saved to");
     expect(result.content).toContain("text/plain");
     expect(result.content).toContain("Preview:");
     expect(result.content).toContain("Hello world content here");
-    expect(mk).toHaveBeenCalledWith("/tmp", { recursive: true });
-    expect(wf).toHaveBeenCalledWith("/tmp/test-data.txt", "Hello world content here", "utf-8");
+    expect(mk).toHaveBeenCalledWith(path.dirname(resolvedSavePath), { recursive: true });
+    expect(wf).toHaveBeenCalledWith(resolvedSavePath, "Hello world content here", "utf-8");
   });
 
   it("saves binary content to file with save_to", async () => {
@@ -268,7 +308,7 @@ describe("runWebFetch", () => {
     vi.mocked(global.fetch).mockResolvedValue(resp as never);
     const result = await runWebFetch({
       url: "https://example.com/doc.pdf",
-      save_to: "/tmp/doc.pdf",
+      save_to: "data/doc.pdf",
     });
     expect(result.is_error).toBeUndefined();
     expect(result.content).toContain("Downloaded application/pdf");
@@ -286,7 +326,7 @@ describe("runWebFetch", () => {
     );
     const result = await runWebFetch({
       url: "https://example.com/data.csv",
-      save_to: "/tmp/data.csv",
+      save_to: "data/data.csv",
     });
     expect(result.content).toContain("Preview:");
     expect(result.content).toContain("...");
@@ -302,7 +342,7 @@ describe("runWebFetch", () => {
     );
     const result = await runWebFetch({
       url: "https://example.com/file.txt",
-      save_to: "/readonly/file.txt",
+      save_to: "data/readonly-file.txt",
     });
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("EACCES");

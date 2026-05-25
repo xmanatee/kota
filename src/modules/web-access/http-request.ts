@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import { resolveProjectPath } from "#core/tools/project-path-policy.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import {
   formatBytes,
@@ -51,7 +52,7 @@ export const httpRequestTool: KotaTool = {
       save_to: {
         type: "string",
         description:
-          "Save response body to this file instead of returning inline. " +
+          "Save response body to this project file instead of returning inline. " +
           "Useful for large API responses or binary data.",
       },
     },
@@ -72,6 +73,10 @@ export async function runHttpRequest(
   const body = input.body as string | undefined;
   const timeoutMs = safePositiveInt(input.timeout_ms, DEFAULT_TIMEOUT, 120_000);
   const maxResponse = safePositiveInt(input.max_response_length, DEFAULT_MAX_RESPONSE);
+  const saveTo = typeof input.save_to === "string" && input.save_to.length > 0
+    ? input.save_to
+    : undefined;
+  const savePath = saveTo ? resolveProjectPath(saveTo) : undefined;
 
   if (!url) {
     return { content: "Error: url is required", is_error: true };
@@ -87,6 +92,13 @@ export async function runHttpRequest(
 
   if (body && (method === "GET" || method === "HEAD")) {
     return { content: `Error: ${method} requests cannot have a body`, is_error: true };
+  }
+
+  if (savePath && !savePath.ok) {
+    return {
+      content: "Error: save_to must target a file inside the project directory",
+      is_error: true,
+    };
   }
 
   try {
@@ -131,27 +143,26 @@ export async function runHttpRequest(
       };
     }
 
-    const saveTo = input.save_to as string | undefined;
     const contentType = response.headers.get("content-type") || "";
 
-    if (saveTo) {
+    if (savePath?.ok) {
       try {
-        mkdirSync(dirname(saveTo), { recursive: true });
+        mkdirSync(dirname(savePath.path), { recursive: true });
         let size: number;
         if (isBinaryContentType(contentType)) {
           const buffer = Buffer.from(await response.arrayBuffer());
           clearTimeout(timeout);
-          writeFileSync(saveTo, buffer);
+          writeFileSync(savePath.path, buffer);
           size = buffer.length;
         } else {
           const raw = await response.text();
           clearTimeout(timeout);
-          writeFileSync(saveTo, raw, "utf-8");
+          writeFileSync(savePath.path, raw, "utf-8");
           size = Buffer.byteLength(raw, "utf-8");
         }
         const result: ToolResult = {
           content: formatResult(response.status, response.statusText, responseHeaders,
-            `[Saved to ${saveTo} (${formatBytes(size)})]`),
+            `[Saved to ${savePath.path} (${formatBytes(size)})]`),
         };
         if (response.status >= 400) result.is_error = true;
         return result;
@@ -159,7 +170,7 @@ export async function runHttpRequest(
         clearTimeout(timeout);
         if (isAbortError(err)) throw err; // Let timeout bubble up
         const msg = err instanceof Error ? err.message : String(err);
-        return { content: `Error saving response to ${saveTo}: ${msg}`, is_error: true };
+        return { content: `Error saving response to ${savePath.path}: ${msg}`, is_error: true };
       }
     }
 

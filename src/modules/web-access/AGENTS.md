@@ -14,5 +14,7 @@ Tools, implementation files, helpers, and tests all live here rather than in
 
 ## Risk / Kind Metadata
 
-Tools declare their `risk` and `kind` in the `ToolDef` returned by the module.
+Tools declare their effect metadata in the `ToolDef` returned by the module.
 The module loader stores this metadata; guardrails use it for classification.
+`web_fetch` and `http_request` also treat `save_to` as a project-local
+filesystem write, and the runners reject save paths outside the project root.
