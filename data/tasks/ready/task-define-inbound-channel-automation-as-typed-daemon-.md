@@ -1,12 +1,12 @@
 ---
 id: task-define-inbound-channel-automation-as-typed-daemon-
 title: Define inbound channel automation as typed daemon events
-status: backlog
+status: ready
 priority: p2
 area: architecture
 summary: Unify external message, email, calendar, Telegram, Slack, X/social, and webhook signals behind a thin per-channel adapter contract that emits typed daemon events for bounded workflows.
 created_at: 2026-05-25T01:27:33.030Z
-updated_at: 2026-05-25T01:28:18Z
+updated_at: 2026-05-25T02:34:39Z
 ---
 
 ## Problem
