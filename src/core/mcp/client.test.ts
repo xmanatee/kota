@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   MCP_DRAFT_PROTOCOL_VERSION,
   MCP_LEGACY_PROTOCOL_VERSION,
+  MCP_TASKS_EXTENSION_ID,
   McpAuthorizationError,
   type McpCallToolResult,
   McpClient,
@@ -69,7 +70,7 @@ async function waitForAssertion(assertion: () => void, timeoutMs = 2_000): Promi
 function expectCompletedResult(
   result: McpCallToolResult,
 ): McpCompleteCallToolResult | McpLegacyCallToolResult {
-  if (result.resultType === "input_required") {
+  if (result.resultType === "input_required" || result.resultType === "task") {
     throw new Error("Expected a completed MCP tool result");
   }
   return result;
@@ -77,12 +78,13 @@ function expectCompletedResult(
 
 function mockClientHttpFetch(
   handler: (request: RecordedClientHttpRequest) => Response,
-): { mockRestore: () => void } {
-  return vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+): { mockRestore: () => void; requests: RecordedClientHttpRequest[] } {
+  const requests: RecordedClientHttpRequest[] = [];
+  const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
     const bodyText = String(init?.body ?? "");
     const body = bodyText.startsWith("{") ? JSON.parse(bodyText) : {};
     const inputRequest = typeof _input === "object" && "method" in _input ? _input : null;
-    return handler({
+    const request = {
       url: typeof _input === "string"
         ? _input
         : _input instanceof URL
@@ -94,8 +96,11 @@ function mockClientHttpFetch(
       bodyText,
       body,
       form: new URLSearchParams(bodyText),
-    });
+    };
+    requests.push(request);
+    return handler(request);
   });
+  return Object.assign(fetchSpy, { requests });
 }
 
 function jsonRpcHttpResponse(id: number | undefined, result: Record<string, any>): Response {
@@ -1574,6 +1579,304 @@ describe("McpClient lifecycle (fake MCP server)", () => {
     expect(result.structuredContent).toEqual({ ok: true, count: 3 });
     expect(result._meta).toEqual({ resultCache: "r-draft" });
     expect(result.isError).toBe(false);
+  }, 10_000);
+
+  it("decodes task-backed tool results and issues task methods over stdio", async () => {
+    const server = `
+      const rl = require("readline").createInterface({ input: process.stdin });
+      function write(message) { process.stdout.write(JSON.stringify(message) + "\\n"); }
+      function hasTaskCapability(msg) {
+        return Boolean(msg.params?._meta?.["io.modelcontextprotocol/clientCapabilities"]?.extensions?.["io.modelcontextprotocol/tasks"]);
+      }
+      rl.on("line", (line) => {
+        let msg;
+        try { msg = JSON.parse(line); } catch { return; }
+        if (msg.method === "initialize") {
+          if (!msg.params?.capabilities?.extensions?.["io.modelcontextprotocol/tasks"]) {
+            write({ jsonrpc: "2.0", id: msg.id, error: { code: -32602, message: "missing task capability" } });
+            return;
+          }
+          write({ jsonrpc: "2.0", id: msg.id, result: {
+            protocolVersion: "DRAFT-2026-v1",
+            capabilities: {
+              tools: {},
+              extensions: { "io.modelcontextprotocol/tasks": {} },
+            },
+          }});
+        } else if (msg.method === "notifications/initialized") {
+          return;
+        } else if (msg.method === "tools/list") {
+          if (!hasTaskCapability(msg)) {
+            write({ jsonrpc: "2.0", id: msg.id, error: { code: -32602, message: "missing per-request task capability" } });
+            return;
+          }
+          write({ jsonrpc: "2.0", id: msg.id, result: {
+            tools: [{ name: "async_tool", inputSchema: { type: "object" } }],
+          }});
+        } else if (msg.method === "tools/call") {
+          if (!hasTaskCapability(msg)) {
+            write({ jsonrpc: "2.0", id: msg.id, error: { code: -32602, message: "missing call task capability" } });
+            return;
+          }
+          write({ jsonrpc: "2.0", id: msg.id, result: {
+            resultType: "task",
+            taskId: "remote-task-1",
+            status: "working",
+            createdAt: "2026-05-25T12:00:00.000Z",
+            lastUpdatedAt: "2026-05-25T12:00:00.000Z",
+            ttlMs: 60000,
+            pollIntervalMs: 1,
+          }});
+        } else if (msg.method === "tasks/get") {
+          if (!hasTaskCapability(msg)) {
+            write({ jsonrpc: "2.0", id: msg.id, error: { code: -32602, message: "missing get task capability" } });
+            return;
+          }
+          write({ jsonrpc: "2.0", id: msg.id, result: {
+            resultType: "task",
+            taskId: msg.params.taskId,
+            status: "completed",
+            createdAt: "2026-05-25T12:00:00.000Z",
+            lastUpdatedAt: "2026-05-25T12:00:01.000Z",
+            ttlMs: null,
+            result: {
+              resultType: "complete",
+              content: [{ type: "text", text: "task done" }],
+            },
+          }});
+        } else if (msg.method === "tasks/update") {
+          if (msg.params.inputResponses.confirm.action !== "accept") {
+            write({ jsonrpc: "2.0", id: msg.id, error: { code: -32602, message: "bad input response" } });
+            return;
+          }
+          write({ jsonrpc: "2.0", id: msg.id, result: {} });
+        } else if (msg.method === "tasks/cancel") {
+          write({ jsonrpc: "2.0", id: msg.id, result: {} });
+        } else if (msg.method === "shutdown") {
+          write({ jsonrpc: "2.0", id: msg.id, result: {} });
+        }
+      });
+    `;
+    client = new McpClient(
+      "node",
+      ["-e", server],
+      {},
+      "stdio-task-client",
+      { enableRemoteTasks: true },
+    );
+    await client.connect();
+    await client.listTools();
+
+    const created = await client.callTool("async_tool", {});
+    expect(created).toMatchObject({
+      resultType: "task",
+      taskId: "remote-task-1",
+      status: "working",
+      ttlMs: 60000,
+      pollIntervalMs: 1,
+    });
+
+    const updated = await client.updateTask("remote-task-1", {
+      inputRequests: {
+        confirm: {
+          method: "elicitation/create",
+          params: { mode: "form", message: "Continue?" },
+        },
+      },
+      inputResponses: {
+        confirm: { action: "accept", content: { ok: true } },
+      },
+    });
+    expect(updated).toEqual({ resultType: "complete" });
+
+    const task = await client.getTask("remote-task-1");
+    expect(task.status).toBe("completed");
+    expect(task.resultType).toBe("task");
+    expect(task.ttlMs).toBeNull();
+    expect(task.pollIntervalMs).toBeUndefined();
+    expect(task.result).toMatchObject({
+      resultType: "complete",
+      content: [{ type: "text", text: "task done" }],
+    });
+    expect(await client.cancelTask("remote-task-1")).toEqual({ resultType: "complete" });
+  }, 10_000);
+
+  it("issues task methods over Streamable HTTP with draft metadata and headers", async () => {
+    const { requests } = mockClientHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: {
+            tools: {},
+            extensions: { [MCP_TASKS_EXTENSION_ID]: {} },
+          },
+        });
+      }
+      if (request.body.method === "tools/call") {
+        return jsonRpcHttpResponse(request.body.id, {
+          resultType: "task",
+          taskId: "http-task-1",
+          status: "working",
+          createdAt: "2026-05-25T12:00:00.000Z",
+          lastUpdatedAt: "2026-05-25T12:00:00.000Z",
+          ttlMs: 60000,
+          pollIntervalMs: 1,
+        });
+      }
+      if (request.body.method === "tasks/get") {
+        return jsonRpcHttpResponse(request.body.id, {
+          resultType: "task",
+          taskId: request.body.params?.taskId,
+          status: "completed",
+          createdAt: "2026-05-25T12:00:00.000Z",
+          lastUpdatedAt: "2026-05-25T12:00:01.000Z",
+          ttlMs: null,
+          result: {
+            resultType: "complete",
+            content: [{ type: "text", text: "http done" }],
+          },
+        });
+      }
+      if (request.body.method === "tasks/update" || request.body.method === "tasks/cancel") {
+        return jsonRpcHttpResponse(request.body.id, {});
+      }
+      return jsonRpcHttpResponse(request.body.id, {});
+    });
+    client = new McpClient(
+      {
+        type: "http",
+        url: "https://mcp.example.test/mcp",
+        headers: { Authorization: "Bearer task-token" },
+      },
+      "http-task-client",
+      { enableRemoteTasks: true },
+    );
+    await client.connect();
+
+    const created = await client.callTool("async_tool", {});
+    expect(created.resultType).toBe("task");
+    const task = await client.getTask("http-task-1");
+    expect(task).toMatchObject({
+      resultType: "task",
+      ttlMs: null,
+    });
+    expect(task.pollIntervalMs).toBeUndefined();
+    await expect(client.updateTask("http-task-1", {
+      inputRequests: {
+        confirm: {
+          method: "elicitation/create",
+          params: { mode: "form", message: "Continue?" },
+        },
+      },
+      inputResponses: {
+        confirm: { action: "accept", content: { ok: true } },
+      },
+    })).resolves.toEqual({ resultType: "complete" });
+    await expect(client.cancelTask("http-task-1")).resolves.toEqual({ resultType: "complete" });
+
+    expect(requests.map((request) => request.body.method)).toEqual([
+      "server/discover",
+      "tools/call",
+      "tasks/get",
+      "tasks/update",
+      "tasks/cancel",
+    ]);
+    for (const request of requests.slice(1)) {
+      expect(request.headers.get("mcp-method")).toBe(request.body.method);
+      expect(request.headers.get("authorization")).toBe("Bearer task-token");
+      expect(request.body.params?._meta).toMatchObject({
+        "io.modelcontextprotocol/protocolVersion": MCP_DRAFT_PROTOCOL_VERSION,
+        "io.modelcontextprotocol/clientCapabilities": {
+          extensions: { [MCP_TASKS_EXTENSION_ID]: {} },
+        },
+      });
+    }
+    expect(requests[1].headers.get("mcp-name")).toBe("async_tool");
+    for (const request of requests.slice(2)) {
+      expect(request.headers.get("mcp-name")).toBe("http-task-1");
+    }
+  });
+
+  it("rejects malformed task creation results at the MCP boundary", async () => {
+    const server = `
+      const rl = require("readline").createInterface({ input: process.stdin });
+      function write(message) { process.stdout.write(JSON.stringify(message) + "\\n"); }
+      rl.on("line", (line) => {
+        let msg;
+        try { msg = JSON.parse(line); } catch { return; }
+        if (msg.method === "initialize") {
+          write({ jsonrpc: "2.0", id: msg.id, result: {
+            protocolVersion: "DRAFT-2026-v1",
+            capabilities: {
+              tools: {},
+              extensions: { "io.modelcontextprotocol/tasks": {} },
+            },
+          }});
+        } else if (msg.method === "notifications/initialized") {
+          return;
+        } else if (msg.method === "tools/call") {
+          write({ jsonrpc: "2.0", id: msg.id, result: {
+            resultType: "task",
+            status: "working",
+            createdAt: "2026-05-25T12:00:00.000Z",
+            lastUpdatedAt: "2026-05-25T12:00:00.000Z",
+            ttlMs: 60000,
+            pollIntervalMs: 1,
+          }});
+        } else if (msg.method === "shutdown") {
+          write({ jsonrpc: "2.0", id: msg.id, result: {} });
+        }
+      });
+    `;
+    client = new McpClient(
+      "node",
+      ["-e", server],
+      {},
+      "bad-task-client",
+      { enableRemoteTasks: true },
+    );
+    await client.connect();
+
+    await expect(client.callTool("async_tool", {})).rejects.toThrow(
+      /Malformed MCP tools\/call result: taskId must be a string/,
+    );
+  }, 10_000);
+
+  it("rejects task results when the Tasks extension was not negotiated", async () => {
+    const server = `
+      const rl = require("readline").createInterface({ input: process.stdin });
+      function write(message) { process.stdout.write(JSON.stringify(message) + "\\n"); }
+      rl.on("line", (line) => {
+        let msg;
+        try { msg = JSON.parse(line); } catch { return; }
+        if (msg.method === "initialize") {
+          write({ jsonrpc: "2.0", id: msg.id, result: {
+            protocolVersion: "DRAFT-2026-v1",
+            capabilities: { tools: {} },
+          }});
+        } else if (msg.method === "notifications/initialized") {
+          return;
+        } else if (msg.method === "tools/call") {
+          write({ jsonrpc: "2.0", id: msg.id, result: {
+            resultType: "task",
+            taskId: "unnegotiated-task",
+            status: "working",
+            createdAt: "2026-05-25T12:00:00.000Z",
+            lastUpdatedAt: "2026-05-25T12:00:00.000Z",
+            ttlMs: 60000,
+            pollIntervalMs: 1,
+          }});
+        } else if (msg.method === "shutdown") {
+          write({ jsonrpc: "2.0", id: msg.id, result: {} });
+        }
+      });
+    `;
+    client = new McpClient("node", ["-e", server], {}, "unnegotiated-task-client");
+    await client.connect();
+
+    await expect(client.callTool("async_tool", {})).rejects.toThrow(
+      /without negotiated io\.modelcontextprotocol\/tasks support/,
+    );
   }, 10_000);
 
   it("callTool decodes draft input_required results without treating content as malformed", async () => {

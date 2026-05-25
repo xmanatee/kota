@@ -12,7 +12,26 @@ import type { JsonRpcResponse, McpInitializeResult } from "./client-protocol.js"
 import {
   MCP_DRAFT_PROTOCOL_VERSION,
   MCP_LEGACY_PROTOCOL_VERSION,
+  MCP_TASKS_EXTENSION_ID,
 } from "./client-protocol.js";
+
+function decodeExtensionSupport(
+  capabilities: ReturnType<typeof optionalJsonObject>,
+  extensionId: string,
+  kind: "initialize" | "server/discover",
+): boolean {
+  const extensions = capabilities
+    ? optionalJsonObject(capabilities.extensions, "capabilities.extensions", kind)
+    : undefined;
+  const rawExtension = extensions ? extensions[extensionId] : undefined;
+  if (rawExtension === undefined) return false;
+  optionalJsonObject(
+    rawExtension,
+    `capabilities.extensions.${extensionId}`,
+    kind,
+  );
+  return true;
+}
 
 export function decodeInitializeResult(value: JsonRpcResponse["result"]): McpInitializeResult {
   const object = requireJsonObject(value, "result", "initialize");
@@ -35,6 +54,8 @@ export function decodeInitializeResult(value: JsonRpcResponse["result"]): McpIni
   const resources = decodeListChangedCapability(capabilities, "resources", "initialize");
   const prompts = decodeListChangedCapability(capabilities, "prompts", "initialize");
   const loggingSupported = decodeDeprecatedObjectCapability(capabilities, "logging", "initialize");
+  const tasksSupported = protocolVersion === MCP_DRAFT_PROTOCOL_VERSION &&
+    decodeExtensionSupport(capabilities, MCP_TASKS_EXTENSION_ID, "initialize");
   const rawServerInfo = optionalJsonObject(
     object.serverInfo,
     "serverInfo",
@@ -52,6 +73,7 @@ export function decodeInitializeResult(value: JsonRpcResponse["result"]): McpIni
     promptsSupported: prompts.supported,
     promptsListChanged: prompts.listChanged,
     loggingSupported,
+    tasksSupported,
     ...(rawServerInfo ? { serverInfo: { ...(name !== undefined ? { name } : {}) } } : {}),
   };
 }
@@ -77,6 +99,11 @@ export function decodeDiscoverResult(value: JsonRpcResponse["result"]): McpIniti
   const resources = decodeListChangedCapability(capabilities, "resources", "server/discover");
   const prompts = decodeListChangedCapability(capabilities, "prompts", "server/discover");
   const loggingSupported = decodeDeprecatedObjectCapability(capabilities, "logging", "server/discover");
+  const tasksSupported = decodeExtensionSupport(
+    capabilities,
+    MCP_TASKS_EXTENSION_ID,
+    "server/discover",
+  );
   const rawServerInfo = optionalJsonObject(
     object.serverInfo,
     "serverInfo",
@@ -94,6 +121,7 @@ export function decodeDiscoverResult(value: JsonRpcResponse["result"]): McpIniti
     promptsSupported: prompts.supported,
     promptsListChanged: prompts.listChanged,
     loggingSupported,
+    tasksSupported,
     ...(rawServerInfo ? { serverInfo: { ...(name !== undefined ? { name } : {}) } } : {}),
   };
 }

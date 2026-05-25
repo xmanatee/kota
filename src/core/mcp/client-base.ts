@@ -53,6 +53,7 @@ import {
   MCP_META_CLIENT_CAPABILITIES_KEY,
   MCP_META_CLIENT_INFO_KEY,
   MCP_META_PROTOCOL_VERSION_KEY,
+  MCP_TASKS_EXTENSION_ID,
 } from "./client-protocol.js";
 import { decodeMcpToolInputResponses } from "./client-result-decoders.js";
 import {
@@ -80,6 +81,7 @@ export abstract class McpClientBase {
   protected resourcesListChanged = false;
   protected promptsSupported = false;
   protected promptsListChanged = false;
+  protected tasksSupported = false;
   protected httpListSubscriptionAbort: AbortController | null = null;
   protected toolListSubscriptionId: number | null = null;
   protected streamingRequestIds = new Set<number>();
@@ -92,6 +94,7 @@ export abstract class McpClientBase {
   protected readonly deprecatedCapabilityWarnings = new Set<DeprecatedMcpFeature>();
   protected readonly headerParametersByTool = new Map<string, McpHeaderParameterSpec[]>();
   protected readonly supportedElicitationModes: readonly McpElicitationMode[];
+  protected readonly remoteTasksEnabled: boolean;
   protected readonly authorizationResolver?: McpAuthorizationResolver;
   protected readonly logMessageHandler?: McpLogMessageHandler;
   protected oauthTokenBinding: McpOAuthTokenBinding | null = null;
@@ -146,6 +149,7 @@ export abstract class McpClientBase {
     this.supportedElicitationModes = uniqueSupportedElicitationModes(
       resolvedOptions.supportedElicitationModes,
     );
+    this.remoteTasksEnabled = resolvedOptions.enableRemoteTasks === true;
     this.authorizationResolver = resolvedOptions.authorizationResolver;
     this.logMessageHandler = resolvedOptions.onLogMessage;
   }
@@ -188,6 +192,12 @@ export abstract class McpClientBase {
 
   supportsPromptListChanged(): boolean {
     return this.promptsListChanged;
+  }
+
+  supportsTasks(): boolean {
+    return this.remoteTasksEnabled &&
+      this.tasksSupported &&
+      this.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION;
   }
 
   onToolListChanged(handler: McpToolListChangedHandler): () => void {
@@ -247,20 +257,26 @@ export abstract class McpClientBase {
     protocolVersion: McpProtocolVersion | null = this.protocolVersion,
   ): KotaJsonObject {
     const capabilities: KotaJsonObject = {};
+    const extensions: KotaJsonObject = {};
     if (
       this.transport.type === "http" &&
       this.transport.authorization?.type === "oauth-client-credentials"
     ) {
-      capabilities.extensions = {
-        [MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION_ID]: {},
-      };
+      extensions[MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION_ID] = {};
     } else if (
       this.transport.type === "http" &&
       this.transport.authorization?.type === "enterprise-managed"
     ) {
-      capabilities.extensions = {
-        [MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION_ID]: {},
-      };
+      extensions[MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION_ID] = {};
+    }
+    if (
+      protocolVersion === MCP_DRAFT_PROTOCOL_VERSION &&
+      this.remoteTasksEnabled
+    ) {
+      extensions[MCP_TASKS_EXTENSION_ID] = {};
+    }
+    if (Object.keys(extensions).length > 0) {
+      capabilities.extensions = extensions;
     }
     if (
       protocolVersion === MCP_DRAFT_PROTOCOL_VERSION &&
@@ -340,6 +356,13 @@ export abstract class McpClientBase {
     if (method === "resources/read") {
       return typeof params?.uri === "string" ? params.uri : "";
     }
+    if (
+      method === "tasks/get" ||
+      method === "tasks/update" ||
+      method === "tasks/cancel"
+    ) {
+      return typeof params?.taskId === "string" ? params.taskId : "";
+    }
     return null;
   }
 
@@ -385,7 +408,14 @@ export abstract class McpClientBase {
 
   protected requestErrorForMethod(method: string, message: string): Error {
     const redactedMessage = this.redactSensitiveErrorMessage(message);
-    if (method === "tools/call" || method === "resources/read" || method === "prompts/get") {
+    if (
+      method === "tools/call" ||
+      method === "resources/read" ||
+      method === "prompts/get" ||
+      method === "tasks/get" ||
+      method === "tasks/update" ||
+      method === "tasks/cancel"
+    ) {
       return new McpToolError(this.serverName, method, redactedMessage);
     }
     return new McpConnectionError(this.serverName, method, redactedMessage);

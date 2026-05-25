@@ -11,6 +11,7 @@ import {
   malformedMcpResult,
   optionalBoolean,
   optionalJsonObject,
+  optionalNumber,
   optionalString,
   requireJsonObject,
   requireString,
@@ -19,8 +20,11 @@ import { mcpToolInputRequestElicitationMode } from "./client-input-helpers.js";
 import type {
   JsonRpcResponse,
   McpCallToolResult,
+  McpCancelTaskResult,
   McpCompleteResultFields,
+  McpCreateTaskResult,
   McpGetPromptResult,
+  McpGetTaskResult,
   McpInputRequiredResult,
   McpPromptMessage,
   McpProtocolVersion,
@@ -28,13 +32,17 @@ import type {
   McpResultKind,
   McpSamplingCreateMessageResult,
   McpSamplingInputRequest,
+  McpTaskState,
+  McpTaskStatus,
   McpToolContentBlock,
   McpToolInputRequest,
   McpToolInputRequests,
   McpToolInputResponse,
   McpToolInputResponses,
   McpToolTextContent,
+  McpUpdateTaskResult,
 } from "./client-protocol.js";
+import { MCP_TASK_STATUSES } from "./client-protocol.js";
 import {
   decodeSamplingCreateMessageParams,
   decodeSamplingCreateMessageResult,
@@ -267,6 +275,221 @@ export function decodeInputRequiredResult(
   );
 }
 
+function requirePositiveSafeInteger(
+  value: KotaJsonValue | undefined,
+  label: string,
+  kind: McpResultKind,
+): number {
+  const number = optionalNumber(value, label, kind);
+  if (number === undefined || !Number.isSafeInteger(number) || number <= 0) {
+    throw malformedMcpResult(kind, label, "a positive integer");
+  }
+  return number;
+}
+
+function requireTaskTtlMs(
+  value: KotaJsonValue | undefined,
+  label: string,
+  kind: McpResultKind,
+): number | null {
+  if (value === null) return null;
+  const number = optionalNumber(value, label, kind);
+  if (number === undefined || !Number.isSafeInteger(number) || number <= 0) {
+    throw malformedMcpResult(kind, label, "a positive integer or null");
+  }
+  return number;
+}
+
+function optionalPositiveSafeInteger(
+  value: KotaJsonValue | undefined,
+  label: string,
+  kind: McpResultKind,
+): number | undefined {
+  if (value === undefined) return undefined;
+  return requirePositiveSafeInteger(value, label, kind);
+}
+
+function requireIsoTimestamp(
+  value: KotaJsonValue | undefined,
+  label: string,
+  kind: McpResultKind,
+): string {
+  const timestamp = requireString(value, label, kind);
+  if (!Number.isFinite(Date.parse(timestamp))) {
+    throw malformedMcpResult(kind, label, "a valid timestamp string");
+  }
+  return timestamp;
+}
+
+function decodeTaskStatus(
+  value: KotaJsonValue | undefined,
+  label: string,
+  kind: McpResultKind,
+): McpTaskStatus {
+  const status = requireString(value, label, kind);
+  if (!(MCP_TASK_STATUSES as readonly string[]).includes(status)) {
+    throw new Error(
+      `Malformed MCP ${kind} result: ${label} must be working, input_required, completed, failed, or cancelled`,
+    );
+  }
+  return status as McpTaskStatus;
+}
+
+function decodeTaskError(
+  value: KotaJsonValue | undefined,
+  kind: McpResultKind,
+): JsonRpcResponse["error"] {
+  const object = requireJsonObject(value, "error", kind);
+  const code = optionalNumber(object.code, "error.code", kind);
+  if (code === undefined || !Number.isInteger(code)) {
+    throw malformedMcpResult(kind, "error.code", "an integer");
+  }
+  const message = requireString(object.message, "error.message", kind);
+  if (object.data !== undefined && !isJsonValue(object.data)) {
+    throw malformedMcpResult(kind, "error.data", "JSON");
+  }
+  return {
+    code,
+    message,
+    ...(object.data !== undefined ? { data: object.data } : {}),
+  };
+}
+
+function decodeTaskState(object: KotaJsonObject, kind: McpResultKind): McpTaskState {
+  const resultType = object.resultType;
+  if (resultType !== undefined && resultType !== "task") {
+    throw new Error(`Malformed MCP ${kind} result: resultType must be "task"`);
+  }
+  const taskId = requireString(object.taskId, "taskId", kind);
+  if (taskId.length === 0) {
+    throw malformedMcpResult(kind, "taskId", "a non-empty string");
+  }
+  const status = decodeTaskStatus(object.status, "status", kind);
+  const statusMessage = optionalString(object.statusMessage, "statusMessage", kind);
+  const createdAt = requireIsoTimestamp(object.createdAt, "createdAt", kind);
+  const lastUpdatedAt = requireIsoTimestamp(object.lastUpdatedAt, "lastUpdatedAt", kind);
+  const ttlMs = requireTaskTtlMs(object.ttlMs, "ttlMs", kind);
+  const pollIntervalMs = optionalPositiveSafeInteger(
+    object.pollIntervalMs,
+    "pollIntervalMs",
+    kind,
+  );
+  const inputRequests = object.inputRequests === undefined
+    ? undefined
+    : decodeInputRequests(object.inputRequests, kind);
+  const requestState = optionalString(object.requestState, "requestState", kind);
+  const meta = optionalJsonObject(object._meta, "_meta", kind);
+
+  if (status !== "input_required") {
+    if (inputRequests !== undefined) {
+      throw new Error(
+        `Malformed MCP ${kind} result: inputRequests may appear only when status is input_required`,
+      );
+    }
+    if (requestState !== undefined) {
+      throw new Error(
+        `Malformed MCP ${kind} result: requestState may appear only when status is input_required`,
+      );
+    }
+  }
+  if (status === "input_required" && inputRequests === undefined && requestState === undefined) {
+    throw new Error(
+      `Malformed MCP ${kind} result: input_required task must include inputRequests or requestState`,
+    );
+  }
+
+  let result: KotaJsonValue | undefined;
+  if (object.result !== undefined) {
+    if (status !== "completed") {
+      throw new Error(
+        `Malformed MCP ${kind} result: result may appear only when status is completed`,
+      );
+    }
+    if (!isJsonValue(object.result)) {
+      throw malformedMcpResult(kind, "result", "JSON");
+    }
+    result = object.result;
+  } else if (status === "completed") {
+    throw malformedMcpResult(kind, "result", "JSON");
+  }
+
+  let error: JsonRpcResponse["error"] | undefined;
+  if (object.error !== undefined) {
+    if (status !== "failed") {
+      throw new Error(
+        `Malformed MCP ${kind} result: error may appear only when status is failed`,
+      );
+    }
+    error = decodeTaskError(object.error, kind);
+  } else if (status === "failed") {
+    throw malformedMcpResult(kind, "error", "a JSON-RPC error object");
+  }
+
+  return {
+    ...(resultType === "task" ? { resultType } : {}),
+    taskId,
+    status,
+    createdAt,
+    lastUpdatedAt,
+    ttlMs,
+    ...(pollIntervalMs !== undefined ? { pollIntervalMs } : {}),
+    ...(statusMessage !== undefined ? { statusMessage } : {}),
+    ...(inputRequests !== undefined ? { inputRequests } : {}),
+    ...(requestState !== undefined ? { requestState } : {}),
+    ...(result !== undefined ? { result } : {}),
+    ...(error !== undefined ? { error } : {}),
+    ...(meta ? { _meta: meta } : {}),
+  };
+}
+
+export function decodeCreateTaskResult(
+  object: KotaJsonObject,
+  protocolVersion: McpProtocolVersion,
+): McpCreateTaskResult {
+  return {
+    resultType: "task",
+    protocolVersion,
+    ...decodeTaskState(object, "tools/call"),
+  };
+}
+
+export function decodeGetTaskResult(
+  value: JsonRpcResponse["result"],
+): McpGetTaskResult {
+  const object = requireJsonObject(value, "result", "tasks/get");
+  return decodeTaskState(object, "tasks/get");
+}
+
+export function decodeEmptyTaskAckResult(
+  value: JsonRpcResponse["result"],
+  kind: "tasks/update",
+): McpUpdateTaskResult;
+export function decodeEmptyTaskAckResult(
+  value: JsonRpcResponse["result"],
+  kind: "tasks/cancel",
+): McpCancelTaskResult;
+export function decodeEmptyTaskAckResult(
+  value: JsonRpcResponse["result"],
+  kind: "tasks/update" | "tasks/cancel",
+): McpUpdateTaskResult | McpCancelTaskResult {
+  const object = requireJsonObject(value, "result", kind);
+  if (object.resultType !== undefined && object.resultType !== "complete") {
+    throw new Error(`Malformed MCP ${kind} result: resultType must be "complete"`);
+  }
+  const meta = optionalJsonObject(object._meta, "_meta", kind);
+  const allowedKeys = new Set(["resultType", "_meta"]);
+  const unexpectedKey = Object.keys(object).find((key) => !allowedKeys.has(key));
+  if (unexpectedKey !== undefined) {
+    throw new Error(
+      `Malformed MCP ${kind} result: ${unexpectedKey} is not allowed`,
+    );
+  }
+  return {
+    resultType: "complete",
+    ...(meta ? { _meta: meta } : {}),
+  };
+}
+
 export function decodeCallToolResult(
   value: JsonRpcResponse["result"],
   protocolVersion: McpProtocolVersion,
@@ -290,8 +513,11 @@ export function decodeCallToolResult(
   if (resultType === "input_required") {
     return decodeInputRequiredResult(object, protocolVersion, "tools/call");
   }
+  if (resultType === "task") {
+    return decodeCreateTaskResult(object, protocolVersion);
+  }
   throw new Error(
-    'Malformed MCP tools/call result: resultType must be "complete" or "input_required"',
+    'Malformed MCP tools/call result: resultType must be "complete", "input_required", or "task"',
   );
 }
 

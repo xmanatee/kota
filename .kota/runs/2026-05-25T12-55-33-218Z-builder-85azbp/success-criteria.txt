@@ -1,0 +1,8 @@
+1. Add typed client-side MCP Tasks extension capability, result, state, and method response representations in src/core/mcp/client-protocol.ts.
+2. Decode tools/call resultType="task" strictly, rejecting malformed handles with precise errors.
+3. Add McpClient tasks/get, tasks/update, and tasks/cancel methods for stdio and Streamable HTTP using existing transport/version/header paths.
+4. Teach McpManager.executeTool to poll remote task handles to terminal results, route input_required through the existing resolver using tasks/update, respect timeout/TTL/abort cancellation, and keep diagnostics redacted.
+5. Leave a durable diagnosis/recovery trace or explicit follow-up for any crash-resume storage limitation.
+6. Cover malformed task results, missing task-extension negotiation, unknown ids, timeout/TTL expiry, failed/cancelled states, input update errors, abort cancellation, and redaction with focused tests/fixtures.
+7. Preserve existing external MCP behavior for synchronous calls, input_required, notifications, OAuth, cache hints, resources, and prompts.
+8. Produce a run artifact showing a fake remote task call, polling, input update, and final result.

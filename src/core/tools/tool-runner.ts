@@ -8,7 +8,11 @@ import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import { tryEmit } from "#core/events/event-bus.js";
 import { truncateToolResult } from "#core/loop/context.js";
 import type { Transport } from "#core/loop/transport.js";
-import type { McpInputResolver, McpManager } from "#core/mcp/manager.js";
+import type {
+  McpExecuteToolOptions,
+  McpInputResolver,
+  McpManager,
+} from "#core/mcp/manager.js";
 import { confirmAction } from "#core/util/confirm.js";
 import { type AutonomyMode, resolveAutonomyGate } from "./autonomy-mode.js";
 import { assess, type GuardrailsConfig } from "./guardrails.js";
@@ -83,6 +87,7 @@ export type ToolCallExecutionOptions = {
   guardrailsConfig?: GuardrailsConfig;
   sessionId?: string;
   messages?: KotaMessage[];
+  signal?: AbortSignal;
 };
 
 function getToolResultTelemetryPayload(result: ToolResult): string | object {
@@ -296,14 +301,19 @@ export async function executeToolCalls(
         input,
         context: { autonomyMode, ...runnerContext },
       };
-      const baseFn = () =>
-        mcpManager?.isMcpTool(call.name)
-          ? mcpInputResolver
-            ? mcpManager.executeTool(call.name, call.input, {
-                inputResolver: mcpInputResolver,
-              })
-            : mcpManager.executeTool(call.name, call.input)
-          : executeTool(call.name, call.input, runnerContext);
+      const baseFn = () => {
+        if (!mcpManager?.isMcpTool(call.name)) {
+          return executeTool(call.name, call.input, runnerContext);
+        }
+
+        const mcpOptions: McpExecuteToolOptions = {};
+        if (mcpInputResolver) mcpOptions.inputResolver = mcpInputResolver;
+        if (options.signal) mcpOptions.signal = options.signal;
+
+        return Object.keys(mcpOptions).length > 0
+          ? mcpManager.executeTool(call.name, call.input, mcpOptions)
+          : mcpManager.executeTool(call.name, call.input);
+      };
       const result = await middleware.execute(call, baseFn);
 
       const durationMs = Math.round(performance.now() - startMs);

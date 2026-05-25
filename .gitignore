@@ -19,6 +19,12 @@ logs/
 !/.kota/runs/2026-05-25T01-30-35-945Z-builder-nchgr1/owner-question-detail/transcript.txt
 !/.kota/runs/2026-05-25T01-30-35-945Z-builder-nchgr1/success-criteria-verified.txt
 !/.kota/runs/2026-05-25T01-30-35-945Z-builder-nchgr1/success-criteria.txt
+!/.kota/runs/2026-05-25T12-55-33-218Z-builder-85azbp/
+/.kota/runs/2026-05-25T12-55-33-218Z-builder-85azbp/*
+!/.kota/runs/2026-05-25T12-55-33-218Z-builder-85azbp/commit-message.txt
+!/.kota/runs/2026-05-25T12-55-33-218Z-builder-85azbp/remote-task-protocol-fixture.json
+!/.kota/runs/2026-05-25T12-55-33-218Z-builder-85azbp/success-criteria-verified.txt
+!/.kota/runs/2026-05-25T12-55-33-218Z-builder-85azbp/success-criteria.txt
 # Eval-harness fixtures legitimately seed prior run state; the runner copies
 # `initial/` verbatim into an isolated tmpdir at fixture-run time.
 !src/modules/eval-harness/fixtures/**/initial/.kota/

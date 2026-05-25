@@ -1,7 +1,11 @@
 import { Buffer } from "node:buffer";
 import { generateKeyPairSync } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { MCP_DRAFT_PROTOCOL_VERSION, mcpOAuthSecret } from "./client.js";
+import {
+  MCP_DRAFT_PROTOCOL_VERSION,
+  MCP_TASKS_EXTENSION_ID,
+  mcpOAuthSecret,
+} from "./client.js";
 import { type McpInputResolver, McpManager, namespaceTool, parseToolName } from "./manager.js";
 
 type RecordedHttpRequest = {
@@ -84,6 +88,26 @@ function mockMcpHttpFetch(
 
 function jsonRpcResponse(id: number | undefined, result: Record<string, any>): Response {
   return new Response(JSON.stringify({ jsonrpc: "2.0", id, result }), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+function jsonRpcErrorResponse(
+  id: number | undefined,
+  code: number,
+  message: string,
+  data?: Record<string, any>,
+): Response {
+  return new Response(JSON.stringify({
+    jsonrpc: "2.0",
+    id,
+    error: {
+      code,
+      message,
+      ...(data !== undefined ? { data } : {}),
+    },
+  }), {
     status: 200,
     headers: { "content-type": "application/json" },
   });
@@ -210,7 +234,12 @@ describe("McpManager", () => {
         const rl = require("readline").createInterface({ input: process.stdin });
         const expectElicitation = process.env.EXPECT_ELICITATION === "1";
         function expectedCapabilities() {
-          return expectElicitation ? { elicitation: { form: {}, url: {} } } : {};
+          return expectElicitation
+            ? {
+                extensions: { "io.modelcontextprotocol/tasks": {} },
+                elicitation: { form: {}, url: {} },
+              }
+            : {};
         }
         function sameJson(left, right) {
           return JSON.stringify(left) === JSON.stringify(right);
@@ -266,7 +295,10 @@ describe("McpManager", () => {
       );
 
       const expectedCapabilities = inputResolverAvailable
-        ? { elicitation: { form: {}, url: {} } }
+        ? {
+            extensions: { [MCP_TASKS_EXTENSION_ID]: {} },
+            elicitation: { form: {}, url: {} },
+          }
         : {};
       expect(manager.getTools()[0]?.description).toContain(
         JSON.stringify(expectedCapabilities),
@@ -413,6 +445,472 @@ describe("McpManager", () => {
         });
       }
       expect(requests[2].headers.get("mcp-name")).toBe("echo");
+    } finally {
+      await manager.close();
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("polls remote task-backed tool calls, routes task input through tasks/update, and returns the final result", async () => {
+    let pollCount = 0;
+    const { requests, fetchSpy } = mockMcpHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: {
+            tools: {},
+            extensions: { [MCP_TASKS_EXTENSION_ID]: {} },
+          },
+          serverInfo: { name: "task-http-fixture" },
+        });
+      }
+      if (request.body.method === "tools/list") {
+        return jsonRpcResponse(request.body.id, {
+          tools: [{ name: "deploy", inputSchema: { type: "object" } }],
+        });
+      }
+      if (request.body.method === "tools/call") {
+        expect(request.body.params?._meta?.["io.modelcontextprotocol/clientCapabilities"]).toMatchObject({
+          extensions: { [MCP_TASKS_EXTENSION_ID]: {} },
+        });
+        return jsonRpcResponse(request.body.id, {
+          resultType: "task",
+          taskId: "task-deploy-1",
+          status: "working",
+          createdAt: "2026-05-25T12:00:00.000Z",
+          lastUpdatedAt: "2026-05-25T12:00:00.000Z",
+          ttlMs: null,
+          pollIntervalMs: 1,
+        });
+      }
+      if (request.body.method === "tasks/get") {
+        pollCount += 1;
+        if (pollCount === 1) {
+          return jsonRpcResponse(request.body.id, {
+            resultType: "task",
+            taskId: "task-deploy-1",
+            status: "input_required",
+            createdAt: "2026-05-25T12:00:00.000Z",
+            lastUpdatedAt: "2026-05-25T12:00:01.000Z",
+            ttlMs: null,
+            inputRequests: {
+              approval: {
+                method: "elicitation/create",
+                params: { mode: "form", message: "Deploy?" },
+              },
+            },
+            requestState: "remote-task-state",
+          });
+        }
+        return jsonRpcResponse(request.body.id, {
+          resultType: "task",
+          taskId: "task-deploy-1",
+          status: "completed",
+          createdAt: "2026-05-25T12:00:00.000Z",
+          lastUpdatedAt: "2026-05-25T12:00:02.000Z",
+          ttlMs: null,
+          result: {
+            resultType: "complete",
+            content: [{ type: "text", text: "deployed" }],
+            structuredContent: { deploymentId: "dep-1" },
+          },
+        });
+      }
+      if (request.body.method === "tasks/update") {
+        expect(request.body.params).toMatchObject({
+          taskId: "task-deploy-1",
+          requestState: "remote-task-state",
+          inputResponses: {
+            approval: { action: "accept", content: { approved: true } },
+          },
+        });
+        return jsonRpcResponse(request.body.id, {});
+      }
+      return jsonRpcErrorResponse(request.body.id, -32601, `unknown ${request.body.method}`);
+    });
+    const manager = new McpManager();
+
+    try {
+      await manager.initialize({
+        mcpServers: {
+          remote: { type: "http", url: "https://mcp.example.test/mcp" },
+        },
+      }, { inputResolverAvailable: true });
+
+      const seenRequests: unknown[] = [];
+      const result = await manager.executeTool("mcp__remote__deploy", {}, {
+        inputResolver: async (request) => {
+          seenRequests.push(request);
+          return {
+            kind: "respond",
+            inputResponses: {
+              approval: { action: "accept", content: { approved: true } },
+            },
+          };
+        },
+      });
+
+      expect(result.is_error).toBeUndefined();
+      expect(result.content).toBe("deployed");
+      expect(result.structuredContent).toEqual({ deploymentId: "dep-1" });
+      expect(result._meta?.mcpTask).toMatchObject({
+        resultType: "task",
+        server: "task-http-fixture",
+        tool: "deploy",
+        taskId: "task-deploy-1",
+        status: "completed",
+        pollCount: 2,
+        inputUpdateCount: 1,
+      });
+      expect(seenRequests).toEqual([
+        {
+          server: "task-http-fixture",
+          tool: "deploy",
+          inputRequests: {
+            approval: {
+              method: "elicitation/create",
+              params: { mode: "form", message: "Deploy?" },
+            },
+          },
+          requestState: "remote-task-state",
+        },
+      ]);
+      expect(requests.map((request) => request.body.method)).toEqual([
+        "server/discover",
+        "tools/list",
+        "tools/call",
+        "tasks/get",
+        "tasks/update",
+        "tasks/get",
+      ]);
+      expect(requests[2].headers.get("mcp-name")).toBe("deploy");
+      for (const request of requests.slice(3)) {
+        expect(request.headers.get("mcp-name")).toBe("task-deploy-1");
+      }
+    } finally {
+      await manager.close();
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("rejects task-backed tool calls when Tasks was not negotiated", async () => {
+    const { fetchSpy } = mockMcpHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: {} },
+        });
+      }
+      if (request.body.method === "tools/list") {
+        return jsonRpcResponse(request.body.id, {
+          tools: [{ name: "async", inputSchema: { type: "object" } }],
+        });
+      }
+      if (request.body.method === "tools/call") {
+        return jsonRpcResponse(request.body.id, {
+          resultType: "task",
+          taskId: "unnegotiated-task",
+          status: "working",
+          createdAt: "2026-05-25T12:00:00.000Z",
+          lastUpdatedAt: "2026-05-25T12:00:00.000Z",
+          ttlMs: 60000,
+          pollIntervalMs: 1,
+        });
+      }
+      return jsonRpcResponse(request.body.id, {});
+    });
+    const manager = new McpManager();
+
+    try {
+      await manager.initialize({
+        mcpServers: {
+          remote: { type: "http", url: "https://mcp.example.test/mcp" },
+        },
+      }, { inputResolverAvailable: true });
+
+      const result = await manager.executeTool("mcp__remote__async", {});
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("without negotiated io.modelcontextprotocol/tasks support");
+    } finally {
+      await manager.close();
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("surfaces unknown remote task ids without leaking bearer tokens", async () => {
+    const { fetchSpy } = mockMcpHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: {
+            tools: {},
+            extensions: { [MCP_TASKS_EXTENSION_ID]: {} },
+          },
+        });
+      }
+      if (request.body.method === "tools/list") {
+        return jsonRpcResponse(request.body.id, {
+          tools: [{ name: "missing_task", inputSchema: { type: "object" } }],
+        });
+      }
+      if (request.body.method === "tools/call") {
+        return jsonRpcResponse(request.body.id, {
+          resultType: "task",
+          taskId: "missing-task",
+          status: "working",
+          createdAt: "2026-05-25T12:00:00.000Z",
+          lastUpdatedAt: "2026-05-25T12:00:00.000Z",
+          ttlMs: 60000,
+          pollIntervalMs: 1,
+        });
+      }
+      if (request.body.method === "tasks/get") {
+        return jsonRpcErrorResponse(
+          request.body.id,
+          -32004,
+          "unknown task for Bearer configured-token-secret",
+        );
+      }
+      return jsonRpcResponse(request.body.id, {});
+    });
+    const manager = new McpManager();
+
+    try {
+      await manager.initialize({
+        mcpServers: {
+          remote: {
+            type: "http",
+            url: "https://mcp.example.test/mcp",
+            headers: { Authorization: "Bearer configured-token-secret" },
+          },
+        },
+      }, { inputResolverAvailable: true });
+
+      const result = await manager.executeTool("mcp__remote__missing_task", {});
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("unknown task for [redacted]");
+      expect(result.content).not.toContain("configured-token-secret");
+    } finally {
+      await manager.close();
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("handles TTL expiry, failed states, and cancelled states as task errors", async () => {
+    for (const scenario of ["timeout", "failed", "cancelled"] as const) {
+      const { fetchSpy } = mockMcpHttpFetch((request) => {
+        if (request.body.method === "server/discover") {
+          return jsonRpcResponse(request.body.id, {
+            supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+            capabilities: {
+              tools: {},
+              extensions: { [MCP_TASKS_EXTENSION_ID]: {} },
+            },
+          });
+        }
+        if (request.body.method === "tools/list") {
+          return jsonRpcResponse(request.body.id, {
+            tools: [{ name: scenario, inputSchema: { type: "object" } }],
+          });
+        }
+        if (request.body.method === "tools/call") {
+          return jsonRpcResponse(request.body.id, {
+            resultType: "task",
+            taskId: `task-${scenario}`,
+            status: "working",
+            createdAt: "2026-05-25T12:00:00.000Z",
+            lastUpdatedAt: "2026-05-25T12:00:00.000Z",
+            ttlMs: scenario === "timeout" ? 1 : 60000,
+            pollIntervalMs: 1,
+          });
+        }
+        if (request.body.method === "tasks/get") {
+          if (scenario === "failed") {
+            return jsonRpcResponse(request.body.id, {
+              taskId: "task-failed",
+              status: "failed",
+              createdAt: "2026-05-25T12:00:00.000Z",
+              lastUpdatedAt: "2026-05-25T12:00:01.000Z",
+              ttlMs: 60000,
+              pollIntervalMs: 1,
+              error: {
+                code: -32001,
+                message: "remote failure leaked payload-secret",
+                data: { payload: "payload-secret" },
+              },
+            });
+          }
+          if (scenario === "cancelled") {
+            return jsonRpcResponse(request.body.id, {
+              taskId: "task-cancelled",
+              status: "cancelled",
+              createdAt: "2026-05-25T12:00:00.000Z",
+              lastUpdatedAt: "2026-05-25T12:00:01.000Z",
+              ttlMs: 60000,
+              pollIntervalMs: 1,
+            });
+          }
+          return jsonRpcResponse(request.body.id, {
+            taskId: "task-timeout",
+            status: "working",
+            createdAt: "2026-05-25T12:00:00.000Z",
+            lastUpdatedAt: "2026-05-25T12:00:01.000Z",
+            ttlMs: 1,
+            pollIntervalMs: 1,
+          });
+        }
+        return jsonRpcResponse(request.body.id, {});
+      });
+      const manager = new McpManager();
+
+      try {
+        await manager.initialize({
+          mcpServers: {
+            remote: { type: "http", url: "https://mcp.example.test/mcp" },
+          },
+        }, { inputResolverAvailable: true });
+
+        const result = await manager.executeTool(`mcp__remote__${scenario}`, {});
+        expect(result.is_error).toBe(true);
+        expect(result._meta?.mcpTask).toMatchObject({
+          resultType: "task",
+          taskId: `task-${scenario}`,
+        });
+        if (scenario === "timeout") {
+          expect(result.content).toContain("ttlMs=1");
+        } else {
+          expect(result.content).toContain(scenario === "failed" ? "failed" : "cancelled");
+        }
+        expect(result.content).not.toContain("payload-secret");
+        expect(JSON.stringify(result._meta)).not.toContain("payload-secret");
+      } finally {
+        await manager.close();
+        fetchSpy.mockRestore();
+      }
+    }
+  });
+
+  it("sanitizes task input update failures without leaking operator input responses", async () => {
+    const { fetchSpy } = mockMcpHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: {
+            tools: {},
+            extensions: { [MCP_TASKS_EXTENSION_ID]: {} },
+          },
+        });
+      }
+      if (request.body.method === "tools/list") {
+        return jsonRpcResponse(request.body.id, {
+          tools: [{ name: "needs_input", inputSchema: { type: "object" } }],
+        });
+      }
+      if (request.body.method === "tools/call") {
+        return jsonRpcResponse(request.body.id, {
+          resultType: "task",
+          taskId: "task-input-error",
+          status: "input_required",
+          createdAt: "2026-05-25T12:00:00.000Z",
+          lastUpdatedAt: "2026-05-25T12:00:01.000Z",
+          ttlMs: 60000,
+          pollIntervalMs: 1,
+          inputRequests: {
+            secret: {
+              method: "elicitation/create",
+              params: { mode: "form", message: "Secret?" },
+            },
+          },
+        });
+      }
+      if (request.body.method === "tasks/update") {
+        return jsonRpcErrorResponse(
+          request.body.id,
+          -32030,
+          "bad response contained operator-secret-value",
+        );
+      }
+      return jsonRpcResponse(request.body.id, {});
+    });
+    const manager = new McpManager();
+
+    try {
+      await manager.initialize({
+        mcpServers: {
+          remote: { type: "http", url: "https://mcp.example.test/mcp" },
+        },
+      }, { inputResolverAvailable: true });
+
+      const result = await manager.executeTool("mcp__remote__needs_input", {}, {
+        inputResolver: async () => ({
+          kind: "respond",
+          inputResponses: {
+            secret: { action: "accept", content: { value: "operator-secret-value" } },
+          },
+        }),
+      });
+
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("remote task input update failed");
+      expect(result.content).not.toContain("operator-secret-value");
+    } finally {
+      await manager.close();
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("requests remote task cancellation when the tool call is aborted", async () => {
+    const controller = new AbortController();
+    const { requests, fetchSpy } = mockMcpHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: {
+            tools: {},
+            extensions: { [MCP_TASKS_EXTENSION_ID]: {} },
+          },
+        });
+      }
+      if (request.body.method === "tools/list") {
+        return jsonRpcResponse(request.body.id, {
+          tools: [{ name: "long_task", inputSchema: { type: "object" } }],
+        });
+      }
+      if (request.body.method === "tools/call") {
+        setTimeout(() => controller.abort(), 0);
+        return jsonRpcResponse(request.body.id, {
+          resultType: "task",
+          taskId: "task-abort",
+          status: "working",
+          createdAt: "2026-05-25T12:00:00.000Z",
+          lastUpdatedAt: "2026-05-25T12:00:00.000Z",
+          ttlMs: 60000,
+          pollIntervalMs: 1000,
+        });
+      }
+      if (request.body.method === "tasks/cancel") {
+        return jsonRpcResponse(request.body.id, {});
+      }
+      return jsonRpcResponse(request.body.id, {});
+    });
+    const manager = new McpManager();
+
+    try {
+      await manager.initialize({
+        mcpServers: {
+          remote: { type: "http", url: "https://mcp.example.test/mcp" },
+        },
+      }, { inputResolverAvailable: true });
+
+      const result = await manager.executeTool("mcp__remote__long_task", {}, {
+        signal: controller.signal,
+      });
+
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("aborted by the operator");
+      expect(requests.map((request) => request.body.method)).toContain("tasks/cancel");
+      const cancel = requests.find((request) => request.body.method === "tasks/cancel");
+      expect(cancel?.body.params?.taskId).toBe("task-abort");
     } finally {
       await manager.close();
       fetchSpy.mockRestore();

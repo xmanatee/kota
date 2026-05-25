@@ -51,11 +51,14 @@ export type {
   McpCallToolOptions,
   McpCallToolResult,
   McpCallToolRetry,
+  McpCancelTaskResult,
   McpCompleteCallToolResult,
+  McpCreateTaskResult,
   McpElicitationInputRequest,
   McpElicitationMode,
   McpGetPromptCompleteResult,
   McpGetPromptResult,
+  McpGetTaskResult,
   McpInputRequiredCallToolResult,
   McpInputRequiredResult,
   McpLegacyCallToolResult,
@@ -91,6 +94,8 @@ export type {
   McpSamplingToolChoice,
   McpSamplingToolResultContent,
   McpSamplingToolUseContent,
+  McpTaskState,
+  McpTaskStatus,
   McpToolArguments,
   McpToolContentBlock,
   McpToolImageContent,
@@ -102,10 +107,12 @@ export type {
   McpToolResultContract,
   McpToolSchema,
   McpToolTextContent,
+  McpUpdateTaskResult,
 } from "./client-protocol.js";
 export {
   MCP_DRAFT_PROTOCOL_VERSION,
   MCP_LEGACY_PROTOCOL_VERSION,
+  MCP_TASKS_EXTENSION_ID,
 } from "./client-protocol.js";
 export { decodeMcpToolInputResponses } from "./client-result-decoders.js";
 

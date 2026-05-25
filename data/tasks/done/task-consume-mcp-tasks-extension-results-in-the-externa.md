@@ -1,12 +1,12 @@
 ---
 id: task-consume-mcp-tasks-extension-results-in-the-externa
 title: Consume MCP Tasks extension results in the external client runtime
-status: ready
+status: done
 priority: p2
 area: core
 summary: Teach KOTA's external MCP client to opt into official Tasks extension responses, poll task handles, resume input-required tasks, and surface durable diagnostics instead of treating resultType=task as malformed.
 created_at: 2026-05-25T12:51:02.213Z
-updated_at: 2026-05-25T12:51:02.213Z
+updated_at: 2026-05-25T13:18:05.000Z
 ---
 
 ## Problem

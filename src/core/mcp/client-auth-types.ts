@@ -5,6 +5,7 @@ import type {
 
 export type McpClientOptions = {
   supportedElicitationModes?: readonly McpElicitationMode[];
+  enableRemoteTasks?: boolean;
   authorizationResolver?: McpAuthorizationResolver;
   onLogMessage?: McpLogMessageHandler;
 };

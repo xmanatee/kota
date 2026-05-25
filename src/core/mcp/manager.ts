@@ -13,12 +13,14 @@ import {
   type McpCallToolResult,
   McpClient,
   type McpClientTransportConfig,
+  type McpCreateTaskResult,
   type McpElicitationMode,
   type McpEnterpriseManagedIdentityProviderConfig,
   type McpEnterpriseManagedSubjectTokenConfig,
   type McpEnterpriseManagedSubjectTokenSourceConfig,
   type McpEnterpriseManagedSubjectTokenType,
   type McpGetPromptResult,
+  type McpGetTaskResult,
   type McpInputRequiredCallToolResult,
   type McpInputRequiredResult,
   type McpListPromptsPage,
@@ -28,6 +30,7 @@ import {
   type McpOAuthClientCredentialsPrivateKeyJwtClientConfig,
   type McpOAuthClientIdentityConfig,
   type McpProgressEvent,
+  type McpProtocolVersion,
   type McpReadResourceResult,
   type McpStdioClientTransportConfig,
   type McpStreamableHttpAuthorizationConfig,
@@ -37,6 +40,7 @@ import {
   type McpToolInputResponses,
   type McpToolSchema,
 } from "./client.js";
+import { decodeCallToolResult } from "./client-result-decoders.js";
 
 export type McpServerStdioConfig = McpStdioClientTransportConfig;
 export type McpServerHttpConfig = McpStreamableHttpClientTransportConfig;
@@ -48,6 +52,7 @@ type McpConfig = {
 
 export type McpManagerInitializeOptions = {
   inputResolverAvailable?: boolean;
+  remoteTaskConsumptionAvailable?: boolean;
   authorizationResolver?: McpAuthorizationResolver;
 };
 
@@ -132,9 +137,19 @@ export type McpExecuteToolOptions = {
   inputResolver?: McpInputResolver;
   progressResolver?: McpProgressResolver;
   maxProgressEvents?: number;
+  signal?: AbortSignal;
+};
+
+type McpRemoteTaskStats = {
+  protocolVersion: McpProtocolVersion;
+  pollCount: number;
+  inputUpdateCount: number;
+  startedAtMs: number;
+  deadlineAtMs: number | null;
 };
 
 const SEPARATOR = "__";
+const DEFAULT_REMOTE_TASK_POLL_INTERVAL_MS = 1_000;
 const MCP_CONFIG_FIELDS = new Set(["type", "command", "args", "env", "url", "headers", "authorization"]);
 const MCP_STDIO_FIELDS = ["command", "args", "env"] as const;
 const MCP_HTTP_FIELDS = ["url", "headers", "authorization"] as const;
@@ -358,6 +373,83 @@ function operationInputRequiredDiagnostics(
     ...(result.requestState !== undefined ? { requestState: result.requestState } : {}),
     ...(result._meta ? { resultMeta: result._meta } : {}),
   };
+}
+
+function remoteTaskDiagnostics(
+  entry: McpToolEntry,
+  task: McpCreateTaskResult | McpGetTaskResult,
+  stats: McpRemoteTaskStats,
+): KotaJsonObject {
+  return {
+    resultType: "task",
+    protocolVersion: stats.protocolVersion,
+    server: entry.client.getName(),
+    tool: entry.originalName,
+    taskId: task.taskId,
+    status: task.status,
+    pollCount: stats.pollCount,
+    inputUpdateCount: stats.inputUpdateCount,
+    startedAt: new Date(stats.startedAtMs).toISOString(),
+    deadlineAt: stats.deadlineAtMs === null ? null : new Date(stats.deadlineAtMs).toISOString(),
+    lastUpdatedAt: task.lastUpdatedAt,
+  };
+}
+
+function withRemoteTaskDiagnostics(
+  result: ToolResult,
+  entry: McpToolEntry,
+  task: McpCreateTaskResult | McpGetTaskResult,
+  stats: McpRemoteTaskStats,
+): ToolResult {
+  return {
+    ...result,
+    _meta: {
+      ...(result._meta ?? {}),
+      mcpTask: remoteTaskDiagnostics(entry, task, stats),
+    },
+  };
+}
+
+function remoteTaskErrorResult(
+  entry: McpToolEntry,
+  task: McpCreateTaskResult | McpGetTaskResult,
+  stats: McpRemoteTaskStats,
+  reason: string,
+  errorCode?: number,
+): ToolResult {
+  return withRemoteTaskDiagnostics(
+    {
+      content:
+        `MCP tool error: remote MCP task "${task.taskId}" for tool ` +
+        `"${entry.originalName}" on server "${entry.client.getName()}" ${reason}`,
+      is_error: true,
+      ...(errorCode !== undefined ? { structuredContent: { errorCode } } : {}),
+    },
+    entry,
+    task,
+    stats,
+  );
+}
+
+function sleepUntilNextPoll(ms: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) {
+    return Promise.reject(new Error("MCP task polling aborted"));
+  }
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      signal?.removeEventListener("abort", onAbort);
+    };
+    const timer = setTimeout(() => {
+      cleanup();
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      cleanup();
+      reject(new Error("MCP task polling aborted"));
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 function unsupportedInputRequiredResult(
@@ -866,6 +958,24 @@ function normalizeMcpServerConfig(
 }
 
 function toToolResult(entry: McpToolEntry, result: McpCallToolResult): ToolResult {
+  if (result.resultType === "task") {
+    return {
+      content:
+        `MCP tool error: remote MCP task "${result.taskId}" for tool ` +
+        `"${entry.originalName}" was not resolved by the manager`,
+      is_error: true,
+      _meta: {
+        mcpTask: {
+          resultType: "task",
+          protocolVersion: result.protocolVersion,
+          server: entry.client.getName(),
+          tool: entry.originalName,
+          taskId: result.taskId,
+          status: result.status,
+        },
+      },
+    };
+  }
   if (result.resultType === "input_required") {
     return unsupportedInputRequiredResult(
       entry,
@@ -975,6 +1085,8 @@ export class McpManager {
     if (entries.length === 0) return;
     const supportedElicitationModes: readonly McpElicitationMode[] =
       options.inputResolverAvailable === true ? ["form", "url"] : [];
+    const enableRemoteTasks = options.remoteTaskConsumptionAvailable ??
+      options.inputResolverAvailable === true;
 
     const results = await Promise.allSettled(
       entries.map(async ([name, serverConfig]) => {
@@ -986,6 +1098,7 @@ export class McpManager {
             name,
             {
               supportedElicitationModes,
+              enableRemoteTasks,
               ...(options.authorizationResolver
                 ? { authorizationResolver: options.authorizationResolver }
                 : {}),
@@ -1087,6 +1200,9 @@ export class McpManager {
         undefined,
         progress,
       );
+      if (result.resultType === "task") {
+        return await this.resolveRemoteTaskToolResult(entry, result, options);
+      }
       if (result.resultType === "input_required") {
         if (!result.inputRequests) {
           if (result.requestState === undefined) {
@@ -1134,6 +1250,192 @@ export class McpManager {
         ? err.message
         : `MCP tool error: ${(err as Error).message}`;
       return { content: message, is_error: true };
+    }
+  }
+
+  private async resolveRemoteTaskToolResult(
+    entry: McpToolEntry,
+    created: McpCreateTaskResult,
+    options: McpExecuteToolOptions,
+  ): Promise<ToolResult> {
+    const now = Date.now();
+    const stats: McpRemoteTaskStats = {
+      protocolVersion: created.protocolVersion,
+      pollCount: 0,
+      inputUpdateCount: 0,
+      startedAtMs: now,
+      deadlineAtMs: created.ttlMs === null ? null : now + created.ttlMs,
+    };
+    let current: McpCreateTaskResult | McpGetTaskResult = created;
+
+    while (true) {
+      if (options.signal?.aborted) {
+        return await this.cancelRemoteTaskAfterAbort(entry, current, stats);
+      }
+      if (current.status === "completed") {
+        const decoded = decodeCallToolResult(
+          current.result,
+          created.protocolVersion,
+        );
+        if (decoded.resultType === "task") {
+          return remoteTaskErrorResult(
+            entry,
+            current,
+            stats,
+            "completed with a nested task result",
+          );
+        }
+        return withRemoteTaskDiagnostics(
+          toToolResult(entry, decoded),
+          entry,
+          current,
+          stats,
+        );
+      }
+      if (current.status === "failed") {
+        return remoteTaskErrorResult(
+          entry,
+          current,
+          stats,
+          "failed",
+          current.error?.code,
+        );
+      }
+      if (current.status === "cancelled") {
+        return remoteTaskErrorResult(entry, current, stats, "was cancelled");
+      }
+      if (stats.deadlineAtMs !== null && Date.now() >= stats.deadlineAtMs) {
+        return remoteTaskErrorResult(
+          entry,
+          current,
+          stats,
+          `exceeded its ttlMs=${created.ttlMs} polling window`,
+        );
+      }
+      if (current.status === "input_required") {
+        const handled = await this.handleRemoteTaskInputRequired(
+          entry,
+          current,
+          stats,
+          options,
+        );
+        if (handled.kind === "result") return handled.result;
+        current = await entry.client.getTask(current.taskId);
+        stats.pollCount += 1;
+        continue;
+      }
+      const remainingMs = stats.deadlineAtMs === null
+        ? null
+        : Math.max(0, stats.deadlineAtMs - Date.now());
+      const pollIntervalMs = current.pollIntervalMs ?? DEFAULT_REMOTE_TASK_POLL_INTERVAL_MS;
+      const delayMs = remainingMs === null
+        ? pollIntervalMs
+        : Math.min(pollIntervalMs, remainingMs);
+      if (delayMs <= 0) {
+        return remoteTaskErrorResult(
+          entry,
+          current,
+          stats,
+          `exceeded its ttlMs=${created.ttlMs} polling window`,
+        );
+      }
+      try {
+        await sleepUntilNextPoll(delayMs, options.signal);
+      } catch {
+        return await this.cancelRemoteTaskAfterAbort(entry, current, stats);
+      }
+      current = await entry.client.getTask(current.taskId);
+      stats.pollCount += 1;
+    }
+  }
+
+  private async handleRemoteTaskInputRequired(
+    entry: McpToolEntry,
+    task: McpCreateTaskResult | McpGetTaskResult,
+    stats: McpRemoteTaskStats,
+    options: McpExecuteToolOptions,
+  ): Promise<{ kind: "continue" } | { kind: "result"; result: ToolResult }> {
+    if (!task.inputRequests) {
+      return {
+        kind: "result",
+        result: remoteTaskErrorResult(
+          entry,
+          task,
+          stats,
+          "entered input_required without inputRequests",
+        ),
+      };
+    }
+    if (!options.inputResolver) {
+      return {
+        kind: "result",
+        result: withRemoteTaskDiagnostics(
+          unsupportedInputRequiredResult(entry, {
+            resultType: "input_required",
+            protocolVersion: stats.protocolVersion,
+            inputRequests: task.inputRequests,
+            ...(task.requestState !== undefined ? { requestState: task.requestState } : {}),
+            ...(task._meta ? { _meta: task._meta } : {}),
+          }),
+          entry,
+          task,
+          stats,
+        ),
+      };
+    }
+    const routed = await options.inputResolver({
+      server: entry.client.getName(),
+      tool: entry.originalName,
+      inputRequests: task.inputRequests,
+      ...(task.requestState !== undefined ? { requestState: task.requestState } : {}),
+      ...(task._meta ? { resultMeta: task._meta } : {}),
+    });
+    if (routed.kind === "unavailable") {
+      return {
+        kind: "result",
+        result: withRemoteTaskDiagnostics(
+          unsupportedInputRequiredResult(entry, {
+            resultType: "input_required",
+            protocolVersion: stats.protocolVersion,
+            inputRequests: task.inputRequests,
+            ...(task.requestState !== undefined ? { requestState: task.requestState } : {}),
+            ...(task._meta ? { _meta: task._meta } : {}),
+          }, routed.reason),
+          entry,
+          task,
+          stats,
+        ),
+      };
+    }
+    await entry.client.updateTask(task.taskId, {
+      inputRequests: task.inputRequests,
+      inputResponses: routed.inputResponses,
+      ...(task.requestState !== undefined ? { requestState: task.requestState } : {}),
+    });
+    stats.inputUpdateCount += 1;
+    return { kind: "continue" };
+  }
+
+  private async cancelRemoteTaskAfterAbort(
+    entry: McpToolEntry,
+    task: McpCreateTaskResult | McpGetTaskResult,
+    stats: McpRemoteTaskStats,
+  ): Promise<ToolResult> {
+    try {
+      await entry.client.cancelTask(task.taskId);
+      return remoteTaskErrorResult(
+        entry,
+        task,
+        stats,
+        "was aborted by the operator and cancellation was requested",
+      );
+    } catch {
+      return remoteTaskErrorResult(
+        entry,
+        task,
+        stats,
+        "was aborted by the operator; cancellation could not be confirmed",
+      );
     }
   }
 

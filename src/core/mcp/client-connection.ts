@@ -106,6 +106,7 @@ export abstract class McpClientConnection extends McpClientHttpRuntime {
     this.resourcesListChanged = result.resourcesListChanged;
     this.promptsSupported = result.promptsSupported;
     this.promptsListChanged = result.promptsListChanged;
+    this.tasksSupported = result.tasksSupported;
     this.connected = true;
     if (
       result.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION &&
@@ -145,6 +146,7 @@ export abstract class McpClientConnection extends McpClientHttpRuntime {
     this.resourcesListChanged = result.resourcesListChanged;
     this.promptsSupported = result.promptsSupported;
     this.promptsListChanged = result.promptsListChanged;
+    this.tasksSupported = result.tasksSupported;
     this.connected = true;
     if (this.toolsListChanged || this.resourcesListChanged || this.promptsListChanged) {
       this.openListChangedSubscription();

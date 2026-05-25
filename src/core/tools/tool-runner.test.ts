@@ -283,6 +283,27 @@ describe("executeToolCalls", () => {
     );
   });
 
+  it("passes abort signal context to MCP tool execution when available", async () => {
+    const controller = new AbortController();
+    const mcpManager = {
+      isMcpTool: vi.fn((name: string) => name.startsWith("mcp__")),
+      executeTool: vi.fn().mockResolvedValue({ content: "mcp result" }),
+    };
+    await executeToolCalls(
+      [toolBlock("mcp__server__tool", { q: "test" })],
+      runOptions({
+        mcpManager: mcpManager as never,
+        signal: controller.signal,
+      }),
+    );
+
+    expect(mcpManager.executeTool).toHaveBeenCalledWith(
+      "mcp__server__tool",
+      { q: "test" },
+      { signal: controller.signal },
+    );
+  });
+
   it("uses executeTool for non-MCP tools when mcpManager present", async () => {
     mockExecuteTool.mockResolvedValue({ content: "local result" });
     const mcpManager = {

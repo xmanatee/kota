@@ -5,7 +5,9 @@ import type {
   McpCallToolOptions,
   McpCallToolResult,
   McpCallToolRetry,
+  McpCancelTaskResult,
   McpGetPromptResult,
+  McpGetTaskResult,
   McpListPromptsPage,
   McpListResourcesPage,
   McpListResourceTemplatesPage,
@@ -16,7 +18,10 @@ import type {
   McpResourceSchema,
   McpResourceTemplateSchema,
   McpToolArguments,
+  McpToolInputRequests,
+  McpToolInputResponses,
   McpToolSchema,
+  McpUpdateTaskResult,
 } from "./client-protocol.js";
 import {
   CALL_TIMEOUT,
@@ -30,7 +35,10 @@ import {
 } from "./client-resource-prompt-list-decoders.js";
 import {
   decodeCallToolResult,
+  decodeEmptyTaskAckResult,
   decodeGetPromptResult,
+  decodeGetTaskResult,
+  decodeMcpToolInputResponses,
   decodeReadResourceResult,
 } from "./client-result-decoders.js";
 import {
@@ -39,6 +47,14 @@ import {
 } from "./client-tool-list-decoders.js";
 
 export abstract class McpClientOperations extends McpClientConnection {
+  private assertTasksNegotiated(method: "tasks/get" | "tasks/update" | "tasks/cancel"): void {
+    if (this.supportsTasks()) return;
+    throw this.requestErrorForMethod(
+      method,
+      `remote MCP Tasks extension was not negotiated; enable ${MCP_DRAFT_PROTOCOL_VERSION} ${method} only after both client and server advertise task support`,
+    );
+  }
+
   async listToolsPage(cursor?: string): Promise<McpListToolsPage> {
     const result = await this.request(
       "tools/list",
@@ -245,8 +261,65 @@ export abstract class McpClientOperations extends McpClientConnection {
       result,
       this.protocolVersion ?? MCP_LEGACY_PROTOCOL_VERSION,
     );
+    if (decoded.resultType === "task" && !this.supportsTasks()) {
+      throw this.requestErrorForMethod(
+        "tools/call",
+        'server returned resultType "task" without negotiated io.modelcontextprotocol/tasks support',
+      );
+    }
     this.warnDeprecatedInputRequiredResult(decoded);
     return decoded;
+  }
+
+  async getTask(taskId: string): Promise<McpGetTaskResult> {
+    this.assertTasksNegotiated("tasks/get");
+    const result = await this.request("tasks/get", { taskId }, CALL_TIMEOUT);
+    return decodeGetTaskResult(result);
+  }
+
+  async updateTask(
+    taskId: string,
+    update: {
+      inputResponses: McpToolInputResponses;
+      inputRequests?: McpToolInputRequests;
+      requestState?: string;
+    },
+  ): Promise<McpUpdateTaskResult> {
+    this.assertTasksNegotiated("tasks/update");
+    const params: JsonRpcRequest["params"] = { taskId };
+    if (update.requestState !== undefined) {
+      if (update.requestState.length === 0) {
+        throw new Error("Malformed MCP tasks/update request: requestState must be a non-empty string");
+      }
+      params.requestState = update.requestState;
+    }
+    params.inputResponses = decodeMcpToolInputResponses(
+      update.inputResponses,
+      update.inputRequests,
+      "tasks/update",
+    );
+    try {
+      const result = await this.request("tasks/update", params, CALL_TIMEOUT);
+      return decodeEmptyTaskAckResult(result, "tasks/update");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (
+        message.includes("Malformed MCP tasks/update request") ||
+        message.includes("Malformed MCP tasks/update result")
+      ) {
+        throw err;
+      }
+      throw this.requestErrorForMethod(
+        "tasks/update",
+        "remote task input update failed",
+      );
+    }
+  }
+
+  async cancelTask(taskId: string): Promise<McpCancelTaskResult> {
+    this.assertTasksNegotiated("tasks/cancel");
+    const result = await this.request("tasks/cancel", { taskId }, CALL_TIMEOUT);
+    return decodeEmptyTaskAckResult(result, "tasks/cancel");
   }
 
 }

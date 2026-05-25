@@ -103,6 +103,9 @@ export type McpResultKind =
   | "oauth-token"
   | "protected-resource-metadata"
   | "server/discover"
+  | "tasks/cancel"
+  | "tasks/get"
+  | "tasks/update"
   | "tools/call"
   | "tools/list"
   | "resources/list"
@@ -181,6 +184,7 @@ export type McpListPromptsPage = {
 
 export const MCP_LEGACY_PROTOCOL_VERSION = "2024-11-05";
 export const MCP_DRAFT_PROTOCOL_VERSION = "DRAFT-2026-v1";
+export const MCP_TASKS_EXTENSION_ID = "io.modelcontextprotocol/tasks";
 
 export type McpProtocolVersion =
   | typeof MCP_LEGACY_PROTOCOL_VERSION
@@ -230,6 +234,48 @@ export type McpCompleteCallToolResult = McpCompleteResultFields & {
   resultType: "complete";
   protocolVersion: McpProtocolVersion;
 };
+
+export const MCP_TASK_STATUSES = [
+  "working",
+  "input_required",
+  "completed",
+  "failed",
+  "cancelled",
+] as const;
+
+export type McpTaskStatus = typeof MCP_TASK_STATUSES[number];
+
+export type McpTaskState = {
+  resultType?: "task";
+  taskId: string;
+  status: McpTaskStatus;
+  createdAt: string;
+  lastUpdatedAt: string;
+  ttlMs: number | null;
+  pollIntervalMs?: number;
+  statusMessage?: string;
+  inputRequests?: McpToolInputRequests;
+  requestState?: string;
+  result?: KotaJsonValue;
+  error?: JsonRpcError;
+  _meta?: KotaJsonObject;
+};
+
+export type McpCreateTaskResult = McpTaskState & {
+  resultType: "task";
+  protocolVersion: McpProtocolVersion;
+};
+
+export type McpGetTaskResult = McpTaskState;
+
+export type McpTaskAckResult = {
+  resultType: "complete";
+  _meta?: KotaJsonObject;
+};
+
+export type McpUpdateTaskResult = McpTaskAckResult;
+
+export type McpCancelTaskResult = McpTaskAckResult;
 
 export type McpToolInputRequest = KotaJsonObject & {
   method: string;
@@ -355,7 +401,8 @@ export type McpInputRequiredResult = McpInputRequiredCallToolResult;
 export type McpCallToolResult =
   | McpLegacyCallToolResult
   | McpCompleteCallToolResult
-  | McpInputRequiredCallToolResult;
+  | McpInputRequiredCallToolResult
+  | McpCreateTaskResult;
 
 export type McpCallToolRetry =
   ({
@@ -432,6 +479,7 @@ export type McpInitializeResult = {
   promptsSupported: boolean;
   promptsListChanged: boolean;
   loggingSupported: boolean;
+  tasksSupported: boolean;
   serverInfo?: { name?: string };
 };
 
