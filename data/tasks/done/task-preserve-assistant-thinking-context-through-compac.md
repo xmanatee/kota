@@ -1,12 +1,12 @@
 ---
 id: task-preserve-assistant-thinking-context-through-compac
 title: Preserve assistant thinking context through compaction
-status: ready
+status: done
 priority: p2
 area: core
 summary: Make KOTA's context compaction preserve bounded assistant thinking/rationale blocks so stale-session or repeated compaction cannot erase the reasoning history needed to continue multi-turn tool work.
 created_at: 2026-05-25T11:01:04.686Z
-updated_at: 2026-05-25T11:01:04.686Z
+updated_at: 2026-05-25T11:10:13.091Z
 ---
 
 ## Problem

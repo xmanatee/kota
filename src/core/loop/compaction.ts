@@ -2,6 +2,7 @@ import type {
   KotaContentBlock,
   KotaMessage,
   KotaTextBlock,
+  KotaThinkingBlock,
   KotaToolResultBlock,
   KotaToolUseBlock,
 } from "#core/agent-harness/message-protocol.js";
@@ -9,6 +10,17 @@ import type { ModelClient } from "#core/model/model-client.js";
 
 type Message = KotaMessage;
 type ContentBlock = KotaContentBlock;
+type AssistantRationaleEntry =
+  | { kind: "thinking"; block: KotaThinkingBlock; text: string }
+  | { kind: "compacted"; message: Message; itemIndex: number; text: string };
+
+const MAX_STRING_MESSAGE_CHARS = 800;
+const MAX_TEXT_BLOCK_CHARS = 400;
+const MAX_TOOL_INPUT_CHARS = 120;
+const MAX_TOOL_RESULT_CHARS = 120;
+const MAX_TOOL_RESULT_TEXT_BLOCK_CHARS = 80;
+const MAX_THINKING_BLOCK_CHARS = 700;
+const MAX_THINKING_BLOCKS = 6;
 
 type WorkingState = {
   filesModified: string[];
@@ -91,17 +103,178 @@ function formatState(state: WorkingState): string {
   return parts.join("\n");
 }
 
+function truncateForCompaction(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  return `${text.slice(0, maxChars)}... [truncated]`;
+}
+
+function formatToolInput(input: KotaToolUseBlock["input"]): string {
+  const serialized = JSON.stringify(input);
+  return typeof serialized === "string" ? serialized : String(serialized);
+}
+
+function formatThinkingBlock(block: KotaThinkingBlock): string | null {
+  const thinking = block.thinking.trim();
+  if (!thinking) return null;
+  return truncateForCompaction(thinking, MAX_THINKING_BLOCK_CHARS);
+}
+
+function extractSection(content: string, heading: string): string | null {
+  const marker = `### ${heading}\n`;
+  const start = content.indexOf(marker);
+  if (start === -1) return null;
+
+  const bodyStart = start + marker.length;
+  const rest = content.slice(bodyStart);
+  const nextHeading = rest.search(/\n### /);
+  const section = nextHeading === -1 ? rest : rest.slice(0, nextHeading);
+  const trimmed = section.trim();
+  return trimmed || null;
+}
+
+function extractCompactedAssistantRationaleItems(content: string): string[] {
+  if (!content.startsWith("[Context compaction #")) return [];
+
+  const section = extractSection(content, "Assistant rationale");
+  if (!section) return [];
+
+  const items: string[] = [];
+  let current: string[] = [];
+
+  for (const line of section.split("\n")) {
+    const numbered = line.match(/^\d+\.\s+(.*)$/);
+    if (numbered) {
+      if (current.length > 0) items.push(current.join("\n").trim());
+      current = [numbered[1] ?? ""];
+      continue;
+    }
+
+    if (current.length > 0) {
+      current.push(line);
+    } else if (line.trim()) {
+      current = [line.trim()];
+    }
+  }
+
+  if (current.length > 0) items.push(current.join("\n").trim());
+
+  return items
+    .filter(Boolean)
+    .map((item) => truncateForCompaction(item, MAX_THINKING_BLOCK_CHARS));
+}
+
+function collectAssistantRationaleEntries(messages: Message[]): AssistantRationaleEntry[] {
+  const entries: AssistantRationaleEntry[] = [];
+
+  for (const msg of messages) {
+    if (typeof msg.content === "string") {
+      const compactedItems = extractCompactedAssistantRationaleItems(msg.content);
+      compactedItems.forEach((text, itemIndex) => {
+        entries.push({ kind: "compacted", message: msg, itemIndex, text });
+      });
+      continue;
+    }
+
+    if (msg.role !== "assistant" || !Array.isArray(msg.content)) continue;
+
+    for (const block of msg.content as ContentBlock[]) {
+      if (block.type !== "thinking") continue;
+      const formatted = formatThinkingBlock(block);
+      if (formatted) entries.push({ kind: "thinking", block, text: formatted });
+    }
+  }
+
+  return entries.slice(-MAX_THINKING_BLOCKS);
+}
+
+function selectAssistantRationale(messages: Message[]): {
+  entries: string[];
+  compactedItemsByMessage: Map<Message, Set<number>>;
+  thinkingBlocks: Set<KotaThinkingBlock>;
+} {
+  const selectedEntries = collectAssistantRationaleEntries(messages);
+  const compactedItemsByMessage = new Map<Message, Set<number>>();
+  const thinkingBlocks = new Set<KotaThinkingBlock>();
+
+  for (const entry of selectedEntries) {
+    if (entry.kind === "thinking") {
+      thinkingBlocks.add(entry.block);
+      continue;
+    }
+
+    let selectedItems = compactedItemsByMessage.get(entry.message);
+    if (!selectedItems) {
+      selectedItems = new Set<number>();
+      compactedItemsByMessage.set(entry.message, selectedItems);
+    }
+    selectedItems.add(entry.itemIndex);
+  }
+
+  return {
+    entries: selectedEntries.map((entry) => entry.text),
+    compactedItemsByMessage,
+    thinkingBlocks,
+  };
+}
+
+function formatAssistantRationale(entries: string[]): string {
+  return entries
+    .map((rationale, index) => `${index + 1}. ${rationale}`)
+    .join("\n");
+}
+
+function extractThinkingSignatures(messages: Message[]): string[] {
+  const signatures = new Set<string>();
+
+  for (const msg of messages) {
+    if (msg.role !== "assistant") continue;
+    if (!Array.isArray(msg.content)) continue;
+
+    for (const block of msg.content as ContentBlock[]) {
+      if (block.type !== "thinking") continue;
+      const signature = block.signature.trim();
+      if (signature) signatures.add(signature);
+    }
+  }
+
+  return [...signatures];
+}
+
+function redactThinkingSignatures(text: string, signatures: string[]): string {
+  let redacted = text;
+  for (const signature of signatures) {
+    redacted = redacted.split(signature).join("[redacted thinking signature]");
+  }
+  return redacted;
+}
+
 /**
  * Build a richer conversation representation for the summarizer.
  * Extracts meaningful content from tool_use and tool_result blocks
  * instead of just showing "(structured content)".
  */
-function buildConversationText(messages: Message[]): string {
+function buildConversationText(
+  messages: Message[],
+  selectedRationale: ReturnType<typeof selectAssistantRationale>,
+): string {
   const lines: string[] = [];
 
   for (const msg of messages) {
     if (typeof msg.content === "string") {
-      lines.push(`[${msg.role}]: ${msg.content.slice(0, 800)}`);
+      const parts = [truncateForCompaction(msg.content, MAX_STRING_MESSAGE_CHARS)];
+      const selectedCompactedItems = selectedRationale.compactedItemsByMessage.get(msg);
+      if (selectedCompactedItems) {
+        const rationale = extractCompactedAssistantRationaleItems(msg.content)
+          .filter((_, itemIndex) => selectedCompactedItems.has(itemIndex));
+        if (rationale.length > 0) {
+          parts.push(
+            `[compacted assistant rationale] ${rationale
+              .map((item, index) => `${index + 1}. ${item}`)
+              .join("\n")}`,
+          );
+        }
+      }
+      lines.push(`[${msg.role}]: ${parts.join("\n")}`);
       continue;
     }
     if (!Array.isArray(msg.content)) continue;
@@ -109,20 +282,28 @@ function buildConversationText(messages: Message[]): string {
     const parts: string[] = [];
     for (const block of msg.content as ContentBlock[]) {
       if (block.type === "text") {
-        parts.push((block as KotaTextBlock).text.slice(0, 400));
+        parts.push(truncateForCompaction((block as KotaTextBlock).text, MAX_TEXT_BLOCK_CHARS));
+      } else if (block.type === "thinking") {
+        const thinkingBlock = block as KotaThinkingBlock;
+        if (!selectedRationale.thinkingBlocks.has(thinkingBlock)) continue;
+        const thinking = formatThinkingBlock(thinkingBlock);
+        if (thinking) parts.push(`[assistant thinking/rationale] ${thinking}`);
       } else if (block.type === "tool_use") {
         const tu = block as KotaToolUseBlock;
-        parts.push(`${tu.name}(${JSON.stringify(tu.input).slice(0, 120)})`);
+        parts.push(`${tu.name}(${truncateForCompaction(formatToolInput(tu.input), MAX_TOOL_INPUT_CHARS)})`);
       } else if (block.type === "tool_result") {
         const tr = block as KotaToolResultBlock;
         const status = tr.is_error ? "ERR" : "OK";
         let preview: string;
         if (typeof tr.content === "string") {
-          preview = tr.content.slice(0, 120);
+          preview = truncateForCompaction(tr.content, MAX_TOOL_RESULT_CHARS);
         } else if (Array.isArray(tr.content)) {
           const hasImage = tr.content.some((b) => b.type === "image");
           const textPart = tr.content.find((b) => b.type === "text");
-          const textPreview = textPart && "text" in textPart ? (textPart.text as string).slice(0, 80) : "";
+          const textPreview =
+            textPart && "text" in textPart
+              ? truncateForCompaction(textPart.text, MAX_TOOL_RESULT_TEXT_BLOCK_CHARS)
+              : "";
           preview = hasImage ? `[image] ${textPreview}` : textPreview || "(structured)";
         } else {
           preview = "(structured)";
@@ -158,7 +339,10 @@ export async function compactMessages(
 ): Promise<Message[]> {
   const state = extractWorkingState(messages);
   const stateText = formatState(state);
-  const conversationText = buildConversationText(messages);
+  const selectedRationale = selectAssistantRationale(messages);
+  const conversationText = buildConversationText(messages, selectedRationale);
+  const assistantRationale = formatAssistantRationale(selectedRationale.entries);
+  const thinkingSignatures = extractThinkingSignatures(messages);
 
   let narrativeSummary: string;
   try {
@@ -173,10 +357,12 @@ export async function compactMessages(
   } catch {
     narrativeSummary = conversationText.slice(0, 1500);
   }
+  narrativeSummary = redactThinkingSignatures(narrativeSummary, thinkingSignatures);
 
   const compactedContent =
     `[Context compaction #${compactionNumber}]\n\n` +
     `### Working state\n${stateText}\n\n` +
+    (assistantRationale ? `### Assistant rationale\n${assistantRationale}\n\n` : "") +
     `### Summary\n${narrativeSummary}`;
 
   return [

@@ -1,8 +1,29 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { KotaMessage } from "#core/agent-harness/message-protocol.js";
-import { extractWorkingState } from "./compaction.js";
+import type { MessageCreateParams, ModelClient } from "#core/model/model-client.js";
+import { compactMessages, extractWorkingState } from "./compaction.js";
 
 type Message = KotaMessage;
+
+function mockCompactionClient(summary: string): {
+  client: ModelClient;
+  create: ReturnType<typeof vi.fn>;
+} {
+  const create = vi.fn().mockResolvedValue({
+    content: [{ type: "text", text: summary }],
+  });
+  return {
+    client: { messages: { create } } as unknown as ModelClient,
+    create,
+  };
+}
+
+function compactionPromptFrom(create: ReturnType<typeof vi.fn>, callIndex = 0): string {
+  const params = create.mock.calls[callIndex]?.[0] as MessageCreateParams | undefined;
+  const prompt = params?.messages[0]?.content;
+  expect(typeof prompt).toBe("string");
+  return prompt as string;
+}
 
 function toolUse(name: string, input: Record<string, unknown>, id = "t1"): Message {
   return {
@@ -164,5 +185,200 @@ describe("extractWorkingState", () => {
     expect(state.commandsRun).toEqual(["npm test"]);
     expect(state.errors).toEqual(["Tests failed: 2 errors"]);
     expect(state.toolCalls).toBe(5); // file_read + 2 file_edit + 2 shell
+  });
+});
+
+describe("compactMessages assistant thinking preservation", () => {
+  it("includes mixed assistant thinking, text, and tool use in compaction context", async () => {
+    const planToken = "PLAN-MIXED-THINKING-TOKEN";
+    const signature = "provider-signature-mixed";
+    const { client, create } = mockCompactionClient(
+      `Kept ${planToken}: inspect config before editing, then rerun tests.`,
+    );
+    const messages: Message[] = [
+      { role: "user", content: "Fix the config loader regression" },
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "thinking",
+            thinking: `${planToken}: inspect the config loader first, then edit only the failing branch.`,
+            signature,
+          },
+          { type: "text", text: "Inspecting the config loader before editing." },
+          { type: "tool_use", id: "read-config", name: "file_read", input: { path: "src/core/config/config.ts" } },
+        ],
+      },
+    ];
+
+    const compacted = await compactMessages(client, "claude-sonnet", messages, 1);
+    const prompt = compactionPromptFrom(create);
+    const compactedText = compacted[0].content as string;
+
+    expect(prompt).toContain("[assistant thinking/rationale]");
+    expect(prompt).toContain(planToken);
+    expect(prompt).toContain("Inspecting the config loader");
+    expect(prompt).toContain("file_read");
+    expect(prompt).not.toContain(signature);
+    expect(compactedText).toContain("Assistant rationale");
+    expect(compactedText).toContain(planToken);
+    expect(compactedText).not.toContain(signature);
+  });
+
+  it("bounds long thinking blocks before they reach the compaction prompt", async () => {
+    const planToken = "PLAN-LONG-THINKING-TOKEN";
+    const omittedTail = "LONG-THINKING-TAIL-MUST-NOT-APPEAR";
+    const { client, create } = mockCompactionClient(`Kept ${planToken}.`);
+    const messages: Message[] = [
+      { role: "user", content: "Continue the long-running refactor" },
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "thinking",
+            thinking: `${planToken}: preserve this active plan. ${"x".repeat(900)} ${omittedTail}`,
+            signature: "provider-signature-long",
+          },
+          { type: "text", text: "Continuing the refactor." },
+        ],
+      },
+    ];
+
+    const compacted = await compactMessages(client, "claude-sonnet", messages, 1);
+    const prompt = compactionPromptFrom(create);
+    const compactedText = compacted[0].content as string;
+
+    expect(prompt).toContain(planToken);
+    expect(prompt).toContain("[truncated]");
+    expect(prompt).not.toContain(omittedTail);
+    expect(compactedText).toContain(planToken);
+    expect(compactedText).toContain("[truncated]");
+    expect(compactedText).not.toContain(omittedTail);
+  });
+
+  it("bounds total thinking blocks before they reach the compaction prompt", async () => {
+    const oldPlanToken = "PLAN-OLD-THINKING-TOKEN";
+    const retainedStartToken = "PLAN-RETAINED-START-TOKEN";
+    const retainedEndToken = "PLAN-RETAINED-END-TOKEN";
+    const { client, create } = mockCompactionClient(`Kept ${retainedStartToken} through ${retainedEndToken}.`);
+    const messages: Message[] = [
+      { role: "user", content: "Continue the multi-step repair" },
+      ...Array.from({ length: 8 }, (_, index): Message => ({
+        role: "assistant",
+        content: [
+          {
+            type: "thinking",
+            thinking:
+              index === 0
+                ? `${oldPlanToken}: superseded investigation notes.`
+                : index === 2
+                  ? `${retainedStartToken}: first rationale inside the bounded window.`
+                  : index === 7
+                    ? `${retainedEndToken}: latest rationale inside the bounded window.`
+                    : `PLAN-MIDDLE-${index}: bounded rationale item.`,
+            signature: `provider-signature-${index}`,
+          },
+        ],
+      })),
+    ];
+
+    const compacted = await compactMessages(client, "claude-sonnet", messages, 1);
+    const prompt = compactionPromptFrom(create);
+    const compactedText = compacted[0].content as string;
+
+    expect(prompt).not.toContain(oldPlanToken);
+    expect(prompt).toContain(retainedStartToken);
+    expect(prompt).toContain(retainedEndToken);
+    expect(prompt.match(/\[assistant thinking\/rationale\]/g)).toHaveLength(6);
+    expect(compactedText).not.toContain(oldPlanToken);
+    expect(compactedText).toContain(retainedStartToken);
+    expect(compactedText).toContain(retainedEndToken);
+  });
+
+  it("omits thinking signatures from the prompt and redacts them from compacted output", async () => {
+    const planToken = "PLAN-SIGNATURE-OMISSION-TOKEN";
+    const signature = "provider-signature-secret-123";
+    const { client, create } = mockCompactionClient(
+      `Summary kept ${planToken} and must not expose ${signature}.`,
+    );
+    const messages: Message[] = [
+      { role: "user", content: "Keep going after compaction" },
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "thinking",
+            thinking: `${planToken}: validate the change before moving the task.`,
+            signature,
+          },
+        ],
+      },
+    ];
+
+    const compacted = await compactMessages(client, "claude-sonnet", messages, 1);
+    const prompt = compactionPromptFrom(create);
+    const compactedText = compacted[0].content as string;
+
+    expect(prompt).toContain(planToken);
+    expect(prompt).not.toContain(signature);
+    expect(compactedText).toContain(planToken);
+    expect(compactedText).toContain("[redacted thinking signature]");
+    expect(compactedText).not.toContain(signature);
+  });
+
+  it("preserves thinking-derived rationale through repeated compaction", async () => {
+    const planToken = "PLAN-REPEATED-COMPACTION-TOKEN";
+    const signature = "provider-signature-repeat";
+    const create = vi.fn().mockImplementation((params: MessageCreateParams) => {
+      const prompt = params.messages[0]?.content;
+      const promptText = typeof prompt === "string" ? prompt : "";
+      return Promise.resolve({
+        content: [{
+          type: "text",
+          text: promptText.includes(planToken)
+            ? `Repeated compaction retained ${planToken}: inspect, patch, then run focused tests.`
+            : "Summary without thinking rationale.",
+        }],
+      });
+    });
+    const client = { messages: { create } } as unknown as ModelClient;
+    const noisyWorkingState = Array.from({ length: 70 }, (_, index) =>
+      toolUse("file_edit", { file_path: `src/generated/repeated-compaction-noise-${index}.ts` }, `edit-${index}`),
+    );
+    const firstPassMessages: Message[] = [
+      { role: "user", content: "Patch compaction behavior" },
+      ...noisyWorkingState,
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "thinking",
+            thinking: `${planToken}: preserve why the compaction path is being changed.`,
+            signature,
+          },
+          { type: "text", text: "Updating the compaction path." },
+        ],
+      },
+    ];
+
+    const compacted1 = await compactMessages(client, "claude-sonnet", firstPassMessages, 1);
+    const compactedText1 = compacted1[0].content as string;
+    expect(compactedText1.slice(0, 800)).not.toContain(planToken);
+    expect(compactedText1).toContain(planToken);
+    expect(compactedText1).not.toContain(signature);
+
+    const secondPassMessages: Message[] = [
+      ...compacted1,
+      { role: "user", content: "Continue from the compacted context" },
+      { role: "assistant", content: "Continuing from the retained plan." },
+    ];
+
+    const compacted2 = await compactMessages(client, "claude-sonnet", secondPassMessages, 2);
+    const secondPrompt = compactionPromptFrom(create, 1);
+    const compactedText2 = compacted2[0].content as string;
+
+    expect(secondPrompt).toContain(planToken);
+    expect(compactedText2).toContain(planToken);
+    expect(compactedText2).not.toContain(signature);
   });
 });
