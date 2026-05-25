@@ -89,6 +89,67 @@ describe("classifyRisk", () => {
     expect(risk).toBe("dangerous");
   });
 
+  it("classifies absolute shell cwd outside the project as dangerous without echoing the path", () => {
+    const result = classifyRisk("shell", { command: "pwd", cwd: "/tmp" });
+    expect(result.risk).toBe("dangerous");
+    expect(result.reason).toContain("project/root working directory override");
+    expect(result.reason).not.toContain("/tmp");
+  });
+
+  it("classifies resolved shell cwd outside the project as dangerous", () => {
+    const result = classifyRisk("shell", { command: "pwd", cwd: ".." });
+    expect(result.risk).toBe("dangerous");
+    expect(result.reason).toContain("project/root working directory override");
+  });
+
+  it("keeps shell cwd inside the project at the baseline shell risk", () => {
+    const result = classifyRisk("shell", { command: "pwd", cwd: "src/core" });
+    expect(result.risk).toBe("moderate");
+    expect(result.reason).toBe("shell execution");
+  });
+
+  it("classifies leading cd prefixes outside the project as dangerous without echoing the path", () => {
+    const result = classifyRisk("shell", { command: "cd /tmp && pwd" });
+    expect(result.risk).toBe("dangerous");
+    expect(result.reason).toContain("project/root directory-changing command");
+    expect(result.reason).not.toContain("/tmp");
+  });
+
+  it("classifies leading cd prefixes with POSIX options outside the project as dangerous", () => {
+    const result = classifyRisk("shell", { command: "cd -P /tmp && pwd" });
+    expect(result.risk).toBe("dangerous");
+    expect(result.reason).toContain("project/root directory-changing command");
+    expect(result.reason).not.toContain("/tmp");
+  });
+
+  it("classifies leading pushd prefixes outside the project as dangerous", () => {
+    const result = classifyRisk("shell", { command: "pushd .. && pwd" });
+    expect(result.risk).toBe("dangerous");
+    expect(result.reason).toContain("project/root directory-changing command");
+  });
+
+  it("resolves leading cd prefixes against an explicit shell cwd", () => {
+    const inside = classifyRisk("shell", {
+      command: "cd .. && pwd",
+      cwd: "src/core",
+    });
+    expect(inside.risk).toBe("moderate");
+    expect(inside.reason).toBe("shell execution");
+
+    const outside = classifyRisk("shell", {
+      command: "cd ../../.. && pwd",
+      cwd: "src/core",
+    });
+    expect(outside.risk).toBe("dangerous");
+    expect(outside.reason).toContain("project/root directory-changing command");
+  });
+
+  it("keeps leading cd prefixes inside the project at the baseline shell risk", () => {
+    const result = classifyRisk("shell", { command: "cd src && pwd" });
+    expect(result.risk).toBe("moderate");
+    expect(result.reason).toBe("shell execution");
+  });
+
   it.each(["shell", "process"] as const)(
     "classifies %s credential environment overrides as dangerous without echoing values",
     (tool) => {
@@ -140,14 +201,16 @@ describe("classifyRisk", () => {
     expect(result.reason).toBe("shell execution");
   });
 
-  it("keeps env override detection and destructive command detection active together", () => {
+  it("keeps env override, working-directory, and destructive command detection active together", () => {
     const result = classifyRisk("shell", {
-      command: "GITHUB_TOKEN=fake-token rm -rf /tmp/stuff",
+      command: "GITHUB_TOKEN=fake-token cd /tmp && rm -rf stuff",
     });
     expect(result.risk).toBe("dangerous");
     expect(result.reason).toContain("credential/token");
+    expect(result.reason).toContain("project/root directory-changing command");
     expect(result.reason).toContain("destructive command pattern detected");
     expect(result.reason).not.toContain("fake-token");
+    expect(result.reason).not.toContain("/tmp");
   });
 
   it("classifies unknown leading environment overrides as dangerous", () => {

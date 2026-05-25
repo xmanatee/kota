@@ -16,6 +16,8 @@
  * effects own that information now.
  */
 
+import { realpathSync } from "node:fs";
+import { isAbsolute, relative, resolve } from "node:path";
 import {
   type McpToolAnnotations,
   mcpAnnotationsFromEffect,
@@ -100,6 +102,7 @@ const PERMISSION_SANDBOX_ENV_PATTERN =
   /(^|_)(PERMISSION|SANDBOX|APPROVAL|BYPASS|ALLOWLIST|DENYLIST|UNSAFE)(_|$)/;
 const PROJECT_ROOT_ENV_PATTERN =
   /(^|_)(PROJECT_DIR|PROJECT_ROOT|WORKSPACE|WORKDIR|REPO_ROOT|ROOT|HOME|PWD)(_|$)/;
+const DIRECTORY_CHANGING_COMMANDS = new Set(["cd", "pushd"]);
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -115,11 +118,31 @@ export function isDangerousCode(code: string): boolean {
   return DANGEROUS_CODE_PATTERNS.some((p) => p.test(code));
 }
 
-export function isOutsideProject(filePath: string): boolean {
-  const cwd = process.cwd();
-  const resolved = filePath.startsWith("/") ? filePath : `${cwd}/${filePath}`;
-  const normalizedCwd = cwd.replace(/\/+$/, "");
-  return !resolved.startsWith(normalizedCwd);
+function resolvePathFrom(baseDirectory: string, targetPath: string): string {
+  return isAbsolute(targetPath)
+    ? resolve(targetPath)
+    : resolve(baseDirectory, targetPath);
+}
+
+function resolveBoundaryPath(path: string): string {
+  try {
+    return realpathSync.native(path);
+  } catch {
+    return path;
+  }
+}
+
+function isPathInsideProject(resolvedPath: string): boolean {
+  const projectRoot = resolveBoundaryPath(resolve(process.cwd()));
+  const relativePath = relative(projectRoot, resolvedPath);
+  return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath));
+}
+
+export function isOutsideProject(
+  filePath: string,
+  baseDirectory = process.cwd(),
+): boolean {
+  return !isPathInsideProject(resolveBoundaryPath(resolvePathFrom(baseDirectory, filePath)));
 }
 
 function skipShellWhitespace(command: string, index: number): number {
@@ -162,6 +185,70 @@ function readShellWordEnd(command: string, index: number): number {
   }
 
   return next;
+}
+
+type ShellWord = {
+  value: string;
+  end: number;
+};
+
+function readShellWord(command: string, index: number): ShellWord | null {
+  let next = skipShellWhitespace(command, index);
+  if (next >= command.length || /[&;|<>()]/.test(command[next])) return null;
+
+  let value = "";
+  let quote: "'" | "\"" | null = null;
+
+  while (next < command.length) {
+    const char = command[next];
+    if (quote) {
+      if (char === quote) {
+        quote = null;
+        next += 1;
+        continue;
+      }
+      if (quote === "\"" && char === "\\" && next + 1 < command.length) {
+        value += command[next + 1];
+        next += 2;
+        continue;
+      }
+      value += char;
+      next += 1;
+      continue;
+    }
+
+    if (/\s/.test(char) || /[&;|<>()]/.test(char)) break;
+    if (char === "'" || char === "\"") {
+      quote = char;
+      next += 1;
+      continue;
+    }
+    if (char === "\\" && next + 1 < command.length) {
+      value += command[next + 1];
+      next += 2;
+      continue;
+    }
+    value += char;
+    next += 1;
+  }
+
+  if (quote) return null;
+  return { value, end: next };
+}
+
+function skipLeadingEnvironmentAssignments(command: string): number {
+  let index = skipShellWhitespace(command, 0);
+
+  while (index < command.length) {
+    const match = SHELL_ENV_ASSIGNMENT_PATTERN.exec(command.slice(index));
+    if (!match) break;
+    index = skipShellWhitespace(
+      command,
+      readShellWordEnd(command, index + match[0].length),
+    );
+  }
+
+  return index;
 }
 
 export function extractLeadingEnvironmentOverrideNames(command: string): string[] {
@@ -217,6 +304,83 @@ function formatEnvironmentOverrideReasons(
   );
 }
 
+function hasDirectoryChangeContinuation(command: string, index: number): boolean {
+  const next = skipShellWhitespace(command, index);
+  return command.startsWith("&&", next) || command.startsWith(";", next);
+}
+
+function isDeterministicDirectoryOperand(directory: string): boolean {
+  return (
+    directory.length > 0 &&
+    directory !== "-" &&
+    !directory.startsWith("~") &&
+    !/[$`*?[]/.test(directory)
+  );
+}
+
+function isCdOptionWord(word: string): boolean {
+  return /^-[LP]+$/.test(word);
+}
+
+function readDirectoryOperand(
+  command: string,
+  index: number,
+  commandName: string,
+): ShellWord | null {
+  let directoryWord = readShellWord(command, index);
+  if (!directoryWord) return null;
+
+  if (commandName === "cd") {
+    while (isCdOptionWord(directoryWord.value)) {
+      directoryWord = readShellWord(command, directoryWord.end);
+      if (!directoryWord) return null;
+    }
+  }
+
+  if (directoryWord.value === "--") {
+    directoryWord = readShellWord(command, directoryWord.end);
+    if (!directoryWord) return null;
+  }
+
+  return directoryWord;
+}
+
+function extractLeadingDirectoryChange(command: string): string | null {
+  let index = skipLeadingEnvironmentAssignments(command);
+  const commandWord = readShellWord(command, index);
+  if (!commandWord || !DIRECTORY_CHANGING_COMMANDS.has(commandWord.value)) {
+    return null;
+  }
+
+  index = commandWord.end;
+  const directoryWord = readDirectoryOperand(command, index, commandWord.value);
+  if (!directoryWord) return null;
+  if (!hasDirectoryChangeContinuation(command, directoryWord.end)) return null;
+  if (!isDeterministicDirectoryOperand(directoryWord.value)) return null;
+  return directoryWord.value;
+}
+
+function formatWorkingDirectoryReasons(
+  command: string,
+  cwdInput: string | undefined,
+): string[] {
+  const reasons: string[] = [];
+  const commandStartDirectory = cwdInput
+    ? resolvePathFrom(process.cwd(), cwdInput)
+    : process.cwd();
+
+  if (cwdInput && isOutsideProject(cwdInput)) {
+    reasons.push("project/root working directory override detected");
+  }
+
+  const changedDirectory = extractLeadingDirectoryChange(command);
+  if (changedDirectory && isOutsideProject(changedDirectory, commandStartDirectory)) {
+    reasons.push("project/root directory-changing command detected");
+  }
+
+  return reasons;
+}
+
 // ─── Classification ───────────────────────────────────────────────────
 
 /**
@@ -242,6 +406,11 @@ export function classifyRisk(
     const dangerousReasons = formatEnvironmentOverrideReasons(
       findAuthorityChangingEnvironmentOverrides(command),
     );
+    const cwdInput =
+      name === "shell" && typeof input.cwd === "string" && input.cwd.trim()
+        ? input.cwd
+        : undefined;
+    dangerousReasons.push(...formatWorkingDirectoryReasons(command, cwdInput));
     if (isDangerousCommand(command)) {
       dangerousReasons.push("destructive command pattern detected");
     }
@@ -259,8 +428,8 @@ export function classifyRisk(
     name === "multi_edit" ||
     name === "find_replace"
   ) {
-    const path = (input.path || input.file_path || input.file) as string;
-    if (path && isOutsideProject(path)) {
+    const path = input.path || input.file_path || input.file;
+    if (typeof path === "string" && isOutsideProject(path)) {
       return { risk: "dangerous", reason: "file operation outside project directory" };
     }
     if (name === "multi_edit" && Array.isArray(input.edits)) {

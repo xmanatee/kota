@@ -1,12 +1,12 @@
 ---
 id: task-harden-shell-working-directory-guardrails-against-
 title: Harden shell working-directory guardrails against cwd and cd escapes
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Classify shell working-directory changes that leave the project as dangerous, covering the explicit cwd input and simple directory-changing command prefixes so execution context cannot bypass project/root guardrails.
 created_at: 2026-05-25T04:08:23.195Z
-updated_at: 2026-05-25T04:08:23.195Z
+updated_at: 2026-05-25T04:17:40.000Z
 ---
 
 ## Problem
