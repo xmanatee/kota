@@ -29,6 +29,7 @@ export const MCP_META_CLIENT_INFO_KEY = "io.modelcontextprotocol/clientInfo";
 export const MCP_META_CLIENT_CAPABILITIES_KEY =
 	"io.modelcontextprotocol/clientCapabilities";
 export const MCP_META_LOG_LEVEL_KEY = "io.modelcontextprotocol/logLevel";
+export const MCP_TASKS_EXTENSION_ID = "io.modelcontextprotocol/tasks";
 
 export const MCP_LOG_LEVELS = [
 	"debug",
@@ -116,12 +117,16 @@ export type McpTask = {
 	statusMessage?: string;
 	createdAt: string;
 	lastUpdatedAt: string;
-	ttl: number | null;
-	pollInterval?: number;
+	ttlMs: number;
+	pollIntervalMs: number;
+	inputRequests?: McpInputRequests;
+	requestState?: string;
+	result?: KotaJsonValue;
+	error?: JsonRpcErrorObject;
 };
 
-export type McpCreateTaskResult = {
-	task: McpTask;
+export type McpCreateTaskResult = McpTask & {
+	resultType: "task";
 	_meta?: KotaJsonObject;
 };
 
@@ -369,8 +374,16 @@ export type McpUiClientCapabilities = {
 	supported: boolean;
 };
 
+export type McpTasksClientCapabilities = {
+	supported: boolean;
+};
+
 export type McpUiClientCapabilityDecodeResult =
 	| { ok: true; capabilities: McpUiClientCapabilities }
+	| { ok: false; message: string };
+
+export type McpTasksClientCapabilityDecodeResult =
+	| { ok: true; capabilities: McpTasksClientCapabilities }
 	| { ok: false; message: string };
 
 export type McpRequestContext = {
@@ -483,6 +496,27 @@ export function decodeClientMcpUiCapabilities(
 	};
 }
 
+export function decodeClientMcpTasksCapabilities(
+	capabilities: McpClientCapabilities,
+): McpTasksClientCapabilityDecodeResult {
+	const extensions = capabilities.extensions;
+	if (extensions === undefined) return { ok: true, capabilities: { supported: false } };
+	if (!isProtocolObject(extensions)) {
+		return { ok: false, message: "Malformed MCP client capability: extensions" };
+	}
+
+	const tasksCapability = extensions[MCP_TASKS_EXTENSION_ID];
+	if (tasksCapability === undefined) return { ok: true, capabilities: { supported: false } };
+	if (!isProtocolObject(tasksCapability)) {
+		return {
+			ok: false,
+			message: `Malformed MCP client extension capability: ${MCP_TASKS_EXTENSION_ID}`,
+		};
+	}
+
+	return { ok: true, capabilities: { supported: true } };
+}
+
 export function hasLegacySessionContext(session: SessionState): boolean {
 	return session.initialized && session.protocolVersion === MCP_LEGACY_PROTOCOL_VERSION;
 }
@@ -511,6 +545,19 @@ export function activeClientSupportsMcpUi(ctx: HandlerContext): boolean {
 	if (!request) return false;
 	const decoded = decodeClientMcpUiCapabilities(request.clientCapabilities);
 	return decoded.ok && decoded.capabilities.supported;
+}
+
+export function activeClientSupportsMcpTasks(ctx: HandlerContext): boolean {
+	const request = ctx.getRequestContext();
+	if (!request) return false;
+	const decoded = decodeClientMcpTasksCapabilities(request.clientCapabilities);
+	return decoded.ok && decoded.capabilities.supported;
+}
+
+export function activeClientSupportsLegacyDraftTasks(ctx: HandlerContext): boolean {
+	const request = ctx.getRequestContext();
+	if (!request) return false;
+	return hasObjectCapability(request.clientCapabilities, "tasks");
 }
 
 export function activeClientSupportsRoots(ctx: HandlerContext): boolean {

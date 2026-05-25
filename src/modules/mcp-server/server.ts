@@ -42,6 +42,7 @@ import type {
 	SessionState,
 } from "./mcp-protocol-types.js";
 import {
+	decodeClientMcpTasksCapabilities,
 	decodeClientMcpUiCapabilities,
 	hasLegacySessionContext,
 	isMcpProgressToken,
@@ -280,6 +281,14 @@ function decodeDraftRequestContext(msg: JsonRpcRequest): DraftRequestContextResu
 			message: uiCapabilities.message,
 		};
 	}
+	const tasksCapabilities = decodeClientMcpTasksCapabilities(clientCapabilities);
+	if (!tasksCapabilities.ok) {
+		return {
+			ok: false,
+			code: -32602,
+			message: tasksCapabilities.message,
+		};
+	}
 
 	for (const key of ["elicitation", "experimental", "roots", "sampling", "tasks"]) {
 		const value = clientCapabilities[key];
@@ -438,6 +447,7 @@ export class McpServer {
 			["sampling/createMessage", (m) => sampling.handleCreateMessage(m)],
 			["completion/complete", (m) => completion.handleComplete(m)],
 			["tasks/get", (m) => tasks.handleGet(m)],
+			["tasks/update", (m) => tasks.handleUpdate(m)],
 			["tasks/result", (m) => tasks.handleResult(m)],
 			["tasks/input_response", (m) => tasks.handleInputResponse(m)],
 			["tasks/list", (m) => tasks.handleList(m)],
@@ -701,7 +711,7 @@ export class McpServer {
 	}
 
 	private warnDeprecatedDraftRequestContext(context: McpRequestContext): void {
-		for (const feature of ["roots", "sampling"] as const) {
+		for (const feature of ["roots", "sampling", "tasks"] as const) {
 			if (!hasDeprecatedClientCapability(context.clientCapabilities, feature)) continue;
 			this.deprecatedWarnings.warn({
 				feature,

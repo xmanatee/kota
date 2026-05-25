@@ -1,12 +1,12 @@
 ---
 id: task-align-mcp-tasks-support-with-official-extension-ne
 title: Align MCP Tasks support with official extension negotiation
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Update KOTA's first-party MCP task support from the earlier draft utility shape to the official MCP Tasks extension negotiation and method/result contract.
 created_at: 2026-05-25T09:48:43.697Z
-updated_at: 2026-05-25T09:48:43.697Z
+updated_at: 2026-05-25T10:09:40Z
 ---
 
 ## Problem

@@ -20,6 +20,7 @@ import type {
 } from "./mcp-protocol-types.js";
 import {
 	decodeClientElicitationCapabilities,
+	decodeClientMcpTasksCapabilities,
 	decodeClientMcpUiCapabilities,
 	MCP_DRAFT_PROTOCOL_VERSION,
 	MCP_LEGACY_PROTOCOL_VERSION,
@@ -136,6 +137,11 @@ export class InitializeHandler {
 			this.ctx.transport.sendError(msg, -32602, clientMcpUi.message);
 			return;
 		}
+		const clientMcpTasks = decodeClientMcpTasksCapabilities(clientCaps);
+		if (!clientMcpTasks.ok) {
+			this.ctx.transport.sendError(msg, -32602, clientMcpTasks.message);
+			return;
+		}
 		this.ctx.session.protocolVersion = negotiatedProtocolVersion;
 		this.ctx.session.initialized = true;
 		this.ctx.session.clientElicitation = decodeClientElicitationCapabilities(clientCaps);
@@ -177,7 +183,7 @@ export class InitializeHandler {
 			}
 		}
 		this.ctx.log(
-			`Initialized successfully (elicitation.form: ${this.ctx.session.clientElicitation.form}, elicitation.url: ${this.ctx.session.clientElicitation.url}, sampling: ${this.options.advertiseSampling()}, completions: true, roots: ${this.ctx.session.clientSupportsRoots}, mcpUi: ${clientMcpUi.capabilities.supported})`,
+			`Initialized successfully (elicitation.form: ${this.ctx.session.clientElicitation.form}, elicitation.url: ${this.ctx.session.clientElicitation.url}, sampling: ${this.options.advertiseSampling()}, completions: true, roots: ${this.ctx.session.clientSupportsRoots}, mcpUi: ${clientMcpUi.capabilities.supported}, mcpTasks: ${clientMcpTasks.capabilities.supported})`,
 		);
 		this.ctx.transport.sendResult(msg, {
 			protocolVersion: this.ctx.session.protocolVersion,
@@ -227,7 +233,7 @@ export class InitializeHandler {
 		peer: McpImplementation,
 		clientCaps: McpClientCapabilities,
 	): void {
-		for (const feature of ["roots", "sampling"] as const) {
+		for (const feature of ["roots", "sampling", "tasks"] as const) {
 			if (!hasDeprecatedClientCapability(clientCaps, feature)) continue;
 			this.options.warnDeprecatedCapability({
 				feature,

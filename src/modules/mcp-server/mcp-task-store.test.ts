@@ -53,19 +53,21 @@ describe("McpTaskStore", () => {
 		const first = store.create({ statusMessage: "Running" });
 		const second = store.create({ requestedTtlMs: 120_000, pollIntervalMs: 5_000 });
 
-		expect(first.task).toEqual({
+		expect(first).toEqual({
+			resultType: "task",
 			taskId: "task-a",
 			status: "working",
 			statusMessage: "Running",
 			createdAt: clock.iso(),
 			lastUpdatedAt: clock.iso(),
-			ttl: 60_000,
-			pollInterval: 2_000,
+			ttlMs: 60_000,
+			pollIntervalMs: 2_000,
 		});
-		expect(second.task.taskId).toBe("task-b");
-		expect(second.task.ttl).toBe(120_000);
-		expect(second.task.pollInterval).toBe(5_000);
-		expect(store.read("task-a")).toEqual(first.task);
+		expect(second.taskId).toBe("task-b");
+		expect(second.ttlMs).toBe(120_000);
+		expect(second.pollIntervalMs).toBe(5_000);
+		const { resultType: _resultType, ...firstTask } = first;
+		expect(store.read("task-a")).toEqual(firstTask);
 	});
 
 	it("rejects invalid lifecycle transitions and can resume from input_required to working", async () => {

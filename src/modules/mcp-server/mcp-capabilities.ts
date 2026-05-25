@@ -1,5 +1,6 @@
 import type { KotaJsonObject } from "#core/agent-harness/message-protocol.js";
 import { buildMcpUiServerCapability, MCP_UI_EXTENSION_ID } from "./mcp-apps.js";
+import { MCP_TASKS_EXTENSION_ID } from "./mcp-protocol-types.js";
 
 export function buildMcpServerDiscoverCapabilities(): KotaJsonObject {
 	return {
@@ -10,15 +11,7 @@ export function buildMcpServerDiscoverCapabilities(): KotaJsonObject {
 		logging: {},
 		extensions: {
 			[MCP_UI_EXTENSION_ID]: buildMcpUiServerCapability(),
-		},
-		tasks: {
-			list: {},
-			cancel: {},
-			requests: {
-				tools: {
-					call: {},
-				},
-			},
+			[MCP_TASKS_EXTENSION_ID]: {},
 		},
 	};
 }
@@ -32,11 +25,7 @@ export function buildMcpServerCardCapabilitySummary(): KotaJsonObject {
 		logging: true,
 		extensions: {
 			[MCP_UI_EXTENSION_ID]: buildMcpUiServerCapability(),
-		},
-		tasks: {
-			list: true,
-			cancel: true,
-			toolRequests: true,
+			[MCP_TASKS_EXTENSION_ID]: {},
 		},
 	};
 }

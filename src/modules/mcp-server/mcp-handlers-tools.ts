@@ -32,6 +32,8 @@ import type {
 } from "./mcp-protocol-types.js";
 import {
 	activeClientSupportsElicitation,
+	activeClientSupportsLegacyDraftTasks,
+	activeClientSupportsMcpTasks,
 	activeClientSupportsMcpUi,
 	activeMcpProtocolVersion,
 	hasActiveMcpContext,
@@ -111,6 +113,7 @@ export class ToolsHandler {
 		}
 
 		const taskSupport = usesDraftToolResults(activeMcpProtocolVersion(this.ctx))
+			&& activeClientSupportsLegacyDraftTasks(this.ctx)
 			? "optional"
 			: undefined;
 		const includeMcpApps = activeClientSupportsMcpUi(this.ctx);
@@ -129,37 +132,57 @@ export class ToolsHandler {
 		}
 
 		const params = msg.params ?? {};
-		const taskAugmentation = usesDraftToolResults(activeMcpProtocolVersion(this.ctx))
-			? decodeToolCallTaskAugmentation(params.task)
-			: { kind: "none" as const };
-		if (taskAugmentation.kind === "invalid") {
-			this.ctx.transport.sendError(msg, -32602, taskAugmentation.message);
-			return;
+		if (Object.hasOwn(params, "task")) {
+			if (!activeClientSupportsLegacyDraftTasks(this.ctx)) {
+				this.ctx.transport.sendError(
+					msg,
+					-32602,
+					"params.task is a deprecated MCP draft tasks utility and requires the top-level client tasks compatibility capability",
+				);
+				return;
+			}
+			const taskAugmentation = decodeToolCallTaskAugmentation(params.task);
+			if (taskAugmentation.kind === "invalid") {
+				this.ctx.transport.sendError(msg, -32602, taskAugmentation.message);
+				return;
+			}
+			if (taskAugmentation.kind === "task") {
+				this.handleTaskCall(msg, {
+					legacyDraftResult: true,
+					requestedTtlMs: taskAugmentation.requestedTtlMs,
+				});
+				return;
+			}
 		}
-		if (taskAugmentation.kind === "task") {
-			this.handleTaskAugmentedCall(msg, taskAugmentation);
+		if (activeClientSupportsMcpTasks(this.ctx)) {
+			this.handleTaskCall(msg, { legacyDraftResult: false });
 			return;
 		}
 
 		this.sendToolCallOutcome(msg, await this.executeToolCall(msg, { progress: true }));
 	}
 
-	private handleTaskAugmentedCall(
+	private handleTaskCall(
 		msg: JsonRpcRequest,
-		taskAugmentation: Extract<ToolCallTaskAugmentation, { kind: "task" }>,
+		options: { legacyDraftResult: boolean; requestedTtlMs?: number },
 	): void {
 		const created = this.taskStore.create({
-			...(taskAugmentation.requestedTtlMs !== undefined && {
-				requestedTtlMs: taskAugmentation.requestedTtlMs,
+			...(options.requestedTtlMs !== undefined && {
+				requestedTtlMs: options.requestedTtlMs,
 			}),
 			statusMessage: "The operation is now in progress.",
 		});
-		this.taskContinuations.set(created.task.taskId, msg);
-		this.ctx.transport.sendResult(msg, createTaskResultWithRelatedTaskMeta(created));
+		this.taskContinuations.set(created.taskId, msg);
+		this.ctx.transport.sendResult(
+			msg,
+			options.legacyDraftResult
+				? createLegacyDraftTaskResultWithRelatedTaskMeta(created)
+				: createTaskResultWithRelatedTaskMeta(created),
+		);
 		setImmediate(() => {
-			this.executeTaskAugmentedToolCall(msg, created.task.taskId).catch((err) => {
+			this.executeTaskAugmentedToolCall(msg, created.taskId).catch((err) => {
 				const message = err instanceof Error ? err.message : String(err);
-				this.settleTaskWithJsonRpcError(created.task.taskId, {
+				this.settleTaskWithJsonRpcError(created.taskId, {
 					code: -32603,
 					message: `Internal tool task error: ${message}`,
 				});
@@ -535,7 +558,38 @@ function createTaskResultWithRelatedTaskMeta(
 		...created,
 		_meta: {
 			...existingMeta,
-			[MCP_RELATED_TASK_META_KEY]: { taskId: created.task.taskId },
+			[MCP_RELATED_TASK_META_KEY]: { taskId: created.taskId },
+		},
+	};
+}
+
+function createLegacyDraftTaskResultWithRelatedTaskMeta(
+	created: McpCreateTaskResult,
+): {
+	task: {
+		taskId: string;
+		status: string;
+		statusMessage?: string;
+		createdAt: string;
+		lastUpdatedAt: string;
+		ttl: number;
+		pollInterval: number;
+	};
+	_meta: KotaJsonObject;
+} {
+	return {
+		task: {
+			taskId: created.taskId,
+			status: created.status,
+			...(created.statusMessage !== undefined && { statusMessage: created.statusMessage }),
+			createdAt: created.createdAt,
+			lastUpdatedAt: created.lastUpdatedAt,
+			ttl: created.ttlMs,
+			pollInterval: created.pollIntervalMs,
+		},
+		_meta: {
+			...(created._meta ?? {}),
+			[MCP_RELATED_TASK_META_KEY]: { taskId: created.taskId },
 		},
 	};
 }

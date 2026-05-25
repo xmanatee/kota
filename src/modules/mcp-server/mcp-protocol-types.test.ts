@@ -3,14 +3,17 @@ import { MCP_UI_EXTENSION_ID, MCP_UI_RESOURCE_MIME_TYPE } from "./mcp-apps.js";
 import { decodeMrtrRetryParams, readElicitationInputResponse } from "./mcp-mrtr.js";
 import {
 	activeClientSupportsElicitation,
+	activeClientSupportsMcpTasks,
 	activeClientSupportsMcpUi,
 	decodeClientElicitationCapabilities,
+	decodeClientMcpTasksCapabilities,
 	decodeClientMcpUiCapabilities,
 	type HandlerContext,
 	isMcpTaskTerminalStatus,
 	MCP_DRAFT_PROTOCOL_VERSION,
 	MCP_TASK_STATUSES,
 	MCP_TASK_TERMINAL_STATUSES,
+	MCP_TASKS_EXTENSION_ID,
 	type McpClientCapabilities,
 	type McpCreateTaskResult,
 	type McpElicitationInputRequest,
@@ -140,6 +143,39 @@ describe("MCP Apps capability decoding", () => {
 	});
 });
 
+describe("MCP Tasks capability decoding", () => {
+	it("detects the official Tasks extension support flag", () => {
+		const capabilities = {
+			extensions: {
+				[MCP_TASKS_EXTENSION_ID]: {},
+			},
+		};
+
+		expect(decodeClientMcpTasksCapabilities(capabilities)).toEqual({
+			ok: true,
+			capabilities: { supported: true },
+		});
+		expect(activeClientSupportsMcpTasks(ctxWithClientCapabilities(capabilities))).toBe(true);
+		expect(decodeClientMcpTasksCapabilities({ extensions: {} })).toEqual({
+			ok: true,
+			capabilities: { supported: false },
+		});
+	});
+
+	it("rejects malformed Tasks extension metadata", () => {
+		expect(decodeClientMcpTasksCapabilities({ extensions: [] })).toEqual({
+			ok: false,
+			message: "Malformed MCP client capability: extensions",
+		});
+		expect(decodeClientMcpTasksCapabilities({
+			extensions: { [MCP_TASKS_EXTENSION_ID]: true },
+		})).toEqual({
+			ok: false,
+			message: `Malformed MCP client extension capability: ${MCP_TASKS_EXTENSION_ID}`,
+		});
+	});
+});
+
 describe("MCP task protocol types", () => {
 	it("names the draft task statuses and terminal subset", () => {
 		expect([...MCP_TASK_STATUSES]).toEqual([
@@ -160,17 +196,16 @@ describe("MCP task protocol types", () => {
 
 	it("keeps task creation, listing, terminal, and input-required shapes typed", () => {
 		const created: McpCreateTaskResult = {
-			task: {
-				taskId: "task-a",
-				status: "working",
-				createdAt: "2026-05-21T00:00:00.000Z",
-				lastUpdatedAt: "2026-05-21T00:00:00.000Z",
-				ttl: 60_000,
-				pollInterval: 1_000,
-			},
+			resultType: "task",
+			taskId: "task-a",
+			status: "working",
+			createdAt: "2026-05-21T00:00:00.000Z",
+			lastUpdatedAt: "2026-05-21T00:00:00.000Z",
+			ttlMs: 60_000,
+			pollIntervalMs: 1_000,
 		};
 		const page: McpTaskListPage = {
-			tasks: [created.task],
+			tasks: [created],
 			nextCursor: "opaque",
 		};
 		const terminal: McpStoredTaskTerminalResult = {
@@ -179,7 +214,7 @@ describe("MCP task protocol types", () => {
 		};
 		const inputRequired: McpTaskResultSettlement = {
 			kind: "input_required",
-			task: created.task,
+			task: created,
 			inputRequired: {
 				resultType: "input_required",
 				requestState: "state-token",

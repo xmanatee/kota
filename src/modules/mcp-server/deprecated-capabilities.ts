@@ -1,7 +1,7 @@
 import type { KotaJsonObject } from "#core/agent-harness/message-protocol.js";
 import type { McpImplementation, McpProtocolVersion } from "./mcp-protocol-types.js";
 
-export type DeprecatedMcpFeature = "roots" | "sampling" | "logging";
+export type DeprecatedMcpFeature = "roots" | "sampling" | "logging" | "tasks";
 
 export type DeprecatedMcpCapabilityWarning = {
 	feature: DeprecatedMcpFeature;
@@ -16,7 +16,7 @@ function peerKey(peer: McpImplementation): string {
 
 export function hasDeprecatedClientCapability(
 	capabilities: KotaJsonObject,
-	feature: Extract<DeprecatedMcpFeature, "roots" | "sampling">,
+	feature: Extract<DeprecatedMcpFeature, "roots" | "sampling" | "tasks">,
 ): boolean {
 	const value = capabilities[feature];
 	return typeof value === "object" && value !== null && !Array.isArray(value);

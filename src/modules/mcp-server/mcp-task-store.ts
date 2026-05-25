@@ -108,11 +108,11 @@ export class McpTaskStore {
 	create(options: CreateMcpTaskOptions = {}): McpCreateTaskResult {
 		this.expire();
 		const created = this.#readClock();
-		const ttl = requirePositiveInteger(
+		const ttlMs = requirePositiveInteger(
 			options.requestedTtlMs ?? this.#defaultTtlMs,
 			"requestedTtlMs",
 		);
-		const pollInterval = requirePositiveInteger(
+		const pollIntervalMs = requirePositiveInteger(
 			options.pollIntervalMs ?? this.#pollIntervalMs,
 			"pollIntervalMs",
 		);
@@ -121,24 +121,24 @@ export class McpTaskStore {
 			status: "working",
 			createdAt: created.iso,
 			lastUpdatedAt: created.iso,
-			ttl,
-			pollInterval,
+			ttlMs,
+			pollIntervalMs,
 			...(options.statusMessage !== undefined && { statusMessage: options.statusMessage }),
 		};
 		this.#tasks.set(task.taskId, {
 			task,
 			createdAtMs: created.ms,
-			expiresAtMs: created.ms + ttl,
+			expiresAtMs: created.ms + ttlMs,
 			sequence: this.#nextSequence,
 			waiters: [],
 		});
 		this.#nextSequence += 1;
-		return { task: cloneTask(task) };
+		return { resultType: "task", ...cloneTask(task) };
 	}
 
 	read(taskId: string): McpTask {
 		this.#expireForTask(taskId);
-		return cloneTask(this.#requireTask(taskId).task);
+		return taskSnapshot(this.#requireTask(taskId));
 	}
 
 	readInputRequired(taskId: string): { task: McpTask; inputRequired: McpInputRequiredResult } {
@@ -257,7 +257,7 @@ export class McpTaskStore {
 			throw new Error("Invalid MCP task cursor: cursor is past the end of the task list");
 		}
 		const limit = requirePositiveInteger(options.limit ?? this.#pageSize, "limit");
-		const tasks = entries.slice(start, start + limit).map((entry) => cloneTask(entry.task));
+		const tasks = entries.slice(start, start + limit).map((entry) => taskSnapshot(entry));
 		const nextOffset = start + tasks.length;
 		return {
 			tasks,
@@ -371,6 +371,28 @@ function taskSettlement(stored: StoredTask): McpTaskResultSettlement | null {
 		};
 	}
 	return null;
+}
+
+function taskSnapshot(stored: StoredTask): McpTask {
+	const task = cloneTask(stored.task);
+	if (stored.inputRequired) {
+		return {
+			...task,
+			...(stored.inputRequired.inputRequests !== undefined && {
+				inputRequests: structuredClone(stored.inputRequired.inputRequests),
+			}),
+			...(stored.inputRequired.requestState !== undefined && {
+				requestState: stored.inputRequired.requestState,
+			}),
+		};
+	}
+	if (stored.terminal?.kind === "result") {
+		return { ...task, result: structuredClone(stored.terminal.result) };
+	}
+	if (stored.terminal?.kind === "error") {
+		return { ...task, error: structuredClone(stored.terminal.error) };
+	}
+	return task;
 }
 
 function requirePositiveInteger(value: number, field: string): number {

@@ -29,6 +29,7 @@ import {
 	MCP_META_LOG_LEVEL_KEY,
 	MCP_META_PROTOCOL_VERSION_KEY,
 	MCP_RELATED_TASK_META_KEY,
+	MCP_TASKS_EXTENSION_ID,
 	type McpInputRequiredResult,
 } from "./mcp-protocol-types.js";
 import { McpTaskStore } from "./mcp-task-store.js";
@@ -195,6 +196,27 @@ function mcpUiClientCapabilities(): Record<string, unknown> {
 			[MCP_UI_EXTENSION_ID]: {
 				mimeTypes: [MCP_UI_RESOURCE_MIME_TYPE],
 			},
+		},
+	};
+}
+
+function mcpTasksClientCapabilities(): Record<string, unknown> {
+	return {
+		extensions: {
+			[MCP_TASKS_EXTENSION_ID]: {},
+		},
+	};
+}
+
+function legacyDraftTasksClientCapabilities(): Record<string, unknown> {
+	return { tasks: {} };
+}
+
+function mcpTasksElicitationClientCapabilities(): Record<string, unknown> {
+	return {
+		elicitation: {},
+		extensions: {
+			[MCP_TASKS_EXTENSION_ID]: {},
 		},
 	};
 }
@@ -487,11 +509,10 @@ describe("McpServer", () => {
 				logging: {},
 				extensions: {
 					[MCP_UI_EXTENSION_ID]: { mimeTypes: [MCP_UI_RESOURCE_MIME_TYPE] },
+					[MCP_TASKS_EXTENSION_ID]: {},
 				},
-				tasks: { list: {}, cancel: {}, requests: { tools: { call: {} } } },
 			});
-			const taskCaps = capabilities.tasks as Record<string, unknown>;
-			expect(taskCaps.requests).toEqual({ tools: { call: {} } });
+			expect(capabilities.tasks).toBeUndefined();
 			expect(capabilities.sampling).toBeUndefined();
 			expect(capabilities.elicitation).toBeUndefined();
 			const warnings = logs.filter((message) => message.includes("deprecated MCP"));
@@ -538,11 +559,10 @@ describe("McpServer", () => {
 				logging: {},
 				extensions: {
 					[MCP_UI_EXTENSION_ID]: { mimeTypes: [MCP_UI_RESOURCE_MIME_TYPE] },
+					[MCP_TASKS_EXTENSION_ID]: {},
 				},
-				tasks: { list: {}, cancel: {}, requests: { tools: { call: {} } } },
 			});
-			const taskCaps = capabilities.tasks as Record<string, unknown>;
-			expect(taskCaps.requests).toEqual({ tools: { call: {} } });
+			expect(capabilities.tasks).toBeUndefined();
 			expect(capabilities.sampling).toBeUndefined();
 			expect(capabilities.elicitation).toBeUndefined();
 			expect(capabilities.roots).toBeUndefined();
@@ -638,16 +658,15 @@ describe("McpServer", () => {
 			expect(resp.error).toMatchObject({ code: -32602, message });
 		}
 
-		it("gets and lists seeded task states with opaque cursor pagination", async () => {
+		it("gets seeded task states with direct input, result, and error fields", async () => {
 			const clock = manualClock();
 			const store = new McpTaskStore({
 				now: clock.now,
-				generateTaskId: taskIdGenerator(["task-working", "task-input", "task-done"]),
+				generateTaskId: taskIdGenerator(["task-working", "task-input", "task-done", "task-fail"]),
 				defaultTtlMs: 60_000,
 				pollIntervalMs: 2_000,
-				pageSize: 2,
 			});
-			const working = store.create({ statusMessage: "Running" }).task;
+			const { resultType: _resultType, ...working } = store.create({ statusMessage: "Running" });
 			store.create();
 			store.transition("task-input", {
 				status: "input_required",
@@ -656,12 +675,18 @@ describe("McpServer", () => {
 			});
 			store.create();
 			store.complete("task-done", { content: [{ type: "text", text: "done" }], isError: false });
+			store.create();
+			store.fail("task-fail", {
+				code: -32099,
+				message: "Underlying request failed",
+				data: { retryable: false },
+			});
 
 			const { input, output } = createTestStreams();
 			const server = new McpServer({ input, output, log: () => {}, taskStore: store });
 			await initDraftServer(server, input, output);
 
-			const getParams = draftRequestParams({ taskId: "task-working" });
+			const getParams = draftRequestParams({ taskId: "task-working" }, mcpTasksClientCapabilities());
 			(getParams._meta as Record<string, unknown>)[MCP_RELATED_TASK_META_KEY] = {
 				taskId: "ignored-related-task",
 			};
@@ -670,131 +695,87 @@ describe("McpServer", () => {
 			expect(getResp.error).toBeUndefined();
 			expect(getResp.result).toEqual(working);
 
-			sendRequest(input, 3, "tasks/list", draftRequestParams());
-			const firstPage = await readResponse(output);
-			expect(firstPage.error).toBeUndefined();
-			const firstResult = firstPage.result as { tasks: Array<{ taskId: string }>; nextCursor?: string };
-			expect(firstResult.tasks.map((task) => task.taskId)).toEqual(["task-working", "task-input"]);
-			expect(firstResult.nextCursor).toEqual(expect.any(String));
+			sendRequest(input, 3, "tasks/get", draftRequestParams(
+				{ taskId: "task-input" },
+				mcpTasksClientCapabilities(),
+			));
+			const inputResp = await readResponse(output);
+			expect(inputResp.result).toMatchObject({
+				taskId: "task-input",
+				status: "input_required",
+				inputRequests: { confirm: { method: "elicitation/create" } },
+				requestState: "state-token",
+			});
 
-			sendRequest(input, 4, "tasks/list", draftRequestParams({ cursor: firstResult.nextCursor }));
-			const secondPage = await readResponse(output);
-			expect(secondPage.error).toBeUndefined();
-			const secondResult = secondPage.result as { tasks: Array<{ taskId: string }>; nextCursor?: string };
-			expect(secondResult.tasks.map((task) => task.taskId)).toEqual(["task-done"]);
-			expect(secondResult.nextCursor).toBeUndefined();
+			sendRequest(input, 4, "tasks/get", draftRequestParams(
+				{ taskId: "task-done" },
+				mcpTasksClientCapabilities(),
+			));
+			const completeResp = await readResponse(output);
+			expect(completeResp.result).toMatchObject({
+				taskId: "task-done",
+				status: "completed",
+				result: { content: [{ type: "text", text: "done" }], isError: false },
+			});
+
+			sendRequest(input, 5, "tasks/get", draftRequestParams(
+				{ taskId: "task-fail" },
+				mcpTasksClientCapabilities(),
+			));
+			const failedResp = await readResponse(output);
+			expect(failedResp.result).toMatchObject({
+				taskId: "task-fail",
+				status: "failed",
+				error: {
+					code: -32099,
+					message: "Underlying request failed",
+					data: { retryable: false },
+				},
+			});
 
 			server.stop();
 		});
 
-		it("returns terminal and input-required task results without wrapper formats", async () => {
+		it("gates legacy draft task methods behind top-level client tasks compatibility", async () => {
 			const store = new McpTaskStore({
 				now: manualClock().now,
-				generateTaskId: taskIdGenerator(["task-complete", "task-fail", "task-input"]),
+				generateTaskId: taskIdGenerator(["task-a", "task-b"]),
 				defaultTtlMs: 60_000,
+				pageSize: 1,
 			});
 			store.create();
-			store.complete("task-complete", {
-				content: [{ type: "text", text: "done" }],
-				isError: false,
-			});
 			store.create();
-			store.fail("task-fail", {
-				code: -32099,
-				message: "Underlying request failed",
-				data: { retryable: false },
-			});
-			store.create();
-			store.transition("task-input", {
-				status: "input_required",
-				inputRequired: inputRequiredResult(),
-				statusMessage: "Waiting for input",
-			});
 
 			const { input, output } = createTestStreams();
 			const server = new McpServer({ input, output, log: () => {}, taskStore: store });
 			await initDraftServer(server, input, output);
 
-			sendRequest(input, 2, "tasks/result", draftRequestParams({ taskId: "task-complete" }));
-			const completeResp = await readResponse(output);
-			expect(completeResp.error).toBeUndefined();
-			expect(completeResp.result).toMatchObject({
-				content: [{ type: "text", text: "done" }],
-				isError: false,
-				_meta: { [MCP_RELATED_TASK_META_KEY]: { taskId: "task-complete" } },
-			});
-
-			sendRequest(input, 3, "tasks/result", draftRequestParams({ taskId: "task-fail" }));
-			const failedResp = await readResponse(output);
-			expect(failedResp.error).toEqual({
-				code: -32099,
-				message: "Underlying request failed",
-				data: { retryable: false },
-			});
-
-			sendRequest(input, 4, "tasks/result", draftRequestParams({ taskId: "task-input" }));
-			const inputResp = await readResponse(output);
-			expect(inputResp.error).toBeUndefined();
-			expect(inputResp.result).toMatchObject({
-				resultType: "input_required",
-				requestState: "state-token",
-				_meta: { [MCP_RELATED_TASK_META_KEY]: { taskId: "task-input" } },
-			});
-
-			server.stop();
-		});
-
-		it("waits for working task results and settles waiters when tasks are cancelled", async () => {
-			const store = new McpTaskStore({
-				now: manualClock().now,
-				generateTaskId: taskIdGenerator(["task-wait", "task-cancel"]),
-				defaultTtlMs: 60_000,
-			});
-			store.create();
-			store.create();
-
-			const { input, output } = createTestStreams();
-			const reader = createQueuedReader(output);
-			const server = new McpServer({ input, output, log: () => {}, taskStore: store });
-			await server.start();
-			sendRequest(input, 1, "initialize", {
-				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
-				capabilities: {},
-				clientInfo: { name: "test", version: "1.0.0" },
-			});
-			await reader.read();
-			sendNotification(input, "notifications/initialized");
-
-			sendRequest(input, 2, "tasks/result", draftRequestParams({ taskId: "task-wait" }));
-			await expectNoQueuedMessage(reader);
-			store.complete("task-wait", {
-				content: [{ type: "text", text: "eventual result" }],
-				isError: false,
-			});
-			const waited = await reader.read();
-			expect(waited.id).toBe(2);
-			expect(waited.result).toMatchObject({
-				content: [{ type: "text", text: "eventual result" }],
-				_meta: { [MCP_RELATED_TASK_META_KEY]: { taskId: "task-wait" } },
-			});
-
-			sendRequest(input, 3, "tasks/result", draftRequestParams({ taskId: "task-cancel" }));
-			await expectNoQueuedMessage(reader);
-			sendRequest(input, 4, "tasks/cancel", draftRequestParams({ taskId: "task-cancel" }));
-			const responses = [await reader.read(), await reader.read()].sort((left, right) =>
-				Number(left.id) - Number(right.id),
+			sendRequest(input, 2, "tasks/list", draftRequestParams());
+			expectInvalidParams(
+				await readResponse(output),
+				"Deprecated MCP draft tasks utility compatibility was not negotiated",
 			);
-			expect(responses[0]).toMatchObject({
-				id: 3,
-				error: { code: -32800, message: "The task was cancelled by request." },
-			});
-			expect(responses[1]).toMatchObject({
-				id: 4,
-				result: {
-					taskId: "task-cancel",
-					status: "cancelled",
-					statusMessage: "The task was cancelled by request.",
-				},
+
+			sendRequest(input, 3, "tasks/list", draftRequestParams(
+				{},
+				legacyDraftTasksClientCapabilities(),
+			));
+			const firstPage = await readResponse(output);
+			expect(firstPage.error).toBeUndefined();
+			const firstResult = firstPage.result as { tasks: Array<{ taskId: string }>; nextCursor?: string };
+			expect(firstResult.tasks.map((task) => task.taskId)).toEqual(["task-a"]);
+			expect(firstResult.tasks[0]).toMatchObject({ ttlMs: 60_000 });
+			expect(firstResult.nextCursor).toEqual(expect.any(String));
+
+			sendRequest(input, 4, "tasks/result", draftRequestParams(
+				{ taskId: "task-a" },
+				legacyDraftTasksClientCapabilities(),
+			));
+			store.complete("task-a", { content: [{ type: "text", text: "legacy result" }], isError: false });
+			const result = await readResponse(output);
+			expect(result.result).toMatchObject({
+				content: [{ type: "text", text: "legacy result" }],
+				_meta: { [MCP_RELATED_TASK_META_KEY]: { taskId: "task-a" } },
 			});
 
 			server.stop();
@@ -816,19 +797,34 @@ describe("McpServer", () => {
 			const server = new McpServer({ input, output, log: () => {}, taskStore: store });
 			await initDraftServer(server, input, output);
 
-			sendRequest(input, 2, "tasks/get", draftRequestParams({ taskId: 42 }));
+			sendRequest(input, 2, "tasks/get", draftRequestParams(
+				{ taskId: 42 },
+				mcpTasksClientCapabilities(),
+			));
 			expectInvalidParams(await readResponse(output), "Missing required parameter: taskId");
 
-			sendRequest(input, 3, "tasks/result", draftRequestParams({ taskId: "task-expiring" }));
+			sendRequest(input, 3, "tasks/get", draftRequestParams(
+				{ taskId: "task-expiring" },
+				mcpTasksClientCapabilities(),
+			));
 			expectInvalidParams(await readResponse(output), "Failed to retrieve task: Task has expired");
 
-			sendRequest(input, 4, "tasks/get", draftRequestParams({ taskId: "task-missing" }));
+			sendRequest(input, 4, "tasks/get", draftRequestParams(
+				{ taskId: "task-missing" },
+				mcpTasksClientCapabilities(),
+			));
 			expectInvalidParams(await readResponse(output), "Failed to retrieve task: Task not found");
 
-			sendRequest(input, 5, "tasks/list", draftRequestParams({ cursor: "not-a-cursor" }));
+			sendRequest(input, 5, "tasks/list", draftRequestParams(
+				{ cursor: "not-a-cursor" },
+				legacyDraftTasksClientCapabilities(),
+			));
 			expectInvalidParams(await readResponse(output), "Invalid MCP task cursor");
 
-			sendRequest(input, 6, "tasks/cancel", draftRequestParams({ taskId: "task-terminal" }));
+			sendRequest(input, 6, "tasks/cancel", draftRequestParams(
+				{ taskId: "task-terminal" },
+				mcpTasksClientCapabilities(),
+			));
 			expectInvalidParams(
 				await readResponse(output),
 				"Cannot cancel task: already in terminal status 'completed'",
@@ -918,7 +914,7 @@ describe("McpServer", () => {
 			server.stop();
 		});
 
-		it("advertises optional task support on draft tools/list results", async () => {
+		it("advertises optional task support only for deprecated draft task compatibility", async () => {
 			const { input, output } = createTestStreams();
 			const server = new McpServer({
 				input,
@@ -943,7 +939,16 @@ describe("McpServer", () => {
 
 			const result = resp.result as { tools: Array<Record<string, unknown>> };
 			const tool = result.tools.find((candidate) => candidate.name === "ext_task_list_support");
-			expect(tool?.execution).toEqual({ taskSupport: "optional" });
+			expect(tool?.execution).toBeUndefined();
+
+			sendRequest(input, 3, "tools/list", draftRequestParams(
+				{},
+				legacyDraftTasksClientCapabilities(),
+			));
+			const legacyResp = await readResponse(output);
+			const legacyResult = legacyResp.result as { tools: Array<Record<string, unknown>> };
+			const legacyTool = legacyResult.tools.find((candidate) => candidate.name === "ext_task_list_support");
+			expect(legacyTool?.execution).toEqual({ taskSupport: "optional" });
 
 			server.stop();
 		});
@@ -1348,7 +1353,7 @@ describe("McpServer", () => {
 			await server.start();
 			sendRequest(input, 1, "initialize", {
 				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
-				capabilities: {},
+				capabilities: mcpTasksElicitationClientCapabilities(),
 				clientInfo: { name: "test", version: "1.0.0" },
 			});
 			await reader.read();
@@ -1391,7 +1396,7 @@ describe("McpServer", () => {
 			await server.start();
 			sendRequest(input, 1, "initialize", {
 				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
-				capabilities: {},
+				capabilities: mcpTasksClientCapabilities(),
 				clientInfo: { name: "test", version: "1.0.0" },
 			});
 			await reader.read();
@@ -1444,7 +1449,7 @@ describe("McpServer", () => {
 			await server.start();
 			sendRequest(input, 1, "initialize", {
 				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
-				capabilities: {},
+				capabilities: mcpTasksClientCapabilities(),
 				clientInfo: { name: "test", version: "1.0.0" },
 			});
 			await reader.read();
@@ -1631,7 +1636,7 @@ describe("McpServer", () => {
 			server.stop();
 		});
 
-		it("runs task-augmented draft tools/call asynchronously and returns the final result through tasks/result", async () => {
+		it("runs extension-negotiated tools/call asynchronously and returns the final result through tasks/get", async () => {
 			const { input, output } = createTestStreams();
 			const reader = createQueuedReader(output);
 			const clock = manualClock();
@@ -1669,7 +1674,7 @@ describe("McpServer", () => {
 			await server.start();
 			sendRequest(input, 1, "initialize", {
 				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
-				capabilities: {},
+				capabilities: mcpTasksClientCapabilities(),
 				clientInfo: { name: "test", version: "1.0.0" },
 			});
 			await reader.read();
@@ -1678,39 +1683,115 @@ describe("McpServer", () => {
 			sendRequest(input, 2, "tools/call", draftRequestParams({
 				name: "ext_task_success",
 				arguments: {},
-				task: { ttl: 120_000 },
-			}));
+			}, mcpTasksClientCapabilities()));
 			const created = await reader.read();
 			expect(created.id).toBe(2);
 			expect(created.result).toMatchObject({
-				task: {
-					taskId: "task-tool-ok",
-					status: "working",
-					statusMessage: "The operation is now in progress.",
-					createdAt: clock.iso(),
-					lastUpdatedAt: clock.iso(),
-					ttl: 120_000,
-					pollInterval: 2_000,
-				},
+				resultType: "task",
+				taskId: "task-tool-ok",
+				status: "working",
+				statusMessage: "The operation is now in progress.",
+				createdAt: clock.iso(),
+				lastUpdatedAt: clock.iso(),
+				ttlMs: 60_000,
+				pollIntervalMs: 2_000,
 				_meta: { [MCP_RELATED_TASK_META_KEY]: { taskId: "task-tool-ok" } },
 			});
 			await started;
 
-			sendRequest(input, 3, "tasks/get", draftRequestParams({ taskId: "task-tool-ok" }));
+			sendRequest(input, 3, "tasks/get", draftRequestParams(
+				{ taskId: "task-tool-ok" },
+				mcpTasksClientCapabilities(),
+			));
 			const working = await reader.read();
 			expect(working.result).toMatchObject({ taskId: "task-tool-ok", status: "working" });
 
-			sendRequest(input, 4, "tasks/result", draftRequestParams({ taskId: "task-tool-ok" }));
-			await expectNoQueuedMessage(reader);
 			releaseTool();
+			await new Promise<void>((resolve) => { setImmediate(resolve); });
+			sendRequest(input, 4, "tasks/get", draftRequestParams(
+				{ taskId: "task-tool-ok" },
+				mcpTasksClientCapabilities(),
+			));
 			const result = await reader.read();
 
 			expect(result.id).toBe(4);
 			expect(result.result).toMatchObject({
-				resultType: "complete",
-				content: [{ type: "text", text: "task result" }],
-				isError: false,
-				_meta: { [MCP_RELATED_TASK_META_KEY]: { taskId: "task-tool-ok" } },
+				taskId: "task-tool-ok",
+				status: "completed",
+				result: {
+					resultType: "complete",
+					content: [{ type: "text", text: "task result" }],
+					isError: false,
+				},
+			});
+
+			server.stop();
+		});
+
+		it("keeps non-Tasks-extension tools/call synchronous", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({
+				input,
+				output,
+				log: () => {},
+				moduleTools: [
+					{
+						tool: {
+							name: "ext_no_task_extension",
+							description: "No task extension test",
+							input_schema: { type: "object" as const, properties: {}, required: [] },
+						},
+						runner: async () => ({ content: "sync result" }),
+						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+					},
+				],
+			});
+			await initDraftServer(server, input, output);
+
+			sendRequest(input, 2, "tools/call", draftRequestParams({
+				name: "ext_no_task_extension",
+				arguments: {},
+			}));
+			const response = await readResponse(output);
+			const result = response.result as Record<string, unknown>;
+
+			expect(result.resultType).toBe("complete");
+			expect(result.taskId).toBeUndefined();
+			expect((result.content as Array<{ text: string }>)[0].text).toBe("sync result");
+
+			server.stop();
+		});
+
+		it("rejects requestor-supplied draft task augmentation without the legacy compatibility capability", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({
+				input,
+				output,
+				log: () => {},
+				moduleTools: [
+					{
+						tool: {
+							name: "ext_task_param_rejected",
+							description: "Task param rejection test",
+							input_schema: { type: "object" as const, properties: {}, required: [] },
+						},
+						runner: async () => ({ content: "unused" }),
+						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+					},
+				],
+			});
+			await initDraftServer(server, input, output);
+
+			sendRequest(input, 2, "tools/call", draftRequestParams({
+				name: "ext_task_param_rejected",
+				arguments: {},
+				task: {},
+			}));
+			const response = await readResponse(output);
+
+			expect(response.error).toMatchObject({
+				code: -32602,
+				message: "params.task is a deprecated MCP draft tasks utility and requires the top-level client tasks compatibility capability",
 			});
 
 			server.stop();
@@ -1742,31 +1823,32 @@ describe("McpServer", () => {
 			reader: ReturnType<typeof createQueuedReader>;
 			taskId: string;
 			action?: string;
-			task?: Record<string, unknown>;
 		}) {
 			const action = args.action ?? "Rotate signing key";
 			sendRequest(args.input, `create-${args.taskId}`, "tools/call", draftRequestParams({
 				name: "confirm",
 				arguments: { action, risk: "high" },
-				task: args.task ?? {},
-			}, { elicitation: {} }));
+			}, mcpTasksElicitationClientCapabilities()));
 			const created = await args.reader.read();
 			expect(created.result).toMatchObject({
-				task: { taskId: args.taskId, status: "working" },
+				resultType: "task",
+				taskId: args.taskId,
+				status: "working",
 				_meta: { [MCP_RELATED_TASK_META_KEY]: { taskId: args.taskId } },
 			});
+			await new Promise<void>((resolve) => { setImmediate(resolve); });
 
 			sendRequest(
 				args.input,
 				`input-${args.taskId}`,
-				"tasks/result",
-				draftRequestParams({ taskId: args.taskId }),
+				"tasks/get",
+				draftRequestParams({ taskId: args.taskId }, mcpTasksElicitationClientCapabilities()),
 			);
 			const inputRequiredResponse = await args.reader.read();
 			expect(inputRequiredResponse.result).toMatchObject({
-				resultType: "input_required",
+				taskId: args.taskId,
+				status: "input_required",
 				inputRequests: { confirm: { method: "elicitation/create" } },
-				_meta: { [MCP_RELATED_TASK_META_KEY]: { taskId: args.taskId } },
 			});
 			const inputRequired = inputRequiredResponse.result as {
 				requestState: string;
@@ -1776,7 +1858,7 @@ describe("McpServer", () => {
 			return inputRequired;
 		}
 
-		it("resumes task-owned input_required tool calls through tasks/input_response", async () => {
+		it("resumes task-owned input_required tool calls through tasks/update", async () => {
 			const store = new McpTaskStore({
 				now: manualClock().now,
 				generateTaskId: taskIdGenerator(["task-tool-input"]),
@@ -1789,35 +1871,83 @@ describe("McpServer", () => {
 				taskId: "task-tool-input",
 			});
 
-			sendRequest(input, "respond-task-tool-input", "tasks/input_response", draftRequestParams({
+			sendRequest(input, "respond-task-tool-input", "tasks/update", draftRequestParams({
 				taskId: "task-tool-input",
 				inputResponses: {
 					confirm: { action: "accept", content: { confirmed: true } },
 				},
 				requestState: inputRequired.requestState,
-			}, { elicitation: {} }));
+			}, mcpTasksElicitationClientCapabilities()));
 			const accepted = await reader.read();
-			expect(accepted.result).toMatchObject({
-				taskId: "task-tool-input",
-				status: "working",
-				statusMessage: "Input received; resuming tool call.",
-			});
+			expect(accepted.result).toEqual({});
 
-			sendRequest(input, "final-task-tool-input", "tasks/result", draftRequestParams({
+			await new Promise<void>((resolve) => { setImmediate(resolve); });
+			sendRequest(input, "final-task-tool-input", "tasks/get", draftRequestParams({
 				taskId: "task-tool-input",
-			}));
+			}, mcpTasksElicitationClientCapabilities()));
 			const final = await reader.read();
 			expect(final.result).toMatchObject({
-				resultType: "complete",
-				isError: false,
-				content: [{ type: "text", text: expect.stringContaining("APPROVED: Rotate signing key") }],
-				_meta: { [MCP_RELATED_TASK_META_KEY]: { taskId: "task-tool-input" } },
+				taskId: "task-tool-input",
+				status: "completed",
+				result: {
+					resultType: "complete",
+					isError: false,
+					content: [{ type: "text", text: expect.stringContaining("APPROVED: Rotate signing key") }],
+				},
 			});
 			sendRequest(input, "get-task-tool-input", "tasks/get", draftRequestParams({
 				taskId: "task-tool-input",
-			}));
+			}, mcpTasksClientCapabilities()));
 			const status = await reader.read();
 			expect(status.result).toMatchObject({ taskId: "task-tool-input", status: "completed" });
+
+			server.stop();
+		});
+
+		it("acknowledges unknown and already-satisfied task update inputs", async () => {
+			const store = new McpTaskStore({
+				now: manualClock().now,
+				generateTaskId: taskIdGenerator(["task-tool-unknown-update", "task-tool-satisfied"]),
+				defaultTtlMs: 60_000,
+			});
+			const { input, reader, server } = await startConfirmTaskServer(store);
+			await createConfirmTaskInputRequest({
+				input,
+				reader,
+				taskId: "task-tool-unknown-update",
+			});
+
+			sendRequest(input, "unknown-update", "tasks/update", draftRequestParams({
+				taskId: "task-tool-unknown-update",
+				inputResponses: { other: { action: "accept" } },
+			}, mcpTasksElicitationClientCapabilities()));
+			expect(await reader.read()).toMatchObject({ result: {} });
+			sendRequest(input, "still-input", "tasks/get", draftRequestParams(
+				{ taskId: "task-tool-unknown-update" },
+				mcpTasksClientCapabilities(),
+			));
+			expect(await reader.read()).toMatchObject({
+				result: { taskId: "task-tool-unknown-update", status: "input_required" },
+			});
+
+			const satisfied = await createConfirmTaskInputRequest({
+				input,
+				reader,
+				taskId: "task-tool-satisfied",
+			});
+			sendRequest(input, "satisfy-update", "tasks/update", draftRequestParams({
+				taskId: "task-tool-satisfied",
+				inputResponses: { confirm: { action: "accept", content: { confirmed: true } } },
+				requestState: satisfied.requestState,
+			}, mcpTasksElicitationClientCapabilities()));
+			expect(await reader.read()).toMatchObject({ result: {} });
+			await new Promise<void>((resolve) => { setImmediate(resolve); });
+			sendRequest(input, "already-satisfied-update", "tasks/update", draftRequestParams({
+				taskId: "task-tool-satisfied",
+				inputResponses: { confirm: { action: "accept", content: { confirmed: true } } },
+				requestState: satisfied.requestState,
+			}, mcpTasksElicitationClientCapabilities()));
+			expect(await reader.read()).toMatchObject({ result: {} });
 
 			server.stop();
 		});
@@ -1841,27 +1971,32 @@ describe("McpServer", () => {
 					action: "Publish incident update",
 				});
 
-				sendRequest(input, `respond-${taskId}`, "tasks/input_response", draftRequestParams({
+				sendRequest(input, `respond-${taskId}`, "tasks/update", draftRequestParams({
 					taskId,
 					inputResponses: { confirm: { action } },
 					...(action === "decline" ? { requestState: inputRequired.requestState } : {}),
-				}, { elicitation: {} }));
-				expect(await reader.read()).toMatchObject({
-					result: { taskId, status: "working" },
-				});
+				}, mcpTasksElicitationClientCapabilities()));
+				expect(await reader.read()).toMatchObject({ result: {} });
 
-				sendRequest(input, `final-${taskId}`, "tasks/result", draftRequestParams({ taskId }));
+				await new Promise<void>((resolve) => { setImmediate(resolve); });
+				sendRequest(input, `final-${taskId}`, "tasks/get", draftRequestParams(
+					{ taskId },
+					mcpTasksClientCapabilities(),
+				));
 				const final = await reader.read();
 				expect(final.result).toMatchObject({
-					resultType: "complete",
-					content: [{ type: "text", text: expect.stringContaining(expectedText) }],
+					status: "completed",
+					result: {
+						resultType: "complete",
+						content: [{ type: "text", text: expect.stringContaining(expectedText) }],
+					},
 				});
 
 				server.stop();
 			}
 		});
 
-		it("rejects malformed, stale, wrong-task, and expired task input responses", async () => {
+		it("rejects malformed, stale, wrong-task, and expired task updates", async () => {
 			{
 				const store = new McpTaskStore({
 					now: manualClock().now,
@@ -1871,10 +2006,10 @@ describe("McpServer", () => {
 				const { input, reader, server } = await startConfirmTaskServer(store);
 				await createConfirmTaskInputRequest({ input, reader, taskId: "task-tool-malformed" });
 
-				sendRequest(input, "malformed-input", "tasks/input_response", draftRequestParams({
+				sendRequest(input, "malformed-input", "tasks/update", draftRequestParams({
 					taskId: "task-tool-malformed",
 					inputResponses: "not-an-object",
-				}, { elicitation: {} }));
+				}, mcpTasksElicitationClientCapabilities()));
 				const malformed = await reader.read();
 				expect(malformed.error).toMatchObject({
 					code: -32602,
@@ -1903,22 +2038,22 @@ describe("McpServer", () => {
 					action: "Second action",
 				});
 
-				sendRequest(input, "stale-input", "tasks/input_response", draftRequestParams({
+				sendRequest(input, "stale-input", "tasks/update", draftRequestParams({
 					taskId: "task-tool-first",
 					inputResponses: { confirm: { action: "accept", content: { confirmed: true } } },
 					requestState: "stale-state",
-				}, { elicitation: {} }));
+				}, mcpTasksElicitationClientCapabilities()));
 				const stale = await reader.read();
 				expect(stale.error).toMatchObject({
 					code: -32602,
 					message: "Stale requestState for task input",
 				});
 
-				sendRequest(input, "wrong-task-input", "tasks/input_response", draftRequestParams({
+				sendRequest(input, "wrong-task-input", "tasks/update", draftRequestParams({
 					taskId: "task-tool-second",
 					inputResponses: { confirm: { action: "accept", content: { confirmed: true } } },
 					requestState: first.requestState,
-				}, { elicitation: {} }));
+				}, mcpTasksElicitationClientCapabilities()));
 				const wrongTask = await reader.read();
 				expect(wrongTask.error).toMatchObject({
 					code: -32602,
@@ -1933,26 +2068,25 @@ describe("McpServer", () => {
 				const store = new McpTaskStore({
 					now: clock.now,
 					generateTaskId: taskIdGenerator(["task-tool-expiring"]),
-					defaultTtlMs: 60_000,
+					defaultTtlMs: 10,
 				});
 				const { input, reader, server } = await startConfirmTaskServer(store);
 				const inputRequired = await createConfirmTaskInputRequest({
 					input,
 					reader,
 					taskId: "task-tool-expiring",
-					task: { ttl: 10 },
 				});
 				clock.advance(11);
 
-				sendRequest(input, "expired-input", "tasks/input_response", draftRequestParams({
+				sendRequest(input, "expired-input", "tasks/update", draftRequestParams({
 					taskId: "task-tool-expiring",
 					inputResponses: { confirm: { action: "accept", content: { confirmed: true } } },
 					requestState: inputRequired.requestState,
-				}, { elicitation: {} }));
+				}, mcpTasksElicitationClientCapabilities()));
 				const expired = await reader.read();
 				expect(expired.error).toMatchObject({
 					code: -32602,
-					message: "Failed to respond to task input: Task has expired",
+					message: "Failed to update task: Task has expired",
 				});
 				server.stop();
 			}
@@ -1973,31 +2107,26 @@ describe("McpServer", () => {
 
 			sendRequest(input, "cancel-input-task", "tasks/cancel", draftRequestParams({
 				taskId: "task-tool-input-cancel",
-			}));
+			}, mcpTasksClientCapabilities()));
 			const cancelled = await reader.read();
-			expect(cancelled.result).toMatchObject({
-				taskId: "task-tool-input-cancel",
-				status: "cancelled",
-			});
+			expect(cancelled.result).toEqual({});
 
-			sendRequest(input, "late-input-response", "tasks/input_response", draftRequestParams({
+			sendRequest(input, "late-input-response", "tasks/update", draftRequestParams({
 				taskId: "task-tool-input-cancel",
 				inputResponses: { confirm: { action: "accept", content: { confirmed: true } } },
 				requestState: inputRequired.requestState,
-			}, { elicitation: {} }));
+			}, mcpTasksElicitationClientCapabilities()));
 			const lateInput = await reader.read();
-			expect(lateInput.error).toMatchObject({
-				code: -32602,
-				message: "Task is not waiting for input",
-			});
+			expect(lateInput.result).toEqual({});
 
-			sendRequest(input, "final-input-cancel", "tasks/result", draftRequestParams({
+			sendRequest(input, "final-input-cancel", "tasks/get", draftRequestParams({
 				taskId: "task-tool-input-cancel",
-			}));
+			}, mcpTasksClientCapabilities()));
 			const final = await reader.read();
-			expect(final.error).toMatchObject({
-				code: -32800,
-				message: "The task was cancelled by request.",
+			expect(final.result).toMatchObject({
+				taskId: "task-tool-input-cancel",
+				status: "cancelled",
+				error: { code: -32800, message: "The task was cancelled by request." },
 			});
 
 			server.stop();
@@ -2048,37 +2177,31 @@ describe("McpServer", () => {
 			sendRequest(input, 2, "tools/call", draftRequestParams({
 				name: "ext_task_cancel",
 				arguments: {},
-				task: {},
-			}));
+			}, mcpTasksClientCapabilities()));
 			await reader.read();
 			await started;
 
-			sendRequest(input, 3, "tasks/result", draftRequestParams({ taskId: "task-tool-cancel" }));
-			await expectNoQueuedMessage(reader);
-			sendRequest(input, 4, "tasks/cancel", draftRequestParams({ taskId: "task-tool-cancel" }));
-			const responses = [await reader.read(), await reader.read()].sort((left, right) =>
-				Number(left.id) - Number(right.id),
-			);
-			expect(responses[0]).toMatchObject({
-				id: 3,
-				error: { code: -32800, message: "The task was cancelled by request." },
-			});
-			expect(responses[1]).toMatchObject({
+			sendRequest(input, 4, "tasks/cancel", draftRequestParams(
+				{ taskId: "task-tool-cancel" },
+				mcpTasksClientCapabilities(),
+			));
+			const cancelResponse = await reader.read();
+			expect(cancelResponse).toMatchObject({
 				id: 4,
-				result: {
-					taskId: "task-tool-cancel",
-					status: "cancelled",
-					statusMessage: "The task was cancelled by request.",
-				},
+				result: {},
 			});
 
 			releaseTool();
 			await new Promise<void>((resolve) => { setImmediate(resolve); });
-			sendRequest(input, 5, "tasks/get", draftRequestParams({ taskId: "task-tool-cancel" }));
+			sendRequest(input, 5, "tasks/get", draftRequestParams(
+				{ taskId: "task-tool-cancel" },
+				mcpTasksClientCapabilities(),
+			));
 			const afterLateCompletion = await reader.read();
 			expect(afterLateCompletion.result).toMatchObject({
 				taskId: "task-tool-cancel",
 				status: "cancelled",
+				error: { code: -32800 },
 			});
 
 			server.stop();
@@ -2153,49 +2276,65 @@ describe("McpServer", () => {
 				sendRequest(input, `create-${taskId}`, "tools/call", draftRequestParams({
 					name,
 					arguments: {},
-					task: {},
-				}));
+				}, mcpTasksClientCapabilities()));
 				const created = await reader.read();
-				expect(created.result).toMatchObject({ task: { taskId, status: "working" } });
-				sendRequest(input, `result-${taskId}`, "tasks/result", draftRequestParams({ taskId }));
+				expect(created.result).toMatchObject({ resultType: "task", taskId, status: "working" });
+				await new Promise<void>((resolve) => { setImmediate(resolve); });
+				sendRequest(input, `result-${taskId}`, "tasks/get", draftRequestParams(
+					{ taskId },
+					mcpTasksClientCapabilities(),
+				));
 				return reader.read();
 			}
 
 			async function expectFailedStatus(taskId: string): Promise<void> {
-				sendRequest(input, `get-${taskId}`, "tasks/get", draftRequestParams({ taskId }));
+				sendRequest(input, `get-${taskId}`, "tasks/get", draftRequestParams(
+					{ taskId },
+					mcpTasksClientCapabilities(),
+				));
 				const status = await reader.read();
 				expect(status.result).toMatchObject({ taskId, status: "failed" });
 			}
 
 			const thrown = await createTaskAndReadResult("ext_task_throw", "task-tool-throw");
 			expect(thrown.result).toMatchObject({
-				resultType: "complete",
-				isError: true,
-				content: [{ type: "text", text: expect.stringContaining("throw task boom") }],
-				_meta: { [MCP_RELATED_TASK_META_KEY]: { taskId: "task-tool-throw" } },
+				status: "failed",
+				result: {
+					resultType: "complete",
+					isError: true,
+					content: [{ type: "text", text: expect.stringContaining("throw task boom") }],
+				},
 			});
 			await expectFailedStatus("task-tool-throw");
 
 			const isError = await createTaskAndReadResult("ext_task_is_error", "task-tool-is-error");
 			expect(isError.result).toMatchObject({
-				resultType: "complete",
-				isError: true,
-				content: [{ type: "text", text: "tool reported failure" }],
-				_meta: { [MCP_RELATED_TASK_META_KEY]: { taskId: "task-tool-is-error" } },
+				status: "failed",
+				result: {
+					resultType: "complete",
+					isError: true,
+					content: [{ type: "text", text: "tool reported failure" }],
+				},
 			});
 			await expectFailedStatus("task-tool-is-error");
 
 			const schema = await createTaskAndReadResult("ext_task_bad_schema", "task-tool-schema");
-			expect(schema.error).toMatchObject({
-				code: -32603,
-				message: expect.stringContaining("structuredContent does not match output_schema"),
+			expect(schema.result).toMatchObject({
+				status: "failed",
+				error: {
+					code: -32603,
+					message: expect.stringContaining("structuredContent does not match output_schema"),
+				},
 			});
 			await expectFailedStatus("task-tool-schema");
 
 			const unknown = await createTaskAndReadResult("ext_task_missing", "task-tool-unknown");
-			expect(unknown.error).toMatchObject({
-				code: -32602,
-				message: "Unknown tool: ext_task_missing",
+			expect(unknown.result).toMatchObject({
+				status: "failed",
+				error: {
+					code: -32602,
+					message: "Unknown tool: ext_task_missing",
+				},
 			});
 			await expectFailedStatus("task-tool-unknown");
 
