@@ -1,12 +1,12 @@
 ---
 id: task-route-mcp-registry-npm-imports-through-pnpm-supply
 title: Route MCP registry npm imports through pnpm supply-chain policy
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Make MCP Registry npm stdio imports emit a pnpm-owned execution path or an explicit operator-reviewed package plan so imported MCP servers cannot bypass KOTA's package-manager and supply-chain guardrails with npx -y.
 created_at: 2026-05-25T20:49:52.664Z
-updated_at: 2026-05-25T20:49:52.664Z
+updated_at: 2026-05-25T21:12:47.427Z
 ---
 
 ## Problem

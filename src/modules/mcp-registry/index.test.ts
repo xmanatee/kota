@@ -64,8 +64,8 @@ describe("mcp-registry command", () => {
 		expect(JSON.parse(stdout.join(""))).toEqual({
 			mcpServers: {
 				filesystem: {
-					command: "npx",
-					args: ["-y", "@example/filesystem@1.0.0"],
+					command: "pnpm",
+					args: ["dlx", "@example/filesystem@1.0.0"],
 				},
 			},
 		});

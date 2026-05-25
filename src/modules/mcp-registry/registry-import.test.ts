@@ -13,6 +13,12 @@ function registryResponse(server: KotaJsonObject, status = "active"): KotaJsonOb
 	};
 }
 
+function expectNoNpxConfig(config: unknown): void {
+	const serialized = JSON.stringify(config);
+	expect(serialized).not.toContain("npx");
+	expect(serialized).not.toContain("\"-y\"");
+}
+
 describe("resolveRegistryServerConfig", () => {
 	it("resolves remote Streamable HTTP metadata with required variables and headers", () => {
 		const result = resolveRegistryServerConfig(
@@ -59,7 +65,7 @@ describe("resolveRegistryServerConfig", () => {
 		});
 	});
 
-	it("resolves npm stdio package metadata to an explicit command and arguments", () => {
+	it("resolves npm stdio package metadata to a pnpm-owned command and arguments", () => {
 		const result = resolveRegistryServerConfig(
 			registryResponse({
 				name: "io.github.example/filesystem",
@@ -83,8 +89,86 @@ describe("resolveRegistryServerConfig", () => {
 		expect(result).toEqual({
 			serverKey: "filesystem",
 			config: {
-				command: "npx",
-				args: ["-y", "@example/filesystem-mcp@1.2.3", "/tmp/project", "--mode=readonly"],
+				command: "pnpm",
+				args: ["dlx", "@example/filesystem-mcp@1.2.3", "/tmp/project", "--mode=readonly"],
+			},
+		});
+		expectNoNpxConfig(result.config);
+	});
+
+	it("treats runtimeHint npx as npm metadata while preserving custom registry and runtime arguments through pnpm", () => {
+		const result = resolveRegistryServerConfig(
+			registryResponse({
+				name: "io.github.example/search",
+				description: "Search",
+				version: "2.0.0",
+				packages: [
+					{
+						registryType: "npm",
+						registryBaseUrl: "https://registry.example.test/npm",
+						identifier: "@example/search-mcp",
+						runtimeHint: "npx",
+						transport: { type: "stdio" },
+						runtimeArguments: [{ type: "positional", value: "--silent" }],
+						packageArguments: [{ type: "positional", value: "serve" }],
+					},
+				],
+			}),
+			{ installMethod: "npm" },
+		);
+
+		expect(result.config).toEqual({
+			command: "pnpm",
+			args: [
+				"--registry",
+				"https://registry.example.test/npm",
+				"dlx",
+				"--silent",
+				"@example/search-mcp@2.0.0",
+				"serve",
+			],
+		});
+		expectNoNpxConfig(result.config);
+	});
+
+	it("preserves required npm env values and argument inputs through pnpm", () => {
+		const result = resolveRegistryServerConfig(
+			registryResponse({
+				name: "io.github.example/tenant",
+				description: "Tenant",
+				version: "3.0.0",
+				packages: [
+					{
+						registryType: "npm",
+						identifier: "@example/tenant-mcp",
+						transport: { type: "stdio" },
+						environmentVariables: [
+							{ name: "API_TOKEN", isRequired: true },
+							{ name: "TENANT", value: "{tenant}" },
+						],
+						packageArguments: [
+							{ type: "positional", valueHint: "root", isRequired: true },
+							{ type: "named", name: "--tenant", value: "{tenant}" },
+						],
+					},
+				],
+			}),
+			{
+				inputs: new Map([
+					["API_TOKEN", "test-token"],
+					["tenant", "acme"],
+					["root", "/tmp/acme"],
+				]),
+				installMethod: "npm",
+			},
+		);
+
+		expect(result.config).toEqual({
+			command: "pnpm",
+			args: ["dlx", "@example/tenant-mcp@3.0.0", "/tmp/acme", "--tenant=acme"],
+			env: {
+				API_TOKEN: "test-token",
+				TENANT: "acme",
 			},
 		});
 	});
@@ -194,8 +278,8 @@ describe("resolveRegistryServerConfig", () => {
 			),
 		);
 		expect(resolveRegistryServerConfig(response, { installMethod: "npm" }).config).toEqual({
-			command: "npx",
-			args: ["-y", "@example/email-mcp@1.0.0"],
+			command: "pnpm",
+			args: ["dlx", "@example/email-mcp@1.0.0"],
 		});
 	});
 });

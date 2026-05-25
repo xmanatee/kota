@@ -197,18 +197,33 @@ function buildNpmConfig(
 	);
 	throwIfMissingInputs(server, missing);
 
-	const args = ["-y", ...runtimeArguments];
-	if (registryPackage.registryBaseUrl && registryPackage.registryBaseUrl !== "https://registry.npmjs.org") {
-		args.push("--registry", registryPackage.registryBaseUrl);
-	}
-	args.push(packageSpecifier, ...packageArguments);
+	const args = buildPnpmDlxArgs(
+		registryPackage.registryBaseUrl,
+		runtimeArguments,
+		packageSpecifier,
+		packageArguments,
+	);
 
 	const config: McpServerConfig = {
-		command: "npx",
+		command: "pnpm",
 		args,
 		...(Object.keys(env).length > 0 ? { env } : {}),
 	};
 	return config;
+}
+
+function buildPnpmDlxArgs(
+	registryBaseUrl: string | undefined,
+	runtimeArguments: string[],
+	packageSpecifier: string,
+	packageArguments: string[],
+): string[] {
+	const args: string[] = [];
+	if (registryBaseUrl && registryBaseUrl !== "https://registry.npmjs.org") {
+		args.push("--registry", registryBaseUrl);
+	}
+	args.push("dlx", ...runtimeArguments, packageSpecifier, ...packageArguments);
+	return args;
 }
 
 function resolveRemoteUrl(
