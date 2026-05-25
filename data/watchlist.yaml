@@ -277,7 +277,14 @@ resources:
       last_seen_at: "2026-05-25T04:12:28.483Z"
   - url: https://modelcontextprotocol.io/extensions/auth/oauth-client-credentials
     added: "2026-05-25"
-    notes: "Official MCP Authorization extension for OAuth client-credentials machine-to-machine HTTP MCP access. Monitor token-endpoint auth methods, protected-resource metadata, resource/audience binding, and noninteractive remote MCP authorization; opened task-add-mcp-oauth-client-credentials-support-for-http- for KOTA's first support slice."
+    notes: "Official MCP Authorization extension for OAuth client-credentials machine-to-machine HTTP MCP access. Monitor token-endpoint auth methods, protected-resource metadata, resource/audience binding, and noninteractive remote MCP authorization; opened task-add-mcp-oauth-client-credentials-support-for-http- for client_secret_basic and task-add-private-key-jwt-support-to-mcp-oauth-client-cr for the recommended private_key_jwt credential format."
+    snapshot:
+      fingerprint: sha256:3cf5bab565c24da65f662f48b8413cbf
+      summary: "Official MCP OAuth Client Credentials is accessible; KOTA already has client_secret_basic support, and this refresh opened task-add-private-key-jwt-support-to-mcp-oauth-client-cr for the recommended private_key_jwt credential format."
+      last_seen_at: "2026-05-25T08:13:47.913Z"
+  - url: https://modelcontextprotocol.io/extensions/auth/enterprise-managed-authorization
+    added: "2026-05-25"
+    notes: "Official MCP Authorization extension for enterprise IdP-managed remote MCP access. Monitor ID-JAG flow details, SSO identity-assertion requirements, capability negotiation, scope handling, and SDK support for KOTA's external MCP client authorization modes."
   - url: https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices
     added: "2026-05-21"
     notes: "Official MCP security guidance - monitor confused-deputy, token-passthrough, OAuth-discovery SSRF, session hijacking, local HTTP server exposure, and scope-minimization guidance that affects KOTA's MCP client/server security boundaries."
