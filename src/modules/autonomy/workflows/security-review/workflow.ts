@@ -18,6 +18,7 @@ import {
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
 import { assertTaskQueueValid } from "#modules/repo-tasks/task-queue-validation.js";
+import { SECURITY_REVIEW_DUE_EVENT } from "./due-check.js";
 import {
   createOrUpdateSecurityFindingTasks,
   decodeSecurityInvestigationOutput,
@@ -232,6 +233,10 @@ const securityReviewWorkflow: WorkflowDefinitionInput = {
   triggers: [
     {
       event: "autonomy.security-review.requested",
+      cooldownMs: 60 * 60 * 1000,
+    },
+    {
+      event: SECURITY_REVIEW_DUE_EVENT,
       cooldownMs: 60 * 60 * 1000,
     },
     {

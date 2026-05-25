@@ -1,12 +1,12 @@
 ---
 id: task-trigger-security-review-when-security-sensitive-co
 title: Trigger security-review when security-sensitive code changes make it due
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Route a bounded semantic event into the existing security-review workflow when repo changes touch security-sensitive surfaces, so security review is deliberate and paced instead of manual-only.
 created_at: 2026-05-25T11:37:04.983Z
-updated_at: 2026-05-25T11:37:04.983Z
+updated_at: 2026-05-25T11:51:37Z
 ---
 
 ## Problem

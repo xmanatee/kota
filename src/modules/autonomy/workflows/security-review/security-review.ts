@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, extname, join, relative } from "node:path";
 import { z } from "zod";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
@@ -131,6 +131,17 @@ const PREFERRED_SOURCE_PREFIXES: {
     "src/core/workflow/",
   ],
 };
+
+function normalizeRepoPath(path: string): string {
+  return path.split("\\").join("/");
+}
+
+export function securityReviewSurfacesForPath(path: string): SecurityReviewSurface[] {
+  const normalized = normalizeRepoPath(path);
+  return SECURITY_REVIEW_SURFACES.filter((surface) =>
+    PREFERRED_SOURCE_PREFIXES[surface].some((prefix) => normalized.startsWith(prefix)),
+  );
+}
 
 type SurfaceMatcher = {
   surface: SecurityReviewSurface;
@@ -297,6 +308,10 @@ function shouldScanFile(path: string): boolean {
   return SCANNABLE_EXTENSIONS.has(ext);
 }
 
+function pathHasSkippedSegment(path: string): boolean {
+  return normalizeRepoPath(path).split("/").some((segment) => SKIPPED_DIRS.has(segment));
+}
+
 function listScannableFiles(projectDir: string, dir = projectDir): string[] {
   const entries = readdirSync(dir, { withFileTypes: true })
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -362,28 +377,7 @@ function isFirstMeaningfulLine(lines: readonly string[], index: number): boolean
 function collectAllCandidates(projectDir: string): SecurityReviewCandidate[] {
   const candidates: SecurityReviewCandidate[] = [];
   for (const path of listScannableFiles(projectDir)) {
-    const fullPath = join(projectDir, path);
-    const content = readFileSync(fullPath, "utf-8");
-    if (Buffer.byteLength(content, "utf-8") > MAX_SCANNED_FILE_BYTES) continue;
-    const lines = content.split(/\r?\n/);
-    for (let index = 0; index < lines.length; index += 1) {
-      const line = lines[index] ?? "";
-      for (const matcher of SURFACE_MATCHERS) {
-        const lineMatched = matcher.pattern.test(line);
-        const pathMatched = matcher.pattern.test(path);
-        if (!lineMatched && !pathMatched) continue;
-        if (!lineMatched && !isFirstMeaningfulLine(lines, index)) continue;
-        const lineNumber = index + 1;
-        candidates.push({
-          id: `${matcher.surface}:${path}:${lineNumber}`,
-          surface: matcher.surface,
-          path,
-          line: lineNumber,
-          matcher: matcher.name,
-          excerpt: excerptLine(line || path),
-        });
-      }
-    }
+    candidates.push(...scanSecurityReviewCandidatesForPath(projectDir, path));
   }
   return candidates.sort((a, b) =>
     SECURITY_REVIEW_SURFACES.indexOf(a.surface) - SECURITY_REVIEW_SURFACES.indexOf(b.surface) ||
@@ -393,6 +387,65 @@ function collectAllCandidates(projectDir: string): SecurityReviewCandidate[] {
     a.line - b.line ||
     a.matcher.localeCompare(b.matcher)
   );
+}
+
+export function scanSecurityReviewCandidatesForPath(
+  projectDir: string,
+  path: string,
+): SecurityReviewCandidate[] {
+  const normalized = normalizeRepoPath(path);
+  if (pathHasSkippedSegment(normalized) || !shouldScanFile(normalized)) {
+    return [];
+  }
+
+  const fullPath = join(projectDir, normalized);
+  let fileSize = 0;
+  try {
+    const stats = statSync(fullPath);
+    if (!stats.isFile()) return [];
+    fileSize = stats.size;
+  } catch {
+    return [];
+  }
+  if (fileSize > MAX_SCANNED_FILE_BYTES) return [];
+
+  const content = readFileSync(fullPath, "utf-8");
+  if (Buffer.byteLength(content, "utf-8") > MAX_SCANNED_FILE_BYTES) {
+    return [];
+  }
+
+  const candidates: SecurityReviewCandidate[] = [];
+  const lines = content.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] ?? "";
+    for (const matcher of SURFACE_MATCHERS) {
+      const lineMatched = matcher.pattern.test(line);
+      const pathMatched = matcher.pattern.test(normalized);
+      if (!lineMatched && !pathMatched) continue;
+      if (!lineMatched && !isFirstMeaningfulLine(lines, index)) continue;
+      const lineNumber = index + 1;
+      candidates.push({
+        id: `${matcher.surface}:${normalized}:${lineNumber}`,
+        surface: matcher.surface,
+        path: normalized,
+        line: lineNumber,
+        matcher: matcher.name,
+        excerpt: excerptLine(line || normalized),
+      });
+    }
+  }
+  return candidates;
+}
+
+export function securityReviewSurfacesForChangedPath(
+  projectDir: string,
+  path: string,
+): SecurityReviewSurface[] {
+  const surfaces = new Set<SecurityReviewSurface>(securityReviewSurfacesForPath(path));
+  for (const candidate of scanSecurityReviewCandidatesForPath(projectDir, path)) {
+    surfaces.add(candidate.surface);
+  }
+  return SECURITY_REVIEW_SURFACES.filter((surface) => surfaces.has(surface));
 }
 
 function boundCandidates(

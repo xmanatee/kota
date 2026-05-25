@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -66,6 +67,64 @@ describe("dispatcher workflow", () => {
   afterEach(() => {
     rmSync(projectDir, { recursive: true, force: true });
   });
+
+  function git(args: readonly string[]): string {
+    return execFileSync("git", args, {
+      cwd: projectDir,
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  }
+
+  function writeProjectFile(path: string, content: string): void {
+    const fullPath = join(projectDir, path);
+    mkdirSync(join(fullPath, ".."), { recursive: true });
+    writeFileSync(fullPath, content, "utf-8");
+  }
+
+  function commitAll(message: string): string {
+    git(["add", "."]);
+    git([
+      "-c",
+      "user.email=kota@example.test",
+      "-c",
+      "user.name=KOTA Test",
+      "commit",
+      "--no-gpg-sign",
+      "-m",
+      message,
+    ]);
+    return git(["rev-parse", "HEAD"]);
+  }
+
+  function writeSecurityReviewEvidence(args: {
+    runId: string;
+    completedAt: string;
+    commitSha: string;
+  }): void {
+    const runDir = join(projectDir, ".kota", "runs", args.runId);
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(
+      join(runDir, "metadata.json"),
+      `${JSON.stringify(
+        {
+          id: args.runId,
+          workflow: "security-review",
+          status: "success",
+          completedAt: args.completedAt,
+          steps: [{ id: "commit", output: { sha: args.commitSha } }],
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+    writeFileSync(
+      join(runDir, "security-review-outcome.json"),
+      `${JSON.stringify({ outcome: "no-op", reason: "test-review" }, null, 2)}\n`,
+      "utf-8",
+    );
+  }
 
   it("emits autonomy.queue.available when ready tasks exist", async () => {
     writeFileSync(
@@ -271,6 +330,56 @@ describe("dispatcher workflow", () => {
       candidateCount: 1,
       attemptableCount: 1,
       counts: expect.objectContaining({ ready: 0, doing: 0, backlog: 0, blocked: 1 }),
+    });
+  });
+
+  it("emits security-review due when security-sensitive source changed since review", async () => {
+    rmSync(join(projectDir, ".git"), { recursive: true, force: true });
+    execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
+    writeProjectFile("README.md", "initial\n");
+    const reviewedSha = commitAll("initial");
+    writeSecurityReviewEvidence({
+      runId: "2026-05-24T00-00-00-000Z-security-review-dispatcher",
+      completedAt: "2026-05-24T00:00:00.000Z",
+      commitSha: reviewedSha,
+    });
+    writeProjectFile(
+      "src/core/modules/registry-installers.ts",
+      [
+        "import { spawnSync } from 'node:child_process';",
+        "export async function install(url: string): Promise<void> {",
+        "  spawnSync('installer', [url]);",
+        "  await fetch(url);",
+        "}",
+        "",
+      ].join("\n"),
+    );
+    commitAll("touch registry installer execution");
+
+    const harness = new WorkflowTestHarness(dispatcherWorkflow, { projectDir });
+    const result = await harness.run();
+
+    const dueEvent = result.emitted.find((event) => event.event === "autonomy.security-review.due");
+    expect(dueEvent?.payload).toMatchObject({
+      due: true,
+      reason: "high-risk-security-sensitive-change",
+      changedSurfaces: [
+        {
+          surface: "external-fetch",
+          paths: ["src/core/modules/registry-installers.ts"],
+        },
+        {
+          surface: "tool-execution",
+          paths: ["src/core/modules/registry-installers.ts"],
+        },
+      ],
+    });
+    const output = result.steps["assess-and-dispatch"].output as {
+      securityReviewDue: { due: boolean; reason: string };
+    };
+    expect(output.securityReviewDue).toMatchObject({
+      due: true,
+      reason: "high-risk-security-sensitive-change",
     });
   });
 

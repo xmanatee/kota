@@ -5,6 +5,10 @@ import {
   isThinPullQueue,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { inspectResearchRetryAvailability } from "../research-retry/precondition.js";
+import {
+  inspectSecurityReviewDue,
+  SECURITY_REVIEW_DUE_EVENT,
+} from "../security-review/due-check.js";
 
 // Not recovery-capable: dispatcher only reads repo state and emits events — it
 // never mutates tracked files, so it cannot leave dirt to heal and cannot help
@@ -28,6 +32,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
         const queue = getRepoTaskQueueSnapshot(projectDir);
         const promotableBacklogCount = countRepoPromotableBacklogTasks(projectDir);
         const researchRetryAvailability = inspectResearchRetryAvailability(projectDir);
+        const securityReviewDue = inspectSecurityReviewDue(projectDir);
         const queueEmpty = queue.inboxCount === 0 && queue.pullableCount === 0;
         const queueThin = isThinPullQueue(queue);
         // Builder runs only on actionable (ready+doing) work; backlog-only
@@ -73,6 +78,9 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
             counts: queue.counts,
           });
         }
+        if (securityReviewDue.due) {
+          emit(SECURITY_REVIEW_DUE_EVENT, securityReviewDue);
+        }
         if (queueThin) {
           emit("autonomy.queue.thin", {
             pullableCount: queue.pullableCount,
@@ -89,12 +97,14 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           promotableBacklogCount,
           researchRetryCandidateCount: researchRetryAvailability.candidateCount,
           researchRetryAttemptableCount: researchRetryAvailability.attemptableCount,
+          securityReviewDue,
           emitted: [
             queue.inboxCount > 0 && "autonomy.inbox.available",
             queueActionable && "autonomy.queue.available",
             queueNeedsPromotion && "autonomy.queue.needs-promotion",
             queueEmpty && "autonomy.queue.empty",
             blockedResearchAttemptable && "autonomy.blocked-research.attemptable",
+            securityReviewDue.due && SECURITY_REVIEW_DUE_EVENT,
             queueThin && "autonomy.queue.thin",
           ].filter(Boolean),
         };

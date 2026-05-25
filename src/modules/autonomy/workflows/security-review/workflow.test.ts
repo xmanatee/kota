@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import { assertTaskQueueValid } from "#modules/repo-tasks/task-queue-validation.js";
+import { SECURITY_REVIEW_DUE_EVENT } from "./due-check.js";
 import {
   createOrUpdateSecurityFindingTasks,
   decodeSecurityInvestigationOutput,
@@ -142,6 +143,26 @@ describe("security-review workflow", () => {
     expect(
       existsSync(join(projectDir, ".kota/runs/harness/security-review-outcome.json")),
     ).toBe(true);
+  });
+
+  it("accepts due events while retaining the manual request trigger", async () => {
+    expect(securityReviewWorkflow.triggers.map((trigger) => trigger.event)).toEqual(
+      expect.arrayContaining([
+        "autonomy.security-review.requested",
+        SECURITY_REVIEW_DUE_EVENT,
+      ]),
+    );
+
+    const harness = new WorkflowTestHarness(securityReviewWorkflow, {
+      projectDir,
+      trigger: { event: SECURITY_REVIEW_DUE_EVENT, payload: {} },
+      stepMocks: {},
+    });
+
+    const result = await harness.run();
+
+    expect(result.status).toBe("success");
+    expect(result.steps["record-empty-scan"].status).toBe("success");
   });
 
   it("decodes investigation and revalidation output before creating confirmed follow-up tasks", () => {
