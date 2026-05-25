@@ -219,6 +219,56 @@ describe("writeCalibrationArtifact", () => {
     expect(artifact.repairIterations).toBe(3);
   });
 
+  it("does not report a repaired critic-review iteration as a final failure", () => {
+    writeFileSync(
+      join(runDir, "critic-review.json"),
+      JSON.stringify({
+        verdict: "pass",
+        critical_issues: [],
+        warnings: [],
+        summary: "ok",
+      }),
+    );
+    writeFileSync(
+      join(runDir, "run-summary.json"),
+      JSON.stringify({
+        runId: "run-test",
+        workflow: "builder",
+        taskId: null,
+        filesChanged: ["src/core/foo.ts"],
+        completedAt: "2026-04-20T12:00:00.000Z",
+      }),
+    );
+
+    const ctx = makeStepContext({
+      runDir,
+      projectDir: root,
+      stepOutputs: {
+        build: {
+          repairIterations: [
+            { attempt: 1, failures: [{ id: "test" }] },
+            { attempt: 2, failures: [{ id: "critic-review" }] },
+          ],
+        },
+      },
+      stepResults: {
+        build: {
+          id: "build",
+          type: "agent",
+          status: "success",
+          startedAt: "2026-04-20T11:59:00.000Z",
+          completedAt: "2026-04-20T12:00:00.000Z",
+          durationMs: 60000,
+        },
+      },
+    });
+
+    const artifact = writeCalibrationArtifact(ctx);
+    expect(artifact.verdict).toBe("pass");
+    expect(artifact.finalIterationFailures).toEqual([]);
+    expect(artifact.criticFailureCount).toBe(1);
+  });
+
   it("records the diagnostic finalIterationFailures even when the critic was never the failing check", () => {
     writeFileSync(
       join(runDir, "critic-review.json"),

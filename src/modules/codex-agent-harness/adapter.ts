@@ -237,6 +237,7 @@ async function collectTextFromCodexCli(args: {
   const cliArgs = [
     "exec",
     "--json",
+    "--ignore-user-config",
     "--model",
     args.model,
     "--cd",

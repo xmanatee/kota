@@ -29,7 +29,7 @@ The adapter runs one non-interactive CLI process per KOTA harness call:
 
 1. Compose the KOTA system prompt, workflow rails, and task prompt into one
    stdin prompt for `codex exec -`.
-2. Spawn `codex exec --json --sandbox <mode> --model <model>`.
+2. Spawn `codex exec --json --ignore-user-config --sandbox <mode> --model <model>`.
 3. Parse JSONL events from stdout. `item.completed` agent-message events are
    streamed to the optional `AgentHarnessWriter` and collected as final text.
 4. Read the final `turn.completed` usage event for token counts and return the
@@ -54,6 +54,9 @@ deterministic `askOwnerSteps` recipe outside the agent step.
 The adapter still carries KOTA's workflow rails in the prompt: agents must not
 run `git commit` and must not stop or control the daemon that launched them.
 Post-step workflow checks remain responsible for validating repo state.
+It also passes `--ignore-user-config` so operator-global Codex MCP servers,
+hooks, or config profiles cannot make daemon-launched workflow steps fail
+before the KOTA prompt runs; Codex auth still comes from `CODEX_HOME`.
 
 ## Rejected Options
 

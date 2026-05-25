@@ -11,12 +11,13 @@
  *
  * Subcommand-level dispatch never re-evaluates this decision.
  */
-import { join } from "node:path";
-import { resolveProjectDir } from "#core/config/project-dir.js";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control.js";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { setActiveKotaClient } from "./client-holder.js";
 import { DaemonControlClient } from "./daemon-client.js";
+import {
+  isDaemonControlAddressReachable,
+  readLiveDaemonControlAddress,
+} from "./daemon-control-address.js";
 import { type DaemonTransport, daemonTransportFromAddress } from "./daemon-transport.js";
 import type {
   DaemonClientHandlers,
@@ -44,6 +45,8 @@ export type ResolveKotaClientOptions = {
   assembleDaemonHandlers?: (
     transport: DaemonTransport,
   ) => Partial<DaemonClientHandlers>;
+  /** Timeout for the daemon `/health` probe used before selecting daemon mode. */
+  daemonReachabilityTimeoutMs?: number;
 };
 
 /**
@@ -51,12 +54,7 @@ export type ResolveKotaClientOptions = {
  * one is published.
  */
 export function readDaemonAddress(stateDir?: string): DaemonControlAddress | null {
-  const dir = stateDir ?? join(resolveProjectDir(), ".kota");
-  const address = readOptionalJsonFile<DaemonControlAddress>(
-    join(dir, "daemon-control.json"),
-  );
-  if (!address || typeof address.port !== "number") return null;
-  return address;
+  return readLiveDaemonControlAddress(stateDir);
 }
 
 /**
@@ -64,11 +62,17 @@ export function readDaemonAddress(stateDir?: string): DaemonControlAddress | nul
  * result in the module-level holder so `ModuleContext.client` resolves
  * to it.
  */
-export function resolveKotaClient(
+export async function resolveKotaClient(
   opts: ResolveKotaClientOptions,
-): ClientSelection {
+): Promise<ClientSelection> {
   const address = readDaemonAddress(opts.stateDir);
-  if (address) {
+  if (
+    address &&
+    (await isDaemonControlAddressReachable(
+      address,
+      opts.daemonReachabilityTimeoutMs,
+    ))
+  ) {
     const transport = daemonTransportFromAddress(address);
     const contributed = opts.assembleDaemonHandlers?.(transport);
     const client = DaemonControlClient.fromTransport(transport, contributed);

@@ -17,13 +17,11 @@
  * `events()` opens the shared SSE stream and yields decoded events. It
  * returns immediately if the stream cannot be opened.
  */
-import { join } from "node:path";
-import { resolveProjectDir } from "#core/config/project-dir.js";
 import type {
   DaemonControlAddress,
   DaemonSseStreamEvent,
 } from "#core/daemon/daemon-control.js";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { readLiveDaemonControlAddress } from "./daemon-control-address.js";
 
 const DEFAULT_FETCH_TIMEOUT_MS = 2_000;
 
@@ -258,10 +256,7 @@ export function daemonTransportFromAddress(
  * or null when no daemon is reachable.
  */
 export function getDaemonTransport(stateDir?: string): DaemonTransport | null {
-  const dir = stateDir ?? join(resolveProjectDir(), ".kota");
-  const address = readOptionalJsonFile<DaemonControlAddress>(
-    join(dir, "daemon-control.json"),
-  );
-  if (!address || typeof address.port !== "number") return null;
+  const address = readLiveDaemonControlAddress(stateDir);
+  if (!address) return null;
   return daemonTransportFromAddress(address);
 }

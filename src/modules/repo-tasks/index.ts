@@ -14,6 +14,7 @@ import {
 	getRepoTasksProvider,
 	REPO_TASKS_PROVIDER_TOKEN,
 } from "#core/modules/provider-registry.js";
+import type { RepoTasksProvider } from "#core/modules/provider-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { createRepoTasksReadinessSource } from "./capability-readiness.js";
 import { listTasksForStates, registerTaskCommands } from "./cli.js";
@@ -71,6 +72,19 @@ function projectQuery(projectId: string | undefined): string {
 	const params = new URLSearchParams();
 	params.set("projectId", projectId);
 	return `?${params.toString()}`;
+}
+
+function createLocalDefaultProviderResolver(
+	defaultProjectDir: string,
+): () => RepoTasksProvider {
+	const fallback = new RepoTasksDefaultStore(defaultProjectDir);
+	return () => {
+		try {
+			return getRepoTasksProvider();
+		} catch {
+			return fallback;
+		}
+	};
 }
 
 type RepoTaskRouteErrorBody = {
@@ -131,8 +145,9 @@ const repoTasksModule: KotaModule = {
 		),
 
 	localClient: (ctx) => {
-		const projectStores = createRepoTasksProjectStores(ctx.cwd, () =>
-			getRepoTasksProvider(),
+		const projectStores = createRepoTasksProjectStores(
+			ctx.cwd,
+			createLocalDefaultProviderResolver(ctx.cwd),
 		);
 		const handler: RepoTasksClient = {
 			async list(states, project) {

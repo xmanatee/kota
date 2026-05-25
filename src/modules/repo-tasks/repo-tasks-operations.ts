@@ -142,7 +142,7 @@ export function createNormalizedTask(
 
   writeFileSync(filePath, serializeFlatFrontMatter(attrs, buildNormalizedTaskBody()), "utf-8");
   try {
-    execSync(`git add "${filePath}"`, { cwd: projectDir });
+    execSync(`git add "${filePath}"`, { cwd: projectDir, stdio: "ignore" });
   } catch {
     // Caller's responsibility: the file is on disk; staging is best effort.
   }

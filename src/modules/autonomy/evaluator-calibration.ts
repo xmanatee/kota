@@ -256,9 +256,16 @@ export function writeCalibrationArtifact(
   const buildOutput = ctx.stepOutputs[agentStepId];
   const iterations = readRepairIterations(buildOutput);
   const lastIteration = iterations.at(-1);
-  const finalIterationFailures = lastIteration
+  const lastIterationFailures = lastIteration
     ? lastIteration.failures.map((f) => f.id)
     : [];
+  const finalIterationFailures = lastIterationFailures.filter(
+    (id) =>
+      id !== CRITIC_CHECK_ID ||
+      criticVerdict === null ||
+      verdict === "fail" ||
+      criticalIssueCount > 0,
+  );
   const criticFailureCount = iterations.reduce(
     (count, iteration) =>
       iteration.failures.some((f) => f.id === CRITIC_CHECK_ID) ? count + 1 : count,

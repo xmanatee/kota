@@ -107,6 +107,7 @@ describe("codexAgentHarness", () => {
       expect.arrayContaining([
         "exec",
         "--json",
+        "--ignore-user-config",
         "--model",
         "gpt-5.5",
         "--cd",

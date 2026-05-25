@@ -396,7 +396,7 @@ async function main() {
   // ctx.client and never re-decide the daemon-vs-local policy. On the
   // daemon-up path the selector also queries the loader's daemonClient
   // factories so module-contributed handlers can override the core stub.
-  resolveKotaClient({
+  await resolveKotaClient({
     localHandlers: loader.getLocalClientHandlers(),
     assembleDaemonHandlers: (transport) =>
       loader.assembleDaemonClientHandlers(transport),
