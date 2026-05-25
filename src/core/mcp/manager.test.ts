@@ -1,5 +1,8 @@
 import { Buffer } from "node:buffer";
 import { generateKeyPairSync } from "node:crypto";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   MCP_DRAFT_PROTOCOL_VERSION,
@@ -7,6 +10,7 @@ import {
   mcpOAuthSecret,
 } from "./client.js";
 import { type McpInputResolver, McpManager, namespaceTool, parseToolName } from "./manager.js";
+import { FileRemoteMcpTaskStore } from "./remote-task-store.js";
 
 type RecordedHttpRequest = {
   url: string;
@@ -115,6 +119,14 @@ function jsonRpcErrorResponse(
 
 function sseMessage(message: Record<string, any>): string {
   return `event: message\ndata: ${JSON.stringify(message)}\n\n`;
+}
+
+function remoteTaskStorePath(projectDir: string): string {
+  return join(projectDir, ".kota", "mcp-remote-tasks.json");
+}
+
+function readRemoteTaskStore(projectDir: string): { tasks: Array<Record<string, any>> } {
+  return JSON.parse(readFileSync(remoteTaskStorePath(projectDir), "utf-8"));
 }
 
 async function waitFor(assertion: () => void, timeoutMs = 2_000): Promise<void> {
@@ -528,7 +540,10 @@ describe("McpManager", () => {
       }
       return jsonRpcErrorResponse(request.body.id, -32601, `unknown ${request.body.method}`);
     });
-    const manager = new McpManager();
+    const tmpDir = mkdtempSync(join(tmpdir(), "kota-mcp-task-store-"));
+    const manager = new McpManager({
+      remoteTaskStore: new FileRemoteMcpTaskStore(tmpDir),
+    });
 
     try {
       await manager.initialize({
@@ -540,6 +555,10 @@ describe("McpManager", () => {
       const seenRequests: unknown[] = [];
       const result = await manager.executeTool("mcp__remote__deploy", {}, {
         inputResolver: async (request) => {
+          const persisted = readFileSync(remoteTaskStorePath(tmpDir), "utf-8");
+          expect(persisted).toContain('"status": "input_required"');
+          expect(persisted).not.toContain("remote-task-state");
+          expect(persisted).not.toContain("Deploy?");
           seenRequests.push(request);
           return {
             kind: "respond",
@@ -587,9 +606,178 @@ describe("McpManager", () => {
       for (const request of requests.slice(3)) {
         expect(request.headers.get("mcp-name")).toBe("task-deploy-1");
       }
+      expect(readRemoteTaskStore(tmpDir).tasks).toEqual([]);
     } finally {
       await manager.close();
       fetchSpy.mockRestore();
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("persists unfinished remote task handles and resumes them after reconnect", async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "kota-mcp-task-resume-"));
+    let phase: "first-run" | "resume" = "first-run";
+    const { requests, fetchSpy } = mockMcpHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: {
+            tools: {},
+            extensions: { [MCP_TASKS_EXTENSION_ID]: {} },
+          },
+          serverInfo: { name: "resumable-http-fixture" },
+        });
+      }
+      if (request.body.method === "tools/list") {
+        return jsonRpcResponse(request.body.id, {
+          tools: [{ name: "deploy", inputSchema: { type: "object" } }],
+        });
+      }
+      if (request.body.method === "tools/call") {
+        return jsonRpcResponse(request.body.id, {
+          resultType: "task",
+          taskId: "task-resume-1",
+          status: "working",
+          createdAt: "2026-05-25T12:00:00.000Z",
+          lastUpdatedAt: "2026-05-25T12:00:00.000Z",
+          ttlMs: null,
+          pollIntervalMs: 1,
+        });
+      }
+      if (request.body.method === "tasks/get" && phase === "first-run") {
+        return jsonRpcErrorResponse(request.body.id, -32055, "connection dropped before terminal state");
+      }
+      if (request.body.method === "tasks/get" && phase === "resume") {
+        return jsonRpcResponse(request.body.id, {
+          resultType: "task",
+          taskId: "task-resume-1",
+          status: "completed",
+          createdAt: "2026-05-25T12:00:00.000Z",
+          lastUpdatedAt: "2026-05-25T12:00:03.000Z",
+          ttlMs: null,
+          result: {
+            resultType: "complete",
+            content: [{ type: "text", text: "deployed after restart" }],
+            structuredContent: { deploymentId: "dep-resumed" },
+          },
+        });
+      }
+      return jsonRpcErrorResponse(request.body.id, -32601, `unknown ${request.body.method}`);
+    });
+
+    try {
+      const firstManager = new McpManager({
+        remoteTaskStore: new FileRemoteMcpTaskStore(tmpDir),
+      });
+      await firstManager.initialize({
+        mcpServers: {
+          remote: { type: "http", url: "https://mcp.example.test/mcp" },
+        },
+      }, { inputResolverAvailable: true });
+
+      const firstResult = await firstManager.executeTool("mcp__remote__deploy", {});
+      expect(firstResult.is_error).toBe(true);
+      expect(firstResult.content).toContain("connection dropped");
+      await firstManager.close();
+
+      const persistedBeforeResume = readRemoteTaskStore(tmpDir);
+      expect(persistedBeforeResume.tasks).toHaveLength(1);
+      expect(persistedBeforeResume.tasks[0]).toMatchObject({
+        serverConfigName: "remote",
+        serverDisplayName: "resumable-http-fixture",
+        toolName: "deploy",
+        taskId: "task-resume-1",
+        status: "working",
+      });
+      const persistedJson = readFileSync(remoteTaskStorePath(tmpDir), "utf-8");
+      expect(persistedJson).not.toContain("deployed after restart");
+      expect(persistedJson).not.toContain("dep-resumed");
+
+      phase = "resume";
+      const secondManager = new McpManager({
+        remoteTaskStore: new FileRemoteMcpTaskStore(tmpDir),
+      });
+      await secondManager.initialize({
+        mcpServers: {
+          remote: { type: "http", url: "https://mcp.example.test/mcp" },
+        },
+      }, { inputResolverAvailable: true });
+
+      const [resumeResult] = secondManager.getRemoteTaskResumeResults();
+      expect(resumeResult).toMatchObject({
+        kind: "result",
+        serverConfigName: "remote",
+        serverDisplayName: "resumable-http-fixture",
+        tool: "deploy",
+        taskId: "task-resume-1",
+      });
+      if (resumeResult?.kind !== "result") {
+        throw new Error("expected remote task resume result");
+      }
+      expect(resumeResult.result.is_error).toBeUndefined();
+      expect(resumeResult.result.content).toBe("deployed after restart");
+      expect(resumeResult.result.structuredContent).toEqual({ deploymentId: "dep-resumed" });
+      expect(readRemoteTaskStore(tmpDir).tasks).toEqual([]);
+      await secondManager.close();
+
+      expect(requests.map((request) => request.body.method)).toEqual([
+        "server/discover",
+        "tools/list",
+        "tools/call",
+        "tasks/get",
+        "server/discover",
+        "tools/list",
+        "tasks/get",
+      ]);
+    } finally {
+      fetchSpy.mockRestore();
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps unmatched persisted remote task handles as safe diagnostics", async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "kota-mcp-task-missing-server-"));
+    const store = new FileRemoteMcpTaskStore(tmpDir);
+    await store.upsert({
+      id: "stored-task-1",
+      serverConfigName: "missing",
+      serverDisplayName: "missing-server",
+      serverFingerprint: "stale-fingerprint",
+      serverMatch: { kind: "safe" },
+      toolName: "deploy",
+      taskId: "task-missing-server",
+      protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+      status: "working",
+      createdAt: "2026-05-25T12:00:00.000Z",
+      lastUpdatedAt: "2026-05-25T12:00:00.000Z",
+      ttlMs: null,
+      pollCount: 0,
+      inputUpdateCount: 0,
+      startedAt: "2026-05-25T12:00:00.000Z",
+      deadlineAt: null,
+      updatedAt: "2026-05-25T12:00:00.000Z",
+    });
+    const manager = new McpManager({ remoteTaskStore: store });
+
+    try {
+      await manager.initialize({ mcpServers: {} }, { inputResolverAvailable: true });
+
+      expect(manager.getRemoteTaskResumeResults()).toEqual([
+        {
+          kind: "diagnostic",
+          serverConfigName: "missing",
+          serverDisplayName: "missing-server",
+          tool: "deploy",
+          taskId: "task-missing-server",
+          message: 'configured MCP server "missing" is not present; remote task was not resumed',
+        },
+      ]);
+      expect(readRemoteTaskStore(tmpDir).tasks[0]?.lastDiagnostic).toContain(
+        "not present",
+      );
+    } finally {
+      await manager.close();
+      rmSync(tmpDir, { recursive: true, force: true });
     }
   });
 
@@ -638,7 +826,8 @@ describe("McpManager", () => {
   });
 
   it("surfaces unknown remote task ids without leaking bearer tokens", async () => {
-    const { fetchSpy } = mockMcpHttpFetch((request) => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "kota-mcp-task-redaction-"));
+    const { requests, fetchSpy } = mockMcpHttpFetch((request) => {
       if (request.body.method === "server/discover") {
         return jsonRpcResponse(request.body.id, {
           supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
@@ -673,7 +862,9 @@ describe("McpManager", () => {
       }
       return jsonRpcResponse(request.body.id, {});
     });
-    const manager = new McpManager();
+    const manager = new McpManager({
+      remoteTaskStore: new FileRemoteMcpTaskStore(tmpDir),
+    });
 
     try {
       await manager.initialize({
@@ -690,14 +881,45 @@ describe("McpManager", () => {
       expect(result.is_error).toBe(true);
       expect(result.content).toContain("unknown task for [redacted]");
       expect(result.content).not.toContain("configured-token-secret");
+      const persisted = readFileSync(remoteTaskStorePath(tmpDir), "utf-8");
+      expect(persisted).toContain("missing-task");
+      expect(persisted).not.toContain("configured-token-secret");
+      expect(persisted).not.toContain("Bearer configured-token-secret");
+      await manager.close();
+
+      const resumed = new McpManager({
+        remoteTaskStore: new FileRemoteMcpTaskStore(tmpDir),
+      });
+      await resumed.initialize({
+        mcpServers: {
+          remote: {
+            type: "http",
+            url: "https://mcp.example.test/mcp",
+            headers: { Authorization: "Bearer configured-token-secret" },
+          },
+        },
+      }, { inputResolverAvailable: true });
+      const [resumeResult] = resumed.getRemoteTaskResumeResults();
+      expect(resumeResult).toMatchObject({
+        kind: "diagnostic",
+        taskId: "missing-task",
+      });
+      if (resumeResult?.kind !== "diagnostic") {
+        throw new Error("expected remote task resume diagnostic");
+      }
+      expect(resumeResult.message).toContain("HTTP headers contain values");
+      expect(requests.filter((request) => request.body.method === "tasks/get")).toHaveLength(1);
+      await resumed.close();
     } finally {
       await manager.close();
       fetchSpy.mockRestore();
+      rmSync(tmpDir, { recursive: true, force: true });
     }
   });
 
   it("handles TTL expiry, failed states, and cancelled states as task errors", async () => {
     for (const scenario of ["timeout", "failed", "cancelled"] as const) {
+      const tmpDir = mkdtempSync(join(tmpdir(), `kota-mcp-task-${scenario}-`));
       const { fetchSpy } = mockMcpHttpFetch((request) => {
         if (request.body.method === "server/discover") {
           return jsonRpcResponse(request.body.id, {
@@ -761,7 +983,9 @@ describe("McpManager", () => {
         }
         return jsonRpcResponse(request.body.id, {});
       });
-      const manager = new McpManager();
+      const manager = new McpManager({
+        remoteTaskStore: new FileRemoteMcpTaskStore(tmpDir),
+      });
 
       try {
         await manager.initialize({
@@ -783,9 +1007,11 @@ describe("McpManager", () => {
         }
         expect(result.content).not.toContain("payload-secret");
         expect(JSON.stringify(result._meta)).not.toContain("payload-secret");
+        expect(readRemoteTaskStore(tmpDir).tasks).toEqual([]);
       } finally {
         await manager.close();
         fetchSpy.mockRestore();
+        rmSync(tmpDir, { recursive: true, force: true });
       }
     }
   });

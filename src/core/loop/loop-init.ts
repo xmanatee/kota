@@ -83,9 +83,9 @@ export interface AgentLoopState {
 }
 
 export async function runInitModules(state: AgentLoopState): Promise<void> {
-  const config = McpManager.loadConfig();
+  const config = McpManager.loadConfig(state.projectDir);
   if (config) {
-    state.mcpManager = new McpManager();
+    state.mcpManager = new McpManager({ projectDir: state.projectDir });
     await state.mcpManager.initialize(config, {
       inputResolverAvailable: state.mcpInputResolver !== undefined,
       ...(state.mcpAuthorizationResolver
@@ -129,6 +129,7 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
   }
 
   bindRenderingTransport(state);
+  emitMcpRemoteTaskResumeResults(state);
 
   restoreConversationIfRequested(state);
 
@@ -159,6 +160,35 @@ function bindRenderingTransport(state: AgentLoopState): void {
     verbose: state.verbose,
     showCost: state.showCost,
   });
+}
+
+function emitMcpRemoteTaskResumeResults(state: AgentLoopState): void {
+  const results = state.mcpManager?.getRemoteTaskResumeResults() ?? [];
+  for (const result of results) {
+    const prefix =
+      `[kota] MCP remote task "${result.taskId}" for "${result.tool}" ` +
+      `on "${result.serverDisplayName}"`;
+    if (result.kind === "diagnostic") {
+      state.transport.emit({
+        type: "error",
+        message: `${prefix} was not resumed: ${result.message}`,
+      });
+      continue;
+    }
+    const message =
+      `${prefix} ${result.result.is_error ? "resumed with error" : "resumed"}: ` +
+      summarizeMcpRemoteTaskResumeContent(result.result.content);
+    state.transport.emit({
+      type: result.result.is_error ? "error" : "status",
+      message,
+    });
+  }
+}
+
+function summarizeMcpRemoteTaskResumeContent(content: string): string {
+  const normalized = content.replace(/\s+/g, " ").trim();
+  if (normalized.length <= 300) return normalized;
+  return `${normalized.slice(0, 297)}...`;
 }
 
 function restoreConversationIfRequested(state: AgentLoopState): void {

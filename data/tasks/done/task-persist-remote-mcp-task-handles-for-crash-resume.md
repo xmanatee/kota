@@ -1,12 +1,12 @@
 ---
 id: task-persist-remote-mcp-task-handles-for-crash-resume
 title: Persist remote MCP task handles for crash resume
-status: ready
+status: done
 priority: p2
 area: core
 summary: Add a core-side persistence path for remote MCP Tasks extension handles so task-backed external tool calls can resume after process restart instead of only recording completed-attempt diagnostics.
 created_at: 2026-05-25T13:14:32.000Z
-updated_at: 2026-05-25T14:18:02Z
+updated_at: 2026-05-25T20:29:18Z
 ---
 
 ## Problem
@@ -61,6 +61,8 @@ first-party MCP server task store or leaking remote payload data.
 
 ## Acceptance Evidence
 
-- Focused MCP client/manager persistence tests pass.
-- A run artifact or fixture shows a persisted remote task handle surviving a
-  simulated restart and resolving through `tasks/get`.
+- `pnpm test src/core/mcp/manager.test.ts`
+- `pnpm typecheck`
+- `pnpm exec biome check src/core/mcp/manager.ts src/core/mcp/remote-task-store.ts src/core/mcp/manager.test.ts src/core/loop/loop-init.ts`
+- `pnpm test src/strict-types-policy.integration.test.ts`
+- `.kota/runs/2026-05-25T19-24-51-319Z-builder-v1copp/remote-mcp-task-resume-fixture.json`
