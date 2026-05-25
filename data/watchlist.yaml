@@ -370,9 +370,12 @@ resources:
     added: "2026-05-21"
     notes: "Official MCP Tasks utility draft - monitor task-augmented requests, CreateTaskResult, task polling/result retrieval, cancellation, task input responses, status notifications, TTL handling, and lifecycle transition rules for KOTA's MCP server."
     snapshot:
-      fingerprint: sha256:e0c5b83dabaf5b046d33d05de535b3c0
-      summary: "MCP draft Tasks is covered by completed task lifecycle, status/result/list/cancel, tool-call augmentation, and input-response resumption work; no new MCP Tasks task is open from this snapshot."
-      last_seen_at: "2026-05-21T11:57:45.474Z"
+      fingerprint: sha256:ceef7dac3c7bbd1fa0feada4d1bcc12b
+      summary: "MCP draft Tasks still documents the earlier experimental top-level task-augmentation model; KOTA's completed draft implementation covers that page, while the new Tasks extension overview is now tracked separately."
+      last_seen_at: "2026-05-25T09:53:33.032Z"
+  - url: https://modelcontextprotocol.io/extensions/tasks/overview
+    added: "2026-05-25"
+    notes: "Official MCP Tasks extension overview - monitor extension negotiation, server-directed task creation, resultType task handles, tasks/get polling, tasks/update input continuation, cooperative cancellation, and drift from KOTA's earlier draft utility implementation."
   - url: https://modelcontextprotocol.io/registry/about
     added: "2026-05-22"
     notes: "Official MCP Registry documentation - monitor server.json schema, package verification, remote-server metadata, registry publication flow, server-card discovery direction, and configuration portability for KOTA's first-party MCP server."
