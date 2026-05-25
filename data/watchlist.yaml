@@ -31,15 +31,15 @@ resources:
   - url: https://github.com/anthropics/claude-code
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:374ca9ab5d7af6d708eb0995f0106848
-      summary: "Claude Code v2.1.146 surfaced a concrete MCP resource/template pagination failure; KOTA opened task-add-mcp-resource-template-listing-and-resource-list-pagi for the remaining server-side resource discovery gap."
-      last_seen_at: "2026-05-21T20:37:21.985Z"
+      fingerprint: sha256:0941347a4b29c0f02f74a642eb7fe275
+      summary: "Claude Code now surfaces fresh permission/sandbox bypass fixes beyond KOTA's completed env-override guardrail work; opened task-harden-shell-working-directory-guardrails-against- for KOTA's remaining shell cwd/cd project-boundary gap."
+      last_seen_at: "2026-05-25T04:12:28.483Z"
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:c2da79e6ea4b63d88ec5e8814952232b
-      summary: "Codex 0.133.0 reinforces KOTA's session state, daemon-client, module discovery, and lifecycle-observability directions; no new nonduplicative KOTA task was opened from this refresh."
-      last_seen_at: "2026-05-21T20:37:21.985Z"
+      fingerprint: sha256:cbc6746e91b0d4b980af4b301cb34924
+      summary: "Codex still shows latest release 0.133.0 from 2026-05-21 and no new nonduplicative KOTA task was opened from this refresh."
+      last_seen_at: "2026-05-25T04:12:28.483Z"
   - url: https://github.com/google-gemini/gemini-cli
     added: "2026-04-19"
     snapshot:
@@ -265,16 +265,16 @@ resources:
     added: "2026-05-21"
     notes: "Official MCP transport draft - monitor stdio, Streamable HTTP, origin validation, request metadata headers, header/body validation, SSE response streams, cancellation, and HTTP+SSE compatibility for KOTA's first-party MCP server."
     snapshot:
-      fingerprint: sha256:8311dbed085a136a785c6f32443f271d
-      summary: "MCP draft Transports now exposes a remaining KOTA gap beyond the first HTTP slice: Streamable HTTP SSE response streams and subscriptions/listen catalog-change streams should be implemented instead of rejected."
-      last_seen_at: "2026-05-22T05:09:26.491Z"
+      fingerprint: sha256:ac2df6fdedbfceab375e69ecbb2e5a92
+      summary: "MCP draft Transports still matches the stored Streamable HTTP/SSE signal; existing KOTA MCP transport tasks cover the nonduplicative gap."
+      last_seen_at: "2026-05-25T04:12:28.483Z"
   - url: https://modelcontextprotocol.io/specification/draft/basic/authorization
     added: "2026-05-21"
     notes: "Official MCP authorization draft - monitor HTTP protected-resource metadata, WWW-Authenticate discovery, OAuth authorization-server discovery, Bearer token validation, resource/audience binding, scope step-up, and token-handling constraints for KOTA's Streamable HTTP MCP client and server."
     snapshot:
-      fingerprint: sha256:61dca1ecc81e50c552249f72153895a7
-      summary: "MCP draft Authorization now exposes a remaining KOTA client-side gap: challenge parsing and protected-resource metadata are covered, but a typed OAuth client registration, PKCE, issuer-validation, token-storage, retry, and step-up flow is not; opened task-add-mcp-streamable-http-oauth-client-flow."
-      last_seen_at: "2026-05-22T03:56:53.994Z"
+      fingerprint: sha256:9df37bac28680770df52d08726c0258f
+      summary: "MCP draft Authorization still matches the stored OAuth protected-resource/client-flow signal; the existing KOTA OAuth client-flow task remains the right queue item."
+      last_seen_at: "2026-05-25T04:12:28.483Z"
   - url: https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices
     added: "2026-05-21"
     notes: "Official MCP security guidance - monitor confused-deputy, token-passthrough, OAuth-discovery SSRF, session hijacking, local HTTP server exposure, and scope-minimization guidance that affects KOTA's MCP client/server security boundaries."
