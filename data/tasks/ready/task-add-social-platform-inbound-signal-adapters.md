@@ -1,12 +1,12 @@
 ---
 id: task-add-social-platform-inbound-signal-adapters
 title: Add social platform inbound-signal adapters
-status: backlog
+status: ready
 priority: p3
 area: modules
 summary: Define the X/social provider adapter path into inbound.signal.received when a social connector is configured.
 created_at: 2026-05-25T02:48:53.898Z
-updated_at: 2026-05-25T02:48:53.898Z
+updated_at: 2026-05-25T04:32:04.478Z
 ---
 
 ## Problem
