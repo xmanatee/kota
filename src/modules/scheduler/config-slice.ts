@@ -52,6 +52,7 @@ export const schedulerConfigSlice: ModuleConfigSlice<"scheduler"> = {
   description: "Scheduler dispatch window and concurrency settings",
   sanitize: sanitizeScheduler,
   merge: (base, override) => ({ ...base, ...override }),
+  projectConfigSafety: "authority",
   schemaSource: {
     relativePath: "src/modules/scheduler/config-slice.ts",
     typeName: "SchedulerConfig",

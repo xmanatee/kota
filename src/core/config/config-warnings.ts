@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { KotaConfig } from "./config.js";
+import { type KotaConfig, loadConfigWithDiagnostics } from "./config.js";
 
 /**
  * Top-level config keys the core owns. Module-owned slice keys
@@ -16,6 +16,7 @@ export const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set<keyof KotaConfig>(
   "thinkingBudget",
   "verbose",
   "skipConfirmations",
+  "trustedProjects",
   "autoEnable",
   "user",
   "aliases",
@@ -68,6 +69,16 @@ export function warnUnknownConfigKeys(
     if (KNOWN_CONFIG_KEYS.has(k)) continue;
     if (moduleKeys?.has(k)) continue;
     warn(`Config warning: unknown key "${k}" in ${projectPath}`);
+  }
+}
+
+export function warnIgnoredUntrustedProjectConfig(
+  projectDir: string,
+  warn: (message: string) => void,
+): void {
+  const diagnostics = loadConfigWithDiagnostics(projectDir);
+  for (const warning of diagnostics.warnings) {
+    warn(`Config warning: ${warning}`);
   }
 }
 

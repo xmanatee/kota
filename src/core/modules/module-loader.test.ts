@@ -17,6 +17,7 @@ function fakeSlice(key: string, description = "test"): ModuleConfigSlice {
     description,
     sanitize: (raw) => (typeof raw === "object" && raw !== null ? raw : undefined) as never,
     merge: (base, override) => ({ ...(base as object), ...(override as object) }) as never,
+    projectConfigSafety: "authority",
     schemaSource: { relativePath: "test", typeName: "TestConfig" },
   };
 }

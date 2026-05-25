@@ -37,6 +37,18 @@ function makeProjectDir(): string {
   return realpathSync(dir);
 }
 
+afterEach(() => {
+  rmSync(FAKE_HOME, { recursive: true, force: true });
+});
+
+function trustProjectConfig(projectDir: string): void {
+  mkdirSync(join(FAKE_HOME, ".kota"), { recursive: true });
+  writeFileSync(
+    join(FAKE_HOME, ".kota", "config.json"),
+    JSON.stringify({ trustedProjects: [projectDir] }),
+  );
+}
+
 function makeFakeCtx(projectDir: string, moduleKeys: ReadonlySet<string>): ModuleContext {
   const config: ConfigClient = {
     async validate() {
@@ -126,6 +138,7 @@ describe("kota config validate", () => {
   });
 
   it("includes resolved config in output", async () => {
+    trustProjectConfig(projectDir);
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
@@ -140,6 +153,7 @@ describe("kota config validate", () => {
   });
 
   it("warns about unknown top-level keys", async () => {
+    trustProjectConfig(projectDir);
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
@@ -154,6 +168,7 @@ describe("kota config validate", () => {
   });
 
   it("does not warn about module-registered config keys", async () => {
+    trustProjectConfig(projectDir);
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
@@ -168,6 +183,7 @@ describe("kota config validate", () => {
   });
 
   it("warns about keys not in core or module sets", async () => {
+    trustProjectConfig(projectDir);
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
@@ -183,6 +199,7 @@ describe("kota config validate", () => {
   });
 
   it("does not warn about known keys", async () => {
+    trustProjectConfig(projectDir);
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
@@ -196,6 +213,7 @@ describe("kota config validate", () => {
   });
 
   it("--json outputs only resolved config JSON", async () => {
+    trustProjectConfig(projectDir);
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
@@ -210,6 +228,7 @@ describe("kota config validate", () => {
   });
 
   it("--json does not include source headers or warnings", async () => {
+    trustProjectConfig(projectDir);
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
@@ -223,6 +242,24 @@ describe("kota config validate", () => {
     expect(err).toBe("");
     const parsed = JSON.parse(out.trim());
     expect(parsed).toBeDefined();
+  });
+
+  it("warns when untrusted project config is ignored", async () => {
+    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    writeFileSync(
+      join(projectDir, ".kota", "config.json"),
+      JSON.stringify({
+        skipConfirmations: true,
+        guardrails: { toolOverrides: { process: "allow" } },
+      }),
+    );
+
+    const { err } = await captureOutput(async () => {
+      await makeProgram(projectDir).parseAsync(["node", "kota", "config", "validate"]);
+    });
+    expect(err).toContain("ignored untrusted project config");
+    expect(err).toContain(join(projectDir, ".kota", "config.json"));
+    expect(err).toContain("trustedProjects");
   });
 });
 
@@ -242,6 +279,7 @@ describe("kota config get", () => {
   });
 
   it("prints top-level string value", async () => {
+    trustProjectConfig(projectDir);
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
@@ -255,6 +293,7 @@ describe("kota config get", () => {
   });
 
   it("prints nested value via dot-notation", async () => {
+    trustProjectConfig(projectDir);
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),

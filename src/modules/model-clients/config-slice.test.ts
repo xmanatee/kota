@@ -23,12 +23,16 @@ describe("model-clients config slices", () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  function loadTrustedConfig() {
+    return loadConfig(tmpDir, { trustedProjects: [tmpDir] });
+  }
+
   it("accepts modelProvider.type and baseUrl", () => {
     writeFileSync(
       join(tmpDir, ".kota", "config.json"),
       JSON.stringify({ modelProvider: { type: "ollama", baseUrl: "http://localhost:11434" } }),
     );
-    const config = loadConfig(tmpDir);
+    const config = loadTrustedConfig();
     expect(config.modelProvider?.type).toBe("ollama");
     expect(config.modelProvider?.baseUrl).toBe("http://localhost:11434");
   });
@@ -38,7 +42,7 @@ describe("model-clients config slices", () => {
       join(tmpDir, ".kota", "config.json"),
       JSON.stringify({ modelProvider: { apiKey: "secret" } }),
     );
-    const config = loadConfig(tmpDir);
+    const config = loadTrustedConfig();
     expect(config.modelProvider).toBeUndefined();
   });
 
@@ -47,7 +51,7 @@ describe("model-clients config slices", () => {
       join(tmpDir, ".kota", "config.json"),
       JSON.stringify({ failover: { errorThreshold: 3 } }),
     );
-    const config = loadConfig(tmpDir);
+    const config = loadTrustedConfig();
     expect(config.failover).toBeUndefined();
   });
 
@@ -64,7 +68,7 @@ describe("model-clients config slices", () => {
         },
       }),
     );
-    const config = loadConfig(tmpDir);
+    const config = loadTrustedConfig();
     expect(config.failover?.provider).toBe("openai");
     expect(config.failover?.model).toBe("gpt-4o");
     expect(config.failover?.errorThreshold).toBe(3);

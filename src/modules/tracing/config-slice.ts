@@ -47,6 +47,7 @@ export const tracingConfigSlice: ModuleConfigSlice<"tracing"> = {
   description: "OpenTelemetry trace, metrics, and security log export config",
   sanitize: sanitizeTracing,
   merge: (base, override) => ({ ...base, ...override }),
+  projectConfigSafety: "authority",
   schemaSource: {
     relativePath: "src/modules/tracing/config-slice.ts",
     typeName: "TracingConfig",

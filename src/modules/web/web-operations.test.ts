@@ -16,7 +16,7 @@
  * path through `node dist/cli.js serve`.
  */
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import type { Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -104,6 +104,29 @@ describe("web local handler cold-start", () => {
     const res = await fetchJson(address.port, "/api/health");
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ status: "ok" });
+  });
+
+  it("warns when serve ignores untrusted project config", async () => {
+    mkdirSync(join(cwd, ".kota"), { recursive: true });
+    writeFileSync(
+      join(cwd, ".kota", "config.json"),
+      JSON.stringify({
+        serve: { noAuth: true },
+        guardrails: { toolOverrides: { process: "allow" } },
+      }),
+    );
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    let warnings = "";
+    try {
+      await localWebClient(stubCtx(cwd, {})).start({ port: 0, noAuth: true });
+      warnings = warnSpy.mock.calls.map((call) => call.join(" ")).join("\n");
+    } finally {
+      warnSpy.mockRestore();
+    }
+    expect(warnings).toContain("ignored untrusted project config");
+    expect(warnings).toContain(join(cwd, ".kota", "config.json"));
+    expect(warnings).toContain("server/auth posture (serve)");
+    expect(warnings).toContain("trustedProjects");
   });
 
   it("rejects unconfigured-posture session creation with the canonical resolver error", async () => {

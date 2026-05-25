@@ -13,6 +13,19 @@ import {
   removeWebhookSecret,
 } from "./webhook-operations.js";
 
+const { FAKE_HOME } = vi.hoisted(() => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { join } = require("node:path") as typeof import("node:path");
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { tmpdir } = require("node:os") as typeof import("node:os");
+  return { FAKE_HOME: join(tmpdir(), `kota-webhook-cli-home-${Date.now()}`) };
+});
+
+vi.mock("node:os", async (importOriginal) => {
+  const original = await importOriginal<typeof import("node:os")>();
+  return { ...original, homedir: () => FAKE_HOME };
+});
+
 function workflowDef(
   name: string,
   triggers: RegisteredWorkflowDefinitionInput["triggers"],
@@ -56,6 +69,18 @@ function stubCtxWithLocalClient(
 
 function makeProjectDir(): string {
   return mkdtempSync(join(tmpdir(), "kota-webhook-cli-"));
+}
+
+afterEach(() => {
+  rmSync(FAKE_HOME, { recursive: true, force: true });
+});
+
+function trustProjectConfig(projectDir: string): void {
+  mkdirSync(join(FAKE_HOME, ".kota"), { recursive: true });
+  writeFileSync(
+    join(FAKE_HOME, ".kota", "config.json"),
+    JSON.stringify({ trustedProjects: [projectDir] }),
+  );
 }
 
 function makeProgram(ctx: ModuleContext): Command {
@@ -123,6 +148,7 @@ describe("kota webhook list", () => {
   });
 
   it("shows configured status when a secret exists in config", async () => {
+    trustProjectConfig(projectDir);
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
@@ -137,6 +163,7 @@ describe("kota webhook list", () => {
   });
 
   it("never prints secret values", async () => {
+    trustProjectConfig(projectDir);
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
@@ -203,6 +230,7 @@ describe("kota webhook secret generate", () => {
   });
 
   it("warns when overwriting an existing secret", async () => {
+    trustProjectConfig(projectDir);
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
@@ -277,6 +305,7 @@ describe("kota webhook secret remove", () => {
   });
 
   it("removes webhook entry from config", async () => {
+    trustProjectConfig(projectDir);
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
@@ -304,6 +333,7 @@ describe("kota webhook secret remove", () => {
   });
 
   it("removes webhooks key entirely when last entry is deleted", async () => {
+    trustProjectConfig(projectDir);
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),

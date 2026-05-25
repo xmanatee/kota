@@ -1,5 +1,9 @@
 import { join } from "node:path";
-import { warnInvalidConcurrencyConfig, warnUnknownConfigKeys } from "#core/config/config-warnings.js";
+import {
+  warnIgnoredUntrustedProjectConfig,
+  warnInvalidConcurrencyConfig,
+  warnUnknownConfigKeys,
+} from "#core/config/config-warnings.js";
 import { startChannel } from "./daemon-channel-start.js";
 import type { DaemonRuntimeContext } from "./daemon-init.js";
 import { acquireInstanceLock, writeControlFile } from "./daemon-instance-lock.js";
@@ -49,6 +53,7 @@ export async function runDaemonStartup(
   ctx.workflows.validateDefinitions();
 
   ctx.log("Daemon starting...");
+  warnIgnoredUntrustedProjectConfig(ctx.projectDir, ctx.log);
   warnUnknownConfigKeys(ctx.projectDir, ctx.log, ctx.config.moduleConfigKeys);
   warnInvalidConcurrencyConfig(ctx.projectDir, ctx.log);
 

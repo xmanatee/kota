@@ -20,6 +20,7 @@ const CORE_KEYS: ReadonlySet<string> = new Set<keyof CoreKotaConfig>([
   "thinkingBudget",
   "verbose",
   "skipConfirmations",
+  "trustedProjects",
   "autoEnable",
   "user",
   "aliases",

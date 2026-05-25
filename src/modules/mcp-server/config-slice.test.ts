@@ -22,12 +22,16 @@ describe("mcp config slice", () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  function loadTrustedConfig() {
+    return loadConfig(tmpDir, { trustedProjects: [tmpDir] });
+  }
+
   it("accepts mcp.sampling.enabled", () => {
     writeFileSync(
       join(tmpDir, ".kota", "config.json"),
       JSON.stringify({ mcp: { sampling: { enabled: true } } }),
     );
-    const config = loadConfig(tmpDir);
+    const config = loadTrustedConfig();
     expect(config.mcp?.sampling?.enabled).toBe(true);
   });
 
@@ -36,7 +40,7 @@ describe("mcp config slice", () => {
       join(tmpDir, ".kota", "config.json"),
       JSON.stringify({ mcp: { sampling: {} } }),
     );
-    const config = loadConfig(tmpDir);
+    const config = loadTrustedConfig();
     expect(config.mcp).toBeUndefined();
   });
 });

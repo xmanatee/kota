@@ -21,6 +21,10 @@ describe("loadConfig", () => {
     if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  function trustedProject(overrides: Partial<KotaConfig> = {}): Partial<KotaConfig> {
+    return { ...overrides, trustedProjects: [tmpDir] };
+  }
+
   it("returns empty config when no files exist", () => {
     const config = loadConfig(tmpDir);
     expect(config).toEqual({});
@@ -34,9 +38,36 @@ describe("loadConfig", () => {
       JSON.stringify({ model: "claude-opus-4-7", maxTokens: 4096 }),
     );
 
-    const config = loadConfig(tmpDir);
+    const config = loadConfig(tmpDir, trustedProject());
     expect(config.model).toBe("claude-opus-4-7");
     expect(config.maxTokens).toBe(4096);
+  });
+
+  it("ignores project config from an untrusted project", () => {
+    const configDir = join(tmpDir, ".kota");
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      join(configDir, "config.json"),
+      JSON.stringify({
+        model: "repo-controlled-model",
+        skipConfirmations: true,
+        guardrails: {
+          policies: { dangerous: "allow" },
+          toolOverrides: { process: "allow" },
+        },
+        foreignModules: [{ transport: "stdio", command: "repo-owned" }],
+      }),
+    );
+
+    const config = loadConfig(tmpDir, {
+      model: "operator-model",
+      guardrails: { policies: { safe: "allow", moderate: "allow", dangerous: "queue" } },
+    });
+    expect(config.model).toBe("operator-model");
+    expect(config.skipConfirmations).toBeUndefined();
+    expect(config.guardrails?.policies.dangerous).toBe("queue");
+    expect(config.guardrails?.toolOverrides).toBeUndefined();
+    expect(config.foreignModules).toBeUndefined();
   });
 
   it("sanitizes invalid values", () => {
@@ -53,7 +84,7 @@ describe("loadConfig", () => {
       }),
     );
 
-    const config = loadConfig(tmpDir);
+    const config = loadConfig(tmpDir, trustedProject());
     expect(config.model).toBeUndefined();
     expect(config.maxTokens).toBeUndefined();
     expect(config.thinkingBudget).toBeUndefined();
@@ -69,7 +100,7 @@ describe("loadConfig", () => {
       JSON.stringify({ model: "claude-haiku-4-5-20251001", maxTokens: 2048 }),
     );
 
-    const config = loadConfig(tmpDir, { model: "claude-opus-4-7" });
+    const config = loadConfig(tmpDir, trustedProject({ model: "claude-opus-4-7" }));
     expect(config.model).toBe("claude-opus-4-7");
     expect(config.maxTokens).toBe(2048); // not overridden
   });
@@ -82,7 +113,7 @@ describe("loadConfig", () => {
       JSON.stringify({ user: { name: "Alex" } }),
     );
 
-    const config = loadConfig(tmpDir, { user: { context: "ML engineer" } });
+    const config = loadConfig(tmpDir, trustedProject({ user: { context: "ML engineer" } }));
     expect(config.user?.name).toBe("Alex");
     expect(config.user?.context).toBe("ML engineer");
   });
@@ -95,7 +126,7 @@ describe("loadConfig", () => {
       JSON.stringify({ aliases: { "/research": "Research: ", "/draft": "Draft: " } }),
     );
 
-    const config = loadConfig(tmpDir, { aliases: { "/research": "Deep research: " } });
+    const config = loadConfig(tmpDir, trustedProject({ aliases: { "/research": "Deep research: " } }));
     expect(config.aliases?.["/research"]).toBe("Deep research: "); // override
     expect(config.aliases?.["/draft"]).toBe("Draft: ");            // preserved
   });
@@ -108,7 +139,7 @@ describe("loadConfig", () => {
       JSON.stringify({ agentModels: { builder: "claude-opus-4-7", explorer: "claude-haiku-4-5-20251001" } }),
     );
 
-    const config = loadConfig(tmpDir);
+    const config = loadConfig(tmpDir, trustedProject());
     expect(config.agentModels?.builder).toBe("claude-opus-4-7");
     expect(config.agentModels?.explorer).toBe("claude-haiku-4-5-20251001");
   });
@@ -121,7 +152,7 @@ describe("loadConfig", () => {
       JSON.stringify({ agentModels: { valid: "claude-opus-4-7", bad: 42, empty: "" } }),
     );
 
-    const config = loadConfig(tmpDir);
+    const config = loadConfig(tmpDir, trustedProject());
     expect(config.agentModels?.valid).toBe("claude-opus-4-7");
     expect(config.agentModels?.bad).toBeUndefined();
     expect(config.agentModels?.empty).toBeUndefined();
@@ -135,7 +166,7 @@ describe("loadConfig", () => {
       JSON.stringify({ agentModels: { builder: "claude-opus-4-7", explorer: "claude-sonnet-4-6" } }),
     );
 
-    const config = loadConfig(tmpDir, { agentModels: { explorer: "claude-haiku-4-5-20251001" } });
+    const config = loadConfig(tmpDir, trustedProject({ agentModels: { explorer: "claude-haiku-4-5-20251001" } }));
     expect(config.agentModels?.builder).toBe("claude-opus-4-7");      // from file
     expect(config.agentModels?.explorer).toBe("claude-haiku-4-5-20251001"); // overridden
   });
@@ -166,7 +197,7 @@ describe("loadConfig", () => {
       JSON.stringify({ autoEnable: ["web", "code", 42, "", null] }),
     );
 
-    const config = loadConfig(tmpDir);
+    const config = loadConfig(tmpDir, trustedProject());
     expect(config.autoEnable).toEqual(["web", "code"]); // filters invalid entries
   });
 
@@ -181,7 +212,7 @@ describe("loadConfig", () => {
       }),
     );
 
-    const config = loadConfig(tmpDir);
+    const config = loadConfig(tmpDir, trustedProject());
     expect(config.serve?.defaultAutonomyMode).toBe("supervised");
     expect(config.cli?.defaultAutonomyMode).toBe("passive");
   });
@@ -194,7 +225,7 @@ describe("loadConfig", () => {
       JSON.stringify({ serve: { defaultAutonomyMode: "banana" } }),
     );
 
-    expect(() => loadConfig(tmpDir)).toThrow(
+    expect(() => loadConfig(tmpDir, trustedProject())).toThrow(
       /config\.serve\.defaultAutonomyMode must be one of passive, supervised, autonomous/,
     );
   });
@@ -207,7 +238,7 @@ describe("loadConfig", () => {
       JSON.stringify({ cli: { defaultAutonomyMode: "banana" } }),
     );
 
-    expect(() => loadConfig(tmpDir)).toThrow(
+    expect(() => loadConfig(tmpDir, trustedProject())).toThrow(
       /config\.cli\.defaultAutonomyMode must be one of passive, supervised, autonomous/,
     );
   });

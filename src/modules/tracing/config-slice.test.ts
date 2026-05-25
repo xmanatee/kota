@@ -22,12 +22,16 @@ describe("tracing config slice", () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  function loadTrustedConfig() {
+    return loadConfig(tmpDir, { trustedProjects: [tmpDir] });
+  }
+
   it("requires endpoint to enable tracing", () => {
     writeFileSync(
       join(tmpDir, ".kota", "config.json"),
       JSON.stringify({ tracing: { samplingRate: 0.5 } }),
     );
-    const config = loadConfig(tmpDir);
+    const config = loadTrustedConfig();
     expect(config.tracing).toBeUndefined();
   });
 
@@ -45,7 +49,7 @@ describe("tracing config slice", () => {
         },
       }),
     );
-    const config = loadConfig(tmpDir);
+    const config = loadTrustedConfig();
     expect(config.tracing?.endpoint).toBe("http://localhost:4318/v1/traces");
     expect(config.tracing?.metricsEndpoint).toBe("http://localhost:4318/v1/metrics");
     expect(config.tracing?.logsEndpoint).toBe("http://localhost:4318/v1/logs");
@@ -59,7 +63,7 @@ describe("tracing config slice", () => {
       join(tmpDir, ".kota", "config.json"),
       JSON.stringify({ tracing: { endpoint: "http://x", samplingRate: 2 } }),
     );
-    const config = loadConfig(tmpDir);
+    const config = loadTrustedConfig();
     expect(config.tracing?.endpoint).toBe("http://x");
     expect(config.tracing?.samplingRate).toBeUndefined();
   });

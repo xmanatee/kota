@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
@@ -9,6 +9,19 @@ import {
   listWebhooks,
   removeWebhookSecret,
 } from "./webhook-operations.js";
+
+const { FAKE_HOME } = vi.hoisted(() => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { join } = require("node:path") as typeof import("node:path");
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { tmpdir } = require("node:os") as typeof import("node:os");
+  return { FAKE_HOME: join(tmpdir(), `kota-webhook-ops-home-${Date.now()}`) };
+});
+
+vi.mock("node:os", async (importOriginal) => {
+  const original = await importOriginal<typeof import("node:os")>();
+  return { ...original, homedir: () => FAKE_HOME };
+});
 
 function workflowDef(
   name: string,
@@ -32,6 +45,18 @@ function stubCtx(
     config: {},
     getContributedWorkflows: () => workflows,
   } as unknown as ModuleContext;
+}
+
+afterEach(() => {
+  rmSync(FAKE_HOME, { recursive: true, force: true });
+});
+
+function trustProjectConfig(projectDir: string): void {
+  mkdirSync(join(FAKE_HOME, ".kota"), { recursive: true });
+  writeFileSync(
+    join(FAKE_HOME, ".kota", "config.json"),
+    JSON.stringify({ trustedProjects: [projectDir] }),
+  );
 }
 
 describe("webhook-operations (local handler / daemon-up shared logic)", () => {
@@ -58,6 +83,7 @@ describe("webhook-operations (local handler / daemon-up shared logic)", () => {
   });
 
   it("listWebhooks reports configured status when a secret exists in config", () => {
+    trustProjectConfig(projectDir);
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
@@ -88,6 +114,7 @@ describe("webhook-operations (local handler / daemon-up shared logic)", () => {
   });
 
   it("generateWebhookSecret reports overwrote: true when an existing secret was replaced", () => {
+    trustProjectConfig(projectDir);
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
@@ -123,6 +150,7 @@ describe("webhook-operations (local handler / daemon-up shared logic)", () => {
   });
 
   it("removeWebhookSecret deletes the entry and preserves siblings", () => {
+    trustProjectConfig(projectDir);
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
@@ -143,6 +171,7 @@ describe("webhook-operations (local handler / daemon-up shared logic)", () => {
   });
 
   it("removeWebhookSecret drops the webhooks key entirely when last entry is deleted", () => {
+    trustProjectConfig(projectDir);
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
@@ -158,6 +187,7 @@ describe("webhook-operations (local handler / daemon-up shared logic)", () => {
   });
 
   it("listWebhooks does not surface secret values", () => {
+    trustProjectConfig(projectDir);
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),

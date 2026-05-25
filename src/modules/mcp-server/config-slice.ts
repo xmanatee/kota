@@ -44,6 +44,7 @@ export const mcpConfigSlice: ModuleConfigSlice<"mcp"> = {
   description: "MCP server and sampling configuration",
   sanitize: sanitizeMcp,
   merge: (base, override) => ({ ...base, ...override }),
+  projectConfigSafety: "authority",
   schemaSource: {
     relativePath: "src/modules/mcp-server/config-slice.ts",
     typeName: "McpConfig",

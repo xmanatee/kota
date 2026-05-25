@@ -22,12 +22,16 @@ describe("scheduler config slice", () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  function loadTrustedConfig(overrides = {}) {
+    return loadConfig(tmpDir, { ...overrides, trustedProjects: [tmpDir] });
+  }
+
   it("loads agentConcurrency and codeConcurrency", () => {
     writeFileSync(
       join(tmpDir, ".kota", "config.json"),
       JSON.stringify({ scheduler: { agentConcurrency: 2, codeConcurrency: 8 } }),
     );
-    const config = loadConfig(tmpDir);
+    const config = loadTrustedConfig();
     expect(config.scheduler?.agentConcurrency).toBe(2);
     expect(config.scheduler?.codeConcurrency).toBe(8);
   });
@@ -38,7 +42,7 @@ describe("scheduler config slice", () => {
         join(tmpDir, ".kota", "config.json"),
         JSON.stringify({ scheduler: { agentConcurrency: val } }),
       );
-      const config = loadConfig(tmpDir);
+      const config = loadTrustedConfig();
       expect(config.scheduler?.agentConcurrency).toBeUndefined();
     }
   });
@@ -50,7 +54,7 @@ describe("scheduler config slice", () => {
         scheduler: { codeConcurrency: 0, dispatchWindow: { start: "09:00", end: "18:00" } },
       }),
     );
-    const config = loadConfig(tmpDir);
+    const config = loadTrustedConfig();
     expect(config.scheduler?.codeConcurrency).toBeUndefined();
     expect(config.scheduler?.dispatchWindow).toBeDefined();
   });
@@ -60,7 +64,7 @@ describe("scheduler config slice", () => {
       join(tmpDir, ".kota", "config.json"),
       JSON.stringify({ scheduler: { agentConcurrency: 1 } }),
     );
-    const config = loadConfig(tmpDir, { scheduler: { codeConcurrency: 4 } });
+    const config = loadTrustedConfig({ scheduler: { codeConcurrency: 4 } });
     expect(config.scheduler?.agentConcurrency).toBe(1);
     expect(config.scheduler?.codeConcurrency).toBe(4);
   });

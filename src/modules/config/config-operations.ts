@@ -11,7 +11,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadConfig, updateProjectConfig } from "#core/config/config.js";
+import { loadConfig, loadConfigWithDiagnostics, updateProjectConfig } from "#core/config/config.js";
 import { KNOWN_CONFIG_KEYS } from "#core/config/config-warnings.js";
 import type {
   ConfigGetResult,
@@ -45,13 +45,14 @@ export function validateConfig(
 ): ConfigValidateResult {
   const globalPath = join(homedir(), ".kota", "config.json");
   const projectPath = join(projectDir, ".kota", "config.json");
-  const resolved = loadConfig(projectDir);
+  const diagnostics = loadConfigWithDiagnostics(projectDir);
+  const resolved = diagnostics.config;
 
   const sources: ConfigValidateResult["sources"] = [];
   if (existsSync(globalPath)) sources.push({ label: "global", path: globalPath });
   if (existsSync(projectPath)) sources.push({ label: "project", path: projectPath });
 
-  const warnings: string[] = [];
+  const warnings: string[] = [...diagnostics.warnings];
   for (const { label, path } of sources) {
     const keys = readRawKeys(path);
     if (!keys) continue;

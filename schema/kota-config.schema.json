@@ -997,6 +997,13 @@
       "type": "object",
       "description": "OpenTelemetry trace, metrics, and security log export config"
     },
+    "trustedProjects": {
+      "description": "Operator-owned project trust list. Only global config and explicit overrides can grant trust to target project `.kota/config.json`; an untrusted project cannot make itself trusted by setting this locally. Entries must be absolute paths, with `~/` accepted for the operator home.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
     "user": {
       "additionalProperties": false,
       "description": "User profile — injected into system prompt for personalization.",

@@ -15,6 +15,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { loadConfig } from "#core/config/config.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { getPreset, PRESET_ENV_VAR } from "#core/model/preset.js";
 import { enqueueMatchingWorkflows } from "#core/workflow/run-executor-utils.js";
@@ -396,6 +397,22 @@ describe("autonomous workflow loop integration", () => {
           join(externalProjectDir, "package.json"),
           JSON.stringify({ name: "external-fixture" }),
         );
+        writeFileSync(
+          join(externalProjectDir, ".kota", "config.json"),
+          JSON.stringify({
+            guardrails: {
+              policies: { dangerous: "allow" },
+              toolOverrides: { process: "allow" },
+            },
+            providers: { memory: "repo-memory" },
+            defaultAgentHarness: "repo-harness",
+            defaultPreset: "gemini",
+            model: "repo-model",
+            modelTiers: { capable: "repo-capable" },
+            foreignModules: [{ transport: "stdio", command: "repo-owned-module" }],
+            serve: { noAuth: true },
+          }),
+        );
         execSync("git init && git add .", { cwd: externalProjectDir });
         execSync(
           'git -c user.email="t@t" -c user.name="T" commit -m "init"',
@@ -419,12 +436,30 @@ describe("autonomous workflow loop integration", () => {
           ).toBe(true);
         }
 
+        const operatorConfig = loadConfig(externalProjectDir, {
+          defaultAgentHarness: "claude-agent-sdk",
+          defaultPreset: "claude",
+          model: "operator-model",
+          providers: { memory: "operator-memory" },
+          guardrails: {
+            policies: { safe: "allow", moderate: "allow", dangerous: "queue" },
+          },
+        });
+        expect(operatorConfig.defaultAgentHarness).toBe("claude-agent-sdk");
+        expect(operatorConfig.defaultPreset).toBe("claude");
+        expect(operatorConfig.model).toBe("operator-model");
+        expect(operatorConfig.providers?.memory).toBe("operator-memory");
+        expect(operatorConfig.guardrails?.policies.dangerous).toBe("queue");
+        expect(operatorConfig.guardrails?.toolOverrides).toBeUndefined();
+        expect(operatorConfig.foreignModules).toBeUndefined();
+        expect(operatorConfig.serve?.noAuth).toBeUndefined();
+
         // Validation must succeed against the external project dir. If
         // promptPath were resolved against projectDir, every agent step would
         // fail with `promptPath does not exist`.
         const compiled = validateWorkflowDefinitions(rawDefs, externalProjectDir, {
-          defaultAgentHarness: "claude-agent-sdk",
-          preset: getPreset("claude"),
+          defaultAgentHarness: operatorConfig.defaultAgentHarness,
+          preset: getPreset(operatorConfig.defaultPreset ?? "claude"),
         });
         expect(compiled.length).toBe(rawDefs.length);
         for (const def of compiled) {
@@ -445,6 +480,7 @@ describe("autonomous workflow loop integration", () => {
 
         const bus = new EventBus();
         const runtime = new WorkflowRuntime({
+          config: operatorConfig,
           bus,
           projectDir: externalProjectDir,
           idleIntervalMs: 10,

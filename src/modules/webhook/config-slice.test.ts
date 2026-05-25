@@ -22,12 +22,16 @@ describe("webhook config slice", () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  function loadTrustedConfig(overrides = {}) {
+    return loadConfig(tmpDir, { ...overrides, trustedProjects: [tmpDir] });
+  }
+
   it("accepts a per-workflow secret table", () => {
     writeFileSync(
       join(tmpDir, ".kota", "config.json"),
       JSON.stringify({ webhooks: { trigger: { secret: "abc" }, alarm: { secret: "xyz" } } }),
     );
-    const config = loadConfig(tmpDir);
+    const config = loadTrustedConfig();
     expect(config.webhooks?.trigger).toEqual({ secret: "abc" });
     expect(config.webhooks?.alarm).toEqual({ secret: "xyz" });
   });
@@ -37,7 +41,7 @@ describe("webhook config slice", () => {
       join(tmpDir, ".kota", "config.json"),
       JSON.stringify({ webhooks: { good: { secret: "ok" }, bad: { secret: "" }, empty: {} } }),
     );
-    const config = loadConfig(tmpDir);
+    const config = loadTrustedConfig();
     expect(config.webhooks?.good).toEqual({ secret: "ok" });
     expect(config.webhooks?.bad).toBeUndefined();
     expect(config.webhooks?.empty).toBeUndefined();
@@ -48,7 +52,7 @@ describe("webhook config slice", () => {
       join(tmpDir, ".kota", "config.json"),
       JSON.stringify({ webhooks: { workflow_a: { secret: "a" } } }),
     );
-    const config = loadConfig(tmpDir, { webhooks: { workflow_b: { secret: "b" } } });
+    const config = loadTrustedConfig({ webhooks: { workflow_b: { secret: "b" } } });
     expect(config.webhooks?.workflow_a).toEqual({ secret: "a" });
     expect(config.webhooks?.workflow_b).toEqual({ secret: "b" });
   });

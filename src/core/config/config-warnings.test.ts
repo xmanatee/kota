@@ -2,7 +2,12 @@ import { mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { KNOWN_CONFIG_KEYS, warnInvalidConcurrencyConfig, warnUnknownConfigKeys } from "./config-warnings.js";
+import {
+  KNOWN_CONFIG_KEYS,
+  warnIgnoredUntrustedProjectConfig,
+  warnInvalidConcurrencyConfig,
+  warnUnknownConfigKeys,
+} from "./config-warnings.js";
 
 function makeProjectDir(): string {
   const dir = join(
@@ -105,7 +110,7 @@ describe("KNOWN_CONFIG_KEYS", () => {
   it("contains the core-owned keys", () => {
     const expected = [
       "model", "editorModel", "maxTokens", "thinking", "thinkingBudget",
-      "verbose", "skipConfirmations", "autoEnable", "user", "aliases", "reflection",
+      "verbose", "skipConfirmations", "trustedProjects", "autoEnable", "user", "aliases", "reflection",
       "guardrails", "modules", "foreignModules", "providers",
       "modelTiers", "agentModels", "defaultAgentHarness", "defaultPreset", "approvalTtlMs",
       "runsGc", "serve", "cli", "log", "daemon", "notifications", "workflow",
@@ -120,6 +125,46 @@ describe("KNOWN_CONFIG_KEYS", () => {
     for (const key of ["scheduler", "webhooks", "mcp", "tracing", "failover", "modelProvider"]) {
       expect(KNOWN_CONFIG_KEYS.has(key), `should not contain module key: ${key}`).toBe(false);
     }
+  });
+});
+
+describe("warnIgnoredUntrustedProjectConfig", () => {
+  let projectDir: string;
+
+  beforeEach(() => {
+    projectDir = makeProjectDir();
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("warns with the project config path and rejected key classes", () => {
+    writeFileSync(
+      join(projectDir, ".kota", "config.json"),
+      JSON.stringify({
+        guardrails: { toolOverrides: { process: "allow" } },
+        skipConfirmations: true,
+        defaultAgentHarness: "repo-harness",
+        providers: { memory: "repo-memory" },
+        foreignModules: [{ transport: "stdio", command: "repo-owned" }],
+        serve: { noAuth: true },
+        modules: { browser: { storageStatePath: "repo-profile" } },
+      }),
+    );
+
+    const warnings: string[] = [];
+    warnIgnoredUntrustedProjectConfig(projectDir, (msg) => warnings.push(msg));
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain(join(projectDir, ".kota", "config.json"));
+    expect(warnings[0]).toContain("guardrail policy (guardrails)");
+    expect(warnings[0]).toContain("confirmation policy (skipConfirmations)");
+    expect(warnings[0]).toContain("harness/preset selection (defaultAgentHarness)");
+    expect(warnings[0]).toContain("model/provider routing (providers)");
+    expect(warnings[0]).toContain("foreign module launch (foreignModules)");
+    expect(warnings[0]).toContain("server/auth posture (serve)");
+    expect(warnings[0]).toContain("module config (modules)");
+    expect(warnings[0]).toContain("trustedProjects");
   });
 });
 

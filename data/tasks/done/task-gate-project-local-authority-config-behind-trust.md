@@ -1,12 +1,14 @@
 ---
 id: task-gate-project-local-authority-config-behind-trust
 title: Gate project-local authority config behind trust
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Add a trust boundary for project-local .kota/config.json so external projects cannot weaken guardrails, redirect providers, switch harnesses, or launch foreign modules unless the operator has explicitly trusted that project.
 created_at: 2026-05-25T04:57:31.465Z
-updated_at: 2026-05-25T04:57:31.465Z
+updated_at: 2026-05-25T05:20:32.921Z
+completed_at: 2026-05-25T05:20:32.921Z
+completed_by: builder (run 2026-05-25T05-00-01-234Z-builder-q0dv99)
 ---
 
 ## Problem

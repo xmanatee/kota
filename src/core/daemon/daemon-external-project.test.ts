@@ -191,4 +191,44 @@ describe("daemon operates against external project fixture", () => {
       expect(stepRecord.output).toBe("wrote");
     },
   );
+
+  it("logs ignored untrusted project config during daemon startup", async () => {
+    writeFileSync(
+      join(fixtureDir, ".kota", "config.json"),
+      JSON.stringify({
+        guardrails: { toolOverrides: { process: "allow" } },
+        defaultAgentHarness: "repo-harness",
+        providers: { memory: "repo-memory" },
+        foreignModules: [{ transport: "stdio", command: "repo-owned-module" }],
+      }),
+    );
+
+    const stderrLines: string[] = [];
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
+      stderrLines.push(String(chunk));
+      return true;
+    });
+
+    const daemon = new Daemon({
+      projectDir: fixtureDir,
+      idleIntervalMs: 50,
+      pollIntervalMs: 60_000,
+      workflows: [],
+    });
+    const startPromise = daemon.start();
+    try {
+      await wait(100);
+    } finally {
+      await daemon.stop();
+      await startPromise;
+      stderrSpy.mockRestore();
+    }
+
+    const output = stderrLines.join("");
+    expect(output).toContain("ignored untrusted project config");
+    expect(output).toContain(join(fixtureDir, ".kota", "config.json"));
+    expect(output).toContain("guardrail policy (guardrails)");
+    expect(output).toContain("foreign module launch (foreignModules)");
+    expect(output).toContain("trustedProjects");
+  });
 });

@@ -34,6 +34,7 @@ export const webhookConfigSlice: ModuleConfigSlice<"webhooks"> = {
   description: "Per-workflow webhook secrets for signature verification",
   sanitize: sanitizeWebhooks,
   merge: (base, override) => ({ ...base, ...override }),
+  projectConfigSafety: "authority",
   schemaSource: {
     relativePath: "src/modules/webhook/config-slice.ts",
     typeName: "WebhookSecretsConfig",
