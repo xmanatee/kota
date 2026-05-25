@@ -238,6 +238,29 @@ describe("security-review workflow", () => {
     expect(() => assertTaskQueueValid(projectDir, { minReady: 0 })).not.toThrow();
   });
 
+  it("keeps the revalidation prompt aligned with the required summary field", () => {
+    const prompt = readFileSync(new URL("./prompt.md", import.meta.url), "utf-8");
+
+    expect(prompt).toContain("top-level `summary`");
+    expect(() =>
+      decodeSecurityRevalidationOutputForInvestigation(
+        {
+          findings: [],
+          summary: "No confirmed findings.",
+        },
+        { findings: [] },
+      ),
+    ).not.toThrow();
+    expect(() =>
+      decodeSecurityRevalidationOutputForInvestigation(
+        {
+          findings: [],
+        },
+        { findings: [] },
+      ),
+    ).toThrow(/summary/);
+  });
+
   it("turns confirmed revalidation findings into tasks and leaves rejected findings in artifacts", async () => {
     writeProjectFile("src/modules/web-access/web-fetch.ts", "await fetch(url, { headers });\n");
     writeProjectFile("src/modules/secrets/index.ts", "const token = await get_secret('TOKEN');\n");

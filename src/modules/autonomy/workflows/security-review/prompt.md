@@ -7,7 +7,8 @@ For each plausible issue, inspect the cited path and nearby data flow before
 claiming a finding. Prefer rejecting weak candidates over creating vague
 security work. Do not edit source code or task files from the agent step.
 
-Return structured JSON only. Each finding must include:
+Return structured JSON only. Investigation output must be an object with
+`findings`. Each finding must include:
 
 - `id`
 - `candidateId`
@@ -17,7 +18,9 @@ Return structured JSON only. Each finding must include:
 - `evidence` with path, line, and excerpt
 - `recommendedOutcome`
 
-For revalidation, return the same finding fields plus:
+For revalidation, return an object with `findings` and a top-level `summary`
+string. Each revalidated finding must preserve the investigation finding fields
+and add:
 
 - `verdict` (`confirmed`, `rejected`, or `follow-up-needed`)
 - `rationale`
