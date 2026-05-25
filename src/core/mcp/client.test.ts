@@ -2626,6 +2626,667 @@ describe("McpClient Streamable HTTP transport", () => {
     expect(JSON.stringify(result)).not.toContain("code-1");
   });
 
+  it("completes OAuth client credentials authorization and retries protected Streamable HTTP requests with a scoped token", async () => {
+    const requests: RecordedClientHttpRequest[] = [];
+    let resolverCalled = false;
+    mockClientHttpFetch((request) => {
+      requests.push(request);
+      if (
+        request.body.method === "server/discover" &&
+        request.headers.get("authorization") === null
+      ) {
+        expect(
+          request.body.params?._meta?.["io.modelcontextprotocol/clientCapabilities"]
+            ?.extensions?.["io.modelcontextprotocol/oauth-client-credentials"],
+        ).toEqual({});
+      }
+      if (request.method === "GET" && request.url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp") {
+        return new Response(JSON.stringify({
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+          scopes_supported: ["files:read"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "GET" && request.url === "https://auth.example.test/.well-known/oauth-authorization-server") {
+        return new Response(JSON.stringify({
+          issuer: "https://auth.example.test",
+          token_endpoint: "https://auth.example.test/token",
+          token_endpoint_auth_methods_supported: ["client_secret_basic"],
+          scopes_supported: ["files:read"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "POST" && request.url === "https://auth.example.test/token") {
+        expect(request.headers.get("authorization")).toBe(
+          "Basic a290YS1jbGllbnQ6Y2xpZW50LXNlY3JldA==",
+        );
+        expect(request.form.get("grant_type")).toBe("client_credentials");
+        expect(request.form.get("resource")).toBe("https://mcp.example.test/mcp");
+        expect(request.form.get("scope")).toBe("files:read");
+        expect(request.form.get("client_secret")).toBeNull();
+        return new Response(JSON.stringify({
+          access_token: "client-credentials-token-secret",
+          token_type: "Bearer",
+          scope: "files:read",
+          expires_in: 3600,
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.body.method === "server/discover" && request.headers.get("authorization") === "Bearer client-credentials-token-secret") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: {} },
+          serverInfo: { name: "client-credentials-fixture" },
+        });
+      }
+      if (request.body.method === "tools/list" && request.headers.get("authorization") === "Bearer client-credentials-token-secret") {
+        return jsonRpcHttpResponse(request.body.id, {
+          tools: [{ name: "read_file", inputSchema: { type: "object" } }],
+        });
+      }
+      return new Response("missing client credentials token", {
+        status: 401,
+        headers: {
+          "www-authenticate": 'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", scope="files:read"',
+        },
+      });
+    });
+    client = new McpClient(
+      {
+        type: "http",
+        url: "https://mcp.example.test/mcp",
+        authorization: {
+          type: "oauth-client-credentials",
+          issuer: "https://auth.example.test",
+          scopes: ["files:read"],
+          tokenEndpointAuthMethod: "client_secret_basic",
+          client: {
+            kind: "registered",
+            clientId: "kota-client",
+            clientSecret: "client-secret",
+          },
+        },
+      },
+      "client-credentials-http-client",
+      {
+        authorizationResolver: async () => {
+          resolverCalled = true;
+          return {
+            callbackUrl: mcpOAuthSecret("https://client.example.test/callback?code=unused&state=unused"),
+          };
+        },
+      },
+    );
+
+    await client.connect();
+    const tools = await client.listTools();
+
+    expect(client.getName()).toBe("client-credentials-fixture");
+    expect(tools.map((tool) => tool.name)).toEqual(["read_file"]);
+    expect(resolverCalled).toBe(false);
+    expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
+      "POST https://mcp.example.test/mcp",
+      "GET https://mcp.example.test/.well-known/oauth-protected-resource/mcp",
+      "GET https://auth.example.test/.well-known/oauth-authorization-server",
+      "POST https://auth.example.test/token",
+      "POST https://mcp.example.test/mcp",
+      "POST https://mcp.example.test/mcp",
+    ]);
+  });
+
+  it("rejects malformed OAuth client credentials configuration before authorization", () => {
+    expect(() => new McpClient({
+      type: "http",
+      url: "https://mcp.example.test/mcp",
+      authorization: {
+        type: "oauth-client-credentials",
+        issuer: "https://auth.example.test",
+        scopes: ["files:read"],
+        tokenEndpointAuthMethod: "client_secret_basic",
+        client: {
+          kind: "registered",
+          clientId: "kota-client",
+        },
+      } as never,
+    }, "missing-client-secret")).toThrow(/clientSecret must be a non-empty string/);
+
+    expect(() => new McpClient({
+      type: "http",
+      url: "https://mcp.example.test/mcp",
+      authorization: {
+        type: "oauth-client-credentials",
+        issuer: "https://auth.example.test",
+        scopes: ["files:read"],
+        tokenEndpointAuthMethod: "private_key_jwt",
+        client: {
+          kind: "registered",
+          clientId: "kota-client",
+          clientSecret: "client-secret",
+        },
+      } as never,
+    }, "unsupported-client-auth-method")).toThrow(/tokenEndpointAuthMethod must be client_secret_basic/);
+  });
+
+  it("rejects OAuth client credentials metadata mismatches before using configured secrets", async () => {
+    for (const variant of [
+      {
+        name: "issuer-mismatch",
+        protectedResource: {
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://other-auth.example.test"],
+        },
+        authorizationServer: null,
+        challengeScope: "files:read",
+        expected: /issuer "https:\/\/auth\.example\.test".*not advertised/,
+      },
+      {
+        name: "resource-mismatch",
+        protectedResource: {
+          resource: "https://mcp.example.test/other",
+          authorization_servers: ["https://auth.example.test"],
+        },
+        authorizationServer: null,
+        challengeScope: "files:read",
+        expected: /protected-resource metadata resource does not match configured MCP HTTP URL/,
+      },
+      {
+        name: "challenge-scope-mismatch",
+        protectedResource: {
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+        },
+        authorizationServer: null,
+        challengeScope: "files:write",
+        expected: /challenge requested scope outside configured client credentials scopes: files:write/,
+      },
+      {
+        name: "protected-resource-scope-mismatch",
+        protectedResource: {
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+          scopes_supported: ["files:write"],
+        },
+        authorizationServer: null,
+        challengeScope: "files:read",
+        expected: /protected-resource metadata does not advertise configured scope files:read/,
+      },
+      {
+        name: "unsupported-auth-method",
+        protectedResource: {
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+        },
+        authorizationServer: {
+          issuer: "https://auth.example.test",
+          token_endpoint: "https://auth.example.test/token",
+          token_endpoint_auth_methods_supported: ["private_key_jwt"],
+        },
+        challengeScope: "files:read",
+        expected: /does not advertise token endpoint auth method client_secret_basic/,
+      },
+      {
+        name: "authorization-server-scope-mismatch",
+        protectedResource: {
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+        },
+        authorizationServer: {
+          issuer: "https://auth.example.test",
+          token_endpoint: "https://auth.example.test/token",
+          token_endpoint_auth_methods_supported: ["client_secret_basic"],
+          scopes_supported: ["files:write"],
+        },
+        challengeScope: "files:read",
+        expected: /authorization server does not advertise configured scope files:read/,
+      },
+    ]) {
+      let tokenEndpointCalled = false;
+      mockClientHttpFetch((request) => {
+        if (request.method === "GET" && request.url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp") {
+          return new Response(JSON.stringify(variant.protectedResource), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (variant.authorizationServer && request.method === "GET" && request.url === "https://auth.example.test/.well-known/oauth-authorization-server") {
+          return new Response(JSON.stringify(variant.authorizationServer), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (request.method === "POST" && request.url === "https://auth.example.test/token") {
+          tokenEndpointCalled = true;
+        }
+        return new Response("missing token", {
+          status: 401,
+          headers: {
+            "www-authenticate": `Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", scope="${variant.challengeScope ?? "files:read"}"`,
+          },
+        });
+      });
+      client = new McpClient(
+        {
+          type: "http",
+          url: "https://mcp.example.test/mcp",
+          authorization: {
+            type: "oauth-client-credentials",
+            issuer: "https://auth.example.test",
+            scopes: ["files:read"],
+            tokenEndpointAuthMethod: "client_secret_basic",
+            client: {
+              kind: "registered",
+              clientId: "kota-client",
+              clientSecret: "client-secret",
+            },
+          },
+        },
+        `client-credentials-${variant.name}`,
+      );
+
+      await expect(client.connect()).rejects.toThrow(variant.expected);
+      expect(tokenEndpointCalled).toBe(false);
+      await client.close();
+      client = null;
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("requires protected-resource metadata for OAuth client credentials mode", async () => {
+    mockClientHttpFetch((request) => {
+      if (
+        request.method === "GET" &&
+        (
+          request.url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp" ||
+          request.url === "https://mcp.example.test/.well-known/oauth-protected-resource"
+        )
+      ) {
+        return new Response("not found", { status: 404 });
+      }
+      return new Response("missing metadata hint", {
+        status: 401,
+        headers: { "www-authenticate": 'Bearer scope="files:read"' },
+      });
+    });
+    client = new McpClient(
+      {
+        type: "http",
+        url: "https://mcp.example.test/mcp",
+        authorization: {
+          type: "oauth-client-credentials",
+          issuer: "https://auth.example.test",
+          scopes: ["files:read"],
+          tokenEndpointAuthMethod: "client_secret_basic",
+          client: {
+            kind: "registered",
+            clientId: "kota-client",
+            clientSecret: "client-secret",
+          },
+        },
+      },
+      "client-credentials-metadata-required",
+    );
+
+    await expect(client.connect()).rejects.toThrow(/protected-resource metadata unavailable/);
+  });
+
+  it("rejects OAuth client credentials token endpoint failures and insufficient granted scope without leaking secrets", async () => {
+    for (const variant of [
+      {
+        name: "token-endpoint-failure",
+        configScopes: ["files:read"],
+        challengeScope: "files:read",
+        expectedRequestScope: "files:read",
+        tokenResponse: new Response("client-secret client-credentials-token-secret", {
+          status: 500,
+          headers: { "content-type": "text/plain" },
+        }),
+        expected: /token endpoint failed: HTTP 500/,
+      },
+      {
+        name: "insufficient-scope",
+        configScopes: ["files:read", "files:write"],
+        challengeScope: "files:write",
+        expectedRequestScope: "files:read files:write",
+        tokenResponse: new Response(JSON.stringify({
+          access_token: "client-credentials-token-secret",
+          token_type: "Bearer",
+          scope: "files:read",
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+        expected: /authorization token did not grant the required scopes/,
+      },
+    ]) {
+      mockClientHttpFetch((request) => {
+        if (request.method === "GET" && request.url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp") {
+          return new Response(JSON.stringify({
+            resource: "https://mcp.example.test/mcp",
+            authorization_servers: ["https://auth.example.test"],
+          }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (request.method === "GET" && request.url === "https://auth.example.test/.well-known/oauth-authorization-server") {
+          return new Response(JSON.stringify({
+            issuer: "https://auth.example.test",
+            token_endpoint: "https://auth.example.test/token",
+            token_endpoint_auth_methods_supported: ["client_secret_basic"],
+          }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (request.method === "POST" && request.url === "https://auth.example.test/token") {
+          expect(request.form.get("scope")).toBe(variant.expectedRequestScope);
+          return variant.tokenResponse;
+        }
+        return new Response("missing token", {
+          status: 401,
+          headers: {
+            "www-authenticate": `Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", scope="${variant.challengeScope}"`,
+          },
+        });
+      });
+      client = new McpClient(
+        {
+          type: "http",
+          url: "https://mcp.example.test/mcp",
+          authorization: {
+            type: "oauth-client-credentials",
+            issuer: "https://auth.example.test",
+            scopes: variant.configScopes,
+            tokenEndpointAuthMethod: "client_secret_basic",
+            client: {
+              kind: "registered",
+              clientId: "kota-client",
+              clientSecret: "client-secret",
+            },
+          },
+        },
+        `client-credentials-${variant.name}`,
+      );
+
+      let thrown: unknown = null;
+      try {
+        await client.connect();
+      } catch (err) {
+        thrown = err;
+      }
+      expect(thrown).toBeInstanceOf(Error);
+      expect(String(thrown)).toMatch(variant.expected);
+      expect(String(thrown)).not.toMatch(/client-secret|client-credentials-token-secret/);
+      await client.close();
+      client = null;
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("reacquires expired OAuth client credentials tokens when no refresh token is returned", async () => {
+    let tokenRequests = 0;
+    mockClientHttpFetch((request) => {
+      if (request.method === "GET" && request.url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp") {
+        return new Response(JSON.stringify({
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "GET" && request.url === "https://auth.example.test/.well-known/oauth-authorization-server") {
+        return new Response(JSON.stringify({
+          issuer: "https://auth.example.test",
+          token_endpoint: "https://auth.example.test/token",
+          token_endpoint_auth_methods_supported: ["client_secret_basic"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "POST" && request.url === "https://auth.example.test/token") {
+        tokenRequests += 1;
+        expect(request.form.get("grant_type")).toBe("client_credentials");
+        return new Response(JSON.stringify({
+          access_token: tokenRequests === 1 ? "expired-token-secret" : "fresh-token-secret",
+          token_type: "Bearer",
+          scope: "files:read",
+          expires_in: tokenRequests === 1 ? 0 : 3600,
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.body.method === "server/discover" && request.headers.get("authorization") === "Bearer expired-token-secret") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: {} },
+        });
+      }
+      if (request.body.method === "tools/list" && request.headers.get("authorization") === "Bearer fresh-token-secret") {
+        return jsonRpcHttpResponse(request.body.id, {
+          tools: [{ name: "read_file", inputSchema: { type: "object" } }],
+        });
+      }
+      return new Response("missing token", {
+        status: 401,
+        headers: {
+          "www-authenticate": 'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", scope="files:read"',
+        },
+      });
+    });
+    client = new McpClient(
+      {
+        type: "http",
+        url: "https://mcp.example.test/mcp",
+        authorization: {
+          type: "oauth-client-credentials",
+          issuer: "https://auth.example.test",
+          scopes: ["files:read"],
+          tokenEndpointAuthMethod: "client_secret_basic",
+          client: {
+            kind: "registered",
+            clientId: "kota-client",
+            clientSecret: "client-secret",
+          },
+        },
+      },
+      "client-credentials-expiry-client",
+    );
+
+    await client.connect();
+    const tools = await client.listTools();
+
+    expect(tools.map((tool) => tool.name)).toEqual(["read_file"]);
+    expect(tokenRequests).toBe(2);
+  });
+
+  it("redacts malformed OAuth client credentials token JSON before surfacing parser diagnostics", async () => {
+    let tokenRequests = 0;
+    mockClientHttpFetch((request) => {
+      if (request.method === "GET" && request.url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp") {
+        return new Response(JSON.stringify({
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "GET" && request.url === "https://auth.example.test/.well-known/oauth-authorization-server") {
+        return new Response(JSON.stringify({
+          issuer: "https://auth.example.test",
+          token_endpoint: "https://auth.example.test/token",
+          token_endpoint_auth_methods_supported: ["client_secret_basic"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "POST" && request.url === "https://auth.example.test/token") {
+        tokenRequests += 1;
+        if (tokenRequests === 1) {
+          return new Response(JSON.stringify({
+            access_token: "expired-token-secret",
+            token_type: "Bearer",
+            scope: "files:read",
+            expires_in: 0,
+          }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        return new Response(`${request.headers.get("authorization")} client-secret expired-token-secret`, {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.body.method === "server/discover" && request.headers.get("authorization") === "Bearer expired-token-secret") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: {} },
+        });
+      }
+      return new Response("missing token", {
+        status: 401,
+        headers: {
+          "www-authenticate": 'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", scope="files:read"',
+        },
+      });
+    });
+    client = new McpClient(
+      {
+        type: "http",
+        url: "https://mcp.example.test/mcp",
+        authorization: {
+          type: "oauth-client-credentials",
+          issuer: "https://auth.example.test",
+          scopes: ["files:read"],
+          tokenEndpointAuthMethod: "client_secret_basic",
+          client: {
+            kind: "registered",
+            clientId: "kota-client",
+            clientSecret: "client-secret",
+          },
+        },
+      },
+      "client-credentials-malformed-json-client",
+    );
+
+    await client.connect();
+
+    let thrown: unknown = null;
+    try {
+      await client.listTools();
+    } catch (err) {
+      thrown = err;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect(String(thrown)).toContain("token endpoint returned malformed JSON");
+    expect(String(thrown)).not.toMatch(
+      /client-secret|client-sec|Basic a290|a290YS1jb|expired-token-secret|expired-t/,
+    );
+    expect(tokenRequests).toBe(2);
+  });
+
+  it("redacts OAuth client credentials secrets, basic auth, and acquired bearer tokens from runtime failures", async () => {
+    mockClientHttpFetch((request) => {
+      if (request.method === "GET" && request.url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp") {
+        return new Response(JSON.stringify({
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "GET" && request.url === "https://auth.example.test/.well-known/oauth-authorization-server") {
+        return new Response(JSON.stringify({
+          issuer: "https://auth.example.test",
+          token_endpoint: "https://auth.example.test/token",
+          token_endpoint_auth_methods_supported: ["client_secret_basic"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "POST" && request.url === "https://auth.example.test/token") {
+        return new Response(JSON.stringify({
+          access_token: "client-credentials-token-secret",
+          token_type: "Bearer",
+          scope: "files:read",
+          expires_in: 3600,
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.body.method === "server/discover" && request.headers.get("authorization") === "Bearer client-credentials-token-secret") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: {} },
+        });
+      }
+      if (request.body.method === "tools/list" && request.headers.get("authorization") === "Bearer client-credentials-token-secret") {
+        return jsonRpcHttpResponse(request.body.id, {
+          tools: [{ name: "raw_error", inputSchema: { type: "object" } }],
+        });
+      }
+      if (request.body.method === "tools/call") {
+        return new Response(
+          "client-secret Basic a290YS1jbGllbnQ6Y2xpZW50LXNlY3JldA== client-credentials-token-secret",
+          {
+            status: 500,
+            headers: { "content-type": "text/plain" },
+          },
+        );
+      }
+      return new Response("missing token", {
+        status: 401,
+        headers: {
+          "www-authenticate": 'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", scope="files:read"',
+        },
+      });
+    });
+    client = new McpClient(
+      {
+        type: "http",
+        url: "https://mcp.example.test/mcp",
+        authorization: {
+          type: "oauth-client-credentials",
+          issuer: "https://auth.example.test",
+          scopes: ["files:read"],
+          tokenEndpointAuthMethod: "client_secret_basic",
+          client: {
+            kind: "registered",
+            clientId: "kota-client",
+            clientSecret: "client-secret",
+          },
+        },
+      },
+      "client-credentials-redaction-client",
+    );
+
+    await client.connect();
+    await client.listTools();
+
+    await expect(client.callTool("raw_error", {})).rejects.toThrow(
+      /\[redacted\] \[redacted\] \[redacted\]/,
+    );
+    await expect(client.callTool("raw_error", {})).rejects.not.toThrow(
+      /client-secret|a290YS1jbGllbnQ6Y2xpZW50LXNlY3JldA==|client-credentials-token-secret/,
+    );
+  });
+
   it("falls back to OpenID Connect discovery when OAuth authorization-server metadata is unavailable", async () => {
     const requests: RecordedClientHttpRequest[] = [];
     mockClientHttpFetch((request) => {

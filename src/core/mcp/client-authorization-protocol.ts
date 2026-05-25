@@ -1,14 +1,16 @@
-import type { Buffer } from "node:buffer";
+import { Buffer } from "node:buffer";
 import { createHash, randomBytes } from "node:crypto";
 import type {
   McpAuthorizationChallenge,
   McpAuthorizationServerMetadata,
   McpClientTransportConfig,
+  McpOAuthClientCredentialsClientConfig,
   McpOAuthClientIdentityConfig,
   McpOAuthTokenSet,
   McpProtectedResourceMetadata,
   McpStreamableHttpAuthorizationConfig,
   NormalizedMcpClientTransport,
+  NormalizedMcpOAuthClientCredentialsClient,
   NormalizedMcpOAuthClientIdentity,
   NormalizedMcpStreamableHttpAuthorizationConfig,
 } from "./client-auth-types.js";
@@ -22,6 +24,9 @@ import {
   requireStringArray,
 } from "./client-decode-utils.js";
 import type { JsonRpcResult } from "./client-protocol.js";
+
+export const MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION_ID =
+  "io.modelcontextprotocol/oauth-client-credentials";
 
 export function parseWwwAuthenticateChallenge(
   header: string | null,
@@ -98,8 +103,15 @@ export function uniqueScopes(scopes: readonly string[]): string[] {
 }
 
 export function scopeSetIncludesAll(granted: readonly string[], required: readonly string[]): boolean {
-  const grantedSet = new Set(granted);
-  return required.every((scope) => grantedSet.has(scope));
+  return scopesNotIncluded(required, granted).length === 0;
+}
+
+export function scopesNotIncluded(
+  required: readonly string[],
+  available: readonly string[],
+): string[] {
+  const availableSet = new Set(available);
+  return uniqueScopes(required).filter((scope) => !availableSet.has(scope));
 }
 
 export function base64Url(buffer: Buffer): string {
@@ -187,11 +199,15 @@ export function decodeAuthorizationServerMetadata(
   const object = requireJsonObject(value, "metadata", "authorization-server-metadata");
   return {
     issuer: requireString(object.issuer, "issuer", "authorization-server-metadata"),
-    authorizationEndpoint: requireString(
-      object.authorization_endpoint,
-      "authorization_endpoint",
-      "authorization-server-metadata",
-    ),
+    ...(object.authorization_endpoint !== undefined
+      ? {
+          authorizationEndpoint: requireString(
+            object.authorization_endpoint,
+            "authorization_endpoint",
+            "authorization-server-metadata",
+          ),
+        }
+      : {}),
     tokenEndpoint: requireString(
       object.token_endpoint,
       "token_endpoint",
@@ -214,6 +230,11 @@ export function decodeAuthorizationServerMetadata(
     codeChallengeMethodsSupported: optionalStringArray(
       object.code_challenge_methods_supported,
       "code_challenge_methods_supported",
+      "authorization-server-metadata",
+    ) ?? [],
+    tokenEndpointAuthMethodsSupported: optionalStringArray(
+      object.token_endpoint_auth_methods_supported,
+      "token_endpoint_auth_methods_supported",
       "authorization-server-metadata",
     ) ?? [],
     authorizationResponseIssuerRequired: optionalBoolean(
@@ -315,19 +336,66 @@ export function normalizeOAuthClientIdentity(
   throw new Error("OAuth client identity kind is unsupported");
 }
 
+export function normalizeOAuthClientCredentialsClient(
+  client: McpOAuthClientCredentialsClientConfig,
+): NormalizedMcpOAuthClientCredentialsClient {
+  if (client.kind !== "registered") {
+    throw new Error("OAuth client credentials require a registered client");
+  }
+  if (typeof client.clientId !== "string" || client.clientId.length === 0) {
+    throw new Error("OAuth client credentials clientId must be a non-empty string");
+  }
+  if (typeof client.clientSecret !== "string" || client.clientSecret.length === 0) {
+    throw new Error("OAuth client credentials clientSecret must be a non-empty string");
+  }
+  return {
+    kind: "registered",
+    clientId: client.clientId,
+    clientSecret: client.clientSecret,
+  };
+}
+
+export function clientSecretBasicAuthorizationHeader(
+  clientId: string,
+  clientSecret: string,
+): string {
+  return `Basic ${Buffer.from(
+    `${oauthBasicCredentialPart(clientId)}:${oauthBasicCredentialPart(clientSecret)}`,
+    "utf8",
+  ).toString("base64")}`;
+}
+
+function oauthBasicCredentialPart(value: string): string {
+  return encodeURIComponent(value).replace(/%20/g, "+");
+}
+
 export function normalizeMcpAuthorizationConfig(
   authorization: McpStreamableHttpAuthorizationConfig,
 ): NormalizedMcpStreamableHttpAuthorizationConfig {
-  if (authorization.type !== "oauth") {
-    throw new Error("MCP HTTP authorization type must be oauth");
+  if (authorization.type === "oauth") {
+    return {
+      type: "oauth",
+      issuer: validateOAuthIssuer(authorization.issuer),
+      redirectUri: normalizeHttpUrl(authorization.redirectUri, "OAuth redirectUri"),
+      scopes: [...new Set(authorization.scopes)],
+      client: normalizeOAuthClientIdentity(authorization.client),
+    };
   }
-  return {
-    type: "oauth",
-    issuer: validateOAuthIssuer(authorization.issuer),
-    redirectUri: normalizeHttpUrl(authorization.redirectUri, "OAuth redirectUri"),
-    scopes: [...new Set(authorization.scopes)],
-    client: normalizeOAuthClientIdentity(authorization.client),
-  };
+  if (authorization.type === "oauth-client-credentials") {
+    if (authorization.tokenEndpointAuthMethod !== "client_secret_basic") {
+      throw new Error(
+        "OAuth client credentials tokenEndpointAuthMethod must be client_secret_basic",
+      );
+    }
+    return {
+      type: "oauth-client-credentials",
+      issuer: validateOAuthIssuer(authorization.issuer),
+      scopes: [...new Set(authorization.scopes)],
+      tokenEndpointAuthMethod: authorization.tokenEndpointAuthMethod,
+      client: normalizeOAuthClientCredentialsClient(authorization.client),
+    };
+  }
+  throw new Error("MCP HTTP authorization type must be oauth or oauth-client-credentials");
 }
 
 export function hasStaticAuthorizationHeader(headers: Record<string, string> | undefined): boolean {
@@ -380,15 +448,26 @@ export function authorizationContextKey(transport: NormalizedMcpClientTransport)
           ? {
               type: transport.authorization.type,
               issuer: transport.authorization.issuer,
-              redirectUri: transport.authorization.redirectUri,
               scopes: transport.authorization.scopes,
-              client: transport.authorization.client.kind === "registered"
+              ...(transport.authorization.type === "oauth"
                 ? {
-                    kind: "registered",
-                    clientId: transport.authorization.client.clientId,
-                    hasClientSecret: transport.authorization.client.clientSecret !== undefined,
+                    redirectUri: transport.authorization.redirectUri,
+                    client: transport.authorization.client.kind === "registered"
+                      ? {
+                          kind: "registered",
+                          clientId: transport.authorization.client.clientId,
+                          hasClientSecret: transport.authorization.client.clientSecret !== undefined,
+                        }
+                      : transport.authorization.client,
                   }
-                : transport.authorization.client,
+                : {
+                    tokenEndpointAuthMethod: transport.authorization.tokenEndpointAuthMethod,
+                    client: {
+                      kind: "registered",
+                      clientId: transport.authorization.client.clientId,
+                      hasClientSecret: true,
+                    },
+                  }),
             }
           : null,
       }

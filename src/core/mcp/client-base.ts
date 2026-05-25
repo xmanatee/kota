@@ -15,6 +15,8 @@ import {
 } from "./client-auth-types.js";
 import {
   authorizationContextKey,
+  clientSecretBasicAuthorizationHeader,
+  MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION_ID,
   normalizeClientTransportConfig,
 } from "./client-authorization-protocol.js";
 import {
@@ -244,6 +246,14 @@ export abstract class McpClientBase {
   ): KotaJsonObject {
     const capabilities: KotaJsonObject = {};
     if (
+      this.transport.type === "http" &&
+      this.transport.authorization?.type === "oauth-client-credentials"
+    ) {
+      capabilities.extensions = {
+        [MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION_ID]: {},
+      };
+    }
+    if (
       protocolVersion === MCP_DRAFT_PROTOCOL_VERSION &&
       this.supportedElicitationModes.length > 0
     ) {
@@ -339,6 +349,9 @@ export abstract class McpClientBase {
       const client = this.transport.authorization?.client;
       if (client?.kind === "registered") {
         add(client.clientSecret);
+        if (client.clientSecret !== undefined) {
+          add(clientSecretBasicAuthorizationHeader(client.clientId, client.clientSecret));
+        }
       }
     }
     add(this.oauthTokenBinding?.token.accessToken);

@@ -8,9 +8,12 @@ import type {
 } from "./client-auth-types.js";
 import {
   authorizationServerMetadataUrls,
+  clientSecretBasicAuthorizationHeader,
   decodeAuthorizationServerMetadata,
   decodeOAuthTokenSet,
   normalizeHttpUrl,
+  scopeSetIncludesAll,
+  scopesNotIncluded,
 } from "./client-authorization-protocol.js";
 import {
   optionalString,
@@ -64,17 +67,17 @@ export abstract class McpClientOAuthTokenRuntime extends McpClientProtectedResou
         );
         continue;
       }
-      if (!metadata.codeChallengeMethodsSupported.includes("S256")) {
-        errors.push(`${url}: authorization server does not support PKCE S256`);
-        continue;
-      }
-      return {
+      const normalizedMetadata = {
         ...metadata,
-        authorizationEndpoint: normalizeHttpUrl(
-          metadata.authorizationEndpoint,
-          "authorization_endpoint",
-        ),
         tokenEndpoint: normalizeHttpUrl(metadata.tokenEndpoint, "token_endpoint"),
+        ...(metadata.authorizationEndpoint !== undefined
+          ? {
+              authorizationEndpoint: normalizeHttpUrl(
+                metadata.authorizationEndpoint,
+                "authorization_endpoint",
+              ),
+            }
+          : {}),
         ...(metadata.registrationEndpoint !== undefined
           ? {
               registrationEndpoint: normalizeHttpUrl(
@@ -84,6 +87,42 @@ export abstract class McpClientOAuthTokenRuntime extends McpClientProtectedResou
             }
           : {}),
       };
+
+      if (config.type === "oauth") {
+        if (normalizedMetadata.authorizationEndpoint === undefined) {
+          errors.push(`${url}: authorization server does not advertise authorization_endpoint`);
+          continue;
+        }
+        if (!normalizedMetadata.codeChallengeMethodsSupported.includes("S256")) {
+          errors.push(`${url}: authorization server does not support PKCE S256`);
+          continue;
+        }
+        return normalizedMetadata;
+      }
+
+      if (
+        !normalizedMetadata.tokenEndpointAuthMethodsSupported.includes(
+          config.tokenEndpointAuthMethod,
+        )
+      ) {
+        errors.push(
+          `${url}: authorization server does not advertise token endpoint auth method ${config.tokenEndpointAuthMethod}`,
+        );
+        continue;
+      }
+      if (normalizedMetadata.scopesSupported.length > 0) {
+        const unsupportedScopes = scopesNotIncluded(
+          scopes,
+          normalizedMetadata.scopesSupported,
+        );
+        if (unsupportedScopes.length > 0) {
+          errors.push(
+            `${url}: authorization server does not advertise configured scope${unsupportedScopes.length === 1 ? "" : "s"} ${unsupportedScopes.join(" ")}`,
+          );
+          continue;
+        }
+      }
+      return normalizedMetadata;
     }
 
     throw this.authorizationFlowError(
@@ -103,6 +142,15 @@ export abstract class McpClientOAuthTokenRuntime extends McpClientProtectedResou
     const cacheKey = `${resource}\n${config.issuer}`;
     const cached = this.oauthClients.get(cacheKey);
     if (cached) return cached;
+
+    if (config.type === "oauth-client-credentials") {
+      const client = {
+        clientId: config.client.clientId,
+        clientSecret: config.client.clientSecret,
+      };
+      this.oauthClients.set(cacheKey, client);
+      return client;
+    }
 
     if (config.client.kind === "registered") {
       const client = {
@@ -175,11 +223,13 @@ export abstract class McpClientOAuthTokenRuntime extends McpClientProtectedResou
   protected async refreshExpiredOAuthTokenIfNeeded(): Promise<void> {
     if (this.transport.type !== "http" || !this.transport.authorization) return;
     const binding = this.oauthTokenBinding;
-    if (!binding?.token.refreshToken || binding.token.expiresAtMs === undefined) return;
+    if (!binding || binding.token.expiresAtMs === undefined) return;
     if (Date.now() < binding.token.expiresAtMs) return;
 
     const config = this.transport.authorization;
-    const scopes = binding.token.scopes.length > 0
+    const scopes = config.type === "oauth-client-credentials"
+      ? config.scopes
+      : binding.token.scopes.length > 0
       ? binding.token.scopes
       : config.scopes;
     const metadata = await this.fetchAuthorizationServerMetadata(
@@ -193,6 +243,33 @@ export abstract class McpClientOAuthTokenRuntime extends McpClientProtectedResou
       binding.resource,
       scopes,
     );
+    if (config.type === "oauth-client-credentials") {
+      const token = await this.runClientCredentialsFlow(
+        metadata,
+        config,
+        client,
+        binding.resource,
+        scopes,
+      );
+      const tokenWithScopes = token.scopes.length > 0
+        ? token
+        : { ...token, scopes: [...scopes] };
+      if (!scopeSetIncludesAll(tokenWithScopes.scopes, scopes)) {
+        throw this.authorizationFlowError(
+          binding.resource,
+          config.issuer,
+          scopes,
+          "client credentials token did not grant the required scopes",
+        );
+      }
+      this.oauthTokenBinding = {
+        resource: binding.resource,
+        issuer: binding.issuer,
+        token: tokenWithScopes,
+      };
+      return;
+    }
+    if (!binding.token.refreshToken) return;
     const refreshed = await this.refreshOAuthToken(
       metadata,
       config,
@@ -207,6 +284,56 @@ export abstract class McpClientOAuthTokenRuntime extends McpClientProtectedResou
         ? refreshed
         : { ...refreshed, scopes: binding.token.scopes },
     };
+  }
+
+  protected async runClientCredentialsFlow(
+    metadata: McpAuthorizationServerMetadata,
+    config: NormalizedMcpStreamableHttpAuthorizationConfig,
+    client: McpOAuthResolvedClient,
+    resource: string,
+    scopes: readonly string[],
+  ): Promise<McpOAuthTokenSet> {
+    if (config.type !== "oauth-client-credentials") {
+      throw this.authorizationFlowError(
+        resource,
+        config.issuer,
+        scopes,
+        "client credentials flow requires client-credentials authorization config",
+      );
+    }
+    if (client.clientSecret === undefined) {
+      throw this.authorizationFlowError(
+        resource,
+        config.issuer,
+        scopes,
+        "client credentials flow requires a configured client secret",
+      );
+    }
+    const form = new URLSearchParams({
+      grant_type: "client_credentials",
+      resource,
+      scope: scopes.join(" "),
+    });
+    const tokenJson = await this.fetchOAuthJson(
+      metadata.tokenEndpoint,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          Authorization: clientSecretBasicAuthorizationHeader(
+            client.clientId,
+            client.clientSecret,
+          ),
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: form.toString(),
+      },
+      resource,
+      config.issuer,
+      scopes,
+      "token endpoint",
+    );
+    return decodeOAuthTokenSet(tokenJson);
   }
 
   protected async refreshOAuthToken(
@@ -285,9 +412,8 @@ export abstract class McpClientOAuthTokenRuntime extends McpClientProtectedResou
     }
     try {
       return JSON.parse(await response.text()) as JsonRpcResult;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      throw this.authorizationFlowError(resource, issuer, scopes, `${label} returned malformed JSON: ${message}`);
+    } catch {
+      throw this.authorizationFlowError(resource, issuer, scopes, `${label} returned malformed JSON`);
     }
   }
 }

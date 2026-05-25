@@ -45,13 +45,33 @@ export type McpOAuthClientIdentityConfig =
   | McpOAuthClientIdMetadataUrlConfig
   | McpOAuthDynamicClientConfig;
 
-export type McpStreamableHttpAuthorizationConfig = {
+export type McpOAuthAuthorizationCodeConfig = {
   type: "oauth";
   issuer: string;
   redirectUri: string;
   scopes: string[];
   client: McpOAuthClientIdentityConfig;
 };
+
+export type McpOAuthClientCredentialsTokenEndpointAuthMethod = "client_secret_basic";
+
+export type McpOAuthClientCredentialsClientConfig = {
+  kind: "registered";
+  clientId: string;
+  clientSecret: string;
+};
+
+export type McpOAuthClientCredentialsAuthorizationConfig = {
+  type: "oauth-client-credentials";
+  issuer: string;
+  scopes: string[];
+  tokenEndpointAuthMethod: McpOAuthClientCredentialsTokenEndpointAuthMethod;
+  client: McpOAuthClientCredentialsClientConfig;
+};
+
+export type McpStreamableHttpAuthorizationConfig =
+  | McpOAuthAuthorizationCodeConfig
+  | McpOAuthClientCredentialsAuthorizationConfig;
 
 export type McpAuthorizationResolverRequest = {
   server: string;
@@ -172,7 +192,7 @@ export type NormalizedMcpOAuthClientIdentity =
   | NormalizedMcpOAuthClientIdMetadataUrl
   | NormalizedMcpOAuthDynamicClient;
 
-export type NormalizedMcpStreamableHttpAuthorizationConfig = {
+export type NormalizedMcpOAuthAuthorizationCodeConfig = {
   type: "oauth";
   issuer: string;
   redirectUri: string;
@@ -180,13 +200,32 @@ export type NormalizedMcpStreamableHttpAuthorizationConfig = {
   client: NormalizedMcpOAuthClientIdentity;
 };
 
+export type NormalizedMcpOAuthClientCredentialsClient = {
+  kind: "registered";
+  clientId: string;
+  clientSecret: string;
+};
+
+export type NormalizedMcpOAuthClientCredentialsAuthorizationConfig = {
+  type: "oauth-client-credentials";
+  issuer: string;
+  scopes: string[];
+  tokenEndpointAuthMethod: McpOAuthClientCredentialsTokenEndpointAuthMethod;
+  client: NormalizedMcpOAuthClientCredentialsClient;
+};
+
+export type NormalizedMcpStreamableHttpAuthorizationConfig =
+  | NormalizedMcpOAuthAuthorizationCodeConfig
+  | NormalizedMcpOAuthClientCredentialsAuthorizationConfig;
+
 export type McpAuthorizationServerMetadata = {
   issuer: string;
-  authorizationEndpoint: string;
+  authorizationEndpoint?: string;
   tokenEndpoint: string;
   registrationEndpoint?: string;
   scopesSupported: string[];
   codeChallengeMethodsSupported: string[];
+  tokenEndpointAuthMethodsSupported: string[];
   authorizationResponseIssuerRequired: boolean;
 };
 

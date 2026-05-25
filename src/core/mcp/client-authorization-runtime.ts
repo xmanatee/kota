@@ -3,7 +3,9 @@ import type {
   McpAuthorizationServerMetadata,
   McpOAuthResolvedClient,
   McpOAuthTokenSet,
-  NormalizedMcpStreamableHttpAuthorizationConfig,
+  McpProtectedResourceMetadata,
+  NormalizedMcpOAuthAuthorizationCodeConfig,
+  NormalizedMcpOAuthClientCredentialsAuthorizationConfig,
 } from "./client-auth-types.js";
 import {
   McpAuthorizationError,
@@ -14,8 +16,10 @@ import {
   decodeOAuthTokenSet,
   generateOAuthState,
   generateOAuthVerifier,
+  normalizeHttpUrl,
   parseWwwAuthenticateChallenge,
   scopeSetIncludesAll,
+  scopesNotIncluded,
   uniqueScopes,
 } from "./client-authorization-protocol.js";
 import { McpClientOAuthTokenRuntime } from "./client-oauth-token-runtime.js";
@@ -46,12 +50,16 @@ export abstract class McpClientAuthorizationRuntime extends McpClientOAuthTokenR
     }
     const config = this.transport.authorization;
     const challenge = error.challenge;
+    const configuredScopes = config.scopes;
+    const challengeErrorScopes = config.type === "oauth-client-credentials"
+      ? configuredScopes
+      : uniqueScopes([...configuredScopes, ...challenge.scopes]);
     if (challenge.metadataDiscovery?.status !== "found") {
       const resource = this.oauthTokenBinding?.resource ?? this.transport.url;
       throw this.authorizationFlowError(
         resource,
         config.issuer,
-        uniqueScopes([...config.scopes, ...challenge.scopes]),
+        challengeErrorScopes,
         `protected-resource metadata unavailable: ${
           challenge.metadataDiscovery?.error ?? "no protected-resource metadata"
         }`,
@@ -63,50 +71,133 @@ export abstract class McpClientAuthorizationRuntime extends McpClientOAuthTokenR
       throw this.authorizationFlowError(
         resourceMetadata.resource,
         config.issuer,
-        uniqueScopes([...config.scopes, ...challenge.scopes]),
+        challengeErrorScopes,
         `issuer "${config.issuer}" is not advertised by protected resource metadata`,
       );
     }
 
-    const requestedScopes = uniqueScopes([
-      ...config.scopes,
-      ...(challenge.error === "insufficient_scope" && this.oauthTokenBinding
-        ? this.oauthTokenBinding.token.scopes
-        : []),
-      ...challenge.scopes,
-    ]);
+    const resource = config.type === "oauth-client-credentials"
+      ? this.validateClientCredentialsProtectedResourceMetadata(
+          config,
+          resourceMetadata,
+          challenge.scopes,
+          this.transport.url,
+        )
+      : resourceMetadata.resource;
+    const requestedScopes = config.type === "oauth-client-credentials"
+      ? [...configuredScopes]
+      : uniqueScopes([
+          ...configuredScopes,
+          ...(challenge.error === "insufficient_scope" && this.oauthTokenBinding
+            ? this.oauthTokenBinding.token.scopes
+            : []),
+          ...challenge.scopes,
+        ]);
     const metadata = await this.fetchAuthorizationServerMetadata(
       config,
-      resourceMetadata.resource,
+      resource,
       requestedScopes,
     );
     const client = await this.resolveOAuthClient(
       config,
       metadata,
-      resourceMetadata.resource,
+      resource,
       requestedScopes,
     );
-    const token = await this.runAuthorizationCodeFlow(
-      config,
-      metadata,
-      client,
-      resourceMetadata.resource,
-      requestedScopes,
-    );
+    const rawToken = config.type === "oauth-client-credentials"
+      ? await this.runClientCredentialsFlow(
+          metadata,
+          config,
+          client,
+          resource,
+          requestedScopes,
+        )
+      : await this.runAuthorizationCodeFlow(
+          config,
+          metadata,
+          client,
+          resource,
+          requestedScopes,
+        );
+    const token = rawToken.scopes.length > 0
+      ? rawToken
+      : { ...rawToken, scopes: [...requestedScopes] };
     if (!scopeSetIncludesAll(token.scopes, requestedScopes)) {
       throw this.authorizationFlowError(
-        resourceMetadata.resource,
+        resource,
         config.issuer,
         requestedScopes,
-        "authorization did not grant the required scopes",
+        "authorization token did not grant the required scopes",
       );
     }
     this.oauthTokenBinding = {
-      resource: resourceMetadata.resource,
+      resource,
       issuer: config.issuer,
       token,
     };
     return true;
+  }
+
+  protected validateClientCredentialsProtectedResourceMetadata(
+    config: NormalizedMcpOAuthClientCredentialsAuthorizationConfig,
+    resourceMetadata: McpProtectedResourceMetadata,
+    challengeScopes: readonly string[],
+    configuredResource: string,
+  ): string {
+    let normalizedResource: string;
+    try {
+      normalizedResource = normalizeHttpUrl(
+        resourceMetadata.resource,
+        "protected-resource metadata resource",
+      );
+    } catch (err) {
+      throw this.authorizationFlowError(
+        resourceMetadata.resource,
+        config.issuer,
+        config.scopes,
+        `protected-resource metadata resource is invalid: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+    if (normalizedResource !== configuredResource) {
+      throw this.authorizationFlowError(
+        normalizedResource,
+        config.issuer,
+        config.scopes,
+        `protected-resource metadata resource does not match configured MCP HTTP URL "${configuredResource}"`,
+      );
+    }
+
+    const unsupportedChallengeScopes = scopesNotIncluded(
+      challengeScopes,
+      config.scopes,
+    );
+    if (unsupportedChallengeScopes.length > 0) {
+      throw this.authorizationFlowError(
+        normalizedResource,
+        config.issuer,
+        config.scopes,
+        `challenge requested scope${unsupportedChallengeScopes.length === 1 ? "" : "s"} outside configured client credentials scopes: ${unsupportedChallengeScopes.join(" ")}`,
+      );
+    }
+
+    if (resourceMetadata.scopesSupported.length > 0) {
+      const unsupportedConfiguredScopes = scopesNotIncluded(
+        config.scopes,
+        resourceMetadata.scopesSupported,
+      );
+      if (unsupportedConfiguredScopes.length > 0) {
+        throw this.authorizationFlowError(
+          normalizedResource,
+          config.issuer,
+          config.scopes,
+          `protected-resource metadata does not advertise configured scope${unsupportedConfiguredScopes.length === 1 ? "" : "s"} ${unsupportedConfiguredScopes.join(" ")}`,
+        );
+      }
+    }
+
+    return normalizedResource;
   }
 
   protected authorizationFlowError(
@@ -115,17 +206,18 @@ export abstract class McpClientAuthorizationRuntime extends McpClientOAuthTokenR
     scopes: readonly string[],
     reason: string,
   ): McpAuthorizationFlowError {
+    const redactedReason = this.redactSensitiveErrorMessage(reason);
     return new McpAuthorizationFlowError(
       this.serverName,
       resource,
       issuer,
       scopes,
-      reason,
+      redactedReason,
     );
   }
 
   protected async runAuthorizationCodeFlow(
-    config: NormalizedMcpStreamableHttpAuthorizationConfig,
+    config: NormalizedMcpOAuthAuthorizationCodeConfig,
     metadata: McpAuthorizationServerMetadata,
     client: McpOAuthResolvedClient,
     resource: string,
@@ -143,6 +235,14 @@ export abstract class McpClientAuthorizationRuntime extends McpClientOAuthTokenR
     const codeVerifier = generateOAuthVerifier();
     const codeChallenge = base64Url(createHash("sha256").update(codeVerifier).digest());
     const state = generateOAuthState();
+    if (metadata.authorizationEndpoint === undefined) {
+      throw this.authorizationFlowError(
+        resource,
+        config.issuer,
+        scopes,
+        "authorization server does not advertise authorization_endpoint",
+      );
+    }
     const authorizationUrl = new URL(metadata.authorizationEndpoint);
     authorizationUrl.searchParams.set("response_type", "code");
     authorizationUrl.searchParams.set("client_id", client.clientId);
@@ -183,7 +283,7 @@ export abstract class McpClientAuthorizationRuntime extends McpClientOAuthTokenR
 
   protected validateAuthorizationCallback(
     callbackUrl: string,
-    config: NormalizedMcpStreamableHttpAuthorizationConfig,
+    config: NormalizedMcpOAuthAuthorizationCodeConfig,
     metadata: McpAuthorizationServerMetadata,
     resource: string,
     scopes: readonly string[],
@@ -251,7 +351,7 @@ export abstract class McpClientAuthorizationRuntime extends McpClientOAuthTokenR
 
   protected async exchangeAuthorizationCode(
     metadata: McpAuthorizationServerMetadata,
-    config: NormalizedMcpStreamableHttpAuthorizationConfig,
+    config: NormalizedMcpOAuthAuthorizationCodeConfig,
     client: McpOAuthResolvedClient,
     resource: string,
     scopes: readonly string[],

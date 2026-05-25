@@ -20,6 +20,7 @@ import {
   type McpListPromptsPage,
   type McpListResourcesPage,
   type McpListResourceTemplatesPage,
+  type McpOAuthClientCredentialsClientConfig,
   type McpOAuthClientIdentityConfig,
   type McpProgressEvent,
   type McpReadResourceResult,
@@ -132,6 +133,32 @@ const SEPARATOR = "__";
 const MCP_CONFIG_FIELDS = new Set(["type", "command", "args", "env", "url", "headers", "authorization"]);
 const MCP_STDIO_FIELDS = ["command", "args", "env"] as const;
 const MCP_HTTP_FIELDS = ["url", "headers", "authorization"] as const;
+const MCP_OAUTH_AUTHORIZATION_FIELDS = new Set([
+  "type",
+  "issuer",
+  "redirectUri",
+  "scopes",
+  "client",
+]);
+const MCP_OAUTH_CLIENT_CREDENTIALS_AUTHORIZATION_FIELDS = new Set([
+  "type",
+  "issuer",
+  "scopes",
+  "tokenEndpointAuthMethod",
+  "client",
+]);
+const MCP_OAUTH_REGISTERED_CLIENT_FIELDS = new Set(["kind", "clientId", "clientSecret"]);
+const MCP_OAUTH_CLIENT_ID_METADATA_URL_FIELDS = new Set(["kind", "clientId"]);
+const MCP_OAUTH_DYNAMIC_CLIENT_FIELDS = new Set([
+  "kind",
+  "clientName",
+  "dynamicClientRegistration",
+]);
+const MCP_OAUTH_CLIENT_CREDENTIALS_CLIENT_FIELDS = new Set([
+  "kind",
+  "clientId",
+  "clientSecret",
+]);
 
 /** Build a namespaced tool name: mcp__<server>__<tool> */
 export function namespaceTool(serverName: string, toolName: string): string {
@@ -345,6 +372,18 @@ function assertNoUnknownConfigFields(serverName: string, raw: KotaJsonObject): v
   );
 }
 
+function assertNoUnknownObjectFields(
+  label: string,
+  raw: KotaJsonObject,
+  fields: Set<string>,
+): void {
+  const unknownFields = Object.keys(raw).filter((field) => !fields.has(field));
+  if (unknownFields.length === 0) return;
+  throw new Error(
+    `${label} has unexpected field${unknownFields.length === 1 ? "" : "s"} ${unknownFields.join(", ")}`,
+  );
+}
+
 function decodeTransportType(
   serverName: string,
   value: KotaJsonValue | undefined,
@@ -405,6 +444,11 @@ function decodeMcpOAuthClientIdentity(
   }
   const kind = requiredString(value.kind, "authorization.client.kind");
   if (kind === "registered") {
+    assertNoUnknownObjectFields(
+      "authorization.client",
+      value,
+      MCP_OAUTH_REGISTERED_CLIENT_FIELDS,
+    );
     const clientId = requiredString(
       value.clientId,
       "authorization.client.clientId",
@@ -419,6 +463,11 @@ function decodeMcpOAuthClientIdentity(
     };
   }
   if (kind === "client-id-metadata-url") {
+    assertNoUnknownObjectFields(
+      "authorization.client",
+      value,
+      MCP_OAUTH_CLIENT_ID_METADATA_URL_FIELDS,
+    );
     const clientId = requiredString(
       value.clientId,
       "authorization.client.clientId",
@@ -426,6 +475,11 @@ function decodeMcpOAuthClientIdentity(
     return { kind, clientId };
   }
   if (kind === "dynamic") {
+    assertNoUnknownObjectFields(
+      "authorization.client",
+      value,
+      MCP_OAUTH_DYNAMIC_CLIENT_FIELDS,
+    );
     const clientName = requiredString(
       value.clientName,
       "authorization.client.clientName",
@@ -448,6 +502,31 @@ function decodeMcpOAuthClientIdentity(
   );
 }
 
+function decodeMcpOAuthClientCredentialsClient(
+  value: KotaJsonValue | undefined,
+): McpOAuthClientCredentialsClientConfig {
+  if (!isJsonObject(value)) {
+    throw new Error("authorization.client must be an object");
+  }
+  assertNoUnknownObjectFields(
+    "authorization.client",
+    value,
+    MCP_OAUTH_CLIENT_CREDENTIALS_CLIENT_FIELDS,
+  );
+  const kind = requiredString(value.kind, "authorization.client.kind");
+  if (kind !== "registered") {
+    throw new Error("authorization.client.kind must be registered for client credentials");
+  }
+  return {
+    kind,
+    clientId: requiredString(value.clientId, "authorization.client.clientId"),
+    clientSecret: requiredString(
+      value.clientSecret,
+      "authorization.client.clientSecret",
+    ),
+  };
+}
+
 function decodeMcpAuthorizationConfig(
   value: KotaJsonValue | undefined,
   headers: Record<string, string> | undefined,
@@ -462,17 +541,46 @@ function decodeMcpAuthorizationConfig(
     throw new Error("authorization must be an object");
   }
   const type = requiredString(value.type, "authorization.type");
-  if (type !== "oauth") {
-    throw new Error("authorization.type must be oauth");
+  if (type === "oauth") {
+    assertNoUnknownObjectFields(
+      "authorization",
+      value,
+      MCP_OAUTH_AUTHORIZATION_FIELDS,
+    );
+    const scopes = optionalStringArray(value.scopes, "authorization.scopes");
+    return {
+      type,
+      issuer: requiredString(value.issuer, "authorization.issuer"),
+      redirectUri: requiredString(value.redirectUri, "authorization.redirectUri"),
+      scopes: scopes ?? [],
+      client: decodeMcpOAuthClientIdentity(value.client),
+    };
   }
-  const scopes = optionalStringArray(value.scopes, "authorization.scopes");
-  return {
-    type,
-    issuer: requiredString(value.issuer, "authorization.issuer"),
-    redirectUri: requiredString(value.redirectUri, "authorization.redirectUri"),
-    scopes: scopes ?? [],
-    client: decodeMcpOAuthClientIdentity(value.client),
-  };
+  if (type === "oauth-client-credentials") {
+    assertNoUnknownObjectFields(
+      "authorization",
+      value,
+      MCP_OAUTH_CLIENT_CREDENTIALS_AUTHORIZATION_FIELDS,
+    );
+    const tokenEndpointAuthMethod = requiredString(
+      value.tokenEndpointAuthMethod,
+      "authorization.tokenEndpointAuthMethod",
+    );
+    if (tokenEndpointAuthMethod !== "client_secret_basic") {
+      throw new Error(
+        "authorization.tokenEndpointAuthMethod must be client_secret_basic",
+      );
+    }
+    const scopes = optionalStringArray(value.scopes, "authorization.scopes");
+    return {
+      type,
+      issuer: requiredString(value.issuer, "authorization.issuer"),
+      scopes: scopes ?? [],
+      tokenEndpointAuthMethod,
+      client: decodeMcpOAuthClientCredentialsClient(value.client),
+    };
+  }
+  throw new Error("authorization.type must be oauth or oauth-client-credentials");
 }
 
 function normalizeMcpServerConfig(

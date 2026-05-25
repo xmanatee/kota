@@ -1,12 +1,12 @@
 ---
 id: task-add-mcp-oauth-client-credentials-support-for-http-
 title: Add MCP OAuth client credentials support for HTTP servers
-status: ready
+status: done
 priority: p2
 area: core
 summary: Let KOTA's HTTP MCP client use the official MCP OAuth Client Credentials extension for noninteractive machine-to-machine authorization, with strict metadata validation, scoped token binding, and secret redaction.
 created_at: 2026-05-25T07:20:59.529Z
-updated_at: 2026-05-25T07:20:59.529Z
+updated_at: 2026-05-25T07:34:44.070Z
 ---
 
 ## Problem
