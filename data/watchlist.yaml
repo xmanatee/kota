@@ -154,28 +154,28 @@ resources:
   - url: https://www.anthropic.com/research
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:d880049e5178d4820fd212f037ec00f0
-      summary: "Anthropic research now adds a May 14 policy-scenarios item, while the relevant autonomy signal remains the already-distilled May 7-8 alignment and interpretability work; no new KOTA task was opened."
-      last_seen_at: "2026-05-18T09:24:01.713Z"
+      fingerprint: sha256:3047145c4e35cf152f4b228ddb9ed6aa
+      summary: "Anthropic research now surfaces the May 22 Project Glasswing update; KOTA already has a security-review scanner, so this run opened task-trigger-security-review-when-security-sensitive-co for the remaining paced queue-shaping trigger gap."
+      last_seen_at: "2026-05-25T11:39:27.852Z"
   - url: https://www.anthropic.com/engineering
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:8ed189b3532e5f2578c24d1ab1a9d0a0
-      summary: "Anthropic engineering now surfaces a Claude Code quality post whose stale-session thinking-pruning failure maps to KOTA's compaction path; opened task-preserve-assistant-thinking-context-through-compac for the local gap."
-      last_seen_at: "2026-05-25T11:03:03.585Z"
+      fingerprint: sha256:b1cc5670da3d1822bf47c010c2ba5843
+      summary: "Anthropic engineering still centers the Claude Code quality report already mapped to KOTA's completed compaction-context task; no new nonduplicative task was opened from this refresh."
+      last_seen_at: "2026-05-25T11:39:27.852Z"
   - url: https://openai.com/research
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:6bb8ed711a54970fd3732e752d9a9672
-      summary: "OpenAI research remains useful for instruction-hierarchy and monitorability signals; this run added the separate OpenAI security feed because Codex deployment-control posts now land there."
-      last_seen_at: "2026-05-17T13:48:09.787Z"
+      fingerprint: sha256:3e6513e08b4301bb40e283f43db5a342
+      summary: "OpenAI research remains a broad model/research index; no new KOTA task was opened from this refresh beyond the security-feed work already tracked separately."
+      last_seen_at: "2026-05-25T11:39:27.852Z"
   - url: https://openai.com/news/security/
     added: "2026-05-17"
     notes: "Official OpenAI security feed. Monitor Codex and coding-agent deployment controls, sandboxing, network policy, credentials, and agent telemetry posts that are not always listed on the research index."
     snapshot:
-      fingerprint: sha256:213dfe932eedb5076ac7611bc6cd64b0
-      summary: "OpenAI security feed currently reinforces already-completed KOTA work on Codex sandbox/control artifacts and pnpm supply-chain install policy; no new nonduplicative task was opened from the feed."
-      last_seen_at: "2026-05-18T05:33:38.133Z"
+      fingerprint: sha256:d539e99726b35dbbb81a7e47492fa8d1
+      summary: "OpenAI security feed still matches the stored Codex sandbox/control and supply-chain signals; existing completed KOTA tasks cover the nonduplicative gaps."
+      last_seen_at: "2026-05-25T11:39:27.852Z"
   - url: https://deepmind.google/discover/blog/
     added: "2026-04-19"
     snapshot:
