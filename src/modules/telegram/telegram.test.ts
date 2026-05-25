@@ -139,6 +139,7 @@ describe("telegramModule", () => {
       "capture",
       "daemon-ops",
       "history",
+      "inbound-signals",
       "knowledge",
       "memory",
       "recall",

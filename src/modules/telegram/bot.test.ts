@@ -5,6 +5,7 @@ import {
   initProviderRegistry,
   resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
+import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
 import {
   TRANSCRIPTION_PROVIDER_TYPE,
   type TranscriptionProvider,
@@ -759,6 +760,89 @@ describe("TelegramBot", () => {
     await startPromise;
 
     expect(agentSendMock).toHaveBeenCalledWith("ping");
+  });
+
+  it("emits configured automation messages as inbound signals and skips the session loop", async () => {
+    agentSendMock.mockClear();
+    const events = { emit: vi.fn() };
+    const bot = new TelegramBot(
+      botOptions({
+        allowedChatIds: [9],
+        inboundSignals: {
+          config: { prefixes: ["!task"] },
+          events,
+        },
+      }),
+    );
+    let delivered = false;
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/getMe")) {
+        return {
+          json: () => Promise.resolve({ ok: true, result: { id: 1, first_name: "Bot" } }),
+        };
+      }
+      if (url.endsWith("/getUpdates")) {
+        if (!delivered) {
+          delivered = true;
+          return {
+            json: () =>
+              Promise.resolve({
+                ok: true,
+                result: [
+                  {
+                    update_id: 1,
+                    message: {
+                      message_id: 12,
+                      from: { id: 7, first_name: "Op", username: "op" },
+                      chat: { id: 9, type: "private", first_name: "Op" },
+                      text: "!task capture telegram-origin regression",
+                      date: 1770000000,
+                    },
+                  },
+                ],
+              }),
+          };
+        }
+        return {
+          json: () =>
+            new Promise((resolve) =>
+              setTimeout(() => {
+                bot.stop();
+                resolve({ ok: true, result: [] });
+              }, 100),
+            ),
+        };
+      }
+      return { json: () => Promise.resolve({ ok: true, result: true }) };
+    });
+
+    const startPromise = bot.start();
+
+    const deadline = Date.now() + 2_000;
+    while (Date.now() < deadline && events.emit.mock.calls.length === 0) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+
+    await startPromise;
+
+    expect(events.emit).toHaveBeenCalledWith(
+      inboundSignalReceived,
+      expect.objectContaining({
+        projectId: "project-a",
+        provider: "telegram",
+        channel: "telegram.message",
+        actor: expect.objectContaining({
+          trust: "trusted",
+          trustReason:
+            "Telegram chat id is allowed by modules.telegram.allowedChatIds",
+        }),
+        body: expect.objectContaining({
+          kind: "message",
+          text: "capture telegram-origin regression",
+        }),
+      }),
+    );
+    expect(agentSendMock).not.toHaveBeenCalled();
   });
 });
 

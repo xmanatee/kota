@@ -11,6 +11,7 @@ import type { KotaConfig } from "#core/config/config.js";
 import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import { AgentSession, type LoopOptions } from "#core/loop/loop.js";
 import { NullTransport, ProxyTransport } from "#core/loop/transport.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { AnswerClient } from "#modules/answer/client.js";
 import type { CaptureClient } from "#modules/capture/client.js";
@@ -24,6 +25,7 @@ import {
   callSlackApi,
   openSocketModeUrl,
   RECONNECT_DELAY_MS,
+  type SlackEventsApiPayload,
   type SlackInteractivePayload,
   type SlackMessageEvent,
   SlackTransport,
@@ -36,6 +38,16 @@ import {
   parseSlackSlashCommand,
   type SlackParsedCommand,
 } from "./commands.js";
+import {
+  emitSlackTextInboundSignal,
+  type SlackChannelInboundSignalConfig,
+} from "./inbound-signal.js";
+
+export type SlackInboundSignalRuntime = {
+  projectId: string;
+  config: SlackChannelInboundSignalConfig;
+  events: Pick<ModuleContext["events"], "emit">;
+};
 
 export type SlackBotOptions = {
   botToken: string;
@@ -58,6 +70,8 @@ export type SlackBotOptions = {
   /** On-demand snapshot clients used by `/attention` and `/digest`. */
   attention: AttentionSnapshotClient;
   digest: DigestSnapshotClient;
+  /** Optional prefix-configured chat automation signal bridge. */
+  inboundSignals?: SlackInboundSignalRuntime;
 };
 
 /** Formats an approval request as Block Kit blocks with Approve/Reject buttons. */
@@ -199,7 +213,7 @@ export class SlackBot {
       if (event.type === "message") {
         const msg = event as SlackMessageEvent;
         if (!msg.subtype && !msg.bot_id && msg.text && msg.user && msg.channel) {
-          this.handleMessage(msg.user, msg.channel, msg.text).catch((err) => {
+          this.handleMessage(msg.user, msg.channel, msg.text, msg, payload.payload).catch((err) => {
             console.error("[kota-slack] Message error:", (err as Error).message);
           });
         }
@@ -217,12 +231,20 @@ export class SlackBot {
     }
   }
 
-  private async handleMessage(userId: string, channelId: string, text: string): Promise<void> {
+  private async handleMessage(
+    userId: string,
+    channelId: string,
+    text: string,
+    event: SlackMessageEvent,
+    envelope: SlackEventsApiPayload,
+  ): Promise<void> {
     const parsed = parseSlackSlashCommand(text);
     if (parsed) {
       await this.handleSlashCommand(channelId, parsed, userId);
       return;
     }
+
+    if (this.emitInboundSignal(event, envelope)) return;
 
     if (this.busyUsers.has(userId)) {
       await callSlackApi(this.options.botToken, "chat.postMessage", {
@@ -257,6 +279,29 @@ export class SlackBot {
       if (session) session.proxy.target = new NullTransport();
       this.busyUsers.delete(userId);
     }
+  }
+
+  private emitInboundSignal(
+    event: SlackMessageEvent,
+    envelope: SlackEventsApiPayload,
+  ): boolean {
+    const inboundSignals = this.options.inboundSignals;
+    if (!inboundSignals) return false;
+    const result = emitSlackTextInboundSignal(
+      inboundSignals.events,
+      event,
+      envelope,
+      {
+        projectId: inboundSignals.projectId,
+        receivedAt: new Date().toISOString(),
+        config: inboundSignals.config,
+      },
+    );
+    if (result.emitted) return true;
+    if ("error" in result) {
+      throw new Error(`Slack inbound signal is invalid: ${result.error}`);
+    }
+    return false;
   }
 
   private async handleSlashCommand(

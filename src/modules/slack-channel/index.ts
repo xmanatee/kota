@@ -14,6 +14,7 @@ import { AUTONOMY_MODES, type AutonomyMode } from "#core/tools/autonomy-mode.js"
 import { renderOnDemandAttention } from "#modules/autonomy/workflows/attention-digest/step.js";
 import { renderOnDemandDigest } from "#modules/autonomy/workflows/daily-digest/on-demand.js";
 import { SlackBot } from "./bot.js";
+import type { SlackChannelInboundSignalConfig } from "./inbound-signal.js";
 
 type SlackChannelConfig = {
   /** Bot Token — starts with xoxb- */
@@ -24,6 +25,8 @@ type SlackChannelConfig = {
   notifyChannel?: string;
   /** Autonomy mode applied to Slack DM sessions. */
   defaultAutonomyMode?: AutonomyMode;
+  /** Prefix-configured text updates that emit inbound.signal.received. */
+  inboundSignals?: SlackChannelInboundSignalConfig;
 };
 
 function getConfig(ctx: ModuleContext): SlackChannelConfig | null {
@@ -67,6 +70,13 @@ function makeSlackChannelDef(moduleCtx: ModuleContext): ChannelDef {
         knowledge: moduleCtx.client.knowledge,
         history: moduleCtx.client.history,
         tasks: moduleCtx.client.tasks,
+        inboundSignals: config.inboundSignals
+          ? {
+              projectId: ctx.defaultProjectRuntime.project.projectId,
+              config: config.inboundSignals,
+              events: moduleCtx.events,
+            }
+          : undefined,
         attention: {
           snapshot: () =>
             renderOnDemandAttention({
@@ -122,6 +132,7 @@ const slackChannelModule: KotaModule = {
     "recall",
     "repo-tasks",
     "retract",
+    "inbound-signals",
   ],
   configSchema: {
     type: "object",
@@ -132,6 +143,29 @@ const slackChannelModule: KotaModule = {
       appToken: { type: "string", minLength: 1 },
       notifyChannel: { type: "string", minLength: 1 },
       defaultAutonomyMode: { type: "string", enum: AUTONOMY_MODES },
+      inboundSignals: {
+        type: "object",
+        additionalProperties: false,
+        required: ["prefixes"],
+        properties: {
+          prefixes: {
+            type: "array",
+            minItems: 1,
+            uniqueItems: true,
+            items: { type: "string", minLength: 1 },
+          },
+          trustedUserIds: {
+            type: "array",
+            uniqueItems: true,
+            items: { type: "string", minLength: 1 },
+          },
+          blockedUserIds: {
+            type: "array",
+            uniqueItems: true,
+            items: { type: "string", minLength: 1 },
+          },
+        },
+      },
     },
   },
 

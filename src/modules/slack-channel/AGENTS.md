@@ -4,6 +4,9 @@ This directory owns the bidirectional Slack bot channel for KOTA.
 
 - Uses Slack Socket Mode (WebSocket) to receive messages without a public HTTP endpoint.
 - One `AgentSession` per Slack user — free-form DMs go to that user's session.
+- Prefix-configured automation messages emit `inbound.signal.received` with
+  project scope, Slack source metadata, and sender trust; workflows decide what
+  the signal means.
 - First-class slash commands match the Telegram channel's surface
   (`/recall`, `/answer`, `/answer-log`, `/answer-show`, `/capture` plus the
   four `/capture-to-{memory,knowledge,tasks,inbox}` twins, the four
@@ -40,3 +43,5 @@ endpoint; install the app to the workspace and keep tokens in local config.
 - Does not own the one-way Slack webhook notification path (that lives in `../slack/`).
 - Does not own the approval queue itself (`src/modules/approval-queue/queue.ts`).
 - Does not add HTTP routes — all inbound traffic comes through Socket Mode WebSocket.
+- Does not plan or classify chat-origin automation locally; it only normalizes
+  configured updates into the shared inbound-signal contract.

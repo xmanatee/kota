@@ -7,6 +7,7 @@ import {
 import type { CaptureClient } from "#modules/capture/client.js";
 import type { HistoryClient } from "#modules/history/client.js";
 import { renderHistorySearchPlain } from "#modules/history/render.js";
+import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
 import type { KnowledgeClient } from "#modules/knowledge/client.js";
 import { renderKnowledgeSearchPlain } from "#modules/knowledge/render.js";
 import type { MemoryClient } from "#modules/memory/client.js";
@@ -305,6 +306,56 @@ describe("SlackBot", () => {
 
       // Give async handleMessage time to run
       await vi.waitFor(() => expect(AgentSession).toHaveBeenCalled());
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("emits configured automation messages as inbound signals and skips the session", async () => {
+      const events = { emit: vi.fn() };
+      const bot = makeBot({
+        inboundSignals: {
+          projectId: "project-slack",
+          config: { prefixes: ["!task"], trustedUserIds: ["U1"] },
+          events,
+        },
+      });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      ws.simulateMessage({
+        type: "events_api",
+        envelope_id: "env-auto",
+        payload: {
+          team_id: "T1",
+          event_id: "Ev1",
+          event_time: 1770000000,
+          event: {
+            type: "message",
+            text: "!task capture deploy regression",
+            user: "U1",
+            channel: "D1",
+            ts: "1770000000.100000",
+          },
+        },
+      });
+
+      await vi.waitFor(() => expect(events.emit).toHaveBeenCalled());
+      expect(events.emit).toHaveBeenCalledWith(
+        inboundSignalReceived,
+        expect.objectContaining({
+          projectId: "project-slack",
+          provider: "slack",
+          channel: "slack.message",
+          actor: expect.objectContaining({ trust: "trusted" }),
+          body: expect.objectContaining({
+            kind: "message",
+            text: "capture deploy regression",
+          }),
+        }),
+      );
+      expect(AgentSession).not.toHaveBeenCalled();
 
       bot.stop();
       await startPromise.catch(() => {});

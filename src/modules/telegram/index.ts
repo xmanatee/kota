@@ -16,6 +16,7 @@ import { TelegramBot } from "./bot.js";
 import { startCallbackPoll } from "./callback-poll.js";
 import type { TelegramMessage } from "./client.js";
 import { callTelegramApi } from "./client.js";
+import type { TelegramInboundSignalConfig } from "./inbound-signal.js";
 import {
   type PendingMessage,
   tryHandleOwnerQuestionReply,
@@ -221,6 +222,8 @@ type TelegramConfig = {
   allowedChatIds?: number[];
   /** Default Telegram chat -> project bindings used when the daemon hosts multiple projects. */
   chatProjectBindings?: TelegramChatProjectBinding[];
+  /** Prefix-configured text updates that emit inbound.signal.received. */
+  inboundSignals?: TelegramInboundSignalConfig;
 };
 
 function getCredentials(): { token: string; chatId: string } | null {
@@ -378,6 +381,12 @@ function makeTelegramInteractiveChannel(
         getProjectRuntime: channelCtx.getProjectRuntime,
         allowedChatIds,
         projectSelection: projectRouting?.selection,
+        inboundSignals: telegramConfig?.inboundSignals
+          ? {
+              config: telegramConfig.inboundSignals,
+              events: ctx.events,
+            }
+          : undefined,
         onChatReply: (chatId, replyToMessageId, text) =>
           tryHandleOwnerQuestionReply({
             token,
@@ -440,7 +449,7 @@ const telegramModule: KotaModule = {
   name: "telegram",
   version: "1.0.0",
   description: "Telegram bot frontend for KOTA",
-  dependencies: ["answer", "approval-queue", "autonomy", "capture", "daemon-ops", "history", "knowledge", "memory", "recall", "repo-tasks", "retract", "transcription"],
+  dependencies: ["answer", "approval-queue", "autonomy", "capture", "daemon-ops", "history", "inbound-signals", "knowledge", "memory", "recall", "repo-tasks", "retract", "transcription"],
   configSchema: {
     type: "object",
     additionalProperties: false,
@@ -465,6 +474,29 @@ const telegramModule: KotaModule = {
           properties: {
             chatId: { type: "integer" },
             projectId: { type: "string", minLength: 1 },
+          },
+        },
+      },
+      inboundSignals: {
+        type: "object",
+        additionalProperties: false,
+        required: ["prefixes"],
+        properties: {
+          prefixes: {
+            type: "array",
+            minItems: 1,
+            uniqueItems: true,
+            items: { type: "string", minLength: 1 },
+          },
+          trustedChatIds: {
+            type: "array",
+            uniqueItems: true,
+            items: { type: "integer" },
+          },
+          blockedChatIds: {
+            type: "array",
+            uniqueItems: true,
+            items: { type: "integer" },
           },
         },
       },

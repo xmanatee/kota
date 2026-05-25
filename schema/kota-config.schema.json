@@ -471,6 +471,40 @@
                 "supervised",
                 "autonomous"
               ]
+            },
+            "inboundSignals": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "prefixes"
+              ],
+              "properties": {
+                "prefixes": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "trustedUserIds": {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "blockedUserIds": {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
             }
           }
         },
@@ -517,6 +551,38 @@
                   "projectId": {
                     "type": "string",
                     "minLength": 1
+                  }
+                }
+              }
+            },
+            "inboundSignals": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "prefixes"
+              ],
+              "properties": {
+                "prefixes": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "trustedChatIds": {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "integer"
+                  }
+                },
+                "blockedChatIds": {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "integer"
                   }
                 }
               }

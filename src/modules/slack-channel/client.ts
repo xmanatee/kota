@@ -35,14 +35,20 @@ export type SocketPayload =
   | { envelope_id: string; type: "interactive"; payload: string | SlackInteractivePayload };
 
 export type SlackEventsApiPayload = {
+  team_id?: string;
+  event_id?: string;
+  event_time?: number;
   event: SlackEvent;
 };
 
 export type SlackMessageEvent = {
   type: "message";
+  ts?: string;
+  event_ts?: string;
   text?: string;
   user?: string;
   channel?: string;
+  channel_type?: string;
   subtype?: string;
   bot_id?: string;
 };

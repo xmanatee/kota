@@ -1,12 +1,12 @@
 ---
 id: task-route-slack-and-telegram-updates-through-the-inbou
 title: Route Slack and Telegram updates through the inbound-signal contract
-status: ready
+status: done
 priority: p2
 area: channel
 summary: Map bidirectional chat channel updates into the shared inbound.signal.received contract while keeping chat modules thin.
 created_at: 2026-05-25T02:48:53.898Z
-updated_at: 2026-05-25T03:17:35.374Z
+updated_at: 2026-05-25T03:56:56Z
 ---
 
 ## Problem

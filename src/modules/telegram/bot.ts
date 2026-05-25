@@ -15,6 +15,7 @@ import type { KotaConfig } from "#core/config/config.js";
 import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
 import { AgentSession, type LoopOptions } from "#core/loop/loop.js";
 import { NullTransport, ProxyTransport } from "#core/loop/transport.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import {
   TranscriptionProviderUnavailableError,
@@ -33,6 +34,10 @@ import {
   type TelegramUser,
   type TelegramVoice,
 } from "./client.js";
+import {
+  emitTelegramTextInboundSignal,
+  type TelegramInboundSignalConfig,
+} from "./inbound-signal.js";
 import type { TelegramProjectSelection } from "./project-selection.js";
 
 export { callTelegramApi, splitMessage, TelegramTransport };
@@ -63,6 +68,11 @@ export type TelegramBotOptions = {
     replyToMessageId: number,
     text: string,
   ) => Promise<boolean>;
+  /** Optional prefix-configured chat automation signal bridge. */
+  inboundSignals?: {
+    config: TelegramInboundSignalConfig;
+    events: Pick<ModuleContext["events"], "emit">;
+  };
 };
 
 type TelegramProjectTarget = {
@@ -153,18 +163,18 @@ export class TelegramBot {
             .onChatReply(chatId, replyToId, text)
             .then((handled) => {
               if (handled) return;
-              this.handleMessage(chatId, text, firstName);
+              this.handleMessage(chatId, text, firstName, undefined, message);
             })
             .catch((err) => {
               console.error(
                 `[kota-telegram] Chat-reply handler error in chat ${chatId}:`,
                 (err as Error).message,
               );
-              this.handleMessage(chatId, text, firstName);
+              this.handleMessage(chatId, text, firstName, undefined, message);
             });
           continue;
         }
-        this.handleMessage(chatId, text, firstName);
+        this.handleMessage(chatId, text, firstName, undefined, message);
         continue;
       }
       if (message.voice || message.audio) {
@@ -241,6 +251,7 @@ export class TelegramBot {
     text: string,
     firstName?: string,
     resolvedTarget?: TelegramProjectTarget,
+    sourceMessage?: TelegramMessage,
   ): void {
     if (this.options.allowedChatIds?.length && !this.options.allowedChatIds.includes(chatId)) {
       this.sendText(chatId, "Sorry, I'm not authorized to chat with you.");
@@ -321,14 +332,15 @@ export class TelegramBot {
       return;
     }
 
-    // Skip bot commands we don't handle
-    if (text.startsWith("/")) return;
-
     targetPromise.then((resolved) => {
       if (!resolved.ok) {
         this.sendText(chatId, resolved.message);
         return;
       }
+      if (this.emitInboundSignal(resolved.target, sourceMessage)) return;
+      // Skip bot commands we don't handle after configured automation prefixes
+      // have had a chance to claim them.
+      if (text.startsWith("/")) return;
       this.processMessage(resolved.target, text, firstName).catch((err) => {
         console.error(`[kota-telegram] Error in chat ${chatId}:`, (err as Error).message);
         this.sendText(chatId, "Something went wrong. Try again or /clear to start over.");
@@ -337,6 +349,29 @@ export class TelegramBot {
       console.error(`[kota-telegram] Project resolution error in chat ${chatId}:`, (err as Error).message);
       this.sendText(chatId, "Project selection failed.");
     });
+  }
+
+  private emitInboundSignal(
+    target: TelegramProjectTarget,
+    sourceMessage: TelegramMessage | undefined,
+  ): boolean {
+    const inboundSignals = this.options.inboundSignals;
+    if (!inboundSignals || !sourceMessage?.text) return false;
+    const result = emitTelegramTextInboundSignal(
+      inboundSignals.events,
+      sourceMessage,
+      {
+        projectId: target.projectId,
+        receivedAt: new Date().toISOString(),
+        config: inboundSignals.config,
+        allowedChatIds: this.options.allowedChatIds,
+      },
+    );
+    if (result.emitted) return true;
+    if ("error" in result) {
+      throw new Error(`Telegram inbound signal is invalid: ${result.error}`);
+    }
+    return false;
   }
 
   private async processMessage(
