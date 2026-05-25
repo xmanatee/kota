@@ -1,12 +1,12 @@
 ---
 id: task-add-social-platform-inbound-signal-adapters
 title: Add social platform inbound-signal adapters
-status: ready
+status: done
 priority: p3
 area: modules
 summary: Define the X/social provider adapter path into inbound.signal.received when a social connector is configured.
 created_at: 2026-05-25T02:48:53.898Z
-updated_at: 2026-05-25T04:32:04.478Z
+updated_at: 2026-05-25T04:43:22.521Z
 ---
 
 ## Problem
@@ -51,7 +51,12 @@ Channel-driven automation.
 
 ## Acceptance Evidence
 
-- Tests or a blocked-task precondition proving the social connector state is
-  handled honestly.
-- Transcript or fixture showing one social-origin signal reaching workflow
-  dispatch with project scope and trust metadata when the connector exists.
+- `pnpm test src/modules/social/inbound-signal.test.ts src/modules/social/index.test.ts`
+  passed with 2 files and 9 tests, covering adapter validation, route emission,
+  and workflow dispatch/no-op from X-origin inbound signals.
+- `pnpm test src/modules/social/inbound-signal.test.ts src/modules/social/index.test.ts src/core/modules/module-deps.test.ts src/module-cli.integration.test.ts`
+  passed with 4 files and 26 tests, covering module dependency/discovery impact.
+- `.kota/runs/2026-05-25T04-32-37-956Z-builder-k6k9nw/social-inbound-signal-fixture.json`
+  records a configured X connector delivery normalized into
+  `inbound.signal.received` with project scope, actor trust metadata, and the
+  workflow accept/no-op probe outcome.

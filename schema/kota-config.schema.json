@@ -508,6 +508,83 @@
             }
           }
         },
+        "social": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "inbound": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "connectors": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "id",
+                      "provider",
+                      "accountId",
+                      "webhookSecret"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "provider": {
+                        "type": "string",
+                        "enum": [
+                          "x"
+                        ]
+                      },
+                      "accountId": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "webhookSecret": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "trustedActorIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "uniqueItems": true
+                      },
+                      "trustedHandles": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "uniqueItems": true
+                      },
+                      "blockedActorIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "uniqueItems": true
+                      },
+                      "blockedHandles": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "uniqueItems": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
         "telegram": {
           "type": "object",
           "additionalProperties": false,
