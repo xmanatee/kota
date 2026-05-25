@@ -1,12 +1,12 @@
 ---
 id: task-add-mcp-enterprise-managed-authorization-support
 title: Add MCP enterprise-managed authorization support
-status: ready
+status: done
 priority: p2
 area: core
 summary: Let KOTA's HTTP MCP client support the official MCP Enterprise-Managed Authorization extension with explicit IdP configuration, ID-JAG exchange, scoped token binding, and redacted diagnostics.
 created_at: 2026-05-25T08:55:10.728Z
-updated_at: 2026-05-25T08:55:10.728Z
+updated_at: 2026-05-25T10:16:45.000Z
 ---
 
 ## Problem

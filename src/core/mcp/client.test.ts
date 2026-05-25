@@ -170,6 +170,49 @@ function verifyPrivateKeyJwtAssertion(
   return payload;
 }
 
+function base64UrlJson(value: Record<string, any>): string {
+  return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
+}
+
+function fakeEnterpriseIdJagJwt(
+  overrides: {
+    header?: Record<string, any>;
+    payload?: Record<string, any>;
+  } = {},
+): string {
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const header = {
+    typ: "oauth-id-jag+jwt",
+    alg: "none",
+    ...(overrides.header ?? {}),
+  };
+  const payload = {
+    iss: "https://idp.example.test",
+    sub: "user-1",
+    aud: "https://auth.example.test",
+    resource: "https://mcp.example.test/mcp",
+    client_id: "kota-client",
+    jti: "id-jag-1",
+    iat: nowSeconds,
+    exp: nowSeconds + 300,
+    scope: "files:read",
+    ...(overrides.payload ?? {}),
+  };
+  return `${base64UrlJson(header)}.${base64UrlJson(payload)}.signature`;
+}
+
+function fakeEnterpriseIdentityProviderMetadata(
+  overrides: Record<string, any> = {},
+): Record<string, any> {
+  return {
+    issuer: "https://idp.example.test",
+    token_endpoint: "https://idp.example.test/token",
+    token_endpoint_auth_methods_supported: ["client_secret_basic"],
+    scopes_supported: ["files:read", "files:write"],
+    ...overrides,
+  };
+}
+
 function sseJsonRpcHttpResponse(id: number | undefined, result: Record<string, any>): Response {
   return new Response(sseMessage({ jsonrpc: "2.0", id, result }), {
     status: 200,
@@ -2952,6 +2995,658 @@ describe("McpClient Streamable HTTP transport", () => {
       "POST https://mcp.example.test/mcp",
       "POST https://mcp.example.test/mcp",
     ]);
+  });
+
+  it("completes enterprise-managed authorization with ID-JAG exchange, JWT bearer exchange, and scoped retry", async () => {
+    const requests: RecordedClientHttpRequest[] = [];
+    let resolverCalled = false;
+    let submittedIdJag = "";
+    mockClientHttpFetch((request) => {
+      requests.push(request);
+      if (
+        request.body.method === "server/discover" &&
+        request.headers.get("authorization") === null
+      ) {
+        expect(
+          request.body.params?._meta?.["io.modelcontextprotocol/clientCapabilities"]
+            ?.extensions?.["io.modelcontextprotocol/enterprise-managed-authorization"],
+        ).toEqual({});
+        expect(
+          request.body.params?._meta?.["io.modelcontextprotocol/clientCapabilities"]
+            ?.extensions?.["io.modelcontextprotocol/oauth-client-credentials"],
+        ).toBeUndefined();
+      }
+      if (request.method === "GET" && request.url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp") {
+        return new Response(JSON.stringify({
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+          scopes_supported: ["files:read"],
+          extensions_supported: ["io.modelcontextprotocol/enterprise-managed-authorization"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "GET" && request.url === "https://auth.example.test/.well-known/oauth-authorization-server") {
+        return new Response(JSON.stringify({
+          issuer: "https://auth.example.test",
+          token_endpoint: "https://auth.example.test/token",
+          token_endpoint_auth_methods_supported: ["client_secret_basic"],
+          scopes_supported: ["files:read"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "GET" && request.url === "https://idp.example.test/.well-known/oauth-authorization-server") {
+        return new Response(JSON.stringify(fakeEnterpriseIdentityProviderMetadata({
+          scopes_supported: ["files:read"],
+        })), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "POST" && request.url === "https://idp.example.test/token") {
+        expect(request.headers.get("authorization")).toBe(
+          "Basic a290YS1jbGllbnQ6Y2xpZW50LXNlY3JldA==",
+        );
+        expect(request.form.get("grant_type")).toBe(
+          "urn:ietf:params:oauth:grant-type:token-exchange",
+        );
+        expect(request.form.get("requested_token_type")).toBe(
+          "urn:ietf:params:oauth:token-type:id-jag",
+        );
+        expect(request.form.get("audience")).toBe("https://auth.example.test");
+        expect(request.form.get("resource")).toBe("https://mcp.example.test/mcp");
+        expect(request.form.get("scope")).toBe("files:read");
+        expect(request.form.get("subject_token")).toBe("identity-assertion-secret");
+        expect(request.form.get("subject_token_type")).toBe(
+          "urn:ietf:params:oauth:token-type:id_token",
+        );
+        return new Response(JSON.stringify({
+          issued_token_type: "urn:ietf:params:oauth:token-type:id-jag",
+          access_token: fakeEnterpriseIdJagJwt(),
+          token_type: "N_A",
+          scope: "files:read",
+          expires_in: 300,
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "POST" && request.url === "https://auth.example.test/token") {
+        expect(request.headers.get("authorization")).toBe(
+          "Basic a290YS1jbGllbnQ6Y2xpZW50LXNlY3JldA==",
+        );
+        expect(request.form.get("grant_type")).toBe(
+          "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        );
+        submittedIdJag = request.form.get("assertion") ?? "";
+        expect(submittedIdJag).toMatch(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.signature$/);
+        return new Response(JSON.stringify({
+          access_token: "enterprise-access-token-secret",
+          token_type: "Bearer",
+          scope: "files:read",
+          expires_in: 3600,
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.body.method === "server/discover" && request.headers.get("authorization") === "Bearer enterprise-access-token-secret") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: {} },
+          serverInfo: { name: "enterprise-managed-fixture" },
+        });
+      }
+      if (request.body.method === "tools/list" && request.headers.get("authorization") === "Bearer enterprise-access-token-secret") {
+        return jsonRpcHttpResponse(request.body.id, {
+          tools: [{ name: "read_file", inputSchema: { type: "object" } }],
+        });
+      }
+      return new Response("missing enterprise token", {
+        status: 401,
+        headers: {
+          "www-authenticate": 'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", scope="files:read"',
+        },
+      });
+    });
+    client = new McpClient(
+      {
+        type: "http",
+        url: "https://mcp.example.test/mcp",
+        authorization: {
+          type: "enterprise-managed",
+          issuer: "https://auth.example.test",
+          resource: "https://mcp.example.test/mcp",
+          scopes: ["files:read"],
+          identityProvider: {
+            issuer: "https://idp.example.test",
+            tokenEndpoint: "https://idp.example.test/token",
+          },
+          subjectToken: {
+            tokenType: "urn:ietf:params:oauth:token-type:id_token",
+            source: { kind: "static", token: "identity-assertion-secret" },
+          },
+          tokenEndpointAuthMethod: "client_secret_basic",
+          client: {
+            kind: "registered",
+            clientId: "kota-client",
+            clientSecret: "client-secret",
+          },
+        },
+      },
+      "enterprise-managed-http-client",
+      {
+        authorizationResolver: async () => {
+          resolverCalled = true;
+          return {
+            callbackUrl: mcpOAuthSecret("https://client.example.test/callback?code=unused&state=unused"),
+          };
+        },
+      },
+    );
+
+    await client.connect();
+    const tools = await client.listTools();
+
+    expect(client.getName()).toBe("enterprise-managed-fixture");
+    expect(tools.map((tool) => tool.name)).toEqual(["read_file"]);
+    expect(resolverCalled).toBe(false);
+    expect(submittedIdJag).not.toContain("identity-assertion-secret");
+    expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
+      "POST https://mcp.example.test/mcp",
+      "GET https://mcp.example.test/.well-known/oauth-protected-resource/mcp",
+      "GET https://auth.example.test/.well-known/oauth-authorization-server",
+      "GET https://idp.example.test/.well-known/oauth-authorization-server",
+      "POST https://idp.example.test/token",
+      "POST https://auth.example.test/token",
+      "POST https://mcp.example.test/mcp",
+      "POST https://mcp.example.test/mcp",
+    ]);
+  });
+
+  it("rejects enterprise-managed authorization mismatches and malformed token exchange responses before retry", async () => {
+    for (const variant of [
+      {
+        name: "unsupported-extension",
+        protectedResource: {
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+          scopes_supported: ["files:read"],
+        },
+        idpResponse: null,
+        authResponse: null,
+        expected: /does not advertise enterprise-managed authorization extension/,
+      },
+      {
+        name: "resource-mismatch",
+        protectedResource: {
+          resource: "https://mcp.example.test/other",
+          authorization_servers: ["https://auth.example.test"],
+          extensions_supported: ["io.modelcontextprotocol/enterprise-managed-authorization"],
+        },
+        idpResponse: null,
+        authResponse: null,
+        expected: /protected-resource metadata resource does not match configured MCP resource/,
+      },
+      {
+        name: "missing-idp-metadata",
+        protectedResource: {
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+          extensions_supported: ["io.modelcontextprotocol/enterprise-managed-authorization"],
+        },
+        idpMetadata: null,
+        idpResponse: null,
+        authResponse: null,
+        expected: /identity-provider metadata discovery failed/,
+      },
+      {
+        name: "malformed-idp-metadata",
+        protectedResource: {
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+          extensions_supported: ["io.modelcontextprotocol/enterprise-managed-authorization"],
+        },
+        idpMetadata: {
+          issuer: "https://idp.example.test",
+        },
+        idpResponse: null,
+        authResponse: null,
+        expected: /identity-provider metadata discovery failed/,
+      },
+      {
+        name: "id-jag-token-type-mismatch",
+        protectedResource: {
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+          extensions_supported: ["io.modelcontextprotocol/enterprise-managed-authorization"],
+        },
+        idpResponse: {
+          issued_token_type: "urn:ietf:params:oauth:token-type:access_token",
+          access_token: fakeEnterpriseIdJagJwt(),
+          token_type: "N_A",
+          scope: "files:read",
+        },
+        authResponse: null,
+        expected: /issued_token_type must be urn:ietf:params:oauth:token-type:id-jag/,
+      },
+      {
+        name: "id-jag-response-token-type-mismatch",
+        protectedResource: {
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+          extensions_supported: ["io.modelcontextprotocol/enterprise-managed-authorization"],
+        },
+        idpResponse: {
+          issued_token_type: "urn:ietf:params:oauth:token-type:id-jag",
+          access_token: fakeEnterpriseIdJagJwt(),
+          token_type: "Bearer",
+          scope: "files:read",
+        },
+        authResponse: null,
+        expected: /token_type must be N_A/,
+      },
+      {
+        name: "id-jag-issuer-mismatch",
+        protectedResource: {
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+          extensions_supported: ["io.modelcontextprotocol/enterprise-managed-authorization"],
+        },
+        idpResponse: {
+          issued_token_type: "urn:ietf:params:oauth:token-type:id-jag",
+          access_token: fakeEnterpriseIdJagJwt({ payload: { iss: "https://other-idp.example.test" } }),
+          token_type: "N_A",
+          scope: "files:read",
+        },
+        authResponse: null,
+        expected: /ID-JAG issuer did not match/,
+      },
+      {
+        name: "jwt-bearer-bad-response",
+        protectedResource: {
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+          extensions_supported: ["io.modelcontextprotocol/enterprise-managed-authorization"],
+        },
+        idpResponse: {
+          issued_token_type: "urn:ietf:params:oauth:token-type:id-jag",
+          access_token: fakeEnterpriseIdJagJwt(),
+          token_type: "N_A",
+          scope: "files:read",
+        },
+        authResponse: {
+          access_token: "enterprise-access-token-secret",
+          token_type: "Mac",
+          scope: "files:read",
+        },
+        expected: /token_type must be Bearer/,
+      },
+      {
+        name: "insufficient-scope",
+        protectedResource: {
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+          extensions_supported: ["io.modelcontextprotocol/enterprise-managed-authorization"],
+          scopes_supported: ["files:read", "files:write"],
+        },
+        idpResponse: {
+          issued_token_type: "urn:ietf:params:oauth:token-type:id-jag",
+          access_token: fakeEnterpriseIdJagJwt({ payload: { scope: "files:read files:write" } }),
+          token_type: "N_A",
+          scope: "files:read files:write",
+        },
+        authResponse: {
+          access_token: "enterprise-access-token-secret",
+          token_type: "Bearer",
+          scope: "files:read",
+        },
+        expected: /authorization token did not grant the required scopes/,
+        scopes: ["files:read", "files:write"],
+      },
+    ]) {
+      let idpCalled = false;
+      let authCalled = false;
+      mockClientHttpFetch((request) => {
+        if (request.method === "GET" && request.url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp") {
+          return new Response(JSON.stringify(variant.protectedResource), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (request.method === "GET" && request.url === "https://auth.example.test/.well-known/oauth-authorization-server") {
+          return new Response(JSON.stringify({
+            issuer: "https://auth.example.test",
+            token_endpoint: "https://auth.example.test/token",
+            token_endpoint_auth_methods_supported: ["client_secret_basic"],
+            scopes_supported: ["files:read", "files:write"],
+          }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (request.method === "GET" && request.url === "https://idp.example.test/.well-known/oauth-authorization-server") {
+          const idpMetadata = "idpMetadata" in variant ? variant.idpMetadata : undefined;
+          if (idpMetadata === null) {
+            return new Response("missing identity-provider metadata", { status: 404 });
+          }
+          return new Response(JSON.stringify(idpMetadata ?? fakeEnterpriseIdentityProviderMetadata()), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (request.method === "POST" && request.url === "https://idp.example.test/token") {
+          idpCalled = true;
+          if (variant.idpResponse !== null) {
+            return new Response(JSON.stringify(variant.idpResponse), {
+              status: 200,
+              headers: { "content-type": "application/json" },
+            });
+          }
+        }
+        if (request.method === "POST" && request.url === "https://auth.example.test/token") {
+          authCalled = true;
+          if (variant.authResponse !== null) {
+            return new Response(JSON.stringify(variant.authResponse), {
+              status: 200,
+              headers: { "content-type": "application/json" },
+            });
+          }
+        }
+        return new Response("missing enterprise token", {
+          status: 401,
+          headers: {
+            "www-authenticate": 'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", scope="files:read"',
+          },
+        });
+      });
+      client = new McpClient(
+        {
+          type: "http",
+          url: "https://mcp.example.test/mcp",
+          authorization: {
+            type: "enterprise-managed",
+            issuer: "https://auth.example.test",
+            resource: "https://mcp.example.test/mcp",
+            scopes: variant.scopes ?? ["files:read"],
+            identityProvider: {
+              issuer: "https://idp.example.test",
+              tokenEndpoint: "https://idp.example.test/token",
+            },
+            subjectToken: {
+              tokenType: "urn:ietf:params:oauth:token-type:id_token",
+              source: { kind: "static", token: "identity-assertion-secret" },
+            },
+            tokenEndpointAuthMethod: "client_secret_basic",
+            client: {
+              kind: "registered",
+              clientId: "kota-client",
+              clientSecret: "client-secret",
+            },
+          },
+        },
+        `enterprise-managed-${variant.name}`,
+      );
+
+      await expect(client.connect()).rejects.toThrow(variant.expected);
+      if (variant.idpResponse === null) expect(idpCalled).toBe(false);
+      if (variant.authResponse === null) expect(authCalled).toBe(false);
+      await client.close();
+      client = null;
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("reacquires expired enterprise-managed access tokens from the subject-token env source", async () => {
+    const envKey = "KOTA_TEST_ENTERPRISE_SUBJECT_TOKEN";
+    const previousEnv = process.env[envKey];
+    process.env[envKey] = "env-identity-assertion-secret";
+    let idpRequests = 0;
+    let authRequests = 0;
+    try {
+      mockClientHttpFetch((request) => {
+        if (request.method === "GET" && request.url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp") {
+          return new Response(JSON.stringify({
+            resource: "https://mcp.example.test/mcp",
+            authorization_servers: ["https://auth.example.test"],
+            extensions_supported: ["io.modelcontextprotocol/enterprise-managed-authorization"],
+          }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (request.method === "GET" && request.url === "https://auth.example.test/.well-known/oauth-authorization-server") {
+          return new Response(JSON.stringify({
+            issuer: "https://auth.example.test",
+            token_endpoint: "https://auth.example.test/token",
+            token_endpoint_auth_methods_supported: ["client_secret_basic"],
+          }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (request.method === "GET" && request.url === "https://idp.example.test/.well-known/oauth-authorization-server") {
+          return new Response(JSON.stringify(fakeEnterpriseIdentityProviderMetadata()), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (request.method === "POST" && request.url === "https://idp.example.test/token") {
+          idpRequests += 1;
+          expect(request.form.get("subject_token")).toBe("env-identity-assertion-secret");
+          return new Response(JSON.stringify({
+            issued_token_type: "urn:ietf:params:oauth:token-type:id-jag",
+            access_token: fakeEnterpriseIdJagJwt({ payload: { jti: `id-jag-${idpRequests}` } }),
+            token_type: "N_A",
+            scope: "files:read",
+          }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (request.method === "POST" && request.url === "https://auth.example.test/token") {
+          authRequests += 1;
+          return new Response(JSON.stringify({
+            access_token: authRequests === 1
+              ? "expired-enterprise-access-token-secret"
+              : "fresh-enterprise-access-token-secret",
+            token_type: "Bearer",
+            scope: "files:read",
+            expires_in: authRequests === 1 ? 0 : 3600,
+          }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (request.body.method === "server/discover" && request.headers.get("authorization") === "Bearer expired-enterprise-access-token-secret") {
+          return jsonRpcHttpResponse(request.body.id, {
+            supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+            capabilities: { tools: {} },
+          });
+        }
+        if (request.body.method === "tools/list" && request.headers.get("authorization") === "Bearer fresh-enterprise-access-token-secret") {
+          return jsonRpcHttpResponse(request.body.id, {
+            tools: [{ name: "read_file", inputSchema: { type: "object" } }],
+          });
+        }
+        return new Response("missing enterprise token", {
+          status: 401,
+          headers: {
+            "www-authenticate": 'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", scope="files:read"',
+          },
+        });
+      });
+      client = new McpClient(
+        {
+          type: "http",
+          url: "https://mcp.example.test/mcp",
+          authorization: {
+            type: "enterprise-managed",
+            issuer: "https://auth.example.test",
+            resource: "https://mcp.example.test/mcp",
+            scopes: ["files:read"],
+            identityProvider: {
+              issuer: "https://idp.example.test",
+              tokenEndpoint: "https://idp.example.test/token",
+            },
+            subjectToken: {
+              tokenType: "urn:ietf:params:oauth:token-type:id_token",
+              source: { kind: "env", name: envKey },
+            },
+            tokenEndpointAuthMethod: "client_secret_basic",
+            client: {
+              kind: "registered",
+              clientId: "kota-client",
+              clientSecret: "client-secret",
+            },
+          },
+        },
+        "enterprise-managed-expiry-client",
+      );
+
+      await client.connect();
+      const tools = await client.listTools();
+
+      expect(tools.map((tool) => tool.name)).toEqual(["read_file"]);
+      expect(idpRequests).toBe(2);
+      expect(authRequests).toBe(2);
+    } finally {
+      if (previousEnv === undefined) delete process.env[envKey];
+      else process.env[envKey] = previousEnv;
+    }
+  });
+
+  it("redacts enterprise-managed identity assertions, grants, credentials, and bearer tokens from runtime failures", async () => {
+    const envKey = "KOTA_TEST_ENTERPRISE_REDACTION_SUBJECT_TOKEN";
+    const previousEnv = process.env[envKey];
+    process.env[envKey] = "env-identity-assertion-secret";
+    let idJag = "";
+    try {
+      mockClientHttpFetch((request) => {
+        if (request.method === "GET" && request.url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp") {
+          return new Response(JSON.stringify({
+            resource: "https://mcp.example.test/mcp",
+            authorization_servers: ["https://auth.example.test"],
+            extensions_supported: ["io.modelcontextprotocol/enterprise-managed-authorization"],
+          }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (request.method === "GET" && request.url === "https://auth.example.test/.well-known/oauth-authorization-server") {
+          return new Response(JSON.stringify({
+            issuer: "https://auth.example.test",
+            token_endpoint: "https://auth.example.test/token",
+            token_endpoint_auth_methods_supported: ["client_secret_basic"],
+          }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (request.method === "GET" && request.url === "https://idp.example.test/.well-known/oauth-authorization-server") {
+          return new Response(JSON.stringify(fakeEnterpriseIdentityProviderMetadata({
+            scopes_supported: ["files:read"],
+          })), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (request.method === "POST" && request.url === "https://idp.example.test/token") {
+          idJag = fakeEnterpriseIdJagJwt();
+          return new Response(JSON.stringify({
+            issued_token_type: "urn:ietf:params:oauth:token-type:id-jag",
+            access_token: idJag,
+            token_type: "N_A",
+            scope: "files:read",
+          }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (request.method === "POST" && request.url === "https://auth.example.test/token") {
+          return new Response(JSON.stringify({
+            access_token: "enterprise-access-token-secret",
+            token_type: "Bearer",
+            scope: "files:read",
+            expires_in: 3600,
+          }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (request.body.method === "server/discover" && request.headers.get("authorization") === "Bearer enterprise-access-token-secret") {
+          return jsonRpcHttpResponse(request.body.id, {
+            supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+            capabilities: { tools: {} },
+          });
+        }
+        if (request.body.method === "tools/list" && request.headers.get("authorization") === "Bearer enterprise-access-token-secret") {
+          return jsonRpcHttpResponse(request.body.id, {
+            tools: [{ name: "raw_error", inputSchema: { type: "object" } }],
+          });
+        }
+        if (request.body.method === "tools/call") {
+          return new Response(
+            `env-identity-assertion-secret ${idJag} client-secret Basic a290YS1jbGllbnQ6Y2xpZW50LXNlY3JldA== enterprise-access-token-secret`,
+            {
+              status: 500,
+              headers: { "content-type": "text/plain" },
+            },
+          );
+        }
+        return new Response("missing enterprise token", {
+          status: 401,
+          headers: {
+            "www-authenticate": 'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", scope="files:read"',
+          },
+        });
+      });
+
+      client = new McpClient(
+        {
+          type: "http",
+          url: "https://mcp.example.test/mcp",
+          authorization: {
+            type: "enterprise-managed",
+            issuer: "https://auth.example.test",
+            resource: "https://mcp.example.test/mcp",
+            scopes: ["files:read"],
+            identityProvider: {
+              issuer: "https://idp.example.test",
+              tokenEndpoint: "https://idp.example.test/token",
+            },
+            subjectToken: {
+              tokenType: "urn:ietf:params:oauth:token-type:id_token",
+              source: { kind: "env", name: envKey },
+            },
+            tokenEndpointAuthMethod: "client_secret_basic",
+            client: {
+              kind: "registered",
+              clientId: "kota-client",
+              clientSecret: "client-secret",
+            },
+          },
+        },
+        "enterprise-managed-redaction-client",
+      );
+
+      await client.connect();
+      await client.listTools();
+
+      await expect(client.callTool("raw_error", {})).rejects.toThrow(
+        /\[redacted\] \[redacted\] \[redacted\] \[redacted\] \[redacted\]/,
+      );
+      await expect(client.callTool("raw_error", {})).rejects.not.toThrow(
+        /env-identity-assertion-secret|client-secret|a290YS1jbGllbnQ6Y2xpZW50LXNlY3JldA==|enterprise-access-token-secret/,
+      );
+      await expect(client.callTool("raw_error", {})).rejects.not.toThrow(idJag);
+    } finally {
+      if (previousEnv === undefined) delete process.env[envKey];
+      else process.env[envKey] = previousEnv;
+    }
   });
 
   it("rejects malformed OAuth client credentials configuration before authorization", () => {

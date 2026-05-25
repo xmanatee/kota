@@ -4,6 +4,7 @@ import type {
   McpOAuthResolvedClient,
   McpOAuthTokenSet,
   McpProtectedResourceMetadata,
+  NormalizedMcpEnterpriseManagedAuthorizationConfig,
   NormalizedMcpOAuthAuthorizationCodeConfig,
   NormalizedMcpOAuthClientCredentialsAuthorizationConfig,
 } from "./client-auth-types.js";
@@ -16,6 +17,7 @@ import {
   decodeOAuthTokenSet,
   generateOAuthState,
   generateOAuthVerifier,
+  MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION_ID,
   normalizeHttpUrl,
   parseWwwAuthenticateChallenge,
   scopeSetIncludesAll,
@@ -51,9 +53,9 @@ export abstract class McpClientAuthorizationRuntime extends McpClientOAuthTokenR
     const config = this.transport.authorization;
     const challenge = error.challenge;
     const configuredScopes = config.scopes;
-    const challengeErrorScopes = config.type === "oauth-client-credentials"
-      ? configuredScopes
-      : uniqueScopes([...configuredScopes, ...challenge.scopes]);
+    const challengeErrorScopes = config.type === "oauth"
+      ? uniqueScopes([...configuredScopes, ...challenge.scopes])
+      : configuredScopes;
     if (challenge.metadataDiscovery?.status !== "found") {
       const resource = this.oauthTokenBinding?.resource ?? this.transport.url;
       throw this.authorizationFlowError(
@@ -77,14 +79,22 @@ export abstract class McpClientAuthorizationRuntime extends McpClientOAuthTokenR
     }
 
     const resource = config.type === "oauth-client-credentials"
-      ? this.validateClientCredentialsProtectedResourceMetadata(
+      ? this.validateConfiguredProtectedResourceMetadata(
           config,
           resourceMetadata,
           challenge.scopes,
           this.transport.url,
         )
+      : config.type === "enterprise-managed"
+      ? this.validateEnterpriseManagedProtectedResourceMetadata(
+          config,
+          resourceMetadata,
+          challenge.scopes,
+        )
       : resourceMetadata.resource;
     const requestedScopes = config.type === "oauth-client-credentials"
+      ? [...configuredScopes]
+      : config.type === "enterprise-managed"
       ? [...configuredScopes]
       : uniqueScopes([
           ...configuredScopes,
@@ -106,6 +116,14 @@ export abstract class McpClientAuthorizationRuntime extends McpClientOAuthTokenR
     );
     const rawToken = config.type === "oauth-client-credentials"
       ? await this.runClientCredentialsFlow(
+          metadata,
+          config,
+          client,
+          resource,
+          requestedScopes,
+        )
+      : config.type === "enterprise-managed"
+      ? await this.runEnterpriseManagedAuthorizationFlow(
           metadata,
           config,
           client,
@@ -138,8 +156,10 @@ export abstract class McpClientAuthorizationRuntime extends McpClientOAuthTokenR
     return true;
   }
 
-  protected validateClientCredentialsProtectedResourceMetadata(
-    config: NormalizedMcpOAuthClientCredentialsAuthorizationConfig,
+  protected validateConfiguredProtectedResourceMetadata(
+    config:
+      | NormalizedMcpOAuthClientCredentialsAuthorizationConfig
+      | NormalizedMcpEnterpriseManagedAuthorizationConfig,
     resourceMetadata: McpProtectedResourceMetadata,
     challengeScopes: readonly string[],
     configuredResource: string,
@@ -161,11 +181,14 @@ export abstract class McpClientAuthorizationRuntime extends McpClientOAuthTokenR
       );
     }
     if (normalizedResource !== configuredResource) {
+      const configuredResourceLabel = config.type === "oauth-client-credentials"
+        ? "configured MCP HTTP URL"
+        : "configured MCP resource";
       throw this.authorizationFlowError(
         normalizedResource,
         config.issuer,
         config.scopes,
-        `protected-resource metadata resource does not match configured MCP HTTP URL "${configuredResource}"`,
+        `protected-resource metadata resource does not match ${configuredResourceLabel} "${configuredResource}"`,
       );
     }
 
@@ -198,6 +221,32 @@ export abstract class McpClientAuthorizationRuntime extends McpClientOAuthTokenR
     }
 
     return normalizedResource;
+  }
+
+  protected validateEnterpriseManagedProtectedResourceMetadata(
+    config: NormalizedMcpEnterpriseManagedAuthorizationConfig,
+    resourceMetadata: McpProtectedResourceMetadata,
+    challengeScopes: readonly string[],
+  ): string {
+    const resource = this.validateConfiguredProtectedResourceMetadata(
+      config,
+      resourceMetadata,
+      challengeScopes,
+      config.resource,
+    );
+    if (
+      !resourceMetadata.extensionsSupported.includes(
+        MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION_ID,
+      )
+    ) {
+      throw this.authorizationFlowError(
+        resource,
+        config.issuer,
+        config.scopes,
+        "protected-resource metadata does not advertise enterprise-managed authorization extension",
+      );
+    }
+    return resource;
   }
 
   protected authorizationFlowError(

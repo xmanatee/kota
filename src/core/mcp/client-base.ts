@@ -16,6 +16,7 @@ import {
 import {
   authorizationContextKey,
   clientSecretBasicAuthorizationHeader,
+  MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION_ID,
   MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION_ID,
   normalizeClientTransportConfig,
 } from "./client-authorization-protocol.js";
@@ -253,6 +254,13 @@ export abstract class McpClientBase {
       capabilities.extensions = {
         [MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION_ID]: {},
       };
+    } else if (
+      this.transport.type === "http" &&
+      this.transport.authorization?.type === "enterprise-managed"
+    ) {
+      capabilities.extensions = {
+        [MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION_ID]: {},
+      };
     }
     if (
       protocolVersion === MCP_DRAFT_PROTOCOL_VERSION &&
@@ -355,6 +363,11 @@ export abstract class McpClientBase {
         }
         if ("privateKeyPem" in client) add(client.privateKeyPem);
       }
+      const subjectToken = this.transport.authorization?.type === "enterprise-managed"
+        ? this.transport.authorization.subjectToken
+        : undefined;
+      if (subjectToken?.source.kind === "static") add(subjectToken.source.token);
+      if (subjectToken?.source.kind === "env") add(process.env[subjectToken.source.name]);
     }
     for (const assertion of this.oauthClientAssertions) add(assertion);
     add(this.oauthTokenBinding?.token.accessToken);

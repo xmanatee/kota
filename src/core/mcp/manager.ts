@@ -14,6 +14,10 @@ import {
   McpClient,
   type McpClientTransportConfig,
   type McpElicitationMode,
+  type McpEnterpriseManagedIdentityProviderConfig,
+  type McpEnterpriseManagedSubjectTokenConfig,
+  type McpEnterpriseManagedSubjectTokenSourceConfig,
+  type McpEnterpriseManagedSubjectTokenType,
   type McpGetPromptResult,
   type McpInputRequiredCallToolResult,
   type McpInputRequiredResult,
@@ -147,6 +151,32 @@ const MCP_OAUTH_CLIENT_CREDENTIALS_AUTHORIZATION_FIELDS = new Set([
   "scopes",
   "tokenEndpointAuthMethod",
   "client",
+]);
+const MCP_ENTERPRISE_MANAGED_AUTHORIZATION_FIELDS = new Set([
+  "type",
+  "issuer",
+  "resource",
+  "scopes",
+  "identityProvider",
+  "subjectToken",
+  "tokenEndpointAuthMethod",
+  "client",
+]);
+const MCP_ENTERPRISE_MANAGED_IDENTITY_PROVIDER_FIELDS = new Set([
+  "issuer",
+  "tokenEndpoint",
+]);
+const MCP_ENTERPRISE_MANAGED_SUBJECT_TOKEN_FIELDS = new Set([
+  "tokenType",
+  "source",
+]);
+const MCP_ENTERPRISE_MANAGED_STATIC_SUBJECT_TOKEN_SOURCE_FIELDS = new Set([
+  "kind",
+  "token",
+]);
+const MCP_ENTERPRISE_MANAGED_ENV_SUBJECT_TOKEN_SOURCE_FIELDS = new Set([
+  "kind",
+  "name",
 ]);
 const MCP_OAUTH_REGISTERED_CLIENT_FIELDS = new Set(["kind", "clientId", "clientSecret"]);
 const MCP_OAUTH_CLIENT_ID_METADATA_URL_FIELDS = new Set(["kind", "clientId"]);
@@ -576,6 +606,98 @@ function decodePrivateKeyJwtSigningAlgorithm(
   return value;
 }
 
+function decodeEnterpriseManagedIdentityProvider(
+  value: KotaJsonValue | undefined,
+): McpEnterpriseManagedIdentityProviderConfig {
+  if (!isJsonObject(value)) {
+    throw new Error("authorization.identityProvider must be an object");
+  }
+  assertNoUnknownObjectFields(
+    "authorization.identityProvider",
+    value,
+    MCP_ENTERPRISE_MANAGED_IDENTITY_PROVIDER_FIELDS,
+  );
+  return {
+    issuer: requiredString(
+      value.issuer,
+      "authorization.identityProvider.issuer",
+    ),
+    tokenEndpoint: requiredString(
+      value.tokenEndpoint,
+      "authorization.identityProvider.tokenEndpoint",
+    ),
+  };
+}
+
+function decodeEnterpriseManagedSubjectToken(
+  value: KotaJsonValue | undefined,
+): McpEnterpriseManagedSubjectTokenConfig {
+  if (!isJsonObject(value)) {
+    throw new Error("authorization.subjectToken must be an object");
+  }
+  assertNoUnknownObjectFields(
+    "authorization.subjectToken",
+    value,
+    MCP_ENTERPRISE_MANAGED_SUBJECT_TOKEN_FIELDS,
+  );
+  return {
+    tokenType: decodeEnterpriseManagedSubjectTokenType(value.tokenType),
+    source: decodeEnterpriseManagedSubjectTokenSource(value.source),
+  };
+}
+
+function decodeEnterpriseManagedSubjectTokenType(
+  value: KotaJsonValue | undefined,
+): McpEnterpriseManagedSubjectTokenType {
+  if (
+    value !== "urn:ietf:params:oauth:token-type:id_token" &&
+    value !== "urn:ietf:params:oauth:token-type:saml2"
+  ) {
+    throw new Error(
+      "authorization.subjectToken.tokenType must be urn:ietf:params:oauth:token-type:id_token or urn:ietf:params:oauth:token-type:saml2",
+    );
+  }
+  return value;
+}
+
+function decodeEnterpriseManagedSubjectTokenSource(
+  value: KotaJsonValue | undefined,
+): McpEnterpriseManagedSubjectTokenSourceConfig {
+  if (!isJsonObject(value)) {
+    throw new Error("authorization.subjectToken.source must be an object");
+  }
+  const kind = requiredString(value.kind, "authorization.subjectToken.source.kind");
+  if (kind === "static") {
+    assertNoUnknownObjectFields(
+      "authorization.subjectToken.source",
+      value,
+      MCP_ENTERPRISE_MANAGED_STATIC_SUBJECT_TOKEN_SOURCE_FIELDS,
+    );
+    return {
+      kind,
+      token: requiredString(
+        value.token,
+        "authorization.subjectToken.source.token",
+      ),
+    };
+  }
+  if (kind === "env") {
+    assertNoUnknownObjectFields(
+      "authorization.subjectToken.source",
+      value,
+      MCP_ENTERPRISE_MANAGED_ENV_SUBJECT_TOKEN_SOURCE_FIELDS,
+    );
+    return {
+      kind,
+      name: requiredString(
+        value.name,
+        "authorization.subjectToken.source.name",
+      ),
+    };
+  }
+  throw new Error("authorization.subjectToken.source.kind must be static or env");
+}
+
 function decodeMcpAuthorizationConfig(
   value: KotaJsonValue | undefined,
   headers: Record<string, string> | undefined,
@@ -638,7 +760,52 @@ function decodeMcpAuthorizationConfig(
       "authorization.tokenEndpointAuthMethod must be client_secret_basic or private_key_jwt",
     );
   }
-  throw new Error("authorization.type must be oauth or oauth-client-credentials");
+  if (type === "enterprise-managed") {
+    assertNoUnknownObjectFields(
+      "authorization",
+      value,
+      MCP_ENTERPRISE_MANAGED_AUTHORIZATION_FIELDS,
+    );
+    const tokenEndpointAuthMethod = requiredString(
+      value.tokenEndpointAuthMethod,
+      "authorization.tokenEndpointAuthMethod",
+    );
+    const scopes = optionalStringArray(value.scopes, "authorization.scopes");
+    if (tokenEndpointAuthMethod === "client_secret_basic") {
+      return {
+        type,
+        issuer: requiredString(value.issuer, "authorization.issuer"),
+        resource: requiredString(value.resource, "authorization.resource"),
+        scopes: scopes ?? [],
+        identityProvider: decodeEnterpriseManagedIdentityProvider(
+          value.identityProvider,
+        ),
+        subjectToken: decodeEnterpriseManagedSubjectToken(value.subjectToken),
+        tokenEndpointAuthMethod,
+        client: decodeMcpOAuthClientCredentialsClientSecretBasic(value.client),
+      };
+    }
+    if (tokenEndpointAuthMethod === "private_key_jwt") {
+      return {
+        type,
+        issuer: requiredString(value.issuer, "authorization.issuer"),
+        resource: requiredString(value.resource, "authorization.resource"),
+        scopes: scopes ?? [],
+        identityProvider: decodeEnterpriseManagedIdentityProvider(
+          value.identityProvider,
+        ),
+        subjectToken: decodeEnterpriseManagedSubjectToken(value.subjectToken),
+        tokenEndpointAuthMethod,
+        client: decodeMcpOAuthClientCredentialsPrivateKeyJwtClient(value.client),
+      };
+    }
+    throw new Error(
+      "authorization.tokenEndpointAuthMethod must be client_secret_basic or private_key_jwt",
+    );
+  }
+  throw new Error(
+    "authorization.type must be oauth, oauth-client-credentials, or enterprise-managed",
+  );
 }
 
 function normalizeMcpServerConfig(

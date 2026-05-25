@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { generateKeyPairSync } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { MCP_DRAFT_PROTOCOL_VERSION, mcpOAuthSecret } from "./client.js";
@@ -32,6 +33,29 @@ function privateKeyJwtEcPrivateKey(): string {
     publicKeyEncoding: { format: "pem", type: "spki" },
   });
   return keyPair.privateKey;
+}
+
+function base64UrlJson(value: Record<string, any>): string {
+  return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
+}
+
+function fakeEnterpriseIdJagJwt(): string {
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  return [
+    base64UrlJson({ typ: "oauth-id-jag+jwt", alg: "none" }),
+    base64UrlJson({
+      iss: "https://idp.example.test",
+      sub: "user-1",
+      aud: "https://auth.example.test",
+      resource: "https://mcp.example.test/mcp",
+      client_id: "kota-client",
+      jti: "id-jag-1",
+      iat: nowSeconds,
+      exp: nowSeconds + 300,
+      scope: "files:read",
+    }),
+    "signature",
+  ].join(".");
 }
 
 function mockMcpHttpFetch(
@@ -695,6 +719,135 @@ describe("McpManager", () => {
                 clientId: "kota-client",
                 privateKeyPem,
                 signingAlgorithm: "RS256",
+              },
+            },
+          },
+        },
+      }, {
+        authorizationResolver: async (request) => {
+          resolverCalled = true;
+          return {
+            callbackUrl: mcpOAuthSecret(`https://client.example.test/callback?code=unused&state=${request.state}`),
+          };
+        },
+      });
+
+      expect(manager.getServerCount()).toBe(1);
+      expect(manager.getTools().map((tool) => tool.name)).toEqual(["mcp__remote__read_file"]);
+      expect(resolverCalled).toBe(false);
+    } finally {
+      await manager.close();
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("accepts explicit Streamable HTTP enterprise-managed authorization config", async () => {
+    let resolverCalled = false;
+    const { fetchSpy } = mockMcpHttpFetch((request) => {
+      if (request.method === "GET" && request.url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp") {
+        return new Response(JSON.stringify({
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+          extensions_supported: ["io.modelcontextprotocol/enterprise-managed-authorization"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "GET" && request.url === "https://auth.example.test/.well-known/oauth-authorization-server") {
+        return new Response(JSON.stringify({
+          issuer: "https://auth.example.test",
+          token_endpoint: "https://auth.example.test/token",
+          token_endpoint_auth_methods_supported: ["client_secret_basic"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "GET" && request.url === "https://idp.example.test/.well-known/oauth-authorization-server") {
+        return new Response(JSON.stringify({
+          issuer: "https://idp.example.test",
+          token_endpoint: "https://idp.example.test/token",
+          token_endpoint_auth_methods_supported: ["client_secret_basic"],
+          scopes_supported: ["files:read"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "POST" && request.url === "https://idp.example.test/token") {
+        expect(request.form.get("grant_type")).toBe(
+          "urn:ietf:params:oauth:grant-type:token-exchange",
+        );
+        expect(request.form.get("subject_token")).toBe("identity-assertion-secret");
+        return new Response(JSON.stringify({
+          issued_token_type: "urn:ietf:params:oauth:token-type:id-jag",
+          access_token: fakeEnterpriseIdJagJwt(),
+          token_type: "N_A",
+          scope: "files:read",
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "POST" && request.url === "https://auth.example.test/token") {
+        expect(request.form.get("grant_type")).toBe(
+          "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        );
+        return new Response(JSON.stringify({
+          access_token: "access-token-secret",
+          token_type: "Bearer",
+          scope: "files:read",
+          expires_in: 3600,
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.body.method === "server/discover" && request.headers.get("authorization") === "Bearer access-token-secret") {
+        return jsonRpcResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: {} },
+        });
+      }
+      if (request.body.method === "tools/list" && request.headers.get("authorization") === "Bearer access-token-secret") {
+        return jsonRpcResponse(request.body.id, {
+          tools: [{ name: "read_file", inputSchema: { type: "object" } }],
+        });
+      }
+      return new Response("missing enterprise token", {
+        status: 401,
+        headers: {
+          "www-authenticate": 'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", scope="files:read"',
+        },
+      });
+    });
+    const manager = new McpManager();
+
+    try {
+      await manager.initialize({
+        mcpServers: {
+          remote: {
+            type: "http",
+            url: "https://mcp.example.test/mcp",
+            authorization: {
+              type: "enterprise-managed",
+              issuer: "https://auth.example.test",
+              resource: "https://mcp.example.test/mcp",
+              scopes: ["files:read"],
+              identityProvider: {
+                issuer: "https://idp.example.test",
+                tokenEndpoint: "https://idp.example.test/token",
+              },
+              subjectToken: {
+                tokenType: "urn:ietf:params:oauth:token-type:id_token",
+                source: { kind: "static", token: "identity-assertion-secret" },
+              },
+              tokenEndpointAuthMethod: "client_secret_basic",
+              client: {
+                kind: "registered",
+                clientId: "kota-client",
+                clientSecret: "client-secret",
               },
             },
           },
@@ -1729,6 +1882,119 @@ describe("McpManager", () => {
           },
         } as never,
         expected: "authorization.client has unexpected fields clientName, dynamicClientRegistration",
+      },
+      {
+        serverName: "enterpriseManagedMixedStaticAuthorization",
+        config: {
+          type: "http",
+          url: "https://mcp.example.test/mcp",
+          headers: { Authorization: "Bearer static-token" },
+          authorization: {
+            type: "enterprise-managed",
+            issuer: "https://auth.example.test",
+            resource: "https://mcp.example.test/mcp",
+            scopes: ["files:read"],
+            identityProvider: {
+              issuer: "https://idp.example.test",
+              tokenEndpoint: "https://idp.example.test/token",
+            },
+            subjectToken: {
+              tokenType: "urn:ietf:params:oauth:token-type:id_token",
+              source: { kind: "static", token: "identity-assertion-secret" },
+            },
+            tokenEndpointAuthMethod: "client_secret_basic",
+            client: {
+              kind: "registered",
+              clientId: "kota-client",
+              clientSecret: "client-secret",
+            },
+          },
+        } as never,
+        expected: "cannot combine static Authorization headers with acquired OAuth tokens",
+      },
+      {
+        serverName: "enterpriseManagedMixedRedirect",
+        config: {
+          type: "http",
+          url: "https://mcp.example.test/mcp",
+          authorization: {
+            type: "enterprise-managed",
+            issuer: "https://auth.example.test",
+            resource: "https://mcp.example.test/mcp",
+            redirectUri: "https://client.example.test/callback",
+            scopes: ["files:read"],
+            identityProvider: {
+              issuer: "https://idp.example.test",
+              tokenEndpoint: "https://idp.example.test/token",
+            },
+            subjectToken: {
+              tokenType: "urn:ietf:params:oauth:token-type:id_token",
+              source: { kind: "static", token: "identity-assertion-secret" },
+            },
+            tokenEndpointAuthMethod: "client_secret_basic",
+            client: {
+              kind: "registered",
+              clientId: "kota-client",
+              clientSecret: "client-secret",
+            },
+          },
+        } as never,
+        expected: "authorization has unexpected field redirectUri",
+      },
+      {
+        serverName: "enterpriseManagedUnsupportedSubjectTokenType",
+        config: {
+          type: "http",
+          url: "https://mcp.example.test/mcp",
+          authorization: {
+            type: "enterprise-managed",
+            issuer: "https://auth.example.test",
+            resource: "https://mcp.example.test/mcp",
+            scopes: ["files:read"],
+            identityProvider: {
+              issuer: "https://idp.example.test",
+              tokenEndpoint: "https://idp.example.test/token",
+            },
+            subjectToken: {
+              tokenType: "urn:ietf:params:oauth:token-type:access_token",
+              source: { kind: "static", token: "identity-assertion-secret" },
+            },
+            tokenEndpointAuthMethod: "client_secret_basic",
+            client: {
+              kind: "registered",
+              clientId: "kota-client",
+              clientSecret: "client-secret",
+            },
+          },
+        } as never,
+        expected: "authorization.subjectToken.tokenType must be urn:ietf:params:oauth:token-type:id_token or urn:ietf:params:oauth:token-type:saml2",
+      },
+      {
+        serverName: "enterpriseManagedMissingIdpTokenEndpoint",
+        config: {
+          type: "http",
+          url: "https://mcp.example.test/mcp",
+          authorization: {
+            type: "enterprise-managed",
+            issuer: "https://auth.example.test",
+            resource: "https://mcp.example.test/mcp",
+            scopes: ["files:read"],
+            identityProvider: {
+              issuer: "https://idp.example.test",
+            },
+            subjectToken: {
+              tokenType: "urn:ietf:params:oauth:token-type:id_token",
+              source: { kind: "static", token: "identity-assertion-secret" },
+            },
+            tokenEndpointAuthMethod: "client_secret_basic",
+            client: {
+              kind: "registered",
+              clientId: "kota-client",
+              clientSecret: "client-secret",
+            },
+          },
+        } as never,
+        expected: "authorization.identityProvider.tokenEndpoint must be a non-empty string",
       },
       {
         serverName: "dynamicDisabled",

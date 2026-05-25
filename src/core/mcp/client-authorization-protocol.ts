@@ -4,6 +4,11 @@ import type {
   McpAuthorizationChallenge,
   McpAuthorizationServerMetadata,
   McpClientTransportConfig,
+  McpEnterpriseManagedIdentityProviderConfig,
+  McpEnterpriseManagedIdJagTokenSet,
+  McpEnterpriseManagedSubjectTokenConfig,
+  McpEnterpriseManagedSubjectTokenSourceConfig,
+  McpEnterpriseManagedSubjectTokenType,
   McpOAuthClientCredentialsClientConfig,
   McpOAuthClientCredentialsClientSecretBasicClientConfig,
   McpOAuthClientCredentialsPrivateKeyJwtClientConfig,
@@ -12,6 +17,9 @@ import type {
   McpProtectedResourceMetadata,
   McpStreamableHttpAuthorizationConfig,
   NormalizedMcpClientTransport,
+  NormalizedMcpEnterpriseManagedIdentityProvider,
+  NormalizedMcpEnterpriseManagedSubjectToken,
+  NormalizedMcpEnterpriseManagedSubjectTokenSource,
   NormalizedMcpOAuthClientCredentialsClient,
   NormalizedMcpOAuthClientCredentialsClientSecretBasicClient,
   NormalizedMcpOAuthClientCredentialsPrivateKeyJwtClient,
@@ -32,6 +40,16 @@ import type { JsonRpcResult } from "./client-protocol.js";
 
 export const MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION_ID =
   "io.modelcontextprotocol/oauth-client-credentials";
+export const MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION_ID =
+  "io.modelcontextprotocol/enterprise-managed-authorization";
+export const MCP_ENTERPRISE_ID_JAG_TOKEN_TYPE =
+  "urn:ietf:params:oauth:token-type:id-jag";
+export const MCP_ENTERPRISE_ID_JAG_RESPONSE_TOKEN_TYPE = "N_A";
+export const MCP_ENTERPRISE_TOKEN_EXCHANGE_GRANT_TYPE =
+  "urn:ietf:params:oauth:grant-type:token-exchange";
+export const MCP_ENTERPRISE_JWT_BEARER_GRANT_TYPE =
+  "urn:ietf:params:oauth:grant-type:jwt-bearer";
+export const MCP_ENTERPRISE_ID_JAG_JWT_TYPE = "oauth-id-jag+jwt";
 
 export function parseWwwAuthenticateChallenge(
   header: string | null,
@@ -195,6 +213,11 @@ export function decodeProtectedResourceMetadata(
       "scopes_supported",
       "protected-resource-metadata",
     ) ?? [],
+    extensionsSupported: optionalStringArray(
+      object.extensions_supported,
+      "extensions_supported",
+      "protected-resource-metadata",
+    ) ?? [],
   };
 }
 
@@ -270,6 +293,37 @@ export function decodeOAuthTokenSet(
       : previousRefreshToken !== undefined
         ? { refreshToken: previousRefreshToken }
         : {}),
+    ...(expiresIn !== undefined
+      ? { expiresAtMs: Date.now() + Math.max(0, expiresIn) * 1000 }
+      : {}),
+  };
+}
+
+export function decodeEnterpriseManagedIdJagTokenSet(
+  value: JsonRpcResult,
+): McpEnterpriseManagedIdJagTokenSet {
+  const object = requireJsonObject(value, "token", "oauth-token");
+  const issuedTokenType = requireString(
+    object.issued_token_type,
+    "issued_token_type",
+    "oauth-token",
+  );
+  if (issuedTokenType !== MCP_ENTERPRISE_ID_JAG_TOKEN_TYPE) {
+    throw new Error(
+      `Malformed enterprise-managed token exchange response: issued_token_type must be ${MCP_ENTERPRISE_ID_JAG_TOKEN_TYPE}`,
+    );
+  }
+  const tokenType = requireString(object.token_type, "token_type", "oauth-token");
+  if (tokenType !== MCP_ENTERPRISE_ID_JAG_RESPONSE_TOKEN_TYPE) {
+    throw new Error(
+      `Malformed enterprise-managed token exchange response: token_type must be ${MCP_ENTERPRISE_ID_JAG_RESPONSE_TOKEN_TYPE}`,
+    );
+  }
+  const scope = optionalString(object.scope, "scope", "oauth-token");
+  const expiresIn = optionalNumber(object.expires_in, "expires_in", "oauth-token");
+  return {
+    idJag: requireString(object.access_token, "access_token", "oauth-token"),
+    scopes: splitScopeParam(scope),
     ...(expiresIn !== undefined
       ? { expiresAtMs: Date.now() + Math.max(0, expiresIn) * 1000 }
       : {}),
@@ -416,6 +470,63 @@ export function normalizeOAuthClientCredentialsPrivateKeyJwtClient(
   return normalized;
 }
 
+export function normalizeEnterpriseManagedIdentityProvider(
+  identityProvider: McpEnterpriseManagedIdentityProviderConfig,
+): NormalizedMcpEnterpriseManagedIdentityProvider {
+  return {
+    issuer: validateOAuthIssuer(identityProvider.issuer),
+    tokenEndpoint: normalizeHttpUrl(
+      identityProvider.tokenEndpoint,
+      "enterprise-managed identityProvider.tokenEndpoint",
+    ),
+  };
+}
+
+export function normalizeEnterpriseManagedSubjectToken(
+  subjectToken: McpEnterpriseManagedSubjectTokenConfig,
+): NormalizedMcpEnterpriseManagedSubjectToken {
+  return {
+    tokenType: normalizeEnterpriseManagedSubjectTokenType(subjectToken.tokenType),
+    source: normalizeEnterpriseManagedSubjectTokenSource(subjectToken.source),
+  };
+}
+
+export function normalizeEnterpriseManagedSubjectTokenType(
+  tokenType: McpEnterpriseManagedSubjectTokenType,
+): McpEnterpriseManagedSubjectTokenType {
+  if (
+    tokenType !== "urn:ietf:params:oauth:token-type:id_token" &&
+    tokenType !== "urn:ietf:params:oauth:token-type:saml2"
+  ) {
+    throw new Error(
+      "Enterprise-managed subjectToken.tokenType must be urn:ietf:params:oauth:token-type:id_token or urn:ietf:params:oauth:token-type:saml2",
+    );
+  }
+  return tokenType;
+}
+
+export function normalizeEnterpriseManagedSubjectTokenSource(
+  source: McpEnterpriseManagedSubjectTokenSourceConfig,
+): NormalizedMcpEnterpriseManagedSubjectTokenSource {
+  if (source.kind === "static") {
+    if (typeof source.token !== "string" || source.token.length === 0) {
+      throw new Error(
+        "Enterprise-managed subjectToken.source.token must be a non-empty string",
+      );
+    }
+    return { kind: "static", token: source.token };
+  }
+  if (source.kind === "env") {
+    if (typeof source.name !== "string" || source.name.length === 0) {
+      throw new Error(
+        "Enterprise-managed subjectToken.source.name must be a non-empty string",
+      );
+    }
+    return { kind: "env", name: source.name };
+  }
+  throw new Error("Enterprise-managed subjectToken.source.kind must be static or env");
+}
+
 function assertNoUnexpectedClientCredentialsFields(
   client: McpOAuthClientCredentialsClientConfig,
   allowedFields: readonly string[],
@@ -476,7 +587,40 @@ export function normalizeMcpAuthorizationConfig(
     }
     unsupportedTokenEndpointAuthMethod();
   }
-  throw new Error("MCP HTTP authorization type must be oauth or oauth-client-credentials");
+  if (authorization.type === "enterprise-managed") {
+    if (authorization.tokenEndpointAuthMethod === "client_secret_basic") {
+      return {
+        type: "enterprise-managed",
+        issuer: validateOAuthIssuer(authorization.issuer),
+        resource: normalizeHttpUrl(authorization.resource, "enterprise-managed resource"),
+        scopes: [...new Set(authorization.scopes)],
+        identityProvider: normalizeEnterpriseManagedIdentityProvider(
+          authorization.identityProvider,
+        ),
+        subjectToken: normalizeEnterpriseManagedSubjectToken(authorization.subjectToken),
+        tokenEndpointAuthMethod: authorization.tokenEndpointAuthMethod,
+        client: normalizeOAuthClientCredentialsClientSecretBasic(authorization.client),
+      };
+    }
+    if (authorization.tokenEndpointAuthMethod === "private_key_jwt") {
+      return {
+        type: "enterprise-managed",
+        issuer: validateOAuthIssuer(authorization.issuer),
+        resource: normalizeHttpUrl(authorization.resource, "enterprise-managed resource"),
+        scopes: [...new Set(authorization.scopes)],
+        identityProvider: normalizeEnterpriseManagedIdentityProvider(
+          authorization.identityProvider,
+        ),
+        subjectToken: normalizeEnterpriseManagedSubjectToken(authorization.subjectToken),
+        tokenEndpointAuthMethod: authorization.tokenEndpointAuthMethod,
+        client: normalizeOAuthClientCredentialsPrivateKeyJwtClient(authorization.client),
+      };
+    }
+    unsupportedTokenEndpointAuthMethod();
+  }
+  throw new Error(
+    "MCP HTTP authorization type must be oauth, oauth-client-credentials, or enterprise-managed",
+  );
 }
 
 function unsupportedTokenEndpointAuthMethod(): never {
@@ -532,41 +676,7 @@ export function authorizationContextKey(transport: NormalizedMcpClientTransport)
         url: transport.url,
         headers: stableRecordEntries(transport.headers),
         authorization: transport.authorization
-          ? {
-              type: transport.authorization.type,
-              issuer: transport.authorization.issuer,
-              scopes: transport.authorization.scopes,
-              ...(transport.authorization.type === "oauth"
-                ? {
-                    redirectUri: transport.authorization.redirectUri,
-                    client: transport.authorization.client.kind === "registered"
-                      ? {
-                          kind: "registered",
-                          clientId: transport.authorization.client.clientId,
-                          hasClientSecret: transport.authorization.client.clientSecret !== undefined,
-                        }
-                      : transport.authorization.client,
-                  }
-                : {
-                    tokenEndpointAuthMethod: transport.authorization.tokenEndpointAuthMethod,
-                    client: {
-                      kind: "registered",
-                      clientId: transport.authorization.client.clientId,
-                      credential:
-                        transport.authorization.tokenEndpointAuthMethod === "client_secret_basic"
-                          ? "client_secret"
-                          : "private_key_jwt",
-                      ...(transport.authorization.tokenEndpointAuthMethod === "private_key_jwt"
-                        ? {
-                            signingAlgorithm:
-                              transport.authorization.client.signingAlgorithm,
-                            hasKeyId:
-                              transport.authorization.client.keyId !== undefined,
-                          }
-                        : {}),
-                    },
-                  }),
-            }
+          ? authorizationContextSummary(transport.authorization)
           : null,
       }
     : {
@@ -576,4 +686,62 @@ export function authorizationContextKey(transport: NormalizedMcpClientTransport)
         env: stableRecordEntries(transport.env),
       };
   return createHash("sha256").update(JSON.stringify(context)).digest("hex");
+}
+
+function authorizationContextSummary(
+  authorization: NormalizedMcpStreamableHttpAuthorizationConfig,
+): object {
+  if (authorization.type === "oauth") {
+    return {
+      type: authorization.type,
+      issuer: authorization.issuer,
+      scopes: authorization.scopes,
+      redirectUri: authorization.redirectUri,
+      client: authorization.client.kind === "registered"
+        ? {
+            kind: "registered",
+            clientId: authorization.client.clientId,
+            hasClientSecret: authorization.client.clientSecret !== undefined,
+          }
+        : authorization.client,
+    };
+  }
+  const client = {
+    kind: "registered",
+    clientId: authorization.client.clientId,
+    credential:
+      authorization.tokenEndpointAuthMethod === "client_secret_basic"
+        ? "client_secret"
+        : "private_key_jwt",
+    ...(authorization.tokenEndpointAuthMethod === "private_key_jwt"
+      ? {
+          signingAlgorithm: authorization.client.signingAlgorithm,
+          hasKeyId: authorization.client.keyId !== undefined,
+        }
+      : {}),
+  };
+  if (authorization.type === "oauth-client-credentials") {
+    return {
+      type: authorization.type,
+      issuer: authorization.issuer,
+      scopes: authorization.scopes,
+      tokenEndpointAuthMethod: authorization.tokenEndpointAuthMethod,
+      client,
+    };
+  }
+  return {
+    type: authorization.type,
+    issuer: authorization.issuer,
+    resource: authorization.resource,
+    scopes: authorization.scopes,
+    identityProvider: authorization.identityProvider,
+    subjectToken: {
+      tokenType: authorization.subjectToken.tokenType,
+      source: authorization.subjectToken.source.kind === "static"
+        ? { kind: "static", hasToken: true }
+        : authorization.subjectToken.source,
+    },
+    tokenEndpointAuthMethod: authorization.tokenEndpointAuthMethod,
+    client,
+  };
 }

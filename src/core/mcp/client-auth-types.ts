@@ -97,9 +97,64 @@ export type McpOAuthClientCredentialsAuthorizationConfig =
   | McpOAuthClientCredentialsClientSecretBasicAuthorizationConfig
   | McpOAuthClientCredentialsPrivateKeyJwtAuthorizationConfig;
 
+export type McpEnterpriseManagedSubjectTokenType =
+  | "urn:ietf:params:oauth:token-type:id_token"
+  | "urn:ietf:params:oauth:token-type:saml2";
+
+export type McpEnterpriseManagedStaticSubjectTokenSourceConfig = {
+  kind: "static";
+  token: string;
+};
+
+export type McpEnterpriseManagedEnvSubjectTokenSourceConfig = {
+  kind: "env";
+  name: string;
+};
+
+export type McpEnterpriseManagedSubjectTokenSourceConfig =
+  | McpEnterpriseManagedStaticSubjectTokenSourceConfig
+  | McpEnterpriseManagedEnvSubjectTokenSourceConfig;
+
+export type McpEnterpriseManagedSubjectTokenConfig = {
+  tokenType: McpEnterpriseManagedSubjectTokenType;
+  source: McpEnterpriseManagedSubjectTokenSourceConfig;
+};
+
+export type McpEnterpriseManagedIdentityProviderConfig = {
+  issuer: string;
+  tokenEndpoint: string;
+};
+
+export type McpEnterpriseManagedClientSecretBasicAuthorizationConfig = {
+  type: "enterprise-managed";
+  issuer: string;
+  resource: string;
+  scopes: string[];
+  identityProvider: McpEnterpriseManagedIdentityProviderConfig;
+  subjectToken: McpEnterpriseManagedSubjectTokenConfig;
+  tokenEndpointAuthMethod: "client_secret_basic";
+  client: McpOAuthClientCredentialsClientSecretBasicClientConfig;
+};
+
+export type McpEnterpriseManagedPrivateKeyJwtAuthorizationConfig = {
+  type: "enterprise-managed";
+  issuer: string;
+  resource: string;
+  scopes: string[];
+  identityProvider: McpEnterpriseManagedIdentityProviderConfig;
+  subjectToken: McpEnterpriseManagedSubjectTokenConfig;
+  tokenEndpointAuthMethod: "private_key_jwt";
+  client: McpOAuthClientCredentialsPrivateKeyJwtClientConfig;
+};
+
+export type McpEnterpriseManagedAuthorizationConfig =
+  | McpEnterpriseManagedClientSecretBasicAuthorizationConfig
+  | McpEnterpriseManagedPrivateKeyJwtAuthorizationConfig;
+
 export type McpStreamableHttpAuthorizationConfig =
   | McpOAuthAuthorizationCodeConfig
-  | McpOAuthClientCredentialsAuthorizationConfig;
+  | McpOAuthClientCredentialsAuthorizationConfig
+  | McpEnterpriseManagedAuthorizationConfig;
 
 export type McpAuthorizationResolverRequest = {
   server: string;
@@ -184,6 +239,7 @@ export type McpProtectedResourceMetadata = {
   authorizationServers: string[];
   bearerMethodsSupported: string[];
   scopesSupported: string[];
+  extensionsSupported: string[];
 };
 
 export type McpProtectedResourceMetadataDiscovery =
@@ -266,9 +322,60 @@ export type NormalizedMcpOAuthClientCredentialsAuthorizationConfig =
   | NormalizedMcpOAuthClientCredentialsClientSecretBasicAuthorizationConfig
   | NormalizedMcpOAuthClientCredentialsPrivateKeyJwtAuthorizationConfig;
 
+export type NormalizedMcpEnterpriseManagedStaticSubjectTokenSource = {
+  kind: "static";
+  token: string;
+};
+
+export type NormalizedMcpEnterpriseManagedEnvSubjectTokenSource = {
+  kind: "env";
+  name: string;
+};
+
+export type NormalizedMcpEnterpriseManagedSubjectTokenSource =
+  | NormalizedMcpEnterpriseManagedStaticSubjectTokenSource
+  | NormalizedMcpEnterpriseManagedEnvSubjectTokenSource;
+
+export type NormalizedMcpEnterpriseManagedSubjectToken = {
+  tokenType: McpEnterpriseManagedSubjectTokenType;
+  source: NormalizedMcpEnterpriseManagedSubjectTokenSource;
+};
+
+export type NormalizedMcpEnterpriseManagedIdentityProvider = {
+  issuer: string;
+  tokenEndpoint: string;
+};
+
+export type NormalizedMcpEnterpriseManagedClientSecretBasicAuthorizationConfig = {
+  type: "enterprise-managed";
+  issuer: string;
+  resource: string;
+  scopes: string[];
+  identityProvider: NormalizedMcpEnterpriseManagedIdentityProvider;
+  subjectToken: NormalizedMcpEnterpriseManagedSubjectToken;
+  tokenEndpointAuthMethod: "client_secret_basic";
+  client: NormalizedMcpOAuthClientCredentialsClientSecretBasicClient;
+};
+
+export type NormalizedMcpEnterpriseManagedPrivateKeyJwtAuthorizationConfig = {
+  type: "enterprise-managed";
+  issuer: string;
+  resource: string;
+  scopes: string[];
+  identityProvider: NormalizedMcpEnterpriseManagedIdentityProvider;
+  subjectToken: NormalizedMcpEnterpriseManagedSubjectToken;
+  tokenEndpointAuthMethod: "private_key_jwt";
+  client: NormalizedMcpOAuthClientCredentialsPrivateKeyJwtClient;
+};
+
+export type NormalizedMcpEnterpriseManagedAuthorizationConfig =
+  | NormalizedMcpEnterpriseManagedClientSecretBasicAuthorizationConfig
+  | NormalizedMcpEnterpriseManagedPrivateKeyJwtAuthorizationConfig;
+
 export type NormalizedMcpStreamableHttpAuthorizationConfig =
   | NormalizedMcpOAuthAuthorizationCodeConfig
-  | NormalizedMcpOAuthClientCredentialsAuthorizationConfig;
+  | NormalizedMcpOAuthClientCredentialsAuthorizationConfig
+  | NormalizedMcpEnterpriseManagedAuthorizationConfig;
 
 export type McpAuthorizationServerMetadata = {
   issuer: string;
@@ -290,6 +397,12 @@ export type McpOAuthResolvedClient = {
 export type McpOAuthTokenSet = {
   accessToken: string;
   refreshToken?: string;
+  scopes: string[];
+  expiresAtMs?: number;
+};
+
+export type McpEnterpriseManagedIdJagTokenSet = {
+  idJag: string;
   scopes: string[];
   expiresAtMs?: number;
 };
