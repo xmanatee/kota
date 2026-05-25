@@ -285,6 +285,10 @@ resources:
   - url: https://modelcontextprotocol.io/extensions/auth/enterprise-managed-authorization
     added: "2026-05-25"
     notes: "Official MCP Authorization extension for enterprise IdP-managed remote MCP access. Monitor ID-JAG flow details, SSO identity-assertion requirements, capability negotiation, scope handling, and SDK support for KOTA's external MCP client authorization modes."
+    snapshot:
+      fingerprint: sha256:379f0c3344496ccd2a721dbd8bfd8cd5
+      summary: "Official MCP Enterprise-Managed Authorization is accessible; its IdP-mediated ID-JAG flow is distinct from KOTA's completed OAuth client-credentials/private_key_jwt support, so this run opened task-add-mcp-enterprise-managed-authorization-support."
+      last_seen_at: "2026-05-25T08:59:03.114Z"
   - url: https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices
     added: "2026-05-21"
     notes: "Official MCP security guidance - monitor confused-deputy, token-passthrough, OAuth-discovery SSRF, session hijacking, local HTTP server exposure, and scope-minimization guidance that affects KOTA's MCP client/server security boundaries."
