@@ -10,6 +10,8 @@ import type {
   GitHubIssueCommentMentionEventPayload,
   GitHubWebhookActorIntegrity,
 } from "#modules/github-webhook/events.js";
+import { githubIssueCommentMentionToInboundSignal } from "#modules/github-webhook/inbound-signal.js";
+import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
 import githubMentionResponderWorkflow from "./workflow.js";
 
 type MentionPayload = Partial<
@@ -47,9 +49,30 @@ function makePayload(overrides: MentionPayload = {}): Record<string, unknown> {
 }
 
 function makeTrigger(overrides: MentionPayload = {}) {
+  const result = githubIssueCommentMentionToInboundSignal(
+    makePayload() as GitHubIssueCommentMentionEventPayload,
+    {
+      projectId: "project-test",
+      occurredAt: "2026-05-25T02:45:00.000Z",
+      receivedAt: "2026-05-25T02:45:02.000Z",
+    },
+  );
+  if (!result.ok) throw new Error(result.error);
+  if (result.payload.body.kind !== "action") {
+    throw new Error("GitHub mention test payload must be an action signal");
+  }
   return {
-    event: "github.issue_comment.mention",
-    payload: makePayload(overrides),
+    event: inboundSignalReceived.name,
+    payload: {
+      ...result.payload,
+      body: {
+        ...result.payload.body,
+        data: {
+          ...result.payload.body.data,
+          ...makePayload(overrides),
+        },
+      },
+    },
   };
 }
 
@@ -70,7 +93,7 @@ function buildDraftPrompt(trigger: WorkflowRunTrigger): string {
     recoveryCapable: githubMentionResponderWorkflow.recoveryCapable ?? false,
     definitionPath: "src/modules/autonomy/workflows/github-mention-responder/workflow.ts",
     tags: githubMentionResponderWorkflow.tags ?? [],
-    triggers: [{ event: "github.issue_comment.mention", cooldownMs: 0 }],
+    triggers: [{ event: inboundSignalReceived.name, cooldownMs: 0 }],
     steps: githubMentionResponderWorkflow.steps.map((step) =>
       step.id === "draft-response" ? draftStep : step,
     ) as WorkflowDefinition["steps"],

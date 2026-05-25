@@ -13,6 +13,11 @@ import type {
   GitHubIssueCommentMentionEventPayload,
   GitHubWebhookActor,
 } from "#modules/github-webhook/events.js";
+import { githubIssueCommentMentionFromInboundSignal } from "#modules/github-webhook/inbound-signal.js";
+import {
+  type InboundSignalReceivedPayload,
+  inboundSignalReceived,
+} from "#modules/inbound-signals/events.js";
 
 const COMMENT_APPROVAL_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_COMMENT_BODY_CHARS = 4_000;
@@ -74,6 +79,15 @@ type GithubMentionResponseDraft = {
 
 function isNonEmptyString(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function mentionPayloadFromTrigger(
+  trigger: { event: string; payload: object },
+): MentionWebhookPayload {
+  if (trigger.event !== inboundSignalReceived.name) return {};
+  return githubIssueCommentMentionFromInboundSignal(
+    trigger.payload as InboundSignalReceivedPayload,
+  );
 }
 
 function hasCompleteActor(actor: GitHubWebhookActor | undefined): actor is { login: string; type: string } {
@@ -253,7 +267,7 @@ const assessMention = typedCodeStep<GithubMentionAssessment>({
   type: "code",
   validate: validateAssessment,
   run: ({ trigger }) => {
-    const p = trigger.payload as MentionWebhookPayload;
+    const p = mentionPayloadFromTrigger(trigger);
 
     if (!isNonEmptyString(p.action) || p.action !== "created") {
       return skip(`unsupported issue_comment action '${String(p.action)}'`);
@@ -318,7 +332,8 @@ const githubMentionResponderWorkflow: WorkflowDefinitionInput = {
   defaultAutonomyMode: "passive",
   triggers: [
     {
-      event: "github.issue_comment.mention",
+      event: inboundSignalReceived.name,
+      filter: { provider: "github", channel: "github.issue_comment" },
     },
   ],
   steps: [

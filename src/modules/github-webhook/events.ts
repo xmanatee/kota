@@ -75,28 +75,3 @@ export const githubPullRequestEvent =
       "actorIntegrityReason",
     ],
   );
-
-export const githubIssueCommentMentionEvent =
-  defineDaemonWideModuleEvent<GitHubIssueCommentMentionEventPayload>(
-    "github.issue_comment.mention",
-    [
-      "repo",
-      "repositoryId",
-      "repositoryUrl",
-      "action",
-      "issueNumber",
-      "issueTitle",
-      "issueUrl",
-      "isPullRequest",
-      "commentId",
-      "commentBody",
-      "commentUrl",
-      "commenter",
-      "sender",
-      "authorAssociation",
-      "matchedMentionAlias",
-      "actorIntegrity",
-      "actorIntegrityReason",
-      "reason",
-    ],
-  );

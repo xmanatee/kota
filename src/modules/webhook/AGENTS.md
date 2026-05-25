@@ -26,6 +26,10 @@ This directory owns:
   importing the core event bus directly. The response echoes the event
   name and the current listener count (`listeners`), useful for ad-hoc
   smoke checks of trigger wiring.
+- When the event name is `inbound.signal.received`, the route validates the
+  payload against the shared inbound-signal contract, injects project scope and
+  receive time from the daemon context, and emits the typed module event. It
+  should not interpret or plan the downstream automation.
 - Event names are URL-decoded; an event name must be 1–256 characters
   after decoding. Malformed percent-encoding returns 400.
 
@@ -89,6 +93,9 @@ This directory owns:
   own provider-specific inbound webhook receivers — `github-webhook/`
   owns GitHub deliveries; future provider-specific receivers belong in
   their own modules.
+- For typed inbound automation signals, this module is only the generic
+  adapter. Workflows decide whether a signal creates or updates tasks, captures
+  knowledge, asks the owner, replies, retries, audits, or no-ops.
 - Owns the signature-validated `POST /webhooks/:name` daemon-control
   route, including HMAC verification, the optional anti-replay
   timestamp window, and the per-workflow rate-limit window state. The

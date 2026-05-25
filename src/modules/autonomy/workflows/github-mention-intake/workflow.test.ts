@@ -4,11 +4,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ToolResult } from "#core/tools/tool-result.js";
+import { enqueueMatchingWorkflows } from "#core/workflow/run-executor-utils.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { registerWorkflowDefinition, validateWorkflowDefinitions } from "#core/workflow/validation.js";
 import type {
   GitHubIssueCommentMentionEventPayload,
   GitHubWebhookActorIntegrity,
 } from "#modules/github-webhook/events.js";
+import { githubIssueCommentMentionToInboundSignal } from "#modules/github-webhook/inbound-signal.js";
+import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
 
 const mocks = vi.hoisted(() => ({
   checkCommitMessageExists: vi.fn(),
@@ -74,10 +78,36 @@ function makePayload(overrides: MentionPayload = {}): Record<string, unknown> {
 }
 
 function makeTrigger(overrides: MentionPayload = {}) {
+  const payload = makeInboundSignalPayload();
+  if (payload.body.kind !== "action") {
+    throw new Error("GitHub mention test payload must be an action signal");
+  }
   return {
-    event: "github.issue_comment.mention",
-    payload: makePayload(overrides),
+    event: inboundSignalReceived.name,
+    payload: {
+      ...payload,
+      body: {
+        ...payload.body,
+        data: {
+          ...payload.body.data,
+          ...makePayload(overrides),
+        },
+      },
+    },
   };
+}
+
+function makeInboundSignalPayload(overrides: MentionPayload = {}) {
+  const result = githubIssueCommentMentionToInboundSignal(
+    makePayload(overrides) as GitHubIssueCommentMentionEventPayload,
+    {
+      projectId: "project-test",
+      occurredAt: "2026-05-25T02:45:00.000Z",
+      receivedAt: "2026-05-25T02:45:02.000Z",
+    },
+  );
+  if (!result.ok) throw new Error(result.error);
+  return result.payload;
 }
 
 function makeProjectDir(): string {
@@ -189,6 +219,69 @@ describe("github-mention-intake workflow", () => {
         mode: "created",
       },
     });
+  });
+
+  it("queues only a normalized inbound signal through workflow dispatch and explicitly no-ops non-implementation mentions", async () => {
+    const projectDir = makeProjectDir();
+    const tools = toolSpy();
+    const [definition] = validateWorkflowDefinitions(
+      [
+        registerWorkflowDefinition(
+          "src/modules/autonomy/workflows/github-mention-intake/workflow.ts",
+          githubMentionIntakeWorkflow,
+        ),
+      ],
+      projectDir,
+    );
+    const queued: Array<{ event: string; payload: Record<string, unknown> }> = [];
+    const payload = makeInboundSignalPayload({
+      commentBody: "@kota can you explain why the queue is paused?",
+    });
+
+    enqueueMatchingWorkflows(
+      { type: "github.issue_comment.mention", payload: makePayload() },
+      [definition],
+      (_definition, _trigger, run) => queued.push(run),
+    );
+    expect(queued).toHaveLength(0);
+
+    enqueueMatchingWorkflows(
+      { type: inboundSignalReceived.name, payload },
+      [definition],
+      (_definition, _trigger, run) => queued.push(run),
+    );
+
+    expect(queued).toHaveLength(1);
+    expect(queued[0]).toMatchObject({
+      event: inboundSignalReceived.name,
+      payload: {
+        projectId: "project-test",
+        provider: "github",
+        channel: "github.issue_comment",
+        actor: { trust: "trusted" },
+      },
+    });
+
+    const harness = new WorkflowTestHarness(githubMentionIntakeWorkflow, {
+      projectDir,
+      trigger: queued[0],
+      contextOverrides: {
+        runTool: tools.runTool,
+      },
+    });
+
+    const result = await harness.run();
+
+    expect(result.status).toBe("success");
+    expect(result.steps["assess-mention-intake"].output).toMatchObject({
+      decision: "skip",
+      skipReason: expect.stringContaining("not an implementation request"),
+    });
+    expect(result.steps["create-task"].status).toBe("skipped");
+    expect(result.steps["prepare-comment"].status).toBe("skipped");
+    expect(result.steps["post-comment"].status).toBe("skipped");
+    expect(tools.calls).toEqual([]);
+    expect(listReadyTaskFiles(projectDir)).toEqual([]);
   });
 
   it("resets recovery state without dereferencing skipped assessment output", async () => {

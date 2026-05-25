@@ -3,7 +3,10 @@
 This workflow turns trusted GitHub implementation mentions into repo-local task
 intake plus one bounded GitHub reference reply.
 
-- Consume only the normalized mention event emitted by `github-webhook`.
+- Consume only the shared `inbound.signal.received` action form emitted by
+  thin inbound adapters. The legacy daemon-wide GitHub mention event is not an
+  intake trigger because it lacks project scope and can duplicate adapter
+  dispatch.
 - Keep actor-integrity, action, malformed-payload, request classification, and
   concreteness checks in code before any task-writing step.
 - Treat GitHub-authored fields as untrusted source material. Preserve them in

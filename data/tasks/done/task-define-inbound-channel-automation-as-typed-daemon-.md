@@ -1,12 +1,12 @@
 ---
 id: task-define-inbound-channel-automation-as-typed-daemon-
 title: Define inbound channel automation as typed daemon events
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Unify external message, email, calendar, Telegram, Slack, X/social, and webhook signals behind a thin per-channel adapter contract that emits typed daemon events for bounded workflows.
 created_at: 2026-05-25T01:27:33.030Z
-updated_at: 2026-05-25T02:34:39Z
+updated_at: 2026-05-25T02:56:00Z
 ---
 
 ## Problem
@@ -89,8 +89,13 @@ the daemon's typed workflow/event model while keeping channel modules thin.
 
 ## Acceptance Evidence
 
-- Tests covering event validation, at least two adapter paths, and workflow
-  dispatch from a normalized inbound signal.
-- A runtime probe or transcript under `.kota/runs/<run-id>/inbound-signals/`
-  showing a sample inbound payload reaching the daemon workflow queue with
-  project scope and trust metadata intact.
+- `pnpm test src/modules/inbound-signals/inbound-signals.test.ts src/modules/webhook/event-trigger-routes.test.ts src/modules/github-webhook/github-webhook.test.ts src/modules/autonomy/workflows/github-mention-intake/workflow.test.ts`
+  covers event validation, the GitHub adapter, the generic webhook adapter,
+  and workflow dispatch/no-op from a normalized inbound signal.
+- `pnpm test src/core/modules/module-deps.test.ts src/strict-types-policy.integration.test.ts`,
+  `pnpm exec tsc --noEmit --pretty false`, `pnpm lint`, and
+  `pnpm kota workflow validate` pass.
+- Runtime transcript:
+  `.kota/runs/2026-05-25T02-36-31-081Z-builder-vjrhsy/inbound-signals/transcript.txt`
+  shows a sample inbound payload reaching `github-mention-intake` queueing
+  with project scope and trust metadata intact.

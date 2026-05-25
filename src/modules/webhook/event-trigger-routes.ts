@@ -13,8 +13,14 @@
  * directly.
  */
 
+import { deriveProjectId } from "#core/daemon/project-registry.js";
 import type { ModuleContext, ModuleRouteHandler, RouteRegistration } from "#core/modules/module-types.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
+import {
+  type InboundSignalInputObject,
+  inboundSignalReceived,
+  normalizeInboundSignalInput,
+} from "#modules/inbound-signals/events.js";
 
 function makeEventTriggerHandler(ctx: ModuleContext): ModuleRouteHandler {
   return async (req, res, params) => {
@@ -37,6 +43,30 @@ function makeEventTriggerHandler(ctx: ModuleContext): ModuleRouteHandler {
       payload = await readBody(req);
     } catch (err) {
       jsonResponse(res, 400, { error: (err as Error).message });
+      return;
+    }
+
+    if (eventName === inboundSignalReceived.name) {
+      const receivedAt = new Date().toISOString();
+      const normalized = normalizeInboundSignalInput(
+        payload as InboundSignalInputObject,
+        { projectId: deriveProjectId(ctx.cwd), receivedAt },
+      );
+      if (!normalized.ok) {
+        jsonResponse(res, 400, { error: normalized.error });
+        return;
+      }
+
+      ctx.events.emit(inboundSignalReceived, normalized.payload);
+      jsonResponse(res, 200, {
+        ok: true,
+        event: inboundSignalReceived.name,
+        projectId: normalized.payload.projectId,
+        actorTrust: normalized.payload.actor.trust,
+        listeners:
+          ctx.events.listenerCount(inboundSignalReceived.name) +
+          ctx.events.listenerCount("*"),
+      });
       return;
     }
 

@@ -2,11 +2,13 @@ import { createHmac } from "node:crypto";
 import { EventEmitter } from "node:events";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
+import { deriveProjectId } from "#core/daemon/project-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
-import { githubIssueCommentMentionEvent, githubPullRequestEvent } from "./events.js";
+import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
+import { githubPullRequestEvent } from "./events.js";
 import githubWebhookModule from "./index.js";
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
@@ -120,6 +122,7 @@ function issueCommentBody(input?: {
     comment: {
       id: 1234,
       body: input?.body ?? "@kota please take a look",
+      created_at: "2026-05-25T02:40:00.000Z",
       html_url: "https://github.com/owner/repo/issues/17#issuecomment-1234",
       user: input?.commenter ?? { login: "maintainer", type: "User" },
       author_association: input?.authorAssociation ?? "MEMBER",
@@ -156,10 +159,8 @@ describe("githubWebhookModule metadata", () => {
     expect(githubWebhookModule.commands).toBeUndefined();
     expect(githubWebhookModule.channels).toBeUndefined();
     expect(githubWebhookModule.workflows).toBeUndefined();
-    expect(githubWebhookModule.events).toEqual([
-      githubPullRequestEvent,
-      githubIssueCommentMentionEvent,
-    ]);
+    expect(githubWebhookModule.events).toEqual([githubPullRequestEvent]);
+    expect(githubWebhookModule.dependencies).toEqual(["inbound-signals"]);
     expect(githubWebhookModule.onUnload).toBeUndefined();
     expect(typeof githubWebhookModule.onLoad).toBe("function");
   });
@@ -183,30 +184,6 @@ describe("githubWebhookModule metadata", () => {
       "authorAssociation",
       "actorIntegrity",
       "actorIntegrityReason",
-    ]);
-  });
-
-  it("declares every issue-comment mention field required for workflow gating", () => {
-    expect(githubIssueCommentMentionEvent.name).toBe("github.issue_comment.mention");
-    expect(githubIssueCommentMentionEvent.fields).toEqual([
-      "repo",
-      "repositoryId",
-      "repositoryUrl",
-      "action",
-      "issueNumber",
-      "issueTitle",
-      "issueUrl",
-      "isPullRequest",
-      "commentId",
-      "commentBody",
-      "commentUrl",
-      "commenter",
-      "sender",
-      "authorAssociation",
-      "matchedMentionAlias",
-      "actorIntegrity",
-      "actorIntegrityReason",
-      "reason",
     ]);
   });
 
@@ -338,7 +315,9 @@ describe("githubWebhookModule handler — event filtering", () => {
   it("acknowledges issue_comment deliveries when the event is not configured", async () => {
     const bus = new EventBus();
     const received: Record<string, unknown>[] = [];
-    bus.on("github.issue_comment.mention", (p) => received.push(p as Record<string, unknown>));
+    bus.on(inboundSignalReceived, (p) =>
+      received.push(p as Record<string, unknown>),
+    );
 
     const ctx = makeStubCtx(bus, { secret: SECRET });
     const body = issueCommentBody();
@@ -588,11 +567,15 @@ describe("githubWebhookModule handler — event emission", () => {
     });
   });
 
-  it("emits github.issue_comment.mention for configured mention comments", async () => {
+  it("emits only inbound.signal.received for configured mention comments", async () => {
     const bus = new EventBus();
-    const received: Record<string, unknown>[] = [];
+    const legacyMentions: Record<string, unknown>[] = [];
+    const inboundSignals: Record<string, unknown>[] = [];
     bus.on("github.issue_comment.mention", (p) =>
-      received.push(p as Record<string, unknown>),
+      legacyMentions.push(p as Record<string, unknown>),
+    );
+    bus.on(inboundSignalReceived, (p) =>
+      inboundSignals.push(p as Record<string, unknown>),
     );
 
     const body = issueCommentBody();
@@ -609,35 +592,56 @@ describe("githubWebhookModule handler — event emission", () => {
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.body!)).toMatchObject({
       ok: true,
-      event: "github.issue_comment.mention",
+      event: inboundSignalReceived.name,
     });
-    expect(received).toHaveLength(1);
-    expect(received[0]).toEqual({
-      repo: "owner/repo",
-      repositoryId: 99,
-      repositoryUrl: "https://github.com/owner/repo",
-      action: "created",
-      issueNumber: 17,
-      issueTitle: "Need assistance",
-      issueUrl: "https://github.com/owner/repo/issues/17",
-      isPullRequest: true,
-      commentId: 1234,
-      commentBody: "@kota please take a look",
-      commentUrl: "https://github.com/owner/repo/issues/17#issuecomment-1234",
-      commenter: { login: "maintainer", type: "User" },
-      sender: { login: "maintainer", type: "User" },
-      authorAssociation: "MEMBER",
-      matchedMentionAlias: "@kota",
-      actorIntegrity: "allowed",
-      actorIntegrityReason: "author association 'MEMBER' satisfies the configured trust threshold",
-      reason: "comment body mentioned configured alias '@kota'",
+    expect(legacyMentions).toHaveLength(0);
+    expect(inboundSignals).toHaveLength(1);
+    expect(inboundSignals[0]).toMatchObject({
+      projectId: deriveProjectId("/tmp/test"),
+      provider: "github",
+      channel: "github.issue_comment",
+      accountId: "github:owner/repo",
+      sourceId: "github:owner/repo:issue:17:comment:1234",
+      sourceUrl: "https://github.com/owner/repo/issues/17#issuecomment-1234",
+      externalId: "github:99:issue_comment:1234",
+      occurredAt: "2026-05-25T02:40:00.000Z",
+      actor: {
+        id: "github:maintainer",
+        displayName: "maintainer",
+        trust: "trusted",
+        trustReason: "author association 'MEMBER' satisfies the configured trust threshold",
+      },
+      body: {
+        kind: "action",
+        action: "github.issue_comment.mention",
+        data: {
+          repo: "owner/repo",
+          repositoryId: 99,
+          repositoryUrl: "https://github.com/owner/repo",
+          action: "created",
+          issueNumber: 17,
+          issueTitle: "Need assistance",
+          issueUrl: "https://github.com/owner/repo/issues/17",
+          isPullRequest: true,
+          commentId: 1234,
+          commentBody: "@kota please take a look",
+          commentUrl: "https://github.com/owner/repo/issues/17#issuecomment-1234",
+          commenter: { login: "maintainer", type: "User" },
+          sender: { login: "maintainer", type: "User" },
+          authorAssociation: "MEMBER",
+          matchedMentionAlias: "@kota",
+          actorIntegrity: "allowed",
+          actorIntegrityReason: "author association 'MEMBER' satisfies the configured trust threshold",
+          reason: "comment body mentioned configured alias '@kota'",
+        },
+      },
     });
   });
 
   it("uses the default mention alias when issue_comment is configured", async () => {
     const bus = new EventBus();
     const received: Record<string, unknown>[] = [];
-    bus.on("github.issue_comment.mention", (p) =>
+    bus.on(inboundSignalReceived, (p) =>
       received.push(p as Record<string, unknown>),
     );
 
@@ -653,15 +657,19 @@ describe("githubWebhookModule handler — event emission", () => {
 
     expect(received).toHaveLength(1);
     expect(received[0]).toMatchObject({
-      isPullRequest: false,
-      matchedMentionAlias: "@kota",
+      body: {
+        data: {
+          isPullRequest: false,
+          matchedMentionAlias: "@kota",
+        },
+      },
     });
   });
 
   it("does not emit mention events for non-mentions", async () => {
     const bus = new EventBus();
     const received: Record<string, unknown>[] = [];
-    bus.on("github.issue_comment.mention", (p) =>
+    bus.on(inboundSignalReceived, (p) =>
       received.push(p as Record<string, unknown>),
     );
 
@@ -689,7 +697,7 @@ describe("githubWebhookModule handler — event emission", () => {
   it("does not emit mention events for unsupported issue_comment actions", async () => {
     const bus = new EventBus();
     const received: Record<string, unknown>[] = [];
-    bus.on("github.issue_comment.mention", (p) =>
+    bus.on(inboundSignalReceived, (p) =>
       received.push(p as Record<string, unknown>),
     );
 
@@ -717,7 +725,7 @@ describe("githubWebhookModule handler — event emission", () => {
   it("marks mention comments with missing actor trust metadata", async () => {
     const bus = new EventBus();
     const received: Record<string, unknown>[] = [];
-    bus.on("github.issue_comment.mention", (p) =>
+    bus.on(inboundSignalReceived, (p) =>
       received.push(p as Record<string, unknown>),
     );
 
@@ -733,18 +741,23 @@ describe("githubWebhookModule handler — event emission", () => {
     });
 
     expect(received[0]).toMatchObject({
-      actorIntegrity: "missing_metadata",
-      actorIntegrityReason: expect.stringContaining("sender.login"),
-    });
-    expect(received[0]).toMatchObject({
-      actorIntegrityReason: expect.stringContaining("comment.user.login"),
+      actor: {
+        trust: "untrusted",
+        trustReason: expect.stringContaining("sender.login"),
+      },
+      body: {
+        data: {
+          actorIntegrity: "missing_metadata",
+          actorIntegrityReason: expect.stringContaining("comment.user.login"),
+        },
+      },
     });
   });
 
   it("marks mention comments from low-trust commenters", async () => {
     const bus = new EventBus();
     const received: Record<string, unknown>[] = [];
-    bus.on("github.issue_comment.mention", (p) =>
+    bus.on(inboundSignalReceived, (p) =>
       received.push(p as Record<string, unknown>),
     );
 
@@ -760,15 +773,23 @@ describe("githubWebhookModule handler — event emission", () => {
     });
 
     expect(received[0]).toMatchObject({
-      actorIntegrity: "low_trust_actor",
-      actorIntegrityReason: "author association 'FIRST_TIMER' is below the configured trust threshold",
+      actor: {
+        trust: "untrusted",
+        trustReason: "author association 'FIRST_TIMER' is below the configured trust threshold",
+      },
+      body: {
+        data: {
+          actorIntegrity: "low_trust_actor",
+          actorIntegrityReason: "author association 'FIRST_TIMER' is below the configured trust threshold",
+        },
+      },
     });
   });
 
   it("marks configured blocked mention commenters before trust-threshold checks", async () => {
     const bus = new EventBus();
     const received: Record<string, unknown>[] = [];
-    bus.on("github.issue_comment.mention", (p) =>
+    bus.on(inboundSignalReceived, (p) =>
       received.push(p as Record<string, unknown>),
     );
 
@@ -788,8 +809,16 @@ describe("githubWebhookModule handler — event emission", () => {
     });
 
     expect(received[0]).toMatchObject({
-      actorIntegrity: "blocked_actor",
-      actorIntegrityReason: "blocked actor 'blocked-user' matched github-webhook actorIntegrity.blockedActors",
+      actor: {
+        trust: "blocked",
+        trustReason: "blocked actor 'blocked-user' matched github-webhook actorIntegrity.blockedActors",
+      },
+      body: {
+        data: {
+          actorIntegrity: "blocked_actor",
+          actorIntegrityReason: "blocked actor 'blocked-user' matched github-webhook actorIntegrity.blockedActors",
+        },
+      },
     });
   });
 

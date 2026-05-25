@@ -2,8 +2,9 @@
  * GitHub webhook module — receives GitHub webhook deliveries and emits typed bus events.
  *
  * Registers `POST /api/webhooks/github` and validates each delivery's HMAC-SHA256
- * signature before emitting a `github.<event>` bus event. Workflows can trigger on
- * these events via `event: "github.push"`, `event: "github.pull_request"`, etc.
+ * signature before emitting normalized bus events. Generic GitHub deliveries use
+ * `github.<event>` events; configured issue-comment mentions use the shared
+ * project-scoped `inbound.signal.received` contract.
  *
  * Config (under modules.github-webhook):
  *   secret:  Webhook secret or "$ENV_VAR" reference. Required.
@@ -16,20 +17,22 @@
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { deriveProjectId } from "#core/daemon/project-registry.js";
 import type {
   KotaModule,
   ModuleContext,
   ModuleRuntimeContext,
   RouteRegistration,
 } from "#core/modules/module-types.js";
+import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
 import {
   type GitHubIssueCommentMentionEventPayload,
   type GitHubPullRequestEventPayload,
   type GitHubWebhookActor,
   type GitHubWebhookActorIntegrity,
-  githubIssueCommentMentionEvent,
   githubPullRequestEvent,
 } from "./events.js";
+import { githubIssueCommentMentionToInboundSignal } from "./inbound-signal.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -504,14 +507,40 @@ function makeWebhookHandler(
         return;
       }
 
-      ctx.events.emit(githubIssueCommentMentionEvent, decision.payload);
-      ctx.log.info("github-webhook: emitted github.issue_comment.mention", {
+      const receivedAt = new Date().toISOString();
+      const comment = objectValue(rawPayload.comment);
+      const occurredAt = comment ? stringValue(comment.created_at) ?? receivedAt : receivedAt;
+      const inboundSignal = githubIssueCommentMentionToInboundSignal(
+        decision.payload,
+        {
+          projectId: deriveProjectId(ctx.cwd),
+          occurredAt,
+          receivedAt,
+        },
+      );
+      if (!inboundSignal.ok) {
+        ctx.log.warn(
+          `github-webhook: skipped inbound signal normalization: ${inboundSignal.error}`,
+        );
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            ok: true,
+            ignored: true,
+            event: inboundSignalReceived.name,
+            reason: "invalid_inbound_signal",
+          }),
+        );
+        return;
+      }
+      ctx.events.emit(inboundSignalReceived, inboundSignal.payload);
+      ctx.log.info("github-webhook: emitted inbound.signal.received", {
         repo: decision.payload.repo,
         actorIntegrity: decision.payload.actorIntegrity,
       });
 
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ok: true, event: "github.issue_comment.mention" }));
+      res.end(JSON.stringify({ ok: true, event: inboundSignalReceived.name }));
       return;
     }
 
@@ -544,8 +573,9 @@ const githubWebhookModule: KotaModule = {
   name: "github-webhook",
   version: "1.0.0",
   description:
-    "GitHub webhook receiver — validates HMAC signatures and emits typed github.* bus events",
-  events: [githubPullRequestEvent, githubIssueCommentMentionEvent],
+    "GitHub webhook receiver — validates HMAC signatures and emits typed GitHub and inbound-signal events",
+  dependencies: ["inbound-signals"],
+  events: [githubPullRequestEvent],
 
   routes: (ctx: ModuleContext): RouteRegistration[] => {
     const secret = resolveActiveSecret(ctx);

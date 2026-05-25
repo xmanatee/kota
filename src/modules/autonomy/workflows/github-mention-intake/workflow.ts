@@ -22,6 +22,11 @@ import type {
   GitHubIssueCommentMentionEventPayload,
   GitHubWebhookActor,
 } from "#modules/github-webhook/events.js";
+import { githubIssueCommentMentionFromInboundSignal } from "#modules/github-webhook/inbound-signal.js";
+import {
+  type InboundSignalReceivedPayload,
+  inboundSignalReceived,
+} from "#modules/inbound-signals/events.js";
 import { getRepoTaskStateDir } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   createNormalizedTask,
@@ -92,6 +97,15 @@ type PreparedIntakeComment = {
 
 function isNonEmptyString(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function mentionPayloadFromTrigger(
+  trigger: { event: string; payload: object },
+): MentionWebhookPayload {
+  if (trigger.event !== inboundSignalReceived.name) return {};
+  return githubIssueCommentMentionFromInboundSignal(
+    trigger.payload as InboundSignalReceivedPayload,
+  );
 }
 
 function hasCompleteActor(actor: GitHubWebhookActor | undefined): actor is { login: string; type: string } {
@@ -482,7 +496,7 @@ const assessMentionIntake = typedCodeStep<GithubMentionIntakeAssessment>({
   when: onNormalTrigger,
   validate: validateAssessment,
   run: ({ trigger }) => {
-    const p = trigger.payload as MentionWebhookPayload;
+    const p = mentionPayloadFromTrigger(trigger);
 
     if (!isNonEmptyString(p.action) || p.action !== "created") {
       return skip(`unsupported issue_comment action '${String(p.action)}'`);
@@ -699,7 +713,8 @@ const githubMentionIntakeWorkflow: WorkflowDefinitionInput = {
   recoveryCapable: true,
   triggers: [
     {
-      event: "github.issue_comment.mention",
+      event: inboundSignalReceived.name,
+      filter: { provider: "github", channel: "github.issue_comment" },
     },
     {
       event: "runtime.recovered",

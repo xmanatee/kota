@@ -67,7 +67,7 @@ const webhookModule: KotaModule = {
   version: "1.0.0",
   description:
     "Inbound HTTP→bus event-trigger route (POST /api/events/:name) and outbound HTTP webhook notification channel",
-  dependencies: ["notification", "rendering"],
+  dependencies: ["inbound-signals", "notification", "rendering"],
   configSlices: [webhookConfigSlice],
 
   onLoad: (ctx) => {

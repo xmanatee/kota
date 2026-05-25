@@ -1,9 +1,10 @@
 # GitHub Mention Responder Workflow
 
-This workflow turns trusted `github.issue_comment.mention` events into one
+This workflow turns trusted GitHub issue-comment mention signals into one
 bounded GitHub thread response.
 
-- Consume only the normalized mention event emitted by `github-webhook`.
+- Consume only the shared `inbound.signal.received` action form emitted by
+  thin inbound adapters.
 - Keep actor-integrity, action, malformed-payload, and implementation-request
   gating in code before the response agent runs.
 - Keep the agent passive and response-only. GitHub posting happens through the
