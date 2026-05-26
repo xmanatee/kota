@@ -481,3 +481,7 @@ resources:
   - url: https://arxiv.org/abs/2605.13139
     added: "2026-05-26"
     notes: "SWE-Cycle evaluates code agents across environment reconstruction, implementation, verification-test generation, and a bare-repository FullCycle task. Monitor as an eval-harness signal for setup-to-tests-to-implementation dependencies, artifact-graded verification, and avoiding preconfigured benchmark environments."
+    snapshot:
+      fingerprint: sha256:003b8a8815f1650ea4018c0748980e06
+      summary: "SWE-Cycle reinforces KOTA's completed bare-repository full-cycle builder fixture: environment reconstruction, verification-test generation, and implementation repair now have artifact-graded local coverage, so no duplicate task was opened."
+      last_seen_at: "2026-05-26T20:51:58.355Z"
