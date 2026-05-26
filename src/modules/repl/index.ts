@@ -54,9 +54,18 @@ export type HarnessReplOptions = {
    * operator sees.
    */
   output?: ReplOutputStream;
+  /** Initial transcript to carry into the first harness turn. */
+  initialTranscript?: ReplTurn[];
+  /** Called after prompt-reference expansion, before the harness turn runs. */
+  onUserInput?: (input: string) => void | Promise<void>;
+  /** Called after a successful harness turn has been appended locally. */
+  onAssistantResponse?: (
+    turn: ReplTurn,
+    result: AgentHarnessResult,
+  ) => void | Promise<void>;
 };
 
-type ReplTurn = {
+export type ReplTurn = {
   user: string;
   assistant: string;
 };
@@ -180,7 +189,10 @@ export async function runHarnessRepl(options: HarnessReplOptions): Promise<void>
     terminal: false,
   });
 
-  const state: ReplState = { transcript: [], turnsOut: 0 };
+  const state: ReplState = {
+    transcript: [...(options.initialTranscript ?? [])],
+    turnsOut: 0,
+  };
 
   const processLine = async (rawLine: string): Promise<"continue" | "exit"> => {
     const input = rawLine.trim();
@@ -197,6 +209,7 @@ export async function runHarnessRepl(options: HarnessReplOptions): Promise<void>
     const composed = composeTranscriptPrompt(state.transcript, expanded);
 
     try {
+      await options.onUserInput?.(expanded);
       const result = await runAgentHarness(
         options.harness,
         {
@@ -209,10 +222,12 @@ export async function runHarnessRepl(options: HarnessReplOptions): Promise<void>
       );
       state.lastResult = result;
       state.turnsOut += 1;
-      state.transcript.push({
+      const turn = {
         user: expanded,
         assistant: result.text,
-      });
+      };
+      state.transcript.push(turn);
+      await options.onAssistantResponse?.(turn, result);
       output.write("\n");
     } catch (err) {
       chrome.showError((err as Error).message);

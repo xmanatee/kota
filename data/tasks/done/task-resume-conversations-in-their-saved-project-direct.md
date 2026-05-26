@@ -1,12 +1,12 @@
 ---
 id: task-resume-conversations-in-their-saved-project-direct
 title: Resume conversations in their saved project directory
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Make explicit history resume and continue paths re-enter the saved conversation cwd, with an override for intentional cross-directory resumes, so tools, prompt references, project context, and guardrails do not silently run against the caller's current directory.
 created_at: 2026-05-26T15:53:41.649Z
-updated_at: 2026-05-26T15:53:41.649Z
+updated_at: 2026-05-26T16:10:49.000Z
 ---
 
 ## Problem

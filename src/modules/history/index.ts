@@ -35,6 +35,7 @@ import {
 	normalizeHistoryShowOptions,
 	readHistoryDetail,
 } from "./history-detail.js";
+import { listLocalProjectHistoryRecords } from "./local-history-scan.js";
 import {
 	createHistoryProjectStores,
 	type HistoryProjectStores,
@@ -46,7 +47,7 @@ const historyModule: KotaModule = {
 	version: "1.0.0",
 	description:
 		"Conversation recall — search and read past conversations",
-	dependencies: ["rendering"],
+	dependencies: ["rendering", "repl"],
 	tools: [
 		{
 			tool: conversationRecallTool,
@@ -73,6 +74,7 @@ const historyModule: KotaModule = {
 	controlRoutes: (ctx) =>
 		historyControlRoutes(
 			createHistoryProjectStores(ctx.cwd, () => getHistoryProvider()),
+			ctx.cwd,
 		),
 
 	localClient: (ctx) => {
@@ -83,6 +85,14 @@ const historyModule: KotaModule = {
 			async list(filter) {
 				const provider = resolveHistoryProvider(projectStores, filter?.projectId);
 				return { conversations: provider.list(filter) };
+			},
+			async listDiscoveredProjectRecords(filter) {
+				return {
+					conversations: listLocalProjectHistoryRecords({
+						cwd: ctx.cwd,
+						limit: filter?.limit,
+					}),
+				};
 			},
 			async show(id, options) {
 				const provider = resolveHistoryProvider(projectStores, options?.projectId);
@@ -132,11 +142,11 @@ const historyModule: KotaModule = {
 
 /**
  * Daemon-side `HistoryClient` backed by the typed `DaemonTransport`. Calls
- * the same `/history`, `/history/:id`, `/history/reindex`, and
- * `/api/history/search` HTTP routes the history module registers through
- * `historyControlRoutes` and `historyRoutes`. The transport surface owns
- * the bearer token, base URL, and timeout policy — this factory only
- * encodes the wire shape.
+ * the same `/history`, `/history/discovered-project-records`,
+ * `/history/:id`, `/history/reindex`, and `/api/history/search` HTTP routes
+ * the history module registers through `historyControlRoutes` and
+ * `historyRoutes`. The transport surface owns the bearer token, base URL,
+ * and timeout policy — this factory only encodes the wire shape.
  *
  * The two-stem route layout (`/history*` for list/show/delete/reindex,
  * `/api/history/search` for search) matches today's daemon contract.
@@ -147,6 +157,11 @@ const historyModule: KotaModule = {
  * `requestStrict<T>`. The daemon route emits
  * `{ conversations: ConversationRecord[] }`; the factory passes that decode
  * shape through unchanged.
+ *
+ * `listDiscoveredProjectRecords(filter)` serializes the optional limit and
+ * issues `GET /history/discovered-project-records${query}` through
+ * `requestStrict<T>` so daemon-backed CLI clients never scan `.kota/history`
+ * directly.
  *
  * `show(id, options)` validates and serializes one detail-read request, issues
  * `GET /history/:id` through `fetchRaw`, collapsing a 404 missing conversation
@@ -185,6 +200,17 @@ function buildHistoryDaemonHandler(link: DaemonTransport): HistoryClient {
 			return link.requestStrict<HistoryListResult>(
 				"GET",
 				`/history${query}`,
+			);
+		},
+		listDiscoveredProjectRecords: async (
+			filter,
+		): Promise<HistoryListResult> => {
+			const params = new URLSearchParams();
+			if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
+			const query = params.toString() ? `?${params.toString()}` : "";
+			return link.requestStrict<HistoryListResult>(
+				"GET",
+				`/history/discovered-project-records${query}`,
 			);
 		},
 		show: async (id, options): Promise<HistoryShowResult> => {

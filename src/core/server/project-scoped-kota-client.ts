@@ -107,6 +107,8 @@ export function createProjectScopedKotaClient(
         scoped(selectedProjectId, () =>
           base.history.list(withProject(filter, selectedProjectId)),
         ),
+      listDiscoveredProjectRecords: (filter) =>
+        base.history.listDiscoveredProjectRecords(filter),
       show: (id, project) =>
         scoped(selectedProjectId, () =>
           base.history.show(id, withProject(project, selectedProjectId)),

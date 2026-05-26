@@ -99,6 +99,7 @@ function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
     },
     history: {
       list: stub({ conversations: [] }),
+      listDiscoveredProjectRecords: stub({ conversations: [] }),
       show: stub({ found: false }),
       delete: stub({ ok: true }),
       search: stub({ ok: true, conversations: [] }),

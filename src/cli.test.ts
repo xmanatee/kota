@@ -1,4 +1,8 @@
-import { execFileSync, type SpawnSyncReturns } from "node:child_process";
+import {
+  execFileSync,
+  type SpawnSyncReturns,
+  spawnSync,
+} from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -49,27 +53,77 @@ function runFull(
   args: string[],
   opts?: { env?: Record<string, string>; input?: string; cwd?: string },
 ): { stdout: string; stderr: string; exitCode: number } {
-  try {
-    const stdout = execFileSync(process.execPath, ["--import", TSX_IMPORT, CLI, ...args], {
+  const result = spawnSync(
+    process.execPath,
+    ["--import", TSX_IMPORT, CLI, ...args],
+    {
       encoding: "utf-8",
       timeout: CLI_TIMEOUT,
       cwd: opts?.cwd ?? root,
       env: { ...process.env, ...opts?.env },
       input: opts?.input,
-    });
-    return { stdout, stderr: "", exitCode: 0 };
-  } catch (err) {
-    const e = err as SpawnSyncReturns<string>;
-    return {
-      stdout: e.stdout || "",
-      stderr: e.stderr || "",
-      exitCode: e.status ?? 1,
-    };
-  }
+    },
+  );
+  return {
+    stdout: result.stdout || "",
+    stderr: result.stderr || "",
+    exitCode: result.status ?? 1,
+  };
 }
 
 function mkdtempForCli(prefix: string): string {
   return mkdtempSync(join(tmpdir(), `${prefix}-`));
+}
+
+function mkProjectPair(prefix: string): { callerDir: string; savedDir: string } {
+  const rootDir = realpathSync(mkdtempForCli(`${prefix}-root`));
+  const callerDir = join(rootDir, "caller");
+  const savedDir = join(rootDir, "saved");
+  mkdirSync(callerDir, { recursive: true });
+  mkdirSync(savedDir, { recursive: true });
+  return {
+    callerDir: realpathSync(callerDir),
+    savedDir: realpathSync(savedDir),
+  };
+}
+
+function seedProjectConfig(
+  projectDir: string,
+  overrides: Record<string, unknown> = {},
+): void {
+  mkdirSync(join(projectDir, ".kota"), { recursive: true });
+  writeFileSync(
+    join(projectDir, ".kota", "config.json"),
+    JSON.stringify({ cli: { defaultAutonomyMode: "passive" }, ...overrides }),
+  );
+}
+
+function seedConversation(projectDir: string, record: {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  model: string;
+  messageCount: number;
+  cwd: string;
+  source?: "user" | "action";
+}, config: Record<string, unknown> = {}): void {
+  const histDir = join(projectDir, ".kota", "history");
+  mkdirSync(histDir, { recursive: true });
+  seedProjectConfig(projectDir, config);
+  writeFileSync(
+    join(histDir, "index.json"),
+    JSON.stringify({ conversations: [record] }),
+  );
+  writeFileSync(
+    join(histDir, `${record.id}.json`),
+    JSON.stringify({
+      record,
+      messages: [{ role: "user", content: "original prompt" }],
+      compactionCount: 0,
+      lastInputTokens: 0,
+    }),
+  );
 }
 
 describe("cli", () => {
@@ -356,5 +410,136 @@ describe("history resume validation", () => {
     });
     expect(exitCode).toBe(1);
     expect(stderr).toContain("not found");
+  });
+
+  it("resumes an explicit id in the saved project directory", () => {
+    const { callerDir, savedDir } = mkProjectPair("kota-test-resume");
+    const record = {
+      id: "resume-cross",
+      title: "cross directory resume",
+      createdAt: "2026-05-26T00:00:00.000Z",
+      updatedAt: "2026-05-26T00:00:00.000Z",
+      model: "claude-sonnet-4-6",
+      messageCount: 1,
+      cwd: savedDir,
+      source: "user" as const,
+    };
+    seedProjectConfig(callerDir, {
+      model: "caller-history-model",
+      trustedProjects: [savedDir],
+    });
+    seedConversation(savedDir, record, {
+      model: "saved-history-model",
+      cli: { defaultAutonomyMode: "passive" },
+    });
+
+    const { stderr, exitCode } = runFull(["history", "resume", "resume-cross"], {
+      env: { ANTHROPIC_API_KEY: "", HOME: callerDir },
+      cwd: callerDir,
+      input: "/status\nexit\n",
+    });
+
+    expect(exitCode).toBe(0);
+    expect(stderr).toContain(`using saved directory ${savedDir}`);
+    expect(stderr).toContain(`Project: ${savedDir}`);
+    expect(stderr).toContain("Model: saved-history-model");
+    expect(stderr).not.toContain("Model: caller-history-model");
+  });
+
+  it("run --continue with an explicit id binds the classic session to the saved project directory", () => {
+    const { callerDir, savedDir } = mkProjectPair("kota-test-run-resume");
+    const record = {
+      id: "run-resume-cross",
+      title: "run cross directory resume",
+      createdAt: "2026-05-26T00:00:00.000Z",
+      updatedAt: "2026-05-26T00:00:00.000Z",
+      model: "claude-sonnet-4-6",
+      messageCount: 1,
+      cwd: savedDir,
+      source: "user" as const,
+    };
+    seedProjectConfig(callerDir, {
+      model: "caller-run-model",
+      trustedProjects: [savedDir],
+    });
+    seedConversation(savedDir, record, {
+      model: "saved-run-model",
+      cli: { defaultAutonomyMode: "passive" },
+    });
+
+    const { stderr, exitCode } = runFull(
+      [
+        "run",
+        "--provider",
+        "anthropic",
+        "--continue",
+        "run-resume-cross",
+        "--interactive",
+      ],
+      {
+        env: { ANTHROPIC_API_KEY: "", HOME: callerDir },
+        cwd: callerDir,
+        input: "/status\nexit\n",
+      },
+    );
+
+    expect(exitCode).toBe(0);
+    expect(stderr).toContain(`using saved directory ${savedDir}`);
+    expect(stderr).toContain(`Project: ${savedDir}`);
+    expect(stderr).toContain("Model: saved-run-model");
+    expect(stderr).not.toContain("Model: caller-run-model");
+  });
+
+  it("fails explicit resume when the saved cwd is missing", () => {
+    const callerDir = realpathSync(mkdtempForCli("kota-test-resume-missing"));
+    const record = {
+      id: "resume-missing",
+      title: "missing directory resume",
+      createdAt: "2026-05-26T00:00:00.000Z",
+      updatedAt: "2026-05-26T00:00:00.000Z",
+      model: "claude-sonnet-4-6",
+      messageCount: 1,
+      cwd: join(callerDir, "missing-project"),
+      source: "user" as const,
+    };
+    seedConversation(callerDir, record);
+
+    const { stderr, exitCode } = runFull(["history", "resume", "resume-missing"], {
+      env: { ANTHROPIC_API_KEY: "", HOME: callerDir },
+      cwd: callerDir,
+      input: "exit\n",
+    });
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain("saved cwd is missing or inaccessible");
+    expect(stderr).toContain("--resume-here");
+  });
+
+  it("allows explicit resume cwd override when the saved cwd is missing", () => {
+    const callerDir = realpathSync(mkdtempForCli("kota-test-resume-override"));
+    const record = {
+      id: "resume-override",
+      title: "override directory resume",
+      createdAt: "2026-05-26T00:00:00.000Z",
+      updatedAt: "2026-05-26T00:00:00.000Z",
+      model: "claude-sonnet-4-6",
+      messageCount: 1,
+      cwd: join(callerDir, "missing-project"),
+      source: "user" as const,
+    };
+    seedConversation(callerDir, record);
+
+    const { stderr, exitCode } = runFull(
+      ["history", "resume", "resume-override", "--resume-here"],
+      {
+        env: { ANTHROPIC_API_KEY: "", HOME: callerDir },
+        cwd: callerDir,
+        input: "/status\nexit\n",
+      },
+    );
+
+    expect(exitCode).toBe(0);
+    expect(stderr).toContain("Resume cwd override");
+    expect(stderr).toContain(`Project: ${callerDir}`);
   });
 });

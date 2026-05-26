@@ -224,6 +224,7 @@ function makeStubKnowledge(): DaemonClientHandlers["knowledge"] {
 function makeStubHistory(): DaemonClientHandlers["history"] {
   return {
     list: async () => ({ conversations: [] }),
+    listDiscoveredProjectRecords: async () => ({ conversations: [] }),
     show: async () => ({ found: false }),
     delete: async () => ({ ok: true }),
     search: async () => ({ ok: true, conversations: [] }),

@@ -2,16 +2,17 @@
  * Exercises the history module's daemon-control routes through the same
  * registration seam the real daemon uses: `historyControlRoutes()` is the
  * module's contribution, so the test mounts those handlers on a live
- * `DaemonControlServer` and hits `/history`, `/history/:id` via HTTP.
+ * `DaemonControlServer` and hits `/history`, `/history/:id`, and the
+ * discovered-project fallback route via HTTP.
  *
  * Covers the wire contract migrated out of core: bearer-token auth, the
- * `read` / `control` capability-scope split (the two GETs are read-only,
+ * `read` / `control` capability-scope split (the GETs are read-only,
  * DELETE requires control), `{ conversations: ... }` envelope on list,
  * explicit detail views on get, 404 for missing conversation, and
  * `{ deleted: id }` on delete.
  */
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -135,15 +136,17 @@ describe("history module daemon-control routes", () => {
       const routes = historyControlRoutes();
       expect(routes.map((r) => `${r.method} ${r.path} (${r.capabilityScope})`)).toEqual([
         "GET /history (read)",
+        "GET /history/discovered-project-records (read)",
         "POST /history/reindex (control)",
         "GET /history/:id (read)",
         "DELETE /history/:id (control)",
       ]);
     });
 
-    it("requires the daemon bearer token on all three routes", async () => {
+    it("requires the daemon bearer token on all history control routes", async () => {
       for (const init of [
         { path: "/history", method: "GET" },
+        { path: "/history/discovered-project-records", method: "GET" },
         { path: "/history/anything", method: "GET" },
         { path: "/history/anything", method: "DELETE" },
       ]) {
@@ -151,6 +154,44 @@ describe("history module daemon-control routes", () => {
           method: init.method,
         });
         expect(res.status).toBe(401);
+      }
+    });
+  });
+
+  describe("GET /history/discovered-project-records", () => {
+    it("returns locally discovered project history records through the daemon route", async () => {
+      const root = mkdtempSync(join(tmpdir(), "kota-history-discovery-"));
+      const projectDir = join(root, "saved-kota-project");
+      const historyDir = join(projectDir, ".kota", "history");
+      mkdirSync(historyDir, { recursive: true });
+      const record = {
+        id: "discovered-conv",
+        title: "discovered conversation",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-02T00:00:00.000Z",
+        model: "claude-sonnet-4-6",
+        messageCount: 1,
+        cwd: projectDir,
+        source: "user" as const,
+      };
+      writeFileSync(
+        join(historyDir, "index.json"),
+        JSON.stringify({ conversations: [record] }),
+      );
+      const scopedServer = new DaemonControlServer(makeHandle(), TEST_TOKEN, {
+        controlRoutes: historyControlRoutes(undefined, root),
+      });
+      const scopedPort = await scopedServer.start();
+      try {
+        const res = await fetchWith(
+          scopedPort,
+          "/history/discovered-project-records?limit=1",
+        );
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ conversations: [record] });
+      } finally {
+        await scopedServer.stop();
+        rmSync(root, { recursive: true, force: true });
       }
     });
   });

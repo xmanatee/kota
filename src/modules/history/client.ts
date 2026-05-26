@@ -48,6 +48,10 @@ export type HistoryListResult = {
   conversations: ConversationRecord[];
 };
 
+export type HistoryDiscoveredProjectFilter = {
+  limit?: number;
+};
+
 export type HistoryDetailView = "metadata" | "window" | "full";
 
 export type HistoryMessageWindow = {
@@ -142,13 +146,18 @@ export type HistorySearchResult =
  * `list` returns conversation records filtered by `search` / `limit` /
  * `cwd` / `source`. `show` returns one explicit detail view for a single
  * conversation: metadata, a bounded message window, or full persisted state.
- * `delete` removes a conversation. The contract is intentionally minimal:
- * id-prefix and most-recent-by-cwd resolution are derived in the CLI from
- * `list` (see `resolveConversationId`) so the contract stays a single
+ * `delete` removes a conversation. `listDiscoveredProjectRecords` is the
+ * explicit-resume fallback for CLI clients that must find a saved conversation
+ * outside the active daemon/default project without reading `.kota/` directly.
+ * Id-prefix and most-recent-by-cwd resolution are still derived in the CLI from
+ * record lists (see `resolveConversationId`) so the contract stays a small
  * pass-through for stored state, not a query DSL.
  */
 export interface HistoryClient {
   list(filter?: HistoryListFilter): Promise<HistoryListResult>;
+  listDiscoveredProjectRecords(
+    filter?: HistoryDiscoveredProjectFilter,
+  ): Promise<HistoryListResult>;
   show(id: string, options?: HistoryShowOptions): Promise<HistoryShowResult>;
   delete(id: string, project?: HistoryProjectSelection): Promise<HistoryDeleteResult>;
   /**

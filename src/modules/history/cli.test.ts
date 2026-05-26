@@ -8,6 +8,15 @@
  * real provider stack.
  */
 
+import {
+	mkdirSync,
+	mkdtempSync,
+	realpathSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ConversationRecord } from "#core/modules/provider-types.js";
@@ -21,14 +30,22 @@ import {
 	setTerminalTransport,
 	TerminalTransport,
 } from "#modules/rendering/transport.js";
+import {
+	resolveExplicitConversationResume,
+	resolveRunContinue,
+	validateConversationResumeCwd,
+} from "./cli.js";
 import { registerHistoryCommands } from "./cli-commands.js";
 import type {
 	HistoryDetail,
+	HistoryDiscoveredProjectFilter,
+	HistoryListFilter,
 	HistorySearchFilter,
 	HistorySearchResult,
 	HistoryShowOptions,
 	HistoryShowResult,
 } from "./client.js";
+import { listLocalProjectHistoryRecords } from "./local-history-scan.js";
 
 vi.mock("#core/modules/cli-providers.js", () => ({
 	ensureCliProvidersFor: vi.fn(async () => {}),
@@ -37,6 +54,10 @@ vi.mock("#core/modules/cli-providers.js", () => ({
 type SearchCall = {
 	query: string;
 	filter: HistorySearchFilter | undefined;
+};
+
+type ListCall = {
+	filter: HistoryListFilter | undefined;
 };
 
 type SearchStub = {
@@ -154,6 +175,32 @@ function installShowClient(stub: ShowStub, records: ConversationRecord[]): void 
 		},
 	} as unknown as KotaClient;
 	setActiveKotaClient(client);
+}
+
+function makeHistoryClient(records: ConversationRecord[]): {
+	client: KotaClient;
+	calls: ListCall[];
+} {
+	const calls: ListCall[] = [];
+	const client = {
+		history: {
+			async list(filter?: HistoryListFilter) {
+				calls.push({ filter });
+				return { conversations: records };
+			},
+			async listDiscoveredProjectRecords(
+				filter?: HistoryDiscoveredProjectFilter,
+			) {
+				return {
+					conversations: listLocalProjectHistoryRecords({
+						cwd: process.cwd(),
+						limit: filter?.limit,
+					}),
+				};
+			},
+		},
+	} as unknown as KotaClient;
+	return { client, calls };
 }
 
 function captureTransport(): { stdout: string[]; stderr: string[]; restore: () => void } {
@@ -520,5 +567,140 @@ describe("kota history show", () => {
 		expect(captured.stderr.join("")).toContain(
 			"only valid with --view window",
 		);
+	});
+});
+
+describe("conversation resume cwd selection", () => {
+	let originalCwd: string;
+	let tempDirs: string[];
+
+	beforeEach(() => {
+		originalCwd = process.cwd();
+		tempDirs = [];
+	});
+
+	afterEach(() => {
+		process.chdir(originalCwd);
+		for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
+	});
+
+	function tempDir(prefix: string): string {
+		const dir = realpathSync(mkdtempSync(join(tmpdir(), prefix)));
+		tempDirs.push(dir);
+		return dir;
+	}
+
+	function tempProjectPair(prefix: string): { callerCwd: string; savedCwd: string } {
+		const root = tempDir(`${prefix}root-`);
+		const callerCwd = join(root, "caller");
+		const savedCwd = join(root, "saved");
+		mkdirSync(callerCwd, { recursive: true });
+		mkdirSync(savedCwd, { recursive: true });
+		return {
+			callerCwd: realpathSync(callerCwd),
+			savedCwd: realpathSync(savedCwd),
+		};
+	}
+
+	function seedProjectHistory(
+		projectDir: string,
+		record: ConversationRecord,
+	): void {
+		const historyDir = join(projectDir, ".kota", "history");
+		mkdirSync(historyDir, { recursive: true });
+		writeFileSync(
+			join(historyDir, "index.json"),
+			JSON.stringify({ conversations: [record] }),
+		);
+		writeFileSync(
+			join(historyDir, `${record.id}.json`),
+			JSON.stringify({
+				record,
+				messages: [{ role: "user", content: "original prompt" }],
+				compactionCount: 0,
+				lastInputTokens: 0,
+			}),
+		);
+	}
+
+	it("explicit run continue resolves to the saved cwd", async () => {
+		const savedCwd = tempDir("kota-resume-saved-");
+		const record = makeRecord({ id: "conv-resume", cwd: savedCwd });
+		const { client } = makeHistoryClient([record]);
+
+		const result = await resolveRunContinue(client, {
+			continue: "conv-resume",
+		});
+
+		expect(result?.id).toBe("conv-resume");
+		expect(result?.projectDir).toBe(savedCwd);
+		expect(result?.explicit).toBe(true);
+		expect(result?.cwdOverridden).toBe(false);
+	});
+
+	it("explicit run continue finds a record that exists only in its saved project history", async () => {
+		const { callerCwd, savedCwd } = tempProjectPair("kota-resume-local-");
+		process.chdir(callerCwd);
+		const record = makeRecord({
+			id: "conv-local-cross",
+			cwd: savedCwd,
+		});
+		seedProjectHistory(savedCwd, record);
+		const { client } = makeHistoryClient([]);
+
+		const result = await resolveRunContinue(client, {
+			continue: "conv-local-cross",
+		});
+
+		expect(result?.id).toBe("conv-local-cross");
+		expect(result?.projectDir).toBe(savedCwd);
+		expect(result?.explicit).toBe(true);
+	});
+
+	it("bare run continue still filters by the caller cwd", async () => {
+		const callerCwd = tempDir("kota-resume-caller-");
+		process.chdir(callerCwd);
+		const record = makeRecord({ id: "conv-latest", cwd: callerCwd });
+		const { client, calls } = makeHistoryClient([record]);
+
+		const result = await resolveRunContinue(client, { continue: true });
+
+		expect(calls[0].filter).toEqual({ cwd: callerCwd, limit: 1 });
+		expect(result?.id).toBe("conv-latest");
+		expect(result?.projectDir).toBe(callerCwd);
+		expect(result?.explicit).toBe(false);
+	});
+
+	it("missing saved cwd fails validation with the override hint", () => {
+		const record = makeRecord({
+			id: "conv-missing",
+			cwd: join(tempDir("kota-resume-gone-parent-"), "gone"),
+		});
+
+		const result = validateConversationResumeCwd(record);
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.message).toContain("saved cwd is missing or inaccessible");
+			expect(result.message).toContain("--resume-here");
+		}
+	});
+
+	it("explicit override uses the caller cwd even when the saved cwd is gone", async () => {
+		const callerCwd = tempDir("kota-resume-here-");
+		process.chdir(callerCwd);
+		const record = makeRecord({
+			id: "conv-override",
+			cwd: join(tempDir("kota-resume-missing-"), "gone"),
+		});
+		const { client } = makeHistoryClient([record]);
+
+		const result = await resolveExplicitConversationResume(client, "conv-override", {
+			resumeHere: true,
+		});
+
+		expect(result.projectDir).toBe(callerCwd);
+		expect(result.savedCwd).toBe(record.cwd);
+		expect(result.cwdOverridden).toBe(true);
 	});
 });

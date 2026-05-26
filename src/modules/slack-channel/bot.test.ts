@@ -112,6 +112,7 @@ function makeStubClients(): {
     },
     history: {
       list: vi.fn(),
+      listDiscoveredProjectRecords: vi.fn(),
       show: vi.fn(),
       delete: vi.fn(),
       search: vi.fn(),
@@ -1493,6 +1494,7 @@ describe("SlackBot", () => {
       const bot = makeBot({
         history: {
           list: vi.fn(),
+          listDiscoveredProjectRecords: vi.fn(),
           show: vi.fn(),
           delete: vi.fn(),
           search: searchFn,
@@ -1519,6 +1521,7 @@ describe("SlackBot", () => {
       const bot = makeBot({
         history: {
           list: vi.fn(),
+          listDiscoveredProjectRecords: vi.fn(),
           show: vi.fn(),
           delete: vi.fn(),
           search: searchFn,

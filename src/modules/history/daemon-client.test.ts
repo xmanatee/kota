@@ -13,6 +13,9 @@
  *     (`{ search, limit, cwd, source }`) threads through `URLSearchParams`
  *     in `search,limit,cwd,source` insertion order to match today's
  *     pre-migration `historyListHttp`.
+ *     `listDiscoveredProjectRecords(filter)` is also wired through
+ *     `requestStrict<T>` at `/history/discovered-project-records` so
+ *     daemon-backed clients do not scan local history files directly.
  *  3. `show(id)` is wired through `fetchRaw` with method `GET`, path
  *     `/history/${encodeURIComponent(id)}`, and an undefined body. An id
  *     containing reserved characters (`%`, `/`, space) round-trips through
@@ -273,6 +276,24 @@ describe("history module daemonClient(link)", () => {
     const contributed = historyModule.daemonClient!(transport);
     await contributed.history!.list({ projectId: "project-b" });
     expect(calls[0]!.path).toBe("/history?projectId=project-b");
+  });
+
+  it("routes listDiscoveredProjectRecords() through the daemon control API", async () => {
+    const wirePayload = { conversations: [makeRecord("discovered")] };
+    const { transport, calls } = makeRecordingTransport(() => wirePayload);
+    const contributed = historyModule.daemonClient!(transport);
+    const result = await contributed.history!.listDiscoveredProjectRecords({
+      limit: 10,
+    });
+    expect(result).toEqual(wirePayload);
+    expect(calls).toEqual([
+      {
+        method: "GET",
+        path: "/history/discovered-project-records?limit=10",
+        body: undefined,
+        shape: "requestStrict",
+      },
+    ]);
   });
 
   it("routes show(id) through GET /history/:id via fetchRaw with encodeURIComponent and no body", async () => {

@@ -1,3 +1,6 @@
+import { realpathSync } from "node:fs";
+import { basename } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import { expandAlias, loadConfig } from "#core/config/config.js";
@@ -8,7 +11,7 @@ import { setSkipConfirmations } from "#core/util/confirm.js";
 import { blank, line, span } from "#modules/rendering/primitives.js";
 import { TerminalTransport } from "#modules/rendering/transport.js";
 import { resolveAgentHarness, runAgentHarness } from "./core/agent-harness/index.js";
-import { runAgentLoop } from "./core/loop/loop.js";
+import { AgentSession, runAgentLoop } from "./core/loop/loop.js";
 import { buildKotaSystemPrompt } from "./core/loop/system-prompt.js";
 import {
   createAskUserMcpAuthorizationResolver,
@@ -30,9 +33,14 @@ import {
   interactiveMode,
   parseIntOption,
   registerHistoryCommands,
+  reportResumeCwdSelection,
   resolveRunContinue,
   runPipeLoop,
 } from "./modules/history/cli.js";
+import {
+  runAgentHarnessWithConversationResume,
+  transcriptFromKotaMessages,
+} from "./modules/history/harness-resume.js";
 import { parseModelString, resolveApiKey } from "./modules/model-clients/factory.js";
 import { runHarnessRepl } from "./modules/repl/index.js";
 
@@ -177,6 +185,7 @@ program
   .option("-t, --think", "Enable extended thinking for deeper reasoning")
   .option("--think-budget <tokens>", "Thinking budget in tokens (default: 10000, min: 1024)")
   .option("-c, --continue [id]", "Continue most recent conversation (or specify conversation ID)")
+  .option("--resume-here", "Resume explicit conversations in the caller's current directory instead of the saved cwd")
   .option("--no-history", "Disable automatic conversation history")
   .option("--no-reflect", "Disable self-reflection before delivering responses")
   .option("--no-cost", "Suppress per-turn cost display")
@@ -184,7 +193,10 @@ program
     const parsedMaxTokens = opts.maxTokens ? parseIntOption(opts.maxTokens, "max-tokens") : undefined;
     const parsedThinkBudget = opts.thinkBudget ? parseIntOption(opts.thinkBudget, "think-budget") : undefined;
 
-    const config = loadConfig();
+    const resumeSelection = await resolveRunContinue(getActiveKotaClient(), opts);
+    reportResumeCwdSelection(resumeSelection);
+    const runProjectDir = resumeSelection?.projectDir ?? process.cwd();
+    const config = loadConfig(runProjectDir);
 
     const providerName = opts.provider || config.modelProvider?.type;
     const explicitHarness = opts.harness as string | undefined;
@@ -219,29 +231,82 @@ program
       const systemPrompt = buildKotaSystemPrompt(
         config,
         undefined,
-        process.cwd(),
-        process.cwd(),
+        runProjectDir,
+        runProjectDir,
       );
       const runOverrides = {
         verbose: opts.verbose || config.verbose || false,
         effort: preset.defaultEffort,
         systemPrompt,
       };
+      const conversationOptions = resumeSelection
+        ? {
+            autonomyMode: resolveChannelAutonomyMode(
+              config.cli?.defaultAutonomyMode,
+              config,
+              "cli run",
+            ),
+            model,
+            verbose: opts.verbose || config.verbose || false,
+            config,
+            resumeConversation: resumeSelection.id,
+            noHistory: opts.history === false,
+            reflectionEnabled: opts.reflect !== false,
+            showCost: opts.cost !== false && (config.serve?.showCost ?? true),
+            mcpInputResolver: createAskUserMcpInputResolver(),
+            mcpAuthorizationResolver: createAskUserMcpAuthorizationResolver(),
+            projectDir: runProjectDir,
+          }
+        : undefined;
       if (opts.interactive || !prompt) {
-        await runHarnessRepl({
-          harness,
-          model,
-          cwd: process.cwd(),
-          run: runOverrides,
-        });
+        let resumeSession: AgentSession | undefined;
+        let resumeSessionErrored = false;
+        if (conversationOptions) {
+          resumeSession = new AgentSession(conversationOptions);
+          await resumeSession.initPromise;
+        }
+        try {
+          await runHarnessRepl({
+            harness,
+            model,
+            cwd: runProjectDir,
+            run: runOverrides,
+            ...(resumeSession
+              ? {
+                  initialTranscript: transcriptFromKotaMessages(
+                    resumeSession.context.getMessages(),
+                  ),
+                  onUserInput: (input: string) => {
+                    resumeSession?.context.addUserMessage(input);
+                  },
+                  onAssistantResponse: (_turn, result) => {
+                    if (result.text) resumeSession?.context.addAssistantText(result.text);
+                    if (typeof result.inputTokens === "number") {
+                      resumeSession?.context.setInputTokens(result.inputTokens);
+                    }
+                    resumeSessionErrored = result.isError;
+                  },
+                }
+              : {}),
+          });
+        } catch (err) {
+          resumeSessionErrored = true;
+          throw err;
+        } finally {
+          resumeSession?.close(resumeSessionErrored);
+        }
         return;
       }
-      prompt = expandUserPromptReferences(prompt, process.cwd()).text;
-      const result = await runAgentHarness(harness, {
+      prompt = expandUserPromptReferences(prompt, runProjectDir).text;
+      const result = await runAgentHarnessWithConversationResume({
+        harness,
         prompt,
-        model,
-        cwd: process.cwd(),
-        ...runOverrides,
+        run: {
+          model,
+          cwd: runProjectDir,
+          ...runOverrides,
+        },
+        conversation: conversationOptions,
       });
       if (!result.streamedText && result.text) process.stdout.write(result.text);
       stdout().write(blank());
@@ -280,8 +345,6 @@ program
 
     if (skipConfirm) setSkipConfirmations(true);
 
-    const resumeId = await resolveRunContinue(getActiveKotaClient(), opts);
-
     const options = {
       autonomyMode: resolveChannelAutonomyMode(
         config.cli?.defaultAutonomyMode,
@@ -296,13 +359,14 @@ program
       thinkingEnabled: thinkEnabled,
       thinkingBudget: thinkEnabled ? Math.max(1024, thinkBudget) : undefined,
       config,
-      resumeConversation: resumeId,
+      resumeConversation: resumeSelection?.id,
       noHistory: opts.history === false,
       reflectionEnabled: opts.reflect !== false,
       client: resolved.client,
       showCost: opts.cost !== false && (config.serve?.showCost ?? true),
       mcpInputResolver: createAskUserMcpInputResolver(),
       mcpAuthorizationResolver: createAskUserMcpAuthorizationResolver(),
+      projectDir: runProjectDir,
     };
 
     let prompt = promptWords.join(" ");
@@ -312,7 +376,7 @@ program
       announceActivePreset({ presetId: "classic-loop", model });
       await interactiveMode(options, config);
     } else {
-      prompt = expandUserPromptReferences(prompt, process.cwd()).text;
+      prompt = expandUserPromptReferences(prompt, runProjectDir).text;
       announceActivePreset({ presetId: "classic-loop", model });
       await runAgentLoop(prompt, options);
     }
@@ -408,9 +472,24 @@ async function main() {
   await program.parseAsync();
 }
 
-main().catch((err) => {
-  const authMsg = formatAuthError(err);
-  const message = authMsg ?? `Fatal: ${err.message}`;
-  stderr().write(line(span(message, "error")));
-  process.exit(1);
-});
+function isCliEntrypoint(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  if (basename(entry) === "kota.mjs" || basename(entry) === "kota") {
+    return true;
+  }
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isCliEntrypoint()) {
+  main().catch((err) => {
+    const authMsg = formatAuthError(err);
+    const message = authMsg ?? `Fatal: ${err.message}`;
+    stderr().write(line(span(message, "error")));
+    process.exit(1);
+  });
+}

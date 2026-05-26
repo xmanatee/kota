@@ -21,7 +21,13 @@ import {
   span,
 } from "#modules/rendering/primitives.js";
 import { print, TerminalTransport } from "#modules/rendering/transport.js";
-import { interactiveMode, parseIntOption, resolveConversationId } from "./cli.js";
+import {
+  interactiveMode,
+  parseIntOption,
+  reportResumeCwdSelection,
+  resolveConversationId,
+  resolveExplicitConversationResume,
+} from "./cli.js";
 import type {
   HistoryBoundedMessage,
   HistoryDetail,
@@ -148,11 +154,18 @@ export function registerHistoryCommands(program: Command) {
     .description("Resume a previous conversation")
     .option("-m, --model <model>", "Model to use")
     .option("-v, --verbose", "Show debug output")
+    .option(
+      "--resume-here",
+      "Resume in the caller's current directory instead of the conversation's saved cwd",
+    )
     .action(async (idOrPrefix, opts) => {
       await ensureCliProvidersFor(["history"]);
-      const config = loadConfig();
       const client = getActiveKotaClient();
-      const fullId = await resolveConversationId(client, idOrPrefix);
+      const resume = await resolveExplicitConversationResume(client, idOrPrefix, {
+        resumeHere: opts.resumeHere,
+      });
+      reportResumeCwdSelection(resume);
+      const config = loadConfig(resume.projectDir);
       const modelSpec =
         opts.model ||
         config.model ||
@@ -172,7 +185,8 @@ export function registerHistoryCommands(program: Command) {
         model: resolved.model,
         verbose: opts.verbose || config.verbose,
         config,
-        resumeConversation: fullId,
+        resumeConversation: resume.id,
+        projectDir: resume.projectDir,
         client: resolved.client,
       }, config);
     });

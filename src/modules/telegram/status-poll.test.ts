@@ -83,6 +83,7 @@ function makeHistoryStub(
 ): HistoryClient {
   return {
     list: vi.fn(),
+    listDiscoveredProjectRecords: vi.fn(),
     show: vi.fn(),
     delete: vi.fn(),
     search,

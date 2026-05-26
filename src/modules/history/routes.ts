@@ -21,6 +21,7 @@ import {
   parseHistoryDetailRequestFromUrl,
   readHistoryDetail,
 } from "./history-detail.js";
+import { listLocalProjectHistoryRecords } from "./local-history-scan.js";
 import {
   createHistoryProjectStores,
   type HistoryProjectStores,
@@ -280,6 +281,30 @@ function handleListHistoryControl(
   jsonResponse(res, 200, result);
 }
 
+function handleListDiscoveredProjectRecordsControl(
+  req: IncomingMessage,
+  res: ServerResponse,
+  discoveryCwd: string,
+): void {
+  const url = new URL(
+    req.url ?? "/history/discovered-project-records",
+    "http://127.0.0.1",
+  );
+  const rawLimit = url.searchParams.has("limit")
+    ? Number.parseInt(url.searchParams.get("limit")!, 10)
+    : undefined;
+  const limit =
+    rawLimit === undefined || Number.isNaN(rawLimit) || rawLimit < 1
+      ? undefined
+      : Math.min(rawLimit, 10_000);
+  jsonResponse(res, 200, {
+    conversations: listLocalProjectHistoryRecords({
+      cwd: discoveryCwd,
+      limit,
+    }),
+  });
+}
+
 async function handleReindexHistoryControl(
   req: IncomingMessage,
   res: ServerResponse,
@@ -358,6 +383,7 @@ export function historyControlRoutes(
   projectStores = createHistoryProjectStores(process.cwd(), () =>
     getHistoryProvider(),
   ),
+  discoveryCwd = process.cwd(),
 ): ControlRouteRegistration[] {
   return [
     {
@@ -365,6 +391,13 @@ export function historyControlRoutes(
       path: "/history",
       capabilityScope: "read",
       handler: (req, res) => handleListHistoryControl(req, res, projectStores),
+    },
+    {
+      method: "GET",
+      path: "/history/discovered-project-records",
+      capabilityScope: "read",
+      handler: (req, res) =>
+        handleListDiscoveredProjectRecordsControl(req, res, discoveryCwd),
     },
     {
       method: "POST",

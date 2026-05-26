@@ -1,3 +1,9 @@
+import {
+  accessSync,
+  constants,
+  statSync,
+} from "node:fs";
+import { isAbsolute } from "node:path";
 import { createInterface } from "node:readline";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import { expandAlias, type KotaConfig, loadConfig } from "#core/config/config.js";
@@ -12,6 +18,7 @@ import { createModelClient } from "#core/model/model-client.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import { ensureCliProvidersFor } from "#core/modules/cli-providers.js";
 import type { ConversationRecord } from "#core/modules/provider-types.js";
+import { expandUserPromptReferences } from "#core/prompt-input/index.js";
 import type { KotaClient } from "#core/server/kota-client.js";
 import { blank, line, plain, span } from "#modules/rendering/primitives.js";
 import { print, TerminalTransport } from "#modules/rendering/transport.js";
@@ -37,6 +44,81 @@ export function parseIntOption(value: string, name: string): number {
   return n;
 }
 
+export type ResumeConversationSelection = {
+  id: string;
+  record: ConversationRecord;
+  projectDir: string;
+  savedCwd: string;
+  cwdOverridden: boolean;
+  explicit: boolean;
+};
+
+export type ResumeCwdValidation =
+  | { ok: true; cwd: string }
+  | { ok: false; message: string };
+
+type ConversationRecordLookup =
+  | { status: "found"; record: ConversationRecord }
+  | { status: "ambiguous"; ids: string[] };
+
+type ConversationRecordResolveOptions = {
+  crossProject?: boolean;
+};
+
+function resumeCwdHelp(): string {
+  return "Pass --resume-here to resume in the current directory instead.";
+}
+
+/** Validate the saved conversation cwd before rebinding a resumed session to it. */
+export function validateConversationResumeCwd(
+  record: ConversationRecord,
+): ResumeCwdValidation {
+  const cwd = record.cwd.trim();
+  if (!cwd) {
+    return {
+      ok: false,
+      message: `Conversation "${record.id}" has no saved cwd. ${resumeCwdHelp()}`,
+    };
+  }
+  if (!isAbsolute(cwd)) {
+    return {
+      ok: false,
+      message:
+        `Conversation "${record.id}" saved cwd is not absolute: ${cwd}. ` +
+        resumeCwdHelp(),
+    };
+  }
+  try {
+    const stat = statSync(cwd);
+    if (!stat.isDirectory()) {
+      return {
+        ok: false,
+        message:
+          `Conversation "${record.id}" saved cwd is not a directory: ${cwd}. ` +
+          resumeCwdHelp(),
+      };
+    }
+  } catch {
+    return {
+      ok: false,
+      message:
+        `Conversation "${record.id}" saved cwd is missing or inaccessible: ${cwd}. ` +
+        resumeCwdHelp(),
+    };
+  }
+  try {
+    accessSync(cwd, constants.R_OK | constants.X_OK);
+  } catch {
+    return {
+      ok: false,
+      message:
+        `Conversation "${record.id}" saved cwd is not readable/searchable: ${cwd}. ` +
+        resumeCwdHelp(),
+    };
+  }
+  return { ok: true, cwd };
+}
+
 /**
  * Resolve an ID or prefix to a full conversation ID via the contract.
  *
@@ -49,29 +131,162 @@ export async function resolveConversationId(
   client: KotaClient,
   idOrPrefix: string,
 ): Promise<string> {
+  return (await resolveConversationRecord(client, idOrPrefix)).id;
+}
+
+export async function resolveConversationRecord(
+  client: KotaClient,
+  idOrPrefix: string,
+  options: ConversationRecordResolveOptions = {},
+): Promise<ConversationRecord> {
   const trimmed = idOrPrefix.trim();
   if (!trimmed) {
     stderrTransport().write(line(span(`Conversation "${idOrPrefix}" not found.`, "error")));
     process.exit(1);
   }
   const { conversations } = await client.history.list({ limit: 10_000 });
-  const exact = conversations.find((c: ConversationRecord) => c.id === trimmed);
-  if (exact) return exact.id;
+  const activeLookup = resolveRecordFromList(conversations, trimmed);
+  if (activeLookup?.status === "found") return activeLookup.record;
+  if (activeLookup?.status === "ambiguous") {
+    exitAmbiguousConversationPrefix(trimmed, activeLookup.ids);
+  }
+
+  if (options.crossProject) {
+    const configuredLookup = await resolveRecordFromConfiguredProjects(
+      client,
+      trimmed,
+    );
+    if (configuredLookup?.status === "found") return configuredLookup.record;
+    if (configuredLookup?.status === "ambiguous") {
+      exitAmbiguousConversationPrefix(trimmed, configuredLookup.ids);
+    }
+
+    const localLookup = await resolveRecordFromDiscoveredProjectHistories(
+      client,
+      trimmed,
+    );
+    if (localLookup?.status === "found") return localLookup.record;
+    if (localLookup?.status === "ambiguous") {
+      exitAmbiguousConversationPrefix(trimmed, localLookup.ids);
+    }
+  }
+
+  stderrTransport().write(line(span(`Conversation "${idOrPrefix}" not found.`, "error")));
+  process.exit(1);
+}
+
+export async function resolveExplicitConversationResume(
+  client: KotaClient,
+  idOrPrefix: string,
+  opts: { resumeHere?: boolean } = {},
+): Promise<ResumeConversationSelection> {
+  const record = await resolveConversationRecord(client, idOrPrefix, {
+    crossProject: true,
+  });
+  const savedCwd = record.cwd;
+  if (opts.resumeHere) {
+    return {
+      id: record.id,
+      record,
+      projectDir: process.cwd(),
+      savedCwd,
+      cwdOverridden: true,
+      explicit: true,
+    };
+  }
+  const validation = validateConversationResumeCwd(record);
+  if (!validation.ok) {
+    stderrTransport().write(line(span(validation.message, "error")));
+    process.exit(1);
+  }
+  return {
+    id: record.id,
+    record,
+    projectDir: validation.cwd,
+    savedCwd,
+    cwdOverridden: false,
+    explicit: true,
+  };
+}
+
+function resolveRecordFromList(
+  conversations: ConversationRecord[],
+  trimmed: string,
+): ConversationRecordLookup | undefined {
+  const exact = conversations.filter((c: ConversationRecord) => c.id === trimmed);
+  if (exact.length === 1) return { status: "found", record: exact[0] };
+  if (exact.length > 1) {
+    return { status: "ambiguous", ids: exact.map((c) => c.id) };
+  }
   const matches = conversations.filter((c: ConversationRecord) => c.id.startsWith(trimmed));
-  if (matches.length === 0) {
-    stderrTransport().write(line(span(`Conversation "${idOrPrefix}" not found.`, "error")));
-    process.exit(1);
-  }
+  if (matches.length === 0) return undefined;
   if (matches.length > 1) {
-    stderrTransport().write(line(span(
-      `Ambiguous ID prefix "${trimmed}" matches ${matches.length} conversations: ${matches
-        .map((c) => c.id)
-        .join(", ")}`,
-      "error",
-    )));
-    process.exit(1);
+    return { status: "ambiguous", ids: matches.map((c) => c.id) };
   }
-  return matches[0].id;
+  return { status: "found", record: matches[0] };
+}
+
+function exitAmbiguousConversationPrefix(trimmed: string, ids: string[]): never {
+  stderrTransport().write(line(span(
+    `Ambiguous ID prefix "${trimmed}" matches ${ids.length} conversations: ${ids.join(", ")}`,
+    "error",
+  )));
+  process.exit(1);
+}
+
+async function resolveRecordFromConfiguredProjects(
+  client: KotaClient,
+  trimmed: string,
+): Promise<ConversationRecordLookup | undefined> {
+  try {
+    const projects = await client.projects.list();
+    if (!projects.ok) return undefined;
+    const conversations: ConversationRecord[] = [];
+    for (const project of projects.projects) {
+      const scoped = client.forProject(project.projectId);
+      const listed = await scoped.history.list({ limit: 10_000 });
+      conversations.push(...listed.conversations);
+    }
+    return resolveRecordFromList(conversations, trimmed);
+  } catch {
+    return undefined;
+  }
+}
+
+async function resolveRecordFromDiscoveredProjectHistories(
+  client: KotaClient,
+  trimmed: string,
+): Promise<ConversationRecordLookup | undefined> {
+  try {
+    const { conversations } = await client.history.listDiscoveredProjectRecords({
+      limit: 10_000,
+    });
+    return resolveRecordFromList(conversations, trimmed);
+  } catch {
+    return undefined;
+  }
+}
+
+export function reportResumeCwdSelection(
+  selection: ResumeConversationSelection | undefined,
+): void {
+  if (!selection?.explicit) return;
+  const stderr = stderrTransport();
+  if (selection.cwdOverridden) {
+    stderr.write(
+      line(
+        span("[kota] Resume cwd override: ", "warn"),
+        plain(`using ${selection.projectDir} instead of saved cwd ${selection.savedCwd || "(not recorded)"}`),
+      ),
+    );
+    return;
+  }
+  stderr.write(
+    line(
+      span("[kota] Resume cwd: ", "muted"),
+      plain(`using saved directory ${selection.projectDir}`),
+    ),
+  );
 }
 
 const REPL_COMMANDS: Record<string, string> = {
@@ -110,6 +325,9 @@ function handleReplCommand(
           plain("  "),
           span("State: ", "muted"),
           plain(state),
+          plain("  "),
+          span("Project: ", "muted"),
+          plain(session.projectDir),
           plain("  "),
           span("Cost: ", "muted"),
           plain(session.getCostSummary()),
@@ -187,6 +405,7 @@ export async function interactiveMode(options: LoopOptions, config?: KotaConfig)
     }
 
     input = expandAlias(input, config?.aliases);
+    input = expandUserPromptReferences(input, session.projectDir).text;
 
     try {
       await session.send(input);
@@ -219,18 +438,30 @@ export async function interactiveMode(options: LoopOptions, config?: KotaConfig)
  */
 export async function resolveRunContinue(
   client: KotaClient,
-  opts: { continue?: boolean | string },
-): Promise<string | undefined> {
+  opts: { continue?: boolean | string; resumeHere?: boolean },
+): Promise<ResumeConversationSelection | undefined> {
   if (!opts.continue) return undefined;
   await ensureCliProvidersFor(["history"]);
   if (typeof opts.continue === "string") {
-    return resolveConversationId(client, opts.continue);
+    return resolveExplicitConversationResume(client, opts.continue, {
+      resumeHere: opts.resumeHere,
+    });
   }
   const { conversations } = await client.history.list({
     cwd: process.cwd(),
     limit: 1,
   });
-  if (conversations.length > 0) return conversations[0].id;
+  if (conversations.length > 0) {
+    const record = conversations[0];
+    return {
+      id: record.id,
+      record,
+      projectDir: process.cwd(),
+      savedCwd: record.cwd,
+      cwdOverridden: false,
+      explicit: false,
+    };
+  }
   stderrTransport().write(
     line(span("No previous conversation found for this directory.", "error")),
   );
