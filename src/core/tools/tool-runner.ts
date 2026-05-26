@@ -220,7 +220,7 @@ export async function executeToolCalls(
         return {
           tool_use_id: block.id,
           content: `Queued for approval [${queued.id}]: ${block.name} — ${autonomyDecision.reason}. ` +
-            "Use the approval tool to list and approve pending items.",
+            "Operators can review and resolve it through the approval CLI or authenticated daemon client.",
           is_error: true,
         };
       }
@@ -261,7 +261,7 @@ export async function executeToolCalls(
           return {
             tool_use_id: block.id,
             content: `Queued for approval [${queued.id}]: ${block.name} is classified as ${assessment.risk} (${assessment.reason}). ` +
-              "Use the approval tool to list and approve pending items.",
+              "Operators can review and resolve it through the approval CLI or authenticated daemon client.",
             is_error: true,
           };
         }

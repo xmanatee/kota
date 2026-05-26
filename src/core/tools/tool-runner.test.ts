@@ -484,6 +484,8 @@ describe("guardrails confirm gate", () => {
     expect(results[0].is_error).toBe(true);
     expect(results[0].content).toContain("Queued for approval");
     expect(results[0].content).toContain("q1");
+    expect(results[0].content).toContain("approval CLI");
+    expect(results[0].content).not.toContain("Use the approval tool");
     expect(mockExecuteTool).not.toHaveBeenCalled();
     expect(mockEnqueue).toHaveBeenCalledWith(
       "shell",
@@ -619,6 +621,8 @@ describe("autonomy-mode gate", () => {
 
     expect(results[0].is_error).toBe(true);
     expect(results[0].content).toContain("Queued for approval");
+    expect(results[0].content).toContain("approval CLI");
+    expect(results[0].content).not.toContain("Use the approval tool");
     expect(mockEnqueue).toHaveBeenCalled();
     expect(mockExecuteTool).not.toHaveBeenCalled();
   });

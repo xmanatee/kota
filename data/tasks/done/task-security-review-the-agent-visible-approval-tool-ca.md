@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-agent-visible-approval-tool-ca
 title: Security review: The agent-visible approval tool can approve and execute queued tool calls itself, so a model in the same session can bypass the intended human approval gate after a risky tool call is queued.
-status: ready
+status: done
 priority: p1
 area: security
 summary: The agent-visible approval tool can approve and execute queued tool calls itself, so a model in the same session can bypass the intended human approval gate after a risky tool call is queued.
 created_at: 2026-05-26T14:54:53.312Z
-updated_at: 2026-05-26T14:54:53.312Z
+updated_at: 2026-05-26T15:03:58.751Z
 ---
 
 ## Problem
@@ -55,4 +55,6 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Fixed by making `src/core/tools/approval.ts` read-only: schema exposes only `list` and `count`, the runner no longer calls `queue.approve`, `queue.reject`, or `executeTool`, and the effect is `readOnlyDaemonEffect`.
+- Focused regression coverage in `src/core/tools/approval.test.ts` proves `approve` and `reject` tool inputs return errors and leave queued items pending.
+- Verified with `pnpm test src/core/tools/approval.test.ts src/core/tools/tool-runner.test.ts src/core/tools/index.test.ts src/core/tools/tool-groups.test.ts src/core/tools/agent-status.test.ts`, `pnpm typecheck`, `pnpm test src/task-files.test.ts`, `node --conditions=source --import tsx src/validate-queue.ts --min-ready 0`, `pnpm build`, `pnpm lint`, and `pnpm run validate-tasks`.

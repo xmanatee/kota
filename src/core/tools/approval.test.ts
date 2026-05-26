@@ -37,9 +37,16 @@ describe("approval tool", () => {
 
 	it("has correct registration metadata", () => {
 		expect(registration.tool.name).toBe("approval");
-		expect(registration.effect.kind).toBe("write");
+		expect(registration.effect.kind).toBe("read");
 		expect(registration.effect.scope).toBe("daemon-state");
 		expect(registration.group).toBe("management");
+	});
+
+	it("exposes only read-only actions in the agent-visible schema", () => {
+		const action = registration.tool.input_schema.properties?.action;
+		expect(action).toMatchObject({ enum: ["list", "count"] });
+		expect(registration.tool.input_schema.properties).not.toHaveProperty("id");
+		expect(registration.tool.input_schema.properties).not.toHaveProperty("reason");
 	});
 
 	describe("count action", () => {
@@ -72,54 +79,23 @@ describe("approval tool", () => {
 		});
 	});
 
-	describe("approve action", () => {
-		it("requires id", async () => {
-			const result = await runner({ action: "approve" });
-			expect(result.is_error).toBe(true);
-			expect(result.content).toContain("id is required");
-		});
-
-		it("returns error for nonexistent id", async () => {
-			const result = await runner({ action: "approve", id: "nonexistent" });
-			expect(result.is_error).toBe(true);
-			expect(result.content).toContain("not found");
-		});
-
-		it("approves and executes a pending item", async () => {
-			// Use "todo" (core tool) instead of "glob" (filesystem module)
+	describe("mutation actions", () => {
+		it("does not approve or execute queued items from the agent-visible tool", async () => {
 			const item = testQueue.enqueue("todo", { action: "list" }, "dangerous", "test reason");
 			const result = await runner({ action: "approve", id: item.id });
-			expect(result.content).toContain("Approved and executed todo");
-			// todo returns task list — just verify it ran without crashing
-			expect(result.is_error).toBeUndefined();
-		});
 
-		it("cannot approve already resolved item", async () => {
-			const item = testQueue.enqueue("shell", { command: "ls" }, "dangerous", "reason");
-			testQueue.reject(item.id);
-			const result = await runner({ action: "approve", id: item.id });
 			expect(result.is_error).toBe(true);
-			expect(result.content).toContain("already resolved");
-		});
-	});
-
-	describe("reject action", () => {
-		it("requires id", async () => {
-			const result = await runner({ action: "reject" });
-			expect(result.is_error).toBe(true);
-			expect(result.content).toContain("id is required");
+			expect(result.content).toContain("Unknown action");
+			expect(testQueue.get(item.id)?.status).toBe("pending");
 		});
 
-		it("rejects a pending item", async () => {
-			const item = testQueue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
-			const result = await runner({ action: "reject", id: item.id });
-			expect(result.content).toContain("Rejected: shell");
-		});
-
-		it("rejects with reason", async () => {
+		it("does not reject queued items from the agent-visible tool", async () => {
 			const item = testQueue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
 			const result = await runner({ action: "reject", id: item.id, reason: "too risky" });
-			expect(result.content).toContain("too risky");
+
+			expect(result.is_error).toBe(true);
+			expect(result.content).toContain("Unknown action");
+			expect(testQueue.get(item.id)?.status).toBe("pending");
 		});
 	});
 
