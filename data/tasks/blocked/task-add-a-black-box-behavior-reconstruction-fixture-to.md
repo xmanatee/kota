@@ -1,12 +1,12 @@
 ---
 id: task-add-a-black-box-behavior-reconstruction-fixture-to
 title: Add a black-box behavior reconstruction fixture to the eval harness
-status: ready
+status: blocked
 priority: p2
 area: modules
 summary: Seed an eval-harness fixture where the builder must infer a small CLI's behavior from an executable and docs, then implement a fresh source tree that passes deterministic behavioral tests without source lookup or network access.
 created_at: 2026-05-26T05:44:02.548Z
-updated_at: 2026-05-26T05:44:02.548Z
+updated_at: 2026-05-26T06:36:06.000Z
 ---
 
 ## Problem
@@ -139,3 +139,31 @@ lookup, wrappers, or prose claims.
   behavioral scorer output, and any objective metric values.
 - Evidence of a temporary shortcut/regression causing the fixture to fail,
   with the regression reverted before staging.
+
+## Current Evidence
+
+- `.kota/runs/2026-05-26T05-48-30-948Z-builder-char3h/eval-list-transcript.txt`
+  shows the fixture loads without the replay tag.
+- `.kota/runs/2026-05-26T05-48-30-948Z-builder-char3h/eval-run-transcript.txt`
+  shows normal eval execution now reaches the live builder agent step without
+  the eval-harness replay adapter active. In this sandbox the run stops at
+  `codex_cli_error` because the Codex harness cannot reach
+  `https://api.openai.com/v1/responses`; the required passing live-builder
+  transcript remains outstanding.
+- `.kota/runs/2026-05-26T05-48-30-948Z-builder-char3h/eval-run-artifacts/fixture-run.json`
+  records the same non-replay live attempt. The run outcome is `error`, the
+  behavior scorer still fails against the untouched stub, and
+  `behavior_mismatches` is nonzero because the builder step did not complete.
+- `.kota/runs/2026-05-26T05-48-30-948Z-builder-char3h/black-box-fixture-test-transcript.txt`
+  shows the focused regression test passing. The test asserts this fixture has
+  no agent-step recordings, the runner does not set `replayRecordingsRoot`, and
+  the scorer rejects a behaviorally correct candidate that embeds the oracle
+  artifact and instantiates it with `WebAssembly`.
+
+## Unblock Precondition
+
+```
+kind: operator-capture
+path: .kota/runs/2026-05-26T05-48-30-948Z-builder-char3h/eval-live-pass
+description: network-enabled operator runs `pnpm kota eval run --fixture builder-black-box-behavior-reconstruction --repeats 1 > .kota/runs/2026-05-26T05-48-30-948Z-builder-char3h/eval-live-pass/transcript.txt 2>&1` with a live agent harness that can reach https://api.openai.com/v1/responses, then records or copies the matching `.kota/eval-runs/<stamp>/builder-black-box-behavior-reconstruction-0/fixture-run.json` under the same directory showing pass^k=100.0%, outcome `pass`, `behavior_mismatches` equal to 0, and the behavior scorer predicate passing. The current sandbox reaches the live builder step but fails with `codex_cli_error` before implementation is exercised.
+```

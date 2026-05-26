@@ -1,0 +1,74 @@
+{
+  "id": "builder-black-box-behavior-reconstruction",
+  "description": "Builder reconstructs a compact CLI from a reference oracle and docs, then passes deterministic black-box behavioral scoring without depending on the oracle.",
+  "role": "builder",
+  "workflowName": "builder",
+  "budgetMs": 1800000,
+  "predicates": [
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/score.mjs --max-mismatches 0",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "file-absent",
+      "path": "data/tasks/ready/task-reconstruct-badge-code-cli.md"
+    },
+    {
+      "kind": "file-exists",
+      "path": "data/tasks/done/task-reconstruct-badge-code-cli.md"
+    },
+    {
+      "kind": "file-contains",
+      "path": "data/tasks/done/task-reconstruct-badge-code-cli.md",
+      "needle": "status: done"
+    },
+    {
+      "kind": "git-changes-within",
+      "allowedPaths": [
+        "src/badge-code.mjs",
+        "data/tasks/ready/task-reconstruct-badge-code-cli.md",
+        "data/tasks/done/task-reconstruct-badge-code-cli.md"
+      ]
+    }
+  ],
+  "objectiveMetrics": [
+    {
+      "name": "behavior_mismatches",
+      "unit": "mismatches",
+      "direction": "lower_is_better",
+      "source": {
+        "kind": "shell",
+        "command": "node scripts/score.mjs --metric-only",
+        "timeoutMs": 15000
+      }
+    }
+  ],
+  "tags": [
+    "autonomy",
+    "builder-discipline",
+    "black-box",
+    "objective-metric"
+  ],
+  "provenance": {
+    "kind": "smoke-fixture",
+    "justification": "Synthetic live-builder canary for ProgramBench-shaped black-box reconstruction work: the generator must infer behavior from executable observations and docs, while local predicates and objective metrics prove the result. No past KOTA failure run exists for this exact measurement gap."
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/score.mjs --max-mismatches 0",
+        "timeoutMs": 15000
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/tasks/ready/task-reconstruct-badge-code-cli.md"
+      },
+      "expected": "pass"
+    }
+  ]
+}
