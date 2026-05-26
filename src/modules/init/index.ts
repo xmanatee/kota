@@ -11,10 +11,10 @@ import {
 const KOTA_CONFIG_TEMPLATE = `import type { KotaConfig } from "kota/module";
 
 const config: KotaConfig = {
-  // Active preset bundle (claude | codex | gemini | gemini-cli). Selects harness, default
-  // model, fast/balanced/capable tier mapping, default reasoning effort, and
-  // auth contract together. Override per-run with \`--preset <id>\` or
-  // \`KOTA_PRESET=<id>\`. Defaults to "codex" when unset.
+  // Active preset bundle (claude | codex | gemini | gemini-cli | antigravity-cli).
+  // Selects harness, default model, fast/balanced/capable tier mapping, default
+  // reasoning effort, and auth contract together. Override per-run with
+  // \`--preset <id>\` or \`KOTA_PRESET=<id>\`. Defaults to "codex" when unset.
   // defaultPreset: "codex",
 
   // Optional explicit override for the active preset's defaultModel. Most

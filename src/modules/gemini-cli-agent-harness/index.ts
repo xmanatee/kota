@@ -10,7 +10,7 @@ registerAgentHarness(geminiCliAgentHarness);
 const geminiCliAgentHarnessModule: KotaModule = {
   name: "gemini-cli-agent-harness",
   description:
-    "Registers the gemini-cli agent harness — a non-interactive Gemini CLI runner that honors local Google login / Code Assist auth.",
+    "Registers the legacy gemini-cli agent harness — a non-interactive Gemini CLI runner that honors local Google login / Code Assist auth where Gemini CLI remains supported.",
   dependencies: [],
   onLoad(ctx) {
     ctx.log.info(

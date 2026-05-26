@@ -2,11 +2,25 @@
 
 Adapter module that registers the `gemini-cli` harness. The harness shells out
 to the installed Gemini CLI in headless structured-output mode instead of using
-`@google/genai` directly. This is the native CLI surface that honors Gemini
-CLI's cached Google sign-in / Code Assist auth state.
+`@google/genai` directly. This is now the legacy Gemini CLI surface that honors
+Gemini CLI's cached Google sign-in / Code Assist auth state.
 
 Operators select this harness via the `gemini-cli` preset,
 `KotaConfig.defaultAgentHarness: "gemini-cli"`, or a per-step `harness`.
+
+## Migration Posture
+
+Google announced that on June 18, 2026, Gemini CLI and Gemini Code Assist IDE
+extensions stop serving requests for Google AI Pro / Ultra and free individual
+access. Operators should choose:
+
+- `antigravity-cli` for Google's current native terminal-agent runtime and
+  local Antigravity readiness checks.
+- `gemini` for SDK-backed Gemini runs using `GEMINI_API_KEY` or
+  `GOOGLE_API_KEY`.
+- `gemini-cli` only for legacy Gemini CLI access that remains supported for
+  enterprise/API-key paths or existing environments that still need the Gemini
+  CLI binary.
 
 ## Provider Routing
 

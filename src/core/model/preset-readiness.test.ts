@@ -94,6 +94,54 @@ function registerCodexReadinessHarness(
   registerAgentHarness(harness);
 }
 
+function registerAntigravityReadinessHarness(): void {
+  const harness: AgentHarness = {
+    name: "antigravity-cli",
+    description: "test antigravity harness",
+    supportsMultiTurn: false,
+    supportedHookKinds: [],
+    askOwnerToolName: null,
+    emitsAgentMessageStream: false,
+    toolControl: "native",
+    readiness: () => ({
+      adapterKind: "native-cli",
+      localRuntime: {
+        kind: "native-cli",
+        status: "ready",
+        required: true,
+        command: "agy --version",
+        binaryName: "agy",
+        executablePath: "/opt/bin/agy",
+        version: "agy 2.0.0",
+        summary: "agy 2.0.0 at /opt/bin/agy",
+      },
+      localAuth: {
+        kind: "harness-managed-login",
+        status: "missing",
+        required: true,
+        command: "agy",
+        detail: "no non-interactive auth-status command",
+        summary:
+          "Antigravity CLI login cannot be verified non-interactively; run `agy` and sign in",
+      },
+      optionalRuntimes: [],
+      unsupportedOptions: [
+        {
+          option: "canUseTool",
+          reason: "not routed",
+        },
+      ],
+    }),
+    run: async () => ({
+      text: "",
+      streamedText: "",
+      turns: 0,
+      isError: true,
+    }),
+  };
+  registerAgentHarness(harness);
+}
+
 describe("preset harness readiness", () => {
   afterEach(() => {
     clearAgentHarnessRegistryForTest();
@@ -170,6 +218,43 @@ describe("preset harness readiness", () => {
       },
       summary:
         "harness-managed auth ready (Codex ChatGPT login active)",
+    });
+  });
+
+  it("includes Antigravity CLI preset tiers while preserving harness-managed auth failure", () => {
+    registerAntigravityReadinessHarness();
+
+    const readiness = collectPresetHarnessReadiness(getPreset("antigravity-cli"), {
+      env: { GEMINI_API_KEY: "g-test" },
+      now: () => new Date("2026-05-26T00:00:00.000Z"),
+    });
+
+    expect(readiness).toMatchObject({
+      presetId: "antigravity-cli",
+      harnessId: "antigravity-cli",
+      defaultModel: "gemini-3.5-flash",
+      tiers: {
+        fast: "gemini-3.5-flash",
+        balanced: "gemini-3.5-flash",
+        capable: "gemini-3.5-flash",
+      },
+      auth: {
+        mode: "harness-managed-login",
+        ready: false,
+        missing: [],
+        probe: {
+          status: "missing",
+          command: "agy",
+        },
+      },
+      adapter: {
+        adapterKind: "native-cli",
+        localRuntime: {
+          status: "ready",
+          binaryName: "agy",
+        },
+      },
+      capturedAt: "2026-05-26T00:00:00.000Z",
     });
   });
 

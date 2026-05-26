@@ -17,6 +17,7 @@ import {
 } from "#modules/claude-agent-harness/adapter.js";
 // Side-effect import: registers the claude-agent-sdk harness so the step
 // validator can resolve it when a test exercises `harnessOptions`.
+import "#modules/antigravity-cli-agent-harness/index.js";
 import "#modules/claude-agent-harness/index.js";
 // Side-effect imports: register codex and gemini harnesses so per-harness
 // validateModelId tests can verify those adapters accept arbitrary ids.

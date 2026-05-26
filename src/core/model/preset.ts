@@ -83,7 +83,8 @@ const SHIPPED_PRESETS: readonly Preset[] = [
   },
   {
     id: "gemini-cli",
-    description: "Google Gemini via the local Gemini CLI.",
+    description:
+      "Legacy Google Gemini via the local Gemini CLI. Consumer Google AI Pro / Ultra and free individual access ends June 18, 2026; use antigravity-cli for Google's current native CLI path.",
     harness: "gemini-cli",
     authEnv: [],
     defaultModel: "gemini-2.5-pro",
@@ -91,6 +92,20 @@ const SHIPPED_PRESETS: readonly Preset[] = [
       fast: "gemini-2.5-flash-lite",
       balanced: "gemini-2.5-flash",
       capable: "gemini-2.5-pro",
+    },
+    defaultEffort: "xhigh",
+  },
+  {
+    id: "antigravity-cli",
+    description:
+      "Google Antigravity via the local AGY CLI readiness path. Execution is unsupported until AGY documents stable headless structured output.",
+    harness: "antigravity-cli",
+    authEnv: [],
+    defaultModel: "gemini-3.5-flash",
+    tiers: {
+      fast: "gemini-3.5-flash",
+      balanced: "gemini-3.5-flash",
+      capable: "gemini-3.5-flash",
     },
     defaultEffort: "xhigh",
   },

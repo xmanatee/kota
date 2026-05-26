@@ -109,6 +109,12 @@ const SHIPPED_MODEL_PRICING_STATUS: Record<string, ShippedModelPricingStatus> = 
 		pricing: { kind: "flat", input: 0.1, output: 0.4, cacheRead: 0.01, cacheWrite: 0.1 },
 		source: MODEL_PRICING_SOURCES.google,
 	},
+	"gemini-3.5-flash": {
+		kind: "unpriced",
+		model: "gemini-3.5-flash",
+		rationale:
+			"Antigravity CLI exposes this as a native agent runtime model through quota/plan access, not the Gemini API pricing table KOTA uses for SDK token accounting.",
+	},
 };
 
 class ShippedModelPricingProvider implements ModelPricingProvider {

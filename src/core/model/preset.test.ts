@@ -14,9 +14,17 @@ import {
 } from "./preset.js";
 
 describe("shipped preset registry", () => {
-  it("includes the canonical claude/codex/gemini/gemini-cli presets", () => {
+  it("includes the canonical claude/codex/gemini/gemini-cli/antigravity-cli presets", () => {
     const ids = listShippedPresetIds();
-    expect(ids).toEqual(expect.arrayContaining(["claude", "codex", "gemini", "gemini-cli"]));
+    expect(ids).toEqual(
+      expect.arrayContaining([
+        "claude",
+        "codex",
+        "gemini",
+        "gemini-cli",
+        "antigravity-cli",
+      ]),
+    );
   });
 
   it("every shipped preset declares model tiers and an explicit auth contract", () => {
@@ -51,12 +59,13 @@ describe("shipped preset registry", () => {
     expect(hasPreset("codex")).toBe(true);
     expect(hasPreset("gemini")).toBe(true);
     expect(hasPreset("gemini-cli")).toBe(true);
+    expect(hasPreset("antigravity-cli")).toBe(true);
     expect(hasPreset("nonexistent")).toBe(false);
   });
 
   it("getPreset throws a loud error naming the available ids when given an unknown id", () => {
     expect(() => getPreset("nonexistent")).toThrow(
-      /Unknown preset "nonexistent".*claude.*codex.*gemini.*gemini-cli/,
+      /Unknown preset "nonexistent".*claude.*codex.*gemini.*gemini-cli.*antigravity-cli/,
     );
   });
 
@@ -132,6 +141,7 @@ describe("checkPresetAuth", () => {
   const claude = getPreset("claude");
   const gemini = getPreset("gemini");
   const geminiCli = getPreset("gemini-cli");
+  const antigravityCli = getPreset("antigravity-cli");
 
   it("does not require env auth for the Codex CLI preset", () => {
     const { missing } = checkPresetAuth(codex, {});
@@ -140,6 +150,11 @@ describe("checkPresetAuth", () => {
 
   it("does not require env auth for the native Gemini CLI preset", () => {
     const { missing } = checkPresetAuth(geminiCli, {});
+    expect(missing).toEqual([]);
+  });
+
+  it("does not require env auth for the native Antigravity CLI preset", () => {
+    const { missing } = checkPresetAuth(antigravityCli, {});
     expect(missing).toEqual([]);
   });
 

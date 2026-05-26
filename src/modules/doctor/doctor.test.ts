@@ -57,6 +57,20 @@ function registerReadinessHarness(
   adapterKind: AgentHarnessAdapterKind,
   authStatus: "ready" | "missing" = "ready",
 ): void {
+  const authCommand =
+    name === "codex" ? "codex login status" : name === "gemini-cli" ? "gemini" : "agy";
+  const authReadySummary =
+    name === "codex"
+      ? "Codex ChatGPT login active"
+      : name === "gemini-cli"
+        ? "Gemini CLI Google login cached"
+        : "Antigravity CLI Google login active";
+  const authMissingSummary =
+    name === "codex"
+      ? "Codex ChatGPT login not active; run `codex login`"
+      : name === "gemini-cli"
+        ? "Gemini CLI login not active; run `gemini` and sign in"
+        : "Antigravity CLI login not active; run `agy` and sign in";
   const harness: AgentHarness = {
     name,
     description: `${name} test harness`,
@@ -75,32 +89,33 @@ function registerReadinessHarness(
         version: "1.0.0",
         summary: `${name}-runtime@1.0.0`,
       },
-      ...(name === "codex" || name === "gemini-cli"
+      ...(name === "codex" || name === "gemini-cli" || name === "antigravity-cli"
         ? {
             localAuth: {
               kind: "harness-managed-login",
               status: authStatus,
               required: true,
-              command: name === "codex" ? "codex login status" : "gemini",
+              command: authCommand,
               detail:
                 authStatus === "ready"
-                  ? name === "codex"
-                    ? "Logged in using ChatGPT"
-                    : "Cached Gemini CLI Google login"
+                  ? authReadySummary
                   : "Not logged in",
               summary:
-                authStatus === "ready"
-                  ? name === "codex"
-                    ? "Codex ChatGPT login active"
-                    : "Gemini CLI Google login cached"
-                  : name === "codex"
-                    ? "Codex ChatGPT login not active; run `codex login`"
-                    : "Gemini CLI login not active; run `gemini` and sign in",
+                authStatus === "ready" ? authReadySummary : authMissingSummary,
             },
           }
         : {}),
       optionalRuntimes: [],
-      unsupportedOptions: [],
+      unsupportedOptions:
+        name === "antigravity-cli"
+          ? [
+              {
+                runOption: "canUseTool",
+                option: "canUseTool",
+                reason: "AGY owns tool policy.",
+              },
+            ]
+          : [],
     }),
     run: async () => ({
       text: "",
@@ -118,6 +133,7 @@ beforeEach(() => {
   registerReadinessHarness("codex", "native-cli", "ready");
   registerReadinessHarness("gemini", "provider-sdk");
   registerReadinessHarness("gemini-cli", "native-cli", "ready");
+  registerReadinessHarness("antigravity-cli", "native-cli", "ready");
 });
 
 afterEach(() => {
@@ -496,6 +512,7 @@ describe("kota doctor --preset preflight", () => {
     registerReadinessHarness("codex", "native-cli", "missing");
     registerReadinessHarness("gemini", "provider-sdk");
     registerReadinessHarness("gemini-cli", "native-cli", "ready");
+    registerReadinessHarness("antigravity-cli", "native-cli", "ready");
 
     const results = await runDoctorChecks(projectDir, { preset: "codex", skipConnectivity: true });
     const presetRow = results.find((r) => r.label === "Preset: codex");
@@ -510,6 +527,7 @@ describe("kota doctor --preset preflight", () => {
     ["codex", "native-cli"],
     ["gemini", "provider-sdk"],
     ["gemini-cli", "native-cli"],
+    ["antigravity-cli", "native-cli"],
   ])("renders readiness rows for preset=%s", async (preset, adapterKind) => {
     const results = await runDoctorChecks(projectDir, { preset, skipConnectivity: true });
     expect(results.find((r) => r.label === `Preset: ${preset}`)?.metadata?.presetReadiness?.presetId).toBe(preset);
@@ -541,6 +559,19 @@ describe("kota doctor --preset preflight", () => {
     expect(presetRow?.status).toBe("pass");
     expect(presetRow?.detail).toContain("harness-managed auth");
     expect(presetRow?.detail).toContain("Gemini CLI Google login cached");
+  });
+
+  it("keeps antigravity-cli preset independent of Gemini API-key env auth", async () => {
+    process.env.GEMINI_API_KEY = "g-test";
+    const results = await runDoctorChecks(projectDir, { preset: "antigravity-cli", skipConnectivity: true });
+    const presetRow = results.find((r) => r.label === "Preset: antigravity-cli");
+    const tiersRow = results.find((r) => r.label === "Preset tiers: antigravity-cli");
+    const unsupportedRow = results.find((r) => r.label === "Preset unsupported options: antigravity-cli");
+    expect(presetRow?.status).toBe("pass");
+    expect(presetRow?.detail).toContain("harness-managed auth");
+    expect(presetRow?.detail).toContain("Antigravity CLI Google login active");
+    expect(tiersRow?.detail).toContain("gemini-3.5-flash");
+    expect(unsupportedRow?.detail).toContain("canUseTool");
   });
 
   it("passes for gemini preset when GOOGLE_API_KEY is set (alternate auth)", async () => {

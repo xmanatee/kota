@@ -108,7 +108,7 @@ state. Used to inform layout choices here, not to mirror them.
 - `htop` separates static metrics (header) from streaming process rows with
   a clear visual break. KOTA mirrors this with a static stat grid above and
   an `Activity ─────` separator before the captured log buffer.
-- Claude Code, Codex CLI, and `gemini-cli` favor minimal chrome: a header
+- Claude Code, Codex CLI, `gemini-cli`, and Antigravity CLI favor minimal chrome: a header
   line with identity and a streaming body. KOTA adopts the same restraint:
   one header line (`KOTA Daemon  pid …  up …  status`) with no surrounding
   box, then a compact stat grid, then activity. No nested frames.

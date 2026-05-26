@@ -1,12 +1,12 @@
 ---
 id: task-add-antigravity-cli-harness-migration-path-for-gem
 title: Add Antigravity CLI harness migration path for Gemini CLI users
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add an Antigravity CLI native harness and preset, then mark the existing gemini-cli preset as a legacy Gemini CLI path with readiness guidance for the June 18, 2026 consumer transition.
 created_at: 2026-05-26T07:27:33.233Z
-updated_at: 2026-05-26T07:27:33.233Z
+updated_at: 2026-05-26T10:51:07.000Z
 ---
 
 ## Problem
