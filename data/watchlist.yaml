@@ -80,6 +80,10 @@ resources:
   - url: https://programbench.com/
     added: "2026-05-26"
     notes: "ProgramBench is a cleanroom software-engineering benchmark where agents rebuild programs from a reference executable and documentation under behavioral tests. Monitor as an eval-harness signal for black-box behavior discovery, source-lookup shortcut prevention, and holistic coding-agent capability beyond patch-shaped tasks."
+    snapshot:
+      fingerprint: sha256:928a273fc2761d245f0ea9aed03d829d
+      summary: "ProgramBench is now accessible and matches the existing KOTA black-box behavior-reconstruction fixture direction; no duplicate task is needed because task-add-a-black-box-behavior-reconstruction-fixture-to already covers the nonduplicative local eval-harness gap and is waiting only on live operator capture."
+      last_seen_at: "2026-05-26T06:54:03.346Z"
   - url: https://github.com/princeton-nlp/SWE-bench
     added: "2026-04-19"
     snapshot:
