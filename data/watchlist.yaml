@@ -97,6 +97,9 @@ resources:
       fingerprint: sha256:a3a17073290f624c610e1023be9c31a1
       summary: "FixedBench reinforces KOTA's completed no-op restraint fixture: already-satisfied tasks must be a valid success path, while unnecessary production patches should fail."
       last_seen_at: "2026-05-19T18:53:35.088Z"
+  - url: https://arxiv.org/abs/2605.12925
+    added: "2026-05-26"
+    notes: "AgentLens / Lucky Pass evaluates SWE-agent trajectories beyond final pass/fail, with process-quality signals for missing verification, blind retries, regression cycles, and disordered exploration/implementation/verification. Monitor as a trajectory-diagnostics signal for KOTA's harness-parity and eval-harness artifacts, not as a replacement benchmark."
   - url: https://github.com/letta-ai/letta
     added: "2026-04-19"
     snapshot:
