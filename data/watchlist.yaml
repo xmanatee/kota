@@ -268,6 +268,9 @@ resources:
       fingerprint: sha256:ac2df6fdedbfceab375e69ecbb2e5a92
       summary: "MCP draft Transports still matches the stored Streamable HTTP/SSE signal; existing KOTA MCP transport tasks cover the nonduplicative gap."
       last_seen_at: "2026-05-25T04:12:28.483Z"
+  - url: https://modelcontextprotocol.io/specification
+    added: "2026-05-26"
+    notes: "Official latest MCP specification entry point. Monitor the current stable protocol revision and changelog so KOTA does not confuse active draft support with latest released MCP interoperability."
   - url: https://modelcontextprotocol.io/specification/draft/basic/authorization
     added: "2026-05-21"
     notes: "Official MCP authorization draft - monitor HTTP protected-resource metadata, WWW-Authenticate discovery, OAuth authorization-server discovery, Bearer token validation, resource/audience binding, scope step-up, and token-handling constraints for KOTA's Streamable HTTP MCP client and server."
