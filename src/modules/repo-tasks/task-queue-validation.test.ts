@@ -17,6 +17,7 @@ import {
   assertTaskQueueRecommendations,
   assertTaskQueueValid,
   declaresRenderedEvidence,
+  formatTaskQueueValidationSummary,
   hasArchitectureReadyCoverageGap,
   hasDishonestSourceAccessCompletion,
   hasNamedRenderedEvidence,
@@ -685,6 +686,57 @@ Has an outcome.
 
     expect(() => assertTaskQueueValid(projectDir, { minReady: 1 })).toThrow(
       "ready-underflow",
+    );
+  });
+
+  it("summarizes an empty ready queue distinctly for evidence transcripts", () => {
+    writeTask(projectDir, "backlog", "task-beta", { priority: "p3" });
+    execSync("git add data && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    const result = assertTaskQueueValid(projectDir);
+    expect(formatTaskQueueValidationSummary(result)).toContain(
+      "ready: count=0 strategic=0",
+    );
+    expect(formatTaskQueueValidationSummary(result)).toContain(
+      "strategic-ready-coverage: status=empty-ready strategic-actionable=0",
+    );
+  });
+
+  it("summarizes a p3-only ready queue distinctly without relaxing strategic coverage", () => {
+    writeTask(projectDir, "ready", "task-alpha", { priority: "p3" });
+    execSync("git add data && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    const result = assertTaskQueueValid(projectDir, { minReady: 1 });
+    expect(formatTaskQueueValidationSummary(result)).toContain(
+      "ready: count=1 strategic=0",
+    );
+    expect(formatTaskQueueValidationSummary(result)).toContain(
+      "strategic-ready-coverage: status=p3-only-ready strategic-actionable=0",
+    );
+    expect(() => assertStrategicReadyCoverage(projectDir)).toThrow(
+      "data/tasks/ready must keep at least one p0/p1/p2 task",
+    );
+  });
+
+  it("summarizes a strategic ready queue distinctly with min-ready enabled", () => {
+    writeTask(projectDir, "ready", "task-alpha", { priority: "p2" });
+    execSync("git add data && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    const result = assertTaskQueueValid(projectDir, { minReady: 1 });
+    expect(formatTaskQueueValidationSummary(result)).toContain(
+      "ready: count=1 strategic=1",
+    );
+    expect(formatTaskQueueValidationSummary(result)).toContain(
+      "strategic-ready-coverage: status=strategic-ready strategic-actionable=1",
     );
   });
 

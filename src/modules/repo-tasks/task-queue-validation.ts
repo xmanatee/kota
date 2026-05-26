@@ -38,8 +38,22 @@ export type TaskQueueValidationFinding = {
 export type TaskQueueValidationResult = {
   findings: TaskQueueValidationFinding[];
   counts: Record<RepoTaskState, number>;
+  readyCoverage: TaskQueueReadyCoverageEvidence;
   errorCount: number;
   warningCount: number;
+};
+
+export type TaskQueueReadyCoverageStatus =
+  | "empty-ready"
+  | "strategic-ready"
+  | "non-strategic-ready"
+  | "p3-only-ready";
+
+export type TaskQueueReadyCoverageEvidence = {
+  readyCount: number;
+  strategicReadyCount: number;
+  strategicActionableCount: number;
+  status: TaskQueueReadyCoverageStatus;
 };
 
 export type TaskQueueValidationOptions = {
@@ -442,6 +456,53 @@ export function hasStrategicReadyCoverageGap(projectDir: string): boolean {
     entry.state === "ready" || entry.state === "backlog" || entry.state === "doing",
   );
   return !actionableEntries.some((entry) => isStrategicPriority(readTaskPriority(entry)));
+}
+
+function inspectReadyCoverage(entries: TaskFileEntry[]): TaskQueueReadyCoverageEvidence {
+  const readyEntries = entries.filter((entry) => entry.state === "ready");
+  const strategicReadyCount = readyEntries.filter((entry) =>
+    isStrategicPriority(readTaskPriority(entry)),
+  ).length;
+  const strategicActionableCount = entries.filter((entry) =>
+    (entry.state === "ready" || entry.state === "backlog" || entry.state === "doing") &&
+    isStrategicPriority(readTaskPriority(entry)),
+  ).length;
+
+  if (readyEntries.length === 0) {
+    return {
+      readyCount: 0,
+      strategicReadyCount,
+      strategicActionableCount,
+      status: "empty-ready",
+    };
+  }
+
+  if (strategicReadyCount > 0) {
+    return {
+      readyCount: readyEntries.length,
+      strategicReadyCount,
+      strategicActionableCount,
+      status: "strategic-ready",
+    };
+  }
+
+  return {
+    readyCount: readyEntries.length,
+    strategicReadyCount,
+    strategicActionableCount,
+    status: strategicActionableCount > 0 ? "non-strategic-ready" : "p3-only-ready",
+  };
+}
+
+export function formatTaskQueueValidationSummary(
+  result: TaskQueueValidationResult,
+): string {
+  const coverage = result.readyCoverage;
+  return [
+    `task-queue-valid: errors=${result.errorCount} warnings=${result.warningCount}`,
+    `ready: count=${coverage.readyCount} strategic=${coverage.strategicReadyCount}`,
+    `strategic-ready-coverage: status=${coverage.status} strategic-actionable=${coverage.strategicActionableCount}`,
+  ].join("\n");
 }
 
 function readTaskGitStatus(projectDir: string): {
@@ -907,7 +968,7 @@ export function validateTaskQueue(
   const errorCount = findings.filter((finding) => finding.severity === "error").length;
   const warningCount = findings.filter((finding) => finding.severity === "warning").length;
 
-  return { findings, counts, errorCount, warningCount };
+  return { findings, counts, readyCoverage: inspectReadyCoverage(entries), errorCount, warningCount };
 }
 
 export function assertArchitectureReadyCoverage(projectDir: string): string {

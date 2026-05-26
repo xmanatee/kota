@@ -1,12 +1,12 @@
 ---
 id: task-add-explicit-ready-coverage-evidence-to-task-valid
 title: Add explicit ready-coverage evidence to task validation output
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Make task queue validation emit inspectable ready-coverage evidence so completion transcripts prove the selected queue contains strategic actionable work.
 created_at: 2026-05-26T21:21:55.505Z
-updated_at: 2026-05-26T21:21:55.505Z
+updated_at: 2026-05-26T22:02:44Z
 ---
 
 ## Problem
