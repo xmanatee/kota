@@ -49,6 +49,10 @@ resources:
   - url: https://antigravity.google/docs/cli-overview
     added: "2026-05-26"
     notes: "Antigravity CLI is Google's successor terminal surface for Gemini CLI consumer users and shares the Antigravity agent harness with Antigravity 2.0. Monitor as a peer native-CLI harness signal for KOTA's Google preset migration, auth-readiness behavior, plugin/skills layout, and native subagent boundaries."
+    snapshot:
+      fingerprint: sha256:d523f8192411bfced1011844e29bc866
+      summary: "Antigravity CLI docs now have a first watchlist snapshot; they reinforce KOTA's completed readiness-only antigravity-cli adapter and do not open a nonduplicative task until AGY documents a stable headless structured-output/auth boundary."
+      last_seen_at: "2026-05-26T11:31:16.640Z"
   - url: https://github.com/Aider-AI/aider
     added: "2026-04-19"
     snapshot:
