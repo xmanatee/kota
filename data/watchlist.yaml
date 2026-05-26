@@ -62,9 +62,9 @@ resources:
   - url: https://github.com/block/goose
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:f57f69134fec08536609b1a97700245f
-      summary: "Goose latest release is packaging-focused; no new KOTA task is opened from it."
-      last_seen_at: "2026-05-17T03:06:13.269Z"
+      fingerprint: sha256:dba0c1407587d3a27feaaad236089b00
+      summary: "Goose has moved under aaif-goose and its latest release now carries a concrete delegate model-limit signal; this run opened task-apply-model-specific-output-limits-to-delegated-mo for KOTA's matching routed max_tokens gap."
+      last_seen_at: "2026-05-26T13:53:17.112Z"
   - url: https://github.com/All-Hands-AI/OpenHands
     added: "2026-04-19"
     snapshot:
