@@ -1,12 +1,12 @@
 ---
 id: task-security-review-repair-loop-agent-iterations-bypas
 title: Security review: Repair-loop agent iterations bypass the initial agent-step security boundaries: they invoke the harness with only generic workflow guards, omit the step-specific createCanUseTool guard, and return without re-running writeScope enforcement. A scoped workflow repair can therefore perform tool actions or mutate files that the initial agent step would reject, and the commit path stages all mutated paths.
-status: ready
+status: done
 priority: p1
 area: security
 summary: Repair-loop agent iterations bypass the initial agent-step security boundaries: they invoke the harness with only generic workflow guards, omit the step-specific createCanUseTool guard, and return without re-running writeScope enforcement. A scoped workflow repair can therefore perform tool actions or mutate files that the initial agent step would reject, and the commit path stages all mutated paths.
 created_at: 2026-05-26T04:16:15.493Z
-updated_at: 2026-05-26T04:16:15.493Z
+updated_at: 2026-05-26T04:26:30.000Z
 ---
 
 ## Problem
@@ -58,4 +58,7 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Regression coverage in `src/core/workflow/repair-loop.test.ts` verifies repair iteration tool-guard composition and out-of-scope repair edit rejection.
+- `pnpm exec biome check src/core/workflow/repair-loop.ts src/core/workflow/steps/step-executor.ts src/core/workflow/repair-loop.test.ts`
+- `pnpm typecheck`
+- `pnpm test src/core/workflow` — 38 files passed, 437 tests passed.

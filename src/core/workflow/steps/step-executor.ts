@@ -186,7 +186,7 @@ export async function executeStep(
       context.stepOutputs,
     );
     if (!step.repairLoop) return result;
-    return runAgentRepairLoop(step, result, context, abortController, appendMessage, agentConfig);
+    return runAgentRepairLoop(step, result, context, metadata, abortController, appendMessage, agentConfig);
   }
   if (step.type === "emit") return executeEmitStep(step, context, definition.notify);
   if (step.type === "restart") return executeRestartStep(step, context);

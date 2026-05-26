@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import {
+  composeCanUseTools,
   createWorkflowAgentGuards,
   resolveAgentHarness,
   routeKotaToolControlOptions,
@@ -8,7 +9,11 @@ import {
 } from "#core/agent-harness/index.js";
 import type { KotaAgentMessage } from "#core/agent-harness/types.js";
 import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
-import type { WorkflowRepairCheck, WorkflowStepContext } from "./run-types.js";
+import type {
+  WorkflowRepairCheck,
+  WorkflowRunMetadata,
+  WorkflowStepContext,
+} from "./run-types.js";
 import {
   AgentStepIdleTimeoutError,
   createStepIdleTimeoutMonitor,
@@ -16,14 +21,19 @@ import {
 } from "./step-idle-timeout.js";
 import type { WorkflowAgentStep } from "./step-types.js";
 import {
+  AgentWriteScopeViolationError,
   diffMutatedPaths,
+  findWriteScopeViolations,
+  listWorkflowMutatedPaths,
   tryListWorkflowMutatedPaths,
+  writeWriteScopeViolationArtifact,
 } from "./steps/agent-write-scope.js";
 import type { AgentStepConfig, AgentStepResult } from "./steps/step-executor-agent.js";
 import {
   resolveAgentModel,
   resolvePromptContextStartDir,
 } from "./steps/step-executor-agent.js";
+import { resolveAgentToolScope } from "./steps/step-executor-agent-tool-scope.js";
 import { writeAgentTrajectoryDiagnosticsArtifact } from "./steps/step-executor-agent-trajectory-diagnostics.js";
 import {
   AgentStepRuntimeError,
@@ -43,6 +53,11 @@ export type RepairIteration = {
   agentResponse?: string;
   agentTurns?: number;
   agentCostUsd?: number;
+};
+
+type ScopedRepairAgent = {
+  agentName: string;
+  writeScope: readonly string[];
 };
 
 export function buildRepairPrompt(
@@ -114,6 +129,7 @@ async function runRepairCheck(
 async function executeRepairAgentIteration(
   step: WorkflowAgentStep,
   repairPrompt: string,
+  context: WorkflowStepContext,
   abortController: AbortController,
   appendMessage: (message: KotaAgentMessage) => void,
   agentConfig: AgentStepConfig,
@@ -132,6 +148,16 @@ async function executeRepairAgentIteration(
   );
   const harness = resolveAgentHarness(step.harness);
   const harnessOverrides = step.harnessOptions?.[harness.name];
+  const toolScope = resolveAgentToolScope(
+    step.autonomyMode,
+    step.allowedTools,
+    step.disallowedTools,
+    harness.askOwnerToolName,
+  );
+  const trialCanUseTool = agentConfig.createCanUseTool?.(step.id);
+  const canUseTool = trialCanUseTool
+    ? composeCanUseTools(trialCanUseTool, createWorkflowAgentGuards())
+    : createWorkflowAgentGuards();
 
   const runRepairHarness = async () => {
     const attemptAbortController = new AbortController();
@@ -167,10 +193,13 @@ async function executeRepairAgentIteration(
           thinkingEnabled: step.thinkingEnabled,
           thinkingBudget: step.thinkingBudget,
           ...routeKotaToolControlOptions(harness, {
-            allowedTools: step.allowedTools,
-            disallowedTools: step.disallowedTools,
-            canUseTool: createWorkflowAgentGuards(),
+            allowedTools: toolScope.allowedTools,
+            disallowedTools: toolScope.disallowedTools,
+            canUseTool,
           }),
+          askOwner: harness.askOwnerToolName !== null
+            ? { source: `workflow:${context.workflow.name}/${context.workflow.runId}/${step.id}` }
+            : undefined,
           autonomyMode: step.autonomyMode,
           harnessOverrides,
           abortController: attemptAbortController,
@@ -237,6 +266,19 @@ async function executeRepairAgentIteration(
   return { text: result.text, turns: result.turns, totalCostUsd: result.totalCostUsd };
 }
 
+function resolveScopedRepairAgent(
+  step: WorkflowAgentStep,
+  agentConfig: AgentStepConfig,
+): ScopedRepairAgent | undefined {
+  if (!step.agentName || !agentConfig.resolveAgentDef) return undefined;
+  const agentDef = agentConfig.resolveAgentDef(step.agentName);
+  if (!agentDef) return undefined;
+  return {
+    agentName: step.agentName,
+    writeScope: agentDef.writeScope,
+  };
+}
+
 /**
  * Group checks by phase and run phases sequentially. Within a phase, checks
  * run in parallel. If any phase produces error-severity failures, later
@@ -277,6 +319,7 @@ export async function runAgentRepairLoop(
   step: WorkflowAgentStep,
   initialResult: AgentStepResult,
   context: WorkflowStepContext,
+  metadata: WorkflowRunMetadata,
   abortController: AbortController,
   appendMessage: (message: KotaAgentMessage) => void,
   agentConfig: AgentStepConfig,
@@ -290,11 +333,15 @@ export async function runAgentRepairLoop(
   let warnings = [] as RepairCheckResult[];
   const trajectoryMessages = [...initialResult.trajectoryMessages];
   const resolvedHarness = resolveAgentHarness(step.harness);
+  const scopedAgent = resolveScopedRepairAgent(step, agentConfig);
 
   const wrap = (output: Record<string, unknown>): AgentStepResult => {
+    const postStepMutatedPaths = scopedAgent
+      ? listWorkflowMutatedPaths(context.projectDir)
+      : (tryListWorkflowMutatedPaths(context.projectDir) ?? []);
     const changedFiles = diffMutatedPaths(
       initialResult.preStepMutatedPaths,
-      tryListWorkflowMutatedPaths(context.projectDir) ?? [],
+      postStepMutatedPaths,
     );
     const trajectoryDiagnostics = writeAgentTrajectoryDiagnosticsArtifact({
       stepId: step.id,
@@ -304,6 +351,26 @@ export async function runAgentRepairLoop(
       messages: trajectoryMessages,
       changedFiles,
     });
+    if (scopedAgent) {
+      const violations = findWriteScopeViolations(
+        changedFiles,
+        scopedAgent.writeScope,
+      );
+      if (violations.length > 0) {
+        const violationCtx = {
+          stepId: step.id,
+          agentName: scopedAgent.agentName,
+          scope: scopedAgent.writeScope,
+          violations,
+        };
+        writeWriteScopeViolationArtifact({
+          ...violationCtx,
+          metadata,
+          projectDir: context.projectDir,
+        });
+        throw new AgentWriteScopeViolationError(violationCtx);
+      }
+    }
     return {
       output,
       harness: initialResult.harness,
@@ -335,6 +402,7 @@ export async function runAgentRepairLoop(
     const repairResult = await executeRepairAgentIteration(
       step,
       repairPrompt,
+      context,
       abortController,
       appendRepairMessage,
       agentConfig,
