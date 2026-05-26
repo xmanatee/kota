@@ -5,6 +5,11 @@ import { resolveProjectPath } from "#core/tools/project-path-policy.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { extractPage, formatMetadataHeader } from "./html-page-extract.js";
 import { isAbortError } from "./http-request-utils.js";
+import {
+  fetchPublicWebAccessUrl,
+  validatePublicWebAccessUrl,
+  WebAccessTargetError,
+} from "./private-network.js";
 
 export const webFetchTool: KotaTool = {
   name: "web_fetch",
@@ -90,8 +95,9 @@ export async function runWebFetch(
     return { content: "Error: url is required", is_error: true };
   }
 
-  if (!url.startsWith("http://") && !url.startsWith("https://")) {
-    return { content: "Error: url must start with http:// or https://", is_error: true };
+  const targetValidation = await validatePublicWebAccessUrl(url);
+  if (!targetValidation.ok) {
+    return { content: targetValidation.error, is_error: true };
   }
 
   if (savePath && !savePath.ok) {
@@ -106,13 +112,12 @@ export async function runWebFetch(
     const timeout = setTimeout(() => controller.abort(), 30_000);
 
     try {
-      const response = await fetch(url, {
+      const { response } = await fetchPublicWebAccessUrl(url, {
         signal: controller.signal,
         headers: {
           "User-Agent": "KOTA/0.1 (AI coding agent)",
           "Accept": "text/html, text/plain, application/json, */*",
         },
-        redirect: "follow",
       });
 
       if (!response.ok) {
@@ -193,6 +198,9 @@ export async function runWebFetch(
   } catch (err) {
     if (isAbortError(err)) {
       return { content: "Error: request timed out (30s)", is_error: true };
+    }
+    if (err instanceof WebAccessTargetError) {
+      return { content: err.message, is_error: true };
     }
     const msg = err instanceof Error ? err.message : String(err);
     return { content: `Fetch error: ${msg}`, is_error: true };

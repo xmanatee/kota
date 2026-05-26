@@ -1,8 +1,13 @@
+import { lookup } from "node:dns/promises";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearCustomGroups, detectToolGroups, enableGroup, getActiveToolNames, registerCustomGroup, resetGroups } from "./core/tools/tool-groups.js";
 import { runHttpRequest } from "./modules/web-access/http-request.js";
+
+vi.mock("node:dns/promises", () => ({
+  lookup: vi.fn(),
+}));
 
 /**
  * Cross-module integration tests for the http_request → code_exec data pipeline.
@@ -39,15 +44,18 @@ function mockFetch(opts: {
 
 describe("http_request → code_exec data pipeline", () => {
   const originalFetch = globalThis.fetch;
+  const mockLookup = vi.mocked(lookup);
   const tempDirs: string[] = [];
 
   beforeEach(() => {
+    mockLookup.mockResolvedValue([{ address: "93.184.216.34", family: 4 }] as never);
     registerCustomGroup("web", ["web_search", "web_fetch", "http_request"]);
     registerCustomGroup("code", ["code_exec", "notebook", "sqlite"]);
   });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    mockLookup.mockReset();
     vi.restoreAllMocks();
     clearCustomGroups();
     resetGroups();

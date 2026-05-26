@@ -43,6 +43,18 @@ describe("file_read: text files", () => {
     const result = await runFileRead({ path: "" });
     expect(result.is_error).toBe(true);
   });
+
+  it("denies the daemon control credential file", async () => {
+    const result = await runFileRead({ path: ".kota/daemon-control.json" });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("protected project runtime credential");
+  });
+
+  it("denies cased aliases of the daemon control credential file", async () => {
+    const result = await runFileRead({ path: ".KOTA/daemon-control.json" });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("protected project runtime credential");
+  });
 });
 
 // Create a minimal 1x1 PNG (68 bytes)

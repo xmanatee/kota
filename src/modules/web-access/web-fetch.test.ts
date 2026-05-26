@@ -1,11 +1,26 @@
+import { lookup } from "node:dns/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { formatJsonResponse, isBinaryContentType, runWebFetch } from "./web-fetch.js";
+
+vi.mock("node:dns/promises", () => ({
+  lookup: vi.fn(),
+}));
 
 vi.mock("node:fs/promises", () => ({
   writeFile: vi.fn().mockResolvedValue(undefined),
   mkdir: vi.fn().mockResolvedValue(undefined),
 }));
+
+const mockLookup = vi.mocked(lookup);
+
+beforeEach(() => {
+  mockLookup.mockResolvedValue([{ address: "93.184.216.34", family: 4 }] as never);
+});
+
+afterEach(() => {
+  mockLookup.mockReset();
+});
 
 // --- Unit tests for helpers ---
 
@@ -137,6 +152,37 @@ describe("runWebFetch", () => {
     const result = await runWebFetch({ url: "ftp://example.com" });
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("http://");
+  });
+
+  it("rejects loopback targets before fetching", async () => {
+    const result = await runWebFetch({ url: "http://localhost:8765/status" });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("loopback/private-network");
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects hostnames that resolve to loopback before fetching", async () => {
+    mockLookup.mockResolvedValueOnce([{ address: "127.0.0.1", family: 4 }] as never);
+    const result = await runWebFetch({ url: "http://127.0.0.1.nip.io:8765/status" });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("loopback/private-network");
+    expect(result.content).toContain("127.0.0.1");
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects redirects to private-network targets before following them", async () => {
+    vi.mocked(global.fetch).mockResolvedValue({
+      status: 302,
+      statusText: "Found",
+      headers: new Headers({ location: "http://10.0.0.5/status" }),
+      body: { cancel: vi.fn().mockResolvedValue(undefined) },
+    } as never);
+
+    const result = await runWebFetch({ url: "https://example.com/start" });
+
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("loopback/private-network");
+    expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
   it("rejects outside-project save_to before fetching", async () => {

@@ -2,6 +2,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { extname, join } from "node:path";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
+import { isProtectedProjectPath } from "./protected-paths.js";
 
 export const filesOverviewTool: KotaTool = {
   name: "files_overview",
@@ -129,6 +130,7 @@ async function scan(
         files.push(...sub.files.map((f) => ({ ...f, path: join(e.name, f.path) })));
       }
     } else if (e.isFile()) {
+      if (isProtectedProjectPath(full)) continue;
       try {
         const s = await stat(full);
         const ext = extname(e.name);
@@ -189,4 +191,3 @@ export async function runFilesOverview(
 
   return { content: lines.join("\n") };
 }
-

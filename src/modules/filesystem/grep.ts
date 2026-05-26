@@ -1,6 +1,7 @@
 import { execSync } from "node:child_process";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
+import { isProtectedProjectPath, protectedProjectPathError } from "./protected-paths.js";
 
 export const grepTool: KotaTool = {
   name: "grep",
@@ -79,6 +80,10 @@ export async function runGrep(
     return { content: "Error: pattern is required", is_error: true };
   }
 
+  if (isProtectedProjectPath(path)) {
+    return { content: protectedProjectPathError(path), is_error: true };
+  }
+
   // Try ripgrep first, fall back to grep
   const hasRg = (() => {
     try {
@@ -103,6 +108,7 @@ export async function runGrep(
       if (contextLines > 0) cmd += ` -C ${contextLines}`;
     }
     if (fileGlob) cmd += ` --glob '${shellEscape(fileGlob)}'`;
+    cmd += ` --iglob '!**/.kota/daemon-control.json'`;
     cmd += ` '${shellEscape(pattern)}' '${shellEscape(path)}'`;
   } else {
     if (filesOnly) {
@@ -115,6 +121,7 @@ export async function runGrep(
     }
     if (fileGlob) cmd += ` --include='${shellEscape(fileGlob)}'`;
     else if (!filesOnly && !countOnly) cmd += ` --include='${shellEscape("*")}'`;
+    cmd += ` --exclude='daemon-control.json'`;
     cmd += ` '${shellEscape(pattern)}' '${shellEscape(path)}'`;
   }
 
@@ -139,4 +146,3 @@ export async function runGrep(
     return { content: `Search error: ${(err as Error).message}`, is_error: true };
   }
 }
-

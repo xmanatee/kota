@@ -96,6 +96,25 @@ describe("files_overview", () => {
     expect(r.content).not.toContain("HEAD");
   });
 
+  it("excludes cased .kota credential aliases", async () => {
+    const originalCwd = process.cwd();
+    const projectDir = await mkdtemp(join(tmpdir(), "fov-protected-"));
+    try {
+      await mkdir(join(projectDir, ".KOTA"), { recursive: true });
+      await writeFile(join(projectDir, ".KOTA", "daemon-control.json"), '{"token":"secret-token"}\n');
+      process.chdir(projectDir);
+
+      const r = await runFilesOverview({ path: ".KOTA" });
+
+      expect(r.content).toContain("empty");
+      expect(r.content).not.toContain("daemon-control.json");
+      expect(r.content).not.toContain("secret-token");
+    } finally {
+      process.chdir(originalCwd);
+      await rm(projectDir, { recursive: true, force: true });
+    }
+  });
+
   it("truncates categories with more than 20 files", async () => {
     const manyDir = join(dir, "many-test");
     await mkdir(manyDir, { recursive: true });

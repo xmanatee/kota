@@ -1,12 +1,23 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { lookup } from "node:dns/promises";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { runHttpRequest } from "./http-request.js";
 import { formatTabularJson } from "./http-request-utils.js";
 
+vi.mock("node:dns/promises", () => ({
+  lookup: vi.fn(),
+}));
+
 describe("runHttpRequest", () => {
   const originalFetch = globalThis.fetch;
+  const mockLookup = vi.mocked(lookup);
+
+  beforeEach(() => {
+    mockLookup.mockResolvedValue([{ address: "93.184.216.34", family: 4 }] as never);
+  });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    mockLookup.mockReset();
     vi.restoreAllMocks();
   });
 
@@ -53,6 +64,58 @@ describe("runHttpRequest", () => {
     const result = await runHttpRequest({ url: "ftp://example.com" });
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("http://");
+  });
+
+  it("rejects loopback targets before fetching", async () => {
+    globalThis.fetch = vi.fn();
+    const result = await runHttpRequest({
+      url: "http://127.0.0.1:8765/api/secrets/OPENAI_API_KEY",
+      headers: { Authorization: "Bearer daemon-token" },
+    });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("loopback/private-network");
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects private-network targets before fetching", async () => {
+    globalThis.fetch = vi.fn();
+    const result = await runHttpRequest({ url: "http://10.0.0.5/status" });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("loopback/private-network");
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects IPv6-mapped loopback targets before fetching", async () => {
+    globalThis.fetch = vi.fn();
+    const result = await runHttpRequest({ url: "http://[::ffff:127.0.0.1]:8765/status" });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("loopback/private-network");
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects hostnames that resolve to loopback before fetching", async () => {
+    mockLookup.mockResolvedValueOnce([{ address: "127.0.0.1", family: 4 }] as never);
+    globalThis.fetch = vi.fn();
+    const result = await runHttpRequest({ url: "http://lvh.me:8765/status" });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("loopback/private-network");
+    expect(result.content).toContain("127.0.0.1");
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects redirects to loopback targets before following them", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      status: 302,
+      statusText: "Found",
+      headers: new Headers({ location: "http://127.0.0.1:8765/status" }),
+      body: { cancel: vi.fn().mockResolvedValue(undefined) },
+    });
+
+    const result = await runHttpRequest({ url: "https://api.example.com/start" });
+
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("loopback/private-network");
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 
   it("rejects unsupported method", async () => {

@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-daemon-bearer-token-is-written
 title: Security review: The daemon bearer token is written into the project-local .kota directory, while ordinary safe file reads and allowed HTTP requests can combine to give an autonomous agent bearer access to daemon control and secret routes.
-status: ready
+status: done
 priority: p1
 area: security
 summary: The daemon bearer token is written into the project-local .kota directory, while ordinary safe file reads and allowed HTTP requests can combine to give an autonomous agent bearer access to daemon control and secret routes.
 created_at: 2026-05-26T19:58:42.648Z
-updated_at: 2026-05-26T19:58:42.648Z
+updated_at: 2026-05-26T20:05:28.000Z
 ---
 
 ## Problem
@@ -60,3 +60,10 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `pnpm test src/modules/filesystem/file-read.test.ts src/modules/filesystem/grep.test.ts src/modules/filesystem/glob.test.ts src/modules/filesystem/files-overview.test.ts src/modules/web-access/http-request.test.ts src/modules/web-access/web-fetch.test.ts` — 6 files / 234 tests passed.
+- `pnpm typecheck`
+- `pnpm lint`
+
+## Resolution
+
+The safe filesystem tools now deny or exclude `.kota/daemon-control.json`, including cased aliases of the project runtime directory, and web-access tools reject loopback/private-network targets before issuing a request. This breaks the confirmed chain where an autonomous agent could read the daemon bearer token and reuse it against daemon control or secrets routes through `http_request`.

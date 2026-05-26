@@ -12,6 +12,7 @@ import {
   readText,
 } from "./file-read-formats.js";
 import { fileNotFoundError } from "./path-resolver.js";
+import { isProtectedProjectPath, protectedProjectPathError } from "./protected-paths.js";
 
 export const fileReadTool: KotaTool = {
   name: "file_read",
@@ -47,6 +48,10 @@ export async function runFileRead(
 
   if (!filePath) {
     return { content: "Error: path is required", is_error: true };
+  }
+
+  if (isProtectedProjectPath(filePath)) {
+    return { content: protectedProjectPathError(filePath), is_error: true };
   }
 
   if (!existsSync(filePath)) {
@@ -108,4 +113,3 @@ export async function runFileRead(
 
   return readText(filePath, input, stats.size);
 }
-

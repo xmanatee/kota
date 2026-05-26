@@ -83,6 +83,23 @@ describe("runGlob", () => {
     expect(result.content).not.toContain("out.ts");
   });
 
+  it("excludes cased .kota credential aliases", async () => {
+    const originalCwd = process.cwd();
+    const projectDir = mkdtempSync(join(tmpdir(), "glob-protected-"));
+    try {
+      mkdirSync(join(projectDir, ".KOTA"), { recursive: true });
+      writeFileSync(join(projectDir, ".KOTA", "daemon-control.json"), '{"token":"secret-token"}\n');
+      process.chdir(projectDir);
+
+      const result = await runGlob({ pattern: "**/*", path: ".KOTA" });
+
+      expect(result.content).toBe("No files matched.");
+    } finally {
+      process.chdir(originalCwd);
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+
   it("respects max_results limit", async () => {
     const result = await runGlob({
       pattern: "**/*.ts",

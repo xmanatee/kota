@@ -1,4 +1,5 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { formatCountOutput, runGrep } from "./grep.js";
@@ -22,6 +23,33 @@ describe("grep: input validation", () => {
     const result = await runGrep({ pattern: "" });
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("pattern is required");
+  });
+
+  it("denies direct searches of the daemon control credential file", async () => {
+    const result = await runGrep({
+      pattern: "token",
+      path: ".kota/daemon-control.json",
+    });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("protected project runtime credential");
+  });
+
+  it("excludes cased .kota credential aliases from recursive searches", async () => {
+    const originalCwd = process.cwd();
+    const projectDir = mkdtempSync(join(tmpdir(), "kota-grep-protected-"));
+    try {
+      mkdirSync(join(projectDir, ".KOTA"), { recursive: true });
+      writeFileSync(join(projectDir, ".KOTA", "daemon-control.json"), '{"token":"secret-token"}\n');
+      process.chdir(projectDir);
+
+      const result = await runGrep({ pattern: "secret-token", path: ".KOTA" });
+
+      expect(result.is_error).toBeUndefined();
+      expect(result.content).toBe("No matches found.");
+    } finally {
+      process.chdir(originalCwd);
+      rmSync(projectDir, { recursive: true, force: true });
+    }
   });
 });
 

@@ -18,3 +18,6 @@ Tools declare their effect metadata in the `ToolDef` returned by the module.
 The module loader stores this metadata; guardrails use it for classification.
 `web_fetch` and `http_request` also treat `save_to` as a project-local
 filesystem write, and the runners reject save paths outside the project root.
+Web-access runners reject loopback/private-network targets before issuing a
+request. Keep new fetch/request surfaces wired through the shared target
+validator.

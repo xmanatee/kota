@@ -13,6 +13,11 @@ import {
   looksLikeJson,
   safePositiveInt,
 } from "./http-request-utils.js";
+import {
+  fetchPublicWebAccessUrl,
+  validatePublicWebAccessUrl,
+  WebAccessTargetError,
+} from "./private-network.js";
 
 export const httpRequestTool: KotaTool = {
   name: "http_request",
@@ -82,8 +87,9 @@ export async function runHttpRequest(
     return { content: "Error: url is required", is_error: true };
   }
 
-  if (!url.startsWith("http://") && !url.startsWith("https://")) {
-    return { content: "Error: url must start with http:// or https://", is_error: true };
+  const targetValidation = await validatePublicWebAccessUrl(url);
+  if (!targetValidation.ok) {
+    return { content: targetValidation.error, is_error: true };
   }
 
   if (!ALLOWED_METHODS.has(method)) {
@@ -112,7 +118,6 @@ export async function runHttpRequest(
         "User-Agent": "KOTA/0.1",
         ...headers,
       },
-      redirect: "follow",
     };
 
     if (body) {
@@ -120,8 +125,13 @@ export async function runHttpRequest(
     }
 
     let response: Response;
+    let finalUrl = url;
+    let redirected = false;
     try {
-      response = await fetch(url, fetchOptions);
+      const fetched = await fetchPublicWebAccessUrl(url, fetchOptions);
+      response = fetched.response;
+      finalUrl = fetched.url;
+      redirected = fetched.redirected;
     } catch (err) {
       clearTimeout(timeout);
       throw err;
@@ -132,8 +142,8 @@ export async function runHttpRequest(
     let responseHeaders = formatResponseHeaders(response.headers);
 
     // Show redirect info so users can debug endpoint issues
-    if (response.redirected && response.url && response.url !== url) {
-      responseHeaders = `[Redirected → ${response.url}]\n${responseHeaders}`;
+    if (redirected && finalUrl !== url) {
+      responseHeaders = `[Redirected → ${finalUrl}]\n${responseHeaders}`;
     }
 
     if (method === "HEAD") {
@@ -219,6 +229,9 @@ export async function runHttpRequest(
   } catch (err) {
     if (isAbortError(err)) {
       return { content: `Error: request timed out (${Math.round(timeoutMs / 1000)}s)`, is_error: true };
+    }
+    if (err instanceof WebAccessTargetError) {
+      return { content: err.message, is_error: true };
     }
     const msg = err instanceof Error ? err.message : String(err);
     return { content: `Request error: ${msg}`, is_error: true };
