@@ -10,7 +10,7 @@
  * operator KotaClient surface.
  */
 
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import {
@@ -40,6 +40,60 @@ function parsePositiveInt(raw: string, name: string): number {
     throw new Error(`--${name} must be a positive integer, got "${raw}".`);
   }
   return parsed;
+}
+
+function parsePositiveNumber(raw: string, name: string): number {
+  const parsed = Number.parseFloat(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`--${name} must be a positive number, got "${raw}".`);
+  }
+  return parsed;
+}
+
+function resolveCliIsolationBackend(opts: {
+  isolation?: string;
+  containerExecutable?: string;
+  containerImage?: string;
+  containerKotaBinaryPath?: string;
+}): EvalRunOptions["isolationBackend"] | undefined {
+  const isolation = opts.isolation ?? "host-subprocess";
+  if (isolation === "host-subprocess") {
+    if (
+      opts.containerExecutable !== undefined ||
+      opts.containerImage !== undefined ||
+      opts.containerKotaBinaryPath !== undefined
+    ) {
+      throw new Error(
+        "--container-executable, --container-image, and --container-kota-binary-path require --isolation container.",
+      );
+    }
+    return undefined;
+  }
+  if (isolation !== "container") {
+    throw new Error(
+      `--isolation must be "host-subprocess" or "container", got "${isolation}".`,
+    );
+  }
+  if (
+    !opts.containerExecutable ||
+    !opts.containerImage ||
+    !opts.containerKotaBinaryPath
+  ) {
+    throw new Error(
+      "--isolation container requires --container-executable, --container-image, and --container-kota-binary-path.",
+    );
+  }
+  if (!isAbsolute(opts.containerKotaBinaryPath)) {
+    throw new Error(
+      "--container-kota-binary-path must be an absolute path inside the container image.",
+    );
+  }
+  return {
+    kind: "container",
+    executable: opts.containerExecutable,
+    image: opts.containerImage,
+    kotaBinaryPath: opts.containerKotaBinaryPath,
+  };
 }
 
 export function buildEvalCommand(ctx: ModuleContext): Command {
@@ -84,6 +138,10 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
     .option("--cpu-kill <cores>", "Hard CPU ceiling per run (defaults to allocation)")
     .option("--memory-allocation-mb <mb>", "Requested guaranteed memory per run in MB (defaults to detected host)")
     .option("--memory-kill-threshold-mb <mb>", "Hard memory ceiling per run in MB")
+    .option("--isolation <kind>", "Isolation backend: host-subprocess or container")
+    .option("--container-executable <path>", "Docker-compatible executable for --isolation container")
+    .option("--container-image <image>", "Container image for --isolation container")
+    .option("--container-kota-binary-path <path>", "Absolute path to bin/kota.mjs inside the container image")
     .option("--keep", "Keep fixture working directories for post-mortem")
     .action(async (opts: {
       fixture: string[];
@@ -93,18 +151,23 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
       cpuKill?: string;
       memoryAllocationMb?: string;
       memoryKillThresholdMb?: string;
+      isolation?: string;
+      containerExecutable?: string;
+      containerImage?: string;
+      containerKotaBinaryPath?: string;
       keep?: boolean;
     }) => {
       const repeats = parsePositiveInt(opts.repeats, "repeats");
+      const isolationBackend = resolveCliIsolationBackend(opts);
       const runOptions: EvalRunOptions = {
         repeatCount: repeats,
         ...(opts.fixture.length > 0 && { fixtureIds: opts.fixture }),
         ...(opts.hostClass !== undefined && { hostClass: opts.hostClass }),
         ...(opts.cpuAllocation !== undefined && {
-          cpuAllocationCores: Number.parseFloat(opts.cpuAllocation),
+          cpuAllocationCores: parsePositiveNumber(opts.cpuAllocation, "cpu-allocation"),
         }),
         ...(opts.cpuKill !== undefined && {
-          cpuKillThresholdCores: Number.parseFloat(opts.cpuKill),
+          cpuKillThresholdCores: parsePositiveNumber(opts.cpuKill, "cpu-kill"),
         }),
         ...(opts.memoryAllocationMb !== undefined && {
           memoryAllocationMB: parsePositiveInt(opts.memoryAllocationMb, "memory-allocation-mb"),
@@ -112,6 +175,7 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
         ...(opts.memoryKillThresholdMb !== undefined && {
           memoryKillThresholdMB: parsePositiveInt(opts.memoryKillThresholdMb, "memory-kill-threshold-mb"),
         }),
+        ...(isolationBackend !== undefined && { isolationBackend }),
         ...(opts.keep === true && { keepWorkingDirs: true }),
       };
       const result = await ctx.client.evalHarness.run(runOptions);

@@ -47,7 +47,8 @@ export type ExecutionProfileDiagnostic = {
 
 export type ExecutionProfileNonGatingReason =
   | "host-subprocess-unverified"
-  | "isolation-backend-unavailable";
+  | "isolation-backend-unavailable"
+  | "isolation-backend-config-invalid";
 
 export type ExecutionProfileRejectionReason = "requested-observed-mismatch";
 

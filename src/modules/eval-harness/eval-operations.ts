@@ -34,6 +34,7 @@ import { ObjectiveMetricValidationError } from "./objective-metrics.js";
 import {
   createSubprocessExecutor,
   detectHostSubprocessResourceProfile,
+  type SubprocessIsolationBackend,
 } from "./subprocess-executor.js";
 
 export const DEFAULT_HOST_CLASS = "local-dev";
@@ -50,6 +51,10 @@ function evalRunsRootFor(projectDir: string): string {
 
 function kotaBinaryPathFor(projectDir: string): string {
   return resolve(join(projectDir, "bin/kota.mjs"));
+}
+
+function isolationBackendForRun(options: EvalRunOptions): SubprocessIsolationBackend {
+  return options.isolationBackend ?? { kind: "host-subprocess" };
 }
 
 export function listEvalFixtures(projectDir: string): EvalListResult {
@@ -116,7 +121,10 @@ export async function runEvalHarness(
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const runArtifactBaseDir = join(evalRunsRootFor(projectDir), stamp);
   mkdirSync(runArtifactBaseDir, { recursive: true });
-  const executor = createSubprocessExecutor({ kotaBinaryPath: kotaBinaryPathFor(projectDir) });
+  const executor = createSubprocessExecutor({
+    kotaBinaryPath: kotaBinaryPathFor(projectDir),
+    isolationBackend: isolationBackendForRun(options),
+  });
   const requestedProfile = buildProfile(options, DEFAULT_HOST_CLASS);
   const repeatCount = options.repeatCount ?? DEFAULT_REPEATS;
   let report: Awaited<ReturnType<typeof runEvalSet>>;

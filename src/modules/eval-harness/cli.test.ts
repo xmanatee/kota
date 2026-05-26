@@ -10,7 +10,7 @@ import {
   type EvaluatorCalibrationArtifact,
 } from "#modules/autonomy/evaluator-calibration.js";
 import { buildEvalCommand } from "./cli.js";
-import type { EvalHarnessClient } from "./client.js";
+import type { EvalHarnessClient, EvalRunOptions } from "./client.js";
 import {
   listEvalFixtures,
   runEvalCalibration,
@@ -31,6 +31,31 @@ function makeFakeCtx(projectDir: string): ModuleContext {
   };
   const client = { evalHarness } as unknown as KotaClient;
   return { cwd: projectDir, client } as unknown as ModuleContext;
+}
+
+function makeRunRecordingCtx(calls: EvalRunOptions[]): ModuleContext {
+  const evalHarness: EvalHarnessClient = {
+    async list() {
+      return { fixtures: [] };
+    },
+    async run(options) {
+      calls.push(options ?? {});
+      return {
+        ok: true,
+        fixtureCount: 1,
+        repeatCount: options?.repeatCount ?? 1,
+        passAtK: 1,
+        passHatK: 1,
+        objectiveMetrics: [],
+        runArtifactBaseDir: "/tmp/eval-run",
+      };
+    },
+    async calibration() {
+      return { aggregate: {}, decision: {} };
+    },
+  };
+  const client = { evalHarness } as unknown as KotaClient;
+  return { cwd: "/tmp/project", client } as unknown as ModuleContext;
 }
 
 function seedCalibration(
@@ -65,6 +90,86 @@ function seedCalibration(
     JSON.stringify(artifact, null, 2),
   );
 }
+
+describe("kota eval run CLI", () => {
+  const originalExitCode = process.exitCode;
+
+  afterEach(() => {
+    process.exitCode = originalExitCode;
+    vi.restoreAllMocks();
+  });
+
+  it("threads deliberate container selection into the eval run options", async () => {
+    const calls: EvalRunOptions[] = [];
+    vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    const cmd = buildEvalCommand(makeRunRecordingCtx(calls));
+
+    await cmd.parseAsync(
+      [
+        "run",
+        "--fixture",
+        "builder-smoke",
+        "--repeats",
+        "1",
+        "--host-class",
+        "ci-container",
+        "--cpu-allocation",
+        "2",
+        "--cpu-kill",
+        "2",
+        "--memory-allocation-mb",
+        "1024",
+        "--memory-kill-threshold-mb",
+        "2048",
+        "--isolation",
+        "container",
+        "--container-executable",
+        "docker",
+        "--container-image",
+        "node:22-bookworm",
+        "--container-kota-binary-path",
+        "/opt/kota/bin/kota.mjs",
+      ],
+      { from: "user" },
+    );
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      fixtureIds: ["builder-smoke"],
+      repeatCount: 1,
+      hostClass: "ci-container",
+      cpuAllocationCores: 2,
+      cpuKillThresholdCores: 2,
+      memoryAllocationMB: 1024,
+      memoryKillThresholdMB: 2048,
+      isolationBackend: {
+        kind: "container",
+        executable: "docker",
+        image: "node:22-bookworm",
+        kotaBinaryPath: "/opt/kota/bin/kota.mjs",
+      },
+    });
+  });
+
+  it("rejects container fields unless the operator selects container isolation", async () => {
+    const calls: EvalRunOptions[] = [];
+    const cmd = buildEvalCommand(makeRunRecordingCtx(calls));
+
+    await expect(
+      cmd.parseAsync(
+        [
+          "run",
+          "--container-executable",
+          "docker",
+          "--container-image",
+          "node:22",
+        ],
+        { from: "user" },
+      ),
+    ).rejects.toThrow(/require --isolation container/);
+    expect(calls).toHaveLength(0);
+  });
+});
 
 describe("kota eval calibration CLI", () => {
   let projectDir: string;

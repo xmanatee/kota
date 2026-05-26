@@ -141,4 +141,21 @@ describe("evalHarnessRoutes POST /api/eval/run", () => {
     expect(result.status).toBe(400);
     expect(result.body).toMatchObject({ error: expect.any(String) });
   });
+
+  it("emits 400 + { error } when container isolation fields are incomplete", async () => {
+    const handler = findRunHandler();
+    const { res, result } = mockResponse();
+    await handler(
+      mockRequest(
+        JSON.stringify({
+          isolationBackend: { kind: "container", executable: "docker" },
+        }),
+      ),
+      res,
+    );
+    expect(result.status).toBe(400);
+    expect(result.body).toMatchObject({
+      error: expect.stringContaining("isolationBackend.image"),
+    });
+  });
 });

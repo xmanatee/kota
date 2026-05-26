@@ -52,6 +52,11 @@ export type WorkflowExecutionRequest = {
   /** Hard budget for this attempt in ms. The executor must return by then. */
   budgetMs: number;
   /**
+   * Execution preflight selected for the whole eval set. Container-backed
+   * executors use this to bind each run to the verified resource profile.
+   */
+  executionProfile?: ExecutionProfilePreflightResult;
+  /**
    * Optional trigger payload for workflows whose `trigger.payload` is
    * load-bearing. Forwarded verbatim by the executor — no defaulting.
    */
@@ -319,6 +324,7 @@ export async function runFixture(
       workflowName: params.fixture.spec.workflowName,
       workingDir,
       budgetMs: params.fixture.spec.budgetMs,
+      executionProfile: params.executionProfile,
       ...(params.fixture.spec.triggerPayload !== undefined && {
         triggerPayload: params.fixture.spec.triggerPayload,
       }),

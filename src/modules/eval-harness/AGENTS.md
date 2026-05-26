@@ -121,7 +121,9 @@ Agent-call fixtures ship one recording per agent call under
 `KOTA_EVAL_HARNESS_REPLAY_ROOT`; the module overrides the
 `claude-agent-sdk` slot with a replay adapter. Replay subprocesses also
 force `KOTA_PRESET=claude` so workflows resolve to the replay-overridden
-harness. Production selection is unchanged.
+harness. Container subprocesses bind-mount the recording root read-only at
+the same absolute path so the env root is readable inside the container.
+Production selection is unchanged.
 
 The adapter substitutes `{{runDir}}` in recorded paths, writes operations
 to the fixture working dir, and `git add -A`s them so downstream repair

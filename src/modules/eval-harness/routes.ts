@@ -11,11 +11,23 @@
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { isAbsolute } from "node:path";
 import { EventBus } from "#core/events/event-bus.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type { EvalRunOptions, EvalRunResult } from "./client.js";
+import type {
+  EvalRunIsolationBackend,
+  EvalRunOptions,
+  EvalRunResult,
+} from "./client.js";
 import { runEvalHarness } from "./eval-operations.js";
 import { evalHarnessSetCompleted } from "./events.js";
+
+type IsolationBackendRequest = {
+  kind?: string;
+  executable?: string;
+  image?: string;
+  kotaBinaryPath?: string;
+};
 
 function writeJson(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { "Content-Type": "application/json" });
@@ -78,7 +90,55 @@ function validateRequest(raw: unknown): EvalRunOptions {
     }
     out.keepWorkingDirs = r.keepWorkingDirs;
   }
+  if (r.isolationBackend !== undefined) {
+    const rawBackend = r.isolationBackend;
+    if (
+      typeof rawBackend !== "object" ||
+      rawBackend === null ||
+      Array.isArray(rawBackend)
+    ) {
+      throw new Error("isolationBackend must be an object.");
+    }
+    out.isolationBackend = validateIsolationBackend(rawBackend);
+  }
   return out;
+}
+
+function validateIsolationBackend(raw: object): EvalRunIsolationBackend {
+  const r = raw as IsolationBackendRequest;
+  if (r.kind === "host-subprocess") {
+    return { kind: "host-subprocess" };
+  }
+  if (r.kind !== "container") {
+    throw new Error(
+      "isolationBackend.kind must be \"host-subprocess\" or \"container\".",
+    );
+  }
+  if (typeof r.executable !== "string" || r.executable.length === 0) {
+    throw new Error("isolationBackend.executable must be a non-empty string.");
+  }
+  if (typeof r.image !== "string" || r.image.length === 0) {
+    throw new Error("isolationBackend.image must be a non-empty string.");
+  }
+  if (
+    typeof r.kotaBinaryPath !== "string" ||
+    r.kotaBinaryPath.length === 0
+  ) {
+    throw new Error(
+      "isolationBackend.kotaBinaryPath must be a non-empty string.",
+    );
+  }
+  if (!isAbsolute(r.kotaBinaryPath)) {
+    throw new Error(
+      "isolationBackend.kotaBinaryPath must be an absolute container path.",
+    );
+  }
+  return {
+    kind: "container",
+    executable: r.executable,
+    image: r.image,
+    kotaBinaryPath: r.kotaBinaryPath,
+  };
 }
 
 /**

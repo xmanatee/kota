@@ -1,12 +1,12 @@
 ---
 id: task-add-an-executable-container-isolation-backend-for-
 title: Add an executable container isolation backend for eval-harness runs
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Run eval-harness subprocess fixtures inside an explicit container backend that enforces requested CPU and memory profile facts, preserves fixture isolation, and records typed diagnostics when the backend cannot satisfy them.
 created_at: 2026-05-26T18:33:30.516Z
-updated_at: 2026-05-26T18:33:30.516Z
+updated_at: 2026-05-26T18:48:34.000Z
 ---
 
 ## Problem

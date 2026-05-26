@@ -9,7 +9,7 @@
  */
 
 import { writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
@@ -23,6 +23,7 @@ import { loadAllFixtures } from "./fixture.js";
 import {
   createSubprocessExecutor,
   detectHostSubprocessResourceProfile,
+  type SubprocessIsolationBackend,
 } from "./subprocess-executor.js";
 
 type CadenceResult = {
@@ -36,6 +37,46 @@ type CadenceResult = {
 
 const CADENCE_HOST_CLASS = "autonomy-cadence";
 const CADENCE_REPEAT_COUNT = 3;
+export const EVAL_HARNESS_CADENCE_CONTAINER_EXECUTABLE_ENV =
+  "KOTA_EVAL_HARNESS_CADENCE_CONTAINER_EXECUTABLE";
+export const EVAL_HARNESS_CADENCE_CONTAINER_IMAGE_ENV =
+  "KOTA_EVAL_HARNESS_CADENCE_CONTAINER_IMAGE";
+export const EVAL_HARNESS_CADENCE_CONTAINER_KOTA_BINARY_PATH_ENV =
+  "KOTA_EVAL_HARNESS_CADENCE_CONTAINER_KOTA_BINARY_PATH";
+
+export function resolveCadenceIsolationBackend(
+  env: NodeJS.ProcessEnv = process.env,
+): SubprocessIsolationBackend {
+  const executable = env[EVAL_HARNESS_CADENCE_CONTAINER_EXECUTABLE_ENV];
+  const image = env[EVAL_HARNESS_CADENCE_CONTAINER_IMAGE_ENV];
+  const kotaBinaryPath =
+    env[EVAL_HARNESS_CADENCE_CONTAINER_KOTA_BINARY_PATH_ENV];
+  if (
+    executable === undefined &&
+    image === undefined &&
+    kotaBinaryPath === undefined
+  ) {
+    return { kind: "host-subprocess" };
+  }
+  if (
+    executable === undefined ||
+    image === undefined ||
+    kotaBinaryPath === undefined ||
+    executable.length === 0 ||
+    image.length === 0 ||
+    kotaBinaryPath.length === 0
+  ) {
+    throw new Error(
+      `${EVAL_HARNESS_CADENCE_CONTAINER_EXECUTABLE_ENV}, ${EVAL_HARNESS_CADENCE_CONTAINER_IMAGE_ENV}, and ${EVAL_HARNESS_CADENCE_CONTAINER_KOTA_BINARY_PATH_ENV} must be set together.`,
+    );
+  }
+  if (!isAbsolute(kotaBinaryPath)) {
+    throw new Error(
+      `${EVAL_HARNESS_CADENCE_CONTAINER_KOTA_BINARY_PATH_ENV} must be an absolute container path.`,
+    );
+  }
+  return { kind: "container", executable, image, kotaBinaryPath };
+}
 
 const runHarness = typedCodeStep<CadenceResult>({
   id: "run-harness",
@@ -60,6 +101,7 @@ const runHarness = typedCodeStep<CadenceResult>({
     }
     const executor = createSubprocessExecutor({
       kotaBinaryPath: resolve(join(projectDir, "bin/kota.mjs")),
+      isolationBackend: resolveCadenceIsolationBackend(),
     });
     const runArtifactBaseDir = join(workflow.runDirPath, "eval-runs");
     const requestedProfile =

@@ -185,6 +185,12 @@ describe("eval-harness module daemonClient(link)", () => {
       memoryAllocationMB: 8192,
       memoryKillThresholdMB: 16384,
       keepWorkingDirs: true,
+      isolationBackend: {
+        kind: "container" as const,
+        executable: "docker",
+        image: "node:22-bookworm",
+        kotaBinaryPath: "/opt/kota/bin/kota.mjs",
+      },
     };
     await contributed.evalHarness!.run(options);
     expect(calls[0]!.body).toEqual(options);

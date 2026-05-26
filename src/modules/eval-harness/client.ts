@@ -28,6 +28,15 @@ export type EvalListResult = {
   fixtures: EvalFixtureSummary[];
 };
 
+export type EvalRunIsolationBackend =
+  | { kind: "host-subprocess" }
+  | {
+      kind: "container";
+      executable: string;
+      image: string;
+      kotaBinaryPath: string;
+    };
+
 /**
  * Options accepted by `evalHarness.run`.
  *
@@ -43,6 +52,7 @@ export type EvalRunOptions = {
   memoryAllocationMB?: number;
   memoryKillThresholdMB?: number;
   keepWorkingDirs?: boolean;
+  isolationBackend?: EvalRunIsolationBackend;
 };
 
 export type EvalRunResult =
