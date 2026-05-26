@@ -485,3 +485,6 @@ resources:
       fingerprint: sha256:003b8a8815f1650ea4018c0748980e06
       summary: "SWE-Cycle reinforces KOTA's completed bare-repository full-cycle builder fixture: environment reconstruction, verification-test generation, and implementation repair now have artifact-graded local coverage, so no duplicate task was opened."
       last_seen_at: "2026-05-26T20:51:58.355Z"
+  - url: https://arxiv.org/abs/2605.11378
+    added: "2026-05-26"
+    notes: "AgentEvalBench / EvalAgent studies automated agent-evaluation authoring. Monitor as an eval-harness signal for focused executable eval artifacts, bounded metrics, first-run evaluation success, and reusable evaluator guidance without adding a second KOTA evaluation pipeline."
