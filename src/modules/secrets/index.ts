@@ -12,6 +12,7 @@
 
 
 import { createInterface } from "node:readline";
+import type { Readable, Writable } from "node:stream";
 import { Command } from "commander";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { getSecretStore, initSecretStore } from "#core/config/secrets.js";
@@ -81,19 +82,141 @@ function makeGetSecretRunner(ctx: ModuleContext) {
   };
 }
 
-/** Prompt the user for a secret value on stdin (hidden input). */
-function promptSecretValue(name: string): Promise<string> {
+type SecretPromptInput = Readable & {
+  isTTY?: boolean;
+  isRaw?: boolean;
+  setRawMode?: (mode: boolean) => SecretPromptInput;
+};
+
+type SecretPromptStreams = {
+  input?: SecretPromptInput;
+  output?: Writable;
+};
+
+type RawModeSecretPromptInput = SecretPromptInput & {
+  setRawMode: (mode: boolean) => SecretPromptInput;
+};
+
+function isRawModeTtyInput(input: SecretPromptInput): input is RawModeSecretPromptInput {
+  return input.isTTY === true && typeof input.setRawMode === "function";
+}
+
+function withoutLastChar(value: string): string {
+  const chars = Array.from(value);
+  chars.pop();
+  return chars.join("");
+}
+
+function isPrintableCharacter(char: string): boolean {
+  return char >= " " && char !== "\u007f" && char !== "\u001b";
+}
+
+function promptSecretValueFromLine(
+  name: string,
+  input: SecretPromptInput,
+  output: Writable,
+): Promise<string> {
   return new Promise((resolve, reject) => {
-    const rl = createInterface({ input: process.stdin, output: process.stderr });
-    process.stderr.write(`Enter value for "${name}": `);
+    const rl = createInterface({ input, output });
+    let settled = false;
+
+    output.write(`Enter value for "${name}": `);
 
     rl.on("line", (line) => {
+      settled = true;
       rl.close();
       resolve(line.trim());
     });
-    rl.on("close", () => reject(new Error("Input cancelled")));
+    rl.on("close", () => {
+      if (!settled) reject(new Error("Input cancelled"));
+    });
     rl.on("error", reject);
   });
+}
+
+function promptSecretValueFromTty(
+  name: string,
+  input: RawModeSecretPromptInput,
+  output: Writable,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let value = "";
+    let settled = false;
+    let skippingEscapeSequence = false;
+    const wasRaw = input.isRaw === true;
+    let rawModeEnabled = false;
+
+    const cleanup = () => {
+      input.off("data", onData);
+      input.off("error", onError);
+      if (rawModeEnabled && !wasRaw) input.setRawMode(false);
+      output.write("\n");
+    };
+
+    const settle = (result: { value: string } | { error: Error }) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if ("error" in result) {
+        reject(result.error);
+        return;
+      }
+      resolve(result.value.trim());
+    };
+
+    const onError = (err: Error) => settle({ error: err });
+
+    const onData = (chunk: Buffer | string) => {
+      const text = typeof chunk === "string" ? chunk : chunk.toString("utf8");
+      for (const char of text) {
+        if (char === "\u0003" || char === "\u0004") {
+          settle({ error: new Error("Input cancelled") });
+          return;
+        }
+        if (char === "\r" || char === "\n") {
+          settle({ value });
+          return;
+        }
+        if (char === "\b" || char === "\u007f") {
+          value = withoutLastChar(value);
+          continue;
+        }
+        if (char === "\u001b") {
+          skippingEscapeSequence = true;
+          continue;
+        }
+        if (skippingEscapeSequence) {
+          if (/^[A-Za-z~]$/.test(char)) skippingEscapeSequence = false;
+          continue;
+        }
+        if (isPrintableCharacter(char)) value += char;
+      }
+    };
+
+    output.write(`Enter value for "${name}": `);
+    try {
+      input.setRawMode(true);
+      rawModeEnabled = true;
+      input.resume();
+      input.on("data", onData);
+      input.on("error", onError);
+    } catch (err) {
+      settle({ error: err instanceof Error ? err : new Error(String(err)) });
+    }
+  });
+}
+
+/** Prompt the user for a secret value on stdin, hiding TTY input when possible. */
+export function promptSecretValue(
+  name: string,
+  streams: SecretPromptStreams = {},
+): Promise<string> {
+  const input: SecretPromptInput = streams.input ?? process.stdin;
+  const output = streams.output ?? process.stderr;
+  if (isRawModeTtyInput(input)) {
+    return promptSecretValueFromTty(name, input, output);
+  }
+  return promptSecretValueFromLine(name, input, output);
 }
 
 function parseScope(opts: { global?: boolean; project?: boolean }): SecretScope {

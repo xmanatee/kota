@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-secrets-cli-describes-the-set-
 title: Security review: The secrets CLI describes the set prompt as hidden input, but it uses plain readline, so newly entered secret values are echoed in the operator terminal while typing.
-status: ready
+status: done
 priority: p3
 area: security
 summary: The secrets CLI describes the set prompt as hidden input, but it uses plain readline, so newly entered secret values are echoed in the operator terminal while typing.
 created_at: 2026-05-26T19:58:42.669Z
-updated_at: 2026-05-26T19:58:42.669Z
+updated_at: 2026-05-26T20:58:45.000Z
 ---
 
 ## Problem
@@ -52,6 +52,13 @@ Evidence:
 
 Agentic security review for autonomous coding infrastructure.
 
+## Completion
+
+`kota secrets set` now uses raw-mode TTY input for the interactive prompt, so typed secret bytes are consumed by the process without echoing to the operator terminal. Non-TTY stdin still uses readline so piped input keeps working.
+
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `pnpm exec vitest run src/modules/secrets/prompt.test.ts` passed, covering hidden raw-mode TTY input and piped stdin compatibility.
+- `pnpm typecheck` passed.
+- `pnpm exec biome check src/modules/secrets/index.ts src/modules/secrets/prompt.test.ts` passed.
+- `pnpm test -- src/modules/secrets/prompt.test.ts` accidentally expanded to the full suite and passed: 687 test files, 10,259 passing tests, 6 skipped.
