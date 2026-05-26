@@ -4,6 +4,7 @@ import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { resolveProjectPath } from "#core/tools/project-path-policy.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { extractPage, formatMetadataHeader } from "./html-page-extract.js";
+import { isAbortError } from "./http-request-utils.js";
 
 export const webFetchTool: KotaTool = {
   name: "web_fetch",
@@ -104,91 +105,93 @@ export async function runWebFetch(
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30_000);
 
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        "User-Agent": "KOTA/0.1 (AI coding agent)",
-        "Accept": "text/html, text/plain, application/json, */*",
-      },
-      redirect: "follow",
-    });
+    try {
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          "User-Agent": "KOTA/0.1 (AI coding agent)",
+          "Accept": "text/html, text/plain, application/json, */*",
+        },
+        redirect: "follow",
+      });
 
-    clearTimeout(timeout);
-
-    if (!response.ok) {
-      return {
-        content: `HTTP ${response.status} ${response.statusText}`,
-        is_error: true,
-      };
-    }
-
-    const contentType = response.headers.get("content-type") || "";
-
-    // Download mode: save to file instead of returning content
-    if (savePath?.ok) {
-      const mime = contentType.split(";")[0].trim();
-      try {
-        await mkdir(dirname(savePath.path), { recursive: true });
-        if (isBinaryContentType(contentType)) {
-          const buffer = await response.arrayBuffer();
-          await writeFile(savePath.path, Buffer.from(buffer));
-          return {
-            content: `Downloaded ${mime} to ${savePath.path} (${formatBytes(buffer.byteLength)})`,
-          };
-        }
-        const text = await response.text();
-        await writeFile(savePath.path, text, "utf-8");
-        const preview = text.slice(0, 500);
+      if (!response.ok) {
         return {
-          content: `Saved to ${savePath.path} (${formatBytes(Buffer.byteLength(text))}, ${mime})\n\nPreview:\n${preview}${text.length > 500 ? "\n..." : ""}`,
+          content: `HTTP ${response.status} ${response.statusText}`,
+          is_error: true,
         };
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        return { content: `Error saving file: ${msg}`, is_error: true };
       }
-    }
 
-    // Binary content: report metadata instead of reading garbled text
-    if (isBinaryContentType(contentType)) {
-      const size = response.headers.get("content-length");
-      const mime = contentType.split(";")[0].trim();
-      const sizeInfo = size ? ` (${formatBytes(parseInt(size, 10))})` : "";
-      await response.body?.cancel();
-      return {
-        content: `Binary content: ${mime}${sizeInfo}. ` +
-          "Use web_fetch with save_to to download binary files.",
-      };
-    }
+      const contentType = response.headers.get("content-type") || "";
 
-    const raw = await response.text();
+      // Download mode: save to file instead of returning content
+      if (savePath?.ok) {
+        const mime = contentType.split(";")[0].trim();
+        try {
+          await mkdir(dirname(savePath.path), { recursive: true });
+          if (isBinaryContentType(contentType)) {
+            const buffer = await response.arrayBuffer();
+            await writeFile(savePath.path, Buffer.from(buffer));
+            return {
+              content: `Downloaded ${mime} to ${savePath.path} (${formatBytes(buffer.byteLength)})`,
+            };
+          }
+          const text = await response.text();
+          await writeFile(savePath.path, text, "utf-8");
+          const preview = text.slice(0, 500);
+          return {
+            content: `Saved to ${savePath.path} (${formatBytes(Buffer.byteLength(text))}, ${mime})\n\nPreview:\n${preview}${text.length > 500 ? "\n..." : ""}`,
+          };
+        } catch (err) {
+          if (isAbortError(err)) throw err;
+          const msg = err instanceof Error ? err.message : String(err);
+          return { content: `Error saving file: ${msg}`, is_error: true };
+        }
+      }
 
-    // JSON: pretty-print with structure hints
-    if (contentType.includes("json")) {
-      const text = formatJsonResponse(raw, maxLength);
+      // Binary content: report metadata instead of reading garbled text
+      if (isBinaryContentType(contentType)) {
+        const size = response.headers.get("content-length");
+        const mime = contentType.split(";")[0].trim();
+        const sizeInfo = size ? ` (${formatBytes(parseInt(size, 10))})` : "";
+        await response.body?.cancel();
+        return {
+          content: `Binary content: ${mime}${sizeInfo}. ` +
+            "Use web_fetch with save_to to download binary files.",
+        };
+      }
+
+      const raw = await response.text();
+
+      // JSON: pretty-print with structure hints
+      if (contentType.includes("json")) {
+        const text = formatJsonResponse(raw, maxLength);
+        return { content: text || "(empty response)" };
+      }
+
+      let text: string;
+      if (contentType.includes("html")) {
+        const page = extractPage(raw);
+        const header = formatMetadataHeader(page.metadata);
+        text = header + page.content;
+      } else {
+        text = raw;
+      }
+
+      // Truncate to save tokens
+      if (text.length > maxLength) {
+        return {
+          content: text.slice(0, maxLength) +
+            `\n\n[Truncated — ${text.length} chars total, showing first ${maxLength}]`,
+        };
+      }
+
       return { content: text || "(empty response)" };
+    } finally {
+      clearTimeout(timeout);
     }
-
-    let text: string;
-    if (contentType.includes("html")) {
-      const page = extractPage(raw);
-      const header = formatMetadataHeader(page.metadata);
-      text = header + page.content;
-    } else {
-      text = raw;
-    }
-
-    // Truncate to save tokens
-    if (text.length > maxLength) {
-      return {
-        content: text.slice(0, maxLength) +
-          `\n\n[Truncated — ${text.length} chars total, showing first ${maxLength}]`,
-      };
-    }
-
-    return { content: text || "(empty response)" };
   } catch (err) {
-    if (err instanceof DOMException && err.name === "AbortError" ||
-        err instanceof Error && err.name === "AbortError") {
+    if (isAbortError(err)) {
       return { content: "Error: request timed out (30s)", is_error: true };
     }
     const msg = err instanceof Error ? err.message : String(err);

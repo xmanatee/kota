@@ -252,6 +252,71 @@ describe("runWebFetch", () => {
     expect(result.content).toContain("timed out");
   });
 
+  it("keeps the timeout active through body read aborts", async () => {
+    vi.useFakeTimers();
+    const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
+    const abortErr = new DOMException("body download aborted", "AbortError");
+    const text = vi.fn(() => {
+      expect(clearTimeoutSpy).not.toHaveBeenCalled();
+      return Promise.reject(abortErr);
+    });
+
+    try {
+      vi.mocked(global.fetch).mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        headers: new Headers({ "content-type": "text/plain" }),
+        text,
+        arrayBuffer: vi.fn(),
+        body: { cancel: vi.fn() },
+      } as never);
+
+      const result = await runWebFetch({ url: "https://example.com/slow.txt" });
+
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("timed out");
+      expect(text).toHaveBeenCalled();
+      expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      clearTimeoutSpy.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the timeout active through binary body cancellation", async () => {
+    vi.useFakeTimers();
+    const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
+    const cancelFn = vi.fn(() => {
+      expect(clearTimeoutSpy).not.toHaveBeenCalled();
+      return Promise.resolve(undefined);
+    });
+
+    try {
+      vi.mocked(global.fetch).mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        headers: new Headers({
+          "content-type": "application/pdf",
+          "content-length": "1024",
+        }),
+        text: vi.fn(),
+        body: { cancel: cancelFn },
+      } as never);
+
+      const result = await runWebFetch({ url: "https://example.com/doc.pdf" });
+
+      expect(result.is_error).toBeUndefined();
+      expect(result.content).toContain("Binary content: application/pdf");
+      expect(cancelFn).toHaveBeenCalled();
+      expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      clearTimeoutSpy.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   it("does not misidentify generic errors mentioning 'abort'", async () => {
     vi.mocked(global.fetch).mockRejectedValue(
       new Error("Connection aborted by remote host"),
@@ -290,6 +355,71 @@ describe("runWebFetch", () => {
     expect(result.content).toContain("Hello world content here");
     expect(mk).toHaveBeenCalledWith(path.dirname(resolvedSavePath), { recursive: true });
     expect(wf).toHaveBeenCalledWith(resolvedSavePath, "Hello world content here", "utf-8");
+  });
+
+  it("keeps the timeout active through save_to writes", async () => {
+    vi.useFakeTimers();
+    const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
+    const { writeFile: wf } = await import("node:fs/promises");
+    vi.mocked(wf).mockImplementationOnce(async () => {
+      expect(clearTimeoutSpy).not.toHaveBeenCalled();
+    });
+
+    try {
+      vi.mocked(global.fetch).mockResolvedValue(
+        mockResponse("Hello world content here", {
+          headers: { "content-type": "text/plain" },
+        }) as never,
+      );
+
+      const result = await runWebFetch({
+        url: "https://example.com/data.txt",
+        save_to: "data/test-data.txt",
+      });
+
+      expect(result.is_error).toBeUndefined();
+      expect(result.content).toContain("Saved to");
+      expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      clearTimeoutSpy.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it("handles save_to body read aborts as timeouts", async () => {
+    vi.useFakeTimers();
+    const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
+    const abortErr = new DOMException("body download aborted", "AbortError");
+    const text = vi.fn(() => {
+      expect(clearTimeoutSpy).not.toHaveBeenCalled();
+      return Promise.reject(abortErr);
+    });
+
+    try {
+      vi.mocked(global.fetch).mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        headers: new Headers({ "content-type": "text/plain" }),
+        text,
+        arrayBuffer: vi.fn(),
+        body: { cancel: vi.fn() },
+      } as never);
+
+      const result = await runWebFetch({
+        url: "https://example.com/slow.txt",
+        save_to: "data/slow.txt",
+      });
+
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("timed out");
+      expect(result.content).not.toContain("Error saving file");
+      expect(text).toHaveBeenCalled();
+      expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      clearTimeoutSpy.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
   it("saves binary content to file with save_to", async () => {

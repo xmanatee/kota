@@ -1,12 +1,12 @@
 ---
 id: task-security-review-webfetch-clears-its-abort-timeout-
 title: Security review: web_fetch clears its abort timeout immediately after response headers, so an untrusted server can stall body reads or downloads beyond the intended 30 second bound.
-status: ready
+status: done
 priority: p3
 area: security
 summary: web_fetch clears its abort timeout immediately after response headers, so an untrusted server can stall body reads or downloads beyond the intended 30 second bound.
 created_at: 2026-05-26T02:57:24.711Z
-updated_at: 2026-05-26T02:57:24.711Z
+updated_at: 2026-05-26T03:07:20.300Z
 ---
 
 ## Problem
@@ -55,4 +55,8 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `pnpm test src/modules/web-access/web-fetch.test.ts` passed with regression coverage for body-read AbortError and timeout lifetime across body reads, binary cancellation, and `save_to` writes.
+- `pnpm test src/modules/web-access` passed.
+- `pnpm exec biome check src/modules/web-access/web-fetch.ts src/modules/web-access/web-fetch.test.ts` passed.
+- `pnpm typecheck` passed.
+- `pnpm validate-tasks` passed.
