@@ -8,6 +8,12 @@ The empty/thin-queue policy is documented in
 `src/modules/autonomy/AGENTS.md` (`Empty-Queue Loop Shape`). Apply it in
 this order before opening new work:
 
+0. **Close strategic-ready coverage gaps first.** When
+   `inspect-queue.strategicReadyCoverageGap` is `true`, the ready queue is
+   p3-only and the inspect step has already found a required queue-health gap.
+   Do not choose `watchlist-only` or `noop`; promote, decompose, or create a
+   `p0`/`p1`/`p2` ready task with a rationale that explains why any surfaced
+   strategic blocked alternatives could not move.
 1. **Promote or decompose an existing strategic blocked task.** The
    `inspect-queue` step exposes `strategicBlockedAlternatives` — every
    `architecture` / `core` / `modules` / `autonomy` task currently in

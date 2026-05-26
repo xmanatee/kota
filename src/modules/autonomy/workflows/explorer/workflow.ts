@@ -236,7 +236,10 @@ const explorerWorkflow: WorkflowDefinitionInput = {
               const rationale = checkExplorationRationale(
                 ctx.projectDir,
                 ctx.workflow.runDirPath,
-                { actionableCount: queue.actionableCount },
+                {
+                  actionableCount: queue.actionableCount,
+                  strategicReadyCoverageGap: queue.strategicReadyCoverageGap,
+                },
               );
               return `exploration-rationale-ok: decision=${rationale.decision}`;
             },

@@ -1,12 +1,12 @@
 ---
 id: task-make-explorer-handle-strategic-ready-coverage-gaps
 title: Make explorer handle strategic-ready coverage gaps before watchlist-only exits
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Teach explorer to treat a p3-only ready queue as actionable strategic queue work before committing watchlist-only or noop runs.
 created_at: 2026-05-26T20:50:09.597Z
-updated_at: 2026-05-26T20:50:09.597Z
+updated_at: 2026-05-26T21:19:00.000Z
 ---
 
 ## Problem

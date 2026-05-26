@@ -20,6 +20,11 @@
  *                  so the explorer cannot silently ignore a task it could
  *                  have promoted.
  *   watchlist-only — only watchlist updates, no task changes
+ *
+ * `inspect-queue.strategicReadyCoverageGap` is an already-detected queue
+ * health failure. When it is true, a queue-unchanged `noop` or
+ * `watchlist-only` rationale is invalid even if the later coverage check
+ * would also catch the final repo state.
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -182,6 +187,13 @@ export type RationaleCheckOptions = {
    * alternatives.
    */
   actionableCount: number;
+  /**
+   * `inspect-queue.strategicReadyCoverageGap` from the same assessment. A
+   * true value means ready/ is p3-only and no strategic p0/p1/p2 actionable
+   * work exists, so the explorer must change the task queue or fail before
+   * the commit path.
+   */
+  strategicReadyCoverageGap: boolean;
 };
 
 /**
@@ -251,6 +263,18 @@ export function validateExplorationRationale(
     );
   }
 
+  if ((decision === "noop" || decision === "watchlist-only") && taskIdsTouched.length > 0) {
+    throw new Error(
+      `${EXPLORATION_RATIONALE_FILENAME}: decision "${decision}" must leave taskIdsTouched empty. Use "promote", "decompose", or "create-task" when the run changes task state.`,
+    );
+  }
+
+  if (options.strategicReadyCoverageGap && (decision === "noop" || decision === "watchlist-only")) {
+    throw new Error(
+      `${EXPLORATION_RATIONALE_FILENAME}: decision "${decision}" is invalid while inspect-queue.strategicReadyCoverageGap is true. Treat the gap as actionable queue work: promote, decompose, or create a p0/p1/p2 ready task, or fail before commit if no honest action exists.`,
+    );
+  }
+
   if (decision === "create-task") {
     if (taskIdsTouched.length === 0) {
       throw new Error(
@@ -303,6 +327,13 @@ export type ExplorationRationaleQueueContext = {
    * movable strategic alternative".
    */
   actionableCount: number;
+  /**
+   * `inspect-queue.strategicReadyCoverageGap` from the explorer's earlier
+   * code step. Forwarded so the rationale check can reject queue-unchanged
+   * decisions before the later generic coverage check becomes the first
+   * signal.
+   */
+  strategicReadyCoverageGap: boolean;
 };
 
 /**
@@ -312,7 +343,9 @@ export type ExplorationRationaleQueueContext = {
  *
  * The caller passes `queueContext.actionableCount` from the explorer
  * workflow's typed inspect-queue step so the validator can apply the
- * noop+movable gate without re-reading repo state from a second source.
+ * noop+movable gate without re-reading repo state from a second source, and
+ * `strategicReadyCoverageGap` so the same inspect result blocks
+ * queue-unchanged decisions before commit.
  */
 export function checkExplorationRationale(
   projectDir: string,
@@ -338,6 +371,6 @@ export function checkExplorationRationale(
     blockedTaskIds: listBlockedTaskIds(projectDir),
     strategicAlternatives: listStrategicBlockedAlternatives(projectDir),
     actionableCount: queueContext.actionableCount,
+    strategicReadyCoverageGap: queueContext.strategicReadyCoverageGap,
   });
 }
-

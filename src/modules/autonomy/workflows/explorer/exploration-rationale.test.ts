@@ -143,6 +143,7 @@ describe("validateExplorationRationale", () => {
     blockedTaskIds: new Set<string>(["task-existing-block", "task-other-block"]),
     strategicAlternatives: [] as readonly StrategicBlockedSummary[],
     actionableCount: 0,
+    strategicReadyCoverageGap: false,
   };
 
   it("accepts a noop rationale with empty considered list", () => {
@@ -171,6 +172,19 @@ describe("validateExplorationRationale", () => {
     expect(result.decision).toBe("watchlist-only");
   });
 
+  it("accepts watchlist-only when ready work already has strategic coverage", () => {
+    const result = validateExplorationRationale(
+      {
+        decision: "watchlist-only",
+        summary: "Refreshed a watchlist entry while a p1 ready task kept the queue healthy.",
+        blockedAlternativesConsidered: [],
+        taskIdsTouched: [],
+      },
+      { ...baseOptions, actionableCount: 1, strategicReadyCoverageGap: false },
+    );
+    expect(result.decision).toBe("watchlist-only");
+  });
+
   it("rejects unknown decision values", () => {
     expect(() =>
       validateExplorationRationale(
@@ -183,6 +197,48 @@ describe("validateExplorationRationale", () => {
         baseOptions,
       ),
     ).toThrow(/decision must be one of/);
+  });
+
+  it("rejects watchlist-only when the inspect step found a strategic-ready gap", () => {
+    expect(() =>
+      validateExplorationRationale(
+        {
+          decision: "watchlist-only",
+          summary: "Refreshed a watchlist entry but left the p3-only ready queue unchanged.",
+          blockedAlternativesConsidered: [],
+          taskIdsTouched: [],
+        },
+        { ...baseOptions, actionableCount: 1, strategicReadyCoverageGap: true },
+      ),
+    ).toThrow(/strategicReadyCoverageGap is true/);
+  });
+
+  it("rejects noop when the inspect step found a strategic-ready gap", () => {
+    expect(() =>
+      validateExplorationRationale(
+        {
+          decision: "noop",
+          summary: "No external signal changed, but the ready queue was still p3-only.",
+          blockedAlternativesConsidered: [],
+          taskIdsTouched: [],
+        },
+        { ...baseOptions, actionableCount: 1, strategicReadyCoverageGap: true },
+      ),
+    ).toThrow(/strategicReadyCoverageGap is true/);
+  });
+
+  it("rejects task ids on queue-unchanged decisions", () => {
+    expect(() =>
+      validateExplorationRationale(
+        {
+          decision: "watchlist-only",
+          summary: "Claimed a watchlist-only decision while also touching a task.",
+          blockedAlternativesConsidered: [],
+          taskIdsTouched: ["task-new-work"],
+        },
+        baseOptions,
+      ),
+    ).toThrow(/must leave taskIdsTouched empty/);
   });
 
   it("rejects too-short summaries", () => {
@@ -378,7 +434,7 @@ describe("validateExplorationRationale", () => {
 describe("checkExplorationRationale", () => {
   let projectDir: string;
   let runDir: string;
-  const queueContext = { actionableCount: 0 };
+  const queueContext = { actionableCount: 0, strategicReadyCoverageGap: false };
 
   beforeEach(() => {
     projectDir = makeProjectDir();

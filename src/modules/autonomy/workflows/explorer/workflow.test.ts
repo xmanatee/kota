@@ -440,7 +440,10 @@ describe("explorer exploration-rationale repair check", () => {
     return check;
   }
 
-  function makeAssessment(actionableCount: number) {
+  function makeAssessment(
+    actionableCount: number,
+    overrides: { strategicReadyCoverageGap?: boolean } = {},
+  ) {
     return {
       counts: { backlog: 0, ready: actionableCount, doing: 0, blocked: 1, done: 0, dropped: 0 },
       inboxCount: 0,
@@ -450,18 +453,21 @@ describe("explorer exploration-rationale repair check", () => {
       dirty: false,
       needsAttention: actionableCount === 0,
       explorationRefreshDue: true,
-      strategicReadyCoverageGap: false,
+      strategicReadyCoverageGap: overrides.strategicReadyCoverageGap ?? false,
       strategicBlockedAlternatives: [],
     };
   }
 
-  function makeCtx(actionableCount: number): WorkflowStepContext {
+  function makeCtx(
+    actionableCount: number,
+    overrides: { strategicReadyCoverageGap?: boolean } = {},
+  ): WorkflowStepContext {
     return {
       projectDir,
       workflow: { runDirPath: runDir, runId: "test-run", workflowName: "explorer" },
       trigger: { event: "autonomy.queue.empty", payload: {} },
       previousOutput: undefined,
-      stepOutputs: { "inspect-queue": makeAssessment(actionableCount) },
+      stepOutputs: { "inspect-queue": makeAssessment(actionableCount, overrides) },
       stepResults: {},
       stepOutputList: [],
       runTool: vi.fn(),
@@ -567,6 +573,49 @@ describe("explorer exploration-rationale repair check", () => {
     expect(() => check.run(makeCtx(0), {} as never)).toThrow(
       /movable strategic-area blocked alternative uncited/,
     );
+  });
+
+  it("rejects queue-unchanged watchlist-only output when inspect found a strategic-ready gap", async () => {
+    const { listFullRepoTasks } = await import("#modules/repo-tasks/repo-tasks-domain.js");
+    vi.mocked(listFullRepoTasks).mockReturnValue([]);
+
+    writeFileSync(
+      join(runDir, EXPLORATION_RATIONALE_FILENAME),
+      JSON.stringify({
+        decision: "watchlist-only",
+        summary:
+          "Refreshed a watchlist entry but left the one-item p3 ready queue unchanged.",
+        blockedAlternativesConsidered: [],
+        taskIdsTouched: [],
+      }),
+    );
+
+    const check = findExplorationRationaleCheck();
+    if (check.type !== "code") throw new Error("expected code check");
+    expect(() =>
+      check.run(makeCtx(1, { strategicReadyCoverageGap: true }), {} as never),
+    ).toThrow(/strategicReadyCoverageGap is true/);
+  });
+
+  it("accepts watchlist-only output when inspect reports no strategic-ready gap", async () => {
+    const { listFullRepoTasks } = await import("#modules/repo-tasks/repo-tasks-domain.js");
+    vi.mocked(listFullRepoTasks).mockReturnValue([]);
+
+    writeFileSync(
+      join(runDir, EXPLORATION_RATIONALE_FILENAME),
+      JSON.stringify({
+        decision: "watchlist-only",
+        summary:
+          "Refreshed a watchlist entry while the ready queue already had strategic coverage.",
+        blockedAlternativesConsidered: [],
+        taskIdsTouched: [],
+      }),
+    );
+
+    const check = findExplorationRationaleCheck();
+    if (check.type !== "code") throw new Error("expected code check");
+    const result = await check.run(makeCtx(1), {} as never);
+    expect(result).toContain("decision=watchlist-only");
   });
 
   it("does not pass --min-ready 1 to validate-tasks anymore", () => {
