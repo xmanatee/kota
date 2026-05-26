@@ -74,9 +74,12 @@ resources:
     added: "2026-05-17"
     notes: "SWE-agent now points operators at mini-SWE-agent as its simplified successor: a compact coding-agent runtime built around independent bash actions, multiple sandbox backends, and SWE-bench evaluation. Monitor as a peer signal for harness-parity substrate evidence and coding-agent eval ergonomics."
     snapshot:
-      fingerprint: sha256:31c16a30fec81f3c57081e4456311ef9
-      summary: "mini-SWE-agent is a compact bash-only coding-agent runtime; its useful KOTA signal is linear action/observation trajectory evidence, not a replacement for KOTA's typed tool/module model."
-      last_seen_at: "2026-05-17T12:31:58.050Z"
+      fingerprint: sha256:159387e84e15c7b087e323054871c93f
+      summary: "mini-SWE-agent v2 now surfaces ProgramBench support; the relevant KOTA signal is black-box behavior reconstruction under deterministic tests, which opened task-add-a-black-box-behavior-reconstruction-fixture-to."
+      last_seen_at: "2026-05-26T05:48:09.821Z"
+  - url: https://programbench.com/
+    added: "2026-05-26"
+    notes: "ProgramBench is a cleanroom software-engineering benchmark where agents rebuild programs from a reference executable and documentation under behavioral tests. Monitor as an eval-harness signal for black-box behavior discovery, source-lookup shortcut prevention, and holistic coding-agent capability beyond patch-shaped tasks."
   - url: https://github.com/princeton-nlp/SWE-bench
     added: "2026-04-19"
     snapshot:
