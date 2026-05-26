@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -150,5 +150,21 @@ describe("browser lifecycle — authenticated profile", () => {
     await lifecycle.getPage();
     expect(state.capturedContextOptions[0]?.storageState).toBeUndefined();
     await lifecycle.closeBrowser();
+  });
+
+  it("detects a project-local Playwright installation without CommonJS globals", async () => {
+    const lifecycle = await import("./lifecycle.js");
+    const projectDir = join(workDir, "project");
+    const packageDir = join(projectDir, "node_modules", "playwright");
+    mkdirSync(packageDir, { recursive: true });
+    writeFileSync(join(projectDir, "package.json"), '{"name":"fixture"}\n', "utf8");
+    writeFileSync(
+      join(packageDir, "package.json"),
+      '{"name":"playwright","version":"0.0.0","main":"index.js"}\n',
+      "utf8",
+    );
+    writeFileSync(join(packageDir, "index.js"), "module.exports = {};\n", "utf8");
+
+    expect(lifecycle.isPlaywrightAvailable(projectDir)).toBe(true);
   });
 });

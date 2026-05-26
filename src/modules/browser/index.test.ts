@@ -46,6 +46,19 @@ describe("browser module", () => {
     expect(names).toContain("browser_close");
   });
 
+  it("contributes the browser operator command", () => {
+    const commands = mod.commands?.({
+      cwd: process.cwd(),
+      getModuleConfig: vi.fn(() => ({})),
+      callTool: vi.fn(),
+    } as never) ?? [];
+    expect(commands.map((cmd) => cmd.name())).toContain("browser");
+    const browser = commands.find((cmd) => cmd.name() === "browser");
+    expect(browser?.commands.map((cmd) => cmd.name())).toContain(
+      "source-access-report",
+    );
+  });
+
   it("classifies interactive tools as dangerous", () => {
     const tools = Array.isArray(mod.tools) ? mod.tools : [];
     const interactive = tools.filter(
@@ -77,6 +90,7 @@ describe("browser module", () => {
     vi.mocked(isPlaywrightAvailable).mockReturnValue(false);
     const warn = vi.fn();
     const ctx = {
+      cwd: process.cwd(),
       log: { info: vi.fn(), warn, error: vi.fn(), debug: vi.fn() },
       registerCleanupHook: vi.fn(),
       getModuleConfig: vi.fn(() => ({})),
@@ -91,6 +105,7 @@ describe("browser module", () => {
     vi.mocked(isPlaywrightAvailable).mockReturnValue(true);
     const warn = vi.fn();
     const ctx = {
+      cwd: process.cwd(),
       log: { info: vi.fn(), warn, error: vi.fn(), debug: vi.fn() },
       registerCleanupHook: vi.fn(),
       getModuleConfig: vi.fn(() => ({})),
@@ -102,6 +117,7 @@ describe("browser module", () => {
   it("registers cleanup hook on load", () => {
     const registerCleanupHook = vi.fn();
     const ctx = {
+      cwd: process.cwd(),
       log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
       registerCleanupHook,
       getModuleConfig: vi.fn(() => ({})),

@@ -65,6 +65,21 @@ All three content-ingest tools are included in
 runs see the standard "BEGIN UNTRUSTED CONTENT" annotation on suspicious
 payloads.
 
+## Source-Access Capability Reports
+
+Operators can run `kota browser source-access-report` to produce the redacted
+capability report used for auth-walled research unblock evidence. Pass
+`--article-url` for `rendered_article_read`, `--x-url` for `x_post_read`, and
+`--run-id auth-walled-source-access-live` when producing the canonical live
+capture under `.kota/runs/auth-walled-source-access-live/`.
+
+The command writes `source-access-report.json`, `source-access-summary.md`, and
+`source-access-transcript.txt`. It records Playwright/profile readiness,
+invokes the existing scoped reader tool names through tool middleware, and
+persists only redacted messages and short sanitized excerpts. Do not add raw
+cookies, localStorage, bearer tokens, storage-state JSON, or full source bodies
+to these artifacts.
+
 ## Failure Modes
 
 - Missing Playwright → the tool runner throws the same "Playwright is not

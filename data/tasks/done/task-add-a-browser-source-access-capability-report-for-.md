@@ -1,12 +1,12 @@
 ---
 id: task-add-a-browser-source-access-capability-report-for-
 title: Add a browser source-access capability report for authenticated research unblock
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a module-owned readiness/report surface that verifies Playwright and browser profile wiring, exercises rendered/X source reads through the existing tools, and writes the redacted capability report required to unblock auth-walled research tasks.
 created_at: 2026-05-26T04:49:45.211Z
-updated_at: 2026-05-26T04:49:45.211Z
+updated_at: 2026-05-26T05:03:00Z
 ---
 
 ## Problem
@@ -132,3 +132,15 @@ research can progress without guessing or ad-hoc evidence assembly.
 - `pnpm test` invocation for the affected browser/report tests.
 - `pnpm kota validate-queue` or equivalent task validation showing the updated
   ready task and clarified blocked task still pass.
+
+## Completion Evidence
+
+- Browser report surface: `kota browser source-access-report`.
+- No-capability transcript:
+  `.kota/runs/2026-05-26T04-51-52-278Z-builder-vdw5ve/no-capability-source-access/source-access-transcript.txt`.
+- Mock successful report:
+  `.kota/runs/2026-05-26T04-51-52-278Z-builder-vdw5ve/mock-success-source-access/source-access-report.json`.
+- Focused tests:
+  `pnpm test src/modules/browser/cli.test.ts src/modules/browser/source-access-report.test.ts src/modules/browser/index.test.ts`.
+- Typecheck/build: `pnpm typecheck`; `pnpm build`.
+- Queue validation: `pnpm validate-tasks`.

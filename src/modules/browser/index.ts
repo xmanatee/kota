@@ -1,5 +1,10 @@
 import type { KotaModule, ModuleContext, ModuleRuntimeContext, ToolDef } from "#core/modules/module-types.js";
 import { daemonWriteEffect, networkDestructiveEffect } from "#core/tools/effect.js";
+import { buildBrowserCommand } from "./cli.js";
+import {
+  type BrowserModuleConfig,
+  resolveBrowserProfileConfig,
+} from "./config.js";
 import {
   type BrowserProfileOptions,
   closeBrowser,
@@ -27,31 +32,11 @@ import {
   xPostReadTool,
 } from "./tools.js";
 
-export type BrowserModuleConfig = {
-  /**
-   * Path to a Playwright `storageState` JSON file. When present, the
-   * browser context is created with this persisted cookie/localStorage
-   * snapshot so authenticated sites recognise the session. Relative paths
-   * are resolved against the project directory. The file is optional —
-   * absence falls back to an ephemeral context.
-   */
-  storageStatePath?: string;
-  /**
-   * When true, persist the current context's storage state back to
-   * `storageStatePath` on idle close. Operators can use this to capture
-   * a fresh login (one-time run) before pinning the file in their
-   * secrets/config surface.
-   */
-  persistProfile?: boolean;
-};
+export type { BrowserModuleConfig } from "./config.js";
 
 function resolveProfile(ctx: ModuleContext): BrowserProfileOptions {
   const raw = ctx.getModuleConfig<BrowserModuleConfig>() ?? {};
-  const storageStatePath = typeof raw.storageStatePath === "string" && raw.storageStatePath.length > 0
-    ? raw.storageStatePath
-    : null;
-  const persist = Boolean(raw.persistProfile);
-  return { storageStatePath, persist };
+  return resolveBrowserProfileConfig(raw);
 }
 
 function buildTools(): ToolDef[] {
@@ -119,9 +104,10 @@ const browserModule: KotaModule = {
   description:
     "Headless browser automation tools powered by Playwright: navigation, interaction, screenshots, JS evaluation, and scoped content-ingest tools for auth-walled / JS-gated sources",
   tools: buildTools(),
+  commands: (ctx: ModuleContext) => [buildBrowserCommand(ctx)],
 
   onLoad(ctx: ModuleRuntimeContext) {
-    if (!isPlaywrightAvailable()) {
+    if (!isPlaywrightAvailable(ctx.cwd)) {
       ctx.log.warn(
         "Playwright is not installed — browser tools will fail at runtime. " +
           "Install with: pnpm add playwright",

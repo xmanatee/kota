@@ -1,5 +1,7 @@
 import { existsSync } from "node:fs";
-import { dirname, isAbsolute, resolve } from "node:path";
+import { createRequire } from "node:module";
+import { dirname, resolve } from "node:path";
+import { resolveStorageStatePath } from "./config.js";
 import {
   loadPlaywrightModule,
   type PlaywrightBrowser,
@@ -9,6 +11,7 @@ import {
 } from "./playwright-loader.js";
 
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+const requireFromHere = createRequire(import.meta.url);
 
 let pw: PlaywrightModule | null = null;
 let browser: PlaywrightBrowser | null = null;
@@ -60,9 +63,8 @@ function resetIdleTimer(): void {
 function resolveStoragePath(projectDir: string | null): string | null {
   const configured = profile.storageStatePath;
   if (!configured) return null;
-  if (isAbsolute(configured)) return configured;
   const base = projectDir ?? process.cwd();
-  return resolve(base, configured);
+  return resolveStorageStatePath(configured, base);
 }
 
 async function ensureContext(): Promise<PlaywrightContext> {
@@ -131,9 +133,17 @@ export async function closeBrowser(): Promise<void> {
   pw = null;
 }
 
-export function isPlaywrightAvailable(): boolean {
+export function isPlaywrightAvailable(projectDir: string = process.cwd()): boolean {
   try {
-    require.resolve("playwright");
+    const requireFromProject = createRequire(resolve(projectDir, "package.json"));
+    requireFromProject.resolve("playwright");
+    return true;
+  } catch {
+    // Fall back to the module install location below.
+  }
+
+  try {
+    requireFromHere.resolve("playwright");
     return true;
   } catch {
     return false;
