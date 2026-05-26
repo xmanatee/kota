@@ -18,6 +18,7 @@ import type {
 } from "#core/workflow/step-input-control-flow.js";
 import type { WorkflowStepInput } from "#core/workflow/step-input-types.js";
 import { resolveValue } from "#core/workflow/steps/step-executor.js";
+import type { WorkflowStepOutput } from "#core/workflow/steps/step-executor-agent.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 
 export type HarnessStepResult = {
@@ -57,6 +58,12 @@ export type HarnessTrigger = {
   payload?: Record<string, unknown>;
 };
 
+type StepMockLiteral = WorkflowStepOutput | readonly WorkflowStepOutput[];
+type StepMockResolver = (
+  context: WorkflowStepContext,
+) => StepMockLiteral | Promise<StepMockLiteral>;
+type StepMockValue = StepMockLiteral | StepMockResolver;
+
 export type HarnessOptions = {
   trigger?: HarnessTrigger;
   /**
@@ -69,7 +76,7 @@ export type HarnessOptions = {
    * Agent steps require a mock; a missing mock throws a clear error.
    * Tool steps use the mock when provided; otherwise context.runTool is called.
    */
-  stepMocks?: Record<string, unknown>;
+  stepMocks?: { [stepId: string]: StepMockValue };
   /**
    * Override the runtime state returned by context.readRuntimeState().
    */
@@ -144,6 +151,14 @@ function validateWorkflowStepOutput<T>(
     const cause = error instanceof Error ? error : new Error(String(error));
     throw new WorkflowStepOutputValidationError(step.id, "run", cause);
   }
+}
+
+async function resolveStepMock(
+  mock: StepMockValue,
+  context: WorkflowStepContext,
+): Promise<StepMockLiteral> {
+  if (typeof mock === "function") return await mock(context);
+  return mock;
 }
 
 /**
@@ -400,7 +415,10 @@ export class WorkflowTestHarness {
                 if (!(innerStep.id in stepMocks)) {
                   throw new Error(`Agent step "${innerStep.id}" requires a mock. Add stepMocks["${innerStep.id}"] to HarnessOptions.`);
                 }
-                innerOutput = validateWorkflowStepOutput(innerStep, stepMocks[innerStep.id]);
+                innerOutput = validateWorkflowStepOutput(
+                  innerStep,
+                  await resolveStepMock(stepMocks[innerStep.id], iterContext),
+                );
               } else {
                 const innerCode = innerStep as WorkflowCodeStepInput;
                 const innerRaw = await innerCode.run(iterContext);
@@ -519,10 +537,13 @@ export class WorkflowTestHarness {
               `Agent step "${step.id}" requires a mock. Add stepMocks["${step.id}"] to HarnessOptions.`,
             );
           }
-          output = validateWorkflowStepOutput(step, stepMocks[step.id]);
+          output = validateWorkflowStepOutput(
+            step,
+            await resolveStepMock(stepMocks[step.id], context),
+          );
         } else if (step.type === "tool") {
           if (step.id in stepMocks) {
-            output = stepMocks[step.id];
+            output = await resolveStepMock(stepMocks[step.id], context);
           } else if (this.#options.contextOverrides?.runTool) {
             const input =
               typeof step.input === "function"
@@ -554,7 +575,7 @@ export class WorkflowTestHarness {
           };
         } else if (step.type === "trigger") {
           if (step.id in stepMocks) {
-            output = stepMocks[step.id];
+            output = await resolveStepMock(stepMocks[step.id], context);
           } else if (this.#options.contextOverrides?.triggerWorkflow) {
             const payload =
               typeof step.payload === "function"
@@ -571,7 +592,7 @@ export class WorkflowTestHarness {
             );
           }
         } else if (step.type === "approval") {
-          const mock = stepMocks[step.id];
+          const mock = await resolveStepMock(stepMocks[step.id], context);
           if (mock !== undefined && mock !== null && (mock as { approved?: unknown }).approved === false) {
             const reason = (mock as { reason?: string }).reason;
             throw new Error(
@@ -593,7 +614,7 @@ export class WorkflowTestHarness {
                 `with an AwaitEventStepOutput shape ({ kind: "event", ... } or { kind: "timeout", ... }).`,
             );
           }
-          output = stepMocks[step.id];
+          output = await resolveStepMock(stepMocks[step.id], context);
         }
       } catch (err) {
         stepError = err instanceof Error ? err.message : String(err);

@@ -14,7 +14,7 @@ import type { KotaConfig } from "#core/config/config.js";
 import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
 import type { ToolResult } from "#core/tools/index.js";
 import { ToolTelemetry } from "#core/tools/tool-telemetry.js";
-import type { WorkflowRunMetadata } from "../run-types.js";
+import type { WorkflowRunMetadata, WorkflowStepContext } from "../run-types.js";
 import {
   AgentStepIdleTimeoutError,
   createStepIdleTimeoutMonitor,
@@ -124,6 +124,7 @@ export async function executeAgentStep(
   writeInputs: (systemPromptAppend: string | undefined, prompt: string) => void,
   agentConfig: AgentStepConfig,
   priorStepOutputs: Record<string, unknown> = {},
+  foreach?: WorkflowStepContext["foreach"],
 ): Promise<AgentStepResult> {
   const resolvedHarness = resolveAgentHarness(step.harness);
   const resolvedModel = resolveAgentModel(step, agentConfig);
@@ -137,6 +138,7 @@ export async function executeAgentStep(
     agentConfig.projectDir,
     priorStepOutputs,
     resolvedHarness.askOwnerToolName,
+    foreach,
   );
   const promptDir = dirname(resolve(step.moduleRoot, step.promptPath));
   const contextStartDir = resolvePromptContextStartDir(promptDir, agentConfig.projectDir);

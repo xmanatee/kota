@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { detectInjection } from "#core/util/injection-detector.js";
-import type { WorkflowRunMetadata } from "../run-types.js";
+import type { WorkflowRunMetadata, WorkflowStepContext } from "../run-types.js";
 import type { WorkflowAgentStep } from "../step-types.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 import type { WorkflowDefinition } from "../types.js";
@@ -70,6 +70,16 @@ function buildUntrustedTriggerPayloadBlock(trigger: WorkflowRunTrigger): string[
   ];
 }
 
+function buildForeachItemBlock(foreach: WorkflowStepContext["foreach"]): string[] {
+  if (!foreach || Object.keys(foreach).length === 0) return [];
+  return [
+    "",
+    "Foreach item:",
+    "The next block is trusted workflow-selected data for this iteration.",
+    ...fencedJsonBlock(JSON.stringify(foreach, null, 2)),
+  ];
+}
+
 export function buildAgentPrompt(
   definition: WorkflowDefinition,
   step: WorkflowAgentStep,
@@ -78,6 +88,7 @@ export function buildAgentPrompt(
   projectDir: string,
   priorStepOutputs: Record<string, unknown>,
   askOwnerToolName: string | null,
+  foreach?: WorkflowStepContext["foreach"],
 ): { systemPromptAppend: string; prompt: string } {
   const promptBody = readFileSync(
     resolve(step.moduleRoot, step.promptPath),
@@ -100,6 +111,7 @@ export function buildAgentPrompt(
   if (triggerPayloadKeys.length > 0) {
     lines.push(...buildUntrustedTriggerPayloadBlock(trigger));
   }
+  lines.push(...buildForeachItemBlock(foreach));
   if (exposedOutputs.length > 0) {
     lines.push("", "Exposed step outputs:");
     for (const [id, output] of exposedOutputs) {

@@ -1,12 +1,12 @@
 ---
 id: task-run-repo-local-ai-check-files-through-the-workflow
 title: Run repo-local AI check files through the workflow system
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Discover repository-local AI check files and execute them as workflow-backed PR review checks instead of maintaining a parallel review/check runner.
 created_at: 2026-05-26T22:11:11.951Z
-updated_at: 2026-05-26T22:11:11.951Z
+updated_at: 2026-05-26T23:31:02Z
 ---
 
 ## Problem

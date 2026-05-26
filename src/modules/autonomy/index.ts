@@ -88,6 +88,7 @@ const autonomyModule: KotaModule = {
     "github-webhook",
     "github",
     "inbound-signals",
+    "repo-ai-checks",
   ],
   workflows: async () => await discoverAutonomyWorkflowDefinitions(),
   agents: async () => await discoverAutonomyAgents(),

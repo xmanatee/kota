@@ -184,6 +184,7 @@ export async function executeStep(
       writeInputs,
       agentConfig,
       context.stepOutputs,
+      context.foreach,
     );
     if (!step.repairLoop) return result;
     return runAgentRepairLoop(step, result, context, metadata, abortController, appendMessage, agentConfig);
