@@ -478,3 +478,6 @@ resources:
       fingerprint: sha256:414dee148ffdf253d9cf7db1b5cff8d0
       summary: "SWE-Chain reinforces KOTA's just-completed staged package-upgrade harness-parity scenario: release-level chained upgrades need inherited working-tree evidence, and no duplicate task is needed."
       last_seen_at: "2026-05-19T23:01:14.777Z"
+  - url: https://arxiv.org/abs/2605.13139
+    added: "2026-05-26"
+    notes: "SWE-Cycle evaluates code agents across environment reconstruction, implementation, verification-test generation, and a bare-repository FullCycle task. Monitor as an eval-harness signal for setup-to-tests-to-implementation dependencies, artifact-graded verification, and avoiding preconfigured benchmark environments."
