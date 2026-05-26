@@ -7,6 +7,7 @@ import {
   resolveAgentHarness,
   routeKotaToolControlOptions,
   runAgentHarness,
+  type TrajectoryDiagnosticsMetadata,
 } from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
@@ -29,6 +30,7 @@ import {
   diffMutatedPaths,
   findWriteScopeViolations,
   listWorkflowMutatedPaths,
+  tryListWorkflowMutatedPaths,
   writeWriteScopeViolationArtifact,
 } from "./agent-write-scope.js";
 import { writeHarnessCapabilityArtifact } from "./step-executor-agent-capability.js";
@@ -42,6 +44,7 @@ import {
   writeToolTelemetryArtifact,
 } from "./step-executor-agent-telemetry.js";
 import { resolveAgentToolScope } from "./step-executor-agent-tool-scope.js";
+import { writeAgentTrajectoryDiagnosticsArtifact } from "./step-executor-agent-trajectory-diagnostics.js";
 import {
   AgentStepRuntimeError,
   classifyAgentRuntimeFailure,
@@ -60,6 +63,9 @@ export type AgentStepResult = {
   output: WorkflowStepOutput;
   harness: string;
   model: string;
+  trajectoryDiagnostics: TrajectoryDiagnosticsMetadata;
+  trajectoryMessages: readonly KotaAgentMessage[];
+  preStepMutatedPaths: readonly string[];
 };
 
 export type AgentStepConfig = {
@@ -136,6 +142,9 @@ export async function executeAgentStep(
   const agentDef = step.agentName && agentConfig.resolveAgentDef
     ? agentConfig.resolveAgentDef(step.agentName)
     : undefined;
+  const scopedAgent = agentDef && step.agentName
+    ? { agentName: step.agentName, writeScope: agentDef.writeScope }
+    : undefined;
   const skillsPrompt = agentDef?.skills && agentConfig.resolveSkillsPrompt
     ? agentConfig.resolveSkillsPrompt(agentDef.skills, step.agentName)
     : undefined;
@@ -157,7 +166,9 @@ export async function executeAgentStep(
 
   // Snapshot before run so post-step writeScope diff excludes paths another
   // step or pre-existing dirt mutated.
-  const preStepMutatedPaths = agentDef && step.agentName ? listWorkflowMutatedPaths(agentConfig.projectDir) : undefined;
+  const preStepMutatedPaths = scopedAgent
+    ? listWorkflowMutatedPaths(agentConfig.projectDir)
+    : (tryListWorkflowMutatedPaths(agentConfig.projectDir) ?? []);
   const bufferAgentMessages = step.validate !== undefined;
   let successfulAttemptMessages: KotaAgentMessage[] = [];
 
@@ -168,6 +179,7 @@ export async function executeAgentStep(
     abortController.signal.addEventListener("abort", forwardAbort, { once: true });
     let idleMonitor: ReturnType<typeof createStepIdleTimeoutMonitor> | undefined;
     const captureMessage = (message: KotaAgentMessage) => {
+      attemptMessages.push(message);
       if (idleMonitor !== undefined && isAgentProgressMessage(message)) {
         idleMonitor.reportProgress({
           kind: "agent-message",
@@ -175,10 +187,9 @@ export async function executeAgentStep(
         });
       }
       if (bufferAgentMessages) {
-        attemptMessages.push(message);
-      } else {
-        appendMessage(message);
+        return;
       }
+      appendMessage(message);
     };
     const trackedMessage = resolvedHarness.emitsAgentMessageStream
       ? makeToolTelemetryTracker(stepTelemetry, captureMessage)
@@ -255,7 +266,7 @@ export async function executeAgentStep(
         try {
           const output = extractJsonOutput(step.id, result.text, step.outputSchema) as WorkflowStepOutput;
           const validated = validateAgentStepOutput(step, output);
-          if (bufferAgentMessages) successfulAttemptMessages = attemptMessages;
+          successfulAttemptMessages = attemptMessages;
           return validated;
         } catch (err) {
           if (err instanceof JsonSchemaValidationError) lastSchemaError = err.validationDetail;
@@ -268,7 +279,7 @@ export async function executeAgentStep(
         outputTokens: result.outputTokens, subtype: result.subtype,
       };
       const validated = validateAgentStepOutput(step, output);
-      if (bufferAgentMessages) successfulAttemptMessages = attemptMessages;
+      successfulAttemptMessages = attemptMessages;
       return validated;
     } catch (error) {
       if (error instanceof AgentStepIdleTimeoutError) throw error;
@@ -317,18 +328,34 @@ export async function executeAgentStep(
     writeToolTelemetryArtifact(step.id, metadata, agentConfig.projectDir, stepTelemetry);
   }
 
+  const postStepMutatedPaths = scopedAgent
+    ? listWorkflowMutatedPaths(agentConfig.projectDir)
+    : (tryListWorkflowMutatedPaths(agentConfig.projectDir) ?? []);
+  const stepMutatedPaths = diffMutatedPaths(
+    preStepMutatedPaths,
+    postStepMutatedPaths,
+  );
+  const trajectoryDiagnostics = writeAgentTrajectoryDiagnosticsArtifact({
+    stepId: step.id,
+    runDir: metadata.runDir,
+    projectDir: agentConfig.projectDir,
+    harness: resolvedHarness,
+    messages: successfulAttemptMessages,
+    changedFiles: stepMutatedPaths,
+  });
+
   // Whole-step writeScope contract: pre/post diff so concurrent or prior-step
   // writes do not contaminate attribution; out-of-scope writes fail the step.
-  if (agentDef && step.agentName && preStepMutatedPaths !== undefined) {
+  if (scopedAgent) {
     const violations = findWriteScopeViolations(
-      diffMutatedPaths(preStepMutatedPaths, listWorkflowMutatedPaths(agentConfig.projectDir)),
-      agentDef.writeScope,
+      stepMutatedPaths,
+      scopedAgent.writeScope,
     );
     if (violations.length > 0) {
       const violationCtx = {
         stepId: step.id,
-        agentName: step.agentName,
-        scope: agentDef.writeScope,
+        agentName: scopedAgent.agentName,
+        scope: scopedAgent.writeScope,
         violations,
       };
       writeWriteScopeViolationArtifact({ ...violationCtx, metadata, projectDir: agentConfig.projectDir });
@@ -336,5 +363,12 @@ export async function executeAgentStep(
     }
   }
 
-  return { output, harness: resolvedHarness.name, model: resolvedModel };
+  return {
+    output,
+    harness: resolvedHarness.name,
+    model: resolvedModel,
+    trajectoryDiagnostics,
+    trajectoryMessages: successfulAttemptMessages,
+    preStepMutatedPaths,
+  };
 }

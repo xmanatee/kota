@@ -45,9 +45,10 @@ Per harness run the module writes:
   calls, tool results, status frames, and final result frames; oversized tool
   results are bounded with an explicit truncation marker.
 - `trajectory-diagnostics.json` — deterministic advisory process-quality
-  warnings derived from the structured trajectory frames, such as missing
-  post-edit verification, blind failing-command retries, edits after a
-  passing verification, and missing frames from a streaming-capable harness.
+  warnings from the shared core `KotaAgentMessage` diagnostics helper, such
+  as missing post-edit verification, blind failing-command retries, edits
+  after a passing verification, and missing frames from a streaming-capable
+  harness.
 - `diff.patch` — `git diff --no-index` output against the scenario's
   `initial/` tree.
 - `verification.json` — command, timeout, exit status, and tail of combined

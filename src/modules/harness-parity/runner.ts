@@ -693,6 +693,7 @@ function writeTrajectoryArtifacts(args: {
     messages: args.messages,
     changedFiles: args.changedFiles,
     verificationCommand: args.verification.command,
+    verificationCommandDetailLabel: "scenarioVerification",
   });
   writeFileSync(diagnosticsPath, JSON.stringify(diagnosticsArtifact, null, 2));
   const trajectoryDiagnostics = trajectoryDiagnosticsMetadata(

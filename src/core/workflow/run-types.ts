@@ -1,3 +1,4 @@
+import type { TrajectoryDiagnosticsMetadata } from "#core/agent-harness/index.js";
 import type { ToolResult } from "#core/tools/index.js";
 import type { WorkflowStepProgressReporter } from "./step-idle-timeout.js";
 import type { WorkflowAgentStep, WorkflowStep } from "./step-types.js";
@@ -131,6 +132,11 @@ export type WorkflowStepResult = {
    * override. Absent on non-agent steps.
    */
   model?: string;
+  /**
+   * Agent-step only. Compact advisory process-quality diagnostic counts and
+   * artifact path for the KOTA-native message stream.
+   */
+  trajectoryDiagnostics?: TrajectoryDiagnosticsMetadata;
 };
 
 export type WorkflowStepContext = {

@@ -1,12 +1,12 @@
 ---
 id: task-write-trajectory-quality-diagnostics-for-workflow-
 title: Write trajectory-quality diagnostics for workflow agent steps
-status: ready
+status: done
 priority: p2
 area: core
 summary: Reuse KOTA-native agent message streams to write deterministic process-quality diagnostics beside normal workflow agent-step artifacts, so builder, explorer, critic, and repair runs expose lucky-pass warnings without requiring a harness-parity run.
 created_at: 2026-05-26T03:34:33.853Z
-updated_at: 2026-05-26T03:34:33.853Z
+updated_at: 2026-05-26T03:54:00.000Z
 ---
 
 ## Problem
@@ -129,14 +129,19 @@ typed artifact and predicate model.
 
 ## Acceptance Evidence
 
-- Focused test transcript under `.kota/runs/<run-id>/` for workflow
-  agent-step diagnostic artifact coverage, for example
-  `pnpm test src/core/workflow/steps/step-executor-agent.test.ts src/core/workflow/run-executor.test.ts`.
-- Focused test transcript showing harness-parity diagnostics still pass, for
-  example
-  `pnpm test src/modules/harness-parity/trajectory-diagnostics.test.ts src/modules/harness-parity/runner.test.ts`.
-- Run artifact sample under `.kota/runs/<run-id>/` showing a
-  `steps/<step-id>.trajectory-diagnostics.json` file for at least one
-  successful stream-capable workflow agent step.
-- Diff review shows no raw prompt text, full tool output, secrets, or
-  provider-private config in the new diagnostics artifact.
+- Workflow agent-step diagnostic transcript:
+  `.kota/runs/2026-05-26T03-40-41-420Z-builder-xl4wwh/workflow-diagnostics-test-transcript.txt`
+  (`pnpm test src/core/workflow/steps/step-executor-agent-trajectory-diagnostics.test.ts
+  src/core/workflow/run-executor.test.ts`).
+- Harness-parity diagnostic transcript:
+  `.kota/runs/2026-05-26T03-40-41-420Z-builder-xl4wwh/harness-parity-diagnostics-test-transcript.txt`
+  (`pnpm test src/modules/harness-parity/trajectory-diagnostics.test.ts
+  src/modules/harness-parity/runner.test.ts`).
+- Sample workflow diagnostic artifact:
+  `.kota/runs/2026-05-26T03-40-41-420Z-builder-xl4wwh/steps/sample-success.trajectory-diagnostics.json`.
+- Static gates passed: `pnpm lint`, `pnpm typecheck`,
+  `pnpm test src/strict-types-policy.integration.test.ts`, and
+  `pnpm test src/task-files.test.ts`.
+- Diff review shows the diagnostic artifact records bounded warning details
+  only: counts, warning codes, frame indexes, concise command summaries, and
+  artifact paths.

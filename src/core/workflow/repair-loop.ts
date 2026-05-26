@@ -15,11 +15,16 @@ import {
   isAgentProgressMessage,
 } from "./step-idle-timeout.js";
 import type { WorkflowAgentStep } from "./step-types.js";
+import {
+  diffMutatedPaths,
+  tryListWorkflowMutatedPaths,
+} from "./steps/agent-write-scope.js";
 import type { AgentStepConfig, AgentStepResult } from "./steps/step-executor-agent.js";
 import {
   resolveAgentModel,
   resolvePromptContextStartDir,
 } from "./steps/step-executor-agent.js";
+import { writeAgentTrajectoryDiagnosticsArtifact } from "./steps/step-executor-agent-trajectory-diagnostics.js";
 import {
   AgentStepRuntimeError,
   classifyAgentRuntimeFailure,
@@ -283,12 +288,31 @@ export async function runAgentRepairLoop(
   let totalCostUsd = typeof base.totalCostUsd === "number" ? base.totalCostUsd : 0;
   let lastContent = typeof base.content === "string" ? base.content : "";
   let warnings = [] as RepairCheckResult[];
+  const trajectoryMessages = [...initialResult.trajectoryMessages];
+  const resolvedHarness = resolveAgentHarness(step.harness);
 
-  const wrap = (output: Record<string, unknown>): AgentStepResult => ({
-    output,
-    harness: initialResult.harness,
-    model: initialResult.model,
-  });
+  const wrap = (output: Record<string, unknown>): AgentStepResult => {
+    const changedFiles = diffMutatedPaths(
+      initialResult.preStepMutatedPaths,
+      tryListWorkflowMutatedPaths(context.projectDir) ?? [],
+    );
+    const trajectoryDiagnostics = writeAgentTrajectoryDiagnosticsArtifact({
+      stepId: step.id,
+      runDir: context.workflow.runDir,
+      projectDir: context.projectDir,
+      harness: resolvedHarness,
+      messages: trajectoryMessages,
+      changedFiles,
+    });
+    return {
+      output,
+      harness: initialResult.harness,
+      model: initialResult.model,
+      trajectoryDiagnostics,
+      trajectoryMessages,
+      preStepMutatedPaths: initialResult.preStepMutatedPaths,
+    };
+  };
 
   if (abortController.signal.aborted) {
     return wrap({ ...base, content: lastContent, turns: totalTurns, totalCostUsd, repairIterations: iterations, repairWarnings: warnings });
@@ -304,11 +328,15 @@ export async function runAgentRepairLoop(
     const iteration: RepairIteration = { attempt, failures };
 
     const repairPrompt = buildRepairPrompt(attempt, maxRepairAttempts, failures, step, context.workflow.runDirPath);
+    const appendRepairMessage = (message: KotaAgentMessage) => {
+      trajectoryMessages.push(message);
+      appendMessage(message);
+    };
     const repairResult = await executeRepairAgentIteration(
       step,
       repairPrompt,
       abortController,
-      appendMessage,
+      appendRepairMessage,
       agentConfig,
     );
 

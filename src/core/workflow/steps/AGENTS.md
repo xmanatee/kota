@@ -26,6 +26,9 @@ writeScope contract; everything else is a phase file:
   `<runDir>/steps/<stepId>.harness-capability.json` artifact.
 - `step-executor-agent-telemetry.ts` — tool-telemetry tracker and the
   `<runDir>/steps/<stepId>.tool-telemetry.json` artifact.
+- `step-executor-agent-trajectory-diagnostics.ts` — advisory
+  `<runDir>/steps/<stepId>.trajectory-diagnostics.json` process-quality
+  artifact derived from KOTA-native message frames.
 - `step-executor-agent-tool-scope.ts` — autonomy-mode → allowed/disallowed
   tool decisions (autonomous, supervised, passive).
 - `step-executor-agent-json.ts` — fenced-block extraction,

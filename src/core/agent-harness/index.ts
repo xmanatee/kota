@@ -104,6 +104,19 @@ export {
   shouldRouteKotaToolControl,
 } from "./runner.js";
 export type {
+  TrajectoryDiagnostic,
+  TrajectoryDiagnosticCode,
+  TrajectoryDiagnosticsArtifact,
+  TrajectoryDiagnosticsCounts,
+  TrajectoryDiagnosticsMetadata,
+} from "./trajectory-diagnostics.js";
+export {
+  aggregateTrajectoryDiagnosticsMetadata,
+  buildTrajectoryDiagnosticsArtifact,
+  TRAJECTORY_DIAGNOSTICS_ARTIFACT_NAME,
+  trajectoryDiagnosticsMetadata,
+} from "./trajectory-diagnostics.js";
+export type {
   AgentAskOwnerOptions,
   AgentCanUseTool,
   AgentCanUseToolContext,

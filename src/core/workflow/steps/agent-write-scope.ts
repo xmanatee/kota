@@ -63,6 +63,16 @@ export function listWorkflowMutatedPaths(projectDir: string): string[] {
   return [...paths].sort();
 }
 
+export function tryListWorkflowMutatedPaths(
+  projectDir: string,
+): string[] | undefined {
+  try {
+    return listWorkflowMutatedPaths(projectDir);
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Attribute only paths this step actually mutated.
  *

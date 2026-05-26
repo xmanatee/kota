@@ -318,7 +318,13 @@ export async function executeWorkflowStep(
       ...(stepCostUsd != null ? { costUsd: stepCostUsd } : {}),
       output,
       ...(toolCalls != null ? { toolCalls } : {}),
-      ...(agentResult ? { harness: agentResult.harness, model: agentResult.model } : {}),
+      ...(agentResult
+        ? {
+            harness: agentResult.harness,
+            model: agentResult.model,
+            trajectoryDiagnostics: agentResult.trajectoryDiagnostics,
+          }
+        : {}),
     };
     run.recordStep(completed);
     acc.stepOutputsById[step.id] = output;
