@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "workflowName": "builder",
+  "stepId": "build",
+  "sourceRunId": "2026-05-26T19-29-17-202Z-builder-9ao2vd",
+  "response": {
+    "text": "Full-cycle fixture task completed. The bare project now has package metadata, a runnable pnpm test command, verification tests for the documented normalization cases, a corrected implementation, task state moved to done, and run-directory success evidence plus commit message artifacts.",
+    "subtype": "success",
+    "turns": 1,
+    "totalCostUsd": 0,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "sessionId": "builder-bare-repo-full-cycle-replay"
+  },
+  "fileOperations": [
+    {
+      "op": "delete",
+      "path": "data/tasks/ready/task-repair-project-code-full-cycle.md"
+    },
+    {
+      "op": "write",
+      "path": "data/tasks/done/task-repair-project-code-full-cycle.md",
+      "content": "---\nid: task-repair-project-code-full-cycle\ntitle: Repair project-code normalization with runnable verification tests\nstatus: done\npriority: p2\narea: eval-harness\nsummary: Reconstruct the missing Node package test surface, add verification tests for the documented normalization behavior, and fix the seeded implementation bug.\ncreated_at: 2026-05-26T00:00:00.000Z\nupdated_at: 2026-05-26T01:00:00.000Z\n---\n\n## Problem\n\nThis repository is intentionally bare. It has implementation source, a local\nbehavior checker, and docs, but no package metadata or runnable test command.\n`src/project-code.mjs` also mishandles punctuation separators and empty labels.\n\nThe task is complete only when the project can run its own tests locally and\nthose tests would have failed on the seeded implementation.\n\n## Desired Outcome\n\nReconstruct the minimal runnable Node package setup, add verification tests,\nand fix `normalizeProjectCode(input)` according to `docs/project-code.md`.\n\nUse this command as the local verification command:\n\n```sh\npnpm test\n```\n\nThe package test script must be exactly:\n\n```json\n\"test\": \"node --test test/project-code.test.mjs\"\n```\n\n## Constraints\n\n- Keep the project dependency-free; use Node's built-in `node:test` and\n  `node:assert/strict`.\n- Only change `package.json`, optional `pnpm-lock.yaml`,\n  `src/project-code.mjs`, `test/project-code.test.mjs`, and this task's state.\n- Do not edit `scripts/check-behavior.mjs`, docs, fixture metadata, or any\n  harness code.\n- Do not use network access, external services, Docker, or platform-specific\n  assumptions.\n- Do not commit from the agent step; the workflow commit step handles that.\n\n## Done When\n\n- `pnpm test` exits successfully.\n- `node scripts/check-behavior.mjs --max-failures 0 --require-tests` exits\n  successfully.\n- `test/project-code.test.mjs` contains `KOTA_FULL_CYCLE_VERIFICATION` and\n  verifies the required examples from `docs/project-code.md`.\n- `src/project-code.mjs` handles punctuation separators and empty labels as\n  documented.\n- This task has moved from `data/tasks/ready/` to `data/tasks/done/`.\n\n## Acceptance Evidence\n\n- Command output from `pnpm test`.\n- Command output from\n  `node scripts/check-behavior.mjs --max-failures 0 --require-tests`.\n- The fixture run artifact records the `verification_cases` objective metric.\n\n## Source / Intent\n\nEval-harness fixture seed for measuring SWE-Cycle-shaped full-cycle builder\nwork. The point is not to add a new benchmark runner; it is to prove, through\nlocal artifacts, that setup reconstruction, verification-test generation, and\nimplementation repair all happened.\n\n## Initiative\n\nOutcome-grade autonomy evaluation: builder quality should include the ability\nto turn a sparse local repository into a runnable, tested, corrected project\nwithout relying on preconfigured package metadata or prose claims.\n"
+    },
+    {
+      "op": "write",
+      "path": "package.json",
+      "content": "{\n  \"name\": \"kota-bare-repo-full-cycle-fixture\",\n  \"version\": \"0.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"scripts\": {\n    \"build\": \"true\",\n    \"typecheck\": \"true\",\n    \"lint\": \"true\",\n    \"lint:fix\": \"true\",\n    \"test\": \"node --test test/project-code.test.mjs\",\n    \"validate-tasks\": \"node \\\"$KOTA_DIST_DIR/validate-queue.js\\\"\",\n    \"kota\": \"node \\\"$KOTA_DIST_DIR/cli.js\\\"\"\n  }\n}\n"
+    },
+    {
+      "op": "write",
+      "path": "src/project-code.mjs",
+      "content": "export function normalizeProjectCode(input) {\n  if (typeof input !== \"string\") {\n    throw new TypeError(\"project code must be a string\");\n  }\n  const normalized = input\n    .trim()\n    .toLowerCase()\n    .split(/[^a-z0-9]+/)\n    .filter(Boolean)\n    .join(\"-\");\n  if (normalized.length === 0) {\n    throw new TypeError(\"project code requires letters or digits\");\n  }\n  return normalized;\n}\n"
+    },
+    {
+      "op": "write",
+      "path": "test/project-code.test.mjs",
+      "content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { normalizeProjectCode } from \"../src/project-code.mjs\";\n\n// KOTA_FULL_CYCLE_VERIFICATION\ntest(\"normalizes punctuation and whitespace into stable project codes\", () => {\n  assert.equal(normalizeProjectCode(\"  North_Wind / 42 \"), \"north-wind-42\");\n  assert.equal(normalizeProjectCode(\"Alpha__BETA---99\"), \"alpha-beta-99\");\n});\n\ntest(\"rejects labels without letters or digits\", () => {\n  assert.throws(\n    () => normalizeProjectCode(\"!!!\"),\n    /project code requires letters or digits/,\n  );\n});\n"
+    },
+    {
+      "op": "write",
+      "path": "{{runDir}}/success-criteria.txt",
+      "content": "1. Reconstruct minimal package metadata with a runnable `pnpm test` command.\n2. Add dependency-free Node verification tests covering the documented examples and marker.\n3. Fix `normalizeProjectCode` punctuation and empty-code behavior.\n4. Pass the local behavior checker with required tests enabled.\n5. Move `task-repair-project-code-full-cycle` from ready to done.\n"
+    },
+    {
+      "op": "write",
+      "path": "{{runDir}}/success-criteria-verified.txt",
+      "content": "1. `package.json` now has dependency-free build/typecheck/lint repair scripts plus exact `test: node --test test/project-code.test.mjs`.\n2. `test/project-code.test.mjs` uses Node's built-in test runner, includes `KOTA_FULL_CYCLE_VERIFICATION`, and covers `North_Wind / 42`, `Alpha__BETA---99`, and `!!!`.\n3. `src/project-code.mjs` now splits on non-alphanumeric runs, joins segments with one hyphen, and throws the documented empty-code TypeError.\n4. `pnpm test` and `node scripts/check-behavior.mjs --max-failures 0 --require-tests` pass under the fixture predicates.\n5. The task file is written to `data/tasks/done/` with `status: done` and removed from `data/tasks/ready/`.\n"
+    },
+    {
+      "op": "write",
+      "path": "{{runDir}}/commit-message.txt",
+      "content": "Repair project-code full-cycle fixture task\n\nReconstructs package metadata, adds Node test coverage for the documented project-code normalization cases, fixes punctuation and empty-code behavior, and moves the seeded task to done.\n"
+    }
+  ]
+}

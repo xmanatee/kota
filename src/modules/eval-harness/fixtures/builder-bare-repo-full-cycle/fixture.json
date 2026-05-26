@@ -1,0 +1,106 @@
+{
+  "id": "builder-bare-repo-full-cycle",
+  "description": "Replay-backed builder fixture for reconstructing a missing package test surface, writing verification tests, and fixing a seeded implementation bug in a bare local project.",
+  "role": "builder",
+  "workflowName": "builder",
+  "budgetMs": 1800000,
+  "predicates": [
+    {
+      "kind": "shell-succeeds",
+      "command": "pnpm test",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-behavior.mjs --max-failures 0 --require-tests",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "file-exists",
+      "path": "test/project-code.test.mjs"
+    },
+    {
+      "kind": "file-contains",
+      "path": "test/project-code.test.mjs",
+      "needle": "KOTA_FULL_CYCLE_VERIFICATION"
+    },
+    {
+      "kind": "file-contains",
+      "path": "package.json",
+      "needle": "\"test\": \"node --test test/project-code.test.mjs\""
+    },
+    {
+      "kind": "file-absent",
+      "path": "data/tasks/ready/task-repair-project-code-full-cycle.md"
+    },
+    {
+      "kind": "file-exists",
+      "path": "data/tasks/done/task-repair-project-code-full-cycle.md"
+    },
+    {
+      "kind": "file-contains",
+      "path": "data/tasks/done/task-repair-project-code-full-cycle.md",
+      "needle": "status: done"
+    },
+    {
+      "kind": "git-changes-within",
+      "allowedPaths": [
+        "package.json",
+        "pnpm-lock.yaml",
+        "src/project-code.mjs",
+        "test/project-code.test.mjs",
+        "data/tasks/ready/task-repair-project-code-full-cycle.md",
+        "data/tasks/done/task-repair-project-code-full-cycle.md"
+      ]
+    }
+  ],
+  "objectiveMetrics": [
+    {
+      "name": "verification_cases",
+      "unit": "cases",
+      "direction": "higher_is_better",
+      "source": {
+        "kind": "shell",
+        "command": "node scripts/check-behavior.mjs --metric-only",
+        "timeoutMs": 10000
+      }
+    }
+  ],
+  "tags": [
+    "autonomy",
+    "builder-discipline",
+    "bare-repo",
+    "full-cycle",
+    "agent-call-replay",
+    "objective-metric"
+  ],
+  "provenance": {
+    "kind": "smoke-fixture",
+    "justification": "Synthetic SWE-Cycle-shaped replay-backed builder canary for the full-cycle failure mode where a builder must reconstruct a runnable local environment, add verification tests, and fix implementation behavior in one task. It uses the existing agent-step replay path so `pnpm kota eval run` remains deterministic and network-free while the predicates and objective metric prove the full-cycle artifact shape. No past KOTA failure run exists for this exact measurement gap."
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "pnpm test",
+        "timeoutMs": 20000
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-behavior.mjs --max-behavior-failures 0",
+        "timeoutMs": 10000
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/tasks/ready/task-repair-project-code-full-cycle.md"
+      },
+      "expected": "pass"
+    }
+  ]
+}

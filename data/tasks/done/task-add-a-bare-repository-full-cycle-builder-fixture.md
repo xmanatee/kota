@@ -1,12 +1,12 @@
 ---
 id: task-add-a-bare-repository-full-cycle-builder-fixture
 title: Add a bare-repository full-cycle builder fixture
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Seed an eval-harness fixture where the builder starts from a bare project, reconstructs the runnable environment, writes verification tests, and fixes the implementation so full-cycle setup and test-generation failures become artifact-graded.
 created_at: 2026-05-26T19:26:50.195Z
-updated_at: 2026-05-26T19:26:50.195Z
+updated_at: 2026-05-26T19:41:43.902Z
 ---
 
 ## Problem

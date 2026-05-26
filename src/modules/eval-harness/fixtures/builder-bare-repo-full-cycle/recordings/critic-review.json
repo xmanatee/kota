@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "workflowName": "builder",
+  "stepId": "critic-review",
+  "sourceRunId": "2026-05-26T19-29-17-202Z-builder-9ao2vd",
+  "response": {
+    "text": "{\n  \"verdict\": \"pass\",\n  \"critical_issues\": [],\n  \"warnings\": [],\n  \"summary\": \"The replayed full-cycle fixture satisfies the task: package metadata reconstructs the runnable command, verification tests include the required marker and examples, implementation behavior matches the local checker, task state moved to done, and predicates/objective metric provide artifact-backed evidence.\"\n}",
+    "subtype": "success",
+    "turns": 1,
+    "totalCostUsd": 0,
+    "inputTokens": 0,
+    "outputTokens": 0
+  },
+  "fileOperations": []
+}
