@@ -1,0 +1,75 @@
+{
+  "id": "builder-empirical-code-optimization",
+  "description": "Builder improves a small forecasting implementation against a deterministic holdout MAE score, with objective metric evidence reported from the fixture working directory.",
+  "role": "builder",
+  "workflowName": "builder",
+  "budgetMs": 1800000,
+  "predicates": [
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/score.mjs --max-holdout-mae 0.25",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "file-absent",
+      "path": "data/tasks/ready/task-improve-forecast-predictor.md"
+    },
+    {
+      "kind": "file-exists",
+      "path": "data/tasks/done/task-improve-forecast-predictor.md"
+    },
+    {
+      "kind": "file-contains",
+      "path": "data/tasks/done/task-improve-forecast-predictor.md",
+      "needle": "status: done"
+    },
+    {
+      "kind": "git-changes-within",
+      "allowedPaths": [
+        "src/predictor.mjs",
+        "data/tasks/ready/task-improve-forecast-predictor.md",
+        "data/tasks/done/task-improve-forecast-predictor.md"
+      ]
+    }
+  ],
+  "objectiveMetrics": [
+    {
+      "name": "forecast_mae",
+      "unit": "mae",
+      "direction": "lower_is_better",
+      "source": {
+        "kind": "shell",
+        "command": "node scripts/score.mjs --metric-only",
+        "timeoutMs": 10000
+      }
+    }
+  ],
+  "tags": [
+    "autonomy",
+    "builder-discipline",
+    "empirical-code",
+    "live-llm",
+    "objective-metric"
+  ],
+  "provenance": {
+    "kind": "smoke-fixture",
+    "justification": "Synthetic live-builder canary for optimization-shaped autonomy work: the generator must improve code against a deterministic numeric holdout score, while predicates and objective metrics prove the result through artifacts instead of prose. No past KOTA failure run exists for this exact measurement gap."
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/score.mjs --max-holdout-mae 0.25",
+        "timeoutMs": 10000
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/tasks/ready/task-improve-forecast-predictor.md"
+      },
+      "expected": "pass"
+    }
+  ]
+}

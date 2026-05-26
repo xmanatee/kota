@@ -75,13 +75,13 @@ a reason the predicate/payload changes do not resolve.
   `success-criteria-verified.txt`, `commit-message.txt`), drives the
   full builder repair loop to success (including the critic-review
   repair check via the judge-prompt replay), and completes the commit
-  step plus restart request. The three existing live-LLM builder
-  fixtures (`builder-trivial-edit`, `builder-multi-point-wiring`,
-  `builder-resume-doing-task`) stay live because each encodes a
-  generator-quality failure mode replay cannot cover (smoke plumbing,
-  partial-wiring "missed one Done When", and the resume-doing-before-
-  pull-ready pickup discipline); a replay-backed fixture gates the
-  workflow-layer substrate, which is complementary, not overlapping.
+  step plus restart request. The existing live-LLM builder fixtures
+  stay live because each encodes a generator-quality shape replay
+  cannot cover: smoke plumbing, partial-wiring "missed one Done When",
+  resume-doing-before-pull-ready pickup discipline, and measured
+  empirical-code optimization against a deterministic objective metric.
+  A replay-backed fixture gates the workflow-layer substrate, which is
+  complementary, not overlapping.
 - **improver (agent-call path)** — now covered by
   `improver-agent-call-replay`. The recorded-agent-step replay adapter
   exercises both improver's `improve` agent step and its
