@@ -148,7 +148,10 @@ beforeAll(async () => {
   baseUrl = `http://localhost:${port}`;
 });
 
-afterAll(() => new Promise<void>((r) => server.close(() => r())));
+afterAll(() => new Promise<void>((r) => {
+  server.closeAllConnections();
+  server.close(() => r());
+}));
 
 afterEach(async () => {
   mockSendFn = undefined;
@@ -580,6 +583,7 @@ describe("HTTP Server E2E", () => {
     it("establishes SSE connection and sends connected event", async () => {
       const res = await new Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }>((resolve, reject) => {
         const url = new URL("/api/notifications", baseUrl);
+        let timeout: ReturnType<typeof setTimeout> | undefined;
         const r = http.request(url, { method: "GET", headers: { Authorization: `Bearer ${TEST_AUTH_TOKEN}` } }, (res) => {
           const chunks: string[] = [];
           res.setEncoding("utf-8");
@@ -588,12 +592,14 @@ describe("HTTP Server E2E", () => {
             // Once we get the connected event, close and resolve
             const combined = chunks.join("");
             if (combined.includes("event: connected")) {
+              if (timeout) clearTimeout(timeout);
+              res.destroy();
               r.destroy();
               resolve({ status: res.statusCode!, headers: res.headers, body: combined });
             }
           });
           // Timeout in case no event arrives
-          setTimeout(() => {
+          timeout = setTimeout(() => {
             r.destroy();
             resolve({ status: res.statusCode!, headers: res.headers, body: chunks.join("") });
           }, 2000);

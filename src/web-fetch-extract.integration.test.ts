@@ -6,8 +6,23 @@
  * Complements the basic cross-module tests in web-fetch.test.ts by covering
  * tables, blockquotes, entity-heavy content, and content-type edge cases.
  */
+import { lookup } from "node:dns/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { runWebFetch } from "./modules/web-access/web-fetch.js";
+
+vi.mock("node:dns/promises", () => ({
+  lookup: vi.fn(),
+}));
+
+const mockLookup = vi.mocked(lookup);
+
+beforeEach(() => {
+  mockLookup.mockResolvedValue([{ address: "93.184.216.34", family: 4 }] as never);
+});
+
+afterEach(() => {
+  mockLookup.mockReset();
+});
 
 function mockHtmlResponse(body: string) {
   return {

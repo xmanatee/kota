@@ -1,5 +1,6 @@
 import * as http from "node:http";
 import httpDefault from "node:http";
+import httpsDefault from "node:https";
 import { EventEmitter } from "node:events";
 import type {
   ClientRequest,
@@ -37,6 +38,7 @@ type LoopbackState = {
   readonly originalAddress: typeof http.Server.prototype.address;
   readonly originalRequest: typeof httpDefault.request;
   readonly originalGet: typeof httpDefault.get;
+  readonly internalFetches: Set<typeof globalThis.fetch>;
 };
 
 const INSTALL_KEY = "__kotaLoopbackFetchInstalled";
@@ -63,7 +65,9 @@ if (!loopbackGlobal[INSTALL_KEY]) {
     originalAddress: http.Server.prototype.address,
     originalRequest: httpDefault.request,
     originalGet: httpDefault.get,
+    internalFetches: new Set(),
   };
+  state.internalFetches.add(state.originalFetch);
   loopbackGlobal[INSTALL_KEY] = true;
   loopbackGlobal[STATE_KEY] = state;
   const realLoopbackAvailable = await realLoopbackWorks(state.originalFetch);
@@ -71,6 +75,7 @@ if (!loopbackGlobal[INSTALL_KEY]) {
   if (!realLoopbackAvailable) {
     installLoopback(state);
   }
+  installMockFetchRequestBridge(state);
 }
 
 async function realLoopbackWorks(fetchImpl: typeof globalThis.fetch): Promise<boolean> {
@@ -166,7 +171,7 @@ function installLoopback(state: LoopbackState): void {
     return Reflect.apply(state.originalAddress, this, []) as ReturnType<typeof http.Server.prototype.address>;
   };
 
-  globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+  const loopbackFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const request = new Request(input, init);
     const url = new URL(request.url);
     const port = Number.parseInt(url.port, 10);
@@ -180,6 +185,8 @@ function installLoopback(state: LoopbackState): void {
     }
     return state.originalFetch(input, init);
   };
+  globalThis.fetch = loopbackFetch;
+  state.internalFetches.add(loopbackFetch);
 
   httpDefault.request = function patchedRequest(
     ...args: Parameters<typeof httpDefault.request>
@@ -211,6 +218,37 @@ function installLoopback(state: LoopbackState): void {
   } as typeof httpDefault.get;
 
   syncBuiltinESMExports();
+}
+
+function installMockFetchRequestBridge(state: LoopbackState): void {
+  const downstreamHttpRequest = httpDefault.request;
+  const downstreamHttpsRequest = httpsDefault.request;
+
+  httpDefault.request = function patchedRequest(
+    ...args: Parameters<typeof httpDefault.request>
+  ): ClientRequest {
+    const parsed = parseHttpRequestArgs(args);
+    if (shouldBridgeToMockFetch(state)) {
+      return createFetchBackedClientRequest(parsed.url, parsed.options, parsed.callback);
+    }
+    return Reflect.apply(downstreamHttpRequest, httpDefault, args) as ClientRequest;
+  } as typeof httpDefault.request;
+
+  httpsDefault.request = function patchedHttpsRequest(
+    ...args: Parameters<typeof httpsDefault.request>
+  ): ClientRequest {
+    const parsed = parseHttpRequestArgs(args as Parameters<typeof httpDefault.request>);
+    if (shouldBridgeToMockFetch(state)) {
+      return createFetchBackedClientRequest(parsed.url, parsed.options, parsed.callback);
+    }
+    return Reflect.apply(downstreamHttpsRequest, httpsDefault, args) as ClientRequest;
+  } as typeof httpsDefault.request;
+
+  syncBuiltinESMExports();
+}
+
+function shouldBridgeToMockFetch(state: LoopbackState): boolean {
+  return !state.internalFetches.has(globalThis.fetch);
 }
 
 function parseListenArgs(args: ListenArgs): {
@@ -384,6 +422,82 @@ function createLoopbackClientRequest(
   return req;
 }
 
+function createFetchBackedClientRequest(
+  url: URL,
+  options: RequestOptions,
+  callback?: (res: IncomingMessage) => void,
+): ClientRequest {
+  const chunks: Buffer[] = [];
+  const controller = new AbortController();
+  let ended = false;
+  const req = new EventEmitter() as ClientRequest;
+  const written: Array<string | Uint8Array> = [];
+
+  req.write = (chunk: string | Uint8Array) => {
+    written.push(chunk);
+    chunks.push(Buffer.from(toBytes(chunk)));
+    return true;
+  };
+  req.end = (chunk?: string | Uint8Array) => {
+    if (chunk !== undefined) req.write(chunk);
+    if (ended) return req;
+    ended = true;
+    const method = String(options.method ?? "GET");
+    const body = requestBodyFromWrittenChunks(written, chunks);
+    const headers = headersObjectFromRequestOptions(options.headers);
+    if (options.signal) {
+      if (options.signal.aborted) {
+        controller.abort();
+      } else {
+        options.signal.addEventListener("abort", () => controller.abort(), { once: true });
+      }
+    }
+    const init: RequestInit = { headers, method };
+    if (body !== undefined) init.body = body;
+    if (controller.signal.aborted || options.signal) init.signal = controller.signal;
+    validateRequestLookup(url, options)
+      .then(() => globalThis.fetch(url.toString(), init))
+      .then((response) => {
+        const incoming = incomingMessageFromFetchResponse(response, controller);
+        callback?.(incoming);
+        req.emit("response", incoming);
+      })
+      .catch((err) => {
+        req.emit("error", err);
+      });
+    return req;
+  };
+  req.destroy = (err?: Error) => {
+    controller.abort();
+    if (err) req.emit("error", err);
+    req.emit("close");
+    return req;
+  };
+  return req;
+}
+
+function requestBodyFromWrittenChunks(
+  written: Array<string | Uint8Array>,
+  chunks: Buffer[],
+): BodyInit | undefined {
+  if (written.length === 0) return undefined;
+  if (written.length === 1 && typeof written[0] === "string") return written[0];
+  return Buffer.concat(chunks);
+}
+
+function validateRequestLookup(url: URL, options: RequestOptions): Promise<void> {
+  if (typeof options.lookup !== "function") return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    options.lookup!(url.hostname, {}, (err) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
 function headersInitFromRequestOptions(headers: RequestOptions["headers"]): HeadersInit {
   const out = new Headers();
   if (!headers) return out;
@@ -393,6 +507,20 @@ function headersInitFromRequestOptions(headers: RequestOptions["headers"]): Head
       out.set(name, value.map(String).join(", "));
     } else {
       out.set(name, String(value));
+    }
+  }
+  return out;
+}
+
+function headersObjectFromRequestOptions(headers: RequestOptions["headers"]): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!headers) return out;
+  for (const [name, value] of Object.entries(headers)) {
+    if (value === undefined) continue;
+    if (Array.isArray(value)) {
+      out[name] = value.map(String).join(", ");
+    } else {
+      out[name] = String(value);
     }
   }
   return out;
@@ -418,12 +546,118 @@ function incomingMessageFromResponse(
   return incoming;
 }
 
+function incomingMessageFromFetchResponse(
+  response: Response,
+  controller: AbortController,
+): IncomingMessage {
+  const incoming = lazyReadableFromFetchResponse(response) as IncomingMessage;
+  incoming.statusCode = response.status;
+  incoming.statusMessage = response.statusText;
+  incoming.headers = incomingHeadersFromFetchHeaders(response.headers);
+  incoming.rawHeaders = rawHeadersFromIncomingHeaders(incoming.headers);
+  const originalDestroy = incoming.destroy.bind(incoming);
+  incoming.destroy = (err?: Error) => {
+    controller.abort();
+    return originalDestroy(err);
+  };
+  return incoming;
+}
+
 function incomingHeadersFromResponse(headers: Headers): IncomingHttpHeaders {
   const out: IncomingHttpHeaders = {};
   headers.forEach((value, key) => {
     out[key.toLowerCase()] = value;
   });
   return out;
+}
+
+const FETCH_HEADER_NAMES = [
+  "content-type",
+  "content-length",
+  "location",
+  "set-cookie",
+  "x-request-id",
+  "x-ratelimit-remaining",
+  "x-ratelimit-limit",
+  "x-ratelimit-reset",
+  "retry-after",
+  "www-authenticate",
+  "allow",
+  "link",
+];
+
+function incomingHeadersFromFetchHeaders(headers: Response["headers"]): IncomingHttpHeaders {
+  const out: IncomingHttpHeaders = {};
+  if (headers instanceof Headers) {
+    headers.forEach((value, key) => {
+      out[key.toLowerCase()] = value;
+    });
+    return out;
+  }
+  for (const name of FETCH_HEADER_NAMES) {
+    const value = headers.get(name);
+    if (value) out[name] = value;
+  }
+  return out;
+}
+
+function rawHeadersFromIncomingHeaders(headers: IncomingHttpHeaders): string[] {
+  const out: string[] = [];
+  for (const [name, value] of Object.entries(headers)) {
+    if (value === undefined) continue;
+    if (Array.isArray(value)) {
+      for (const item of value) out.push(name, item);
+    } else {
+      out.push(name, value);
+    }
+  }
+  return out;
+}
+
+function lazyReadableFromFetchResponse(response: Response): Readable {
+  if (response.body instanceof ReadableStream) {
+    return Readable.fromWeb(response.body);
+  }
+
+  let started = false;
+  return new Readable({
+    read() {
+      if (started) return;
+      started = true;
+      readFetchResponseBody(response)
+        .then((body) => {
+          if (body.length > 0) this.push(body);
+          this.push(null);
+        })
+        .catch((err) => {
+          this.destroy(err);
+        });
+    },
+    destroy(err, callback) {
+      cancelFetchResponseBody(response);
+      callback(err);
+    },
+  });
+}
+
+async function readFetchResponseBody(response: Response): Promise<Buffer> {
+  if (typeof response.arrayBuffer === "function") {
+    const buffer = await response.arrayBuffer();
+    if (buffer !== undefined) return Buffer.from(buffer);
+  }
+  if (typeof response.text === "function") {
+    return Buffer.from(await response.text());
+  }
+  return Buffer.alloc(0);
+}
+
+function cancelFetchResponseBody(response: Response): void {
+  const body = response.body as { readonly locked?: boolean; cancel?: () => Promise<unknown> } | null;
+  if (!body?.cancel || body.locked) return;
+  const cancelled = body.cancel();
+  if (cancelled && typeof cancelled.catch === "function") {
+    void cancelled.catch(() => undefined);
+  }
 }
 
 async function createIncomingMessage(request: Request, url: URL): Promise<IncomingMessage> {

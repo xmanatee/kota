@@ -16,6 +16,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { TaskStore } from "#core/daemon/task-store.js";
 import { resetEventBus } from "#core/events/event-bus.js";
 import { AgentSession } from "#core/loop/loop.js";
 import { BufferTransport } from "#core/loop/transport.js";
@@ -27,6 +28,7 @@ import {
 	textResponse,
 	toolUseResponse,
 } from "#core/model/mock-client.js";
+import { getProviderRegistry, TASK_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import { setSkipConfirmations } from "#core/util/confirm.js";
 
 vi.spyOn(console, "error").mockImplementation(() => {});
@@ -51,6 +53,10 @@ function createTestSession(
 		reflectionEnabled: false,
 		verbose: opts?.verbose ?? false,
 	});
+	const registry = getProviderRegistry();
+	if (!registry) throw new Error("provider registry was not initialized");
+	registry.register(TASK_PROVIDER_TOKEN, "composition-test", new TaskStore(process.cwd(), null));
+	registry.setActive(TASK_PROVIDER_TOKEN, "composition-test");
 	return { session, transport, calls };
 }
 

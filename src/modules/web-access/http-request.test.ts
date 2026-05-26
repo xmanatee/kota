@@ -103,6 +103,22 @@ describe("runHttpRequest", () => {
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
+  it("rejects DNS rebinding at the connection-time lookup before fetching", async () => {
+    const publicAddress = [{ address: "93.184.216.34", family: 4 }];
+    mockLookup
+      .mockResolvedValueOnce(publicAddress as never)
+      .mockResolvedValueOnce(publicAddress as never)
+      .mockResolvedValueOnce([{ address: "127.0.0.1", family: 4 }] as never);
+    globalThis.fetch = vi.fn();
+
+    const result = await runHttpRequest({ url: "https://rebind.example/status" });
+
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("loopback/private-network");
+    expect(result.content).toContain("127.0.0.1");
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
   it("rejects redirects to loopback targets before following them", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       status: 302,
@@ -627,27 +643,39 @@ describe("runHttpRequest", () => {
   // --- Redirect visibility ---
 
   it("shows redirect note when response was redirected", async () => {
-    const responseHeaders = new Map<string, string>([["content-type", "text/plain"]]);
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, status: 200, statusText: "OK",
-      redirected: true,
-      url: "https://api.example.com/v2/users",
-      headers: { get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null },
-      text: () => Promise.resolve("ok"),
-    });
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce({
+        status: 302,
+        statusText: "Found",
+        headers: new Headers({ location: "https://api.example.com/v2/users" }),
+        body: { cancel: vi.fn().mockResolvedValue(undefined) },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        headers: new Headers({ "content-type": "text/plain" }),
+        text: () => Promise.resolve("ok"),
+      });
     const result = await runHttpRequest({ url: "https://api.example.com/v1/users" });
     expect(result.content).toContain("[Redirected → https://api.example.com/v2/users]");
     expect(result.content).toContain("HTTP 200 OK");
   });
 
   it("shows redirect note on HEAD request", async () => {
-    const responseHeaders = new Map<string, string>([["content-type", "text/plain"]]);
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, status: 200, statusText: "OK",
-      redirected: true,
-      url: "https://example.com/final",
-      headers: { get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null },
-    });
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce({
+        status: 302,
+        statusText: "Found",
+        headers: new Headers({ location: "https://example.com/final" }),
+        body: { cancel: vi.fn().mockResolvedValue(undefined) },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        headers: new Headers({ "content-type": "text/plain" }),
+      });
     const result = await runHttpRequest({ url: "http://example.com/start", method: "HEAD" });
     expect(result.content).toContain("[Redirected → https://example.com/final]");
     expect(result.content).toContain("(HEAD — no body)");
@@ -742,14 +770,20 @@ describe("runHttpRequest", () => {
     const dir = await makeProjectTempDir("kota-http-");
     const savePath = path.join(dir, "data.txt");
 
-    const responseHeaders = new Map<string, string>([["content-type", "text/plain"]]);
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, status: 200, statusText: "OK",
-      redirected: true,
-      url: "https://cdn.example.com/data.txt",
-      headers: { get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null },
-      text: () => Promise.resolve("data"),
-    });
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce({
+        status: 302,
+        statusText: "Found",
+        headers: new Headers({ location: "https://cdn.example.com/data.txt" }),
+        body: { cancel: vi.fn().mockResolvedValue(undefined) },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        headers: new Headers({ "content-type": "text/plain" }),
+        text: () => Promise.resolve("data"),
+      });
     const result = await runHttpRequest({
       url: "https://api.example.com/download",
       save_to: savePath,

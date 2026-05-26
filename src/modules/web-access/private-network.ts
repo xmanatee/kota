@@ -1,9 +1,14 @@
-import { lookup } from "node:dns/promises";
+import type { LookupAddress } from "node:dns";
+import { lookup as lookupDns } from "node:dns/promises";
+import { request as httpRequest, type IncomingHttpHeaders, type RequestOptions } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
+import { Readable } from "node:stream";
 
 export type WebAccessTargetValidation =
   | { ok: true }
   | { ok: false; error: string };
+type BlockedWebAccessTarget = { ok: false; error: string };
 
 export type PublicWebAccessFetchResult = {
   response: Response;
@@ -33,27 +38,11 @@ export async function validatePublicWebAccessUrl(rawUrl: string): Promise<WebAcc
     return { ok: false, error: "Error: url must start with http:// or https://" };
   }
 
-  const hostname = normalizeHostname(url.hostname);
-  const literalValidation = validateLiteralHost(hostname);
-  if (!literalValidation.ok) return literalValidation;
-
-  const version = isIP(hostname);
-  if (version !== 0) return { ok: true };
-
   try {
-    const addresses = await lookup(hostname, { all: true, verbatim: true });
-    const blockedAddress = addresses.find((address) =>
-      isLoopbackOrPrivateAddress(normalizeHostname(address.address))
-    );
-    if (blockedAddress) {
-      return blockedTarget(hostname, blockedAddress.address);
-    }
+    await resolvePublicAddresses(url.hostname);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return {
-      ok: false,
-      error: `Error: unable to resolve web access target ${hostname}: ${msg}`,
-    };
+    if (err instanceof WebAccessTargetError) return { ok: false, error: err.message };
+    throw err;
   }
 
   return { ok: true };
@@ -81,7 +70,7 @@ export async function fetchPublicWebAccessUrl(
       body,
       redirect: "manual",
     };
-    const response = await fetch(currentUrl, requestInit);
+    const response = await fetchWithPublicAddressLookup(currentUrl, requestInit);
     if (!REDIRECT_STATUSES.has(response.status)) {
       const responseUrl = response.url || currentUrl;
       return {
@@ -117,6 +106,158 @@ export async function fetchPublicWebAccessUrl(
   }
 }
 
+type PublicLookupOptions = number | {
+  all?: boolean;
+  family?: number | "IPv4" | "IPv6";
+};
+
+type PublicLookupCallback = (
+  err: NodeJS.ErrnoException | null,
+  address: string | LookupAddress[],
+  family?: number,
+) => void;
+
+async function fetchWithPublicAddressLookup(rawUrl: string, init: RequestInit): Promise<Response> {
+  const url = new URL(rawUrl);
+  const request = url.protocol === "https:" ? httpsRequest : httpRequest;
+  const headers = requestHeadersFromInit(init.headers);
+  const body = requestBodyFromInit(init.body);
+  const options: RequestOptions = {
+    method: init.method,
+    headers,
+    lookup: lookupPublicAddress,
+  };
+  if (init.signal) options.signal = init.signal;
+
+  return new Promise((resolve, reject) => {
+    const req = request(url, options, (response) => {
+      const status = response.statusCode ?? 500;
+      const responseBody = responseBodyAllowed(status)
+        ? Readable.toWeb(response) as ReadableStream<Uint8Array>
+        : null;
+      resolve(new Response(responseBody, {
+        status,
+        statusText: response.statusMessage,
+        headers: headersFromIncoming(response.headers),
+      }));
+    });
+    req.on("error", reject);
+    req.end(body);
+  });
+}
+
+function lookupPublicAddress(
+  hostname: string,
+  options: PublicLookupOptions,
+  callback: PublicLookupCallback,
+): void {
+  void resolvePublicAddresses(hostname).then(
+    (addresses) => {
+      const requestedFamily = lookupFamilyFromOptions(options);
+      const candidates = requestedFamily === 4 || requestedFamily === 6
+        ? addresses.filter((address) => address.family === requestedFamily)
+        : addresses;
+      const selected = candidates[0];
+      if (!selected) {
+        callback(new WebAccessTargetError(
+          `Error: unable to resolve web access target ${normalizeHostname(hostname)}: no public address matched requested address family`,
+        ), "", 0);
+        return;
+      }
+      if (typeof options === "object" && options.all === true) {
+        callback(null, candidates);
+        return;
+      }
+      callback(null, selected.address, selected.family);
+    },
+    (err) => {
+      const error = err instanceof Error ? err : new Error(String(err));
+      callback(error, "", 0);
+    },
+  );
+}
+
+function lookupFamilyFromOptions(options: PublicLookupOptions): number | undefined {
+  if (typeof options === "number") return options;
+  if (options.family === "IPv4") return 4;
+  if (options.family === "IPv6") return 6;
+  return options.family;
+}
+
+async function resolvePublicAddresses(hostname: string): Promise<LookupAddress[]> {
+  const normalized = normalizeHostname(hostname);
+  const literalValidation = validateLiteralHost(normalized);
+  if (!literalValidation.ok) throw new WebAccessTargetError(literalValidation.error);
+
+  const version = isIP(normalized);
+  if (version !== 0) return [{ address: normalized, family: version }];
+
+  let addresses: LookupAddress[];
+  try {
+    addresses = await lookupDns(normalized, { all: true, verbatim: true });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new WebAccessTargetError(`Error: unable to resolve web access target ${normalized}: ${msg}`);
+  }
+
+  const blockedAddress = addresses.find((address) =>
+    isLoopbackOrPrivateAddress(normalizeHostname(address.address))
+  );
+  if (blockedAddress) {
+    throw new WebAccessTargetError(blockedTarget(normalized, blockedAddress.address).error);
+  }
+  if (addresses.length === 0) {
+    throw new WebAccessTargetError(`Error: unable to resolve web access target ${normalized}: no addresses returned`);
+  }
+
+  return addresses;
+}
+
+function requestHeadersFromInit(headers: HeadersInit | undefined): Record<string, string> {
+  const result: Record<string, string> = {};
+  if (!headers) return result;
+  if (headers instanceof Headers) {
+    headers.forEach((value, name) => {
+      result[name] = value;
+    });
+    return result;
+  }
+  if (Array.isArray(headers)) {
+    for (const [name, value] of headers) result[name] = value;
+    return result;
+  }
+  for (const [name, value] of Object.entries(headers)) result[name] = value;
+  return result;
+}
+
+function requestBodyFromInit(body: BodyInit | null | undefined): string | Uint8Array | undefined {
+  if (body == null) return undefined;
+  if (typeof body === "string") return body;
+  if (body instanceof URLSearchParams) return body.toString();
+  if (body instanceof ArrayBuffer) return new Uint8Array(body);
+  if (ArrayBuffer.isView(body)) {
+    return new Uint8Array(body.buffer, body.byteOffset, body.byteLength);
+  }
+  throw new TypeError("unsupported request body type for public web access fetch");
+}
+
+function headersFromIncoming(headers: IncomingHttpHeaders): Headers {
+  const result = new Headers();
+  for (const [name, value] of Object.entries(headers)) {
+    if (value === undefined) continue;
+    if (Array.isArray(value)) {
+      for (const item of value) result.append(name, item);
+    } else {
+      result.set(name, value);
+    }
+  }
+  return result;
+}
+
+function responseBodyAllowed(status: number): boolean {
+  return status !== 204 && status !== 205 && status !== 304;
+}
+
 function normalizeHostname(hostname: string): string {
   const lower = hostname.toLowerCase().replace(/\.$/, "");
   return lower.startsWith("[") && lower.endsWith("]")
@@ -137,7 +278,7 @@ function validateLiteralHost(hostname: string): WebAccessTargetValidation {
   return { ok: true };
 }
 
-function blockedTarget(hostname: string, resolvedAddress?: string): WebAccessTargetValidation {
+function blockedTarget(hostname: string, resolvedAddress?: string): BlockedWebAccessTarget {
   const target = resolvedAddress ? `${hostname} -> ${resolvedAddress}` : hostname;
   return {
     ok: false,
