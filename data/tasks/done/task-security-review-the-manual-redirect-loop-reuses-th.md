@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-manual-redirect-loop-reuses-th
 title: Security review: The manual redirect loop reuses the original RequestInit across redirect targets, so http_request forwards caller-supplied Authorization/Cookie-style headers to a different origin after a redirect.
-status: ready
+status: done
 priority: p2
 area: security
 summary: The manual redirect loop reuses the original RequestInit across redirect targets, so http_request forwards caller-supplied Authorization/Cookie-style headers to a different origin after a redirect.
 created_at: 2026-05-26T22:47:53.863Z
-updated_at: 2026-05-26T22:47:53.863Z
+updated_at: 2026-05-26T23:53:20.300Z
 ---
 
 ## Problem
@@ -56,3 +56,10 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm vitest run src/modules/web-access/http-request.test.ts` — 77 tests passed.
+- `pnpm vitest run src/modules/web-access/http-request.test.ts src/modules/web-access/web-fetch.test.ts` — 120 tests passed.
+- `pnpm typecheck` — passed.
+- `pnpm exec biome check src/modules/web-access/private-network.ts src/modules/web-access/http-request.test.ts` — passed.

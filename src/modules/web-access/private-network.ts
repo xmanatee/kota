@@ -25,6 +25,11 @@ export class WebAccessTargetError extends Error {
 
 const MAX_WEB_ACCESS_REDIRECTS = 20;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+const CROSS_ORIGIN_CREDENTIAL_HEADERS = new Set([
+  "authorization",
+  "cookie",
+  "proxy-authorization",
+]);
 
 export async function validatePublicWebAccessUrl(rawUrl: string): Promise<WebAccessTargetValidation> {
   let url: URL;
@@ -56,6 +61,7 @@ export async function fetchPublicWebAccessUrl(
   let currentUrl = rawUrl;
   let method = typeof init.method === "string" ? init.method.toUpperCase() : undefined;
   let body = init.body;
+  let headers = init.headers;
   let redirected = false;
 
   for (let redirectCount = 0; ; redirectCount++) {
@@ -68,6 +74,7 @@ export async function fetchPublicWebAccessUrl(
       ...init,
       method,
       body,
+      headers,
       redirect: "manual",
     };
     const response = await fetchWithPublicAddressLookup(currentUrl, requestInit);
@@ -96,6 +103,9 @@ export async function fetchPublicWebAccessUrl(
     }
 
     const nextUrl = new URL(location, currentUrl).toString();
+    if (new URL(nextUrl).origin !== new URL(currentUrl).origin) {
+      headers = stripCrossOriginCredentialHeaders(headers);
+    }
     const normalizedMethod = (method ?? "GET").toUpperCase();
     if (response.status === 303 || ((response.status === 301 || response.status === 302) && normalizedMethod === "POST")) {
       method = "GET";
@@ -104,6 +114,27 @@ export async function fetchPublicWebAccessUrl(
     currentUrl = nextUrl;
     redirected = true;
   }
+}
+
+function stripCrossOriginCredentialHeaders(headers: HeadersInit | undefined): HeadersInit | undefined {
+  if (!headers) return headers;
+
+  if (headers instanceof Headers) {
+    const stripped = new Headers(headers);
+    for (const name of CROSS_ORIGIN_CREDENTIAL_HEADERS) stripped.delete(name);
+    return stripped;
+  }
+
+  if (Array.isArray(headers)) {
+    return headers.filter(([name]) => !CROSS_ORIGIN_CREDENTIAL_HEADERS.has(name.toLowerCase()));
+  }
+
+  const stripped: Record<string, string> = {};
+  for (const [name, value] of Object.entries(headers)) {
+    if (CROSS_ORIGIN_CREDENTIAL_HEADERS.has(name.toLowerCase())) continue;
+    stripped[name] = value;
+  }
+  return stripped;
 }
 
 type PublicLookupOptions = number | {

@@ -662,6 +662,45 @@ describe("runHttpRequest", () => {
     expect(result.content).toContain("HTTP 200 OK");
   });
 
+  it("strips credential headers when a redirect changes origin", async () => {
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce({
+        status: 302,
+        statusText: "Found",
+        headers: new Headers({ location: "https://uploads.example.net/final" }),
+        body: { cancel: vi.fn().mockResolvedValue(undefined) },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        headers: new Headers({ "content-type": "text/plain" }),
+        text: () => Promise.resolve("ok"),
+      });
+
+    const result = await runHttpRequest({
+      url: "https://api.example.com/start",
+      headers: {
+        Authorization: "Bearer secret-token",
+        Cookie: "session=secret",
+        "Proxy-Authorization": "Basic secret",
+        "X-Custom": "value",
+      },
+    });
+
+    expect(result.is_error).toBeUndefined();
+    const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const secondRequest = fetchMock.mock.calls[1]?.[1] as RequestInit & {
+      headers: Record<string, string>;
+    };
+    expect(secondRequest.headers.Authorization).toBeUndefined();
+    expect(secondRequest.headers.Cookie).toBeUndefined();
+    expect(secondRequest.headers["Proxy-Authorization"]).toBeUndefined();
+    expect(secondRequest.headers["X-Custom"]).toBe("value");
+    expect(secondRequest.headers["User-Agent"]).toBe("KOTA/0.1");
+  });
+
   it("shows redirect note on HEAD request", async () => {
     globalThis.fetch = vi.fn()
       .mockResolvedValueOnce({
