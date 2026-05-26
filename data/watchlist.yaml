@@ -450,6 +450,9 @@ resources:
       fingerprint: sha256:4dc644a8e849ff941737652fd7770c62
       summary: "GitHub Agentic Workflows still reinforces KOTA's existing workflow guardrail and trial-mode posture; no new task was opened."
       last_seen_at: "2026-05-20T02:32:53.824Z"
+  - url: https://github.com/github/copilot-cli/blob/main/changelog.md
+    added: "2026-05-26"
+    notes: "GitHub Copilot CLI changelog is a fast-moving peer terminal-agent signal. Monitor for delegate/subagent guardrails, permissions and autopilot behavior, session resume/control, MCP/plugin/skill loading, security-review commands, and terminal UX constraints that map to KOTA's session, delegate, workflow, and operator-client runtime."
   - url: https://github.com/Alienfader/continuity-benchmarks
     added: "2026-05-19"
     notes: "Reproducible benchmark for execution-intent memory in long-horizon AI coding agents. Monitor as a peer signal for KOTA's recall/memory eval coverage, action-keyed retrieval, noisy cross-session continuity, and deterministic memory-eval artifacts."
