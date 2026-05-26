@@ -68,9 +68,9 @@ resources:
   - url: https://github.com/All-Hands-AI/OpenHands
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:0268aea3da2e83908dc5922cb9fa0371
-      summary: "OpenHands has moved to the OpenHands org and remains active; no new KOTA task was opened from it."
-      last_seen_at: "2026-05-17T04:52:38.674Z"
+      fingerprint: sha256:0b9e91ac508d9856515546c2fa8bed10
+      summary: "OpenHands now has a concrete explicit sandbox host-capability signal; this run opened task-add-an-executable-container-isolation-backend-for- for KOTA's matching eval-harness container backend gap instead of adding a new sandbox primitive."
+      last_seen_at: "2026-05-26T18:36:35.301Z"
   - url: https://github.com/SWE-agent/SWE-agent
     added: "2026-04-19"
     snapshot:
