@@ -185,9 +185,9 @@ resources:
   - url: https://research.google/blog/
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:2049b8c5ef1abff336748708361e4745
-      summary: "Google Research has added ReasoningBank and empirical-research-assistance posts since the last stored snapshot; they remain autonomy-eval reading material, while shipped-preset pricing coverage is complete and no new memory or self-reflection primitive is open."
-      last_seen_at: "2026-05-16T03:30:30.187Z"
+      fingerprint: sha256:26d35885af11fcebf41a8a521e7be1d2
+      summary: "Google Research now leads with the May 19 ERA release; the KOTA-relevant signal is scorable empirical-code optimization, which opened task-add-a-scorable-empirical-code-optimization-fixture."
+      last_seen_at: "2026-05-26T02:25:43.089Z"
   - url: https://vercel.com/blog/category/ai
     added: "2026-04-19"
     status: inaccessible
