@@ -244,9 +244,9 @@ resources:
     added: "2026-04-26"
     notes: "Continue.dev is the other widely-deployed in-IDE agent runtime, with a config-as-code pattern (config.yaml) and a different tool/sandbox model from Cline. Distinct from terminal-host peers already on the watchlist. Snapshot and distill on the next explorer cycle."
     snapshot:
-      fingerprint: sha256:e70362a602520446ecd6c2f0aada5576
-      summary: "Continue remains centered on repo-resident AI checks as CI status checks; KOTA already covers the nonduplicative pieces through scoped AGENTS.md, eval-harness fixtures, and PR-reviewer workflows."
-      last_seen_at: "2026-05-18T06:08:15.722Z"
+      fingerprint: sha256:5105acaa62b7da8e60480fef9fdab690
+      summary: "Continue now has a concrete repo-local AI-check-files signal; this run opened task-run-repo-local-ai-check-files-through-the-workflow for KOTA's matching workflow-backed check import and execution gap."
+      last_seen_at: "2026-05-26T22:13:50.957Z"
   - url: https://github.com/livekit/agents
     added: "2026-05-02"
     notes: "LiveKit Agents is a real-time multi-modal voice/agent orchestration framework — peer to KOTA's voice module surface. Owner-flagged 2026-05-02 in inbox capture as relevant to voice-stack reevaluation. Snapshot and distill on the next explorer cycle."
