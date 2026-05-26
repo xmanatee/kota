@@ -40,7 +40,7 @@ export type ApprovalProjectScope = {
 /** Result of an approval mutation (`approve`, `reject`). */
 export type ApprovalMutateResult =
   | { ok: true; approval: PendingApproval }
-  | { ok: false; reason: "not_found" };
+  | { ok: false; reason: "invalid_id" | "not_found" };
 
 /**
  * Approval-queue operations.

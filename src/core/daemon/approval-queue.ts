@@ -36,6 +36,22 @@ export type PendingApproval = {
 	resolutionSource?: string;
 };
 
+const APPROVAL_ID_PATTERN = /^[0-9a-f]{8}$/;
+
+export function isApprovalId(id: string): boolean {
+	return APPROVAL_ID_PATTERN.test(id);
+}
+
+function approvalFilePath(dir: string, id: string): string | null {
+	return isApprovalId(id) ? join(dir, `${id}.json`) : null;
+}
+
+function approvalFilePathForItem(dir: string, item: PendingApproval): string {
+	const path = approvalFilePath(dir, item.id);
+	if (!path) throw new Error(`Malformed approval id: ${item.id}`);
+	return path;
+}
+
 let _enqueueSeq = 0;
 
 export class ApprovalQueue {
@@ -72,7 +88,7 @@ export class ApprovalQueue {
 			...(timeoutMs !== undefined && { timeoutMs }),
 			...(defaultResolution !== undefined && { defaultResolution }),
 		};
-		writeFileSync(join(this.dir, `${item.id}.json`), JSON.stringify(item, null, 2));
+		writeFileSync(approvalFilePathForItem(this.dir, item), JSON.stringify(item, null, 2));
 		if (this.pbus) {
 			this.pbus.emit("approval.requested", { id: item.id, tool, risk, reason, source: source ?? "", sessionId: sessionId ?? "" });
 			this.pbus.emit("approval.changed", { id: item.id, pendingCount: this.count("pending") });
@@ -81,7 +97,8 @@ export class ApprovalQueue {
 	}
 
 	get(id: string): PendingApproval | null {
-		const path = join(this.dir, `${id}.json`);
+		const path = approvalFilePath(this.dir, id);
+		if (!path) return null;
 		if (!existsSync(path)) return null;
 		return JSON.parse(readFileSync(path, "utf-8"));
 	}
@@ -96,13 +113,15 @@ export class ApprovalQueue {
 	}
 
 	approve(id: string, note?: string, resolutionSource?: string): PendingApproval | null {
+		const path = approvalFilePath(this.dir, id);
+		if (!path) return null;
 		const item = this.get(id);
 		if (!item || item.status !== "pending") return null;
 		item.status = "approved";
 		item.resolvedAt = new Date().toISOString();
 		if (note) item.approvalNote = note;
 		if (resolutionSource) item.resolutionSource = resolutionSource;
-		writeFileSync(join(this.dir, `${id}.json`), JSON.stringify(item, null, 2));
+		writeFileSync(path, JSON.stringify(item, null, 2));
 		if (this.pbus) {
 			this.pbus.emit("approval.resolved", { id, tool: item.tool, approved: true, reason: "", source: item.source ?? "", sessionId: item.sessionId ?? "" });
 			this.pbus.emit("approval.changed", { id, pendingCount: this.count("pending") });
@@ -111,13 +130,15 @@ export class ApprovalQueue {
 	}
 
 	reject(id: string, reason?: string, resolutionSource?: string): PendingApproval | null {
+		const path = approvalFilePath(this.dir, id);
+		if (!path) return null;
 		const item = this.get(id);
 		if (!item || item.status !== "pending") return null;
 		item.status = "rejected";
 		item.resolvedAt = new Date().toISOString();
 		item.rejectionReason = reason;
 		if (resolutionSource) item.resolutionSource = resolutionSource;
-		writeFileSync(join(this.dir, `${id}.json`), JSON.stringify(item, null, 2));
+		writeFileSync(path, JSON.stringify(item, null, 2));
 		if (this.pbus) {
 			this.pbus.emit("approval.resolved", { id, tool: item.tool, approved: false, reason: reason ?? "", source: item.source ?? "", sessionId: item.sessionId ?? "" });
 			this.pbus.emit("approval.changed", { id, pendingCount: this.count("pending") });
@@ -141,7 +162,7 @@ export class ApprovalQueue {
 				item.status = "expired";
 				item.rejectionReason = "expired";
 			}
-			writeFileSync(join(this.dir, `${item.id}.json`), JSON.stringify(item, null, 2));
+			writeFileSync(approvalFilePathForItem(this.dir, item), JSON.stringify(item, null, 2));
 			if (this.pbus) {
 				this.pbus.emit("workflow.approval.timeout", { id: item.id, tool: item.tool, defaultResolution: resolution });
 				this.pbus.emit("approval.expired", { id: item.id, tool: item.tool });

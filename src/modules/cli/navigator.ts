@@ -358,6 +358,10 @@ async function approvalsScreen(
     output.write(line(span(`${op === "approve" ? "Approved" : "Rejected"} ${id}.`, "success")));
     return;
   }
+  if (mutation.reason === "invalid_id") {
+    output.write(line(span(`Invalid approval id "${id}". Expected 8 lowercase hex characters.`, "warn")));
+    return;
+  }
   output.write(line(span(`Approval "${id}" not found or already resolved.`, "warn")));
 }
 

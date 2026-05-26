@@ -3,6 +3,7 @@ import {
 	type ApprovalQueue,
 	type ApprovalStatus,
 	getApprovalQueue,
+	isApprovalId,
 	type PendingApproval,
 } from "#core/daemon/approval-queue.js";
 import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
@@ -114,6 +115,16 @@ function rejectAllApprovalsLocal(
 	return { approvals: items, count: items.length };
 }
 
+function rejectMalformedApprovalId(res: ServerResponse, id: string): boolean {
+	if (isApprovalId(id)) return false;
+	jsonResponse(res, 400, {
+		error: "Invalid approval id",
+		reason: "invalid_approval_id",
+		id,
+	});
+	return true;
+}
+
 async function readOptionalStringField(
 	req: IncomingMessage,
 	field: "note" | "reason",
@@ -157,6 +168,7 @@ export async function handleApproveApproval(
 	queue?: ApprovalQueue,
 	projectId?: string,
 ): Promise<void> {
+	if (rejectMalformedApprovalId(res, id)) return;
 	const note = await readOptionalStringField(req, "note");
 
 	if (link) {
@@ -188,6 +200,7 @@ export async function handleRejectApproval(
 	queue?: ApprovalQueue,
 	projectId?: string,
 ): Promise<void> {
+	if (rejectMalformedApprovalId(res, id)) return;
 	const reason = await readOptionalStringField(req, "reason");
 
 	if (link) {
@@ -343,6 +356,7 @@ async function handleApproveApprovalControl(
 	res: ServerResponse,
 	params: Record<string, string>,
 ): Promise<void> {
+	if (rejectMalformedApprovalId(res, params.id)) return;
 	const note = await readOptionalStringField(req, "note");
 	const queue = resolveApprovalQueue(res, undefined, readProjectId(req));
 	if (!queue) return;
@@ -359,6 +373,7 @@ async function handleRejectApprovalControl(
 	res: ServerResponse,
 	params: Record<string, string>,
 ): Promise<void> {
+	if (rejectMalformedApprovalId(res, params.id)) return;
 	const reason = await readOptionalStringField(req, "reason");
 	const queue = resolveApprovalQueue(res, undefined, readProjectId(req));
 	if (!queue) return;

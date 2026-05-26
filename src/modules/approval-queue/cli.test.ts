@@ -145,8 +145,18 @@ describe("approval CLI commands", () => {
 			const program = makeProgram();
 			const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 			const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => { throw new Error("exit"); });
-			await expect(run(program, "approval", "reject", "nonexistent")).rejects.toThrow("exit");
+			await expect(run(program, "approval", "reject", "deadbeef")).rejects.toThrow("exit");
 			expect(errSpy.mock.calls.flat().join("")).toContain("not found");
+			errSpy.mockRestore();
+			exitSpy.mockRestore();
+		});
+
+		it("errors on malformed ids", async () => {
+			const program = makeProgram();
+			const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+			const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => { throw new Error("exit"); });
+			await expect(run(program, "approval", "reject", "../abcd1234")).rejects.toThrow("exit");
+			expect(errSpy.mock.calls.flat().join("")).toContain("invalid approval id");
 			errSpy.mockRestore();
 			exitSpy.mockRestore();
 		});
@@ -379,8 +389,18 @@ describe("approval CLI commands", () => {
 			const program = makeProgram();
 			const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 			const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => { throw new Error("exit"); });
-			await expect(run(program, "approval", "approve", "nonexistent")).rejects.toThrow("exit");
+			await expect(run(program, "approval", "approve", "deadbeef")).rejects.toThrow("exit");
 			expect(errSpy.mock.calls.flat().join("")).toContain("not found");
+			errSpy.mockRestore();
+			exitSpy.mockRestore();
+		});
+
+		it("errors on malformed ids", async () => {
+			const program = makeProgram();
+			const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+			const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => { throw new Error("exit"); });
+			await expect(run(program, "approval", "approve", "../abcd1234")).rejects.toThrow("exit");
+			expect(errSpy.mock.calls.flat().join("")).toContain("invalid approval id");
 			errSpy.mockRestore();
 			exitSpy.mockRestore();
 		});

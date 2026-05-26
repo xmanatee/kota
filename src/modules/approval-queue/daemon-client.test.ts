@@ -16,22 +16,20 @@
  *     through `requestStrict<T>` with the matching `?status=...` query
  *     string, including a status containing reserved characters threaded
  *     through `encodeURIComponent`.
- *  4. `approve(id, note?)` is wired through `request<T>` with method
+ *  4. `approve(id, note?)` is wired through `fetchRaw` with method
  *     `POST`, path `/approvals/${encodeURIComponent(id)}/approve`, and
- *     body `{ note }`. An id containing reserved characters round-trips
- *     through the encoding unchanged.
- *  5. `reject(id, reason?)` is wired through `request<T>` with method
+ *     body `{ note }`.
+ *  5. `reject(id, reason?)` is wired through `fetchRaw` with method
  *     `POST`, path `/approvals/${encodeURIComponent(id)}/reject`, and
- *     body `{ reason }`. The same encoding-sensitive id round-trips
- *     unchanged.
+ *     body `{ reason }`.
  *  6. Every `ApprovalsListResult` payload decodes through `requestStrict<T>`
  *     unchanged — empty approvals plus a multi-entry payload mixing
  *     pending / approved / rejected statuses.
- *  7. Both `ApprovalMutateResult` arms decode correctly: a `200`
+ *  7. Every `ApprovalMutateResult` arm decodes correctly: a `200`
  *     `{ approval }` response collapses into `{ ok: true, approval }` and
  *     a `null` (404) response collapses into
- *     `{ ok: false, reason: "not_found" }`, asserted for both `approve`
- *     and `reject`.
+ *     `{ ok: false, reason: "not_found" }`, while a typed 400 invalid-id
+ *     response collapses into `{ ok: false, reason: "invalid_id" }`.
  *  8. Removing the approval-queue module's daemonClient contribution
  *     makes the assembled client fail loudly with a clear "approvals"
  *     missing-handler error.
@@ -342,6 +340,22 @@ describe("approval-queue module daemonClient(link)", () => {
     expect(result).toEqual({ ok: false, reason: "not_found" });
   });
 
+  it("collapses a typed 400 invalid-id response from approve into { ok: false, reason: 'invalid_id' }", async () => {
+    const { transport } = makeRecordingTransport(() =>
+      new Response(
+        JSON.stringify({
+          error: "Invalid approval id",
+          reason: "invalid_approval_id",
+          id: "../abcd1234",
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    const contributed = approvalQueueModule.daemonClient!(transport);
+    const result = await contributed.approvals!.approve("../abcd1234");
+    expect(result).toEqual({ ok: false, reason: "invalid_id" });
+  });
+
   it("throws the typed unknown-project error from approve instead of returning not_found", async () => {
     const { transport } = makeRecordingTransport(() =>
       new Response(
@@ -366,6 +380,22 @@ describe("approval-queue module daemonClient(link)", () => {
     const contributed = approvalQueueModule.daemonClient!(transport);
     const result = await contributed.approvals!.reject("missing-id");
     expect(result).toEqual({ ok: false, reason: "not_found" });
+  });
+
+  it("collapses a typed 400 invalid-id response from reject into { ok: false, reason: 'invalid_id' }", async () => {
+    const { transport } = makeRecordingTransport(() =>
+      new Response(
+        JSON.stringify({
+          error: "Invalid approval id",
+          reason: "invalid_approval_id",
+          id: "../abcd1234",
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    const contributed = approvalQueueModule.daemonClient!(transport);
+    const result = await contributed.approvals!.reject("../abcd1234");
+    expect(result).toEqual({ ok: false, reason: "invalid_id" });
   });
 
   it("the assembly path fails loudly when the approval-queue module's daemonClient(link) is removed", () => {

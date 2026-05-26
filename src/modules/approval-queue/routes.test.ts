@@ -132,19 +132,19 @@ describe("approval-routes", () => {
 		});
 
 		it("handleApproveApproval returns daemon response when client succeeds", async () => {
-			const approval = { id: "a1", tool: "shell", status: "approved" };
+			const approval = { id: "abcd1234", tool: "shell", status: "approved" };
 			const link = mockTransport({ approve: { approval } });
 			const { res, result } = mockResponse();
-			await handleApproveApproval(mockRequest(), res, "a1", link, makeQueue());
+			await handleApproveApproval(mockRequest(), res, "abcd1234", link, makeQueue());
 			expect(result.status).toBe(200);
 			expect((result.body as { approval: unknown }).approval).toEqual(approval);
 		});
 
 		it("handleRejectApproval returns daemon response when client succeeds", async () => {
-			const approval = { id: "a1", tool: "shell", status: "rejected" };
+			const approval = { id: "abcd1234", tool: "shell", status: "rejected" };
 			const link = mockTransport({ reject: { approval } });
 			const { res, result } = mockResponse();
-			await handleRejectApproval(mockRequest(), res, "a1", link, makeQueue());
+			await handleRejectApproval(mockRequest(), res, "abcd1234", link, makeQueue());
 			expect(result.status).toBe(200);
 			expect((result.body as { approval: unknown }).approval).toEqual(approval);
 		});
@@ -260,8 +260,19 @@ describe("approval-routes", () => {
 
 		it("returns 404 for unknown id", async () => {
 			const { res, result } = mockResponse();
-			await handleApproveApproval(mockRequest(), res, "nonexistent", null, queue);
+			await handleApproveApproval(mockRequest(), res, "deadbeef", null, queue);
 			expect(result.status).toBe(404);
+		});
+
+		it("returns 400 for malformed decoded ids without mutating the queue", async () => {
+			const item = queue.enqueue("shell", { command: "deploy.sh" }, "moderate", "deploy");
+
+			const { res, result } = mockResponse();
+			await handleApproveApproval(mockRequest(), res, `../${item.id}`, null, queue);
+
+			expect(result.status).toBe(400);
+			expect(result.body).toMatchObject({ reason: "invalid_approval_id" });
+			expect(queue.get(item.id)?.status).toBe("pending");
 		});
 
 		it("returns 404 when item is not pending", async () => {
@@ -309,8 +320,19 @@ describe("approval-routes", () => {
 
 		it("returns 404 for unknown id", async () => {
 			const { res, result } = mockResponse();
-			await handleRejectApproval(mockRequest(), res, "nonexistent", null, queue);
+			await handleRejectApproval(mockRequest(), res, "deadbeef", null, queue);
 			expect(result.status).toBe(404);
+		});
+
+		it("returns 400 for malformed decoded ids without mutating the queue", async () => {
+			const item = queue.enqueue("git", { args: ["reset", "--hard"] }, "dangerous", "reset");
+
+			const { res, result } = mockResponse();
+			await handleRejectApproval(mockRequest(), res, `../${item.id}`, null, queue);
+
+			expect(result.status).toBe(400);
+			expect(result.body).toMatchObject({ reason: "invalid_approval_id" });
+			expect(queue.get(item.id)?.status).toBe("pending");
 		});
 	});
 

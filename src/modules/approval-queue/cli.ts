@@ -1,6 +1,6 @@
 import { createInterface } from "node:readline";
 import type { Command } from "commander";
-import type { ApprovalStatus, PendingApproval } from "#core/daemon/approval-queue.js";
+import { type ApprovalStatus, isApprovalId, type PendingApproval } from "#core/daemon/approval-queue.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { executeTool } from "#core/tools/index.js";
 import {
@@ -70,6 +70,17 @@ function statusRole(status: ApprovalStatus): "success" | "error" | "muted" | "wa
 		case "pending":
 			return "accent";
 	}
+}
+
+function exitInvalidApprovalId(id: string): never {
+	console.error(`Error: invalid approval id "${id}". Expected 8 lowercase hex characters.`);
+	process.exit(1);
+}
+
+function exitApprovalMutationFailure(id: string, reason: "invalid_id" | "not_found"): never {
+	if (reason === "invalid_id") exitInvalidApprovalId(id);
+	console.error(`Error: approval "${id}" not found or already resolved.`);
+	process.exit(1);
 }
 
 function renderPendingItem(item: PendingApproval, opts?: { includeWhy?: boolean }): RenderNode {
@@ -143,10 +154,10 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 		.description("Approve and execute a queued tool call")
 		.option("-n, --note <text>", "Note to attach with the approval")
 		.action(async (id: string, opts: { note?: string }) => {
+			if (!isApprovalId(id)) exitInvalidApprovalId(id);
 			const mutate = await ctx.client.approvals.approve(id, opts.note);
 			if (!mutate.ok) {
-				console.error(`Error: approval "${id}" not found or already resolved.`);
-				process.exit(1);
+				exitApprovalMutationFailure(id, mutate.reason);
 			}
 			const item = mutate.approval;
 			const result = await executeTool(item.tool, item.input);
@@ -248,10 +259,10 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 		.description("Reject a queued tool call")
 		.option("-r, --reason <text>", "Reason for rejection")
 		.action(async (id: string, opts: { reason?: string }) => {
+			if (!isApprovalId(id)) exitInvalidApprovalId(id);
 			const mutate = await ctx.client.approvals.reject(id, opts.reason);
 			if (!mutate.ok) {
-				console.error(`Error: approval "${id}" not found or already resolved.`);
-				process.exit(1);
+				exitApprovalMutationFailure(id, mutate.reason);
 			}
 			const item = mutate.approval;
 			const suffix = opts.reason ? ` — ${opts.reason}` : "";

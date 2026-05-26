@@ -9,7 +9,7 @@
 import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
 import type { ApprovalQueue, PendingApproval } from "#core/daemon/approval-queue.js";
-import { getApprovalQueue } from "#core/daemon/approval-queue.js";
+import { getApprovalQueue, isApprovalId } from "#core/daemon/approval-queue.js";
 import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
@@ -81,10 +81,12 @@ const approvalQueueModule: KotaModule = {
 				return { approvals: queue.list(status) };
 			},
 			async approve(id, note, project) {
+				if (!isApprovalId(id)) return { ok: false, reason: "invalid_id" };
 				const item = resolveLocalApprovalQueue(project?.projectId).approve(id, note);
 				return item ? { ok: true, approval: item } : { ok: false, reason: "not_found" };
 			},
 			async reject(id, reason, project) {
+				if (!isApprovalId(id)) return { ok: false, reason: "invalid_id" };
 				const item = resolveLocalApprovalQueue(project?.projectId).reject(id, reason);
 				return item ? { ok: true, approval: item } : { ok: false, reason: "not_found" };
 			},
@@ -106,11 +108,11 @@ const approvalQueueModule: KotaModule = {
  * `list()` omits the `?status=` query string when the caller does not
  * supply `filter.status`; the daemon route's `readStatusFilter` defaults to
  * `pending` when no query is present, matching the local handler. The two
- * mutations preserve `encodeURIComponent(id)` so embedded slashes,
- * percents, or spaces in the approval id continue to round-trip safely;
- * a `null` (404) result collapses into
+ * mutations preserve `encodeURIComponent(id)` on the URL boundary; malformed
+ * decoded IDs are rejected by the route. A `null` (404) result collapses into
  * `{ ok: false, reason: "not_found" }` to keep `ApprovalMutateResult`
- * intact across the daemon-up branch.
+ * intact across the daemon-up branch. A 400 invalid-id response stays
+ * distinct as `{ ok: false, reason: "invalid_id" }`.
  */
 function buildApprovalsDaemonHandler(link: DaemonTransport): ApprovalsClient {
 	return {
@@ -159,6 +161,13 @@ async function mutateApproval(
 			throw new Error(`Unknown project: ${errBody.projectId}`);
 		}
 		return { ok: false, reason: "not_found" };
+	}
+	if (res.status === 400) {
+		const errBody = await readApprovalRouteError(res);
+		if (errBody?.reason === "invalid_approval_id") {
+			return { ok: false, reason: "invalid_id" };
+		}
+		throw new Error(errBody?.error ?? "Invalid approval request");
 	}
 	if (!res.ok) {
 		const errBody = await readApprovalRouteError(res);

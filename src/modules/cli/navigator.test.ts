@@ -266,6 +266,34 @@ describe("runtime navigator", () => {
     expect(output.frames.join("\n")).toMatch(/Approved ap_1/);
   });
 
+  it("renders invalid approval id responses in the approvals screen", async () => {
+    const pending: PendingApproval = {
+      id: "abcd1234",
+      tool: "shell",
+      input: { command: "ls" },
+      risk: "moderate",
+      reason: "moderate-risk command",
+      status: "pending",
+      createdAt: new Date().toISOString(),
+    } as PendingApproval;
+    const approve = vi.fn(async () => ({ ok: false as const, reason: "invalid_id" as const }));
+    const client = emptyClient({
+      approvals: {
+        list: vi.fn(async () => ({ approvals: [pending] })),
+        approve,
+        reject: vi.fn(async () => ({ ok: false as const, reason: "not_found" as const })),
+      },
+    });
+    const output = makeOutput();
+    await runNavigator({
+      client,
+      prompt: makePrompt(["4", "../abcd1234 approve", "q"]),
+      output: output.capture,
+    });
+    expect(approve).toHaveBeenCalledWith("../abcd1234", undefined);
+    expect(output.frames.join("\n")).toMatch(/Invalid approval id/);
+  });
+
   it("toggles a workflow's autonomy registration via the sessions screen", async () => {
     const session: InteractiveSession = {
       id: "sess-1",

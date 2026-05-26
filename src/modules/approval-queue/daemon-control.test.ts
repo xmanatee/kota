@@ -294,10 +294,21 @@ describe("approval-queue module daemon-control routes", () => {
     });
 
     it("returns 404 when the approval is missing", async () => {
-      const res = await fetchWith(port, "/approvals/missing/approve", { method: "POST" });
+      const res = await fetchWith(port, "/approvals/deadbeef/approve", { method: "POST" });
       expect(res.status).toBe(404);
       const body = (await res.json()) as { error: string };
       expect(body.error).toBe("Approval not found or not pending");
+    });
+
+    it("rejects an encoded slash approval id before queue mutation", async () => {
+      const item = queue.enqueue("shell", { command: "deploy.sh" }, "moderate", "deploy");
+
+      const res = await fetchWith(port, `/approvals/..%2F${item.id}/approve`, { method: "POST" });
+
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { reason: string };
+      expect(body.reason).toBe("invalid_approval_id");
+      expect(queue.get(item.id)?.status).toBe("pending");
     });
 
     it("returns 404 when the approval is no longer pending", async () => {
@@ -336,7 +347,7 @@ describe("approval-queue module daemon-control routes", () => {
     });
 
     it("returns 404 when the approval is missing", async () => {
-      const res = await fetchWith(port, "/approvals/missing/reject", { method: "POST" });
+      const res = await fetchWith(port, "/approvals/deadbeef/reject", { method: "POST" });
       expect(res.status).toBe(404);
     });
   });

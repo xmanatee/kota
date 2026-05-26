@@ -1,10 +1,10 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
-import { ApprovalQueue, getApprovalQueue, resetApprovalQueue } from "./approval-queue.js";
+import { ApprovalQueue, getApprovalQueue, isApprovalId, resetApprovalQueue } from "./approval-queue.js";
 
 describe("ApprovalQueue", () => {
 	let dir: string;
@@ -30,8 +30,37 @@ describe("ApprovalQueue", () => {
 		expect(retrieved).toEqual(item);
 	});
 
-	it("returns null for nonexistent id", () => {
-		expect(queue.get("nonexistent")).toBeNull();
+	it("returns null for valid but nonexistent ids", () => {
+		expect(queue.get("deadbeef")).toBeNull();
+	});
+
+	it("generates ids that match the approval id boundary", () => {
+		const item = queue.enqueue("shell", { command: "echo ok" }, "safe", "test");
+		expect(isApprovalId(item.id)).toBe(true);
+	});
+
+	it("rejects malformed ids before resolving approval file paths", () => {
+		const siblingId = `approval-sibling-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+		const siblingPath = join(dir, "..", `${siblingId}.json`);
+		const sibling = {
+			id: siblingId,
+			tool: "shell",
+			input: { command: "echo should-not-run" },
+			risk: "moderate",
+			reason: "sibling record",
+			createdAt: new Date().toISOString(),
+			status: "pending",
+		};
+		writeFileSync(siblingPath, JSON.stringify(sibling, null, 2));
+
+		try {
+			expect(queue.get(`../${siblingId}`)).toBeNull();
+			expect(queue.approve(`../${siblingId}`)).toBeNull();
+			expect(queue.reject(`../${siblingId}`)).toBeNull();
+			expect(JSON.parse(readFileSync(siblingPath, "utf-8"))).toEqual(sibling);
+		} finally {
+			unlinkSync(siblingPath);
+		}
 	});
 
 	it("lists pending items", () => {

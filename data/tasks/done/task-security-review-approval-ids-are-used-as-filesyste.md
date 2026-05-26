@@ -1,12 +1,12 @@
 ---
 id: task-security-review-approval-ids-are-used-as-filesyste
 title: Security review: Approval IDs are used as filesystem path components without validation after route decoding, allowing crafted IDs with encoded slashes or dot segments to read and rewrite sibling .kota JSON records that have pending status.
-status: ready
+status: done
 priority: p2
 area: security
 summary: Approval IDs are used as filesystem path components without validation after route decoding, allowing crafted IDs with encoded slashes or dot segments to read and rewrite sibling .kota JSON records that have pending status.
 created_at: 2026-05-26T14:54:53.334Z
-updated_at: 2026-05-26T14:54:53.334Z
+updated_at: 2026-05-26T15:19:22.644Z
 ---
 
 ## Problem
@@ -55,4 +55,5 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `pnpm test src/core/daemon/approval-queue.test.ts src/modules/approval-queue/routes.test.ts src/modules/approval-queue/daemon-control.test.ts src/modules/approval-queue/cli.test.ts src/modules/approval-queue/daemon-client.test.ts src/modules/cli/navigator.test.ts` — 6 files / 142 tests passed.
+- `pnpm typecheck` — passed.
