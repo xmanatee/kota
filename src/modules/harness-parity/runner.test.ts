@@ -388,6 +388,18 @@ describe("harness-parity runner", () => {
           content: "patched add.js",
         });
         await options.onMessage?.({
+          type: "tool_call",
+          toolUseId: "tool-2",
+          toolName: "Bash",
+          input: { command: "pnpm test add.test.ts" },
+        });
+        await options.onMessage?.({
+          type: "tool_result",
+          toolUseId: "tool-2",
+          isError: false,
+          content: "tests passed",
+        });
+        await options.onMessage?.({
           type: "result",
           text: "done",
           isError: false,
@@ -410,15 +422,17 @@ describe("harness-parity runner", () => {
     );
     expect(trajectory.status).toBe("supported");
     expect(trajectory.counts).toMatchObject({
-      frameCount: 4,
-      toolCallCount: 1,
-      toolResultCount: 1,
+      frameCount: 6,
+      toolCallCount: 2,
+      toolResultCount: 2,
       statusCount: 1,
       resultCount: 1,
       truncatedFrameCount: 0,
     });
     expect(trajectory.frames.map((frame: { type: string }) => frame.type)).toEqual([
       "status",
+      "tool_call",
+      "tool_result",
       "tool_call",
       "tool_result",
       "result",
@@ -442,6 +456,15 @@ describe("harness-parity runner", () => {
       },
     });
     expect(trajectory.frames[3]).toMatchObject({
+      index: 3,
+      toolName: "Bash",
+      message: {
+        type: "tool_call",
+        toolUseId: "tool-2",
+        toolName: "Bash",
+      },
+    });
+    expect(trajectory.frames[5]).toMatchObject({
       message: {
         type: "result",
         isError: false,
@@ -455,6 +478,22 @@ describe("harness-parity runner", () => {
     );
     expect(summary).toContain("tool_call Edit (tool-1)");
     expect(summary).toContain("tool_result Edit (tool-1) isError=false");
+    expect(summary).toContain("- diagnosticWarnings: 0");
+
+    const diagnostics = JSON.parse(
+      readFileSync(
+        join(artifacts[0]!.artifactDir, "trajectory-diagnostics.json"),
+        "utf-8",
+      ),
+    );
+    expect(diagnostics).toMatchObject({
+      status: "supported",
+      emitsAgentMessageStream: true,
+      counts: {
+        warningCount: 0,
+      },
+      diagnostics: [],
+    });
 
     const parity = JSON.parse(
       readFileSync(join(outRoot, "fix-add", "parity.json"), "utf-8"),
@@ -462,12 +501,19 @@ describe("harness-parity runner", () => {
     expect(parity.artifacts[0].trajectory).toMatchObject({
       status: "supported",
       emitsAgentMessageStream: true,
-      frameCount: 4,
-      toolCallCount: 1,
-      toolResultCount: 1,
+      frameCount: 6,
+      toolCallCount: 2,
+      toolResultCount: 2,
       resultCount: 1,
       artifactPath: join(artifacts[0]!.artifactDir, "trajectory.json"),
       summaryPath: join(artifacts[0]!.artifactDir, "trajectory-summary.md"),
+    });
+    expect(parity.artifacts[0].trajectoryDiagnostics).toMatchObject({
+      warningCount: 0,
+      artifactPath: join(
+        artifacts[0]!.artifactDir,
+        "trajectory-diagnostics.json",
+      ),
     });
   });
 
@@ -513,6 +559,28 @@ describe("harness-parity runner", () => {
     expect(summary).toContain(
       "- reason: Harness capability snapshot declares emitsAgentMessageStream=false.",
     );
+    expect(summary).toContain("- diagnosticWarnings: 1");
+
+    const diagnostics = JSON.parse(
+      readFileSync(
+        join(artifacts[0]!.artifactDir, "trajectory-diagnostics.json"),
+        "utf-8",
+      ),
+    );
+    expect(diagnostics).toMatchObject({
+      status: "unsupported",
+      emitsAgentMessageStream: false,
+      counts: {
+        warningCount: 1,
+        unsupportedTrajectoryCount: 1,
+      },
+      diagnostics: [
+        {
+          code: "unsupported_trajectory",
+          frameIndexes: [],
+        },
+      ],
+    });
 
     const parity = JSON.parse(
       readFileSync(join(outRoot, "fix-add", "parity.json"), "utf-8"),
@@ -524,6 +592,70 @@ describe("harness-parity runner", () => {
         "Harness capability snapshot declares emitsAgentMessageStream=false.",
       frameCount: 0,
       artifactPath: join(artifacts[0]!.artifactDir, "trajectory.json"),
+    });
+    expect(parity.artifacts[0].trajectoryDiagnostics).toMatchObject({
+      warningCount: 1,
+      unsupportedTrajectoryCount: 1,
+      artifactPath: join(
+        artifacts[0]!.artifactDir,
+        "trajectory-diagnostics.json",
+      ),
+    });
+  });
+
+  it("diagnoses missing frames from a streaming-capable harness without changing verification", async () => {
+    const scenario = loadScenario(scenariosRoot, "fix-add");
+    const harness = makeHarness(
+      "silent-streaming",
+      (workingDir) => {
+        writeFileSync(
+          join(workingDir, "add.js"),
+          "exports.add = (a, b) => a + b;\n",
+        );
+      },
+      {},
+      { emitsAgentMessageStream: true },
+    );
+
+    const artifacts = await runScenarioAcrossHarnesses({
+      scenario,
+      harnesses: [harness],
+      callOptions: { model: "test-model" },
+      outBaseDir: outRoot,
+    });
+
+    expect(artifacts[0]!.verification.passed).toBe(true);
+
+    const diagnostics = JSON.parse(
+      readFileSync(
+        join(artifacts[0]!.artifactDir, "trajectory-diagnostics.json"),
+        "utf-8",
+      ),
+    );
+    expect(diagnostics).toMatchObject({
+      status: "supported",
+      emitsAgentMessageStream: true,
+      counts: {
+        warningCount: 1,
+        missingStreamingFramesCount: 1,
+      },
+      diagnostics: [
+        {
+          code: "missing_streaming_frames",
+          frameIndexes: [],
+        },
+      ],
+    });
+
+    const parity = JSON.parse(
+      readFileSync(join(outRoot, "fix-add", "parity.json"), "utf-8"),
+    );
+    expect(parity.artifacts[0]).toMatchObject({
+      verificationPassed: true,
+      trajectoryDiagnostics: {
+        warningCount: 1,
+        missingStreamingFramesCount: 1,
+      },
     });
   });
 

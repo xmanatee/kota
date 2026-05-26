@@ -44,6 +44,10 @@ Per harness run the module writes:
 - `trajectory-summary.md` — concise action/observation sequence for tool
   calls, tool results, status frames, and final result frames; oversized tool
   results are bounded with an explicit truncation marker.
+- `trajectory-diagnostics.json` — deterministic advisory process-quality
+  warnings derived from the structured trajectory frames, such as missing
+  post-edit verification, blind failing-command retries, edits after a
+  passing verification, and missing frames from a streaming-capable harness.
 - `diff.patch` — `git diff --no-index` output against the scenario's
   `initial/` tree.
 - `verification.json` — command, timeout, exit status, and tail of combined
@@ -60,8 +64,9 @@ summary in `run-meta.json`; `parity.json` carries the same per-stage status for
 side-by-side comparison.
 
 The top-level `parity.json` keeps compact capability and trajectory metadata
-beside each harness outcome so side-by-side comparison does not require
-opening every child run directory.
+beside each harness outcome, including trajectory-diagnostic warning counts
+and artifact paths, so side-by-side comparison does not require opening every
+child run directory.
 
 ## Scenario Coverage
 

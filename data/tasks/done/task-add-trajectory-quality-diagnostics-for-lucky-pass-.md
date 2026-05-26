@@ -1,12 +1,12 @@
 ---
 id: task-add-trajectory-quality-diagnostics-for-lucky-pass-
 title: Add trajectory-quality diagnostics for lucky-pass coding-agent runs
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Use existing structured trajectory artifacts to flag passing coding-agent runs with process-quality warnings such as missing verification, blind retries, and disordered explore/implement/verify phases without replacing outcome predicates.
 created_at: 2026-05-26T02:59:40.593Z
-updated_at: 2026-05-26T02:59:40.593Z
+updated_at: 2026-05-26T03:24:19.000Z
 ---
 
 ## Problem
@@ -122,9 +122,14 @@ artifact and predicate model.
 
 ## Acceptance Evidence
 
-- Focused test transcript for the harness-parity diagnostic helper and runner
-  integration, for example `pnpm test src/modules/harness-parity/runner.test.ts`.
-- Test artifact or fixture showing `trajectory-diagnostics.json` for a clean
-  trajectory and for at least two warning-bearing trajectories.
-- `parity.json` diff or captured artifact showing diagnostic counts and
-  artifact paths for each relevant harness/stage.
+- Focused test transcript:
+  `.kota/runs/2026-05-26T03-12-39-003Z-builder-i4o0g1/test-transcript.txt`
+  (`pnpm test src/modules/harness-parity/trajectory-diagnostics.test.ts
+  src/modules/harness-parity/runner.test.ts`).
+- Sample diagnostic artifacts:
+  `.kota/runs/2026-05-26T03-12-39-003Z-builder-i4o0g1/trajectory-diagnostics-samples/clean-trajectory-diagnostics.json`,
+  `.kota/runs/2026-05-26T03-12-39-003Z-builder-i4o0g1/trajectory-diagnostics-samples/missing-final-verification-diagnostics.json`,
+  and
+  `.kota/runs/2026-05-26T03-12-39-003Z-builder-i4o0g1/trajectory-diagnostics-samples/repeated-failing-command-diagnostics.json`.
+- Runner integration assertions in `src/modules/harness-parity/runner.test.ts`
+  cover `parity.json` diagnostic counts and artifact paths.

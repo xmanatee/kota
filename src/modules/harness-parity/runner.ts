@@ -43,6 +43,13 @@ import type {
   ScenarioStageSpec,
   ScenarioVerification,
 } from "./scenario.js";
+import {
+  aggregateTrajectoryDiagnosticsMetadata,
+  buildTrajectoryDiagnosticsArtifact,
+  type HarnessParityTrajectoryDiagnosticsMetadata,
+  TRAJECTORY_DIAGNOSTICS_ARTIFACT_NAME,
+  trajectoryDiagnosticsMetadata,
+} from "./trajectory-diagnostics.js";
 
 const DEFAULT_EFFORT: AgentEffort = "xhigh";
 
@@ -126,6 +133,8 @@ export type HarnessParityArtifact = {
   artifactDir: string;
   /** Structured action/observation trajectory captured from `onMessage`. */
   trajectory: HarnessParityTrajectoryMetadata;
+  /** Advisory process-quality diagnostics derived from structured trajectory frames. */
+  trajectoryDiagnostics: HarnessParityTrajectoryDiagnosticsMetadata;
   /** Original scenario execution mode. */
   stageMode: "single" | "staged";
   /** Ordered stage artifacts. Single-stage scenarios contain one `main` stage. */
@@ -155,6 +164,7 @@ export type HarnessParityStageArtifact = {
   previewArtifacts: readonly PreviewArtifactResult[];
   artifactDir: string;
   trajectory: HarnessParityTrajectoryMetadata;
+  trajectoryDiagnostics: HarnessParityTrajectoryDiagnosticsMetadata;
 };
 
 export type HarnessParityStageSummary = {
@@ -167,6 +177,7 @@ export type HarnessParityStageSummary = {
   artifactDir: string;
   previewArtifacts: readonly PreviewArtifactResult[];
   trajectory: HarnessParityTrajectoryMetadata;
+  trajectoryDiagnostics: HarnessParityTrajectoryDiagnosticsMetadata;
 };
 
 export type HarnessParityStagedSummary = {
@@ -241,6 +252,11 @@ type UnsupportedTrajectoryArtifact = {
 type TrajectoryArtifact =
   | SupportedTrajectoryArtifact
   | UnsupportedTrajectoryArtifact;
+
+type WrittenTrajectoryArtifacts = {
+  trajectory: HarnessParityTrajectoryMetadata;
+  trajectoryDiagnostics: HarnessParityTrajectoryDiagnosticsMetadata;
+};
 
 type SanitizedTrajectoryMessage = {
   message: KotaAgentMessage;
@@ -663,22 +679,46 @@ function writeTrajectoryArtifacts(args: {
   artifactDir: string;
   capability: HarnessCapabilitySnapshot;
   messages: readonly KotaAgentMessage[];
-}): HarnessParityTrajectoryMetadata {
+  changedFiles: readonly string[];
+  verification: ScenarioVerification;
+}): WrittenTrajectoryArtifacts {
   const artifactPath = join(args.artifactDir, TRAJECTORY_ARTIFACT_NAME);
   const summaryPath = join(args.artifactDir, TRAJECTORY_SUMMARY_NAME);
+  const diagnosticsPath = join(
+    args.artifactDir,
+    TRAJECTORY_DIAGNOSTICS_ARTIFACT_NAME,
+  );
+  const diagnosticsArtifact = buildTrajectoryDiagnosticsArtifact({
+    capability: args.capability,
+    messages: args.messages,
+    changedFiles: args.changedFiles,
+    verificationCommand: args.verification.command,
+  });
+  writeFileSync(diagnosticsPath, JSON.stringify(diagnosticsArtifact, null, 2));
+  const trajectoryDiagnostics = trajectoryDiagnosticsMetadata(
+    diagnosticsArtifact,
+    diagnosticsPath,
+  );
+
   if (!args.capability.emitsAgentMessageStream) {
     const reason =
       "Harness capability snapshot declares emitsAgentMessageStream=false.";
     const artifact = buildUnsupportedTrajectoryArtifact(reason);
     writeFileSync(artifactPath, JSON.stringify(artifact, null, 2));
-    writeFileSync(summaryPath, buildTrajectorySummary(artifact));
-    return {
-      status: "unsupported",
-      emitsAgentMessageStream: false,
-      artifactPath,
+    writeFileSync(
       summaryPath,
-      reason,
-      ...artifact.counts,
+      buildTrajectorySummary(artifact, trajectoryDiagnostics),
+    );
+    return {
+      trajectory: {
+        status: "unsupported",
+        emitsAgentMessageStream: false,
+        artifactPath,
+        summaryPath,
+        reason,
+        ...artifact.counts,
+      },
+      trajectoryDiagnostics,
     };
   }
 
@@ -686,17 +726,26 @@ function writeTrajectoryArtifacts(args: {
     buildTrajectoryFrames(args.messages),
   );
   writeFileSync(artifactPath, JSON.stringify(artifact, null, 2));
-  writeFileSync(summaryPath, buildTrajectorySummary(artifact));
-  return {
-    status: "supported",
-    emitsAgentMessageStream: true,
-    artifactPath,
+  writeFileSync(
     summaryPath,
-    ...artifact.counts,
+    buildTrajectorySummary(artifact, trajectoryDiagnostics),
+  );
+  return {
+    trajectory: {
+      status: "supported",
+      emitsAgentMessageStream: true,
+      artifactPath,
+      summaryPath,
+      ...artifact.counts,
+    },
+    trajectoryDiagnostics,
   };
 }
 
-function buildTrajectorySummary(artifact: TrajectoryArtifact): string {
+function buildTrajectorySummary(
+  artifact: TrajectoryArtifact,
+  diagnostics: HarnessParityTrajectoryDiagnosticsMetadata,
+): string {
   const lines: string[] = [];
   lines.push("# Trajectory");
   lines.push("");
@@ -713,6 +762,7 @@ function buildTrajectorySummary(artifact: TrajectoryArtifact): string {
   lines.push(`- statusFrames: ${artifact.counts.statusCount}`);
   lines.push(`- resultFrames: ${artifact.counts.resultCount}`);
   lines.push(`- truncatedFrames: ${artifact.counts.truncatedFrameCount}`);
+  renderTrajectoryDiagnosticsSummary(lines, diagnostics);
   if (artifact.status === "unsupported") return `${lines.join("\n")}\n`;
 
   lines.push("");
@@ -727,6 +777,17 @@ function buildTrajectorySummary(artifact: TrajectoryArtifact): string {
     lines.push(`- ${formatTrajectoryFrame(frame)}`);
   }
   return `${lines.join("\n")}\n`;
+}
+
+function renderTrajectoryDiagnosticsSummary(
+  lines: string[],
+  diagnostics: HarnessParityTrajectoryDiagnosticsMetadata,
+): void {
+  lines.push(`- diagnosticWarnings: ${diagnostics.warningCount}`);
+  lines.push(`- diagnosticsArtifact: ${diagnostics.artifactPath}`);
+  lines.push(
+    `- diagnosticCounts: unsupported=${diagnostics.unsupportedTrajectoryCount}, missingFrames=${diagnostics.missingStreamingFramesCount}, missingFinalVerification=${diagnostics.missingFinalVerificationAfterEditCount}, repeatedFailingCommand=${diagnostics.repeatedIdenticalFailingCommandCount}, editAfterPass=${diagnostics.editAfterSuccessfulVerificationCount}, longPreamble=${diagnostics.longPreambleWithoutTaskTouchCount}`,
+  );
 }
 
 function formatTrajectoryFrame(frame: HarnessParityTrajectoryFrame): string {
@@ -956,10 +1017,12 @@ async function runScenarioStageOnHarness(args: {
     join(artifactDir, "trace.txt"),
     tail(writer.collected(), TRACE_TAIL_LIMIT),
   );
-  const trajectory = writeTrajectoryArtifacts({
+  const { trajectory, trajectoryDiagnostics } = writeTrajectoryArtifacts({
     artifactDir,
     capability,
     messages: trajectoryMessages,
+    changedFiles,
+    verification: stage.verification,
   });
 
   const artifact: HarnessParityStageArtifact = {
@@ -978,6 +1041,7 @@ async function runScenarioStageOnHarness(args: {
     previewArtifacts,
     artifactDir,
     trajectory,
+    trajectoryDiagnostics,
     ...(runResult?.inputTokens !== undefined
       ? { inputTokens: runResult.inputTokens }
       : {}),
@@ -1064,6 +1128,7 @@ function buildStagedSummary(
       artifactDir: stage.artifactDir,
       previewArtifacts: stage.previewArtifacts,
       trajectory: stage.trajectory,
+      trajectoryDiagnostics: stage.trajectoryDiagnostics,
     })),
   };
 }
@@ -1100,6 +1165,9 @@ function buildStagedTraceSummary(artifact: HarnessParityArtifact): string {
   lines.push(
     `- verification: ${artifact.verification.passed ? "pass" : "fail"} (${artifact.stages.filter((stage) => stage.verification.passed).length}/${artifact.stages.length} stages passed)`,
   );
+  lines.push(
+    `- trajectoryDiagnostics: warnings=${artifact.trajectoryDiagnostics.warningCount}, artifact=${artifact.trajectoryDiagnostics.artifactPath}`,
+  );
   lines.push(`- changedFiles (${artifact.changedFiles.length}):`);
   for (const path of artifact.changedFiles) lines.push(`  - ${path}`);
   lines.push("");
@@ -1107,9 +1175,10 @@ function buildStagedTraceSummary(artifact: HarnessParityArtifact): string {
   lines.push("");
   for (const stage of artifact.stages) {
     lines.push(
-      `- ${stage.stageId}: ${stage.verification.passed ? "pass" : "fail"} (exit ${stage.verification.exitStatus ?? "null"}${stage.verification.timedOut ? ", timeout" : ""}), turns=${stage.turns}, changedFiles=${stage.changedFiles.length}`,
+      `- ${stage.stageId}: ${stage.verification.passed ? "pass" : "fail"} (exit ${stage.verification.exitStatus ?? "null"}${stage.verification.timedOut ? ", timeout" : ""}), turns=${stage.turns}, changedFiles=${stage.changedFiles.length}, diagnosticWarnings=${stage.trajectoryDiagnostics.warningCount}`,
     );
     lines.push(`  - artifacts: ${stage.artifactDir}`);
+    lines.push(`  - diagnostics: ${stage.trajectoryDiagnostics.artifactPath}`);
   }
   lines.push("");
   lines.push("## Capability boundary");
@@ -1127,15 +1196,47 @@ function buildStagedTrajectorySummary(artifact: HarnessParityArtifact): string {
   lines.push(
     `- emitsAgentMessageStream: ${artifact.capability.emitsAgentMessageStream}`,
   );
+  renderTrajectoryDiagnosticsSummary(lines, artifact.trajectoryDiagnostics);
   for (const stage of artifact.stages) {
     lines.push(
-      `- ${stage.stageId}: ${stage.trajectory.status}, frames=${stage.trajectory.frameCount}, artifact=${stage.trajectory.artifactPath}`,
+      `- ${stage.stageId}: ${stage.trajectory.status}, frames=${stage.trajectory.frameCount}, diagnostics=${stage.trajectoryDiagnostics.warningCount}, artifact=${stage.trajectory.artifactPath}`,
     );
   }
   return `${lines.join("\n")}\n`;
 }
 
 function writeStagedTrajectoryArtifacts(artifact: HarnessParityArtifact): void {
+  writeFileSync(
+    join(artifact.artifactDir, TRAJECTORY_DIAGNOSTICS_ARTIFACT_NAME),
+    JSON.stringify(
+      {
+        version: 1,
+        status: "staged",
+        counts: {
+          warningCount: artifact.trajectoryDiagnostics.warningCount,
+          unsupportedTrajectoryCount:
+            artifact.trajectoryDiagnostics.unsupportedTrajectoryCount,
+          missingStreamingFramesCount:
+            artifact.trajectoryDiagnostics.missingStreamingFramesCount,
+          missingFinalVerificationAfterEditCount:
+            artifact.trajectoryDiagnostics
+              .missingFinalVerificationAfterEditCount,
+          repeatedIdenticalFailingCommandCount:
+            artifact.trajectoryDiagnostics.repeatedIdenticalFailingCommandCount,
+          editAfterSuccessfulVerificationCount:
+            artifact.trajectoryDiagnostics.editAfterSuccessfulVerificationCount,
+          longPreambleWithoutTaskTouchCount:
+            artifact.trajectoryDiagnostics.longPreambleWithoutTaskTouchCount,
+        },
+        stages: artifact.stages.map((stage) => ({
+          stageId: stage.stageId,
+          diagnostics: stage.trajectoryDiagnostics,
+        })),
+      },
+      null,
+      2,
+    ),
+  );
   writeFileSync(
     join(artifact.artifactDir, TRAJECTORY_ARTIFACT_NAME),
     JSON.stringify(
@@ -1179,6 +1280,13 @@ function buildHarnessArtifact(args: {
       ? finalStage.verification
       : buildAggregateVerification(args.stageRecords);
   const stagedSummary = buildStagedSummary(args.scenario.spec.stageMode, stages);
+  const trajectoryDiagnostics =
+    args.scenario.spec.stageMode === "single"
+      ? finalStage.trajectoryDiagnostics
+      : aggregateTrajectoryDiagnosticsMetadata(
+          stages.map((stage) => stage.trajectoryDiagnostics),
+          join(args.artifactDir, TRAJECTORY_DIAGNOSTICS_ARTIFACT_NAME),
+        );
 
   return {
     scenarioId: args.scenario.spec.id,
@@ -1195,6 +1303,7 @@ function buildHarnessArtifact(args: {
     previewArtifacts: finalStage.previewArtifacts,
     artifactDir: args.artifactDir,
     trajectory: finalStage.trajectory,
+    trajectoryDiagnostics,
     stageMode: args.scenario.spec.stageMode,
     stages,
     stagedSummary,
@@ -1377,6 +1486,9 @@ function buildTraceSummary(
   lines.push(
     `- verification: ${artifact.verification.passed ? "pass" : "fail"} (exit ${artifact.verification.exitStatus ?? "null"}${artifact.verification.timedOut ? ", timeout" : ""})`,
   );
+  lines.push(
+    `- trajectoryDiagnostics: warnings=${artifact.trajectoryDiagnostics.warningCount}, artifact=${artifact.trajectoryDiagnostics.artifactPath}`,
+  );
   lines.push(`- changedFiles (${artifact.changedFiles.length}):`);
   for (const path of artifact.changedFiles) lines.push(`  - ${path}`);
   if (artifact.previewArtifacts.length > 0) {
@@ -1513,6 +1625,7 @@ export async function runScenarioAcrossHarnesses(params: {
           isError: a.isError,
           capability: summarizeHarnessCapability(a.capability),
           trajectory: a.trajectory,
+          trajectoryDiagnostics: a.trajectoryDiagnostics,
           stagedSummary: a.stagedSummary,
           previewArtifacts: a.previewArtifacts,
           totalCostUsd: a.totalCostUsd,
