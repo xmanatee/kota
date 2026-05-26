@@ -1,12 +1,12 @@
 ---
 id: task-bound-recursive-delegate-spawning-with-depth-and-c
 title: Bound recursive delegate spawning with depth and concurrency limits
-status: ready
+status: done
 priority: p2
 area: core
 summary: Add explicit depth and concurrency controls around KOTA's delegate sub-agent tool so execute-mode delegates cannot recursively spawn unbounded sub-agents or fan out concurrent delegate calls without a typed runtime budget.
 created_at: 2026-05-26T14:57:21.408Z
-updated_at: 2026-05-26T14:57:21.408Z
+updated_at: 2026-05-26T15:39:41.318Z
 ---
 
 ## Problem

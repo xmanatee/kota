@@ -15,10 +15,18 @@ import {
 import { createModelClient } from "#core/model/model-client.js";
 import { routeModel } from "#core/model/model-router.js";
 import {
+  type DelegateBudgetFailure,
+  type DelegateBudgetLease,
+  formatDelegateBudgetSnapshot,
+  serializeDelegateBudgetFailure,
+} from "./delegate-budget.js";
+import {
+  type DelegateMode,
   EXECUTE_MAX_TURNS,
   EXPLORE_MAX_TURNS,
   getDelegateConfig,
   RESEARCH_MAX_TURNS,
+  type ResolvedDelegateConfig,
   resolvePromptTemplate,
 } from "./delegate-config.js";
 import {
@@ -28,8 +36,15 @@ import {
 } from "./delegate-format.js";
 import { runDelegateTurns } from "./delegate-turn.js";
 import { localWriteEffect } from "./effect.js";
-import type { ToolResult } from "./index.js";
+import type { ResolvedToolSet, ToolResult } from "./index.js";
 
+export {
+  createDelegateBudget,
+  DEFAULT_DELEGATE_MAX_ACTIVE_CHILDREN,
+  DEFAULT_DELEGATE_MAX_DEPTH,
+  type DelegateBudget,
+  type DelegateBudgetLimits,
+} from "./delegate-budget.js";
 export type { DelegateConfig, DelegateMode } from "./delegate-config.js";
 export { setDelegateConfig } from "./delegate-config.js";
 export type { CompletionReason, DelegateMetadata } from "./delegate-format.js";
@@ -70,23 +85,72 @@ export const delegateTool: KotaTool = {
   },
 };
 
-export async function runDelegate(
-  input: Record<string, unknown>,
-): Promise<ToolResult> {
+function budgetFailureResult(failure: DelegateBudgetFailure): ToolResult {
+  return {
+    content: `Error: delegate budget exhausted: ${failure.message}`,
+    is_error: true,
+    _meta: {
+      delegateBudget: serializeDelegateBudgetFailure(failure),
+    },
+  };
+}
+
+function omitRecursiveDelegateTool(toolSet: ResolvedToolSet): ResolvedToolSet {
+  const tools = toolSet.tools.filter((tool) => tool.name !== delegateTool.name);
+  const runners: ResolvedToolSet["runners"] = {};
+  for (const [name, runner] of Object.entries(toolSet.runners)) {
+    if (name !== delegateTool.name) runners[name] = runner;
+  }
+  return { tools, runners };
+}
+
+function formatBudgetStatus(lease: DelegateBudgetLease): string {
+  return formatDelegateBudgetSnapshot(lease.snapshot());
+}
+
+type DelegateInput = Record<string, unknown>;
+
+const VALID_MODES: Set<DelegateMode> = new Set(["explore", "execute", "research"]);
+
+export async function runDelegate(input: DelegateInput): Promise<ToolResult> {
   const task = input.task as string;
   const rawMode = (input.mode as string) || "explore";
 
   if (!task || (typeof task === "string" && !task.trim())) {
     return { content: "Error: task is required", is_error: true };
   }
-  type DelegateMode = "explore" | "execute" | "research";
-  const VALID_MODES: Set<DelegateMode> = new Set(["explore", "execute", "research"]);
   if (!VALID_MODES.has(rawMode as DelegateMode)) {
     return { content: `Error: mode must be "explore", "execute", or "research", got "${rawMode}"`, is_error: true };
   }
   const mode = rawMode as DelegateMode;
   const delegateConfig = getDelegateConfig();
+  const budgetStart = delegateConfig.delegateBudget.tryStart();
+  if (!budgetStart.ok) {
+    const result = budgetFailureResult(budgetStart.failure);
+    delegateConfig.transport?.emit({
+      type: "error",
+      message: `[kota] ${result.content}`,
+    });
+    return result;
+  }
+  const budgetLease = budgetStart.lease;
 
+  try {
+    return await budgetLease.run(() =>
+      runDelegateWithBudget(input, task, mode, delegateConfig, budgetLease),
+    );
+  } finally {
+    budgetLease.release();
+  }
+}
+
+async function runDelegateWithBudget(
+  input: DelegateInput,
+  task: string,
+  mode: DelegateMode,
+  delegateConfig: ResolvedDelegateConfig,
+  budgetLease: DelegateBudgetLease,
+): Promise<ToolResult> {
   const isExecute = mode === "execute";
 
   const modelRoute = delegateConfig.modelTiers
@@ -104,6 +168,10 @@ export async function runDelegate(
         is_error: true,
       };
     }
+    delegateConfig.transport?.emit({
+      type: "status",
+      message: `[kota] delegate(${mode}) budget ${formatBudgetStatus(budgetLease)}`,
+    });
     return runDelegateHarness(task, mode, {
       cwd: delegateConfig.cwd,
       projectContext: delegateConfig.projectContext,
@@ -120,11 +188,17 @@ export async function runDelegate(
   const TURNS_BY_MODE = { explore: EXPLORE_MAX_TURNS, execute: EXECUTE_MAX_TURNS, research: RESEARCH_MAX_TURNS } as const;
   const PROMPT_BY_MODE = { explore: EXPLORE_PROMPT, execute: EXECUTE_PROMPT, research: RESEARCH_PROMPT } as const;
 
-  const { tools: builtinTools, runners } = TOOLSET_BY_MODE[mode]();
+  let { tools: builtinTools, runners } = TOOLSET_BY_MODE[mode]();
+  if (delegateConfig.delegateBudget.isAtDepthLimit(budgetLease.depth)) {
+    ({ tools: builtinTools, runners } = omitRecursiveDelegateTool({ tools: builtinTools, runners }));
+  }
 
   const mcpMgr = delegateConfig.mcpManager;
   const mcpTools = mcpMgr ? mcpMgr.getTools() : [];
-  const tools = mcpTools.length > 0 ? [...builtinTools, ...mcpTools] : builtinTools;
+  const rawTools = mcpTools.length > 0 ? [...builtinTools, ...mcpTools] : builtinTools;
+  const tools = delegateConfig.delegateBudget.isAtDepthLimit(budgetLease.depth)
+    ? rawTools.filter((tool) => tool.name !== delegateTool.name)
+    : rawTools;
   const maxTurns = TURNS_BY_MODE[mode];
 
   const promptName = input.prompt as string | undefined;
@@ -161,7 +235,12 @@ export async function runDelegate(
   const taskChars = [...task];
   const taskPreview = taskChars.length > 60 ? `${taskChars.slice(0, 57).join("")}...` : task;
   const routeInfo = modelRoute ? ` [${modelRoute.tier}:${selectedModel}]` : "";
-  if (transport) transport.emit({ type: "status", message: `[kota] delegate(${mode})${routeInfo} starting: ${taskPreview}` });
+  if (transport) {
+    transport.emit({
+      type: "status",
+      message: `[kota] delegate(${mode})${routeInfo} [budget ${formatBudgetStatus(budgetLease)}] starting: ${taskPreview}`,
+    });
+  }
 
   const loopResult = await runDelegateTurns({
     client, messages, systemBlocks, tools, runners, mcpMgr,
@@ -175,7 +254,12 @@ export async function runDelegate(
   const { naturalEnd, completionReason: loopReason, lastText, totalTurns } = loopResult;
   const completionReason: CompletionReason = !naturalEnd && loopReason === "done" ? "turn_limit" : loopReason;
 
-  if (transport) transport.emit({ type: "status", message: `[kota] delegate(${mode}) done — ${totalTurns} turn(s)` });
+  if (transport) {
+    transport.emit({
+      type: "status",
+      message: `[kota] delegate(${mode}) done — ${totalTurns} turn(s) [budget ${formatBudgetStatus(budgetLease)}]`,
+    });
+  }
 
   const meta: DelegateMetadata = {
     mode,

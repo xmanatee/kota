@@ -9,6 +9,11 @@ import {
   resolvePreset,
   resolveTierModel,
 } from "#core/model/preset.js";
+import {
+  createDelegateBudget,
+  type DelegateBudget,
+  type DelegateBudgetLimits,
+} from "./delegate-budget.js";
 
 export type DelegateMode = "explore" | "execute" | "research";
 
@@ -44,6 +49,12 @@ export type DelegateConfig = {
    * throws if the field is missing when routed down the agent-harness path.
    */
   harness?: string;
+  delegateBudgetLimits?: DelegateBudgetLimits;
+  delegateBudget?: DelegateBudget;
+};
+
+export type ResolvedDelegateConfig = DelegateConfig & {
+  delegateBudget: DelegateBudget;
 };
 
 /**
@@ -54,18 +65,27 @@ export type DelegateConfig = {
  * `loop-constructor` overwrites this with the operator's resolved
  * `editorModel`.
  */
-function buildDefaultDelegateConfig(): DelegateConfig {
+function buildDefaultDelegateConfig(): ResolvedDelegateConfig {
   const { preset } = resolvePreset({ env: process.env[PRESET_ENV_VAR] });
-  return { model: resolveTierModel(preset, "capable") };
+  return {
+    model: resolveTierModel(preset, "capable"),
+    delegateBudget: createDelegateBudget(),
+  };
 }
 
-let delegateConfig: DelegateConfig | null = null;
+let delegateConfig: ResolvedDelegateConfig | null = null;
 
 export function setDelegateConfig(config: DelegateConfig): void {
-  delegateConfig = config;
+  if (config.delegateBudget && config.delegateBudgetLimits) {
+    throw new Error("Delegate config accepts either delegateBudget or delegateBudgetLimits, not both.");
+  }
+  delegateConfig = {
+    ...config,
+    delegateBudget: config.delegateBudget ?? createDelegateBudget(config.delegateBudgetLimits),
+  };
 }
 
-export function getDelegateConfig(): DelegateConfig {
+export function getDelegateConfig(): ResolvedDelegateConfig {
   if (!delegateConfig) delegateConfig = buildDefaultDelegateConfig();
   return delegateConfig;
 }

@@ -99,7 +99,8 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
       // Preserve any harness name the loop constructor already wired in from
       // `config.defaultAgentHarness` — re-calling setDelegateConfig here must
       // not silently drop it.
-      const previousHarness = getDelegateConfig().harness;
+      const previousDelegateConfig = getDelegateConfig();
+      const previousHarness = previousDelegateConfig.harness;
       setDelegateConfig({
         model: state.editorModel,
         modelTiers: state.modelTiers,
@@ -112,6 +113,7 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
         transport: state.transport,
         mcpManager: state.mcpManager,
         ...(previousHarness !== undefined ? { harness: previousHarness } : {}),
+        delegateBudget: previousDelegateConfig.delegateBudget,
       });
       if (state.verbose) {
         state.transport.emit({
