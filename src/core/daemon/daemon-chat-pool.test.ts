@@ -2,6 +2,12 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import {
+  cloneGuardrailsConfig,
+  createGuardrailsSnapshot,
+  fingerprintGuardrailsConfig,
+  type GuardrailsConfig,
+} from "#core/tools/guardrails.js";
 import { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import { deleteDaemonSession } from "./daemon-chat-handlers.js";
 import { DaemonChatPool } from "./daemon-chat-pool.js";
@@ -15,11 +21,28 @@ function makeBindingStore(): DaemonChatBindingStore {
 
 function mockAgentSession(sendResult?: unknown, mode: "passive" | "supervised" | "autonomous" = "supervised") {
   let current = mode;
+  let guardrailsConfig: GuardrailsConfig = {
+    policies: { safe: "allow", moderate: "allow", dangerous: "confirm" },
+  };
+  let guardrailsSnapshot = createGuardrailsSnapshot(guardrailsConfig, 0);
   return {
     send: vi.fn(async () => sendResult ?? { status: "ok" }),
     close: vi.fn(),
     getAutonomyMode: vi.fn(() => current),
     setAutonomyMode: vi.fn((next: "passive" | "supervised" | "autonomous") => { current = next; }),
+    getGuardrailsSnapshot: vi.fn(() => ({ ...guardrailsSnapshot })),
+    replaceGuardrailsConfig: vi.fn((nextConfig: GuardrailsConfig) => {
+      const nextId = fingerprintGuardrailsConfig(nextConfig);
+      if (nextId === guardrailsSnapshot.id) {
+        return { changed: false, snapshot: { ...guardrailsSnapshot } };
+      }
+      guardrailsConfig = cloneGuardrailsConfig(nextConfig);
+      guardrailsSnapshot = createGuardrailsSnapshot(
+        guardrailsConfig,
+        guardrailsSnapshot.generation + 1,
+      );
+      return { changed: true, snapshot: { ...guardrailsSnapshot } };
+    }),
   };
 }
 

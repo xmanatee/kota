@@ -18,6 +18,7 @@ type SessionEntry =
       startedAt: string;
       lastActive: number;
       autonomyMode: AutonomyMode;
+      guardrailsSnapshotId: string | null;
     }
   | { kind: "workflow"; id: string; workflow: string; startedAt: string };
 
@@ -32,6 +33,7 @@ function buildSessionList(
       startedAt: s.createdAt,
       lastActive: s.lastActive,
       autonomyMode: s.autonomyMode,
+      guardrailsSnapshotId: s.guardrailsSnapshot?.id ?? null,
     })),
     ...activeRuns.map((r) => ({
       kind: "workflow" as const,
@@ -146,6 +148,7 @@ export function buildSessionCommand(_ctx: ModuleContext): Command {
           startedAt: interactive.createdAt,
           lastActive: new Date(interactive.lastActive).toISOString(),
           autonomyMode: interactive.autonomyMode,
+          guardrailsSnapshot: interactive.guardrailsSnapshot ?? null,
         };
         if (opts.json) {
           console.log(JSON.stringify(detail));
@@ -153,6 +156,7 @@ export function buildSessionCommand(_ctx: ModuleContext): Command {
           console.log(`id:            ${detail.id}`);
           console.log(`type:          interactive`);
           console.log(`autonomy mode: ${detail.autonomyMode}`);
+          console.log(`guardrails:    ${detail.guardrailsSnapshot?.id ?? "(not refreshable)"}`);
           console.log(`started:       ${detail.startedAt}`);
           console.log(`last active:   ${detail.lastActive}`);
         }

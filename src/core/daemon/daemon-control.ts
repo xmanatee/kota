@@ -2,9 +2,11 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { ControlRouteRegistration, RouteRegistration } from "#core/modules/module-types.js";
 import { findRouteMatch } from "#core/modules/route-matcher.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import type { GuardrailsConfig } from "#core/tools/guardrails.js";
 import type { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import type { DaemonChatConversationResolver } from "./daemon-chat-handlers.js";
 import {
+  type DaemonChatGuardrailsRefreshSummary,
   type DaemonChatMakeAgent,
   DaemonChatPool,
   type DaemonChatPoolOptions,
@@ -216,6 +218,10 @@ export class DaemonControlServer {
 
   getPort(): number | null {
     return this.port;
+  }
+
+  refreshChatSessionGuardrails(config: GuardrailsConfig): DaemonChatGuardrailsRefreshSummary {
+    return this.chatPool?.refreshGuardrails(config) ?? { refreshed: 0, unchanged: 0 };
   }
 
   private isAuthorized(req: IncomingMessage): boolean {

@@ -15,7 +15,11 @@ import { initProviderRegistry, registerDefaultProviders } from "#core/modules/pr
 import { setConfigProvider, setModuleInfoProvider } from "#core/tools/agent-status.js";
 import { isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import { setDelegateConfig } from "#core/tools/delegate.js";
-import { getDefaultConfig as getDefaultGuardrails } from "#core/tools/guardrails.js";
+import {
+  cloneGuardrailsConfig,
+  createGuardrailsSnapshot,
+  getDefaultConfig as getDefaultGuardrails,
+} from "#core/tools/guardrails.js";
 import { enableGroup } from "#core/tools/tool-groups.js";
 import { buildSessionWarmup } from "#root/init.js";
 import { Context } from "./context.js";
@@ -69,8 +73,10 @@ export function initAgentSession(
     state.transport = proxy;
   }
   const isNonInteractive = options.historySource === "action";
-  state.guardrailsConfig = options.config?.guardrails
+  const initialGuardrailsConfig = options.config?.guardrails
     ?? (isNonInteractive ? { policies: { safe: "allow", moderate: "allow", dangerous: "deny" } } : getDefaultGuardrails());
+  state.guardrailsConfig = cloneGuardrailsConfig(initialGuardrailsConfig);
+  state.guardrailsSnapshot = createGuardrailsSnapshot(state.guardrailsConfig, 0);
   state.reflectionEnabled = options.reflectionEnabled ?? options.config?.reflection ?? true;
   state.modelTiers = options.config?.modelTiers;
   state.channelIdentity = options.channelIdentity;

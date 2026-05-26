@@ -123,8 +123,8 @@ export function handleReloadWorkflow(handle: DaemonControlHandle, res: ServerRes
 }
 
 export function handleReloadConfig(handle: DaemonControlHandle, res: ServerResponse): void {
-  handle.reloadConfig().then(({ workflows, changedModules }) => {
-    jsonResponse(res, 200, { ok: true, workflows, changedModules });
+  handle.reloadConfig().then(({ workflows, changedModules, sessionGuardrails }) => {
+    jsonResponse(res, 200, { ok: true, workflows, changedModules, sessionGuardrails });
   }).catch((err: unknown) => {
     const msg = err instanceof Error ? err.message : String(err);
     jsonResponse(res, 500, { error: `Reload failed: ${msg}` });

@@ -1,12 +1,12 @@
 ---
 id: task-apply-daemon-config-reloads-to-live-session-guardr
 title: Apply daemon config reloads to live session guardrails
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Make daemon config reloads update guardrail and supervision-sensitive runtime state for existing live sessions, with explicit session snapshots and tests, so policy changes do not only affect sessions created after reload.
 created_at: 2026-05-26T01:41:38.214Z
-updated_at: 2026-05-26T01:41:38.214Z
+updated_at: 2026-05-26T01:58:06.000Z
 ---
 
 ## Problem
@@ -131,3 +131,5 @@ definitions.
   session created under one guardrail policy, the config reloaded to a stricter
   policy, and the next dangerous tool call using the stricter policy without
   recreating the conversation.
+- Run evidence:
+  `.kota/runs/2026-05-26T01-44-40-094Z-builder-w53giv/daemon-reload-guardrails-transcript.txt`.

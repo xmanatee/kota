@@ -11,6 +11,7 @@ import { randomUUID } from "node:crypto";
 import type { AgentSession } from "#core/loop/loop.js";
 import { ProxyTransport, type Transport } from "#core/loop/transport.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import type { GuardrailsConfig, GuardrailsSnapshot } from "#core/tools/guardrails.js";
 
 /** Factory signature for building an AgentSession inside the daemon. */
 export type DaemonChatMakeAgent = (
@@ -36,8 +37,14 @@ export type DaemonChatListEntry = {
   busy: boolean;
   lastActive: number;
   autonomyMode: AutonomyMode;
+  guardrailsSnapshot: GuardrailsSnapshot;
   conversationId: string;
   source: "daemon";
+};
+
+export type DaemonChatGuardrailsRefreshSummary = {
+  refreshed: number;
+  unchanged: number;
 };
 
 const DEFAULT_MAX_SESSIONS = 10;
@@ -115,6 +122,7 @@ export class DaemonChatPool {
       busy: s.busy,
       lastActive: s.lastActive,
       autonomyMode: s.agent.getAutonomyMode(),
+      guardrailsSnapshot: s.agent.getGuardrailsSnapshot(),
       conversationId: s.conversationId,
       source: "daemon" as const,
     }));
@@ -130,6 +138,20 @@ export class DaemonChatPool {
     if (!session) return false;
     session.agent.setAutonomyMode(mode);
     return true;
+  }
+
+  refreshGuardrails(config: GuardrailsConfig): DaemonChatGuardrailsRefreshSummary {
+    let refreshed = 0;
+    let unchanged = 0;
+    for (const session of this.sessions.values()) {
+      const result = session.agent.replaceGuardrailsConfig(config);
+      if (result.changed) {
+        refreshed++;
+      } else {
+        unchanged++;
+      }
+    }
+    return { refreshed, unchanged };
   }
 
   /** Evict sessions idle longer than TTL. Returns count removed. */

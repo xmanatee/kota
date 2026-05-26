@@ -224,7 +224,11 @@ function makeHandle(
     abortActiveRuns: () => ({ aborted: 0 }),
     abortActiveRun: () => ({ ok: false, notFound: true }),
     reloadWorkflowDefinitions: () => ({ count: 1 }),
-    reloadConfig: async () => ({ workflows: 1, changedModules: [] }),
+    reloadConfig: async () => ({
+      workflows: 1,
+      changedModules: [],
+      sessionGuardrails: { refreshed: 0, unchanged: 0, nonRefreshable: [] },
+    }),
     getWorkflowDefinitions: () => [],
     enableWorkflow: () => ({ ok: true }),
     disableWorkflow: () => ({ ok: true }),

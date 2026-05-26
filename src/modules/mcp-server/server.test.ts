@@ -4930,6 +4930,7 @@ describe("resource subscriptions", () => {
 				fullReload: false,
 				changedModules: ["memory"],
 				workflowCount: 0,
+				sessionGuardrails: { refreshed: 0, unchanged: 0, nonRefreshable: [] },
 			});
 
 			const listChanged = await reader.read();

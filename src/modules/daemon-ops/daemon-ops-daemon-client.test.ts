@@ -26,9 +26,8 @@
  *     satisfy the typed contract; runtime callers always reach the local
  *     handler.
  *  7. `reload()` routes through `link.request("POST", "/reload")` and
- *     decodes the success arm correctly: a `200 + { ok: true, workflows: 5,
- *     changedModules: ["m1"] }` response collapses to `{ ok: true,
- *     workflows: 5, changedModules: ["m1"] }`.
+ *     decodes the success arm correctly, including the session guardrails
+ *     refresh summary.
  *  8. `reload()` decodes the reload_failed arm correctly: a `null` response
  *     (transport failure or non-ok) collapses to `{ ok: false, reason:
  *     "reload_failed" }`.
@@ -177,7 +176,12 @@ describe("daemon-ops module daemonClient(link) — daemonOps namespace", () => {
   it("routes reload() through POST /reload and shapes the success arm", async () => {
     const { transport, calls } = makeRecordingTransport((method, path) =>
       method === "POST" && path === "/reload"
-        ? { ok: true, workflows: 5, changedModules: ["m1"] }
+        ? {
+            ok: true,
+            workflows: 5,
+            changedModules: ["m1"],
+            sessionGuardrails: { refreshed: 1, unchanged: 0, nonRefreshable: [] },
+          }
         : null,
     );
     const contributed = daemonOpsModule.daemonClient!(transport);
@@ -186,6 +190,7 @@ describe("daemon-ops module daemonClient(link) — daemonOps namespace", () => {
       ok: true,
       workflows: 5,
       changedModules: ["m1"],
+      sessionGuardrails: { refreshed: 1, unchanged: 0, nonRefreshable: [] },
     });
     expect(calls).toHaveLength(1);
     expect(calls[0]!.method).toBe("POST");

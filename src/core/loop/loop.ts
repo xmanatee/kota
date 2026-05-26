@@ -9,7 +9,13 @@ import type { ModelClient } from "#core/model/model-client.js";
 import type { ModelTiers } from "#core/model/model-router.js";
 import type { ModuleLoader } from "#core/modules/module-loader.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
-import type { GuardrailsConfig } from "#core/tools/guardrails.js";
+import {
+  cloneGuardrailsConfig,
+  createGuardrailsSnapshot,
+  fingerprintGuardrailsConfig,
+  type GuardrailsConfig,
+  type GuardrailsSnapshot,
+} from "#core/tools/guardrails.js";
 import type { Context } from "./context.js";
 import type { CostTracker } from "./cost.js";
 import { initAgentSession } from "./loop-constructor.js";
@@ -63,6 +69,11 @@ export type LoopOptions = {
   mcpAuthorizationResolver?: McpAuthorizationResolver;
 };
 
+export type GuardrailsConfigReplacement = {
+  changed: boolean;
+  snapshot: GuardrailsSnapshot;
+};
+
 /**
  * Persistent agent session that maintains context across multiple prompts.
  * Used by both single-shot mode and interactive REPL.
@@ -106,13 +117,17 @@ export class AgentSession implements AgentLoopState {
   stateMachine!: SessionStateMachine;
   channelIdentity: ChannelUserIdentity | undefined;
   autonomyMode!: AutonomyMode;
+  guardrailsSnapshot!: GuardrailsSnapshot;
 
   constructor(options: LoopOptions) {
     initAgentSession(this, options, (opts) => {
+      const config: KotaConfig = options.config
+        ? { ...options.config, guardrails: this.guardrailsConfig }
+        : { guardrails: this.guardrailsConfig };
       const session = new AgentSession({
         autonomyMode: this.autonomyMode,
         model: opts.model || this.model,
-        config: options.config,
+        config,
         transport: new BufferTransport(),
         label: opts.label,
         noHistory: opts.noHistory ?? true,
@@ -149,6 +164,24 @@ export class AgentSession implements AgentLoopState {
   getChannelIdentity(): ChannelUserIdentity | undefined { return this.channelIdentity; }
 
   getAutonomyMode(): AutonomyMode { return this.autonomyMode; }
+
+  getGuardrailsSnapshot(): GuardrailsSnapshot {
+    return { ...this.guardrailsSnapshot };
+  }
+
+  replaceGuardrailsConfig(config: GuardrailsConfig): GuardrailsConfigReplacement {
+    const nextConfig = cloneGuardrailsConfig(config);
+    const nextId = fingerprintGuardrailsConfig(nextConfig);
+    if (nextId === this.guardrailsSnapshot.id) {
+      return { changed: false, snapshot: this.getGuardrailsSnapshot() };
+    }
+    this.guardrailsConfig = nextConfig;
+    this.guardrailsSnapshot = createGuardrailsSnapshot(
+      nextConfig,
+      this.guardrailsSnapshot.generation + 1,
+    );
+    return { changed: true, snapshot: this.getGuardrailsSnapshot() };
+  }
 
   /**
    * Change the session's autonomy mode mid-flight. Operators invoke this

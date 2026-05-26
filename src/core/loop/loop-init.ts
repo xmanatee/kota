@@ -19,7 +19,7 @@ import { resetAgentStatusProviders } from "#core/tools/agent-status.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { loadSavedTools, resetCustomTools } from "#core/tools/custom-tool.js";
 import { getDelegateConfig, setDelegateConfig } from "#core/tools/delegate-config.js";
-import type { GuardrailsConfig } from "#core/tools/guardrails.js";
+import type { GuardrailsConfig, GuardrailsSnapshot } from "#core/tools/guardrails.js";
 import { addLoadedModule, resetModuleFactory } from "#core/tools/module-factory/index.js";
 import { resetGroups } from "#core/tools/tool-groups.js";
 import { resetToolTelemetry } from "#core/tools/tool-telemetry.js";
@@ -66,6 +66,7 @@ export interface AgentLoopState {
   reflectionEnabled: boolean;
   stateMachine: SessionStateMachine;
   guardrailsConfig: GuardrailsConfig;
+  guardrailsSnapshot: GuardrailsSnapshot;
   sessionPath: string | undefined;
   historyEnabled: boolean;
   historySource: "user" | "action";

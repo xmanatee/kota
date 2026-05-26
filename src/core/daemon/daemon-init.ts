@@ -123,7 +123,6 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
   const runStore = defaultBundle.runStore;
 
   const daemonModel = config.model ?? config.config?.model;
-  const daemonConfig = config.config;
   const daemonVerbose = config.verbose;
   const chatBindings = new DaemonChatBindingStore(stateDir);
   const conversationResolver = {
@@ -139,7 +138,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     },
     createConversation: (_mode: AutonomyMode): string =>
       getHistoryProvider().create(
-        daemonModel ?? resolveActivePresetFromConfig(daemonConfig).defaultModel,
+        daemonModel ?? resolveActivePresetFromConfig(config.config).defaultModel,
         projectDir,
         "user",
       ),
@@ -155,7 +154,9 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     projectDir,
     projectRegistry,
     projectRuntimes,
-    config: { config: config.config, verbose: config.verbose },
+    config,
+    refreshLiveSessionGuardrails: (guardrailsConfig) =>
+      ctx.controlServer.refreshChatSessionGuardrails(guardrailsConfig),
     log,
     getModuleHealthChecks: () => ctx.moduleHealthChecks,
     probeCapabilityReadiness: () => probeCapabilityReadinessWithTrigger(workflows),
@@ -228,7 +229,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
         model: daemonModel,
         verbose: daemonVerbose,
         transport,
-        config: daemonConfig,
+        config: config.config,
         resumeConversation,
       }),
     defaultAutonomyMode: config.config?.serve?.defaultAutonomyMode,

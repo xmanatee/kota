@@ -3,6 +3,18 @@ import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowStepSkipReason } from "#core/workflow/run-types.js";
 import type { ProjectId } from "./project-scope.js";
 
+export type GuardrailsNonRefreshableSession = {
+  id: string;
+  source: "serve";
+  reason: "serve-owned-session";
+};
+
+export type SessionGuardrailsReloadSummary = {
+  refreshed: number;
+  unchanged: number;
+  nonRefreshable: GuardrailsNonRefreshableSession[];
+};
+
 export type DaemonConfigReloadEvent =
   | {
       timestamp: string;
@@ -12,6 +24,7 @@ export type DaemonConfigReloadEvent =
       fullReload: boolean;
       changedModules: string[];
       workflowCount: number;
+      sessionGuardrails: SessionGuardrailsReloadSummary;
     }
   | {
       timestamp: string;

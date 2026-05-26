@@ -4,6 +4,7 @@ import {
   registerPreSendHook,
   resetPreSendHooks,
 } from "#core/loop/pre-send-hooks.js";
+import type { GuardrailsConfig } from "#core/tools/guardrails.js";
 
 // --- Hoisted mock variables (used inside vi.mock factories) ---
 
@@ -129,6 +130,10 @@ function toolResults(results: Array<{ id: string; content: string; is_error?: bo
   }));
 }
 
+function executedGuardrailsConfig(callIndex: number): GuardrailsConfig {
+  return (mockExecuteToolCalls.mock.calls[callIndex][1] as { guardrailsConfig: GuardrailsConfig }).guardrailsConfig;
+}
+
 // --- Tests ---
 
 describe("AgentSession", () => {
@@ -245,6 +250,59 @@ describe("AgentSession", () => {
       expect(result).toBe("All done");
       expect(mockStreamMessage).toHaveBeenCalledTimes(3);
       expect(mockExecuteToolCalls).toHaveBeenCalledTimes(2);
+    });
+
+    it("uses refreshed guardrails config on the next tool call", async () => {
+      session = new AgentSession({
+        autonomyMode: "autonomous",
+        config: {
+          guardrails: {
+            policies: { safe: "allow", moderate: "allow", dangerous: "allow" },
+          },
+        },
+      });
+      mockStreamMessage
+        .mockResolvedValueOnce(
+          toolResponse([{ id: "tu_1", name: "process", input: { command: "rm -rf tmp" } }]),
+        )
+        .mockResolvedValueOnce(textResponse("first done"))
+        .mockResolvedValueOnce(
+          toolResponse([{ id: "tu_2", name: "process", input: { command: "rm -rf tmp" } }]),
+        )
+        .mockResolvedValueOnce(textResponse("second done"));
+      mockExecuteToolCalls
+        .mockResolvedValueOnce(toolResults([{ id: "tu_1", content: "ran" }]))
+        .mockResolvedValueOnce(toolResults([{ id: "tu_2", content: "queued" }]));
+
+      await session.send("run dangerous command");
+      const before = session.getGuardrailsSnapshot();
+      expect(executedGuardrailsConfig(0).policies.dangerous).toBe("allow");
+
+      const replacement = session.replaceGuardrailsConfig({
+        policies: { safe: "allow", moderate: "allow", dangerous: "queue" },
+      });
+      expect(replacement.changed).toBe(true);
+      expect(replacement.snapshot.generation).toBe(before.generation + 1);
+
+      await session.send("run dangerous command again");
+
+      expect(executedGuardrailsConfig(1).policies.dangerous).toBe("queue");
+    });
+
+    it("does not churn the guardrails snapshot when the policy is unchanged", () => {
+      const guardrails: GuardrailsConfig = {
+        policies: { safe: "allow", moderate: "allow", dangerous: "queue" },
+      };
+      session = new AgentSession({
+        autonomyMode: "autonomous",
+        config: { guardrails },
+      });
+      const before = session.getGuardrailsSnapshot();
+
+      const replacement = session.replaceGuardrailsConfig(guardrails);
+
+      expect(replacement.changed).toBe(false);
+      expect(session.getGuardrailsSnapshot()).toEqual(before);
     });
   });
 

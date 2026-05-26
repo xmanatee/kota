@@ -28,6 +28,7 @@ vi.mock("#core/modules/module-metadata.js", () => ({
 type ReloadSubject = {
   handle: ReturnType<typeof buildDaemonHandle>;
   events: BusEvents["daemon.config.reload"][];
+  refreshLiveSessionGuardrails: ReturnType<typeof vi.fn>;
   workflowRuntime: {
     setWorkflowInputs: ReturnType<typeof vi.fn>;
     reloadWorkflowDefinitions: ReturnType<typeof vi.fn>;
@@ -58,6 +59,10 @@ function makeReloadSubject(initialConfig: KotaConfig = {}): ReloadSubject {
     toProjection: vi.fn(() => ({ defaultProjectId: "test-project", projects: [] })),
   } as unknown as ProjectRegistry;
   const projectDir = mkdtempSync(join(tmpdir(), "kota-daemon-handle-test-"));
+  const refreshLiveSessionGuardrails = vi.fn(() => ({
+    refreshed: 0,
+    unchanged: 0,
+  }));
 
   const handle = buildDaemonHandle({
     getState: () => ({
@@ -74,6 +79,7 @@ function makeReloadSubject(initialConfig: KotaConfig = {}): ReloadSubject {
     projectRegistry,
     projectRuntimes,
     config: { config: initialConfig, verbose: false },
+    refreshLiveSessionGuardrails,
     log: () => {},
     getModuleHealthChecks: () => ({}),
     probeCapabilityReadiness: async () => ({
@@ -83,7 +89,7 @@ function makeReloadSubject(initialConfig: KotaConfig = {}): ReloadSubject {
     getChannelStatuses: () => [],
   });
 
-  return { handle, events, workflowRuntime };
+  return { handle, events, refreshLiveSessionGuardrails, workflowRuntime };
 }
 
 function mockModuleMetadata(): void {
@@ -116,6 +122,7 @@ describe("buildDaemonHandle reloadConfig events", () => {
     expect(result).toEqual({
       workflows: 5,
       changedModules: ["git", "github"],
+      sessionGuardrails: { refreshed: 0, unchanged: 0, nonRefreshable: [] },
     });
     expect(subject.workflowRuntime.setWorkflowInputs).toHaveBeenCalledWith([
       { name: "builder", triggers: [], steps: [] },
@@ -128,6 +135,7 @@ describe("buildDaemonHandle reloadConfig events", () => {
       fullReload: false,
       changedModules: ["git", "github"],
       workflowCount: 5,
+      sessionGuardrails: { refreshed: 0, unchanged: 0, nonRefreshable: [] },
     });
     expect(subject.events[0].timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
@@ -146,6 +154,32 @@ describe("buildDaemonHandle reloadConfig events", () => {
       fullReload: false,
       changedModules: [],
       workflowCount: 5,
+      sessionGuardrails: { refreshed: 0, unchanged: 0, nonRefreshable: [] },
+    });
+  });
+
+  it("reports serve-owned sessions as non-refreshable on reload", async () => {
+    mockModuleMetadata();
+    vi.mocked(loadConfig).mockReturnValue({
+      guardrails: { policies: { safe: "allow", moderate: "allow", dangerous: "deny" } },
+    });
+    const subject = makeReloadSubject({});
+    subject.handle.registerSession("serve-1", "2026-01-01T00:00:00.000Z", "supervised");
+
+    const result = await subject.handle.reloadConfig();
+
+    expect(subject.refreshLiveSessionGuardrails).toHaveBeenCalledWith({
+      policies: { safe: "allow", moderate: "allow", dangerous: "deny" },
+    });
+    expect(result.sessionGuardrails).toEqual({
+      refreshed: 0,
+      unchanged: 0,
+      nonRefreshable: [
+        { id: "serve-1", source: "serve", reason: "serve-owned-session" },
+      ],
+    });
+    expect(subject.events[0]).toMatchObject({
+      sessionGuardrails: result.sessionGuardrails,
     });
   });
 

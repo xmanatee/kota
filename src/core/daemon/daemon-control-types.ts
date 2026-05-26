@@ -1,6 +1,10 @@
 import type { ChannelStatus } from "#core/channels/channel.js";
-import type { BusEvents } from "#core/events/event-bus-types.js";
+import type {
+  BusEvents,
+  SessionGuardrailsReloadSummary,
+} from "#core/events/event-bus-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import type { GuardrailsSnapshot } from "#core/tools/guardrails.js";
 import type { ToolCallSummaryEntry, WorkflowActiveRun, WorkflowQueuedRun, WorkflowRuntimeState, WorkflowStepSkipReason } from "#core/workflow/run-types.js";
 import type { WorkflowAgentBackoffState } from "#core/workflow/trigger-types.js";
 import type { CapabilityReadinessResponse } from "./capability-readiness.js";
@@ -176,6 +180,8 @@ export type InteractiveSession = {
   lastActive: number;
   /** Operator supervision mode the session runs under. */
   autonomyMode: AutonomyMode;
+  /** Present for daemon-owned live AgentSession instances. */
+  guardrailsSnapshot?: GuardrailsSnapshot;
   /** "serve" = registered from kota serve; "daemon" = owned by daemon control API. */
   source?: "daemon" | "serve";
 };
@@ -262,7 +268,11 @@ export type DaemonControlHandle = {
   abortActiveRuns(projectId?: ProjectId): { aborted: number };
   abortActiveRun(runId: string, projectId?: ProjectId): { ok: boolean; notFound?: boolean; queued?: boolean };
   reloadWorkflowDefinitions(projectId?: ProjectId): { count: number };
-  reloadConfig(): Promise<{ workflows: number; changedModules: string[] }>;
+  reloadConfig(): Promise<{
+    workflows: number;
+    changedModules: string[];
+    sessionGuardrails: SessionGuardrailsReloadSummary;
+  }>;
   getWorkflowDefinitions(projectId?: ProjectId): WorkflowDefinitionSummary[];
   enableWorkflow(name: string, projectId?: ProjectId): { ok: boolean; notFound?: boolean };
   disableWorkflow(name: string, projectId?: ProjectId): { ok: boolean; notFound?: boolean };

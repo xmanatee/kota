@@ -23,8 +23,8 @@ import {
   handlePatchDaemonSession,
 } from "./daemon-chat-handlers.js";
 import type { DaemonChatMakeAgent, DaemonChatPool } from "./daemon-chat-pool.js";
-import { handleListSessions, handleRegisterSession, handleUnregisterSession } from "./daemon-control-sessions.js";
-import type { DaemonControlHandle, DaemonLiveStatus } from "./daemon-control-types.js";
+import { handleRegisterSession, handleUnregisterSession } from "./daemon-control-sessions.js";
+import type { DaemonControlHandle, DaemonLiveStatus, InteractiveSession } from "./daemon-control-types.js";
 import { jsonResponse, parseActiveProjectPatchBody, readBody, resolveProjectIdParam } from "./daemon-control-utils.js";
 import {
   handleAbortWorkflow,
@@ -43,6 +43,7 @@ import {
   handleTriggerWorkflow,
 } from "./daemon-control-workflow.js";
 import type { EventRingBuffer } from "./event-ring-buffer.js";
+import type { ProjectId } from "./project-registry.js";
 
 /** Inputs the built-in route closures bind at registration time. */
 export type BuiltinControlRouteDeps = {
@@ -55,6 +56,21 @@ export type BuiltinControlRouteDeps = {
   chatBindings: DaemonChatBindingStore | null;
   conversationResolver: DaemonChatConversationResolver | null;
 };
+
+function listInteractiveSessions(
+  handle: DaemonControlHandle,
+  chatPool: DaemonChatPool | null,
+  projectId: ProjectId | undefined,
+): InteractiveSession[] {
+  if (!chatPool) return handle.listSessions(projectId);
+  const daemonEntries = chatPool.list();
+  const daemonIds = new Set(daemonEntries.map((s) => s.id));
+  const serveSessions = handle
+    .listSessions(projectId)
+    .filter((s) => !daemonIds.has(s.id))
+    .map((s) => ({ ...s, source: "serve" as const }));
+  return [...serveSessions, ...daemonEntries];
+}
 
 export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): ControlRouteRegistration[] {
   const {
@@ -100,7 +116,7 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
         }
         const daemonState = h.getDaemonLiveState();
         const workflowStatus = h.getWorkflowLiveStatus(scope.projectId);
-        const sessions = h.listSessions(scope.projectId);
+        const sessions = listInteractiveSessions(h, chatPool, scope.projectId);
         const channels = h.listChannelStatuses();
         const body: DaemonLiveStatus = {
           ...daemonState,
@@ -340,17 +356,7 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
           jsonResponse(res, 404, scope.error);
           return;
         }
-        if (chatPool) {
-          const daemonEntries = chatPool.list();
-          const daemonIds = new Set(daemonEntries.map((s) => s.id));
-          const serveSessions = h
-            .listSessions(scope.projectId)
-            .filter((s) => !daemonIds.has(s.id))
-            .map((s) => ({ ...s, source: "serve" as const }));
-          jsonResponse(res, 200, { sessions: [...serveSessions, ...daemonEntries] });
-        } else {
-          handleListSessions(h, res, url);
-        }
+        jsonResponse(res, 200, { sessions: listInteractiveSessions(h, chatPool, scope.projectId) });
       },
     },
     {

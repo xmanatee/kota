@@ -68,7 +68,7 @@ function makeHandle(): DaemonControlHandle {
     hasProject: vi.fn((id: string) => id === "test-project-id"),
     getActiveProjectId: vi.fn(() => null),
     setActiveProjectId: vi.fn((id: string | null) => (id === null ? { ok: true as const, activeProjectId: null } : id === "test-project-id" ? { ok: true as const, activeProjectId: id } : { ok: false as const, reason: "not_found" as const, projectId: id })),
-    reloadConfig: vi.fn(async () => ({ workflows: 0, changedModules: [] })),
+    reloadConfig: vi.fn(async () => ({ workflows: 0, changedModules: [], sessionGuardrails: { refreshed: 0, unchanged: 0, nonRefreshable: [] } })),
     probeCapabilityReadiness: vi.fn(async () => ({ capabilities: [], summary: { ready: 0, unavailable: 0, init_failed: 0 } })),
     getClientIdentity: vi.fn(async () => ({
       projectName: "test-project",

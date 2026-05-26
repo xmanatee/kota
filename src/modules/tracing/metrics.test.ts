@@ -406,6 +406,7 @@ describe("WorkflowMetricsEmitter", () => {
       fullReload: true,
       changedModules: ["git", "github", "filesystem"],
       workflowCount: 9,
+      sessionGuardrails: { refreshed: 0, unchanged: 0, nonRefreshable: [] },
     });
 
     const metrics = await collectMetrics(provider, exporter);

@@ -1,4 +1,7 @@
-import type { BusEvents } from "#core/events/event-bus-types.js";
+import type {
+  BusEvents,
+  SessionGuardrailsReloadSummary,
+} from "#core/events/event-bus-types.js";
 
 type ConfigReloadEvent = BusEvents["daemon.config.reload"];
 
@@ -6,6 +9,7 @@ export function buildDaemonConfigReloadSuccessEvent(input: {
   changedModules: string[];
   isFullReload: boolean;
   workflowCount: number;
+  sessionGuardrails?: SessionGuardrailsReloadSummary;
   timestamp?: string;
 }): ConfigReloadEvent {
   const reloadKind =
@@ -18,6 +22,7 @@ export function buildDaemonConfigReloadSuccessEvent(input: {
     fullReload: input.isFullReload,
     changedModules: input.changedModules,
     workflowCount: input.workflowCount,
+    sessionGuardrails: input.sessionGuardrails ?? emptySessionGuardrailsReloadSummary(),
   };
 }
 
@@ -41,4 +46,8 @@ export function buildDaemonConfigReloadFailureEvent(input: {
 
 function safeErrorClass(candidate: string): string {
   return /^[A-Za-z][A-Za-z0-9_.-]{0,80}$/.test(candidate) ? candidate : "Error";
+}
+
+function emptySessionGuardrailsReloadSummary(): SessionGuardrailsReloadSummary {
+  return { refreshed: 0, unchanged: 0, nonRefreshable: [] };
 }

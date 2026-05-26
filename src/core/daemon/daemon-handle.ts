@@ -2,13 +2,19 @@ import type { ChannelStatus } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { loadConfig } from "#core/config/config.js";
 import type { EventBus } from "#core/events/event-bus.js";
+import type { SessionGuardrailsReloadSummary } from "#core/events/event-bus-types.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import {
+  type GuardrailsConfig,
+  getDefaultConfig as getDefaultGuardrails,
+} from "#core/tools/guardrails.js";
 import type { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRuntime } from "#core/workflow/runtime.js";
 import type { CapabilityReadinessResponse } from "./capability-readiness.js";
 import { buildClientIdentity, type ClientIdentity } from "./client-identity.js";
 import { computeModuleConfigDiff } from "./config-reload-diff.js";
+import type { DaemonConfig } from "./daemon.js";
 import {
   buildDaemonConfigReloadFailureEvent,
   buildDaemonConfigReloadSuccessEvent,
@@ -44,7 +50,11 @@ export type DaemonHandleContext = {
   projectDir: string;
   projectRegistry: ProjectRegistry;
   projectRuntimes: ProjectRuntimeRegistry;
-  config: { config?: KotaConfig; verbose?: boolean };
+  config: DaemonConfig;
+  refreshLiveSessionGuardrails: (config: GuardrailsConfig) => {
+    refreshed: number;
+    unchanged: number;
+  };
   log: (message: string) => void;
   getModuleHealthChecks: () => Record<string, ModuleHealthCheckResult>;
   probeCapabilityReadiness: () => Promise<CapabilityReadinessResponse>;
@@ -52,7 +62,16 @@ export type DaemonHandleContext = {
 };
 
 export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle {
-  const { bus, sessions, projectDir, projectRegistry, projectRuntimes, config, log } = ctx;
+  const {
+    bus,
+    sessions,
+    projectDir,
+    projectRegistry,
+    projectRuntimes,
+    config,
+    refreshLiveSessionGuardrails,
+    log,
+  } = ctx;
 
   // Per-project metric counts cache. Each project has its own run store,
   // so a single global cache would leak rows across projects.
@@ -188,6 +207,10 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
           allModules,
         );
         config.config = newConfig;
+        const sessionGuardrails = buildSessionGuardrailsReloadSummary(
+          refreshLiveSessionGuardrails(resolveInteractiveGuardrailsConfig(newConfig)),
+          sessions,
+        );
         const inputs = loader.getContributedWorkflows();
         let aggregateCount = 0;
         for (const runtime of projectRuntimes.list()) {
@@ -198,6 +221,7 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
           changedModules,
           isFullReload,
           workflowCount: aggregateCount,
+          sessionGuardrails,
         }));
         log(`Config reloaded: ${aggregateCount} workflow definition(s) active`);
         if (isFullReload) {
@@ -209,7 +233,18 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
         } else {
           log("  No module config changes detected");
         }
-        return { workflows: aggregateCount, changedModules };
+        if (
+          sessionGuardrails.refreshed > 0 ||
+          sessionGuardrails.unchanged > 0 ||
+          sessionGuardrails.nonRefreshable.length > 0
+        ) {
+          log(
+            `  Session guardrails: ${sessionGuardrails.refreshed} refreshed, ` +
+              `${sessionGuardrails.unchanged} unchanged, ` +
+              `${sessionGuardrails.nonRefreshable.length} not refreshable`,
+          );
+        }
+        return { workflows: aggregateCount, changedModules, sessionGuardrails };
       } catch (error) {
         bus.emit("daemon.config.reload", buildDaemonConfigReloadFailureEvent({
           errorClass: error instanceof Error ? error.name : typeof error,
@@ -418,7 +453,7 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       return result;
     },
     registerSession: (id: string, createdAt: string, autonomyMode: AutonomyMode) => {
-      sessions.set(id, { id, createdAt, lastActive: Date.now(), autonomyMode });
+      sessions.set(id, { id, createdAt, lastActive: Date.now(), autonomyMode, source: "serve" });
       bus.emit("session.registered", { id, createdAt, autonomyMode });
     },
     unregisterSession: (id: string) => {
@@ -453,5 +488,26 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       // caller can forward the change or surface it to the operator.
       return { ok: true, serveOwned: session.source !== "daemon" };
     },
+  };
+}
+
+function resolveInteractiveGuardrailsConfig(config: KotaConfig): GuardrailsConfig {
+  return config.guardrails ?? getDefaultGuardrails();
+}
+
+function buildSessionGuardrailsReloadSummary(
+  daemonSummary: { refreshed: number; unchanged: number },
+  sessions: Map<string, InteractiveSession>,
+): SessionGuardrailsReloadSummary {
+  return {
+    refreshed: daemonSummary.refreshed,
+    unchanged: daemonSummary.unchanged,
+    nonRefreshable: [...sessions.values()]
+      .filter((session) => session.source !== "daemon")
+      .map((session) => ({
+        id: session.id,
+        source: "serve" as const,
+        reason: "serve-owned-session" as const,
+      })),
   };
 }

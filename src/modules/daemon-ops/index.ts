@@ -9,6 +9,7 @@ import type {
   ProjectId,
   ProjectRegistryProjection,
 } from "#core/daemon/project-registry.js";
+import type { SessionGuardrailsReloadSummary } from "#core/events/event-bus-types.js";
 import {
   checkPresetAuth,
   PRESET_ENV_VAR,
@@ -471,6 +472,14 @@ const daemonModule: KotaModule = {
         } else {
           console.log(`  Reloaded module(s): ${result.changedModules.join(", ")}`);
         }
+        const guardrails = result.sessionGuardrails;
+        console.log(
+          `  Session guardrails: ${guardrails.refreshed} refreshed, ` +
+            `${guardrails.unchanged} unchanged, ${guardrails.nonRefreshable.length} not refreshable.`,
+        );
+        for (const session of guardrails.nonRefreshable) {
+          console.log(`    ${session.id}: ${session.reason}`);
+        }
       });
 
     cmd
@@ -637,10 +646,9 @@ const daemonModule: KotaModule = {
  *  - `stop(options)` throws `"daemonOps.stop is owned by the local handler
  *    — the daemon cannot SIGTERM itself."`. The arm exists to satisfy the
  *    typed contract; runtime callers always reach the local handler.
- *  - `reload()` calls `link.request<{ ok: boolean; workflows: number;
- *    changedModules: string[] }>("POST", "/reload")`. On `null` it returns
+ *  - `reload()` calls `link.request` for the daemon's reload response. On `null` it returns
  *    `{ ok: false, reason: "reload_failed" }`. On success it returns `{ ok:
- *    true, workflows, changedModules }`. The daemon-up branch never returns
+ *    true, workflows, changedModules, sessionGuardrails }`. The daemon-up branch never returns
  *    `not_running` because the client only exists when the selector resolved
  *    to a daemon address.
  */
@@ -671,12 +679,14 @@ function buildDaemonOpsDaemonHandler(link: DaemonTransport): DaemonOpsClient {
         ok: boolean;
         workflows: number;
         changedModules: string[];
+        sessionGuardrails: SessionGuardrailsReloadSummary;
       }>("POST", "/reload");
       if (!result) return { ok: false, reason: "reload_failed" };
       return {
         ok: true,
         workflows: result.workflows,
         changedModules: result.changedModules,
+        sessionGuardrails: result.sessionGuardrails,
       };
     },
   };

@@ -7,6 +7,7 @@
  * stricter defaults.
  */
 
+import { createHash } from "node:crypto";
 import type { RiskLevel } from "./guardrails-classify.js";
 import { classifyRisk } from "./guardrails-classify.js";
 
@@ -22,6 +23,12 @@ export type GuardrailsConfig = {
   toolOverrides?: Record<string, Policy>;
   /** TTL in ms for approval requests created in this context. Stored on each queued item. */
   approvalTimeoutMs?: number;
+};
+
+export type GuardrailsSnapshot = {
+  id: string;
+  generation: number;
+  updatedAt: string;
 };
 
 export type Assessment = {
@@ -95,6 +102,40 @@ export function nonInteractiveConfig(
 
 export function getDefaultConfig(): GuardrailsConfig {
   return { ...DEFAULT_CONFIG, policies: { ...DEFAULT_POLICIES } };
+}
+
+export function cloneGuardrailsConfig(config: GuardrailsConfig): GuardrailsConfig {
+  return {
+    policies: { ...config.policies },
+    ...(config.toolOverrides !== undefined ? { toolOverrides: { ...config.toolOverrides } } : {}),
+    ...(config.approvalTimeoutMs !== undefined ? { approvalTimeoutMs: config.approvalTimeoutMs } : {}),
+  };
+}
+
+export function fingerprintGuardrailsConfig(config: GuardrailsConfig): string {
+  const payload = {
+    policies: {
+      safe: config.policies.safe,
+      moderate: config.policies.moderate,
+      dangerous: config.policies.dangerous,
+    },
+    toolOverrides: Object.entries(config.toolOverrides ?? {})
+      .sort(([a], [b]) => a.localeCompare(b)),
+    approvalTimeoutMs: config.approvalTimeoutMs ?? null,
+  };
+  return `gr_${createHash("sha256").update(JSON.stringify(payload)).digest("hex").slice(0, 16)}`;
+}
+
+export function createGuardrailsSnapshot(
+  config: GuardrailsConfig,
+  generation: number,
+  updatedAt = new Date().toISOString(),
+): GuardrailsSnapshot {
+  return {
+    id: fingerprintGuardrailsConfig(config),
+    generation,
+    updatedAt,
+  };
 }
 
 /** Validate and sanitize a raw guardrails config object from JSON. */

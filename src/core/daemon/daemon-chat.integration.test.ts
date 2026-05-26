@@ -2,6 +2,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  cloneGuardrailsConfig,
+  createGuardrailsSnapshot,
+  fingerprintGuardrailsConfig,
+  type GuardrailsConfig,
+} from "#core/tools/guardrails.js";
 import { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import type { DaemonChatConversationResolver } from "./daemon-chat-handlers.js";
 import {
@@ -32,11 +38,28 @@ function makeResolver(conversations: Set<string> = new Set([CONV_ID])): DaemonCh
 
 function mockAgentSession(sendResult?: unknown, mode: "passive" | "supervised" | "autonomous" = "supervised") {
   let current = mode;
+  let guardrailsConfig: GuardrailsConfig = {
+    policies: { safe: "allow", moderate: "allow", dangerous: "confirm" },
+  };
+  let guardrailsSnapshot = createGuardrailsSnapshot(guardrailsConfig, 0);
   return {
     send: vi.fn(async () => sendResult ?? { status: "ok" }),
     close: vi.fn(),
     getAutonomyMode: vi.fn(() => current),
     setAutonomyMode: vi.fn((next: "passive" | "supervised" | "autonomous") => { current = next; }),
+    getGuardrailsSnapshot: vi.fn(() => ({ ...guardrailsSnapshot })),
+    replaceGuardrailsConfig: vi.fn((nextConfig: GuardrailsConfig) => {
+      const nextId = fingerprintGuardrailsConfig(nextConfig);
+      if (nextId === guardrailsSnapshot.id) {
+        return { changed: false, snapshot: { ...guardrailsSnapshot } };
+      }
+      guardrailsConfig = cloneGuardrailsConfig(nextConfig);
+      guardrailsSnapshot = createGuardrailsSnapshot(
+        guardrailsConfig,
+        guardrailsSnapshot.generation + 1,
+      );
+      return { changed: true, snapshot: { ...guardrailsSnapshot } };
+    }),
   };
 }
 
@@ -83,7 +106,7 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     hasProject: vi.fn((id: string) => id === "test-project-id"),
     getActiveProjectId: vi.fn(() => null),
     setActiveProjectId: vi.fn((id: string | null) => (id === null ? { ok: true as const, activeProjectId: null } : id === "test-project-id" ? { ok: true as const, activeProjectId: id } : { ok: false as const, reason: "not_found" as const, projectId: id })),
-    reloadConfig: vi.fn(async () => ({ workflows: 0, changedModules: [] as string[] })),
+    reloadConfig: vi.fn(async () => ({ workflows: 0, changedModules: [] as string[], sessionGuardrails: { refreshed: 0, unchanged: 0, nonRefreshable: [] } })),
     probeCapabilityReadiness: vi.fn(async () => ({ capabilities: [], summary: { ready: 0, unavailable: 0, init_failed: 0 } })),
     getClientIdentity: vi.fn(async () => ({
       projectName: "test-project",
@@ -188,8 +211,46 @@ describe("DaemonControlServer chat endpoints", () => {
     await fetchWithToken(port, "/sessions", { method: "POST" });
     const res = await fetchWithToken(port, "/sessions");
     expect(res.status).toBe(200);
-    const body = await res.json() as { sessions: Array<{ source: string }> };
+    const body = await res.json() as { sessions: Array<{ source: string; guardrailsSnapshot?: { id: string } }> };
     expect(body.sessions.some((s) => s.source === "daemon")).toBe(true);
+    expect(body.sessions.find((s) => s.source === "daemon")?.guardrailsSnapshot?.id).toMatch(/^gr_/);
+  });
+
+  it("refreshes daemon-owned session guardrails and exposes the snapshot in status", async () => {
+    const createRes = await fetchWithToken(port, "/sessions", { method: "POST" });
+    const { session_id } = await createRes.json() as { session_id: string };
+
+    const beforeStatusRes = await fetchWithToken(port, "/status");
+    const beforeStatus = await beforeStatusRes.json() as {
+      sessions: Array<{ id: string; guardrailsSnapshot?: { id: string; generation: number } }>;
+    };
+    const beforeSnapshot = beforeStatus.sessions.find((s) => s.id === session_id)?.guardrailsSnapshot;
+    expect(beforeSnapshot?.generation).toBe(0);
+
+    const summary = server.refreshChatSessionGuardrails({
+      policies: { safe: "allow", moderate: "allow", dangerous: "deny" },
+    });
+    expect(summary).toEqual({ refreshed: 1, unchanged: 0 });
+
+    const afterStatusRes = await fetchWithToken(port, "/status");
+    const afterStatus = await afterStatusRes.json() as {
+      sessions: Array<{ id: string; guardrailsSnapshot?: { id: string; generation: number } }>;
+    };
+    const afterSnapshot = afterStatus.sessions.find((s) => s.id === session_id)?.guardrailsSnapshot;
+    expect(afterSnapshot?.generation).toBe(1);
+    expect(afterSnapshot?.id).not.toBe(beforeSnapshot?.id);
+
+    const unchanged = server.refreshChatSessionGuardrails({
+      policies: { safe: "allow", moderate: "allow", dangerous: "deny" },
+    });
+    expect(unchanged).toEqual({ refreshed: 0, unchanged: 1 });
+
+    const finalStatusRes = await fetchWithToken(port, "/status");
+    const finalStatus = await finalStatusRes.json() as {
+      sessions: Array<{ id: string; guardrailsSnapshot?: { id: string; generation: number } }>;
+    };
+    const finalSnapshot = finalStatus.sessions.find((s) => s.id === session_id)?.guardrailsSnapshot;
+    expect(finalSnapshot).toEqual(afterSnapshot);
   });
 
   it("DELETE /sessions/:id closes daemon session", async () => {

@@ -84,6 +84,7 @@ export function makeDaemonConfigReloadEvent(
       fullReload: false,
       changedModules: ["git"],
       workflowCount: 3,
+      sessionGuardrails: { refreshed: 0, unchanged: 0, nonRefreshable: [] },
       ...overrides,
     },
   };

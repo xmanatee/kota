@@ -479,6 +479,7 @@ describe("WorkflowTracer", () => {
       fullReload: false,
       changedModules: ["tracing", "workflow-ops"],
       workflowCount: 12,
+      sessionGuardrails: { refreshed: 0, unchanged: 0, nonRefreshable: [] },
     });
 
     const spans = exporter.getFinishedSpans();

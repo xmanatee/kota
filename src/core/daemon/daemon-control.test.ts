@@ -58,7 +58,7 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     hasProject: vi.fn((id: string) => id === "test-project-id"),
     getActiveProjectId: vi.fn(() => null),
     setActiveProjectId: vi.fn((id: string | null) => (id === null ? { ok: true as const, activeProjectId: null } : id === "test-project-id" ? { ok: true as const, activeProjectId: id } : { ok: false as const, reason: "not_found" as const, projectId: id })),
-    reloadConfig: vi.fn(async () => ({ workflows: 3, changedModules: [] as string[] })),
+    reloadConfig: vi.fn(async () => ({ workflows: 3, changedModules: [] as string[], sessionGuardrails: { refreshed: 0, unchanged: 0, nonRefreshable: [] } })),
     probeCapabilityReadiness: vi.fn(async () => ({
       capabilities: [],
       summary: { ready: 0, unavailable: 0, init_failed: 0 },
@@ -567,7 +567,12 @@ describe("DaemonControlServer", () => {
       const res = await fetchWithToken(port, "/reload", { method: "POST" });
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body).toMatchObject({ ok: true, workflows: 3, changedModules: [] });
+      expect(body).toMatchObject({
+        ok: true,
+        workflows: 3,
+        changedModules: [],
+        sessionGuardrails: { refreshed: 0, unchanged: 0, nonRefreshable: [] },
+      });
     });
 
     it("exposes successful reload events through event catch-up and SSE", async () => {
@@ -582,7 +587,11 @@ describe("DaemonControlServer", () => {
             changedModules: ["tracing"],
             workflowCount: 4,
           }));
-          return { workflows: 4, changedModules: ["tracing"] };
+          return {
+            workflows: 4,
+            changedModules: ["tracing"],
+            sessionGuardrails: { refreshed: 0, unchanged: 0, nonRefreshable: [] },
+          };
         }),
       });
       await server.stop();

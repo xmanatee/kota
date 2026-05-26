@@ -27,6 +27,7 @@ import type {
   ConfiguredProject,
   ProjectId,
 } from "#core/daemon/project-registry.js";
+import type { SessionGuardrailsReloadSummary } from "#core/events/event-bus-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 
 export type SessionsListResult = {
@@ -93,7 +94,12 @@ export type DaemonOpsStopResult =
 
 /** Result of `daemonOps.reload()`. */
 export type DaemonOpsReloadResult =
-  | { ok: true; workflows: number; changedModules: string[] }
+  | {
+      ok: true;
+      workflows: number;
+      changedModules: string[];
+      sessionGuardrails: SessionGuardrailsReloadSummary;
+    }
   | { ok: false; reason: "not_running" }
   | { ok: false; reason: "reload_failed" };
 
