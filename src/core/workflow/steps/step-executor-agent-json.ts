@@ -1,11 +1,25 @@
 import { validatePayloadSchema } from "../payload-validator.js";
 
-export class JsonSchemaValidationError extends Error {
+export class JsonOutputValidationError extends Error {
   constructor(
     message: string,
     readonly validationDetail: string,
   ) {
     super(message);
+    this.name = "JsonOutputValidationError";
+  }
+}
+
+export class JsonOutputParseError extends JsonOutputValidationError {
+  constructor(message: string, validationDetail: string) {
+    super(message, validationDetail);
+    this.name = "JsonOutputParseError";
+  }
+}
+
+export class JsonSchemaValidationError extends JsonOutputValidationError {
+  constructor(message: string, validationDetail: string) {
+    super(message, validationDetail);
     this.name = "JsonSchemaValidationError";
   }
 }
@@ -17,16 +31,20 @@ export function extractJsonOutput(
 ): unknown {
   const match = text.match(/```(?:json)?\s*\n([\s\S]*?)\n```\s*$/);
   if (!match) {
-    throw new Error(
+    const detail = "no fenced JSON block was found in the response";
+    throw new JsonOutputValidationError(
       `Agent step "${stepId}" outputFormat is "json" but no fenced JSON block was found in the response`,
+      detail,
     );
   }
   let parsed: unknown;
   try {
     parsed = JSON.parse(match[1]);
   } catch {
-    throw new Error(
+    const detail = "the fenced block contains invalid JSON";
+    throw new JsonOutputParseError(
       `Agent step "${stepId}" outputFormat is "json" but the fenced block contains invalid JSON`,
+      detail,
     );
   }
   if (outputSchema !== undefined) {

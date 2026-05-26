@@ -36,6 +36,8 @@ import {
 import { writeHarnessCapabilityArtifact } from "./step-executor-agent-capability.js";
 import {
   extractJsonOutput,
+  JsonOutputParseError,
+  JsonOutputValidationError,
   JsonSchemaValidationError,
 } from "./step-executor-agent-json.js";
 import { buildAgentPrompt } from "./step-executor-agent-prompt.js";
@@ -162,8 +164,6 @@ export async function executeAgentStep(
   // which only stream-capable harnesses emit; non-stream harnesses reject it.
   const stepTelemetry = new ToolTelemetry();
 
-  let lastSchemaError: string | undefined;
-
   // Snapshot before run so post-step writeScope diff excludes paths another
   // step or pre-existing dirt mutated.
   const preStepMutatedPaths = scopedAgent
@@ -171,6 +171,7 @@ export async function executeAgentStep(
     : (tryListWorkflowMutatedPaths(agentConfig.projectDir) ?? []);
   const bufferAgentMessages = step.validate !== undefined;
   let successfulAttemptMessages: KotaAgentMessage[] = [];
+  let lastJsonOutputFeedback: string | undefined;
 
   const runAttempt = async (): Promise<WorkflowStepOutput> => {
     const attemptMessages: KotaAgentMessage[] = [];
@@ -195,8 +196,8 @@ export async function executeAgentStep(
       ? makeToolTelemetryTracker(stepTelemetry, captureMessage)
       : undefined;
 
-    const prompt = lastSchemaError
-      ? `${agentPrompt.prompt}\n\n[Previous output failed schema validation: ${lastSchemaError}\nPlease include all required fields in your JSON block and try again.]`
+    const prompt = lastJsonOutputFeedback
+      ? `${agentPrompt.prompt}\n\n[${lastJsonOutputFeedback}]`
       : agentPrompt.prompt;
     const harnessOverrides = step.harnessOptions?.[resolvedHarness.name];
     const toolScope = resolveAgentToolScope(
@@ -270,7 +271,11 @@ export async function executeAgentStep(
           successfulAttemptMessages = attemptMessages;
           return validated;
         } catch (err) {
-          if (err instanceof JsonSchemaValidationError) lastSchemaError = err.validationDetail;
+          if (err instanceof JsonSchemaValidationError) {
+            lastJsonOutputFeedback = `Previous output failed schema validation: ${err.validationDetail}\nPlease include all required fields in your JSON block and try again.`;
+          } else if (err instanceof JsonOutputParseError) {
+            lastJsonOutputFeedback = `Previous JSON output was invalid: ${err.validationDetail}\nEnd with one fenced valid JSON block that matches the requested schema, then try again.`;
+          }
           throw err;
         }
       }
@@ -289,7 +294,7 @@ export async function executeAgentStep(
       }
       if (
         error instanceof AgentStepRuntimeError ||
-        error instanceof JsonSchemaValidationError ||
+        error instanceof JsonOutputValidationError ||
         (error instanceof Error && error.name === "AbortError") ||
         abortController.signal.aborted
       ) throw error;
@@ -315,6 +320,7 @@ export async function executeAgentStep(
     // logic, and malformed-tool errors fail hard on the first attempt.
     shouldRetry: (err) =>
       err instanceof JsonSchemaValidationError ||
+      err instanceof JsonOutputParseError ||
       (err instanceof AgentStepRuntimeError && err.retryable),
   });
   const output = agentConfig.agentRunLimiter
