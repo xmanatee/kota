@@ -313,7 +313,7 @@ describe("openai-tools harness × revise-from-test-output scenario", () => {
 
     const result = await openaiToolsAgentHarness.run({
       prompt: loaded.spec.prompt,
-      model: "openai/gpt-4o-mini",
+      model: "openai/gpt-5.4-mini",
       effort: "xhigh",
       cwd: workingDir,
     });

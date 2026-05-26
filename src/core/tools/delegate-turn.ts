@@ -12,6 +12,10 @@ import type { CostTracker } from "#core/loop/cost.js";
 import type { Transport } from "#core/loop/transport.js";
 import type { McpManager } from "#core/mcp/manager.js";
 import type { ModelClient } from "#core/model/model-client.js";
+import {
+  type ModelOutputTokenLimits,
+  resolveModelOutputTokenLimit,
+} from "#core/model/output-token-limits.js";
 import { isRetryable } from "#core/model/streaming.js";
 import type { DelegateMode } from "./delegate-config.js";
 import {
@@ -35,6 +39,7 @@ export type TurnLoopOptions = {
   mcpMgr: McpManager | undefined;
   isExecute: boolean;
   selectedModel: string;
+  modelOutputTokenLimits: ModelOutputTokenLimits | undefined;
   maxTurns: number;
   mode: DelegateMode;
   transport: Transport | undefined;
@@ -66,9 +71,13 @@ type DelegateToolResultEntry = {
 export async function runDelegateTurns(opts: TurnLoopOptions): Promise<TurnLoopResult> {
   const {
     client, messages, systemBlocks, tools, runners, mcpMgr, isExecute,
-    selectedModel, maxTurns, mode, transport, costTracker,
+    selectedModel, modelOutputTokenLimits, maxTurns, mode, transport, costTracker,
     modifiedFiles, collectedImages, toolsUsed, urlsFetched, searchQueries,
   } = opts;
+  const outputTokenLimit = resolveModelOutputTokenLimit(
+    selectedModel,
+    modelOutputTokenLimits,
+  );
 
   let lastText = "";
   let totalTurns = 0;
@@ -84,7 +93,7 @@ export async function runDelegateTurns(opts: TurnLoopOptions): Promise<TurnLoopR
       try {
         const stream = client.messages.stream({
           model: selectedModel,
-          max_tokens: 8192,
+          max_tokens: outputTokenLimit.maxTokens,
           system: systemBlocks,
           tools,
           messages,

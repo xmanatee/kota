@@ -373,7 +373,10 @@ export async function executeWorkflowStep(
       : error instanceof Error ? error : new Error(String(error)));
 
     let agentBackoff: WorkflowAgentBackoffSignal | undefined;
-    if (!isStepTimeout && err instanceof AgentStepRuntimeError) {
+    if (
+      err instanceof AgentStepRuntimeError &&
+      (!isStepTimeout || idleTimeoutError !== undefined)
+    ) {
       agentBackoff = { kind: err.kind, reason: err.message };
     }
     const failed: WorkflowStepResult = {

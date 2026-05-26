@@ -211,14 +211,14 @@ const ADAPTERS: AdapterCase[] = [
     harness: openaiToolsAgentHarness,
     baseOptions: () => ({
       prompt: "go",
-      model: "openai/gpt-4o-mini",
+      model: "openai/gpt-5.4-mini",
       effort: "xhigh",
     }),
     assertNonEmptyContract: async () => {
       await expect(
         openaiToolsAgentHarness.run({
           prompt: "go",
-          model: "openai/gpt-4o-mini",
+          model: "openai/gpt-5.4-mini",
           effort: "xhigh",
           mcpServers: SAMPLE_NON_EMPTY,
         }),
@@ -229,7 +229,7 @@ const ADAPTERS: AdapterCase[] = [
     assertEmptyContract: async () => {
       await openaiToolsAgentHarness.run({
         prompt: "go",
-        model: "openai/gpt-4o-mini",
+        model: "openai/gpt-5.4-mini",
         effort: "xhigh",
         mcpServers: {},
       });

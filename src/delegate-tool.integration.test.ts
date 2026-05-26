@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { runDelegate, setDelegateConfig } from "#core/tools/delegate.js";
+import { runDelegate, setDelegateConfig as setRawDelegateConfig } from "#core/tools/delegate.js";
 import { setPromptResolver } from "#core/tools/delegate-config.js";
 import { PromptStore } from "#modules/prompt-templates/prompt-template.js";
 
@@ -33,6 +33,15 @@ import {
   formatMetadata,
 } from "#core/tools/delegate-format.js";
 import type { ToolResultBlock } from "#core/tools/index.js";
+
+function setDelegateConfig(
+  config: Parameters<typeof setRawDelegateConfig>[0],
+): void {
+  setRawDelegateConfig({
+    modelOutputTokenLimits: { [config.model]: 4096 },
+    ...config,
+  });
+}
 
 describe("runDelegate input validation", () => {
   it("rejects missing task", async () => {

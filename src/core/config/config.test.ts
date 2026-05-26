@@ -43,6 +43,28 @@ describe("loadConfig", () => {
     expect(config.maxTokens).toBe(4096);
   });
 
+  it("loads explicit model output-token limits from trusted config", () => {
+    const configDir = join(tmpDir, ".kota");
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      join(configDir, "config.json"),
+      JSON.stringify({
+        modelOutputTokenLimits: {
+          "operator-model": 12345,
+          "bad-model": 0,
+        },
+      }),
+    );
+
+    const config = loadConfig(tmpDir, trustedProject({
+      modelOutputTokenLimits: { "global-model": 6789 },
+    }));
+    expect(config.modelOutputTokenLimits).toEqual({
+      "global-model": 6789,
+      "operator-model": 12345,
+    });
+  });
+
   it("ignores project config from an untrusted project", () => {
     const configDir = join(tmpDir, ".kota");
     mkdirSync(configDir, { recursive: true });

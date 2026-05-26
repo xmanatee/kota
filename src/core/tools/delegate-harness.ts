@@ -18,6 +18,7 @@ import {
 } from "#core/agents/delegate-prompts.js";
 import type { CostTracker } from "#core/loop/cost.js";
 import type { Transport } from "#core/loop/transport.js";
+import type { ModelOutputTokenLimits } from "#core/model/output-token-limits.js";
 import {
   assembleDelegateResult,
   type CompletionReason,
@@ -47,6 +48,7 @@ export type DelegateHarnessConfig = {
   costTracker?: CostTracker;
   transport?: Transport;
   model?: string;
+  modelOutputTokenLimits?: ModelOutputTokenLimits;
   /**
    * Registered agent-harness name to run this delegate on. Required — the
    * caller must plumb it through from `config.defaultAgentHarness` (see
@@ -97,6 +99,7 @@ export async function runDelegateHarness(
     {
       prompt: task,
       model: config.model,
+      modelOutputTokenLimits: config.modelOutputTokenLimits,
       systemPrompt,
       ...routeKotaToolControlOptions(harness, { allowedTools }),
       autonomyMode: "autonomous",

@@ -73,7 +73,7 @@ function makeAgentStep(moduleRoot: string): WorkflowAgentStep {
     type: "agent",
     promptPath: "prompt.md",
     moduleRoot,
-    model: "openai/gpt-4o-mini",
+    model: "openai/gpt-5.4-mini",
     effort: "xhigh",
     autonomyMode: "autonomous",
     harness: OPENAI_TOOLS_AGENT_HARNESS_NAME,
@@ -84,7 +84,7 @@ function stubTextResponse(text: string): KotaModelResponse {
   return {
     id: "msg-ok",
     role: "assistant",
-    model: "openai/gpt-4o-mini",
+    model: "openai/gpt-5.4-mini",
     content: [{ type: "text", text }],
     stop_reason: "end_turn",
     stop_sequence: null,
@@ -157,7 +157,7 @@ describe("autonomy agent steps and judges on openai-tools", () => {
     // The openai-tools adapter would throw loudly if any claude-specific
     // option leaked through; reaching this assertion means the boundary
     // stayed neutral.
-    expect(streamArgs.model).toBe("openai/gpt-4o-mini");
+    expect(streamArgs.model).toBe("openai/gpt-5.4-mini");
     // System prompt must reach the adapter as a plain string carrying the
     // portable instruction and autonomous-agent-instructions sections — not a
     // claude-SDK preset envelope.
@@ -205,7 +205,7 @@ describe("autonomy agent steps and judges on openai-tools", () => {
     // step runs on.
     const check = createCriticCheck({
       runDirPath: runDir,
-      model: "openai/gpt-4o-mini",
+      model: "openai/gpt-5.4-mini",
     });
 
     const parentStep = makeAgentStep(projectDir);

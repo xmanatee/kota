@@ -3,6 +3,7 @@ import type { Transport } from "#core/loop/transport.js";
 import type { McpManager } from "#core/mcp/manager.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import type { DelegateBackend, ModelTiers } from "#core/model/model-router.js";
+import type { ModelOutputTokenLimits } from "#core/model/output-token-limits.js";
 import {
   PRESET_ENV_VAR,
   resolvePreset,
@@ -27,6 +28,7 @@ export function streamBackoff(attempt: number): Promise<void> {
 export type DelegateConfig = {
   model: string;
   modelTiers?: ModelTiers;
+  modelOutputTokenLimits?: ModelOutputTokenLimits;
   client?: ModelClient;
   cwd?: string;
   projectContext?: string;

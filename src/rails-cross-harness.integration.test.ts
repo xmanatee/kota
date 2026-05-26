@@ -200,7 +200,7 @@ describe("rails parity: canUseTool denial routes back to the agent without abort
 
     const result = await openaiToolsAgentHarness.run({
       prompt: "go",
-      model: "openai/gpt-4o-mini",
+      model: "openai/gpt-5.4-mini",
       effort: "xhigh",
       canUseTool,
     });
@@ -261,7 +261,7 @@ describe("rails parity: allowedTools restricts the catalog and surfaces a denial
 
     const result = await openaiToolsAgentHarness.run({
       prompt: "go",
-      model: "openai/gpt-4o-mini",
+      model: "openai/gpt-5.4-mini",
       effort: "xhigh",
       allowedTools: ["echo_tool"],
     });
@@ -316,7 +316,7 @@ describe("rails parity: disallowedTools blocks the named tools regardless of cat
 
     const result = await openaiToolsAgentHarness.run({
       prompt: "go",
-      model: "openai/gpt-4o-mini",
+      model: "openai/gpt-5.4-mini",
       effort: "xhigh",
       disallowedTools: ["echo_tool"],
     });

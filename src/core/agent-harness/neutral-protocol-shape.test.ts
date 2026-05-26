@@ -39,6 +39,7 @@ describe("AgentHarnessRunOptions exposes only KOTA-native concepts", () => {
       effort: "high",
       systemPrompt: "p",
       model: "m",
+      modelOutputTokenLimits: { m: 1234 },
       cwd: "/tmp",
       verbose: false,
       maxTurns: 3,

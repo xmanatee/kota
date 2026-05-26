@@ -86,6 +86,43 @@ describe("thinAgentHarness", () => {
     });
   });
 
+  it("uses an explicit operator output-token limit for a custom model id", async () => {
+    messagesCreateMock.mockResolvedValue({
+      id: "msg_thin_custom",
+      content: [
+        { type: "text", text: "custom" },
+      ],
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+
+    await thinAgentHarness.run({
+      prompt: "say hi",
+      model: "operator-model",
+      modelOutputTokenLimits: { "operator-model": 7777 },
+      effort: "xhigh",
+    });
+
+    expect(messagesCreateMock).toHaveBeenCalledWith({
+      model: "operator-model",
+      max_tokens: 7777,
+      messages: [{ role: "user", content: "say hi" }],
+    });
+  });
+
+  it("fails before request dispatch for an unknown model without an explicit limit", async () => {
+    await expect(
+      thinAgentHarness.run({
+        prompt: "say hi",
+        model: "operator-model",
+        effort: "xhigh",
+      }),
+    ).rejects.toThrow(
+      /No output-token limit configured for model "operator-model"/,
+    );
+    expect(createModelClientMock).toHaveBeenCalledWith({ model: "operator-model" });
+    expect(messagesCreateMock).not.toHaveBeenCalled();
+  });
+
   it("rejects tool-loop options because the harness has no tool surface", async () => {
     await expect(
       thinAgentHarness.run({

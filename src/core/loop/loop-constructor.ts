@@ -79,6 +79,7 @@ export function initAgentSession(
   state.guardrailsSnapshot = createGuardrailsSnapshot(state.guardrailsConfig, 0);
   state.reflectionEnabled = options.reflectionEnabled ?? options.config?.reflection ?? true;
   state.modelTiers = options.config?.modelTiers;
+  state.modelOutputTokenLimits = options.config?.modelOutputTokenLimits;
   state.channelIdentity = options.channelIdentity;
 
   const thinkingBudget = options.thinkingBudget || 10_000;
@@ -167,6 +168,7 @@ export function initAgentSession(
   setDelegateConfig({
     model: state.editorModel,
     modelTiers: options.config?.modelTiers,
+    modelOutputTokenLimits: options.config?.modelOutputTokenLimits,
     client: state.client,
     cwd: projectDir,
     projectContext: projectContext || undefined,

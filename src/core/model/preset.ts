@@ -31,6 +31,12 @@ export type PresetTiers = {
   readonly capable: string;
 };
 
+export type PresetOutputTokenLimits = {
+  readonly fast: number;
+  readonly balanced: number;
+  readonly capable: number;
+};
+
 export type Preset = {
   readonly id: PresetId;
   readonly description: string;
@@ -38,6 +44,7 @@ export type Preset = {
   readonly authEnv: readonly string[];
   readonly defaultModel: string;
   readonly tiers: PresetTiers;
+  readonly outputTokenLimits: PresetOutputTokenLimits;
   readonly defaultEffort: AgentEffort;
 };
 
@@ -53,6 +60,11 @@ const SHIPPED_PRESETS: readonly Preset[] = [
       balanced: "claude-sonnet-4-6",
       capable: "claude-opus-4-7",
     },
+    outputTokenLimits: {
+      fast: 4096,
+      balanced: 8192,
+      capable: 16384,
+    },
     defaultEffort: "xhigh",
   },
   {
@@ -66,6 +78,11 @@ const SHIPPED_PRESETS: readonly Preset[] = [
       balanced: "gpt-5.4",
       capable: "gpt-5.5",
     },
+    outputTokenLimits: {
+      fast: 4096,
+      balanced: 8192,
+      capable: 16384,
+    },
     defaultEffort: "xhigh",
   },
   {
@@ -78,6 +95,11 @@ const SHIPPED_PRESETS: readonly Preset[] = [
       fast: "gemini-2.5-flash-lite",
       balanced: "gemini-2.5-flash",
       capable: "gemini-2.5-pro",
+    },
+    outputTokenLimits: {
+      fast: 4096,
+      balanced: 8192,
+      capable: 16384,
     },
     defaultEffort: "xhigh",
   },
@@ -93,6 +115,11 @@ const SHIPPED_PRESETS: readonly Preset[] = [
       balanced: "gemini-2.5-flash",
       capable: "gemini-2.5-pro",
     },
+    outputTokenLimits: {
+      fast: 4096,
+      balanced: 8192,
+      capable: 16384,
+    },
     defaultEffort: "xhigh",
   },
   {
@@ -106,6 +133,11 @@ const SHIPPED_PRESETS: readonly Preset[] = [
       fast: "gemini-3.5-flash",
       balanced: "gemini-3.5-flash",
       capable: "gemini-3.5-flash",
+    },
+    outputTokenLimits: {
+      fast: 8192,
+      balanced: 8192,
+      capable: 8192,
     },
     defaultEffort: "xhigh",
   },

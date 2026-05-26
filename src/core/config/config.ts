@@ -4,6 +4,7 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { QuietHoursConfig } from "../daemon/notification-gate.js";
 import type { ModelTiers } from "../model/model-router.js";
+import type { ModelOutputTokenLimits } from "../model/output-token-limits.js";
 import type { ForeignModuleConfig } from "../modules/foreign-module.js";
 import type { AutonomyMode } from "../tools/autonomy-mode.js";
 import type { GuardrailsConfig } from "../tools/guardrails.js";
@@ -71,6 +72,13 @@ export type CoreKotaConfig = {
 
   /** Model tier mapping for adaptive routing. Keys: fast, balanced, capable. */
   modelTiers?: ModelTiers;
+
+  /**
+   * Explicit output-token request budgets for operator-provided model ids.
+   * Shipped preset model ids resolve through the core model resolver; entries
+   * here intentionally override that resolver or cover custom model ids.
+   */
+  modelOutputTokenLimits?: ModelOutputTokenLimits;
 
   /** Per-agent model overrides. */
   agentModels?: Record<string, string>;
@@ -212,6 +220,7 @@ const AUTHORITY_KEY_CLASSES: ReadonlyMap<string, string> = new Map([
   ["model", "model/provider routing"],
   ["editorModel", "model/provider routing"],
   ["modelTiers", "model/provider routing"],
+  ["modelOutputTokenLimits", "model/provider routing"],
   ["agentModels", "model/provider routing"],
   ["providers", "model/provider routing"],
   ["foreignModules", "foreign module launch"],

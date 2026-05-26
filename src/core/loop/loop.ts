@@ -7,6 +7,7 @@ import type { McpAuthorizationResolver } from "#core/mcp/client.js";
 import type { McpInputResolver, McpManager } from "#core/mcp/manager.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import type { ModelTiers } from "#core/model/model-router.js";
+import type { ModelOutputTokenLimits } from "#core/model/output-token-limits.js";
 import type { ModuleLoader } from "#core/modules/module-loader.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import {
@@ -114,6 +115,7 @@ export class AgentSession implements AgentLoopState {
   guardrailsConfig!: GuardrailsConfig;
   reflectionEnabled!: boolean;
   modelTiers: ModelTiers | undefined;
+  modelOutputTokenLimits: ModelOutputTokenLimits | undefined;
   stateMachine!: SessionStateMachine;
   channelIdentity: ChannelUserIdentity | undefined;
   autonomyMode!: AutonomyMode;

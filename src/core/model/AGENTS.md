@@ -12,6 +12,10 @@ routing, the `Preset` abstraction, and streaming behavior.
   authenticates through its own local login state and its adapter readiness
   must expose a non-network auth probe. New model ids land here when a vendor
   releases a tier; do not duplicate the mapping at consumer sites.
+- `output-token-limits.ts` is the neutral request-budget resolver for shipped
+  preset model ids. KOTA-native `ModelClient` callers use it after model
+  routing; unknown operator model ids need an explicit
+  `modelOutputTokenLimits` entry instead of a fallback literal.
 - Resolution priority: `--preset` flag > `KOTA_PRESET` env > `config.defaultPreset`
   > shipped default. An explicitly named preset that does not exist throws
   loudly instead of falling through.

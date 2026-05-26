@@ -7,6 +7,7 @@
  */
 
 import type { ModelTiers } from "../model/model-router.js";
+import type { ModelOutputTokenLimits } from "../model/output-token-limits.js";
 import type { ForeignModuleConfig } from "../modules/foreign-module.js";
 import type { GuardrailsConfig } from "../tools/guardrails.js";
 import type { CoreKotaConfig, KotaConfig } from "./config.js";
@@ -30,6 +31,7 @@ const CORE_KEYS: ReadonlySet<string> = new Set<keyof CoreKotaConfig>([
   "foreignModules",
   "providers",
   "modelTiers",
+  "modelOutputTokenLimits",
   "agentModels",
   "defaultAgentHarness",
   "defaultPreset",
@@ -97,6 +99,11 @@ function mergeCoreField(
     merged.providers = { ...a.providers, ...(val as Record<string, string>) };
   } else if (key === "modelTiers" && typeof val === "object") {
     merged.modelTiers = { ...a.modelTiers, ...(val as ModelTiers) };
+  } else if (key === "modelOutputTokenLimits" && typeof val === "object") {
+    merged.modelOutputTokenLimits = {
+      ...a.modelOutputTokenLimits,
+      ...(val as ModelOutputTokenLimits),
+    };
   } else if (key === "agentModels" && typeof val === "object") {
     merged.agentModels = { ...a.agentModels, ...(val as Record<string, string>) };
   } else if (key === "runsGc" && typeof val === "object") {

@@ -33,7 +33,7 @@ vi.mock("#core/agents/delegate-prompts.js", () => {
   };
 });
 
-import { runDelegate, setDelegateConfig } from "./core/tools/delegate.js";
+import { runDelegate, setDelegateConfig as setRawDelegateConfig } from "./core/tools/delegate.js";
 import { EXPLORE_MAX_TURNS } from "./core/tools/delegate-config.js";
 
 function mockStream(response: unknown) {
@@ -65,6 +65,15 @@ function makeMockClient(responses: unknown[]) {
       stream: vi.fn(() => mockStream(responses[idx++])),
     },
   } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
+function setDelegateConfig(
+  config: Parameters<typeof setRawDelegateConfig>[0],
+): void {
+  setRawDelegateConfig({
+    modelOutputTokenLimits: { [config.model]: 4096 },
+    ...config,
+  });
 }
 
 describe("delegate × tool-retry error pipeline (cross-module)", () => {

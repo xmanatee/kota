@@ -72,6 +72,7 @@ const TEST_TOOL: KotaTool = {
  */
 type StreamCallSnapshot = {
   system: string | undefined;
+  maxTokens: number;
   tools: readonly KotaTool[] | undefined;
   messages: KotaMessage[];
 };
@@ -94,11 +95,13 @@ beforeEach(() => {
   messagesStreamMock.mockImplementation(
     (params: {
       system?: string;
+      max_tokens: number;
       tools?: readonly KotaTool[];
       messages: KotaMessage[];
     }) => {
       streamCallSnapshots.push({
         system: params.system,
+        maxTokens: params.max_tokens,
         tools: params.tools ? [...params.tools] : undefined,
         messages: JSON.parse(JSON.stringify(params.messages)) as KotaMessage[],
       });
@@ -190,7 +193,7 @@ describe("openaiToolsAgentHarness — happy path tool loop", () => {
     const result = await openaiToolsAgentHarness.run(
       {
         prompt: "please echo",
-        model: "openai/gpt-4o-mini",
+        model: "openai/gpt-5.4-mini",
         effort: "xhigh",
         systemPrompt: "be brief",
       },
@@ -199,6 +202,7 @@ describe("openaiToolsAgentHarness — happy path tool loop", () => {
 
     expect(streamCallSnapshots).toHaveLength(2);
     expect(streamCallSnapshots[0].system).toBe("be brief");
+    expect(streamCallSnapshots[0].maxTokens).toBe(4096);
     expect(streamCallSnapshots[0].tools).toEqual([TEST_TOOL]);
     expect(streamCallSnapshots[0].messages).toEqual([
       { role: "user", content: "please echo" },
@@ -269,7 +273,7 @@ describe("openaiToolsAgentHarness — guardrails", () => {
 
     const result = await openaiToolsAgentHarness.run({
       prompt: "go",
-      model: "openai/gpt-4o-mini",
+      model: "openai/gpt-5.4-mini",
       effort: "xhigh",
       canUseTool,
     });
@@ -327,7 +331,7 @@ describe("openaiToolsAgentHarness — guardrails", () => {
 
     const result = await openaiToolsAgentHarness.run({
       prompt: "go",
-      model: "openai/gpt-4o-mini",
+      model: "openai/gpt-5.4-mini",
       effort: "xhigh",
       canUseTool,
     });
@@ -376,7 +380,7 @@ describe("openaiToolsAgentHarness — guardrails", () => {
 
     await openaiToolsAgentHarness.run({
       prompt: "go",
-      model: "openai/gpt-4o-mini",
+      model: "openai/gpt-5.4-mini",
       effort: "xhigh",
       disallowedTools: ["echo_tool"],
       canUseTool,
@@ -417,7 +421,7 @@ describe("openaiToolsAgentHarness — guardrails", () => {
 
     await openaiToolsAgentHarness.run({
       prompt: "go",
-      model: "openai/gpt-4o-mini",
+      model: "openai/gpt-5.4-mini",
       effort: "xhigh",
       allowedTools: ["echo_tool"],
     });
@@ -450,7 +454,7 @@ describe("openaiToolsAgentHarness — protocol errors", () => {
     await expect(
       openaiToolsAgentHarness.run({
         prompt: "go",
-        model: "openai/gpt-4o-mini",
+        model: "openai/gpt-5.4-mini",
         effort: "xhigh",
       }),
     ).rejects.toThrow(/malformed JSON arguments/);
@@ -478,7 +482,7 @@ describe("openaiToolsAgentHarness — protocol errors", () => {
     await expect(
       openaiToolsAgentHarness.run({
         prompt: "go",
-        model: "openai/gpt-4o-mini",
+        model: "openai/gpt-5.4-mini",
         effort: "xhigh",
       }),
     ).rejects.toThrow(/missing tool name/);
@@ -490,7 +494,7 @@ describe("openaiToolsAgentHarness — unsupported options rejection", () => {
     await expect(
       openaiToolsAgentHarness.run({
         prompt: "x",
-        model: "openai/gpt-4o-mini",
+        model: "openai/gpt-5.4-mini",
         effort: "xhigh",
         mcpServers: { foo: { type: "stdio", command: "bar" } } as never,
       }),
@@ -501,7 +505,7 @@ describe("openaiToolsAgentHarness — unsupported options rejection", () => {
     await expect(
       openaiToolsAgentHarness.run({
         prompt: "x",
-        model: "openai/gpt-4o-mini",
+        model: "openai/gpt-5.4-mini",
         effort: "xhigh",
         autonomyMode: "supervised",
       }),
@@ -512,7 +516,7 @@ describe("openaiToolsAgentHarness — unsupported options rejection", () => {
     await expect(
       openaiToolsAgentHarness.run({
         prompt: "x",
-        model: "openai/gpt-4o-mini",
+        model: "openai/gpt-5.4-mini",
         effort: "xhigh",
         harnessOverrides: { foo: "bar" },
       }),
@@ -523,7 +527,7 @@ describe("openaiToolsAgentHarness — unsupported options rejection", () => {
     await expect(
       openaiToolsAgentHarness.run({
         prompt: "x",
-        model: "openai/gpt-4o-mini",
+        model: "openai/gpt-5.4-mini",
         effort: "xhigh",
         thinkingEnabled: true,
       }),
@@ -545,7 +549,7 @@ describe("openaiToolsAgentHarness — unsupported options rejection", () => {
     );
     await openaiToolsAgentHarness.run({
       prompt: "x",
-      model: "openai/gpt-4o-mini",
+      model: "openai/gpt-5.4-mini",
       effort: "xhigh",
       systemPrompt: "## Project context\n\nProject is named KOTA.",
     });
@@ -576,7 +580,7 @@ describe("openaiToolsAgentHarness — reasoning-effort passthrough", () => {
     );
     await openaiToolsAgentHarness.run({
       prompt: "x",
-      model: "openai/gpt-4o-mini",
+      model: "openai/gpt-5.4-mini",
       effort: "xhigh",
     });
     expect(messagesStreamMock.mock.calls[0][0]).toMatchObject({ effort: "xhigh" });
@@ -593,6 +597,7 @@ describe("openaiToolsAgentHarness — reasoning-effort passthrough", () => {
       openaiToolsAgentHarness.run({
         prompt: "x",
         model: "ollama/llama3",
+        modelOutputTokenLimits: { llama3: 4096 },
         effort: "xhigh",
       }),
     ).rejects.toThrow(/"ollama".*claude-agent-sdk/s);
@@ -600,6 +605,68 @@ describe("openaiToolsAgentHarness — reasoning-effort passthrough", () => {
 });
 
 describe("openaiToolsAgentHarness — limits", () => {
+  it("uses the selected model's resolved output-token budget", async () => {
+    queueStream(
+      makeStubStream({
+        final: {
+          id: "msg_budget",
+          stop_reason: "end_turn",
+          content: [
+            { type: "text", text: "ok", citations: null } as KotaContentBlock,
+          ],
+        },
+      }),
+    );
+
+    await openaiToolsAgentHarness.run({
+      prompt: "go",
+      model: "openai/gpt-5.5",
+      effort: "xhigh",
+    });
+
+    expect(streamCallSnapshots[0]).toMatchObject({
+      maxTokens: 16384,
+    });
+  });
+
+  it("fails before dispatch for an unknown model without an explicit limit", async () => {
+    await expect(
+      openaiToolsAgentHarness.run({
+        prompt: "go",
+        model: "openai/operator-model",
+        effort: "xhigh",
+      }),
+    ).rejects.toThrow(
+      /No output-token limit configured for model "openai\/operator-model"/,
+    );
+    expect(messagesStreamMock).not.toHaveBeenCalled();
+  });
+
+  it("uses an explicit operator limit for a custom model id", async () => {
+    queueStream(
+      makeStubStream({
+        final: {
+          id: "msg_custom_budget",
+          stop_reason: "end_turn",
+          content: [
+            { type: "text", text: "ok", citations: null } as KotaContentBlock,
+          ],
+        },
+      }),
+    );
+
+    await openaiToolsAgentHarness.run({
+      prompt: "go",
+      model: "openai/operator-model",
+      modelOutputTokenLimits: { "operator-model": 7777 },
+      effort: "xhigh",
+    });
+
+    expect(streamCallSnapshots[0]).toMatchObject({
+      maxTokens: 7777,
+    });
+  });
+
   it("returns isError when maxTurns is reached without the model ending the turn", async () => {
     const looping = (id: string) =>
       makeStubStream({
@@ -623,7 +690,7 @@ describe("openaiToolsAgentHarness — limits", () => {
 
     const result = await openaiToolsAgentHarness.run({
       prompt: "go",
-      model: "openai/gpt-4o-mini",
+      model: "openai/gpt-5.4-mini",
       effort: "xhigh",
       maxTurns: 2,
     });

@@ -188,6 +188,7 @@ async function executeRepairAgentIteration(
           model: resolveAgentModel(step, agentConfig),
           cwd: agentConfig.projectDir,
           systemPrompt,
+          modelOutputTokenLimits: agentConfig.config?.modelOutputTokenLimits,
           maxTurns: step.maxTurns,
           effort: step.effort,
           thinkingEnabled: step.thinkingEnabled,

@@ -111,6 +111,7 @@ export async function runDelegate(
       costTracker: delegateConfig.costTracker,
       transport: delegateConfig.transport,
       model: selectedModel,
+      modelOutputTokenLimits: delegateConfig.modelOutputTokenLimits,
       harness: delegateConfig.harness,
     });
   }
@@ -164,7 +165,8 @@ export async function runDelegate(
 
   const loopResult = await runDelegateTurns({
     client, messages, systemBlocks, tools, runners, mcpMgr,
-    isExecute, selectedModel, maxTurns, mode, transport, costTracker,
+    isExecute, selectedModel, modelOutputTokenLimits: delegateConfig.modelOutputTokenLimits,
+    maxTurns, mode, transport, costTracker,
     modifiedFiles, collectedImages, toolsUsed, urlsFetched, searchQueries,
   });
 

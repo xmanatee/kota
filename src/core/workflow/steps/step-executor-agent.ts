@@ -214,6 +214,7 @@ export async function executeAgentStep(
         resolvedHarness,
         {
           prompt, model: resolvedModel, cwd: agentConfig.projectDir, systemPrompt,
+          modelOutputTokenLimits: agentConfig.config?.modelOutputTokenLimits,
           maxTurns: step.maxTurns, effort: step.effort,
           thinkingEnabled: step.thinkingEnabled, thinkingBudget: step.thinkingBudget,
           ...routeKotaToolControlOptions(resolvedHarness, {

@@ -86,6 +86,7 @@ describe("runDelegateTurns", () => {
       mcpMgr,
       isExecute: false,
       selectedModel: "test-model",
+      modelOutputTokenLimits: { "test-model": 1234 },
       maxTurns: 2,
       mode: "research",
       transport: undefined,
@@ -98,6 +99,12 @@ describe("runDelegateTurns", () => {
     });
 
     expect(result.naturalEnd).toBe(true);
+    expect(stream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: "test-model",
+        max_tokens: 1234,
+      }),
+    );
     expect(messages).toHaveLength(3);
     expect(messages[1].role).toBe("user");
 

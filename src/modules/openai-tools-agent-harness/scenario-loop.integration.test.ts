@@ -293,7 +293,7 @@ describe("openai-tools harness × extract-shared-helper scenario", () => {
 
     const result = await openaiToolsAgentHarness.run({
       prompt: loaded.spec.prompt,
-      model: "openai/gpt-4o-mini",
+      model: "openai/gpt-5.4-mini",
       effort: "xhigh",
       cwd: workingDir,
     });

@@ -7,6 +7,7 @@ import type { McpAuthorizationResolver } from "#core/mcp/client.js";
 import { type McpInputResolver, McpManager } from "#core/mcp/manager.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import type { ModelTiers } from "#core/model/model-router.js";
+import type { ModelOutputTokenLimits } from "#core/model/output-token-limits.js";
 import { discoverModules } from "#core/modules/module-discovery.js";
 import type { ModuleLoader } from "#core/modules/module-loader.js";
 import { discoverProjectModules } from "#core/modules/project-discovery.js";
@@ -76,6 +77,7 @@ export interface AgentLoopState {
   projectContext: string;
   instructionContext: string;
   modelTiers: ModelTiers | undefined;
+  modelOutputTokenLimits: ModelOutputTokenLimits | undefined;
   channelIdentity: ChannelUserIdentity | undefined;
   autonomyMode: AutonomyMode;
   moduleLoader: ModuleLoader;
@@ -101,6 +103,7 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
       setDelegateConfig({
         model: state.editorModel,
         modelTiers: state.modelTiers,
+        modelOutputTokenLimits: state.modelOutputTokenLimits,
         client: state.client,
         cwd: state.projectDir,
         projectContext: state.projectContext || undefined,

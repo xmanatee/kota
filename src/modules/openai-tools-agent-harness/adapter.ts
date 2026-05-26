@@ -25,13 +25,13 @@ import type {
   KotaToolUseBlock,
 } from "#core/agent-harness/index.js";
 import { createModelClient } from "#core/model/model-client.js";
+import { resolveModelOutputTokenLimit } from "#core/model/output-token-limits.js";
 import { runWithAskOwnerSource } from "#core/tools/ask-owner.js";
 import { executeTool, getAllTools } from "#core/tools/index.js";
 
 export const OPENAI_TOOLS_AGENT_HARNESS_NAME = "openai-tools";
 export const OPENAI_TOOLS_ASK_OWNER_TOOL_NAME = "ask_owner";
 
-const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_MAX_TURNS = 25;
 
 const OPENAI_TOOLS_UNSUPPORTED_OPTIONS = [
@@ -322,6 +322,10 @@ async function runOpenaiToolsLoop(
 
     const system = options.systemPrompt;
     const resolved = createModelClient({ model: options.model });
+    const outputTokenLimit = resolveModelOutputTokenLimit(
+      resolved.model,
+      options.modelOutputTokenLimits,
+    );
     const tools = selectToolDefinitions(
       options.allowedTools,
       options.disallowedTools,
@@ -348,7 +352,7 @@ async function runOpenaiToolsLoop(
       const abortSignal = options.abortController?.signal;
       const stream = resolved.client.messages.stream({
         model: resolved.model,
-        max_tokens: DEFAULT_MAX_TOKENS,
+        max_tokens: outputTokenLimit.maxTokens,
         ...(system !== undefined ? { system } : {}),
         messages,
         ...(tools.length > 0 ? { tools } : {}),

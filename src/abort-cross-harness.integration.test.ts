@@ -185,7 +185,7 @@ const ADAPTERS: AdapterCase[] = [
     harness: openaiToolsAgentHarness,
     baseOptions: () => ({
       prompt: "go",
-      model: "openai/gpt-4o-mini",
+      model: "openai/gpt-5.4-mini",
       effort: "xhigh",
     }),
     installAbortAwareMock: () => makeAbortAwareStream(messagesStreamMock),

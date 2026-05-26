@@ -1,3 +1,4 @@
+import type { ModelOutputTokenLimits } from "#core/model/output-token-limits.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { KotaAgentMessage } from "./agent-message.js";
 
@@ -150,6 +151,12 @@ export type AgentHarnessStepOverrides = unknown;
 export type AgentHarnessRunOptions = {
   prompt: string;
   model?: string;
+  /**
+   * Operator-provided output-token request budgets keyed by model id. Shipped
+   * preset model ids resolve through core; this map covers custom ids or
+   * intentional overrides for KOTA-native ModelClient harnesses.
+   */
+  modelOutputTokenLimits?: ModelOutputTokenLimits;
   cwd?: string;
   verbose?: boolean;
   systemPrompt?: AgentSystemPrompt;

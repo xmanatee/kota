@@ -1,12 +1,12 @@
 ---
 id: task-apply-model-specific-output-limits-to-delegated-mo
 title: Apply model-specific output limits to delegated model calls
-status: ready
+status: done
 priority: p2
 area: core
 summary: Resolve output-token budgets from typed model metadata for KOTA-native delegate and agent-harness model-client calls, so model tier overrides cannot run with stale hardcoded max_tokens values.
 created_at: 2026-05-26T13:43:55.785Z
-updated_at: 2026-05-26T13:43:55.785Z
+updated_at: 2026-05-26T14:06:22.000Z
 ---
 
 ## Problem
@@ -124,3 +124,11 @@ request instead of relying on stale per-caller constants.
 - Failure test transcript showing an unknown operator model override without an
   explicit limit fails before model dispatch.
 - Static gates pass: `pnpm typecheck` and `pnpm test src/task-files.test.ts`.
+
+Run `2026-05-26T13-53-19-740Z-builder-4xdjex` captured:
+
+- `.kota/runs/2026-05-26T13-53-19-740Z-builder-4xdjex/focused-tests.txt`
+- `.kota/runs/2026-05-26T13-53-19-740Z-builder-4xdjex/model-client-harness-tests.txt`
+- `.kota/runs/2026-05-26T13-53-19-740Z-builder-4xdjex/typecheck.txt`
+- `.kota/runs/2026-05-26T13-53-19-740Z-builder-4xdjex/task-files-test.txt`
+- `.kota/runs/2026-05-26T13-53-19-740Z-builder-4xdjex/lint.txt`

@@ -34,6 +34,14 @@ export {
 	routeModel,
 } from "./model-router.js";
 export {
+	listShippedModelOutputTokenLimits,
+	listShippedPresetModelIds,
+	type ModelOutputTokenLimitSource,
+	type ModelOutputTokenLimits,
+	type ResolvedModelOutputTokenLimit,
+	resolveModelOutputTokenLimit,
+} from "./output-token-limits.js";
+export {
 	checkPresetAuth,
 	getPreset,
 	hasPreset,

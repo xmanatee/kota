@@ -8,10 +8,9 @@ import type {
   KotaModelResponse,
 } from "#core/agent-harness/index.js";
 import { createModelClient } from "#core/model/model-client.js";
+import { resolveModelOutputTokenLimit } from "#core/model/output-token-limits.js";
 
 export const THIN_AGENT_HARNESS_NAME = "thin";
-
-const DEFAULT_MAX_TOKENS = 4096;
 
 const THIN_UNSUPPORTED_OPTIONS = [
   {
@@ -131,13 +130,17 @@ export const thinAgentHarness: AgentHarness = {
 
     const system = options.systemPrompt;
     const resolved = createModelClient({ model });
+    const outputTokenLimit = resolveModelOutputTokenLimit(
+      resolved.model,
+      options.modelOutputTokenLimits,
+    );
     const messages: KotaMessage[] = [
       { role: "user", content: options.prompt },
     ];
     const signal = options.abortController?.signal;
     const response = await resolved.client.messages.create({
       model: resolved.model,
-      max_tokens: DEFAULT_MAX_TOKENS,
+      max_tokens: outputTokenLimit.maxTokens,
       ...(system !== undefined ? { system } : {}),
       messages,
       ...(signal ? { signal } : {}),

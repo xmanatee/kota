@@ -112,7 +112,7 @@ describe("KNOWN_CONFIG_KEYS", () => {
       "model", "editorModel", "maxTokens", "thinking", "thinkingBudget",
       "verbose", "skipConfirmations", "trustedProjects", "autoEnable", "user", "aliases", "reflection",
       "guardrails", "modules", "foreignModules", "providers",
-      "modelTiers", "agentModels", "defaultAgentHarness", "defaultPreset", "approvalTtlMs",
+      "modelTiers", "modelOutputTokenLimits", "agentModels", "defaultAgentHarness", "defaultPreset", "approvalTtlMs",
       "runsGc", "serve", "cli", "log", "daemon", "notifications", "workflow",
       "moduleMonitoring",
     ];

@@ -100,6 +100,21 @@ export function sanitizeCore(raw: unknown): Partial<CoreKotaConfig> {
     if (tiers.fast || tiers.balanced || tiers.capable) out.modelTiers = tiers;
   }
 
+  if (isPlainObject(raw.modelOutputTokenLimits)) {
+    const limits: Record<string, number> = {};
+    for (const [model, limit] of Object.entries(raw.modelOutputTokenLimits)) {
+      if (
+        model.length > 0 &&
+        typeof limit === "number" &&
+        Number.isInteger(limit) &&
+        limit > 0
+      ) {
+        limits[model] = limit;
+      }
+    }
+    if (Object.keys(limits).length > 0) out.modelOutputTokenLimits = limits;
+  }
+
   if (isPlainObject(raw.agentModels)) {
     const agentModels: Record<string, string> = {};
     for (const [name, val] of Object.entries(raw.agentModels)) {
