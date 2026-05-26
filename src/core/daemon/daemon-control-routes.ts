@@ -72,6 +72,26 @@ function listInteractiveSessions(
   return [...serveSessions, ...daemonEntries];
 }
 
+function eventTypeMatchesGlob(eventType: string, glob: string): boolean {
+  const segments = glob.split("*");
+  const prefix = segments[0] ?? "";
+  if (prefix !== "" && !eventType.startsWith(prefix)) return false;
+
+  let offset = prefix.length;
+  const suffix = segments[segments.length - 1] ?? "";
+  for (let index = 1; index < segments.length - 1; index++) {
+    const segment = segments[index];
+    if (segment === "") continue;
+    const foundAt = eventType.indexOf(segment, offset);
+    if (foundAt === -1) return false;
+    offset = foundAt + segment.length;
+  }
+
+  if (suffix === "") return true;
+  const suffixStart = eventType.length - suffix.length;
+  return suffixStart >= offset && eventType.endsWith(suffix);
+}
+
 export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): ControlRouteRegistration[] {
   const {
     handle: h,
@@ -239,8 +259,7 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
         if (typeParam) {
           const isGlob = typeParam.includes("*");
           if (isGlob) {
-            const re = new RegExp(`^${typeParam.replace(/\./g, "\\.").replace(/\*/g, ".*")}$`);
-            entries = entries.filter(({ event }) => re.test(event.type));
+            entries = entries.filter(({ event }) => eventTypeMatchesGlob(event.type, typeParam));
           } else {
             entries = entries.filter(({ event }) => event.type.startsWith(typeParam));
           }

@@ -1101,6 +1101,29 @@ describe("DaemonControlServer", () => {
     });
   });
 
+  describe("route handler errors", () => {
+    it("converts synchronous route handler throws into 500 responses", async () => {
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN, {
+        controlRoutes: [
+          {
+            method: "GET",
+            path: "/throws-sync",
+            capabilityScope: "read",
+            handler: () => {
+              throw new Error("sync route failure");
+            },
+          },
+        ],
+      });
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/throws-sync");
+      expect(res.status).toBe(500);
+      await expect(res.json()).resolves.toEqual({ error: "sync route failure" });
+    });
+  });
+
   describe("GET /api/events", () => {
     function pushEvents(h: DaemonControlHandle): (event: DaemonSseEvent) => void {
       const calls = (h.subscribeToEvents as ReturnType<typeof vi.fn>).mock.calls;
@@ -1167,6 +1190,16 @@ describe("DaemonControlServer", () => {
         "workflow.completed",
         "workflow.step.completed",
       ]);
+    });
+
+    it("treats glob regex metacharacters as literal event type text", async () => {
+      const emit = pushEvents(handle);
+      emit(makeWorkflowStartedEvent());
+
+      const res = await fetchWithToken(port, "/api/events?type=*%5B");
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.events).toEqual([]);
     });
 
     it("filters by since timestamp", async () => {

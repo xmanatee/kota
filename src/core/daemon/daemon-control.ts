@@ -246,6 +246,27 @@ export class DaemonControlServer {
     }
   }
 
+  private handleRouteError(res: ServerResponse, err: Error | string): void {
+    const message = err instanceof Error ? err.message : String(err);
+    if (!res.headersSent) jsonResponse(res, 500, { error: message });
+  }
+
+  private invokeRouteHandler(
+    route: ControlRouteRegistration | RouteRegistration,
+    req: IncomingMessage,
+    res: ServerResponse,
+    params: Record<string, string>,
+  ): void {
+    const onRejected = (err: Error | string) => {
+      this.handleRouteError(res, err);
+    };
+    try {
+      Promise.resolve(route.handler(req, res, params)).catch(onRejected);
+    } catch (err) {
+      this.handleRouteError(res, err instanceof Error ? err : String(err));
+    }
+  }
+
   private handleRequest(req: IncomingMessage, res: ServerResponse): void {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const path = url.pathname;
@@ -257,9 +278,7 @@ export class DaemonControlServer {
         jsonResponse(res, 401, { error: "Unauthorized" });
         return;
       }
-      Promise.resolve(controlMatch.route.handler(req, res, controlMatch.params)).catch((err: Error) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: err.message });
-      });
+      this.invokeRouteHandler(controlMatch.route, req, res, controlMatch.params);
       return;
     }
 
@@ -269,9 +288,7 @@ export class DaemonControlServer {
         jsonResponse(res, 401, { error: "Unauthorized" });
         return;
       }
-      Promise.resolve(moduleMatch.route.handler(req, res, moduleMatch.params)).catch((err: Error) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: err.message });
-      });
+      this.invokeRouteHandler(moduleMatch.route, req, res, moduleMatch.params);
       return;
     }
 

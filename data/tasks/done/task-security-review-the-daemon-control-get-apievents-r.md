@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-daemon-control-get-apievents-r
 title: Security review: The daemon-control `GET /api/events` route treats the authenticated `type` query parameter as a glob by replacing only `.` and `*` before passing it to `new RegExp`. Other regex metacharacters remain active, so a request such as `/api/events?type=*%5B` throws a synchronous `SyntaxError`. `DaemonControlServer` invokes route handlers before attaching `.catch`, so this exception escapes the route error path and can interrupt the daemon process under default Node uncaught-exception behavior.
-status: ready
+status: done
 priority: p2
 area: security
 summary: The daemon-control `GET /api/events` route treats the authenticated `type` query parameter as a glob by replacing only `.` and `*` before passing it to `new RegExp`. Other regex metacharacters remain active, so a request such as `/api/events?type=*%5B` throws a synchronous `SyntaxError`. `DaemonControlServer` invokes route handlers before attaching `.catch`, so this exception escapes the route error path and can interrupt the daemon process under default Node uncaught-exception behavior.
 created_at: 2026-05-26T06:50:29.170Z
-updated_at: 2026-05-26T06:50:29.170Z
+updated_at: 2026-05-26T06:59:37.767Z
 ---
 
 ## Problem
@@ -54,3 +54,10 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm test src/core/daemon/daemon-control.test.ts` — 84 tests passed.
+- `pnpm exec biome check src/core/daemon/daemon-control.ts src/core/daemon/daemon-control-routes.ts src/core/daemon/daemon-control.test.ts` — passed.
+- `pnpm run typecheck` — passed.
+- `pnpm run validate-tasks` — passed.
