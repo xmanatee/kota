@@ -31,21 +31,21 @@ resources:
   - url: https://github.com/anthropics/claude-code
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:0941347a4b29c0f02f74a642eb7fe275
-      summary: "Claude Code now surfaces fresh permission/sandbox bypass fixes beyond KOTA's completed env-override guardrail work; opened task-harden-shell-working-directory-guardrails-against- for KOTA's remaining shell cwd/cd project-boundary gap."
-      last_seen_at: "2026-05-25T04:12:28.483Z"
+      fingerprint: sha256:25d9668a1d178067088fa397ca2299d8
+      summary: "Claude Code remains a high-signal comparator for background sessions, permissions, worktree safety, and MCP timeout behavior; current KOTA tasks already cover the nonduplicative gaps observed in this refresh."
+      last_seen_at: "2026-05-26T01:44:23.761Z"
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:821fad86f43bde0c7ea1176a99e8cb21
-      summary: "Codex now reinforces a project-config trust boundary for external worktrees; opened task-gate-project-local-authority-config-behind-trust for KOTA's analogous .kota/config.json authority gap."
-      last_seen_at: "2026-05-25T04:59:36.032Z"
+      fingerprint: sha256:a67f687dc89ae0618d8881fc9e389c9f
+      summary: "Codex now has a concrete permission-profile runtime-refresh signal; opened task-apply-daemon-config-reloads-to-live-session-guardr for KOTA's analogous live-session guardrails reload gap."
+      last_seen_at: "2026-05-26T01:44:23.761Z"
   - url: https://github.com/google-gemini/gemini-cli
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:ffe372b662a964a67c03df122e167f5e
-      summary: "Gemini CLI remains a useful safety/eval comparator; this refresh opened no new KOTA task beyond the MCP pagination item sourced from the Claude/MCP signal."
-      last_seen_at: "2026-05-20T02:32:53.824Z"
+      fingerprint: sha256:19309b5e06e9d767b876d1f9f373615f
+      summary: "Gemini CLI continues to reinforce shell-safety evals, project-prioritized agent composition, and MCP/auth ergonomics; no nonduplicative KOTA task was opened from this refresh."
+      last_seen_at: "2026-05-26T01:44:23.761Z"
   - url: https://github.com/Aider-AI/aider
     added: "2026-04-19"
     snapshot:
@@ -272,9 +272,9 @@ resources:
     added: "2026-05-26"
     notes: "Official latest MCP specification entry point. Monitor the current stable protocol revision and changelog so KOTA does not confuse active draft support with latest released MCP interoperability."
     snapshot:
-      fingerprint: sha256:d29e7f557fdd3af5d95b226f489409cc
-      summary: "Official MCP specification now resolves to latest stable 2025-11-25; KOTA already completed current-revision negotiation and has coverage for the nonduplicative changelog items, so this refresh opened no new task."
-      last_seen_at: "2026-05-26T01:09:06.957Z"
+      fingerprint: sha256:e83bea98b14c19521c6975c6129560cb
+      summary: "Official MCP specification still resolves to stable 2025-11-25; KOTA already has tasks or completed coverage for the current nonduplicative protocol gaps."
+      last_seen_at: "2026-05-26T01:44:23.761Z"
   - url: https://modelcontextprotocol.io/specification/draft/basic/authorization
     added: "2026-05-21"
     notes: "Official MCP authorization draft - monitor HTTP protected-resource metadata, WWW-Authenticate discovery, OAuth authorization-server discovery, Bearer token validation, resource/audience binding, scope step-up, and token-handling constraints for KOTA's Streamable HTTP MCP client and server."
