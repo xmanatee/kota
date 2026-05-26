@@ -271,6 +271,10 @@ resources:
   - url: https://modelcontextprotocol.io/specification
     added: "2026-05-26"
     notes: "Official latest MCP specification entry point. Monitor the current stable protocol revision and changelog so KOTA does not confuse active draft support with latest released MCP interoperability."
+    snapshot:
+      fingerprint: sha256:d29e7f557fdd3af5d95b226f489409cc
+      summary: "Official MCP specification now resolves to latest stable 2025-11-25; KOTA already completed current-revision negotiation and has coverage for the nonduplicative changelog items, so this refresh opened no new task."
+      last_seen_at: "2026-05-26T01:09:06.957Z"
   - url: https://modelcontextprotocol.io/specification/draft/basic/authorization
     added: "2026-05-21"
     notes: "Official MCP authorization draft - monitor HTTP protected-resource metadata, WWW-Authenticate discovery, OAuth authorization-server discovery, Bearer token validation, resource/audience binding, scope step-up, and token-handling constraints for KOTA's Streamable HTTP MCP client and server."
