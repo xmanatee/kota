@@ -69,6 +69,7 @@ export type {
   McpLogLevel,
   McpLogMessageEvent,
   McpLogMessageHandler,
+  McpModernProtocolVersion,
   McpOperationRetry,
   McpProgressEvent,
   McpProgressHandler,
@@ -76,6 +77,8 @@ export type {
   McpPromptArgumentSchema,
   McpPromptMessage,
   McpPromptSchema,
+  McpProtocolBooleanFeature,
+  McpProtocolCapabilities,
   McpProtocolVersion,
   McpReadResourceCompleteResult,
   McpReadResourceResult,
@@ -110,10 +113,19 @@ export type {
   McpUpdateTaskResult,
 } from "./client-protocol.js";
 export {
+  isMcpModernProtocolVersion,
+  isMcpProtocolVersion,
+  MCP_CURRENT_PROTOCOL_VERSION,
+  MCP_CURRENT_STABLE_PROTOCOL_VERSIONS,
   MCP_DRAFT_PROTOCOL_VERSION,
+  MCP_DRAFT_PROTOCOL_VERSIONS,
   MCP_LEGACY_PROTOCOL_VERSION,
+  MCP_MODERN_PROTOCOL_VERSIONS,
   MCP_SKILLS_EXTENSION_ID,
+  MCP_SUPPORTED_PROTOCOL_VERSIONS,
   MCP_TASKS_EXTENSION_ID,
+  mcpProtocolCapabilities,
+  mcpProtocolSupports,
 } from "./client-protocol.js";
 export type {
   McpBoundedRemoteSkillContent,

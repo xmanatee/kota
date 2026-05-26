@@ -1,5 +1,5 @@
 /**
- * Shared Multi Round-Trip Request helpers for draft MCP server-to-client
+ * Shared Multi Round-Trip Request helpers for modern MCP server-to-client
  * requests. This owns strict retry decoding and opaque request-state
  * integrity so feature handlers do not each grow a protocol dialect.
  */
@@ -26,7 +26,7 @@ import type {
 import {
 	activeClientSupportsRoots,
 	activeMcpProtocolVersion,
-	MCP_DRAFT_PROTOCOL_VERSION,
+	mcpProtocolSupports,
 } from "./mcp-protocol-types.js";
 
 export const ROOTS_INPUT_REQUEST_ID = "roots";
@@ -393,12 +393,15 @@ export function resolveProjectDirFromRootsInput(args: {
 	const retry = decodeMrtrRetryParams(args.msg.params ?? {});
 	if (retry.kind === "invalid") return { kind: "error", message: retry.message };
 
-	const isDraft = activeMcpProtocolVersion(args.ctx) === MCP_DRAFT_PROTOCOL_VERSION;
+	const supportsMrtr = mcpProtocolSupports(
+		activeMcpProtocolVersion(args.ctx),
+		"multiRoundTripRequests",
+	);
 	if (retry.kind === "retry") {
-		if (!isDraft) {
+		if (!supportsMrtr) {
 			return {
 				kind: "error",
-				message: "inputResponses are only supported by the draft MRTR protocol",
+				message: "inputResponses are only supported by the modern MRTR protocol",
 			};
 		}
 		if (!activeClientSupportsRoots(args.ctx)) {
@@ -416,7 +419,7 @@ export function resolveProjectDirFromRootsInput(args: {
 		};
 	}
 
-	if (isDraft && activeClientSupportsRoots(args.ctx)) {
+	if (supportsMrtr && activeClientSupportsRoots(args.ctx)) {
 		return {
 			kind: "input_required",
 			result: args.mrtr.createInputRequiredResult(args.msg, {

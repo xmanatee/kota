@@ -44,17 +44,18 @@ import type {
 import {
 	decodeClientMcpTasksCapabilities,
 	decodeClientMcpUiCapabilities,
-	hasLegacySessionContext,
+	hasSessionScopedMcpContext,
+	isMcpModernProtocolVersion,
 	isMcpProgressToken,
-	MCP_DRAFT_PROTOCOL_VERSION,
-	MCP_DRAFT_PROTOCOL_VERSIONS,
 	MCP_LEGACY_PROTOCOL_VERSION,
 	MCP_LOG_LEVELS,
 	MCP_META_CLIENT_CAPABILITIES_KEY,
 	MCP_META_CLIENT_INFO_KEY,
 	MCP_META_LOG_LEVEL_KEY,
 	MCP_META_PROTOCOL_VERSION_KEY,
+	MCP_MODERN_PROTOCOL_VERSIONS,
 	mcpProgressTokenKey,
+	mcpProtocolSupports,
 } from "./mcp-protocol-types.js";
 import { McpTaskStore } from "./mcp-task-store.js";
 import {
@@ -92,7 +93,7 @@ export type McpServerDispatchResult =
 
 export type McpServerStreamSink = (payload: JsonRpcOutboundPayload) => void;
 
-type DraftRequestContextResult =
+type RequestContextResult =
 	| { ok: true; context: McpRequestContext }
 	| { ok: false; code: number; message: string; data?: JsonRpcOutboundPayload };
 
@@ -105,7 +106,7 @@ type ActiveProgressRequest = {
 
 function protocolErrorData(requestedVersion?: string): KotaJsonObject {
 	return {
-		supportedVersions: [...MCP_DRAFT_PROTOCOL_VERSIONS],
+		supportedVersions: [...MCP_MODERN_PROTOCOL_VERSIONS],
 		...(requestedVersion !== undefined && { requestedVersion }),
 	};
 }
@@ -223,13 +224,13 @@ function decodeJsonRpcNotification(parsed: KotaJsonObject): JsonRpcNotification 
 	};
 }
 
-function decodeDraftRequestContext(msg: JsonRpcRequest): DraftRequestContextResult {
+function decodeRequestContext(msg: JsonRpcRequest): RequestContextResult {
 	const meta = msg.params?._meta;
 	if (!isJsonObject(meta)) {
 		return {
 			ok: false,
 			code: -32602,
-			message: `Missing required MCP draft _meta or malformed _meta object. Supported protocol versions: ${MCP_DRAFT_PROTOCOL_VERSIONS.join(", ")}`,
+			message: `Missing required MCP protocol _meta or malformed _meta object. Supported protocol versions: ${MCP_MODERN_PROTOCOL_VERSIONS.join(", ")}`,
 			data: protocolErrorData(),
 		};
 	}
@@ -239,15 +240,15 @@ function decodeDraftRequestContext(msg: JsonRpcRequest): DraftRequestContextResu
 		return {
 			ok: false,
 			code: -32602,
-			message: `Missing required MCP draft _meta field: ${MCP_META_PROTOCOL_VERSION_KEY}`,
+			message: `Missing required MCP protocol _meta field: ${MCP_META_PROTOCOL_VERSION_KEY}`,
 			data: protocolErrorData(),
 		};
 	}
-	if (protocolVersion !== MCP_DRAFT_PROTOCOL_VERSION) {
+	if (!isMcpModernProtocolVersion(protocolVersion)) {
 		return {
 			ok: false,
 			code: -32602,
-			message: `Unsupported protocol version: ${protocolVersion}. Supported protocol versions: ${MCP_DRAFT_PROTOCOL_VERSIONS.join(", ")}`,
+			message: `Unsupported protocol version: ${protocolVersion}. Supported protocol versions: ${MCP_MODERN_PROTOCOL_VERSIONS.join(", ")}`,
 			data: protocolErrorData(protocolVersion),
 		};
 	}
@@ -257,7 +258,7 @@ function decodeDraftRequestContext(msg: JsonRpcRequest): DraftRequestContextResu
 		return {
 			ok: false,
 			code: -32602,
-			message: `Malformed MCP draft _meta field: ${MCP_META_CLIENT_INFO_KEY}`,
+			message: `Malformed MCP protocol _meta field: ${MCP_META_CLIENT_INFO_KEY}`,
 		};
 	}
 	const clientName = clientInfo.name;
@@ -266,7 +267,7 @@ function decodeDraftRequestContext(msg: JsonRpcRequest): DraftRequestContextResu
 		return {
 			ok: false,
 			code: -32602,
-			message: `Malformed MCP draft _meta field: ${MCP_META_CLIENT_INFO_KEY}`,
+			message: `Malformed MCP protocol _meta field: ${MCP_META_CLIENT_INFO_KEY}`,
 		};
 	}
 
@@ -275,7 +276,7 @@ function decodeDraftRequestContext(msg: JsonRpcRequest): DraftRequestContextResu
 		return {
 			ok: false,
 			code: -32602,
-			message: `Malformed MCP draft _meta field: ${MCP_META_CLIENT_CAPABILITIES_KEY}`,
+			message: `Malformed MCP protocol _meta field: ${MCP_META_CLIENT_CAPABILITIES_KEY}`,
 		};
 	}
 	const uiCapabilities = decodeClientMcpUiCapabilities(clientCapabilities);
@@ -301,7 +302,7 @@ function decodeDraftRequestContext(msg: JsonRpcRequest): DraftRequestContextResu
 			return {
 				ok: false,
 				code: -32602,
-				message: `Malformed MCP draft client capability: ${key}`,
+				message: `Malformed MCP protocol client capability: ${key}`,
 			};
 		}
 	}
@@ -311,7 +312,7 @@ function decodeDraftRequestContext(msg: JsonRpcRequest): DraftRequestContextResu
 		return {
 			ok: false,
 			code: -32602,
-			message: "Malformed MCP draft _meta field: progressToken",
+			message: "Malformed MCP protocol _meta field: progressToken",
 		};
 	}
 
@@ -320,14 +321,14 @@ function decodeDraftRequestContext(msg: JsonRpcRequest): DraftRequestContextResu
 		return {
 			ok: false,
 			code: -32602,
-			message: `Malformed MCP draft _meta field: ${MCP_META_LOG_LEVEL_KEY}`,
+			message: `Malformed MCP protocol _meta field: ${MCP_META_LOG_LEVEL_KEY}`,
 		};
 	}
 
 	return {
 		ok: true,
 		context: {
-			protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+			protocolVersion,
 			clientInfo: { name: clientName, version: clientVersion },
 			clientCapabilities,
 			requestId: msg.id,
@@ -349,6 +350,7 @@ export class McpServer {
 	private readonly session: SessionState = {
 		initialized: false,
 		protocolVersion: MCP_LEGACY_PROTOCOL_VERSION,
+		clientCapabilities: {},
 		clientElicitation: { form: false, url: false },
 		clientSupportsRoots: false,
 	};
@@ -700,25 +702,25 @@ export class McpServer {
 			Object.hasOwn(msg.params, "_meta");
 		if (msg.method === "initialize") {
 			if (hasMetaField) {
-				await this.dispatchDraftRequest(msg, handler);
+				await this.dispatchProtocolRequest(msg, handler);
 				return;
 			}
 			await handler(msg);
 			return;
 		}
 
-		const requiresDraftContext =
-			msg.method === "server/discover" || hasMetaField || !hasLegacySessionContext(this.session);
-		if (!requiresDraftContext && this.session.initialized) {
+		const requiresRequestContext =
+			msg.method === "server/discover" || hasMetaField || !hasSessionScopedMcpContext(this.session);
+		if (!requiresRequestContext && this.session.initialized) {
 			await handler(msg);
 			return;
 		}
 
-		await this.dispatchDraftRequest(msg, handler);
+		await this.dispatchProtocolRequest(msg, handler);
 	}
 
-	private async dispatchDraftRequest(msg: JsonRpcRequest, handler: RequestHandler): Promise<void> {
-		const decoded = decodeDraftRequestContext(msg);
+	private async dispatchProtocolRequest(msg: JsonRpcRequest, handler: RequestHandler): Promise<void> {
+		const decoded = decodeRequestContext(msg);
 		if (!decoded.ok) {
 			this.sendPayload({
 				jsonrpc: "2.0",
@@ -744,14 +746,15 @@ export class McpServer {
 			return;
 		}
 		try {
-			this.warnDeprecatedDraftRequestContext(decoded.context);
+			this.warnDeprecatedRequestContext(decoded.context);
 			await this.requestContext.run(decoded.context, () => Promise.resolve(handler(msg)));
 		} finally {
 			this.clearProgressForRequest(msg.id);
 		}
 	}
 
-	private warnDeprecatedDraftRequestContext(context: McpRequestContext): void {
+	private warnDeprecatedRequestContext(context: McpRequestContext): void {
+		if (!mcpProtocolSupports(context.protocolVersion, "draftCompatibilityWarnings")) return;
 		for (const feature of ["roots", "sampling", "tasks"] as const) {
 			if (!hasDeprecatedClientCapability(context.clientCapabilities, feature)) continue;
 			this.deprecatedWarnings.warn({

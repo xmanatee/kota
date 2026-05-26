@@ -16,9 +16,16 @@ import {
 } from "./mcp-apps.js";
 
 export const MCP_LEGACY_PROTOCOL_VERSION = "2024-11-05";
+export const MCP_CURRENT_PROTOCOL_VERSION = "2025-11-25";
 export const MCP_DRAFT_PROTOCOL_VERSION = "DRAFT-2026-v1";
+export const MCP_CURRENT_STABLE_PROTOCOL_VERSIONS = [MCP_CURRENT_PROTOCOL_VERSION] as const;
 export const MCP_DRAFT_PROTOCOL_VERSIONS = [MCP_DRAFT_PROTOCOL_VERSION] as const;
+export const MCP_MODERN_PROTOCOL_VERSIONS = [
+	MCP_CURRENT_PROTOCOL_VERSION,
+	MCP_DRAFT_PROTOCOL_VERSION,
+] as const;
 export const MCP_SUPPORTED_PROTOCOL_VERSIONS = [
+	MCP_CURRENT_PROTOCOL_VERSION,
 	MCP_DRAFT_PROTOCOL_VERSION,
 	MCP_LEGACY_PROTOCOL_VERSION,
 ] as const;
@@ -46,7 +53,101 @@ export type McpLogLevel = typeof MCP_LOG_LEVELS[number];
 
 export type McpProtocolVersion =
 	| typeof MCP_LEGACY_PROTOCOL_VERSION
+	| typeof MCP_CURRENT_PROTOCOL_VERSION
 	| typeof MCP_DRAFT_PROTOCOL_VERSION;
+
+export type McpModernProtocolVersion =
+	| typeof MCP_CURRENT_PROTOCOL_VERSION
+	| typeof MCP_DRAFT_PROTOCOL_VERSION;
+
+export type McpProtocolBooleanFeature =
+	| "requestMetadata"
+	| "sessionScopedRequests"
+	| "completeToolResult"
+	| "listChangedSubscriptions"
+	| "tasksExtension"
+	| "skillsExtension"
+	| "elicitation"
+	| "multiRoundTripRequests"
+	| "draftCompatibilityWarnings"
+	| "legacyDraftTaskCompatibility";
+
+export type McpProtocolCapabilities = {
+	revision: "legacy" | "current-stable" | "active-draft";
+	requestMetadata: boolean;
+	sessionScopedRequests: boolean;
+	completeToolResult: boolean;
+	listChangedSubscriptions: boolean;
+	tasksExtension: boolean;
+	skillsExtension: boolean;
+	elicitation: boolean;
+	multiRoundTripRequests: boolean;
+	draftCompatibilityWarnings: boolean;
+	legacyDraftTaskCompatibility: boolean;
+};
+
+const MCP_PROTOCOL_CAPABILITIES: Record<McpProtocolVersion, McpProtocolCapabilities> = {
+	[MCP_LEGACY_PROTOCOL_VERSION]: {
+		revision: "legacy",
+		requestMetadata: false,
+		sessionScopedRequests: true,
+		completeToolResult: false,
+		listChangedSubscriptions: false,
+		tasksExtension: false,
+		skillsExtension: false,
+		elicitation: false,
+		multiRoundTripRequests: false,
+		draftCompatibilityWarnings: false,
+		legacyDraftTaskCompatibility: false,
+	},
+	[MCP_CURRENT_PROTOCOL_VERSION]: {
+		revision: "current-stable",
+		requestMetadata: true,
+		sessionScopedRequests: true,
+		completeToolResult: true,
+		listChangedSubscriptions: true,
+		tasksExtension: true,
+		skillsExtension: false,
+		elicitation: true,
+		multiRoundTripRequests: true,
+		draftCompatibilityWarnings: false,
+		legacyDraftTaskCompatibility: false,
+	},
+	[MCP_DRAFT_PROTOCOL_VERSION]: {
+		revision: "active-draft",
+		requestMetadata: true,
+		sessionScopedRequests: false,
+		completeToolResult: true,
+		listChangedSubscriptions: true,
+		tasksExtension: true,
+		skillsExtension: true,
+		elicitation: true,
+		multiRoundTripRequests: true,
+		draftCompatibilityWarnings: true,
+		legacyDraftTaskCompatibility: true,
+	},
+};
+
+export function isMcpProtocolVersion(value: string): value is McpProtocolVersion {
+	return (MCP_SUPPORTED_PROTOCOL_VERSIONS as readonly string[]).includes(value);
+}
+
+export function isMcpModernProtocolVersion(value: string): value is McpModernProtocolVersion {
+	return (MCP_MODERN_PROTOCOL_VERSIONS as readonly string[]).includes(value);
+}
+
+export function mcpProtocolCapabilities(
+	protocolVersion: McpProtocolVersion,
+): McpProtocolCapabilities {
+	return MCP_PROTOCOL_CAPABILITIES[protocolVersion];
+}
+
+export function mcpProtocolSupports(
+	protocolVersion: McpProtocolVersion,
+	feature: McpProtocolBooleanFeature,
+): boolean {
+	return mcpProtocolCapabilities(protocolVersion)[feature];
+}
 
 export type McpProgressToken = string | number;
 
@@ -387,7 +488,7 @@ export type McpTasksClientCapabilityDecodeResult =
 	| { ok: false; message: string };
 
 export type McpRequestContext = {
-	protocolVersion: typeof MCP_DRAFT_PROTOCOL_VERSION;
+	protocolVersion: McpModernProtocolVersion;
 	clientInfo: McpImplementation;
 	clientCapabilities: McpClientCapabilities;
 	requestId: JsonRpcRequest["id"];
@@ -410,6 +511,7 @@ export type McpLogOptions = {
 export type SessionState = {
 	initialized: boolean;
 	protocolVersion: McpProtocolVersion;
+	clientCapabilities: McpClientCapabilities;
 	clientElicitation: McpElicitationClientCapabilities;
 	clientSupportsRoots: boolean;
 };
@@ -517,12 +619,13 @@ export function decodeClientMcpTasksCapabilities(
 	return { ok: true, capabilities: { supported: true } };
 }
 
-export function hasLegacySessionContext(session: SessionState): boolean {
-	return session.initialized && session.protocolVersion === MCP_LEGACY_PROTOCOL_VERSION;
+export function hasSessionScopedMcpContext(session: SessionState): boolean {
+	return session.initialized &&
+		mcpProtocolSupports(session.protocolVersion, "sessionScopedRequests");
 }
 
 export function hasActiveMcpContext(ctx: HandlerContext): boolean {
-	return ctx.getRequestContext() !== null || hasLegacySessionContext(ctx.session);
+	return ctx.getRequestContext() !== null || hasSessionScopedMcpContext(ctx.session);
 }
 
 export function activeMcpProtocolVersion(ctx: HandlerContext): McpProtocolVersion {
@@ -542,21 +645,27 @@ export function activeClientSupportsElicitation(
 
 export function activeClientSupportsMcpUi(ctx: HandlerContext): boolean {
 	const request = ctx.getRequestContext();
-	if (!request) return false;
-	const decoded = decodeClientMcpUiCapabilities(request.clientCapabilities);
+	const capabilities = request?.clientCapabilities ??
+		(hasSessionScopedMcpContext(ctx.session) ? ctx.session.clientCapabilities : null);
+	if (!capabilities) return false;
+	const decoded = decodeClientMcpUiCapabilities(capabilities);
 	return decoded.ok && decoded.capabilities.supported;
 }
 
 export function activeClientSupportsMcpTasks(ctx: HandlerContext): boolean {
 	const request = ctx.getRequestContext();
-	if (!request) return false;
-	const decoded = decodeClientMcpTasksCapabilities(request.clientCapabilities);
+	const protocolVersion = request?.protocolVersion ??
+		(hasSessionScopedMcpContext(ctx.session) ? ctx.session.protocolVersion : null);
+	if (!protocolVersion || !mcpProtocolSupports(protocolVersion, "tasksExtension")) return false;
+	const capabilities = request?.clientCapabilities ?? ctx.session.clientCapabilities;
+	const decoded = decodeClientMcpTasksCapabilities(capabilities);
 	return decoded.ok && decoded.capabilities.supported;
 }
 
 export function activeClientSupportsLegacyDraftTasks(ctx: HandlerContext): boolean {
 	const request = ctx.getRequestContext();
 	if (!request) return false;
+	if (!mcpProtocolSupports(request.protocolVersion, "legacyDraftTaskCompatibility")) return false;
 	return hasObjectCapability(request.clientCapabilities, "tasks");
 }
 

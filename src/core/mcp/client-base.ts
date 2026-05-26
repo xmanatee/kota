@@ -49,11 +49,12 @@ import type {
 import {
   DEFAULT_MAX_PROGRESS_EVENTS,
   KOTA_MCP_CLIENT_INFO,
-  MCP_DRAFT_PROTOCOL_VERSION,
+  MCP_CURRENT_PROTOCOL_VERSION,
   MCP_META_CLIENT_CAPABILITIES_KEY,
   MCP_META_CLIENT_INFO_KEY,
   MCP_META_PROTOCOL_VERSION_KEY,
   MCP_TASKS_EXTENSION_ID,
+  mcpProtocolSupports,
 } from "./client-protocol.js";
 import { decodeMcpToolInputResponses } from "./client-result-decoders.js";
 import {
@@ -198,13 +199,15 @@ export abstract class McpClientBase {
   supportsTasks(): boolean {
     return this.remoteTasksEnabled &&
       this.tasksSupported &&
-      this.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION;
+      this.protocolVersion !== null &&
+      mcpProtocolSupports(this.protocolVersion, "tasksExtension");
   }
 
   supportsSkills(): boolean {
     return this.skillsSupported &&
       this.resourcesSupported &&
-      this.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION;
+      this.protocolVersion !== null &&
+      mcpProtocolSupports(this.protocolVersion, "skillsExtension");
   }
 
   onToolListChanged(handler: McpToolListChangedHandler): () => void {
@@ -277,7 +280,8 @@ export abstract class McpClientBase {
       extensions[MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION_ID] = {};
     }
     if (
-      protocolVersion === MCP_DRAFT_PROTOCOL_VERSION &&
+      protocolVersion !== null &&
+      mcpProtocolSupports(protocolVersion, "tasksExtension") &&
       this.remoteTasksEnabled
     ) {
       extensions[MCP_TASKS_EXTENSION_ID] = {};
@@ -286,7 +290,8 @@ export abstract class McpClientBase {
       capabilities.extensions = extensions;
     }
     if (
-      protocolVersion === MCP_DRAFT_PROTOCOL_VERSION &&
+      protocolVersion !== null &&
+      mcpProtocolSupports(protocolVersion, "elicitation") &&
       this.supportedElicitationModes.length > 0
     ) {
       const elicitation: KotaJsonObject = {};
@@ -298,19 +303,22 @@ export abstract class McpClientBase {
     return capabilities;
   }
 
-  protected draftRequestMeta(): KotaJsonObject {
+  protected protocolRequestMeta(): KotaJsonObject {
     return {
-      [MCP_META_PROTOCOL_VERSION_KEY]: this.protocolVersion ?? MCP_DRAFT_PROTOCOL_VERSION,
+      [MCP_META_PROTOCOL_VERSION_KEY]: this.protocolVersion ?? MCP_CURRENT_PROTOCOL_VERSION,
       [MCP_META_CLIENT_INFO_KEY]: KOTA_MCP_CLIENT_INFO,
       [MCP_META_CLIENT_CAPABILITIES_KEY]: this.clientCapabilitiesForProtocol(),
     };
   }
 
-  protected paramsWithDraftMetadata(
+  protected paramsWithProtocolMetadata(
     params: JsonRpcParams,
     progressToken?: McpProgressToken,
   ): JsonRpcParams {
-    if (this.protocolVersion !== MCP_DRAFT_PROTOCOL_VERSION) return params;
+    if (
+      this.protocolVersion === null ||
+      !mcpProtocolSupports(this.protocolVersion, "requestMetadata")
+    ) return params;
     const rawMeta = params?._meta;
     if (rawMeta !== undefined && !isJsonObject(rawMeta)) {
       throw new Error("Malformed MCP request params: _meta must be an object");
@@ -320,7 +328,7 @@ export abstract class McpClientBase {
       _meta: {
         ...(rawMeta ?? {}),
         ...(progressToken !== undefined ? { progressToken } : {}),
-        ...this.draftRequestMeta(),
+        ...this.protocolRequestMeta(),
       },
     };
   }

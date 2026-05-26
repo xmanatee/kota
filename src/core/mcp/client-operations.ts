@@ -25,7 +25,7 @@ import type {
 } from "./client-protocol.js";
 import {
   CALL_TIMEOUT,
-  MCP_DRAFT_PROTOCOL_VERSION,
+  MCP_CURRENT_PROTOCOL_VERSION,
   MCP_LEGACY_PROTOCOL_VERSION,
 } from "./client-protocol.js";
 import {
@@ -61,7 +61,7 @@ export abstract class McpClientOperations extends McpClientConnection {
     if (this.supportsTasks()) return;
     throw this.requestErrorForMethod(
       method,
-      `remote MCP Tasks extension was not negotiated; enable ${MCP_DRAFT_PROTOCOL_VERSION} ${method} only after both client and server advertise task support`,
+      `remote MCP Tasks extension was not negotiated; call ${method} only after both client and server advertise task support for the negotiated protocol revision`,
     );
   }
 
@@ -234,7 +234,7 @@ export abstract class McpClientOperations extends McpClientConnection {
     const result = await this.request("resources/read", params, CALL_TIMEOUT);
     const decoded = decodeReadResourceResult(
       result,
-      this.protocolVersion ?? MCP_DRAFT_PROTOCOL_VERSION,
+      this.protocolVersion ?? MCP_CURRENT_PROTOCOL_VERSION,
     );
     this.warnDeprecatedInputRequiredResult(decoded);
     return decoded;
@@ -281,7 +281,7 @@ export abstract class McpClientOperations extends McpClientConnection {
     const result = await this.request("prompts/get", params, CALL_TIMEOUT);
     const decoded = decodeGetPromptResult(
       result,
-      this.protocolVersion ?? MCP_DRAFT_PROTOCOL_VERSION,
+      this.protocolVersion ?? MCP_CURRENT_PROTOCOL_VERSION,
     );
     this.warnDeprecatedInputRequiredResult(decoded);
     return decoded;

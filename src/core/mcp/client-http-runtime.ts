@@ -13,7 +13,7 @@ import type {
 } from "./client-protocol.js";
 import {
   CONNECT_TIMEOUT,
-  MCP_DRAFT_PROTOCOL_VERSION,
+  MCP_CURRENT_PROTOCOL_VERSION,
 } from "./client-protocol.js";
 
 export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime {
@@ -49,7 +49,7 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
       const id = this.nextId++;
       latestRequestId = id;
       const progressToken = progress ? progress.token ?? generatedProgressToken(id) : undefined;
-      const requestParams = this.paramsWithDraftMetadata(params, progressToken);
+      const requestParams = this.paramsWithProtocolMetadata(params, progressToken);
       const msg: JsonRpcRequest = {
         jsonrpc: "2.0",
         id,
@@ -133,7 +133,7 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
     if (token) headers.set("Authorization", `Bearer ${token}`);
     headers.set("Accept", "application/json, text/event-stream");
     headers.set("Content-Type", "application/json");
-    headers.set("MCP-Protocol-Version", this.protocolVersion ?? MCP_DRAFT_PROTOCOL_VERSION);
+    headers.set("MCP-Protocol-Version", this.protocolVersion ?? MCP_CURRENT_PROTOCOL_VERSION);
     headers.set("Mcp-Method", method);
     const name = this.httpMcpNameForRequest(method, params);
     if (name !== null) headers.set("Mcp-Name", name);
@@ -344,7 +344,7 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
       ...(this.promptsListChanged ? { promptsListChanged: true } : {}),
     };
     const params: JsonRpcParams = {
-      _meta: this.draftRequestMeta(),
+      _meta: this.protocolRequestMeta(),
       notifications,
     };
     const msg: JsonRpcRequest = {

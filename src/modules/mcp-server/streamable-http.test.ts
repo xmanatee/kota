@@ -7,6 +7,7 @@ import { EventBus } from "#core/events/event-bus.js";
 import type { ToolDef } from "#core/modules/module-types.js";
 import { networkWriteEffect } from "#core/tools/effect.js";
 import {
+	MCP_CURRENT_PROTOCOL_VERSION,
 	MCP_DRAFT_PROTOCOL_VERSION,
 	MCP_META_CLIENT_CAPABILITIES_KEY,
 	MCP_META_CLIENT_INFO_KEY,
@@ -240,7 +241,10 @@ describe("Streamable HTTP MCP transport", () => {
 			supportedVersions: string[];
 			capabilities: Record<string, unknown>;
 		};
-		expect(discoverResult.supportedVersions).toEqual([MCP_DRAFT_PROTOCOL_VERSION]);
+		expect(discoverResult.supportedVersions).toEqual([
+			MCP_CURRENT_PROTOCOL_VERSION,
+			MCP_DRAFT_PROTOCOL_VERSION,
+		]);
 		expectHttpListChangedCapabilities(discoverResult.capabilities);
 
 		const list = await handleStreamableHttpRequest(server, request({
@@ -434,7 +438,7 @@ describe("Streamable HTTP MCP transport", () => {
 			code: -32004,
 			message: "Unsupported protocol version",
 			data: {
-				supported: [MCP_DRAFT_PROTOCOL_VERSION],
+				supported: [MCP_CURRENT_PROTOCOL_VERSION, MCP_DRAFT_PROTOCOL_VERSION],
 				requested: "1900-01-01",
 			},
 		});

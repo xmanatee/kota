@@ -10,7 +10,10 @@ import {
 	decodeClientMcpUiCapabilities,
 	type HandlerContext,
 	isMcpTaskTerminalStatus,
+	MCP_CURRENT_PROTOCOL_VERSION,
 	MCP_DRAFT_PROTOCOL_VERSION,
+	MCP_LEGACY_PROTOCOL_VERSION,
+	MCP_SUPPORTED_PROTOCOL_VERSIONS,
 	MCP_TASK_STATUSES,
 	MCP_TASK_TERMINAL_STATUSES,
 	MCP_TASKS_EXTENSION_ID,
@@ -21,6 +24,8 @@ import {
 	type McpStoredTaskTerminalResult,
 	type McpTaskListPage,
 	type McpTaskResultSettlement,
+	mcpProtocolCapabilities,
+	mcpProtocolSupports,
 } from "./mcp-protocol-types.js";
 
 function ctxWithClientCapabilities(clientCapabilities: McpClientCapabilities): HandlerContext {
@@ -35,6 +40,7 @@ function ctxWithClientCapabilities(clientCapabilities: McpClientCapabilities): H
 		session: {
 			initialized: true,
 			protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+			clientCapabilities: {},
 			clientElicitation: { form: false, url: false },
 			clientSupportsRoots: false,
 		},
@@ -97,6 +103,37 @@ describe("MCP elicitation capability modes", () => {
 			ctxWithClientCapabilities({ elicitation: {} }),
 			urlRequest.params.mode,
 		)).toBe(false);
+	});
+});
+
+describe("MCP protocol revision capabilities", () => {
+	it("keeps current stable, draft, and legacy behavior distinct", () => {
+		expect([...MCP_SUPPORTED_PROTOCOL_VERSIONS]).toEqual([
+			MCP_CURRENT_PROTOCOL_VERSION,
+			MCP_DRAFT_PROTOCOL_VERSION,
+			MCP_LEGACY_PROTOCOL_VERSION,
+		]);
+		expect(mcpProtocolCapabilities(MCP_CURRENT_PROTOCOL_VERSION)).toMatchObject({
+			revision: "current-stable",
+			completeToolResult: true,
+			requestMetadata: true,
+			sessionScopedRequests: true,
+			multiRoundTripRequests: true,
+			tasksExtension: true,
+			skillsExtension: false,
+			legacyDraftTaskCompatibility: false,
+		});
+		expect(mcpProtocolCapabilities(MCP_DRAFT_PROTOCOL_VERSION)).toMatchObject({
+			revision: "active-draft",
+			completeToolResult: true,
+			requestMetadata: true,
+			sessionScopedRequests: false,
+			multiRoundTripRequests: true,
+			tasksExtension: true,
+			skillsExtension: true,
+			legacyDraftTaskCompatibility: true,
+		});
+		expect(mcpProtocolSupports(MCP_LEGACY_PROTOCOL_VERSION, "completeToolResult")).toBe(false);
 	});
 });
 

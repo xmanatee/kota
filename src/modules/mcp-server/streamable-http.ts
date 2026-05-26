@@ -3,10 +3,9 @@ import type { AddressInfo } from "node:net";
 import type { KotaJsonObject, KotaJsonValue, KotaTool } from "#core/agent-harness/message-protocol.js";
 import {
 	type JsonRpcOutboundPayload,
-	MCP_DRAFT_PROTOCOL_VERSION,
-	MCP_DRAFT_PROTOCOL_VERSIONS,
 	MCP_META_LOG_LEVEL_KEY,
 	MCP_META_PROTOCOL_VERSION_KEY,
+	MCP_MODERN_PROTOCOL_VERSIONS,
 } from "./mcp-protocol-types.js";
 import type { McpServer } from "./server.js";
 import {
@@ -491,11 +490,11 @@ function validatePostBodyAndHeaders(
 			response: jsonErrorResponse(400, id, HEADER_MISMATCH_CODE, "Header mismatch: malformed MCP-Protocol-Version header"),
 		};
 	}
-	if (versionHeader !== MCP_DRAFT_PROTOCOL_VERSION) {
+	if (!(MCP_MODERN_PROTOCOL_VERSIONS as readonly string[]).includes(versionHeader)) {
 		return {
 			ok: false,
 			response: jsonErrorResponse(400, id, UNSUPPORTED_PROTOCOL_VERSION_CODE, "Unsupported protocol version", {
-				supported: [...MCP_DRAFT_PROTOCOL_VERSIONS],
+				supported: [...MCP_MODERN_PROTOCOL_VERSIONS],
 				requested: versionHeader,
 			}),
 		};
@@ -808,7 +807,7 @@ function normalizeHttpResponse(
 	if (!isJsonObject(payload.result)) return payload;
 	const result: KotaJsonObject = { ...payload.result };
 	if (request.method === "server/discover") {
-		result.supportedVersions = [...MCP_DRAFT_PROTOCOL_VERSIONS];
+		result.supportedVersions = [...MCP_MODERN_PROTOCOL_VERSIONS];
 	}
 	return {
 		...payload,

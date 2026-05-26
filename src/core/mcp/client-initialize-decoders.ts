@@ -10,10 +10,14 @@ import {
 } from "./client-decode-utils.js";
 import type { JsonRpcResponse, McpInitializeResult } from "./client-protocol.js";
 import {
+  MCP_CURRENT_PROTOCOL_VERSION,
   MCP_DRAFT_PROTOCOL_VERSION,
   MCP_LEGACY_PROTOCOL_VERSION,
+  MCP_MODERN_PROTOCOL_VERSIONS,
   MCP_SKILLS_EXTENSION_ID,
+  MCP_SUPPORTED_PROTOCOL_VERSIONS,
   MCP_TASKS_EXTENSION_ID,
+  mcpProtocolSupports,
 } from "./client-protocol.js";
 
 function decodeExtensionSupport(
@@ -43,7 +47,7 @@ export function decodeInitializeResult(value: JsonRpcResponse["result"]): McpIni
   );
   if (!isMcpProtocolVersion(protocolVersion)) {
     throw new Error(
-      `Malformed MCP initialize result: protocolVersion must be ${MCP_DRAFT_PROTOCOL_VERSION} or ${MCP_LEGACY_PROTOCOL_VERSION}`,
+      `Malformed MCP initialize result: protocolVersion must be ${MCP_SUPPORTED_PROTOCOL_VERSIONS.join(" or ")}`,
     );
   }
   const capabilities = optionalJsonObject(
@@ -55,9 +59,9 @@ export function decodeInitializeResult(value: JsonRpcResponse["result"]): McpIni
   const resources = decodeListChangedCapability(capabilities, "resources", "initialize");
   const prompts = decodeListChangedCapability(capabilities, "prompts", "initialize");
   const loggingSupported = decodeDeprecatedObjectCapability(capabilities, "logging", "initialize");
-  const tasksSupported = protocolVersion === MCP_DRAFT_PROTOCOL_VERSION &&
+  const tasksSupported = mcpProtocolSupports(protocolVersion, "tasksExtension") &&
     decodeExtensionSupport(capabilities, MCP_TASKS_EXTENSION_ID, "initialize");
-  const skillsSupported = protocolVersion === MCP_DRAFT_PROTOCOL_VERSION &&
+  const skillsSupported = mcpProtocolSupports(protocolVersion, "skillsExtension") &&
     decodeExtensionSupport(capabilities, MCP_SKILLS_EXTENSION_ID, "initialize");
   const rawServerInfo = optionalJsonObject(
     object.serverInfo,
@@ -89,9 +93,14 @@ export function decodeDiscoverResult(value: JsonRpcResponse["result"]): McpIniti
     "supportedVersions",
     "server/discover",
   );
-  if (!supportedVersions?.includes(MCP_DRAFT_PROTOCOL_VERSION)) {
+  const protocolVersion = supportedVersions?.includes(MCP_CURRENT_PROTOCOL_VERSION)
+    ? MCP_CURRENT_PROTOCOL_VERSION
+    : supportedVersions?.includes(MCP_DRAFT_PROTOCOL_VERSION)
+      ? MCP_DRAFT_PROTOCOL_VERSION
+      : null;
+  if (protocolVersion === null) {
     throw new Error(
-      `Malformed MCP server/discover result: supportedVersions must include ${MCP_DRAFT_PROTOCOL_VERSION}`,
+      `Malformed MCP server/discover result: supportedVersions must include ${MCP_MODERN_PROTOCOL_VERSIONS.join(" or ")}`,
     );
   }
   const capabilities = optionalJsonObject(
@@ -103,12 +112,14 @@ export function decodeDiscoverResult(value: JsonRpcResponse["result"]): McpIniti
   const resources = decodeListChangedCapability(capabilities, "resources", "server/discover");
   const prompts = decodeListChangedCapability(capabilities, "prompts", "server/discover");
   const loggingSupported = decodeDeprecatedObjectCapability(capabilities, "logging", "server/discover");
-  const tasksSupported = decodeExtensionSupport(
+  const tasksSupported = mcpProtocolSupports(protocolVersion, "tasksExtension") &&
+    decodeExtensionSupport(
     capabilities,
     MCP_TASKS_EXTENSION_ID,
     "server/discover",
   );
-  const skillsSupported = decodeExtensionSupport(
+  const skillsSupported = mcpProtocolSupports(protocolVersion, "skillsExtension") &&
+    decodeExtensionSupport(
     capabilities,
     MCP_SKILLS_EXTENSION_ID,
     "server/discover",
@@ -122,7 +133,7 @@ export function decodeDiscoverResult(value: JsonRpcResponse["result"]): McpIniti
     ? optionalString(rawServerInfo.name, "serverInfo.name", "server/discover")
     : undefined;
   return {
-    protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+    protocolVersion,
     toolsSupported: tools.supported,
     toolsListChanged: tools.listChanged,
     resourcesSupported: resources.supported,

@@ -22,10 +22,12 @@ import {
 	decodeClientElicitationCapabilities,
 	decodeClientMcpTasksCapabilities,
 	decodeClientMcpUiCapabilities,
+	MCP_CURRENT_PROTOCOL_VERSION,
 	MCP_DRAFT_PROTOCOL_VERSION,
 	MCP_LEGACY_PROTOCOL_VERSION,
 	MCP_SUPPORTED_PROTOCOL_VERSIONS,
 	type McpProtocolVersion,
+	mcpProtocolSupports,
 } from "./mcp-protocol-types.js";
 
 export type InitializeOptions = {
@@ -63,6 +65,7 @@ function decodeRootsListResult(result: JsonRpcResponse["result"]): McpRoot[] {
 }
 
 function negotiateInitializeProtocolVersion(requested: string): McpProtocolVersion | null {
+	if (requested === MCP_CURRENT_PROTOCOL_VERSION) return MCP_CURRENT_PROTOCOL_VERSION;
 	if (requested === MCP_DRAFT_PROTOCOL_VERSION) return MCP_DRAFT_PROTOCOL_VERSION;
 	if (requested === MCP_LEGACY_PROTOCOL_VERSION) return MCP_LEGACY_PROTOCOL_VERSION;
 	return null;
@@ -145,20 +148,23 @@ export class InitializeHandler {
 		}
 		this.ctx.session.protocolVersion = negotiatedProtocolVersion;
 		this.ctx.session.initialized = true;
+		this.ctx.session.clientCapabilities = clientCaps;
 		this.ctx.session.clientElicitation = decodeClientElicitationCapabilities(clientCaps);
 		this.ctx.session.clientSupportsRoots =
 			typeof clientCaps.roots === "object" && clientCaps.roots !== null;
 
 		const peer = initializePeer(msg.params);
-		const advertiseSkills = this.options.advertiseSkills();
+		const skillsAdvertised =
+			this.options.advertiseSkills() &&
+			mcpProtocolSupports(this.ctx.session.protocolVersion, "skillsExtension");
 		const capabilities =
-			this.ctx.session.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION
-				? buildMcpServerDiscoverCapabilities({ includeSkills: advertiseSkills })
+			mcpProtocolSupports(this.ctx.session.protocolVersion, "requestMetadata")
+				? buildMcpServerDiscoverCapabilities({ includeSkills: skillsAdvertised })
 				: buildLegacyServerCapabilities({
 					clientSupportsFormElicitation: this.ctx.session.clientElicitation.form,
 					advertiseSampling: this.options.advertiseSampling(),
 				});
-		if (this.ctx.session.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION) {
+		if (mcpProtocolSupports(this.ctx.session.protocolVersion, "draftCompatibilityWarnings")) {
 			this.warnDeprecatedClientCapabilities(peer, clientCaps);
 			this.options.warnDeprecatedCapability({
 				feature: "logging",
@@ -185,7 +191,7 @@ export class InitializeHandler {
 			}
 		}
 		this.ctx.log(
-			`Initialized successfully (elicitation.form: ${this.ctx.session.clientElicitation.form}, elicitation.url: ${this.ctx.session.clientElicitation.url}, sampling: ${this.options.advertiseSampling()}, completions: true, roots: ${this.ctx.session.clientSupportsRoots}, mcpUi: ${clientMcpUi.capabilities.supported}, mcpTasks: ${clientMcpTasks.capabilities.supported}, skills: ${advertiseSkills})`,
+			`Initialized successfully (elicitation.form: ${this.ctx.session.clientElicitation.form}, elicitation.url: ${this.ctx.session.clientElicitation.url}, sampling: ${this.options.advertiseSampling()}, completions: true, roots: ${this.ctx.session.clientSupportsRoots}, mcpUi: ${clientMcpUi.capabilities.supported}, mcpTasks: ${clientMcpTasks.capabilities.supported}, skills: ${skillsAdvertised})`,
 		);
 		this.ctx.transport.sendResult(msg, {
 			protocolVersion: this.ctx.session.protocolVersion,
@@ -214,17 +220,22 @@ export class InitializeHandler {
 	handleDiscover(msg: JsonRpcRequest): void {
 		const context = this.ctx.getRequestContext();
 		if (context) {
-			this.options.warnDeprecatedCapability({
-				feature: "logging",
-				peer: context.clientInfo,
-				protocolVersion: context.protocolVersion,
-				source: "server logging capability",
-			});
+			if (mcpProtocolSupports(context.protocolVersion, "draftCompatibilityWarnings")) {
+				this.options.warnDeprecatedCapability({
+					feature: "logging",
+					peer: context.clientInfo,
+					protocolVersion: context.protocolVersion,
+					source: "server logging capability",
+				});
+			}
 		}
+		const protocolVersion = context?.protocolVersion ?? MCP_CURRENT_PROTOCOL_VERSION;
 		this.ctx.transport.sendResult(msg, {
 			supportedVersions: [...MCP_SUPPORTED_PROTOCOL_VERSIONS],
 			capabilities: buildMcpServerDiscoverCapabilities({
-				includeSkills: this.options.advertiseSkills(),
+				includeSkills:
+					this.options.advertiseSkills() &&
+					mcpProtocolSupports(protocolVersion, "skillsExtension"),
 			}),
 			serverInfo: {
 				name: this.options.serverName,

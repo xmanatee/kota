@@ -5,6 +5,7 @@ import { McpAuthorizationError, McpConnectionError } from "./client-auth-types.j
 import {
   generatedProgressToken,
   isUnsupportedProtocolVersionError,
+  supportedVersionsForUnsupportedProtocolVersionError,
 } from "./client-decode-utils.js";
 import { McpClientHttpRuntime } from "./client-http-runtime.js";
 import {
@@ -24,8 +25,11 @@ import type {
 import {
   CONNECT_TIMEOUT,
   KOTA_MCP_CLIENT_INFO,
+  MCP_CURRENT_PROTOCOL_VERSION,
   MCP_DRAFT_PROTOCOL_VERSION,
   MCP_LEGACY_PROTOCOL_VERSION,
+  mcpProtocolSupports,
+  mcpToolResultContractForProtocol,
 } from "./client-protocol.js";
 
 export abstract class McpClientConnection extends McpClientHttpRuntime {
@@ -97,9 +101,7 @@ export abstract class McpClientConnection extends McpClientHttpRuntime {
     }
     this.warnDeprecatedServerCapabilities(result);
     this.protocolVersion = result.protocolVersion;
-    this.toolResultContract = result.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION
-      ? "draft-tool-result"
-      : "legacy-content";
+    this.toolResultContract = mcpToolResultContractForProtocol(result.protocolVersion);
     this.toolsSupported = result.toolsSupported;
     this.toolsListChanged = result.toolsListChanged;
     this.resourcesSupported = result.resourcesSupported;
@@ -110,7 +112,7 @@ export abstract class McpClientConnection extends McpClientHttpRuntime {
     this.skillsSupported = result.skillsSupported;
     this.connected = true;
     if (
-      result.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION &&
+      mcpProtocolSupports(result.protocolVersion, "listChangedSubscriptions") &&
       (this.toolsListChanged || this.resourcesListChanged || this.promptsListChanged)
     ) {
       this.openListChangedSubscription();
@@ -118,8 +120,8 @@ export abstract class McpClientConnection extends McpClientHttpRuntime {
   }
 
   protected async connectHttp(): Promise<void> {
-    this.protocolVersion = MCP_DRAFT_PROTOCOL_VERSION;
-    this.toolResultContract = "draft-tool-result";
+    this.protocolVersion = MCP_CURRENT_PROTOCOL_VERSION;
+    this.toolResultContract = "complete-tool-result";
     let result: McpInitializeResult;
     try {
       result = decodeDiscoverResult(await this.request("server/discover"));
@@ -140,7 +142,7 @@ export abstract class McpClientConnection extends McpClientHttpRuntime {
     }
     this.warnDeprecatedServerCapabilities(result);
     this.protocolVersion = result.protocolVersion;
-    this.toolResultContract = "draft-tool-result";
+    this.toolResultContract = mcpToolResultContractForProtocol(result.protocolVersion);
     this.toolsSupported = result.toolsSupported;
     this.toolsListChanged = result.toolsListChanged;
     this.resourcesSupported = result.resourcesSupported;
@@ -150,7 +152,10 @@ export abstract class McpClientConnection extends McpClientHttpRuntime {
     this.tasksSupported = result.tasksSupported;
     this.skillsSupported = result.skillsSupported;
     this.connected = true;
-    if (this.toolsListChanged || this.resourcesListChanged || this.promptsListChanged) {
+    if (
+      mcpProtocolSupports(result.protocolVersion, "listChangedSubscriptions") &&
+      (this.toolsListChanged || this.resourcesListChanged || this.promptsListChanged)
+    ) {
       this.openListChangedSubscription();
     }
   }
@@ -220,12 +225,28 @@ export abstract class McpClientConnection extends McpClientHttpRuntime {
 
   protected async initializeServer(): Promise<McpInitializeResult> {
     try {
-      return await this.requestInitialize(MCP_DRAFT_PROTOCOL_VERSION);
+      return await this.requestInitialize(MCP_CURRENT_PROTOCOL_VERSION);
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       if (!isUnsupportedProtocolVersionError(error)) throw err;
-      return await this.requestInitialize(MCP_LEGACY_PROTOCOL_VERSION);
+      return await this.requestInitialize(
+        this.fallbackProtocolVersionForUnsupportedInitialize(error),
+      );
     }
+  }
+
+  protected fallbackProtocolVersionForUnsupportedInitialize(
+    error: Error,
+  ): McpProtocolVersion {
+    const supportedVersions = supportedVersionsForUnsupportedProtocolVersionError(error);
+    if (supportedVersions === null) return MCP_LEGACY_PROTOCOL_VERSION;
+    if (supportedVersions.includes(MCP_DRAFT_PROTOCOL_VERSION)) {
+      return MCP_DRAFT_PROTOCOL_VERSION;
+    }
+    if (supportedVersions.includes(MCP_LEGACY_PROTOCOL_VERSION)) {
+      return MCP_LEGACY_PROTOCOL_VERSION;
+    }
+    throw error;
   }
 
   protected async requestInitialize(
@@ -265,10 +286,14 @@ export abstract class McpClientConnection extends McpClientHttpRuntime {
 
     const id = this.nextId++;
     let progressToken: McpProgressToken | undefined;
-    if (progress && this.protocolVersion === MCP_DRAFT_PROTOCOL_VERSION) {
+    if (
+      progress &&
+      this.protocolVersion !== null &&
+      mcpProtocolSupports(this.protocolVersion, "requestMetadata")
+    ) {
       progressToken = progress.token ?? generatedProgressToken(id);
     }
-    const requestParams = this.paramsWithDraftMetadata(params, progressToken);
+    const requestParams = this.paramsWithProtocolMetadata(params, progressToken);
     const msg: JsonRpcRequest = {
       jsonrpc: "2.0",
       id,
@@ -320,7 +345,7 @@ export abstract class McpClientConnection extends McpClientHttpRuntime {
       id,
       method: "subscriptions/listen",
       params: {
-        _meta: this.draftRequestMeta(),
+        _meta: this.protocolRequestMeta(),
         notifications,
       },
     };

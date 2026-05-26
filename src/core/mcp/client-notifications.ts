@@ -5,6 +5,7 @@ import {
   isJsonRpcId,
   isMcpLogLevel,
   isMcpProgressToken,
+  McpJsonRpcError,
   progressTokenKey,
 } from "./client-decode-utils.js";
 import type {
@@ -21,6 +22,7 @@ import type {
 } from "./client-protocol.js";
 import {
   MAX_PROGRESS_WARNINGS,
+  mcpProtocolSupports,
 } from "./client-protocol.js";
 
 export abstract class McpClientNotifications extends McpClientBase {
@@ -41,7 +43,7 @@ export abstract class McpClientNotifications extends McpClientBase {
         this.pending.delete(msg.id);
         this.clearProgressForRequest(msg.id);
         if (msg.error) {
-          reject(new Error(`MCP error ${msg.error.code}: ${msg.error.message}`));
+          reject(new McpJsonRpcError(msg.error));
         } else {
           resolve(msg.result);
         }
@@ -277,6 +279,7 @@ export abstract class McpClientNotifications extends McpClientBase {
 
   protected warnDeprecatedServerCapabilities(result: McpInitializeResult): void {
     if (!result.loggingSupported) return;
+    if (!mcpProtocolSupports(result.protocolVersion, "draftCompatibilityWarnings")) return;
     this.warnDeprecatedCapability(
       "logging",
       result.protocolVersion,
@@ -288,6 +291,7 @@ export abstract class McpClientNotifications extends McpClientBase {
     result: McpCallToolResult | McpReadResourceResult | McpGetPromptResult,
   ): void {
     if (result.resultType !== "input_required" || !result.inputRequests) return;
+    if (!mcpProtocolSupports(result.protocolVersion, "draftCompatibilityWarnings")) return;
     for (const request of Object.values(result.inputRequests)) {
       if (request.method === "roots/list") {
         this.warnDeprecatedCapability(

@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ModuleLoader } from "#core/modules/module-loader.js";
 import {
   AGENT_SKILLS_DISCOVERY_SCHEMA,
+  MCP_CURRENT_PROTOCOL_VERSION,
   MCP_DRAFT_PROTOCOL_VERSION,
   MCP_SKILL_INDEX_RESOURCE_URI,
   MCP_SKILLS_EXTENSION_ID,
@@ -451,11 +452,14 @@ describe("McpManager", () => {
         expect(request.url).toBe("https://mcp.example.test/mcp");
         expect(request.headers.get("accept")).toBe("application/json, text/event-stream");
         expect(request.headers.get("content-type")).toBe("application/json");
-        expect(request.headers.get("mcp-protocol-version")).toBe(MCP_DRAFT_PROTOCOL_VERSION);
+        const expectedProtocolVersion = request.body.method === "server/discover"
+          ? MCP_CURRENT_PROTOCOL_VERSION
+          : MCP_DRAFT_PROTOCOL_VERSION;
+        expect(request.headers.get("mcp-protocol-version")).toBe(expectedProtocolVersion);
         expect(request.headers.get("mcp-method")).toBe(request.body.method);
         expect(request.headers.get("authorization")).toBe("Bearer test-token");
         expect(request.body.params?._meta).toMatchObject({
-          "io.modelcontextprotocol/protocolVersion": MCP_DRAFT_PROTOCOL_VERSION,
+          "io.modelcontextprotocol/protocolVersion": expectedProtocolVersion,
           "io.modelcontextprotocol/clientInfo": { name: "kota", version: "0.1.0" },
           "io.modelcontextprotocol/clientCapabilities": {},
         });

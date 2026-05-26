@@ -1,12 +1,12 @@
 ---
 id: task-support-the-current-mcp-protocol-revision-beside-t
 title: Support the current MCP protocol revision beside the active draft
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Let KOTA's first-party MCP server and external MCP client negotiate the official 2025-11-25 protocol revision while keeping DRAFT-2026-v1 as an explicit experimental path, so current compliant clients are not rejected.
 created_at: 2026-05-26T00:10:31.447Z
-updated_at: 2026-05-26T00:10:31.447Z
+updated_at: 2026-05-26T00:32:44Z
 ---
 
 ## Problem

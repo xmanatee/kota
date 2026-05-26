@@ -1,6 +1,7 @@
 import type { KotaJsonObject, KotaJsonValue } from "#core/agent-harness/message-protocol.js";
 import type {
   DeprecatedMcpFeature,
+  JsonRpcError,
   JsonRpcId,
   JsonRpcIncomingMessage,
   JsonRpcResponse,
@@ -12,8 +13,7 @@ import type {
   McpResultKind,
 } from "./client-protocol.js";
 import {
-  MCP_DRAFT_PROTOCOL_VERSION,
-  MCP_LEGACY_PROTOCOL_VERSION,
+  isMcpProtocolVersion as isKnownMcpProtocolVersion,
   MCP_LOG_LEVELS,
 } from "./client-protocol.js";
 
@@ -49,6 +49,18 @@ export function escapeRegExp(value: string): string {
 
 export function malformedMcpResult(kind: McpResultKind, label: string, expected: string): Error {
   return new Error(`Malformed MCP ${kind} result: ${label} must be ${expected}`);
+}
+
+export class McpJsonRpcError extends Error {
+  readonly code: number;
+  readonly data: JsonRpcError["data"];
+
+  constructor(error: JsonRpcError) {
+    super(`MCP error ${error.code}: ${error.message}`);
+    this.name = "McpJsonRpcError";
+    this.code = error.code;
+    this.data = error.data;
+  }
 }
 
 export function requireJsonObject(
@@ -201,7 +213,7 @@ export function decodeDeprecatedObjectCapability(
 }
 
 export function isMcpProtocolVersion(value: string): value is McpProtocolVersion {
-  return value === MCP_DRAFT_PROTOCOL_VERSION || value === MCP_LEGACY_PROTOCOL_VERSION;
+  return isKnownMcpProtocolVersion(value);
 }
 
 export function isMcpProgressToken(value: KotaJsonValue | undefined): value is McpProgressToken {
@@ -222,5 +234,38 @@ export function generatedProgressToken(requestId: number): McpProgressToken {
 }
 
 export function isUnsupportedProtocolVersionError(err: Error): boolean {
+  if (err instanceof McpJsonRpcError) {
+    return err.code === -32602 && /Unsupported protocol version/i.test(err.message);
+  }
   return /MCP error -32602: Unsupported protocol version/.test(err.message);
+}
+
+export function supportedVersionsForUnsupportedProtocolVersionError(
+  err: Error,
+): readonly string[] | null {
+  if (!(err instanceof McpJsonRpcError) || !isUnsupportedProtocolVersionError(err)) {
+    return null;
+  }
+  if (!isJsonObject(err.data)) return null;
+  const supportedVersions = optionalUnsupportedProtocolVersionStringArray(
+    err.data,
+    "supportedVersions",
+  );
+  if (supportedVersions !== null) return supportedVersions;
+  return optionalUnsupportedProtocolVersionStringArray(err.data, "supported");
+}
+
+function optionalUnsupportedProtocolVersionStringArray(
+  data: JsonRpcError["data"],
+  label: "supportedVersions" | "supported",
+): readonly string[] | null {
+  if (!isJsonObject(data)) return null;
+  const value = data[label];
+  if (value === undefined) return null;
+  if (!Array.isArray(value) || !value.every((entry) => typeof entry === "string")) {
+    throw new Error(
+      `Malformed MCP unsupported protocol version error: ${label} must be an array of strings`,
+    );
+  }
+  return value;
 }

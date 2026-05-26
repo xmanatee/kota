@@ -183,15 +183,111 @@ export type McpListPromptsPage = {
 };
 
 export const MCP_LEGACY_PROTOCOL_VERSION = "2024-11-05";
+export const MCP_CURRENT_PROTOCOL_VERSION = "2025-11-25";
 export const MCP_DRAFT_PROTOCOL_VERSION = "DRAFT-2026-v1";
+export const MCP_CURRENT_STABLE_PROTOCOL_VERSIONS = [MCP_CURRENT_PROTOCOL_VERSION] as const;
+export const MCP_DRAFT_PROTOCOL_VERSIONS = [MCP_DRAFT_PROTOCOL_VERSION] as const;
+export const MCP_MODERN_PROTOCOL_VERSIONS = [
+  MCP_CURRENT_PROTOCOL_VERSION,
+  MCP_DRAFT_PROTOCOL_VERSION,
+] as const;
+export const MCP_SUPPORTED_PROTOCOL_VERSIONS = [
+  MCP_CURRENT_PROTOCOL_VERSION,
+  MCP_DRAFT_PROTOCOL_VERSION,
+  MCP_LEGACY_PROTOCOL_VERSION,
+] as const;
 export const MCP_TASKS_EXTENSION_ID = "io.modelcontextprotocol/tasks";
 export const MCP_SKILLS_EXTENSION_ID = "io.modelcontextprotocol/skills";
 
 export type McpProtocolVersion =
   | typeof MCP_LEGACY_PROTOCOL_VERSION
+  | typeof MCP_CURRENT_PROTOCOL_VERSION
   | typeof MCP_DRAFT_PROTOCOL_VERSION;
 
-export type McpToolResultContract = "legacy-content" | "draft-tool-result";
+export type McpModernProtocolVersion =
+  | typeof MCP_CURRENT_PROTOCOL_VERSION
+  | typeof MCP_DRAFT_PROTOCOL_VERSION;
+
+export type McpToolResultContract = "legacy-content" | "complete-tool-result";
+
+export type McpProtocolBooleanFeature =
+  | "requestMetadata"
+  | "listChangedSubscriptions"
+  | "tasksExtension"
+  | "skillsExtension"
+  | "elicitation"
+  | "draftCompatibilityWarnings";
+
+export type McpProtocolCapabilities = {
+  revision: "legacy" | "current-stable" | "active-draft";
+  toolResultContract: McpToolResultContract;
+  requestMetadata: boolean;
+  listChangedSubscriptions: boolean;
+  tasksExtension: boolean;
+  skillsExtension: boolean;
+  elicitation: boolean;
+  draftCompatibilityWarnings: boolean;
+};
+
+const MCP_PROTOCOL_CAPABILITIES: Record<McpProtocolVersion, McpProtocolCapabilities> = {
+  [MCP_LEGACY_PROTOCOL_VERSION]: {
+    revision: "legacy",
+    toolResultContract: "legacy-content",
+    requestMetadata: false,
+    listChangedSubscriptions: false,
+    tasksExtension: false,
+    skillsExtension: false,
+    elicitation: false,
+    draftCompatibilityWarnings: false,
+  },
+  [MCP_CURRENT_PROTOCOL_VERSION]: {
+    revision: "current-stable",
+    toolResultContract: "complete-tool-result",
+    requestMetadata: true,
+    listChangedSubscriptions: true,
+    tasksExtension: true,
+    skillsExtension: false,
+    elicitation: true,
+    draftCompatibilityWarnings: false,
+  },
+  [MCP_DRAFT_PROTOCOL_VERSION]: {
+    revision: "active-draft",
+    toolResultContract: "complete-tool-result",
+    requestMetadata: true,
+    listChangedSubscriptions: true,
+    tasksExtension: true,
+    skillsExtension: true,
+    elicitation: true,
+    draftCompatibilityWarnings: true,
+  },
+};
+
+export function isMcpProtocolVersion(value: string): value is McpProtocolVersion {
+  return (MCP_SUPPORTED_PROTOCOL_VERSIONS as readonly string[]).includes(value);
+}
+
+export function isMcpModernProtocolVersion(value: string): value is McpModernProtocolVersion {
+  return (MCP_MODERN_PROTOCOL_VERSIONS as readonly string[]).includes(value);
+}
+
+export function mcpProtocolCapabilities(
+  protocolVersion: McpProtocolVersion,
+): McpProtocolCapabilities {
+  return MCP_PROTOCOL_CAPABILITIES[protocolVersion];
+}
+
+export function mcpProtocolSupports(
+  protocolVersion: McpProtocolVersion,
+  feature: McpProtocolBooleanFeature,
+): boolean {
+  return mcpProtocolCapabilities(protocolVersion)[feature];
+}
+
+export function mcpToolResultContractForProtocol(
+  protocolVersion: McpProtocolVersion,
+): McpToolResultContract {
+  return mcpProtocolCapabilities(protocolVersion).toolResultContract;
+}
 
 export type McpToolListChangedHandler = () => void;
 export type McpResourceListChangedHandler = () => void;

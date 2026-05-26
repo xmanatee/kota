@@ -24,6 +24,7 @@ import {
 	MCP_UI_RESOURCE_MIME_TYPE,
 } from "./mcp-apps.js";
 import {
+	MCP_CURRENT_PROTOCOL_VERSION,
 	MCP_DRAFT_PROTOCOL_VERSION,
 	MCP_META_CLIENT_CAPABILITIES_KEY,
 	MCP_META_CLIENT_INFO_KEY,
@@ -168,6 +169,20 @@ function draftRequestParams(
 		...params,
 		_meta: {
 			[MCP_META_PROTOCOL_VERSION_KEY]: MCP_DRAFT_PROTOCOL_VERSION,
+			[MCP_META_CLIENT_INFO_KEY]: { name: "test", version: "1.0.0" },
+			[MCP_META_CLIENT_CAPABILITIES_KEY]: clientCapabilities,
+		},
+	};
+}
+
+function currentStableRequestParams(
+	params: Record<string, unknown> = {},
+	clientCapabilities: Record<string, unknown> = {},
+): Record<string, unknown> {
+	return {
+		...params,
+		_meta: {
+			[MCP_META_PROTOCOL_VERSION_KEY]: MCP_CURRENT_PROTOCOL_VERSION,
 			[MCP_META_CLIENT_INFO_KEY]: { name: "test", version: "1.0.0" },
 			[MCP_META_CLIENT_CAPABILITIES_KEY]: clientCapabilities,
 		},
@@ -349,6 +364,23 @@ async function initDraftServer(
 	return resp;
 }
 
+async function initCurrentStableServer(
+	server: McpServer,
+	input: PassThrough,
+	output: PassThrough,
+	capabilities: Record<string, unknown> = {},
+): Promise<Record<string, unknown>> {
+	await server.start();
+	sendRequest(input, 1, "initialize", {
+		protocolVersion: MCP_CURRENT_PROTOCOL_VERSION,
+		capabilities,
+		clientInfo: { name: "stable-client", version: "1.0.0" },
+	});
+	const resp = await readResponse(output);
+	sendNotification(input, "notifications/initialized");
+	return resp;
+}
+
 // --- Tests ---
 
 describe("McpServer", () => {
@@ -405,6 +437,38 @@ describe("McpServer", () => {
 			});
 			const capabilities = result.capabilities as Record<string, Record<string, unknown>>;
 			expect(capabilities.resources.subscribe).toBeUndefined();
+
+			server.stop();
+		});
+
+		it("accepts current stable initialize with current capabilities but no draft-only skills", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({ input, output, log: () => {} });
+
+			await server.start();
+			sendRequest(input, 1, "initialize", {
+				protocolVersion: MCP_CURRENT_PROTOCOL_VERSION,
+				capabilities: mcpTasksClientCapabilities(),
+				clientInfo: { name: "stable-client", version: "1.0.0" },
+			});
+			const resp = await readResponse(output);
+
+			expect(resp.error).toBeUndefined();
+			const result = resp.result as Record<string, unknown>;
+			expect(result.protocolVersion).toBe(MCP_CURRENT_PROTOCOL_VERSION);
+			const capabilities = result.capabilities as Record<string, unknown>;
+			expect(capabilities).toEqual({
+				tools: {},
+				resources: { listChanged: true },
+				prompts: { listChanged: true },
+				completions: {},
+				logging: {},
+				extensions: {
+					[MCP_UI_EXTENSION_ID]: { mimeTypes: [MCP_UI_RESOURCE_MIME_TYPE] },
+					[MCP_TASKS_EXTENSION_ID]: {},
+				},
+			});
+			expect((capabilities.extensions as Record<string, unknown>)[MCP_SKILLS_EXTENSION_ID]).toBeUndefined();
 
 			server.stop();
 		});
@@ -499,7 +563,11 @@ describe("McpServer", () => {
 			expect(resp.error).toBeUndefined();
 			const result = resp.result as Record<string, unknown>;
 			expect(result.supportedVersions).toEqual(
-				expect.arrayContaining([MCP_DRAFT_PROTOCOL_VERSION, "2024-11-05"]),
+				expect.arrayContaining([
+					MCP_CURRENT_PROTOCOL_VERSION,
+					MCP_DRAFT_PROTOCOL_VERSION,
+					"2024-11-05",
+				]),
 			);
 			expect(result.serverInfo).toEqual({ name: "discoverable-kota", version: "9.8.7" });
 			const capabilities = result.capabilities as Record<string, unknown>;
@@ -523,6 +591,59 @@ describe("McpServer", () => {
 			expect(warnings[0]).toContain('peer "test"');
 			expect(warnings[0]).toContain(`protocol ${MCP_DRAFT_PROTOCOL_VERSION}`);
 			expect(warnings[0]).toContain("compatibility-only");
+
+			server.stop();
+		});
+
+		it("serves current stable per-request metadata before initialize", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({
+				input,
+				output,
+				moduleTools: [{
+					tool: {
+						name: "stable_structured",
+						description: "Stable structured result",
+						input_schema: { type: "object", properties: {}, required: [] },
+						output_schema: {
+							type: "object",
+							properties: { ok: { type: "boolean" } },
+							required: ["ok"],
+						},
+					},
+					runner: async () => ({
+						content: "stable",
+						structuredContent: { ok: true },
+					}),
+					effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+				}],
+				log: () => {},
+			});
+
+			await server.start();
+			sendRequest(input, 1, "tools/list", currentStableRequestParams());
+			const listResp = await readResponse(output);
+			sendRequest(input, 2, "tools/call", currentStableRequestParams({
+				name: "stable_structured",
+				arguments: {},
+			}));
+			const callResp = await readResponse(output);
+
+			expect(listResp.error).toBeUndefined();
+			const listResult = listResp.result as { tools: Array<Record<string, unknown>> };
+			expect(listResult.tools.find((tool) => tool.name === "stable_structured")).toMatchObject({
+				outputSchema: {
+					type: "object",
+					properties: { ok: { type: "boolean" } },
+					required: ["ok"],
+				},
+			});
+			expect(callResp.error).toBeUndefined();
+			expect(callResp.result).toMatchObject({
+				resultType: "complete",
+				content: [{ type: "text", text: "stable" }],
+				structuredContent: { ok: true },
+			});
 
 			server.stop();
 		});
@@ -647,9 +768,15 @@ describe("McpServer", () => {
 			const resp = await readResponse(output);
 
 			expect(resp.result).toBeUndefined();
-			const err = resp.error as { code: number; message: string };
+			const err = resp.error as { code: number; message: string; data: Record<string, unknown> };
 			expect(err.code).toBe(-32602);
 			expect(err.message).toBe("Unsupported protocol version");
+			expect(err.data.supportedVersions).toEqual([
+				MCP_CURRENT_PROTOCOL_VERSION,
+				MCP_DRAFT_PROTOCOL_VERSION,
+				"2024-11-05",
+			]);
+			expect(err.data.requestedVersion).toBe("1900-01-01");
 
 			server.stop();
 		});
@@ -1005,6 +1132,73 @@ describe("McpServer", () => {
 			server.stop();
 		});
 
+		it("serves current stable initialized-session requests without per-request metadata", async () => {
+			const { input, output } = createTestStreams();
+			const server = new McpServer({
+				input,
+				output,
+				moduleTools: [{
+					tool: {
+						name: "stable_initialized_structured",
+						description: "Stable initialized structured result",
+						input_schema: { type: "object", properties: {}, required: [] },
+						output_schema: {
+							type: "object",
+							properties: { ok: { type: "boolean" } },
+							required: ["ok"],
+						},
+					},
+					runner: async () => ({
+						content: "stable initialized",
+						structuredContent: { ok: true },
+					}),
+					effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+				}],
+				log: () => {},
+			});
+			await initCurrentStableServer(server, input, output, mcpUiClientCapabilities());
+
+			sendRequest(input, 2, "tools/list");
+			const listResp = await readResponse(output);
+			sendRequest(input, 3, "tools/call", {
+				name: "stable_initialized_structured",
+				arguments: {},
+			});
+			const callResp = await readResponse(output);
+			sendRequest(input, 4, "resources/read", { uri: "kota://tasks/ready" });
+			const resourceResp = await readResponse(output);
+			sendRequest(input, 5, "prompts/list");
+			const promptsResp = await readResponse(output);
+
+			expect(listResp.error).toBeUndefined();
+			const listResult = listResp.result as { tools: Array<Record<string, unknown>> };
+			expect(listResult.tools.find((tool) => tool.name === "stable_initialized_structured")).toMatchObject({
+				outputSchema: {
+					type: "object",
+					properties: { ok: { type: "boolean" } },
+					required: ["ok"],
+				},
+			});
+			expect(listResult.tools.find((tool) => tool.name === "agent_status")?._meta).toEqual({
+				ui: { resourceUri: KOTA_STATUS_UI_RESOURCE_URI },
+			});
+			expect(callResp.error).toBeUndefined();
+			expect(callResp.result).toMatchObject({
+				resultType: "complete",
+				content: [{ type: "text", text: "stable initialized" }],
+				structuredContent: { ok: true },
+			});
+			expect(resourceResp.error).toBeUndefined();
+			expect(resourceResp.result).toMatchObject({
+				contents: [{ uri: "kota://tasks/ready", mimeType: "application/json" }],
+			});
+			expect(promptsResp.error).toBeUndefined();
+			const promptsResult = promptsResp.result as { prompts: Array<{ name: string }> };
+			expect(promptsResult.prompts.map((prompt) => prompt.name)).toContain("kota-create-task");
+
+			server.stop();
+		});
+
 		it("returns tools for a draft request with per-request metadata before initialization", async () => {
 			const { input, output } = createTestStreams();
 			const server = new McpServer({ input, output, log: () => {} });
@@ -1109,7 +1303,8 @@ describe("McpServer", () => {
 			expect(resp.error).toBeDefined();
 			const err = resp.error as { code: number; message: string };
 			expect(err.code).toBe(-32602);
-			expect(err.message).toContain("Missing required MCP draft _meta");
+			expect(err.message).toContain("Missing required MCP protocol _meta");
+			expect(err.message).toContain(MCP_CURRENT_PROTOCOL_VERSION);
 			expect(err.message).toContain(MCP_DRAFT_PROTOCOL_VERSION);
 
 			server.stop();
@@ -1126,7 +1321,8 @@ describe("McpServer", () => {
 			expect(resp.error).toBeDefined();
 			const err = resp.error as { code: number; message: string };
 			expect(err.code).toBe(-32602);
-			expect(err.message).toContain("Missing required MCP draft _meta");
+			expect(err.message).toContain("Missing required MCP protocol _meta");
+			expect(err.message).toContain(MCP_CURRENT_PROTOCOL_VERSION);
 			expect(err.message).toContain(MCP_DRAFT_PROTOCOL_VERSION);
 
 			server.stop();
@@ -1153,8 +1349,12 @@ describe("McpServer", () => {
 			};
 			expect(err.code).toBe(-32602);
 			expect(err.message).toContain("Unsupported protocol version");
+			expect(err.message).toContain(MCP_CURRENT_PROTOCOL_VERSION);
 			expect(err.message).toContain(MCP_DRAFT_PROTOCOL_VERSION);
-			expect(err.data.supportedVersions).toEqual([MCP_DRAFT_PROTOCOL_VERSION]);
+			expect(err.data.supportedVersions).toEqual([
+				MCP_CURRENT_PROTOCOL_VERSION,
+				MCP_DRAFT_PROTOCOL_VERSION,
+			]);
 
 			server.stop();
 		});
@@ -1210,7 +1410,7 @@ describe("McpServer", () => {
 
 			const err = resp.error as { code: number; message: string };
 			expect(err.code).toBe(-32602);
-			expect(err.message).toContain("Missing required MCP draft _meta");
+			expect(err.message).toContain("Missing required MCP protocol _meta");
 
 			server.stop();
 		});
@@ -2608,7 +2808,7 @@ describe("McpServer", () => {
 
 			expect(response.error).toMatchObject({
 				code: -32602,
-				message: "Malformed MCP draft _meta field: progressToken",
+				message: "Malformed MCP protocol _meta field: progressToken",
 			});
 
 			server.stop();
@@ -3510,6 +3710,28 @@ describe("resources", () => {
 		server.stop();
 	});
 
+	it("resources/read accepts current stable per-request metadata before initialization", async () => {
+		const { input, output } = createTestStreams();
+		const server = new McpServer({ input, output, log: () => {} });
+		await server.start();
+
+		sendRequest(input, 1, "resources/read", currentStableRequestParams({
+			uri: "kota://tasks/ready",
+		}));
+		const resp = await readResponse(output);
+
+		expect(resp.error).toBeUndefined();
+		const result = resp.result as {
+			contents: Array<{ uri: string; mimeType: string }>;
+		};
+		expect(result.contents[0]).toMatchObject({
+			uri: "kota://tasks/ready",
+			mimeType: "application/json",
+		});
+
+		server.stop();
+	});
+
 	it("exposes the MCP Apps ui resource only to app-capable clients", async () => {
 		const { input, output } = createTestStreams();
 		const server = new McpServer({ input, output, log: () => {} });
@@ -3841,7 +4063,7 @@ describe("resources", () => {
 		expect(resp.error).toBeDefined();
 		const err = resp.error as { code: number; message: string };
 		expect(err.code).toBe(-32602);
-		expect(err.message).toContain("Missing required MCP draft _meta");
+		expect(err.message).toContain("Missing required MCP protocol _meta");
 
 		server.stop();
 	});
@@ -4231,7 +4453,7 @@ describe("prompts", () => {
 			expect(resp.error).toBeDefined();
 			const err = resp.error as { code: number; message: string };
 			expect(err.code).toBe(-32602);
-			expect(err.message).toContain("Missing required MCP draft _meta");
+			expect(err.message).toContain("Missing required MCP protocol _meta");
 
 			server.stop();
 		});
@@ -4515,7 +4737,7 @@ describe("prompts", () => {
 			expect(resp.error).toBeDefined();
 			const err = resp.error as { code: number; message: string };
 			expect(err.code).toBe(-32602);
-			expect(err.message).toContain("Missing required MCP draft _meta");
+			expect(err.message).toContain("Missing required MCP protocol _meta");
 
 			server.stop();
 		});

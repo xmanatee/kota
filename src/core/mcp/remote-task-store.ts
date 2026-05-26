@@ -12,6 +12,7 @@ import type {
   McpStreamableHttpAuthorizationConfig,
   McpTaskStatus,
 } from "./client.js";
+import { isMcpProtocolVersion } from "./client.js";
 import { stableRecordEntries } from "./client-authorization-protocol.js";
 
 const STORE_VERSION = 1;
@@ -305,10 +306,7 @@ function validateHandle(
   validateServerMatch(handle.serverMatch, `tasks[${index}].serverMatch`);
   requireString(handle.toolName, `tasks[${index}].toolName`);
   requireString(handle.taskId, `tasks[${index}].taskId`);
-  if (
-    handle.protocolVersion !== "2024-11-05" &&
-    handle.protocolVersion !== "DRAFT-2026-v1"
-  ) {
+  if (!isMcpProtocolVersion(handle.protocolVersion)) {
     throw new Error(`Malformed remote MCP task store: tasks[${index}].protocolVersion is invalid`);
   }
   if (

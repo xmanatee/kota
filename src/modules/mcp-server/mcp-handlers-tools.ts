@@ -37,9 +37,9 @@ import {
 	activeClientSupportsMcpUi,
 	activeMcpProtocolVersion,
 	hasActiveMcpContext,
-	MCP_DRAFT_PROTOCOL_VERSION,
 	MCP_PUBLIC_CATALOG_CACHE_HINTS,
 	MCP_RELATED_TASK_META_KEY,
+	mcpProtocolSupports,
 } from "./mcp-protocol-types.js";
 import type { McpTaskStore } from "./mcp-task-store.js";
 
@@ -112,7 +112,7 @@ export class ToolsHandler {
 			return;
 		}
 
-		const taskSupport = usesDraftToolResults(activeMcpProtocolVersion(this.ctx))
+		const taskSupport = usesCompleteToolResults(activeMcpProtocolVersion(this.ctx))
 			&& activeClientSupportsLegacyDraftTasks(this.ctx)
 			? "optional"
 			: undefined;
@@ -279,7 +279,7 @@ export class ToolsHandler {
 			});
 		}
 
-		if (name === "confirm" && usesDraftToolResults(activeMcpProtocolVersion(this.ctx))) {
+		if (name === "confirm" && usesCompleteToolResults(activeMcpProtocolVersion(this.ctx))) {
 			return this.confirmInputRequiredOutcome(msg, args);
 		}
 
@@ -347,10 +347,10 @@ export class ToolsHandler {
 		requestState: string,
 		inputResponses: McpToolInputResponses,
 	): ToolCallOutcome {
-		if (!usesDraftToolResults(activeMcpProtocolVersion(this.ctx))) {
+		if (!usesCompleteToolResults(activeMcpProtocolVersion(this.ctx))) {
 			return jsonRpcError(
 				-32602,
-				"inputResponses are only supported by the draft tool result protocol",
+				"inputResponses are only supported by the complete MCP tool result protocol",
 			);
 		}
 		if (!activeClientSupportsElicitation(this.ctx, "form")) {
@@ -627,7 +627,7 @@ export function toolResultToMcpCallResult(
 	result: ToolResult,
 	protocolVersion: McpProtocolVersion,
 ): McpToolResult | McpLegacyToolResult {
-	if (usesDraftToolResults(protocolVersion)) return toolResultToMcpCompleteResult(result);
+	if (usesCompleteToolResults(protocolVersion)) return toolResultToMcpCompleteResult(result);
 	return toolResultToMcpLegacyResult(result);
 }
 
@@ -677,8 +677,8 @@ function toolResultToMcpLegacyResult(result: ToolResult): McpLegacyToolResult {
 	};
 }
 
-function usesDraftToolResults(protocolVersion: McpProtocolVersion): boolean {
-	return protocolVersion === MCP_DRAFT_PROTOCOL_VERSION;
+function usesCompleteToolResults(protocolVersion: McpProtocolVersion): boolean {
+	return mcpProtocolSupports(protocolVersion, "completeToolResult");
 }
 
 function readToolArguments(value: RequestParamValue): ToolRunnerInput {

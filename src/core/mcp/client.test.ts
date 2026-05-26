@@ -6,6 +6,7 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AGENT_SKILLS_DISCOVERY_SCHEMA,
+  MCP_CURRENT_PROTOCOL_VERSION,
   MCP_DRAFT_PROTOCOL_VERSION,
   MCP_LEGACY_PROTOCOL_VERSION,
   MCP_SKILL_INDEX_RESOURCE_URI,
@@ -1111,7 +1112,102 @@ describe("McpClient lifecycle (fake MCP server)", () => {
     await client.connect();
 
     expect(client.getProtocolVersion()).toBe(MCP_DRAFT_PROTOCOL_VERSION);
-    expect(client.getToolResultContract()).toBe("draft-tool-result");
+    expect(client.getToolResultContract()).toBe("complete-tool-result");
+  }, 10_000);
+
+  it("starts stdio negotiation with current stable before falling back to legacy", async () => {
+    const negotiationServer = `
+      const rl = require("readline").createInterface({ input: process.stdin });
+      let initializeCount = 0;
+      rl.on("line", (line) => {
+        let msg;
+        try { msg = JSON.parse(line); } catch { return; }
+        if (msg.method === "initialize") {
+          initializeCount += 1;
+          if (initializeCount === 1 && msg.params.protocolVersion !== "2025-11-25") {
+            process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, error: {
+              code: -32602,
+              message: "expected current stable first",
+            }}) + "\\n");
+            return;
+          }
+          if (initializeCount === 1) {
+            process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, error: {
+              code: -32602,
+              message: "Unsupported protocol version",
+              data: { supportedVersions: ["2024-11-05"], requestedVersion: msg.params.protocolVersion },
+            }}) + "\\n");
+            return;
+          }
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            protocolVersion: "2024-11-05",
+            capabilities: {},
+            serverInfo: { name: "legacy-after-current" },
+          }}) + "\\n");
+        } else if (msg.method === "notifications/initialized") {
+          return;
+        } else if (msg.method === "tools/list") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: { tools: [] } }) + "\\n");
+        }
+      });
+    `;
+    client = new McpClient("node", ["-e", negotiationServer], {}, "negotiation-order");
+
+    await client.connect();
+
+    expect(client.getName()).toBe("legacy-after-current");
+    expect(client.getProtocolVersion()).toBe(MCP_LEGACY_PROTOCOL_VERSION);
+  }, 10_000);
+
+  it("falls back to draft stdio negotiation only when unsupported-version data advertises draft", async () => {
+    const negotiationServer = `
+      const rl = require("readline").createInterface({ input: process.stdin });
+      let initializeCount = 0;
+      rl.on("line", (line) => {
+        let msg;
+        try { msg = JSON.parse(line); } catch { return; }
+        if (msg.method === "initialize") {
+          initializeCount += 1;
+          if (initializeCount === 1 && msg.params.protocolVersion !== "2025-11-25") {
+            process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, error: {
+              code: -32602,
+              message: "expected current stable first",
+            }}) + "\\n");
+            return;
+          }
+          if (initializeCount === 1) {
+            process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, error: {
+              code: -32602,
+              message: "Unsupported protocol version",
+              data: { supportedVersions: ["DRAFT-2026-v1"], requestedVersion: msg.params.protocolVersion },
+            }}) + "\\n");
+            return;
+          }
+          if (msg.params.protocolVersion !== "DRAFT-2026-v1") {
+            process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, error: {
+              code: -32602,
+              message: "expected draft fallback",
+            }}) + "\\n");
+            return;
+          }
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
+            protocolVersion: "DRAFT-2026-v1",
+            capabilities: {},
+            serverInfo: { name: "draft-after-current" },
+          }}) + "\\n");
+        } else if (msg.method === "notifications/initialized") {
+          return;
+        } else if (msg.method === "tools/list") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: { tools: [] } }) + "\\n");
+        }
+      });
+    `;
+    client = new McpClient("node", ["-e", negotiationServer], {}, "draft-negotiation-order");
+
+    await client.connect();
+
+    expect(client.getName()).toBe("draft-after-current");
+    expect(client.getProtocolVersion()).toBe(MCP_DRAFT_PROTOCOL_VERSION);
   }, 10_000);
 
   it("answers server-initiated stdio requests before matching pending numeric responses", async () => {
@@ -2433,6 +2529,113 @@ describe("McpClient Streamable HTTP transport", () => {
     expect(client.getName()).toBe("sse-http-fixture");
     expect(client.getProtocolVersion()).toBe(MCP_DRAFT_PROTOCOL_VERSION);
     expect(tools.map((tool) => tool.name)).toEqual(["from_sse"]);
+  });
+
+  it("negotiates current stable over Streamable HTTP and keeps structured tool results", async () => {
+    mockClientHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        expect(request.headers.get("mcp-protocol-version")).toBe(MCP_CURRENT_PROTOCOL_VERSION);
+        expect(request.body.params?._meta?.["io.modelcontextprotocol/protocolVersion"]).toBe(
+          MCP_CURRENT_PROTOCOL_VERSION,
+        );
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_CURRENT_PROTOCOL_VERSION, MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: {
+            tools: {},
+            resources: {},
+            prompts: {},
+            extensions: { [MCP_TASKS_EXTENSION_ID]: {}, [MCP_SKILLS_EXTENSION_ID]: {} },
+          },
+          serverInfo: { name: "current-http-fixture" },
+        });
+      }
+      expect(request.headers.get("mcp-protocol-version")).toBe(MCP_CURRENT_PROTOCOL_VERSION);
+      expect(request.body.params?._meta?.["io.modelcontextprotocol/protocolVersion"]).toBe(
+        MCP_CURRENT_PROTOCOL_VERSION,
+      );
+      if (request.body.method === "tools/list") {
+        return jsonRpcHttpResponse(request.body.id, {
+          tools: [{ name: "structured", inputSchema: { type: "object" } }],
+        });
+      }
+      if (request.body.method === "tools/call") {
+        return jsonRpcHttpResponse(request.body.id, {
+          resultType: "complete",
+          content: [{ type: "text", text: "stable structured" }],
+          structuredContent: { answer: 42 },
+        });
+      }
+      if (request.body.method === "resources/list") {
+        return jsonRpcHttpResponse(request.body.id, {
+          resources: [{ uri: "file:///stable.md", name: "stable-resource" }],
+        });
+      }
+      if (request.body.method === "resources/read") {
+        expect(request.headers.get("mcp-name")).toBe("file:///stable.md");
+        return jsonRpcHttpResponse(request.body.id, {
+          resultType: "complete",
+          contents: [{
+            uri: "file:///stable.md",
+            mimeType: "text/markdown",
+            text: "# Stable resource",
+          }],
+        });
+      }
+      if (request.body.method === "prompts/list") {
+        return jsonRpcHttpResponse(request.body.id, {
+          prompts: [{ name: "stable_prompt", arguments: [{ name: "topic", required: true }] }],
+        });
+      }
+      if (request.body.method === "prompts/get") {
+        expect(request.headers.get("mcp-name")).toBe("stable_prompt");
+        expect(request.body.params?.arguments).toEqual({ topic: "stable runtime" });
+        return jsonRpcHttpResponse(request.body.id, {
+          resultType: "complete",
+          description: "Stable prompt",
+          messages: [{
+            role: "user",
+            content: { type: "text", text: "Summarize stable runtime" },
+          }],
+        });
+      }
+      return jsonRpcHttpResponse(request.body.id, {});
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "current-http-client",
+      { enableRemoteTasks: true },
+    );
+
+    await client.connect();
+    const tools = await client.listTools();
+    const result = expectCompletedResult(await client.callTool("structured", {}));
+    const resources = await client.listResources();
+    const resource = await client.readResource("file:///stable.md");
+    const prompts = await client.listPrompts();
+    const prompt = await client.getPrompt("stable_prompt", { topic: "stable runtime" });
+
+    expect(client.getName()).toBe("current-http-fixture");
+    expect(client.getProtocolVersion()).toBe(MCP_CURRENT_PROTOCOL_VERSION);
+    expect(client.getToolResultContract()).toBe("complete-tool-result");
+    expect(client.supportsTasks()).toBe(true);
+    expect(client.supportsSkills()).toBe(false);
+    expect(tools.map((tool) => tool.name)).toEqual(["structured"]);
+    expect(result.resultType).toBe("complete");
+    expect(result.structuredContent).toEqual({ answer: 42 });
+    expect(resources.map((entry) => entry.name)).toEqual(["stable-resource"]);
+    expect(resource).toMatchObject({
+      resultType: "complete",
+      contents: [{ uri: "file:///stable.md", text: "# Stable resource" }],
+    });
+    expect(prompts.map((entry) => entry.name)).toEqual(["stable_prompt"]);
+    expect(prompt).toMatchObject({
+      resultType: "complete",
+      description: "Stable prompt",
+      messages: [{
+        role: "user",
+        content: { type: "text", text: "Summarize stable runtime" },
+      }],
+    });
   });
 
   it("dispatches HTTP SSE progress and log notifications before the final response", async () => {
