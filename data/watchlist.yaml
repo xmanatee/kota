@@ -453,6 +453,10 @@ resources:
   - url: https://github.com/github/copilot-cli/blob/main/changelog.md
     added: "2026-05-26"
     notes: "GitHub Copilot CLI changelog is a fast-moving peer terminal-agent signal. Monitor for delegate/subagent guardrails, permissions and autopilot behavior, session resume/control, MCP/plugin/skill loading, security-review commands, and terminal UX constraints that map to KOTA's session, delegate, workflow, and operator-client runtime."
+    snapshot:
+      fingerprint: sha256:43d407e8ccf24ef7be422cde116dd98f
+      summary: "GitHub Copilot CLI's first watchlist snapshot shows fast-moving terminal-agent work; KOTA opened task-resume-conversations-in-their-saved-project-direct for the nonduplicative saved-cwd resume gap, while existing delegate-budget work already covers the subagent runaway signal."
+      last_seen_at: "2026-05-26T15:56:12.600Z"
   - url: https://github.com/Alienfader/continuity-benchmarks
     added: "2026-05-19"
     notes: "Reproducible benchmark for execution-intent memory in long-horizon AI coding agents. Monitor as a peer signal for KOTA's recall/memory eval coverage, action-keyed retrieval, noisy cross-session continuity, and deterministic memory-eval artifacts."
