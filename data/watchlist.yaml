@@ -56,6 +56,10 @@ resources:
   - url: https://a2a-protocol.org/latest/
     added: "2026-05-27"
     notes: "Official Agent2Agent Protocol docs. Monitor v1.0 Agent Card discovery, JSON-RPC/HTTP and SSE bindings, task lifecycle methods, security schemes, Agent Card signatures, MCP complementarity, SDK support, and registry/discovery direction for KOTA's module-owned A2A channel work."
+    snapshot:
+      fingerprint: sha256:641cba78833925696cb5391fe615f35e
+      summary: "A2A is now a stable v1.0 agent-to-agent protocol; KOTA already has the baseline channel, but this refresh opened task-enforce-a2a-version-negotiation-on-the-a2a-channel for the remaining A2A-Version boundary gap."
+      last_seen_at: "2026-05-27T07:35:57.389Z"
   - url: https://antigravity.google/docs/cli-overview
     added: "2026-05-26"
     notes: "Antigravity CLI is Google's successor terminal surface for Gemini CLI consumer users and shares the Antigravity agent harness with Antigravity 2.0. Monitor as a peer native-CLI harness signal for KOTA's Google preset migration, auth-readiness behavior, plugin/skills layout, and native subagent boundaries."
