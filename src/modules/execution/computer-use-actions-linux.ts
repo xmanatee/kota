@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { EXEC_OPTS, parseCombo, truncText } from "./computer-use-actions-shared.js";
+import { resolveTrustedGuiHelper } from "./computer-use-trusted-executables.js";
 
 // ─── Key mappings ─────────────────────────────────────────────────────────────
 
@@ -19,35 +20,31 @@ const LINUX_KEYS: Record<string, string> = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-let _hasXdotool: boolean | null = null;
+let _xdotoolPath: string | null | undefined;
 
 export function resetLinuxState(): void {
-	_hasXdotool = null;
+	_xdotoolPath = undefined;
 }
 
-function hasXdotool(): boolean {
-	if (_hasXdotool === null) {
-		try {
-			execFileSync("which", ["xdotool"], { timeout: 2000, stdio: "pipe" });
-			_hasXdotool = true;
-		} catch {
-			_hasXdotool = false;
-		}
+function xdotoolPath(): string | null {
+	if (_xdotoolPath === undefined) {
+		_xdotoolPath = resolveTrustedGuiHelper("xdotool");
 	}
-	return _hasXdotool;
+	return _xdotoolPath;
 }
 
-function requireXdotool(): void {
-	if (!hasXdotool()) {
+function requireXdotool(): string {
+	const path = xdotoolPath();
+	if (!path) {
 		throw new Error(
 			"xdotool required on Linux. Install: sudo apt install xdotool",
 		);
 	}
+	return path;
 }
 
 function xdotool(...args: string[]): string {
-	requireXdotool();
-	return execFileSync("xdotool", args, {
+	return execFileSync(requireXdotool(), args, {
 		...EXEC_OPTS,
 		encoding: "utf-8",
 	}).trim();

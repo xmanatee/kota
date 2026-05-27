@@ -1,3 +1,5 @@
+import { accessSync, realpathSync } from "node:fs";
+import { delimiter } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetComputerUseState, runComputerUse } from "./computer-use.js";
 import {
@@ -8,10 +10,32 @@ import {
 vi.mock("node:child_process", () => ({
 	execFileSync: vi.fn(),
 }));
+vi.mock("node:fs", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("node:fs")>();
+	return {
+		...actual,
+		accessSync: vi.fn(),
+		realpathSync: vi.fn(),
+	};
+});
 
 import { execFileSync } from "node:child_process";
 
 const mockExec = execFileSync as ReturnType<typeof vi.fn>;
+const mockAccess = vi.mocked(accessSync);
+const mockRealpath = vi.mocked(realpathSync);
+const TRUSTED_CLICLICK = "/opt/homebrew/bin/cliclick";
+const TRUSTED_OSASCRIPT = "/usr/bin/osascript";
+const TRUSTED_XDOTOOL = "/usr/bin/xdotool";
+
+function setExecutablePaths(paths: readonly string[]): void {
+	const executablePaths = new Set(paths);
+	mockAccess.mockImplementation((path) => {
+		if (executablePaths.has(String(path))) return;
+		throw new Error(`not executable: ${String(path)}`);
+	});
+	mockRealpath.mockImplementation((path) => String(path) as never);
+}
 
 function native<T extends object>(input: T): T & { coordinate_space: "native" } {
 	return { ...input, coordinate_space: "native" };
@@ -27,11 +51,23 @@ describe("runComputerUse", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		resetComputerUseState();
+		mockAccess.mockReset();
+		mockRealpath.mockReset();
+		vi.stubEnv(
+			"PATH",
+			`/opt/homebrew/bin${delimiter}/usr/bin`,
+		);
+		setExecutablePaths([
+			TRUSTED_CLICLICK,
+			TRUSTED_OSASCRIPT,
+			TRUSTED_XDOTOOL,
+		]);
 		mockExec.mockReturnValue("");
 	});
 
 	afterEach(() => {
 		setPlatform(originalPlatform);
+		vi.unstubAllEnvs();
 	});
 
 	// ─── Platform support ────────────────────────────────────────────
@@ -97,7 +133,7 @@ describe("runComputerUse", () => {
 		const r = await runComputerUse(native({ action: "click", x: 300, y: 400 }));
 		expect(r.content).toBe("Clicked at (300, 400)");
 		expect(mockExec).toHaveBeenCalledWith(
-			"cliclick",
+			TRUSTED_CLICLICK,
 			["c:300,400"],
 			expect.any(Object),
 		);
@@ -105,15 +141,13 @@ describe("runComputerUse", () => {
 
 	it("falls back to osascript click when cliclick missing", async () => {
 		setPlatform("darwin");
-		mockExec.mockImplementation((cmd: string) => {
-			if (cmd === "which") throw new Error("not found");
-			return "";
-		});
+		setExecutablePaths([TRUSTED_OSASCRIPT, TRUSTED_XDOTOOL]);
+		resetComputerUseState();
 
 		const r = await runComputerUse(native({ action: "click", x: 300, y: 400 }));
 		expect(r.content).toBe("Clicked at (300, 400)");
 		expect(mockExec).toHaveBeenCalledWith(
-			"osascript",
+			TRUSTED_OSASCRIPT,
 			["-e", expect.stringContaining("click at {300, 400}")],
 			expect.any(Object),
 		);
@@ -129,7 +163,7 @@ describe("runComputerUse", () => {
 		});
 		expect(r.content).toBe("Double-clicked at (150, 250)");
 		expect(mockExec).toHaveBeenCalledWith(
-			"cliclick",
+			TRUSTED_CLICLICK,
 			["dc:150,250"],
 			expect.any(Object),
 		);
@@ -148,10 +182,8 @@ describe("runComputerUse", () => {
 
 	it("errors on right_click without cliclick", async () => {
 		setPlatform("darwin");
-		mockExec.mockImplementation((cmd: string) => {
-			if (cmd === "which") throw new Error("not found");
-			return "";
-		});
+		setExecutablePaths([TRUSTED_OSASCRIPT, TRUSTED_XDOTOOL]);
+		resetComputerUseState();
 
 		const r = await runComputerUse({
 			action: "right_click",
@@ -170,7 +202,7 @@ describe("runComputerUse", () => {
 		const r = await runComputerUse(native({ action: "move", x: 500, y: 600 }));
 		expect(r.content).toBe("Moved cursor to (500, 600)");
 		expect(mockExec).toHaveBeenCalledWith(
-			"cliclick",
+			TRUSTED_CLICLICK,
 			["m:500,600"],
 			expect.any(Object),
 		);
@@ -178,10 +210,8 @@ describe("runComputerUse", () => {
 
 	it("errors on move without cliclick", async () => {
 		setPlatform("darwin");
-		mockExec.mockImplementation((cmd: string) => {
-			if (cmd === "which") throw new Error("not found");
-			return "";
-		});
+		setExecutablePaths([TRUSTED_OSASCRIPT, TRUSTED_XDOTOOL]);
+		resetComputerUseState();
 
 		const r = await runComputerUse(native({ action: "move", x: 500, y: 600 }));
 		expect(r.is_error).toBe(true);
@@ -202,7 +232,7 @@ describe("runComputerUse", () => {
 		});
 		expect(r.content).toBe("Dragged from (100, 100) to (200, 200)");
 		expect(mockExec).toHaveBeenCalledWith(
-			"cliclick",
+			TRUSTED_CLICLICK,
 			["dd:100,100", "du:200,200"],
 			expect.any(Object),
 		);
@@ -215,7 +245,7 @@ describe("runComputerUse", () => {
 		const r = await runComputerUse({ action: "type", text: "hello" });
 		expect(r.content).toBe("Typed: hello");
 		expect(mockExec).toHaveBeenCalledWith(
-			"cliclick",
+			TRUSTED_CLICLICK,
 			["t:hello"],
 			expect.any(Object),
 		);
@@ -223,15 +253,13 @@ describe("runComputerUse", () => {
 
 	it("types via osascript when cliclick missing", async () => {
 		setPlatform("darwin");
-		mockExec.mockImplementation((cmd: string) => {
-			if (cmd === "which") throw new Error("not found");
-			return "";
-		});
+		setExecutablePaths([TRUSTED_OSASCRIPT, TRUSTED_XDOTOOL]);
+		resetComputerUseState();
 
 		const r = await runComputerUse({ action: "type", text: "world" });
 		expect(r.content).toBe("Typed: world");
 		expect(mockExec).toHaveBeenCalledWith(
-			"osascript",
+			TRUSTED_OSASCRIPT,
 			["-e", expect.stringContaining('keystroke "world"')],
 			expect.any(Object),
 		);
@@ -239,15 +267,13 @@ describe("runComputerUse", () => {
 
 	it("handles quotes in type via osascript", async () => {
 		setPlatform("darwin");
-		mockExec.mockImplementation((cmd: string) => {
-			if (cmd === "which") throw new Error("not found");
-			return "";
-		});
+		setExecutablePaths([TRUSTED_OSASCRIPT, TRUSTED_XDOTOOL]);
+		resetComputerUseState();
 
 		const r = await runComputerUse({ action: "type", text: 'say "hi"' });
 		expect(r.content).toBe('Typed: say "hi"');
 		expect(mockExec).toHaveBeenCalledWith(
-			"osascript",
+			TRUSTED_OSASCRIPT,
 			["-e", expect.stringContaining("character id 34")],
 			expect.any(Object),
 		);
@@ -269,7 +295,7 @@ describe("runComputerUse", () => {
 		const r = await runComputerUse({ action: "key", key_combo: "enter" });
 		expect(r.content).toBe("Pressed: enter");
 		expect(mockExec).toHaveBeenCalledWith(
-			"osascript",
+			TRUSTED_OSASCRIPT,
 			["-e", expect.stringContaining("key code 36")],
 			expect.any(Object),
 		);
@@ -280,7 +306,7 @@ describe("runComputerUse", () => {
 		const r = await runComputerUse({ action: "key", key_combo: "cmd+c" });
 		expect(r.content).toBe("Pressed: cmd+c");
 		expect(mockExec).toHaveBeenCalledWith(
-			"osascript",
+			TRUSTED_OSASCRIPT,
 			["-e", expect.stringContaining("command down")],
 			expect.any(Object),
 		);
@@ -294,7 +320,7 @@ describe("runComputerUse", () => {
 		});
 		expect(r.content).toBe("Pressed: cmd+shift+z");
 		const script = mockExec.mock.calls.find(
-			(c: unknown[]) => c[0] === "osascript",
+			(c: unknown[]) => c[0] === TRUSTED_OSASCRIPT,
 		)?.[1][1] as string;
 		expect(script).toContain("command down");
 		expect(script).toContain("shift down");
@@ -325,7 +351,7 @@ describe("runComputerUse", () => {
 		const r = await runComputerUse({ action: "key", key_combo: "a" });
 		expect(r.content).toBe("Pressed: a");
 		expect(mockExec).toHaveBeenCalledWith(
-			"osascript",
+			TRUSTED_OSASCRIPT,
 			["-e", expect.stringContaining('keystroke "a"')],
 			expect.any(Object),
 		);
@@ -342,7 +368,7 @@ describe("runComputerUse", () => {
 		});
 		expect(r.content).toContain("Scrolled down 2");
 		expect(mockExec).toHaveBeenCalledWith(
-			"osascript",
+			TRUSTED_OSASCRIPT,
 			["-e", expect.stringContaining("key code 121")],
 			expect.any(Object),
 		);
@@ -357,7 +383,7 @@ describe("runComputerUse", () => {
 		});
 		expect(r.content).toContain("Scrolled up 1");
 		expect(mockExec).toHaveBeenCalledWith(
-			"osascript",
+			TRUSTED_OSASCRIPT,
 			["-e", expect.stringContaining("key code 116")],
 			expect.any(Object),
 		);
@@ -385,7 +411,7 @@ describe("runComputerUse", () => {
 	it("gets cursor position via cliclick", async () => {
 		setPlatform("darwin");
 		mockExec.mockImplementation((cmd: string) => {
-			if (cmd === "cliclick") return "300,400\n";
+			if (cmd === TRUSTED_CLICLICK) return "300,400\n";
 			return "";
 		});
 
@@ -400,7 +426,7 @@ describe("runComputerUse", () => {
 		const r = await runComputerUse(native({ action: "click", x: 300, y: 400 }));
 		expect(r.content).toBe("Clicked at (300, 400)");
 		expect(mockExec).toHaveBeenCalledWith(
-			"xdotool",
+			TRUSTED_XDOTOOL,
 			["mousemove", "--sync", "300", "400", "click", "1"],
 			expect.any(Object),
 		);
@@ -427,7 +453,7 @@ describe("runComputerUse", () => {
 		});
 		expect(r.content).toBe("Right-clicked at (100, 200)");
 		expect(mockExec).toHaveBeenCalledWith(
-			"xdotool",
+			TRUSTED_XDOTOOL,
 			expect.arrayContaining(["click", "3"]),
 			expect.any(Object),
 		);
@@ -453,7 +479,7 @@ describe("runComputerUse", () => {
 		});
 		expect(r.content).toBe("Dragged from (10, 20) to (200, 300)");
 		expect(mockExec).toHaveBeenCalledWith(
-			"xdotool",
+			TRUSTED_XDOTOOL,
 			expect.arrayContaining(["mousedown", "1", "mouseup", "1"]),
 			expect.any(Object),
 		);
@@ -466,7 +492,7 @@ describe("runComputerUse", () => {
 		const r = await runComputerUse({ action: "type", text: "hello" });
 		expect(r.content).toBe("Typed: hello");
 		expect(mockExec).toHaveBeenCalledWith(
-			"xdotool",
+			TRUSTED_XDOTOOL,
 			["type", "--", "hello"],
 			expect.any(Object),
 		);
@@ -477,7 +503,7 @@ describe("runComputerUse", () => {
 		const r = await runComputerUse({ action: "key", key_combo: "ctrl+c" });
 		expect(r.content).toBe("Pressed: ctrl+c");
 		expect(mockExec).toHaveBeenCalledWith(
-			"xdotool",
+			TRUSTED_XDOTOOL,
 			["key", "ctrl+c"],
 			expect.any(Object),
 		);
@@ -488,7 +514,7 @@ describe("runComputerUse", () => {
 		const r = await runComputerUse({ action: "key", key_combo: "enter" });
 		expect(r.content).toBe("Pressed: enter");
 		expect(mockExec).toHaveBeenCalledWith(
-			"xdotool",
+			TRUSTED_XDOTOOL,
 			["key", "Return"],
 			expect.any(Object),
 		);
@@ -505,7 +531,7 @@ describe("runComputerUse", () => {
 		});
 		expect(r.content).toBe("Scrolled down 5 steps");
 		expect(mockExec).toHaveBeenCalledWith(
-			"xdotool",
+			TRUSTED_XDOTOOL,
 			["click", "--repeat", "5", "--delay", "50", "5"],
 			expect.any(Object),
 		);
@@ -520,7 +546,7 @@ describe("runComputerUse", () => {
 		});
 		expect(r.content).toBe("Scrolled up 3 steps");
 		expect(mockExec).toHaveBeenCalledWith(
-			"xdotool",
+			TRUSTED_XDOTOOL,
 			expect.arrayContaining(["4"]),
 			expect.any(Object),
 		);
@@ -540,10 +566,8 @@ describe("runComputerUse", () => {
 
 	it("errors when xdotool missing on Linux", async () => {
 		setPlatform("linux");
-		mockExec.mockImplementation((cmd: string) => {
-			if (cmd === "which") throw new Error("not found");
-			throw new Error("xdotool not found");
-		});
+		setExecutablePaths([TRUSTED_CLICLICK, TRUSTED_OSASCRIPT]);
+		resetComputerUseState();
 
 		const r = await runComputerUse(native({ action: "click", x: 100, y: 200 }));
 		expect(r.is_error).toBe(true);
@@ -554,11 +578,12 @@ describe("runComputerUse", () => {
 
 	it("detects accessibility permission error", async () => {
 		setPlatform("darwin");
+		setExecutablePaths([TRUSTED_OSASCRIPT, TRUSTED_XDOTOOL]);
+		resetComputerUseState();
 		mockExec.mockImplementation((cmd: string) => {
-			if (cmd === "osascript") {
+			if (cmd === TRUSTED_OSASCRIPT) {
 				throw new Error("assistive access is not enabled");
 			}
-			if (cmd === "which") throw new Error("not found");
 			return "";
 		});
 
@@ -595,7 +620,7 @@ describe("runComputerUse", () => {
 
 		expect(r.content).toBe("Clicked at (1500, 500)");
 		expect(mockExec).toHaveBeenCalledWith(
-			"cliclick",
+			TRUSTED_CLICLICK,
 			["c:1500,500"],
 			expect.any(Object),
 		);

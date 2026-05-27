@@ -1,12 +1,12 @@
 ---
 id: task-security-review-computeruse-resolves-gui-helper-bi
 title: Security review: computer_use resolves GUI helper binaries through the inherited PATH and then executes bare command names, so a PATH-controlled xdotool, cliclick, or osascript can turn an approved GUI action into arbitrary process execution.
-status: ready
+status: done
 priority: p2
 area: security
 summary: computer_use resolves GUI helper binaries through the inherited PATH and then executes bare command names, so a PATH-controlled xdotool, cliclick, or osascript can turn an approved GUI action into arbitrary process execution.
 created_at: 2026-05-27T12:51:31.499Z
-updated_at: 2026-05-27T12:51:31.499Z
+updated_at: 2026-05-27T15:15:39Z
 ---
 
 ## Problem
@@ -56,3 +56,6 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Implemented trusted absolute helper resolution in `src/modules/execution/computer-use-trusted-executables.ts`; Linux/macOS action modules execute the returned path instead of bare command names.
+- Added regression coverage for PATH-precedence spoofing of `xdotool`, `cliclick`, and `osascript`.
+- Verification passed: `pnpm test src/modules/execution/computer-use-actions-linux.test.ts src/modules/execution/computer-use-actions-mac.test.ts src/modules/execution/computer-use.test.ts`; `pnpm exec biome check src/modules/execution/computer-use-trusted-executables.ts src/modules/execution/computer-use-actions-linux.ts src/modules/execution/computer-use-actions-mac.ts src/modules/execution/computer-use-actions-linux.test.ts src/modules/execution/computer-use-actions-mac.test.ts src/modules/execution/computer-use.test.ts`; `pnpm typecheck`.
