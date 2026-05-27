@@ -50,9 +50,9 @@ resources:
     added: "2026-05-27"
     notes: "Official Agent Client Protocol docs. Monitor architecture, schema, transport, registry, stdio/Streamable HTTP, MCP handoff, permission, and session-lifecycle changes as an interoperability signal for KOTA's module-owned ACP adapter task."
     snapshot:
-      fingerprint: sha256:7ea6859d3ee0205bddcdaf090dc3e24a
-      summary: "ACP now matches KOTA's completed module-owned adapter baseline, but its stable session/list and session/resume lifecycle methods expose a nonduplicative KOTA gap; this run opened task-add-acp-session-discovery-and-resume-support."
-      last_seen_at: "2026-05-27T05:09:58.037Z"
+      fingerprint: sha256:08934e91f237a7ecf41b9b2ac133b81a
+      summary: "ACP still reinforces KOTA's module-owned adapter model; after session list/resume landed, the remaining nonduplicative gap is accepting ACP client-supplied MCP server configs through the existing session/harness MCP path, which opened task-connect-acp-client-supplied-mcp-servers-to-daemon-."
+      last_seen_at: "2026-05-27T09:25:42.289Z"
   - url: https://a2a-protocol.org/latest/
     added: "2026-05-27"
     notes: "Official Agent2Agent Protocol docs. Monitor v1.0 Agent Card discovery, JSON-RPC/HTTP and SSE bindings, task lifecycle methods, security schemes, Agent Card signatures, MCP complementarity, SDK support, and registry/discovery direction for KOTA's module-owned A2A channel work."
