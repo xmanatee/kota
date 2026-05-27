@@ -102,6 +102,47 @@ describe("explorer workflow", () => {
     expect(result.steps.explore.status).toBe("skipped");
   });
 
+  it("exposes canonicalized watchlist history without stale aliases as entries", async () => {
+    const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
+    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(
+      makeSnapshot({ inboxCount: 1, ready: 0, backlog: 0 }),
+    );
+    mkdirSync(join(tempDir, "data"), { recursive: true });
+    writeFileSync(
+      join(tempDir, "data", "watchlist.yaml"),
+      [
+        "resources:",
+        "  - url: https://github.com/FoundationAgents/OpenManus",
+        '    added: "2026-04-20"',
+        "    canonicalized_from:",
+        "      - https://github.com/mannaandpoem/OpenManus",
+        "    snapshot:",
+        "      fingerprint: sha256:canonical",
+        '      summary: "Canonical OpenManus project."',
+        '      last_seen_at: "2026-05-18T00:00:00.000Z"',
+        "",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const harness = new WorkflowTestHarness(explorerWorkflow, {
+      trigger: { event: "autonomy.queue.empty", payload: {} },
+      runtimeState: { workflows: {} },
+      projectDir: tempDir,
+    });
+
+    const result = await harness.run();
+    expect(result.steps["inspect-watchlist"].output).toMatchObject({
+      entries: [
+        {
+          url: "https://github.com/FoundationAgents/OpenManus",
+          canonicalizedFrom: ["https://github.com/mannaandpoem/OpenManus"],
+          status: "seen",
+        },
+      ],
+    });
+  });
+
   it("skips explore when ready or backlog already contains work", async () => {
     const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(

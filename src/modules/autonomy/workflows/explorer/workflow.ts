@@ -122,6 +122,7 @@ const inspectQueue = typedCodeStep<ExplorerAssessment>({
 type WatchlistEntrySummary = {
   url: string;
   added: string;
+  canonicalizedFrom?: string[];
   status: "inaccessible" | "never-seen" | "seen";
   last_seen_at?: string;
   fingerprint?: string;
@@ -135,14 +136,31 @@ type WatchlistInspection = {
 
 function summarizeWatchlistEntry(entry: WatchlistEntry): WatchlistEntrySummary {
   if (entry.status === "inaccessible") {
-    return { url: entry.url, added: entry.added, status: "inaccessible" };
+    return {
+      url: entry.url,
+      added: entry.added,
+      ...(entry.canonicalizedFrom !== undefined
+        ? { canonicalizedFrom: entry.canonicalizedFrom }
+        : {}),
+      status: "inaccessible",
+    };
   }
   if (!entry.snapshot) {
-    return { url: entry.url, added: entry.added, status: "never-seen" };
+    return {
+      url: entry.url,
+      added: entry.added,
+      ...(entry.canonicalizedFrom !== undefined
+        ? { canonicalizedFrom: entry.canonicalizedFrom }
+        : {}),
+      status: "never-seen",
+    };
   }
   return {
     url: entry.url,
     added: entry.added,
+    ...(entry.canonicalizedFrom !== undefined
+      ? { canonicalizedFrom: entry.canonicalizedFrom }
+      : {}),
     status: "seen",
     last_seen_at: entry.snapshot.last_seen_at,
     fingerprint: entry.snapshot.fingerprint,

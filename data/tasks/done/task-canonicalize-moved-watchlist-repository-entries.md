@@ -1,12 +1,12 @@
 ---
 id: task-canonicalize-moved-watchlist-repository-entries
 title: Canonicalize moved watchlist repository entries
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Teach explorer watchlist updates to detect repository redirects or moved-project notices and converge on one canonical URL per resource so stale aliases do not waste exploration cycles or duplicate snapshots.
 created_at: 2026-05-27T11:32:45.428Z
-updated_at: 2026-05-27T11:32:45.428Z
+updated_at: 2026-05-27T11:46:53.907Z
 ---
 
 ## Problem

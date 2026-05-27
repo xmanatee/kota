@@ -14,6 +14,7 @@ export type WatchlistStatus = "inaccessible";
 export type WatchlistEntry = {
   url: string;
   added: string;
+  canonicalizedFrom?: string[];
   notes?: string;
   status?: WatchlistStatus;
   snapshot?: WatchlistSnapshot;
@@ -24,7 +25,13 @@ export type WatchlistFile = {
   entries: WatchlistEntry[];
 };
 
-const OPERATOR_FIELDS = new Set(["url", "added", "notes", "status"]);
+const OPERATOR_FIELDS = new Set([
+  "url",
+  "added",
+  "canonicalized_from",
+  "notes",
+  "status",
+]);
 const SNAPSHOT_FIELDS = new Set(["fingerprint", "summary", "last_seen_at"]);
 
 function stripQuotes(raw: string): string {
@@ -71,6 +78,7 @@ export function parseWatchlist(raw: string): WatchlistFile {
   type WorkingEntry = {
     url: string;
     added: string;
+    canonicalizedFrom?: string[];
     notes?: string;
     status?: WatchlistStatus;
     snapshot?: Partial<WatchlistSnapshot>;
@@ -79,6 +87,7 @@ export function parseWatchlist(raw: string): WatchlistFile {
   const entries: WatchlistEntry[] = [];
   let current: WorkingEntry | null = null;
   let inSnapshotBlock = false;
+  let inCanonicalizedFromBlock = false;
 
   const commit = () => {
     if (!current) return;
@@ -104,12 +113,17 @@ export function parseWatchlist(raw: string): WatchlistFile {
     entries.push({
       url: current.url,
       added: current.added,
+      ...(current.canonicalizedFrom !== undefined &&
+      current.canonicalizedFrom.length > 0
+        ? { canonicalizedFrom: current.canonicalizedFrom }
+        : {}),
       ...(current.notes !== undefined ? { notes: current.notes } : {}),
       ...(current.status !== undefined ? { status: current.status } : {}),
       ...(snapshot !== undefined ? { snapshot } : {}),
     });
     current = null;
     inSnapshotBlock = false;
+    inCanonicalizedFromBlock = false;
   };
 
   for (; i < lines.length; i += 1) {
@@ -117,7 +131,7 @@ export function parseWatchlist(raw: string): WatchlistFile {
     if (rawLine.trim() === "") continue;
     if (rawLine.trim().startsWith("#")) continue;
 
-    const listMatch = rawLine.match(/^\s*-\s+(.*)$/);
+    const listMatch = rawLine.match(/^ {2}-\s+(.*)$/);
     if (listMatch) {
       commit();
       const inner = listMatch[1];
@@ -127,6 +141,7 @@ export function parseWatchlist(raw: string): WatchlistFile {
       }
       current = { url: parsed.value, added: "" };
       inSnapshotBlock = false;
+      inCanonicalizedFromBlock = false;
       continue;
     }
 
@@ -134,12 +149,32 @@ export function parseWatchlist(raw: string): WatchlistFile {
       throw new Error(`watchlist field outside of entry: ${rawLine}`);
     }
 
+    const canonicalizedFromMatch = rawLine.match(/^\s{6}-\s+(.+)$/);
+    if (canonicalizedFromMatch) {
+      if (!inCanonicalizedFromBlock) {
+        throw new Error(
+          `watchlist nested list item outside canonicalized_from: ${rawLine}`,
+        );
+      }
+      current.canonicalizedFrom = current.canonicalizedFrom ?? [];
+      current.canonicalizedFrom.push(stripQuotes(canonicalizedFromMatch[1]));
+      continue;
+    }
+
     const parsed = parseLine(rawLine);
     if (!parsed) continue;
 
     if (parsed.key === "snapshot" && parsed.value === "") {
       inSnapshotBlock = true;
+      inCanonicalizedFromBlock = false;
       current.snapshot = current.snapshot ?? {};
+      continue;
+    }
+
+    if (parsed.key === "canonicalized_from" && parsed.value === "") {
+      inCanonicalizedFromBlock = true;
+      inSnapshotBlock = false;
+      current.canonicalizedFrom = current.canonicalizedFrom ?? [];
       continue;
     }
 
@@ -165,6 +200,7 @@ export function parseWatchlist(raw: string): WatchlistFile {
     }
 
     inSnapshotBlock = false;
+    inCanonicalizedFromBlock = false;
     if (!OPERATOR_FIELDS.has(parsed.key)) {
       throw new Error(`unknown watchlist field: ${parsed.key}`);
     }
@@ -175,6 +211,8 @@ export function parseWatchlist(raw: string): WatchlistFile {
       case "added":
         current.added = parsed.value;
         break;
+      case "canonicalized_from":
+        throw new Error("watchlist canonicalized_from must be a list block");
       case "notes":
         current.notes = parsed.value;
         break;
@@ -194,6 +232,39 @@ export function parseWatchlist(raw: string): WatchlistFile {
     }
   }
 
+  const entryUrls = new Set<string>();
+  for (const entry of entries) {
+    if (entryUrls.has(entry.url)) {
+      throw new Error(`duplicate watchlist entry url: ${entry.url}`);
+    }
+    entryUrls.add(entry.url);
+  }
+  const canonicalizedFromUrls = new Map<string, string>();
+  for (const entry of entries) {
+    for (const oldUrl of entry.canonicalizedFrom ?? []) {
+      if (oldUrl.length === 0) {
+        throw new Error(`watchlist entry ${entry.url} has empty canonicalized_from url`);
+      }
+      if (oldUrl === entry.url) {
+        throw new Error(
+          `watchlist entry ${entry.url} cannot canonicalize from itself`,
+        );
+      }
+      if (entryUrls.has(oldUrl)) {
+        throw new Error(
+          `watchlist canonicalized_from ${oldUrl} is still listed as a resource`,
+        );
+      }
+      const existing = canonicalizedFromUrls.get(oldUrl);
+      if (existing !== undefined) {
+        throw new Error(
+          `watchlist canonicalized_from ${oldUrl} appears on both ${existing} and ${entry.url}`,
+        );
+      }
+      canonicalizedFromUrls.set(oldUrl, entry.url);
+    }
+  }
+
   return { header, entries };
 }
 
@@ -207,6 +278,12 @@ export function serializeWatchlist(file: WatchlistFile): string {
   for (const entry of file.entries) {
     lines.push(`  - url: ${quoteIfNeeded(entry.url)}`);
     lines.push(`    added: ${quoteIfNeeded(entry.added)}`);
+    if (entry.canonicalizedFrom !== undefined) {
+      lines.push("    canonicalized_from:");
+      for (const oldUrl of entry.canonicalizedFrom) {
+        lines.push(`      - ${quoteIfNeeded(oldUrl)}`);
+      }
+    }
     if (entry.notes !== undefined) {
       lines.push(`    notes: ${quoteIfNeeded(entry.notes)}`);
     }

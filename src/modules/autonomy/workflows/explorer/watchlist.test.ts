@@ -52,6 +52,7 @@ describe("parseWatchlist / serializeWatchlist", () => {
         {
           url: "https://example.com/a",
           added: "2026-04-14",
+          canonicalizedFrom: ["https://old.example.com/a"],
           snapshot: {
             fingerprint: "sha256:deadbeef",
             summary: "A project",
@@ -70,6 +71,8 @@ describe("parseWatchlist / serializeWatchlist", () => {
     const parsed = parseWatchlist(serialized);
 
     expect(parsed.entries).toEqual(file.entries);
+    expect(serialized).toContain("canonicalized_from:");
+    expect(serialized).toContain("https://old.example.com/a");
   });
 
   it("rejects a snapshot block missing required fields", () => {
@@ -95,6 +98,21 @@ describe("parseWatchlist / serializeWatchlist", () => {
     ].join("\n");
 
     expect(() => parseWatchlist(raw)).toThrow(/unknown watchlist field/);
+  });
+
+  it("rejects canonicalized aliases that remain listed as refresh resources", () => {
+    const raw = [
+      "resources:",
+      "  - url: https://example.com/current",
+      '    added: "2026-04-14"',
+      "    canonicalized_from:",
+      "      - https://example.com/old",
+      "  - url: https://example.com/old",
+      '    added: "2026-04-14"',
+      "",
+    ].join("\n");
+
+    expect(() => parseWatchlist(raw)).toThrow(/still listed as a resource/);
   });
 });
 
@@ -341,6 +359,168 @@ describe("applyWatchlistUpdates", () => {
       summary: "Old summary.",
       last_seen_at: "2026-04-17T00:00:00.000Z",
     });
+  });
+
+  it("canonicalizes a redirect-only repository entry to a new target", () => {
+    const content = "Pi repository content at the current canonical URL.";
+    const oldAliasFingerprint = computeWatchlistFingerprint(
+      normalizeWatchlistContent(content),
+    );
+    seed(
+      [
+        "resources:",
+        "  - url: https://github.com/badlogic/pi-mono",
+        '    added: "2026-04-14"',
+        "    snapshot:",
+        `      fingerprint: ${oldAliasFingerprint}`,
+        '      summary: "Old Pi alias."',
+        '      last_seen_at: "2026-05-01T00:00:00.000Z"',
+        "",
+      ].join("\n"),
+    );
+
+    const results = applyWatchlistUpdates(
+      tempDir,
+      {
+        updates: [
+          {
+            url: "https://github.com/badlogic/pi-mono",
+            canonicalUrl: "https://github.com/earendil-works/pi",
+            accessible: true,
+            content,
+            summary: "Pi repository under its current canonical URL.",
+          },
+        ],
+      },
+      { now: () => "2026-05-27T12:00:00.000Z" },
+    );
+
+    expect(results).toEqual([
+      {
+        url: "https://github.com/badlogic/pi-mono",
+        classification: "canonicalized",
+        canonicalUrl: "https://github.com/earendil-works/pi",
+      },
+    ]);
+    const after = readWatchlist(tempDir);
+    expect(after.entries).toHaveLength(1);
+    expect(after.entries[0]).toMatchObject({
+      url: "https://github.com/earendil-works/pi",
+      added: "2026-04-14",
+      canonicalizedFrom: ["https://github.com/badlogic/pi-mono"],
+      snapshot: {
+        fingerprint: expect.stringMatching(/^sha256:/),
+        summary: "Pi repository under its current canonical URL.",
+        last_seen_at: "2026-05-27T12:00:00.000Z",
+      },
+    });
+    expect(after.entries[0].notes).toContain(
+      "Canonicalized from https://github.com/badlogic/pi-mono",
+    );
+  });
+
+  it("canonicalizes a moved-project pointer to an already tracked target", () => {
+    writeWatchlist(tempDir, {
+      header: "",
+      entries: [
+        {
+          url: "https://github.com/mannaandpoem/OpenManus",
+          added: "2026-04-19",
+          notes: "Old owner URL.",
+          snapshot: {
+            fingerprint: "sha256:pointer",
+            summary: "Moved to FoundationAgents/OpenManus.",
+            last_seen_at: "2026-05-26T00:00:00.000Z",
+          },
+        },
+        {
+          url: "https://github.com/FoundationAgents/OpenManus",
+          added: "2026-04-20",
+          snapshot: {
+            fingerprint: "sha256:canonical",
+            summary: "Canonical OpenManus project.",
+            last_seen_at: "2026-05-18T00:00:00.000Z",
+          },
+        },
+      ],
+    });
+
+    applyWatchlistUpdates(
+      tempDir,
+      {
+        updates: [
+          {
+            url: "https://github.com/mannaandpoem/OpenManus",
+            canonicalUrl: "https://github.com/FoundationAgents/OpenManus",
+            accessible: true,
+            content: "This project has moved to FoundationAgents/OpenManus.",
+            summary: "Moved-project pointer.",
+          },
+        ],
+      },
+      { now: () => "2026-05-27T12:00:00.000Z" },
+    );
+
+    const after = readWatchlist(tempDir);
+    expect(after.entries.map((entry) => entry.url)).toEqual([
+      "https://github.com/FoundationAgents/OpenManus",
+    ]);
+    expect(after.entries[0]).toMatchObject({
+      canonicalizedFrom: ["https://github.com/mannaandpoem/OpenManus"],
+      notes: expect.stringContaining("Old owner URL."),
+      snapshot: {
+        fingerprint: "sha256:canonical",
+        summary: "Canonical OpenManus project.",
+        last_seen_at: "2026-05-18T00:00:00.000Z",
+      },
+    });
+  });
+
+  it("removes duplicate entries when a redirect target is already tracked", () => {
+    writeWatchlist(tempDir, {
+      header: "",
+      entries: [
+        {
+          url: "https://github.com/block/goose",
+          added: "2026-04-19",
+        },
+        {
+          url: "https://github.com/aaif-goose/goose",
+          added: "2026-05-01",
+          canonicalizedFrom: ["https://old.example.com/goose"],
+          snapshot: {
+            fingerprint: "sha256:goose",
+            summary: "Canonical goose project.",
+            last_seen_at: "2026-05-20T00:00:00.000Z",
+          },
+        },
+      ],
+    });
+
+    applyWatchlistUpdates(
+      tempDir,
+      {
+        updates: [
+          {
+            url: "https://github.com/block/goose",
+            canonicalUrl: "https://github.com/aaif-goose/goose",
+            accessible: true,
+            content: "Goose repository content.",
+            summary: "Goose moved to AAIF.",
+          },
+        ],
+      },
+      { now: () => "2026-05-27T12:00:00.000Z" },
+    );
+
+    const after = readWatchlist(tempDir);
+    expect(after.entries.map((entry) => entry.url)).toEqual([
+      "https://github.com/aaif-goose/goose",
+    ]);
+    expect(after.entries[0].canonicalizedFrom).toEqual([
+      "https://old.example.com/goose",
+      "https://github.com/block/goose",
+    ]);
   });
 
   it("skips unknown URLs without mutating the rest of the file", () => {

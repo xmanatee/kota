@@ -96,6 +96,7 @@ Write a JSON file at `<run-directory>/watchlist-updates.json`:
   "updates": [
     {
       "url": "https://github.com/example/repo",
+      "canonicalUrl": "https://github.com/current-owner/repo",
       "accessible": true,
       "content": "Plain-text or extracted-markdown view of what you observed. The classifier normalizes whitespace and strips date churn before hashing — you do not need to strip them yourself.",
       "summary": "One-sentence description of what this resource currently is or has become."
@@ -109,10 +110,14 @@ Write a JSON file at `<run-directory>/watchlist-updates.json`:
 ```
 
 - `accessible: true` must include both `content` (for fingerprinting) and `summary` (for the operator).
+- Include `canonicalUrl` only when the fetched resource resolves to a durable
+  repository redirect or is just a moved-project pointer. The apply step records
+  the old URL as `canonicalized_from` on the canonical entry.
 - `accessible: false` replaces the snapshot with `status: inaccessible`.
-- Only include URLs that already exist in the watchlist. To add a new resource,
-  edit `data/watchlist.yaml` directly with `url` and `added` fields — the
-  snapshot will populate on the next run.
+- The update `url` must already exist in the watchlist. A `canonicalUrl` may be
+  a new canonical target or a target already tracked elsewhere in the watchlist.
+  To add an unrelated new resource, edit `data/watchlist.yaml` directly with
+  `url` and `added` fields — the snapshot will populate on the next run.
 - Watchlist checks supplement open-ended discovery; do not let them dominate
   the run.
 - Writing `watchlist-updates.json` counts as a committing run because the

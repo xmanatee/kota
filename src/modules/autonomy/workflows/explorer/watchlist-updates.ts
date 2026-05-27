@@ -13,7 +13,10 @@ import {
 
 export const WATCHLIST_UPDATES_FILE = "watchlist-updates.json";
 
-export type WatchlistUpdateReport = { url: string } & WatchlistFetchOutcome;
+export type WatchlistUpdateReport = {
+  url: string;
+  canonicalUrl?: string;
+} & WatchlistFetchOutcome;
 
 export type WatchlistUpdatesPayload = {
   updates: WatchlistUpdateReport[];
@@ -21,7 +24,8 @@ export type WatchlistUpdatesPayload = {
 
 export type WatchlistApplyResult = {
   url: string;
-  classification: WatchlistClassification["kind"];
+  classification: WatchlistClassification["kind"] | "canonicalized";
+  canonicalUrl?: string;
   skipped?: "unknown-url";
 };
 
@@ -43,7 +47,26 @@ function parseUpdatesFile(raw: string): WatchlistUpdatesPayload {
     if (typeof entry.url !== "string") {
       throw new Error("watchlist update missing url");
     }
+    let canonicalUrl: string | undefined;
+    if (entry.canonicalUrl !== undefined) {
+      if (typeof entry.canonicalUrl !== "string" || entry.canonicalUrl.length === 0) {
+        throw new Error(
+          `watchlist update for ${entry.url} has invalid canonicalUrl`,
+        );
+      }
+      if (entry.canonicalUrl === entry.url) {
+        throw new Error(
+          `watchlist update for ${entry.url} has a redundant canonicalUrl`,
+        );
+      }
+      canonicalUrl = entry.canonicalUrl;
+    }
     if (entry.accessible === false) {
+      if (canonicalUrl !== undefined) {
+        throw new Error(
+          `watchlist update for ${entry.url} cannot set canonicalUrl when inaccessible`,
+        );
+      }
       updates.push({ url: entry.url, accessible: false });
       continue;
     }
@@ -64,6 +87,7 @@ function parseUpdatesFile(raw: string): WatchlistUpdatesPayload {
     }
     updates.push({
       url: entry.url,
+      ...(canonicalUrl !== undefined ? { canonicalUrl } : {}),
       accessible: true,
       content: entry.content,
       summary: entry.summary,
@@ -105,6 +129,101 @@ function applyClassification(
   }
 }
 
+function uniqueStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    if (seen.has(value)) continue;
+    seen.add(value);
+    result.push(value);
+  }
+  return result;
+}
+
+function mergeNotes(...notes: Array<string | undefined>): string | undefined {
+  const merged = uniqueStrings(notes.filter((note): note is string => note !== undefined));
+  if (merged.length === 0) return undefined;
+  return merged.join(" ");
+}
+
+function canonicalizationNote(fromUrl: string, toUrl: string, now: string): string {
+  return `Canonicalized from ${fromUrl} on ${now} after the fetched resource identified ${toUrl} as the durable project URL.`;
+}
+
+function withCanonicalizedFrom(
+  entry: WatchlistEntry,
+  canonicalizedFrom: string[],
+): WatchlistEntry {
+  const unique = uniqueStrings(
+    canonicalizedFrom.filter((url) => url.length > 0 && url !== entry.url),
+  );
+  if (unique.length === 0) {
+    const next: WatchlistEntry = { ...entry };
+    delete next.canonicalizedFrom;
+    return next;
+  }
+  return { ...entry, canonicalizedFrom: unique };
+}
+
+function applyCanonicalizedUpdate(
+  entries: WatchlistEntry[],
+  sourceIndex: number,
+  update: WatchlistUpdateReport & {
+    accessible: true;
+    canonicalUrl: string;
+  },
+  now: string,
+): { entries: WatchlistEntry[]; result: WatchlistApplyResult } {
+  const source = entries[sourceIndex];
+  const targetIndex = entries.findIndex((entry) => entry.url === update.canonicalUrl);
+  const note = canonicalizationNote(source.url, update.canonicalUrl, now);
+
+  if (targetIndex >= 0) {
+    const target = entries[targetIndex];
+    const canonicalizedTarget = withCanonicalizedFrom(
+      {
+        ...target,
+        notes: mergeNotes(target.notes, source.notes, note),
+      },
+      [
+        ...(target.canonicalizedFrom ?? []),
+        ...(source.canonicalizedFrom ?? []),
+        source.url,
+      ],
+    );
+    return {
+      entries: entries
+        .map((entry, index) => (index === targetIndex ? canonicalizedTarget : entry))
+        .filter((_entry, index) => index !== sourceIndex),
+      result: {
+        url: source.url,
+        classification: "canonicalized",
+        canonicalUrl: update.canonicalUrl,
+      },
+    };
+  }
+
+  const base = withCanonicalizedFrom(
+    {
+      ...source,
+      url: update.canonicalUrl,
+      notes: mergeNotes(source.notes, note),
+    },
+    [...(source.canonicalizedFrom ?? []), source.url],
+  );
+  const classification = classifyWatchlistUpdate(undefined, update);
+  return {
+    entries: entries.map((entry, index) =>
+      index === sourceIndex ? applyClassification(base, classification, now) : entry,
+    ),
+    result: {
+      url: source.url,
+      classification: "canonicalized",
+      canonicalUrl: update.canonicalUrl,
+    },
+  };
+}
+
 export type ApplyWatchlistUpdatesOptions = {
   now?: () => string;
 };
@@ -116,12 +235,12 @@ export function applyWatchlistUpdates(
 ): WatchlistApplyResult[] {
   const now = options.now ?? (() => new Date().toISOString());
   const file = readWatchlist(projectDir);
-  const byUrl = new Map(file.entries.map((e) => [e.url, e]));
+  let entries = file.entries;
   const results: WatchlistApplyResult[] = [];
 
   for (const update of payload.updates) {
-    const entry = byUrl.get(update.url);
-    if (!entry) {
+    const entryIndex = entries.findIndex((entry) => entry.url === update.url);
+    if (entryIndex < 0) {
       results.push({
         url: update.url,
         classification: "inaccessible",
@@ -129,15 +248,31 @@ export function applyWatchlistUpdates(
       });
       continue;
     }
+    const entry = entries[entryIndex];
+    const timestamp = now();
+    if (update.accessible && update.canonicalUrl !== undefined) {
+      const applied = applyCanonicalizedUpdate(
+        entries,
+        entryIndex,
+        { ...update, canonicalUrl: update.canonicalUrl },
+        timestamp,
+      );
+      entries = applied.entries;
+      results.push(applied.result);
+      continue;
+    }
     const classification = classifyWatchlistUpdate(entry.snapshot, update);
-    const updated = applyClassification(entry, classification, now());
-    byUrl.set(update.url, updated);
+    entries = entries.map((candidate, index) =>
+      index === entryIndex
+        ? applyClassification(candidate, classification, timestamp)
+        : candidate,
+    );
     results.push({ url: update.url, classification: classification.kind });
   }
 
   writeWatchlist(projectDir, {
     header: file.header,
-    entries: file.entries.map((e) => byUrl.get(e.url) ?? e),
+    entries,
   });
 
   return results;
