@@ -1,12 +1,12 @@
 ---
 id: task-project-workflow-run-streams-from-typed-agent-even
 title: Project workflow run streams from typed agent event logs
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Route workflow run SSE output through KOTA's KotaAgentMessage event log instead of parsing obsolete assistant.content blocks, and add tests for text, thinking, tool calls, results, and run completion.
 created_at: 2026-05-27T10:55:40.648Z
-updated_at: 2026-05-27T10:55:40.648Z
+updated_at: 2026-05-27T11:12:50.236Z
 ---
 
 ## Problem

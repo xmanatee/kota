@@ -1,8 +1,9 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { KotaAgentMessage } from "#core/agent-harness/index.js";
 import type { WorkflowLiveStatus } from "#core/daemon/daemon-control.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
@@ -82,6 +83,56 @@ function mockResponse() {
     on: vi.fn(),
   } as unknown as ServerResponse;
   return { res, result };
+}
+
+type ParsedSseEvent = { event: string; data: Record<string, unknown> };
+
+function mockSseResponse() {
+  const handlers = new Map<string, Array<() => void>>();
+  const chunks: string[] = [];
+  const result = { status: 0, ended: false };
+  const res = {
+    setHeader: vi.fn(),
+    writeHead: vi.fn((status: number) => {
+      result.status = status;
+    }),
+    write: vi.fn((chunk: string) => {
+      chunks.push(chunk);
+      return true;
+    }),
+    end: vi.fn(() => {
+      result.ended = true;
+    }),
+    on: vi.fn((event: string, handler: () => void) => {
+      const existing = handlers.get(event) ?? [];
+      existing.push(handler);
+      handlers.set(event, existing);
+      return res;
+    }),
+  } as unknown as ServerResponse;
+
+  return {
+    res,
+    result,
+    chunks,
+    close: () => {
+      for (const handler of handlers.get("close") ?? []) handler();
+    },
+  };
+}
+
+function parseSseEvents(chunks: string[]): ParsedSseEvent[] {
+  return chunks
+    .join("")
+    .split("\n\n")
+    .filter((part) => part.trim())
+    .map((part) => {
+      const lines = part.split("\n");
+      const event = lines.find((l) => l.startsWith("event: "))?.slice("event: ".length);
+      const data = lines.find((l) => l.startsWith("data: "))?.slice("data: ".length);
+      if (!event || !data) throw new Error(`Invalid SSE chunk: ${part}`);
+      return { event, data: JSON.parse(data) as Record<string, unknown> };
+    });
 }
 
 type MockTransportSpec = Partial<{
@@ -217,6 +268,7 @@ describe("workflow-routes", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     rmSync(projectDir, { recursive: true, force: true });
   });
 
@@ -983,6 +1035,189 @@ describe("workflow-routes", () => {
       handleWorkflowRunStream(res, "run-done-001", store);
       expect(result.status).toBe(404);
       expect((result.body as Record<string, unknown>).error).toMatch(/not active/);
+    });
+
+    it("projects active KotaAgentMessage JSONL frames into typed SSE events", () => {
+      vi.useFakeTimers();
+      const runId = "run-active-typed-001";
+      const stepId = "build";
+      writeRunMetadata(runsDir, runId, "builder", "running", {
+        completedAt: undefined,
+        durationMs: undefined,
+        totalCostUsd: undefined,
+        steps: [],
+      });
+      mkdirSync(join(runsDir, runId, "steps"), { recursive: true });
+      const messages: KotaAgentMessage[] = [
+        { type: "text", text: "Agent says hello", sessionId: "session-1" },
+        { type: "thinking", thinking: "private reasoning", sessionId: "session-1" },
+        {
+          type: "tool_call",
+          toolUseId: "tool-1",
+          toolName: "Read",
+          input: { path: "README.md" },
+          sessionId: "session-1",
+        },
+        {
+          type: "tool_result",
+          toolUseId: "tool-1",
+          isError: false,
+          content: "file contents",
+          sessionId: "session-1",
+        },
+        {
+          type: "status",
+          category: "auth_status",
+          text: "logged in",
+          sessionId: "session-1",
+        },
+        {
+          type: "result",
+          isError: false,
+          subtype: "success",
+          numTurns: 2,
+          totalCostUsd: 0.01,
+          text: "Done",
+          sessionId: "session-1",
+        },
+        { type: "raw", adapter: "raw-adapter", payload: { provider: "opaque" } },
+      ];
+      writeFileSync(
+        join(runsDir, runId, "steps", `${stepId}.events.jsonl`),
+        `${messages.map((message) => JSON.stringify(message)).join("\n")}\n`,
+        "utf-8",
+      );
+
+      const sse = mockSseResponse();
+      try {
+        handleWorkflowRunStream(sse.res, runId, store);
+        expect(sse.result.status).toBe(200);
+
+        let events = parseSseEvents(sse.chunks);
+        expect(events.map((event) => event.event)).toEqual([
+          "step_started",
+          "step_output",
+          "step_thinking",
+          "step_tool",
+          "step_tool_result",
+          "step_status",
+          "step_result",
+        ]);
+        expect(events.find((event) => event.event === "step_output")?.data).toMatchObject({
+          stepId,
+          messageType: "text",
+          text: "Agent says hello",
+          sessionId: "session-1",
+        });
+        expect(events.find((event) => event.event === "step_thinking")?.data).toMatchObject({
+          stepId,
+          messageType: "thinking",
+          thinking: "private reasoning",
+        });
+        expect(events.find((event) => event.event === "step_tool")?.data).toMatchObject({
+          stepId,
+          messageType: "tool_call",
+          tool: "Read",
+          toolUseId: "tool-1",
+          input: { path: "README.md" },
+        });
+        expect(events.find((event) => event.event === "step_tool_result")?.data).toMatchObject({
+          stepId,
+          messageType: "tool_result",
+          toolUseId: "tool-1",
+          isError: false,
+          content: "file contents",
+        });
+        expect(events.find((event) => event.event === "step_status")?.data).toMatchObject({
+          stepId,
+          messageType: "status",
+          category: "auth_status",
+          text: "logged in",
+        });
+        expect(events.find((event) => event.event === "step_result")?.data).toMatchObject({
+          stepId,
+          messageType: "result",
+          isError: false,
+          subtype: "success",
+          numTurns: 2,
+          totalCostUsd: 0.01,
+          text: "Done",
+        });
+        expect(JSON.stringify(events)).not.toContain("raw-adapter");
+
+        vi.advanceTimersByTime(500);
+        events = parseSseEvents(sse.chunks);
+        expect(events.filter((event) => event.event === "step_output")).toHaveLength(1);
+
+        writeRunMetadata(runsDir, runId, "builder", "success", {
+          totalCostUsd: 0.01,
+          steps: [
+            {
+              id: stepId,
+              type: "agent",
+              status: "success",
+              startedAt: new Date(1700000000000).toISOString(),
+              completedAt: new Date(1700000001000).toISOString(),
+              durationMs: 1000,
+              output: { ok: true },
+            },
+          ],
+        });
+        vi.advanceTimersByTime(500);
+
+        events = parseSseEvents(sse.chunks);
+        expect(events.find((event) => event.event === "step_completed")?.data).toMatchObject({
+          stepId,
+          status: "success",
+          durationMs: 1000,
+          output: { ok: true },
+        });
+        expect(events.find((event) => event.event === "run_completed")?.data).toMatchObject({
+          status: "success",
+          durationMs: 1000,
+          totalCostUsd: 0.01,
+        });
+        expect(sse.result.ended).toBe(true);
+      } finally {
+        sse.close();
+      }
+    });
+
+    it("waits for partial JSONL lines and skips malformed lines without crashing", () => {
+      vi.useFakeTimers();
+      const runId = "run-active-partial-001";
+      const stepId = "build";
+      writeRunMetadata(runsDir, runId, "builder", "running", {
+        completedAt: undefined,
+        durationMs: undefined,
+        totalCostUsd: undefined,
+        steps: [],
+      });
+      mkdirSync(join(runsDir, runId, "steps"), { recursive: true });
+      const eventsPath = join(runsDir, runId, "steps", `${stepId}.events.jsonl`);
+      writeFileSync(
+        eventsPath,
+        `${JSON.stringify({ type: "text", text: "first" } satisfies KotaAgentMessage)}\nnot-json\n{"type":"text","text":"sec`,
+        "utf-8",
+      );
+
+      const sse = mockSseResponse();
+      try {
+        handleWorkflowRunStream(sse.res, runId, store);
+        let events = parseSseEvents(sse.chunks);
+        expect(events.filter((event) => event.event === "step_output").map((event) => event.data.text)).toEqual(["first"]);
+
+        appendFileSync(eventsPath, `ond"}\n`, "utf-8");
+        vi.advanceTimersByTime(500);
+        events = parseSseEvents(sse.chunks);
+        expect(events.filter((event) => event.event === "step_output").map((event) => event.data.text)).toEqual(["first", "second"]);
+
+        vi.advanceTimersByTime(500);
+        events = parseSseEvents(sse.chunks);
+        expect(events.filter((event) => event.event === "step_output").map((event) => event.data.text)).toEqual(["first", "second"]);
+      } finally {
+        sse.close();
+      }
     });
   });
 

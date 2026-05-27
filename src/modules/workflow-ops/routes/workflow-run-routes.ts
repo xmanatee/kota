@@ -6,6 +6,10 @@ import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { BuilderRunSummary } from "#modules/autonomy/workflows/builder/run-summary.js";
+import {
+  parseKotaAgentMessageLine,
+  projectAgentMessageToRunStreamEvents,
+} from "../runs/stream-projection.js";
 import { readStepEvents } from "../runs/workflow-logs.js";
 
 type RunSummary = {
@@ -162,7 +166,7 @@ export function handleWorkflowRunStream(
     }
   }
 
-  function streamStepJsonl(stepId: string): void {
+  function streamStepJsonl(stepId: string, flushTrailingLine = false): void {
     const eventsPath = join(stepsDir, `${stepId}.events.jsonl`);
     if (!existsSync(eventsPath)) return;
     let content: string;
@@ -171,28 +175,27 @@ export function handleWorkflowRunStream(
     } catch {
       return;
     }
-    const lines = content.split("\n").filter((l) => l.trim());
-    const offset = jsonlOffsets[stepId] ?? 0;
-    const newLines = lines.slice(offset);
-    jsonlOffsets[stepId] = lines.length;
+    let offset = jsonlOffsets[stepId] ?? 0;
+    if (offset > content.length) offset = 0;
 
-    for (const line of newLines) {
-      try {
-        const event = JSON.parse(line) as Record<string, unknown>;
-        if (event.type === "assistant") {
-          const msg = event.message as { content?: Array<{ type: string; text?: string; name?: string; thinking?: string }> } | undefined;
-          for (const block of msg?.content ?? []) {
-            if (block.type === "text" && block.text) {
-              sse.send("step_output", { stepId, text: block.text });
-            } else if (block.type === "tool_use" && block.name) {
-              sse.send("step_tool", { stepId, tool: block.name });
-            } else if (block.type === "thinking" && block.thinking) {
-              sse.send("step_thinking", { stepId, thinking: block.thinking });
-            }
-          }
-        }
-      } catch {
-        // malformed line — skip
+    const chunk = content.slice(offset);
+    const lastNewlineIndex = chunk.lastIndexOf("\n");
+    let completeChunk = "";
+    if (lastNewlineIndex >= 0) {
+      completeChunk = chunk.slice(0, lastNewlineIndex);
+      jsonlOffsets[stepId] = offset + lastNewlineIndex + 1;
+    } else if (flushTrailingLine && chunk.trim()) {
+      completeChunk = chunk;
+      jsonlOffsets[stepId] = content.length;
+    } else {
+      return;
+    }
+
+    for (const line of completeChunk.split("\n").filter((l) => l.trim())) {
+      const message = parseKotaAgentMessageLine(line);
+      if (!message) continue;
+      for (const event of projectAgentMessageToRunStreamEvents(stepId, message)) {
+        sse.send(event.eventName, event.payload);
       }
     }
   }
@@ -210,7 +213,7 @@ export function handleWorkflowRunStream(
         sse.send("step_started", { stepId: step.id, type: step.type, startedAt: step.startedAt });
       }
       if (!completedSteps.has(step.id)) {
-        streamStepJsonl(step.id);
+        streamStepJsonl(step.id, true);
         completedSteps.add(step.id);
         sse.send("step_completed", {
           stepId: step.id,
@@ -229,7 +232,7 @@ export function handleWorkflowRunStream(
           announcedSteps.add(stepId);
           sse.send("step_started", { stepId, type: "agent" });
         }
-        streamStepJsonl(stepId);
+        streamStepJsonl(stepId, meta.status !== "running");
       }
     }
 

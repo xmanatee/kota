@@ -13,6 +13,7 @@ import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowRunMetadata, WorkflowRuntimeState } from "#core/workflow/run-types.js";
 import { line, plain } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
+import { parseKotaAgentMessageLine } from "./stream-projection.js";
 
 const DEFAULT_MAX_LEN = 200;
 
@@ -118,10 +119,7 @@ export function readStepEvents(eventsPath: string): KotaAgentMessage[] {
   return raw
     .split("\n")
     .filter((l) => l.trim())
-    .map((l) => {
-      try { return JSON.parse(l) as KotaAgentMessage; }
-      catch { return null; }
-    })
+    .map(parseKotaAgentMessageLine)
     .filter((m): m is KotaAgentMessage => m !== null);
 }
 
