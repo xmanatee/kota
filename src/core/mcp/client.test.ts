@@ -648,6 +648,70 @@ rl.on("line", (line) => {
 });
 `;
 
+const MCP_STDIO_ENV_PROBE_KEYS = [
+  "KOTA_TEST_PARENT_SECRET",
+  "KOTA_TEST_GET_SECRET_INJECTED",
+  "KOTA_SESSION_ID",
+  "KOTA_TOOL_USE_ID",
+  "OTEL_EXPORTER_OTLP_ENDPOINT",
+  "OTLP_ENDPOINT",
+] as const;
+type McpStdioEnvProbeKey = (typeof MCP_STDIO_ENV_PROBE_KEYS)[number];
+
+const MCP_STDIO_ENV_PROBE_SERVER = `
+const keys = ${JSON.stringify(MCP_STDIO_ENV_PROBE_KEYS)};
+const rl = require("readline").createInterface({ input: process.stdin });
+
+function write(message) {
+  process.stdout.write(JSON.stringify(message) + "\\n");
+}
+
+function envValues() {
+  return Object.fromEntries(keys.map((key) => [key, process.env[key] ?? "missing"]));
+}
+
+rl.on("line", (line) => {
+  let msg;
+  try { msg = JSON.parse(line); } catch { return; }
+  if (msg.method === "initialize") {
+    write({ jsonrpc: "2.0", id: msg.id, result: {
+      protocolVersion: "2024-11-05",
+      capabilities: {},
+      serverInfo: { name: "stdio-env-probe" },
+    }});
+  } else if (msg.method === "notifications/initialized") {
+    return;
+  } else if (msg.method === "tools/list") {
+    write({ jsonrpc: "2.0", id: msg.id, result: {
+      tools: [{ name: "env_probe", description: "env probe", inputSchema: { type: "object" } }],
+    }});
+  } else if (msg.method === "tools/call" && msg.params?.name === "env_probe") {
+    write({ jsonrpc: "2.0", id: msg.id, result: {
+      content: [{ type: "text", text: JSON.stringify(envValues()) }],
+      isError: false,
+    }});
+  } else if (msg.method === "shutdown") {
+    write({ jsonrpc: "2.0", id: msg.id, result: {} });
+  }
+});
+`;
+
+function snapshotMcpStdioEnvProbeEnv(): Partial<Record<McpStdioEnvProbeKey, string>> {
+  const snapshot: Partial<Record<McpStdioEnvProbeKey, string>> = {};
+  for (const key of MCP_STDIO_ENV_PROBE_KEYS) snapshot[key] = process.env[key];
+  return snapshot;
+}
+
+function restoreMcpStdioEnvProbeEnv(
+  snapshot: Partial<Record<McpStdioEnvProbeKey, string>>,
+): void {
+  for (const key of MCP_STDIO_ENV_PROBE_KEYS) {
+    const value = snapshot[key];
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+}
+
 const SERVER_INITIATED_REQUESTS_MCP_SERVER = `
 const rl = require("readline").createInterface({ input: process.stdin });
 const observed = {
@@ -1113,6 +1177,85 @@ describe("McpClient lifecycle (fake MCP server)", () => {
 
     expect(client.getProtocolVersion()).toBe(MCP_DRAFT_PROTOCOL_VERSION);
     expect(client.getToolResultContract()).toBe("complete-tool-result");
+  }, 10_000);
+
+  it("spawns stdio MCP servers without inherited parent secrets or KOTA runtime env", async () => {
+    const savedEnv = snapshotMcpStdioEnvProbeEnv();
+    try {
+      process.env.KOTA_TEST_PARENT_SECRET = "parent-secret-value";
+      process.env.KOTA_TEST_GET_SECRET_INJECTED = "get-secret-injected-value";
+      process.env.KOTA_SESSION_ID = "parent-session";
+      process.env.KOTA_TOOL_USE_ID = "parent-tool";
+      process.env.OTEL_EXPORTER_OTLP_ENDPOINT = "http://parent-otel";
+      process.env.OTLP_ENDPOINT = "http://parent-otlp";
+
+      client = new McpClient(
+        "node",
+        ["-e", MCP_STDIO_ENV_PROBE_SERVER],
+        {},
+        "stdio-env-probe",
+      );
+      await client.connect();
+
+      const result = expectCompletedResult(await client.callTool("env_probe", {}));
+      const values = JSON.parse(result.text) as Record<McpStdioEnvProbeKey, string>;
+
+      expect(values).toEqual({
+        KOTA_TEST_PARENT_SECRET: "missing",
+        KOTA_TEST_GET_SECRET_INJECTED: "missing",
+        KOTA_SESSION_ID: "missing",
+        KOTA_TOOL_USE_ID: "missing",
+        OTEL_EXPORTER_OTLP_ENDPOINT: "missing",
+        OTLP_ENDPOINT: "missing",
+      });
+      expect(JSON.stringify(values)).not.toContain("parent-secret-value");
+      expect(JSON.stringify(values)).not.toContain("get-secret-injected-value");
+    } finally {
+      restoreMcpStdioEnvProbeEnv(savedEnv);
+    }
+  }, 10_000);
+
+  it("passes sensitive env names to stdio MCP servers only through transport.env", async () => {
+    const savedEnv = snapshotMcpStdioEnvProbeEnv();
+    try {
+      process.env.KOTA_TEST_PARENT_SECRET = "parent-secret-value";
+      process.env.KOTA_TEST_GET_SECRET_INJECTED = "get-secret-injected-value";
+      process.env.KOTA_SESSION_ID = "parent-session";
+      process.env.KOTA_TOOL_USE_ID = "parent-tool";
+      process.env.OTEL_EXPORTER_OTLP_ENDPOINT = "http://parent-otel";
+      process.env.OTLP_ENDPOINT = "http://parent-otlp";
+
+      client = new McpClient(
+        "node",
+        ["-e", MCP_STDIO_ENV_PROBE_SERVER],
+        {
+          KOTA_TEST_PARENT_SECRET: "configured-parent-secret",
+          KOTA_TEST_GET_SECRET_INJECTED: "configured-get-secret",
+          KOTA_SESSION_ID: "configured-session",
+          KOTA_TOOL_USE_ID: "configured-tool",
+          OTEL_EXPORTER_OTLP_ENDPOINT: "http://configured-otel",
+          OTLP_ENDPOINT: "http://configured-otlp",
+        },
+        "stdio-env-probe-configured",
+      );
+      await client.connect();
+
+      const result = expectCompletedResult(await client.callTool("env_probe", {}));
+      const values = JSON.parse(result.text) as Record<McpStdioEnvProbeKey, string>;
+
+      expect(values).toEqual({
+        KOTA_TEST_PARENT_SECRET: "configured-parent-secret",
+        KOTA_TEST_GET_SECRET_INJECTED: "configured-get-secret",
+        KOTA_SESSION_ID: "configured-session",
+        KOTA_TOOL_USE_ID: "configured-tool",
+        OTEL_EXPORTER_OTLP_ENDPOINT: "http://configured-otel",
+        OTLP_ENDPOINT: "http://configured-otlp",
+      });
+      expect(JSON.stringify(values)).not.toContain("parent-secret-value");
+      expect(JSON.stringify(values)).not.toContain("get-secret-injected-value");
+    } finally {
+      restoreMcpStdioEnvProbeEnv(savedEnv);
+    }
   }, 10_000);
 
   it("starts stdio negotiation with current stable before falling back to legacy", async () => {

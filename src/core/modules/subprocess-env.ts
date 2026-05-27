@@ -17,3 +17,26 @@ export function buildFilteredInheritedSubprocessEnv(
   }
   return env;
 }
+
+const REQUIRED_INHERITED_SUBPROCESS_ENV_KEYS = [
+  "PATH",
+  "Path",
+  "PATHEXT",
+  "SystemRoot",
+  "WINDIR",
+  "COMSPEC",
+  "TMPDIR",
+  "TMP",
+  "TEMP",
+] as const;
+
+export function buildRequiredInheritedSubprocessEnv(
+  inheritedEnv: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const key of REQUIRED_INHERITED_SUBPROCESS_ENV_KEYS) {
+    const value = inheritedEnv[key];
+    if (value !== undefined) env[key] = value;
+  }
+  return env;
+}

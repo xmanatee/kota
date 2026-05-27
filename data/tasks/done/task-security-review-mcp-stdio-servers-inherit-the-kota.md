@@ -1,12 +1,12 @@
 ---
 id: task-security-review-mcp-stdio-servers-inherit-the-kota
 title: Security review: MCP stdio servers inherit the KOTA process's full environment, so parent credentials and real values previously injected by get_secret are exposed to every spawned stdio MCP subprocess unless explicitly filtered.
-status: ready
+status: done
 priority: p1
 area: security
 summary: MCP stdio servers inherit the KOTA process's full environment, so parent credentials and real values previously injected by get_secret are exposed to every spawned stdio MCP subprocess unless explicitly filtered.
 created_at: 2026-05-27T01:13:29.537Z
-updated_at: 2026-05-27T01:13:29.537Z
+updated_at: 2026-05-27T01:20:23.000Z
 ---
 
 ## Problem
@@ -55,4 +55,7 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `pnpm test src/core/mcp/client.test.ts` passed, including stdio env-probe regressions for absent inherited parent secrets/get_secret values/KOTA IDs/OTEL/OTLP values and explicit transport.env opt-in.
+- `pnpm typecheck` passed.
+- `pnpm test src/task-files.test.ts` passed.
+- `pnpm exec biome check src/core/mcp/client-connection.ts src/core/mcp/client.test.ts src/core/modules/subprocess-env.ts` passed.

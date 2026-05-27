@@ -1,6 +1,7 @@
 import type { Buffer } from "node:buffer";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
+import { buildRequiredInheritedSubprocessEnv } from "#core/modules/subprocess-env.js";
 import { McpAuthorizationError, McpConnectionError } from "./client-auth-types.js";
 import {
   generatedProgressToken,
@@ -32,6 +33,15 @@ import {
   mcpToolResultContractForProtocol,
 } from "./client-protocol.js";
 
+function buildMcpStdioSubprocessEnv(
+  transportEnv: Record<string, string> | undefined,
+): NodeJS.ProcessEnv {
+  return {
+    ...buildRequiredInheritedSubprocessEnv(),
+    ...(transportEnv ?? {}),
+  };
+}
+
 export abstract class McpClientConnection extends McpClientHttpRuntime {
   /** Connect the configured transport and complete the MCP handshake. */
   async connect(): Promise<void> {
@@ -61,7 +71,7 @@ export abstract class McpClientConnection extends McpClientHttpRuntime {
     if (this.transport.type !== "stdio") return;
     this.proc = spawn(this.transport.command, this.transport.args ?? [], {
       stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env, ...(this.transport.env ?? {}) },
+      env: buildMcpStdioSubprocessEnv(this.transport.env),
     });
 
     this.proc.on("error", (err) => {
