@@ -25,10 +25,11 @@ export class WebAccessTargetError extends Error {
 
 const MAX_WEB_ACCESS_REDIRECTS = 20;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
-const CROSS_ORIGIN_CREDENTIAL_HEADERS = new Set([
-  "authorization",
-  "cookie",
-  "proxy-authorization",
+const CROSS_ORIGIN_REDIRECT_SAFE_HEADERS = new Set([
+  "accept",
+  "accept-language",
+  "content-type",
+  "user-agent",
 ]);
 
 export async function validatePublicWebAccessUrl(rawUrl: string): Promise<WebAccessTargetValidation> {
@@ -104,7 +105,7 @@ export async function fetchPublicWebAccessUrl(
 
     const nextUrl = new URL(location, currentUrl).toString();
     if (new URL(nextUrl).origin !== new URL(currentUrl).origin) {
-      headers = stripCrossOriginCredentialHeaders(headers);
+      headers = retainCrossOriginRedirectSafeHeaders(headers);
     }
     const normalizedMethod = (method ?? "GET").toUpperCase();
     if (response.status === 303 || ((response.status === 301 || response.status === 302) && normalizedMethod === "POST")) {
@@ -116,22 +117,24 @@ export async function fetchPublicWebAccessUrl(
   }
 }
 
-function stripCrossOriginCredentialHeaders(headers: HeadersInit | undefined): HeadersInit | undefined {
+function retainCrossOriginRedirectSafeHeaders(headers: HeadersInit | undefined): HeadersInit | undefined {
   if (!headers) return headers;
 
   if (headers instanceof Headers) {
     const stripped = new Headers(headers);
-    for (const name of CROSS_ORIGIN_CREDENTIAL_HEADERS) stripped.delete(name);
+    for (const name of Array.from(stripped.keys())) {
+      if (!CROSS_ORIGIN_REDIRECT_SAFE_HEADERS.has(name.toLowerCase())) stripped.delete(name);
+    }
     return stripped;
   }
 
   if (Array.isArray(headers)) {
-    return headers.filter(([name]) => !CROSS_ORIGIN_CREDENTIAL_HEADERS.has(name.toLowerCase()));
+    return headers.filter(([name]) => CROSS_ORIGIN_REDIRECT_SAFE_HEADERS.has(name.toLowerCase()));
   }
 
   const stripped: Record<string, string> = {};
   for (const [name, value] of Object.entries(headers)) {
-    if (CROSS_ORIGIN_CREDENTIAL_HEADERS.has(name.toLowerCase())) continue;
+    if (!CROSS_ORIGIN_REDIRECT_SAFE_HEADERS.has(name.toLowerCase())) continue;
     stripped[name] = value;
   }
   return stripped;

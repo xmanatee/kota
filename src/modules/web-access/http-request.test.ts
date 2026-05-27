@@ -662,7 +662,7 @@ describe("runHttpRequest", () => {
     expect(result.content).toContain("HTTP 200 OK");
   });
 
-  it("strips credential headers when a redirect changes origin", async () => {
+  it("strips caller-supplied unsafe headers when a redirect changes origin", async () => {
     globalThis.fetch = vi.fn()
       .mockResolvedValueOnce({
         status: 302,
@@ -681,9 +681,11 @@ describe("runHttpRequest", () => {
     const result = await runHttpRequest({
       url: "https://api.example.com/start",
       headers: {
+        Accept: "application/json",
         Authorization: "Bearer secret-token",
         Cookie: "session=secret",
         "Proxy-Authorization": "Basic secret",
+        "X-API-Key": "secret-api-key",
         "X-Custom": "value",
       },
     });
@@ -697,7 +699,9 @@ describe("runHttpRequest", () => {
     expect(secondRequest.headers.Authorization).toBeUndefined();
     expect(secondRequest.headers.Cookie).toBeUndefined();
     expect(secondRequest.headers["Proxy-Authorization"]).toBeUndefined();
-    expect(secondRequest.headers["X-Custom"]).toBe("value");
+    expect(secondRequest.headers["X-API-Key"]).toBeUndefined();
+    expect(secondRequest.headers["X-Custom"]).toBeUndefined();
+    expect(secondRequest.headers.Accept).toBe("application/json");
     expect(secondRequest.headers["User-Agent"]).toBe("KOTA/0.1");
   });
 

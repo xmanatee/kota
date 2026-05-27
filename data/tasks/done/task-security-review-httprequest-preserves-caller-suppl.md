@@ -1,12 +1,12 @@
 ---
 id: task-security-review-httprequest-preserves-caller-suppl
 title: Security review: http_request preserves caller-supplied custom headers across cross-origin redirects, so secret-bearing headers such as X-API-Key can be forwarded to a redirected origin.
-status: ready
+status: done
 priority: p2
 area: security
 summary: http_request preserves caller-supplied custom headers across cross-origin redirects, so secret-bearing headers such as X-API-Key can be forwarded to a redirected origin.
 created_at: 2026-05-27T07:59:59.322Z
-updated_at: 2026-05-27T07:59:59.322Z
+updated_at: 2026-05-27T08:04:25Z
 ---
 
 ## Problem
@@ -56,4 +56,5 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `NODE_OPTIONS=--conditions=source pnpm exec vitest run src/modules/web-access/http-request.test.ts src/modules/web-access/web-fetch.test.ts` passed.
+- `pnpm typecheck` passed.
