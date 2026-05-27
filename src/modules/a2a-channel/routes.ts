@@ -10,6 +10,8 @@ import {
 } from "./daemon-session-client.js";
 import {
   A2A_EXTENDED_CARD_PATH,
+  A2A_LEGACY_PROTOCOL_VERSION,
+  A2A_PROTOCOL_VERSION,
   A2A_RPC_PATH,
   A2A_WELL_KNOWN_CARD_PATH,
   A2AProtocolError,
@@ -27,11 +29,14 @@ import {
   makeJsonRpcResponse,
   methodNotFound,
   unauthorized,
+  versionNotSupported,
 } from "./protocol.js";
 
 export type A2ARouteOptions = {
   backendFactory?: () => A2ABackend | null;
 };
+
+const A2A_VERSION_QUERY_PARAMETER = "A2A-Version";
 
 type CanonicalMethod =
   | "SendMessage"
@@ -88,6 +93,16 @@ async function handleRpc(
     const raw = await readBody(req);
     const request = decodeJsonRpcRequest(raw as JsonObject);
     id = request.id;
+    const streaming = isStreamingMethod(request.method);
+    const requestedVersion = requestedA2AProtocolVersion(req);
+    if (requestedVersion !== A2A_PROTOCOL_VERSION) {
+      const err = versionNotSupported(requestedVersion);
+      if (streaming) {
+        sendSingleSseError(res, id, err);
+        return;
+      }
+      throw err;
+    }
     const method = canonicalMethod(request.method);
     if (method === "SendStreamingMessage" || method === "SubscribeToTask") {
       await handleStreamingRpc(res, req, id, method, request.params, backendFactory);
@@ -122,6 +137,42 @@ async function handleRpc(
     const normalized = normalizeA2AError(err instanceof Error ? err : String(err));
     jsonResponse(res, 200, makeJsonRpcError(id, normalized));
   }
+}
+
+function requestedA2AProtocolVersion(req: IncomingMessage): string {
+  const headerVersion = firstHeaderValue(req.headers["a2a-version"]);
+  if (headerVersion !== null) return normalizeRequestedA2AVersion(headerVersion);
+
+  const url = new URL(req.url ?? "/", "http://127.0.0.1");
+  const queryVersion = url.searchParams.get(A2A_VERSION_QUERY_PARAMETER);
+  if (queryVersion !== null) return normalizeRequestedA2AVersion(queryVersion);
+
+  return A2A_LEGACY_PROTOCOL_VERSION;
+}
+
+function normalizeRequestedA2AVersion(value: string): string {
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : A2A_LEGACY_PROTOCOL_VERSION;
+}
+
+function firstHeaderValue(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
+function isStreamingMethod(method: string): boolean {
+  return method === "SendStreamingMessage" || method === "SubscribeToTask";
+}
+
+function sendSingleSseError(res: ServerResponse, id: JsonRpcId, err: A2AProtocolError): void {
+  setCors(res);
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "close",
+  });
+  res.write(`data: ${JSON.stringify(makeJsonRpcError(id, err))}\n\n`);
+  res.end();
 }
 
 async function handleRpcAuthFailure(req: IncomingMessage, res: ServerResponse): Promise<void> {

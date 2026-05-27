@@ -1,12 +1,12 @@
 ---
 id: task-enforce-a2a-version-negotiation-on-the-a2a-channel
 title: Enforce A2A version negotiation on the A2A channel
-status: ready
+status: done
 priority: p2
 area: modules
 summary: The A2A channel advertises protocolVersion 1.0 but does not validate A2A-Version requests or return VersionNotSupportedError before daemon work; make version negotiation explicit at the module boundary.
 created_at: 2026-05-27T07:33:34.400Z
-updated_at: 2026-05-27T07:33:34.400Z
+updated_at: 2026-05-27T07:45:19.752Z
 ---
 
 ## Problem
@@ -114,3 +114,10 @@ A2A protocol fidelity through a module-owned channel.
 - A protocol transcript under `.kota/runs/<run-id>/` showing one accepted v1.0
   request and one unsupported-version JSON-RPC/SSE response that occurs before
   daemon session work.
+
+## Completion Evidence
+
+- `pnpm test src/modules/a2a-channel`
+- `pnpm run typecheck`
+- `pnpm exec biome check src/modules/a2a-channel`
+- `.kota/runs/2026-05-27T07-36-07-584Z-builder-v2alwu/protocol-transcript.txt`

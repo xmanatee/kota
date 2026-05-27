@@ -4,6 +4,8 @@ export type JsonObject = { [key: string]: JsonValue | undefined };
 export type JsonRpcId = string | number | null;
 
 export const A2A_PROTOCOL_VERSION = "1.0";
+export const A2A_LEGACY_PROTOCOL_VERSION = "0.3";
+export const A2A_SUPPORTED_PROTOCOL_VERSIONS = [A2A_PROTOCOL_VERSION] as const;
 export const A2A_RPC_PATH = "/api/a2a/rpc";
 export const A2A_EXTENDED_CARD_PATH = "/api/a2a/agent-card.json";
 export const A2A_WELL_KNOWN_CARD_PATH = "/.well-known/agent-card.json";
@@ -308,6 +310,15 @@ export function terminalTaskSubscription(taskId: string): A2AProtocolError {
 export function capabilityMismatch(message: string): A2AProtocolError {
   return new A2AProtocolError(-32004, message, [
     errorInfo("UNSUPPORTED_OPERATION"),
+  ]);
+}
+
+export function versionNotSupported(requestedVersion: string): A2AProtocolError {
+  return new A2AProtocolError(-32009, `A2A protocol version is not supported: ${requestedVersion}`, [
+    errorInfo("VERSION_NOT_SUPPORTED", {
+      requestedVersion,
+      supportedVersions: [...A2A_SUPPORTED_PROTOCOL_VERSIONS],
+    }),
   ]);
 }
 

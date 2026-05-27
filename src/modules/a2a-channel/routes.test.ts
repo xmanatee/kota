@@ -6,7 +6,10 @@ import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type { A2ABackend } from "./daemon-session-client.js";
 import { DaemonA2ABackend, makeTask } from "./daemon-session-client.js";
 import {
+  A2A_EXTENDED_CARD_PATH,
+  A2A_PROTOCOL_VERSION,
   A2A_RPC_PATH,
+  A2A_SUPPORTED_PROTOCOL_VERSIONS,
   A2A_WELL_KNOWN_CARD_PATH,
   type A2ATask,
   type A2ATaskUpdate,
@@ -51,7 +54,7 @@ describe("a2a channel routes", () => {
         {
           url: `${server.baseUrl}${A2A_RPC_PATH}`,
           protocolBinding: "JSONRPC",
-          protocolVersion: "1.0",
+          protocolVersion: A2A_PROTOCOL_VERSION,
         },
       ],
       capabilities: {
@@ -70,6 +73,9 @@ describe("a2a channel routes", () => {
     expect(card.preferredTransport).toBeUndefined();
     expect(card.url).toBeUndefined();
     expect(card.skills.map((skill: { id: string }) => skill.id)).toContain("kota.session");
+
+    const extended = await fetch(`${server.baseUrl}${A2A_EXTENDED_CARD_PATH}`);
+    expect((await extended.json()).supportedInterfaces).toEqual(card.supportedInterfaces);
   });
 
   it("handles SendMessage, GetTask, ListTasks, and CancelTask through JSON-RPC", async () => {
@@ -138,6 +144,89 @@ describe("a2a channel routes", () => {
     expect(cancel.result.status.state).toBe("TASK_STATE_CANCELED");
   });
 
+  it("negotiates supported A2A v1.0 through the header and request parameter", async () => {
+    const backend = new FakeBackend();
+    const server = await startRouteServer(a2aRoutes(makeContext(), {
+      backendFactory: () => backend,
+    }));
+    servers.push(server.server);
+
+    const byHeader = await postRpc(server.baseUrl, {
+      jsonrpc: "2.0",
+      id: "version-header",
+      method: "ListTasks",
+      params: { projectId: "proj-1" },
+    });
+    expect(byHeader.result.tasks).toHaveLength(1);
+
+    const byQuery = await postRpc(
+      server.baseUrl,
+      {
+        jsonrpc: "2.0",
+        id: "version-query",
+        method: "ListTasks",
+        params: { projectId: "proj-2" },
+      },
+      {
+        includeDefaultVersion: false,
+        query: `?${new URLSearchParams({ "A2A-Version": A2A_PROTOCOL_VERSION })}`,
+      },
+    );
+    expect(byQuery.result.tasks).toHaveLength(1);
+    expect(backend.listFilters).toEqual([
+      { projectId: "proj-1", contextId: null },
+      { projectId: "proj-2", contextId: null },
+    ]);
+  });
+
+  it("rejects unsupported, missing, and empty A2A versions before daemon work starts", async () => {
+    const backend = new FakeBackend();
+    const backendFactory = vi.fn(() => backend);
+    const server = await startRouteServer(a2aRoutes(makeContext(), {
+      backendFactory,
+    }));
+    servers.push(server.server);
+
+    for (const entry of [
+      {
+        id: "explicit-version",
+        options: { headers: { "A2A-Version": "2.0" } },
+        requestedVersion: "2.0",
+      },
+      {
+        id: "missing-version",
+        options: { includeDefaultVersion: false },
+        requestedVersion: "0.3",
+      },
+      {
+        id: "empty-version",
+        options: { headers: { "A2A-Version": "" } },
+        requestedVersion: "0.3",
+      },
+    ]) {
+      const response = await postRpc(
+        server.baseUrl,
+        {
+          jsonrpc: "2.0",
+          id: entry.id,
+          method: "SendMessage",
+          params: sendMessageParams({ acceptedOutputModes: ["text/plain"] }),
+        },
+        entry.options,
+      );
+      expect(response.error.code).toBe(-32009);
+      expect(errorReason(response)).toBe("VERSION_NOT_SUPPORTED");
+      expect(errorMetadata(response)).toEqual({
+        requestedVersion: entry.requestedVersion,
+        supportedVersions: [...A2A_SUPPORTED_PROTOCOL_VERSIONS],
+      });
+      expect(response.id).toBe(entry.id);
+    }
+
+    expect(backendFactory).not.toHaveBeenCalled();
+    expect(backend.sentInputs).toHaveLength(0);
+  });
+
   it("streams SendStreamingMessage status, artifact, final task, and JSON-RPC response as SSE", async () => {
     const backend = new FakeBackend();
     const server = await startRouteServer(a2aRoutes(makeContext(), {
@@ -147,7 +236,7 @@ describe("a2a channel routes", () => {
 
     const res = await fetch(`${server.baseUrl}${A2A_RPC_PATH}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "A2A-Version": A2A_PROTOCOL_VERSION },
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: "stream-1",
@@ -166,6 +255,52 @@ describe("a2a channel routes", () => {
     expect(frames[0]?.result.statusUpdate.status.state).toBe("TASK_STATE_WORKING");
     expect(frames[1]?.result.artifactUpdate.artifact.parts[0].text).toBe("partial");
     expect(frames[2]?.result.task.status.state).toBe("TASK_STATE_COMPLETED");
+  });
+
+  it("emits one SSE version error for streaming version mismatches before backend work", async () => {
+    const backend = new FakeBackend();
+    const backendFactory = vi.fn(() => backend);
+    const server = await startRouteServer(a2aRoutes(makeContext(), {
+      backendFactory,
+    }));
+    servers.push(server.server);
+
+    for (const request of [
+      {
+        id: "stream-version",
+        method: "SendStreamingMessage",
+        params: sendMessageParams({ acceptedOutputModes: ["text/plain"] }),
+      },
+      {
+        id: "subscribe-version",
+        method: "SubscribeToTask",
+        params: { id: "task-1" },
+      },
+    ]) {
+      const res = await fetch(`${server.baseUrl}${A2A_RPC_PATH}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "A2A-Version": "2.0" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: request.id,
+          method: request.method,
+          params: request.params,
+        }),
+      });
+      expect(res.headers.get("content-type")).toContain("text/event-stream");
+      const frames = parseSseJsonRpcResponses(await res.text());
+      expect(frames).toHaveLength(1);
+      expect(frames[0]?.id).toBe(request.id);
+      expect(frames[0]?.error.code).toBe(-32009);
+      expect(errorReason(frames[0])).toBe("VERSION_NOT_SUPPORTED");
+      expect(errorMetadata(frames[0])).toEqual({
+        requestedVersion: "2.0",
+        supportedVersions: [...A2A_SUPPORTED_PROTOCOL_VERSIONS],
+      });
+    }
+
+    expect(backendFactory).not.toHaveBeenCalled();
+    expect(backend.sentInputs).toHaveLength(0);
   });
 
   it("returns typed JSON-RPC errors for unsupported methods, bad parts, unknown tasks, terminal subscriptions, and unauthorized access", async () => {
@@ -207,7 +342,7 @@ describe("a2a channel routes", () => {
 
     const terminal = await fetch(`${server.baseUrl}${A2A_RPC_PATH}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "A2A-Version": A2A_PROTOCOL_VERSION },
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: 4,
@@ -295,7 +430,7 @@ describe("a2a channel routes", () => {
     ]) {
       const streaming = await fetch(`${server.baseUrl}${A2A_RPC_PATH}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "A2A-Version": A2A_PROTOCOL_VERSION },
         body: JSON.stringify({
           jsonrpc: "2.0",
           id: "stream-config",
@@ -568,10 +703,23 @@ async function startRouteServer(
   return { server, baseUrl: `http://127.0.0.1:${address.port}` };
 }
 
-async function postRpc(baseUrl: string, body: object) {
-  const res = await fetch(`${baseUrl}${A2A_RPC_PATH}`, {
+async function postRpc(
+  baseUrl: string,
+  body: object,
+  options: {
+    headers?: Record<string, string>;
+    includeDefaultVersion?: boolean;
+    query?: string;
+  } = {},
+) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (options.includeDefaultVersion !== false) {
+    headers["A2A-Version"] = A2A_PROTOCOL_VERSION;
+  }
+  Object.assign(headers, options.headers);
+  const res = await fetch(`${baseUrl}${A2A_RPC_PATH}${options.query ?? ""}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(body),
   });
   expect(res.status).toBe(200);
@@ -604,6 +752,10 @@ function sendMessageParams(configuration: object) {
 
 function errorReason(response: { error?: { data?: Array<{ reason?: string }> } }): string | undefined {
   return response.error?.data?.[0]?.reason;
+}
+
+function errorMetadata(response: { error?: { data?: Array<{ metadata?: unknown }> } }): unknown {
+  return response.error?.data?.[0]?.metadata;
 }
 
 function closeServer(server: Server): Promise<void> {
