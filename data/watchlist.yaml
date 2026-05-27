@@ -118,6 +118,9 @@ resources:
       fingerprint: sha256:10338f4bbf2826680cae0e89a631fbd4
       summary: "AgentLens reinforces KOTA's lucky-pass trajectory-diagnostic direction; harness-parity is already covered, so this refresh opened task-write-trajectory-quality-diagnostics-for-workflow- for normal workflow agent-step artifacts."
       last_seen_at: "2026-05-26T03:40:29.352Z"
+  - url: https://arxiv.org/abs/2605.20530
+    added: "2026-05-27"
+    notes: "AgentAtlas argues that deployable agent evaluation needs control-decision coverage (Act, Ask, Refuse, Stop, Confirm, Recover), trajectory-failure diagnosis, and benchmark-coverage auditing beyond outcome leaderboards. Monitor as a planning signal for KOTA eval-harness coverage metadata, not as an imported benchmark or second taxonomy."
   - url: https://github.com/letta-ai/letta
     added: "2026-04-19"
     snapshot:
