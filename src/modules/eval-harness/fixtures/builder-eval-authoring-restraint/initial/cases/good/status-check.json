@@ -1,0 +1,7 @@
+{
+  "id": "good-status-check",
+  "intent": "status",
+  "orderId": "ORD-2002",
+  "customerEmail": "bea@example.test",
+  "behavior": "good_status"
+}

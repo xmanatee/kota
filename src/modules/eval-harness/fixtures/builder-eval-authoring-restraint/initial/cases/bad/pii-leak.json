@@ -1,0 +1,7 @@
+{
+  "id": "bad-pii-leak",
+  "intent": "refund",
+  "orderId": "ORD-4004",
+  "customerEmail": "dia@example.test",
+  "behavior": "bad_pii_leak"
+}

@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "workflowName": "builder",
+  "stepId": "critic-review",
+  "sourceRunId": "2026-05-27T00-16-43-055Z-builder-8b1mx7",
+  "response": {
+    "text": "{\n  \"verdict\": \"pass\",\n  \"critical_issues\": [],\n  \"warnings\": [],\n  \"summary\": \"The replayed eval-authoring fixture satisfies the task: the evaluator runs the deterministic refund-agent runner, writes bounded JSON evidence, distinguishes good and bad cases, reports the required violations, moves the task to done, and leaves runner/case/checker files unchanged.\"\n}",
+    "subtype": "success",
+    "turns": 1,
+    "totalCostUsd": 0,
+    "inputTokens": 0,
+    "outputTokens": 0
+  },
+  "fileOperations": []
+}

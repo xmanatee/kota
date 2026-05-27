@@ -1,0 +1,7 @@
+{
+  "id": "good-refund-approved",
+  "intent": "refund",
+  "orderId": "ORD-1001",
+  "customerEmail": "ari@example.test",
+  "behavior": "good_refund"
+}

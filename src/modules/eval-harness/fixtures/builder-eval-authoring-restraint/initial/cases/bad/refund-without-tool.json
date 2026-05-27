@@ -1,0 +1,7 @@
+{
+  "id": "bad-refund-without-tool",
+  "intent": "refund",
+  "orderId": "ORD-3003",
+  "customerEmail": "cam@example.test",
+  "behavior": "bad_refund_without_tool"
+}

@@ -1,12 +1,12 @@
 ---
 id: task-add-an-eval-authoring-restraint-fixture-to-the-eva
 title: Add an eval-authoring restraint fixture to the eval harness
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Seed an eval-harness fixture where the builder must add one focused executable evaluation for a small agent or tool requirement without overengineering metrics or passing through prose-only artifacts.
 created_at: 2026-05-26T22:50:16.902Z
-updated_at: 2026-05-26T22:50:16.902Z
+updated_at: 2026-05-27T00:31:35.000Z
 ---
 
 ## Problem

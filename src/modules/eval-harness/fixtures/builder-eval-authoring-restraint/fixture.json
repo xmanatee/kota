@@ -1,0 +1,87 @@
+{
+  "id": "builder-eval-authoring-restraint",
+  "description": "Replay-backed builder fixture for authoring one focused executable evaluator for deterministic refund-agent traces, with predicates rejecting prose-only results, always-pass behavior, and metric sprawl.",
+  "role": "builder",
+  "workflowName": "builder",
+  "budgetMs": 1800000,
+  "predicates": [
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-evaluation.mjs",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "file-absent",
+      "path": "data/tasks/ready/task-author-refund-trace-evaluator.md"
+    },
+    {
+      "kind": "file-exists",
+      "path": "data/tasks/done/task-author-refund-trace-evaluator.md"
+    },
+    {
+      "kind": "file-contains",
+      "path": "data/tasks/done/task-author-refund-trace-evaluator.md",
+      "needle": "status: done"
+    },
+    {
+      "kind": "file-exists",
+      "path": "artifacts/evaluation-result.json"
+    },
+    {
+      "kind": "git-changes-within",
+      "allowedPaths": [
+        "artifacts/evaluation-result.json",
+        "scripts/evaluate-traces.mjs",
+        "data/tasks/ready/task-author-refund-trace-evaluator.md",
+        "data/tasks/done/task-author-refund-trace-evaluator.md"
+      ]
+    }
+  ],
+  "objectiveMetrics": [
+    {
+      "name": "bad_cases_caught",
+      "unit": "cases",
+      "direction": "higher_is_better",
+      "source": {
+        "kind": "shell",
+        "command": "node scripts/check-evaluation.mjs --metric-only bad-cases-caught",
+        "timeoutMs": 15000
+      }
+    }
+  ],
+  "tags": [
+    "autonomy",
+    "builder-discipline",
+    "eval-authoring",
+    "agent-call-replay",
+    "objective-metric"
+  ],
+  "provenance": {
+    "kind": "smoke-fixture",
+    "justification": "Synthetic replay-backed builder canary for AgentEvalBench-shaped eval-authoring restraint: the builder must author one narrow executable evaluator with bounded metrics and machine-readable evidence instead of a prose report, an always-pass script, or a large metric bundle. It uses the existing agent-step replay path so `pnpm kota eval run` remains deterministic and network-free while the predicates and objective metric prove the eval-authoring artifact shape. No past KOTA failure run exists for this exact measurement gap."
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-evaluation.mjs",
+        "timeoutMs": 15000
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/tasks/ready/task-author-refund-trace-evaluator.md"
+      },
+      "expected": "pass"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "artifacts/evaluation-result.json"
+      },
+      "expected": "fail"
+    }
+  ]
+}
