@@ -13,6 +13,7 @@ import { type AutonomyMode, isAutonomyMode } from "#core/tools/autonomy-mode.js"
 import type { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import type { DaemonChatMakeAgent, DaemonChatPool } from "./daemon-chat-pool.js";
 import { jsonResponse } from "./daemon-control-utils.js";
+import type { ProjectId } from "./project-registry.js";
 
 /** Read the HTTP request body as a parsed JSON object (max 1MB). */
 export function readChatBody(req: IncomingMessage): Promise<Record<string, unknown>> {
@@ -43,6 +44,7 @@ export function readChatBody(req: IncomingMessage): Promise<Record<string, unkno
 
 /** Write a single SSE frame to the response. */
 function writeSse(res: ServerResponse, eventName: string, data: unknown): void {
+  if (res.writableEnded || res.destroyed) return;
   res.write(`event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
@@ -53,9 +55,9 @@ function writeSse(res: ServerResponse, eventName: string, data: unknown): void {
  */
 export type DaemonChatConversationResolver = {
   /** True iff a conversation exists in history for this id. */
-  conversationExists(conversationId: string): boolean;
+  conversationExists(conversationId: string, projectId: ProjectId): boolean;
   /** Create a new conversation record and return its id. */
-  createConversation(mode: AutonomyMode): string;
+  createConversation(mode: AutonomyMode, projectId: ProjectId): string;
 };
 
 /** POST /sessions — create a new daemon-owned session, optionally waking a prior one. */
@@ -66,6 +68,7 @@ export async function handleCreateDaemonSession(
   res: ServerResponse,
   makeAgent: DaemonChatMakeAgent,
   defaultAutonomyMode: AutonomyMode | undefined,
+  projectId: ProjectId,
   resolver: DaemonChatConversationResolver,
 ): Promise<void> {
   let body: Record<string, unknown>;
@@ -111,13 +114,19 @@ export async function handleCreateDaemonSession(
       jsonResponse(res, 404, { error: `No binding for session ${requestedSessionId}` });
       return;
     }
+    if (binding.projectId !== projectId) {
+      jsonResponse(res, 409, {
+        error: `Session ${requestedSessionId} is bound to project ${binding.projectId}, not ${projectId}`,
+      });
+      return;
+    }
     if (requestedConversationId && requestedConversationId !== binding.conversationId) {
       jsonResponse(res, 409, {
         error: `Session ${requestedSessionId} is bound to ${binding.conversationId}, not ${requestedConversationId}`,
       });
       return;
     }
-    if (!resolver.conversationExists(binding.conversationId)) {
+    if (!resolver.conversationExists(binding.conversationId, projectId)) {
       jsonResponse(res, 404, {
         error: `Bound conversation ${binding.conversationId} not found in history`,
       });
@@ -126,12 +135,18 @@ export async function handleCreateDaemonSession(
     wakeSessionId = requestedSessionId;
     conversationId = binding.conversationId;
   } else if (requestedConversationId) {
-    if (!resolver.conversationExists(requestedConversationId)) {
+    if (!resolver.conversationExists(requestedConversationId, projectId)) {
       jsonResponse(res, 404, { error: `Conversation ${requestedConversationId} not found in history` });
       return;
     }
     const existingBinding = bindings.getByConversation(requestedConversationId);
     if (existingBinding) {
+      if (existingBinding.projectId !== projectId) {
+        jsonResponse(res, 409, {
+          error: `Conversation ${requestedConversationId} is bound to project ${existingBinding.projectId}, not ${projectId}`,
+        });
+        return;
+      }
       const live = pool.get(existingBinding.sessionId);
       if (live) {
         jsonResponse(res, 409, {
@@ -145,15 +160,24 @@ export async function handleCreateDaemonSession(
     }
     conversationId = requestedConversationId;
   } else {
-    conversationId = resolver.createConversation(mode);
+    try {
+      conversationId = resolver.createConversation(mode, projectId);
+    } catch (err) {
+      jsonResponse(res, 503, { error: (err as Error).message });
+      return;
+    }
   }
 
   try {
-    const session = pool.create(makeAgent, mode, conversationId, wakeSessionId);
-    bindings.put(session.id, session.conversationId);
+    const session = pool.create(makeAgent, mode, conversationId, {
+      projectId,
+      ...(wakeSessionId !== undefined ? { sessionId: wakeSessionId } : {}),
+    });
+    bindings.put(session.id, session.conversationId, session.projectId);
     jsonResponse(res, 201, {
       session_id: session.id,
       autonomy_mode: mode,
+      project_id: session.projectId,
       conversation_id: session.conversationId,
     });
   } catch (err) {
@@ -278,6 +302,14 @@ export async function handleDaemonChat(
     session.lastActive = Date.now();
     if (!res.writableEnded) res.end();
   }
+}
+
+/** POST /sessions/:id/cancel — abort the active turn without closing the session. */
+export function cancelDaemonSessionTurn(
+  pool: DaemonChatPool,
+  id: string,
+): boolean {
+  return pool.cancelActiveTurn(id);
 }
 
 /** DELETE /sessions/:id — close a daemon-owned session. Returns true if found. */

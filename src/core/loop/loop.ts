@@ -100,6 +100,7 @@ export class AgentSession implements AgentLoopState {
   showCost!: boolean;
   sigintHandler!: () => void;
   closed = false;
+  activeAbortControllers = new Set<AbortController>();
   initialized = false;
   initPromise!: Promise<void>;
   projectDir!: string;
@@ -197,6 +198,13 @@ export class AgentSession implements AgentLoopState {
     if (from === mode) return;
     this.autonomyMode = mode;
     tryEmit("session.autonomy.changed", { sessionId: this.sessionId, from, to: mode });
+  }
+
+  /** Abort the active turn without closing the session. */
+  cancelActiveTurn(reason: Error = new Error("Session cancelled")): void {
+    for (const controller of this.activeAbortControllers) {
+      if (!controller.signal.aborted) controller.abort(reason);
+    }
   }
 
   /** Clean up handlers and save final state. */

@@ -3,7 +3,7 @@
 This directory owns conversation history — the persistent record of past sessions across KOTA.
 
 - Owns the file-based `ConversationHistory` store (`history.ts`, `history-utils.ts`) and the project-scoped store resolver.
-- Registers itself as the history provider during `onLoad` via the typed `HISTORY_PROVIDER_TOKEN` (re-exported from `#core/modules/provider-registry.js`). Core resolves the store through `getHistoryProvider()`; callers outside this module must not import `getHistory` directly.
+- Registers itself as the history provider during `onLoad` via the typed `HISTORY_PROVIDER_TOKEN` (re-exported from `#core/modules/provider-registry.js`) and exposes project-scoped lookup through `HISTORY_PROJECT_PROVIDER_TOKEN`. Core resolves stores through provider seams; callers outside this module must not import `getHistory` directly.
 - Storage is project-scoped under `.kota/history`. Daemon/API access resolves
   a concrete project id before using the store. Omitted project ids resolve to
   the daemon's active/default project at the route or client boundary; explicit

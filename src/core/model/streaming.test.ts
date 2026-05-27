@@ -61,6 +61,35 @@ describe("streamMessage", () => {
     expect(client.messages.stream).toHaveBeenCalledTimes(1);
   });
 
+  it("passes abort signal through to the model client", async () => {
+    const s = createStream(["Hello"]);
+    const client = { messages: { stream: vi.fn().mockReturnValue(s) } };
+    const controller = new AbortController();
+
+    await streamMessage({ ...cfg(client), signal: controller.signal });
+
+    expect(client.messages.stream).toHaveBeenCalledWith(expect.objectContaining({
+      signal: controller.signal,
+    }));
+  });
+
+  it("does not retry after the caller aborts the stream", async () => {
+    const controller = new AbortController();
+    const reason = new Error("Session closed");
+    const failingStream = {
+      on: vi.fn(),
+      finalMessage: vi.fn().mockImplementation(async () => {
+        controller.abort(reason);
+        throw reason;
+      }),
+    };
+    const client = { messages: { stream: vi.fn().mockReturnValue(failingStream) } };
+
+    await expect(streamMessage({ ...cfg(client), signal: controller.signal })).rejects.toThrow("Session closed");
+
+    expect(client.messages.stream).toHaveBeenCalledTimes(1);
+  });
+
   it("retries on transient error and succeeds", async () => {
     const s = createStream(["OK"]);
     const client = {

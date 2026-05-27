@@ -11,6 +11,7 @@ import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-read
 import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import {
 	getHistoryProvider,
+	HISTORY_PROJECT_PROVIDER_TOKEN,
 	HISTORY_PROVIDER_TOKEN,
 } from "#core/modules/provider-registry.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
@@ -61,6 +62,18 @@ const historyModule: KotaModule = {
 	onLoad: (ctx: ModuleRuntimeContext) => {
 		const store = getProjectHistoryStore(ctx.cwd);
 		ctx.registerProvider(HISTORY_PROVIDER_TOKEN, store);
+		ctx.registerProvider(HISTORY_PROJECT_PROVIDER_TOKEN, {
+			forProject: (project) => {
+				if (project.isDefault) {
+					try {
+						return getHistoryProvider();
+					} catch {
+						return store;
+					}
+				}
+				return getProjectHistoryStore(project.projectDir);
+			},
+		});
 		ctx.registerProvider(
 			CAPABILITY_READINESS_PROVIDER_TYPE,
 			createHistoryReadinessSource(store),

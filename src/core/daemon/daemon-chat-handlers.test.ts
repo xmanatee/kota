@@ -13,6 +13,7 @@ import {
 import { DaemonChatPool } from "./daemon-chat-pool.js";
 
 const CONV_ID = "c-fixture-0000";
+const PROJECT_ID = "test-project-id";
 
 function makeBindingStore(): DaemonChatBindingStore {
   const dir = mkdtempSync(join(tmpdir(), "kota-chat-bindings-"));
@@ -76,6 +77,7 @@ function mockAgentSession(sendResult?: unknown, mode: "passive" | "supervised" |
   let current = mode;
   return {
     send: vi.fn(async () => sendResult ?? { status: "ok" }),
+    cancelActiveTurn: vi.fn(),
     close: vi.fn(),
     getAutonomyMode: vi.fn(() => current),
     setAutonomyMode: vi.fn((next: "passive" | "supervised" | "autonomous") => { current = next; }),
@@ -96,7 +98,7 @@ describe("handleCreateDaemonSession", () => {
     const res = mockResponse();
     const agent = mockAgentSession();
     const req = mockRequest("");
-    await handleCreateDaemonSession(pool, bindings, req as never, res as never, () => agent as never, "supervised", resolver);
+    await handleCreateDaemonSession(pool, bindings, req as never, res as never, () => agent as never, "supervised", PROJECT_ID, resolver);
     expect(res.writeHead).toHaveBeenCalledWith(201, expect.any(Object));
     const body = JSON.parse(res._written[res._written.length - 1]) as { session_id: string; autonomy_mode: string; conversation_id: string };
     expect(body.session_id).toBeTruthy();
@@ -112,7 +114,7 @@ describe("handleCreateDaemonSession", () => {
     const res = mockResponse();
     const agent = mockAgentSession();
     const req = mockRequest('{"autonomy_mode":"autonomous"}');
-    await handleCreateDaemonSession(pool, bindings, req as never, res as never, () => agent as never, "supervised", makeResolver());
+    await handleCreateDaemonSession(pool, bindings, req as never, res as never, () => agent as never, "supervised", PROJECT_ID, makeResolver());
     expect(res.writeHead).toHaveBeenCalledWith(201, expect.any(Object));
     const body = JSON.parse(res._written[res._written.length - 1]) as { autonomy_mode: string };
     expect(body.autonomy_mode).toBe("autonomous");
@@ -123,7 +125,7 @@ describe("handleCreateDaemonSession", () => {
     const bindings = makeBindingStore();
     const res = mockResponse();
     const req = mockRequest("");
-    await handleCreateDaemonSession(pool, bindings, req as never, res as never, () => mockAgentSession() as never, undefined, makeResolver());
+    await handleCreateDaemonSession(pool, bindings, req as never, res as never, () => mockAgentSession() as never, undefined, PROJECT_ID, makeResolver());
     expect(res.writeHead).toHaveBeenCalledWith(400, expect.any(Object));
     expect(pool.size).toBe(0);
   });
@@ -134,7 +136,7 @@ describe("handleCreateDaemonSession", () => {
     const res = mockResponse();
     const agent = mockAgentSession();
     const req = mockRequest('{"autonomy_mode":"autonomous"}');
-    await handleCreateDaemonSession(pool, bindings, req as never, res as never, () => agent as never, undefined, makeResolver());
+    await handleCreateDaemonSession(pool, bindings, req as never, res as never, () => agent as never, undefined, PROJECT_ID, makeResolver());
     expect(res.writeHead).toHaveBeenCalledWith(201, expect.any(Object));
     const body = JSON.parse(res._written[res._written.length - 1]) as { autonomy_mode: string };
     expect(body.autonomy_mode).toBe("autonomous");
@@ -145,7 +147,7 @@ describe("handleCreateDaemonSession", () => {
     const bindings = makeBindingStore();
     const res = mockResponse();
     const req = mockRequest('{"autonomy_mode":"banana"}');
-    await handleCreateDaemonSession(pool, bindings, req as never, res as never, () => mockAgentSession() as never, "supervised", makeResolver());
+    await handleCreateDaemonSession(pool, bindings, req as never, res as never, () => mockAgentSession() as never, "supervised", PROJECT_ID, makeResolver());
     expect(res.writeHead).toHaveBeenCalledWith(400, expect.any(Object));
     expect(pool.size).toBe(0);
   });
@@ -157,12 +159,12 @@ describe("handleCreateDaemonSession", () => {
     const agent = mockAgentSession();
     const res1 = mockResponse();
     const req1 = mockRequest("");
-    await handleCreateDaemonSession(pool, bindings, req1 as never, res1 as never, () => agent as never, "supervised", resolver);
+    await handleCreateDaemonSession(pool, bindings, req1 as never, res1 as never, () => agent as never, "supervised", PROJECT_ID, resolver);
     const s = pool.get(JSON.parse(res1._written[res1._written.length - 1] as string).session_id);
     if (s) s.busy = true;
     const res2 = mockResponse();
     const req2 = mockRequest("");
-    await handleCreateDaemonSession(pool, bindings, req2 as never, res2 as never, () => mockAgentSession() as never, "supervised", resolver);
+    await handleCreateDaemonSession(pool, bindings, req2 as never, res2 as never, () => mockAgentSession() as never, "supervised", PROJECT_ID, resolver);
     expect(res2.writeHead).toHaveBeenCalledWith(503, expect.any(Object));
   });
 
@@ -184,6 +186,7 @@ describe("handleCreateDaemonSession", () => {
         return mockAgentSession() as never;
       },
       "supervised",
+      PROJECT_ID,
       resolver,
     );
     expect(res.writeHead).toHaveBeenCalledWith(201, expect.any(Object));
@@ -196,7 +199,7 @@ describe("handleCreateDaemonSession", () => {
   it("wakes a prior session_id using the persisted binding", async () => {
     const pool = makePool();
     const bindings = makeBindingStore();
-    bindings.put("s-prior", "conv-prior");
+    bindings.put("s-prior", "conv-prior", PROJECT_ID);
     const conversations = new Set(["conv-prior"]);
     const resolver = makeResolver(conversations);
     const res = mockResponse();
@@ -208,6 +211,7 @@ describe("handleCreateDaemonSession", () => {
       res as never,
       () => mockAgentSession() as never,
       "supervised",
+      PROJECT_ID,
       resolver,
     );
     expect(res.writeHead).toHaveBeenCalledWith(201, expect.any(Object));
@@ -229,6 +233,7 @@ describe("handleCreateDaemonSession", () => {
       res as never,
       () => mockAgentSession() as never,
       "supervised",
+      PROJECT_ID,
       makeResolver(),
     );
     expect(res.writeHead).toHaveBeenCalledWith(404, expect.any(Object));
@@ -246,6 +251,7 @@ describe("handleCreateDaemonSession", () => {
       res as never,
       () => mockAgentSession() as never,
       "supervised",
+      PROJECT_ID,
       makeResolver(new Set()),
     );
     expect(res.writeHead).toHaveBeenCalledWith(404, expect.any(Object));
@@ -255,7 +261,7 @@ describe("handleCreateDaemonSession", () => {
     const pool = makePool();
     const bindings = makeBindingStore();
     const resolver = makeResolver();
-    bindings.put("s-live", "conv-live");
+    bindings.put("s-live", "conv-live", PROJECT_ID);
     const conversations = new Set(["conv-live"]);
     const res0 = mockResponse();
     await handleCreateDaemonSession(
@@ -265,6 +271,7 @@ describe("handleCreateDaemonSession", () => {
       res0 as never,
       () => mockAgentSession() as never,
       "supervised",
+      PROJECT_ID,
       { conversationExists: (id) => conversations.has(id), createConversation: resolver.createConversation },
     );
     expect(res0.writeHead).toHaveBeenCalledWith(201, expect.any(Object));
@@ -277,6 +284,7 @@ describe("handleCreateDaemonSession", () => {
       res1 as never,
       () => mockAgentSession() as never,
       "supervised",
+      PROJECT_ID,
       { conversationExists: (id) => conversations.has(id), createConversation: resolver.createConversation },
     );
     expect(res1.writeHead).toHaveBeenCalledWith(409, expect.any(Object));
@@ -318,7 +326,7 @@ describe("handleDaemonChat", () => {
   it("returns 400 when message is missing", async () => {
     const pool = makePool();
     const agent = mockAgentSession();
-    const session = pool.create(() => agent as never, "supervised", CONV_ID);
+    const session = pool.create(() => agent as never, "supervised", CONV_ID, { projectId: PROJECT_ID });
     const req = mockRequest('{}');
     const res = mockResponse();
     await handleDaemonChat(pool, req as never, res as never, session.id);
@@ -328,7 +336,7 @@ describe("handleDaemonChat", () => {
   it("returns 409 when session is busy", async () => {
     const pool = makePool();
     const agent = mockAgentSession();
-    const session = pool.create(() => agent as never, "supervised", CONV_ID);
+    const session = pool.create(() => agent as never, "supervised", CONV_ID, { projectId: PROJECT_ID });
     session.busy = true;
     const req = mockRequest('{"message":"hi"}');
     const res = mockResponse();
@@ -339,7 +347,7 @@ describe("handleDaemonChat", () => {
   it("streams SSE response for valid session", async () => {
     const pool = makePool();
     const agent = mockAgentSession({ status: "done" });
-    const session = pool.create(() => agent as never, "supervised", CONV_ID);
+    const session = pool.create(() => agent as never, "supervised", CONV_ID, { projectId: PROJECT_ID });
     const req = mockRequest('{"message":"hello"}');
     const res = mockResponse();
     await handleDaemonChat(pool, req as never, res as never, session.id);
@@ -359,7 +367,7 @@ describe("handleDaemonChat", () => {
       send: vi.fn(async () => { throw new Error("agent failed"); }),
       close: vi.fn(),
     };
-    const session = pool.create(() => agent as never, "supervised", CONV_ID);
+    const session = pool.create(() => agent as never, "supervised", CONV_ID, { projectId: PROJECT_ID });
     const req = mockRequest('{"message":"hi"}');
     const res = mockResponse();
     await handleDaemonChat(pool, req as never, res as never, session.id);

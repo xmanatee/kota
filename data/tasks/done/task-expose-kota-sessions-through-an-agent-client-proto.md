@@ -1,12 +1,12 @@
 ---
 id: task-expose-kota-sessions-through-an-agent-client-proto
 title: Expose KOTA sessions through an Agent Client Protocol adapter
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Agent Client Protocol has become a shared JSON-RPC-over-stdio surface for editor and headless clients to drive coding agents; KOTA should expose daemon sessions through a module-owned ACP adapter instead of inventing a parallel client integration path.
 created_at: 2026-05-27T03:38:33.649Z
-updated_at: 2026-05-27T03:38:33.649Z
+updated_at: 2026-05-27T03:54:54Z
 ---
 
 ## Problem
@@ -105,3 +105,11 @@ Agent/client interoperability through module-owned channels.
 - A protocol transcript or probe artifact under `.kota/runs/<run-id>/` showing
   a JSON-RPC ACP client initializing, creating a session, sending a prompt,
   receiving structured updates, and cancelling or closing cleanly.
+
+## Completion Evidence
+
+- `pnpm test src/modules/agent-client-protocol/index.test.ts`
+- `pnpm run typecheck`
+- `pnpm exec biome check src/modules/agent-client-protocol`
+- `pnpm build`
+- `.kota/runs/2026-05-27T03-41-39-611Z-builder-84l0x4/acp-protocol-transcript.jsonl`

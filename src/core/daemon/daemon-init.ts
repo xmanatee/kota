@@ -4,7 +4,13 @@ import { AgentSession } from "#core/loop/loop.js";
 import type { Transport } from "#core/loop/transport.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import type { HealthCheckResult } from "#core/modules/module-types.js";
-import { getHistoryProvider, getProviderRegistry } from "#core/modules/provider-registry.js";
+import {
+  getHistoryProvider,
+  getProviderRegistry,
+  HISTORY_PROJECT_PROVIDER_TOKEN,
+  type HistoryProjectProvider,
+} from "#core/modules/provider-registry.js";
+import type { HistoryProvider } from "#core/modules/provider-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRuntime } from "#core/workflow/runtime.js";
@@ -125,10 +131,15 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
   const daemonModel = config.model ?? config.config?.model;
   const daemonVerbose = config.verbose;
   const chatBindings = new DaemonChatBindingStore(stateDir);
+  const historyProjectProvider = getProviderRegistry()?.get(HISTORY_PROJECT_PROVIDER_TOKEN);
+  const resolveChatHistoryProvider = createChatHistoryProviderResolver({
+    projectRuntimes,
+    historyProjectProvider,
+  });
   const conversationResolver = {
-    conversationExists: (conversationId: string): boolean => {
+    conversationExists: (conversationId: string, projectId: string): boolean => {
       try {
-        return getHistoryProvider().load(conversationId) !== null;
+        return resolveChatHistoryProvider(projectId).load(conversationId) !== null;
       } catch {
         // History module not loaded (no session active yet). Treat as
         // "not found" — the caller will decide whether to create a fresh
@@ -136,10 +147,10 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
         return false;
       }
     },
-    createConversation: (_mode: AutonomyMode): string =>
-      getHistoryProvider().create(
+    createConversation: (_mode: AutonomyMode, projectId: string): string =>
+      resolveChatHistoryProvider(projectId).create(
         daemonModel ?? resolveActivePresetFromConfig(config.config).defaultModel,
-        projectDir,
+        projectRuntimes.get(projectId).project.projectDir,
         "user",
       ),
   };
@@ -223,15 +234,19 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
 
   const controlServer = new DaemonControlServer(handle, token, {
     eventBufferSize: config.config?.daemon?.eventBufferSize,
-    makeAgent: (transport: Transport, autonomyMode, resumeConversation) =>
-      new AgentSession({
+    makeAgent: (transport: Transport, autonomyMode, resumeConversation, projectId) => {
+      const runtime = projectRuntimes.get(projectId);
+      return new AgentSession({
         autonomyMode,
         model: daemonModel,
         verbose: daemonVerbose,
         transport,
         config: config.config,
         resumeConversation,
-      }),
+        projectDir: runtime.project.projectDir,
+        projectRuntime: runtime,
+      });
+    },
     defaultAutonomyMode: config.config?.serve?.defaultAutonomyMode,
     chatPool: { ttlMs: config.config?.daemon?.sessionIdleTtlMs },
     chatBindings,
@@ -270,6 +285,29 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
   };
 
   return ctx;
+}
+
+function createChatHistoryProviderResolver(opts: {
+  projectRuntimes: ProjectRuntimeRegistry;
+  historyProjectProvider: HistoryProjectProvider | null | undefined;
+}): (projectId: string) => HistoryProvider {
+  const defaultProjectId = opts.projectRuntimes.getDefaultProjectId();
+  return (projectId) => {
+    const runtime = opts.projectRuntimes.get(projectId);
+    if (opts.historyProjectProvider) {
+      return opts.historyProjectProvider.forProject({
+        projectId: runtime.project.projectId,
+        projectDir: runtime.project.projectDir,
+        isDefault: runtime.project.projectId === defaultProjectId,
+      });
+    }
+    if (runtime.project.projectId === defaultProjectId) {
+      return getHistoryProvider();
+    }
+    throw new Error(
+      `Project-scoped history provider is not registered for project ${runtime.project.projectId}`,
+    );
+  };
 }
 
 /**

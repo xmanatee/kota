@@ -66,8 +66,8 @@ boundary is enforced at compile time by `module-context-capabilities.test.ts`.
 - CLI-only provider loading should activate the configured provider modules and
   their declared dependencies without loading unrelated module side effects.
 - Provider registration and lookup go through typed `ProviderToken<T>` values.
-  Cross-cutting tokens (memory/knowledge/history/task/repo-tasks/rendering/
-  model-pricing) are exported from `provider-registry.ts`; module-domain
+  Cross-cutting tokens (memory/knowledge/history/history-project/task/
+  repo-tasks/rendering/model-pricing) are exported from `provider-registry.ts`; module-domain
   tokens (recall/capture/retract/answer/transcription/speech-synthesis,
   workflow dispatcher, metrics source, etc.) live with their owning type.
   The repo guard at `provider-registration-guard.test.ts` rejects new raw

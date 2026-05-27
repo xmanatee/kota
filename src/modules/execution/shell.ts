@@ -50,6 +50,11 @@ function truncateOutput(text: string): string {
   );
 }
 
+function abortMessage(signal: AbortSignal): string {
+  const { reason } = signal;
+  return reason instanceof Error ? reason.message : "Session cancelled";
+}
+
 export async function runShell(
   input: Record<string, unknown>,
   context?: ToolRunnerContext,
@@ -69,7 +74,8 @@ export async function runShell(
 
   return new Promise((resolve) => {
     const chunks: string[] = [];
-    let killed = false;
+    let killedReason: "timeout" | "abort" | null = null;
+    let forceKillTimer: ReturnType<typeof setTimeout> | null = null;
 
     // Show the command being run (dimmed)
     const dim = process.stderr.isTTY ? "\x1b[2m" : "";
@@ -84,12 +90,19 @@ export async function runShell(
       stdio: ["pipe", "pipe", "pipe"],
     });
 
-    const timer = setTimeout(() => {
-      killed = true;
+    const terminate = (reason: "timeout" | "abort") => {
+      if (killedReason) return;
+      killedReason = reason;
       proc.kill("SIGTERM");
-      // Force kill after 5s if SIGTERM doesn't work
-      setTimeout(() => proc.kill("SIGKILL"), 5_000);
+      forceKillTimer = setTimeout(() => proc.kill("SIGKILL"), 5_000);
+    };
+
+    const timer = setTimeout(() => {
+      terminate("timeout");
     }, timeout);
+    const onAbort = () => terminate("abort");
+    if (context?.signal?.aborted) onAbort();
+    else context?.signal?.addEventListener("abort", onAbort, { once: true });
 
     proc.stdout.on("data", (chunk: Buffer) => {
       const text = chunk.toString();
@@ -105,9 +118,22 @@ export async function runShell(
 
     proc.on("close", (code) => {
       clearTimeout(timer);
+      if (forceKillTimer) clearTimeout(forceKillTimer);
+      context?.signal?.removeEventListener("abort", onAbort);
       const output = chunks.join("").trim();
 
-      if (killed) {
+      if (killedReason === "abort") {
+        const message = context?.signal ? abortMessage(context.signal) : "Session cancelled";
+        resolve({
+          content: output
+            ? `${truncateOutput(output)}\n\n(aborted: ${message})`
+            : `Command aborted: ${message}`,
+          is_error: true,
+        });
+        return;
+      }
+
+      if (killedReason === "timeout") {
         resolve({
           content: output
             ? `${truncateOutput(output)}\n\n(killed: timeout after ${timeout}ms)`
@@ -136,6 +162,8 @@ export async function runShell(
 
     proc.on("error", (err) => {
       clearTimeout(timer);
+      if (forceKillTimer) clearTimeout(forceKillTimer);
+      context?.signal?.removeEventListener("abort", onAbort);
       resolve({ content: `Command error: ${err.message}`, is_error: true });
     });
 

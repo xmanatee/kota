@@ -19,6 +19,7 @@ export type { ToolResult, ToolResultBlock };
 export type ToolRunnerContext = {
   sessionId?: string;
   toolUseId?: string;
+  signal?: AbortSignal;
 };
 
 export type ToolRunner = (

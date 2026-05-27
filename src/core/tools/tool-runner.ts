@@ -33,6 +33,15 @@ type ToolUseBlock = {
   input: unknown;
 };
 
+function abortReason(signal: AbortSignal): Error {
+  const { reason } = signal;
+  return reason instanceof Error ? reason : new Error("Tool execution aborted");
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw abortReason(signal);
+}
+
 const CONTEXT_MAX_CHARS = 2000;
 const CONTEXT_TURNS = 3;
 
@@ -142,9 +151,11 @@ export async function executeToolCalls(
     guardrailsConfig,
     sessionId,
     messages,
+    signal,
   } = options;
   const results = await Promise.all(
     toolBlocks.map(async (block) => {
+      throwIfAborted(signal);
       if (verbose && transport) {
         transport.emit({
           type: "status",
@@ -295,6 +306,7 @@ export async function executeToolCalls(
       const runnerContext = {
         ...(sessionId && { sessionId }),
         toolUseId: block.id,
+        ...(signal ? { signal } : {}),
       };
       const call = {
         name: block.name,
@@ -308,13 +320,14 @@ export async function executeToolCalls(
 
         const mcpOptions: McpExecuteToolOptions = {};
         if (mcpInputResolver) mcpOptions.inputResolver = mcpInputResolver;
-        if (options.signal) mcpOptions.signal = options.signal;
+        if (signal) mcpOptions.signal = signal;
 
         return Object.keys(mcpOptions).length > 0
           ? mcpManager.executeTool(call.name, call.input, mcpOptions)
           : mcpManager.executeTool(call.name, call.input);
       };
       const result = await middleware.execute(call, baseFn);
+      throwIfAborted(signal);
 
       const durationMs = Math.round(performance.now() - startMs);
       const resultPayload = getToolResultTelemetryPayload(result);

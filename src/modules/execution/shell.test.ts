@@ -204,6 +204,21 @@ describe("shell: timeout", () => {
     expect(result.content).toContain("timed out");
   }, 10_000);
 
+  it("kills command when the session aborts", async () => {
+    const controller = new AbortController();
+    const promise = runShell(
+      { command: "sleep 60", timeout_ms: 10_000, stream_output: false },
+      { signal: controller.signal },
+    );
+
+    setTimeout(() => controller.abort(new Error("Session closed")), 50);
+
+    const result = await promise;
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("aborted");
+    expect(result.content).toContain("Session closed");
+  }, 10_000);
+
   it("uses default timeout of 120s if not specified", async () => {
     // Just verify it doesn't fail for a quick command
     const result = await runShell({ command: "echo fast" });

@@ -16,6 +16,7 @@ import type { ControlRouteRegistration } from "#core/modules/module-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import {
+  cancelDaemonSessionTurn,
   type DaemonChatConversationResolver,
   deleteDaemonSession,
   handleCreateDaemonSession,
@@ -62,11 +63,12 @@ function listInteractiveSessions(
   chatPool: DaemonChatPool | null,
   projectId: ProjectId | undefined,
 ): InteractiveSession[] {
-  if (!chatPool) return handle.listSessions(projectId);
-  const daemonEntries = chatPool.list();
+  const resolvedProjectId = projectId ?? handle.getProjectRegistryProjection().defaultProjectId;
+  if (!chatPool) return handle.listSessions(resolvedProjectId);
+  const daemonEntries = chatPool.list(resolvedProjectId);
   const daemonIds = new Set(daemonEntries.map((s) => s.id));
   const serveSessions = handle
-    .listSessions(projectId)
+    .listSessions(resolvedProjectId)
     .filter((s) => !daemonIds.has(s.id))
     .map((s) => ({ ...s, source: "serve" as const }));
   return [...serveSessions, ...daemonEntries];
@@ -387,6 +389,12 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
           jsonResponse(res, 503, { error: "Daemon chat sessions not available" });
           return;
         }
+        const scope = resolveProjectIdParam(h, new URL(req.url ?? "/", "http://127.0.0.1"));
+        if (!scope.ok) {
+          jsonResponse(res, 404, scope.error);
+          return;
+        }
+        const projectId = scope.projectId ?? h.getProjectRegistryProjection().defaultProjectId;
         return handleCreateDaemonSession(
           chatPool,
           chatBindings,
@@ -394,6 +402,7 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
           res,
           makeAgent,
           defaultAutonomyMode,
+          projectId,
           conversationResolver,
         );
       },
@@ -414,6 +423,23 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
           return;
         }
         return handleDaemonChat(chatPool, req, res, params.id);
+      },
+    },
+    {
+      method: "POST",
+      path: "/sessions/:id/cancel",
+      capabilityScope: "control",
+      handler: (_req, res, params) => {
+        if (!chatPool) {
+          jsonResponse(res, 503, { error: "Daemon chat sessions not available" });
+          return;
+        }
+        if (!cancelDaemonSessionTurn(chatPool, params.id)) {
+          jsonResponse(res, 404, { error: "Session not found" });
+          return;
+        }
+        res.writeHead(204);
+        res.end();
       },
     },
     {

@@ -1,13 +1,23 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetEventBus } from "#core/events/event-bus.js";
+import { registerModelClientFactory } from "#core/model/model-client.js";
+import {
+  HISTORY_PROJECT_PROVIDER_TOKEN,
+  HISTORY_PROVIDER_TOKEN,
+  type HistoryProvider,
+  initProviderRegistry,
+  resetProviderRegistry,
+} from "#core/modules/provider-registry.js";
 import {
   cloneGuardrailsConfig,
   createGuardrailsSnapshot,
   fingerprintGuardrailsConfig,
   type GuardrailsConfig,
 } from "#core/tools/guardrails.js";
+import { Daemon } from "./daemon.js";
 import { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import type { DaemonChatConversationResolver } from "./daemon-chat-handlers.js";
 import {
@@ -16,8 +26,14 @@ import {
   type WorkflowLiveStatus,
   type WorkflowMetricCounts,
 } from "./daemon-control.js";
+import { deriveProjectId } from "./project-registry.js";
+import { resetScheduler } from "./scheduler.js";
 
 const CONV_ID = "c-fixture-0000";
+const DEFAULT_PROJECT_ID = "test-project-id";
+const OTHER_PROJECT_ID = "other-project-id";
+const DEFAULT_PROJECT_DIR = "/tmp/test-project";
+const OTHER_PROJECT_DIR = "/tmp/other-project";
 
 function makeBindingStore(): DaemonChatBindingStore {
   const dir = mkdtempSync(join(tmpdir(), "kota-chat-bindings-"));
@@ -44,6 +60,7 @@ function mockAgentSession(sendResult?: unknown, mode: "passive" | "supervised" |
   let guardrailsSnapshot = createGuardrailsSnapshot(guardrailsConfig, 0);
   return {
     send: vi.fn(async () => sendResult ?? { status: "ok" }),
+    cancelActiveTurn: vi.fn(),
     close: vi.fn(),
     getAutonomyMode: vi.fn(() => current),
     setAutonomyMode: vi.fn((next: "passive" | "supervised" | "autonomous") => { current = next; }),
@@ -102,16 +119,16 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     unregisterSession: vi.fn(),
     listSessions: vi.fn(() => []),
     setSessionAutonomyMode: vi.fn(() => ({ ok: false, notFound: true })),
-    getProjectRegistryProjection: vi.fn(() => ({ defaultProjectId: "test-project-id", projects: [{ projectId: "test-project-id", projectDir: "/tmp/test-project", displayName: "test-project" }] })),
-    hasProject: vi.fn((id: string) => id === "test-project-id"),
+    getProjectRegistryProjection: vi.fn(() => ({ defaultProjectId: DEFAULT_PROJECT_ID, projects: [{ projectId: DEFAULT_PROJECT_ID, projectDir: DEFAULT_PROJECT_DIR, displayName: "test-project" }] })),
+    hasProject: vi.fn((id: string) => id === DEFAULT_PROJECT_ID),
     getActiveProjectId: vi.fn(() => null),
-    setActiveProjectId: vi.fn((id: string | null) => (id === null ? { ok: true as const, activeProjectId: null } : id === "test-project-id" ? { ok: true as const, activeProjectId: id } : { ok: false as const, reason: "not_found" as const, projectId: id })),
+    setActiveProjectId: vi.fn((id: string | null) => (id === null ? { ok: true as const, activeProjectId: null } : id === DEFAULT_PROJECT_ID ? { ok: true as const, activeProjectId: id } : { ok: false as const, reason: "not_found" as const, projectId: id })),
     reloadConfig: vi.fn(async () => ({ workflows: 0, changedModules: [] as string[], sessionGuardrails: { refreshed: 0, unchanged: 0, nonRefreshable: [] } })),
     probeCapabilityReadiness: vi.fn(async () => ({ capabilities: [], summary: { ready: 0, unavailable: 0, init_failed: 0 } })),
     getClientIdentity: vi.fn(async () => ({
       projectName: "test-project",
-      projectDir: "/tmp/test-project",
-      projects: { defaultProjectId: "test-project-id", projects: [{ projectId: "test-project-id", projectDir: "/tmp/test-project", displayName: "test-project" }] },
+      projectDir: DEFAULT_PROJECT_DIR,
+      projects: { defaultProjectId: DEFAULT_PROJECT_ID, projects: [{ projectId: DEFAULT_PROJECT_ID, projectDir: DEFAULT_PROJECT_DIR, displayName: "test-project" }] },
       daemonVersion: "0.1.0",
       pid: 9999,
       startedAt: "2026-01-01T00:00:00.000Z",
@@ -133,6 +150,156 @@ async function fetchWithToken(port: number, path: string, options: RequestInit =
   const headers = new Headers(options.headers);
   headers.set("Authorization", `Bearer ${TEST_TOKEN}`);
   return globalThis.fetch(`http://127.0.0.1:${port}${path}`, { ...options, headers });
+}
+
+function readDaemonControlAddress(stateDir: string): { port: number; token: string } {
+  return JSON.parse(readFileSync(join(stateDir, "daemon-control.json"), "utf-8"));
+}
+
+async function fetchWithDaemonToken(
+  port: number,
+  token: string,
+  path: string,
+  options: RequestInit = {},
+): Promise<Response> {
+  const headers = new Headers(options.headers);
+  headers.set("Authorization", `Bearer ${token}`);
+  return globalThis.fetch(`http://127.0.0.1:${port}${path}`, { ...options, headers });
+}
+
+function installMockModelClient(): void {
+  registerModelClientFactory(({ model }) => ({
+    model,
+    providerName: "test",
+    client: {
+      messages: {
+        async create() {
+          return modelResponse(model, "daemon reply");
+        },
+        stream() {
+          const textHandlers: Array<(delta: string) => void> = [];
+          return {
+            on(event: "text" | "thinking", cb: (delta: string) => void) {
+              if (event === "text") textHandlers.push(cb);
+              return this;
+            },
+            async finalMessage() {
+              for (const handler of textHandlers) handler("daemon reply");
+              return modelResponse(model, "daemon reply");
+            },
+          };
+        },
+      },
+    },
+  }));
+}
+
+function modelResponse(model: string, text: string) {
+  return {
+    id: "msg-test",
+    role: "assistant" as const,
+    model,
+    content: [{ type: "text" as const, text }],
+    stop_reason: "end_turn" as const,
+    usage: {
+      input_tokens: 1,
+      output_tokens: 1,
+      cache_read_input_tokens: null,
+      cache_creation_input_tokens: null,
+    },
+  };
+}
+
+function makeFileHistoryProvider(projectDir: string): HistoryProvider {
+  const dir = join(projectDir, ".kota", "history");
+  let counter = 0;
+  const loadIndex = () => {
+    const path = join(dir, "index.json");
+    if (!existsSync(path)) return { conversations: [] };
+    return JSON.parse(readFileSync(path, "utf-8"));
+  };
+  const saveIndex = (index: { conversations: Array<Record<string, unknown>> }) => {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "index.json"), JSON.stringify(index, null, 2));
+  };
+  return {
+    create(model, cwd, source) {
+      mkdirSync(dir, { recursive: true });
+      const id = `test-conv-${++counter}`;
+      const now = new Date().toISOString();
+      const record = {
+        id,
+        title: "(new conversation)",
+        createdAt: now,
+        updatedAt: now,
+        model,
+        messageCount: 0,
+        cwd,
+        source: source ?? "user",
+      };
+      writeFileSync(
+        join(dir, `${id}.json`),
+        JSON.stringify({
+          record,
+          messages: [],
+          compactionCount: 0,
+          lastInputTokens: 0,
+        }, null, 2),
+      );
+      const index = loadIndex();
+      index.conversations.unshift(record);
+      saveIndex(index);
+      return id;
+    },
+    save(id, messages, compactionCount, lastInputTokens) {
+      const data = this.load(id);
+      if (!data) return;
+      const record = {
+        ...data.record,
+        updatedAt: new Date().toISOString(),
+        messageCount: messages.length,
+      };
+      writeFileSync(
+        join(dir, `${id}.json`),
+        JSON.stringify({ record, messages, compactionCount, lastInputTokens }, null, 2),
+      );
+    },
+    load(id) {
+      const path = join(dir, `${id}.json`);
+      if (!existsSync(path)) return null;
+      return JSON.parse(readFileSync(path, "utf-8"));
+    },
+    list() {
+      return loadIndex().conversations as ReturnType<HistoryProvider["list"]>;
+    },
+    getMostRecent() {
+      return this.list({ limit: 1 })[0] ?? null;
+    },
+    findByPrefix(idOrPrefix) {
+      return this.list({ limit: 100 }).find((record) => record.id.startsWith(idOrPrefix)) ?? null;
+    },
+    remove(id) {
+      const index = loadIndex();
+      const before = index.conversations.length;
+      index.conversations = index.conversations.filter(
+        (record: { id?: string }) => record.id !== id,
+      );
+      saveIndex(index);
+      return index.conversations.length !== before;
+    },
+    cleanup() {
+      return 0;
+    },
+    supportsSemanticSearch() {
+      return false;
+    },
+    async semanticSearch() {
+      return [];
+    },
+    async reindex() {
+      return { indexed: 0, failed: 0, skipped: true };
+    },
+  };
 }
 
 describe("DaemonControlServer chat endpoints", () => {
@@ -216,6 +383,61 @@ describe("DaemonControlServer chat endpoints", () => {
     expect(body.sessions.find((s) => s.source === "daemon")?.guardrailsSnapshot?.id).toMatch(/^gr_/);
   });
 
+  it("POST /sessions creates the daemon agent for the requested project id", async () => {
+    const seenProjectIds: string[] = [];
+    const projectHandle = makeHandle({
+      getProjectRegistryProjection: vi.fn(() => ({
+        defaultProjectId: DEFAULT_PROJECT_ID,
+        projects: [
+          {
+            projectId: DEFAULT_PROJECT_ID,
+            projectDir: DEFAULT_PROJECT_DIR,
+            displayName: "test-project",
+          },
+          {
+            projectId: OTHER_PROJECT_ID,
+            projectDir: OTHER_PROJECT_DIR,
+            displayName: "other-project",
+          },
+        ],
+      })),
+      hasProject: vi.fn((id: string) => id === DEFAULT_PROJECT_ID || id === OTHER_PROJECT_ID),
+    });
+    const projectBindingsDir = mkdtempSync(join(tmpdir(), "kota-chat-project-"));
+    const projectServer = new DaemonControlServer(projectHandle, TEST_TOKEN, {
+      makeAgent: (_transport, mode, _resume, projectId) => {
+        seenProjectIds.push(projectId);
+        return mockAgentSession({ result: "ok" }, mode) as never;
+      },
+      defaultAutonomyMode: "supervised",
+      chatBindings: new DaemonChatBindingStore(projectBindingsDir),
+      conversationResolver: makeResolver(new Set()),
+    });
+    const projectPort = await projectServer.start();
+    try {
+      const createRes = await fetchWithToken(projectPort, `/sessions?projectId=${OTHER_PROJECT_ID}`, {
+        method: "POST",
+      });
+      expect(createRes.status).toBe(201);
+      const created = await createRes.json() as { session_id: string; project_id: string };
+      expect(created.project_id).toBe(OTHER_PROJECT_ID);
+      expect(seenProjectIds).toEqual([OTHER_PROJECT_ID]);
+
+      const defaultListRes = await fetchWithToken(projectPort, `/sessions?projectId=${DEFAULT_PROJECT_ID}`);
+      const defaultList = await defaultListRes.json() as { sessions: Array<{ id: string }> };
+      expect(defaultList.sessions.map((s) => s.id)).not.toContain(created.session_id);
+
+      const selectedListRes = await fetchWithToken(projectPort, `/sessions?projectId=${OTHER_PROJECT_ID}`);
+      const selectedList = await selectedListRes.json() as { sessions: Array<{ id: string; projectId: string }> };
+      expect(selectedList.sessions).toEqual([
+        expect.objectContaining({ id: created.session_id, projectId: OTHER_PROJECT_ID }),
+      ]);
+    } finally {
+      await projectServer.stop();
+      rmSync(projectBindingsDir, { recursive: true, force: true });
+    }
+  });
+
   it("refreshes daemon-owned session guardrails and exposes the snapshot in status", async () => {
     const createRes = await fetchWithToken(port, "/sessions", { method: "POST" });
     const { session_id } = await createRes.json() as { session_id: string };
@@ -258,6 +480,109 @@ describe("DaemonControlServer chat endpoints", () => {
     const { session_id } = await createRes.json() as { session_id: string };
     const deleteRes = await fetchWithToken(port, `/sessions/${session_id}`, { method: "DELETE" });
     expect(deleteRes.status).toBe(204);
+  });
+
+  it("DELETE /sessions/:id aborts an in-flight daemon chat request", async () => {
+    const agent = mockAgentSession(undefined, "supervised");
+    let rejectSend: ((err: Error) => void) | undefined;
+    agent.send.mockImplementation(async () =>
+      new Promise((_resolve, reject) => {
+        rejectSend = reject;
+      })
+    );
+    agent.close.mockImplementation(() => {
+      rejectSend?.(new Error("Session closed"));
+    });
+    const cancelBindingsDir = mkdtempSync(join(tmpdir(), "kota-chat-cancel-"));
+    const cancelServer = new DaemonControlServer(makeHandle(), TEST_TOKEN, {
+      makeAgent: () => agent as never,
+      defaultAutonomyMode: "supervised",
+      chatBindings: new DaemonChatBindingStore(cancelBindingsDir),
+      conversationResolver: makeResolver(new Set()),
+    });
+    const cancelPort = await cancelServer.start();
+    try {
+      const createRes = await fetchWithToken(cancelPort, "/sessions", { method: "POST" });
+      const { session_id } = await createRes.json() as { session_id: string };
+      const chatRes = await fetchWithToken(cancelPort, `/sessions/${session_id}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "wait" }),
+      });
+      expect(chatRes.status).toBe(200);
+      await vi.waitFor(() => expect(agent.send).toHaveBeenCalledTimes(1));
+
+      const deleteRes = await fetchWithToken(cancelPort, `/sessions/${session_id}`, { method: "DELETE" });
+      expect(deleteRes.status).toBe(204);
+
+      const text = await chatRes.text();
+      expect(agent.close).toHaveBeenCalledTimes(1);
+      expect(text).toContain("event: error");
+      expect(text).toContain("Session closed");
+    } finally {
+      await cancelServer.stop();
+      rmSync(cancelBindingsDir, { recursive: true, force: true });
+    }
+  });
+
+  it("POST /sessions/:id/cancel aborts an in-flight turn without deleting the session", async () => {
+    const agent = mockAgentSession("after cancel", "supervised");
+    let rejectSend: ((err: Error) => void) | undefined;
+    let sendCount = 0;
+    agent.send.mockImplementation(async () => {
+      sendCount++;
+      if (sendCount === 1) {
+        return await new Promise((_resolve, reject) => {
+          rejectSend = reject;
+        });
+      }
+      return "after cancel";
+    });
+    agent.cancelActiveTurn.mockImplementation(() => {
+      rejectSend?.(new Error("Session cancelled"));
+    });
+    const cancelBindingsDir = mkdtempSync(join(tmpdir(), "kota-chat-turn-cancel-"));
+    const cancelServer = new DaemonControlServer(makeHandle(), TEST_TOKEN, {
+      makeAgent: () => agent as never,
+      defaultAutonomyMode: "supervised",
+      chatBindings: new DaemonChatBindingStore(cancelBindingsDir),
+      conversationResolver: makeResolver(new Set()),
+    });
+    const cancelPort = await cancelServer.start();
+    try {
+      const createRes = await fetchWithToken(cancelPort, "/sessions", { method: "POST" });
+      const { session_id } = await createRes.json() as { session_id: string };
+      const chatRes = await fetchWithToken(cancelPort, `/sessions/${session_id}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "wait" }),
+      });
+      expect(chatRes.status).toBe(200);
+      await vi.waitFor(() => expect(agent.send).toHaveBeenCalledTimes(1));
+
+      const cancelRes = await fetchWithToken(cancelPort, `/sessions/${session_id}/cancel`, {
+        method: "POST",
+      });
+      expect(cancelRes.status).toBe(204);
+      const cancelledText = await chatRes.text();
+      expect(agent.cancelActiveTurn).toHaveBeenCalledTimes(1);
+      expect(cancelledText).toContain("event: error");
+      expect(cancelledText).toContain("Session cancelled");
+
+      const followupRes = await fetchWithToken(cancelPort, `/sessions/${session_id}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "next" }),
+      });
+      expect(followupRes.status).toBe(200);
+      const followupText = await followupRes.text();
+      expect(followupText).toContain("event: done");
+      expect(followupText).toContain("after cancel");
+      expect(agent.close).not.toHaveBeenCalled();
+    } finally {
+      await cancelServer.stop();
+      rmSync(cancelBindingsDir, { recursive: true, force: true });
+    }
   });
 
   it("DELETE /sessions/:id returns 204 for known serve sessions via unregister", async () => {
@@ -352,6 +677,124 @@ describe("DaemonControlServer chat endpoints", () => {
       body: JSON.stringify({ autonomy_mode: "passive" }),
     });
     expect(res.status).toBe(404);
+  });
+});
+
+describe("Daemon chat project-scoped history", () => {
+  let rootDir: string;
+  let stateDir: string;
+  let defaultProjectDir: string;
+  let selectedProjectDir: string;
+
+  beforeEach(() => {
+    resetEventBus();
+    resetScheduler();
+    resetProviderRegistry();
+    rootDir = mkdtempSync(join(tmpdir(), "kota-chat-project-history-"));
+    stateDir = join(rootDir, "daemon-state");
+    defaultProjectDir = join(rootDir, "project-default");
+    selectedProjectDir = join(rootDir, "project-selected");
+    mkdirSync(stateDir, { recursive: true });
+    mkdirSync(defaultProjectDir, { recursive: true });
+    mkdirSync(selectedProjectDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    resetEventBus();
+    resetScheduler();
+    resetProviderRegistry();
+    rmSync(rootDir, { recursive: true, force: true });
+  });
+
+  it("creates POST /sessions conversations in the selected project's history store", async () => {
+    installMockModelClient();
+    const registry = initProviderRegistry();
+    const historyProviders = new Map<string, HistoryProvider>();
+    const historyForProject = (projectDir: string): HistoryProvider => {
+      const existing = historyProviders.get(projectDir);
+      if (existing) return existing;
+      const provider = makeFileHistoryProvider(projectDir);
+      historyProviders.set(projectDir, provider);
+      return provider;
+    };
+    registry.register(
+      HISTORY_PROVIDER_TOKEN,
+      "test-history",
+      historyForProject(defaultProjectDir),
+    );
+    registry.register(HISTORY_PROJECT_PROVIDER_TOKEN, "test-history", {
+      forProject: (project) => historyForProject(project.projectDir),
+    });
+
+    const config = { defaultAgentHarness: "claude-agent-sdk", reflection: false };
+    const daemon = new Daemon({
+      projects: [{ projectDir: defaultProjectDir }, { projectDir: selectedProjectDir }],
+      stateDir,
+      idleIntervalMs: 60_000,
+      pollIntervalMs: 60_000,
+      workflows: [],
+      channels: [],
+      config,
+    });
+    const startPromise = daemon.start();
+    try {
+      await vi.waitFor(() => {
+        expect(existsSync(join(stateDir, "daemon-control.json"))).toBe(true);
+      });
+      const address = readDaemonControlAddress(stateDir);
+      const selectedProjectId = deriveProjectId(selectedProjectDir);
+
+      const createRes = await fetchWithDaemonToken(
+        address.port,
+        address.token,
+        `/sessions?projectId=${selectedProjectId}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ autonomy_mode: "supervised" }),
+        },
+      );
+      expect(createRes.status).toBe(201);
+      const created = await createRes.json() as {
+        session_id: string;
+        conversation_id: string;
+        project_id: string;
+      };
+      expect(created.project_id).toBe(selectedProjectId);
+
+      const chatRes = await fetchWithDaemonToken(
+        address.port,
+        address.token,
+        `/sessions/${created.session_id}/chat`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: "hello" }),
+        },
+      );
+      expect(chatRes.status).toBe(200);
+      const chatText = await chatRes.text();
+      expect(chatText).toContain("daemon reply");
+      expect(chatText).not.toContain(`Conversation ${created.conversation_id} not found`);
+
+      const selectedHistoryPath = join(
+        selectedProjectDir,
+        ".kota",
+        "history",
+        `${created.conversation_id}.json`,
+      );
+      const defaultHistoryPath = join(
+        defaultProjectDir,
+        ".kota",
+        "history",
+        `${created.conversation_id}.json`,
+      );
+      expect(existsSync(selectedHistoryPath)).toBe(true);
+      expect(existsSync(defaultHistoryPath)).toBe(false);
+    } finally {
+      await daemon.stop();
+      await startPromise;
+    }
   });
 });
 

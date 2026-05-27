@@ -27,6 +27,7 @@ export type ToolCallContext = {
 	autonomyMode?: AutonomyMode;
 	sessionId?: string;
 	toolUseId?: string;
+	signal?: AbortSignal;
 };
 
 export type ToolCall = {

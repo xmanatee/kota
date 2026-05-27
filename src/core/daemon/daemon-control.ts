@@ -54,7 +54,8 @@ export type DaemonControlServerOptions = {
   /**
    * When provided, enables POST /sessions, POST /sessions/:id/chat for daemon-owned sessions.
    * The factory receives the proxy transport, the session's autonomy mode, and
-   * the conversation id the new AgentSession should resume from.
+   * the conversation id the new AgentSession should resume from, plus the
+   * configured project id the session must bind to.
    */
   makeAgent?: DaemonChatMakeAgent;
   /** Autonomy mode used when POST /sessions does not specify one. */

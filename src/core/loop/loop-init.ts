@@ -82,6 +82,7 @@ export interface AgentLoopState {
   autonomyMode: AutonomyMode;
   moduleLoader: ModuleLoader;
   closed: boolean;
+  activeAbortControllers: Set<AbortController>;
   sigintHandler: () => void;
 }
 
@@ -244,6 +245,9 @@ export function saveToHistoryImpl(state: AgentLoopState): void {
 
 export function runClose(state: AgentLoopState, errored: boolean): void {
   if (state.closed) return;
+  for (const controller of state.activeAbortControllers) {
+    if (!controller.signal.aborted) controller.abort(new Error("Session closed"));
+  }
   state.closed = true;
   if (errored && state.stateMachine.canTransition("error")) {
     state.stateMachine.transition("error");

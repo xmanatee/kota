@@ -12,18 +12,21 @@ import type { AgentSession } from "#core/loop/loop.js";
 import { ProxyTransport, type Transport } from "#core/loop/transport.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { GuardrailsConfig, GuardrailsSnapshot } from "#core/tools/guardrails.js";
+import type { ProjectId } from "./project-registry.js";
 
 /** Factory signature for building an AgentSession inside the daemon. */
 export type DaemonChatMakeAgent = (
   transport: Transport,
   mode: AutonomyMode,
-  resumeConversation?: string,
+  resumeConversation: string | undefined,
+  projectId: ProjectId,
 ) => AgentSession;
 
 /** An agent session owned by the daemon control server. */
 export type DaemonChatSession = {
   id: string;
   createdAt: string;
+  projectId: ProjectId;
   conversationId: string;
   agent: AgentSession;
   proxy: ProxyTransport;
@@ -38,6 +41,7 @@ export type DaemonChatListEntry = {
   lastActive: number;
   autonomyMode: AutonomyMode;
   guardrailsSnapshot: GuardrailsSnapshot;
+  projectId: ProjectId;
   conversationId: string;
   source: "daemon";
 };
@@ -53,6 +57,11 @@ const DEFAULT_TTL_MS = 5 * 60 * 1000; // 5 minutes
 export type DaemonChatPoolOptions = {
   maxSessions?: number;
   ttlMs?: number;
+};
+
+export type DaemonChatCreateOptions = {
+  projectId: ProjectId;
+  sessionId?: string;
 };
 
 /** Manages daemon-owned AgentSession instances with idle TTL eviction. */
@@ -71,14 +80,17 @@ export class DaemonChatPool {
    *
    * When `sessionId` is provided the caller is asking the pool to adopt that
    * id (wake after a binding lookup). The pool rejects the call if that id
-   * is already live. When absent, a fresh id is generated.
+   * is already live. When absent, a fresh id is generated. `projectId` is
+   * required so the daemon agent factory can bind the session to the selected
+   * project runtime instead of falling back to process cwd.
    */
   create(
     makeAgent: DaemonChatMakeAgent,
     mode: AutonomyMode,
     conversationId: string,
-    sessionId?: string,
+    options: DaemonChatCreateOptions,
   ): DaemonChatSession {
+    const { projectId, sessionId } = options;
     if (sessionId && this.sessions.has(sessionId)) {
       throw new Error(`Session ${sessionId} already live`);
     }
@@ -88,11 +100,12 @@ export class DaemonChatPool {
     }
     const id = sessionId ?? randomUUID().slice(0, 8);
     const proxy = new ProxyTransport();
-    const agent = makeAgent(proxy, mode, conversationId);
+    const agent = makeAgent(proxy, mode, conversationId, projectId);
     const now = new Date().toISOString();
     const session: DaemonChatSession = {
       id,
       createdAt: now,
+      projectId,
       conversationId,
       agent,
       proxy,
@@ -107,6 +120,14 @@ export class DaemonChatPool {
     return this.sessions.get(id);
   }
 
+  cancelActiveTurn(id: string): boolean {
+    const session = this.sessions.get(id);
+    if (!session) return false;
+    session.agent.cancelActiveTurn();
+    session.lastActive = Date.now();
+    return true;
+  }
+
   delete(id: string): boolean {
     const session = this.sessions.get(id);
     if (!session) return false;
@@ -115,17 +136,20 @@ export class DaemonChatPool {
     return true;
   }
 
-  list(): DaemonChatListEntry[] {
-    return [...this.sessions.values()].map((s) => ({
-      id: s.id,
-      createdAt: s.createdAt,
-      busy: s.busy,
-      lastActive: s.lastActive,
-      autonomyMode: s.agent.getAutonomyMode(),
-      guardrailsSnapshot: s.agent.getGuardrailsSnapshot(),
-      conversationId: s.conversationId,
-      source: "daemon" as const,
-    }));
+  list(projectId?: ProjectId): DaemonChatListEntry[] {
+    return [...this.sessions.values()]
+      .filter((s) => projectId === undefined || s.projectId === projectId)
+      .map((s) => ({
+        id: s.id,
+        createdAt: s.createdAt,
+        busy: s.busy,
+        lastActive: s.lastActive,
+        autonomyMode: s.agent.getAutonomyMode(),
+        guardrailsSnapshot: s.agent.getGuardrailsSnapshot(),
+        projectId: s.projectId,
+        conversationId: s.conversationId,
+        source: "daemon" as const,
+      }));
   }
 
   /**

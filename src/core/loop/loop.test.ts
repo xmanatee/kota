@@ -177,6 +177,26 @@ describe("AgentSession", () => {
       expect(config.system[0].text).toContain("KOTA");
       expect(config.system[0].cache_control).toEqual({ type: "ephemeral" });
     });
+
+    it("aborts active model work when the session closes", async () => {
+      session = new AgentSession({ autonomyMode: "autonomous" });
+      mockStreamMessage.mockImplementationOnce(({ signal }: { signal: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          signal.addEventListener("abort", () => {
+            reject(signal.reason);
+          }, { once: true });
+        })
+      );
+
+      const sendPromise = session.send("wait");
+      await vi.waitFor(() => expect(mockStreamMessage).toHaveBeenCalledTimes(1));
+      const assertion = expect(sendPromise).rejects.toThrow("Session closed");
+
+      session.close();
+
+      await assertion;
+      expect(mockStreamMessage.mock.calls[0][0].signal.aborted).toBe(true);
+    });
   });
 
   describe("thinking mode", () => {
@@ -207,6 +227,22 @@ describe("AgentSession", () => {
       expect(result).toBe("File read");
       expect(mockStreamMessage).toHaveBeenCalledTimes(2);
       expect(mockExecuteToolCalls).toHaveBeenCalledTimes(1);
+    });
+
+    it("passes the active abort signal to tool execution", async () => {
+      session = new AgentSession({ autonomyMode: "autonomous" });
+      mockStreamMessage
+        .mockResolvedValueOnce(
+          toolResponse([{ id: "tu_1", name: "shell", input: { command: "sleep 1" } }]),
+        )
+        .mockResolvedValueOnce(textResponse("done"));
+      mockExecuteToolCalls.mockResolvedValueOnce(toolResults([{ id: "tu_1", content: "ok" }]));
+
+      await session.send("run");
+
+      const options = mockExecuteToolCalls.mock.calls[0][1] as { signal?: AbortSignal };
+      expect(options.signal).toBeInstanceOf(AbortSignal);
+      expect(options.signal?.aborted).toBe(false);
     });
 
     it("passes multiple tool blocks in parallel", async () => {
