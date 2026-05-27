@@ -530,3 +530,6 @@ resources:
       fingerprint: sha256:9c36c27ef8b0e757154852e25fdd5207
       summary: "AgentEvalBench reinforces KOTA's existing eval-authoring restraint direction; task-add-an-eval-authoring-restraint-fixture-to-the-eva already covers the nonduplicative local gap, so this snapshot opens no duplicate task."
       last_seen_at: "2026-05-27T00:08:06.943Z"
+  - url: https://github.com/snowmountainAi/webdevbench
+    added: "2026-05-27"
+    notes: "SWE-WebDev-Bench project repository for evaluating AI coding platforms as virtual software agencies. Monitor benchmark/code/data updates as an eval-harness signal for product-requirement canaries, app-creation vs app-modification retention, frontend/backend coupling, production readiness, security, and business-readiness scoring."
