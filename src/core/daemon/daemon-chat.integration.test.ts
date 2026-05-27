@@ -383,6 +383,32 @@ describe("DaemonControlServer chat endpoints", () => {
     expect(body.sessions.find((s) => s.source === "daemon")?.guardrailsSnapshot?.id).toMatch(/^gr_/);
   });
 
+  it("GET /sessions/bindings exposes persisted daemon chat bindings", async () => {
+    bindings.put("stored-session", "stored-conversation", DEFAULT_PROJECT_ID);
+
+    const res = await fetchWithToken(port, "/sessions/bindings");
+
+    expect(res.status).toBe(200);
+    const body = await res.json() as {
+      bindings: Array<{
+        sessionId: string;
+        projectId: string;
+        conversationId: string;
+        createdAt: string;
+        lastActiveAt: string;
+      }>;
+    };
+    expect(body.bindings).toEqual([
+      expect.objectContaining({
+        sessionId: "stored-session",
+        projectId: DEFAULT_PROJECT_ID,
+        conversationId: "stored-conversation",
+      }),
+    ]);
+    expect(Date.parse(body.bindings[0]!.createdAt)).not.toBeNaN();
+    expect(Date.parse(body.bindings[0]!.lastActiveAt)).not.toBeNaN();
+  });
+
   it("POST /sessions creates the daemon agent for the requested project id", async () => {
     const seenProjectIds: string[] = [];
     const projectHandle = makeHandle({

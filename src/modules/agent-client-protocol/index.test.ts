@@ -7,6 +7,7 @@ import type {
 } from "#core/server/daemon-transport.js";
 import {
   type AcpDaemonClient,
+  type AcpDaemonSession,
   type AcpProject,
   type AcpProjectList,
   HttpAcpDaemonClient,
@@ -55,9 +56,12 @@ class FakeDaemon implements AcpDaemonClient {
   };
   listProjectsCalls = 0;
   createSessionCalls: AcpProject[] = [];
+  listSessionsCalls: AcpProject[] = [];
+  resumeSessionCalls: Array<{ project: AcpProject; sessionId: string }> = [];
   promptCalls: PromptSessionArgs[] = [];
   cancelCalls: string[] = [];
   closeCalls: string[] = [];
+  knownSessions: AcpDaemonSession[] = [];
   nextSessionId = "kota-session-1";
   promptStarted: Promise<void> = Promise.resolve();
   resolvePromptStarted: () => void = () => {};
@@ -75,6 +79,20 @@ class FakeDaemon implements AcpDaemonClient {
   async createSession(project: AcpProject) {
     this.createSessionCalls.push(project);
     return { sessionId: this.nextSessionId };
+  }
+
+  async listSessions(project: AcpProject) {
+    this.listSessionsCalls.push(project);
+    return this.knownSessions.filter((session) => session.metadata.projectId === project.projectId);
+  }
+
+  async resumeSession(project: AcpProject, sessionId: string) {
+    this.resumeSessionCalls.push({ project, sessionId });
+    const session = this.knownSessions.find((entry) => entry.sessionId === sessionId);
+    if (!session) throw new Error(`unknown session ${sessionId}`);
+    session.live = true;
+    session.metadata.source = "daemon";
+    return { sessionId };
   }
 
   async promptSession(args: PromptSessionArgs): Promise<PromptSessionResult> {
@@ -136,8 +154,56 @@ class FakeTransport implements DaemonTransport {
 
   async fetchRaw(path: string, init?: RequestInit): Promise<Response> {
     this.calls.push({ path, init });
-    if (path === "/sessions?projectId=proj-1") {
-      return new Response(JSON.stringify({ session_id: "created-session" }), {
+    if (path === "/sessions?projectId=proj-1" && init?.method === "GET") {
+      return new Response(JSON.stringify({
+        sessions: [
+          {
+            id: "s1",
+            createdAt: "2026-05-27T05:00:00.000Z",
+            lastActive: Date.parse("2026-05-27T05:05:00.000Z"),
+            source: "daemon",
+            busy: false,
+            projectId: "proj-1",
+            conversationId: "conv-live",
+          },
+          {
+            id: "serve-session",
+            createdAt: "2026-05-27T05:00:00.000Z",
+            lastActive: Date.parse("2026-05-27T05:05:00.000Z"),
+            source: "serve",
+          },
+        ],
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (path === "/sessions/bindings?projectId=proj-1") {
+      return new Response(JSON.stringify({
+        bindings: [
+          {
+            sessionId: "s1",
+            projectId: "proj-1",
+            conversationId: "conv-live",
+            createdAt: "2026-05-27T05:00:00.000Z",
+            lastActiveAt: "2026-05-27T05:05:00.000Z",
+          },
+          {
+            sessionId: "stored-session",
+            projectId: "proj-1",
+            conversationId: "conv-stored",
+            createdAt: "2026-05-27T04:00:00.000Z",
+            lastActiveAt: "2026-05-27T04:05:00.000Z",
+          },
+        ],
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (path === "/sessions?projectId=proj-1" && init?.method === "POST") {
+      const body = typeof init.body === "string" ? JSON.parse(init.body) as { session_id?: string } : {};
+      return new Response(JSON.stringify({ session_id: body.session_id ?? "created-session" }), {
         status: 201,
         headers: { "Content-Type": "application/json" },
       });
@@ -221,6 +287,11 @@ describe("agent-client-protocol module", () => {
       http: false,
       sse: false,
     });
+    expect(message.result.agentCapabilities.sessionCapabilities).toEqual({
+      close: {},
+      list: {},
+      resume: {},
+    });
   });
 
   it("does not initialize a mismatched protocol version", async () => {
@@ -298,6 +369,233 @@ describe("agent-client-protocol module", () => {
         displayName: "other project",
       },
     ]);
+  });
+
+  it("lists daemon-owned ACP sessions for the requested project root", async () => {
+    const fake = new FakeDaemon();
+    fake.projectList = {
+      projects: [
+        {
+          projectId: "proj-1",
+          projectDir: PROJECT_DIR,
+          displayName: "project",
+        },
+        {
+          projectId: "proj-2",
+          projectDir: SECOND_PROJECT_DIR,
+          displayName: "other project",
+        },
+      ],
+      defaultProjectId: "proj-1",
+      activeProjectId: null,
+    };
+    fake.knownSessions = [
+      {
+        sessionId: "session-proj-1",
+        cwd: PROJECT_DIR,
+        title: "KOTA session session-proj-1",
+        updatedAt: "2026-05-27T05:02:00.000Z",
+        live: true,
+        metadata: {
+          source: "daemon",
+          projectId: "proj-1",
+          conversationId: "conv-1",
+          busy: false,
+        },
+      },
+      {
+        sessionId: "session-proj-2",
+        cwd: SECOND_PROJECT_DIR,
+        title: "KOTA session session-proj-2",
+        updatedAt: "2026-05-27T05:01:00.000Z",
+        live: true,
+        metadata: {
+          source: "daemon",
+          projectId: "proj-2",
+          conversationId: "conv-2",
+          busy: false,
+        },
+      },
+    ];
+    const { server, output } = await initializedServer(fake);
+
+    await server.handleLine(request(1, "session/list", {
+      cwd: PROJECT_DIR,
+    }));
+
+    const messages = output.messages();
+    expect(messages[1].result.sessions).toEqual([
+      {
+        sessionId: "session-proj-1",
+        cwd: PROJECT_DIR,
+        title: "KOTA session session-proj-1",
+        updatedAt: "2026-05-27T05:02:00.000Z",
+        _meta: {
+          source: "daemon",
+          projectId: "proj-1",
+          conversationId: "conv-1",
+          busy: false,
+        },
+      },
+    ]);
+    expect(fake.listSessionsCalls).toEqual([
+      {
+        projectId: "proj-1",
+        projectDir: PROJECT_DIR,
+        displayName: "project",
+      },
+    ]);
+  });
+
+  it("resumes a persisted daemon session and prompts through the resumed binding", async () => {
+    const fake = new FakeDaemon();
+    fake.knownSessions = [
+      {
+        sessionId: "stored-session",
+        cwd: PROJECT_DIR,
+        title: "KOTA session stored-session",
+        updatedAt: "2026-05-27T05:02:00.000Z",
+        live: false,
+        metadata: {
+          source: "daemon-binding",
+          projectId: "proj-1",
+          conversationId: "conv-stored",
+          resumable: true,
+        },
+      },
+    ];
+    const { server, output } = await initializedServer(fake);
+
+    await server.handleLine(request(1, "session/resume", {
+      cwd: PROJECT_DIR,
+      sessionId: "stored-session",
+      mcpServers: [],
+    }));
+    await server.handleLine(request(2, "session/prompt", {
+      sessionId: "stored-session",
+      prompt: [{ type: "text", text: "continue" }],
+    }));
+
+    const messages = output.messages();
+    expect(messages[1].result).toEqual({});
+    expect(fake.resumeSessionCalls).toEqual([
+      {
+        project: {
+          projectId: "proj-1",
+          projectDir: PROJECT_DIR,
+          displayName: "project",
+        },
+        sessionId: "stored-session",
+      },
+    ]);
+    expect(fake.promptCalls[0]?.sessionId).toBe("stored-session");
+    expect(messages.at(-1)).toMatchObject({
+      id: 2,
+      result: { stopReason: "end_turn" },
+    });
+  });
+
+  it("attaches to a live daemon session after an ACP adapter restart", async () => {
+    const fake = new FakeDaemon();
+    fake.knownSessions = [
+      {
+        sessionId: "live-session",
+        cwd: PROJECT_DIR,
+        title: "KOTA session live-session",
+        updatedAt: "2026-05-27T05:02:00.000Z",
+        live: true,
+        metadata: {
+          source: "daemon",
+          projectId: "proj-1",
+          conversationId: "conv-live",
+          busy: false,
+        },
+      },
+    ];
+    const first = await initializedServer(fake);
+    await first.server.handleLine(request(1, "session/resume", {
+      cwd: PROJECT_DIR,
+      sessionId: "live-session",
+      mcpServers: [],
+    }));
+
+    const second = await initializedServer(fake);
+    await second.server.handleLine(request(1, "session/resume", {
+      cwd: PROJECT_DIR,
+      sessionId: "live-session",
+      mcpServers: [],
+    }));
+    await second.server.handleLine(request(2, "session/prompt", {
+      sessionId: "live-session",
+      prompt: [{ type: "text", text: "after reconnect" }],
+    }));
+
+    expect(fake.resumeSessionCalls).toEqual([]);
+    expect(second.output.messages()[1].result).toEqual({});
+    expect(fake.promptCalls.at(-1)?.sessionId).toBe("live-session");
+  });
+
+  it("rejects resume for an already-active ACP connection session", async () => {
+    const fake = new FakeDaemon();
+    fake.knownSessions = [
+      {
+        sessionId: "live-session",
+        cwd: PROJECT_DIR,
+        title: "KOTA session live-session",
+        updatedAt: "2026-05-27T05:02:00.000Z",
+        live: true,
+        metadata: {
+          source: "daemon",
+          projectId: "proj-1",
+          conversationId: "conv-live",
+          busy: false,
+        },
+      },
+    ];
+    const { server, output } = await initializedServer(fake);
+
+    await server.handleLine(request(1, "session/resume", {
+      cwd: PROJECT_DIR,
+      sessionId: "live-session",
+      mcpServers: [],
+    }));
+    await server.handleLine(request(2, "session/resume", {
+      cwd: PROJECT_DIR,
+      sessionId: "live-session",
+      mcpServers: [],
+    }));
+
+    const messages = output.messages();
+    expect(messages[2].error.data).toMatchObject({
+      code: "session_already_live",
+      sessionId: "live-session",
+    });
+  });
+
+  it("rejects resume for unknown sessions and unsupported MCP handoff", async () => {
+    const { server, fake, output } = await initializedServer();
+
+    await server.handleLine(request(1, "session/resume", {
+      cwd: PROJECT_DIR,
+      sessionId: "missing-session",
+      mcpServers: [],
+    }));
+    await server.handleLine(request(2, "session/resume", {
+      cwd: PROJECT_DIR,
+      sessionId: "missing-session",
+      mcpServers: [{ type: "stdio", name: "fs", command: "mcp", args: [], env: [] }],
+    }));
+
+    const messages = output.messages();
+    expect(messages[1].error.data).toMatchObject({
+      code: "session_not_found",
+      sessionId: "missing-session",
+    });
+    expect(messages[2].error.data).toMatchObject({
+      code: "unsupported_feature",
+      feature: "mcpServers",
+    });
+    expect(fake.resumeSessionCalls).toEqual([]);
   });
 
   it("streams ACP session/update notifications before the prompt response", async () => {
@@ -449,6 +747,54 @@ describe("agent-client-protocol module", () => {
     expect(session).toEqual({ sessionId: "created-session" });
     expect(transport.calls[0]?.path).toBe("/sessions?projectId=proj-1");
     expect(transport.calls[0]?.init?.method).toBe("POST");
+  });
+
+  it("lists HTTP daemon live sessions and persisted bindings for ACP discovery", async () => {
+    const transport = new FakeTransport();
+    const client = new HttpAcpDaemonClient(transport);
+
+    const sessions = await client.listSessions({
+      projectId: "proj-1",
+      projectDir: PROJECT_DIR,
+      displayName: "project",
+    });
+
+    expect(sessions.map((session) => [session.sessionId, session.live])).toEqual([
+      ["s1", true],
+      ["stored-session", false],
+    ]);
+    expect(sessions[0]).toMatchObject({
+      cwd: PROJECT_DIR,
+      updatedAt: "2026-05-27T05:05:00.000Z",
+      metadata: {
+        source: "daemon",
+        projectId: "proj-1",
+        conversationId: "conv-live",
+      },
+    });
+    expect(transport.calls.map((call) => call.path)).toEqual([
+      "/sessions?projectId=proj-1",
+      "/sessions/bindings?projectId=proj-1",
+    ]);
+  });
+
+  it("wakes HTTP daemon sessions by prior session id", async () => {
+    const transport = new FakeTransport();
+    const client = new HttpAcpDaemonClient(transport);
+
+    const session = await client.resumeSession({
+      projectId: "proj-1",
+      projectDir: PROJECT_DIR,
+      displayName: "project",
+    }, "stored-session");
+
+    expect(session).toEqual({ sessionId: "stored-session" });
+    expect(transport.calls[0]?.path).toBe("/sessions?projectId=proj-1");
+    expect(transport.calls[0]?.init?.method).toBe("POST");
+    expect(JSON.parse(String(transport.calls[0]?.init?.body))).toMatchObject({
+      autonomy_mode: "supervised",
+      session_id: "stored-session",
+    });
   });
 
   it("cancels HTTP daemon turns without deleting the session", async () => {

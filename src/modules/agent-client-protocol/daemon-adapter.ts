@@ -9,6 +9,7 @@ import {
   isJsonObject,
   type JsonObject,
   type JsonValue,
+  sessionAlreadyLive,
   sessionNotFound,
 } from "./protocol.js";
 
@@ -26,6 +27,15 @@ export type AcpProjectList = {
 
 export type AcpPromptUpdate = JsonObject;
 
+export type AcpDaemonSession = {
+  sessionId: string;
+  cwd: string;
+  title: string;
+  updatedAt: string;
+  live: boolean;
+  metadata: JsonObject;
+};
+
 export type PromptSessionArgs = {
   sessionId: string;
   prompt: string;
@@ -40,6 +50,8 @@ export type PromptSessionResult = {
 export interface AcpDaemonClient {
   listProjects(): Promise<AcpProjectList>;
   createSession(project: AcpProject): Promise<{ sessionId: string }>;
+  listSessions(project: AcpProject): Promise<AcpDaemonSession[]>;
+  resumeSession(project: AcpProject, sessionId: string): Promise<{ sessionId: string }>;
   promptSession(args: PromptSessionArgs): Promise<PromptSessionResult>;
   cancelSession(sessionId: string): Promise<void>;
   closeSession(sessionId: string): Promise<void>;
@@ -61,6 +73,32 @@ type ProjectsWireBody = {
 type CreateSessionWireBody = {
   session_id?: string;
   error?: string;
+};
+
+type SessionListWireEntry = {
+  id?: string;
+  createdAt?: string;
+  lastActive?: number;
+  source?: "daemon" | "serve";
+  busy?: boolean;
+  projectId?: string;
+  conversationId?: string;
+};
+
+type SessionListWireBody = {
+  sessions?: SessionListWireEntry[];
+};
+
+type SessionBindingWireEntry = {
+  sessionId?: string;
+  projectId?: string;
+  conversationId?: string;
+  createdAt?: string;
+  lastActiveAt?: string;
+};
+
+type SessionBindingsWireBody = {
+  bindings?: SessionBindingWireEntry[];
 };
 
 export class HttpAcpDaemonClient implements AcpDaemonClient {
@@ -103,6 +141,43 @@ export class HttpAcpDaemonClient implements AcpDaemonClient {
       throw new AcpProtocolError(
         -32603,
         "Daemon session response did not include a session id",
+        { code: "daemon_protocol_error" },
+      );
+    }
+    return { sessionId: body.session_id };
+  }
+
+  async listSessions(project: AcpProject): Promise<AcpDaemonSession[]> {
+    const live = await this.listLiveSessions(project);
+    const liveIds = new Set(live.map((session) => session.sessionId));
+    const bindings = await this.listPersistedSessionBindings(project);
+    return [...live, ...bindings.filter((session) => !liveIds.has(session.sessionId))]
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
+  async resumeSession(project: AcpProject, sessionId: string): Promise<{ sessionId: string }> {
+    const query = new URLSearchParams({ projectId: project.projectId });
+    const res = await this.transport.fetchRaw(`/sessions?${query.toString()}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...this.transport.authHeaders(),
+      },
+      body: JSON.stringify({
+        autonomy_mode: this.autonomyMode,
+        session_id: sessionId,
+      }),
+    });
+    if (!res.ok) {
+      if (res.status === 404) throw sessionNotFound(sessionId);
+      if (res.status === 409) throw sessionAlreadyLive(sessionId);
+      throw daemonHttpError(res.status, await responseErrorMessage(res));
+    }
+    const body = (await res.json()) as CreateSessionWireBody;
+    if (body.session_id !== sessionId) {
+      throw new AcpProtocolError(
+        -32603,
+        "Daemon resume response did not match the requested session id",
         { code: "daemon_protocol_error" },
       );
     }
@@ -182,6 +257,42 @@ export class HttpAcpDaemonClient implements AcpDaemonClient {
     if (!res.ok && res.status !== 404) {
       throw daemonHttpError(res.status, await responseErrorMessage(res));
     }
+  }
+
+  private async listLiveSessions(project: AcpProject): Promise<AcpDaemonSession[]> {
+    const query = new URLSearchParams({ projectId: project.projectId });
+    const res = await this.transport.fetchRaw(`/sessions?${query.toString()}`, {
+      method: "GET",
+      headers: this.transport.authHeaders(),
+    });
+    if (!res.ok) {
+      throw daemonHttpError(res.status, await responseErrorMessage(res));
+    }
+    const body = (await res.json()) as SessionListWireBody;
+    const entries = body.sessions;
+    if (!Array.isArray(entries)) {
+      throw daemonProtocolError("Daemon session list response did not include sessions");
+    }
+    return entries
+      .filter((entry) => entry.source === "daemon")
+      .map((entry) => mapLiveSession(project, entry));
+  }
+
+  private async listPersistedSessionBindings(project: AcpProject): Promise<AcpDaemonSession[]> {
+    const query = new URLSearchParams({ projectId: project.projectId });
+    const res = await this.transport.fetchRaw(`/sessions/bindings?${query.toString()}`, {
+      method: "GET",
+      headers: this.transport.authHeaders(),
+    });
+    if (!res.ok) {
+      throw daemonHttpError(res.status, await responseErrorMessage(res));
+    }
+    const body = (await res.json()) as SessionBindingsWireBody;
+    const bindings = body.bindings;
+    if (!Array.isArray(bindings)) {
+      throw daemonProtocolError("Daemon session bindings response did not include bindings");
+    }
+    return bindings.map((entry) => mapBindingSession(project, entry));
   }
 }
 
@@ -302,6 +413,58 @@ function stringField(obj: JsonObject, key: string): string | null {
   return typeof value === "string" ? value : null;
 }
 
+function mapLiveSession(project: AcpProject, entry: SessionListWireEntry): AcpDaemonSession {
+  const sessionId = requiredString(entry.id, "session.id");
+  const createdAt = requiredString(entry.createdAt, "session.createdAt");
+  const updatedAt = isoFromEpochMillis(entry.lastActive, createdAt, "session.lastActive");
+  return {
+    sessionId,
+    cwd: project.projectDir,
+    title: `KOTA session ${sessionId}`,
+    updatedAt,
+    live: true,
+    metadata: {
+      source: "daemon",
+      projectId: entry.projectId ?? project.projectId,
+      ...(entry.conversationId ? { conversationId: entry.conversationId } : {}),
+      busy: entry.busy === true,
+    },
+  };
+}
+
+function mapBindingSession(project: AcpProject, entry: SessionBindingWireEntry): AcpDaemonSession {
+  const sessionId = requiredString(entry.sessionId, "binding.sessionId");
+  const createdAt = requiredString(entry.createdAt, "binding.createdAt");
+  const updatedAt = requiredString(entry.lastActiveAt, "binding.lastActiveAt");
+  return {
+    sessionId,
+    cwd: project.projectDir,
+    title: `KOTA session ${sessionId}`,
+    updatedAt,
+    live: false,
+    metadata: {
+      source: "daemon-binding",
+      projectId: entry.projectId ?? project.projectId,
+      conversationId: requiredString(entry.conversationId, "binding.conversationId"),
+      createdAt,
+      resumable: true,
+    },
+  };
+}
+
+function requiredString(value: string | undefined, field: string): string {
+  if (typeof value === "string" && value.length > 0) return value;
+  throw daemonProtocolError(`Daemon response field ${field} must be a non-empty string`);
+}
+
+function isoFromEpochMillis(value: number | undefined, fallbackIso: string, field: string): string {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return new Date(value).toISOString();
+  }
+  if (!Number.isNaN(new Date(fallbackIso).getTime())) return fallbackIso;
+  throw daemonProtocolError(`Daemon response field ${field} must be a finite epoch millisecond number`);
+}
+
 async function responseErrorMessage(res: Response): Promise<string> {
   try {
     const body = (await res.json()) as { error?: string };
@@ -316,4 +479,8 @@ function daemonHttpError(status: number, message: string): AcpProtocolError {
   if (status === 404) return new AcpProtocolError(-32002, message, { code: "daemon_not_found" });
   if (status === 503) return daemonUnavailable();
   return new AcpProtocolError(-32603, message, { code: "daemon_http_error", status });
+}
+
+function daemonProtocolError(message: string): AcpProtocolError {
+  return new AcpProtocolError(-32603, message, { code: "daemon_protocol_error" });
 }

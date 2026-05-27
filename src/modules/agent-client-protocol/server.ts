@@ -1,5 +1,6 @@
 import {
   type AcpDaemonClient,
+  type AcpDaemonSession,
   AcpPromptCancelledError,
   resolveAcpProject,
 } from "./daemon-adapter.js";
@@ -10,8 +11,10 @@ import {
   daemonUnavailable,
   decodeInitializeParams,
   decodeJsonRpcIncoming,
+  decodeListSessionParams,
   decodeNewSessionParams,
   decodePromptParams,
+  decodeResumeSessionParams,
   decodeSessionIdParams,
   initializeResponse,
   type JsonObject,
@@ -23,6 +26,7 @@ import {
   methodNotFound,
   notInitialized,
   parseJsonLine,
+  sessionAlreadyLive,
   sessionBusy,
   sessionNotFound,
 } from "./protocol.js";
@@ -72,8 +76,9 @@ export class AgentClientProtocolServer {
       active.controller.abort();
     }
     if (daemon) {
-      await Promise.allSettled([...this.sessions].map((id) => daemon.closeSession(id)));
+      await Promise.allSettled([...this.activePrompts.keys()].map((id) => daemon.cancelSession(id)));
     }
+    this.activePrompts.clear();
     this.sessions.clear();
   }
 
@@ -117,6 +122,12 @@ export class AgentClientProtocolServer {
     if (message.method === "session/new") {
       return await this.createSession(message.params);
     }
+    if (message.method === "session/list") {
+      return await this.listSessions(message.params);
+    }
+    if (message.method === "session/resume") {
+      return await this.resumeSession(message.params);
+    }
     if (message.method === "session/prompt") {
       return await this.promptSession(message.id, message.params);
     }
@@ -150,6 +161,44 @@ export class AgentClientProtocolServer {
     const session = await daemon.createSession(project);
     this.sessions.add(session.sessionId);
     return { sessionId: session.sessionId };
+  }
+
+  private async listSessions(paramsValue: JsonValue | undefined): Promise<JsonObject> {
+    const params = decodeListSessionParams(paramsValue);
+    const daemon = this.options.daemonFactory();
+    if (!daemon) throw daemonUnavailable();
+
+    const projects = await daemon.listProjects();
+    const selectedProjects = params.cwd === undefined
+      ? projects.projects
+      : [this.resolveProjectForCwd(projects, params.cwd)];
+    const sessions = (
+      await Promise.all(selectedProjects.map((project) => daemon.listSessions(project)))
+    ).flat();
+    return {
+      sessions: sessions
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+        .map(acpSessionInfo),
+    };
+  }
+
+  private async resumeSession(paramsValue: JsonValue | undefined): Promise<JsonObject> {
+    const params = decodeResumeSessionParams(paramsValue);
+    if (this.sessions.has(params.sessionId)) throw sessionAlreadyLive(params.sessionId);
+
+    const daemon = this.options.daemonFactory();
+    if (!daemon) throw daemonUnavailable();
+
+    const projects = await daemon.listProjects();
+    const project = this.resolveProjectForCwd(projects, params.cwd);
+    const known = (await daemon.listSessions(project))
+      .find((session) => session.sessionId === params.sessionId);
+    if (!known) throw sessionNotFound(params.sessionId);
+    if (!known.live) {
+      await daemon.resumeSession(project, params.sessionId);
+    }
+    this.sessions.add(params.sessionId);
+    return {};
   }
 
   private async promptSession(id: JsonRpcId, paramsValue: JsonValue | undefined): Promise<JsonObject> {
@@ -209,6 +258,31 @@ export class AgentClientProtocolServer {
   private write(message: JsonObject): void {
     this.options.output.write(`${JSON.stringify(message)}\n`);
   }
+
+  private resolveProjectForCwd(
+    projects: Awaited<ReturnType<AcpDaemonClient["listProjects"]>>,
+    cwd: string,
+  ) {
+    const project = resolveAcpProject(projects, cwd);
+    if (!project) {
+      throw new AcpProtocolError(
+        -32602,
+        "cwd must match a daemon-configured project root",
+        { code: "invalid_params", field: "cwd" },
+      );
+    }
+    return project;
+  }
+}
+
+function acpSessionInfo(session: AcpDaemonSession): JsonObject {
+  return {
+    sessionId: session.sessionId,
+    cwd: session.cwd,
+    title: session.title,
+    updatedAt: session.updatedAt,
+    _meta: session.metadata,
+  };
 }
 
 function normalizeAcpError(err: Error | AcpProtocolError | string): AcpProtocolError {

@@ -1,12 +1,12 @@
 ---
 id: task-add-acp-session-discovery-and-resume-support
 title: Add ACP session discovery and resume support
-status: ready
+status: done
 priority: p2
 area: modules
 summary: ACP now has stable session list/resume lifecycle methods; KOTA's ACP adapter should expose them through daemon-owned sessions and persisted chat bindings instead of leaving clients to re-create state.
 created_at: 2026-05-27T05:07:17.317Z
-updated_at: 2026-05-27T05:07:37Z
+updated_at: 2026-05-27T05:20:22Z
 ---
 
 ## Problem

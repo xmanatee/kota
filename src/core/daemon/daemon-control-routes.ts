@@ -74,6 +74,15 @@ function listInteractiveSessions(
   return [...serveSessions, ...daemonEntries];
 }
 
+function listDaemonChatBindings(
+  chatBindings: DaemonChatBindingStore,
+  projectId: ProjectId | undefined,
+) {
+  return chatBindings
+    .list()
+    .filter((binding) => projectId === undefined || binding.projectId === projectId);
+}
+
 function eventTypeMatchesGlob(eventType: string, glob: string): boolean {
   const segments = glob.split("*");
   const prefix = segments[0] ?? "";
@@ -378,6 +387,24 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
           return;
         }
         jsonResponse(res, 200, { sessions: listInteractiveSessions(h, chatPool, scope.projectId) });
+      },
+    },
+    {
+      method: "GET",
+      path: "/sessions/bindings",
+      capabilityScope: "read",
+      handler: (req, res) => {
+        if (!chatBindings) {
+          jsonResponse(res, 503, { error: "Daemon chat session bindings not available" });
+          return;
+        }
+        const url = new URL(req.url ?? "/", "http://127.0.0.1");
+        const scope = resolveProjectIdParam(h, url);
+        if (!scope.ok) {
+          jsonResponse(res, 404, scope.error);
+          return;
+        }
+        jsonResponse(res, 200, { bindings: listDaemonChatBindings(chatBindings, scope.projectId) });
       },
     },
     {

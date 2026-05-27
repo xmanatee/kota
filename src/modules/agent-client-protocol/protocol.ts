@@ -165,6 +165,8 @@ export function initializeResponse(): JsonObject {
       },
       sessionCapabilities: {
         close: {},
+        list: {},
+        resume: {},
       },
     },
     agentInfo: {
@@ -200,24 +202,40 @@ export type NewSessionParams = {
 };
 
 export function decodeNewSessionParams(params: JsonValue | undefined): NewSessionParams {
-  if (!isJsonObject(params)) {
-    throw invalidParams("session/new params must be an object");
-  }
-  const cwd = params.cwd;
-  if (typeof cwd !== "string" || cwd.length === 0) {
-    throw invalidParams("cwd must be a non-empty string");
-  }
-  if (!isAbsolute(cwd)) {
-    throw invalidParams("cwd must be an absolute path");
-  }
-  const mcpServers = params.mcpServers;
-  if (!Array.isArray(mcpServers)) {
-    throw invalidParams("mcpServers must be an array");
-  }
-  if (mcpServers.length > 0) {
-    throw unsupportedFeature("mcpServers", "Client-supplied MCP handoff is not supported by this adapter");
-  }
+  const obj = objectParams(params, "session/new");
+  const cwd = decodeAbsoluteCwd(obj.cwd);
+  rejectMcpServers(obj);
   return { cwd };
+}
+
+export type ListSessionParams = {
+  cwd?: string;
+};
+
+export function decodeListSessionParams(params: JsonValue | undefined): ListSessionParams {
+  if (params === undefined) return {};
+  const obj = objectParams(params, "session/list");
+  if (obj.cursor !== undefined) {
+    throw unsupportedFeature("session/list.cursor", "ACP session list pagination is not supported by this adapter");
+  }
+  if (obj.cwd === undefined) return {};
+  return { cwd: decodeAbsoluteCwd(obj.cwd) };
+}
+
+export type ResumeSessionParams = {
+  cwd: string;
+  sessionId: string;
+};
+
+export function decodeResumeSessionParams(params: JsonValue | undefined): ResumeSessionParams {
+  const obj = objectParams(params, "session/resume");
+  const cwd = decodeAbsoluteCwd(obj.cwd);
+  const sessionId = obj.sessionId;
+  if (typeof sessionId !== "string" || sessionId.length === 0) {
+    throw invalidParams("sessionId must be a non-empty string");
+  }
+  rejectMcpServers(obj);
+  return { cwd, sessionId };
 }
 
 export type PromptParams = {
@@ -250,14 +268,39 @@ export type SessionIdParams = {
 };
 
 export function decodeSessionIdParams(params: JsonValue | undefined, method: string): SessionIdParams {
-  if (!isJsonObject(params)) {
-    throw invalidParams(`${method} params must be an object`);
-  }
-  const sessionId = params.sessionId;
+  const obj = objectParams(params, method);
+  const sessionId = obj.sessionId;
   if (typeof sessionId !== "string" || sessionId.length === 0) {
     throw invalidParams("sessionId must be a non-empty string");
   }
   return { sessionId };
+}
+
+function objectParams(params: JsonValue | undefined, method: string): JsonObject {
+  if (!isJsonObject(params)) {
+    throw invalidParams(`${method} params must be an object`);
+  }
+  return params;
+}
+
+function decodeAbsoluteCwd(value: JsonValue | undefined): string {
+  if (typeof value !== "string" || value.length === 0) {
+    throw invalidParams("cwd must be a non-empty string");
+  }
+  if (!isAbsolute(value)) {
+    throw invalidParams("cwd must be an absolute path");
+  }
+  return value;
+}
+
+function rejectMcpServers(params: JsonObject): void {
+  const mcpServers = params.mcpServers;
+  if (!Array.isArray(mcpServers)) {
+    throw invalidParams("mcpServers must be an array");
+  }
+  if (mcpServers.length > 0) {
+    throw unsupportedFeature("mcpServers", "Client-supplied MCP handoff is not supported by this adapter");
+  }
 }
 
 function contentBlockToPromptText(block: JsonValue): string {
@@ -363,5 +406,13 @@ export function sessionBusy(sessionId: string): AcpProtocolError {
     ACP_UNSUPPORTED,
     "Session is already processing a prompt",
     { code: "session_busy", sessionId },
+  );
+}
+
+export function sessionAlreadyLive(sessionId: string): AcpProtocolError {
+  return new AcpProtocolError(
+    ACP_UNSUPPORTED,
+    "Session is already active on this ACP connection",
+    { code: "session_already_live", sessionId },
   );
 }
