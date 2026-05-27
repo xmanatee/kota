@@ -8,10 +8,15 @@
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { NullTransport } from "#core/loop/transport.js";
+import { type AgentEvent, NullTransport } from "#core/loop/transport.js";
 import { type AutonomyMode, isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
-import type { DaemonChatMakeAgent, DaemonChatPool } from "./daemon-chat-pool.js";
+import type {
+  DaemonChatMakeAgent,
+  DaemonChatPool,
+  DaemonChatSession,
+  DaemonChatStreamPayload,
+} from "./daemon-chat-pool.js";
 import { jsonResponse } from "./daemon-control-utils.js";
 import type { ProjectId } from "./project-registry.js";
 
@@ -43,9 +48,28 @@ export function readChatBody(req: IncomingMessage): Promise<Record<string, unkno
 }
 
 /** Write a single SSE frame to the response. */
-function writeSse(res: ServerResponse, eventName: string, data: unknown): void {
+function writeSse(res: ServerResponse, eventName: string, data: DaemonChatStreamPayload): void {
   if (res.writableEnded || res.destroyed) return;
   res.write(`event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`);
+}
+
+function publishSessionSse(
+  session: DaemonChatSession,
+  res: ServerResponse,
+  eventName: string,
+  data: DaemonChatStreamPayload,
+): void {
+  writeSse(res, eventName, data);
+  for (const subscriber of session.subscribers) {
+    subscriber.write(eventName, data);
+  }
+}
+
+function closeSessionSubscribers(session: DaemonChatSession): void {
+  for (const subscriber of session.subscribers) {
+    subscriber.close();
+  }
+  session.subscribers.clear();
 }
 
 /**
@@ -282,26 +306,65 @@ export async function handleDaemonChat(
   });
 
   const sseTransport = {
-    emit(event: import("#core/loop/transport.js").AgentEvent) {
+    emit(event: AgentEvent) {
       if (res.writableEnded) return;
-      res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+      publishSessionSse(session, res, event.type, event);
     },
   };
 
   session.proxy.target = sseTransport;
-  writeSse(res, "session", { session_id: session.id });
+  publishSessionSse(session, res, "session", { session_id: session.id });
 
   try {
     const result = await session.agent.send(message);
-    writeSse(res, "done", { session_id: session.id, result });
+    publishSessionSse(session, res, "done", { session_id: session.id, result });
   } catch (err) {
-    writeSse(res, "error", { message: (err as Error).message });
+    publishSessionSse(session, res, "error", { message: (err as Error).message });
   } finally {
     session.proxy.target = new NullTransport();
     session.busy = false;
     session.lastActive = Date.now();
+    closeSessionSubscribers(session);
     if (!res.writableEnded) res.end();
   }
+}
+
+/** GET /sessions/:id/events - subscribe to the active daemon chat turn. */
+export function handleDaemonChatEvents(
+  pool: DaemonChatPool,
+  req: IncomingMessage,
+  res: ServerResponse,
+  sessionId: string,
+): void {
+  const session = pool.get(sessionId);
+  if (!session) {
+    jsonResponse(res, 404, { error: "Session not found" });
+    return;
+  }
+  if (!session.busy) {
+    jsonResponse(res, 409, { error: "Session is not active" });
+    return;
+  }
+
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+  });
+
+  const subscriber = {
+    write(eventName: string, data: DaemonChatStreamPayload): void {
+      writeSse(res, eventName, data);
+    },
+    close(): void {
+      if (!res.writableEnded) res.end();
+    },
+  };
+  session.subscribers.add(subscriber);
+  writeSse(res, "session", { session_id: session.id });
+  req.on("close", () => {
+    session.subscribers.delete(subscriber);
+  });
 }
 
 /** POST /sessions/:id/cancel — abort the active turn without closing the session. */

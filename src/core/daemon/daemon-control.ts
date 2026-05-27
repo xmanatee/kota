@@ -1,5 +1,9 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import type { ControlRouteRegistration, RouteRegistration } from "#core/modules/module-types.js";
+import type {
+  ControlRouteRegistration,
+  ModuleRouteHandler,
+  RouteRegistration,
+} from "#core/modules/module-types.js";
 import { findRouteMatch } from "#core/modules/route-matcher.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { GuardrailsConfig } from "#core/tools/guardrails.js";
@@ -252,8 +256,8 @@ export class DaemonControlServer {
     if (!res.headersSent) jsonResponse(res, 500, { error: message });
   }
 
-  private invokeRouteHandler(
-    route: ControlRouteRegistration | RouteRegistration,
+  private invokeHandler(
+    handler: ModuleRouteHandler,
     req: IncomingMessage,
     res: ServerResponse,
     params: Record<string, string>,
@@ -262,10 +266,30 @@ export class DaemonControlServer {
       this.handleRouteError(res, err);
     };
     try {
-      Promise.resolve(route.handler(req, res, params)).catch(onRejected);
+      Promise.resolve(handler(req, res, params)).catch(onRejected);
     } catch (err) {
       this.handleRouteError(res, err instanceof Error ? err : String(err));
     }
+  }
+
+  private invokeRouteHandler(
+    route: ControlRouteRegistration | RouteRegistration,
+    req: IncomingMessage,
+    res: ServerResponse,
+    params: Record<string, string>,
+  ): void {
+    this.invokeHandler(route.handler, req, res, params);
+  }
+
+  private invokeAuthFailureHandler(
+    route: ControlRouteRegistration | RouteRegistration,
+    req: IncomingMessage,
+    res: ServerResponse,
+    params: Record<string, string>,
+  ): boolean {
+    if (!route.authFailureHandler) return false;
+    this.invokeHandler(route.authFailureHandler, req, res, params);
+    return true;
   }
 
   private handleRequest(req: IncomingMessage, res: ServerResponse): void {
@@ -276,6 +300,9 @@ export class DaemonControlServer {
     const controlMatch = findRouteMatch(this.controlRoutes, method, path);
     if (controlMatch) {
       if (!controlMatch.route.bypassAuth && !this.isAuthorized(req)) {
+        if (this.invokeAuthFailureHandler(controlMatch.route, req, res, controlMatch.params)) {
+          return;
+        }
         jsonResponse(res, 401, { error: "Unauthorized" });
         return;
       }
@@ -286,6 +313,9 @@ export class DaemonControlServer {
     const moduleMatch = findRouteMatch(this.moduleRoutes, method, path);
     if (moduleMatch) {
       if (!moduleMatch.route.bypassAuth && !this.isAuthorized(req)) {
+        if (this.invokeAuthFailureHandler(moduleMatch.route, req, res, moduleMatch.params)) {
+          return;
+        }
         jsonResponse(res, 401, { error: "Unauthorized" });
         return;
       }

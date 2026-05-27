@@ -3,7 +3,7 @@ import type { Scheduler } from "#core/daemon/scheduler.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { AgentSession } from "#core/loop/loop.js";
 import type { Transport } from "#core/loop/transport.js";
-import type { RouteRegistration } from "#core/modules/module-types.js";
+import type { ModuleRouteHandler, RouteRegistration } from "#core/modules/module-types.js";
 import { findRouteMatch } from "#core/modules/route-matcher.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { DaemonControlClient } from "./daemon-client.js";
@@ -39,6 +39,17 @@ export type ServerContext = {
   authToken?: string;
 };
 
+function invokeRouteHandler(
+  handler: ModuleRouteHandler,
+  req: IncomingMessage,
+  res: ServerResponse,
+  params: Record<string, string>,
+): void {
+  Promise.resolve(handler(req, res, params)).catch((err) => {
+    if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+  });
+}
+
 export function buildRequestHandler(ctx: ServerContext) {
   return function handleRequest(req: IncomingMessage, res: ServerResponse): void {
     setCors(res);
@@ -58,6 +69,10 @@ export function buildRequestHandler(ctx: ServerContext) {
         const header = req.headers.authorization;
         const queryToken = url.searchParams.get("token");
         if (header !== `Bearer ${ctx.authToken}` && queryToken !== ctx.authToken) {
+          if (moduleMatch?.route.authFailureHandler) {
+            invokeRouteHandler(moduleMatch.route.authFailureHandler, req, res, moduleMatch.params);
+            return;
+          }
           jsonResponse(res, 401, { error: "Unauthorized" });
           return;
         }
@@ -164,9 +179,7 @@ export function buildRequestHandler(ctx: ServerContext) {
     if (req.method) {
       const match = findRouteMatch(ctx.moduleRoutes, req.method, path);
       if (match) {
-        Promise.resolve(match.route.handler(req, res, match.params)).catch((err) => {
-          if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-        });
+        invokeRouteHandler(match.route.handler, req, res, match.params);
         return;
       }
     }

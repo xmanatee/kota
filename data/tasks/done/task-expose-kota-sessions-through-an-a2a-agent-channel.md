@@ -1,12 +1,12 @@
 ---
 id: task-expose-kota-sessions-through-an-a2a-agent-channel
 title: Expose KOTA sessions through an A2A agent channel
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a module-owned Agent2Agent channel that exposes KOTA daemon sessions through A2A Agent Card discovery, task lifecycle methods, and streaming updates without adding a parallel runtime.
 created_at: 2026-05-27T05:41:52.043Z
-updated_at: 2026-05-27T05:41:52.043Z
+updated_at: 2026-05-27T06:23:05.000Z
 ---
 
 ## Problem
@@ -126,11 +126,13 @@ Protocol interoperability through module-owned channels.
 
 ## Acceptance Evidence
 
-- `pnpm test src/modules/a2a-channel` or the final module's focused test path.
-- `pnpm run typecheck`
-- `pnpm exec biome check src/modules/a2a-channel` plus any touched daemon route
-  or shared helper paths.
-- A protocol transcript under `.kota/runs/<run-id>/` showing Agent Card fetch,
-  `SendMessage`, `SendStreamingMessage`, `GetTask`, `ListTasks`, `CancelTask`,
-  `SubscribeToTask`, and at least one typed error response against a test
-  daemon session.
+- `pnpm test src/modules/a2a-channel src/core/daemon/daemon-chat-handlers.test.ts` passed.
+- `pnpm run typecheck` passed.
+- `pnpm exec biome check src/modules/a2a-channel src/core/daemon/daemon-chat-handlers.ts src/core/daemon/daemon-chat-pool.ts src/core/daemon/daemon-control-routes.ts src/core/daemon/daemon-chat-handlers.test.ts` passed.
+- `pnpm test src/task-files.test.ts` passed.
+- Protocol transcript:
+  `.kota/runs/2026-05-27T05-44-30-913Z-builder-inleza/protocol-transcript.txt`
+  shows Agent Card fetch, `SendMessage`, `SendStreamingMessage`, `GetTask`,
+  `ListTasks`, `CancelTask`, `SubscribeToTask`, and typed error responses
+  against test daemon sessions, including an active `SubscribeToTask` stream
+  bridged from daemon session output.

@@ -139,6 +139,36 @@ describe("DaemonControlServer", () => {
       }
     });
 
+    it("lets matched module routes shape auth failures", async () => {
+      const handler = vi.fn();
+      const shapedServer = new DaemonControlServer(makeHandle(), TEST_TOKEN, {
+        routes: [
+          {
+            method: "POST",
+            path: "/api/custom",
+            authFailureHandler: (_req, res) => {
+              res.writeHead(200, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({ error: { data: [{ reason: "CUSTOM_AUTH" }] } }));
+            },
+            handler,
+          },
+        ],
+      });
+      const shapedPort = await shapedServer.start();
+      try {
+        const res = await fetchNoToken(shapedPort, "/api/custom", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        });
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ error: { data: [{ reason: "CUSTOM_AUTH" }] } });
+        expect(handler).not.toHaveBeenCalled();
+      } finally {
+        await shapedServer.stop();
+      }
+    });
+
     it("does not require token when server has no token configured", async () => {
       const unprotected = new DaemonControlServer(makeHandle());
       const unprotectedPort = await unprotected.start();

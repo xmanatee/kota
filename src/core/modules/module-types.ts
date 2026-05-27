@@ -208,6 +208,13 @@ export type ModuleRouteBase = {
    * request authentication.
    */
   bypassAuth?: boolean;
+  /**
+   * Optional protocol-shaped denial handler invoked when the host bearer-token
+   * check fails for this matched route. This does not bypass authentication:
+   * use it only to return a route-native error envelope without doing
+   * privileged work.
+   */
+  authFailureHandler?: ModuleRouteHandler;
   handler: ModuleRouteHandler;
 };
 

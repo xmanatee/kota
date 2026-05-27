@@ -21,6 +21,7 @@ import {
   deleteDaemonSession,
   handleCreateDaemonSession,
   handleDaemonChat,
+  handleDaemonChatEvents,
   handlePatchDaemonSession,
 } from "./daemon-chat-handlers.js";
 import type { DaemonChatMakeAgent, DaemonChatPool } from "./daemon-chat-pool.js";
@@ -450,6 +451,18 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
           return;
         }
         return handleDaemonChat(chatPool, req, res, params.id);
+      },
+    },
+    {
+      method: "GET",
+      path: "/sessions/:id/events",
+      capabilityScope: "read",
+      handler: (req, res, params) => {
+        if (!chatPool) {
+          jsonResponse(res, 503, { error: "Daemon chat sessions not available" });
+          return;
+        }
+        handleDaemonChatEvents(chatPool, req, res, params.id);
       },
     },
     {

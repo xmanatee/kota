@@ -11,15 +11,14 @@ and live runtime state.
   event names, capability scopes, and status values belong in source, typed
   clients, and focused tests rather than durable docs.
 - Modules extend the control API through `KotaModule.controlRoutes`, not by
-  adding handlers under `src/core/daemon/`. Built-in and contributed routes
-  share one `ControlRouteRegistration` shape (`method`, `path`,
-  `capabilityScope`, `bypassAuth`, `handler`); the server merges them into
-  one table and matches once per request — no parallel scope/handler/bypass
-  tables. Built-in route closures bind their runtime state at registration
-  time (see `daemon-control-routes.ts`), so the dispatcher stays free of
-  route-specific dependencies. Route paths may include `:name` segments and
-  collisions throw at server construction. Use this seam for any
-  module-owned control-plane endpoint.
+  adding handlers under `src/core/daemon/`. Built-in and contributed routes use
+  one `ControlRouteRegistration` shape (`method`, `path`, `capabilityScope`,
+  `bypassAuth`, optional auth-failure handler, `handler`); the server merges
+  them into one table and matches once per request. Built-in route closures
+  bind runtime state at registration time (see `daemon-control-routes.ts`), so
+  the dispatcher stays free of route-specific dependencies. Route paths may
+  include `:name` segments and collisions throw at server construction. Use
+  this seam for module-owned control-plane endpoints.
 - Clients should use daemon client wrappers for URL construction, response
   decoding, authentication, polling, and live updates. They must not read
   daemon runtime files directly.

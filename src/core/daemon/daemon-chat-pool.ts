@@ -9,7 +9,7 @@
 
 import { randomUUID } from "node:crypto";
 import type { AgentSession } from "#core/loop/loop.js";
-import { ProxyTransport, type Transport } from "#core/loop/transport.js";
+import { type AgentEvent, ProxyTransport, type Transport } from "#core/loop/transport.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { GuardrailsConfig, GuardrailsSnapshot } from "#core/tools/guardrails.js";
 import type { ProjectId } from "./project-registry.js";
@@ -30,8 +30,20 @@ export type DaemonChatSession = {
   conversationId: string;
   agent: AgentSession;
   proxy: ProxyTransport;
+  subscribers: Set<DaemonChatStreamSink>;
   busy: boolean;
   lastActive: number;
+};
+
+export type DaemonChatStreamPayload =
+  | AgentEvent
+  | { session_id: string }
+  | { session_id: string; result: string }
+  | { message: string };
+
+export type DaemonChatStreamSink = {
+  write(eventName: string, data: DaemonChatStreamPayload): void;
+  close(): void;
 };
 
 export type DaemonChatListEntry = {
@@ -109,6 +121,7 @@ export class DaemonChatPool {
       conversationId,
       agent,
       proxy,
+      subscribers: new Set(),
       busy: false,
       lastActive: Date.now(),
     };
@@ -132,6 +145,8 @@ export class DaemonChatPool {
     const session = this.sessions.get(id);
     if (!session) return false;
     session.agent.close();
+    for (const subscriber of session.subscribers) subscriber.close();
+    session.subscribers.clear();
     this.sessions.delete(id);
     return true;
   }
@@ -185,6 +200,8 @@ export class DaemonChatPool {
     for (const [id, session] of this.sessions) {
       if (!session.busy && now - session.lastActive > this.ttlMs) {
         session.agent.close();
+        for (const subscriber of session.subscribers) subscriber.close();
+        session.subscribers.clear();
         this.sessions.delete(id);
         count++;
       }
@@ -195,6 +212,8 @@ export class DaemonChatPool {
   closeAll(): void {
     for (const session of this.sessions.values()) {
       session.agent.close();
+      for (const subscriber of session.subscribers) subscriber.close();
+      session.subscribers.clear();
     }
     this.sessions.clear();
   }
@@ -212,6 +231,8 @@ export class DaemonChatPool {
     }
     if (!oldest) return false;
     oldest.agent.close();
+    for (const subscriber of oldest.subscribers) subscriber.close();
+    oldest.subscribers.clear();
     this.sessions.delete(oldest.id);
     return true;
   }

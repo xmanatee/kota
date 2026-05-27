@@ -8,6 +8,7 @@ import {
   type DaemonChatConversationResolver,
   handleCreateDaemonSession,
   handleDaemonChat,
+  handleDaemonChatEvents,
   readChatBody,
 } from "./daemon-chat-handlers.js";
 import { DaemonChatPool } from "./daemon-chat-pool.js";
@@ -375,4 +376,66 @@ describe("handleDaemonChat", () => {
     const written = res._written.join("");
     expect(written).toContain("event: error");
   });
+
+  it("streams active turn events to session event subscribers", async () => {
+    const pool = makePool();
+    let releaseSend!: () => void;
+    const sendCanContinue = new Promise<void>((resolve) => {
+      releaseSend = resolve;
+    });
+    const session = pool.create((transport) => ({
+      send: vi.fn(async () => {
+        await sendCanContinue;
+        transport.emit({ type: "text", content: "hello subscriber" });
+        return "subscriber final";
+      }),
+      cancelActiveTurn: vi.fn(),
+      close: vi.fn(),
+      getAutonomyMode: vi.fn(() => "supervised"),
+      setAutonomyMode: vi.fn(),
+      getGuardrailsSnapshot: vi.fn(() => ({ id: "gr_test", generation: 1, tools: {} })),
+      replaceGuardrailsConfig: vi.fn(() => ({ changed: false })),
+    }) as never, "supervised", CONV_ID, { projectId: PROJECT_ID });
+
+    const chatPromise = handleDaemonChat(
+      pool,
+      mockRequest('{"message":"hello"}') as never,
+      mockResponse() as never,
+      session.id,
+    );
+    await waitFor(() => session.busy);
+
+    const subscriberRes = mockResponse();
+    handleDaemonChatEvents(pool, mockRequest() as never, subscriberRes as never, session.id);
+    releaseSend();
+    await chatPromise;
+
+    const written = subscriberRes._written.join("");
+    expect(written).toContain("event: session");
+    expect(written).toContain("event: text");
+    expect(written).toContain("hello subscriber");
+    expect(written).toContain("event: done");
+    expect(written).toContain("subscriber final");
+    expect(subscriberRes.end).toHaveBeenCalled();
+  });
+
+  it("rejects session event subscriptions when the task is idle", () => {
+    const pool = makePool();
+    const agent = mockAgentSession();
+    const session = pool.create(() => agent as never, "supervised", CONV_ID, { projectId: PROJECT_ID });
+    const res = mockResponse();
+
+    handleDaemonChatEvents(pool, mockRequest() as never, res as never, session.id);
+
+    expect(res.writeHead).toHaveBeenCalledWith(409, expect.any(Object));
+    expect(res._written.join("")).toContain("Session is not active");
+  });
 });
+
+async function waitFor(predicate: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  throw new Error("predicate did not become true");
+}
