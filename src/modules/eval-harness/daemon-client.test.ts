@@ -29,8 +29,7 @@
  *     `fixture_provenance` arm collapses unchanged, and objective-metric
  *     validation failures collapse unchanged.
  *  6. `EvalListResult` decodes correctly through `requestStrict<T>` (the
- *     `fixtures` array passes through unchanged with all five
- *     `EvalFixtureSummary` keys preserved verbatim).
+ *     `fixtures` array and coverage summary pass through unchanged).
  *  7. `EvalCalibrationResult` decodes correctly through `requestStrict<T>`
  *     (the `aggregate` and `decision` `Record<string, unknown>` fields
  *     pass through unchanged).
@@ -61,6 +60,24 @@ type RecordedCall = {
   body: unknown;
   init: DaemonRequestInit | undefined;
   shape: "request" | "requestStrict";
+};
+
+const SAMPLE_CONTROL_DECISION_COVERAGE: EvalListResult["controlDecisionCoverage"] = {
+  counts: {
+    act: 1,
+    ask: 0,
+    refuse: 0,
+    stop: 0,
+    confirm: 0,
+    recover: 0,
+  },
+  missingDecisions: ["ask", "refuse", "stop", "confirm", "recover"],
+  missingDecisionWarnings: [
+    {
+      decision: "ask",
+      message: 'No eval fixture declares control decision "ask".',
+    },
+  ],
 };
 
 function makeRecordingTransport(
@@ -119,10 +136,14 @@ describe("eval-harness module daemonClient(link)", () => {
         description: "first",
         role: "builder",
         workflowName: "builder",
+        controlDecisions: ["act"],
         tags: ["alpha"],
       },
     ];
-    const wirePayload: EvalListResult = { fixtures };
+    const wirePayload: EvalListResult = {
+      fixtures,
+      controlDecisionCoverage: SAMPLE_CONTROL_DECISION_COVERAGE,
+    };
     const { transport, calls } = makeRecordingTransport(() => wirePayload);
     const contributed = evalHarnessModule.daemonClient!(transport);
     const result = await contributed.evalHarness!.list();
@@ -146,6 +167,7 @@ describe("eval-harness module daemonClient(link)", () => {
       repeatCount: 3,
       passAtK: 1,
       passHatK: 1,
+      controlDecisionCoverage: SAMPLE_CONTROL_DECISION_COVERAGE,
       objectiveMetrics: [],
       runArtifactBaseDir: "/tmp/eval-runs/run-x",
     };
@@ -171,6 +193,7 @@ describe("eval-harness module daemonClient(link)", () => {
       repeatCount: 1,
       passAtK: 1,
       passHatK: 1,
+      controlDecisionCoverage: SAMPLE_CONTROL_DECISION_COVERAGE,
       objectiveMetrics: [],
       runArtifactBaseDir: "/tmp/eval-runs/run-y",
     };

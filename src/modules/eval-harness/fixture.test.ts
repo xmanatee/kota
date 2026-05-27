@@ -37,10 +37,17 @@ function writeFixture(
     spec.provenance === undefined
       ? { ...spec, provenance: REAL_FAILURE_PROVENANCE }
       : spec;
-  const fullSpec =
-    withProvenance.preRunExpectations === undefined
-      ? { ...withProvenance, preRunExpectations: DEFAULT_PRE_RUN_EXPECTATIONS }
+  const withControlDecisions =
+    withProvenance.controlDecisions === undefined
+      ? { ...withProvenance, controlDecisions: ["act"] }
       : withProvenance;
+  const fullSpec =
+    withControlDecisions.preRunExpectations === undefined
+      ? {
+          ...withControlDecisions,
+          preRunExpectations: DEFAULT_PRE_RUN_EXPECTATIONS,
+        }
+      : withControlDecisions;
   writeFileSync(join(dir, "fixture.json"), JSON.stringify(fullSpec, null, 2));
   if (withInitial) mkdirSync(join(dir, "initial"));
 }
@@ -73,6 +80,7 @@ describe("loadFixture", () => {
     expect(loaded.spec.preRunExpectations).toEqual(DEFAULT_PRE_RUN_EXPECTATIONS);
     expect(loaded.spec.tags).toEqual(["smoke"]);
     expect(loaded.spec.provenance).toEqual(REAL_FAILURE_PROVENANCE);
+    expect(loaded.spec.controlDecisions).toEqual(["act"]);
   });
 
   it("loads a well-formed smoke fixture with justification", () => {
@@ -146,6 +154,66 @@ describe("loadFixture", () => {
       ],
     });
     expect(() => loadFixture(root, "vacuous")).toThrow(/expected to fail initially/);
+  });
+
+  it("rejects a fixture that omits controlDecisions", () => {
+    const id = "missingControl";
+    const dir = join(root, id);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "fixture.json"),
+      JSON.stringify({
+        id,
+        description: "x",
+        role: "builder",
+        workflowName: "builder",
+        budgetMs: 600_000,
+        predicates: [{ kind: "file-exists", path: "foo" }],
+        preRunExpectations: DEFAULT_PRE_RUN_EXPECTATIONS,
+        provenance: REAL_FAILURE_PROVENANCE,
+      }),
+    );
+    mkdirSync(join(dir, "initial"));
+    expect(() => loadFixture(root, id)).toThrow(/controlDecisions/);
+  });
+
+  it("rejects empty, unknown, and duplicate controlDecisions", () => {
+    writeFixture(root, "emptyControl", {
+      id: "emptyControl",
+      description: "x",
+      role: "builder",
+      workflowName: "builder",
+      budgetMs: 600_000,
+      predicates: [{ kind: "file-exists", path: "foo" }],
+      controlDecisions: [],
+    });
+    expect(() => loadFixture(root, "emptyControl")).toThrow(/controlDecisions/);
+
+    writeFixture(root, "unknownControl", {
+      id: "unknownControl",
+      description: "x",
+      role: "builder",
+      workflowName: "builder",
+      budgetMs: 600_000,
+      predicates: [{ kind: "file-exists", path: "foo" }],
+      controlDecisions: ["patch"],
+    });
+    expect(() => loadFixture(root, "unknownControl")).toThrow(
+      /invalid controlDecisions entry/,
+    );
+
+    writeFixture(root, "duplicateControl", {
+      id: "duplicateControl",
+      description: "x",
+      role: "builder",
+      workflowName: "builder",
+      budgetMs: 600_000,
+      predicates: [{ kind: "file-exists", path: "foo" }],
+      controlDecisions: ["act", "act"],
+    });
+    expect(() => loadFixture(root, "duplicateControl")).toThrow(
+      /duplicate controlDecisions/,
+    );
   });
 
   it("rejects malformed pre-run expectation entries", () => {
@@ -562,7 +630,7 @@ describe("loadAllFixtures", () => {
     expect(ids).toEqual(["alpha", "beta"]);
   });
 
-  it("loads every shipped fixture with explicit pre-run expectations", () => {
+  it("loads every shipped fixture with explicit pre-run expectations and control decisions", () => {
     const fixtures = loadAllFixtures(
       join(process.cwd(), "src/modules/eval-harness/fixtures"),
     );
@@ -573,6 +641,9 @@ describe("loadAllFixtures", () => {
           (expectation) => expectation.expected === "fail",
         ),
       ),
+    ).toBe(true);
+    expect(
+      fixtures.every((fixture) => fixture.spec.controlDecisions.length > 0),
     ).toBe(true);
   });
 

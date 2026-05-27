@@ -176,7 +176,14 @@ function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
       fix: stub({ repairs: [] }),
     },
     evalHarness: {
-      list: stub({ fixtures: [] }),
+      list: stub({
+        fixtures: [],
+        controlDecisionCoverage: {
+          counts: { act: 0, ask: 0, refuse: 0, stop: 0, confirm: 0, recover: 0 },
+          missingDecisions: ["act", "ask", "refuse", "stop", "confirm", "recover"],
+          missingDecisionWarnings: [],
+        },
+      }),
       run: stub({ ok: false, reason: "no_fixtures", message: "stub" }),
       calibration: stub({ aggregate: {}, decision: {} }),
     },

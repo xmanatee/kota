@@ -11,6 +11,10 @@
  * `#modules/eval-harness/client.js`.
  */
 import type {
+  FixtureControlDecision,
+  FixtureControlDecisionCoverageSummary,
+} from "./fixture.js";
+import type {
   AggregateObjectiveMetric,
   ObjectiveMetricValidationReason,
 } from "./objective-metrics.js";
@@ -21,11 +25,13 @@ export type EvalFixtureSummary = {
   description: string;
   role: string;
   workflowName: string;
+  controlDecisions: FixtureControlDecision[];
   tags: string[];
 };
 
 export type EvalListResult = {
   fixtures: EvalFixtureSummary[];
+  controlDecisionCoverage: FixtureControlDecisionCoverageSummary;
 };
 
 export type EvalRunIsolationBackend =
@@ -62,6 +68,7 @@ export type EvalRunResult =
       repeatCount: number;
       passAtK: number;
       passHatK: number;
+      controlDecisionCoverage: FixtureControlDecisionCoverageSummary;
       objectiveMetrics: AggregateObjectiveMetric[];
       runArtifactBaseDir: string;
     }

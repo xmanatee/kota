@@ -57,6 +57,37 @@ export type FixtureProvenance =
   | { kind: "real-failure"; sourceRunId: string }
   | { kind: "smoke-fixture"; justification: string };
 
+export const FIXTURE_CONTROL_DECISIONS = [
+  "act",
+  "ask",
+  "refuse",
+  "stop",
+  "confirm",
+  "recover",
+] as const;
+
+export type FixtureControlDecision = (typeof FIXTURE_CONTROL_DECISIONS)[number];
+
+export type FixtureControlDecisionCounts = {
+  act: number;
+  ask: number;
+  refuse: number;
+  stop: number;
+  confirm: number;
+  recover: number;
+};
+
+export type FixtureControlDecisionCoverageWarning = {
+  decision: FixtureControlDecision;
+  message: string;
+};
+
+export type FixtureControlDecisionCoverageSummary = {
+  counts: FixtureControlDecisionCounts;
+  missingDecisions: readonly FixtureControlDecision[];
+  missingDecisionWarnings: readonly FixtureControlDecisionCoverageWarning[];
+};
+
 export type FixtureSpecFile = {
   /** Stable fixture id; must match the directory name. */
   id: string;
@@ -88,6 +119,11 @@ export type FixtureSpecFile = {
    * Provenance record validated by the loader. Required on every fixture.
    */
   provenance: FixtureProvenance;
+  /**
+   * Control-decision behaviors this fixture exercises. Diagnostic metadata
+   * only; scoring ignores it.
+   */
+  controlDecisions: readonly FixtureControlDecision[];
   /**
    * Optional trigger payload forwarded verbatim to
    * `kota workflow trigger --payload <json>`. Required for workflows whose
@@ -261,6 +297,38 @@ function parseProvenance(raw: unknown, fixtureDir: string): FixtureProvenance {
   }
 }
 
+function isFixtureControlDecision(value: string): value is FixtureControlDecision {
+  return FIXTURE_CONTROL_DECISIONS.some((decision) => decision === value);
+}
+
+function parseControlDecisions(
+  raw: readonly unknown[],
+  fixtureDir: string,
+): FixtureControlDecision[] {
+  if (raw.length === 0) {
+    throw new Error(
+      `Fixture at "${fixtureDir}" has invalid controlDecisions: field must be a non-empty array.`,
+    );
+  }
+  const decisions: FixtureControlDecision[] = [];
+  const seen = new Set<FixtureControlDecision>();
+  for (const entry of raw) {
+    if (typeof entry !== "string" || !isFixtureControlDecision(entry)) {
+      throw new Error(
+        `Fixture at "${fixtureDir}" has invalid controlDecisions entry ${JSON.stringify(entry)}. Legal values are ${FIXTURE_CONTROL_DECISIONS.map((decision) => JSON.stringify(decision)).join(", ")}.`,
+      );
+    }
+    if (seen.has(entry)) {
+      throw new Error(
+        `Fixture at "${fixtureDir}" has duplicate controlDecisions entry "${entry}".`,
+      );
+    }
+    seen.add(entry);
+    decisions.push(entry);
+  }
+  return decisions;
+}
+
 function parseFixtureSpec(rawJson: string, fixtureDir: string): FixtureSpecFile {
   let raw: unknown;
   try {
@@ -415,6 +483,12 @@ function parseFixtureSpec(rawJson: string, fixtureDir: string): FixtureSpecFile 
   }
 
   const provenance = parseProvenance(r.provenance, fixtureDir);
+  if (!Array.isArray(r.controlDecisions)) {
+    throw new Error(
+      `Fixture at "${fixtureDir}" has invalid controlDecisions: field must be a non-empty array.`,
+    );
+  }
+  const controlDecisions = parseControlDecisions(r.controlDecisions, fixtureDir);
 
   return {
     id: r.id as string,
@@ -425,10 +499,44 @@ function parseFixtureSpec(rawJson: string, fixtureDir: string): FixtureSpecFile 
     predicates,
     preRunExpectations,
     provenance,
+    controlDecisions,
     ...(triggerPayload !== undefined && { triggerPayload }),
     ...(externalCallShims !== undefined && { externalCallShims }),
     ...(objectiveMetrics !== undefined && { objectiveMetrics }),
     ...(tags && { tags }),
+  };
+}
+
+function emptyControlDecisionCounts(): FixtureControlDecisionCounts {
+  return {
+    act: 0,
+    ask: 0,
+    refuse: 0,
+    stop: 0,
+    confirm: 0,
+    recover: 0,
+  };
+}
+
+export function summarizeControlDecisionCoverage(
+  fixtures: readonly LoadedFixture[],
+): FixtureControlDecisionCoverageSummary {
+  const counts = emptyControlDecisionCounts();
+  for (const fixture of fixtures) {
+    for (const decision of fixture.spec.controlDecisions) {
+      counts[decision] += 1;
+    }
+  }
+  const missingDecisions = FIXTURE_CONTROL_DECISIONS.filter(
+    (decision) => counts[decision] === 0,
+  );
+  return {
+    counts,
+    missingDecisions,
+    missingDecisionWarnings: missingDecisions.map((decision) => ({
+      decision,
+      message: `No eval fixture declares control decision "${decision}".`,
+    })),
   };
 }
 

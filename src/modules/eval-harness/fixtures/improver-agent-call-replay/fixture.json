@@ -81,5 +81,9 @@
       },
       "expected": "pass"
     }
+  ],
+  "controlDecisions": [
+    "act",
+    "recover"
   ]
 }

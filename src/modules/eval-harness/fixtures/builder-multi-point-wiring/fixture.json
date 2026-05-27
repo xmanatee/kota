@@ -61,5 +61,8 @@
       },
       "expected": "pass"
     }
+  ],
+  "controlDecisions": [
+    "act"
   ]
 }

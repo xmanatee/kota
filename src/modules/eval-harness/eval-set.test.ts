@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { runEvalSet } from "./eval-set.js";
-import { loadAllFixtures } from "./fixture.js";
+import { type FixtureControlDecision, loadAllFixtures } from "./fixture.js";
 import type {
   ExecutionProfilePreflightResult,
   ResourceProfile,
@@ -34,6 +34,7 @@ function seedFixture(
   id: string,
   predicate: { kind: "file-exists"; path: string },
   objectiveMetrics?: object[],
+  controlDecisions: FixtureControlDecision[] = ["act"],
 ): void {
   const dir = join(root, id);
   mkdirSync(join(dir, "initial"), { recursive: true });
@@ -47,6 +48,7 @@ function seedFixture(
       budgetMs: 60_000,
       predicates: [predicate],
       preRunExpectations: [{ predicate, expected: "fail" }],
+      controlDecisions,
       ...(objectiveMetrics !== undefined && { objectiveMetrics }),
       provenance: {
         kind: "smoke-fixture",
@@ -105,6 +107,8 @@ describe("runEvalSet", () => {
     // alpha: 3/3 pass ⇒ passedAll=true; beta: 1/3 pass ⇒ passedAny=true.
     expect(report.aggregate.passAtK).toBeCloseTo(1);
     expect(report.aggregate.passHatK).toBeCloseTo(0.5);
+    expect(report.controlDecisionCoverage.counts.act).toBe(2);
+    expect(report.controlDecisionCoverage.missingDecisions).toContain("ask");
 
     const raw = JSON.parse(
       readFileSync(join(runsRoot, "eval-set-report.json"), "utf-8"),
@@ -112,6 +116,11 @@ describe("runEvalSet", () => {
     expect(raw.repeatCount).toBe(3);
     expect(raw.executionProfile.status).toBe("verified");
     expect(raw.runs).toHaveLength(6);
+    expect(raw.controlDecisionCoverage.counts.act).toBe(2);
+    expect(raw.controlDecisionCoverage.missingDecisionWarnings).toContainEqual({
+      decision: "ask",
+      message: 'No eval fixture declares control decision "ask".',
+    });
     const preflight = JSON.parse(
       readFileSync(
         join(runsRoot, "eval-resource-profile-preflight.json"),

@@ -104,10 +104,28 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
   cmd
     .command("list")
     .description("List all discovered fixtures under the eval-harness module.")
-    .action(async () => {
+    .option("--json", "Emit fixture list and control-decision coverage as JSON")
+    .action(async (opts: { json?: boolean }) => {
       const result = await ctx.client.evalHarness.list();
+      if (opts.json) {
+        // biome-ignore lint/suspicious/noConsole: structured JSON output path stays on console
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
+      const coverage = result.controlDecisionCoverage;
+      const coverageRow = line(
+        plain("control decisions: "),
+        ...Object.entries(coverage.counts).flatMap(([decision, count], index) => [
+          ...(index === 0 ? [] : [plain("  ")]),
+          span(decision, "info"),
+          plain(`=${count}`),
+        ]),
+      );
+      const warningRows = coverage.missingDecisionWarnings.map((warning) =>
+        line(span(`missing control-decision coverage: ${warning.decision}`, "warn")),
+      );
       if (result.fixtures.length === 0) {
-        print(line(plain("No fixtures found.")));
+        print(stack(line(plain("No fixtures found.")), coverageRow, ...warningRows));
         return;
       }
       const rows = result.fixtures.flatMap((f) => {
@@ -120,12 +138,14 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
             plain(" → "),
             span(f.workflowName, "agent"),
             plain(")"),
+            plain("  decisions="),
+            span(f.controlDecisions.join(","), "info"),
             span(tags, "muted"),
           ),
           line(span(`  ${f.description}`, "muted")),
         ];
       });
-      print(stack(...rows));
+      print(stack(coverageRow, ...warningRows, ...rows));
     });
 
   cmd

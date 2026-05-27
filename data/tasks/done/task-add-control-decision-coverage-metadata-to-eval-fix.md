@@ -1,12 +1,12 @@
 ---
 id: task-add-control-decision-coverage-metadata-to-eval-fix
 title: Add control-decision coverage metadata to eval fixtures
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Classify eval-harness fixtures by typed control-decision coverage and surface the coverage in eval reports so future evaluation work targets real behavioral gaps instead of duplicating outcome-only fixtures.
 created_at: 2026-05-27T02:21:25.812Z
-updated_at: 2026-05-27T02:21:25.812Z
+updated_at: 2026-05-27T02:37:23Z
 ---
 
 ## Problem
@@ -117,11 +117,13 @@ targets missing autonomy behaviors with less duplicate benchmark churn.
 
 ## Acceptance Evidence
 
-- Transcript under `.kota/runs/<run-id>/` for
-  `pnpm test src/modules/eval-harness/fixture.test.ts src/modules/eval-harness/eval-set.test.ts src/modules/eval-harness/cli.test.ts src/modules/eval-harness/eval-control-routes.test.ts`
+- `.kota/runs/2026-05-27T02-25-26-981Z-builder-i011sk/focused-tests-transcript.txt`
+  for
+  `pnpm test src/modules/eval-harness/fixture.test.ts src/modules/eval-harness/eval-set.test.ts src/modules/eval-harness/cli.test.ts src/modules/eval-harness/eval-control-routes.test.ts src/modules/eval-harness/daemon-client.test.ts`
   or the narrower focused files that own the implemented coverage surface.
-- Transcript under `.kota/runs/<run-id>/` for `pnpm kota eval list --json`
-  showing fixture control-decision coverage in machine-readable output.
-- A sample `eval-set-report.json` under `.kota/runs/<run-id>/` showing the
-  persisted coverage aggregate beside the existing scoring/objective-metric
-  fields.
+- `.kota/runs/2026-05-27T02-25-26-981Z-builder-i011sk/eval-list-json-transcript.txt`
+  for `pnpm kota eval list --json`, showing fixture control-decision coverage
+  in machine-readable output.
+- `.kota/runs/2026-05-27T02-25-26-981Z-builder-i011sk/sample-eval-set/eval-set-report.json`
+  showing the persisted coverage aggregate beside the existing
+  scoring/objective-metric fields.

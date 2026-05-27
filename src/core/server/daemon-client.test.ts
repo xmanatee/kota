@@ -234,7 +234,14 @@ function makeStubHistory(): DaemonClientHandlers["history"] {
 
 function makeStubEvalHarness(): DaemonClientHandlers["evalHarness"] {
   return {
-    list: async () => ({ fixtures: [] }),
+    list: async () => ({
+      fixtures: [],
+      controlDecisionCoverage: {
+        counts: { act: 0, ask: 0, refuse: 0, stop: 0, confirm: 0, recover: 0 },
+        missingDecisions: ["act", "ask", "refuse", "stop", "confirm", "recover"],
+        missingDecisionWarnings: [],
+      },
+    }),
     run: async () => ({
       ok: false,
       reason: "no_fixtures",

@@ -28,7 +28,11 @@ import type {
 } from "./client.js";
 import { runEvalSet } from "./eval-set.js";
 import { evalHarnessSetCompleted } from "./events.js";
-import { loadAllFixtures, loadFixture } from "./fixture.js";
+import {
+  loadAllFixtures,
+  loadFixture,
+  summarizeControlDecisionCoverage,
+} from "./fixture.js";
 import type { ResourceProfile } from "./fixture-run.js";
 import { ObjectiveMetricValidationError } from "./objective-metrics.js";
 import {
@@ -65,8 +69,10 @@ export function listEvalFixtures(projectDir: string): EvalListResult {
       description: f.spec.description,
       role: f.spec.role,
       workflowName: f.spec.workflowName,
+      controlDecisions: [...f.spec.controlDecisions],
       tags: [...(f.spec.tags ?? [])],
     })),
+    controlDecisionCoverage: summarizeControlDecisionCoverage(fixtures),
   };
 }
 
@@ -169,6 +175,7 @@ export async function runEvalHarness(
     repeatCount: report.repeatCount,
     passAtK: report.aggregate.passAtK,
     passHatK: report.aggregate.passHatK,
+    controlDecisionCoverage: report.controlDecisionCoverage,
     objectiveMetrics: [...report.objectiveMetrics],
     runArtifactBaseDir: report.runArtifactBaseDir,
   };

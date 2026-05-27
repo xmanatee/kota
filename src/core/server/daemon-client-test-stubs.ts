@@ -130,7 +130,14 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
       reindex: async () => ({ indexed: 0, failed: 0 }),
     },
     evalHarness: {
-      list: async () => ({ fixtures: [] }),
+      list: async () => ({
+        fixtures: [],
+        controlDecisionCoverage: {
+          counts: { act: 0, ask: 0, refuse: 0, stop: 0, confirm: 0, recover: 0 },
+          missingDecisions: ["act", "ask", "refuse", "stop", "confirm", "recover"],
+          missingDecisionWarnings: [],
+        },
+      }),
       run: async () => ({
         ok: false as const,
         reason: "no_fixtures" as const,

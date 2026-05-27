@@ -95,11 +95,22 @@ export {
 } from "./external-call-shim.js";
 export type {
   FixtureAutonomyRole,
+  FixtureControlDecision,
+  FixtureControlDecisionCounts,
+  FixtureControlDecisionCoverageSummary,
+  FixtureControlDecisionCoverageWarning,
   FixtureProvenance,
   FixtureSpecFile,
   LoadedFixture,
 } from "./fixture.js";
-export { FixtureProvenanceError, FixtureRecordingProvenanceError, loadAllFixtures, loadFixture } from "./fixture.js";
+export {
+  FIXTURE_CONTROL_DECISIONS,
+  FixtureProvenanceError,
+  FixtureRecordingProvenanceError,
+  loadAllFixtures,
+  loadFixture,
+  summarizeControlDecisionCoverage,
+} from "./fixture.js";
 export type {
   ExecutionBackendKind,
   ExecutionProfileDiagnostic,

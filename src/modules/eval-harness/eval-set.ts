@@ -9,7 +9,11 @@
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { LoadedFixture } from "./fixture.js";
+import {
+  type FixtureControlDecisionCoverageSummary,
+  type LoadedFixture,
+  summarizeControlDecisionCoverage,
+} from "./fixture.js";
 import type {
   ExecutionProfilePreflightResult,
   FixtureRun,
@@ -48,6 +52,7 @@ export type EvalSetReport = {
   runs: readonly FixtureRun[];
   perFixture: readonly FixtureScore[];
   aggregate: AggregateScore;
+  controlDecisionCoverage: FixtureControlDecisionCoverageSummary;
   objectiveMetrics: readonly AggregateObjectiveMetric[];
   resourceProfile: ResourceProfile;
   executionProfile: ExecutionProfilePreflightResult;
@@ -107,6 +112,7 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
 
   const perFixture = scorePerFixture(runs);
   const aggregate = aggregateScores(perFixture);
+  const controlDecisionCoverage = summarizeControlDecisionCoverage(params.fixtures);
   const objectiveMetrics = aggregateObjectiveMetrics(runs);
   const completedAt = new Date().toISOString();
 
@@ -122,6 +128,7 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
         runs,
         perFixture,
         aggregate,
+        controlDecisionCoverage,
         objectiveMetrics,
       },
       null,
@@ -133,6 +140,7 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
     runs,
     perFixture,
     aggregate,
+    controlDecisionCoverage,
     objectiveMetrics,
     resourceProfile,
     executionProfile,

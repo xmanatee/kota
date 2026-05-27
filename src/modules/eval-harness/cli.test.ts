@@ -10,7 +10,11 @@ import {
   type EvaluatorCalibrationArtifact,
 } from "#modules/autonomy/evaluator-calibration.js";
 import { buildEvalCommand } from "./cli.js";
-import type { EvalHarnessClient, EvalRunOptions } from "./client.js";
+import type {
+  EvalHarnessClient,
+  EvalListResult,
+  EvalRunOptions,
+} from "./client.js";
 import {
   listEvalFixtures,
   runEvalCalibration,
@@ -33,19 +37,57 @@ function makeFakeCtx(projectDir: string): ModuleContext {
   return { cwd: projectDir, client } as unknown as ModuleContext;
 }
 
-function makeRunRecordingCtx(calls: EvalRunOptions[]): ModuleContext {
+const EMPTY_CONTROL_DECISION_COVERAGE: EvalListResult["controlDecisionCoverage"] = {
+  counts: {
+    act: 0,
+    ask: 0,
+    refuse: 0,
+    stop: 0,
+    confirm: 0,
+    recover: 0,
+  },
+  missingDecisions: ["act", "ask", "refuse", "stop", "confirm", "recover"],
+  missingDecisionWarnings: [
+    {
+      decision: "act",
+      message: 'No eval fixture declares control decision "act".',
+    },
+    {
+      decision: "ask",
+      message: 'No eval fixture declares control decision "ask".',
+    },
+    {
+      decision: "refuse",
+      message: 'No eval fixture declares control decision "refuse".',
+    },
+    {
+      decision: "stop",
+      message: 'No eval fixture declares control decision "stop".',
+    },
+    {
+      decision: "confirm",
+      message: 'No eval fixture declares control decision "confirm".',
+    },
+    {
+      decision: "recover",
+      message: 'No eval fixture declares control decision "recover".',
+    },
+  ],
+};
+
+function makeListCtx(result: EvalListResult): ModuleContext {
   const evalHarness: EvalHarnessClient = {
     async list() {
-      return { fixtures: [] };
+      return result;
     },
-    async run(options) {
-      calls.push(options ?? {});
+    async run() {
       return {
         ok: true,
-        fixtureCount: 1,
-        repeatCount: options?.repeatCount ?? 1,
+        fixtureCount: 0,
+        repeatCount: 1,
         passAtK: 1,
         passHatK: 1,
+        controlDecisionCoverage: result.controlDecisionCoverage,
         objectiveMetrics: [],
         runArtifactBaseDir: "/tmp/eval-run",
       };
@@ -57,6 +99,138 @@ function makeRunRecordingCtx(calls: EvalRunOptions[]): ModuleContext {
   const client = { evalHarness } as unknown as KotaClient;
   return { cwd: "/tmp/project", client } as unknown as ModuleContext;
 }
+
+function makeRunRecordingCtx(calls: EvalRunOptions[]): ModuleContext {
+  const evalHarness: EvalHarnessClient = {
+    async list() {
+      return {
+        fixtures: [],
+        controlDecisionCoverage: EMPTY_CONTROL_DECISION_COVERAGE,
+      };
+    },
+    async run(options) {
+      calls.push(options ?? {});
+      return {
+        ok: true,
+        fixtureCount: 1,
+        repeatCount: options?.repeatCount ?? 1,
+        passAtK: 1,
+        passHatK: 1,
+        controlDecisionCoverage: EMPTY_CONTROL_DECISION_COVERAGE,
+        objectiveMetrics: [],
+        runArtifactBaseDir: "/tmp/eval-run",
+      };
+    },
+    async calibration() {
+      return { aggregate: {}, decision: {} };
+    },
+  };
+  const client = { evalHarness } as unknown as KotaClient;
+  return { cwd: "/tmp/project", client } as unknown as ModuleContext;
+}
+
+describe("kota eval list CLI", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("emits fixture control decisions and aggregate coverage as JSON", async () => {
+    const logs: string[] = [];
+    vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
+      logs.push(args.map((a) => String(a)).join(" "));
+    });
+    const result: EvalListResult = {
+      fixtures: [
+        {
+          id: "builder-smoke",
+          description: "builder smoke",
+          role: "builder",
+          workflowName: "builder",
+          controlDecisions: ["act"],
+          tags: ["smoke"],
+        },
+      ],
+      controlDecisionCoverage: {
+        counts: {
+          act: 1,
+          ask: 0,
+          refuse: 0,
+          stop: 0,
+          confirm: 0,
+          recover: 0,
+        },
+        missingDecisions: ["ask", "refuse", "stop", "confirm", "recover"],
+        missingDecisionWarnings: [
+          {
+            decision: "ask",
+            message: 'No eval fixture declares control decision "ask".',
+          },
+        ],
+      },
+    };
+    const cmd = buildEvalCommand(makeListCtx(result));
+
+    await cmd.parseAsync(["list", "--json"], { from: "user" });
+
+    const parsed = JSON.parse(logs.join("\n")) as EvalListResult;
+    expect(parsed.fixtures[0]).toMatchObject({
+      id: "builder-smoke",
+      controlDecisions: ["act"],
+    });
+    expect(parsed.controlDecisionCoverage.counts.act).toBe(1);
+    expect(parsed.controlDecisionCoverage.missingDecisionWarnings[0]).toEqual({
+      decision: "ask",
+      message: 'No eval fixture declares control decision "ask".',
+    });
+  });
+
+  it("prints compact coverage counts and missing-decision warnings", async () => {
+    const writes: string[] = [];
+    vi.spyOn(process.stdout, "write").mockImplementation((data) => {
+      writes.push(String(data));
+      return true;
+    });
+    const cmd = buildEvalCommand(
+      makeListCtx({
+        fixtures: [
+          {
+            id: "stop-fixture",
+            description: "stop coverage",
+            role: "builder",
+            workflowName: "builder",
+            controlDecisions: ["stop"],
+            tags: [],
+          },
+        ],
+        controlDecisionCoverage: {
+          counts: {
+            act: 0,
+            ask: 0,
+            refuse: 0,
+            stop: 1,
+            confirm: 0,
+            recover: 0,
+          },
+          missingDecisions: ["act"],
+          missingDecisionWarnings: [
+            {
+              decision: "act",
+              message: 'No eval fixture declares control decision "act".',
+            },
+          ],
+        },
+      }),
+    );
+
+    await cmd.parseAsync(["list"], { from: "user" });
+
+    const text = writes.join("\n");
+    expect(text).toContain("control decisions:");
+    expect(text).toContain("stop=1");
+    expect(text).toContain("missing control-decision coverage: act");
+    expect(text).toContain("decisions=stop");
+  });
+});
 
 function seedCalibration(
   runsDir: string,

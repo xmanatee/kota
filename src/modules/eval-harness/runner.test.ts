@@ -55,6 +55,7 @@ function setupFixtureTree(): {
         { predicate: { kind: "file-exists", path: "output.txt" }, expected: "fail" },
         { predicate: { kind: "file-exists", path: "seed.txt" }, expected: "pass" },
       ],
+      controlDecisions: ["act"],
       provenance: {
         kind: "smoke-fixture",
         justification: "minimal test fixture for runner unit tests",
@@ -135,6 +136,7 @@ describe("runFixture", () => {
         preRunExpectations: [
           { predicate: { kind: "file-exists", path: "output.txt" }, expected: "fail" },
         ],
+        controlDecisions: ["act"],
         provenance: {
           kind: "smoke-fixture",
           justification: "minimal test fixture for runner git predicate plumbing",
@@ -281,6 +283,7 @@ describe("runFixture", () => {
         preRunExpectations: [
           { predicate: { kind: "file-exists", path: "output.txt" }, expected: "fail" },
         ],
+        controlDecisions: ["act"],
         objectiveMetrics: [
           {
             name: "output_bytes",
@@ -374,6 +377,7 @@ describe("runFixture", () => {
           preRunExpectations: [
             { predicate: { kind: "file-exists", path: "output.txt" }, expected: "fail" },
           ],
+          controlDecisions: ["act"],
           objectiveMetrics: [
             {
               name: "quality_score",
@@ -445,6 +449,7 @@ describe("runFixture", () => {
               expected: "fail",
             },
           ],
+          controlDecisions: ["act"],
           externalCallShims: ["gh"],
           provenance: {
             kind: "smoke-fixture",
