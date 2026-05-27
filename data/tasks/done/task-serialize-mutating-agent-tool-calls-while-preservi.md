@@ -1,12 +1,12 @@
 ---
 id: task-serialize-mutating-agent-tool-calls-while-preservi
 title: Serialize mutating agent tool calls while preserving read-only parallelism
-status: ready
+status: done
 priority: p2
 area: core
 summary: Change agent-loop tool execution so read-only calls can run concurrently while mutating or destructive calls are ordered with surrounding calls, using tool effects and MCP readOnlyHint instead of blanket Promise.all.
 created_at: 2026-05-27T19:12:50.438Z
-updated_at: 2026-05-27T19:12:50.438Z
+updated_at: 2026-05-27T22:43:00Z
 ---
 
 ## Problem

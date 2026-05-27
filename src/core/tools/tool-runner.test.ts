@@ -10,6 +10,7 @@ import {
 
 vi.mock("./index.js", () => ({
   executeTool: vi.fn(),
+  getToolEffect: vi.fn(),
 }));
 vi.mock("#core/loop/context.js", () => ({
   truncateToolResult: vi.fn((text: string) => text),
@@ -37,14 +38,34 @@ import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import { truncateToolResult } from "#core/loop/context.js";
 import { confirmAction } from "#core/util/confirm.js";
 import { assess } from "./guardrails.js";
-import { executeTool } from "./index.js";
+import { executeTool, getToolEffect } from "./index.js";
 import { getToolTelemetry, resetToolTelemetry } from "./tool-telemetry.js";
 
 const mockExecuteTool = vi.mocked(executeTool);
+const mockGetToolEffect = vi.mocked(getToolEffect);
 const mockTruncate = vi.mocked(truncateToolResult);
 const mockAssess = vi.mocked(assess);
 const mockConfirmAction = vi.mocked(confirmAction);
 const mockGetApprovalQueue = vi.mocked(getApprovalQueue);
+
+const readEffect = {
+  kind: "read",
+  scope: "local-fs",
+  idempotent: true,
+  openWorld: false,
+} as const;
+const writeEffect = {
+  kind: "write",
+  scope: "local-fs",
+  idempotent: false,
+  openWorld: false,
+} as const;
+const destructiveEffect = {
+  kind: "destructive",
+  scope: "local-fs",
+  idempotent: false,
+  openWorld: false,
+} as const;
 
 const safeAssessment = {
   tool: "file_read",
@@ -78,6 +99,71 @@ function runOptions(
     autonomyMode: "autonomous" as AutonomyMode,
     ...overrides,
   };
+}
+
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve!: () => void;
+  const promise = new Promise<void>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
+async function flushMicrotasks(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+function releaseTool(
+  deferreds: Map<string, { resolve: () => void }>,
+  name: string,
+): void {
+  const pending = deferreds.get(name);
+  if (!pending) throw new Error(`Tool did not start: ${name}`);
+  pending.resolve();
+}
+
+function startTracker(): {
+  started: string[];
+  markStarted: (name: string) => void;
+  waitForStart: (name: string) => Promise<void>;
+} {
+  const started: string[] = [];
+  const waiters = new Map<string, Array<() => void>>();
+  return {
+    started,
+    markStarted: (name: string) => {
+      started.push(name);
+      const waiting = waiters.get(name) ?? [];
+      waiters.delete(name);
+      for (const resolve of waiting) resolve();
+    },
+    waitForStart: (name: string) => {
+      if (started.includes(name)) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        const waiting = waiters.get(name) ?? [];
+        waiting.push(resolve);
+        waiters.set(name, waiting);
+      });
+    },
+  };
+}
+
+function mockDeferredLocalTools(): {
+  started: string[];
+  deferreds: Map<string, { resolve: () => void }>;
+  waitForStart: (name: string) => Promise<void>;
+} {
+  const tracker = startTracker();
+  const deferreds = new Map<string, { resolve: () => void }>();
+  mockExecuteTool.mockImplementation(async (name: string) => {
+    tracker.markStarted(name);
+    const pending = deferred();
+    deferreds.set(name, pending);
+    await pending.promise;
+    return { content: `result:${name}` };
+  });
+  return { started: tracker.started, deferreds, waitForStart: tracker.waitForStart };
 }
 
 describe("FailureTracker", () => {
@@ -175,6 +261,7 @@ describe("executeToolCalls", () => {
     resetToolTelemetry();
     mockTruncate.mockImplementation((text: string) => text);
     mockAssess.mockReturnValue(safeAssessment);
+    mockGetToolEffect.mockReturnValue(readEffect);
   });
 
   it("routes tool call to executeTool and returns result", async () => {
@@ -209,7 +296,7 @@ describe("executeToolCalls", () => {
     );
   });
 
-  it("executes multiple tools in parallel", async () => {
+  it("executes multiple read-only tools in parallel", async () => {
     mockExecuteTool.mockResolvedValue({ content: "ok" });
     const blocks = [
       toolBlock("grep", { pattern: "TODO" }, "t1"),
@@ -220,6 +307,132 @@ describe("executeToolCalls", () => {
     expect(results[0].tool_use_id).toBe("t1");
     expect(results[1].tool_use_id).toBe("t2");
     expect(mockExecuteTool).toHaveBeenCalledTimes(2);
+  });
+
+  it("runs contiguous read-only local tools concurrently and preserves model order", async () => {
+    mockGetToolEffect.mockReturnValue(readEffect);
+    const { started, deferreds } = mockDeferredLocalTools();
+
+    const pending = executeToolCalls(
+      [
+        toolBlock("read_slow", {}, "t1"),
+        toolBlock("read_fast", {}, "t2"),
+      ],
+      runOptions(),
+    );
+
+    expect(started).toEqual(["read_slow", "read_fast"]);
+    releaseTool(deferreds, "read_fast");
+    await flushMicrotasks();
+    releaseTool(deferreds, "read_slow");
+
+    const results = await pending;
+    expect(results.map((result) => result.tool_use_id)).toEqual(["t1", "t2"]);
+    expect(results.map((result) => result.content)).toEqual([
+      "result:read_slow",
+      "result:read_fast",
+    ]);
+  });
+
+  it("treats mutating and destructive local tools as barriers", async () => {
+    mockGetToolEffect.mockImplementation((name: string) => {
+      if (name.startsWith("read")) return readEffect;
+      if (name === "destroy_one") return destructiveEffect;
+      return writeEffect;
+    });
+    const { started, deferreds, waitForStart } = mockDeferredLocalTools();
+
+    const pending = executeToolCalls(
+      [
+        toolBlock("read_before", {}, "t1"),
+        toolBlock("write_one", {}, "t2"),
+        toolBlock("destroy_one", {}, "t3"),
+        toolBlock("read_after", {}, "t4"),
+      ],
+      runOptions(),
+    );
+
+    expect(started).toEqual(["read_before"]);
+    releaseTool(deferreds, "read_before");
+    await waitForStart("write_one");
+    expect(started).toEqual(["read_before", "write_one"]);
+
+    releaseTool(deferreds, "write_one");
+    await waitForStart("destroy_one");
+    expect(started).toEqual(["read_before", "write_one", "destroy_one"]);
+
+    releaseTool(deferreds, "destroy_one");
+    await waitForStart("read_after");
+    expect(started).toEqual(["read_before", "write_one", "destroy_one", "read_after"]);
+
+    releaseTool(deferreds, "read_after");
+    const results = await pending;
+    expect(results.map((result) => result.tool_use_id)).toEqual(["t1", "t2", "t3", "t4"]);
+  });
+
+  it("uses MCP readOnlyHint true for parallel batches and fails closed otherwise", async () => {
+    mockGetToolEffect.mockImplementation((name: string) =>
+      name === "local_read" ? readEffect : undefined,
+    );
+    const tracker = startTracker();
+    const deferreds = new Map<string, { resolve: () => void }>();
+    const startDeferredTool = async (name: string) => {
+      tracker.markStarted(name);
+      const pending = deferred();
+      deferreds.set(name, pending);
+      await pending.promise;
+      return { content: `result:${name}` };
+    };
+    mockExecuteTool.mockImplementation((name: string) => startDeferredTool(name));
+    const mcpManager = {
+      isMcpTool: vi.fn((name: string) => name.startsWith("mcp__")),
+      isToolReadOnly: vi.fn((name: string) =>
+        name === "mcp__server__read" || name === "mcp__server__read_after",
+      ),
+      executeTool: vi.fn((name: string) => startDeferredTool(name)),
+    };
+
+    const pending = executeToolCalls(
+      [
+        toolBlock("local_read", {}, "t1"),
+        toolBlock("mcp__server__read", {}, "t2"),
+        toolBlock("mcp__server__write", {}, "t3"),
+        toolBlock("mcp__server__missing_metadata", {}, "t4"),
+        toolBlock("mcp__server__read_after", {}, "t5"),
+      ],
+      runOptions({ mcpManager: mcpManager as never }),
+    );
+
+    expect(tracker.started).toEqual(["local_read", "mcp__server__read"]);
+    releaseTool(deferreds, "mcp__server__read");
+    releaseTool(deferreds, "local_read");
+    await tracker.waitForStart("mcp__server__write");
+    expect(tracker.started).toEqual(["local_read", "mcp__server__read", "mcp__server__write"]);
+
+    releaseTool(deferreds, "mcp__server__write");
+    await tracker.waitForStart("mcp__server__missing_metadata");
+    expect(tracker.started).toEqual([
+      "local_read",
+      "mcp__server__read",
+      "mcp__server__write",
+      "mcp__server__missing_metadata",
+    ]);
+
+    releaseTool(deferreds, "mcp__server__missing_metadata");
+    await tracker.waitForStart("mcp__server__read_after");
+    expect(tracker.started).toEqual([
+      "local_read",
+      "mcp__server__read",
+      "mcp__server__write",
+      "mcp__server__missing_metadata",
+      "mcp__server__read_after",
+    ]);
+
+    releaseTool(deferreds, "mcp__server__read_after");
+    const results = await pending;
+    expect(results.map((result) => result.tool_use_id)).toEqual(["t1", "t2", "t3", "t4", "t5"]);
+    expect(mcpManager.isToolReadOnly).toHaveBeenCalledWith("mcp__server__write");
+    expect(mcpManager.isToolReadOnly).toHaveBeenCalledWith("mcp__server__missing_metadata");
   });
 
   it("routes MCP tools through mcpManager", async () => {

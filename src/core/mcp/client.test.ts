@@ -311,6 +311,7 @@ rl.on("line", (line) => {
         name: "echo",
         description: "Echoes input",
         inputSchema: { type: "object", properties: { text: { type: "string" } } },
+        annotations: { readOnlyHint: true, idempotentHint: true },
         outputSchema: {
           type: "object",
           properties: { echoed: { type: "string" } },
@@ -318,7 +319,12 @@ rl.on("line", (line) => {
           additionalProperties: false,
         },
       },
-      { name: "fail", description: "Always errors", inputSchema: { type: "object" } },
+      {
+        name: "fail",
+        description: "Always errors",
+        inputSchema: { type: "object" },
+        annotations: { readOnlyHint: false, destructiveHint: true },
+      },
     ];
     process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: { tools } }) + "\\n");
   } else if (msg.method === "tools/call") {
@@ -1731,6 +1737,43 @@ describe("McpClient lifecycle (fake MCP server)", () => {
         additionalProperties: false,
       },
     });
+  }, 10_000);
+
+  it("listTools preserves advertised tool annotations", async () => {
+    client = new McpClient("node", ["-e", FAKE_MCP_SERVER], {}, "annotation-list");
+    await client.connect();
+
+    const tools = await client.listTools();
+    expect(tools[0].annotations).toEqual({
+      readOnlyHint: true,
+      idempotentHint: true,
+    });
+    expect(tools[1].annotations).toEqual({
+      readOnlyHint: false,
+      destructiveHint: true,
+    });
+  }, 10_000);
+
+  it("listTools treats malformed tool annotations as absent", async () => {
+    client = new McpClient(
+      "node",
+      [
+        "-e",
+        listToolsServerScript([
+          {
+            name: "bad_annotations",
+            inputSchema: { type: "object" },
+            annotations: { readOnlyHint: "yes" },
+          },
+        ]),
+      ],
+      {},
+      "malformed-annotation-list",
+    );
+    await client.connect();
+
+    const tools = await client.listTools();
+    expect(tools[0].annotations).toBeUndefined();
   }, 10_000);
 
   it("listTools follows nextCursor and sends it in follow-up tools/list params", async () => {

@@ -5,6 +5,7 @@ import type {
   KotaJsonValue,
   KotaTool,
 } from "#core/agent-harness/message-protocol.js";
+import type { McpToolAnnotations } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/index.js";
 import { validateToolStructuredOutput } from "#core/tools/output-schema.js";
 import {
@@ -83,6 +84,7 @@ type McpToolEntry = {
   client: McpClient;
   originalName: string;
   tool: KotaTool;
+  annotations?: McpToolAnnotations;
 };
 
 type McpOperationKind =
@@ -1332,6 +1334,11 @@ export class McpManager {
     return this.toolMap.has(name) || this.operationMap.has(name);
   }
 
+  /** Check whether a remote MCP tool explicitly advertised read-only behavior. */
+  isToolReadOnly(name: string): boolean {
+    return this.toolMap.get(name)?.annotations?.readOnlyHint === true;
+  }
+
   /** Execute an MCP tool by its namespaced name. */
   async executeTool(
     name: string,
@@ -2413,7 +2420,13 @@ export class McpManager {
   ): void {
     const entries = tools.map((tool) => {
       const kotaTool = toKotaTool(serverName, tool);
-      return { serverConfigName: serverName, client, originalName: tool.name, tool: kotaTool };
+      return {
+        serverConfigName: serverName,
+        client,
+        originalName: tool.name,
+        tool: kotaTool,
+        ...(tool.annotations ? { annotations: tool.annotations } : {}),
+      };
     });
     const nextToolMap = new Map(this.toolMap);
     for (const entry of this.serverTools.get(serverName) ?? []) {

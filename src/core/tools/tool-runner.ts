@@ -17,7 +17,7 @@ import { confirmAction } from "#core/util/confirm.js";
 import { type AutonomyMode, resolveAutonomyGate } from "./autonomy-mode.js";
 import { assess, type GuardrailsConfig } from "./guardrails.js";
 import type { ToolResult, ToolResultBlock } from "./index.js";
-import { executeTool } from "./index.js";
+import { executeTool, getToolEffect } from "./index.js";
 import { getToolMiddleware } from "./tool-middleware.js";
 import {
   getToolTelemetry,
@@ -128,8 +128,54 @@ function toolResultWouldTruncate(result: ToolResult, resultLimit: number): boole
   return hasToolResultTruncationMarker(payload);
 }
 
+type ExecuteToolBlock = (block: ToolUseBlock) => Promise<ToolResultEntry>;
+
+function isReadOnlyToolCall(
+  block: ToolUseBlock,
+  mcpManager: McpManager | undefined,
+): boolean {
+  if (mcpManager?.isMcpTool(block.name)) {
+    return mcpManager.isToolReadOnly?.(block.name) === true;
+  }
+  return getToolEffect(block.name)?.kind === "read";
+}
+
+async function executeToolCallSchedule(
+  toolBlocks: ToolUseBlock[],
+  executeBlock: ExecuteToolBlock,
+  mcpManager: McpManager | undefined,
+): Promise<ToolResultEntry[]> {
+  const results = new Array<ToolResultEntry>(toolBlocks.length);
+  let readOnlyBatch: Array<{ block: ToolUseBlock; index: number }> = [];
+
+  const flushReadOnlyBatch = async (): Promise<void> => {
+    if (readOnlyBatch.length === 0) return;
+    const batch = readOnlyBatch;
+    readOnlyBatch = [];
+    await Promise.all(
+      batch.map(async ({ block, index }) => {
+        results[index] = await executeBlock(block);
+      }),
+    );
+  };
+
+  for (const [index, block] of toolBlocks.entries()) {
+    if (isReadOnlyToolCall(block, mcpManager)) {
+      readOnlyBatch.push({ block, index });
+      continue;
+    }
+    await flushReadOnlyBatch();
+    results[index] = await executeBlock(block);
+  }
+
+  await flushReadOnlyBatch();
+  return results;
+}
+
 /**
- * Execute tool calls in parallel, with verbose logging and result truncation.
+ * Execute tool calls with effect-aware scheduling, verbose logging, and result truncation.
+ * Contiguous read-only calls may run concurrently; mutating, destructive, or
+ * unknown calls are ordered barriers.
  * Routes MCP-namespaced tools through the McpManager when provided.
  * When guardrailsConfig is set, each tool call is assessed before execution.
  * Autonomy mode is consulted first: passive denies any non-safe tool, supervised
@@ -153,208 +199,208 @@ export async function executeToolCalls(
     messages,
     signal,
   } = options;
-  const results = await Promise.all(
-    toolBlocks.map(async (block) => {
-      throwIfAborted(signal);
-      if (verbose && transport) {
+  const executeBlock = async (block: ToolUseBlock): Promise<ToolResultEntry> => {
+    throwIfAborted(signal);
+    if (verbose && transport) {
+      transport.emit({
+        type: "status",
+        message: `[kota] Tool: ${block.name}(${JSON.stringify(block.input).slice(0, 100)}...)`,
+      });
+    }
+    const input = block.input as Record<string, unknown>;
+
+    // Assess risk once up front so autonomy-mode gating and guardrails share
+    // a single classification. Fall back to a neutral moderate assessment if
+    // the session has no guardrails config attached — autonomy-mode still
+    // needs a classification to gate non-safe tools.
+    const assessment = guardrailsConfig
+      ? assess(block.name, input, guardrailsConfig)
+      : assess(block.name, input);
+
+    // Autonomy-mode gating runs before policy resolution so passive and
+    // supervised sessions cannot be bypassed by a moderate tool whose policy
+    // happens to be "allow".
+    const autonomyDecision = resolveAutonomyGate(autonomyMode, assessment);
+    if (autonomyDecision.action === "deny") {
+      tryEmit("guardrail.assessed", {
+        tool: assessment.tool,
+        risk: assessment.risk,
+        policy: "deny",
+        reason: autonomyDecision.message,
+        ...(sessionId && { session: sessionId }),
+      });
+      if (transport) {
         transport.emit({
-          type: "status",
-          message: `[kota] Tool: ${block.name}(${JSON.stringify(block.input).slice(0, 100)}...)`,
-        });
-      }
-      const input = block.input as Record<string, unknown>;
-
-      // Assess risk once up front so autonomy-mode gating and guardrails share
-      // a single classification. Fall back to a neutral moderate assessment if
-      // the session has no guardrails config attached — autonomy-mode still
-      // needs a classification to gate non-safe tools.
-      const assessment = guardrailsConfig
-        ? assess(block.name, input, guardrailsConfig)
-        : assess(block.name, input);
-
-      // Autonomy-mode gating runs before policy resolution so passive and
-      // supervised sessions cannot be bypassed by a moderate tool whose policy
-      // happens to be "allow".
-      const autonomyDecision = resolveAutonomyGate(autonomyMode, assessment);
-      if (autonomyDecision.action === "deny") {
-        tryEmit("guardrail.assessed", {
+          type: "guardrail",
           tool: assessment.tool,
           risk: assessment.risk,
           policy: "deny",
           reason: autonomyDecision.message,
-          ...(sessionId && { session: sessionId }),
         });
-        if (transport) {
-          transport.emit({
-            type: "guardrail",
-            tool: assessment.tool,
-            risk: assessment.risk,
-            policy: "deny",
-            reason: autonomyDecision.message,
-          });
-        }
-        return {
-          tool_use_id: block.id,
-          content: autonomyDecision.message,
-          is_error: true,
-        };
       }
-      if (autonomyDecision.action === "queue") {
-        const approvalContext = messages ? extractApprovalContext(messages) : undefined;
-        const queued = getApprovalQueue().enqueue(
-          block.name,
-          input,
-          assessment.risk,
-          autonomyDecision.reason,
-          sessionId,
-          guardrailsConfig?.approvalTimeoutMs,
-          undefined,
-          approvalContext,
-          sessionId,
-        );
-        tryEmit("guardrail.assessed", {
+      return {
+        tool_use_id: block.id,
+        content: autonomyDecision.message,
+        is_error: true,
+      };
+    }
+    if (autonomyDecision.action === "queue") {
+      const approvalContext = messages ? extractApprovalContext(messages) : undefined;
+      const queued = getApprovalQueue().enqueue(
+        block.name,
+        input,
+        assessment.risk,
+        autonomyDecision.reason,
+        sessionId,
+        guardrailsConfig?.approvalTimeoutMs,
+        undefined,
+        approvalContext,
+        sessionId,
+      );
+      tryEmit("guardrail.assessed", {
+        tool: assessment.tool,
+        risk: assessment.risk,
+        policy: "queue",
+        reason: autonomyDecision.reason,
+        ...(sessionId && { session: sessionId }),
+      });
+      if (transport) {
+        transport.emit({
+          type: "guardrail",
           tool: assessment.tool,
           risk: assessment.risk,
           policy: "queue",
           reason: autonomyDecision.reason,
-          ...(sessionId && { session: sessionId }),
         });
-        if (transport) {
-          transport.emit({
-            type: "guardrail",
-            tool: assessment.tool,
-            risk: assessment.risk,
-            policy: "queue",
-            reason: autonomyDecision.reason,
-          });
-        }
-        return {
-          tool_use_id: block.id,
-          content: `Queued for approval [${queued.id}]: ${block.name} — ${autonomyDecision.reason}. ` +
-            "Operators can review and resolve it through the approval CLI or authenticated daemon client.",
-          is_error: true,
-        };
       }
+      return {
+        tool_use_id: block.id,
+        content: `Queued for approval [${queued.id}]: ${block.name} — ${autonomyDecision.reason}. ` +
+          "Operators can review and resolve it through the approval CLI or authenticated daemon client.",
+        is_error: true,
+      };
+    }
 
-      // Guardrails: assess risk and enforce policy before execution
-      if (guardrailsConfig) {
-        tryEmit("guardrail.assessed", {
+    // Guardrails: assess risk and enforce policy before execution
+    if (guardrailsConfig) {
+      tryEmit("guardrail.assessed", {
+        tool: assessment.tool,
+        risk: assessment.risk,
+        policy: assessment.policy,
+        reason: assessment.reason,
+        ...(sessionId && { session: sessionId }),
+      });
+      if (transport) {
+        transport.emit({
+          type: "guardrail",
           tool: assessment.tool,
           risk: assessment.risk,
           policy: assessment.policy,
           reason: assessment.reason,
-          ...(sessionId && { session: sessionId }),
         });
-        if (transport) {
-          transport.emit({
-            type: "guardrail",
-            tool: assessment.tool,
-            risk: assessment.risk,
-            policy: assessment.policy,
-            reason: assessment.reason,
-          });
-        }
-        if (assessment.policy === "deny") {
+      }
+      if (assessment.policy === "deny") {
+        return {
+          tool_use_id: block.id,
+          content: `Blocked by guardrails: ${block.name} is classified as ${assessment.risk} (${assessment.reason}). ` +
+            "This operation requires approval. Use ask_user to request permission, or try a safer approach.",
+          is_error: true,
+        };
+      }
+      if (assessment.policy === "queue") {
+        const approvalContext = messages ? extractApprovalContext(messages) : undefined;
+        const queued = getApprovalQueue().enqueue(
+          block.name, input, assessment.risk, assessment.reason, sessionId,
+          guardrailsConfig.approvalTimeoutMs, undefined, approvalContext,
+          sessionId,
+        );
+        return {
+          tool_use_id: block.id,
+          content: `Queued for approval [${queued.id}]: ${block.name} is classified as ${assessment.risk} (${assessment.reason}). ` +
+            "Operators can review and resolve it through the approval CLI or authenticated daemon client.",
+          is_error: true,
+        };
+      }
+      if (assessment.policy === "confirm") {
+        const approved = await confirmAction(
+          `Allow ${block.name}? (${assessment.reason})`,
+        );
+        if (!approved) {
           return {
             tool_use_id: block.id,
-            content: `Blocked by guardrails: ${block.name} is classified as ${assessment.risk} (${assessment.reason}). ` +
-              "This operation requires approval. Use ask_user to request permission, or try a safer approach.",
+            content: `Blocked by guardrails: ${block.name} requires confirmation (${assessment.reason}). ` +
+              "Use ask_user to request explicit human approval, then retry.",
             is_error: true,
           };
         }
-        if (assessment.policy === "queue") {
-          const approvalContext = messages ? extractApprovalContext(messages) : undefined;
-          const queued = getApprovalQueue().enqueue(
-            block.name, input, assessment.risk, assessment.reason, sessionId,
-            guardrailsConfig.approvalTimeoutMs, undefined, approvalContext,
-            sessionId,
-          );
-          return {
-            tool_use_id: block.id,
-            content: `Queued for approval [${queued.id}]: ${block.name} is classified as ${assessment.risk} (${assessment.reason}). ` +
-              "Operators can review and resolve it through the approval CLI or authenticated daemon client.",
-            is_error: true,
-          };
-        }
-        if (assessment.policy === "confirm") {
-          const approved = await confirmAction(
-            `Allow ${block.name}? (${assessment.reason})`,
-          );
-          if (!approved) {
-            return {
-              tool_use_id: block.id,
-              content: `Blocked by guardrails: ${block.name} requires confirmation (${assessment.reason}). ` +
-                "Use ask_user to request explicit human approval, then retry.",
-              is_error: true,
-            };
-          }
-        }
+      }
+    }
+
+    // Route MCP tools through the manager, with middleware chain.
+    // baseFn reads from call.input so retry middleware can adjust it
+    // (e.g. shell timeout doubling).
+    const startMs = performance.now();
+    const inputBytes = measureTelemetryPayloadBytes(input);
+    const telemetry = getToolTelemetry();
+    telemetry.recordCallStart({
+      toolUseId: block.id,
+      tool: block.name,
+      inputBytes,
+    });
+    const middleware = getToolMiddleware();
+    const runnerContext = {
+      ...(sessionId && { sessionId }),
+      toolUseId: block.id,
+      ...(signal ? { signal } : {}),
+    };
+    const call = {
+      name: block.name,
+      input,
+      context: { autonomyMode, ...runnerContext },
+    };
+    const baseFn = () => {
+      if (!mcpManager?.isMcpTool(call.name)) {
+        return executeTool(call.name, call.input, runnerContext);
       }
 
-      // Route MCP tools through the manager, with middleware chain.
-      // baseFn reads from call.input so retry middleware can adjust it
-      // (e.g. shell timeout doubling).
-      const startMs = performance.now();
-      const inputBytes = measureTelemetryPayloadBytes(input);
-      const telemetry = getToolTelemetry();
-      telemetry.recordCallStart({
-        toolUseId: block.id,
-        tool: block.name,
-        inputBytes,
-      });
-      const middleware = getToolMiddleware();
-      const runnerContext = {
-        ...(sessionId && { sessionId }),
-        toolUseId: block.id,
-        ...(signal ? { signal } : {}),
-      };
-      const call = {
-        name: block.name,
-        input,
-        context: { autonomyMode, ...runnerContext },
-      };
-      const baseFn = () => {
-        if (!mcpManager?.isMcpTool(call.name)) {
-          return executeTool(call.name, call.input, runnerContext);
-        }
+      const mcpOptions: McpExecuteToolOptions = {};
+      if (mcpInputResolver) mcpOptions.inputResolver = mcpInputResolver;
+      if (signal) mcpOptions.signal = signal;
 
-        const mcpOptions: McpExecuteToolOptions = {};
-        if (mcpInputResolver) mcpOptions.inputResolver = mcpInputResolver;
-        if (signal) mcpOptions.signal = signal;
+      return Object.keys(mcpOptions).length > 0
+        ? mcpManager.executeTool(call.name, call.input, mcpOptions)
+        : mcpManager.executeTool(call.name, call.input);
+    };
+    const result = await middleware.execute(call, baseFn);
+    throwIfAborted(signal);
 
-        return Object.keys(mcpOptions).length > 0
-          ? mcpManager.executeTool(call.name, call.input, mcpOptions)
-          : mcpManager.executeTool(call.name, call.input);
-      };
-      const result = await middleware.execute(call, baseFn);
-      throwIfAborted(signal);
+    const durationMs = Math.round(performance.now() - startMs);
+    const resultPayload = getToolResultTelemetryPayload(result);
+    telemetry.recordCallResult({
+      toolUseId: block.id,
+      tool: block.name,
+      durationMs,
+      success: !result.is_error,
+      resultBytes: measureTelemetryPayloadBytes(resultPayload),
+      resultContentKind: getToolResultContentKind(result),
+      truncated: toolResultWouldTruncate(result, resultLimit),
+      ...(result.is_error ? { error: result.content.slice(0, 200) } : {}),
+    });
+    if (transport) {
+      transport.emit({ type: "tool_metric", tool: block.name, durationMs, success: !result.is_error });
+    }
 
-      const durationMs = Math.round(performance.now() - startMs);
-      const resultPayload = getToolResultTelemetryPayload(result);
-      telemetry.recordCallResult({
-        toolUseId: block.id,
-        tool: block.name,
-        durationMs,
-        success: !result.is_error,
-        resultBytes: measureTelemetryPayloadBytes(resultPayload),
-        resultContentKind: getToolResultContentKind(result),
-        truncated: toolResultWouldTruncate(result, resultLimit),
-        ...(result.is_error ? { error: result.content.slice(0, 200) } : {}),
-      });
-      if (transport) {
-        transport.emit({ type: "tool_metric", tool: block.name, durationMs, success: !result.is_error });
-      }
+    return {
+      tool_use_id: block.id,
+      content: result.content,
+      ...(result.blocks ? { blocks: result.blocks } : {}),
+      ...(result.structuredContent ? { structuredContent: result.structuredContent } : {}),
+      ...(result._meta ? { _meta: result._meta } : {}),
+      ...(result.is_error !== undefined ? { is_error: result.is_error } : {}),
+    };
+  };
 
-      return {
-        tool_use_id: block.id,
-        content: result.content,
-        ...(result.blocks ? { blocks: result.blocks } : {}),
-        ...(result.structuredContent ? { structuredContent: result.structuredContent } : {}),
-        ...(result._meta ? { _meta: result._meta } : {}),
-        ...(result.is_error !== undefined ? { is_error: result.is_error } : {}),
-      };
-    }),
-  );
+  const results = await executeToolCallSchedule(toolBlocks, executeBlock, mcpManager);
 
   const secretStore = getSecretStore();
   const mask = secretStore ? (s: string) => secretStore.mask(s) : (s: string) => s;

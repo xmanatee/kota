@@ -338,7 +338,12 @@ describe("McpManager", () => {
           }}) + "\\n");
         } else if (msg.method === "tools/list") {
           process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
-            tools: [{ name: "ping", description: "Pings", inputSchema: { type: "object" } }],
+            tools: [{
+              name: "ping",
+              description: "Pings",
+              inputSchema: { type: "object" },
+              annotations: { readOnlyHint: true, idempotentHint: true },
+            }],
           }}) + "\\n");
         } else if (msg.method === "tools/call" && msg.params.name === "ping") {
           process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {
@@ -356,6 +361,8 @@ describe("McpManager", () => {
     expect(manager.getServerCount()).toBe(1);
     expect(manager.getToolCount()).toBe(1);
     expect(manager.isMcpTool("mcp__test-srv__ping")).toBe(true);
+    expect(manager.isToolReadOnly("mcp__test-srv__ping")).toBe(true);
+    expect(manager.isToolReadOnly("mcp__test-srv__missing")).toBe(false);
 
     const tools = manager.getTools();
     expect(tools).toHaveLength(1);

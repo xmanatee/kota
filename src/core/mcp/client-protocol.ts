@@ -8,6 +8,7 @@ import type {
   KotaToolInputSchema,
   KotaToolOutputSchema,
 } from "#core/agent-harness/message-protocol.js";
+import type { McpToolAnnotations } from "#core/tools/effect.js";
 import type { ToolResultBlock } from "#core/tools/tool-result.js";
 
 export type McpToolSchema = {
@@ -15,6 +16,7 @@ export type McpToolSchema = {
   description?: string;
   inputSchema: KotaToolInputSchema;
   outputSchema?: KotaToolOutputSchema;
+  annotations?: McpToolAnnotations;
 };
 
 export type McpResourceSchema = {

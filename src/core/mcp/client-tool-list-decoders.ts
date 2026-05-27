@@ -1,5 +1,6 @@
 import { Buffer } from "node:buffer";
 import type { KotaJsonObject, KotaJsonValue, KotaToolInputSchema } from "#core/agent-harness/message-protocol.js";
+import type { McpToolAnnotations } from "#core/tools/effect.js";
 import {
   decodeCacheHints,
   isJsonObject,
@@ -189,6 +190,38 @@ export function collectMcpHeaderParameters(tool: McpToolSchema): McpHeaderParame
   return specs;
 }
 
+function optionalBooleanAnnotation(
+  object: KotaJsonObject,
+  field: keyof McpToolAnnotations,
+): boolean | undefined {
+  return typeof object[field] === "boolean" ? object[field] : undefined;
+}
+
+export function decodeToolAnnotations(
+  value: KotaJsonValue | undefined,
+): McpToolAnnotations | undefined {
+  if (value === undefined) return undefined;
+  if (!isJsonObject(value)) return undefined;
+  const readOnlyHint = optionalBooleanAnnotation(value, "readOnlyHint");
+  const destructiveHint = optionalBooleanAnnotation(value, "destructiveHint");
+  const openWorldHint = optionalBooleanAnnotation(value, "openWorldHint");
+  const idempotentHint = optionalBooleanAnnotation(value, "idempotentHint");
+  if (
+    readOnlyHint === undefined &&
+    destructiveHint === undefined &&
+    openWorldHint === undefined &&
+    idempotentHint === undefined
+  ) {
+    return undefined;
+  }
+  return {
+    ...(readOnlyHint !== undefined ? { readOnlyHint } : {}),
+    ...(destructiveHint !== undefined ? { destructiveHint } : {}),
+    ...(openWorldHint !== undefined ? { openWorldHint } : {}),
+    ...(idempotentHint !== undefined ? { idempotentHint } : {}),
+  };
+}
+
 export function decodeToolDefinition(value: KotaJsonValue, index: number): McpToolSchema {
   const label = `tools[${index}]`;
   const object = optionalJsonObject(value, label, "tools/list");
@@ -201,6 +234,7 @@ export function decodeToolDefinition(value: KotaJsonValue, index: number): McpTo
   const outputSchema = object.outputSchema === undefined
     ? undefined
     : decodeToolObjectSchema(object.outputSchema, `${label}.outputSchema`);
+  const annotations = decodeToolAnnotations(object.annotations);
   return {
     name,
     ...(object.description !== undefined
@@ -208,6 +242,7 @@ export function decodeToolDefinition(value: KotaJsonValue, index: number): McpTo
       : {}),
     inputSchema,
     ...(outputSchema ? { outputSchema } : {}),
+    ...(annotations ? { annotations } : {}),
   };
 }
 

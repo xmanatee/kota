@@ -37,11 +37,13 @@ import {
 const {
   mockStreamMessage,
   mockExecuteTool,
+  mockGetToolEffect,
   mockAssess,
   mockEnqueue,
 } = vi.hoisted(() => ({
   mockStreamMessage: vi.fn(),
   mockExecuteTool: vi.fn(),
+  mockGetToolEffect: vi.fn(),
   mockAssess: vi.fn(),
   mockEnqueue: vi.fn(
     (..._args: Parameters<ApprovalQueue["enqueue"]>) => ({ id: "appr-boundary-1" }),
@@ -64,6 +66,7 @@ vi.mock("#core/model/streaming.js", () => ({ streamMessage: mockStreamMessage })
 vi.mock("#core/tools/index.js", () => ({
   getAllTools: () => [],
   executeTool: mockExecuteTool,
+  getToolEffect: mockGetToolEffect,
   getTodoState: vi.fn(() => ""),
 }));
 vi.mock("#core/tools/guardrails.js", async () => {
@@ -145,6 +148,25 @@ describe("session autonomy-mode boundary", () => {
       risk: "moderate",
       policy: "allow",
       reason: "default-moderate",
+    });
+    mockGetToolEffect.mockImplementation((name: string) => {
+      if (name === "file_read") {
+        return {
+          kind: "read",
+          scope: "local-fs",
+          idempotent: true,
+          openWorld: false,
+        };
+      }
+      if (name === "shell") {
+        return {
+          kind: "write",
+          scope: "local-fs",
+          idempotent: false,
+          openWorld: false,
+        };
+      }
+      return undefined;
     });
     mockExecuteTool.mockResolvedValue({ content: "ok" });
   });
