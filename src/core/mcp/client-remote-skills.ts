@@ -4,6 +4,11 @@ import type {
   KotaMcpResourceContents,
 } from "#core/agent-harness/message-protocol.js";
 import {
+  assertNoUnsupportedSkillToolPolicyFrontmatter,
+  findUnsupportedSkillToolPolicyKeys,
+  unsupportedSkillToolPolicyDiagnostic,
+} from "#core/agents/skill-tool-policy.js";
+import {
   isJsonObject,
 } from "./client-decode-utils.js";
 import type {
@@ -275,6 +280,13 @@ function decodeSkillIndexEntry(
   if (!isJsonObject(value)) {
     throw malformedSkillIndex(serverName, label, "an object");
   }
+  const unsupportedKeys = findUnsupportedSkillToolPolicyKeys(Object.keys(value));
+  if (unsupportedKeys.length > 0) {
+    throw new Error(unsupportedSkillToolPolicyDiagnostic(
+      `MCP skill index entry ${label} from server "${serverName}"`,
+      unsupportedKeys,
+    ));
+  }
   const type = requiredIndexString(value, "type", `${label}.type`, serverName);
   const description = requiredIndexString(
     value,
@@ -416,6 +428,27 @@ function boundRemoteSkillContent(
   return boundBlobContent(content);
 }
 
+function isRemoteSkillMarkdownRead(uri: string): boolean {
+  const parsed = parseSkillUri(uri, "uri");
+  return parsed.kind === "resource" && parsed.isSkillMarkdown;
+}
+
+function assertRemoteSkillReadDoesNotDeclareToolPolicy(
+  result: McpReadResourceResult,
+  serverName: string,
+  uri: string,
+): void {
+  if (result.resultType === "input_required" || !isRemoteSkillMarkdownRead(uri)) return;
+  for (const content of result.contents) {
+    if ("text" in content) {
+      assertNoUnsupportedSkillToolPolicyFrontmatter(
+        content.text,
+        `MCP remote skill "${uri}" from server "${serverName}"`,
+      );
+    }
+  }
+}
+
 export function toRemoteSkillReadResult(
   result: McpReadResourceResult,
   serverName: string,
@@ -423,6 +456,7 @@ export function toRemoteSkillReadResult(
   source: McpRemoteSkillSource,
 ): McpRemoteSkillReadResult {
   if (result.resultType === "input_required") return result;
+  assertRemoteSkillReadDoesNotDeclareToolPolicy(result, serverName, uri);
   return {
     resultType: "complete",
     protocolVersion: result.protocolVersion,

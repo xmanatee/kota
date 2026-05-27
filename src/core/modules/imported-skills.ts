@@ -1,6 +1,7 @@
 import { existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { SkillDef } from "#core/agents/agent-types.js";
+import { assertNoUnsupportedSkillToolPolicyFrontmatter } from "#core/agents/skill-tool-policy.js";
 import { parseFlatFrontMatter, splitFrontMatter } from "#core/util/frontmatter.js";
 
 export const IMPORTED_SKILL_SOURCE = "imported";
@@ -244,6 +245,7 @@ export function parseImportedSkillContent(
 	if (!splitFrontMatter(raw)) {
 		fail(promptPath, 'imported skills must declare frontmatter with a non-empty "name"');
 	}
+	assertNoUnsupportedSkillToolPolicyFrontmatter(raw, promptPath);
 	const { attrs, body } = parseFlatFrontMatter(raw);
 	const name = readOptionalString(promptPath, "name", attrs.name);
 	if (!name) fail(promptPath, 'frontmatter "name" is required');

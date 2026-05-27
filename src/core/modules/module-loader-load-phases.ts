@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { assertNoUnsupportedSkillToolPolicyFrontmatter } from "#core/agents/skill-tool-policy.js";
 import { registerConfigSlice } from "#core/config/config-slice.js";
 import {
   getModuleEventRegistry,
@@ -209,23 +210,24 @@ export async function attachModuleSkills(
   if (skills.length === 0) return;
   state.moduleSkillDefs.set(mod.name, skills);
   for (const skill of skills) {
+    let raw: string;
     try {
-      const content = readFileSync(
-        resolve(policy.cwd, skill.promptPath),
-        "utf8",
-      ).trim();
-      if (content) {
-        state.skillContentsByName.set(
-          skill.name,
-          `### ${skill.name}\n${content}`,
-        );
-        state.skillDefsByName.set(skill.name, skill);
-      }
+      raw = readFileSync(resolve(policy.cwd, skill.promptPath), "utf8");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(
         `[kota] Module "${mod.name}" skill "${skill.name}" failed to load: ${msg}`,
       );
+      continue;
+    }
+    assertNoUnsupportedSkillToolPolicyFrontmatter(raw, skill.promptPath);
+    const content = raw.trim();
+    if (content) {
+      state.skillContentsByName.set(
+        skill.name,
+        `### ${skill.name}\n${content}`,
+      );
+      state.skillDefsByName.set(skill.name, skill);
     }
   }
 }

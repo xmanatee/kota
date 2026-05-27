@@ -157,6 +157,20 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
     );
   });
 
+  it("listSkills rejects imported skills that declare unsupported tool policy", () => {
+    writeInstalledSkill(
+      projectDir,
+      "restricted",
+      "name: restricted\ndisallowed-tools: [Bash]\n",
+      "body\n",
+    );
+
+    const ctx = stubCtx(projectDir);
+    expect(() => listSkills(ctx)).toThrow(
+      '.kota/skills/restricted/SKILL.md: unsupported skill tool-policy frontmatter "disallowed-tools"',
+    );
+  });
+
   it("importSkill returns missing_name when frontmatter has no name and no override", async () => {
     const ctx = stubCtx(projectDir);
     const sourcePath = join(projectDir, "no-name.md");
@@ -194,6 +208,25 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
         "utf-8",
       )).toContain('"importedFiles": [');
     }
+  });
+
+  it("importSkill rejects unsupported tool-policy frontmatter before writing", async () => {
+    const ctx = stubCtx(projectDir);
+    const sourcePath = join(projectDir, "restricted.md");
+    writeFileSync(
+      sourcePath,
+      "---\nname: restricted\nallowed-tools: [Read]\n---\nbody\n",
+    );
+
+    const result = await importSkill(ctx, sourcePath);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe("invalid_skill");
+      expect(result.message).toContain(
+        '.kota/skills/restricted/SKILL.md: unsupported skill tool-policy frontmatter "allowed-tools"',
+      );
+    }
+    expect(existsSync(join(projectDir, ".kota", "skills", "restricted"))).toBe(false);
   });
 
   it("keeps single-file URL imports on the frontmatter-driven path", async () => {

@@ -6665,6 +6665,75 @@ describe("McpClient Streamable HTTP transport", () => {
     ).rejects.toThrow("URI templates must be resolved before reading");
   });
 
+  it("rejects MCP-served skill tool-policy metadata in catalog entries and skill reads", async () => {
+    let indexText = JSON.stringify({
+      $schema: AGENT_SKILLS_DISCOVERY_SCHEMA,
+      skills: [{
+        name: "restricted",
+        type: "skill-md",
+        description: "Restricted",
+        url: "skill://restricted/SKILL.md",
+        "disallowed-tools": ["Bash"],
+      }],
+    });
+    mockClientHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: {
+            resources: {},
+            extensions: { [MCP_SKILLS_EXTENSION_ID]: {} },
+          },
+          serverInfo: { name: "restricted-skills" },
+        });
+      }
+      if (request.body.method === "resources/read") {
+        if (request.body.params?.uri === MCP_SKILL_INDEX_RESOURCE_URI) {
+          return jsonRpcHttpResponse(request.body.id, {
+            resultType: "complete",
+            contents: [{
+              uri: MCP_SKILL_INDEX_RESOURCE_URI,
+              mimeType: "application/json",
+              text: indexText,
+            }],
+          });
+        }
+        return jsonRpcHttpResponse(request.body.id, {
+          resultType: "complete",
+          contents: [{
+            uri: request.body.params?.uri,
+            mimeType: "text/markdown",
+            text: "---\nname: restricted\ntools: [Read]\n---\nRemote restricted guidance.",
+          }],
+        });
+      }
+      return jsonRpcHttpResponse(request.body.id, {});
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "restricted-skills-client",
+    );
+
+    await client.connect();
+
+    await expect(client.listRemoteSkills()).rejects.toThrow(
+      'MCP skill index entry skills[0] from server "restricted-skills": unsupported skill tool-policy frontmatter "disallowed-tools"',
+    );
+
+    indexText = JSON.stringify({
+      $schema: AGENT_SKILLS_DISCOVERY_SCHEMA,
+      skills: [{
+        name: "restricted",
+        type: "skill-md",
+        description: "Restricted",
+        url: "skill://restricted/SKILL.md",
+      }],
+    });
+    await expect(client.readRemoteSkill("skill://restricted/SKILL.md")).rejects.toThrow(
+      'MCP remote skill "skill://restricted/SKILL.md" from server "restricted-skills": unsupported skill tool-policy frontmatter "tools"',
+    );
+  });
+
   it("decodes cache hints on tools, resource, prompt, and resource-read results", async () => {
     mockClientHttpFetch((request) => {
       if (request.body.method === "server/discover") {

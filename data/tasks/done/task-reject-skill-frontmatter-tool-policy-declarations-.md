@@ -1,12 +1,12 @@
 ---
 id: task-reject-skill-frontmatter-tool-policy-declarations-
 title: Reject skill frontmatter tool-policy declarations unless KOTA can enforce them
-status: ready
+status: done
 priority: p2
 area: core
 summary: Fail loudly on allowed-tools and disallowed-tools metadata in local, imported, and remote skills unless a reviewed KOTA activation path maps it into the agent tool policy.
 created_at: 2026-05-27T10:10:04.114Z
-updated_at: 2026-05-27T10:10:04.114Z
+updated_at: 2026-05-27T10:45:49.483Z
 ---
 
 ## Problem

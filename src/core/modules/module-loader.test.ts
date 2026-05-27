@@ -1013,6 +1013,23 @@ describe("Module SDK — storage, config, skills", () => {
     errSpy.mockRestore();
   });
 
+  it("rejects module skill frontmatter tool-policy declarations", async () => {
+    const skillPath = join(tmpDir, "restricted.md");
+    writeFileSync(
+      skillPath,
+      "---\nname: restricted\ndisallowed-tools: [Bash]\n---\nRestricted guidance.",
+    );
+    const loader = new ModuleLoader({}, false);
+    loader.setCwd(tmpDir);
+
+    await expect(loader.load({
+      name: "restricted-mod",
+      skills: [{ name: "restricted", promptPath: "restricted.md" }],
+    })).rejects.toThrow(
+      'restricted.md: unsupported skill tool-policy frontmatter "disallowed-tools"',
+    );
+  });
+
   it("collects multiple skills in load order", async () => {
     const skillA = join(tmpDir, "skill-a.md");
     const skillB = join(tmpDir, "skill-b.md");

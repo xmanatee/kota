@@ -126,6 +126,20 @@ describe("imported skill resolution", () => {
 		);
 	});
 
+	it("rejects imported skill frontmatter tool-policy declarations before prompt resolution", async () => {
+		writeImportedSkill(
+			projectDir,
+			"restricted",
+			"name: restricted\ndisallowed-tools: [Bash]\n",
+			"Restricted imported guidance.",
+		);
+		await loader.load({ name: "empty-module" });
+
+		expect(() => loader.getSkillsPromptFor(["restricted"], "builder")).toThrow(
+			'.kota/skills/restricted/SKILL.md: unsupported skill tool-policy frontmatter "disallowed-tools"',
+		);
+	});
+
 	it("fails loudly on malformed or duplicate imported skill data", async () => {
 		writeImportedSkill(projectDir, "one", "name: duplicate\n", "One.");
 		writeImportedSkill(projectDir, "two", "name: duplicate\n", "Two.");
