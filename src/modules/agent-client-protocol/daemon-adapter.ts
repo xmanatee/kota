@@ -1,11 +1,11 @@
 import { resolve } from "node:path";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import type { AcpMcpServers } from "./protocol.js";
 import {
   AcpProtocolError,
   agentMessageUpdate,
   agentThoughtUpdate,
-  daemonUnavailable,
   isJsonObject,
   type JsonObject,
   type JsonValue,
@@ -49,9 +49,9 @@ export type PromptSessionResult = {
 
 export interface AcpDaemonClient {
   listProjects(): Promise<AcpProjectList>;
-  createSession(project: AcpProject): Promise<{ sessionId: string }>;
+  createSession(project: AcpProject, mcpServers: AcpMcpServers): Promise<{ sessionId: string }>;
   listSessions(project: AcpProject): Promise<AcpDaemonSession[]>;
-  resumeSession(project: AcpProject, sessionId: string): Promise<{ sessionId: string }>;
+  resumeSession(project: AcpProject, sessionId: string, mcpServers: AcpMcpServers): Promise<{ sessionId: string }>;
   promptSession(args: PromptSessionArgs): Promise<PromptSessionResult>;
   cancelSession(sessionId: string): Promise<void>;
   closeSession(sessionId: string): Promise<void>;
@@ -83,6 +83,7 @@ type SessionListWireEntry = {
   busy?: boolean;
   projectId?: string;
   conversationId?: string;
+  mcpServerNames?: string[];
 };
 
 type SessionListWireBody = {
@@ -123,7 +124,7 @@ export class HttpAcpDaemonClient implements AcpDaemonClient {
     };
   }
 
-  async createSession(project: AcpProject): Promise<{ sessionId: string }> {
+  async createSession(project: AcpProject, mcpServers: AcpMcpServers): Promise<{ sessionId: string }> {
     const query = new URLSearchParams({ projectId: project.projectId });
     const res = await this.transport.fetchRaw(`/sessions?${query.toString()}`, {
       method: "POST",
@@ -131,7 +132,10 @@ export class HttpAcpDaemonClient implements AcpDaemonClient {
         "Content-Type": "application/json",
         ...this.transport.authHeaders(),
       },
-      body: JSON.stringify({ autonomy_mode: this.autonomyMode }),
+      body: JSON.stringify({
+        autonomy_mode: this.autonomyMode,
+        mcp_servers: mcpServers,
+      }),
     });
     if (!res.ok) {
       throw daemonHttpError(res.status, await responseErrorMessage(res));
@@ -155,7 +159,11 @@ export class HttpAcpDaemonClient implements AcpDaemonClient {
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
 
-  async resumeSession(project: AcpProject, sessionId: string): Promise<{ sessionId: string }> {
+  async resumeSession(
+    project: AcpProject,
+    sessionId: string,
+    mcpServers: AcpMcpServers,
+  ): Promise<{ sessionId: string }> {
     const query = new URLSearchParams({ projectId: project.projectId });
     const res = await this.transport.fetchRaw(`/sessions?${query.toString()}`, {
       method: "POST",
@@ -166,6 +174,7 @@ export class HttpAcpDaemonClient implements AcpDaemonClient {
       body: JSON.stringify({
         autonomy_mode: this.autonomyMode,
         session_id: sessionId,
+        mcp_servers: mcpServers,
       }),
     });
     if (!res.ok) {
@@ -427,6 +436,7 @@ function mapLiveSession(project: AcpProject, entry: SessionListWireEntry): AcpDa
       source: "daemon",
       projectId: entry.projectId ?? project.projectId,
       ...(entry.conversationId ? { conversationId: entry.conversationId } : {}),
+      ...(Array.isArray(entry.mcpServerNames) ? { mcpServerNames: entry.mcpServerNames } : {}),
       busy: entry.busy === true,
     },
   };
@@ -477,7 +487,7 @@ async function responseErrorMessage(res: Response): Promise<string> {
 
 function daemonHttpError(status: number, message: string): AcpProtocolError {
   if (status === 404) return new AcpProtocolError(-32002, message, { code: "daemon_not_found" });
-  if (status === 503) return daemonUnavailable();
+  if (status === 503) return new AcpProtocolError(-32603, message, { code: "daemon_unavailable" });
   return new AcpProtocolError(-32603, message, { code: "daemon_http_error", status });
 }
 

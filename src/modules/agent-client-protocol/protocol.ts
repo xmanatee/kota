@@ -1,4 +1,5 @@
 import { isAbsolute } from "node:path";
+import type { McpServerConfig } from "#core/mcp/manager.js";
 
 export const ACP_PROTOCOL_VERSION = 1;
 export const ACP_AGENT_NAME = "kota";
@@ -199,13 +200,16 @@ export function decodeInitializeParams(params: JsonValue | undefined): Initializ
 
 export type NewSessionParams = {
   cwd: string;
+  mcpServers: AcpMcpServers;
 };
+
+export type AcpMcpServers = Record<string, McpServerConfig>;
 
 export function decodeNewSessionParams(params: JsonValue | undefined): NewSessionParams {
   const obj = objectParams(params, "session/new");
   const cwd = decodeAbsoluteCwd(obj.cwd);
-  rejectMcpServers(obj);
-  return { cwd };
+  const mcpServers = decodeMcpServers(obj);
+  return { cwd, mcpServers };
 }
 
 export type ListSessionParams = {
@@ -225,6 +229,7 @@ export function decodeListSessionParams(params: JsonValue | undefined): ListSess
 export type ResumeSessionParams = {
   cwd: string;
   sessionId: string;
+  mcpServers: AcpMcpServers;
 };
 
 export function decodeResumeSessionParams(params: JsonValue | undefined): ResumeSessionParams {
@@ -234,8 +239,8 @@ export function decodeResumeSessionParams(params: JsonValue | undefined): Resume
   if (typeof sessionId !== "string" || sessionId.length === 0) {
     throw invalidParams("sessionId must be a non-empty string");
   }
-  rejectMcpServers(obj);
-  return { cwd, sessionId };
+  const mcpServers = decodeMcpServers(obj);
+  return { cwd, sessionId, mcpServers };
 }
 
 export type PromptParams = {
@@ -293,14 +298,180 @@ function decodeAbsoluteCwd(value: JsonValue | undefined): string {
   return value;
 }
 
-function rejectMcpServers(params: JsonObject): void {
+const ACP_MCP_STDIO_FIELDS = new Set(["type", "name", "command", "args", "env"]);
+const ACP_MCP_HTTP_FIELDS = new Set(["type", "name", "url", "headers"]);
+const ACP_MCP_SSE_FIELDS = ACP_MCP_HTTP_FIELDS;
+const ACP_MCP_NAME_PATTERN = /^[A-Za-z0-9._-]+$/;
+
+function decodeMcpServers(params: JsonObject): AcpMcpServers {
   const mcpServers = params.mcpServers;
   if (!Array.isArray(mcpServers)) {
     throw invalidParams("mcpServers must be an array");
   }
-  if (mcpServers.length > 0) {
-    throw unsupportedFeature("mcpServers", "Client-supplied MCP handoff is not supported by this adapter");
+  const normalized: AcpMcpServers = {};
+  for (const [index, raw] of mcpServers.entries()) {
+    const server = decodeMcpServer(raw, index);
+    if (Object.hasOwn(normalized, server.name)) {
+      throw invalidParams(`mcpServers[${index}].name duplicates "${server.name}"`);
+    }
+    normalized[server.name] = server.config;
   }
+  return normalized;
+}
+
+function decodeMcpServer(
+  value: JsonValue,
+  index: number,
+): { name: string; config: McpServerConfig } {
+  if (!isJsonObject(value)) {
+    throw invalidParams(`mcpServers[${index}] must be an object`);
+  }
+  const type = value.type;
+  if (type === undefined || type === "stdio") {
+    return decodeStdioMcpServer(value, index);
+  }
+  if (type === "http") {
+    validateUnsupportedHttpMcpServer(value, index);
+    throw unsupportedFeature(
+      "mcpServers.http",
+      "ACP HTTP MCP handoff is not supported by this adapter",
+    );
+  }
+  if (type === "sse") {
+    validateUnsupportedSseMcpServer(value, index);
+    throw unsupportedFeature(
+      "mcpServers.sse",
+      "ACP SSE MCP handoff is not supported by this adapter",
+    );
+  }
+  throw invalidParams(`mcpServers[${index}].type must be "stdio", "http", or "sse"`);
+}
+
+function decodeStdioMcpServer(
+  value: JsonObject,
+  index: number,
+): { name: string; config: McpServerConfig } {
+  rejectUnknownFields(value, ACP_MCP_STDIO_FIELDS, `mcpServers[${index}]`);
+  const name = decodeMcpServerName(value.name, `mcpServers[${index}].name`);
+  const command = decodeAbsoluteCommand(value.command, `mcpServers[${index}].command`);
+  const args = decodeRequiredStringArray(value.args, `mcpServers[${index}].args`);
+  const env = decodeOptionalNameValueArray(value.env, `mcpServers[${index}].env`);
+  return {
+    name,
+    config: {
+      type: "stdio",
+      command,
+      args,
+      ...(env ? { env } : {}),
+    },
+  };
+}
+
+function validateUnsupportedHttpMcpServer(value: JsonObject, index: number): void {
+  rejectUnknownFields(value, ACP_MCP_HTTP_FIELDS, `mcpServers[${index}]`);
+  decodeMcpServerName(value.name, `mcpServers[${index}].name`);
+  decodeAbsoluteUrl(value.url, `mcpServers[${index}].url`);
+  decodeRequiredNameValueArray(value.headers, `mcpServers[${index}].headers`);
+}
+
+function validateUnsupportedSseMcpServer(value: JsonObject, index: number): void {
+  rejectUnknownFields(value, ACP_MCP_SSE_FIELDS, `mcpServers[${index}]`);
+  decodeMcpServerName(value.name, `mcpServers[${index}].name`);
+  decodeAbsoluteUrl(value.url, `mcpServers[${index}].url`);
+  decodeRequiredNameValueArray(value.headers, `mcpServers[${index}].headers`);
+}
+
+function rejectUnknownFields(value: JsonObject, allowed: Set<string>, label: string): void {
+  const unknown = Object.keys(value).filter((key) => !allowed.has(key));
+  if (unknown.length === 0) return;
+  throw invalidParams(`${label} has unexpected field${unknown.length === 1 ? "" : "s"} ${unknown.join(", ")}`);
+}
+
+function decodeMcpServerName(value: JsonValue | undefined, label: string): string {
+  if (typeof value !== "string" || value.length === 0) {
+    throw invalidParams(`${label} must be a non-empty string`);
+  }
+  if (!ACP_MCP_NAME_PATTERN.test(value) || value.includes("__")) {
+    throw invalidParams(`${label} must contain only letters, numbers, dots, underscores, or hyphens`);
+  }
+  return value;
+}
+
+function decodeAbsoluteCommand(value: JsonValue | undefined, label: string): string {
+  if (typeof value !== "string" || value.length === 0) {
+    throw invalidParams(`${label} must be a non-empty string`);
+  }
+  if (!isAbsolute(value)) {
+    throw invalidParams(`${label} must be an absolute path`);
+  }
+  return value;
+}
+
+function decodeRequiredStringArray(value: JsonValue | undefined, label: string): string[] {
+  if (!Array.isArray(value)) {
+    throw invalidParams(`${label} must be an array of strings`);
+  }
+  const out: string[] = [];
+  for (const [index, entry] of value.entries()) {
+    if (typeof entry !== "string") {
+      throw invalidParams(`${label}[${index}] must be a string`);
+    }
+    out.push(entry);
+  }
+  return out;
+}
+
+function decodeOptionalNameValueArray(
+  value: JsonValue | undefined,
+  label: string,
+): Record<string, string> | undefined {
+  if (value === undefined) return undefined;
+  return decodeRequiredNameValueArray(value, label);
+}
+
+function decodeRequiredNameValueArray(
+  value: JsonValue | undefined,
+  label: string,
+): Record<string, string> {
+  if (!Array.isArray(value)) {
+    throw invalidParams(`${label} must be an array of name/value objects`);
+  }
+  const out: Record<string, string> = {};
+  for (const [index, entry] of value.entries()) {
+    if (!isJsonObject(entry)) {
+      throw invalidParams(`${label}[${index}] must be an object`);
+    }
+    rejectUnknownFields(entry, new Set(["name", "value"]), `${label}[${index}]`);
+    const name = entry.name;
+    const entryValue = entry.value;
+    if (typeof name !== "string" || name.length === 0) {
+      throw invalidParams(`${label}[${index}].name must be a non-empty string`);
+    }
+    if (Object.hasOwn(out, name)) {
+      throw invalidParams(`${label}[${index}].name duplicates "${name}"`);
+    }
+    if (typeof entryValue !== "string") {
+      throw invalidParams(`${label}[${index}].value must be a string`);
+    }
+    out[name] = entryValue;
+  }
+  return out;
+}
+
+function decodeAbsoluteUrl(value: JsonValue | undefined, label: string): string {
+  if (typeof value !== "string" || value.length === 0) {
+    throw invalidParams(`${label} must be a non-empty string`);
+  }
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw invalidParams(`${label} must be an absolute URL`);
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw invalidParams(`${label} must use http or https`);
+  }
+  return value;
 }
 
 function contentBlockToPromptText(block: JsonValue): string {

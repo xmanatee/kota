@@ -1,12 +1,12 @@
 ---
 id: task-connect-acp-client-supplied-mcp-servers-to-daemon-
 title: Connect ACP client-supplied MCP servers to daemon sessions
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Accept ACP client-provided MCP server configs for session/new and session/resume, route them through KOTA's existing session/harness MCP server path, and keep capability advertising and unsupported transports honest.
 created_at: 2026-05-27T09:22:43.938Z
-updated_at: 2026-05-27T09:22:43.938Z
+updated_at: 2026-05-27T09:47:44.000Z
 ---
 
 ## Problem
@@ -114,3 +114,10 @@ Agent/client interoperability through module-owned protocol adapters.
   the normalized `mcpServers` path, adapter restart, `session/resume` with the
   same MCP server config, and a follow-up prompt; the transcript must not leak
   env/header secret values.
+
+## Outcome
+
+ACP `session/new` and `session/resume` now normalize stdio MCP server configs,
+attach them to daemon-owned sessions, and keep HTTP/SSE handoff unsupported in
+the advertised capabilities. Evidence was captured in
+`.kota/runs/2026-05-27T09-25-59-030Z-builder-u9kg4k/acp-mcp-transcript.md`.

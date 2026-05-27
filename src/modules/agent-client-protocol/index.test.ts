@@ -14,12 +14,26 @@ import {
   type PromptSessionArgs,
   type PromptSessionResult,
 } from "./daemon-adapter.js";
-import { agentMessageUpdate } from "./protocol.js";
+import { type AcpMcpServers, agentMessageUpdate } from "./protocol.js";
 import { AgentClientProtocolServer } from "./server.js";
 import { runAgentClientProtocolStdio } from "./stdio.js";
 
 const PROJECT_DIR = "/Users/example/project";
 const SECOND_PROJECT_DIR = "/Users/example/other-project";
+const ACP_STDIO_MCP_SERVER = {
+  name: "fs",
+  command: "/usr/bin/env",
+  args: ["node"],
+  env: [{ name: "API_KEY", value: "secret-token" }],
+};
+const NORMALIZED_STDIO_MCP_SERVERS: AcpMcpServers = {
+  fs: {
+    type: "stdio",
+    command: "/usr/bin/env",
+    args: ["node"],
+    env: { API_KEY: "secret-token" },
+  },
+};
 
 class CaptureStream {
   readonly chunks: string[] = [];
@@ -55,9 +69,9 @@ class FakeDaemon implements AcpDaemonClient {
     activeProjectId: null,
   };
   listProjectsCalls = 0;
-  createSessionCalls: AcpProject[] = [];
+  createSessionCalls: Array<{ project: AcpProject; mcpServers: AcpMcpServers }> = [];
   listSessionsCalls: AcpProject[] = [];
-  resumeSessionCalls: Array<{ project: AcpProject; sessionId: string }> = [];
+  resumeSessionCalls: Array<{ project: AcpProject; sessionId: string; mcpServers: AcpMcpServers }> = [];
   promptCalls: PromptSessionArgs[] = [];
   cancelCalls: string[] = [];
   closeCalls: string[] = [];
@@ -76,8 +90,8 @@ class FakeDaemon implements AcpDaemonClient {
     return this.projectList;
   }
 
-  async createSession(project: AcpProject) {
-    this.createSessionCalls.push(project);
+  async createSession(project: AcpProject, mcpServers: AcpMcpServers) {
+    this.createSessionCalls.push({ project, mcpServers });
     return { sessionId: this.nextSessionId };
   }
 
@@ -86,8 +100,8 @@ class FakeDaemon implements AcpDaemonClient {
     return this.knownSessions.filter((session) => session.metadata.projectId === project.projectId);
   }
 
-  async resumeSession(project: AcpProject, sessionId: string) {
-    this.resumeSessionCalls.push({ project, sessionId });
+  async resumeSession(project: AcpProject, sessionId: string, mcpServers: AcpMcpServers) {
+    this.resumeSessionCalls.push({ project, sessionId, mcpServers });
     const session = this.knownSessions.find((entry) => entry.sessionId === sessionId);
     if (!session) throw new Error(`unknown session ${sessionId}`);
     session.live = true;
@@ -202,7 +216,17 @@ class FakeTransport implements DaemonTransport {
       });
     }
     if (path === "/sessions?projectId=proj-1" && init?.method === "POST") {
-      const body = typeof init.body === "string" ? JSON.parse(init.body) as { session_id?: string } : {};
+      const body = typeof init.body === "string"
+        ? JSON.parse(init.body) as { session_id?: string; mcp_servers?: Record<string, object> }
+        : {};
+      if (body.mcp_servers && Object.hasOwn(body.mcp_servers, "unsupported")) {
+        return new Response(JSON.stringify({
+          error: 'The "thin" agent harness is text-only; drop mcpServers or run a tool-capable harness.',
+        }), {
+          status: 503,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
       return new Response(JSON.stringify({ session_id: body.session_id ?? "created-session" }), {
         status: 201,
         headers: { "Content-Type": "application/json" },
@@ -328,9 +352,34 @@ describe("agent-client-protocol module", () => {
     expect(fake.listProjectsCalls).toBe(1);
     expect(fake.createSessionCalls).toEqual([
       {
-        projectId: "proj-1",
-        projectDir: PROJECT_DIR,
-        displayName: "project",
+        project: {
+          projectId: "proj-1",
+          projectDir: PROJECT_DIR,
+          displayName: "project",
+        },
+        mcpServers: {},
+      },
+    ]);
+  });
+
+  it("normalizes stdio MCP servers on session/new without leaking secrets", async () => {
+    const { server, fake, output } = await initializedServer();
+
+    await server.handleLine(request(1, "session/new", {
+      cwd: PROJECT_DIR,
+      mcpServers: [ACP_STDIO_MCP_SERVER],
+    }));
+
+    expect(output.text()).not.toContain("secret-token");
+    expect(output.messages()[1].result).toEqual({ sessionId: "kota-session-1" });
+    expect(fake.createSessionCalls).toEqual([
+      {
+        project: {
+          projectId: "proj-1",
+          projectDir: PROJECT_DIR,
+          displayName: "project",
+        },
+        mcpServers: NORMALIZED_STDIO_MCP_SERVERS,
       },
     ]);
   });
@@ -364,9 +413,12 @@ describe("agent-client-protocol module", () => {
     expect(messages[1].result).toEqual({ sessionId: "kota-session-1" });
     expect(fake.createSessionCalls).toEqual([
       {
-        projectId: "proj-2",
-        projectDir: SECOND_PROJECT_DIR,
-        displayName: "other project",
+        project: {
+          projectId: "proj-2",
+          projectDir: SECOND_PROJECT_DIR,
+          displayName: "other project",
+        },
+        mcpServers: {},
       },
     ]);
   });
@@ -469,7 +521,7 @@ describe("agent-client-protocol module", () => {
     await server.handleLine(request(1, "session/resume", {
       cwd: PROJECT_DIR,
       sessionId: "stored-session",
-      mcpServers: [],
+      mcpServers: [ACP_STDIO_MCP_SERVER],
     }));
     await server.handleLine(request(2, "session/prompt", {
       sessionId: "stored-session",
@@ -486,6 +538,7 @@ describe("agent-client-protocol module", () => {
           displayName: "project",
         },
         sessionId: "stored-session",
+        mcpServers: NORMALIZED_STDIO_MCP_SERVERS,
       },
     ]);
     expect(fake.promptCalls[0]?.sessionId).toBe("stored-session");
@@ -572,28 +625,19 @@ describe("agent-client-protocol module", () => {
     });
   });
 
-  it("rejects resume for unknown sessions and unsupported MCP handoff", async () => {
+  it("rejects resume for unknown sessions after decoding valid MCP servers", async () => {
     const { server, fake, output } = await initializedServer();
 
     await server.handleLine(request(1, "session/resume", {
       cwd: PROJECT_DIR,
       sessionId: "missing-session",
-      mcpServers: [],
-    }));
-    await server.handleLine(request(2, "session/resume", {
-      cwd: PROJECT_DIR,
-      sessionId: "missing-session",
-      mcpServers: [{ type: "stdio", name: "fs", command: "mcp", args: [], env: [] }],
+      mcpServers: [ACP_STDIO_MCP_SERVER],
     }));
 
     const messages = output.messages();
     expect(messages[1].error.data).toMatchObject({
       code: "session_not_found",
       sessionId: "missing-session",
-    });
-    expect(messages[2].error.data).toMatchObject({
-      code: "unsupported_feature",
-      feature: "mcpServers",
     });
     expect(fake.resumeSessionCalls).toEqual([]);
   });
@@ -688,19 +732,83 @@ describe("agent-client-protocol module", () => {
     expect(fake.promptCalls).toEqual([]);
   });
 
-  it("rejects unsupported MCP handoff without creating a session", async () => {
+  it("rejects malformed MCP handoff without creating a session or leaking secrets", async () => {
     const { server, fake, output } = await initializedServer();
 
     await server.handleLine(request(1, "session/new", {
       cwd: PROJECT_DIR,
-      mcpServers: [{ type: "stdio", name: "fs", command: "mcp", args: [], env: [] }],
+      mcpServers: [{
+        name: "fs",
+        command: "mcp",
+        args: [],
+        env: [{ name: "API_KEY", value: "secret-token" }],
+      }],
     }));
 
     const messages = output.messages();
     expect(messages[1].error.data).toMatchObject({
-      code: "unsupported_feature",
-      feature: "mcpServers",
+      code: "invalid_params",
     });
+    expect(messages[1].error.message).toContain("absolute path");
+    expect(output.text()).not.toContain("secret-token");
+    expect(fake.listProjectsCalls).toBe(0);
+    expect(fake.createSessionCalls).toEqual([]);
+  });
+
+  it("rejects duplicate MCP server names and unsupported transports before daemon side effects", async () => {
+    const { server, fake, output } = await initializedServer();
+
+    await server.handleLine(request(1, "session/new", {
+      cwd: PROJECT_DIR,
+      mcpServers: [
+        { name: "fs", command: "/usr/bin/env", args: [], env: [] },
+        { name: "fs", command: "/usr/bin/env", args: [], env: [] },
+      ],
+    }));
+    await server.handleLine(request(2, "session/new", {
+      cwd: PROJECT_DIR,
+      mcpServers: [{
+        type: "http",
+        name: "api",
+        url: "https://example.com/mcp",
+        headers: [{ name: "Authorization", value: "Bearer secret-token" }],
+      }],
+    }));
+    await server.handleLine(request(3, "session/new", {
+      cwd: PROJECT_DIR,
+      mcpServers: [{
+        type: "sse",
+        name: "events",
+        url: "https://example.com/sse",
+        headers: [],
+      }],
+    }));
+    await server.handleLine(request(4, "session/new", {
+      cwd: PROJECT_DIR,
+      mcpServers: [{
+        type: "http",
+        name: "api2",
+        url: "not-a-url",
+        headers: [{ name: "Authorization", value: "Bearer secret-token" }],
+      }],
+    }));
+
+    const messages = output.messages();
+    expect(messages[1].error.data).toMatchObject({
+      code: "invalid_params",
+    });
+    expect(messages[2].error.data).toMatchObject({
+      code: "unsupported_feature",
+      feature: "mcpServers.http",
+    });
+    expect(messages[3].error.data).toMatchObject({
+      code: "unsupported_feature",
+      feature: "mcpServers.sse",
+    });
+    expect(messages[4].error.data).toMatchObject({
+      code: "invalid_params",
+    });
+    expect(output.text()).not.toContain("secret-token");
     expect(fake.listProjectsCalls).toBe(0);
     expect(fake.createSessionCalls).toEqual([]);
   });
@@ -742,11 +850,43 @@ describe("agent-client-protocol module", () => {
       projectId: "proj-1",
       projectDir: PROJECT_DIR,
       displayName: "project",
-    });
+    }, NORMALIZED_STDIO_MCP_SERVERS);
 
     expect(session).toEqual({ sessionId: "created-session" });
     expect(transport.calls[0]?.path).toBe("/sessions?projectId=proj-1");
     expect(transport.calls[0]?.init?.method).toBe("POST");
+    expect(JSON.parse(String(transport.calls[0]?.init?.body))).toMatchObject({
+      autonomy_mode: "supervised",
+      mcp_servers: NORMALIZED_STDIO_MCP_SERVERS,
+    });
+  });
+
+  it("surfaces daemon mcpServers capability rejection without leaking secrets", async () => {
+    const transport = new FakeTransport();
+    const client = new HttpAcpDaemonClient(transport);
+
+    await expect(client.createSession({
+      projectId: "proj-1",
+      projectDir: PROJECT_DIR,
+      displayName: "project",
+    }, {
+      unsupported: {
+        type: "stdio",
+        command: "/usr/bin/env",
+        env: { API_KEY: "secret-token" },
+      },
+    })).rejects.toThrow(/drop mcpServers/);
+    await expect(client.createSession({
+      projectId: "proj-1",
+      projectDir: PROJECT_DIR,
+      displayName: "project",
+    }, {
+      unsupported: {
+        type: "stdio",
+        command: "/usr/bin/env",
+        env: { API_KEY: "secret-token" },
+      },
+    })).rejects.not.toThrow(/secret-token/);
   });
 
   it("lists HTTP daemon live sessions and persisted bindings for ACP discovery", async () => {
@@ -786,7 +926,7 @@ describe("agent-client-protocol module", () => {
       projectId: "proj-1",
       projectDir: PROJECT_DIR,
       displayName: "project",
-    }, "stored-session");
+    }, "stored-session", NORMALIZED_STDIO_MCP_SERVERS);
 
     expect(session).toEqual({ sessionId: "stored-session" });
     expect(transport.calls[0]?.path).toBe("/sessions?projectId=proj-1");
@@ -794,6 +934,7 @@ describe("agent-client-protocol module", () => {
     expect(JSON.parse(String(transport.calls[0]?.init?.body))).toMatchObject({
       autonomy_mode: "supervised",
       session_id: "stored-session",
+      mcp_servers: NORMALIZED_STDIO_MCP_SERVERS,
     });
   });
 

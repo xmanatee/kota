@@ -158,7 +158,7 @@ export class AgentClientProtocolServer {
         { code: "invalid_params", field: "cwd" },
       );
     }
-    const session = await daemon.createSession(project);
+    const session = await daemon.createSession(project, params.mcpServers);
     this.sessions.add(session.sessionId);
     return { sessionId: session.sessionId };
   }
@@ -195,7 +195,7 @@ export class AgentClientProtocolServer {
       .find((session) => session.sessionId === params.sessionId);
     if (!known) throw sessionNotFound(params.sessionId);
     if (!known.live) {
-      await daemon.resumeSession(project, params.sessionId);
+      await daemon.resumeSession(project, params.sessionId, params.mcpServers);
     }
     this.sessions.add(params.sessionId);
     return {};

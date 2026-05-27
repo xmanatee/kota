@@ -109,6 +109,79 @@ describe("handleCreateDaemonSession", () => {
     expect(bindings.getBySession(body.session_id)?.conversationId).toBe(body.conversation_id);
   });
 
+  it("passes normalized mcp_servers into the daemon session without exposing secret values", async () => {
+    const pool = makePool();
+    const bindings = makeBindingStore();
+    const resolver = makeResolver();
+    const res = mockResponse();
+    const seen: unknown[] = [];
+    const req = mockRequest(JSON.stringify({
+      mcp_servers: {
+        fs: {
+          type: "stdio",
+          command: "/usr/bin/env",
+          args: ["node"],
+          env: { API_KEY: "secret-token" },
+        },
+      },
+    }));
+    await handleCreateDaemonSession(
+      pool,
+      bindings,
+      req as never,
+      res as never,
+      (_transport, _mode, _resume, _projectId, mcpServers) => {
+        seen.push(mcpServers);
+        return mockAgentSession() as never;
+      },
+      "supervised",
+      PROJECT_ID,
+      resolver,
+    );
+    expect(res.writeHead).toHaveBeenCalledWith(201, expect.any(Object));
+    expect(seen).toEqual([
+      {
+        fs: {
+          type: "stdio",
+          command: "/usr/bin/env",
+          args: ["node"],
+          env: { API_KEY: "secret-token" },
+        },
+      },
+    ]);
+    const body = JSON.parse(res._written[res._written.length - 1]) as { session_id: string };
+    expect(pool.get(body.session_id)?.mcpServers).toEqual(seen[0]);
+    expect(res._written.join("")).not.toContain("secret-token");
+  });
+
+  it("rejects malformed mcp_servers before creating a daemon session", async () => {
+    const pool = makePool();
+    const bindings = makeBindingStore();
+    const res = mockResponse();
+    const req = mockRequest(JSON.stringify({
+      mcp_servers: {
+        fs: {
+          type: "stdio",
+          command: "/usr/bin/env",
+          env: { API_KEY: 42 },
+        },
+      },
+    }));
+    await handleCreateDaemonSession(
+      pool,
+      bindings,
+      req as never,
+      res as never,
+      () => mockAgentSession() as never,
+      "supervised",
+      PROJECT_ID,
+      makeResolver(),
+    );
+    expect(res.writeHead).toHaveBeenCalledWith(400, expect.any(Object));
+    expect(pool.size).toBe(0);
+    expect(res._written.join("")).not.toContain("secret-token");
+  });
+
   it("honors autonomy_mode from the request body", async () => {
     const pool = makePool();
     const bindings = makeBindingStore();

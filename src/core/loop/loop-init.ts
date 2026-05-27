@@ -4,7 +4,7 @@ import { getEventBus, tryEmit } from "#core/events/event-bus.js";
 import { runCleanupHooks } from "#core/loop/cleanup-hooks.js";
 import { listManifestModules } from "#core/manifest/index.js";
 import type { McpAuthorizationResolver } from "#core/mcp/client.js";
-import { type McpInputResolver, McpManager } from "#core/mcp/manager.js";
+import { type McpInputResolver, McpManager, type McpServerConfig } from "#core/mcp/manager.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import type { ModelTiers } from "#core/model/model-router.js";
 import type { ModelOutputTokenLimits } from "#core/model/output-token-limits.js";
@@ -63,6 +63,7 @@ export interface AgentLoopState {
   mcpManager: McpManager | null;
   mcpInputResolver: McpInputResolver | undefined;
   mcpAuthorizationResolver: McpAuthorizationResolver | undefined;
+  mcpServers: Record<string, McpServerConfig> | undefined;
   costTracker: CostTracker;
   reflectionEnabled: boolean;
   stateMachine: SessionStateMachine;
@@ -87,7 +88,7 @@ export interface AgentLoopState {
 }
 
 export async function runInitModules(state: AgentLoopState): Promise<void> {
-  const config = McpManager.loadConfig(state.projectDir);
+  const config = resolveMcpConfig(state);
   if (config) {
     state.mcpManager = new McpManager({ projectDir: state.projectDir });
     await state.mcpManager.initialize(config, {
@@ -157,6 +158,24 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
   if (state.stateMachine.canTransition("ready")) {
     state.stateMachine.transition("ready");
   }
+}
+
+function resolveMcpConfig(state: AgentLoopState): { mcpServers: Record<string, McpServerConfig> } | null {
+  const projectConfig = McpManager.loadConfig(state.projectDir);
+  const sessionServers = state.mcpServers ?? {};
+  const sessionEntries = Object.entries(sessionServers);
+  if (!projectConfig && sessionEntries.length === 0) return null;
+
+  const mcpServers: Record<string, McpServerConfig> = {
+    ...(projectConfig?.mcpServers ?? {}),
+  };
+  for (const [name, config] of sessionEntries) {
+    if (Object.hasOwn(mcpServers, name)) {
+      throw new Error(`MCP server "${name}" is defined by both project config and session options`);
+    }
+    mcpServers[name] = config;
+  }
+  return { mcpServers };
 }
 
 function bindRenderingTransport(state: AgentLoopState): void {

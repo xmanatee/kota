@@ -4,7 +4,7 @@ import type { KotaConfig } from "#core/config/config.js";
 import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
 import { tryEmit } from "#core/events/event-bus.js";
 import type { McpAuthorizationResolver } from "#core/mcp/client.js";
-import type { McpInputResolver, McpManager } from "#core/mcp/manager.js";
+import type { McpInputResolver, McpManager, McpServerConfig } from "#core/mcp/manager.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import type { ModelTiers } from "#core/model/model-router.js";
 import type { ModelOutputTokenLimits } from "#core/model/output-token-limits.js";
@@ -68,6 +68,8 @@ export type LoopOptions = {
   /** Optional existing operator surface bridge for remote MCP input_required retries. */
   mcpInputResolver?: McpInputResolver;
   mcpAuthorizationResolver?: McpAuthorizationResolver;
+  /** Per-session MCP servers supplied by an external client after boundary normalization. */
+  mcpServers?: Record<string, McpServerConfig>;
 };
 
 export type GuardrailsConfigReplacement = {
@@ -94,6 +96,7 @@ export class AgentSession implements AgentLoopState {
   mcpManager: McpManager | null = null;
   mcpInputResolver: McpInputResolver | undefined;
   mcpAuthorizationResolver: McpAuthorizationResolver | undefined;
+  mcpServers: Record<string, McpServerConfig> | undefined;
   moduleLoader!: ModuleLoader;
   transport!: Transport;
   defaultTransportProxy: ProxyTransport | undefined;
