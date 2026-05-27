@@ -207,11 +207,20 @@ const revalidatedFindingSchema = investigationFindingSchema.extend({
   verdict: verdictSchema,
   rationale: z.string().min(1),
 }).strict();
+const revalidationVerdictSchema = z.object({
+  id: z.string().min(1),
+  verdict: verdictSchema,
+  rationale: z.string().min(1),
+}).strict();
 const investigationOutputSchema = z.object({
   findings: z.array(investigationFindingSchema),
 }).strict();
 const revalidationOutputSchema = z.object({
   findings: z.array(revalidatedFindingSchema),
+  summary: z.string().min(1),
+}).strict();
+const revalidationVerdictOutputSchema = z.object({
+  findings: z.array(revalidationVerdictSchema),
   summary: z.string().min(1),
 }).strict();
 
@@ -222,9 +231,10 @@ export type SecurityInvestigationFinding = z.infer<typeof investigationFindingSc
 export type SecurityRevalidatedFinding = z.infer<typeof revalidatedFindingSchema>;
 export type SecurityInvestigationOutput = z.infer<typeof investigationOutputSchema>;
 export type SecurityRevalidationOutput = z.infer<typeof revalidationOutputSchema>;
+export type SecurityRevalidationVerdictOutput = z.infer<typeof revalidationVerdictOutputSchema>;
 
 type RawInvestigationOutput = Parameters<typeof investigationOutputSchema.parse>[0];
-type RawRevalidationOutput = Parameters<typeof revalidationOutputSchema.parse>[0];
+type RawRevalidationOutput = Parameters<typeof revalidationVerdictOutputSchema.parse>[0];
 
 export function decodeSecurityInvestigationOutput(
   raw: RawInvestigationOutput,
@@ -232,10 +242,10 @@ export function decodeSecurityInvestigationOutput(
   return investigationOutputSchema.parse(raw);
 }
 
-export function decodeSecurityRevalidationOutput(
+export function decodeSecurityRevalidationVerdictOutput(
   raw: RawRevalidationOutput,
-): SecurityRevalidationOutput {
-  return revalidationOutputSchema.parse(raw);
+): SecurityRevalidationVerdictOutput {
+  return revalidationVerdictOutputSchema.parse(raw);
 }
 
 function formatFindingIds(ids: readonly string[]): string {
@@ -246,38 +256,31 @@ export function decodeSecurityRevalidationOutputForInvestigation(
   raw: RawRevalidationOutput,
   investigation: SecurityInvestigationOutput,
 ): SecurityRevalidationOutput {
-  const output = decodeSecurityRevalidationOutput(raw);
+  const output = decodeSecurityRevalidationVerdictOutput(raw);
   const expectedById = new Map(
     investigation.findings.map((finding) => [finding.id, finding]),
   );
   const seenIds = new Set<string>();
   const duplicateIds: string[] = [];
   const unknownIds: string[] = [];
+  const mergedFindings: SecurityRevalidatedFinding[] = [];
 
-  for (const finding of output.findings) {
-    if (seenIds.has(finding.id)) {
-      duplicateIds.push(finding.id);
+  for (const verdict of output.findings) {
+    if (seenIds.has(verdict.id)) {
+      duplicateIds.push(verdict.id);
       continue;
     }
-    seenIds.add(finding.id);
-    const expected = expectedById.get(finding.id);
+    seenIds.add(verdict.id);
+    const expected = expectedById.get(verdict.id);
     if (!expected) {
-      unknownIds.push(finding.id);
+      unknownIds.push(verdict.id);
       continue;
     }
-
-    for (const field of ["candidateId", "claim", "severity", "affectedPath", "recommendedOutcome"] as const) {
-      if (finding[field] !== expected[field]) {
-        throw new Error(
-          `Security revalidation changed ${field} for investigation finding "${finding.id}".`,
-        );
-      }
-    }
-    if (JSON.stringify(finding.evidence) !== JSON.stringify(expected.evidence)) {
-      throw new Error(
-        `Security revalidation changed evidence for investigation finding "${finding.id}".`,
-      );
-    }
+    mergedFindings.push({
+      ...expected,
+      verdict: verdict.verdict,
+      rationale: verdict.rationale,
+    });
   }
 
   if (duplicateIds.length > 0) {
@@ -300,7 +303,10 @@ export function decodeSecurityRevalidationOutputForInvestigation(
     );
   }
 
-  return output;
+  return {
+    findings: mergedFindings,
+    summary: output.summary,
+  };
 }
 
 function shouldScanFile(path: string): boolean {

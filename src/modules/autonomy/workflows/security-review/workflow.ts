@@ -23,8 +23,8 @@ import { SECURITY_REVIEW_DUE_EVENT } from "./due-check.js";
 import {
   createOrUpdateSecurityFindingTasks,
   decodeSecurityInvestigationOutput,
-  decodeSecurityRevalidationOutput,
   decodeSecurityRevalidationOutputForInvestigation,
+  decodeSecurityRevalidationVerdictOutput,
   SECURITY_REVIEW_MAX_CANDIDATES,
   SECURITY_REVIEW_MAX_CANDIDATES_PER_SURFACE,
   type SecurityFindingTaskResult,
@@ -95,22 +95,12 @@ const securityInvestigationOutputSchema = {
   },
 } satisfies JsonSchemaObject;
 
-const securityRevalidationFindingSchema = {
+const securityRevalidationVerdictSchema = {
   type: "object",
-  required: [
-    "id",
-    "candidateId",
-    "claim",
-    "severity",
-    "affectedPath",
-    "evidence",
-    "recommendedOutcome",
-    "verdict",
-    "rationale",
-  ],
+  required: ["id", "verdict", "rationale"],
   additionalProperties: false,
   properties: {
-    ...securityInvestigationFindingSchema.properties,
+    id: { type: "string" },
     verdict: { type: "string" },
     rationale: { type: "string" },
   },
@@ -124,7 +114,7 @@ const securityRevalidationOutputSchema = {
     findings: {
       type: "array",
       description: "one verdict for every investigation finding",
-      items: securityRevalidationFindingSchema,
+      items: securityRevalidationVerdictSchema,
     },
     summary: {
       type: "string",
@@ -376,7 +366,7 @@ const securityReviewWorkflow: WorkflowDefinitionInput = {
       maxTurns: 4,
       outputFormat: "json",
       outputSchema: securityRevalidationOutputSchema,
-      validate: decodeSecurityRevalidationOutput,
+      validate: decodeSecurityRevalidationVerdictOutput,
       when: (ctx) =>
         (recordInvestigationFindings.output(ctx)?.findings.length ?? 0) > 0,
     },

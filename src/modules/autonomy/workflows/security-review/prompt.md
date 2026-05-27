@@ -20,11 +20,15 @@ include:
 - `recommendedOutcome`
 
 For revalidation, return an object with `findings` and a top-level `summary`
-string. Each revalidated finding must preserve the investigation finding fields
-and add:
+string. Return exactly one verdict for every investigation finding. Each
+revalidated finding must include only:
 
+- `id`
 - `verdict` (`confirmed`, `rejected`, or `follow-up-needed`)
 - `rationale`
 
 Confirmed findings must be backed by cited code evidence. Rejected or uncertain
 findings stay in the run artifacts.
+
+Do not repeat or rewrite investigation fields; the workflow merges verdicts
+back onto the recorded investigation findings.

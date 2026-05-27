@@ -13,6 +13,7 @@ import {
   decodeSecurityRevalidationOutputForInvestigation,
   type SecurityInvestigationOutput,
   type SecurityRevalidationOutput,
+  type SecurityRevalidationVerdictOutput,
   scanSecurityReviewCandidates,
 } from "./security-review.js";
 import securityReviewWorkflow from "./workflow.js";
@@ -228,12 +229,12 @@ describe("security-review workflow", () => {
         {
           findings: [
             {
-              ...investigation.findings[0],
+              id: investigation.findings[0].id,
               verdict: "confirmed",
               rationale: "The call accepts caller-provided URL data and has no local allowlist.",
             },
             {
-              ...investigation.findings[1],
+              id: investigation.findings[1].id,
               verdict: "rejected",
               rationale: "The evidence shows a masked placeholder, not the secret value.",
             },
@@ -266,6 +267,7 @@ describe("security-review workflow", () => {
 
     expect(prompt).toContain("top-level `summary`");
     expect(prompt).toContain("`evidence`: an array");
+    expect(prompt).toContain("Do not repeat or rewrite investigation fields");
     expect(() =>
       decodeSecurityRevalidationOutputForInvestigation(
         {
@@ -344,6 +346,18 @@ describe("security-review workflow", () => {
         ],
         summary: "Confirmed one fetch finding.",
       }),
+    ).toContain("unexpected field");
+    expect(
+      validatePayloadSchema(revalidationStep.outputSchema!, {
+        findings: [
+          {
+            id: "finding-one",
+            verdict: "confirmed",
+            rationale: "The reviewed call path is exploitable.",
+          },
+        ],
+        summary: "Confirmed one fetch finding.",
+      }),
     ).toBeNull();
   });
 
@@ -385,15 +399,15 @@ describe("security-review workflow", () => {
         },
       ],
     };
-    const revalidation: SecurityRevalidationOutput = {
+    const revalidation: SecurityRevalidationVerdictOutput = {
       findings: [
         {
-          ...investigation.findings[0],
+          id: investigation.findings[0].id,
           verdict: "confirmed",
           rationale: "The candidate remains exploitable after reviewing call sites.",
         },
         {
-          ...investigation.findings[1],
+          id: investigation.findings[1].id,
           verdict: "rejected",
           rationale: "No logging sink is present.",
         },
@@ -465,10 +479,10 @@ describe("security-review workflow", () => {
         },
       ],
     };
-    const revalidation: SecurityRevalidationOutput = {
+    const revalidation: SecurityRevalidationVerdictOutput = {
       findings: [
         {
-          ...investigation.findings[0],
+          id: investigation.findings[0].id,
           verdict: "confirmed",
           rationale: "The candidate remains exploitable after reviewing call sites.",
         },
