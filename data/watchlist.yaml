@@ -37,9 +37,9 @@ resources:
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:a67f687dc89ae0618d8881fc9e389c9f
-      summary: "Codex now has a concrete permission-profile runtime-refresh signal; opened task-apply-daemon-config-reloads-to-live-session-guardr for KOTA's analogous live-session guardrails reload gap."
-      last_seen_at: "2026-05-26T01:44:23.761Z"
+      fingerprint: sha256:b4a85c82c192755c684b6bb751a091ac
+      summary: "Codex remains a high-signal terminal-agent comparator, but this refresh did not surface a nonduplicative KOTA task beyond existing live-session guardrail reload and permission-profile work."
+      last_seen_at: "2026-05-27T01:31:34.120Z"
   - url: https://github.com/google-gemini/gemini-cli
     added: "2026-04-19"
     snapshot:
@@ -244,9 +244,9 @@ resources:
     added: "2026-04-26"
     notes: "Continue.dev is the other widely-deployed in-IDE agent runtime, with a config-as-code pattern (config.yaml) and a different tool/sandbox model from Cline. Distinct from terminal-host peers already on the watchlist. Snapshot and distill on the next explorer cycle."
     snapshot:
-      fingerprint: sha256:5105acaa62b7da8e60480fef9fdab690
-      summary: "Continue now has a concrete repo-local AI-check-files signal; this run opened task-run-repo-local-ai-check-files-through-the-workflow for KOTA's matching workflow-backed check import and execution gap."
-      last_seen_at: "2026-05-26T22:13:50.957Z"
+      fingerprint: sha256:3eb46f85be762c4d3d044129b28ca0b9
+      summary: "Continue still reinforces repo-local AI checks enforced through CI; KOTA's matching workflow-backed check import and execution gap is already covered by task-run-repo-local-ai-check-files-through-the-workflow."
+      last_seen_at: "2026-05-27T01:31:34.120Z"
   - url: https://github.com/livekit/agents
     added: "2026-05-02"
     notes: "LiveKit Agents is a real-time multi-modal voice/agent orchestration framework — peer to KOTA's voice module surface. Owner-flagged 2026-05-02 in inbox capture as relevant to voice-stack reevaluation. Snapshot and distill on the next explorer cycle."
@@ -454,9 +454,9 @@ resources:
     added: "2026-05-26"
     notes: "GitHub Copilot CLI changelog is a fast-moving peer terminal-agent signal. Monitor for delegate/subagent guardrails, permissions and autopilot behavior, session resume/control, MCP/plugin/skill loading, security-review commands, and terminal UX constraints that map to KOTA's session, delegate, workflow, and operator-client runtime."
     snapshot:
-      fingerprint: sha256:43d407e8ccf24ef7be422cde116dd98f
-      summary: "GitHub Copilot CLI's first watchlist snapshot shows fast-moving terminal-agent work; KOTA opened task-resume-conversations-in-their-saved-project-direct for the nonduplicative saved-cwd resume gap, while existing delegate-budget work already covers the subagent runaway signal."
-      last_seen_at: "2026-05-26T15:56:12.600Z"
+      fingerprint: sha256:2fdc8d21ca83525ff53875a28f95756b
+      summary: "Copilot CLI's current changelog surfaces a protected nested-bare-repository RCE mitigation; this run opened task-apply-protected-git-bare-repository-safety-to-kota for KOTA's matching Git subprocess safety gap."
+      last_seen_at: "2026-05-27T01:31:34.119Z"
   - url: https://github.com/Alienfader/continuity-benchmarks
     added: "2026-05-19"
     notes: "Reproducible benchmark for execution-intent memory in long-horizon AI coding agents. Monitor as a peer signal for KOTA's recall/memory eval coverage, action-keyed retrieval, noisy cross-session continuity, and deterministic memory-eval artifacts."
