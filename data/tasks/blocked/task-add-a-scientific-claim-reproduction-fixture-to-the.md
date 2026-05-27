@@ -1,12 +1,12 @@
 ---
 id: task-add-a-scientific-claim-reproduction-fixture-to-the
 title: Add a scientific-claim reproduction fixture to the eval harness
-status: ready
+status: blocked
 priority: p2
 area: modules
 summary: Seed an eval-harness fixture where the builder reconstructs a small underspecified computational workflow from a paper-like claim, executes deterministic evidence, and records whether the claim is supported or refuted.
 created_at: 2026-05-27T08:12:34.216Z
-updated_at: 2026-05-27T08:12:34.216Z
+updated_at: 2026-05-27T08:28:25.000Z
 ---
 
 ## Problem
@@ -93,6 +93,27 @@ The fixture should make the scientific-reproduction failure mode observable:
 - `pnpm kota eval run --fixture <new-fixture-id> --repeats 1` completes with
   the claim-evidence predicates passing and any objective metric visible in the
   run artifact and aggregate output.
+
+## Unblock Precondition
+
+```
+kind: operator-capture
+path: .kota/runs/scientific-claim-reproduction-live-pass
+description: live eval-harness pass artifact — operator runs `pnpm kota eval run --fixture builder-scientific-claim-reproduction --repeats 1 --keep` in an environment where the nested builder agent can reach its model provider, then stores eval-run-transcript.txt, eval-set-report.json, the per-run fixture-run.json, and the produced claim-result.json evidence under .kota/runs/scientific-claim-reproduction-live-pass/
+```
+
+## Status (2026-05-27 builder)
+
+The fixture files, minimal initial project, scorer, objective metric, and
+shortcut-regression unit test have been implemented. Local validation passed
+for fixture loading, the focused fixture test, and TypeScript.
+
+The required live eval was attempted from run
+`.kota/runs/2026-05-27T08-15-53-541Z-builder-ad3yfx/eval-run-transcript.txt`.
+It reached the nested builder agent step, then failed because the nested Codex
+harness could not reach `https://api.openai.com/v1/responses` in this
+environment. No `claim-result.json` was produced, so this task is blocked on
+the operator-captured live pass above rather than marked done.
 
 ## Source / Intent
 

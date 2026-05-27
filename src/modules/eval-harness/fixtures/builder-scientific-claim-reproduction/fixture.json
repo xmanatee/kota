@@ -1,0 +1,93 @@
+{
+  "id": "builder-scientific-claim-reproduction",
+  "description": "Builder reconstructs a small paper-like claim analysis from local data, produces machine-readable claim evidence, and distinguishes support from refutation through deterministic predicates.",
+  "role": "builder",
+  "workflowName": "builder",
+  "budgetMs": 1800000,
+  "predicates": [
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-claim.mjs --max-error-pct 0.000001",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "file-exists",
+      "path": "claim-result.json"
+    },
+    {
+      "kind": "file-contains",
+      "path": "claim-result.json",
+      "needle": "\"verdict\": \"refuted\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "claim-result.json",
+      "needle": "\"median_uplift_pct\""
+    },
+    {
+      "kind": "file-absent",
+      "path": "data/tasks/ready/task-reproduce-lx12-biomass-claim.md"
+    },
+    {
+      "kind": "file-exists",
+      "path": "data/tasks/done/task-reproduce-lx12-biomass-claim.md"
+    },
+    {
+      "kind": "file-contains",
+      "path": "data/tasks/done/task-reproduce-lx12-biomass-claim.md",
+      "needle": "status: done"
+    },
+    {
+      "kind": "git-changes-within",
+      "allowedPaths": [
+        "scripts/analyze-claim.mjs",
+        "claim-result.json",
+        "data/tasks/ready/task-reproduce-lx12-biomass-claim.md",
+        "data/tasks/done/task-reproduce-lx12-biomass-claim.md"
+      ]
+    }
+  ],
+  "objectiveMetrics": [
+    {
+      "name": "median_uplift_pct",
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": {
+        "kind": "json-file",
+        "path": "claim-result.json",
+        "pointer": "/metric/value"
+      }
+    }
+  ],
+  "tags": [
+    "autonomy",
+    "builder-discipline",
+    "scientific-claim",
+    "objective-metric",
+    "live-llm"
+  ],
+  "provenance": {
+    "kind": "smoke-fixture",
+    "justification": "Synthetic AutoMat-shaped live-builder canary for scientific claim reproduction: the generator must reconstruct an underspecified local analysis, execute it, and record whether deterministic evidence supports or refutes a claim. No past KOTA failure run exists for this exact measurement gap."
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-claim.mjs --max-error-pct 0.000001",
+        "timeoutMs": 15000
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/tasks/ready/task-reproduce-lx12-biomass-claim.md"
+      },
+      "expected": "pass"
+    }
+  ],
+  "controlDecisions": [
+    "act"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "kota-eval-harness-scientific-claim-fixture",
+  "private": true,
+  "scripts": {
+    "build": "true",
+    "typecheck": "true",
+    "lint": "true",
+    "lint:fix": "true",
+    "test": "node scripts/check-claim.mjs --max-error-pct 0.000001",
+    "validate-tasks": "node \"$KOTA_DIST_DIR/validate-queue.js\"",
+    "kota": "node \"$KOTA_DIST_DIR/cli.js\""
+  }
+}

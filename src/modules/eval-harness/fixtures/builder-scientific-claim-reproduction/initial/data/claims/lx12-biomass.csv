@@ -1,0 +1,17 @@
+row_id,cohort,phase,site,treatment,dry_biomass_g,include_in_claim,quality_flag,notes
+C01,mature,week6,greenhouse-a,control,10,yes,ok,reported cohort
+C02,mature,week6,greenhouse-a,control,9,yes,ok,reported cohort
+C03,mature,week6,greenhouse-a,control,11,yes,ok,reported cohort
+C04,mature,week6,greenhouse-a,control,10,yes,ok,reported cohort
+C05,mature,week6,greenhouse-a,control,10,yes,ok,reported cohort
+T01,mature,week6,greenhouse-a,lx12,13,yes,ok,reported cohort
+T02,mature,week6,greenhouse-a,lx12,12,yes,ok,reported cohort
+T03,mature,week6,greenhouse-a,lx12,14,yes,ok,reported cohort
+T04,mature,week6,greenhouse-a,lx12,13,yes,ok,reported cohort
+T05,mature,week6,greenhouse-a,lx12,13,yes,ok,reported cohort
+X01,mature,week6,greenhouse-a,lx12,28,no,ok,screening replicate not in claim cohort
+X02,mature,week6,greenhouse-a,lx12,25,yes,drought,excluded stress anomaly
+X03,juvenile,week6,greenhouse-a,lx12,21,yes,ok,juvenile pilot
+X04,mature,week4,greenhouse-a,lx12,19,yes,ok,early endpoint
+X05,mature,week6,greenhouse-b,lx12,18,yes,ok,different greenhouse
+X06,mature,week6,greenhouse-a,control,8,no,ok,screening control not in claim cohort
