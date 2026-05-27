@@ -1,12 +1,12 @@
 ---
 id: task-apply-telemetry-environment-isolation-to-kemp-stdi
 title: Apply telemetry environment isolation to KEMP stdio module subprocesses
-status: ready
+status: done
 priority: p2
 area: core
 summary: Make foreign-module stdio subprocesses follow KOTA's explicit environment policy so KEMP modules do not inherit parent OTEL/OTLP routing while still receiving reviewed config.env overrides.
 created_at: 2026-05-27T00:44:37.829Z
-updated_at: 2026-05-27T00:44:37.829Z
+updated_at: 2026-05-27T00:53:08.885Z
 ---
 
 ## Problem

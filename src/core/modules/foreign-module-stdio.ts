@@ -9,6 +9,13 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import type { KempInbound, KempOutbound, KempTransport, StdioForeignModuleConfig } from "./foreign-module.js";
+import { buildFilteredInheritedSubprocessEnv } from "./subprocess-env.js";
+
+function buildStdioSubprocessEnv(
+  configEnv: StdioForeignModuleConfig["env"],
+): NodeJS.ProcessEnv {
+  return { ...buildFilteredInheritedSubprocessEnv(), ...configEnv };
+}
 
 export class StdioTransport implements KempTransport {
   private proc: ChildProcess;
@@ -25,7 +32,7 @@ export class StdioTransport implements KempTransport {
     this.label = `[foreign:${config.command}]`;
     this.proc = spawn(config.command, config.args ?? [], {
       cwd,
-      env: { ...process.env, ...config.env },
+      env: buildStdioSubprocessEnv(config.env),
       stdio: ["pipe", "pipe", "pipe"],
     });
 
