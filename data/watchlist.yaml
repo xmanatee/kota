@@ -46,6 +46,9 @@ resources:
       fingerprint: sha256:19309b5e06e9d767b876d1f9f373615f
       summary: "Gemini CLI continues to reinforce shell-safety evals, project-prioritized agent composition, and MCP/auth ergonomics; no nonduplicative KOTA task was opened from this refresh."
       last_seen_at: "2026-05-26T01:44:23.761Z"
+  - url: https://agentclientprotocol.com/get-started/architecture
+    added: "2026-05-27"
+    notes: "Official Agent Client Protocol docs. Monitor architecture, schema, transport, registry, stdio/Streamable HTTP, MCP handoff, permission, and session-lifecycle changes as an interoperability signal for KOTA's module-owned ACP adapter task."
   - url: https://antigravity.google/docs/cli-overview
     added: "2026-05-26"
     notes: "Antigravity CLI is Google's successor terminal surface for Gemini CLI consumer users and shares the Antigravity agent harness with Antigravity 2.0. Monitor as a peer native-CLI harness signal for KOTA's Google preset migration, auth-readiness behavior, plugin/skills layout, and native subagent boundaries."
