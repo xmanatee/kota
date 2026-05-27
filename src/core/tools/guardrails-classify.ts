@@ -21,6 +21,7 @@ import {
   mcpAnnotationsFromEffect,
   type RiskTier,
   riskFromEffect,
+  type ToolEffectKind,
 } from "./effect.js";
 import { getToolEffect } from "./index.js";
 import { isOutsideProject, resolvePathFrom } from "./project-path-policy.js";
@@ -28,7 +29,13 @@ import { isOutsideProject, resolvePathFrom } from "./project-path-policy.js";
 export type RiskLevel = RiskTier;
 export type { McpToolAnnotations };
 
-type ToolCallInput = Record<string, unknown>;
+export type ToolCallInput = Record<string, unknown>;
+
+export type ToolCallInputEffectOverride = {
+  kind: ToolEffectKind;
+  risk: RiskLevel;
+  reason: string;
+};
 
 // ─── Input-pattern guards ─────────────────────────────────────────────
 
@@ -357,16 +364,31 @@ function formatWorkingDirectoryReasons(
 
 function classifySaveToLocalWrite(
   input: ToolCallInput,
-): { risk: RiskLevel; reason: string } | null {
+): ToolCallInputEffectOverride | null {
   const saveTo = input.save_to;
   if (typeof saveTo !== "string" || saveTo.length === 0) return null;
   if (isOutsideProject(saveTo)) {
     return {
+      kind: "write",
       risk: "dangerous",
       reason: "save_to file operation outside project directory",
     };
   }
-  return { risk: "moderate", reason: "save_to local filesystem write" };
+  return {
+    kind: "write",
+    risk: "moderate",
+    reason: "save_to local filesystem write",
+  };
+}
+
+export function classifyToolCallInputEffectOverride(
+  name: string,
+  input: ToolCallInput,
+): ToolCallInputEffectOverride | null {
+  if (name === "web_fetch" || name === "http_request") {
+    return classifySaveToLocalWrite(input);
+  }
+  return null;
 }
 
 // ─── Classification ───────────────────────────────────────────────────
@@ -431,9 +453,12 @@ export function classifyRisk(
     return { risk: "moderate", reason: "file modification" };
   }
 
-  if (name === "web_fetch" || name === "http_request") {
-    const saveToRisk = classifySaveToLocalWrite(input);
-    if (saveToRisk) return saveToRisk;
+  const inputEffectOverride = classifyToolCallInputEffectOverride(name, input);
+  if (inputEffectOverride) {
+    return {
+      risk: inputEffectOverride.risk,
+      reason: inputEffectOverride.reason,
+    };
   }
 
   // code_exec: escalate when code contains a system-level operation.

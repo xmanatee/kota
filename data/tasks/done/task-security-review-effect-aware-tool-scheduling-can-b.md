@@ -1,12 +1,12 @@
 ---
 id: task-security-review-effect-aware-tool-scheduling-can-b
 title: Security review: Effect-aware tool scheduling can batch `web_fetch` calls with `save_to` as read-only even though the call writes to the project filesystem, so autonomous tool calls can race or observe stale file state despite the mutating-call serialization boundary.
-status: ready
+status: done
 priority: p2
 area: security
 summary: Effect-aware tool scheduling can batch `web_fetch` calls with `save_to` as read-only even though the call writes to the project filesystem, so autonomous tool calls can race or observe stale file state despite the mutating-call serialization boundary.
 created_at: 2026-05-27T23:40:09.392Z
-updated_at: 2026-05-27T23:40:09.392Z
+updated_at: 2026-05-27T23:46:42Z
 ---
 
 ## Problem
@@ -54,4 +54,6 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `pnpm vitest run src/core/tools/tool-runner.test.ts src/strict-types-policy.integration.test.ts`
+- `pnpm vitest run src/core/tools/guardrails.test.ts src/core/tools/effect.test.ts`
+- `pnpm typecheck`

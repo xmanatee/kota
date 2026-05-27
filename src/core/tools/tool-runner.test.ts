@@ -334,6 +334,40 @@ describe("executeToolCalls", () => {
     ]);
   });
 
+  it("treats web_fetch save_to as an ordered barrier despite its read effect", async () => {
+    mockGetToolEffect.mockReturnValue(readEffect);
+    const { started, deferreds, waitForStart } = mockDeferredLocalTools();
+
+    const pending = executeToolCalls(
+      [
+        toolBlock("read_before", {}, "t1"),
+        toolBlock(
+          "web_fetch",
+          { url: "https://example.com", save_to: "data/page.md" },
+          "t2",
+        ),
+        toolBlock("read_after", {}, "t3"),
+      ],
+      runOptions(),
+    );
+
+    expect(started).toEqual(["read_before"]);
+    releaseTool(deferreds, "read_before");
+    await waitForStart("web_fetch");
+    expect(started).toEqual(["read_before", "web_fetch"]);
+
+    await flushMicrotasks();
+    expect(started).toEqual(["read_before", "web_fetch"]);
+
+    releaseTool(deferreds, "web_fetch");
+    await waitForStart("read_after");
+    expect(started).toEqual(["read_before", "web_fetch", "read_after"]);
+
+    releaseTool(deferreds, "read_after");
+    const results = await pending;
+    expect(results.map((result) => result.tool_use_id)).toEqual(["t1", "t2", "t3"]);
+  });
+
   it("treats mutating and destructive local tools as barriers", async () => {
     mockGetToolEffect.mockImplementation((name: string) => {
       if (name.startsWith("read")) return readEffect;

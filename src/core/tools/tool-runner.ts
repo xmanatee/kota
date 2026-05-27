@@ -2,6 +2,7 @@ import type {
   KotaJsonObject,
   KotaMessage,
   KotaTextBlock,
+  KotaToolUseBlock,
 } from "#core/agent-harness/message-protocol.js";
 import { getSecretStore } from "#core/config/secrets.js";
 import { getApprovalQueue } from "#core/daemon/approval-queue.js";
@@ -16,6 +17,10 @@ import type {
 import { confirmAction } from "#core/util/confirm.js";
 import { type AutonomyMode, resolveAutonomyGate } from "./autonomy-mode.js";
 import { assess, type GuardrailsConfig } from "./guardrails.js";
+import {
+  classifyToolCallInputEffectOverride,
+  type ToolCallInput,
+} from "./guardrails-classify.js";
 import type { ToolResult, ToolResultBlock } from "./index.js";
 import { executeTool, getToolEffect } from "./index.js";
 import { getToolMiddleware } from "./tool-middleware.js";
@@ -26,12 +31,7 @@ import {
   type ToolTelemetryResultContentKind,
 } from "./tool-telemetry.js";
 
-type ToolUseBlock = {
-  type: "tool_use";
-  id: string;
-  name: string;
-  input: unknown;
-};
+type ToolUseBlock = KotaToolUseBlock;
 
 function abortReason(signal: AbortSignal): Error {
   const { reason } = signal;
@@ -137,6 +137,11 @@ function isReadOnlyToolCall(
   if (mcpManager?.isMcpTool(block.name)) {
     return mcpManager.isToolReadOnly?.(block.name) === true;
   }
+  const inputEffectOverride = classifyToolCallInputEffectOverride(
+    block.name,
+    block.input as ToolCallInput,
+  );
+  if (inputEffectOverride) return inputEffectOverride.kind === "read";
   return getToolEffect(block.name)?.kind === "read";
 }
 
@@ -207,7 +212,7 @@ export async function executeToolCalls(
         message: `[kota] Tool: ${block.name}(${JSON.stringify(block.input).slice(0, 100)}...)`,
       });
     }
-    const input = block.input as Record<string, unknown>;
+    const input = block.input as ToolCallInput;
 
     // Assess risk once up front so autonomy-mode gating and guardrails share
     // a single classification. Fall back to a neutral moderate assessment if
