@@ -488,3 +488,7 @@ resources:
   - url: https://arxiv.org/abs/2605.11378
     added: "2026-05-26"
     notes: "AgentEvalBench / EvalAgent studies automated agent-evaluation authoring. Monitor as an eval-harness signal for focused executable eval artifacts, bounded metrics, first-run evaluation success, and reusable evaluator guidance without adding a second KOTA evaluation pipeline."
+    snapshot:
+      fingerprint: sha256:9c36c27ef8b0e757154852e25fdd5207
+      summary: "AgentEvalBench reinforces KOTA's existing eval-authoring restraint direction; task-add-an-eval-authoring-restraint-fixture-to-the-eva already covers the nonduplicative local gap, so this snapshot opens no duplicate task."
+      last_seen_at: "2026-05-27T00:08:06.943Z"
