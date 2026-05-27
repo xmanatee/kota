@@ -31,9 +31,9 @@ resources:
   - url: https://github.com/anthropics/claude-code
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:25d9668a1d178067088fa397ca2299d8
-      summary: "Claude Code remains a high-signal comparator for background sessions, permissions, worktree safety, and MCP timeout behavior; current KOTA tasks already cover the nonduplicative gaps observed in this refresh."
-      last_seen_at: "2026-05-26T01:44:23.761Z"
+      fingerprint: sha256:5a930c14b243f5ae01ce5e17990a963c
+      summary: "Claude Code v2.1.152 adds active skill tool-deny frontmatter and skill reload hooks; this opened task-reject-skill-frontmatter-tool-policy-declarations- for KOTA's matching unsupported skill tool-policy metadata gap."
+      last_seen_at: "2026-05-27T10:12:35.222Z"
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
