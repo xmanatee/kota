@@ -167,9 +167,9 @@ resources:
   - url: https://github.com/langchain-ai/langgraph
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:af615419257074c77c8f5d5b030548de
-      summary: "LangGraph's current signal remains durable stateful agent infrastructure; no new nonduplicative KOTA task was opened from this refresh."
-      last_seen_at: "2026-05-18T03:42:05.722Z"
+      fingerprint: sha256:0b0416322098b798d485476379411c30
+      summary: "LangGraph's current v3 event-streaming signal reinforces KOTA's typed stream-projection direction and opened task-project-workflow-run-streams-from-typed-agent-even for KOTA's stale workflow-run SSE decoder."
+      last_seen_at: "2026-05-27T10:58:44.086Z"
   - url: https://github.com/huggingface/smolagents
     added: "2026-04-19"
     snapshot:
