@@ -1,12 +1,12 @@
 ---
 id: task-add-a-multi-service-integration-fixture-to-the-eva
 title: Add a multi-service integration fixture to the eval harness
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Seed an eval-harness fixture where the builder must wire a small multi-component app across service boundaries, proving setup and integration failures are artifact-graded instead of hidden behind isolated code tests.
 created_at: 2026-05-27T15:26:38.855Z
-updated_at: 2026-05-27T15:26:38.855Z
+updated_at: 2026-05-27T15:48:46.307Z
 ---
 
 ## Problem

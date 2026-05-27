@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "workflowName": "builder",
+  "stepId": "build",
+  "sourceRunId": "2026-05-27T15-30-07-269Z-builder-5av2hq",
+  "response": {
+    "text": "Multi-service integration fixture task completed. The stale catalog API route now matches the worker contract, the integration scorer starts both components and writes evidence, shortcut guards pass, and the seeded task is moved to done.",
+    "subtype": "success",
+    "turns": 1,
+    "totalCostUsd": 0,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "sessionId": "builder-multi-service-integration-replay"
+  },
+  "fileOperations": [
+    {
+      "op": "delete",
+      "path": "data/tasks/ready/task-wire-catalog-api-to-order-worker.md"
+    },
+    {
+      "op": "write",
+      "path": "data/tasks/done/task-wire-catalog-api-to-order-worker.md",
+      "content": "---\nid: task-wire-catalog-api-to-order-worker\ntitle: Wire the catalog API route to the order worker\nstatus: done\npriority: p2\narea: eval-harness\nsummary: Align the tiny catalog API and order worker route contract so the local integration command starts both components, exercises the API boundary, and writes machine-readable integration evidence.\ncreated_at: 2026-05-27T00:00:00.000Z\nupdated_at: 2026-05-27T01:00:00.000Z\n---\n\n## Problem\n\nThe fixture project has two runtime components: `src/catalog-api.mjs` starts a\nlocal catalog API process, and `src/order-worker.mjs` consumes that API through\na request directory. The worker requests `/api/bundles/starter-kit`, but the\nAPI is still wired to a stale catalog route. The integration command therefore\nfails before it can trust the business output.\n\n## Desired Outcome\n\nMake the API and worker agree on the route contract without bypassing either\ncomponent. The integration command must start the API, invoke the worker, make\nthe API request, and write `integration-result.json` with component startup,\nrequest, dynamic-token, and observed-output evidence.\n\nUse this command as the local verification command:\n\n```sh\nnode scripts/check-integration.mjs\n```\n\n## Constraints\n\n- Keep the project dependency-free; use built-in Node.js APIs.\n- Do not edit `scripts/check-integration.mjs`; it is the fixture scorer.\n- Do not replace the API request with a direct import, hardcoded artifact, or\n  summary-only result.\n- Keep the implementation change to the service contract source and this\n  task's state.\n- Do not use network access outside the local API process.\n\n## Done When\n\n- `node scripts/check-integration.mjs` exits successfully.\n- The API serves `GET /api/bundles/starter-kit` and the worker consumes it\n  through the request directory boundary.\n- `integration-result.json` records both `catalog-api` and `order-worker`, the\n  request path and status, the dynamic run token, and the expected summary\n  line.\n- `node scripts/check-integration.mjs --self-test-shortcuts` exits\n  successfully, proving hardcoded artifacts and API bypasses are rejected.\n- This task has moved from `data/tasks/ready/` to `data/tasks/done/`.\n\n## Acceptance Evidence\n\n- Command output from `node scripts/check-integration.mjs`.\n- The generated `integration-result.json` artifact.\n- Command output from `node scripts/check-integration.mjs --self-test-shortcuts`.\n- The fixture run artifact records the `integration_validation_nodes`\n  objective metric.\n\n## Source / Intent\n\nEval-harness fixture seed for measuring SaaSBench-shaped multi-service builder\nwork. The point is not to import a benchmark runner; it is to prove through\nlocal artifacts that service startup, route contracts, request flow, and\nmachine-readable evidence all line up.\n\n## Initiative\n\nOutcome-grade autonomy evaluation: builder quality should include the ability\nto make a small multi-component system run end to end, because real coding\nwork often fails in setup and integration layers before isolated business\nlogic is reached.\n"
+    },
+    {
+      "op": "write",
+      "path": "src/catalog-routes.mjs",
+      "content": "export const STARTER_BUNDLE_ROUTE = \"/api/bundles/starter-kit\";\n"
+    },
+    {
+      "op": "write",
+      "path": "{{runDir}}/success-criteria.txt",
+      "content": "1. Align the catalog API route contract with the order worker's `/api/bundles/starter-kit` request.\n2. Pass `node scripts/check-integration.mjs` so the scorer starts both components and writes integration evidence.\n3. Preserve shortcut guards by passing `node scripts/check-integration.mjs --self-test-shortcuts`.\n4. Move `task-wire-catalog-api-to-order-worker` from ready to done.\n5. Keep changes limited to the route contract, generated integration artifact, and task state.\n"
+    },
+    {
+      "op": "write",
+      "path": "{{runDir}}/success-criteria-verified.txt",
+      "content": "1. `src/catalog-routes.mjs` now exports `/api/bundles/starter-kit`, matching the worker's expected route.\n2. The fixture's `pnpm test` repair check runs `node scripts/check-integration.mjs`, which starts the API process, invokes the worker, and writes `integration-result.json`.\n3. `node scripts/check-integration.mjs --self-test-shortcuts` is part of the fixture predicates and rejects hardcoded artifacts plus API bypasses.\n4. The task file is written to `data/tasks/done/` with `status: done` and removed from `data/tasks/ready/`.\n5. The fixture `git-changes-within` predicate allows only `src/catalog-routes.mjs`, `integration-result.json`, and the task move.\n"
+    },
+    {
+      "op": "write",
+      "path": "{{runDir}}/commit-message.txt",
+      "content": "Wire catalog API route for multi-service fixture\n\nAligns the catalog route with the order worker contract, keeps shortcut guard evidence in the scorer path, and moves the seeded task to done.\n"
+    }
+  ]
+}

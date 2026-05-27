@@ -1,0 +1,14 @@
+{
+  "name": "kota-builder-multi-service-integration-fixture",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "true",
+    "typecheck": "true",
+    "lint": "true",
+    "lint:fix": "true",
+    "test": "node scripts/check-integration.mjs",
+    "validate-tasks": "node \"$KOTA_DIST_DIR/validate-queue.js\"",
+    "kota": "node \"$KOTA_DIST_DIR/cli.js\""
+  }
+}

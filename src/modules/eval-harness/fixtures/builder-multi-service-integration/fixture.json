@@ -1,0 +1,124 @@
+{
+  "id": "builder-multi-service-integration",
+  "description": "Replay-backed builder fixture for wiring a tiny catalog API and order worker end to end, with artifact-graded startup, request, and shortcut-guard evidence.",
+  "role": "builder",
+  "workflowName": "builder",
+  "budgetMs": 1800000,
+  "predicates": [
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-integration.mjs",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-integration.mjs --self-test-shortcuts",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "file-exists",
+      "path": "integration-result.json"
+    },
+    {
+      "kind": "file-contains",
+      "path": "integration-result.json",
+      "needle": "\"catalog-api\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "integration-result.json",
+      "needle": "\"order-worker\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "integration-result.json",
+      "needle": "\"path\": \"/api/bundles/starter-kit\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "integration-result.json",
+      "needle": "\"summaryLine\": \"Starter Kit total: $34.50 (3 lines)\""
+    },
+    {
+      "kind": "file-absent",
+      "path": "data/tasks/ready/task-wire-catalog-api-to-order-worker.md"
+    },
+    {
+      "kind": "file-exists",
+      "path": "data/tasks/done/task-wire-catalog-api-to-order-worker.md"
+    },
+    {
+      "kind": "file-contains",
+      "path": "data/tasks/done/task-wire-catalog-api-to-order-worker.md",
+      "needle": "status: done"
+    },
+    {
+      "kind": "git-changes-within",
+      "allowedPaths": [
+        "integration-result.json",
+        "src/catalog-routes.mjs",
+        "data/tasks/ready/task-wire-catalog-api-to-order-worker.md",
+        "data/tasks/done/task-wire-catalog-api-to-order-worker.md"
+      ]
+    }
+  ],
+  "objectiveMetrics": [
+    {
+      "name": "integration_validation_nodes",
+      "unit": "checks",
+      "direction": "higher_is_better",
+      "source": {
+        "kind": "json-file",
+        "path": "integration-result.json",
+        "pointer": "/validationNodesPassed"
+      }
+    }
+  ],
+  "tags": [
+    "autonomy",
+    "builder-discipline",
+    "multi-service",
+    "integration",
+    "agent-call-replay",
+    "objective-metric"
+  ],
+  "provenance": {
+    "kind": "smoke-fixture",
+    "justification": "Synthetic replay-backed builder canary for SaaSBench-shaped multi-component integration work: the builder must align a tiny API and worker contract, then prove startup and end-to-end behavior through deterministic local artifacts. It uses the existing agent-step replay path so `pnpm kota eval run` remains network-free while predicates and an objective metric prove both components were exercised. No past KOTA failure run exists for this exact measurement gap."
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-integration.mjs",
+        "timeoutMs": 20000
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-integration.mjs --self-test-shortcuts",
+        "timeoutMs": 10000
+      },
+      "expected": "pass"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/tasks/ready/task-wire-catalog-api-to-order-worker.md"
+      },
+      "expected": "pass"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "integration-result.json"
+      },
+      "expected": "fail"
+    }
+  ],
+  "controlDecisions": [
+    "act"
+  ]
+}

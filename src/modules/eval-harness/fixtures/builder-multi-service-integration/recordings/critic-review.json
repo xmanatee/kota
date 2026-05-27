@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "workflowName": "builder",
+  "stepId": "critic-review",
+  "sourceRunId": "2026-05-27T15-30-07-269Z-builder-5av2hq",
+  "response": {
+    "text": "{\n  \"verdict\": \"pass\",\n  \"critical_issues\": [],\n  \"warnings\": [],\n  \"summary\": \"The replayed multi-service fixture satisfies the task: the API route contract matches the worker, the integration command exercises both components through the local request boundary, the artifact records startup/request/token/output evidence, shortcut self-tests pass, the objective metric is available from integration-result.json, and the task moved to done.\"\n}",
+    "subtype": "success",
+    "turns": 1,
+    "totalCostUsd": 0,
+    "inputTokens": 0,
+    "outputTokens": 0
+  },
+  "fileOperations": []
+}
