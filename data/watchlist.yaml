@@ -40,9 +40,9 @@ resources:
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:b4a85c82c192755c684b6bb751a091ac
-      summary: "Codex remains a high-signal terminal-agent comparator, but this refresh did not surface a nonduplicative KOTA task beyond existing live-session guardrail reload and permission-profile work."
-      last_seen_at: "2026-05-27T01:31:34.120Z"
+      fingerprint: sha256:f00d90cba3f609cee2687a62f6319284
+      summary: "Codex 0.134.0 reinforces effect-aware tool-call parallelism; this run opened task-serialize-mutating-agent-tool-calls-while-preservi so KOTA preserves read-only concurrency without racing mutating agent tool calls."
+      last_seen_at: "2026-05-27T19:21:13.478Z"
   - url: https://github.com/google-gemini/gemini-cli
     added: "2026-04-19"
     snapshot:
