@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-approval-cli-renders-captured-
 title: Security review: The approval CLI renders captured conversation context as raw terminal text, so an untrusted user or assistant message containing ANSI/OSC control sequences can alter the operator's terminal during `kota approval list` and undermine review of a queued tool call.
-status: ready
+status: done
 priority: p2
 area: security
 summary: The approval CLI renders captured conversation context as raw terminal text, so an untrusted user or assistant message containing ANSI/OSC control sequences can alter the operator's terminal during `kota approval list` and undermine review of a queued tool call.
 created_at: 2026-05-27T03:03:14.134Z
-updated_at: 2026-05-27T03:03:14.134Z
+updated_at: 2026-05-27T03:11:59.720Z
 ---
 
 ## Problem
@@ -55,3 +55,6 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Verification: `pnpm exec vitest run src/modules/approval-queue/cli.test.ts` passed with the approval CLI ESC/OSC regression coverage.
+- Verification: `pnpm exec biome check src/modules/approval-queue/cli.ts src/modules/approval-queue/cli.test.ts` passed.
+- Verification: `pnpm exec tsc --noEmit --pretty false` passed.

@@ -52,6 +52,13 @@ vi.mock("#core/tools/index.js", () => ({
 
 import { executeTool } from "#core/tools/index.js";
 
+const CSI_RED = "\x1b[31m";
+const CSI_RESET = "\x1b[0m";
+const OSC_TITLE = "\x1b]0;approval-pwned\x07";
+const C1_CSI_GREEN = "\x9b32m";
+const C1_OSC_TITLE = "\x9d0;approval-c1-pwned\x07";
+// biome-ignore lint/suspicious/noControlCharactersInRegex: regression checks assert raw terminal controls are absent
+const RAW_TERMINAL_CONTROL_PATTERN = /[\x00-\x09\x0b-\x1f\x7f-\x9f]/;
 
 function makeProgram(): Command {
 	const program = new Command();
@@ -82,6 +89,20 @@ async function captureOutput(fn: () => Promise<void>): Promise<string> {
 	return lines.join("");
 }
 
+async function captureNoColorOutput(fn: () => Promise<void>): Promise<string> {
+	const previousNoColor = process.env.NO_COLOR;
+	process.env.NO_COLOR = "1";
+	try {
+		return await captureOutput(fn);
+	} finally {
+		if (previousNoColor === undefined) {
+			delete process.env.NO_COLOR;
+		} else {
+			process.env.NO_COLOR = previousNoColor;
+		}
+	}
+}
+
 describe("approval CLI commands", () => {
 	let dir: string;
 
@@ -108,6 +129,30 @@ describe("approval CLI commands", () => {
 			expect(output).toContain("shell");
 			expect(output).toContain("dangerous");
 			expect(output).toContain("destructive op");
+		});
+
+		it("strips terminal controls from untrusted pending queue text", async () => {
+			testQueue.enqueue(
+				`shell${CSI_RED}`,
+				{ command: "printf pwned" },
+				"dangerous",
+				`needs review ${CSI_RED}red${CSI_RESET} ${C1_CSI_GREEN}green`,
+				`${OSC_TITLE}queued-source`,
+				undefined,
+				undefined,
+				`assistant: earlier line\nuser: ${C1_OSC_TITLE}why ${CSI_RED}now${CSI_RESET}`,
+			);
+
+			const output = await captureNoColorOutput(() => run(makeProgram(), "approval", "list"));
+
+			expect(output).toContain("shell");
+			expect(output).toContain("needs review red green");
+			expect(output).toContain("queued-source");
+			expect(output).toContain("why now");
+			expect(output).not.toMatch(RAW_TERMINAL_CONTROL_PATTERN);
+			expect(output).not.toContain(CSI_RED);
+			expect(output).not.toContain(OSC_TITLE);
+			expect(output).not.toContain(C1_OSC_TITLE);
 		});
 	});
 
@@ -186,6 +231,24 @@ describe("approval CLI commands", () => {
 			expect(output).toContain("shell");
 			expect(output).toContain("git");
 			expect(output).toContain("too risky");
+		});
+
+		it("strips terminal controls from resolved queue text", async () => {
+			const approved = testQueue.enqueue("shell", { command: "ls" }, "moderate", "reason", `${OSC_TITLE}approved-source`);
+			testQueue.approve(approved.id, `operator ${CSI_RED}note${CSI_RESET}`);
+			const rejected = testQueue.enqueue("git", { command: "push" }, "dangerous", "reason", `${C1_OSC_TITLE}rejected-source`);
+			testQueue.reject(rejected.id, `reject ${C1_CSI_GREEN}reason${CSI_RESET}`);
+
+			const output = await captureNoColorOutput(() => run(makeProgram(), "approval", "history"));
+
+			expect(output).toContain("operator note");
+			expect(output).toContain("reject reason");
+			expect(output).toContain("approved-source");
+			expect(output).toContain("rejected-source");
+			expect(output).not.toMatch(RAW_TERMINAL_CONTROL_PATTERN);
+			expect(output).not.toContain(CSI_RED);
+			expect(output).not.toContain(OSC_TITLE);
+			expect(output).not.toContain(C1_OSC_TITLE);
 		});
 
 		it("filters by --status", async () => {

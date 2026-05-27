@@ -72,6 +72,21 @@ function statusRole(status: ApprovalStatus): "success" | "error" | "muted" | "wa
 	}
 }
 
+const TERMINAL_ESCAPE_SEQUENCE_PATTERN =
+	// biome-ignore lint/suspicious/noControlCharactersInRegex: approval queue text can contain raw terminal controls
+	/(?:\x1b\][\s\S]*?(?:\x07|\x1b\\|\x9c))|(?:\x9d[\s\S]*?(?:\x07|\x1b\\|\x9c))|(?:\x1b\[[0-?]*[ -/]*[@-~])|(?:\x9b[0-?]*[ -/]*[@-~])|(?:\x1b[@-_])/g;
+
+function stripTerminalControlSequences(value: string): string {
+	return value
+		.replace(TERMINAL_ESCAPE_SEQUENCE_PATTERN, "")
+		// biome-ignore lint/suspicious/noControlCharactersInRegex: queue text is untrusted terminal output
+		.replace(/[\x00-\x09\x0b-\x1f\x7f-\x9f]/g, "");
+}
+
+function safeApprovalLineText(value: string): string {
+	return stripTerminalControlSequences(value).replace(/\n+/g, " ");
+}
+
 function exitInvalidApprovalId(id: string): never {
 	console.error(`Error: invalid approval id "${id}". Expected 8 lowercase hex characters.`);
 	process.exit(1);
@@ -84,23 +99,24 @@ function exitApprovalMutationFailure(id: string, reason: "invalid_id" | "not_fou
 }
 
 function renderPendingItem(item: PendingApproval, opts?: { includeWhy?: boolean }): RenderNode {
-	const inputSummary = JSON.stringify(item.input).slice(0, 80);
+	const inputSummary = safeApprovalLineText(JSON.stringify(item.input) ?? "").slice(0, 80);
 	const rows: LineNode[] = [
 		line(
 			span(`  [${item.id}]`, "accent", true),
 			plain(" "),
-			plain(item.tool),
+			plain(safeApprovalLineText(item.tool)),
 			plain("  "),
 			span(`(${formatAge(item.createdAt)})`, "muted"),
 		),
 		line(span("    Input:  ", "muted"), plain(inputSummary)),
 		line(span("    Risk:   ", "muted"), span(item.risk, riskRole(item.risk))),
-		line(span("    Reason: ", "muted"), plain(item.reason)),
+		line(span("    Reason: ", "muted"), plain(safeApprovalLineText(item.reason))),
 	];
-	if (item.source) rows.push(line(span("    Source: ", "muted"), plain(item.source)));
+	if (item.source) rows.push(line(span("    Source: ", "muted"), plain(safeApprovalLineText(item.source))));
 	if (opts?.includeWhy && item.context) {
-		const lastLine = item.context.split("\n").filter(Boolean).at(-1) ?? "";
-		rows.push(line(span("    Why:    ", "muted"), plain(lastLine.slice(0, 120))));
+		const safeContext = stripTerminalControlSequences(item.context);
+		const lastLine = safeContext.split("\n").filter(Boolean).at(-1) ?? "";
+		rows.push(line(span("    Why:    ", "muted"), plain(safeApprovalLineText(lastLine).slice(0, 120))));
 	}
 	return stack(...rows, blank());
 }
@@ -110,17 +126,17 @@ function renderResolvedItem(item: PendingApproval): RenderNode {
 	const rows: LineNode[] = [
 		line(
 			span(`  [${item.id}]`, "accent", true),
-			plain(` ${item.tool}  status=`),
+			plain(` ${safeApprovalLineText(item.tool)}  status=`),
 			span(item.status, statusRole(item.status)),
 			plain(`  resolved=${resolvedAgo}`),
 		),
 		line(span("    Risk:   ", "muted"), span(item.risk, riskRole(item.risk))),
 	];
 	if (item.rejectionReason && item.rejectionReason !== "expired") {
-		rows.push(line(span("    Reason: ", "muted"), plain(item.rejectionReason)));
+		rows.push(line(span("    Reason: ", "muted"), plain(safeApprovalLineText(item.rejectionReason))));
 	}
-	if (item.approvalNote) rows.push(line(span("    Note:   ", "muted"), plain(item.approvalNote)));
-	if (item.source) rows.push(line(span("    Source: ", "muted"), plain(item.source)));
+	if (item.approvalNote) rows.push(line(span("    Note:   ", "muted"), plain(safeApprovalLineText(item.approvalNote))));
+	if (item.source) rows.push(line(span("    Source: ", "muted"), plain(safeApprovalLineText(item.source))));
 	return stack(...rows, blank());
 }
 
@@ -162,16 +178,16 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 			const item = mutate.approval;
 			const result = await executeTool(item.tool, item.input);
 			if (result.is_error) {
-				console.error(`Tool execution failed:\n${result.content}`);
+				console.error(`Tool execution failed:\n${stripTerminalControlSequences(result.content)}`);
 				process.exit(1);
 			}
-			const noteSuffix = item.approvalNote ? ` — note: ${item.approvalNote}` : "";
+			const noteSuffix = item.approvalNote ? ` — note: ${safeApprovalLineText(item.approvalNote)}` : "";
 			print(stack(
 				line(
 					span("Approved and executed ", "success"),
-					plain(`${item.tool}:`),
+					plain(`${safeApprovalLineText(item.tool)}:`),
 				),
-				line(plain(`${result.content}${noteSuffix}`)),
+				line(plain(`${stripTerminalControlSequences(result.content)}${noteSuffix}`)),
 			));
 		});
 
@@ -220,20 +236,20 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 					print(line(
 						span("  Skipped ", "muted"),
 						span(`[${item.id}]`, "accent"),
-						plain(` ${item.tool} — no longer pending.`),
+						plain(` ${safeApprovalLineText(item.tool)} — no longer pending.`),
 					));
 					continue;
 				}
 				const approved = mutate.approval;
 				const result = await executeTool(item.tool, item.input);
 				if (result.is_error) {
-					console.error(`  Failed [${item.id}] ${item.tool}: ${result.content}`);
+					console.error(`  Failed [${item.id}] ${safeApprovalLineText(item.tool)}: ${stripTerminalControlSequences(result.content)}`);
 					failed++;
 				} else {
-					const noteSuffix = approved.approvalNote ? ` — note: ${approved.approvalNote}` : "";
+					const noteSuffix = approved.approvalNote ? ` — note: ${safeApprovalLineText(approved.approvalNote)}` : "";
 					print(line(
 						span("  Approved and executed ", "success"),
-						plain(`${item.tool} `),
+						plain(`${safeApprovalLineText(item.tool)} `),
 						span(`[${item.id}]`, "accent"),
 						plain(noteSuffix),
 					));
@@ -265,10 +281,10 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 				exitApprovalMutationFailure(id, mutate.reason);
 			}
 			const item = mutate.approval;
-			const suffix = opts.reason ? ` — ${opts.reason}` : "";
+			const suffix = opts.reason ? ` — ${safeApprovalLineText(opts.reason)}` : "";
 			print(line(
 				span("Rejected: ", "error"),
-				plain(`${item.tool} `),
+				plain(`${safeApprovalLineText(item.tool)} `),
 				span(`[${id}]`, "accent"),
 				plain(suffix),
 			));
@@ -318,14 +334,14 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 					print(line(
 						span("  Skipped ", "muted"),
 						span(`[${item.id}]`, "accent"),
-						plain(` ${item.tool} — no longer pending.`),
+						plain(` ${safeApprovalLineText(item.tool)} — no longer pending.`),
 					));
 					continue;
 				}
-				const reasonSuffix = opts.reason ? ` — ${opts.reason}` : "";
+				const reasonSuffix = opts.reason ? ` — ${safeApprovalLineText(opts.reason)}` : "";
 				print(line(
 					span("  Rejected ", "error"),
-					plain(`${item.tool} `),
+					plain(`${safeApprovalLineText(item.tool)} `),
 					span(`[${item.id}]`, "accent"),
 					plain(reasonSuffix),
 				));
