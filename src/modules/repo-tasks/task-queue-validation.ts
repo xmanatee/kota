@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, join, relative } from "node:path";
 import {
   ROOT_CROSS_CUTTING_FIXTURES,
   ROOT_ENTRYPOINT_SOURCES,
@@ -201,6 +201,29 @@ function listFilesRecursive(dir: string, predicate: (path: string) => boolean): 
     }
   }
   return paths;
+}
+
+function listNestedRuntimeStateDirsUnderData(projectDir: string): string[] {
+  const dataDir = join(projectDir, "data");
+  if (!existsSync(dataDir)) return [];
+
+  const paths: string[] = [];
+  function walk(dir: string): void {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+
+      const path = join(dir, entry.name);
+      if (entry.name === ".kota" || entry.name === "runs") {
+        paths.push(`${relative(projectDir, path)}/`);
+        continue;
+      }
+
+      walk(path);
+    }
+  }
+
+  walk(dataDir);
+  return paths.sort();
 }
 
 function listActivePackageManagerGuidanceFiles(projectDir: string): string[] {
@@ -967,6 +990,17 @@ export function validateTaskQueue(
       severity: "error",
       message: `Active guidance and open tasks must optimize for clean outcomes, not small diffs: ${smallDiffGuidancePaths.join(", ")}`,
       paths: smallDiffGuidancePaths,
+    });
+  }
+
+  const nestedRuntimeStateDirs = listNestedRuntimeStateDirsUnderData(projectDir);
+  if (nestedRuntimeStateDirs.length > 0) {
+    findings.push({
+      code: "data-nested-runtime-state",
+      severity: "error",
+      message: `Runtime state directories are not allowed under data/: ${nestedRuntimeStateDirs.join(", ")}. ` +
+        "Move runtime artifacts under the project-root .kota/ directory and remove the nested data copy.",
+      paths: nestedRuntimeStateDirs,
     });
   }
 

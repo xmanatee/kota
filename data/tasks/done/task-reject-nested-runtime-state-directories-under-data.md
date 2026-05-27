@@ -1,12 +1,12 @@
 ---
 id: task-reject-nested-runtime-state-directories-under-data
 title: Reject nested runtime-state directories under data surfaces
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Extend repo validation or doctor checks so ignored .kota runtime directories under data/ are reported, then remove the existing data/tasks/.kota run artifact that currently hides outside git review.
 created_at: 2026-05-27T23:05:27.650Z
-updated_at: 2026-05-27T23:05:27.650Z
+updated_at: 2026-05-27T23:13:55.000Z
 ---
 
 ## Problem

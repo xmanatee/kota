@@ -150,6 +150,31 @@ describe("task queue validation", () => {
     expect(result.findings.some((finding) => finding.code === "task-untracked")).toBe(true);
   });
 
+  it("reports ignored nested runtime-state directories under data", () => {
+    writeFileSync(join(projectDir, ".gitignore"), "**/.kota/\n");
+    writeTask(projectDir, "ready", "task-alpha");
+    const nestedRuntimeDir = join(projectDir, REPO_TASKS_DIR, ".kota");
+    const nestedArtifactDir = join(nestedRuntimeDir, "runs", "run-1");
+    mkdirSync(nestedArtifactDir, { recursive: true });
+    writeFileSync(join(nestedArtifactDir, "commit-message.txt"), "artifact\n");
+    execSync("git add data .gitignore && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    const result = validateTaskQueue(projectDir);
+    const finding = result.findings.find((candidate) =>
+      candidate.code === "data-nested-runtime-state"
+    );
+    expect(finding?.paths).toEqual([`${join(REPO_TASKS_DIR, ".kota")}/`]);
+
+    rmSync(nestedRuntimeDir, { recursive: true, force: true });
+    const cleanResult = validateTaskQueue(projectDir);
+    expect(cleanResult.findings.some((candidate) =>
+      candidate.code === "data-nested-runtime-state"
+    )).toBe(false);
+  });
+
   it("reports deleted tracked task files", () => {
     writeTask(projectDir, "ready", "task-alpha");
     execSync("git add data && git commit -m init", {
