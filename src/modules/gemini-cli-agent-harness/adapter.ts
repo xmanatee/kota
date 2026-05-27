@@ -23,6 +23,7 @@ import type {
   AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
 import { probeNativeCliRuntime } from "#core/agent-harness/index.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 
 export const GEMINI_CLI_AGENT_HARNESS_NAME = "gemini-cli";
 
@@ -510,7 +511,7 @@ async function collectTextFromGeminiCli(args: {
 
   const child = spawn("gemini", cliArgs, {
     cwd: args.cwd,
-    env: { ...process.env, NO_COLOR: "1" },
+    env: withProtectedGitBareRepositoryEnv({ ...process.env, NO_COLOR: "1" }),
     stdio: ["ignore", "pipe", "pipe"],
   });
 

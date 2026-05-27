@@ -8,6 +8,7 @@ import type {
 } from "#core/modules/module-types.js";
 import { getRepoTasksProvider } from "#core/modules/provider-registry.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type {
   RepoTaskState as ContractRepoTaskState,
   RepoTaskCreateOptions,
@@ -235,18 +236,27 @@ export async function handleTaskStateChange(
   try {
     mkdirSync(destDir, { recursive: true });
     try {
-      execFileSync("git", ["mv", srcPath, destPath], { cwd: projectDir });
+      execFileSync("git", ["mv", srcPath, destPath], {
+        cwd: projectDir,
+        env: withProtectedGitBareRepositoryEnv(),
+      });
     } catch {
       renameSync(srcPath, destPath);
       try {
-        execFileSync("git", ["add", srcPath, destPath], { cwd: projectDir });
+        execFileSync("git", ["add", srcPath, destPath], {
+          cwd: projectDir,
+          env: withProtectedGitBareRepositoryEnv(),
+        });
       } catch (error) {
         logGitStageFailure(`move ${found.filename}`, error);
       }
     }
     writeFileSync(destPath, updated, "utf-8");
     try {
-      execFileSync("git", ["add", destPath], { cwd: projectDir });
+      execFileSync("git", ["add", destPath], {
+        cwd: projectDir,
+        env: withProtectedGitBareRepositoryEnv(),
+      });
     } catch (error) {
       logGitStageFailure(`write ${found.filename}`, error);
     }
@@ -286,7 +296,10 @@ export async function handleTaskCreate(
     mkdirSync(inboxDir, { recursive: true });
     writeFileSync(filePath, `# ${title}\n${summary ? `\n${summary}\n` : ""}`, "utf-8");
     try {
-      execFileSync("git", ["add", filePath], { cwd: projectDir });
+      execFileSync("git", ["add", filePath], {
+        cwd: projectDir,
+        env: withProtectedGitBareRepositoryEnv(),
+      });
     } catch (error) {
       logGitStageFailure(`create ${filename}`, error);
     }
@@ -354,7 +367,10 @@ export async function handleTaskBodyUpdate(
   try {
     writeFileSync(filePath, newContent, "utf-8");
     try {
-      execFileSync("git", ["add", filePath], { cwd: projectDir });
+      execFileSync("git", ["add", filePath], {
+        cwd: projectDir,
+        env: withProtectedGitBareRepositoryEnv(),
+      });
     } catch (error) {
       logGitStageFailure(`edit ${found.filename}`, error);
     }

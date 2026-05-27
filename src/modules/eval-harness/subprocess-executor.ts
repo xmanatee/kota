@@ -20,6 +20,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { availableParallelism, totalmem } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { PRESET_ENV_VAR } from "#core/model/preset.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type {
   ExecutionProfilePreflightResult,
   ResourceProfile,
@@ -324,7 +325,7 @@ function hostExecutionEnv(
     request.externalCallShimDir !== undefined
       ? `${request.externalCallShimDir}:${basePath}`
       : basePath;
-  return {
+  return withProtectedGitBareRepositoryEnv({
     ...process.env,
     ...(options.extraEnv ?? {}),
     HOME: request.workingDir,
@@ -332,7 +333,7 @@ function hostExecutionEnv(
     KOTA_DIST_DIR: kotaDistDir,
     PATH: pathWithShims,
     ...envWithReplay(request),
-  };
+  });
 }
 
 function containerExecutionEnv(
@@ -345,14 +346,17 @@ function containerExecutionEnv(
     request.externalCallShimDir !== undefined
       ? `${request.externalCallShimDir}:${basePath}`
       : basePath;
-  return {
+  const env = withProtectedGitBareRepositoryEnv({
     ...(options.extraEnv ?? {}),
     HOME: request.workingDir,
     KOTA_PROJECT_DIR: request.workingDir,
     KOTA_DIST_DIR: kotaDistDir,
     PATH: pathWithShims,
     ...envWithReplay(request),
-  };
+  });
+  return Object.fromEntries(
+    Object.entries(env).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  );
 }
 
 function envArgs(env: Record<string, string>): string[] {

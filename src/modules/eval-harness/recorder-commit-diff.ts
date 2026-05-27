@@ -11,6 +11,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { AgentStepFileOperation } from "./agent-step-recording.js";
 
 type CommitDiffEntry =
@@ -22,6 +23,7 @@ type CommitDiffEntry =
 function runGit(projectDir: string, args: readonly string[]): string {
   const result = spawnSync("git", args, {
     cwd: projectDir,
+    env: withProtectedGitBareRepositoryEnv(),
     encoding: "utf-8",
     stdio: ["ignore", "pipe", "pipe"],
   });

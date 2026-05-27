@@ -658,8 +658,18 @@ const MCP_STDIO_ENV_PROBE_KEYS = [
 ] as const;
 type McpStdioEnvProbeKey = (typeof MCP_STDIO_ENV_PROBE_KEYS)[number];
 
-const MCP_STDIO_ENV_PROBE_SERVER = `
-const keys = ${JSON.stringify(MCP_STDIO_ENV_PROBE_KEYS)};
+const MCP_STDIO_GIT_CONFIG_ENV_PROBE_KEYS = [
+  "GIT_CONFIG_COUNT",
+  "GIT_CONFIG_KEY_0",
+  "GIT_CONFIG_VALUE_0",
+  "GIT_CONFIG_PARAMETERS",
+] as const;
+type McpStdioGitConfigEnvProbeKey =
+  (typeof MCP_STDIO_GIT_CONFIG_ENV_PROBE_KEYS)[number];
+
+function mcpStdioEnvProbeServer(keys: readonly string[]): string {
+  return `
+const keys = ${JSON.stringify(keys)};
 const rl = require("readline").createInterface({ input: process.stdin });
 
 function write(message) {
@@ -695,6 +705,14 @@ rl.on("line", (line) => {
   }
 });
 `;
+}
+
+const MCP_STDIO_ENV_PROBE_SERVER = mcpStdioEnvProbeServer(
+  MCP_STDIO_ENV_PROBE_KEYS,
+);
+const MCP_STDIO_GIT_CONFIG_ENV_PROBE_SERVER = mcpStdioEnvProbeServer(
+  MCP_STDIO_GIT_CONFIG_ENV_PROBE_KEYS,
+);
 
 function snapshotMcpStdioEnvProbeEnv(): Partial<Record<McpStdioEnvProbeKey, string>> {
   const snapshot: Partial<Record<McpStdioEnvProbeKey, string>> = {};
@@ -706,6 +724,26 @@ function restoreMcpStdioEnvProbeEnv(
   snapshot: Partial<Record<McpStdioEnvProbeKey, string>>,
 ): void {
   for (const key of MCP_STDIO_ENV_PROBE_KEYS) {
+    const value = snapshot[key];
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+}
+
+function snapshotMcpStdioGitConfigEnvProbeEnv(): Partial<
+  Record<McpStdioGitConfigEnvProbeKey, string>
+> {
+  const snapshot: Partial<Record<McpStdioGitConfigEnvProbeKey, string>> = {};
+  for (const key of MCP_STDIO_GIT_CONFIG_ENV_PROBE_KEYS) {
+    snapshot[key] = process.env[key];
+  }
+  return snapshot;
+}
+
+function restoreMcpStdioGitConfigEnvProbeEnv(
+  snapshot: Partial<Record<McpStdioGitConfigEnvProbeKey, string>>,
+): void {
+  for (const key of MCP_STDIO_GIT_CONFIG_ENV_PROBE_KEYS) {
     const value = snapshot[key];
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;
@@ -1255,6 +1293,44 @@ describe("McpClient lifecycle (fake MCP server)", () => {
       expect(JSON.stringify(values)).not.toContain("get-secret-injected-value");
     } finally {
       restoreMcpStdioEnvProbeEnv(savedEnv);
+    }
+  }, 10_000);
+
+  it("keeps stdio MCP transport env from downgrading Git bare-repo safety", async () => {
+    const savedEnv = snapshotMcpStdioGitConfigEnvProbeEnv();
+    try {
+      process.env.GIT_CONFIG_COUNT = "1";
+      process.env.GIT_CONFIG_KEY_0 = "safe.bareRepository";
+      process.env.GIT_CONFIG_VALUE_0 = "all";
+      process.env.GIT_CONFIG_PARAMETERS = "safe.bareRepository=all";
+
+      client = new McpClient(
+        "node",
+        ["-e", MCP_STDIO_GIT_CONFIG_ENV_PROBE_SERVER],
+        {
+          GIT_CONFIG_COUNT: "1",
+          GIT_CONFIG_KEY_0: "safe.bareRepository",
+          GIT_CONFIG_VALUE_0: "all",
+          GIT_CONFIG_PARAMETERS: "safe.bareRepository=all",
+        },
+        "stdio-git-env-probe",
+      );
+      await client.connect();
+
+      const result = expectCompletedResult(await client.callTool("env_probe", {}));
+      const values = JSON.parse(result.text) as Record<
+        McpStdioGitConfigEnvProbeKey,
+        string
+      >;
+
+      expect(values).toEqual({
+        GIT_CONFIG_COUNT: "1",
+        GIT_CONFIG_KEY_0: "safe.bareRepository",
+        GIT_CONFIG_VALUE_0: "explicit",
+        GIT_CONFIG_PARAMETERS: "missing",
+      });
+    } finally {
+      restoreMcpStdioGitConfigEnvProbeEnv(savedEnv);
     }
   }, 10_000);
 

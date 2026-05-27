@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join, relative } from "node:path";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import {
   getRepoTaskStateDir,
   type RepoTaskState,
@@ -131,6 +132,7 @@ type SecurityReviewChangedPathClassification = {
 function gitLines(projectDir: string, args: readonly string[]): string[] {
   const output = execFileSync("git", args, {
     cwd: projectDir,
+    env: withProtectedGitBareRepositoryEnv(),
     encoding: "utf-8",
     stdio: ["ignore", "pipe", "ignore"],
   });

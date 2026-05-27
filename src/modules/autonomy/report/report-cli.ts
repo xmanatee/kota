@@ -11,6 +11,7 @@ import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { Command } from "commander";
 import { resolveProjectDir } from "#core/config/project-dir.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { print } from "#modules/rendering/transport.js";
 import {
   type AutonomyReportData,
@@ -81,7 +82,11 @@ export function collectAddedFilesBySha(
       "--diff-filter=A",
       "--pretty=format:COMMIT:%H",
     ],
-    { cwd: projectDir, encoding: "utf-8" },
+    {
+      cwd: projectDir,
+      encoding: "utf-8",
+      env: withProtectedGitBareRepositoryEnv(),
+    },
   );
   if (result.status !== 0 || typeof result.stdout !== "string") {
     return new Map();

@@ -2,6 +2,7 @@ import type { Buffer } from "node:buffer";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { buildRequiredInheritedSubprocessEnv } from "#core/modules/subprocess-env.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { McpAuthorizationError, McpConnectionError } from "./client-auth-types.js";
 import {
   generatedProgressToken,
@@ -36,10 +37,10 @@ import {
 function buildMcpStdioSubprocessEnv(
   transportEnv: Record<string, string> | undefined,
 ): NodeJS.ProcessEnv {
-  return {
+  return withProtectedGitBareRepositoryEnv({
     ...buildRequiredInheritedSubprocessEnv(),
     ...(transportEnv ?? {}),
-  };
+  });
 }
 
 export abstract class McpClientConnection extends McpClientHttpRuntime {

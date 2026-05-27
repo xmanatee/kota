@@ -8,6 +8,7 @@ import {
   routeKotaToolControlOptions,
   runAgentHarness,
 } from "#core/agent-harness/index.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
 import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-retry.js";
 import { AUTONOMY_AGENT_DEFAULTS, AUTONOMY_DISALLOWED_TOOLS, sleep } from "./shared.js";
@@ -107,6 +108,7 @@ const DIFF_CHAR_LIMIT = 80_000;
 export function getStagedDiff(projectDir: string): string {
   return execFileSync("git", ["diff", "--cached", "--stat"], {
     cwd: projectDir,
+    env: withProtectedGitBareRepositoryEnv(),
     encoding: "utf8",
     maxBuffer: GIT_MAX_BUFFER,
     stdio: ["ignore", "pipe", "pipe"],
@@ -118,6 +120,7 @@ export function getStagedDiffContent(projectDir: string): string {
   try {
     diff = execFileSync("git", ["diff", "--cached"], {
       cwd: projectDir,
+      env: withProtectedGitBareRepositoryEnv(),
       encoding: "utf8",
       maxBuffer: GIT_DIFF_MAX_BUFFER,
       stdio: ["ignore", "pipe", "pipe"],
@@ -134,6 +137,7 @@ export function getStagedDiffContent(projectDir: string): string {
 export function getChangedFiles(projectDir: string): string {
   return execFileSync("git", ["diff", "--cached", "--name-only"], {
     cwd: projectDir,
+    env: withProtectedGitBareRepositoryEnv(),
     encoding: "utf8",
     maxBuffer: GIT_MAX_BUFFER,
     stdio: ["ignore", "pipe", "pipe"],

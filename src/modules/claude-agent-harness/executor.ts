@@ -11,6 +11,7 @@ import type {
   AgentPermissionResult,
   KotaAgentMessage,
 } from "#core/agent-harness/types.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { SDKQueryOptions, SDKSystemPrompt } from "./sdk-types.js";
 
 /**
@@ -300,7 +301,7 @@ export function spawnClaudeCodeProcessWithAbortKill(
     : "ignore";
   const child = spawn(options.command, options.args, {
     cwd: options.cwd,
-    env: options.env as NodeJS.ProcessEnv,
+    env: withProtectedGitBareRepositoryEnv(options.env as NodeJS.ProcessEnv),
     signal: options.signal,
     stdio: ["pipe", "pipe", stderrMode],
     windowsHide: true,

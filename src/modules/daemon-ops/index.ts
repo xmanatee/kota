@@ -21,6 +21,7 @@ import { daemonManagedHttp } from "#core/server/daemon-client.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { LogFormat } from "#core/util/log-format.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import {
   type ColumnRow,
   columns,
@@ -140,10 +141,10 @@ async function runDaemonSupervisor(): Promise<void> {
       const exitCode = await new Promise<number>((resolve, reject) => {
         const child = spawn(process.execPath, [...process.execArgv, ...childArgs], {
           stdio: "inherit",
-          env: {
+          env: withProtectedGitBareRepositoryEnv({
             ...process.env,
             [DAEMON_CHILD_ENV]: "1",
-          },
+          }),
         });
 
         forwardSignal = (signal) => {

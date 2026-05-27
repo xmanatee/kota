@@ -23,6 +23,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { serializeFlatFrontMatter } from "#core/util/frontmatter.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { classifyTaskShape } from "#modules/autonomy/report/task-classification.js";
 import {
   getRepoTaskStateDir,
@@ -373,7 +374,10 @@ export function applyConsolidationProposal(
     buildConsolidationTaskFile(proposal.taskId, proposal.batch, ctx.nowIso),
     "utf-8",
   );
-  execFileSync("git", ["add", targetPath], { cwd: ctx.projectDir });
+  execFileSync("git", ["add", targetPath], {
+    cwd: ctx.projectDir,
+    env: withProtectedGitBareRepositoryEnv(),
+  });
   return {
     kind: "created",
     capabilityKey: proposal.capabilityKey,

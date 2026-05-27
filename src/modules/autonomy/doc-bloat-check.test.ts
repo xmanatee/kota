@@ -1,5 +1,5 @@
-import { execSync } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, execSync } from "node:child_process";
+import { chmodSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -124,6 +124,25 @@ function initRepo(dir: string): void {
   execSync('git commit -q -m "init"', { cwd: dir });
 }
 
+function createNestedBareRepoWithHookConfig(dir: string): {
+  bareDir: string;
+  markerPath: string;
+} {
+  const bareDir = join(dir, "nested.git");
+  const hooksDir = join(dir, "malicious-hooks");
+  const markerPath = join(dir, "hook-marker");
+  mkdirSync(hooksDir, { recursive: true });
+  execFileSync("git", ["init", "--bare", bareDir], { cwd: dir, stdio: "ignore" });
+  const hookPath = join(hooksDir, "pre-commit");
+  writeFileSync(hookPath, `#!/bin/sh\necho hook-ran > ${JSON.stringify(markerPath)}\n`, "utf8");
+  chmodSync(hookPath, 0o755);
+  execFileSync("git", ["--git-dir", bareDir, "config", "core.hooksPath", hooksDir], {
+    cwd: dir,
+    stdio: "ignore",
+  });
+  return { bareDir, markerPath };
+}
+
 describe("checkDocBloat (staged diff integration)", () => {
   let repoDir: string;
 
@@ -182,5 +201,12 @@ describe("checkDocBloat (staged diff integration)", () => {
     );
     execSync("git add src/modules/example/AGENTS.md", { cwd: repoDir });
     expect(checkDocBloat(repoDir)).toContain("OK");
+  });
+
+  it("rejects implicit nested bare repository discovery before hook-capable config can run", () => {
+    const { bareDir, markerPath } = createNestedBareRepoWithHookConfig(repoDir);
+
+    expect(() => checkDocBloat(bareDir)).toThrow();
+    expect(existsSync(markerPath)).toBe(false);
   });
 });

@@ -2,11 +2,17 @@ import { execSync } from "node:child_process";
 import { resolve } from "node:path";
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { getWorkflowDefinitions } from "../definitions-source.js";
 
 function runGit(args: string, cwd: string): string {
   try {
-    return execSync(`git ${args}`, { encoding: "utf-8", stdio: "pipe", cwd });
+    return execSync(`git ${args}`, {
+      encoding: "utf-8",
+      env: withProtectedGitBareRepositoryEnv(),
+      stdio: "pipe",
+      cwd,
+    });
   } catch {
     return "";
   }
@@ -16,6 +22,7 @@ function getGitRoot(cwd: string): string | null {
   try {
     return execSync("git rev-parse --show-toplevel", {
       encoding: "utf-8",
+      env: withProtectedGitBareRepositoryEnv(),
       stdio: "pipe",
       cwd,
     }).trim();

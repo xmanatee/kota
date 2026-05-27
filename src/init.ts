@@ -1,6 +1,7 @@
 import { execSync } from "node:child_process";
 import { basename } from "node:path";
 import { detectEnvironment, detectProject, getDirectoryOverview } from "#core/util/project-detection.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { getScheduler } from "./core/daemon/scheduler.js";
 import {
   getHistoryProvider,
@@ -13,7 +14,12 @@ const GIT_TIMEOUT = 5000;
 
 function runGitCommand(cwd: string, command: string): string | null {
   try {
-    return execSync(command, { cwd, stdio: "pipe", timeout: GIT_TIMEOUT }).toString().trim();
+    return execSync(command, {
+      cwd,
+      env: withProtectedGitBareRepositoryEnv(),
+      stdio: "pipe",
+      timeout: GIT_TIMEOUT,
+    }).toString().trim();
   } catch {
     return null;
   }

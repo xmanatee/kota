@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { labeledPredicate, type WorkflowPredicate } from "#core/workflow/run-types.js";
 
@@ -28,6 +29,7 @@ export type RecoveryResetOptions = {
 function getCurrentBranch(projectDir: string): string {
   const result = spawnSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
     cwd: projectDir,
+    env: withProtectedGitBareRepositoryEnv(),
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -59,7 +61,12 @@ export function resetWorktreeForRecovery(
     const result = spawnSync(
       "git",
       ["stash", "push", "--include-untracked", "-m", `Recovery: ${workflowName} auto-stash`],
-      { cwd: projectDir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+      {
+        cwd: projectDir,
+        env: withProtectedGitBareRepositoryEnv(),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      },
     );
     if (result.status !== 0) {
       throw new Error(`git stash failed for ${workflowName}: ${result.stderr}`);
@@ -74,6 +81,7 @@ export function resetWorktreeForRecovery(
   if (restoreBaseBranch && currentBranch.startsWith("kota/task/") && currentBranch !== baseBranch) {
     const checkout = spawnSync("git", ["checkout", baseBranch], {
       cwd: projectDir,
+      env: withProtectedGitBareRepositoryEnv(),
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
     });

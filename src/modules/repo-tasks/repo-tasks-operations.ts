@@ -17,6 +17,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type {
   RepoTaskCaptureResult,
   RepoTaskCreateOptions,
@@ -142,7 +143,11 @@ export function createNormalizedTask(
 
   writeFileSync(filePath, serializeFlatFrontMatter(attrs, buildNormalizedTaskBody()), "utf-8");
   try {
-    execSync(`git add "${filePath}"`, { cwd: projectDir, stdio: "ignore" });
+    execSync(`git add "${filePath}"`, {
+      cwd: projectDir,
+      env: withProtectedGitBareRepositoryEnv(),
+      stdio: "ignore",
+    });
   } catch {
     // Caller's responsibility: the file is on disk; staging is best effort.
   }

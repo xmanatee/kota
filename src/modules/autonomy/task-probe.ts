@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 
 export type TaskProbe = {
   command: string;
@@ -90,6 +91,7 @@ export function runTaskProbe(probe: TaskProbe, projectDir: string): TaskProbeRes
   const result = spawnSync(probe.command, {
     shell: true,
     cwd: projectDir,
+    env: withProtectedGitBareRepositoryEnv(),
     timeout: probe.timeoutMs,
     encoding: "utf-8",
     maxBuffer: PROBE_MAX_BUFFER,

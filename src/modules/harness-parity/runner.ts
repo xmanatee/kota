@@ -38,6 +38,7 @@ import type {
   KotaJsonObject,
   KotaJsonValue,
 } from "#core/agent-harness/message-protocol.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type {
   LoadedScenario,
   ScenarioStageSpec,
@@ -819,6 +820,7 @@ function runVerification(
   const result = spawnSync(verification.command, {
     shell: true,
     cwd: workingDir,
+    env: withProtectedGitBareRepositoryEnv(),
     timeout: verification.timeoutMs,
     encoding: "utf-8",
     maxBuffer: 4 * 1024 * 1024,
@@ -900,6 +902,7 @@ function computeDiff(initialDir: string, workingDir: string): {
     ],
     {
       cwd: pairDir,
+      env: withProtectedGitBareRepositoryEnv(),
       encoding: "utf-8",
       maxBuffer: 8 * 1024 * 1024,
     },
@@ -919,6 +922,7 @@ function computeDiff(initialDir: string, workingDir: string): {
     ],
     {
       cwd: pairDir,
+      env: withProtectedGitBareRepositoryEnv(),
       encoding: "utf-8",
       maxBuffer: 4 * 1024 * 1024,
     },

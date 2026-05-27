@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { getRepoHeadSha } from "#core/util/repo-worktree.js";
 import {
   findUnfinishedTaskDependencies,
@@ -453,9 +454,15 @@ export function moveTaskById(
   attrs.updated_at = new Date().toISOString();
   const updated = serializeFlatFrontMatter(attrs, body);
 
-  execFileSync("git", ["mv", fromPath, dstPath], { cwd: projectDir });
+  execFileSync("git", ["mv", fromPath, dstPath], {
+    cwd: projectDir,
+    env: withProtectedGitBareRepositoryEnv(),
+  });
   writeFileSync(dstPath, updated, "utf-8");
-  execFileSync("git", ["add", dstPath], { cwd: projectDir });
+  execFileSync("git", ["add", dstPath], {
+    cwd: projectDir,
+    env: withProtectedGitBareRepositoryEnv(),
+  });
 
   return {
     id,

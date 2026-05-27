@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadConfig } from "#core/config/config.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { REPO_TASKS_DIR } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { BuilderRunSummary } from "./run-summary.js";
@@ -21,6 +22,7 @@ export type BranchStepResult = {
 function findTaskIdFromStagedFiles(projectDir: string): string | null {
   const result = spawnSync("git", ["diff", "--cached", "--name-only"], {
     cwd: projectDir,
+    env: withProtectedGitBareRepositoryEnv(),
     encoding: "utf-8",
     stdio: "pipe",
   });
@@ -49,6 +51,7 @@ function findTaskIdFromStagedFiles(projectDir: string): string | null {
 function getCurrentBranch(projectDir: string): string {
   const result = spawnSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
     cwd: projectDir,
+    env: withProtectedGitBareRepositoryEnv(),
     encoding: "utf-8",
     stdio: "pipe",
   });
@@ -72,6 +75,7 @@ export function createTaskBranch(ctx: WorkflowStepContext): BranchStepResult {
 
   const checkout = spawnSync("git", ["checkout", "-b", branch], {
     cwd: projectDir,
+    env: withProtectedGitBareRepositoryEnv(),
     encoding: "utf-8",
     stdio: "pipe",
   });
@@ -92,6 +96,7 @@ export function createPullRequest(ctx: WorkflowStepContext): { prUrl: string } {
 
   const authCheck = spawnSync("gh", ["auth", "status"], {
     cwd: projectDir,
+    env: withProtectedGitBareRepositoryEnv(),
     encoding: "utf-8",
     stdio: "pipe",
   });
@@ -108,6 +113,7 @@ export function createPullRequest(ctx: WorkflowStepContext): { prUrl: string } {
 
   const push = spawnSync("git", ["push", "origin", branch], {
     cwd: projectDir,
+    env: withProtectedGitBareRepositoryEnv(),
     encoding: "utf-8",
     stdio: "pipe",
   });
@@ -133,7 +139,12 @@ export function createPullRequest(ctx: WorkflowStepContext): { prUrl: string } {
   const prCreate = spawnSync(
     "gh",
     ["pr", "create", "--title", taskTitle, "--body", body, "--base", baseBranch, "--head", branch],
-    { cwd: projectDir, encoding: "utf-8", stdio: "pipe" },
+    {
+      cwd: projectDir,
+      env: withProtectedGitBareRepositoryEnv(),
+      encoding: "utf-8",
+      stdio: "pipe",
+    },
   );
 
   if (prCreate.status !== 0) {
@@ -143,6 +154,7 @@ export function createPullRequest(ctx: WorkflowStepContext): { prUrl: string } {
   // Restore base branch so the daemon restarts on the correct branch for subsequent runs.
   const restore = spawnSync("git", ["checkout", baseBranch], {
     cwd: projectDir,
+    env: withProtectedGitBareRepositoryEnv(),
     encoding: "utf-8",
     stdio: "pipe",
   });
@@ -168,6 +180,7 @@ export function cleanupMergedBranches(ctx: WorkflowStepContext): CleanupResult {
   try {
     const authCheck = spawnSync("gh", ["auth", "status"], {
       cwd: projectDir,
+      env: withProtectedGitBareRepositoryEnv(),
       encoding: "utf-8",
       stdio: "pipe",
     });
@@ -179,7 +192,12 @@ export function cleanupMergedBranches(ctx: WorkflowStepContext): CleanupResult {
     const listResult = spawnSync(
       "gh",
       ["pr", "list", "--state", "merged", "--json", "headRefName", "--limit", "100"],
-      { cwd: projectDir, encoding: "utf-8", stdio: "pipe" },
+      {
+        cwd: projectDir,
+        env: withProtectedGitBareRepositoryEnv(),
+        encoding: "utf-8",
+        stdio: "pipe",
+      },
     );
     if (listResult.status !== 0) {
       warnings.push(`Failed to list merged PRs: ${listResult.stderr || listResult.stdout}`);
@@ -202,6 +220,7 @@ export function cleanupMergedBranches(ctx: WorkflowStepContext): CleanupResult {
     for (const branch of toDelete) {
       const del = spawnSync("git", ["push", "origin", "--delete", branch], {
         cwd: projectDir,
+        env: withProtectedGitBareRepositoryEnv(),
         encoding: "utf-8",
         stdio: "pipe",
       });

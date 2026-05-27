@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type {
   ExecutionBackendKind,
   ExecutionProfileNonGatingReason,
@@ -395,6 +396,7 @@ function extractShellMetric(
   const result = spawnSync(source.command, {
     shell: true,
     cwd: workingDir,
+    env: withProtectedGitBareRepositoryEnv(),
     timeout: timeoutMs,
     encoding: "utf-8",
     maxBuffer: 4 * 1024 * 1024,

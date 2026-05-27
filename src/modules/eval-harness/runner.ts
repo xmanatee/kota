@@ -20,6 +20,7 @@ import { spawnSync } from "node:child_process";
 import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { installExternalCallShims } from "./external-call-shim.js";
 import type { LoadedFixture } from "./fixture.js";
 import type {
@@ -124,6 +125,7 @@ export type FixtureRunReport = {
 function runGitSync(cwd: string, args: string[]): void {
   const result = spawnSync("git", args, {
     cwd,
+    env: withProtectedGitBareRepositoryEnv(),
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });

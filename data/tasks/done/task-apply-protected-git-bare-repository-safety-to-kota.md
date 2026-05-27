@@ -1,12 +1,12 @@
 ---
 id: task-apply-protected-git-bare-repository-safety-to-kota
 title: Apply protected Git bare-repository safety to KOTA-owned subprocesses
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Force KOTA-owned git subprocesses and agent shell git calls through a protected safe.bareRepository=explicit default so nested bare repositories cannot trigger implicit Git hook execution.
 created_at: 2026-05-27T01:27:18.712Z
-updated_at: 2026-05-27T01:27:18.712Z
+updated_at: 2026-05-27T02:47:00.000Z
 ---
 
 ## Problem
@@ -125,3 +125,11 @@ project trees without treating implicit Git hooks as ordinary inspection.
 - Diff review showing a shared protected-Git environment helper or equivalent
   boundary, no user-global Git config mutation, and no broad safe-directory
   bypass.
+
+## Completion Evidence
+
+- Shared helper: `src/core/util/protected-git-env.ts`.
+- Focused tests: `pnpm test src/core/util/protected-git-env.test.ts src/core/util/repo-worktree.test.ts src/modules/execution/shell.test.ts src/modules/git/git.test.ts src/modules/autonomy/commit.test.ts`.
+- Additional adapter coverage: `pnpm test src/modules/codex-agent-harness/adapter.test.ts src/modules/gemini-cli-agent-harness/adapter.test.ts src/modules/claude-agent-harness/adapter.test.ts`.
+- Validation: `pnpm run typecheck`, `pnpm run lint`, `pnpm run validate-tasks`,
+  `pnpm build`, `node dist/cli.js workflow validate`.

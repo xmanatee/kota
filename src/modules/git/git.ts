@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 
 export const gitTool: KotaTool = {
 	name: "git",
@@ -52,6 +53,7 @@ function git(args: string[], cwd?: string): Promise<{ stdout: string; stderr: st
 	return new Promise((resolve) => {
 		const proc = execFile("git", args, {
 			cwd: cwd ?? process.cwd(),
+			env: withProtectedGitBareRepositoryEnv(),
 			maxBuffer: 5 * 1024 * 1024,
 			timeout: 30_000,
 		}, (error, stdout, stderr) => {

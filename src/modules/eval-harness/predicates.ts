@@ -12,6 +12,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 
 /**
  * Shallow/deep subset match applied to an event payload. Every key in the
@@ -215,6 +216,7 @@ type GitCommandOutput =
 function runGitCapture(workingDir: string, args: readonly string[]): GitCommandOutput {
   const result = spawnSync("git", args, {
     cwd: workingDir,
+    env: withProtectedGitBareRepositoryEnv(),
     encoding: "utf-8",
     stdio: ["ignore", "pipe", "pipe"],
     maxBuffer: 4 * 1024 * 1024,
@@ -345,6 +347,7 @@ function evaluateShell(
   const result = spawnSync(predicate.command, {
     shell: true,
     cwd: workingDir,
+    env: withProtectedGitBareRepositoryEnv(),
     timeout: timeoutMs,
     encoding: "utf-8",
     maxBuffer: 4 * 1024 * 1024,

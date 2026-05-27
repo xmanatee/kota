@@ -1,6 +1,7 @@
 import { execSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 
 export type WorkflowRunSummary = {
@@ -20,6 +21,7 @@ export type WorkflowRunSummary = {
 function git(projectDir: string, args: string): string {
   return execSync(`git ${args}`, {
     cwd: projectDir,
+    env: withProtectedGitBareRepositoryEnv(),
     encoding: "utf-8",
     stdio: "pipe",
   }).trim();

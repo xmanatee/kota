@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 
 export type TaskReviewState = "doing" | "blocked" | "done";
 
@@ -46,6 +47,7 @@ function findStagedTask(projectDir: string): TaskReviewTarget | null {
     ["diff", "--cached", "--name-status", "--", "data/tasks/done/", "data/tasks/blocked/"],
     {
       cwd: projectDir,
+      env: withProtectedGitBareRepositoryEnv(),
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
     },

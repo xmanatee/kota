@@ -8,13 +8,17 @@
 
 import { type ChildProcess, spawn } from "node:child_process";
 import { createInterface } from "node:readline";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { KempInbound, KempOutbound, KempTransport, StdioForeignModuleConfig } from "./foreign-module.js";
 import { buildFilteredInheritedSubprocessEnv } from "./subprocess-env.js";
 
 function buildStdioSubprocessEnv(
   configEnv: StdioForeignModuleConfig["env"],
 ): NodeJS.ProcessEnv {
-  return { ...buildFilteredInheritedSubprocessEnv(), ...configEnv };
+  return withProtectedGitBareRepositoryEnv({
+    ...buildFilteredInheritedSubprocessEnv(),
+    ...(configEnv ?? {}),
+  });
 }
 
 export class StdioTransport implements KempTransport {

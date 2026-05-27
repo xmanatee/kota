@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { dirname, extname, join, relative } from "node:path";
 import { z } from "zod";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import {
   getRepoTaskStateDir,
   REPO_TASK_STATES,
@@ -587,7 +588,11 @@ function buildFindingTaskBody(args: {
 
 function stageBestEffort(projectDir: string, path: string): void {
   try {
-    execFileSync("git", ["add", path], { cwd: projectDir, stdio: "ignore" });
+    execFileSync("git", ["add", path], {
+      cwd: projectDir,
+      env: withProtectedGitBareRepositoryEnv(),
+      stdio: "ignore",
+    });
   } catch {
     // The workflow commit step stages the final path set; direct task creation
     // remains useful in test or sandbox environments without a writable index.

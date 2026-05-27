@@ -1,3 +1,7 @@
+import { execFileSync } from "node:child_process";
+import { chmodSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { runShell } from "./shell.js";
 
@@ -32,6 +36,34 @@ const envProbeCommand =
   "\"${KOTA_TOOL_USE_ID-missing}\" " +
   "\"${OTEL_EXPORTER_OTLP_ENDPOINT-missing}\" " +
   "\"${OTLP_ENDPOINT-missing}\"";
+
+function makeTempProject(prefix: string): string {
+  const dir = join(
+    tmpdir(),
+    `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  );
+  mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function createNestedBareRepoWithHookConfig(projectDir: string): {
+  bareDir: string;
+  markerPath: string;
+} {
+  const bareDir = join(projectDir, "nested.git");
+  const hooksDir = join(projectDir, "malicious-hooks");
+  const markerPath = join(projectDir, "hook-marker");
+  mkdirSync(hooksDir, { recursive: true });
+  execFileSync("git", ["init", "--bare", bareDir], { cwd: projectDir, stdio: "ignore" });
+  const hookPath = join(hooksDir, "pre-commit");
+  writeFileSync(hookPath, `#!/bin/sh\necho hook-ran > ${JSON.stringify(markerPath)}\n`, "utf8");
+  chmodSync(hookPath, 0o755);
+  execFileSync("git", ["--git-dir", bareDir, "config", "core.hooksPath", hooksDir], {
+    cwd: projectDir,
+    stdio: "ignore",
+  });
+  return { bareDir, markerPath };
+}
 
 describe("shell: input validation", () => {
   it("returns error when command is empty", async () => {
@@ -105,6 +137,45 @@ describe("shell: successful commands", () => {
 
     expect(result.is_error).toBeUndefined();
     expect(result.content).toBe("missing|missing|missing|missing");
+  });
+
+  it("runs normal git commands in ordinary worktrees", async () => {
+    const projectDir = makeTempProject("kota-shell-git");
+    try {
+      execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
+      writeFileSync(join(projectDir, "README.md"), "hello\n");
+
+      const result = await runShell({
+        command: "git status --short",
+        cwd: projectDir,
+        stream_output: false,
+      });
+
+      expect(result.is_error).toBeUndefined();
+      expect(result.content).toContain("README.md");
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects implicit nested bare repository discovery before hook-capable config can run", async () => {
+    const projectDir = makeTempProject("kota-shell-bare");
+    try {
+      const { bareDir, markerPath } = createNestedBareRepoWithHookConfig(projectDir);
+
+      const result = await runShell({
+        command: "git status",
+        cwd: bareDir,
+        stream_output: false,
+      });
+
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("safe.bareRepository");
+      expect(result.content).toContain("explicit");
+      expect(existsSync(markerPath)).toBe(false);
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
   });
 });
 

@@ -27,6 +27,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join } from "node:path";
 import { serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import {
   getRepoTaskStateDir,
   getRepoTasksDir,
@@ -135,6 +136,7 @@ function lastCommitMsForPath(projectDir: string, absolutePath: string): number |
   try {
     raw = execFileSync("git", ["log", "-1", "--format=%cI", "--", absolutePath], {
       cwd: projectDir,
+      env: withProtectedGitBareRepositoryEnv(),
       encoding: "utf-8",
     }).trim();
   } catch {
@@ -252,13 +254,19 @@ export function applyCalibrationRepair(
         `calibration-repair: refusing to overwrite existing ${targetPath} during recreate`,
       );
     }
-    execFileSync("git", ["mv", previousPath, targetPath], { cwd: ctx.projectDir });
+    execFileSync("git", ["mv", previousPath, targetPath], {
+      cwd: ctx.projectDir,
+      env: withProtectedGitBareRepositoryEnv(),
+    });
     writeFileSync(
       targetPath,
       buildCalibrationRepairTaskFile(proposal.taskId, "ready", ctx),
       "utf-8",
     );
-    execFileSync("git", ["add", targetPath], { cwd: ctx.projectDir });
+    execFileSync("git", ["add", targetPath], {
+      cwd: ctx.projectDir,
+      env: withProtectedGitBareRepositoryEnv(),
+    });
     return {
       kind: "recreated",
       taskId: proposal.taskId,
@@ -281,7 +289,10 @@ export function applyCalibrationRepair(
     buildCalibrationRepairTaskFile(proposal.taskId, "ready", ctx),
     "utf-8",
   );
-  execFileSync("git", ["add", targetPath], { cwd: ctx.projectDir });
+  execFileSync("git", ["add", targetPath], {
+    cwd: ctx.projectDir,
+    env: withProtectedGitBareRepositoryEnv(),
+  });
   return {
     kind: "created",
     taskId: proposal.taskId,

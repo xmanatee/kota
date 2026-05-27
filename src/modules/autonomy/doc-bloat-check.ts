@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 
 const DOC_PATH_RE = /(?:^|\/)(?:AGENTS\.md|CLAUDE\.md)$/;
 const DOCS_DIR_RE = /^docs\/.+\.md$/;
@@ -140,6 +141,7 @@ function readStagedDocDiff(projectDir: string): string {
     {
       cwd: projectDir,
       encoding: "utf8",
+      env: withProtectedGitBareRepositoryEnv(),
       maxBuffer: STAGED_DIFF_MAX_BUFFER,
       stdio: ["ignore", "pipe", "pipe"],
     },

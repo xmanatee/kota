@@ -1,6 +1,7 @@
 import { execFileSync, execSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { listWorkflowMutatedPaths } from "#core/workflow/steps/agent-write-scope.js";
 import {
   checkNoRegisteredScratchWorktrees,
@@ -14,6 +15,7 @@ export type CommitResult =
 function runGit(projectDir: string, command: string): string {
   return execSync(command, {
     cwd: projectDir,
+    env: withProtectedGitBareRepositoryEnv(),
     encoding: "utf-8",
     stdio: "pipe",
   }).trim();
@@ -25,7 +27,11 @@ function describeError(error: unknown): string {
 
 function unstageAfterFailedCommit(projectDir: string, commitError: unknown): void {
   try {
-    execSync("git reset --mixed HEAD", { cwd: projectDir, stdio: "pipe" });
+    execSync("git reset --mixed HEAD", {
+      cwd: projectDir,
+      env: withProtectedGitBareRepositoryEnv(),
+      stdio: "pipe",
+    });
   } catch (resetError) {
     throw new Error(
       `git commit failed, then git reset --mixed HEAD failed: ${describeError(commitError)}`,
@@ -55,7 +61,12 @@ function listStagedDeletions(projectDir: string): Set<string> {
   const stdout = execFileSync(
     "git",
     ["diff", "--cached", "--name-only", "--diff-filter=D"],
-    { cwd: projectDir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    {
+      cwd: projectDir,
+      env: withProtectedGitBareRepositoryEnv(),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    },
   );
   const set = new Set<string>();
   for (const line of stdout.split("\n")) {
@@ -92,7 +103,11 @@ export function checkCommitStageable(projectDir: string): string {
   const result = spawnSync(
     "git",
     ["add", "--dry-run", "-A", "--", ...pathsToStage],
-    { cwd: projectDir, encoding: "utf8" },
+    {
+      cwd: projectDir,
+      env: withProtectedGitBareRepositoryEnv(),
+      encoding: "utf8",
+    },
   );
   if (result.status !== 0) {
     const detail = [result.stdout, result.stderr]
@@ -145,6 +160,7 @@ export function commitWorkflowChanges(
   if (pathsToStage.length > 0) {
     execFileSync("git", ["add", "-A", "--", ...pathsToStage], {
       cwd: projectDir,
+      env: withProtectedGitBareRepositoryEnv(),
       stdio: "pipe",
     });
   }

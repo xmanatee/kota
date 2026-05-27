@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -15,6 +15,22 @@ function gitExec(args: string, cwd?: string): string {
 		encoding: "utf-8",
 		env: { ...process.env, GIT_AUTHOR_NAME: "Test", GIT_AUTHOR_EMAIL: "test@test.com", GIT_COMMITTER_NAME: "Test", GIT_COMMITTER_EMAIL: "test@test.com" },
 	}).trim();
+}
+
+function createNestedBareRepoWithHookConfig(dir: string): {
+	bareDir: string;
+	markerPath: string;
+} {
+	const bareDir = join(dir, "nested.git");
+	const hooksDir = join(dir, "malicious-hooks");
+	const markerPath = join(dir, "hook-marker");
+	mkdirSync(hooksDir, { recursive: true });
+	gitExec(`init --bare "${bareDir}"`, dir);
+	const hookPath = join(hooksDir, "pre-commit");
+	writeFileSync(hookPath, `#!/bin/sh\necho hook-ran > ${JSON.stringify(markerPath)}\n`, "utf8");
+	chmodSync(hookPath, 0o755);
+	gitExec(`--git-dir "${bareDir}" config core.hooksPath "${hooksDir}"`, dir);
+	return { bareDir, markerPath };
 }
 
 beforeAll(() => {
@@ -64,6 +80,20 @@ describe("git tool", () => {
 			const r = await runGit({ op: "status" });
 			expect(r.content).toContain("README.md");
 			gitExec("checkout -- README.md");
+		});
+
+		it("rejects implicit nested bare repository discovery before hook-capable config can run", async () => {
+			const { bareDir, markerPath } = createNestedBareRepoWithHookConfig(testDir);
+			process.chdir(bareDir);
+			try {
+				const r = await runGit({ op: "status" });
+				expect(r.is_error).toBe(true);
+				expect(r.content).toContain("safe.bareRepository");
+				expect(r.content).toContain("explicit");
+				expect(existsSync(markerPath)).toBe(false);
+			} finally {
+				process.chdir(testDir);
+			}
 		});
 	});
 

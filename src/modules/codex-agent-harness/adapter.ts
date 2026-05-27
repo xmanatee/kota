@@ -22,6 +22,7 @@ import {
   probeNativeCliAuth,
   probeNativeCliRuntime,
 } from "#core/agent-harness/index.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 
 export const CODEX_AGENT_HARNESS_NAME = "codex";
 
@@ -258,7 +259,7 @@ async function collectTextFromCodexCli(args: {
 
   const child = spawn("codex", cliArgs, {
     cwd: args.cwd,
-    env: process.env,
+    env: withProtectedGitBareRepositoryEnv(),
     stdio: ["pipe", "pipe", "pipe"],
   });
 

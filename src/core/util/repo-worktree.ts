@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { withProtectedGitBareRepositoryEnv } from "./protected-git-env.js";
 
 export type RepoWorktreeStatus = {
   available: boolean;
@@ -14,6 +15,7 @@ export function getRepoHeadSha(projectDir: string): string {
   try {
     return execFileSync("git", ["rev-parse", "HEAD"], {
       cwd: projectDir,
+      env: withProtectedGitBareRepositoryEnv(),
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
     }).trim();
@@ -37,7 +39,12 @@ export function getRepoWorktreeStatus(projectDir: string): RepoWorktreeStatus {
     const output = execFileSync(
       "git",
       ["status", "--porcelain=v1", "--untracked-files=all"],
-      { cwd: projectDir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+      {
+        cwd: projectDir,
+        env: withProtectedGitBareRepositoryEnv(),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      },
     ).trim();
     const entries = output ? output.split("\n").map((line) => line.trim()) : [];
     return {

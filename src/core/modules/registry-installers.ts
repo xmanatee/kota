@@ -14,6 +14,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { InstallResult, ParsedSource } from "./registry.js";
 
 export const MODULES_DIR = "modules";
@@ -37,6 +38,7 @@ export async function installNpm(parsed: ParsedSource, kotaDir: string): Promise
   try {
     execFileSync("npm", ["install", parsed.identifier], {
       cwd: moduleDir,
+      env: withProtectedGitBareRepositoryEnv(),
       stdio: "pipe",
       timeout: 60_000,
     });
@@ -133,6 +135,7 @@ export async function installGithub(parsed: ParsedSource, kotaDir: string): Prom
   try {
     execFileSync("npm", ["install", gitUrl], {
       cwd: moduleDir,
+      env: withProtectedGitBareRepositoryEnv(),
       stdio: "pipe",
       timeout: 60_000,
     });

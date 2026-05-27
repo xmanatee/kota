@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { WorkflowRunMetadata } from "../run-types.js";
 
 /**
@@ -41,8 +42,15 @@ export class AgentWriteScopeViolationError extends Error {
  * file fails the ownership gate instead of sneaking into the commit.
  */
 export function listWorkflowMutatedPaths(projectDir: string): string[] {
+  execFileSync("git", ["rev-parse", "--is-inside-work-tree"], {
+    cwd: projectDir,
+    env: withProtectedGitBareRepositoryEnv(),
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
   const tracked = execFileSync("git", ["diff", "--name-only", "HEAD"], {
     cwd: projectDir,
+    env: withProtectedGitBareRepositoryEnv(),
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -51,6 +59,7 @@ export function listWorkflowMutatedPaths(projectDir: string): string[] {
     ["ls-files", "--others", "--exclude-standard"],
     {
       cwd: projectDir,
+      env: withProtectedGitBareRepositoryEnv(),
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
     },

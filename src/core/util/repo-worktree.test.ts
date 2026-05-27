@@ -1,9 +1,28 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getRepoWorktreeStatus } from "./repo-worktree.js";
+
+function createNestedBareRepoWithHookConfig(projectDir: string): {
+  bareDir: string;
+  markerPath: string;
+} {
+  const bareDir = join(projectDir, "nested.git");
+  const hooksDir = join(projectDir, "malicious-hooks");
+  const markerPath = join(projectDir, "hook-marker");
+  mkdirSync(hooksDir, { recursive: true });
+  execFileSync("git", ["init", "--bare", bareDir], { cwd: projectDir, stdio: "ignore" });
+  const hookPath = join(hooksDir, "pre-commit");
+  writeFileSync(hookPath, `#!/bin/sh\necho hook-ran > ${JSON.stringify(markerPath)}\n`, "utf8");
+  chmodSync(hookPath, 0o755);
+  execFileSync("git", ["--git-dir", bareDir, "config", "core.hooksPath", hooksDir], {
+    cwd: projectDir,
+    stdio: "ignore",
+  });
+  return { bareDir, markerPath };
+}
 
 describe("repo worktree validation", () => {
   let projectDir: string;
@@ -49,5 +68,16 @@ describe("repo worktree validation", () => {
     const status = getRepoWorktreeStatus(projectDir);
     expect(status.dirty).toBe(true);
     expect(status.trackedDirty).toBe(false);
+  });
+
+  it("rejects implicit nested bare repository discovery before hook-capable config can run", () => {
+    const { bareDir, markerPath } = createNestedBareRepoWithHookConfig(projectDir);
+
+    const status = getRepoWorktreeStatus(bareDir);
+
+    expect(status.available).toBe(false);
+    expect(status.summary).toContain("safe.bareRepository");
+    expect(status.summary).toContain("explicit");
+    expect(existsSync(markerPath)).toBe(false);
   });
 });

@@ -1,3 +1,5 @@
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+
 export function isKotaOwnedInheritedEnv(key: string): boolean {
   return (
     key === "KOTA_SESSION_ID" ||
@@ -15,7 +17,7 @@ export function buildFilteredInheritedSubprocessEnv(
     if (value === undefined || isKotaOwnedInheritedEnv(key)) continue;
     env[key] = value;
   }
-  return env;
+  return withProtectedGitBareRepositoryEnv(env);
 }
 
 const REQUIRED_INHERITED_SUBPROCESS_ENV_KEYS = [
@@ -38,5 +40,5 @@ export function buildRequiredInheritedSubprocessEnv(
     const value = inheritedEnv[key];
     if (value !== undefined) env[key] = value;
   }
-  return env;
+  return withProtectedGitBareRepositoryEnv(env);
 }

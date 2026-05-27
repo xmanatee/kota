@@ -1,5 +1,6 @@
 import { execSync } from "node:child_process";
 import type { ToolResult } from "#core/tools/tool-result.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,7 @@ export function resolveRepo(configured?: string): string | null {
   if (configured) return configured;
   try {
     const url = execSync("git remote get-url origin", {
+      env: withProtectedGitBareRepositoryEnv(),
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"],
     }).trim();

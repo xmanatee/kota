@@ -24,6 +24,7 @@ import type {
   AgentHarnessRunOptions,
   KotaAgentMessage,
 } from "#core/agent-harness/types.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import {
   type AgentStepFileOperation,
   loadAgentStepRecordings,
@@ -162,6 +163,7 @@ function stageReplayMutations(cwd: string, paths: readonly string[]): void {
   const unique = [...new Set(paths)];
   spawnSync("git", ["add", "-A", "--", ...unique], {
     cwd,
+    env: withProtectedGitBareRepositoryEnv(),
     stdio: ["ignore", "pipe", "pipe"],
   });
 }

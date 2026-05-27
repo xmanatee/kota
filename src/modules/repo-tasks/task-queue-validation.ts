@@ -6,6 +6,7 @@ import {
   ROOT_ENTRYPOINT_SOURCES,
 } from "#core/root-layout.js";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import {
   parseBlockedPrecondition,
   readOperatorCaptureInstructedMarker,
@@ -513,7 +514,11 @@ function readTaskGitStatus(projectDir: string): {
     const output = execFileSync(
       "git",
       ["status", "--porcelain=v1", "--untracked-files=all", "--", REPO_TASKS_DIR],
-      { cwd: projectDir, encoding: "utf8" },
+      {
+        cwd: projectDir,
+        env: withProtectedGitBareRepositoryEnv(),
+        encoding: "utf8",
+      },
     );
     const untracked: string[] = [];
     const deleted: string[] = [];

@@ -7,6 +7,7 @@ import {
   resolvePreset,
   resolveTierModel,
 } from "#core/model/preset.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type {
   WorkflowPredicate,
   WorkflowRunMetadata,
@@ -30,6 +31,7 @@ export function runCheck(command: string, cwd: string, timeoutMs = 120_000): str
   const result = spawnSync(command, {
     shell: true,
     cwd,
+    env: withProtectedGitBareRepositoryEnv(),
     timeout: timeoutMs,
     encoding: "utf-8",
     maxBuffer: RUN_CHECK_MAX_BUFFER,
@@ -129,6 +131,7 @@ export function findScratchArtifactPaths(paths: string[]): string[] {
 export function findRegisteredScratchWorktrees(projectDir: string): string[] {
   const output = execFileSync("git", ["worktree", "list", "--porcelain"], {
     cwd: projectDir,
+    env: withProtectedGitBareRepositoryEnv(),
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -179,6 +182,7 @@ export function checkNoScratchArtifacts(projectDir: string): string {
   checkNoRegisteredScratchWorktrees(projectDir);
   const staged = execFileSync("git", ["diff", "--cached", "--name-only"], {
     cwd: projectDir,
+    env: withProtectedGitBareRepositoryEnv(),
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
