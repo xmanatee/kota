@@ -121,6 +121,10 @@ resources:
   - url: https://arxiv.org/abs/2605.20530
     added: "2026-05-27"
     notes: "AgentAtlas argues that deployable agent evaluation needs control-decision coverage (Act, Ask, Refuse, Stop, Confirm, Recover), trajectory-failure diagnosis, and benchmark-coverage auditing beyond outcome leaderboards. Monitor as a planning signal for KOTA eval-harness coverage metadata, not as an imported benchmark or second taxonomy."
+    snapshot:
+      fingerprint: sha256:0be8f9c919503c61eac1502cfc4fbf7d
+      summary: "AgentAtlas reinforces KOTA's completed eval-harness control-decision coverage metadata and existing trajectory diagnostics; no duplicate task is needed because task-add-control-decision-coverage-metadata-to-eval-fix already covered the nonduplicative local gap."
+      last_seen_at: "2026-05-27T03:05:49.118Z"
   - url: https://github.com/letta-ai/letta
     added: "2026-04-19"
     snapshot:
