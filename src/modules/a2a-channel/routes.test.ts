@@ -75,7 +75,20 @@ describe("a2a channel routes", () => {
     expect(card.skills.map((skill: { id: string }) => skill.id)).toContain("kota.session");
 
     const extended = await fetch(`${server.baseUrl}${A2A_EXTENDED_CARD_PATH}`);
-    expect((await extended.json()).supportedInterfaces).toEqual(card.supportedInterfaces);
+    const unscopedExtended = await extended.json();
+    expect(unscopedExtended.supportedInterfaces).toEqual(card.supportedInterfaces);
+    expect(unscopedExtended.supportedInterfaces[0].tenant).toBeUndefined();
+
+    const scopedExtended = await fetch(`${server.baseUrl}${A2A_EXTENDED_CARD_PATH}?projectId=proj-1`);
+    expect(scopedExtended.headers.get("cache-control")).toBe("no-store");
+    expect((await scopedExtended.json()).supportedInterfaces).toEqual([
+      {
+        url: `${server.baseUrl}${A2A_RPC_PATH}`,
+        protocolBinding: "JSONRPC",
+        protocolVersion: A2A_PROTOCOL_VERSION,
+        tenant: "proj-1",
+      },
+    ]);
   });
 
   it("handles SendMessage, GetTask, ListTasks, and CancelTask through JSON-RPC", async () => {
@@ -90,6 +103,7 @@ describe("a2a channel routes", () => {
       id: 1,
       method: "SendMessage",
       params: {
+        tenant: "proj-1",
         message: {
           role: "ROLE_USER",
           parts: [{ text: "ship the slice", mediaType: "text/plain" }],
@@ -104,20 +118,36 @@ describe("a2a channel routes", () => {
       text: "ship the slice",
     });
 
+    await postRpc(server.baseUrl, {
+      jsonrpc: "2.0",
+      id: 11,
+      method: "SendMessage",
+      params: {
+        message: {
+          role: "ROLE_USER",
+          parts: [{ text: "use the unscoped route", mediaType: "text/plain" }],
+        },
+      },
+    });
+    expect(backend.sentInputs[1]).toMatchObject({
+      projectId: null,
+      text: "use the unscoped route",
+    });
+
     const get = await postRpc(server.baseUrl, {
       jsonrpc: "2.0",
       id: 2,
       method: "GetTask",
-      params: { id: "task-1", contextId: "proj-1" },
+      params: { id: "task-1", tenant: "proj-1" },
     });
     expect(get.result.status.state).toBe("TASK_STATE_COMPLETED");
-    expect(backend.getSelectors[0]).toEqual({ taskId: "task-1", projectId: null, contextId: "proj-1" });
+    expect(backend.getSelectors[0]).toEqual({ taskId: "task-1", projectId: "proj-1", contextId: null });
 
     const list = await postRpc(server.baseUrl, {
       jsonrpc: "2.0",
       id: 3,
       method: "ListTasks",
-      params: { projectId: "proj-1" },
+      params: { tenant: "proj-1" },
     });
     expect(list.result).toMatchObject({
       nextPageToken: "",
@@ -139,9 +169,10 @@ describe("a2a channel routes", () => {
       jsonrpc: "2.0",
       id: 4,
       method: "CancelTask",
-      params: { id: "task-1" },
+      params: { id: "task-1", tenant: "proj-1", metadata: { projectId: "proj-1" } },
     });
     expect(cancel.result.status.state).toBe("TASK_STATE_CANCELED");
+    expect(backend.cancelSelectors[0]).toEqual({ taskId: "task-1", projectId: "proj-1", contextId: null });
   });
 
   it("negotiates supported A2A v1.0 through the header and request parameter", async () => {
@@ -227,6 +258,43 @@ describe("a2a channel routes", () => {
     expect(backend.sentInputs).toHaveLength(0);
   });
 
+  it("rejects mismatched tenant and projectId routing before daemon work starts", async () => {
+    const backend = new FakeBackend();
+    const backendFactory = vi.fn(() => backend);
+    const server = await startRouteServer(a2aRoutes(makeContext(), {
+      backendFactory,
+    }));
+    servers.push(server.server);
+
+    const send = await postRpc(server.baseUrl, {
+      jsonrpc: "2.0",
+      id: "tenant-mismatch-send",
+      method: "SendMessage",
+      params: {
+        tenant: "proj-1",
+        message: {
+          role: "ROLE_USER",
+          parts: [{ text: "ship the slice", mediaType: "text/plain" }],
+          metadata: { projectId: "proj-2" },
+        },
+      },
+    });
+    expect(send.error.code).toBe(-32602);
+    expect(errorReason(send)).toBe("ROUTING_SCOPE_MISMATCH");
+    expect(errorMetadata(send)).toEqual({ tenant: "proj-1", projectId: "proj-2" });
+
+    const list = await postRpc(server.baseUrl, {
+      jsonrpc: "2.0",
+      id: "tenant-mismatch-list",
+      method: "ListTasks",
+      params: { tenant: "proj-1", projectId: "proj-2" },
+    });
+    expect(errorReason(list)).toBe("ROUTING_SCOPE_MISMATCH");
+
+    expect(backendFactory).not.toHaveBeenCalled();
+    expect(backend.sentInputs).toHaveLength(0);
+  });
+
   it("streams SendStreamingMessage status, artifact, final task, and JSON-RPC response as SSE", async () => {
     const backend = new FakeBackend();
     const server = await startRouteServer(a2aRoutes(makeContext(), {
@@ -242,9 +310,11 @@ describe("a2a channel routes", () => {
         id: "stream-1",
         method: "SendStreamingMessage",
         params: {
+          tenant: "proj-1",
           message: {
             role: "ROLE_USER",
             parts: [{ text: "stream it", mediaType: "text/plain" }],
+            metadata: { projectId: "proj-1" },
           },
         },
       }),
@@ -255,6 +325,7 @@ describe("a2a channel routes", () => {
     expect(frames[0]?.result.statusUpdate.status.state).toBe("TASK_STATE_WORKING");
     expect(frames[1]?.result.artifactUpdate.artifact.parts[0].text).toBe("partial");
     expect(frames[2]?.result.task.status.state).toBe("TASK_STATE_COMPLETED");
+    expect(backend.sentInputs[0]?.projectId).toBe("proj-1");
   });
 
   it("emits one SSE version error for streaming version mismatches before backend work", async () => {
@@ -297,6 +368,55 @@ describe("a2a channel routes", () => {
         requestedVersion: "2.0",
         supportedVersions: [...A2A_SUPPORTED_PROTOCOL_VERSIONS],
       });
+    }
+
+    expect(backendFactory).not.toHaveBeenCalled();
+    expect(backend.sentInputs).toHaveLength(0);
+  });
+
+  it("emits one SSE routing error for streaming tenant mismatches before backend work", async () => {
+    const backend = new FakeBackend();
+    const backendFactory = vi.fn(() => backend);
+    const server = await startRouteServer(a2aRoutes(makeContext(), {
+      backendFactory,
+    }));
+    servers.push(server.server);
+
+    for (const request of [
+      {
+        id: "stream-routing",
+        method: "SendStreamingMessage",
+        params: {
+          tenant: "proj-1",
+          message: {
+            role: "ROLE_USER",
+            parts: [{ text: "stream it", mediaType: "text/plain" }],
+            metadata: { projectId: "proj-2" },
+          },
+        },
+      },
+      {
+        id: "subscribe-routing",
+        method: "SubscribeToTask",
+        params: { id: "task-1", tenant: "proj-1", projectId: "proj-2" },
+      },
+    ]) {
+      const res = await fetch(`${server.baseUrl}${A2A_RPC_PATH}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "A2A-Version": A2A_PROTOCOL_VERSION },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: request.id,
+          method: request.method,
+          params: request.params,
+        }),
+      });
+      expect(res.headers.get("content-type")).toContain("text/event-stream");
+      const frames = parseSseJsonRpcResponses(await res.text());
+      expect(frames).toHaveLength(1);
+      expect(frames[0]?.id).toBe(request.id);
+      expect(frames[0]?.error.code).toBe(-32602);
+      expect(errorReason(frames[0])).toBe("ROUTING_SCOPE_MISMATCH");
     }
 
     expect(backendFactory).not.toHaveBeenCalled();
@@ -347,11 +467,12 @@ describe("a2a channel routes", () => {
         jsonrpc: "2.0",
         id: 4,
         method: "SubscribeToTask",
-        params: { id: "task-1" },
+        params: { id: "task-1", tenant: "proj-1" },
       }),
     });
     const terminalFrames = parseSseJsonRpcResponses(await terminal.text());
     expect(errorReason(terminalFrames[0])).toBe("UNSUPPORTED_OPERATION");
+    expect(backend.subscribeSelectors[0]).toEqual({ taskId: "task-1", projectId: "proj-1", contextId: null });
 
     backend.failUnauthorized = true;
     const denied = await postRpc(server.baseUrl, {
@@ -467,6 +588,25 @@ describe("a2a channel routes", () => {
     expect(createCall?.[1]).not.toHaveProperty("body");
   });
 
+  it("creates context-only SendMessage sessions without daemon project scope", async () => {
+    const transport = makeDaemonTransport();
+    const backend = new DaemonA2ABackend(transport, () => NOW);
+
+    const task = await backend.sendMessage({
+      taskId: null,
+      contextId: "client-context",
+      projectId: null,
+      text: "hello",
+    });
+
+    expect(task.id).toBe("sess-unscoped");
+    expect(task.contextId).toBe("client-context");
+    expect(task.artifacts[0]?.parts[0]?.text).toBe("unscoped final");
+    const calledPaths = vi.mocked(transport.fetchRaw).mock.calls.map(([path]) => path);
+    expect(calledPaths).toContain("/sessions");
+    expect(calledPaths).not.toContain("/sessions?projectId=client-context");
+  });
+
   it("subscribes to active daemon session output and emits artifact updates", async () => {
     const updates: A2ATaskUpdate[] = [];
     const backend = new DaemonA2ABackend(makeDaemonTransport(), () => NOW);
@@ -483,15 +623,31 @@ describe("a2a channel routes", () => {
     expect(updates[0]).toHaveProperty("task.id", "active-task");
   });
 
-  it("filters daemon-backed list and get calls by A2A context when no project is supplied", async () => {
+  it("keeps context-only daemon list and get calls on the unscoped session route", async () => {
     const transport = makeScopedDaemonTransport();
     const backend = new DaemonA2ABackend(transport, () => NOW);
 
     const listed = await backend.listTasks({ projectId: null, contextId: "proj-2" });
+    expect(listed).toEqual([]);
+
+    await expect(
+      backend.getTask({ taskId: "task-2", projectId: null, contextId: "proj-2" }),
+    ).rejects.toMatchObject({ message: "A2A task not found: task-2" });
+
+    const calledPaths = vi.mocked(transport.fetchRaw).mock.calls.map(([path]) => path);
+    expect(calledPaths).toContain("/sessions");
+    expect(calledPaths).not.toContain("/sessions?projectId=proj-2");
+  });
+
+  it("filters daemon-backed list and get calls by normalized project scope", async () => {
+    const transport = makeScopedDaemonTransport();
+    const backend = new DaemonA2ABackend(transport, () => NOW);
+
+    const listed = await backend.listTasks({ projectId: "proj-2", contextId: null });
     expect(listed.map((task) => task.id)).toEqual(["task-2"]);
     expect(listed[0]?.contextId).toBe("proj-2");
 
-    const found = await backend.getTask({ taskId: "task-2", projectId: null, contextId: "proj-2" });
+    const found = await backend.getTask({ taskId: "task-2", projectId: "proj-2", contextId: null });
     expect(found.id).toBe("task-2");
     expect(found.contextId).toBe("proj-2");
 
@@ -501,7 +657,6 @@ describe("a2a channel routes", () => {
 
     const calledPaths = vi.mocked(transport.fetchRaw).mock.calls.map(([path]) => path);
     expect(calledPaths).toContain("/sessions?projectId=proj-2");
-    expect(calledPaths).not.toContain("/sessions");
   });
 
   it("validates resumed SendMessage tasks against A2A scope before chat", async () => {
@@ -528,6 +683,8 @@ class FakeBackend implements A2ABackend {
   sentInputs: SendMessageInput[] = [];
   getSelectors: TaskSelector[] = [];
   listFilters: TaskListFilter[] = [];
+  cancelSelectors: TaskSelector[] = [];
+  subscribeSelectors: TaskSelector[] = [];
   failUnauthorized = false;
 
   async sendMessage(
@@ -578,10 +735,12 @@ class FakeBackend implements A2ABackend {
   }
 
   async cancelTask(selector: TaskSelector): Promise<A2ATask> {
+    this.cancelSelectors.push(selector);
     return task(selector.taskId, "proj-1", "TASK_STATE_CANCELED", "canceled");
   }
 
   async subscribeToTask(selector: TaskSelector): Promise<A2ATask> {
+    this.subscribeSelectors.push(selector);
     throw terminalTaskSubscription(selector.taskId);
   }
 }
@@ -769,6 +928,9 @@ function makeDaemonTransport(): DaemonTransport {
     if (path === "/sessions?projectId=proj-1" && init?.method === "POST") {
       return jsonResponse({ session_id: "sess-1", project_id: "proj-1" });
     }
+    if (path === "/sessions" && init?.method === "POST") {
+      return jsonResponse({ session_id: "sess-unscoped" });
+    }
     if (path === "/sessions" && init?.method === "GET") {
       return jsonResponse({
         sessions: [
@@ -795,6 +957,17 @@ function makeDaemonTransport(): DaemonTransport {
         "data: {\"content\":\"partial\"}\n\n",
         "event: done\n",
         "data: {\"session_id\":\"sess-1\",\"result\":\"final answer\"}\n\n",
+      ].join(""), {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      });
+    }
+    if (path === "/sessions/sess-unscoped/chat") {
+      return new Response([
+        "event: text\n",
+        "data: {\"content\":\"unscoped partial\"}\n\n",
+        "event: done\n",
+        "data: {\"session_id\":\"sess-unscoped\",\"result\":\"unscoped final\"}\n\n",
       ].join(""), {
         status: 200,
         headers: { "Content-Type": "text/event-stream" },
@@ -860,14 +1033,13 @@ function makeScopedDaemonTransport(): DaemonTransport {
       },
     ],
   };
-  const allSessions = Object.values(sessionsByProject).flat();
   const fetchRaw = vi.fn(async (path: string, init?: RequestInit) => {
     if (path.startsWith("/sessions?") && init?.method === "GET") {
       const url = new URL(path, "http://127.0.0.1");
       return jsonResponse({ sessions: sessionsByProject[url.searchParams.get("projectId") ?? ""] ?? [] });
     }
     if (path === "/sessions" && init?.method === "GET") {
-      return jsonResponse({ sessions: allSessions });
+      return jsonResponse({ sessions: sessionsByProject["proj-1"] ?? [] });
     }
     if (path === "/sessions/task-2/chat" && init?.method === "POST") {
       return new Response([

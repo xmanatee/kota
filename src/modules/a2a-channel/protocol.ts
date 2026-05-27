@@ -108,6 +108,11 @@ export type JsonRpcResponse =
       };
     });
 
+type RoutingScopeInput = {
+  params: JsonObject;
+  message?: JsonObject;
+};
+
 export type SendMessageInput = {
   taskId: string | null;
   contextId: string | null;
@@ -213,10 +218,7 @@ export function decodeSendMessageParams(params: JsonObject): SendMessageInput {
   const contextId =
     stringField(params, "contextId") ??
     stringField(message, "contextId");
-  const metadata = objectField(params, "metadata") ?? objectField(message, "metadata");
-  const projectId =
-    stringField(params, "projectId") ??
-    (metadata ? stringField(metadata, "projectId") : null);
+  const projectId = decodeRoutingProjectId({ params, message });
   return {
     taskId,
     contextId,
@@ -228,18 +230,16 @@ export function decodeSendMessageParams(params: JsonObject): SendMessageInput {
 export function decodeTaskSelector(params: JsonObject): TaskSelector {
   const taskId = stringField(params, "id");
   if (!taskId) throw invalidParams("id must be a non-empty string");
-  const metadata = objectField(params, "metadata");
   return {
     taskId,
-    projectId: stringField(params, "projectId") ?? (metadata ? stringField(metadata, "projectId") : null),
+    projectId: decodeRoutingProjectId({ params }),
     contextId: stringField(params, "contextId"),
   };
 }
 
 export function decodeTaskListFilter(params: JsonObject): TaskListFilter {
-  const metadata = objectField(params, "metadata");
   return {
-    projectId: stringField(params, "projectId") ?? (metadata ? stringField(metadata, "projectId") : null),
+    projectId: decodeRoutingProjectId({ params }),
     contextId: stringField(params, "contextId"),
   };
 }
@@ -322,6 +322,12 @@ export function versionNotSupported(requestedVersion: string): A2AProtocolError 
   ]);
 }
 
+export function routingScopeMismatch(tenant: string, projectId: string): A2AProtocolError {
+  return new A2AProtocolError(-32602, "A2A tenant and KOTA projectId must match", [
+    errorInfo("ROUTING_SCOPE_MISMATCH", { tenant, projectId }),
+  ]);
+}
+
 export function contentTypeNotSupported(message: string): A2AProtocolError {
   return new A2AProtocolError(-32005, message, [
     errorInfo("CONTENT_TYPE_NOT_SUPPORTED"),
@@ -388,6 +394,34 @@ function optionalObjectField(obj: JsonObject, key: string): JsonObject | null {
 
 function hasField(obj: JsonObject, key: string): boolean {
   return obj[key] !== undefined;
+}
+
+function decodeRoutingProjectId(input: RoutingScopeInput): string | null {
+  const scopes = [
+    input.params,
+    objectField(input.params, "metadata"),
+    input.message ?? null,
+    input.message ? objectField(input.message, "metadata") : null,
+  ].filter((obj): obj is JsonObject => obj !== null);
+  const tenant = firstMatchingScopeValue(scopes, "tenant");
+  const projectId = firstMatchingScopeValue(scopes, "projectId");
+  if (tenant !== null && projectId !== null && tenant !== projectId) {
+    throw routingScopeMismatch(tenant, projectId);
+  }
+  return tenant ?? projectId;
+}
+
+function firstMatchingScopeValue(scopes: JsonObject[], key: "tenant" | "projectId"): string | null {
+  let selected: string | null = null;
+  for (const scope of scopes) {
+    const value = stringField(scope, key);
+    if (value === null) continue;
+    if (selected !== null && selected !== value) {
+      throw invalidParams(`${key} must use one consistent value`);
+    }
+    selected = value;
+  }
+  return selected;
 }
 
 function decodeTextParts(parts: JsonValue[]): string | null {

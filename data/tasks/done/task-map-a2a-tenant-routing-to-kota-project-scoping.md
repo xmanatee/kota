@@ -1,12 +1,12 @@
 ---
 id: task-map-a2a-tenant-routing-to-kota-project-scoping
 title: Map A2A tenant routing to KOTA project scoping
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Teach the A2A channel to advertise and decode v1.0 tenant routing for project-scoped sessions instead of relying only on KOTA-specific projectId metadata.
 created_at: 2026-05-27T12:09:36.215Z
-updated_at: 2026-05-27T12:09:36.215Z
+updated_at: 2026-05-27T12:24:19.000Z
 ---
 
 ## Problem

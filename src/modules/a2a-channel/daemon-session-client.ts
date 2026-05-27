@@ -84,7 +84,7 @@ export class DaemonA2ABackend implements A2ABackend {
     let taskId: string;
     let contextId: string;
     if (input.taskId === null) {
-      const created = await this.createSession(input.projectId ?? input.contextId);
+      const created = await this.createSession(input.projectId);
       taskId = created.sessionId;
       contextId = input.contextId ?? input.projectId ?? created.projectId ?? taskId;
     } else {
@@ -135,7 +135,7 @@ export class DaemonA2ABackend implements A2ABackend {
   }
 
   async listTasks(filter: TaskListFilter): Promise<A2ATask[]> {
-    const sessions = await this.listSessions(filter.projectId ?? filter.contextId);
+    const sessions = await this.listSessions(filter.projectId);
     return sessions
       .filter((session) => session.source === "daemon")
       .filter((session) => sessionMatchesScope(session, filter.projectId, filter.contextId))
@@ -359,7 +359,7 @@ export class DaemonA2ABackend implements A2ABackend {
   }
 
   private async findSession(selector: TaskSelector): Promise<SessionWireEntry | null> {
-    const sessions = await this.listSessions(selector.projectId ?? selector.contextId);
+    const sessions = await this.listSessions(selector.projectId);
     return sessions.find((session) =>
       session.id === selector.taskId &&
       session.source === "daemon" &&
