@@ -519,6 +519,10 @@ resources:
   - url: https://github.com/ShadeCloak/SaaSbench
     added: "2026-05-27"
     notes: "SaaSBench project repository for the long-horizon enterprise SaaS engineering benchmark. Monitor code, dataset, and DockerHub release status as an eval-harness signal for multi-component SaaS setup, dependency-aware validation nodes, and configuration/integration failures that happen before isolated business logic."
+    snapshot:
+      fingerprint: sha256:6671b79539e6dfe1aab6485dbb1cb1d9
+      summary: "SaaSBench is accessible and already maps to KOTA's completed builder-multi-service-integration fixture; code, dataset, and Docker releases remain pending, so no duplicate task is needed from this snapshot."
+      last_seen_at: "2026-05-27T17:23:16.257Z"
   - url: https://arxiv.org/abs/2605.11378
     added: "2026-05-26"
     notes: "AgentEvalBench / EvalAgent studies automated agent-evaluation authoring. Monitor as an eval-harness signal for focused executable eval artifacts, bounded metrics, first-run evaluation success, and reusable evaluator guidance without adding a second KOTA evaluation pipeline."
