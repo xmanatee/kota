@@ -49,6 +49,10 @@ resources:
   - url: https://agentclientprotocol.com/get-started/architecture
     added: "2026-05-27"
     notes: "Official Agent Client Protocol docs. Monitor architecture, schema, transport, registry, stdio/Streamable HTTP, MCP handoff, permission, and session-lifecycle changes as an interoperability signal for KOTA's module-owned ACP adapter task."
+    snapshot:
+      fingerprint: sha256:7ea6859d3ee0205bddcdaf090dc3e24a
+      summary: "ACP now matches KOTA's completed module-owned adapter baseline, but its stable session/list and session/resume lifecycle methods expose a nonduplicative KOTA gap; this run opened task-add-acp-session-discovery-and-resume-support."
+      last_seen_at: "2026-05-27T05:09:58.037Z"
   - url: https://antigravity.google/docs/cli-overview
     added: "2026-05-26"
     notes: "Antigravity CLI is Google's successor terminal surface for Gemini CLI consumer users and shares the Antigravity agent harness with Antigravity 2.0. Monitor as a peer native-CLI harness signal for KOTA's Google preset migration, auth-readiness behavior, plugin/skills layout, and native subagent boundaries."
