@@ -1,0 +1,116 @@
+{
+  "policy": {
+    "policyVersion": "2026-follow-up",
+    "locale": "de-DE",
+    "currency": "EUR",
+    "managerApprovalLimitCents": 150000,
+    "sustainabilityCreditCents": 1250,
+    "sustainabilityCreditModes": [
+      "rail"
+    ],
+    "policyExceptionRequiredRole": "compliance-reviewer"
+  },
+  "actors": [
+    {
+      "id": "fin-1",
+      "displayName": "Mo Finance",
+      "roles": [
+        "finance-manager"
+      ]
+    },
+    {
+      "id": "emp-1",
+      "displayName": "Erin Employee",
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "cmp-1",
+      "displayName": "Casey Compliance",
+      "roles": [
+        "compliance-reviewer"
+      ]
+    }
+  ],
+  "claims": [
+    {
+      "id": "R-1001",
+      "employeeId": "emp-1",
+      "status": "submitted",
+      "tripMode": "rail",
+      "policyException": false,
+      "lineItems": [
+        {
+          "id": "L-1",
+          "category": "lodging",
+          "amountCents": 118900,
+          "receiptId": "rcpt-lodging-berlin"
+        },
+        {
+          "id": "L-2",
+          "category": "rail",
+          "amountCents": 8800,
+          "receiptId": "rcpt-rail-berlin"
+        }
+      ],
+      "history": [
+        {
+          "event": "submitted",
+          "actorId": "emp-1",
+          "at": "2026-05-01T09:30:00.000Z"
+        }
+      ]
+    },
+    {
+      "id": "R-1002",
+      "employeeId": "emp-1",
+      "status": "submitted",
+      "tripMode": "taxi",
+      "policyException": false,
+      "lineItems": [
+        {
+          "id": "L-3",
+          "category": "meal",
+          "amountCents": 2400,
+          "receiptId": ""
+        },
+        {
+          "id": "L-4",
+          "category": "taxi",
+          "amountCents": -4500,
+          "receiptId": "rcpt-negative-taxi"
+        }
+      ],
+      "history": [
+        {
+          "event": "submitted",
+          "actorId": "emp-1",
+          "at": "2026-05-02T10:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "id": "R-1003",
+      "employeeId": "emp-1",
+      "status": "submitted",
+      "tripMode": "rail",
+      "policyException": true,
+      "lineItems": [
+        {
+          "id": "L-5",
+          "category": "conference",
+          "amountCents": 76000,
+          "receiptId": "rcpt-conf-policy-exception"
+        }
+      ],
+      "history": [
+        {
+          "event": "submitted",
+          "actorId": "emp-1",
+          "at": "2026-05-03T11:00:00.000Z"
+        }
+      ]
+    }
+  ]
+}

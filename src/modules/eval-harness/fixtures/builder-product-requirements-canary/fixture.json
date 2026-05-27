@@ -1,0 +1,136 @@
+{
+  "id": "builder-product-requirements-canary",
+  "description": "Replay-backed builder fixture for preserving product requirements, backend behavior, security canaries, audit history, and a follow-up policy change through deterministic executable evidence.",
+  "role": "builder",
+  "workflowName": "builder",
+  "budgetMs": 1800000,
+  "predicates": [
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-requirements.mjs",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-requirements.mjs --self-test-shortcuts",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "file-exists",
+      "path": "requirements-result.json"
+    },
+    {
+      "kind": "file-contains",
+      "path": "requirements-result.json",
+      "needle": "\"locale-currency-format\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "requirements-result.json",
+      "needle": "\"role-specific-authorization\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "requirements-result.json",
+      "needle": "\"audit-history-preserved\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "requirements-result.json",
+      "needle": "\"validation-rules-enforced\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "requirements-result.json",
+      "needle": "\"follow-up-policy-exception\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "requirements-result.json",
+      "needle": "\"backend-data-driven-holdout\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "requirements-result.json",
+      "needle": "\"regression-original-requirements-preserved\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "requirements-result.json",
+      "needle": "\"canaryScore\": 1"
+    },
+    {
+      "kind": "file-absent",
+      "path": "data/tasks/ready/task-implement-reimbursement-requirements-canary.md"
+    },
+    {
+      "kind": "file-exists",
+      "path": "data/tasks/done/task-implement-reimbursement-requirements-canary.md"
+    },
+    {
+      "kind": "file-contains",
+      "path": "data/tasks/done/task-implement-reimbursement-requirements-canary.md",
+      "needle": "status: done"
+    },
+    {
+      "kind": "git-changes-within",
+      "allowedPaths": [
+        "requirements-result.json",
+        "src/reimbursement-service.mjs",
+        "data/tasks/ready/task-implement-reimbursement-requirements-canary.md",
+        "data/tasks/done/task-implement-reimbursement-requirements-canary.md"
+      ]
+    }
+  ],
+  "objectiveMetrics": [
+    {
+      "name": "product_requirements_canary_score",
+      "unit": "ratio",
+      "direction": "higher_is_better",
+      "source": {
+        "kind": "json-file",
+        "path": "requirements-result.json",
+        "pointer": "/canaryScore"
+      }
+    }
+  ],
+  "tags": [
+    "autonomy",
+    "builder-discipline",
+    "product-requirements",
+    "agent-call-replay",
+    "objective-metric"
+  ],
+  "provenance": {
+    "kind": "smoke-fixture",
+    "justification": "Synthetic SWE-WebDevBench-shaped product-requirements canary: the builder must preserve locale formatting, role authorization, audit history, validation, backend data dependence, and an iterative follow-up change through local executable artifacts. No past KOTA failure run exists for this exact measurement gap."
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-requirements.mjs",
+        "timeoutMs": 20000
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-requirements.mjs --self-test-shortcuts",
+        "timeoutMs": 10000
+      },
+      "expected": "pass"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/tasks/ready/task-implement-reimbursement-requirements-canary.md"
+      },
+      "expected": "pass"
+    }
+  ],
+  "controlDecisions": [
+    "act"
+  ]
+}

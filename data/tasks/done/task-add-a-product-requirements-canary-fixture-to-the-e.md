@@ -1,12 +1,12 @@
 ---
 id: task-add-a-product-requirements-canary-fixture-to-the-e
 title: Add a product-requirements canary fixture to the eval harness
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Seed an eval-harness fixture where the builder must preserve rich product requirements and embedded canaries across initial implementation and a follow-up modification, proving product fidelity is artifact-graded rather than inferred from polished output.
 created_at: 2026-05-27T18:02:02.579Z
-updated_at: 2026-05-27T18:02:02.579Z
+updated_at: 2026-05-27T18:22:18.000Z
 ---
 
 ## Problem
