@@ -1,0 +1,9 @@
+row_id,cohort,phase,site,treatment,dry_biomass_g,include_in_claim,quality_flag,notes
+HC1,mature,week6,greenhouse-a,control,10,yes,ok,holdout control
+HC2,mature,week6,greenhouse-a,control,10,yes,ok,holdout control
+HC3,mature,week6,greenhouse-a,control,10,yes,ok,holdout control
+HT1,mature,week6,greenhouse-a,lx12,16,yes,ok,holdout treatment
+HT2,mature,week6,greenhouse-a,lx12,16,yes,ok,holdout treatment
+HT3,mature,week6,greenhouse-a,lx12,16,yes,ok,holdout treatment
+HX1,mature,week6,greenhouse-a,lx12,41,no,ok,holdout screening trap
+HX2,mature,week6,greenhouse-a,lx12,5,yes,drought,holdout drought trap

@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-new-scientific-claim-fixture-p
 title: Security review: The new scientific-claim fixture permits the builder to modify scripts/analyze-claim.mjs and then scores the run by executing a shell predicate in the parent harness process. check-claim.mjs spawns that mutable analyzer, so model-authored code can run on the operator host with the parent environment after any containerized workflow execution has finished.
-status: ready
+status: done
 priority: p1
 area: security
 summary: The new scientific-claim fixture permits the builder to modify scripts/analyze-claim.mjs and then scores the run by executing a shell predicate in the parent harness process. check-claim.mjs spawns that mutable analyzer, so model-authored code can run on the operator host with the parent environment after any containerized workflow execution has finished.
 created_at: 2026-05-27T10:07:33.408Z
-updated_at: 2026-05-27T10:07:33.408Z
+updated_at: 2026-05-27T10:26:33Z
 ---
 
 ## Problem
@@ -57,3 +57,11 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm test src/modules/eval-harness/scientific-claim-reproduction-fixture.test.ts src/modules/eval-harness/predicates.test.ts src/strict-types-policy.integration.test.ts` passed.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `pnpm run validate-tasks` passed after staging the task move.

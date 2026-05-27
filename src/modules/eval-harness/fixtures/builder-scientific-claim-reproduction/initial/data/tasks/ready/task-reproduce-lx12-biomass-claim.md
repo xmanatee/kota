@@ -19,14 +19,15 @@ support/refute decision.
 
 ## Desired Outcome
 
-Complete `scripts/analyze-claim.mjs` so this command executes the analysis and
-writes machine-readable evidence:
+Complete `scripts/analyze-claim.mjs` so these commands execute the analysis and
+write machine-readable evidence:
 
 ```sh
 node scripts/analyze-claim.mjs --data data/claims/lx12-biomass.csv --output claim-result.json
+node scripts/analyze-claim.mjs --data data/claims/lx12-holdout.csv --output claim-holdout-result.json
 ```
 
-`claim-result.json` must include:
+Both output files must include:
 
 - `schemaVersion: 1`;
 - `claimId: "claim-lx12-mature-week6-biomass"`;
@@ -44,10 +45,11 @@ least 40 percent.
 
 ## Constraints
 
-- Only change `scripts/analyze-claim.mjs`, write `claim-result.json`, and move
-  this task to `done/`.
+- Only change `scripts/analyze-claim.mjs`, write `claim-result.json` and
+  `claim-holdout-result.json`, and move this task to `done/`.
 - Do not edit `scripts/check-claim.mjs`, `docs/paper-excerpt.md`,
-  `data/claims/lx12-biomass.csv`, package scaffolding, or fixture metadata.
+  `data/claims/lx12-biomass.csv`, `data/claims/lx12-holdout.csv`, package
+  scaffolding, or fixture metadata.
 - Do not hardcode the expected verdict or metric. The scorer runs the analyzer
   on another local data file shape to confirm the result changes with data.
 - Do not use network access, external services, large dependencies, or
@@ -57,11 +59,14 @@ least 40 percent.
 ## Done When
 
 - `node scripts/analyze-claim.mjs --data data/claims/lx12-biomass.csv --output claim-result.json` exits successfully.
+- `node scripts/analyze-claim.mjs --data data/claims/lx12-holdout.csv --output claim-holdout-result.json` exits successfully.
 - `node scripts/check-claim.mjs --max-error-pct 0.000001` exits successfully.
 - `claim-result.json` records the median uplift and the correct
   support/refute verdict from the local data.
+- `claim-holdout-result.json` records the median uplift and the correct
+  support/refute verdict from the holdout data.
 - `scripts/check-claim.mjs`, `docs/paper-excerpt.md`, and
-  `data/claims/lx12-biomass.csv` are unchanged.
+  both files under `data/claims/` are unchanged.
 - This task has moved from `data/tasks/ready/` to `data/tasks/done/`.
 
 ## Acceptance Evidence

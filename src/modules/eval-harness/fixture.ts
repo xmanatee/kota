@@ -208,6 +208,14 @@ function isFixturePredicate(value: unknown): value is FixturePredicate {
       return typeof p.path === "string" && typeof p.needle === "string";
     case "git-changes-within":
       return isStringArray(p.allowedPaths);
+    case "lx12-scientific-claim-result":
+      return (
+        typeof p.mainPath === "string" &&
+        typeof p.holdoutPath === "string" &&
+        typeof p.maxErrorPct === "number" &&
+        Number.isFinite(p.maxErrorPct) &&
+        p.maxErrorPct >= 0
+      );
     case "shell-succeeds":
     case "shell-fails":
       return (

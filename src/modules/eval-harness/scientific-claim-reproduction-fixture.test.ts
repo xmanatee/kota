@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -8,6 +8,7 @@ import type {
   ExecutionProfilePreflightResult,
   ResourceProfile,
 } from "./fixture-run.js";
+import { evaluatePredicate } from "./predicates.js";
 import {
   cleanupFixtureWorkingDir,
   runFixture,
@@ -190,6 +191,18 @@ describe("builder scientific claim reproduction fixture", () => {
           { cwd: request.workingDir, encoding: "utf8" },
         );
         expect(result.status).toBe(0);
+        const holdoutResult = spawnSync(
+          process.execPath,
+          [
+            "scripts/analyze-claim.mjs",
+            "--data",
+            "data/claims/lx12-holdout.csv",
+            "--output",
+            "claim-holdout-result.json",
+          ],
+          { cwd: request.workingDir, encoding: "utf8" },
+        );
+        expect(holdoutResult.status).toBe(0);
         return { kind: "completed", durationMs: 5, runArtifactPath: null };
       },
     };
@@ -233,6 +246,18 @@ describe("builder scientific claim reproduction fixture", () => {
         { cwd: workingDir, encoding: "utf8" },
       );
       expect(seed.status).toBe(0);
+      const holdoutSeed = spawnSync(
+        process.execPath,
+        [
+          "scripts/analyze-claim.mjs",
+          "--data",
+          "data/claims/lx12-holdout.csv",
+          "--output",
+          "claim-holdout-result.json",
+        ],
+        { cwd: workingDir, encoding: "utf8" },
+      );
+      expect(holdoutSeed.status).toBe(0);
 
       const result = spawnSync(
         process.execPath,
@@ -241,8 +266,49 @@ describe("builder scientific claim reproduction fixture", () => {
       );
       expect(result.status).toBe(1);
       expect(result.stdout).toContain("holdout artifact");
-      expect(result.stdout).toContain("appears to hardcode the refuted verdict");
-      expect(result.stdout).toContain("appears to hardcode the main metric");
+      expect(result.stdout).toContain("verdict");
+      expect(result.stdout).toContain("provenance.data");
+    } finally {
+      rmSync(workingDir, { recursive: true, force: true });
+    }
+  });
+
+  it("uses trusted predicate code instead of executing mutable fixture scripts", () => {
+    const fixture = loadFixture(FIXTURES_ROOT, FIXTURE_ID);
+    const claimPredicate = fixture.spec.predicates[0];
+    expect(claimPredicate.kind).toBe("lx12-scientific-claim-result");
+    const workingDir = mkdtempSync(join(tmpdir(), "kota-scientific-boundary-"));
+    try {
+      cpSync(fixture.initialStateDir, workingDir, { recursive: true });
+      writeFileSync(
+        join(workingDir, "scripts/analyze-claim.mjs"),
+        passingAnalyzer,
+      );
+      for (const [dataPath, outputPath] of [
+        ["data/claims/lx12-biomass.csv", "claim-result.json"],
+        ["data/claims/lx12-holdout.csv", "claim-holdout-result.json"],
+      ] as const) {
+        const result = spawnSync(
+          process.execPath,
+          ["scripts/analyze-claim.mjs", "--data", dataPath, "--output", outputPath],
+          { cwd: workingDir, encoding: "utf8" },
+        );
+        expect(result.status).toBe(0);
+      }
+
+      writeFileSync(
+        join(workingDir, "scripts/analyze-claim.mjs"),
+        'import { writeFileSync } from "node:fs"; writeFileSync("host-executed-analyzer", "yes");\n',
+      );
+      writeFileSync(
+        join(workingDir, "scripts/check-claim.mjs"),
+        'import { writeFileSync } from "node:fs"; writeFileSync("host-executed-checker", "yes");\n',
+      );
+
+      const result = evaluatePredicate(workingDir, claimPredicate);
+      expect(result.passed).toBe(true);
+      expect(existsSync(join(workingDir, "host-executed-analyzer"))).toBe(false);
+      expect(existsSync(join(workingDir, "host-executed-checker"))).toBe(false);
     } finally {
       rmSync(workingDir, { recursive: true, force: true });
     }

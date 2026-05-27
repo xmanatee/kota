@@ -1,12 +1,4 @@
-import { spawnSync } from "node:child_process";
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
-import { dirname } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
 
 const ANALYZER_PATH = "scripts/analyze-claim.mjs";
 const MAIN_DATA_PATH = "data/claims/lx12-biomass.csv";
@@ -33,8 +25,8 @@ const MAIN_EXPECTED = {
     lx12: ["T01", "T02", "T03", "T04", "T05"],
   },
 };
-const HOLDOUT_DATA_PATH = ".kota/claim-holdout.csv";
-const HOLDOUT_OUTPUT_PATH = ".kota/claim-holdout-result.json";
+const HOLDOUT_DATA_PATH = "data/claims/lx12-holdout.csv";
+const HOLDOUT_OUTPUT_PATH = "claim-holdout-result.json";
 const HOLDOUT_EXPECTED = {
   dataPath: HOLDOUT_DATA_PATH,
   outputPath: HOLDOUT_OUTPUT_PATH,
@@ -173,119 +165,32 @@ function validateArtifact(artifact, expected, tolerance, label) {
   return issues;
 }
 
-function runAnalyzer(dataPath, outputPath) {
-  return spawnSync(
-    process.execPath,
-    [ANALYZER_PATH, "--data", dataPath, "--output", outputPath],
-    {
-      cwd: process.cwd(),
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-      timeout: 5000,
-    },
-  );
-}
-
-function ensureHoldoutData() {
-  mkdirSync(dirname(HOLDOUT_DATA_PATH), { recursive: true });
-  writeFileSync(
-    HOLDOUT_DATA_PATH,
-    [
-      "row_id,cohort,phase,site,treatment,dry_biomass_g,include_in_claim,quality_flag,notes",
-      "HC1,mature,week6,greenhouse-a,control,10,yes,ok,holdout control",
-      "HC2,mature,week6,greenhouse-a,control,10,yes,ok,holdout control",
-      "HC3,mature,week6,greenhouse-a,control,10,yes,ok,holdout control",
-      "HT1,mature,week6,greenhouse-a,lx12,16,yes,ok,holdout treatment",
-      "HT2,mature,week6,greenhouse-a,lx12,16,yes,ok,holdout treatment",
-      "HT3,mature,week6,greenhouse-a,lx12,16,yes,ok,holdout treatment",
-      "HX1,mature,week6,greenhouse-a,lx12,41,no,ok,holdout screening trap",
-      "HX2,mature,week6,greenhouse-a,lx12,5,yes,drought,holdout drought trap",
-      "",
-    ].join("\n"),
-  );
-}
-
-function shortcutIssues() {
-  const issues = [];
-  if (!existsSync(ANALYZER_PATH)) {
-    return [`missing ${ANALYZER_PATH}`];
+function validateArtifactFile(path, expected, tolerance, label) {
+  if (!existsSync(path)) {
+    return [`${path} is missing; run the analysis command first`];
   }
-  if (!statSync(ANALYZER_PATH).isFile()) {
-    return [`${ANALYZER_PATH} is not a regular file`];
-  }
-  const source = readFileSync(ANALYZER_PATH, "utf8");
-  const requiredTokens = [
-    "readFile",
-    "median",
-    "include_in_claim",
-    "quality_flag",
-    "cohort",
-    "phase",
-    "site",
-  ];
-  for (const token of requiredTokens) {
-    if (!source.includes(token)) {
-      issues.push(`${ANALYZER_PATH} does not visibly implement ${token}`);
-    }
-  }
-  if (/verdict\s*[:=]\s*["']refuted["']/i.test(source)) {
-    issues.push(`${ANALYZER_PATH} appears to hardcode the refuted verdict`);
-  }
-  if (/median_uplift_pct[\s\S]{0,240}\b30(?:\.0+)?\b/.test(source)) {
-    issues.push(`${ANALYZER_PATH} appears to hardcode the main metric`);
-  }
-  return issues;
+  return validateArtifact(readJson(path), expected, tolerance, label);
 }
 
 const args = parseArgs(process.argv.slice(2));
 const issues = [];
 
-if (!existsSync(MAIN_OUTPUT_PATH)) {
-  issues.push(`${MAIN_OUTPUT_PATH} is missing; run the analysis command first`);
-} else {
-  issues.push(
-    ...validateArtifact(
-      readJson(MAIN_OUTPUT_PATH),
-      MAIN_EXPECTED,
-      args.maxErrorPct,
-      "existing artifact",
-    ),
-  );
-  const mainRun = runAnalyzer(MAIN_DATA_PATH, MAIN_OUTPUT_PATH);
-  if (mainRun.status !== 0 || mainRun.error !== undefined) {
-    issues.push(
-      `main analysis command failed: ${mainRun.stderr || mainRun.error?.message || `exit ${mainRun.status}`}`,
-    );
-  } else {
-    issues.push(
-      ...validateArtifact(
-        readJson(MAIN_OUTPUT_PATH),
-        MAIN_EXPECTED,
-        args.maxErrorPct,
-        "rerun artifact",
-      ),
-    );
-  }
-
-  ensureHoldoutData();
-  const holdoutRun = runAnalyzer(HOLDOUT_DATA_PATH, HOLDOUT_OUTPUT_PATH);
-  if (holdoutRun.status !== 0 || holdoutRun.error !== undefined) {
-    issues.push(
-      `holdout analysis command failed: ${holdoutRun.stderr || holdoutRun.error?.message || `exit ${holdoutRun.status}`}`,
-    );
-  } else {
-    issues.push(
-      ...validateArtifact(
-        readJson(HOLDOUT_OUTPUT_PATH),
-        HOLDOUT_EXPECTED,
-        args.maxErrorPct,
-        "holdout artifact",
-      ),
-    );
-  }
-}
-
-issues.push(...shortcutIssues());
+issues.push(
+  ...validateArtifactFile(
+    MAIN_OUTPUT_PATH,
+    MAIN_EXPECTED,
+    args.maxErrorPct,
+    "main artifact",
+  ),
+);
+issues.push(
+  ...validateArtifactFile(
+    HOLDOUT_OUTPUT_PATH,
+    HOLDOUT_EXPECTED,
+    args.maxErrorPct,
+    "holdout artifact",
+  ),
+);
 
 const metric = existsSync(MAIN_OUTPUT_PATH)
   ? numberAt(readJson(MAIN_OUTPUT_PATH), ["metric", "value"])

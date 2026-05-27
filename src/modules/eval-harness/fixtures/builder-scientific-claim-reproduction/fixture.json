@@ -6,9 +6,10 @@
   "budgetMs": 1800000,
   "predicates": [
     {
-      "kind": "shell-succeeds",
-      "command": "node scripts/check-claim.mjs --max-error-pct 0.000001",
-      "timeoutMs": 15000
+      "kind": "lx12-scientific-claim-result",
+      "mainPath": "claim-result.json",
+      "holdoutPath": "claim-holdout-result.json",
+      "maxErrorPct": 0.000001
     },
     {
       "kind": "file-exists",
@@ -42,6 +43,7 @@
       "allowedPaths": [
         "scripts/analyze-claim.mjs",
         "claim-result.json",
+        "claim-holdout-result.json",
         "data/tasks/ready/task-reproduce-lx12-biomass-claim.md",
         "data/tasks/done/task-reproduce-lx12-biomass-claim.md"
       ]
@@ -73,9 +75,10 @@
   "preRunExpectations": [
     {
       "predicate": {
-        "kind": "shell-succeeds",
-        "command": "node scripts/check-claim.mjs --max-error-pct 0.000001",
-        "timeoutMs": 15000
+        "kind": "lx12-scientific-claim-result",
+        "mainPath": "claim-result.json",
+        "holdoutPath": "claim-holdout-result.json",
+        "maxErrorPct": 0.000001
       },
       "expected": "fail"
     },

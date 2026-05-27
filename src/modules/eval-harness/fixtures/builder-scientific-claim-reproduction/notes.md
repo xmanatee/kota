@@ -15,11 +15,11 @@ claim rows and tempting excluded rows, and `scripts/analyze-claim.mjs` starts
 as a deliberately wrong mean-over-all-rows analysis.
 
 The task asks the builder to implement the median filtered analysis and write
-`claim-result.json`. The scorer reruns the declared analysis command, validates
-the artifact schema and provenance, checks a generated holdout data set so a
-hardcoded refutation fails, and scans the analyzer for obvious shortcut
-patterns. The `median_uplift_pct` objective metric is reported from
-`claim-result.json`; predicates still own pass/fail.
+`claim-result.json` plus `claim-holdout-result.json`. Host-side scoring uses a
+typed harness predicate that parses those fixed artifacts and never executes
+mutable fixture scripts after the workflow run. The holdout data set catches
+main-data-only shortcuts. The `median_uplift_pct` objective metric is reported
+from `claim-result.json`; predicates still own pass/fail.
 
 This stays out of `pnpm test` because the fixture invokes a live builder agent.
 The co-located unit test only verifies fixture wiring and shortcut rejection in

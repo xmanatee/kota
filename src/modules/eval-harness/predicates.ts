@@ -56,6 +56,17 @@ export type FixturePredicate =
       allowedPaths: readonly string[];
     }
   | {
+      /**
+       * Fixture-owned scientific claim scorer. It validates the main and
+       * holdout result artifacts from trusted harness code instead of running
+       * mutable fixture scripts during host-side predicate evaluation.
+       */
+      kind: "lx12-scientific-claim-result";
+      mainPath: string;
+      holdoutPath: string;
+      maxErrorPct: number;
+    }
+  | {
       kind: "shell-succeeds";
       command: string;
       /** Per-command timeout in ms. Capped at 5 minutes. */
@@ -144,6 +155,65 @@ const SHELL_PREDICATE_MAX_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_SHELL_TIMEOUT_MS = 60_000;
 const OUTPUT_TAIL_LIMIT = 4_000;
 const DEFAULT_GIT_CHANGE_IGNORED_PREFIXES = [".kota/"] as const;
+const SCIENTIFIC_CLAIM_ID = "claim-lx12-mature-week6-biomass";
+const SCIENTIFIC_CLAIM_METRIC = "median_uplift_pct";
+const SCIENTIFIC_CLAIM_THRESHOLD_PCT = 40;
+const SCIENTIFIC_CLAIM_ANALYZER_PATH = "scripts/analyze-claim.mjs";
+const SCIENTIFIC_CLAIM_FILTERS: { readonly [key: string]: string } = {
+  cohort: "mature",
+  phase: "week6",
+  site: "greenhouse-a",
+  include_in_claim: "yes",
+  quality_flag: "ok",
+};
+
+type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonObject
+  | readonly JsonValue[];
+type JsonObject = { readonly [key: string]: JsonValue | undefined };
+
+type ScientificClaimExpected = {
+  dataPath: string;
+  outputPath: string;
+  verdict: "supported" | "refuted";
+  controlMedian: number;
+  treatmentMedian: number;
+  upliftPct: number;
+  rowIds: {
+    control: readonly string[];
+    lx12: readonly string[];
+  };
+};
+
+const MAIN_CLAIM_EXPECTED: ScientificClaimExpected = {
+  dataPath: "data/claims/lx12-biomass.csv",
+  outputPath: "claim-result.json",
+  verdict: "refuted",
+  controlMedian: 10,
+  treatmentMedian: 13,
+  upliftPct: 30,
+  rowIds: {
+    control: ["C01", "C02", "C03", "C04", "C05"],
+    lx12: ["T01", "T02", "T03", "T04", "T05"],
+  },
+};
+
+const HOLDOUT_CLAIM_EXPECTED: ScientificClaimExpected = {
+  dataPath: "data/claims/lx12-holdout.csv",
+  outputPath: "claim-holdout-result.json",
+  verdict: "supported",
+  controlMedian: 10,
+  treatmentMedian: 16,
+  upliftPct: 60,
+  rowIds: {
+    control: ["HC1", "HC2", "HC3"],
+    lx12: ["HT1", "HT2", "HT3"],
+  },
+};
 
 function tail(text: string, limit: number): string {
   if (text.length <= limit) return text;
@@ -206,6 +276,190 @@ function evaluateFileContains(
     detail: found
       ? `file ${predicate.path} contains needle (${predicate.needle.length} chars)`
       : `file ${predicate.path} missing needle`,
+  };
+}
+
+function isJsonObject(value: JsonValue | undefined): value is JsonObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function asObject(value: JsonValue | undefined): JsonObject {
+  return isJsonObject(value) ? value : {};
+}
+
+function numberAt(record: JsonObject, path: readonly string[]): number {
+  let value: JsonValue | undefined = record;
+  for (const key of path) {
+    value = asObject(value)[key];
+  }
+  return typeof value === "number" ? value : Number.NaN;
+}
+
+function arraysEqual(actual: JsonValue | undefined, expected: readonly string[]): boolean {
+  return (
+    Array.isArray(actual) &&
+    actual.length === expected.length &&
+    actual.every((value, index) => value === expected[index])
+  );
+}
+
+function approxEqual(actual: number, expected: number, tolerance: number): boolean {
+  return Number.isFinite(actual) && Math.abs(actual - expected) <= tolerance;
+}
+
+type ParsedJsonObject =
+  | { ok: true; value: JsonObject }
+  | { ok: false; issue: string };
+
+function readJsonObject(workingDir: string, path: string, label: string): ParsedJsonObject {
+  const absolute = join(workingDir, path);
+  if (!existsSync(absolute)) {
+    return { ok: false, issue: `${label}: ${path} is missing` };
+  }
+  try {
+    const parsed: JsonValue = JSON.parse(readFileSync(absolute, "utf-8"));
+    if (!isJsonObject(parsed)) {
+      return { ok: false, issue: `${label}: ${path} is not a JSON object` };
+    }
+    return { ok: true, value: parsed };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { ok: false, issue: `${label}: ${path} is not valid JSON: ${message}` };
+  }
+}
+
+function validateScientificClaimArtifact(
+  artifact: JsonObject,
+  expected: ScientificClaimExpected,
+  tolerance: number,
+  label: string,
+): string[] {
+  const issues: string[] = [];
+  if (artifact.schemaVersion !== 1) {
+    issues.push(`${label}: schemaVersion must be 1`);
+  }
+  if (artifact.claimId !== SCIENTIFIC_CLAIM_ID) {
+    issues.push(`${label}: claimId must be ${SCIENTIFIC_CLAIM_ID}`);
+  }
+  if (artifact.verdict !== expected.verdict) {
+    issues.push(
+      `${label}: verdict ${JSON.stringify(artifact.verdict)} is not ${expected.verdict}`,
+    );
+  }
+
+  const metric = asObject(artifact.metric);
+  if (metric.name !== SCIENTIFIC_CLAIM_METRIC) {
+    issues.push(`${label}: metric.name must be ${SCIENTIFIC_CLAIM_METRIC}`);
+  }
+  const metricChecks = [
+    ["metric.value", numberAt(artifact, ["metric", "value"]), expected.upliftPct],
+    [
+      "metric.control_median",
+      numberAt(artifact, ["metric", "control_median"]),
+      expected.controlMedian,
+    ],
+    [
+      "metric.treatment_median",
+      numberAt(artifact, ["metric", "treatment_median"]),
+      expected.treatmentMedian,
+    ],
+    [
+      "metric.threshold_pct",
+      numberAt(artifact, ["metric", "threshold_pct"]),
+      SCIENTIFIC_CLAIM_THRESHOLD_PCT,
+    ],
+  ] as const;
+  for (const [name, actual, expectedValue] of metricChecks) {
+    if (!approxEqual(actual, expectedValue, tolerance)) {
+      issues.push(
+        `${label}: ${name} ${actual} differs from expected ${expectedValue}`,
+      );
+    }
+  }
+
+  const expectedCommand =
+    `node ${SCIENTIFIC_CLAIM_ANALYZER_PATH} --data ${expected.dataPath} --output ${expected.outputPath}`;
+  if (artifact.command !== expectedCommand) {
+    issues.push(`${label}: command must be ${JSON.stringify(expectedCommand)}`);
+  }
+
+  const provenance = asObject(artifact.provenance);
+  if (provenance.data !== expected.dataPath) {
+    issues.push(`${label}: provenance.data must be ${expected.dataPath}`);
+  }
+  if (provenance.method !== "median") {
+    issues.push(`${label}: provenance.method must be "median"`);
+  }
+  const filters = asObject(provenance.filters);
+  for (const [key, value] of Object.entries(SCIENTIFIC_CLAIM_FILTERS)) {
+    if (filters[key] !== value) {
+      issues.push(`${label}: provenance.filters.${key} must be ${value}`);
+    }
+  }
+  const rowIds = asObject(provenance.row_ids);
+  if (!arraysEqual(rowIds.control, expected.rowIds.control)) {
+    issues.push(
+      `${label}: provenance.row_ids.control must be ${expected.rowIds.control.join(",")}`,
+    );
+  }
+  if (!arraysEqual(rowIds.lx12, expected.rowIds.lx12)) {
+    issues.push(
+      `${label}: provenance.row_ids.lx12 must be ${expected.rowIds.lx12.join(",")}`,
+    );
+  }
+  return issues;
+}
+
+function evaluateScientificClaimResult(
+  workingDir: string,
+  predicate: Extract<FixturePredicate, { kind: "lx12-scientific-claim-result" }>,
+): PredicateEvalResult {
+  const issues: string[] = [];
+  if (!Number.isFinite(predicate.maxErrorPct) || predicate.maxErrorPct < 0) {
+    issues.push(`maxErrorPct must be a non-negative number, got ${predicate.maxErrorPct}`);
+  }
+  if (predicate.mainPath !== MAIN_CLAIM_EXPECTED.outputPath) {
+    issues.push(`mainPath must be ${MAIN_CLAIM_EXPECTED.outputPath}`);
+  }
+  if (predicate.holdoutPath !== HOLDOUT_CLAIM_EXPECTED.outputPath) {
+    issues.push(`holdoutPath must be ${HOLDOUT_CLAIM_EXPECTED.outputPath}`);
+  }
+
+  const main = readJsonObject(workingDir, predicate.mainPath, "main artifact");
+  if (main.ok) {
+    issues.push(
+      ...validateScientificClaimArtifact(
+        main.value,
+        MAIN_CLAIM_EXPECTED,
+        predicate.maxErrorPct,
+        "main artifact",
+      ),
+    );
+  } else {
+    issues.push(main.issue);
+  }
+
+  const holdout = readJsonObject(workingDir, predicate.holdoutPath, "holdout artifact");
+  if (holdout.ok) {
+    issues.push(
+      ...validateScientificClaimArtifact(
+        holdout.value,
+        HOLDOUT_CLAIM_EXPECTED,
+        predicate.maxErrorPct,
+        "holdout artifact",
+      ),
+    );
+  } else {
+    issues.push(holdout.issue);
+  }
+
+  return {
+    predicate,
+    passed: issues.length === 0,
+    detail:
+      issues.length === 0
+        ? `lx12-scientific-claim-result verified ${predicate.mainPath} and ${predicate.holdoutPath}`
+        : `lx12-scientific-claim-result failed:\n- ${issues.join("\n- ")}`,
   };
 }
 
@@ -679,6 +933,8 @@ export function evaluatePredicate(
       return evaluateFileContains(workingDir, predicate);
     case "git-changes-within":
       return evaluateGitChangesWithin(workingDir, predicate);
+    case "lx12-scientific-claim-result":
+      return evaluateScientificClaimResult(workingDir, predicate);
     case "shell-succeeds":
     case "shell-fails":
       return evaluateShell(workingDir, predicate);
