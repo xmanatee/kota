@@ -533,3 +533,7 @@ resources:
   - url: https://github.com/snowmountainAi/webdevbench
     added: "2026-05-27"
     notes: "SWE-WebDev-Bench project repository for evaluating AI coding platforms as virtual software agencies. Monitor benchmark/code/data updates as an eval-harness signal for product-requirement canaries, app-creation vs app-modification retention, frontend/backend coupling, production readiness, security, and business-readiness scoring."
+    snapshot:
+      fingerprint: sha256:c2bec5f42afd453adc5073f108a52743
+      summary: "SWE-WebDev-Bench is accessible and reinforces KOTA's completed product-requirements canary fixture direction; no duplicate task is needed because task-add-a-product-requirements-canary-fixture-to-the-e already covers the nonduplicative local gap."
+      last_seen_at: "2026-05-27T18:40:29.960Z"
