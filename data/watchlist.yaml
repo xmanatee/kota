@@ -139,6 +139,9 @@ resources:
       fingerprint: sha256:0be8f9c919503c61eac1502cfc4fbf7d
       summary: "AgentAtlas reinforces KOTA's completed eval-harness control-decision coverage metadata and existing trajectory diagnostics; no duplicate task is needed because task-add-control-decision-coverage-metadata-to-eval-fix already covered the nonduplicative local gap."
       last_seen_at: "2026-05-27T03:05:49.118Z"
+  - url: https://arxiv.org/abs/2605.00803
+    added: "2026-05-27"
+    notes: "AutoMat evaluates coding agents on reproducing computational materials-science claims by recovering underspecified procedures, executing the workflow, and judging whether evidence supports the claim. Monitor as an eval-harness signal for claim-reproduction fixtures and execution-fragility diagnostics, not as an imported benchmark."
   - url: https://github.com/letta-ai/letta
     added: "2026-04-19"
     snapshot:
