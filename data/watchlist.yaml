@@ -25,9 +25,9 @@ resources:
   - url: https://github.com/badlogic/pi-mono
     added: "2026-04-14"
     snapshot:
-      fingerprint: sha256:0ae693a2ac83f26cdca84edae7c2e72c
-      summary: "Pi moved to earendil-works/pi and remains a broad TypeScript agent toolkit; the refreshed signal is still real-world coding-session evidence and terminal/UI ergonomics, not a new KOTA primitive."
-      last_seen_at: "2026-05-18T08:48:25.077Z"
+      fingerprint: sha256:9b40f26a20b569112c27e4a9f0018f6a
+      summary: "The old Pi watchlist URL redirects to earendil-works/pi; the current run opened task-canonicalize-moved-watchlist-repository-entries for the stale-alias gap."
+      last_seen_at: "2026-05-27T11:36:10.460Z"
   - url: https://github.com/anthropics/claude-code
     added: "2026-04-19"
     snapshot:
@@ -70,15 +70,15 @@ resources:
   - url: https://github.com/Aider-AI/aider
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:af24199d1c209c6bcb6499e16c430773
-      summary: "Aider remains active as a git-aware terminal pair-programming CLI; this refresh opened no new KOTA task."
-      last_seen_at: "2026-05-17T08:57:00.839Z"
+      fingerprint: sha256:41299206762d1af653c841d79659fe72
+      summary: "Aider still reinforces git-aware terminal pair-programming, repo maps, and test/lint loops; no new KOTA task was opened from this refresh."
+      last_seen_at: "2026-05-27T11:36:10.460Z"
   - url: https://github.com/block/goose
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:dba0c1407587d3a27feaaad236089b00
-      summary: "Goose has moved under aaif-goose and its latest release now carries a concrete delegate model-limit signal; this run opened task-apply-model-specific-output-limits-to-delegated-mo for KOTA's matching routed max_tokens gap."
-      last_seen_at: "2026-05-26T13:53:17.112Z"
+      fingerprint: sha256:bfac01b2d0d1fdf6e1f0584b3064a8da
+      summary: "The old goose watchlist URL redirects to aaif-goose/goose and the README names the AAIF move; the current run opened a canonicalization task for moved watchlist repositories."
+      last_seen_at: "2026-05-27T11:36:10.460Z"
   - url: https://github.com/All-Hands-AI/OpenHands
     added: "2026-04-19"
     snapshot:
@@ -88,9 +88,9 @@ resources:
   - url: https://github.com/SWE-agent/SWE-agent
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:470b80192f388b0a1e0f5546ce43a199
-      summary: "SWE-agent still exists as the research coding-agent repo, but its current durable signal is the mini-SWE-agent successor and its bash-action substrate."
-      last_seen_at: "2026-05-17T08:57:00.839Z"
+      fingerprint: sha256:7f125fd9f4b6ef49e60b8e4541899b21
+      summary: "SWE-agent remains a research coding-agent reference, but current actionable KOTA signal continues to live in the mini-SWE-agent/ProgramBench successor path already tracked."
+      last_seen_at: "2026-05-27T11:36:10.460Z"
   - url: https://github.com/SWE-agent/mini-swe-agent
     added: "2026-05-17"
     notes: "SWE-agent now points operators at mini-SWE-agent as its simplified successor: a compact coding-agent runtime built around independent bash actions, multiple sandbox backends, and SWE-bench evaluation. Monitor as a peer signal for harness-parity substrate evidence and coding-agent eval ergonomics."
@@ -149,9 +149,9 @@ resources:
   - url: https://github.com/letta-ai/letta
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:4418d5c6f8d7298186355ded4e0b8c64
-      summary: "Letta remains centered on stateful memory, skills, subagents, and a local coding CLI; no new nonduplicative KOTA task was opened from this refresh."
-      last_seen_at: "2026-05-17T13:08:55.112Z"
+      fingerprint: sha256:7e83eb9fbd8f2df3df0de80d77f7e324
+      summary: "Letta now foregrounds Letta Code plus skills/subagents and memory blocks; existing KOTA memory-block and skill decisions cover the nonduplicative signal."
+      last_seen_at: "2026-05-27T11:36:10.460Z"
   - url: https://github.com/microsoft/autogen
     added: "2026-04-19"
     snapshot:
@@ -179,9 +179,9 @@ resources:
   - url: https://github.com/mannaandpoem/OpenManus
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:65e62fecfe395e58c1c47f1070df5ca5
-      summary: "mannaandpoem/OpenManus has been moved to FoundationAgents/OpenManus; the old URL now only carries navigation metadata and a redirect notice. Monitoring the old URL has no value; the durable project lives at the new repo and should be added as a separate watchlist entry."
-      last_seen_at: "2026-04-20T10:27:20.863Z"
+      fingerprint: sha256:56345c434a55cc09be62c6b306f18fa3
+      summary: "The old OpenManus URL is only a moved-project pointer to FoundationAgents/OpenManus, which KOTA already tracks; the current run opened a canonicalization task for this duplicate stale alias."
+      last_seen_at: "2026-05-27T11:36:10.460Z"
   - url: https://github.com/FoundationAgents/OpenManus
     added: "2026-04-20"
     snapshot:
@@ -197,9 +197,9 @@ resources:
   - url: https://github.com/noahshinn/reflexion
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:0265fa0a27e94e8462d8f675e300be5b
-      summary: "Reflexion introduces verbal-reinforcement self-reflection: the agent writes natural-language lessons from each failure to condition the next attempt, evaluated across HotPotQA, AlfWorld, LeetcodeHardGym, and WebShop with consistent baseline beats."
-      last_seen_at: "2026-04-20T09:13:55.826Z"
+      fingerprint: sha256:c36cfb9465e95b41302c7b33eacbc2be
+      summary: "Reflexion remains an archival verbal self-reflection signal; KOTA's existing reject verdict still covers it."
+      last_seen_at: "2026-05-27T11:36:10.460Z"
   - url: https://www.anthropic.com/research
     added: "2026-04-19"
     snapshot:
