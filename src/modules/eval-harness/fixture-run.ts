@@ -7,6 +7,7 @@
  * distinguish real regressions from host drift.
  */
 
+import type { CodeHealthDiagnostics } from "./code-health-diagnostics.js";
 import type { ObservedObjectiveMetric } from "./objective-metrics.js";
 
 /**
@@ -126,6 +127,12 @@ export type FixtureRun = {
    * when the fixture declares no objective metrics.
    */
   objectiveMetrics: readonly ObservedObjectiveMetric[];
+  /**
+   * Optional deterministic source-tree diagnostics for fixtures that
+   * explicitly opt in. Advisory only; pass/fail scoring remains predicate
+   * based.
+   */
+  codeHealthDiagnostics?: CodeHealthDiagnostics;
   /**
    * Present only for persistent multi-round fixtures. The top-level fixture
    * remains one scored run; round records preserve diagnostic outcomes.

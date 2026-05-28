@@ -52,6 +52,7 @@ import type {
   EvalListResult,
   EvalRunResult,
 } from "./client.js";
+import type { CodeHealthAggregate } from "./code-health-diagnostics.js";
 import evalHarnessModule from "./index.js";
 import type { FixtureDiagnosticsReport } from "./scoring.js";
 
@@ -108,6 +109,18 @@ const SAMPLE_FIXTURE_DIAGNOSTICS: FixtureDiagnosticsReport = {
     insufficientSample: 0,
     nonGating: 0,
     lowSignalWarnings: 0,
+  },
+};
+
+const SAMPLE_CODE_HEALTH: CodeHealthAggregate = {
+  diagnosticRunCount: 0,
+  runsWithWarnings: 0,
+  fixturesWithWarnings: 0,
+  totalWarnings: 0,
+  warningCounts: {
+    "source-size-growth": 0,
+    "duplicated-implementation-chunk": 0,
+    "complexity-concentration": 0,
   },
 };
 
@@ -215,6 +228,7 @@ describe("eval-harness module daemonClient(link)", () => {
       passHatK: 1,
       controlDecisionCoverage: SAMPLE_CONTROL_DECISION_COVERAGE,
       objectiveMetrics: [],
+      codeHealth: SAMPLE_CODE_HEALTH,
       fixtureDiagnostics: SAMPLE_FIXTURE_DIAGNOSTICS,
       runConfiguration: SAMPLE_RUN_CONFIGURATION,
       baselineConfigurationComparison: null,
@@ -244,6 +258,7 @@ describe("eval-harness module daemonClient(link)", () => {
       passHatK: 1,
       controlDecisionCoverage: SAMPLE_CONTROL_DECISION_COVERAGE,
       objectiveMetrics: [],
+      codeHealth: SAMPLE_CODE_HEALTH,
       fixtureDiagnostics: SAMPLE_FIXTURE_DIAGNOSTICS,
       runConfiguration: SAMPLE_RUN_CONFIGURATION,
       baselineConfigurationComparison: null,

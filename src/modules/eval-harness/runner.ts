@@ -29,6 +29,14 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import {
+  type CodeHealthDiagnostics,
+  type CodeHealthMeasurement,
+  type CodeHealthRoundDiagnostics,
+  evaluateCodeHealthRound,
+  finalizeCodeHealthDiagnostics,
+  measureCodeHealth,
+} from "./code-health-diagnostics.js";
 import { installExternalCallShims } from "./external-call-shim.js";
 import {
   type FixtureRoundSpec,
@@ -286,6 +294,42 @@ function writeRunArtifact(
   );
 }
 
+function codeHealthBaselineFor(
+  workingDir: string,
+  spec: LoadedFixture["spec"],
+): CodeHealthMeasurement | undefined {
+  if (spec.codeHealthDiagnostics === undefined) return undefined;
+  return measureCodeHealth(workingDir, spec.codeHealthDiagnostics);
+}
+
+function finalCodeHealthFor(params: {
+  workingDir: string;
+  spec: LoadedFixture["spec"];
+  baseline: CodeHealthMeasurement | undefined;
+  outcome: FixtureRunOutcome;
+}): CodeHealthDiagnostics | undefined {
+  if (
+    params.spec.codeHealthDiagnostics === undefined ||
+    params.baseline === undefined
+  ) {
+    return undefined;
+  }
+  const round = evaluateCodeHealthRound({
+    config: params.spec.codeHealthDiagnostics,
+    workingDir: params.workingDir,
+    baseline: params.baseline,
+    previous: params.baseline,
+    roundId: "final",
+    roundIndex: 0,
+    outcome: params.outcome,
+  });
+  return finalizeCodeHealthDiagnostics({
+    config: params.spec.codeHealthDiagnostics,
+    baseline: params.baseline,
+    rounds: [round],
+  });
+}
+
 function relativePathInside(root: string, relativePath: string, label: string): string {
   if (relativePath.length === 0 || isAbsolute(relativePath)) {
     throw new Error(`${label} must be a non-empty relative path.`);
@@ -505,6 +549,7 @@ async function runSingleWorkflowFixture(
     );
   }
   const { workingDir, shimDir } = materializeFixtureWorkingDir(params.fixture);
+  const codeHealthBaseline = codeHealthBaselineFor(workingDir, spec);
   const startedAt = new Date();
   const startMs = startedAt.getTime();
   let executionOutcome: WorkflowExecutionOutcome;
@@ -526,6 +571,14 @@ async function runSingleWorkflowFixture(
       reason: "pre-run-sanity-failed",
       runArtifactPath: null,
     };
+    const codeHealthDiagnostics =
+      spec.codeHealthDiagnostics !== undefined && codeHealthBaseline !== undefined
+        ? finalizeCodeHealthDiagnostics({
+            config: spec.codeHealthDiagnostics,
+            baseline: codeHealthBaseline,
+            rounds: [],
+          })
+        : undefined;
     const run: FixtureRun = {
       fixtureId: params.fixture.spec.id,
       runIndex: params.runIndex,
@@ -534,6 +587,7 @@ async function runSingleWorkflowFixture(
       resourceProfile,
       executionProfile: params.executionProfile,
       objectiveMetrics: [],
+      ...(codeHealthDiagnostics !== undefined && { codeHealthDiagnostics }),
       timing: {
         startedAt: startedAt.toISOString(),
         durationMs: executionOutcome.durationMs,
@@ -590,6 +644,12 @@ async function runSingleWorkflowFixture(
     spec.predicates,
   );
   const outcome = outcomeFromExecution(executionOutcome, passed);
+  const codeHealthDiagnostics = finalCodeHealthFor({
+    workingDir,
+    spec,
+    baseline: codeHealthBaseline,
+    outcome,
+  });
   const objectiveMetrics = evaluateObjectiveMetrics({
     fixtureId: spec.id,
     metricSpecs: spec.objectiveMetrics ?? [],
@@ -607,6 +667,7 @@ async function runSingleWorkflowFixture(
     resourceProfile,
     executionProfile: params.executionProfile,
     objectiveMetrics,
+    ...(codeHealthDiagnostics !== undefined && { codeHealthDiagnostics }),
     timing: {
       startedAt: startedAt.toISOString(),
       durationMs: executionOutcome.durationMs,
@@ -648,6 +709,8 @@ async function runMultiRoundFixture(
     );
   }
   const { workingDir, shimDir } = materializeFixtureWorkingDir(params.fixture);
+  const codeHealthBaseline = codeHealthBaselineFor(workingDir, spec);
+  const codeHealthRounds: CodeHealthRoundDiagnostics[] = [];
   const startedAt = new Date();
   const startMs = startedAt.getTime();
   const resourceProfile = resourceProfileFromExecutionProfile(
@@ -673,6 +736,25 @@ async function runMultiRoundFixture(
       repeatCount: params.repeatCount,
     });
     roundResults.push(roundResult);
+    if (
+      spec.codeHealthDiagnostics !== undefined &&
+      codeHealthBaseline !== undefined
+    ) {
+      const previous =
+        codeHealthRounds[codeHealthRounds.length - 1]?.measurement ??
+        codeHealthBaseline;
+      codeHealthRounds.push(
+        evaluateCodeHealthRound({
+          config: spec.codeHealthDiagnostics,
+          workingDir,
+          baseline: codeHealthBaseline,
+          previous,
+          roundId: round.id,
+          roundIndex,
+          outcome: roundResult.outcome,
+        }),
+      );
+    }
     if (roundResult.outcome !== "pass") break;
   }
 
@@ -711,6 +793,14 @@ async function runMultiRoundFixture(
       runArtifactPath:
         roundResults[roundResults.length - 1]?.executionOutcome.runArtifactPath ?? null,
     } satisfies WorkflowExecutionOutcome);
+  const codeHealthDiagnostics =
+    spec.codeHealthDiagnostics !== undefined && codeHealthBaseline !== undefined
+      ? finalizeCodeHealthDiagnostics({
+          config: spec.codeHealthDiagnostics,
+          baseline: codeHealthBaseline,
+          rounds: codeHealthRounds,
+        })
+      : undefined;
   const run: FixtureRun = {
     fixtureId: spec.id,
     runIndex: params.runIndex,
@@ -719,6 +809,7 @@ async function runMultiRoundFixture(
     resourceProfile,
     executionProfile: params.executionProfile,
     objectiveMetrics,
+    ...(codeHealthDiagnostics !== undefined && { codeHealthDiagnostics }),
     rounds: roundResults.map(roundRunSummary),
     timing: {
       startedAt: startedAt.toISOString(),

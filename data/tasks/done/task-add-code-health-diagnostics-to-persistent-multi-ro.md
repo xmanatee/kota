@@ -1,12 +1,12 @@
 ---
 id: task-add-code-health-diagnostics-to-persistent-multi-ro
 title: Add code-health diagnostics to persistent multi-round eval runs
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Extend persistent multi-round eval artifacts with deterministic code-health diagnostics for structural erosion and verbosity, so passing evolving-requirement runs can still surface maintainability degradation without importing an external benchmark.
 created_at: 2026-05-28T15:13:48.743Z
-updated_at: 2026-05-28T15:13:48.743Z
+updated_at: 2026-05-28T15:31:00.000Z
 ---
 
 ## Problem
@@ -133,3 +133,15 @@ whether each round's visible behavior still passes.
 - A sample `fixture-run.json` under `.kota/runs/<run-id>/` includes baseline
   and per-round code-health measurements plus at least one bounded warning
   code from the new shape.
+
+## Completion Evidence
+
+- Added opt-in eval-harness code-health diagnostics for fixture source globs,
+  with baseline/per-round measurements and bounded warning counts in
+  `fixture-run.json` and eval-set/CLI aggregate output.
+- Verification passed:
+  `pnpm test src/modules/eval-harness/code-health-diagnostics.test.ts src/modules/eval-harness/fixture.test.ts src/modules/eval-harness/runner.test.ts src/modules/eval-harness/eval-set.test.ts src/modules/eval-harness/cli.test.ts src/modules/eval-harness/daemon-client.test.ts`
+  and `pnpm typecheck`.
+- Captured run evidence in
+  `.kota/runs/2026-05-28T15-16-27-423Z-builder-wfldiy/transcript.txt` and
+  `.kota/runs/2026-05-28T15-16-27-423Z-builder-wfldiy/sample-code-health-eval/code-health-sample-0/fixture-run.json`.

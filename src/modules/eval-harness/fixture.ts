@@ -19,6 +19,10 @@ import {
   recordingsDirForFixture,
 } from "./agent-step-recording.js";
 import {
+  type CodeHealthDiagnosticsConfig,
+  parseCodeHealthDiagnosticsConfig,
+} from "./code-health-diagnostics.js";
+import {
   type ObjectiveMetricSpec,
   ObjectiveMetricValidationError,
   parseObjectiveMetricSpec,
@@ -157,6 +161,12 @@ export type FixtureSpecCommon = {
    * them.
    */
   tags?: readonly string[];
+  /**
+   * Optional deterministic source-tree diagnostics. Fixtures must explicitly
+   * name the tracked source globs so generated or vendored files do not skew
+   * the measurements.
+   */
+  codeHealthDiagnostics?: CodeHealthDiagnosticsConfig;
 };
 
 export type SingleWorkflowFixtureSpecFile = FixtureSpecCommon & {
@@ -724,6 +734,10 @@ function parseCommonSpecFields(
   const controlDecisions = parseControlDecisions(r.controlDecisions, fixtureDir);
   const externalCallShims = parseExternalCallShims(r.externalCallShims, fixtureDir);
   const tags = parseOptionalTags(r.tags, fixtureDir);
+  const codeHealthDiagnostics = parseCodeHealthDiagnosticsConfig(
+    r.codeHealthDiagnostics,
+    fixtureDir,
+  );
   return {
     id: parseRequiredString(r, "id", fixtureDir),
     description: parseRequiredString(r, "description", fixtureDir),
@@ -732,6 +746,7 @@ function parseCommonSpecFields(
     controlDecisions,
     ...(externalCallShims !== undefined && { externalCallShims }),
     ...(tags !== undefined && { tags }),
+    ...(codeHealthDiagnostics !== undefined && { codeHealthDiagnostics }),
   };
 }
 

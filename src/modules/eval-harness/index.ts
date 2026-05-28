@@ -85,6 +85,35 @@ export {
   loadBaseline,
   saveBaseline,
 } from "./baseline-store.js";
+export type {
+  CodeHealthAggregate,
+  CodeHealthDiagnostics,
+  CodeHealthDiagnosticsConfig,
+  CodeHealthDiagnosticsValidationReason,
+  CodeHealthDuplicateChunkMeasurement,
+  CodeHealthDuplicateChunkSample,
+  CodeHealthGrowthComparison,
+  CodeHealthLargestFileMeasurement,
+  CodeHealthLargestFunctionMeasurement,
+  CodeHealthMeasurement,
+  CodeHealthRoundDiagnostics,
+  CodeHealthSourceFileMeasurement,
+  CodeHealthThresholds,
+  CodeHealthWarning,
+  CodeHealthWarningCode,
+  CodeHealthWarningCounts,
+} from "./code-health-diagnostics.js";
+export {
+  aggregateCodeHealthDiagnostics,
+  CODE_HEALTH_WARNING_CODES,
+  CodeHealthDiagnosticsValidationError,
+  DEFAULT_CODE_HEALTH_THRESHOLDS,
+  emptyCodeHealthWarningCounts,
+  evaluateCodeHealthRound,
+  finalizeCodeHealthDiagnostics,
+  measureCodeHealth,
+  parseCodeHealthDiagnosticsConfig,
+} from "./code-health-diagnostics.js";
 export type { EvalSetParams, EvalSetReport } from "./eval-set.js";
 export { runEvalSet } from "./eval-set.js";
 export type { InstalledShims } from "./external-call-shim.js";

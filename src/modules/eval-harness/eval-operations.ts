@@ -201,6 +201,7 @@ export async function runEvalHarness(
     passHatK: report.aggregate.passHatK,
     controlDecisionCoverage: report.controlDecisionCoverage,
     objectiveMetrics: [...report.objectiveMetrics],
+    codeHealth: report.codeHealth,
     fixtureDiagnostics: report.fixtureDiagnostics,
     runConfiguration: toRunConfigurationOperatorSummary(report.runConfiguration),
     baselineConfigurationComparison,

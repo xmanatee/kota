@@ -243,6 +243,88 @@ describe("runEvalSet", () => {
     expect(raw.runs[0].objectiveMetrics[0].value).toBe(12);
   });
 
+  it("aggregates code-health warning counts without changing pass/fail aggregation", async () => {
+    const dir = join(fixturesRoot, "code-health");
+    mkdirSync(join(dir, "initial", "src"), { recursive: true });
+    mkdirSync(join(dir, "initial", "state"), { recursive: true });
+    writeFileSync(join(dir, "initial", "src", "app.ts"), "export const a = 1;\n");
+    writeFileSync(
+      join(dir, "fixture.json"),
+      JSON.stringify({
+        id: "code-health",
+        description: "code health aggregate fixture",
+        role: "builder",
+        mode: "multi-round",
+        codeHealthDiagnostics: {
+          sourceGlobs: ["src/**/*.ts"],
+          thresholds: {
+            minSourceGrowthBytes: 1,
+            maxBaselineBytesGrowthRatio: 1.1,
+            maxPreviousBytesGrowthRatio: 1.1,
+            duplicateChunkLines: 3,
+            duplicateChunkMinOccurrences: 2,
+            maxLargestFileBytesShare: 1,
+            maxLargestFunctionLines: 100,
+          },
+        },
+        rounds: [
+          {
+            id: "round-1",
+            workflowName: "builder",
+            budgetMs: 60_000,
+            taskInput: { kind: "initial-state" },
+            preRunExpectations: [
+              { predicate: { kind: "file-exists", path: "state/done.txt" }, expected: "fail" },
+            ],
+            predicates: [{ kind: "file-exists", path: "state/done.txt" }],
+          },
+        ],
+        controlDecisions: ["act"],
+        provenance: {
+          kind: "smoke-fixture",
+          justification: "tests code-health aggregation",
+        },
+      }),
+    );
+    const report = await runEvalSet({
+      projectDir: fixturesRoot,
+      fixtures: loadAllFixtures(fixturesRoot),
+      executor: {
+        preflight: () => EXECUTION_PROFILE,
+        execute: async ({ workingDir }) => {
+          writeFileSync(join(workingDir, "state", "done.txt"), "ok");
+          writeFileSync(
+            join(workingDir, "src", "app.ts"),
+            "export const a = 1;\nexport const padding = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';\n",
+          );
+          return { kind: "completed", durationMs: 10, runArtifactPath: null };
+        },
+      },
+      requestedProfile: PROFILE,
+      runArtifactBaseDir: runsRoot,
+      repeatCount: 1,
+    });
+
+    expect(report.aggregate.passAtK).toBe(1);
+    expect(report.aggregate.passHatK).toBe(1);
+    expect(report.codeHealth).toMatchObject({
+      diagnosticRunCount: 1,
+      runsWithWarnings: 1,
+      fixturesWithWarnings: 1,
+      totalWarnings: 1,
+      warningCounts: {
+        "source-size-growth": 1,
+        "duplicated-implementation-chunk": 0,
+        "complexity-concentration": 0,
+      },
+    });
+    const raw = JSON.parse(
+      readFileSync(join(runsRoot, "eval-set-report.json"), "utf-8"),
+    );
+    expect(raw.codeHealth.warningCounts["source-size-growth"]).toBe(1);
+    expect(raw.runs[0].codeHealthDiagnostics.warningCounts["source-size-growth"]).toBe(1);
+  });
+
   it("summarizes resolved harness and model evidence from child workflow artifacts", async () => {
     seedFixture(fixturesRoot, "alpha", { kind: "file-exists", path: "alpha.txt" });
     const report = await runEvalSet({

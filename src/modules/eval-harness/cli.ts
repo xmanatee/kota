@@ -241,9 +241,29 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
             ? plain(` delta=${metric.comparison.delta.toFixed(3)}`)
             : metric.comparison?.status === "not-compared"
               ? span(` delta not compared (${metric.comparison.reason})`, "muted")
-              : plain(""),
+            : plain(""),
         ),
       );
+      const codeHealthRows =
+        result.codeHealth.diagnosticRunCount > 0
+          ? [
+              line(
+                plain("code health: "),
+                plain(`diagnostic-runs=${result.codeHealth.diagnosticRunCount}`),
+                plain(` warned-runs=${result.codeHealth.runsWithWarnings}`),
+                plain(` warnings=${result.codeHealth.totalWarnings}`),
+                plain(
+                  ` source-size-growth=${result.codeHealth.warningCounts["source-size-growth"]}`,
+                ),
+                plain(
+                  ` duplicated-implementation-chunk=${result.codeHealth.warningCounts["duplicated-implementation-chunk"]}`,
+                ),
+                plain(
+                  ` complexity-concentration=${result.codeHealth.warningCounts["complexity-concentration"]}`,
+                ),
+              ),
+            ]
+          : [];
       const configurationRows = [
         line(
           plain("configuration: "),
@@ -298,6 +318,7 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
         line(span(`artifacts: ${result.runArtifactBaseDir}`, "muted")),
         ...configurationRows,
         ...repeatUnstableRows,
+        ...codeHealthRows,
         ...metricRows,
       ));
       if (passHatK < 1) {

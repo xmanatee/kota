@@ -16,6 +16,7 @@ import type {
   EvalRunOptions,
   EvalRunResult,
 } from "./client.js";
+import type { CodeHealthAggregate } from "./code-health-diagnostics.js";
 import {
   listEvalFixtures,
   runEvalCalibration,
@@ -90,6 +91,18 @@ const EMPTY_FIXTURE_DIAGNOSTICS: FixtureDiagnosticsReport = {
   },
 };
 
+const EMPTY_CODE_HEALTH: CodeHealthAggregate = {
+  diagnosticRunCount: 0,
+  runsWithWarnings: 0,
+  fixturesWithWarnings: 0,
+  totalWarnings: 0,
+  warningCounts: {
+    "source-size-growth": 0,
+    "duplicated-implementation-chunk": 0,
+    "complexity-concentration": 0,
+  },
+};
+
 const SAMPLE_RUN_CONFIGURATION: Extract<
   EvalRunResult,
   { ok: true }
@@ -119,6 +132,7 @@ function makeListCtx(result: EvalListResult): ModuleContext {
         passHatK: 1,
         controlDecisionCoverage: result.controlDecisionCoverage,
         objectiveMetrics: [],
+        codeHealth: EMPTY_CODE_HEALTH,
         fixtureDiagnostics: EMPTY_FIXTURE_DIAGNOSTICS,
         runConfiguration: SAMPLE_RUN_CONFIGURATION,
         baselineConfigurationComparison: null,
@@ -154,6 +168,7 @@ function makeRunRecordingCtx(
         passHatK: 1,
         controlDecisionCoverage: EMPTY_CONTROL_DECISION_COVERAGE,
         objectiveMetrics: [],
+        codeHealth: EMPTY_CODE_HEALTH,
         fixtureDiagnostics: EMPTY_FIXTURE_DIAGNOSTICS,
         runConfiguration: SAMPLE_RUN_CONFIGURATION,
         baselineConfigurationComparison: null,
@@ -438,6 +453,38 @@ describe("kota eval run CLI", () => {
     expect(text).toContain("beta");
     expect(text).toContain("outcomes=pass,fail,fail");
     expect(text).toContain("warnings=low-signal-repeat-instability");
+  });
+
+  it("prints compact code-health warning counts when diagnostics ran", async () => {
+    const calls: EvalRunOptions[] = [];
+    const writes: string[] = [];
+    vi.spyOn(process.stdout, "write").mockImplementation((data) => {
+      writes.push(String(data));
+      return true;
+    });
+    const cmd = buildEvalCommand(
+      makeRunRecordingCtx(calls, {
+        codeHealth: {
+          diagnosticRunCount: 2,
+          runsWithWarnings: 1,
+          fixturesWithWarnings: 1,
+          totalWarnings: 2,
+          warningCounts: {
+            "source-size-growth": 1,
+            "duplicated-implementation-chunk": 1,
+            "complexity-concentration": 0,
+          },
+        },
+      }),
+    );
+
+    await cmd.parseAsync(["run", "--repeats", "2"], { from: "user" });
+
+    const text = writes.join("\n");
+    expect(text).toContain("code health:");
+    expect(text).toContain("diagnostic-runs=2");
+    expect(text).toContain("source-size-growth=1");
+    expect(text).toContain("duplicated-implementation-chunk=1");
   });
 
   it("prints run-configuration fingerprint summary and mismatch reason", async () => {

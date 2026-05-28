@@ -10,6 +10,7 @@
  * `ctx.client.evalHarness` or by importing these types from
  * `#modules/eval-harness/client.js`.
  */
+import type { CodeHealthAggregate } from "./code-health-diagnostics.js";
 import type {
   FixtureControlDecision,
   FixtureControlDecisionCoverageSummary,
@@ -75,6 +76,7 @@ export type EvalRunResult =
       passHatK: number;
       controlDecisionCoverage: FixtureControlDecisionCoverageSummary;
       objectiveMetrics: AggregateObjectiveMetric[];
+      codeHealth: CodeHealthAggregate;
       fixtureDiagnostics: FixtureDiagnosticsReport;
       runConfiguration: EvalRunConfigurationOperatorSummary;
       baselineConfigurationComparison: EvalRunConfigurationComparison | null;

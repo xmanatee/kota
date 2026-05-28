@@ -10,6 +10,10 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  aggregateCodeHealthDiagnostics,
+  type CodeHealthAggregate,
+} from "./code-health-diagnostics.js";
+import {
   type FixtureControlDecisionCoverageSummary,
   type LoadedFixture,
   summarizeControlDecisionCoverage,
@@ -71,6 +75,7 @@ export type EvalSetReport = {
   aggregate: AggregateScore;
   controlDecisionCoverage: FixtureControlDecisionCoverageSummary;
   objectiveMetrics: readonly AggregateObjectiveMetric[];
+  codeHealth: CodeHealthAggregate;
   runConfiguration: EvalRunConfiguration;
   resourceProfile: ResourceProfile;
   executionProfile: ExecutionProfilePreflightResult;
@@ -140,6 +145,7 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
   const fixtureDiagnostics = computeFixtureDiagnostics(runs);
   const controlDecisionCoverage = summarizeControlDecisionCoverage(params.fixtures);
   const objectiveMetrics = aggregateObjectiveMetrics(runs);
+  const codeHealth = aggregateCodeHealthDiagnostics(runs);
   const completedAt = new Date().toISOString();
   const runConfiguration = buildEvalRunConfiguration({
     projectDir: params.projectDir,
@@ -166,6 +172,7 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
         aggregate,
         controlDecisionCoverage,
         objectiveMetrics,
+        codeHealth,
         runConfiguration,
       },
       null,
@@ -180,6 +187,7 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
     aggregate,
     controlDecisionCoverage,
     objectiveMetrics,
+    codeHealth,
     runConfiguration,
     resourceProfile,
     executionProfile,
