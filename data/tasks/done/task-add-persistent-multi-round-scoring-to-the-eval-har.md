@@ -1,12 +1,12 @@
 ---
 id: task-add-persistent-multi-round-scoring-to-the-eval-har
 title: Add persistent multi-round scoring to the eval harness
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Extend eval-harness fixtures to execute ordered builder rounds against one preserved workspace with cumulative predicates, so KOTA can catch requirement drift and regression across evolving task instructions instead of only final single-workflow outcomes.
 created_at: 2026-05-28T00:15:02.451Z
-updated_at: 2026-05-28T00:15:02.451Z
+updated_at: 2026-05-28T00:35:23.775Z
 ---
 
 ## Problem
@@ -117,3 +117,14 @@ evolving requirements, not just final single-workflow success.
   checked run artifact showing round-level outcomes in `fixture-run.json`.
 - A deliberate later-round regression fixture/test fails before the fix and
   passes after the round-aware scoring is implemented.
+
+## Completion Evidence
+
+- `.kota/runs/2026-05-28T00-17-41-884Z-builder-mzgzz3/focused-test-transcript.txt`
+  captures focused loader, runner, scoring, shipped-fixture, and strict-types
+  tests passing.
+- `.kota/runs/2026-05-28T00-17-41-884Z-builder-mzgzz3/eval-list-transcript.txt`
+  shows `builder-persistent-rounds-canary` loading through `pnpm kota eval list`.
+- `.kota/runs/2026-05-28T00-17-41-884Z-builder-mzgzz3/multi-round-fixture-evidence/builder-persistent-rounds-canary-0/fixture-run.json`
+  records the new fixture as one passing run with both rounds passing and
+  aggregate objective metric value `1`.

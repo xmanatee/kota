@@ -100,6 +100,18 @@ export type FixtureRunOutcome =
   | "error"
   | "configuration-error";
 
+export type FixtureRoundRun = {
+  roundId: string;
+  /** 0-based index within the fixture's ordered round list. */
+  roundIndex: number;
+  workflowName: string;
+  outcome: FixtureRunOutcome;
+  objectiveMetrics: readonly ObservedObjectiveMetric[];
+  timing: TimingEnvelope;
+  /** Workflow run artifact path reported by the executor for this round. */
+  runArtifactPath: string | null;
+};
+
 export type FixtureRun = {
   fixtureId: string;
   /** 0-based index of this run within a repeat set for the same fixture. */
@@ -114,6 +126,11 @@ export type FixtureRun = {
    * when the fixture declares no objective metrics.
    */
   objectiveMetrics: readonly ObservedObjectiveMetric[];
+  /**
+   * Present only for persistent multi-round fixtures. The top-level fixture
+   * remains one scored run; round records preserve diagnostic outcomes.
+   */
+  rounds?: readonly FixtureRoundRun[];
   timing: TimingEnvelope;
   /** Absolute path to the run artifact directory under `.kota/runs/`. */
   runArtifactPath: string;

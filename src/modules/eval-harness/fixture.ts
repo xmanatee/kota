@@ -88,13 +88,79 @@ export type FixtureControlDecisionCoverageSummary = {
   missingDecisionWarnings: readonly FixtureControlDecisionCoverageWarning[];
 };
 
-export type FixtureSpecFile = {
+export type FixtureJsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | FixtureJsonValue[]
+  | FixtureJsonObject;
+
+export type FixtureJsonObject = { [key: string]: FixtureJsonValue };
+
+export type FixtureRoundTaskInput =
+  | { kind: "initial-state" }
+  | { kind: "copy-fixture-file"; sourcePath: string; targetPath: string }
+  | { kind: "trigger-payload"; payload: FixtureJsonObject };
+
+export type FixtureRoundSpec = {
+  /** Stable round id, unique within the fixture and ordered by array position. */
+  id: string;
+  /** The workflow name to invoke for this round. */
+  workflowName: string;
+  /**
+   * Explicit round budget in milliseconds. A timeout in any round stops the
+   * multi-round attempt and records the fixture attempt as `timeout`.
+   */
+  budgetMs: number;
+  /** Explicit source of this round's workflow/task input. */
+  taskInput: FixtureRoundTaskInput;
+  /** Expectations evaluated immediately before this round executes. */
+  preRunExpectations: readonly FixturePredicateExpectation[];
+  /** Predicates evaluated immediately after this round executes. */
+  predicates: readonly FixturePredicate[];
+  /** Optional deterministic numeric metrics evaluated after this round. */
+  objectiveMetrics?: readonly ObjectiveMetricSpec[];
+};
+
+export type FixtureSpecCommon = {
   /** Stable fixture id; must match the directory name. */
   id: string;
   /** Short human-readable description. */
   description: string;
   /** Autonomy role this fixture scores. */
   role: FixtureAutonomyRole;
+  /**
+   * Provenance record validated by the loader. Required on every fixture.
+   */
+  provenance: FixtureProvenance;
+  /**
+   * Control-decision behaviors this fixture exercises. Diagnostic metadata
+   * only; scoring ignores it.
+   */
+  controlDecisions: readonly FixtureControlDecision[];
+  /**
+   * Optional list of external binary names the runner should shadow with a
+   * fixture-scoped recording shim (e.g. ["gh"]). Each declared name has a
+   * Node-script shim installed under `<workingDir>/.kota/shims/<binary>`,
+   * the shim directory is prepended to `PATH` for the subprocess, and the
+   * shim records every invocation as a JSONL line under
+   * `<workingDir>/.kota/external-calls/<binary>.jsonl` for an
+   * `external-call-log` predicate to inspect. Production code paths leave
+   * `PATH` untouched. Allowed name characters are `[A-Za-z0-9._-]` so a
+   * malformed declaration cannot escape the shim directory.
+   */
+  externalCallShims?: readonly string[];
+  /**
+   * Optional tags operators use to slice the fixture set (e.g. "smoke",
+   * "regression-2026-04", "slow"). Not load-bearing — scoring does not read
+   * them.
+   */
+  tags?: readonly string[];
+};
+
+export type SingleWorkflowFixtureSpecFile = FixtureSpecCommon & {
+  mode: "single-workflow";
   /** The workflow name to invoke against the fixture's initial state. */
   workflowName: string;
   /**
@@ -131,31 +197,45 @@ export type FixtureSpecFile = {
    * Strict-protocol rule: absence means "no extra payload"; the subprocess
    * must not synthesize defaults.
    */
-  triggerPayload?: Record<string, unknown>;
-  /**
-   * Optional list of external binary names the runner should shadow with a
-   * fixture-scoped recording shim (e.g. ["gh"]). Each declared name has a
-   * Node-script shim installed under `<workingDir>/.kota/shims/<binary>`,
-   * the shim directory is prepended to `PATH` for the subprocess, and the
-   * shim records every invocation as a JSONL line under
-   * `<workingDir>/.kota/external-calls/<binary>.jsonl` for an
-   * `external-call-log` predicate to inspect. Production code paths leave
-   * `PATH` untouched. Allowed name characters are `[A-Za-z0-9._-]` so a
-   * malformed declaration cannot escape the shim directory.
-   */
-  externalCallShims?: readonly string[];
+  triggerPayload?: FixtureJsonObject;
   /**
    * Optional deterministic numeric objective metrics. Metrics are reported
    * evidence only; pass/fail gating remains exclusively predicate-based.
    */
   objectiveMetrics?: readonly ObjectiveMetricSpec[];
-  /**
-   * Optional tags operators use to slice the fixture set (e.g. "smoke",
-   * "regression-2026-04", "slow"). Not load-bearing — scoring does not read
-   * them.
-   */
-  tags?: readonly string[];
 };
+
+export type MultiRoundFixtureSpecFile = FixtureSpecCommon & {
+  mode: "multi-round";
+  /** Ordered rounds executed against one preserved working directory. */
+  rounds: readonly FixtureRoundSpec[];
+  /**
+   * Optional final predicates evaluated after the last successful round. Use
+   * these for aggregate invariants that should see the complete workspace.
+   */
+  aggregatePredicates?: readonly FixturePredicate[];
+  /**
+   * Optional deterministic metrics evaluated after the last successful round
+   * and surfaced on the top-level fixture run for aggregate reporting.
+   */
+  aggregateObjectiveMetrics?: readonly ObjectiveMetricSpec[];
+};
+
+export type FixtureSpecFile =
+  | SingleWorkflowFixtureSpecFile
+  | MultiRoundFixtureSpecFile;
+
+export function isSingleWorkflowFixtureSpec(
+  spec: FixtureSpecFile,
+): spec is SingleWorkflowFixtureSpecFile {
+  return spec.mode === "single-workflow";
+}
+
+export function isMultiRoundFixtureSpec(
+  spec: FixtureSpecFile,
+): spec is MultiRoundFixtureSpecFile {
+  return spec.mode === "multi-round";
+}
 
 /**
  * Thrown when a fixture's provenance metadata is missing or does not match
@@ -337,6 +417,324 @@ function parseControlDecisions(
   return decisions;
 }
 
+function isJsonObject(
+  value: FixtureJsonValue | undefined,
+): value is FixtureJsonObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseRequiredString(
+  r: FixtureJsonObject,
+  key: string,
+  fixtureDir: string,
+): string {
+  const value = r[key];
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(
+      `Fixture at "${fixtureDir}" is missing required string field "${key}".`,
+    );
+  }
+  return value;
+}
+
+function parseBudgetMs(
+  raw: FixtureJsonValue | undefined,
+  fixtureDir: string,
+  label = "budgetMs",
+): number {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) {
+    throw new Error(
+      `Fixture at "${fixtureDir}" must set a numeric ${label}; got ${String(raw)}.`,
+    );
+  }
+  if (raw < MIN_BUDGET_MS || raw > MAX_BUDGET_MS) {
+    throw new Error(
+      `Fixture at "${fixtureDir}" ${label}=${raw} outside [${MIN_BUDGET_MS}, ${MAX_BUDGET_MS}].`,
+    );
+  }
+  return raw;
+}
+
+function parsePredicates(
+  raw: FixtureJsonValue | undefined,
+  fixtureDir: string,
+  label: string,
+): FixturePredicate[] {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw new Error(
+      `Fixture at "${fixtureDir}" must declare at least one ${label}.`,
+    );
+  }
+  const predicates: FixturePredicate[] = [];
+  for (const p of raw) {
+    if (!isFixturePredicate(p)) {
+      throw new Error(
+        `Fixture at "${fixtureDir}" has an invalid ${label} entry: ${JSON.stringify(p)}`,
+      );
+    }
+    predicates.push(p);
+  }
+  return predicates;
+}
+
+function parsePreRunExpectations(
+  raw: FixtureJsonValue | undefined,
+  fixtureDir: string,
+  label = "preRunExpectations",
+): FixturePredicateExpectation[] {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw new Error(
+      `Fixture at "${fixtureDir}" must declare at least one ${label} entry.`,
+    );
+  }
+  const preRunExpectations: FixturePredicateExpectation[] = [];
+  for (const expectation of raw) {
+    if (!isJsonObject(expectation)) {
+      throw new Error(
+        `Fixture at "${fixtureDir}" has an invalid ${label} entry: ${JSON.stringify(expectation)}`,
+      );
+    }
+    const predicate = expectation.predicate;
+    const expected = expectation.expected;
+    if (
+      !isFixturePredicate(predicate) ||
+      (expected !== "pass" && expected !== "fail")
+    ) {
+      throw new Error(
+        `Fixture at "${fixtureDir}" has an invalid ${label} entry: ${JSON.stringify(expectation)}`,
+      );
+    }
+    preRunExpectations.push({ predicate, expected });
+  }
+  if (!preRunExpectations.some((expectation) => expectation.expected === "fail")) {
+    throw new Error(
+      `Fixture at "${fixtureDir}" ${label} must include at least one predicate expected to fail initially.`,
+    );
+  }
+  return preRunExpectations;
+}
+
+function parseOptionalTags(
+  raw: FixtureJsonValue | undefined,
+  fixtureDir: string,
+): string[] | undefined {
+  if (raw === undefined) return undefined;
+  if (Array.isArray(raw) && raw.every((t) => typeof t === "string")) {
+    return raw;
+  }
+  throw new Error(
+    `Fixture at "${fixtureDir}" has invalid tags; must be an array of strings.`,
+  );
+}
+
+function parseJsonPayload(
+  raw: FixtureJsonValue | undefined,
+  fixtureDir: string,
+  label: string,
+): FixtureJsonObject | undefined {
+  if (raw === undefined) return undefined;
+  if (isJsonObject(raw)) return raw;
+  throw new Error(
+    `Fixture at "${fixtureDir}" has invalid ${label}; must be a JSON object.`,
+  );
+}
+
+function parseExternalCallShims(
+  raw: FixtureJsonValue | undefined,
+  fixtureDir: string,
+): string[] | undefined {
+  if (raw === undefined) return undefined;
+  if (!isStringArray(raw)) {
+    throw new Error(
+      `Fixture at "${fixtureDir}" has invalid externalCallShims; must be an array of binary-name strings.`,
+    );
+  }
+  for (const name of raw) {
+    if (!/^[A-Za-z0-9._-]+$/.test(name)) {
+      throw new Error(
+        `Fixture at "${fixtureDir}" externalCallShims entry ${JSON.stringify(name)} contains characters outside [A-Za-z0-9._-]. Refuse to install a shim with that name.`,
+      );
+    }
+  }
+  return raw;
+}
+
+function parseObjectiveMetrics(
+  raw: FixtureJsonValue | undefined,
+  fixtureDir: string,
+  label: string,
+): ObjectiveMetricSpec[] | undefined {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw new ObjectiveMetricValidationError(
+      "malformed-declaration",
+      `Fixture at "${fixtureDir}" has invalid ${label}; must be a non-empty array when present.`,
+    );
+  }
+  const objectiveMetrics: ObjectiveMetricSpec[] = [];
+  const names = new Set<string>();
+  for (const metric of raw) {
+    const parsedMetric = parseObjectiveMetricSpec(metric, fixtureDir);
+    if (names.has(parsedMetric.name)) {
+      throw new ObjectiveMetricValidationError(
+        "malformed-declaration",
+        `Fixture at "${fixtureDir}" declares duplicate objective metric name "${parsedMetric.name}" in ${label}.`,
+        { metricName: parsedMetric.name },
+      );
+    }
+    names.add(parsedMetric.name);
+    objectiveMetrics.push(parsedMetric);
+  }
+  return objectiveMetrics;
+}
+
+function parseTaskInput(
+  raw: FixtureJsonValue | undefined,
+  fixtureDir: string,
+  roundId: string,
+): FixtureRoundTaskInput {
+  if (!isJsonObject(raw)) {
+    throw new Error(
+      `Fixture at "${fixtureDir}" round "${roundId}" must declare a taskInput object.`,
+    );
+  }
+  switch (raw.kind) {
+    case "initial-state":
+      return { kind: "initial-state" };
+    case "copy-fixture-file": {
+      if (
+        typeof raw.sourcePath !== "string" ||
+        raw.sourcePath.length === 0 ||
+        typeof raw.targetPath !== "string" ||
+        raw.targetPath.length === 0
+      ) {
+        throw new Error(
+          `Fixture at "${fixtureDir}" round "${roundId}" copy-fixture-file taskInput must declare sourcePath and targetPath strings.`,
+        );
+      }
+      return {
+        kind: "copy-fixture-file",
+        sourcePath: raw.sourcePath,
+        targetPath: raw.targetPath,
+      };
+    }
+    case "trigger-payload": {
+      const payload = parseJsonPayload(
+        raw.payload,
+        fixtureDir,
+        `round "${roundId}" taskInput.payload`,
+      );
+      if (payload === undefined) {
+        throw new Error(
+          `Fixture at "${fixtureDir}" round "${roundId}" trigger-payload taskInput must declare payload.`,
+        );
+      }
+      return { kind: "trigger-payload", payload };
+    }
+    default:
+      throw new Error(
+        `Fixture at "${fixtureDir}" round "${roundId}" has unknown taskInput kind ${JSON.stringify(raw.kind)}.`,
+      );
+  }
+}
+
+function parseRoundSpec(
+  raw: FixtureJsonValue,
+  fixtureDir: string,
+  index: number,
+): FixtureRoundSpec {
+  if (!isJsonObject(raw)) {
+    throw new Error(
+      `Fixture at "${fixtureDir}" rounds[${index}] must be an object.`,
+    );
+  }
+  const id = parseRequiredString(raw, "id", fixtureDir);
+  const roundLabel = `round "${id}"`;
+  const objectiveMetrics = parseObjectiveMetrics(
+    raw.objectiveMetrics,
+    fixtureDir,
+    `${roundLabel} objectiveMetrics`,
+  );
+  return {
+    id,
+    workflowName: parseRequiredString(raw, "workflowName", fixtureDir),
+    budgetMs: parseBudgetMs(raw.budgetMs, fixtureDir, `${roundLabel} budgetMs`),
+    taskInput: parseTaskInput(raw.taskInput, fixtureDir, id),
+    preRunExpectations: parsePreRunExpectations(
+      raw.preRunExpectations,
+      fixtureDir,
+      `${roundLabel} preRunExpectations`,
+    ),
+    predicates: parsePredicates(
+      raw.predicates,
+      fixtureDir,
+      `${roundLabel} predicate`,
+    ),
+    ...(objectiveMetrics !== undefined && { objectiveMetrics }),
+  };
+}
+
+function parseRounds(
+  raw: FixtureJsonValue | undefined,
+  fixtureDir: string,
+): FixtureRoundSpec[] {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw new Error(
+      `Fixture at "${fixtureDir}" mode "multi-round" must declare a non-empty rounds array.`,
+    );
+  }
+  const rounds = raw.map((round, index) =>
+    parseRoundSpec(round, fixtureDir, index),
+  );
+  const seen = new Set<string>();
+  for (const round of rounds) {
+    if (seen.has(round.id)) {
+      throw new Error(
+        `Fixture at "${fixtureDir}" declares duplicate round id "${round.id}".`,
+      );
+    }
+    seen.add(round.id);
+  }
+  return rounds;
+}
+
+function assertNoModeFields(
+  r: FixtureJsonObject,
+  fixtureDir: string,
+  mode: string,
+  fields: readonly string[],
+): void {
+  const present = fields.filter((field) => r[field] !== undefined);
+  if (present.length === 0) return;
+  throw new Error(
+    `Fixture at "${fixtureDir}" mode "${mode}" cannot declare ${present.join(", ")}.`,
+  );
+}
+
+function parseCommonSpecFields(
+  r: FixtureJsonObject,
+  fixtureDir: string,
+): FixtureSpecCommon {
+  const provenance = parseProvenance(r.provenance, fixtureDir);
+  if (!Array.isArray(r.controlDecisions)) {
+    throw new Error(
+      `Fixture at "${fixtureDir}" has invalid controlDecisions: field must be a non-empty array.`,
+    );
+  }
+  const controlDecisions = parseControlDecisions(r.controlDecisions, fixtureDir);
+  const externalCallShims = parseExternalCallShims(r.externalCallShims, fixtureDir);
+  const tags = parseOptionalTags(r.tags, fixtureDir);
+  return {
+    id: parseRequiredString(r, "id", fixtureDir),
+    description: parseRequiredString(r, "description", fixtureDir),
+    role: parseRequiredString(r, "role", fixtureDir) as FixtureAutonomyRole,
+    provenance,
+    controlDecisions,
+    ...(externalCallShims !== undefined && { externalCallShims }),
+    ...(tags !== undefined && { tags }),
+  };
+}
+
 function parseFixtureSpec(rawJson: string, fixtureDir: string): FixtureSpecFile {
   let raw: unknown;
   try {
@@ -349,169 +747,63 @@ function parseFixtureSpec(rawJson: string, fixtureDir: string): FixtureSpecFile 
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new Error(`Fixture at "${fixtureDir}" fixture.json must be a JSON object.`);
   }
-  const r = raw as Record<string, unknown>;
-  const requiredStrings: Array<keyof FixtureSpecFile> = [
-    "id",
-    "description",
-    "role",
-    "workflowName",
-  ];
-  for (const key of requiredStrings) {
-    if (typeof r[key] !== "string" || (r[key] as string).length === 0) {
-      throw new Error(
-        `Fixture at "${fixtureDir}" is missing required string field "${key}".`,
-      );
-    }
+  const r = raw as FixtureJsonObject;
+  const mode = r.mode ?? "single-workflow";
+  const common = parseCommonSpecFields(r, fixtureDir);
+  if (mode === "multi-round") {
+    assertNoModeFields(r, fixtureDir, "multi-round", [
+      "workflowName",
+      "budgetMs",
+      "triggerPayload",
+      "predicates",
+      "preRunExpectations",
+      "objectiveMetrics",
+    ]);
+    const aggregatePredicates =
+      r.aggregatePredicates === undefined
+        ? undefined
+        : parsePredicates(r.aggregatePredicates, fixtureDir, "aggregatePredicates");
+    const aggregateObjectiveMetrics = parseObjectiveMetrics(
+      r.aggregateObjectiveMetrics,
+      fixtureDir,
+      "aggregateObjectiveMetrics",
+    );
+    return {
+      ...common,
+      mode: "multi-round",
+      rounds: parseRounds(r.rounds, fixtureDir),
+      ...(aggregatePredicates !== undefined && { aggregatePredicates }),
+      ...(aggregateObjectiveMetrics !== undefined && { aggregateObjectiveMetrics }),
+    };
   }
-  if (typeof r.budgetMs !== "number" || !Number.isFinite(r.budgetMs)) {
+  if (mode !== "single-workflow") {
     throw new Error(
-      `Fixture at "${fixtureDir}" must set a numeric budgetMs; got ${String(r.budgetMs)}.`,
+      `Fixture at "${fixtureDir}" has unknown mode ${JSON.stringify(mode)}. Legal values are "single-workflow" and "multi-round".`,
     );
   }
-  if (r.budgetMs < MIN_BUDGET_MS || r.budgetMs > MAX_BUDGET_MS) {
-    throw new Error(
-      `Fixture at "${fixtureDir}" budgetMs=${r.budgetMs} outside [${MIN_BUDGET_MS}, ${MAX_BUDGET_MS}].`,
-    );
-  }
-  if (!Array.isArray(r.predicates) || r.predicates.length === 0) {
-    throw new Error(
-      `Fixture at "${fixtureDir}" must declare at least one predicate.`,
-    );
-  }
-  const predicates: FixturePredicate[] = [];
-  for (const p of r.predicates) {
-    if (!isFixturePredicate(p)) {
-      throw new Error(
-        `Fixture at "${fixtureDir}" has an invalid predicate: ${JSON.stringify(p)}`,
-      );
-    }
-    predicates.push(p);
-  }
-  if (
-    !Array.isArray(r.preRunExpectations) ||
-    r.preRunExpectations.length === 0
-  ) {
-    throw new Error(
-      `Fixture at "${fixtureDir}" must declare at least one preRunExpectations entry.`,
-    );
-  }
-  const preRunExpectations: FixturePredicateExpectation[] = [];
-  for (const expectation of r.preRunExpectations) {
-    if (
-      typeof expectation !== "object" ||
-      expectation === null ||
-      Array.isArray(expectation)
-    ) {
-      throw new Error(
-        `Fixture at "${fixtureDir}" has an invalid preRunExpectations entry: ${JSON.stringify(expectation)}`,
-      );
-    }
-    const candidate = expectation as Partial<FixturePredicateExpectation>;
-    const predicate = candidate.predicate;
-    const expected = candidate.expected;
-    if (
-      !isFixturePredicate(predicate) ||
-      (expected !== "pass" && expected !== "fail")
-    ) {
-      throw new Error(
-        `Fixture at "${fixtureDir}" has an invalid preRunExpectations entry: ${JSON.stringify(expectation)}`,
-      );
-    }
-    preRunExpectations.push({ predicate, expected });
-  }
-  if (!preRunExpectations.some((expectation) => expectation.expected === "fail")) {
-    throw new Error(
-      `Fixture at "${fixtureDir}" preRunExpectations must include at least one predicate expected to fail initially.`,
-    );
-  }
-  const tags =
-    r.tags === undefined
-      ? undefined
-      : Array.isArray(r.tags) && r.tags.every((t) => typeof t === "string")
-        ? (r.tags as string[])
-        : (() => {
-            throw new Error(
-              `Fixture at "${fixtureDir}" has invalid tags; must be an array of strings.`,
-            );
-          })();
-
-  let triggerPayload: Record<string, unknown> | undefined;
-  if (r.triggerPayload !== undefined) {
-    if (
-      typeof r.triggerPayload !== "object" ||
-      r.triggerPayload === null ||
-      Array.isArray(r.triggerPayload)
-    ) {
-      throw new Error(
-        `Fixture at "${fixtureDir}" has invalid triggerPayload; must be a JSON object.`,
-      );
-    }
-    triggerPayload = r.triggerPayload as Record<string, unknown>;
-  }
-
-  let externalCallShims: string[] | undefined;
-  if (r.externalCallShims !== undefined) {
-    if (!isStringArray(r.externalCallShims)) {
-      throw new Error(
-        `Fixture at "${fixtureDir}" has invalid externalCallShims; must be an array of binary-name strings.`,
-      );
-    }
-    for (const name of r.externalCallShims as string[]) {
-      if (!/^[A-Za-z0-9._-]+$/.test(name)) {
-        throw new Error(
-          `Fixture at "${fixtureDir}" externalCallShims entry ${JSON.stringify(name)} contains characters outside [A-Za-z0-9._-]. Refuse to install a shim with that name.`,
-        );
-      }
-    }
-    externalCallShims = r.externalCallShims as string[];
-  }
-
-  let objectiveMetrics: ObjectiveMetricSpec[] | undefined;
-  if (r.objectiveMetrics !== undefined) {
-    if (!Array.isArray(r.objectiveMetrics) || r.objectiveMetrics.length === 0) {
-      throw new ObjectiveMetricValidationError(
-        "malformed-declaration",
-        `Fixture at "${fixtureDir}" has invalid objectiveMetrics; must be a non-empty array when present.`,
-      );
-    }
-    objectiveMetrics = [];
-    const names = new Set<string>();
-    for (const metric of r.objectiveMetrics) {
-      const parsedMetric = parseObjectiveMetricSpec(metric, fixtureDir);
-      if (names.has(parsedMetric.name)) {
-        throw new ObjectiveMetricValidationError(
-          "malformed-declaration",
-          `Fixture at "${fixtureDir}" declares duplicate objective metric name "${parsedMetric.name}".`,
-          { metricName: parsedMetric.name },
-        );
-      }
-      names.add(parsedMetric.name);
-      objectiveMetrics.push(parsedMetric);
-    }
-  }
-
-  const provenance = parseProvenance(r.provenance, fixtureDir);
-  if (!Array.isArray(r.controlDecisions)) {
-    throw new Error(
-      `Fixture at "${fixtureDir}" has invalid controlDecisions: field must be a non-empty array.`,
-    );
-  }
-  const controlDecisions = parseControlDecisions(r.controlDecisions, fixtureDir);
-
+  assertNoModeFields(r, fixtureDir, "single-workflow", [
+    "rounds",
+    "aggregatePredicates",
+    "aggregateObjectiveMetrics",
+  ]);
+  const triggerPayload = parseJsonPayload(r.triggerPayload, fixtureDir, "triggerPayload");
+  const objectiveMetrics = parseObjectiveMetrics(
+    r.objectiveMetrics,
+    fixtureDir,
+    "objectiveMetrics",
+  );
   return {
-    id: r.id as string,
-    description: r.description as string,
-    role: r.role as FixtureAutonomyRole,
-    workflowName: r.workflowName as string,
-    budgetMs: r.budgetMs,
-    predicates,
-    preRunExpectations,
-    provenance,
-    controlDecisions,
+    ...common,
+    mode: "single-workflow",
+    workflowName: parseRequiredString(r, "workflowName", fixtureDir),
+    budgetMs: parseBudgetMs(r.budgetMs, fixtureDir),
+    predicates: parsePredicates(r.predicates, fixtureDir, "predicate"),
+    preRunExpectations: parsePreRunExpectations(
+      r.preRunExpectations,
+      fixtureDir,
+    ),
     ...(triggerPayload !== undefined && { triggerPayload }),
-    ...(externalCallShims !== undefined && { externalCallShims }),
     ...(objectiveMetrics !== undefined && { objectiveMetrics }),
-    ...(tags && { tags }),
   };
 }
 

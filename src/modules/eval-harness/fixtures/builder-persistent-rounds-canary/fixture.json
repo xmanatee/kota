@@ -1,0 +1,150 @@
+{
+  "id": "builder-persistent-rounds-canary",
+  "description": "Persistent multi-round builder fixture that preserves ledger summary behavior while adding a later export requirement.",
+  "role": "builder",
+  "mode": "multi-round",
+  "rounds": [
+    {
+      "id": "summary-round",
+      "workflowName": "builder",
+      "budgetMs": 1800000,
+      "taskInput": {
+        "kind": "initial-state"
+      },
+      "preRunExpectations": [
+        {
+          "predicate": {
+            "kind": "shell-succeeds",
+            "command": "node scripts/check-ledger.mjs --round=1",
+            "timeoutMs": 10000
+          },
+          "expected": "fail"
+        },
+        {
+          "predicate": {
+            "kind": "file-exists",
+            "path": "data/tasks/ready/task-implement-ledger-summary-round-1.md"
+          },
+          "expected": "pass"
+        }
+      ],
+      "predicates": [
+        {
+          "kind": "shell-succeeds",
+          "command": "node scripts/check-ledger.mjs --round=1",
+          "timeoutMs": 10000
+        },
+        {
+          "kind": "file-absent",
+          "path": "data/tasks/ready/task-implement-ledger-summary-round-1.md"
+        },
+        {
+          "kind": "file-exists",
+          "path": "data/tasks/done/task-implement-ledger-summary-round-1.md"
+        },
+        {
+          "kind": "file-contains",
+          "path": "data/tasks/done/task-implement-ledger-summary-round-1.md",
+          "needle": "status: done"
+        }
+      ]
+    },
+    {
+      "id": "export-round",
+      "workflowName": "builder",
+      "budgetMs": 1800000,
+      "taskInput": {
+        "kind": "copy-fixture-file",
+        "sourcePath": "rounds/task-add-ledger-export-round-2.md",
+        "targetPath": "data/tasks/ready/task-add-ledger-export-round-2.md"
+      },
+      "preRunExpectations": [
+        {
+          "predicate": {
+            "kind": "shell-succeeds",
+            "command": "node scripts/check-ledger.mjs --round=1",
+            "timeoutMs": 10000
+          },
+          "expected": "pass"
+        },
+        {
+          "predicate": {
+            "kind": "shell-succeeds",
+            "command": "node scripts/check-ledger.mjs --round=2",
+            "timeoutMs": 10000
+          },
+          "expected": "fail"
+        },
+        {
+          "predicate": {
+            "kind": "file-exists",
+            "path": "data/tasks/ready/task-add-ledger-export-round-2.md"
+          },
+          "expected": "pass"
+        }
+      ],
+      "predicates": [
+        {
+          "kind": "shell-succeeds",
+          "command": "node scripts/check-ledger.mjs --round=2",
+          "timeoutMs": 10000
+        },
+        {
+          "kind": "file-exists",
+          "path": "data/tasks/done/task-implement-ledger-summary-round-1.md"
+        },
+        {
+          "kind": "file-absent",
+          "path": "data/tasks/ready/task-add-ledger-export-round-2.md"
+        },
+        {
+          "kind": "file-exists",
+          "path": "data/tasks/done/task-add-ledger-export-round-2.md"
+        },
+        {
+          "kind": "file-contains",
+          "path": "data/tasks/done/task-add-ledger-export-round-2.md",
+          "needle": "status: done"
+        }
+      ]
+    }
+  ],
+  "aggregatePredicates": [
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-ledger.mjs --round=2",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "file-contains",
+      "path": "ledger-result.json",
+      "needle": "\"canaryScore\": 1"
+    }
+  ],
+  "aggregateObjectiveMetrics": [
+    {
+      "name": "persistent_rounds_canary_score",
+      "unit": "ratio",
+      "direction": "higher_is_better",
+      "source": {
+        "kind": "json-file",
+        "path": "ledger-result.json",
+        "pointer": "/canaryScore"
+      }
+    }
+  ],
+  "tags": [
+    "autonomy",
+    "builder-discipline",
+    "multi-round",
+    "persistent-workspace",
+    "objective-metric"
+  ],
+  "provenance": {
+    "kind": "smoke-fixture",
+    "justification": "Synthetic persistent-workspace canary for the multi-round eval mode: the second builder round must preserve first-round ledger summary behavior while adding an export requirement. No past KOTA failure run exists for this exact harness capability."
+  },
+  "controlDecisions": [
+    "act"
+  ]
+}

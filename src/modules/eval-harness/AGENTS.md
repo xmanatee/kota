@@ -1,24 +1,22 @@
 # Eval Harness Module
 
-This module hosts KOTA's autonomy eval harness: strict scoring,
-regression gating, and fixture execution. The CLI, HTTP route, and weekly
-cadence workflow all reuse one execution path.
+This module hosts KOTA's autonomy eval harness: strict scoring, regression
+gating, and fixture execution. CLI, HTTP, and cadence use one path.
 
 ## Infrastructure Noise Rule
 
-Container resource config alone can swing benchmark scores past model
-ranking gaps, so every fixture run must carry:
+Container resource config can swing benchmark scores past model ranking gaps,
+so every fixture run must carry:
 
 - **Resource profile** — host class, CPU allocation and kill threshold as
   separate fields, with matching memory fields.
-- **Execution profile preflight** — backend kind, requested profile,
-  observed or enforced profile, diagnostics, and gate eligibility. Host
-  subprocess runs may score fixtures, but are non-gating unless an executor
-  verifies or enforces recorded CPU and memory facts.
-- **Repeat index and total** — every fixture runs k times; k=1 does not
-  participate in regression gating.
-- **Timing envelope** — explicit budget plus observed duration, so runs
-  that hit their deadline are distinguishable from clean returns.
+- **Execution profile preflight** — backend kind, requested, observed or
+  enforced profile, diagnostics, and gate eligibility. Host subprocess runs may
+  score fixtures, but are non-gating unless an executor verifies/enforces CPU
+  and memory facts.
+- **Repeat index and total** — fixtures run k times; k=1 is non-gating.
+- **Timing envelope** — budget plus observed duration, distinguishing deadline
+  hits from clean returns.
 
 ## Pass@k vs Pass^k
 
@@ -28,8 +26,8 @@ The harness always reports both:
   (capability).
 - `pass^k` — fraction of fixtures where every run passed (consistency).
 
-Gate autonomy rollouts on `pass^k`; track capability trends on `pass@k`.
-Averaging them, or reporting only one, loses the distinction.
+Gate rollouts on `pass^k`; track capability trends on `pass@k`. Averaging
+them, or reporting only one, loses the distinction.
 
 ## Regression Gate Threshold
 
@@ -57,34 +55,40 @@ shapes:
 - **Smoke fixture** — fails loudly when harness plumbing regresses; a
   written justification keeps the exception honest.
 
-Anything else fails loudly at load time as a typed error naming the
-fixture. Fix rejected fixtures; do not work around the loader.
+Anything else fails loudly at load time as a typed error naming the fixture.
+Fix rejected fixtures; do not work around the loader.
 
 ## Predicate Contract
 
-Predicates are small and deterministic. They inspect the final fixture
-working directory; the agent's self-report is never part of the signal.
-New predicate kinds extend the predicate union and evaluator.
+Predicates are small and deterministic. They inspect the final fixture working
+directory; the agent's self-report is never signal. New kinds extend the
+predicate union and evaluator.
 
 Fixtures also declare `preRunExpectations`: expected initial predicate results.
 At least one must be `expected: "fail"`; mismatches are fixture config errors.
 
+Persistent multi-round fixtures use `mode: "multi-round"` with ordered
+`rounds`. Each round names its workflow, budget, task input (`initial-state`,
+`copy-fixture-file`, or `trigger-payload`), pre-run expectations, and
+predicates. The runner preserves one working directory, scores the fixture as
+one pass@k/pass^k unit, and records round outcomes in `fixture-run.json`.
+Single-workflow fixtures remain the default when `mode` is absent.
+
 Objective metrics are deterministic numeric evidence on the same fixture path,
-not a second benchmark runner. They may be extracted from fixture files,
-runtime artifacts, or local deterministic commands, and they are reported in
-run and aggregate artifacts. Pass/fail gating remains predicate-only unless a
-fixture adds an explicit predicate that encodes a threshold. Metric deltas are
-compared only when resource and execution profiles are compatible.
+not a second benchmark runner. They may come from fixture files, runtime
+artifacts, or local deterministic commands and are reported in run and aggregate
+artifacts. Pass/fail gating stays predicate-only unless a fixture adds a
+threshold predicate. Compare metric deltas only for compatible resource and
+execution profiles.
 
 ## Baseline Persistence And Regression Surfacing
 
 Only the cadence persists the last accepted aggregate as the next
 comparison baseline, in the KOTA state root, per-project and
 per-host-class, never in the repo. First run records and skips the gate.
-`not-gated` rolls the baseline forward — including reasons where the
-comparison isn't load-bearing — so regressions are always measured against
-the most recent accepted result. `gated` holds the baseline until the next
-run clears or an operator resets it manually.
+`not-gated` rolls the baseline forward, including non-load-bearing comparison
+reasons, so regressions compare against the latest accepted result. `gated`
+holds the baseline until the next clear run or manual reset.
 
 On `gated`, the cadence emits a typed regression event; a bridge workflow
 forwards it through the attention channel. Consumers subscribe to the
@@ -93,22 +97,20 @@ own comparison; auto-resolution is cadence-only.
 
 ## Runner Lifecycle And Execution Paths
 
-Each fixture run materializes initial state into a fresh tmpdir, invokes
-the workflow through a pluggable executor, evaluates predicates, and emits
-a per-run artifact. Fixtures run sequentially; parallel replicas corrupt
-resource profiles and noise-band comparison. `gated` means do not ship
-as-is; rerun on the same host class to confirm. `not-gated` with
-profile-drift or sample-too-small means rerun with correct config.
+Each fixture run materializes initial state into a fresh tmpdir, invokes the
+workflow through a pluggable executor, evaluates predicates, and emits a
+per-run artifact. Fixtures run sequentially; parallel replicas corrupt resource
+profiles and noise-band comparison. `gated` means do not ship as-is; rerun on
+the same host class to confirm. `not-gated` with profile drift or too small a
+sample means rerun with correct config.
 
 Three paths share the same `runFixture` + subprocess executor:
 
 - **Smoke gate (`pnpm test`)** — `replay-smoke.test.ts` runs one shipped
-  `*-agent-call-replay` fixture at `repeats=1`, no baseline, so workflow-
-  layer regressions (replay adapter, subprocess executor, gather-run-data,
-  repair loop, commit step) fail the standard test pass — including
-  inside every autonomy run's own `pnpm test` repair-loop check. The
-  chosen fixture must cover both the workflow-step and judge-prompt
-  branches. Live-LLM fixtures stay out of this gate.
+  `*-agent-call-replay` fixture at `repeats=1`, no baseline, so workflow-layer
+  regressions fail the standard test pass, including autonomy repair-loop
+  checks. The fixture must cover workflow-step and judge-prompt branches.
+  Live-LLM fixtures stay out.
 - **Cadence (`eval-harness-cadence`)** — every shipped fixture, weekly,
   `repeats=k`, owns the persisted baseline and `pass^k` aggregation.
 - **CLI (`pnpm kota eval run`)** — operator-driven; caller owns the
@@ -129,9 +131,9 @@ The adapter substitutes `{{runDir}}` in recorded paths, writes operations
 to the fixture working dir, and `git add -A`s them so downstream repair
 checks see the same tree the real agent produced. Every recording's
 `sourceRunId` must match the fixture's `real-failure` provenance.
-`pnpm kota eval record-agent-step` is the single authoring surface
-(`--step <id>` walks the source commit diff; `--judge <label>` lifts
-`<runDir>/<label>.json`; `--source-commit-sha` handles pre-SHA sources).
+`pnpm kota eval record-agent-step` is the authoring surface (`--step <id>`
+walks the source commit diff; `--judge <label>` lifts `<runDir>/<label>.json`;
+`--source-commit-sha` handles pre-SHA sources).
 The adapter routes workflow-step prompts by `Step:` and judge prompts by
 leading header (table in `replay-harness.ts`); new judges add an entry
 there and author via `--judge <label>`.

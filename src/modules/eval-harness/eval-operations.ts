@@ -29,6 +29,7 @@ import type {
 import { runEvalSet } from "./eval-set.js";
 import { evalHarnessSetCompleted } from "./events.js";
 import {
+  isMultiRoundFixtureSpec,
   loadAllFixtures,
   loadFixture,
   summarizeControlDecisionCoverage,
@@ -68,7 +69,9 @@ export function listEvalFixtures(projectDir: string): EvalListResult {
       id: f.spec.id,
       description: f.spec.description,
       role: f.spec.role,
-      workflowName: f.spec.workflowName,
+      workflowName: isMultiRoundFixtureSpec(f.spec)
+        ? f.spec.rounds.map((round) => round.workflowName).join(" → ")
+        : f.spec.workflowName,
       controlDecisions: [...f.spec.controlDecisions],
       tags: [...(f.spec.tags ?? [])],
     })),

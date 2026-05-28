@@ -162,9 +162,19 @@ describe("createSubprocessExecutor", () => {
   });
 
   it("reports completed when the child exits 0 and a terminal run exists", async () => {
-    writeTerminalRun(workingDir, "noop", "run-1-noop-abc", "success");
     const fakeKota = join(binariesDir, "kota-success.mjs");
-    writeFakeKotaScript(fakeKota, "process.exit(0);\n");
+    writeFakeKotaScript(
+      fakeKota,
+      [
+        "import { mkdirSync, writeFileSync } from 'node:fs';",
+        "import { join } from 'node:path';",
+        "const runDir = join(process.cwd(), '.kota', 'runs', 'run-1-noop-abc');",
+        "mkdirSync(runDir, { recursive: true });",
+        "writeFileSync(join(runDir, 'metadata.json'), JSON.stringify({",
+        "  id: 'run-1-noop-abc', workflow: 'noop', status: 'success',",
+        "}));",
+      ].join("\n"),
+    );
 
     const executor = createSubprocessExecutor({ kotaBinaryPath: fakeKota });
     const outcome = await executor.execute({
@@ -175,6 +185,34 @@ describe("createSubprocessExecutor", () => {
 
     expect(outcome.kind).toBe("completed");
     expect(outcome.runArtifactPath).toContain("run-1-noop-abc");
+  });
+
+  it("reports the new terminal run when prior rounds used the same workflow", async () => {
+    writeTerminalRun(workingDir, "builder", "run-1-builder-round", "success");
+    const fakeKota = join(binariesDir, "kota-repeated-workflow.mjs");
+    writeFakeKotaScript(
+      fakeKota,
+      [
+        "import { mkdirSync, writeFileSync } from 'node:fs';",
+        "import { join } from 'node:path';",
+        "const runDir = join(process.cwd(), '.kota', 'runs', 'run-2-builder-round');",
+        "mkdirSync(runDir, { recursive: true });",
+        "writeFileSync(join(runDir, 'metadata.json'), JSON.stringify({",
+        "  id: 'run-2-builder-round', workflow: 'builder', status: 'success',",
+        "}));",
+      ].join("\n"),
+    );
+
+    const executor = createSubprocessExecutor({ kotaBinaryPath: fakeKota });
+    const outcome = await executor.execute({
+      workflowName: "builder",
+      workingDir,
+      budgetMs: 5_000,
+    });
+
+    expect(outcome.kind).toBe("completed");
+    expect(outcome.runArtifactPath).toContain("run-2-builder-round");
+    expect(outcome.runArtifactPath).not.toContain("run-1-builder-round");
   });
 
   it("pins replay runs to the claude preset so recordings override the active harness", async () => {
@@ -566,9 +604,20 @@ describe("createSubprocessExecutor", () => {
   });
 
   it("reports error when the child exits non-zero", async () => {
-    writeTerminalRun(workingDir, "noop", "run-1-noop-fail", "failed");
     const fakeKota = join(binariesDir, "kota-fail.mjs");
-    writeFakeKotaScript(fakeKota, "process.exit(3);\n");
+    writeFakeKotaScript(
+      fakeKota,
+      [
+        "import { mkdirSync, writeFileSync } from 'node:fs';",
+        "import { join } from 'node:path';",
+        "const runDir = join(process.cwd(), '.kota', 'runs', 'run-1-noop-fail');",
+        "mkdirSync(runDir, { recursive: true });",
+        "writeFileSync(join(runDir, 'metadata.json'), JSON.stringify({",
+        "  id: 'run-1-noop-fail', workflow: 'noop', status: 'failed',",
+        "}));",
+        "process.exit(3);",
+      ].join("\n"),
+    );
 
     const executor = createSubprocessExecutor({ kotaBinaryPath: fakeKota });
     const outcome = await executor.execute({

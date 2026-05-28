@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   FixtureProvenanceError,
   FixtureRecordingProvenanceError,
+  isMultiRoundFixtureSpec,
+  isSingleWorkflowFixtureSpec,
   loadAllFixtures,
   loadFixture,
 } from "./fixture.js";
@@ -42,6 +44,7 @@ function writeFixture(
       ? { ...withProvenance, controlDecisions: ["act"] }
       : withProvenance;
   const fullSpec =
+    withControlDecisions.mode !== "multi-round" &&
     withControlDecisions.preRunExpectations === undefined
       ? {
           ...withControlDecisions,
@@ -50,6 +53,13 @@ function writeFixture(
       : withControlDecisions;
   writeFileSync(join(dir, "fixture.json"), JSON.stringify(fullSpec, null, 2));
   if (withInitial) mkdirSync(join(dir, "initial"));
+}
+
+function singleSpec(fixture: ReturnType<typeof loadFixture>) {
+  if (!isSingleWorkflowFixtureSpec(fixture.spec)) {
+    throw new Error(`expected ${fixture.spec.id} to be a single-workflow fixture`);
+  }
+  return fixture.spec;
 }
 
 describe("loadFixture", () => {
@@ -75,12 +85,14 @@ describe("loadFixture", () => {
       provenance: REAL_FAILURE_PROVENANCE,
     });
     const loaded = loadFixture(root, "example");
-    expect(loaded.spec.id).toBe("example");
-    expect(loaded.spec.predicates).toHaveLength(1);
-    expect(loaded.spec.preRunExpectations).toEqual(DEFAULT_PRE_RUN_EXPECTATIONS);
-    expect(loaded.spec.tags).toEqual(["smoke"]);
-    expect(loaded.spec.provenance).toEqual(REAL_FAILURE_PROVENANCE);
-    expect(loaded.spec.controlDecisions).toEqual(["act"]);
+    const spec = singleSpec(loaded);
+    expect(spec.id).toBe("example");
+    expect(spec.mode).toBe("single-workflow");
+    expect(spec.predicates).toHaveLength(1);
+    expect(spec.preRunExpectations).toEqual(DEFAULT_PRE_RUN_EXPECTATIONS);
+    expect(spec.tags).toEqual(["smoke"]);
+    expect(spec.provenance).toEqual(REAL_FAILURE_PROVENANCE);
+    expect(spec.controlDecisions).toEqual(["act"]);
   });
 
   it("loads a well-formed smoke fixture with justification", () => {
@@ -134,6 +146,7 @@ describe("loadFixture", () => {
         workflowName: "builder",
         budgetMs: 600_000,
         predicates: [{ kind: "file-exists", path: "foo" }],
+        controlDecisions: ["act"],
         provenance: REAL_FAILURE_PROVENANCE,
       }),
     );
@@ -350,7 +363,7 @@ describe("loadFixture", () => {
       },
     });
     const loaded = loadFixture(root, "withPayload");
-    expect(loaded.spec.triggerPayload).toEqual({
+    expect(singleSpec(loaded).triggerPayload).toEqual({
       runDir: ".kota/runs/fake-builder-run",
       runId: "fake-builder-run",
       nested: { count: 3 },
@@ -368,6 +381,129 @@ describe("loadFixture", () => {
       triggerPayload: ["not", "an", "object"],
     });
     expect(() => loadFixture(root, "badPayload")).toThrow(/triggerPayload.*JSON object/);
+  });
+
+  it("accepts a well-formed multi-round fixture with explicit round inputs", () => {
+    writeFixture(root, "multi", {
+      id: "multi",
+      description: "persistent rounds",
+      role: "builder",
+      mode: "multi-round",
+      rounds: [
+        {
+          id: "round-1",
+          workflowName: "builder",
+          budgetMs: 600_000,
+          taskInput: { kind: "initial-state" },
+          preRunExpectations: [
+            { predicate: { kind: "file-exists", path: "round-1.txt" }, expected: "fail" },
+          ],
+          predicates: [{ kind: "file-exists", path: "round-1.txt" }],
+        },
+        {
+          id: "round-2",
+          workflowName: "builder",
+          budgetMs: 600_000,
+          taskInput: {
+            kind: "copy-fixture-file",
+            sourcePath: "rounds/round-2-task.md",
+            targetPath: "data/tasks/ready/task-round-2.md",
+          },
+          preRunExpectations: [
+            { predicate: { kind: "file-exists", path: "round-2.txt" }, expected: "fail" },
+          ],
+          predicates: [
+            { kind: "file-exists", path: "round-1.txt" },
+            { kind: "file-exists", path: "round-2.txt" },
+          ],
+          objectiveMetrics: [
+            {
+              name: "round_2_score",
+              unit: "ratio",
+              direction: "higher_is_better",
+              source: { kind: "text-file", path: "round-2-score.txt" },
+            },
+          ],
+        },
+      ],
+      aggregatePredicates: [{ kind: "file-exists", path: "round-2.txt" }],
+      aggregateObjectiveMetrics: [
+        {
+          name: "final_score",
+          unit: "ratio",
+          direction: "higher_is_better",
+          source: { kind: "text-file", path: "final-score.txt" },
+        },
+      ],
+    });
+    mkdirSync(join(root, "multi", "rounds"), { recursive: true });
+    writeFileSync(join(root, "multi", "rounds", "round-2-task.md"), "round 2");
+
+    const loaded = loadFixture(root, "multi");
+    expect(isMultiRoundFixtureSpec(loaded.spec)).toBe(true);
+    if (!isMultiRoundFixtureSpec(loaded.spec)) throw new Error("expected multi");
+    expect(loaded.spec.rounds.map((round) => round.id)).toEqual([
+      "round-1",
+      "round-2",
+    ]);
+    expect(loaded.spec.rounds[1].taskInput).toMatchObject({
+      kind: "copy-fixture-file",
+      targetPath: "data/tasks/ready/task-round-2.md",
+    });
+    expect(loaded.spec.aggregatePredicates).toHaveLength(1);
+    expect(loaded.spec.aggregateObjectiveMetrics).toHaveLength(1);
+  });
+
+  it("rejects malformed multi-round specs loudly", () => {
+    writeFixture(root, "emptyRounds", {
+      id: "emptyRounds",
+      description: "x",
+      role: "builder",
+      mode: "multi-round",
+      rounds: [],
+    });
+    expect(() => loadFixture(root, "emptyRounds")).toThrow(/non-empty rounds/);
+
+    writeFixture(root, "mixedMode", {
+      id: "mixedMode",
+      description: "x",
+      role: "builder",
+      mode: "multi-round",
+      workflowName: "builder",
+      rounds: [
+        {
+          id: "round-1",
+          workflowName: "builder",
+          budgetMs: 600_000,
+          taskInput: { kind: "initial-state" },
+          preRunExpectations: [
+            { predicate: { kind: "file-exists", path: "x" }, expected: "fail" },
+          ],
+          predicates: [{ kind: "file-exists", path: "x" }],
+        },
+      ],
+    });
+    expect(() => loadFixture(root, "mixedMode")).toThrow(/cannot declare workflowName/);
+
+    writeFixture(root, "badRoundInput", {
+      id: "badRoundInput",
+      description: "x",
+      role: "builder",
+      mode: "multi-round",
+      rounds: [
+        {
+          id: "round-1",
+          workflowName: "builder",
+          budgetMs: 600_000,
+          taskInput: { kind: "copy-fixture-file", sourcePath: "x" },
+          preRunExpectations: [
+            { predicate: { kind: "file-exists", path: "x" }, expected: "fail" },
+          ],
+          predicates: [{ kind: "file-exists", path: "x" }],
+        },
+      ],
+    });
+    expect(() => loadFixture(root, "badRoundInput")).toThrow(/taskInput/);
   });
 
   it("accepts an optional externalCallShims list and validates entry shape", () => {
@@ -435,7 +571,7 @@ describe("loadFixture", () => {
       ],
     });
     const loaded = loadFixture(root, "withMetric");
-    expect(loaded.spec.objectiveMetrics).toEqual([
+    expect(singleSpec(loaded).objectiveMetrics).toEqual([
       {
         name: "output_size",
         unit: "bytes",
@@ -556,7 +692,7 @@ describe("loadFixture", () => {
       ],
     });
     const loaded = loadFixture(root, "withExtCall");
-    expect(loaded.spec.predicates).toHaveLength(1);
+    expect(singleSpec(loaded).predicates).toHaveLength(1);
   });
 
   it("rejects an external-call-log predicate with a malformed match", () => {
@@ -636,11 +772,18 @@ describe("loadAllFixtures", () => {
     );
     expect(fixtures.length).toBeGreaterThan(0);
     expect(
-      fixtures.every((fixture) =>
-        fixture.spec.preRunExpectations.some(
-          (expectation) => expectation.expected === "fail",
-        ),
-      ),
+      fixtures.every((fixture) => {
+        if (isSingleWorkflowFixtureSpec(fixture.spec)) {
+          return fixture.spec.preRunExpectations.some(
+            (expectation) => expectation.expected === "fail",
+          );
+        }
+        return fixture.spec.rounds.every((round) =>
+          round.preRunExpectations.some(
+            (expectation) => expectation.expected === "fail",
+          ),
+        );
+      }),
     ).toBe(true);
     expect(
       fixtures.every((fixture) => fixture.spec.controlDecisions.length > 0),
@@ -653,6 +796,7 @@ describe("loadAllFixtures", () => {
     );
     const demonstratingFixtures = fixtures.filter(
       (fixture) =>
+        isSingleWorkflowFixtureSpec(fixture.spec) &&
         fixture.spec.provenance.kind === "smoke-fixture" &&
         (fixture.spec.objectiveMetrics?.length ?? 0) > 0 &&
         fixture.spec.preRunExpectations.some(
@@ -673,9 +817,12 @@ describe("loadAllFixtures", () => {
       for (const fixture of fixtures) {
         const workDir = join(scratch, fixture.spec.id);
         cpSync(fixture.initialStateDir, workDir, { recursive: true });
+        const expectations = isSingleWorkflowFixtureSpec(fixture.spec)
+          ? fixture.spec.preRunExpectations
+          : fixture.spec.rounds[0].preRunExpectations;
         const result = evaluatePredicateExpectations(
           workDir,
-          fixture.spec.preRunExpectations,
+          expectations,
         );
         expect(
           result.results.filter((entry) => !entry.passed),

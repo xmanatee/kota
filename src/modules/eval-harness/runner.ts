@@ -17,14 +17,29 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { installExternalCallShims } from "./external-call-shim.js";
-import type { LoadedFixture } from "./fixture.js";
+import {
+  type FixtureRoundSpec,
+  type FixtureRoundTaskInput,
+  isMultiRoundFixtureSpec,
+  type LoadedFixture,
+  type MultiRoundFixtureSpecFile,
+} from "./fixture.js";
 import type {
   ExecutionProfilePreflightResult,
+  FixtureRoundRun,
   FixtureRun,
   FixtureRunOutcome,
   ResourceProfile,
@@ -120,6 +135,21 @@ export type FixtureRunReport = {
   objectiveMetrics: ObservedObjectiveMetric[];
   workingDir: string;
   executionOutcome: WorkflowExecutionOutcome;
+};
+
+type RoundRunReport = {
+  round: FixtureRoundSpec;
+  roundIndex: number;
+  executionOutcome: WorkflowExecutionOutcome;
+  outcome: FixtureRunOutcome;
+  preRunExpectationResults: PredicateExpectationEvalResult[];
+  predicateResults: PredicateEvalResult[];
+  objectiveMetrics: ObservedObjectiveMetric[];
+  timing: {
+    startedAt: string;
+    durationMs: number;
+    budgetMs: number;
+  };
 };
 
 function runGitSync(cwd: string, args: string[]): void {
@@ -256,20 +286,231 @@ function writeRunArtifact(
   );
 }
 
-/**
- * Run a single fixture attempt. Safe to call in a Promise.all for parallel
- * replicas because each attempt gets its own tmp working directory.
- */
-export async function runFixture(
+function relativePathInside(root: string, relativePath: string, label: string): string {
+  if (relativePath.length === 0 || isAbsolute(relativePath)) {
+    throw new Error(`${label} must be a non-empty relative path.`);
+  }
+  const resolved = resolve(root, relativePath);
+  const rootWithSep = root.endsWith(sep) ? root : `${root}${sep}`;
+  if (resolved !== root && !resolved.startsWith(rootWithSep)) {
+    throw new Error(`${label} must stay inside ${root}; got ${relativePath}.`);
+  }
+  if (resolved === root) {
+    throw new Error(`${label} must point at a file below ${root}.`);
+  }
+  return resolved;
+}
+
+function applyRoundTaskInput(
+  taskInput: FixtureRoundTaskInput,
+  fixtureDir: string,
+  workingDir: string,
+): WorkflowExecutionRequest["triggerPayload"] | undefined {
+  switch (taskInput.kind) {
+    case "initial-state":
+      return undefined;
+    case "trigger-payload":
+      return taskInput.payload;
+    case "copy-fixture-file": {
+      const source = relativePathInside(
+        fixtureDir,
+        taskInput.sourcePath,
+        "round taskInput.sourcePath",
+      );
+      const target = relativePathInside(
+        workingDir,
+        taskInput.targetPath,
+        "round taskInput.targetPath",
+      );
+      if (!existsSync(source) || !statSync(source).isFile()) {
+        throw new Error(
+          `round taskInput.sourcePath ${taskInput.sourcePath} must reference an existing fixture file.`,
+        );
+      }
+      mkdirSync(dirname(target), { recursive: true });
+      cpSync(source, target);
+      return undefined;
+    }
+  }
+}
+
+async function executeRound(params: {
+  round: FixtureRoundSpec;
+  roundIndex: number;
+  fixture: LoadedFixture;
+  executor: WorkflowExecutor;
+  executionProfile: ExecutionProfilePreflightResult;
+  workingDir: string;
+  shimDir: string | null;
+  runIndex: number;
+  repeatCount: number;
+}): Promise<RoundRunReport> {
+  const startedAt = new Date();
+  const startMs = startedAt.getTime();
+  let executionOutcome: WorkflowExecutionOutcome;
+  const triggerPayload = applyRoundTaskInput(
+    params.round.taskInput,
+    params.fixture.fixtureDir,
+    params.workingDir,
+  );
+  const preRunSanity = evaluatePredicateExpectations(
+    params.workingDir,
+    params.round.preRunExpectations,
+  );
+  if (!preRunSanity.passed) {
+    executionOutcome = {
+      kind: "not-started",
+      durationMs: Date.now() - startMs,
+      reason: "pre-run-sanity-failed",
+      runArtifactPath: null,
+    };
+    return {
+      round: params.round,
+      roundIndex: params.roundIndex,
+      executionOutcome,
+      outcome: outcomeFromExecution(executionOutcome, false),
+      preRunExpectationResults: preRunSanity.results,
+      predicateResults: [],
+      objectiveMetrics: [],
+      timing: {
+        startedAt: startedAt.toISOString(),
+        durationMs: executionOutcome.durationMs,
+        budgetMs: params.round.budgetMs,
+      },
+    };
+  }
+
+  try {
+    executionOutcome = await params.executor.execute({
+      workflowName: params.round.workflowName,
+      workingDir: params.workingDir,
+      budgetMs: params.round.budgetMs,
+      executionProfile: params.executionProfile,
+      ...(triggerPayload !== undefined && { triggerPayload }),
+      ...(params.fixture.agentStepRecordings.length > 0 && {
+        replayRecordingsRoot: params.fixture.fixtureDir,
+      }),
+      ...(params.shimDir !== null && { externalCallShimDir: params.shimDir }),
+    });
+  } catch (err) {
+    executionOutcome = {
+      kind: "error",
+      durationMs: Date.now() - startMs,
+      message: err instanceof Error ? err.message : String(err),
+      runArtifactPath: null,
+    };
+  }
+
+  const { passed, results } = evaluatePredicates(
+    params.workingDir,
+    params.round.predicates,
+  );
+  const outcome = outcomeFromExecution(executionOutcome, passed);
+  const objectiveMetrics = evaluateObjectiveMetrics({
+    fixtureId: params.fixture.spec.id,
+    metricSpecs: params.round.objectiveMetrics ?? [],
+    workingDir: params.workingDir,
+    executionProfile: params.executionProfile,
+    runIndex: params.runIndex,
+    repeatCount: params.repeatCount,
+  });
+  return {
+    round: params.round,
+    roundIndex: params.roundIndex,
+    executionOutcome,
+    outcome,
+    preRunExpectationResults: preRunSanity.results,
+    predicateResults: results,
+    objectiveMetrics,
+    timing: {
+      startedAt: startedAt.toISOString(),
+      durationMs: executionOutcome.durationMs,
+      budgetMs: params.round.budgetMs,
+    },
+  };
+}
+
+function roundRunSummary(result: RoundRunReport): FixtureRoundRun {
+  return {
+    roundId: result.round.id,
+    roundIndex: result.roundIndex,
+    workflowName: result.round.workflowName,
+    outcome: result.outcome,
+    objectiveMetrics: result.objectiveMetrics,
+    timing: result.timing,
+    runArtifactPath: result.executionOutcome.runArtifactPath,
+  };
+}
+
+function writeMultiRoundRunArtifact(
+  runArtifactDir: string,
+  payload: {
+    run: FixtureRun;
+    fixtureId: string;
+    workingDir: string;
+    executionProfile: ExecutionProfilePreflightResult;
+    spec: MultiRoundFixtureSpecFile;
+    roundResults: readonly RoundRunReport[];
+    aggregatePredicateResults: readonly PredicateEvalResult[];
+    objectiveMetrics: ObservedObjectiveMetric[];
+  },
+): void {
+  mkdirSync(runArtifactDir, { recursive: true });
+  writeFileSync(
+    join(runArtifactDir, "fixture-run.json"),
+    JSON.stringify(
+      {
+        ...payload.run,
+        fixture: {
+          id: payload.fixtureId,
+          mode: "multi-round",
+          workingDir: payload.workingDir,
+        },
+        executionProfile: payload.executionProfile,
+        rounds: payload.roundResults.map((result) => ({
+          id: result.round.id,
+          index: result.roundIndex,
+          workflowName: result.round.workflowName,
+          budgetMs: result.round.budgetMs,
+          taskInput: result.round.taskInput,
+          outcome: result.outcome,
+          execution: result.executionOutcome,
+          timing: result.timing,
+          preRunExpectations: result.preRunExpectationResults.map((entry) => ({
+            predicate: entry.predicate,
+            expected: entry.expected,
+          })),
+          preRunExpectationResults: result.preRunExpectationResults,
+          predicates: result.round.predicates,
+          predicateResults: result.predicateResults,
+          objectiveMetrics: result.objectiveMetrics,
+        })),
+        aggregatePredicates: payload.spec.aggregatePredicates ?? [],
+        aggregatePredicateResults: payload.aggregatePredicateResults,
+        objectiveMetrics: payload.objectiveMetrics,
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+async function runSingleWorkflowFixture(
   params: RunFixtureParams,
 ): Promise<FixtureRunReport> {
+  const spec = params.fixture.spec;
+  if (spec.mode !== "single-workflow") {
+    throw new Error(
+      `runSingleWorkflowFixture received non-single fixture "${spec.id}".`,
+    );
+  }
   const { workingDir, shimDir } = materializeFixtureWorkingDir(params.fixture);
   const startedAt = new Date();
   const startMs = startedAt.getTime();
   let executionOutcome: WorkflowExecutionOutcome;
   const preRunSanity = evaluatePredicateExpectations(
     workingDir,
-    params.fixture.spec.preRunExpectations,
+    spec.preRunExpectations,
   );
   const resourceProfile = resourceProfileFromExecutionProfile(
     params.executionProfile,
@@ -296,18 +537,18 @@ export async function runFixture(
       timing: {
         startedAt: startedAt.toISOString(),
         durationMs: executionOutcome.durationMs,
-        budgetMs: params.fixture.spec.budgetMs,
+        budgetMs: spec.budgetMs,
       },
       runArtifactPath: runArtifactDir,
     };
     writeRunArtifact(runArtifactDir, {
       run,
-      fixtureId: params.fixture.spec.id,
-      workflowName: params.fixture.spec.workflowName,
+      fixtureId: spec.id,
+      workflowName: spec.workflowName,
       workingDir,
       executionOutcome,
       executionProfile: params.executionProfile,
-      predicates: params.fixture.spec.predicates,
+      predicates: spec.predicates,
       preRunExpectationResults: preRunSanity.results,
       predicateResults: [],
       objectiveMetrics: [],
@@ -323,12 +564,12 @@ export async function runFixture(
   }
   try {
     executionOutcome = await params.executor.execute({
-      workflowName: params.fixture.spec.workflowName,
+      workflowName: spec.workflowName,
       workingDir,
-      budgetMs: params.fixture.spec.budgetMs,
+      budgetMs: spec.budgetMs,
       executionProfile: params.executionProfile,
-      ...(params.fixture.spec.triggerPayload !== undefined && {
-        triggerPayload: params.fixture.spec.triggerPayload,
+      ...(spec.triggerPayload !== undefined && {
+        triggerPayload: spec.triggerPayload,
       }),
       ...(params.fixture.agentStepRecordings.length > 0 && {
         replayRecordingsRoot: params.fixture.fixtureDir,
@@ -346,12 +587,12 @@ export async function runFixture(
 
   const { passed, results } = evaluatePredicates(
     workingDir,
-    params.fixture.spec.predicates,
+    spec.predicates,
   );
   const outcome = outcomeFromExecution(executionOutcome, passed);
   const objectiveMetrics = evaluateObjectiveMetrics({
-    fixtureId: params.fixture.spec.id,
-    metricSpecs: params.fixture.spec.objectiveMetrics ?? [],
+    fixtureId: spec.id,
+    metricSpecs: spec.objectiveMetrics ?? [],
     workingDir,
     executionProfile: params.executionProfile,
     runIndex: params.runIndex,
@@ -369,19 +610,19 @@ export async function runFixture(
     timing: {
       startedAt: startedAt.toISOString(),
       durationMs: executionOutcome.durationMs,
-      budgetMs: params.fixture.spec.budgetMs,
+      budgetMs: spec.budgetMs,
     },
     runArtifactPath: runArtifactDir,
   };
 
   writeRunArtifact(runArtifactDir, {
     run,
-    fixtureId: params.fixture.spec.id,
-    workflowName: params.fixture.spec.workflowName,
+    fixtureId: spec.id,
+    workflowName: spec.workflowName,
     workingDir,
     executionOutcome,
     executionProfile: params.executionProfile,
-    predicates: params.fixture.spec.predicates,
+    predicates: spec.predicates,
     preRunExpectationResults: preRunSanity.results,
     predicateResults: results,
     objectiveMetrics,
@@ -395,6 +636,136 @@ export async function runFixture(
     workingDir,
     executionOutcome,
   };
+}
+
+async function runMultiRoundFixture(
+  params: RunFixtureParams,
+): Promise<FixtureRunReport> {
+  const spec = params.fixture.spec;
+  if (spec.mode !== "multi-round") {
+    throw new Error(
+      `runMultiRoundFixture received non-multi-round fixture "${spec.id}".`,
+    );
+  }
+  const { workingDir, shimDir } = materializeFixtureWorkingDir(params.fixture);
+  const startedAt = new Date();
+  const startMs = startedAt.getTime();
+  const resourceProfile = resourceProfileFromExecutionProfile(
+    params.executionProfile,
+  );
+  const runArtifactDir = join(
+    params.runArtifactBaseDir,
+    `${spec.id}-${params.runIndex}`,
+  );
+
+  const roundResults: RoundRunReport[] = [];
+  for (let roundIndex = 0; roundIndex < spec.rounds.length; roundIndex++) {
+    const round = spec.rounds[roundIndex];
+    const roundResult = await executeRound({
+      round,
+      roundIndex,
+      fixture: params.fixture,
+      executor: params.executor,
+      executionProfile: params.executionProfile,
+      workingDir,
+      shimDir,
+      runIndex: params.runIndex,
+      repeatCount: params.repeatCount,
+    });
+    roundResults.push(roundResult);
+    if (roundResult.outcome !== "pass") break;
+  }
+
+  let aggregatePredicateResults: PredicateEvalResult[] = [];
+  let aggregatePredicatesPassed = true;
+  let objectiveMetrics: ObservedObjectiveMetric[] = [];
+  const failedRound = roundResults.find((result) => result.outcome !== "pass");
+  if (failedRound === undefined) {
+    const aggregate = evaluatePredicates(
+      workingDir,
+      spec.aggregatePredicates ?? [],
+    );
+    aggregatePredicateResults = aggregate.results;
+    aggregatePredicatesPassed = aggregate.passed;
+    objectiveMetrics = evaluateObjectiveMetrics({
+      fixtureId: spec.id,
+      metricSpecs: spec.aggregateObjectiveMetrics ?? [],
+      workingDir,
+      executionProfile: params.executionProfile,
+      runIndex: params.runIndex,
+      repeatCount: params.repeatCount,
+    });
+  }
+
+  const outcome: FixtureRunOutcome =
+    failedRound !== undefined
+      ? failedRound.outcome
+      : aggregatePredicatesPassed
+        ? "pass"
+        : "fail";
+  const executionOutcome: WorkflowExecutionOutcome =
+    failedRound?.executionOutcome ??
+    ({
+      kind: "completed",
+      durationMs: Date.now() - startMs,
+      runArtifactPath:
+        roundResults[roundResults.length - 1]?.executionOutcome.runArtifactPath ?? null,
+    } satisfies WorkflowExecutionOutcome);
+  const run: FixtureRun = {
+    fixtureId: spec.id,
+    runIndex: params.runIndex,
+    repeatCount: params.repeatCount,
+    outcome,
+    resourceProfile,
+    executionProfile: params.executionProfile,
+    objectiveMetrics,
+    rounds: roundResults.map(roundRunSummary),
+    timing: {
+      startedAt: startedAt.toISOString(),
+      durationMs: Date.now() - startMs,
+      budgetMs: spec.rounds.reduce((sum, round) => sum + round.budgetMs, 0),
+    },
+    runArtifactPath: runArtifactDir,
+  };
+
+  writeMultiRoundRunArtifact(runArtifactDir, {
+    run,
+    fixtureId: spec.id,
+    workingDir,
+    executionProfile: params.executionProfile,
+    spec,
+    roundResults,
+    aggregatePredicateResults,
+    objectiveMetrics,
+  });
+
+  return {
+    run,
+    predicateResults:
+      failedRound !== undefined
+        ? failedRound.predicateResults
+        : aggregatePredicateResults,
+    preRunExpectationResults:
+      failedRound?.preRunExpectationResults ??
+      roundResults.flatMap((result) => result.preRunExpectationResults),
+    objectiveMetrics,
+    workingDir,
+    executionOutcome,
+  };
+}
+
+/**
+ * Run a single fixture attempt. Single-workflow fixtures get an isolated
+ * tmpdir per attempt; multi-round fixtures get one isolated tmpdir per
+ * attempt and preserve it across their ordered rounds.
+ */
+export async function runFixture(
+  params: RunFixtureParams,
+): Promise<FixtureRunReport> {
+  if (isMultiRoundFixtureSpec(params.fixture.spec)) {
+    return runMultiRoundFixture(params);
+  }
+  return runSingleWorkflowFixture(params);
 }
 
 /**

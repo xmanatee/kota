@@ -71,6 +71,10 @@ type RunMetadataSnapshot = {
   status: string;
 };
 
+type WorkflowRunMetadataSnapshot = RunMetadataSnapshot & {
+  terminal: boolean;
+};
+
 const REPLAY_PRESET_ID = "claude";
 const CONTAINER_DEFAULT_PATH =
   "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
@@ -453,13 +457,20 @@ function containerMountArgs(params: {
   return mounts.flatMap((mount) => ["--mount", mount]);
 }
 
-function readTerminalRunForWorkflow(
+function isTerminalRunStatus(status: string): boolean {
+  return status !== "running";
+}
+
+function readWorkflowRunsForWorkflow(
   workingDir: string,
   workflowName: string,
-): RunMetadataSnapshot | null {
+): WorkflowRunMetadataSnapshot[] {
   const runsDir = join(workingDir, ".kota", "runs");
-  if (!existsSync(runsDir)) return null;
-  const entries = readdirSync(runsDir, { withFileTypes: true });
+  if (!existsSync(runsDir)) return [];
+  const entries = readdirSync(runsDir, { withFileTypes: true }).sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
+  const snapshots: WorkflowRunMetadataSnapshot[] = [];
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     if (!entry.name.includes(workflowName)) continue;
@@ -471,15 +482,25 @@ function readTerminalRunForWorkflow(
       workflow?: unknown;
     };
     if (raw.workflow !== workflowName) continue;
-    if (
-      typeof raw.status === "string" &&
-      raw.status !== "running" &&
-      typeof raw.id === "string"
-    ) {
-      return { id: raw.id, status: raw.status };
-    }
+    if (typeof raw.status !== "string" || typeof raw.id !== "string") continue;
+    snapshots.push({
+      id: raw.id,
+      status: raw.status,
+      terminal: isTerminalRunStatus(raw.status),
+    });
   }
-  return null;
+  return snapshots;
+}
+
+function readTerminalRunForWorkflow(
+  workingDir: string,
+  workflowName: string,
+  existingRunIds: ReadonlySet<string>,
+): RunMetadataSnapshot | null {
+  const terminalRuns = readWorkflowRunsForWorkflow(workingDir, workflowName)
+    .filter((run) => run.terminal && !existingRunIds.has(run.id));
+  const terminal = terminalRuns[terminalRuns.length - 1];
+  return terminal ? { id: terminal.id, status: terminal.status } : null;
 }
 
 /**
@@ -506,6 +527,11 @@ export function createSubprocessExecutor(
       const hostKotaRoot = dirname(dirname(resolve(options.kotaBinaryPath)));
       const hostKotaDistDir = join(hostKotaRoot, "dist");
       const hostExecArgs = workflowExecArgs(options.kotaBinaryPath, request);
+      const existingWorkflowRunIds = new Set(
+        readWorkflowRunsForWorkflow(request.workingDir, request.workflowName).map(
+          (run) => run.id,
+        ),
+      );
       const childSpec =
         isolationBackend.kind === "host-subprocess"
           ? {
@@ -601,6 +627,7 @@ export function createSubprocessExecutor(
       const terminal = readTerminalRunForWorkflow(
         request.workingDir,
         request.workflowName,
+        existingWorkflowRunIds,
       );
       const runArtifactPath = terminal
         ? join(request.workingDir, ".kota", "runs", terminal.id)

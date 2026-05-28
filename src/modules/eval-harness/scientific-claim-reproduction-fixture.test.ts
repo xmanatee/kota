@@ -3,7 +3,7 @@ import { cpSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { loadFixture } from "./fixture.js";
+import { isSingleWorkflowFixtureSpec, loadFixture } from "./fixture.js";
 import type {
   ExecutionProfilePreflightResult,
   ResourceProfile,
@@ -275,6 +275,9 @@ describe("builder scientific claim reproduction fixture", () => {
 
   it("uses trusted predicate code instead of executing mutable fixture scripts", () => {
     const fixture = loadFixture(FIXTURES_ROOT, FIXTURE_ID);
+    if (!isSingleWorkflowFixtureSpec(fixture.spec)) {
+      throw new Error(`${FIXTURE_ID} must stay a single-workflow fixture`);
+    }
     const claimPredicate = fixture.spec.predicates[0];
     expect(claimPredicate.kind).toBe("lx12-scientific-claim-result");
     const workingDir = mkdtempSync(join(tmpdir(), "kota-scientific-boundary-"));

@@ -1,0 +1,8 @@
+{
+  "name": "builder-persistent-rounds-canary-fixture",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node scripts/check-ledger.mjs --round=2"
+  }
+}
