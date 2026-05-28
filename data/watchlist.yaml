@@ -10,6 +10,9 @@ resources:
       fingerprint: sha256:9fbe725ae31d8182140a9742ddb5fbca
       summary: "OpenClaw still maps cleanly to KOTA's daemon/session/channel/tool/skill model; its skills-registry signal is now covered by completed skill-pack import and runtime-resolution work, so no new primitive is open from this snapshot."
       last_seen_at: "2026-05-18T04:16:37.406Z"
+  - url: https://github.com/openclaw/clawbench
+    added: "2026-05-28"
+    notes: "ClawBench is OpenClaw's trace/reliability-focused benchmark. Monitor as an eval-methodology signal for KOTA's eval-harness reliability diagnostics, low-signal fixture detection, and trace-based scoring; do not import it as a benchmark runner."
   - url: https://github.com/zeroclaw-labs/zeroclaw
     added: "2026-04-14"
     snapshot:
