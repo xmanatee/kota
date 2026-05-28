@@ -173,6 +173,9 @@ resources:
       fingerprint: sha256:6415a88609bc80fe396ff381f8565172
       summary: "SpecBench reinforces KOTA's completed persistent multi-round eval-harness mode and existing hidden/composition predicate direction; no duplicate task is needed because task-add-persistent-multi-round-scoring-to-the-eval-har already covered the nonduplicative gap."
       last_seen_at: "2026-05-28T01:04:53.189Z"
+  - url: https://arxiv.org/abs/2603.24755
+    added: "2026-05-28"
+    notes: "SlopCodeBench measures code degradation across iterative coding-agent tasks. Monitor as an eval-harness signal for structural erosion and verbosity diagnostics in persistent multi-round fixtures, not as an imported benchmark."
   - url: https://github.com/letta-ai/letta
     added: "2026-04-19"
     snapshot:
