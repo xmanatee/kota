@@ -1,12 +1,12 @@
 ---
 id: task-add-proactive-cross-session-intent-resolution-eval
 title: Add proactive cross-session intent-resolution eval fixture
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Seed eval-harness with a compact personal-assistant fixture that proves KOTA can use prior interactions to resolve hidden user intent across sessions without acting beyond authorization.
 created_at: 2026-05-28T01:37:20.006Z
-updated_at: 2026-05-28T01:37:20.006Z
+updated_at: 2026-05-28T01:46:53.000Z
 ---
 
 ## Problem
