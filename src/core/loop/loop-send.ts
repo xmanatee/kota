@@ -212,6 +212,7 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
         mcpInputResolver: state.mcpInputResolver,
         transport: state.transport,
         guardrailsConfig: state.guardrailsConfig,
+        clientApprovalResolver: state.clientApprovalResolver,
         sessionId: state.sessionId,
         messages: state.context.getMessages(),
         signal,

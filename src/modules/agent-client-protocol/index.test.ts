@@ -1,4 +1,4 @@
-import { Readable } from "node:stream";
+import { PassThrough, Readable } from "node:stream";
 import { describe, expect, it } from "vitest";
 import type { DaemonSseStreamEvent } from "#core/daemon/daemon-control.js";
 import type {
@@ -73,13 +73,15 @@ class FakeDaemon implements AcpDaemonClient {
   listSessionsCalls: AcpProject[] = [];
   resumeSessionCalls: Array<{ project: AcpProject; sessionId: string; mcpServers: AcpMcpServers }> = [];
   promptCalls: PromptSessionArgs[] = [];
+  permissionDecisions: string[] = [];
   cancelCalls: string[] = [];
   closeCalls: string[] = [];
   knownSessions: AcpDaemonSession[] = [];
   nextSessionId = "kota-session-1";
   promptStarted: Promise<void> = Promise.resolve();
   resolvePromptStarted: () => void = () => {};
-  promptMode: "stream" | "hang" = "stream";
+  promptMode: "stream" | "hang" | "permission" = "stream";
+  permissionTimeoutMs = 50;
 
   constructor() {
     this.resetPromptStarted();
@@ -118,6 +120,32 @@ class FakeDaemon implements AcpDaemonClient {
           once: true,
         });
       });
+    }
+    if (this.promptMode === "permission") {
+      if (!args.requestPermission) throw new Error("permission bridge missing");
+      const decision = await args.requestPermission({
+        approvalId: "approval-1",
+        toolUseId: "tool-1",
+        tool: "shell",
+        input: {
+          command: "deploy",
+          API_KEY: "secret-token",
+          accessToken: "secret-access-token",
+          authToken: "secret-auth-token",
+          clientSecret: "secret-client-secret",
+          nested: { password: "secret-password", safe: "visible" },
+        },
+        risk: "dangerous",
+        reason: "writes external state",
+        timeoutMs: this.permissionTimeoutMs,
+      });
+      this.permissionDecisions.push(decision.outcome);
+      if (decision.outcome === "allow") {
+        args.onUpdate(agentMessageUpdate(args.sessionId, "permission allowed"));
+      } else if (decision.outcome === "deny") {
+        args.onUpdate(agentMessageUpdate(args.sessionId, `permission denied: ${decision.message}`));
+      }
+      return { stopReason: "end_turn" };
     }
     args.onUpdate(agentMessageUpdate(args.sessionId, "streamed response"));
     return { stopReason: "end_turn" };
@@ -233,6 +261,20 @@ class FakeTransport implements DaemonTransport {
       });
     }
     if (path === "/sessions/s1/chat") {
+      const body = typeof init?.body === "string"
+        ? JSON.parse(init.body) as { message?: string; client_approval?: boolean }
+        : {};
+      if (body.message === "approval") {
+        return new Response(
+          [
+            'event: approval_request\ndata: {"session_id":"s1","approval_id":"approval-1","tool_use_id":"tool-1","tool":"shell","risk":"dangerous","reason":"writes external state","input":{"command":"deploy","API_KEY":"[REDACTED]"},"timeout_ms":120000}',
+            'event: text\ndata: {"type":"text","content":"after approval"}',
+            'event: done\ndata: {"session_id":"s1","result":"after approval"}',
+            "",
+          ].join("\n\n"),
+          { status: 200, headers: { "Content-Type": "text/event-stream" } },
+        );
+      }
       return new Response(
         [
           'event: text\ndata: {"type":"text","content":"hello"}',
@@ -243,6 +285,9 @@ class FakeTransport implements DaemonTransport {
       );
     }
     if (path === "/sessions/s1/cancel") {
+      return new Response(null, { status: 204 });
+    }
+    if (path === "/sessions/s1/approvals/approval-1") {
       return new Response(null, { status: 204 });
     }
     if (path === "/sessions/s1") {
@@ -267,6 +312,47 @@ function notification(method: string, params?: object): string {
     method,
     ...(params ? { params } : {}),
   });
+}
+
+function response(id: number, result: object): string {
+  return JSON.stringify({
+    jsonrpc: "2.0",
+    id,
+    result,
+  });
+}
+
+function malformedResponse(id: number): string {
+  return JSON.stringify({
+    jsonrpc: "2.0",
+    id,
+    result: {
+      outcome: { outcome: "selected", optionId: "allow-once" },
+    },
+    error: {
+      code: -32000,
+      message: "conflicting response",
+    },
+  });
+}
+
+function responseWithoutResultOrError(id: number): string {
+  return JSON.stringify({
+    jsonrpc: "2.0",
+    id,
+  });
+}
+
+async function waitForMessage(
+  output: CaptureStream,
+  predicate: (message: any) => boolean,
+): Promise<any> {
+  for (let i = 0; i < 50; i++) {
+    const found = output.messages().find(predicate);
+    if (found) return found;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  throw new Error("timed out waiting for ACP message");
 }
 
 async function initializedServer(fake = new FakeDaemon()) {
@@ -672,6 +758,244 @@ describe("agent-client-protocol module", () => {
     });
   });
 
+  it("correlates outgoing permission request ids and ignores unrelated peer responses", async () => {
+    const fake = new FakeDaemon();
+    fake.promptMode = "permission";
+    const { server, output, error } = await initializedServer(fake);
+    await server.handleLine(request(1, "session/new", {
+      cwd: PROJECT_DIR,
+      mcpServers: [],
+    }));
+
+    const prompt = server.handleLine(request(2, "session/prompt", {
+      sessionId: "kota-session-1",
+      prompt: [{ type: "text", text: "deploy" }],
+    }));
+    const permissionRequest = await waitForMessage(
+      output,
+      (message) => message.method === "session/request_permission",
+    );
+    await server.handleLine(response(permissionRequest.id + 100, {
+      outcome: { outcome: "selected", optionId: "allow-once" },
+    }));
+    expect(error.text()).toContain("no pending request");
+    expect(output.messages().some((message) => message.id === 2 && message.result)).toBe(false);
+
+    await server.handleLine(response(permissionRequest.id, {
+      outcome: { outcome: "selected", optionId: "allow-once" },
+    }));
+    await prompt;
+
+    expect(fake.permissionDecisions).toEqual(["allow"]);
+    expect(output.messages().at(-1)).toMatchObject({
+      id: 2,
+      result: { stopReason: "end_turn" },
+    });
+  });
+
+  it("round-trips allow and deny permission responses through ACP-owned prompts", async () => {
+    const fake = new FakeDaemon();
+    fake.promptMode = "permission";
+    const { server, output } = await initializedServer(fake);
+    await server.handleLine(request(1, "session/new", {
+      cwd: PROJECT_DIR,
+      mcpServers: [],
+    }));
+
+    const allowPrompt = server.handleLine(request(2, "session/prompt", {
+      sessionId: "kota-session-1",
+      prompt: [{ type: "text", text: "allow deploy" }],
+    }));
+    const allowRequest = await waitForMessage(
+      output,
+      (message) => message.method === "session/request_permission",
+    );
+    await server.handleLine(response(allowRequest.id, {
+      outcome: { outcome: "selected", optionId: "allow-once" },
+    }));
+    await allowPrompt;
+
+    const denyPrompt = server.handleLine(request(3, "session/prompt", {
+      sessionId: "kota-session-1",
+      prompt: [{ type: "text", text: "deny deploy" }],
+    }));
+    const denyRequest = await waitForMessage(
+      output,
+      (message) =>
+        message.method === "session/request_permission" &&
+        message.id !== allowRequest.id,
+    );
+    await server.handleLine(response(denyRequest.id, {
+      outcome: { outcome: "selected", optionId: "reject-once" },
+    }));
+    await denyPrompt;
+
+    expect(fake.permissionDecisions).toEqual(["allow", "deny"]);
+    expect(output.text()).toContain("permission allowed");
+    expect(output.text()).toContain("permission denied: ACP client rejected the tool call");
+  });
+
+  it("redacts secret-shaped permission request input fields", async () => {
+    const fake = new FakeDaemon();
+    fake.promptMode = "permission";
+    const { server, output } = await initializedServer(fake);
+    await server.handleLine(request(1, "session/new", {
+      cwd: PROJECT_DIR,
+      mcpServers: [],
+    }));
+
+    const prompt = server.handleLine(request(2, "session/prompt", {
+      sessionId: "kota-session-1",
+      prompt: [{ type: "text", text: "deploy" }],
+    }));
+    const permissionRequest = await waitForMessage(
+      output,
+      (message) => message.method === "session/request_permission",
+    );
+    await server.handleLine(response(permissionRequest.id, {
+      outcome: { outcome: "selected", optionId: "allow-once" },
+    }));
+    await prompt;
+
+    expect(output.text()).not.toContain("secret-token");
+    expect(output.text()).not.toContain("secret-access-token");
+    expect(output.text()).not.toContain("secret-auth-token");
+    expect(output.text()).not.toContain("secret-client-secret");
+    expect(output.text()).not.toContain("secret-password");
+    expect(permissionRequest.params.toolCall.rawInput).toMatchObject({
+      command: "deploy",
+      API_KEY: "[REDACTED]",
+      accessToken: "[REDACTED]",
+      authToken: "[REDACTED]",
+      clientSecret: "[REDACTED]",
+      nested: { password: "[REDACTED]", safe: "visible" },
+    });
+  });
+
+  it("rejects malformed permission responses and clears the active prompt", async () => {
+    const fake = new FakeDaemon();
+    fake.promptMode = "permission";
+    const { server, output } = await initializedServer(fake);
+    await server.handleLine(request(1, "session/new", {
+      cwd: PROJECT_DIR,
+      mcpServers: [],
+    }));
+
+    const prompt = server.handleLine(request(2, "session/prompt", {
+      sessionId: "kota-session-1",
+      prompt: [{ type: "text", text: "deploy" }],
+    }));
+    const permissionRequest = await waitForMessage(
+      output,
+      (message) => message.method === "session/request_permission",
+    );
+    await server.handleLine(response(permissionRequest.id, {
+      outcome: { outcome: "selected", optionId: "allow-forever" },
+    }));
+    await prompt;
+
+    expect(output.messages().at(-1)).toMatchObject({
+      id: 2,
+      error: {
+        data: { code: "invalid_params" },
+      },
+    });
+
+    fake.promptMode = "stream";
+    await server.handleLine(request(3, "session/prompt", {
+      sessionId: "kota-session-1",
+      prompt: [{ type: "text", text: "after malformed response" }],
+    }));
+    expect(output.messages().at(-1)).toMatchObject({
+      id: 3,
+      result: { stopReason: "end_turn" },
+    });
+  });
+
+  it("correlates structurally malformed permission responses and clears the active prompt", async () => {
+    const fake = new FakeDaemon();
+    fake.promptMode = "permission";
+    const { server, output } = await initializedServer(fake);
+    await server.handleLine(request(1, "session/new", {
+      cwd: PROJECT_DIR,
+      mcpServers: [],
+    }));
+
+    const prompt = server.handleLine(request(2, "session/prompt", {
+      sessionId: "kota-session-1",
+      prompt: [{ type: "text", text: "deploy" }],
+    }));
+    const permissionRequest = await waitForMessage(
+      output,
+      (message) => message.method === "session/request_permission",
+    );
+    await server.handleLine(malformedResponse(permissionRequest.id));
+    await prompt;
+
+    expect(output.messages().at(-1)).toMatchObject({
+      id: 2,
+      error: {
+        message: "response cannot include both result and error",
+        data: { code: "malformed_response" },
+      },
+    });
+
+    fake.promptMode = "stream";
+    await server.handleLine(request(3, "session/prompt", {
+      sessionId: "kota-session-1",
+      prompt: [{ type: "text", text: "after structurally malformed response" }],
+    }));
+    expect(output.messages().at(-1)).toMatchObject({
+      id: 3,
+      result: { stopReason: "end_turn" },
+    });
+  });
+
+  it("rejects empty permission response frames and clears the active prompt", async () => {
+    const fake = new FakeDaemon();
+    fake.promptMode = "permission";
+    fake.permissionTimeoutMs = 200;
+    const { server, output } = await initializedServer(fake);
+    await server.handleLine(request(1, "session/new", {
+      cwd: PROJECT_DIR,
+      mcpServers: [],
+    }));
+
+    const prompt = server.handleLine(request(2, "session/prompt", {
+      sessionId: "kota-session-1",
+      prompt: [{ type: "text", text: "deploy" }],
+    }));
+    const permissionRequest = await waitForMessage(
+      output,
+      (message) => message.method === "session/request_permission",
+    );
+    await server.handleLine(responseWithoutResultOrError(permissionRequest.id));
+    const outcome = await Promise.race([
+      prompt.then(() => "resolved" as const),
+      new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), 50)),
+    ]);
+    if (outcome !== "resolved") await prompt;
+
+    expect(outcome).toBe("resolved");
+    expect(output.messages().at(-1)).toMatchObject({
+      id: 2,
+      error: {
+        message: "response must include result or error",
+        data: { code: "malformed_response" },
+      },
+    });
+
+    fake.promptMode = "stream";
+    await server.handleLine(request(3, "session/prompt", {
+      sessionId: "kota-session-1",
+      prompt: [{ type: "text", text: "after empty response" }],
+    }));
+    expect(output.messages().at(-1)).toMatchObject({
+      id: 3,
+      result: { stopReason: "end_turn" },
+    });
+  });
+
   it("cancels an active prompt and returns the cancelled stop reason", async () => {
     const fake = new FakeDaemon();
     fake.promptMode = "hang";
@@ -696,6 +1020,109 @@ describe("agent-client-protocol module", () => {
     expect(messages.at(-1)).toMatchObject({
       id: 2,
       result: { stopReason: "cancelled" },
+    });
+  });
+
+  it("cancels a prompt while waiting for a permission response", async () => {
+    const fake = new FakeDaemon();
+    fake.promptMode = "permission";
+    const { server, output, error } = await initializedServer(fake);
+    await server.handleLine(request(1, "session/new", {
+      cwd: PROJECT_DIR,
+      mcpServers: [],
+    }));
+
+    const prompt = server.handleLine(request(2, "session/prompt", {
+      sessionId: "kota-session-1",
+      prompt: [{ type: "text", text: "deploy" }],
+    }));
+    const permissionRequest = await waitForMessage(
+      output,
+      (message) => message.method === "session/request_permission",
+    );
+    await server.handleLine(notification("session/cancel", {
+      sessionId: "kota-session-1",
+    }));
+    await prompt;
+    await server.handleLine(response(permissionRequest.id, {
+      outcome: { outcome: "selected", optionId: "allow-once" },
+    }));
+
+    expect(fake.cancelCalls).toEqual(["kota-session-1"]);
+    expect(error.text()).toContain("no pending request");
+    expect(output.messages().at(-1)).toMatchObject({
+      id: 2,
+      result: { stopReason: "cancelled" },
+    });
+  });
+
+  it("disconnect cleanup cancels prompts waiting for permission", async () => {
+    const fake = new FakeDaemon();
+    fake.promptMode = "permission";
+    const { server, output } = await initializedServer(fake);
+    await server.handleLine(request(1, "session/new", {
+      cwd: PROJECT_DIR,
+      mcpServers: [],
+    }));
+
+    const prompt = server.handleLine(request(2, "session/prompt", {
+      sessionId: "kota-session-1",
+      prompt: [{ type: "text", text: "deploy" }],
+    }));
+    await waitForMessage(output, (message) => message.method === "session/request_permission");
+    await server.close();
+    await prompt;
+
+    expect(fake.cancelCalls).toEqual(["kota-session-1"]);
+    expect(output.messages().at(-1)).toMatchObject({
+      id: 2,
+      result: { stopReason: "cancelled" },
+    });
+  });
+
+  it("times out permission responses and clears pending prompt state", async () => {
+    const fake = new FakeDaemon();
+    fake.promptMode = "permission";
+    fake.permissionTimeoutMs = 1;
+    const { server, output, error } = await initializedServer(fake);
+    await server.handleLine(request(1, "session/new", {
+      cwd: PROJECT_DIR,
+      mcpServers: [],
+    }));
+
+    const prompt = server.handleLine(request(2, "session/prompt", {
+      sessionId: "kota-session-1",
+      prompt: [{ type: "text", text: "deploy" }],
+    }));
+    const permissionRequest = await waitForMessage(
+      output,
+      (message) => message.method === "session/request_permission",
+    );
+    await prompt;
+
+    expect(output.messages().at(-1)).toMatchObject({
+      id: 2,
+      error: {
+        data: {
+          code: "peer_request_timeout",
+          method: "session/request_permission",
+        },
+      },
+    });
+
+    await server.handleLine(response(permissionRequest.id, {
+      outcome: { outcome: "selected", optionId: "allow-once" },
+    }));
+    expect(error.text()).toContain("no pending request");
+
+    fake.promptMode = "stream";
+    await server.handleLine(request(3, "session/prompt", {
+      sessionId: "kota-session-1",
+      prompt: [{ type: "text", text: "after timeout" }],
+    }));
+    expect(output.messages().at(-1)).toMatchObject({
+      id: 3,
+      result: { stopReason: "end_turn" },
     });
   });
 
@@ -842,6 +1269,39 @@ describe("agent-client-protocol module", () => {
     expect(transport.calls[0]?.path).toBe("/sessions/s1/chat");
   });
 
+  it("answers daemon approval SSE requests with ACP permission decisions", async () => {
+    const transport = new FakeTransport();
+    const client = new HttpAcpDaemonClient(transport);
+    const permissionRequests: object[] = [];
+
+    const result = await client.promptSession({
+      sessionId: "s1",
+      prompt: "approval",
+      signal: new AbortController().signal,
+      onUpdate: () => {},
+      requestPermission: async (request) => {
+        permissionRequests.push(request);
+        return { outcome: "allow" };
+      },
+    });
+
+    expect(result).toEqual({ stopReason: "end_turn" });
+    expect(permissionRequests).toEqual([
+      {
+        approvalId: "approval-1",
+        toolUseId: "tool-1",
+        tool: "shell",
+        risk: "dangerous",
+        reason: "writes external state",
+        input: { command: "deploy", API_KEY: "[REDACTED]" },
+        timeoutMs: 120000,
+      },
+    ]);
+    const approvalCall = transport.calls.find((call) => call.path === "/sessions/s1/approvals/approval-1");
+    expect(approvalCall?.init?.method).toBe("POST");
+    expect(JSON.parse(String(approvalCall?.init?.body))).toEqual({ outcome: "allow" });
+  });
+
   it("creates HTTP daemon sessions with the selected project id", async () => {
     const transport = new FakeTransport();
     const client = new HttpAcpDaemonClient(transport);
@@ -972,5 +1432,47 @@ describe("agent-client-protocol module", () => {
       expect(() => JSON.parse(line)).not.toThrow();
     }
     expect(error.text()).toContain("ACP notification ignored");
+  });
+
+  it("aborts pending permission prompts when the ACP stdio client disconnects", async () => {
+    const fake = new FakeDaemon();
+    fake.promptMode = "permission";
+    fake.permissionTimeoutMs = 200;
+    const output = new CaptureStream();
+    const error = new CaptureStream();
+    const input = new PassThrough();
+    const run = runAgentClientProtocolStdio({
+      input,
+      output,
+      error,
+      daemonFactory: () => fake,
+    });
+
+    input.write(`${request(0, "initialize", { protocolVersion: 1 })}\n`);
+    await waitForMessage(output, (message) => message.id === 0 && message.result);
+    input.write(`${request(1, "session/new", {
+      cwd: PROJECT_DIR,
+      mcpServers: [],
+    })}\n`);
+    await waitForMessage(output, (message) => message.id === 1 && message.result?.sessionId === "kota-session-1");
+    input.write(`${request(2, "session/prompt", {
+      sessionId: "kota-session-1",
+      prompt: [{ type: "text", text: "deploy" }],
+    })}\n`);
+    await waitForMessage(output, (message) => message.method === "session/request_permission");
+
+    input.end();
+    const outcome = await Promise.race([
+      run.then(() => "resolved" as const),
+      new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), 50)),
+    ]);
+    if (outcome !== "resolved") await run;
+
+    expect(outcome).toBe("resolved");
+    expect(fake.cancelCalls).toEqual(["kota-session-1"]);
+    expect(output.messages().at(-1)).toMatchObject({
+      id: 2,
+      result: { stopReason: "cancelled" },
+    });
   });
 });

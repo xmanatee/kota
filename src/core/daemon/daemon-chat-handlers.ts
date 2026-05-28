@@ -11,7 +11,14 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { KotaJsonObject, KotaJsonValue } from "#core/agent-harness/message-protocol.js";
 import { type AgentEvent, NullTransport } from "#core/loop/transport.js";
 import type { McpServerConfig } from "#core/mcp/manager.js";
+import { isSensitiveToolInputKey } from "#core/tools/approval-redaction.js";
 import { type AutonomyMode, isAutonomyMode } from "#core/tools/autonomy-mode.js";
+import {
+  type ToolApprovalDecision,
+  type ToolApprovalRequest,
+  type ToolApprovalResolver,
+  ToolApprovalTimeoutError,
+} from "#core/tools/tool-runner.js";
 import type { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import type {
   DaemonChatMakeAgent,
@@ -19,6 +26,7 @@ import type {
   DaemonChatSession,
   DaemonChatStreamPayload,
 } from "./daemon-chat-pool.js";
+import { rejectPendingClientApprovals } from "./daemon-chat-pool.js";
 import { jsonResponse } from "./daemon-control-utils.js";
 import type { ProjectId } from "./project-registry.js";
 
@@ -302,6 +310,7 @@ export async function handleDaemonChat(
     jsonResponse(res, 400, { error: "message must be a non-empty string" });
     return;
   }
+  const clientApprovalEnabled = body.client_approval === true;
 
   if (session.busy) {
     jsonResponse(res, 409, { error: "Session is busy processing another request" });
@@ -323,6 +332,10 @@ export async function handleDaemonChat(
   };
 
   session.proxy.target = sseTransport;
+  const previousClientApprovalResolver = session.agent.clientApprovalResolver;
+  if (clientApprovalEnabled) {
+    session.agent.setClientApprovalResolver(createDaemonChatClientApprovalResolver(session, res));
+  }
   publishSessionSse(session, res, "session", { session_id: session.id });
 
   try {
@@ -331,12 +344,183 @@ export async function handleDaemonChat(
   } catch (err) {
     publishSessionSse(session, res, "error", { message: (err as Error).message });
   } finally {
+    rejectPendingClientApprovals(
+      session,
+      new Error("Daemon chat turn ended before client approval resolved"),
+    );
+    if (clientApprovalEnabled) {
+      session.agent.setClientApprovalResolver(previousClientApprovalResolver);
+    }
     session.proxy.target = new NullTransport();
     session.busy = false;
     session.lastActive = Date.now();
     closeSessionSubscribers(session);
     if (!res.writableEnded) res.end();
   }
+}
+
+export async function handleResolveDaemonChatApproval(
+  pool: DaemonChatPool,
+  req: IncomingMessage,
+  res: ServerResponse,
+  sessionId: string,
+  approvalId: string,
+): Promise<void> {
+  const session = pool.get(sessionId);
+  if (!session) {
+    jsonResponse(res, 404, { error: "Session not found" });
+    return;
+  }
+  const pending = session.pendingClientApprovals.get(approvalId);
+  if (!pending) {
+    jsonResponse(res, 404, { error: "Client approval request not found" });
+    return;
+  }
+
+  let body: KotaJsonObject;
+  try {
+    body = await readChatBody(req);
+  } catch (err) {
+    jsonResponse(res, 400, { error: (err as Error).message });
+    return;
+  }
+
+  const decoded = decodeClientApprovalDecision(body);
+  if (!decoded.ok) {
+    jsonResponse(res, 400, { error: decoded.error });
+    return;
+  }
+  pending.resolve(decoded.decision);
+  res.writeHead(204);
+  res.end();
+}
+
+type DecodedClientApprovalDecision =
+  | { ok: true; decision: ToolApprovalDecision }
+  | { ok: false; error: string };
+
+function decodeClientApprovalDecision(body: KotaJsonObject): DecodedClientApprovalDecision {
+  const unknown = Object.keys(body).filter((key) => key !== "outcome" && key !== "message");
+  if (unknown.length > 0) {
+    return {
+      ok: false,
+      error: `approval response has unexpected field${unknown.length === 1 ? "" : "s"} ${unknown.join(", ")}`,
+    };
+  }
+  if (body.outcome === "allow") return { ok: true, decision: { outcome: "allow" } };
+  if (body.outcome === "deny") {
+    if (typeof body.message !== "string" || body.message.length === 0) {
+      return { ok: false, error: "deny approval response requires a non-empty message" };
+    }
+    return { ok: true, decision: { outcome: "deny", message: body.message } };
+  }
+  if (body.outcome === "cancelled") {
+    if (typeof body.message !== "string" || body.message.length === 0) {
+      return { ok: false, error: "cancelled approval response requires a non-empty message" };
+    }
+    return { ok: true, decision: { outcome: "cancelled", message: body.message } };
+  }
+  return { ok: false, error: 'approval response outcome must be "allow", "deny", or "cancelled"' };
+}
+
+const DEFAULT_CLIENT_APPROVAL_TIMEOUT_MS = 120_000;
+type ClientApprovalInput = ToolApprovalRequest["input"];
+type ClientApprovalInputValue = ClientApprovalInput[string];
+
+function createDaemonChatClientApprovalResolver(
+  session: DaemonChatSession,
+  res: ServerResponse,
+): ToolApprovalResolver {
+  return (request) =>
+    new Promise<ToolApprovalDecision>((resolve, reject) => {
+      const approvalId = request.id;
+      if (session.pendingClientApprovals.has(approvalId)) {
+        reject(new Error(`Duplicate client approval request id ${approvalId}`));
+        return;
+      }
+
+      let settled = false;
+      const timeoutMs = approvalTimeoutMs(request);
+      const cleanup = (): void => {
+        session.pendingClientApprovals.delete(approvalId);
+        clearTimeout(timeout);
+        request.signal?.removeEventListener("abort", onAbort);
+      };
+      const settle = (decision: ToolApprovalDecision): void => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(decision);
+      };
+      const fail = (error: Error): void => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(error);
+      };
+      const onAbort = (): void => {
+        fail(new Error("Client approval request aborted"));
+      };
+      const timeout = setTimeout(() => {
+        fail(new ToolApprovalTimeoutError(`Client approval request ${approvalId} timed out`));
+      }, timeoutMs);
+      timeout.unref();
+
+      request.signal?.addEventListener("abort", onAbort, { once: true });
+      if (request.signal?.aborted) {
+        fail(new Error("Client approval request aborted"));
+        return;
+      }
+      session.pendingClientApprovals.set(approvalId, {
+        resolve: settle,
+        reject: fail,
+      });
+      publishSessionSse(session, res, "approval_request", {
+        session_id: session.id,
+        approval_id: approvalId,
+        tool_use_id: request.toolUseId,
+        tool: request.toolName,
+        risk: request.risk,
+        reason: request.reason,
+        input: redactSensitiveInput(request.input),
+        timeout_ms: timeoutMs,
+        ...(request.context !== undefined ? { context: request.context } : {}),
+      });
+    });
+}
+
+function approvalTimeoutMs(request: ToolApprovalRequest): number {
+  if (
+    request.timeoutMs !== undefined &&
+    Number.isFinite(request.timeoutMs) &&
+    request.timeoutMs > 0
+  ) {
+    return Math.min(request.timeoutMs, 30 * 60 * 1000);
+  }
+  return DEFAULT_CLIENT_APPROVAL_TIMEOUT_MS;
+}
+
+function redactSensitiveInput(input: ClientApprovalInput): ClientApprovalInput {
+  const out: ClientApprovalInput = {};
+  for (const [childKey, childValue] of Object.entries(input)) {
+    out[childKey] = redactSensitiveValue(childValue, childKey);
+  }
+  return out;
+}
+
+function redactSensitiveValue(value: ClientApprovalInputValue, key = ""): ClientApprovalInputValue {
+  if (isSensitiveToolInputKey(key)) return "[REDACTED]";
+  if (Array.isArray(value)) return value.map((entry) => redactSensitiveValue(entry));
+  if (!isRecordObject(value)) return value;
+  const out: ClientApprovalInput = {};
+  for (const [childKey, childValue] of Object.entries(value)) {
+    out[childKey] = redactSensitiveValue(childValue, childKey);
+  }
+  return out;
+}
+
+function isRecordObject(value: ClientApprovalInputValue): value is ClientApprovalInput {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 const DAEMON_MCP_STDIO_FIELDS = new Set(["type", "command", "args", "env"]);

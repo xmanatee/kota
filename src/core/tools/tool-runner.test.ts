@@ -4,6 +4,7 @@ import {
   executeToolCalls,
   extractApprovalContext,
   FailureTracker,
+  ToolApprovalCancelledError,
   type ToolCallExecutionOptions,
   type ToolResultEntry,
 } from "./tool-runner.js";
@@ -747,6 +748,80 @@ describe("guardrails confirm gate", () => {
     );
   });
 
+  it("uses client approval instead of enqueueing when queue policy is allowed", async () => {
+    const mockEnqueue = vi.fn(() => ({ id: "q-client" }));
+    mockGetApprovalQueue.mockReturnValue({ enqueue: mockEnqueue } as any);
+    mockAssess.mockReturnValue({ ...dangerousAssessment, policy: "queue" as const });
+    mockExecuteTool.mockResolvedValue({ content: "executed" });
+    const clientApprovalResolver = vi.fn().mockResolvedValue({ outcome: "allow" });
+
+    const results = await executeToolCalls(
+      [toolBlock("shell", { command: "deploy", API_KEY: "secret-token" })],
+      runOptions({
+        guardrailsConfig: { policies: { safe: "allow", moderate: "allow", dangerous: "queue" } },
+        sessionId: "session-client",
+        clientApprovalResolver,
+      }),
+    );
+
+    expect(results[0]).toMatchObject({ content: "executed" });
+    expect(clientApprovalResolver).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "t1",
+        toolUseId: "t1",
+        toolName: "shell",
+        input: { command: "deploy", API_KEY: "secret-token" },
+        risk: "dangerous",
+        reason: "destructive command pattern detected",
+        sessionId: "session-client",
+      }),
+    );
+    expect(mockEnqueue).not.toHaveBeenCalled();
+    expect(mockExecuteTool).toHaveBeenCalled();
+  });
+
+  it("blocks a queue-policy tool when client approval denies it", async () => {
+    const mockEnqueue = vi.fn(() => ({ id: "q-client-deny" }));
+    mockGetApprovalQueue.mockReturnValue({ enqueue: mockEnqueue } as any);
+    mockAssess.mockReturnValue({ ...dangerousAssessment, policy: "queue" as const });
+    const clientApprovalResolver = vi.fn().mockResolvedValue({
+      outcome: "deny",
+      message: "operator rejected",
+    });
+
+    const results = await executeToolCalls(
+      [toolBlock("shell", { command: "rm -rf /tmp/old" })],
+      runOptions({
+        guardrailsConfig: { policies: { safe: "allow", moderate: "allow", dangerous: "queue" } },
+        clientApprovalResolver,
+      }),
+    );
+
+    expect(results[0].is_error).toBe(true);
+    expect(results[0].content).toContain("operator rejected");
+    expect(mockEnqueue).not.toHaveBeenCalled();
+    expect(mockExecuteTool).not.toHaveBeenCalled();
+  });
+
+  it("throws when client approval reports cancellation", async () => {
+    mockAssess.mockReturnValue({ ...dangerousAssessment, policy: "queue" as const });
+    const clientApprovalResolver = vi.fn().mockResolvedValue({
+      outcome: "cancelled",
+      message: "prompt cancelled",
+    });
+
+    await expect(
+      executeToolCalls(
+        [toolBlock("shell", { command: "rm -rf /tmp/old" })],
+        runOptions({
+          guardrailsConfig: { policies: { safe: "allow", moderate: "allow", dangerous: "queue" } },
+          clientApprovalResolver,
+        }),
+      ),
+    ).rejects.toThrow(ToolApprovalCancelledError);
+    expect(mockExecuteTool).not.toHaveBeenCalled();
+  });
+
   it("emits guardrail event to transport", async () => {
     mockAssess.mockReturnValue({ ...dangerousAssessment, policy: "deny" as const });
     const transport = { emit: vi.fn() };
@@ -871,6 +946,88 @@ describe("autonomy-mode gate", () => {
     expect(results[0].content).toContain("approval CLI");
     expect(results[0].content).not.toContain("Use the approval tool");
     expect(mockEnqueue).toHaveBeenCalled();
+    expect(mockExecuteTool).not.toHaveBeenCalled();
+  });
+
+  it("treats client allow as the supervised approval boundary when policy allows", async () => {
+    const mockEnqueue = vi.fn(() => ({ id: "q-supervised-client" }));
+    mockGetApprovalQueue.mockReturnValue({ enqueue: mockEnqueue } as any);
+    mockAssess.mockReturnValue({ ...dangerousAssessment, policy: "allow" as const });
+    mockConfirmAction.mockResolvedValue(false);
+    mockExecuteTool.mockResolvedValue({ content: "executed after ACP allow" });
+    const clientApprovalResolver = vi.fn().mockResolvedValue({ outcome: "allow" });
+
+    const results = await executeToolCalls(
+      [toolBlock("shell", { command: "deploy" })],
+      runOptions({
+        autonomyMode: "supervised",
+        guardrailsConfig: { policies: { safe: "allow", moderate: "allow", dangerous: "allow" } },
+        sessionId: "s-acp",
+        clientApprovalResolver,
+      }),
+    );
+
+    expect(results[0]).toMatchObject({ content: "executed after ACP allow" });
+    expect(clientApprovalResolver).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolName: "shell",
+        reason: expect.stringContaining('autonomy mode "supervised"'),
+        sessionId: "s-acp",
+      }),
+    );
+    expect(mockEnqueue).not.toHaveBeenCalled();
+    expect(mockConfirmAction).not.toHaveBeenCalled();
+    expect(mockExecuteTool).toHaveBeenCalled();
+  });
+
+  it("does not let supervised client approval bypass a deny policy", async () => {
+    const mockEnqueue = vi.fn(() => ({ id: "q-supervised-deny" }));
+    mockGetApprovalQueue.mockReturnValue({ enqueue: mockEnqueue } as any);
+    mockAssess.mockReturnValue({ ...dangerousAssessment, policy: "deny" as const });
+    mockExecuteTool.mockResolvedValue({ content: "should not run" });
+    const clientApprovalResolver = vi.fn().mockResolvedValue({ outcome: "allow" });
+
+    const results = await executeToolCalls(
+      [toolBlock("shell", { command: "deploy" })],
+      runOptions({
+        autonomyMode: "supervised",
+        guardrailsConfig: { policies: { safe: "allow", moderate: "allow", dangerous: "deny" } },
+        sessionId: "s-acp-deny",
+        clientApprovalResolver,
+      }),
+    );
+
+    expect(results[0].is_error).toBe(true);
+    expect(results[0].content).toContain("Blocked by guardrails");
+    expect(clientApprovalResolver).toHaveBeenCalled();
+    expect(mockEnqueue).not.toHaveBeenCalled();
+    expect(mockConfirmAction).not.toHaveBeenCalled();
+    expect(mockExecuteTool).not.toHaveBeenCalled();
+  });
+
+  it("still enforces confirm policy after supervised client approval", async () => {
+    const mockEnqueue = vi.fn(() => ({ id: "q-supervised-confirm" }));
+    mockGetApprovalQueue.mockReturnValue({ enqueue: mockEnqueue } as any);
+    mockAssess.mockReturnValue(dangerousAssessment);
+    mockConfirmAction.mockResolvedValue(false);
+    mockExecuteTool.mockResolvedValue({ content: "should not run" });
+    const clientApprovalResolver = vi.fn().mockResolvedValue({ outcome: "allow" });
+
+    const results = await executeToolCalls(
+      [toolBlock("shell", { command: "deploy" })],
+      runOptions({
+        autonomyMode: "supervised",
+        guardrailsConfig: confirmConfig,
+        sessionId: "s-acp-confirm",
+        clientApprovalResolver,
+      }),
+    );
+
+    expect(results[0].is_error).toBe(true);
+    expect(results[0].content).toContain("requires confirmation");
+    expect(clientApprovalResolver).toHaveBeenCalled();
+    expect(mockEnqueue).not.toHaveBeenCalled();
+    expect(mockConfirmAction).toHaveBeenCalled();
     expect(mockExecuteTool).not.toHaveBeenCalled();
   });
 

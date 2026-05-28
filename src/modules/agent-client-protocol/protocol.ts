@@ -1,5 +1,6 @@
 import { isAbsolute } from "node:path";
 import type { McpServerConfig } from "#core/mcp/manager.js";
+import { isSensitiveToolInputKey } from "#core/tools/approval-redaction.js";
 
 export const ACP_PROTOCOL_VERSION = 1;
 export const ACP_AGENT_NAME = "kota";
@@ -27,12 +28,22 @@ export type JsonRpcNotification = {
 
 export type JsonRpcPeerResponse = {
   kind: "response";
+  id: JsonRpcId;
+  result?: JsonValue;
+  error?: JsonObject;
+};
+
+export type JsonRpcMalformedPeerResponse = {
+  kind: "malformed_response";
+  id: JsonRpcId;
+  error: AcpProtocolError;
 };
 
 export type JsonRpcIncoming =
   | JsonRpcRequest
   | JsonRpcNotification
-  | JsonRpcPeerResponse;
+  | JsonRpcPeerResponse
+  | JsonRpcMalformedPeerResponse;
 
 export type Decoded<T> =
   | { ok: true; value: T }
@@ -94,8 +105,11 @@ export function decodeJsonRpcIncoming(value: JsonValue): Decoded<JsonRpcIncoming
   }
   const method = value.method;
   if (typeof method !== "string") {
+    if (method === undefined && hasOwn(value, "id")) {
+      return decodePeerResponse(value);
+    }
     if (hasOwn(value, "id") && (hasOwn(value, "result") || hasOwn(value, "error"))) {
-      return { ok: true, value: { kind: "response" } };
+      return decodePeerResponse(value);
     }
     return invalidRequest("method must be a string");
   }
@@ -126,8 +140,58 @@ function invalidRequest(message: string): Decoded<JsonRpcIncoming> {
   };
 }
 
+function decodePeerResponse(value: JsonObject): Decoded<JsonRpcIncoming> {
+  const id = value.id;
+  if (!isJsonRpcId(id)) return invalidRequest("response id must be a string, number, or null");
+  if (!hasOwn(value, "result") && !hasOwn(value, "error")) {
+    return malformedPeerResponse(id, "response must include result or error");
+  }
+  if (hasOwn(value, "result") && hasOwn(value, "error")) {
+    return malformedPeerResponse(id, "response cannot include both result and error");
+  }
+  const response: JsonRpcPeerResponse = {
+    kind: "response",
+    id,
+  };
+  if (hasOwn(value, "result")) response.result = value.result;
+  if (hasOwn(value, "error")) {
+    const error = value.error;
+    if (!isJsonObject(error)) {
+      return malformedPeerResponse(id, "response error must be an object");
+    }
+    response.error = error;
+  }
+  return {
+    ok: true,
+    value: response,
+  };
+}
+
+function malformedPeerResponse(id: JsonRpcId, message: string): Decoded<JsonRpcIncoming> {
+  return {
+    ok: true,
+    value: {
+      kind: "malformed_response",
+      id,
+      error: new AcpProtocolError(
+        JSON_RPC_INVALID_REQUEST,
+        message,
+        { code: "malformed_response" },
+      ),
+    },
+  };
+}
+
 export function makeJsonRpcResponse(id: JsonRpcId, result: JsonValue): JsonObject {
   return { jsonrpc: "2.0", id, result };
+}
+
+export function makeJsonRpcRequest(
+  id: JsonRpcId,
+  method: string,
+  params: JsonObject,
+): JsonObject {
+  return { jsonrpc: "2.0", id, method, params };
 }
 
 export function makeJsonRpcError(
@@ -522,6 +586,116 @@ export function sessionUpdate(sessionId: string, update: JsonObject): JsonObject
     sessionId,
     update,
   });
+}
+
+export type AcpPermissionToolContext = {
+  sessionId: string;
+  approvalId: string;
+  toolUseId: string;
+  toolName: string;
+  input: JsonObject;
+  risk: string;
+  reason: string;
+  timeoutMs: number;
+};
+
+export type AcpPermissionDecision =
+  | { outcome: "allow" }
+  | { outcome: "deny"; message: string }
+  | { outcome: "cancelled"; message: string };
+
+export function permissionRequestParams(request: AcpPermissionToolContext): JsonObject {
+  return {
+    sessionId: request.sessionId,
+    toolCall: {
+      toolCallId: request.toolUseId,
+      title: requestTitle(request),
+      kind: toolKind(request.toolName),
+      status: "pending",
+      content: [
+        {
+          type: "content",
+          content: {
+            type: "text",
+            text: `${request.risk}: ${request.reason}`,
+          },
+        },
+      ],
+      rawInput: redactPermissionInput(request.input),
+    },
+    options: [
+      {
+        optionId: "allow-once",
+        name: "Allow once",
+        kind: "allow_once",
+      },
+      {
+        optionId: "reject-once",
+        name: "Reject",
+        kind: "reject_once",
+      },
+    ],
+  };
+}
+
+export function decodePermissionResponse(result: JsonValue | undefined): AcpPermissionDecision {
+  const obj = objectParams(result, "session/request_permission response");
+  rejectUnknownFields(obj, new Set(["outcome"]), "session/request_permission response");
+  const outcome = obj.outcome;
+  if (!isJsonObject(outcome)) {
+    throw invalidParams("session/request_permission response outcome must be an object");
+  }
+  const outcomeKind = outcome.outcome;
+  if (outcomeKind === "cancelled") {
+    rejectUnknownFields(outcome, new Set(["outcome"]), "session/request_permission response outcome");
+    return {
+      outcome: "cancelled",
+      message: "ACP client cancelled the permission request",
+    };
+  }
+  if (outcomeKind === "selected") {
+    rejectUnknownFields(outcome, new Set(["outcome", "optionId"]), "session/request_permission response outcome");
+    if (outcome.optionId === "allow-once") return { outcome: "allow" };
+    if (outcome.optionId === "reject-once") {
+      return {
+        outcome: "deny",
+        message: "ACP client rejected the tool call",
+      };
+    }
+    throw invalidParams("session/request_permission selected outcome has an unsupported optionId");
+  }
+  throw invalidParams('session/request_permission outcome must be "selected" or "cancelled"');
+}
+
+function requestTitle(request: AcpPermissionToolContext): string {
+  return `Allow ${request.toolName}`;
+}
+
+function toolKind(toolName: string): string {
+  const normalized = toolName.toLowerCase();
+  if (/(?:bash|shell|exec|process|terminal|command)/.test(normalized)) return "execute";
+  if (/(?:delete|remove|unlink)/.test(normalized)) return "delete";
+  if (/(?:move|rename)/.test(normalized)) return "move";
+  if (/(?:edit|write|patch|replace|create|save)/.test(normalized)) return "edit";
+  if (/(?:search|grep|glob|find|list)/.test(normalized)) return "search";
+  if (/(?:fetch|http|web)/.test(normalized)) return "fetch";
+  if (/(?:read|cat|open)/.test(normalized)) return "read";
+  return "other";
+}
+
+function redactPermissionInput(input: JsonObject): JsonObject {
+  return redactPermissionValue(input) as JsonObject;
+}
+
+function redactPermissionValue(value: JsonValue | undefined, key = ""): JsonValue {
+  if (isSensitiveToolInputKey(key)) return "[REDACTED]";
+  if (Array.isArray(value)) return value.map((entry) => redactPermissionValue(entry));
+  if (!isJsonObject(value)) return value ?? null;
+  const out: JsonObject = {};
+  for (const [childKey, childValue] of Object.entries(value)) {
+    out[childKey] = redactPermissionValue(childValue, childKey);
+  }
+  return out;
 }
 
 export function invalidParams(message: string): AcpProtocolError {

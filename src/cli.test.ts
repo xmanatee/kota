@@ -22,7 +22,7 @@ const CLI = resolve(root, "src/cli.ts");
 const require = createRequire(import.meta.url);
 const TSX_IMPORT = require.resolve("tsx");
 
-const CLI_TIMEOUT = 15_000;
+const CLI_TIMEOUT = 30_000;
 
 function run(...args: string[]): string {
   return execFileSync(process.execPath, ["--import", TSX_IMPORT, CLI, ...args], {

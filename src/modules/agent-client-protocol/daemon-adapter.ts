@@ -1,7 +1,10 @@
 import { resolve } from "node:path";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
-import type { AcpMcpServers } from "./protocol.js";
+import type {
+  AcpMcpServers,
+  AcpPermissionDecision,
+} from "./protocol.js";
 import {
   AcpProtocolError,
   agentMessageUpdate,
@@ -27,6 +30,18 @@ export type AcpProjectList = {
 
 export type AcpPromptUpdate = JsonObject;
 
+export type AcpDaemonPermissionRequest = {
+  approvalId: string;
+  toolUseId: string;
+  tool: string;
+  input: JsonObject;
+  risk: string;
+  reason: string;
+  timeoutMs: number;
+};
+
+export type AcpDaemonPermissionDecision = AcpPermissionDecision;
+
 export type AcpDaemonSession = {
   sessionId: string;
   cwd: string;
@@ -41,6 +56,9 @@ export type PromptSessionArgs = {
   prompt: string;
   signal: AbortSignal;
   onUpdate: (update: AcpPromptUpdate) => void;
+  requestPermission?: (
+    request: AcpDaemonPermissionRequest,
+  ) => Promise<AcpDaemonPermissionDecision>;
 };
 
 export type PromptSessionResult = {
@@ -204,7 +222,7 @@ export class HttpAcpDaemonClient implements AcpDaemonClient {
             "Content-Type": "application/json",
             ...this.transport.authHeaders(),
           },
-          body: JSON.stringify({ message: args.prompt }),
+          body: JSON.stringify({ message: args.prompt, client_approval: true }),
           signal: args.signal,
         },
       );
@@ -225,6 +243,29 @@ export class HttpAcpDaemonClient implements AcpDaemonClient {
       if (mapped.kind === "update") {
         emittedText = true;
         args.onUpdate(mapped.update);
+      } else if (mapped.kind === "approval") {
+        if (!args.requestPermission) {
+          throw new AcpProtocolError(-32603, "Daemon requested client approval but no ACP permission bridge is active", {
+            code: "permission_bridge_unavailable",
+          });
+        }
+        let decision: AcpDaemonPermissionDecision;
+        try {
+          decision = await args.requestPermission(mapped.request);
+        } catch (err) {
+          if (!args.signal.aborted) {
+            await this.resolvePermission(
+              args.sessionId,
+              mapped.request.approvalId,
+              {
+                outcome: "cancelled",
+                message: err instanceof Error ? err.message : String(err),
+              },
+            );
+          }
+          throw err;
+        }
+        await this.resolvePermission(args.sessionId, mapped.request.approvalId, decision);
       } else if (mapped.kind === "done") {
         finalText = mapped.text;
       } else if (mapped.kind === "error") {
@@ -264,6 +305,27 @@ export class HttpAcpDaemonClient implements AcpDaemonClient {
       },
     );
     if (!res.ok && res.status !== 404) {
+      throw daemonHttpError(res.status, await responseErrorMessage(res));
+    }
+  }
+
+  private async resolvePermission(
+    sessionId: string,
+    approvalId: string,
+    decision: AcpDaemonPermissionDecision,
+  ): Promise<void> {
+    const res = await this.transport.fetchRaw(
+      `/sessions/${encodeURIComponent(sessionId)}/approvals/${encodeURIComponent(approvalId)}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...this.transport.authHeaders(),
+        },
+        body: JSON.stringify(permissionDecisionBody(decision)),
+      },
+    );
+    if (!res.ok) {
       throw daemonHttpError(res.status, await responseErrorMessage(res));
     }
   }
@@ -320,6 +382,7 @@ type SseEvent = {
 
 type MappedSseEvent =
   | { kind: "update"; update: JsonObject }
+  | { kind: "approval"; request: AcpDaemonPermissionRequest }
   | { kind: "done"; text: string }
   | { kind: "error"; message: string }
   | { kind: "ignore" };
@@ -400,10 +463,42 @@ function mapDaemonSseEvent(sessionId: string, event: SseEvent): MappedSseEvent {
   if (event.event === "error") {
     return { kind: "error", message: stringField(data, "message") ?? "Agent session failed" };
   }
+  if (event.event === "approval_request") {
+    return { kind: "approval", request: decodeApprovalRequest(data) };
+  }
   if (event.event === "done") {
     return { kind: "done", text: stringField(data, "result") ?? "" };
   }
   return { kind: "ignore" };
+}
+
+function decodeApprovalRequest(data: JsonObject): AcpDaemonPermissionRequest {
+  const input = data.input;
+  if (!isJsonObject(input)) {
+    throw daemonProtocolError("Daemon approval request input must be an object");
+  }
+  return {
+    approvalId: requiredString(stringField(data, "approval_id") ?? undefined, "approval.approval_id"),
+    toolUseId: requiredString(stringField(data, "tool_use_id") ?? undefined, "approval.tool_use_id"),
+    tool: requiredString(stringField(data, "tool") ?? undefined, "approval.tool"),
+    input,
+    risk: requiredString(stringField(data, "risk") ?? undefined, "approval.risk"),
+    reason: requiredString(stringField(data, "reason") ?? undefined, "approval.reason"),
+    timeoutMs: requiredPositiveNumber(data.timeout_ms, "approval.timeout_ms"),
+  };
+}
+
+function requiredPositiveNumber(value: JsonValue | undefined, field: string): number {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) return value;
+  throw daemonProtocolError(`Daemon response field ${field} must be a positive number`);
+}
+
+function permissionDecisionBody(decision: AcpDaemonPermissionDecision): JsonObject {
+  if (decision.outcome === "allow") return { outcome: "allow" };
+  return {
+    outcome: decision.outcome,
+    message: decision.message,
+  };
 }
 
 function parseDaemonEventData(data: string): JsonObject {

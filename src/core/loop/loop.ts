@@ -17,6 +17,7 @@ import {
   type GuardrailsConfig,
   type GuardrailsSnapshot,
 } from "#core/tools/guardrails.js";
+import type { ToolApprovalResolver } from "#core/tools/tool-runner.js";
 import type { Context } from "./context.js";
 import type { CostTracker } from "./cost.js";
 import { initAgentSession } from "./loop-constructor.js";
@@ -70,6 +71,8 @@ export type LoopOptions = {
   mcpAuthorizationResolver?: McpAuthorizationResolver;
   /** Per-session MCP servers supplied by an external client after boundary normalization. */
   mcpServers?: Record<string, McpServerConfig>;
+  /** Optional live-client resolver for queued tool approvals during a turn. */
+  clientApprovalResolver?: ToolApprovalResolver;
 };
 
 export type GuardrailsConfigReplacement = {
@@ -97,6 +100,7 @@ export class AgentSession implements AgentLoopState {
   mcpInputResolver: McpInputResolver | undefined;
   mcpAuthorizationResolver: McpAuthorizationResolver | undefined;
   mcpServers: Record<string, McpServerConfig> | undefined;
+  clientApprovalResolver: ToolApprovalResolver | undefined;
   moduleLoader!: ModuleLoader;
   transport!: Transport;
   defaultTransportProxy: ProxyTransport | undefined;
@@ -201,6 +205,10 @@ export class AgentSession implements AgentLoopState {
     if (from === mode) return;
     this.autonomyMode = mode;
     tryEmit("session.autonomy.changed", { sessionId: this.sessionId, from, to: mode });
+  }
+
+  setClientApprovalResolver(resolver: ToolApprovalResolver | undefined): void {
+    this.clientApprovalResolver = resolver;
   }
 
   /** Abort the active turn without closing the session. */

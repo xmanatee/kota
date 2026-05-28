@@ -23,6 +23,7 @@ import { getDelegateConfig, setDelegateConfig } from "#core/tools/delegate-confi
 import type { GuardrailsConfig, GuardrailsSnapshot } from "#core/tools/guardrails.js";
 import { addLoadedModule, resetModuleFactory } from "#core/tools/module-factory/index.js";
 import { resetGroups } from "#core/tools/tool-groups.js";
+import type { ToolApprovalResolver } from "#core/tools/tool-runner.js";
 import { resetToolTelemetry } from "#core/tools/tool-telemetry.js";
 import type { Context } from "./context.js";
 import type { CostTracker } from "./cost.js";
@@ -64,6 +65,7 @@ export interface AgentLoopState {
   mcpInputResolver: McpInputResolver | undefined;
   mcpAuthorizationResolver: McpAuthorizationResolver | undefined;
   mcpServers: Record<string, McpServerConfig> | undefined;
+  clientApprovalResolver: ToolApprovalResolver | undefined;
   costTracker: CostTracker;
   reflectionEnabled: boolean;
   stateMachine: SessionStateMachine;

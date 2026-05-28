@@ -1,12 +1,12 @@
 ---
 id: task-bridge-acp-client-permission-decisions-into-daemon
 title: Bridge ACP client permission decisions into daemon session approval
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Route ACP session/request_permission through KOTA's existing tool approval and autonomy-mode path so ACP prompt turns can ask the connected client for write/execute permission instead of stalling behind an out-of-band KOTA approval queue.
 created_at: 2026-05-28T04:36:14.992Z
-updated_at: 2026-05-28T04:36:14.992Z
+updated_at: 2026-05-28T14:07:18Z
 ---
 
 ## Problem

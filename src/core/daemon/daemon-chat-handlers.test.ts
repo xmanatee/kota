@@ -3,12 +3,14 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import type { ToolApprovalResolver } from "#core/tools/tool-runner.js";
 import { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import {
   type DaemonChatConversationResolver,
   handleCreateDaemonSession,
   handleDaemonChat,
   handleDaemonChatEvents,
+  handleResolveDaemonChatApproval,
   readChatBody,
 } from "./daemon-chat-handlers.js";
 import { DaemonChatPool } from "./daemon-chat-pool.js";
@@ -490,6 +492,74 @@ describe("handleDaemonChat", () => {
     expect(written).toContain("event: done");
     expect(written).toContain("subscriber final");
     expect(subscriberRes.end).toHaveBeenCalled();
+  });
+
+  it("redacts secret-shaped client approval SSE input fields", async () => {
+    const pool = makePool();
+    const agent = {
+      clientApprovalResolver: undefined as ToolApprovalResolver | undefined,
+      send: vi.fn(async () => {
+        if (!agent.clientApprovalResolver) throw new Error("client approval resolver missing");
+        const decision = await agent.clientApprovalResolver({
+          id: "approval-1",
+          toolUseId: "tool-1",
+          toolName: "shell",
+          input: {
+            command: "deploy",
+            API_KEY: "secret-token",
+            accessToken: "secret-access-token",
+            authToken: "secret-auth-token",
+            clientSecret: "secret-client-secret",
+            nested: { password: "secret-password", safe: "visible" },
+          },
+          risk: "dangerous",
+          reason: "writes external state",
+          sessionId: "session-1",
+          timeoutMs: 120_000,
+        });
+        return decision.outcome;
+      }),
+      cancelActiveTurn: vi.fn(),
+      close: vi.fn(),
+      getAutonomyMode: vi.fn(() => "supervised"),
+      setAutonomyMode: vi.fn(),
+      getGuardrailsSnapshot: vi.fn(() => ({ id: "gr_test", generation: 1, tools: {} })),
+      replaceGuardrailsConfig: vi.fn(() => ({ changed: false })),
+      setClientApprovalResolver: vi.fn((resolver: ToolApprovalResolver | undefined) => {
+        agent.clientApprovalResolver = resolver;
+      }),
+    };
+    const session = pool.create(() => agent as never, "supervised", CONV_ID, { projectId: PROJECT_ID });
+    const res = mockResponse();
+
+    const chatPromise = handleDaemonChat(
+      pool,
+      mockRequest('{"message":"deploy","client_approval":true}') as never,
+      res as never,
+      session.id,
+    );
+    await waitFor(() => res._written.join("").includes("event: approval_request"));
+
+    const written = res._written.join("");
+    expect(written).not.toContain("secret-token");
+    expect(written).not.toContain("secret-access-token");
+    expect(written).not.toContain("secret-auth-token");
+    expect(written).not.toContain("secret-client-secret");
+    expect(written).not.toContain("secret-password");
+    expect(written).toContain('"API_KEY":"[REDACTED]"');
+    expect(written).toContain('"accessToken":"[REDACTED]"');
+    expect(written).toContain('"authToken":"[REDACTED]"');
+    expect(written).toContain('"clientSecret":"[REDACTED]"');
+    expect(written).toContain('"password":"[REDACTED]"');
+
+    await handleResolveDaemonChatApproval(
+      pool,
+      mockRequest('{"outcome":"allow"}') as never,
+      mockResponse() as never,
+      session.id,
+      "approval-1",
+    );
+    await chatPromise;
   });
 
   it("rejects session event subscriptions when the task is idle", () => {

@@ -51,6 +51,7 @@ export function initAgentSession(
   state.mcpInputResolver = options.mcpInputResolver;
   state.mcpAuthorizationResolver = options.mcpAuthorizationResolver;
   state.mcpServers = options.mcpServers;
+  state.clientApprovalResolver = options.clientApprovalResolver;
   state.model =
     options.model || resolveActivePresetFromConfig(options.config).defaultModel;
   state.editorModel = options.editorModel || state.model;

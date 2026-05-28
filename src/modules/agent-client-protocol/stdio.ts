@@ -32,8 +32,11 @@ export async function runAgentClientProtocolStdio(options: AcpStdioOptions): Pro
       pending.add(task);
       task.finally(() => pending.delete(task));
     }
-    await Promise.allSettled([...pending]);
   } finally {
-    await server.close();
+    try {
+      await server.close();
+    } finally {
+      await Promise.allSettled([...pending]);
+    }
   }
 }

@@ -17,6 +17,7 @@ import type {
 import { confirmAction } from "#core/util/confirm.js";
 import { type AutonomyMode, resolveAutonomyGate } from "./autonomy-mode.js";
 import { assess, type GuardrailsConfig } from "./guardrails.js";
+import type { RiskLevel } from "./guardrails-classify.js";
 import {
   classifyToolCallInputEffectOverride,
   type ToolCallInput,
@@ -32,6 +33,47 @@ import {
 } from "./tool-telemetry.js";
 
 type ToolUseBlock = KotaToolUseBlock;
+
+export type ToolApprovalRequest = {
+  id: string;
+  toolUseId: string;
+  toolName: string;
+  input: Record<string, unknown>;
+  risk: RiskLevel;
+  reason: string;
+  sessionId?: string;
+  timeoutMs?: number;
+  context?: string;
+  signal?: AbortSignal;
+};
+
+export type ToolApprovalDecision =
+  | { outcome: "allow" }
+  | { outcome: "deny"; message: string }
+  | { outcome: "cancelled"; message: string };
+
+export type ToolApprovalResolver = (
+  request: ToolApprovalRequest,
+) => Promise<ToolApprovalDecision>;
+
+type ClientApprovalResult =
+  | { outcome: "unavailable" }
+  | { outcome: "allowed" }
+  | { outcome: "blocked"; result: ToolResultEntry };
+
+export class ToolApprovalCancelledError extends Error {
+  constructor(message = "Client approval request was cancelled") {
+    super(message);
+    this.name = "ToolApprovalCancelledError";
+  }
+}
+
+export class ToolApprovalTimeoutError extends Error {
+  constructor(message = "Client approval request timed out") {
+    super(message);
+    this.name = "ToolApprovalTimeoutError";
+  }
+}
 
 function abortReason(signal: AbortSignal): Error {
   const { reason } = signal;
@@ -94,6 +136,7 @@ export type ToolCallExecutionOptions = {
   mcpInputResolver?: McpInputResolver;
   transport?: Transport;
   guardrailsConfig?: GuardrailsConfig;
+  clientApprovalResolver?: ToolApprovalResolver;
   sessionId?: string;
   messages?: KotaMessage[];
   signal?: AbortSignal;
@@ -200,6 +243,7 @@ export async function executeToolCalls(
     mcpInputResolver,
     transport,
     guardrailsConfig,
+    clientApprovalResolver,
     sessionId,
     messages,
     signal,
@@ -222,16 +266,12 @@ export async function executeToolCalls(
       ? assess(block.name, input, guardrailsConfig)
       : assess(block.name, input);
 
-    // Autonomy-mode gating runs before policy resolution so passive and
-    // supervised sessions cannot be bypassed by a moderate tool whose policy
-    // happens to be "allow".
-    const autonomyDecision = resolveAutonomyGate(autonomyMode, assessment);
-    if (autonomyDecision.action === "deny") {
+    const emitGuardrailAssessment = (policy: "deny" | "queue" | "allow" | "confirm", reason: string): void => {
       tryEmit("guardrail.assessed", {
         tool: assessment.tool,
         risk: assessment.risk,
-        policy: "deny",
-        reason: autonomyDecision.message,
+        policy,
+        reason,
         ...(sessionId && { session: sessionId }),
       });
       if (transport) {
@@ -239,71 +279,90 @@ export async function executeToolCalls(
           type: "guardrail",
           tool: assessment.tool,
           risk: assessment.risk,
-          policy: "deny",
-          reason: autonomyDecision.message,
+          policy,
+          reason,
         });
       }
+    };
+
+    const askClientApproval = async (
+      reason: string,
+      approvalContext: string | undefined,
+    ): Promise<ClientApprovalResult> => {
+      if (!clientApprovalResolver) return { outcome: "unavailable" };
+      const decision = await clientApprovalResolver({
+        id: block.id,
+        toolUseId: block.id,
+        toolName: block.name,
+        input,
+        risk: assessment.risk,
+        reason,
+        ...(sessionId !== undefined ? { sessionId } : {}),
+        ...(guardrailsConfig?.approvalTimeoutMs !== undefined
+          ? { timeoutMs: guardrailsConfig.approvalTimeoutMs }
+          : {}),
+        ...(approvalContext !== undefined ? { context: approvalContext } : {}),
+        ...(signal !== undefined ? { signal } : {}),
+      });
+      if (decision.outcome === "allow") return { outcome: "allowed" };
+      if (decision.outcome === "cancelled") {
+        throw new ToolApprovalCancelledError(decision.message);
+      }
+      return {
+        outcome: "blocked",
+        result: {
+          tool_use_id: block.id,
+          content: `Blocked by client approval: ${decision.message}`,
+          is_error: true,
+        },
+      };
+    };
+
+    // Autonomy-mode gating runs before policy resolution so passive and
+    // supervised sessions cannot be bypassed by a moderate tool whose policy
+    // happens to be "allow".
+    const autonomyDecision = resolveAutonomyGate(autonomyMode, assessment);
+    if (autonomyDecision.action === "deny") {
+      emitGuardrailAssessment("deny", autonomyDecision.message);
       return {
         tool_use_id: block.id,
         content: autonomyDecision.message,
         is_error: true,
       };
     }
+    let clientApprovedAutonomyGate = false;
     if (autonomyDecision.action === "queue") {
       const approvalContext = messages ? extractApprovalContext(messages) : undefined;
-      const queued = getApprovalQueue().enqueue(
-        block.name,
-        input,
-        assessment.risk,
-        autonomyDecision.reason,
-        sessionId,
-        guardrailsConfig?.approvalTimeoutMs,
-        undefined,
-        approvalContext,
-        sessionId,
-      );
-      tryEmit("guardrail.assessed", {
-        tool: assessment.tool,
-        risk: assessment.risk,
-        policy: "queue",
-        reason: autonomyDecision.reason,
-        ...(sessionId && { session: sessionId }),
-      });
-      if (transport) {
-        transport.emit({
-          type: "guardrail",
-          tool: assessment.tool,
-          risk: assessment.risk,
-          policy: "queue",
-          reason: autonomyDecision.reason,
-        });
+      emitGuardrailAssessment("queue", autonomyDecision.reason);
+      const clientDecision = await askClientApproval(autonomyDecision.reason, approvalContext);
+      if (clientDecision.outcome === "blocked") return clientDecision.result;
+      if (clientDecision.outcome === "unavailable") {
+        const queued = getApprovalQueue().enqueue(
+          block.name,
+          input,
+          assessment.risk,
+          autonomyDecision.reason,
+          sessionId,
+          guardrailsConfig?.approvalTimeoutMs,
+          undefined,
+          approvalContext,
+          sessionId,
+        );
+        return {
+          tool_use_id: block.id,
+          content: `Queued for approval [${queued.id}]: ${block.name} — ${autonomyDecision.reason}. ` +
+            "Operators can review and resolve it through the approval CLI or authenticated daemon client.",
+          is_error: true,
+        };
       }
-      return {
-        tool_use_id: block.id,
-        content: `Queued for approval [${queued.id}]: ${block.name} — ${autonomyDecision.reason}. ` +
-          "Operators can review and resolve it through the approval CLI or authenticated daemon client.",
-        is_error: true,
-      };
+      clientApprovedAutonomyGate = true;
     }
 
-    // Guardrails: assess risk and enforce policy before execution
+    // Guardrails: assess risk and enforce policy before execution. A client
+    // allow for supervised mode satisfies only the queue-style approval gate;
+    // explicit deny/confirm policies still apply.
     if (guardrailsConfig) {
-      tryEmit("guardrail.assessed", {
-        tool: assessment.tool,
-        risk: assessment.risk,
-        policy: assessment.policy,
-        reason: assessment.reason,
-        ...(sessionId && { session: sessionId }),
-      });
-      if (transport) {
-        transport.emit({
-          type: "guardrail",
-          tool: assessment.tool,
-          risk: assessment.risk,
-          policy: assessment.policy,
-          reason: assessment.reason,
-        });
-      }
+      emitGuardrailAssessment(assessment.policy, assessment.reason);
       if (assessment.policy === "deny") {
         return {
           tool_use_id: block.id,
@@ -313,18 +372,24 @@ export async function executeToolCalls(
         };
       }
       if (assessment.policy === "queue") {
-        const approvalContext = messages ? extractApprovalContext(messages) : undefined;
-        const queued = getApprovalQueue().enqueue(
-          block.name, input, assessment.risk, assessment.reason, sessionId,
-          guardrailsConfig.approvalTimeoutMs, undefined, approvalContext,
-          sessionId,
-        );
-        return {
-          tool_use_id: block.id,
-          content: `Queued for approval [${queued.id}]: ${block.name} is classified as ${assessment.risk} (${assessment.reason}). ` +
-            "Operators can review and resolve it through the approval CLI or authenticated daemon client.",
-          is_error: true,
-        };
+        if (!clientApprovedAutonomyGate) {
+          const approvalContext = messages ? extractApprovalContext(messages) : undefined;
+          const clientDecision = await askClientApproval(assessment.reason, approvalContext);
+          if (clientDecision.outcome === "blocked") return clientDecision.result;
+          if (clientDecision.outcome === "unavailable") {
+            const queued = getApprovalQueue().enqueue(
+              block.name, input, assessment.risk, assessment.reason, sessionId,
+              guardrailsConfig.approvalTimeoutMs, undefined, approvalContext,
+              sessionId,
+            );
+            return {
+              tool_use_id: block.id,
+              content: `Queued for approval [${queued.id}]: ${block.name} is classified as ${assessment.risk} (${assessment.reason}). ` +
+                "Operators can review and resolve it through the approval CLI or authenticated daemon client.",
+              is_error: true,
+            };
+          }
+        }
       }
       if (assessment.policy === "confirm") {
         const approved = await confirmAction(

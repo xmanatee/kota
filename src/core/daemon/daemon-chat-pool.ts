@@ -13,6 +13,7 @@ import { type AgentEvent, ProxyTransport, type Transport } from "#core/loop/tran
 import type { McpServerConfig } from "#core/mcp/manager.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { GuardrailsConfig, GuardrailsSnapshot } from "#core/tools/guardrails.js";
+import type { ToolApprovalDecision, ToolApprovalRequest } from "#core/tools/tool-runner.js";
 import type { ProjectId } from "./project-registry.js";
 
 /** Factory signature for building an AgentSession inside the daemon. */
@@ -34,6 +35,7 @@ export type DaemonChatSession = {
   agent: AgentSession;
   proxy: ProxyTransport;
   subscribers: Set<DaemonChatStreamSink>;
+  pendingClientApprovals: Map<string, DaemonChatPendingClientApproval>;
   busy: boolean;
   lastActive: number;
 };
@@ -42,7 +44,25 @@ export type DaemonChatStreamPayload =
   | AgentEvent
   | { session_id: string }
   | { session_id: string; result: string }
-  | { message: string };
+  | { message: string }
+  | DaemonChatClientApprovalRequestPayload;
+
+export type DaemonChatClientApprovalRequestPayload = {
+  session_id: string;
+  approval_id: string;
+  tool_use_id: string;
+  tool: string;
+  risk: string;
+  reason: string;
+  input: ToolApprovalRequest["input"];
+  timeout_ms: number;
+  context?: string;
+};
+
+export type DaemonChatPendingClientApproval = {
+  resolve(decision: ToolApprovalDecision): void;
+  reject(error: Error): void;
+};
 
 export type DaemonChatStreamSink = {
   write(eventName: string, data: DaemonChatStreamPayload): void;
@@ -129,6 +149,7 @@ export class DaemonChatPool {
       agent,
       proxy,
       subscribers: new Set(),
+      pendingClientApprovals: new Map(),
       busy: false,
       lastActive: Date.now(),
     };
@@ -144,6 +165,7 @@ export class DaemonChatPool {
     const session = this.sessions.get(id);
     if (!session) return false;
     session.agent.cancelActiveTurn();
+    rejectPendingClientApprovals(session, new Error("Session cancelled"));
     session.lastActive = Date.now();
     return true;
   }
@@ -151,6 +173,8 @@ export class DaemonChatPool {
   delete(id: string): boolean {
     const session = this.sessions.get(id);
     if (!session) return false;
+    session.agent.cancelActiveTurn(new Error("Session closed"));
+    rejectPendingClientApprovals(session, new Error("Session closed"));
     session.agent.close();
     for (const subscriber of session.subscribers) subscriber.close();
     session.subscribers.clear();
@@ -207,6 +231,8 @@ export class DaemonChatPool {
     let count = 0;
     for (const [id, session] of this.sessions) {
       if (!session.busy && now - session.lastActive > this.ttlMs) {
+        session.agent.cancelActiveTurn(new Error("Session evicted"));
+        rejectPendingClientApprovals(session, new Error("Session evicted"));
         session.agent.close();
         for (const subscriber of session.subscribers) subscriber.close();
         session.subscribers.clear();
@@ -219,6 +245,8 @@ export class DaemonChatPool {
 
   closeAll(): void {
     for (const session of this.sessions.values()) {
+      session.agent.cancelActiveTurn(new Error("Daemon chat pool closing"));
+      rejectPendingClientApprovals(session, new Error("Daemon chat pool closing"));
       session.agent.close();
       for (const subscriber of session.subscribers) subscriber.close();
       session.subscribers.clear();
@@ -238,10 +266,22 @@ export class DaemonChatPool {
       }
     }
     if (!oldest) return false;
+    oldest.agent.cancelActiveTurn(new Error("Session evicted"));
+    rejectPendingClientApprovals(oldest, new Error("Session evicted"));
     oldest.agent.close();
     for (const subscriber of oldest.subscribers) subscriber.close();
     oldest.subscribers.clear();
     this.sessions.delete(oldest.id);
     return true;
   }
+}
+
+export function rejectPendingClientApprovals(
+  session: DaemonChatSession,
+  error: Error,
+): void {
+  for (const pending of session.pendingClientApprovals.values()) {
+    pending.reject(error);
+  }
+  session.pendingClientApprovals.clear();
 }

@@ -23,6 +23,7 @@ import {
   handleDaemonChat,
   handleDaemonChatEvents,
   handlePatchDaemonSession,
+  handleResolveDaemonChatApproval,
 } from "./daemon-chat-handlers.js";
 import type { DaemonChatMakeAgent, DaemonChatPool } from "./daemon-chat-pool.js";
 import { handleRegisterSession, handleUnregisterSession } from "./daemon-control-sessions.js";
@@ -451,6 +452,24 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
           return;
         }
         return handleDaemonChat(chatPool, req, res, params.id);
+      },
+    },
+    {
+      method: "POST",
+      path: "/sessions/:id/approvals/:approvalId",
+      capabilityScope: "control",
+      handler: (req, res, params) => {
+        if (!chatPool) {
+          jsonResponse(res, 503, { error: "Daemon chat sessions not available" });
+          return;
+        }
+        return handleResolveDaemonChatApproval(
+          chatPool,
+          req,
+          res,
+          params.id,
+          params.approvalId,
+        );
       },
     },
     {
