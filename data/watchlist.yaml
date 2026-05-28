@@ -176,6 +176,10 @@ resources:
   - url: https://arxiv.org/abs/2603.24755
     added: "2026-05-28"
     notes: "SlopCodeBench measures code degradation across iterative coding-agent tasks. Monitor as an eval-harness signal for structural erosion and verbosity diagnostics in persistent multi-round fixtures, not as an imported benchmark."
+    snapshot:
+      fingerprint: sha256:fa8fe822dfad357d93310c202dd0b380
+      summary: "SlopCodeBench is accessible and reinforces KOTA's completed persistent multi-round code-health diagnostics; no duplicate task is needed because task-add-code-health-diagnostics-to-persistent-multi-ro already covers structural-erosion and verbosity evidence."
+      last_seen_at: "2026-05-28T23:56:21.909Z"
   - url: https://github.com/letta-ai/letta
     added: "2026-04-19"
     snapshot:
