@@ -203,7 +203,7 @@ export function classifyAgentRuntimeFailure(
   if (/\b(?:rate limit|quota)\b/i.test(input.message)) {
     return { kind: "rate_limit", retryable: false };
   }
-  if (/(?:you've|you have) hit your limit/i.test(input.message)) {
+  if (/(?:you've|you have) hit your (?:usage )?limit/i.test(input.message)) {
     return { kind: "rate_limit", retryable: false };
   }
   if (

@@ -61,6 +61,16 @@ describe("classifyAgentRuntimeFailure", () => {
     ).toEqual({ kind: "provider", retryable: true });
   });
 
+  it("classifies Codex CLI usage-limit text as a rate-limit failure", () => {
+    expect(
+      classifyAgentRuntimeFailure({
+        subtype: "codex_cli_error",
+        message:
+          'Agent step "build" failed (codex_cli_error): You\'ve hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at Jun 1st, 2026 1:01 AM.',
+      }),
+    ).toEqual({ kind: "rate_limit", retryable: false });
+  });
+
   it("does not classify arbitrary request-disconnect text as a provider failure", () => {
     expect(
       classifyAgentRuntimeFailure({

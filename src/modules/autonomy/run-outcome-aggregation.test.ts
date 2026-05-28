@@ -713,6 +713,13 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
       "2026-04-21T04:30:00.000Z",
       'Agent step "explore" failed (codex_cli_error): Codex CLI exited with code 1',
     );
+    writeAgentRuntimeFailureRun(
+      "codex-usage-limit",
+      "builder",
+      "build",
+      "2026-04-21T05:00:00.000Z",
+      'Agent step "build" failed (codex_cli_error): You\'ve hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at Jun 1st, 2026 1:01 AM.',
+    );
 
     const result = aggregateRunOutcomes(runsDir);
     expect(result.latestActionableRunAt).toBeNull();
