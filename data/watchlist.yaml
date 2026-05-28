@@ -516,6 +516,9 @@ resources:
       fingerprint: sha256:dd9e828c496b0a9e823f819d4514ebab
       summary: "LongMINT directly reinforces KOTA's completed interference-heavy recall fixture: revised facts, distractors, and multi-hit aggregation are already covered without importing the external benchmark."
       last_seen_at: "2026-05-19T21:53:32.282Z"
+  - url: https://arxiv.org/abs/2605.14678
+    added: "2026-05-28"
+    notes: "Pi-Bench evaluates proactive personal-assistant agents across hidden user intents, inter-task dependencies, and cross-session continuity. Monitor as an eval-harness signal for assistant proactivity that remains evidence-grounded and authorization-safe."
   - url: https://arxiv.org/abs/2605.14415
     added: "2026-05-19"
     notes: "SWE-Chain evaluates coding agents on chained release-level package upgrades where each transition inherits the prior codebase. Monitor as a harness-parity/eval signal for staged maintenance tasks, upgrade regression retention, and long-horizon package migration evidence."
