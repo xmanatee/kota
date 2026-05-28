@@ -14,12 +14,14 @@ import type {
   EvalHarnessClient,
   EvalListResult,
   EvalRunOptions,
+  EvalRunResult,
 } from "./client.js";
 import {
   listEvalFixtures,
   runEvalCalibration,
   runEvalHarness,
 } from "./eval-operations.js";
+import type { FixtureDiagnosticsReport } from "./scoring.js";
 
 function makeFakeCtx(projectDir: string): ModuleContext {
   const evalHarness: EvalHarnessClient = {
@@ -75,6 +77,19 @@ const EMPTY_CONTROL_DECISION_COVERAGE: EvalListResult["controlDecisionCoverage"]
   ],
 };
 
+const EMPTY_FIXTURE_DIAGNOSTICS: FixtureDiagnosticsReport = {
+  perFixture: [],
+  aggregate: {
+    fixtureCount: 0,
+    stablePass: 0,
+    stableFail: 0,
+    repeatUnstable: 0,
+    insufficientSample: 0,
+    nonGating: 0,
+    lowSignalWarnings: 0,
+  },
+};
+
 function makeListCtx(result: EvalListResult): ModuleContext {
   const evalHarness: EvalHarnessClient = {
     async list() {
@@ -89,6 +104,7 @@ function makeListCtx(result: EvalListResult): ModuleContext {
         passHatK: 1,
         controlDecisionCoverage: result.controlDecisionCoverage,
         objectiveMetrics: [],
+        fixtureDiagnostics: EMPTY_FIXTURE_DIAGNOSTICS,
         runArtifactBaseDir: "/tmp/eval-run",
       };
     },
@@ -100,7 +116,10 @@ function makeListCtx(result: EvalListResult): ModuleContext {
   return { cwd: "/tmp/project", client } as unknown as ModuleContext;
 }
 
-function makeRunRecordingCtx(calls: EvalRunOptions[]): ModuleContext {
+function makeRunRecordingCtx(
+  calls: EvalRunOptions[],
+  resultOverrides: Partial<Extract<EvalRunResult, { ok: true }>> = {},
+): ModuleContext {
   const evalHarness: EvalHarnessClient = {
     async list() {
       return {
@@ -118,7 +137,9 @@ function makeRunRecordingCtx(calls: EvalRunOptions[]): ModuleContext {
         passHatK: 1,
         controlDecisionCoverage: EMPTY_CONTROL_DECISION_COVERAGE,
         objectiveMetrics: [],
+        fixtureDiagnostics: EMPTY_FIXTURE_DIAGNOSTICS,
         runArtifactBaseDir: "/tmp/eval-run",
+        ...resultOverrides,
       };
     },
     async calibration() {
@@ -323,6 +344,81 @@ describe("kota eval run CLI", () => {
         kotaBinaryPath: "/opt/kota/bin/kota.mjs",
       },
     });
+  });
+
+  it("prints fixture diagnostics and repeat-unstable fixture rows", async () => {
+    const calls: EvalRunOptions[] = [];
+    const writes: string[] = [];
+    vi.spyOn(process.stdout, "write").mockImplementation((data) => {
+      writes.push(String(data));
+      return true;
+    });
+    const cmd = buildEvalCommand(
+      makeRunRecordingCtx(calls, {
+        fixtureCount: 2,
+        repeatCount: 3,
+        passAtK: 1,
+        passHatK: 0.5,
+        fixtureDiagnostics: {
+          perFixture: [
+            {
+              fixtureId: "alpha",
+              repeatCount: 3,
+              outcomes: ["pass", "pass", "pass"],
+              outcomeCounts: {
+                pass: 3,
+                fail: 0,
+                timeout: 0,
+                error: 0,
+                "configuration-error": 0,
+              },
+              observedPassRate: 1,
+              repeatVariance: 0,
+              diagnosticClass: "stable-pass",
+              warnings: [],
+            },
+            {
+              fixtureId: "beta",
+              repeatCount: 3,
+              outcomes: ["pass", "fail", "fail"],
+              outcomeCounts: {
+                pass: 1,
+                fail: 2,
+                timeout: 0,
+                error: 0,
+                "configuration-error": 0,
+              },
+              observedPassRate: 1 / 3,
+              repeatVariance: 2 / 9,
+              diagnosticClass: "repeat-unstable",
+              warnings: ["low-signal-repeat-instability"],
+            },
+          ],
+          aggregate: {
+            fixtureCount: 2,
+            stablePass: 1,
+            stableFail: 0,
+            repeatUnstable: 1,
+            insufficientSample: 0,
+            nonGating: 0,
+            lowSignalWarnings: 1,
+          },
+        },
+      }),
+    );
+
+    await cmd.parseAsync(["run", "--repeats", "3"], { from: "user" });
+
+    const text = writes.join("\n");
+    expect(text).toContain("pass@k=100.0%");
+    expect(text).toContain("pass^k=50.0%");
+    expect(text).toContain("fixture diagnostics:");
+    expect(text).toContain("stable-pass=1");
+    expect(text).toContain("repeat-unstable=1");
+    expect(text).toContain("repeat-unstable");
+    expect(text).toContain("beta");
+    expect(text).toContain("outcomes=pass,fail,fail");
+    expect(text).toContain("warnings=low-signal-repeat-instability");
   });
 
   it("rejects container fields unless the operator selects container isolation", async () => {

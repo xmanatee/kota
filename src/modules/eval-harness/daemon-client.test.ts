@@ -53,6 +53,7 @@ import type {
   EvalRunResult,
 } from "./client.js";
 import evalHarnessModule from "./index.js";
+import type { FixtureDiagnosticsReport } from "./scoring.js";
 
 type RecordedCall = {
   method: string;
@@ -78,6 +79,36 @@ const SAMPLE_CONTROL_DECISION_COVERAGE: EvalListResult["controlDecisionCoverage"
       message: 'No eval fixture declares control decision "ask".',
     },
   ],
+};
+
+const SAMPLE_FIXTURE_DIAGNOSTICS: FixtureDiagnosticsReport = {
+  perFixture: [
+    {
+      fixtureId: "fix-a",
+      repeatCount: 3,
+      outcomes: ["pass", "pass", "pass"],
+      outcomeCounts: {
+        pass: 3,
+        fail: 0,
+        timeout: 0,
+        error: 0,
+        "configuration-error": 0,
+      },
+      observedPassRate: 1,
+      repeatVariance: 0,
+      diagnosticClass: "stable-pass",
+      warnings: [],
+    },
+  ],
+  aggregate: {
+    fixtureCount: 1,
+    stablePass: 1,
+    stableFail: 0,
+    repeatUnstable: 0,
+    insufficientSample: 0,
+    nonGating: 0,
+    lowSignalWarnings: 0,
+  },
 };
 
 function makeRecordingTransport(
@@ -169,6 +200,7 @@ describe("eval-harness module daemonClient(link)", () => {
       passHatK: 1,
       controlDecisionCoverage: SAMPLE_CONTROL_DECISION_COVERAGE,
       objectiveMetrics: [],
+      fixtureDiagnostics: SAMPLE_FIXTURE_DIAGNOSTICS,
       runArtifactBaseDir: "/tmp/eval-runs/run-x",
     };
     const { transport, calls } = makeRecordingTransport(() => wireResult);
@@ -195,6 +227,7 @@ describe("eval-harness module daemonClient(link)", () => {
       passHatK: 1,
       controlDecisionCoverage: SAMPLE_CONTROL_DECISION_COVERAGE,
       objectiveMetrics: [],
+      fixtureDiagnostics: SAMPLE_FIXTURE_DIAGNOSTICS,
       runArtifactBaseDir: "/tmp/eval-runs/run-y",
     };
     const { transport, calls } = makeRecordingTransport(() => wireResult);

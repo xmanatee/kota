@@ -189,9 +189,21 @@ export type {
   WorkflowExecutor,
 } from "./runner.js";
 export { cleanupFixtureWorkingDir, runFixture } from "./runner.js";
-export type { AggregateScore, FixtureScore } from "./scoring.js";
+export type {
+  AggregateScore,
+  FixtureDiagnosticAggregate,
+  FixtureDiagnosticClass,
+  FixtureDiagnostics,
+  FixtureDiagnosticsReport,
+  FixtureDiagnosticWarning,
+  FixtureOutcomeCounts,
+  FixtureScore,
+} from "./scoring.js";
 export {
+  aggregateFixtureDiagnostics,
   aggregateScores,
+  computeFixtureDiagnostics,
+  diagnosticsPerFixture,
   FixtureConfigurationScoringError,
   scoreFixtureSet,
   scorePerFixture,

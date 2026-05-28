@@ -1,12 +1,12 @@
 ---
 id: task-report-per-fixture-signal-to-noise-diagnostics-in-
 title: Report per-fixture signal-to-noise diagnostics in eval-harness aggregates
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Extend eval-harness aggregate artifacts with per-fixture reliability and signal-to-noise diagnostics so low-signal fixtures are explicit redesign candidates rather than hidden inside the global pass@k/pass^k score.
 created_at: 2026-05-28T02:46:24.599Z
-updated_at: 2026-05-28T02:46:24.599Z
+updated_at: 2026-05-28T02:58:02.000Z
 ---
 
 ## Problem

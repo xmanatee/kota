@@ -20,6 +20,7 @@ import { loadBaseline, saveBaseline } from "./baseline-store.js";
 import { runEvalSet } from "./eval-set.js";
 import { evalHarnessSetCompleted } from "./events.js";
 import { loadAllFixtures } from "./fixture.js";
+import type { FixtureDiagnosticAggregate } from "./scoring.js";
 import {
   createSubprocessExecutor,
   detectHostSubprocessResourceProfile,
@@ -31,6 +32,7 @@ type CadenceResult = {
   repeatCount: number;
   passAtK: number;
   passHatK: number;
+  fixtureDiagnostics: FixtureDiagnosticAggregate;
   runArtifactBaseDir: string;
   assessmentStatus: BaselineAssessment["status"];
 };
@@ -87,6 +89,7 @@ const runHarness = typedCodeStep<CadenceResult>({
       "repeatCount",
       "passAtK",
       "passHatK",
+      "fixtureDiagnostics",
       "runArtifactBaseDir",
       "assessmentStatus",
     ]),
@@ -157,6 +160,7 @@ const runHarness = typedCodeStep<CadenceResult>({
           repeatCount: report.repeatCount,
           passAtK: report.aggregate.passAtK,
           passHatK: report.aggregate.passHatK,
+          fixtureDiagnostics: report.fixtureDiagnostics.aggregate,
           resourceProfile: report.resourceProfile,
           executionProfile: report.executionProfile,
           startedAt: report.startedAt,
@@ -173,6 +177,7 @@ const runHarness = typedCodeStep<CadenceResult>({
       repeatCount: report.repeatCount,
       passAtK: report.aggregate.passAtK,
       passHatK: report.aggregate.passHatK,
+      fixtureDiagnostics: report.fixtureDiagnostics.aggregate,
       hostClass: report.resourceProfile.hostClass,
       runArtifactBaseDir: report.runArtifactBaseDir,
       startedAt: report.startedAt,
@@ -184,6 +189,7 @@ const runHarness = typedCodeStep<CadenceResult>({
       repeatCount: report.repeatCount,
       passAtK: report.aggregate.passAtK,
       passHatK: report.aggregate.passHatK,
+      fixtureDiagnostics: report.fixtureDiagnostics.aggregate,
       runArtifactBaseDir: report.runArtifactBaseDir,
       assessmentStatus: assessment.status,
     };

@@ -165,6 +165,7 @@ export async function runEvalHarness(
       repeatCount: report.repeatCount,
       passAtK: report.aggregate.passAtK,
       passHatK: report.aggregate.passHatK,
+      fixtureDiagnostics: report.fixtureDiagnostics.aggregate,
       hostClass: report.resourceProfile.hostClass,
       runArtifactBaseDir: report.runArtifactBaseDir,
       startedAt: report.startedAt,
@@ -180,6 +181,7 @@ export async function runEvalHarness(
     passHatK: report.aggregate.passHatK,
     controlDecisionCoverage: report.controlDecisionCoverage,
     objectiveMetrics: [...report.objectiveMetrics],
+    fixtureDiagnostics: report.fixtureDiagnostics,
     runArtifactBaseDir: report.runArtifactBaseDir,
   };
 }

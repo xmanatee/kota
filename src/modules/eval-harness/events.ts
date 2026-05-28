@@ -7,12 +7,14 @@
  */
 
 import { defineProjectScopedModuleEvent } from "#core/events/project-scope.js";
+import type { FixtureDiagnosticAggregate } from "./scoring.js";
 
 export type EvalHarnessSetCompletedPayload = {
   fixtureCount: number;
   repeatCount: number;
   passAtK: number;
   passHatK: number;
+  fixtureDiagnostics: FixtureDiagnosticAggregate;
   hostClass: string;
   runArtifactBaseDir: string;
   startedAt: string;
@@ -40,6 +42,7 @@ export const evalHarnessSetCompleted =
       "repeatCount",
       "passAtK",
       "passHatK",
+      "fixtureDiagnostics",
       "hostClass",
       "runArtifactBaseDir",
       "startedAt",

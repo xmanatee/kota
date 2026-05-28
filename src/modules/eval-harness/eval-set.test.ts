@@ -107,6 +107,24 @@ describe("runEvalSet", () => {
     // alpha: 3/3 pass ⇒ passedAll=true; beta: 1/3 pass ⇒ passedAny=true.
     expect(report.aggregate.passAtK).toBeCloseTo(1);
     expect(report.aggregate.passHatK).toBeCloseTo(0.5);
+    expect(report.fixtureDiagnostics.aggregate).toEqual({
+      fixtureCount: 2,
+      stablePass: 1,
+      stableFail: 0,
+      repeatUnstable: 1,
+      insufficientSample: 0,
+      nonGating: 0,
+      lowSignalWarnings: 1,
+    });
+    expect(
+      report.fixtureDiagnostics.perFixture.find(
+        (diagnostic) => diagnostic.fixtureId === "beta",
+      ),
+    ).toMatchObject({
+      outcomes: ["pass", "fail", "fail"],
+      diagnosticClass: "repeat-unstable",
+      warnings: ["low-signal-repeat-instability"],
+    });
     expect(report.controlDecisionCoverage.counts.act).toBe(2);
     expect(report.controlDecisionCoverage.missingDecisions).toContain("ask");
 
@@ -116,6 +134,13 @@ describe("runEvalSet", () => {
     expect(raw.repeatCount).toBe(3);
     expect(raw.executionProfile.status).toBe("verified");
     expect(raw.runs).toHaveLength(6);
+    expect(raw.fixtureDiagnostics.aggregate.repeatUnstable).toBe(1);
+    expect(raw.fixtureDiagnostics.perFixture).toContainEqual(
+      expect.objectContaining({
+        fixtureId: "beta",
+        outcomes: ["pass", "fail", "fail"],
+      }),
+    );
     expect(raw.controlDecisionCoverage.counts.act).toBe(2);
     expect(raw.controlDecisionCoverage.missingDecisionWarnings).toContainEqual({
       decision: "ask",

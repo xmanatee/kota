@@ -214,6 +214,23 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
       const passAtK = result.passAtK;
       const passHatK = result.passHatK;
       const passRole = passHatK >= 1 ? "success" : passHatK > 0 ? "warn" : "error";
+      const diagnosticAggregate = result.fixtureDiagnostics.aggregate;
+      const repeatUnstableRows = result.fixtureDiagnostics.perFixture
+        .filter((diagnostic) => diagnostic.diagnosticClass === "repeat-unstable")
+        .map((diagnostic) =>
+          line(
+            span("repeat-unstable ", "warn"),
+            span(diagnostic.fixtureId, "accent"),
+            plain(` outcomes=${diagnostic.outcomes.join(",")}`),
+            plain(
+              ` passRate=${(diagnostic.observedPassRate * 100).toFixed(1)}%`,
+            ),
+            plain(` variance=${diagnostic.repeatVariance.toFixed(3)}`),
+            diagnostic.warnings.length > 0
+              ? plain(` warnings=${diagnostic.warnings.join(",")}`)
+              : plain(""),
+          ),
+        );
       const metricRows = result.objectiveMetrics.map((metric) =>
         line(
           plain("metric "),
@@ -238,7 +255,16 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
           plain(" pass^k="),
           span(`${(passHatK * 100).toFixed(1)}%`, passRole),
         ),
+        line(
+          plain("fixture diagnostics: "),
+          plain(`stable-pass=${diagnosticAggregate.stablePass}`),
+          plain(` stable-fail=${diagnosticAggregate.stableFail}`),
+          plain(` repeat-unstable=${diagnosticAggregate.repeatUnstable}`),
+          plain(` insufficient-sample=${diagnosticAggregate.insufficientSample}`),
+          plain(` non-gating=${diagnosticAggregate.nonGating}`),
+        ),
         line(span(`artifacts: ${result.runArtifactBaseDir}`, "muted")),
+        ...repeatUnstableRows,
         ...metricRows,
       ));
       if (passHatK < 1) {

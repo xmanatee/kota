@@ -32,8 +32,16 @@ import {
   runFixture,
   type WorkflowExecutor,
 } from "./runner.js";
-import type { AggregateScore, FixtureScore } from "./scoring.js";
-import { aggregateScores, scorePerFixture } from "./scoring.js";
+import type {
+  AggregateScore,
+  FixtureDiagnosticsReport,
+  FixtureScore,
+} from "./scoring.js";
+import {
+  aggregateScores,
+  computeFixtureDiagnostics,
+  scorePerFixture,
+} from "./scoring.js";
 
 export type EvalSetParams = {
   fixtures: readonly LoadedFixture[];
@@ -51,6 +59,7 @@ export type EvalSetParams = {
 export type EvalSetReport = {
   runs: readonly FixtureRun[];
   perFixture: readonly FixtureScore[];
+  fixtureDiagnostics: FixtureDiagnosticsReport;
   aggregate: AggregateScore;
   controlDecisionCoverage: FixtureControlDecisionCoverageSummary;
   objectiveMetrics: readonly AggregateObjectiveMetric[];
@@ -112,6 +121,7 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
 
   const perFixture = scorePerFixture(runs);
   const aggregate = aggregateScores(perFixture);
+  const fixtureDiagnostics = computeFixtureDiagnostics(runs);
   const controlDecisionCoverage = summarizeControlDecisionCoverage(params.fixtures);
   const objectiveMetrics = aggregateObjectiveMetrics(runs);
   const completedAt = new Date().toISOString();
@@ -127,6 +137,7 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
         executionProfile,
         runs,
         perFixture,
+        fixtureDiagnostics,
         aggregate,
         controlDecisionCoverage,
         objectiveMetrics,
@@ -139,6 +150,7 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
   return {
     runs,
     perFixture,
+    fixtureDiagnostics,
     aggregate,
     controlDecisionCoverage,
     objectiveMetrics,

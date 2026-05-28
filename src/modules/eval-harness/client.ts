@@ -18,6 +18,7 @@ import type {
   AggregateObjectiveMetric,
   ObjectiveMetricValidationReason,
 } from "./objective-metrics.js";
+import type { FixtureDiagnosticsReport } from "./scoring.js";
 
 /** A fixture surfaced by `evalHarness.list`. */
 export type EvalFixtureSummary = {
@@ -70,6 +71,7 @@ export type EvalRunResult =
       passHatK: number;
       controlDecisionCoverage: FixtureControlDecisionCoverageSummary;
       objectiveMetrics: AggregateObjectiveMetric[];
+      fixtureDiagnostics: FixtureDiagnosticsReport;
       runArtifactBaseDir: string;
     }
   | { ok: false; reason: "no_fixtures"; message: string }
