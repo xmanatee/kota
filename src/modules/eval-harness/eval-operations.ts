@@ -19,6 +19,7 @@ import {
   DEFAULT_PASS_WITH_WARNINGS_THRESHOLD_RATE,
   evaluateCalibrationGate,
 } from "#modules/autonomy/evaluator-calibration.js";
+import { loadBaseline } from "./baseline-store.js";
 import type {
   EvalCalibrationOptions,
   EvalCalibrationResult,
@@ -36,6 +37,11 @@ import {
 } from "./fixture.js";
 import type { ResourceProfile } from "./fixture-run.js";
 import { ObjectiveMetricValidationError } from "./objective-metrics.js";
+import {
+  compareRunConfigurations,
+  missingPriorRunConfigurationComparison,
+  toRunConfigurationOperatorSummary,
+} from "./run-configuration.js";
 import {
   createSubprocessExecutor,
   detectHostSubprocessResourceProfile,
@@ -139,6 +145,7 @@ export async function runEvalHarness(
   let report: Awaited<ReturnType<typeof runEvalSet>>;
   try {
     report = await runEvalSet({
+      projectDir,
       fixtures,
       executor,
       requestedProfile,
@@ -168,10 +175,23 @@ export async function runEvalHarness(
       fixtureDiagnostics: report.fixtureDiagnostics.aggregate,
       hostClass: report.resourceProfile.hostClass,
       runArtifactBaseDir: report.runArtifactBaseDir,
+      runConfigurationFingerprint: report.runConfiguration.fingerprint,
+      runConfigurationSummary: report.runConfiguration.summary,
       startedAt: report.startedAt,
       completedAt: report.completedAt,
     });
   }
+
+  const priorBaseline = loadBaseline(projectDir);
+  const baselineConfigurationComparison =
+    priorBaseline === null
+      ? null
+      : priorBaseline.runConfiguration === undefined
+        ? missingPriorRunConfigurationComparison(report.runConfiguration)
+        : compareRunConfigurations(
+            priorBaseline.runConfiguration,
+            report.runConfiguration,
+          );
 
   return {
     ok: true,
@@ -182,6 +202,8 @@ export async function runEvalHarness(
     controlDecisionCoverage: report.controlDecisionCoverage,
     objectiveMetrics: [...report.objectiveMetrics],
     fixtureDiagnostics: report.fixtureDiagnostics,
+    runConfiguration: toRunConfigurationOperatorSummary(report.runConfiguration),
+    baselineConfigurationComparison,
     runArtifactBaseDir: report.runArtifactBaseDir,
   };
 }

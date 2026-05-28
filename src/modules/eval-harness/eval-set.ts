@@ -28,6 +28,13 @@ import {
   aggregateObjectiveMetrics,
 } from "./objective-metrics.js";
 import {
+  addFixtureRunHarnessModelEvidence,
+  buildEvalRunConfiguration,
+  createResolvedHarnessModelEvidenceAccumulator,
+  type EvalRunConfiguration,
+  finalizeResolvedHarnessModelEvidence,
+} from "./run-configuration.js";
+import {
   cleanupFixtureWorkingDir,
   runFixture,
   type WorkflowExecutor,
@@ -44,6 +51,7 @@ import {
 } from "./scoring.js";
 
 export type EvalSetParams = {
+  projectDir: string;
   fixtures: readonly LoadedFixture[];
   executor: WorkflowExecutor;
   requestedProfile: ResourceProfile;
@@ -63,6 +71,7 @@ export type EvalSetReport = {
   aggregate: AggregateScore;
   controlDecisionCoverage: FixtureControlDecisionCoverageSummary;
   objectiveMetrics: readonly AggregateObjectiveMetric[];
+  runConfiguration: EvalRunConfiguration;
   resourceProfile: ResourceProfile;
   executionProfile: ExecutionProfilePreflightResult;
   repeatCount: number;
@@ -102,6 +111,8 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
   const startedAt = new Date().toISOString();
 
   const runs: FixtureRun[] = [];
+  const resolvedHarnessModelEvidence =
+    createResolvedHarnessModelEvidenceAccumulator();
   for (const fixture of params.fixtures) {
     for (let runIndex = 0; runIndex < params.repeatCount; runIndex++) {
       const report = await runFixture({
@@ -113,6 +124,11 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
         repeatCount: params.repeatCount,
       });
       runs.push(report.run);
+      addFixtureRunHarnessModelEvidence(
+        resolvedHarnessModelEvidence,
+        fixture,
+        report,
+      );
       if (!params.keepWorkingDirs) {
         cleanupFixtureWorkingDir(report.workingDir);
       }
@@ -125,6 +141,15 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
   const controlDecisionCoverage = summarizeControlDecisionCoverage(params.fixtures);
   const objectiveMetrics = aggregateObjectiveMetrics(runs);
   const completedAt = new Date().toISOString();
+  const runConfiguration = buildEvalRunConfiguration({
+    projectDir: params.projectDir,
+    fixtures: params.fixtures,
+    resourceProfile,
+    executionProfile,
+    resolvedHarnessModelEvidence: finalizeResolvedHarnessModelEvidence(
+      resolvedHarnessModelEvidence,
+    ),
+  });
 
   writeFileSync(
     join(params.runArtifactBaseDir, "eval-set-report.json"),
@@ -141,6 +166,7 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
         aggregate,
         controlDecisionCoverage,
         objectiveMetrics,
+        runConfiguration,
       },
       null,
       2,
@@ -154,6 +180,7 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
     aggregate,
     controlDecisionCoverage,
     objectiveMetrics,
+    runConfiguration,
     resourceProfile,
     executionProfile,
     repeatCount: params.repeatCount,

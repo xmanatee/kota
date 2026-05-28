@@ -1,17 +1,17 @@
 # Eval Harness Module
 
 This module hosts KOTA's autonomy eval harness: strict scoring, regression
-gating, and fixture execution. CLI, HTTP, and cadence use one path.
+gating, and fixture execution. CLI, HTTP, and cadence share one path.
 
 ## Infrastructure Noise Rule
 
-Container resource config can swing benchmark scores past model ranking gaps,
-so every fixture run must carry:
+Container resource config can swing scores past model ranking gaps,
+so fixture runs must carry:
 
 - **Resource profile** — host class, CPU allocation and kill threshold as
   separate fields, with matching memory fields.
-- **Execution profile preflight** — backend kind, requested, observed or
-  enforced profile, diagnostics, and gate eligibility. Host subprocess runs may
+- **Execution profile preflight** — backend kind, requested/observed/enforced
+  profile, diagnostics, and gate eligibility. Host subprocess runs may
   score fixtures, but are non-gating unless an executor verifies/enforces CPU
   and memory facts.
 - **Repeat index and total** — fixtures run k times; k=1 is non-gating.
@@ -38,9 +38,13 @@ A candidate change is gated only when ALL of the following hold:
 3. The candidate execution preflight is gate-eligible.
 4. Baseline and candidate resource profiles are comparable (same host
    class, identical allocation and kill thresholds).
+5. Baseline and candidate run configurations are comparable: same active
+   preset, fixture manifest, source identity, resolved harness/model evidence,
+   and execution profile.
 
 A drop inside the noise band, repeat-count mismatch, non-gating execution
-profile, or resource drift resolves to typed non-gating evidence.
+profile, resource drift, or config drift resolves to typed
+non-gating evidence.
 
 Operators calibrate the band per host class empirically and record the
 calibration alongside the run. Concrete defaults live in code.
@@ -68,23 +72,22 @@ Fixtures also declare `preRunExpectations`: expected initial predicate results.
 At least one must be `expected: "fail"`; mismatches are fixture config errors.
 
 Persistent multi-round fixtures use `mode: "multi-round"` with ordered
-`rounds`. Each round names its workflow, budget, task input (`initial-state`,
+`rounds`. Each round names workflow, budget, task input (`initial-state`,
 `copy-fixture-file`, or `trigger-payload`), pre-run expectations, and
 predicates. The runner preserves one working directory, scores the fixture as
 one pass@k/pass^k unit, and records round outcomes in `fixture-run.json`.
 Single-workflow fixtures remain the default when `mode` is absent.
 
-Objective metrics are deterministic numeric evidence on the same fixture path,
+Objective metrics are deterministic numeric evidence on the fixture path,
 not a second benchmark runner. They may come from fixture files, runtime
 artifacts, or local deterministic commands and are reported in run and aggregate
 artifacts. Pass/fail gating stays predicate-only unless a fixture adds a
-threshold predicate. Compare metric deltas only for compatible resource and
-execution profiles.
+threshold predicate. Compare metric deltas only for compatible profiles.
 
 ## Baseline Persistence And Regression Surfacing
 
 Only the cadence persists the last accepted aggregate as the next
-comparison baseline, in the KOTA state root, per-project and
+baseline, in the KOTA state root, per-project and
 per-host-class, never in the repo. First run records and skips the gate.
 `not-gated` rolls the baseline forward, including non-load-bearing comparison
 reasons, so regressions compare against the latest accepted result. `gated`
@@ -92,12 +95,16 @@ holds the baseline until the next clear run or manual reset.
 
 On `gated`, the cadence emits a typed regression event; a bridge workflow
 forwards it through the attention channel. Consumers subscribe to the
-typed event, not generic completion events. CLI and HTTP callers own their
-own comparison; auto-resolution is cadence-only.
+typed event, not generic completion events. CLI/HTTP callers own comparison;
+auto-resolution is cadence-only.
+
+Accepted baselines include the eval-set run-configuration fingerprint and
+operator summary. Configuration drift starts a fresh baseline population
+without treating score movement as quality signal.
 
 ## Runner Lifecycle And Execution Paths
 
-Each fixture run materializes initial state into a fresh tmpdir, invokes the
+Each fixture run materializes initial state into a fresh tmpdir, runs the
 workflow through a pluggable executor, evaluates predicates, and emits a
 per-run artifact. Fixtures run sequentially; parallel replicas corrupt resource
 profiles and noise-band comparison. `gated` means do not ship as-is; rerun on
@@ -113,15 +120,15 @@ Three paths share the same `runFixture` + subprocess executor:
   Live-LLM fixtures stay out.
 - **Cadence (`eval-harness-cadence`)** — every shipped fixture, weekly,
   `repeats=k`, owns the persisted baseline and `pass^k` aggregation.
-- **CLI (`pnpm kota eval run`)** — operator-driven; caller owns the
-  comparison, no baseline persistence.
+- **CLI (`pnpm kota eval run`)** — operator-driven; caller owns comparison,
+  no baseline persistence.
 
 ## Recorded Agent-Step Replay
 
-Agent-call fixtures ship one recording per agent call under
+Agent-call fixtures ship one recording per call under
 `<fixtureDir>/recordings/<id>.json`. The subprocess executor sets
 `KOTA_EVAL_HARNESS_REPLAY_ROOT`; the module overrides the
-`claude-agent-sdk` slot with a replay adapter. Replay subprocesses also
+`claude-agent-sdk` slot with a replay adapter. Replay subprocesses
 force `KOTA_PRESET=claude` so workflows resolve to the replay-overridden
 harness. Container subprocesses bind-mount the recording root read-only at
 the same absolute path so the env root is readable inside the container.

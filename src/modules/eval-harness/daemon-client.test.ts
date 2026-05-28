@@ -111,6 +111,21 @@ const SAMPLE_FIXTURE_DIAGNOSTICS: FixtureDiagnosticsReport = {
   },
 };
 
+const SAMPLE_RUN_CONFIGURATION: Extract<
+  EvalRunResult,
+  { ok: true }
+>["runConfiguration"] = {
+  fingerprint: "abc123def456",
+  summary: {
+    activePreset: "codex (default) via codex",
+    fixtureManifest: "2 fixture(s) fixturehash",
+    sourceIdentity: "abc123 (clean, sourcehash)",
+    resolvedHarnessModelEvidence: "codex/gpt-5.5 x2",
+    resourceProfile: "test cpu=1/1 memoryMB=1024/1024",
+    executionProfile: "verified/container/enforced/verified-profile",
+  },
+};
+
 function makeRecordingTransport(
   responder: (
     method: string,
@@ -201,6 +216,8 @@ describe("eval-harness module daemonClient(link)", () => {
       controlDecisionCoverage: SAMPLE_CONTROL_DECISION_COVERAGE,
       objectiveMetrics: [],
       fixtureDiagnostics: SAMPLE_FIXTURE_DIAGNOSTICS,
+      runConfiguration: SAMPLE_RUN_CONFIGURATION,
+      baselineConfigurationComparison: null,
       runArtifactBaseDir: "/tmp/eval-runs/run-x",
     };
     const { transport, calls } = makeRecordingTransport(() => wireResult);
@@ -228,6 +245,8 @@ describe("eval-harness module daemonClient(link)", () => {
       controlDecisionCoverage: SAMPLE_CONTROL_DECISION_COVERAGE,
       objectiveMetrics: [],
       fixtureDiagnostics: SAMPLE_FIXTURE_DIAGNOSTICS,
+      runConfiguration: SAMPLE_RUN_CONFIGURATION,
+      baselineConfigurationComparison: null,
       runArtifactBaseDir: "/tmp/eval-runs/run-y",
     };
     const { transport, calls } = makeRecordingTransport(() => wireResult);

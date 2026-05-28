@@ -18,6 +18,10 @@ import type {
   AggregateObjectiveMetric,
   ObjectiveMetricValidationReason,
 } from "./objective-metrics.js";
+import type {
+  EvalRunConfigurationComparison,
+  EvalRunConfigurationOperatorSummary,
+} from "./run-configuration.js";
 import type { FixtureDiagnosticsReport } from "./scoring.js";
 
 /** A fixture surfaced by `evalHarness.list`. */
@@ -72,6 +76,8 @@ export type EvalRunResult =
       controlDecisionCoverage: FixtureControlDecisionCoverageSummary;
       objectiveMetrics: AggregateObjectiveMetric[];
       fixtureDiagnostics: FixtureDiagnosticsReport;
+      runConfiguration: EvalRunConfigurationOperatorSummary;
+      baselineConfigurationComparison: EvalRunConfigurationComparison | null;
       runArtifactBaseDir: string;
     }
   | { ok: false; reason: "no_fixtures"; message: string }

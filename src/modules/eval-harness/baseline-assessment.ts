@@ -21,11 +21,19 @@ import {
   evaluateRegressionGate,
   type RegressionGateDecision,
 } from "./noise-band.js";
+import {
+  compareRunConfigurations,
+  type EvalRunConfiguration,
+  type EvalRunConfigurationComparison,
+  type EvalRunConfigurationMismatchReason,
+  missingPriorRunConfigurationComparison,
+} from "./run-configuration.js";
 import type { AggregateScore } from "./scoring.js";
 
 export type CandidateAssessment = {
   aggregate: AggregateScore;
   executionProfile: ExecutionProfilePreflightResult;
+  runConfiguration: EvalRunConfiguration;
   runArtifactBaseDir: string;
   /** ISO timestamp of the cadence run that produced the candidate. */
   recordedAt: string;
@@ -36,10 +44,22 @@ export type CandidateAssessment = {
 export type BaselineAssessment =
   | {
       status: "non-gating";
+      kind: "execution-profile";
       reason: ExecutionProfileNonGatingReason | ExecutionProfileRejectionReason;
       resourceProfile: ResourceProfile;
       runArtifactBaseDir: string;
       recordedAt: string;
+    }
+  | {
+      status: "non-gating";
+      kind: "run-configuration";
+      reason: EvalRunConfigurationMismatchReason;
+      comparison: Extract<EvalRunConfigurationComparison, { status: "mismatch" }>;
+      /**
+       * Candidate is a fresh population: persist it as the new baseline without
+       * treating the prior aggregate as a normal quality comparison.
+       */
+      baselineToRecord: PersistedBaseline;
     }
   | {
       status: "first-run";
@@ -84,6 +104,7 @@ export function assessAgainstBaseline(
         : candidate.executionProfile.nonGatingReason;
     return {
       status: "non-gating",
+      kind: "execution-profile",
       reason,
       resourceProfile: candidateResourceProfile,
       runArtifactBaseDir: candidate.runArtifactBaseDir,
@@ -94,12 +115,30 @@ export function assessAgainstBaseline(
   const candidateBaseline: PersistedBaseline = {
     aggregate: candidate.aggregate,
     resourceProfile: candidateResourceProfile,
+    runConfiguration: candidate.runConfiguration,
     recordedAt: candidate.recordedAt,
     runArtifactBaseDir: candidate.runArtifactBaseDir,
   };
 
   if (prior === null) {
     return { status: "first-run", baselineToRecord: candidateBaseline };
+  }
+
+  const configurationComparison =
+    prior.runConfiguration === undefined
+      ? missingPriorRunConfigurationComparison(candidate.runConfiguration)
+      : compareRunConfigurations(
+          prior.runConfiguration,
+          candidate.runConfiguration,
+        );
+  if (configurationComparison.status === "mismatch") {
+    return {
+      status: "non-gating",
+      kind: "run-configuration",
+      reason: configurationComparison.reason,
+      comparison: configurationComparison,
+      baselineToRecord: candidateBaseline,
+    };
   }
 
   const noiseBandPercentagePoints =

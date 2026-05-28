@@ -33,6 +33,15 @@ const SAMPLE: EvalHarnessSetCompletedPayload = {
   },
   hostClass: "test",
   runArtifactBaseDir: "/tmp/eval-runs/abc",
+  runConfigurationFingerprint: "abc123",
+  runConfigurationSummary: {
+    activePreset: "codex (default) via codex",
+    fixtureManifest: "1 fixture abc123",
+    sourceIdentity: "abc123 (clean, def456)",
+    resolvedHarnessModelEvidence: "codex/gpt-5.5 x1",
+    resourceProfile: "test cpu=1/1 memoryMB=1024/1024",
+    executionProfile: "verified/container/enforced/verified-profile",
+  },
   startedAt: "2026-05-08T00:00:00.000Z",
   completedAt: "2026-05-08T00:01:00.000Z",
 };
@@ -50,6 +59,8 @@ describe("evalHarnessSetCompleted", () => {
       "fixtureDiagnostics",
       "hostClass",
       "runArtifactBaseDir",
+      "runConfigurationFingerprint",
+      "runConfigurationSummary",
       "startedAt",
       "completedAt",
     ]);

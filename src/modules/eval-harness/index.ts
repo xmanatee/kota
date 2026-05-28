@@ -182,6 +182,20 @@ export {
   resolveReplayRootFromEnv,
 } from "./replay-harness.js";
 export type {
+  EvalRunConfiguration,
+  EvalRunConfigurationComparison,
+  EvalRunConfigurationMismatchReason,
+  EvalRunConfigurationOperatorSummary,
+  EvalRunConfigurationSummary,
+  ResolvedHarnessModelEvidence,
+} from "./run-configuration.js";
+export {
+  buildEvalRunConfiguration,
+  compareRunConfigurations,
+  missingPriorRunConfigurationComparison,
+  toRunConfigurationOperatorSummary,
+} from "./run-configuration.js";
+export type {
   FixtureRunReport,
   RunFixtureParams,
   WorkflowExecutionOutcome,

@@ -7,6 +7,7 @@
  */
 
 import { defineProjectScopedModuleEvent } from "#core/events/project-scope.js";
+import type { EvalRunConfigurationSummary } from "./run-configuration.js";
 import type { FixtureDiagnosticAggregate } from "./scoring.js";
 
 export type EvalHarnessSetCompletedPayload = {
@@ -17,6 +18,8 @@ export type EvalHarnessSetCompletedPayload = {
   fixtureDiagnostics: FixtureDiagnosticAggregate;
   hostClass: string;
   runArtifactBaseDir: string;
+  runConfigurationFingerprint: string;
+  runConfigurationSummary: EvalRunConfigurationSummary;
   startedAt: string;
   completedAt: string;
 };
@@ -45,6 +48,8 @@ export const evalHarnessSetCompleted =
       "fixtureDiagnostics",
       "hostClass",
       "runArtifactBaseDir",
+      "runConfigurationFingerprint",
+      "runConfigurationSummary",
       "startedAt",
       "completedAt",
     ],

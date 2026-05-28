@@ -95,6 +95,7 @@ describe("runEvalSet", () => {
     };
 
     const report = await runEvalSet({
+      projectDir: fixturesRoot,
       fixtures,
       executor,
       requestedProfile: PROFILE,
@@ -146,6 +147,18 @@ describe("runEvalSet", () => {
       decision: "ask",
       message: 'No eval fixture declares control decision "ask".',
     });
+    expect(raw.runConfiguration.fingerprint).toMatch(/^[a-f0-9]{64}$/);
+    expect(raw.runConfiguration.summary.activePreset).toContain("codex");
+    expect(raw.runConfiguration.components.fixtureManifest.fixtures).toEqual([
+      expect.objectContaining({ id: "alpha" }),
+      expect.objectContaining({ id: "beta" }),
+    ]);
+    expect(raw.runConfiguration.components.sourceIdentity.status).toBe(
+      "unavailable",
+    );
+    expect(
+      raw.runConfiguration.components.resolvedHarnessModelEvidence.status,
+    ).toBe("missing");
     const preflight = JSON.parse(
       readFileSync(
         join(runsRoot, "eval-resource-profile-preflight.json"),
@@ -192,6 +205,7 @@ describe("runEvalSet", () => {
     };
 
     const report = await runEvalSet({
+      projectDir: fixturesRoot,
       fixtures,
       executor,
       requestedProfile: PROFILE,
@@ -229,6 +243,114 @@ describe("runEvalSet", () => {
     expect(raw.runs[0].objectiveMetrics[0].value).toBe(12);
   });
 
+  it("summarizes resolved harness and model evidence from child workflow artifacts", async () => {
+    seedFixture(fixturesRoot, "alpha", { kind: "file-exists", path: "alpha.txt" });
+    const report = await runEvalSet({
+      projectDir: fixturesRoot,
+      fixtures: loadAllFixtures(fixturesRoot),
+      executor: {
+        preflight: () => EXECUTION_PROFILE,
+        execute: async ({ workingDir }) => {
+          writeFileSync(join(workingDir, "alpha.txt"), "ok");
+          const childRunDir = join(workingDir, ".kota", "runs", "child-run");
+          mkdirSync(childRunDir, { recursive: true });
+          writeFileSync(
+            join(childRunDir, "metadata.json"),
+            JSON.stringify({
+              id: "child-run",
+              workflow: "noop",
+              status: "success",
+              steps: [
+                {
+                  id: "build",
+                  type: "agent",
+                  status: "success",
+                  harness: "codex",
+                  model: "gpt-5.5",
+                },
+              ],
+            }),
+          );
+          return {
+            kind: "completed",
+            durationMs: 10,
+            runArtifactPath: childRunDir,
+          };
+        },
+      },
+      requestedProfile: PROFILE,
+      runArtifactBaseDir: runsRoot,
+      repeatCount: 1,
+    });
+
+    expect(
+      report.runConfiguration.components.resolvedHarnessModelEvidence,
+    ).toMatchObject({
+      status: "complete",
+      distinctHarnessModels: [{ harness: "codex", model: "gpt-5.5", count: 1 }],
+    });
+    expect(report.runConfiguration.summary.resolvedHarnessModelEvidence).toBe(
+      "codex/gpt-5.5 x1",
+    );
+  });
+
+  it("ignores skipped agent steps when summarizing resolved harness and model evidence", async () => {
+    seedFixture(fixturesRoot, "alpha", { kind: "file-exists", path: "alpha.txt" });
+    const report = await runEvalSet({
+      projectDir: fixturesRoot,
+      fixtures: loadAllFixtures(fixturesRoot),
+      executor: {
+        preflight: () => EXECUTION_PROFILE,
+        execute: async ({ workingDir }) => {
+          writeFileSync(join(workingDir, "alpha.txt"), "ok");
+          const childRunDir = join(workingDir, ".kota", "runs", "child-run");
+          mkdirSync(childRunDir, { recursive: true });
+          writeFileSync(
+            join(childRunDir, "metadata.json"),
+            JSON.stringify({
+              id: "child-run",
+              workflow: "decomposer",
+              status: "success",
+              steps: [
+                {
+                  id: "assess-failure",
+                  type: "code",
+                  status: "success",
+                },
+                {
+                  id: "decompose",
+                  type: "agent",
+                  status: "skipped",
+                  skipReason: { kind: "when-predicate" },
+                },
+              ],
+            }),
+          );
+          return {
+            kind: "completed",
+            durationMs: 10,
+            runArtifactPath: childRunDir,
+          };
+        },
+      },
+      requestedProfile: PROFILE,
+      runArtifactBaseDir: runsRoot,
+      repeatCount: 1,
+    });
+
+    expect(
+      report.runConfiguration.components.resolvedHarnessModelEvidence,
+    ).toMatchObject({
+      status: "empty",
+      observations: [],
+      missingArtifacts: [],
+      distinctHarnessModels: [],
+    });
+    expect(report.runConfiguration.summary.resolvedHarnessModelEvidence).toBe(
+      "no agent-step evidence",
+    );
+  });
+
   it("does not compare objective metric deltas across incompatible environments", async () => {
     seedFixture(
       fixturesRoot,
@@ -254,6 +376,7 @@ describe("runEvalSet", () => {
       ],
     );
     const resourceReport = await runEvalSet({
+      projectDir: fixturesRoot,
       fixtures: loadAllFixtures(fixturesRoot),
       executor: {
         preflight: () => EXECUTION_PROFILE,
@@ -308,6 +431,7 @@ describe("runEvalSet", () => {
       diagnostics: [],
     };
     const executionReport = await runEvalSet({
+      projectDir: fixturesRoot,
       fixtures: loadAllFixtures(fixturesRoot),
       executor: {
         preflight: () => nonGatingProfile,
@@ -332,6 +456,7 @@ describe("runEvalSet", () => {
     const fixtures = loadAllFixtures(fixturesRoot);
     await expect(
       runEvalSet({
+        projectDir: fixturesRoot,
         fixtures,
         executor: {
           preflight: () => EXECUTION_PROFILE,
@@ -351,6 +476,7 @@ describe("runEvalSet", () => {
   it("rejects empty fixture sets rather than returning a vacuous 0/0 score", async () => {
     await expect(
       runEvalSet({
+        projectDir: fixturesRoot,
         fixtures: [],
         executor: {
           preflight: () => EXECUTION_PROFILE,
@@ -387,6 +513,7 @@ describe("runEvalSet", () => {
 
     await expect(
       runEvalSet({
+        projectDir: fixturesRoot,
         fixtures,
         executor: {
           preflight: () => rejectedProfile,

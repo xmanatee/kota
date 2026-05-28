@@ -1,12 +1,12 @@
 ---
 id: task-record-eval-harness-run-configuration-fingerprints
 title: Record eval-harness run configuration fingerprints before baseline comparison
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a strict eval-harness run configuration fingerprint covering the active preset, resolved harness/model evidence, fixture manifest, and KOTA source identity so cadence baselines compare only like-for-like run populations instead of treating harness or fixture drift as model quality signal.
 created_at: 2026-05-28T03:21:01.917Z
-updated_at: 2026-05-28T03:21:01.917Z
+updated_at: 2026-05-28T03:40:39.017Z
 ---
 
 ## Problem
@@ -151,3 +151,12 @@ source drift.
 - A fixture or unit test demonstrates a configuration mismatch (fixture
   manifest or preset drift) returns the typed non-gating reason instead of
   producing a misleading gated/not-gated quality comparison.
+
+## Completion Evidence
+
+- `TMPDIR=/private/tmp pnpm exec vitest run src/modules/eval-harness/eval-set.test.ts src/modules/eval-harness/baseline-assessment.test.ts src/modules/eval-harness/baseline-store.test.ts src/modules/eval-harness/cli.test.ts src/modules/eval-harness/daemon-client.test.ts src/modules/eval-harness/events.test.ts`
+- `TMPDIR=/private/tmp pnpm exec vitest run src/strict-types-policy.integration.test.ts src/modules/eval-harness/events.test.ts src/modules/eval-harness/eval-control-routes.test.ts src/modules/eval-harness/routes.test.ts`
+- `TMPDIR=/private/tmp pnpm exec tsc --noEmit --pretty false`
+- `TMPDIR=/private/tmp pnpm exec biome check src/modules/eval-harness/run-configuration.ts src/modules/eval-harness/eval-set.ts src/modules/eval-harness/baseline-assessment.ts src/modules/eval-harness/baseline-store.ts src/modules/eval-harness/eval-operations.ts src/modules/eval-harness/cadence-workflow.ts src/modules/eval-harness/cli.ts src/modules/eval-harness/events.ts src/modules/eval-harness/eval-set.test.ts src/modules/eval-harness/baseline-assessment.test.ts src/modules/eval-harness/baseline-store.test.ts src/modules/eval-harness/cli.test.ts src/modules/eval-harness/daemon-client.test.ts src/modules/eval-harness/events.test.ts`
+- `TMPDIR=/private/tmp pnpm build`
+- `.kota/runs/2026-05-28T03-23-39-026Z-builder-h7pic0/transcript.txt` captures `TMPDIR=/private/tmp pnpm kota eval run --fixture dispatcher-emits-on-ready-queue --repeats 1`; `.kota/eval-runs/2026-05-28T03-40-39-017Z/eval-set-report.json` contains `runConfiguration.fingerprint` and summary/components.

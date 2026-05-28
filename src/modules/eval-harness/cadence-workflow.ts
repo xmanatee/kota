@@ -110,6 +110,7 @@ const runHarness = typedCodeStep<CadenceResult>({
     const requestedProfile =
       detectHostSubprocessResourceProfile(CADENCE_HOST_CLASS);
     const report = await runEvalSet({
+      projectDir,
       fixtures,
       executor,
       requestedProfile,
@@ -121,6 +122,7 @@ const runHarness = typedCodeStep<CadenceResult>({
     const assessment = assessAgainstBaseline(priorBaseline, {
       aggregate: report.aggregate,
       executionProfile: report.executionProfile,
+      runConfiguration: report.runConfiguration,
       runArtifactBaseDir: report.runArtifactBaseDir,
       recordedAt: report.completedAt,
     });
@@ -147,7 +149,9 @@ const runHarness = typedCodeStep<CadenceResult>({
       });
     } else if (
       assessment.status === "first-run" ||
-      assessment.status === "not-gated"
+      assessment.status === "not-gated" ||
+      (assessment.status === "non-gating" &&
+        assessment.kind === "run-configuration")
     ) {
       saveBaseline(projectDir, assessment.baselineToRecord);
     }
@@ -163,6 +167,7 @@ const runHarness = typedCodeStep<CadenceResult>({
           fixtureDiagnostics: report.fixtureDiagnostics.aggregate,
           resourceProfile: report.resourceProfile,
           executionProfile: report.executionProfile,
+          runConfiguration: report.runConfiguration,
           startedAt: report.startedAt,
           completedAt: report.completedAt,
           assessment: summarizeAssessment(assessment),
@@ -180,6 +185,8 @@ const runHarness = typedCodeStep<CadenceResult>({
       fixtureDiagnostics: report.fixtureDiagnostics.aggregate,
       hostClass: report.resourceProfile.hostClass,
       runArtifactBaseDir: report.runArtifactBaseDir,
+      runConfigurationFingerprint: report.runConfiguration.fingerprint,
+      runConfigurationSummary: report.runConfiguration.summary,
       startedAt: report.startedAt,
       completedAt: report.completedAt,
     });
@@ -200,8 +207,17 @@ function summarizeAssessment(
   assessment: BaselineAssessment,
 ): Record<string, unknown> {
   if (assessment.status === "non-gating") {
+    if (assessment.kind === "run-configuration") {
+      return {
+        status: "non-gating",
+        kind: assessment.kind,
+        reason: assessment.reason,
+        comparison: assessment.comparison,
+      };
+    }
     return {
       status: "non-gating",
+      kind: assessment.kind,
       reason: assessment.reason,
       resourceProfile: assessment.resourceProfile,
     };

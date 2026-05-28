@@ -244,6 +244,38 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
               : plain(""),
         ),
       );
+      const configurationRows = [
+        line(
+          plain("configuration: "),
+          span(result.runConfiguration.fingerprint.slice(0, 12), "info"),
+          plain(" "),
+          span(result.runConfiguration.summary.activePreset, "muted"),
+        ),
+        line(
+          plain("  fixtures: "),
+          span(result.runConfiguration.summary.fixtureManifest, "muted"),
+        ),
+        line(
+          plain("  source: "),
+          span(result.runConfiguration.summary.sourceIdentity, "muted"),
+        ),
+        line(
+          plain("  harness/model: "),
+          span(
+            result.runConfiguration.summary.resolvedHarnessModelEvidence,
+            "muted",
+          ),
+        ),
+        ...(result.baselineConfigurationComparison?.status === "mismatch"
+          ? [
+              line(
+                span("configuration mismatch: ", "warn"),
+                span(result.baselineConfigurationComparison.reason, "warn"),
+                plain(` — ${result.baselineConfigurationComparison.message}`),
+              ),
+            ]
+          : []),
+      ];
       print(stack(
         line(
           plain("eval-set done: "),
@@ -264,6 +296,7 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
           plain(` non-gating=${diagnosticAggregate.nonGating}`),
         ),
         line(span(`artifacts: ${result.runArtifactBaseDir}`, "muted")),
+        ...configurationRows,
         ...repeatUnstableRows,
         ...metricRows,
       ));

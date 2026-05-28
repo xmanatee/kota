@@ -90,6 +90,21 @@ const EMPTY_FIXTURE_DIAGNOSTICS: FixtureDiagnosticsReport = {
   },
 };
 
+const SAMPLE_RUN_CONFIGURATION: Extract<
+  EvalRunResult,
+  { ok: true }
+>["runConfiguration"] = {
+  fingerprint: "abc123def456",
+  summary: {
+    activePreset: "codex (default) via codex",
+    fixtureManifest: "1 fixture(s) fixturehash",
+    sourceIdentity: "abc123 (clean, sourcehash)",
+    resolvedHarnessModelEvidence: "codex/gpt-5.5 x1",
+    resourceProfile: "test cpu=1/1 memoryMB=1024/1024",
+    executionProfile: "verified/container/enforced/verified-profile",
+  },
+};
+
 function makeListCtx(result: EvalListResult): ModuleContext {
   const evalHarness: EvalHarnessClient = {
     async list() {
@@ -105,6 +120,8 @@ function makeListCtx(result: EvalListResult): ModuleContext {
         controlDecisionCoverage: result.controlDecisionCoverage,
         objectiveMetrics: [],
         fixtureDiagnostics: EMPTY_FIXTURE_DIAGNOSTICS,
+        runConfiguration: SAMPLE_RUN_CONFIGURATION,
+        baselineConfigurationComparison: null,
         runArtifactBaseDir: "/tmp/eval-run",
       };
     },
@@ -138,6 +155,8 @@ function makeRunRecordingCtx(
         controlDecisionCoverage: EMPTY_CONTROL_DECISION_COVERAGE,
         objectiveMetrics: [],
         fixtureDiagnostics: EMPTY_FIXTURE_DIAGNOSTICS,
+        runConfiguration: SAMPLE_RUN_CONFIGURATION,
+        baselineConfigurationComparison: null,
         runArtifactBaseDir: "/tmp/eval-run",
         ...resultOverrides,
       };
@@ -419,6 +438,37 @@ describe("kota eval run CLI", () => {
     expect(text).toContain("beta");
     expect(text).toContain("outcomes=pass,fail,fail");
     expect(text).toContain("warnings=low-signal-repeat-instability");
+  });
+
+  it("prints run-configuration fingerprint summary and mismatch reason", async () => {
+    const calls: EvalRunOptions[] = [];
+    const writes: string[] = [];
+    vi.spyOn(process.stdout, "write").mockImplementation((data) => {
+      writes.push(String(data));
+      return true;
+    });
+    const cmd = buildEvalCommand(
+      makeRunRecordingCtx(calls, {
+        baselineConfigurationComparison: {
+          status: "mismatch",
+          reason: "fixture-manifest-drift",
+          message: "fixture ids or loaded fixture specs changed",
+          priorFingerprint: "prior",
+          candidateFingerprint: SAMPLE_RUN_CONFIGURATION.fingerprint,
+          priorSummary: SAMPLE_RUN_CONFIGURATION.summary,
+          candidateSummary: SAMPLE_RUN_CONFIGURATION.summary,
+        },
+      }),
+    );
+
+    await cmd.parseAsync(["run", "--repeats", "1"], { from: "user" });
+
+    const text = writes.join("\n");
+    expect(text).toContain("configuration:");
+    expect(text).toContain("abc123def456");
+    expect(text).toContain("codex (default) via codex");
+    expect(text).toContain("configuration mismatch:");
+    expect(text).toContain("fixture-manifest-drift");
   });
 
   it("rejects container fields unless the operator selects container isolation", async () => {
