@@ -155,9 +155,17 @@ resources:
   - url: https://arxiv.org/abs/2605.24110
     added: "2026-05-28"
     notes: "EvoCode-Bench evaluates coding agents across preserved-workspace multi-round software tasks with cumulative executable tests. Monitor as an eval-harness signal for persistent multi-round builder scoring rather than importing the external benchmark."
+    snapshot:
+      fingerprint: sha256:0c6fe793e1352a39cd2879462e3f56c5
+      summary: "EvoCode-Bench reinforces KOTA's completed persistent multi-round eval-harness mode; no duplicate task is needed because task-add-persistent-multi-round-scoring-to-the-eval-har already covers the local gap."
+      last_seen_at: "2026-05-28T01:04:53.189Z"
   - url: https://arxiv.org/abs/2605.21384
     added: "2026-05-28"
     notes: "SpecBench measures reward hacking in long-horizon coding agents by comparing visible validation suites with held-out composition tests. Monitor as an eval-harness signal for cumulative hidden predicates and test-suite proxy gaps, not as a parallel scoring system."
+    snapshot:
+      fingerprint: sha256:6415a88609bc80fe396ff381f8565172
+      summary: "SpecBench reinforces KOTA's completed persistent multi-round eval-harness mode and existing hidden/composition predicate direction; no duplicate task is needed because task-add-persistent-multi-round-scoring-to-the-eval-har already covered the nonduplicative gap."
+      last_seen_at: "2026-05-28T01:04:53.189Z"
   - url: https://github.com/letta-ai/letta
     added: "2026-04-19"
     snapshot:
