@@ -152,6 +152,12 @@ resources:
       fingerprint: sha256:a1a1525b7a036d6489aa04600d4e5422
       summary: "AutoMat reinforces the existing scientific-claim reproduction fixture direction; no duplicate task is needed because task-add-a-scientific-claim-reproduction-fixture-to-the already covers the local eval-harness gap and is waiting only on operator-captured live pass evidence."
       last_seen_at: "2026-05-27T08:49:41.683Z"
+  - url: https://arxiv.org/abs/2605.24110
+    added: "2026-05-28"
+    notes: "EvoCode-Bench evaluates coding agents across preserved-workspace multi-round software tasks with cumulative executable tests. Monitor as an eval-harness signal for persistent multi-round builder scoring rather than importing the external benchmark."
+  - url: https://arxiv.org/abs/2605.21384
+    added: "2026-05-28"
+    notes: "SpecBench measures reward hacking in long-horizon coding agents by comparing visible validation suites with held-out composition tests. Monitor as an eval-harness signal for cumulative hidden predicates and test-suite proxy gaps, not as a parallel scoring system."
   - url: https://github.com/letta-ai/letta
     added: "2026-04-19"
     snapshot:
