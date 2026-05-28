@@ -519,6 +519,10 @@ resources:
   - url: https://arxiv.org/abs/2605.14678
     added: "2026-05-28"
     notes: "Pi-Bench evaluates proactive personal-assistant agents across hidden user intents, inter-task dependencies, and cross-session continuity. Monitor as an eval-harness signal for assistant proactivity that remains evidence-grounded and authorization-safe."
+    snapshot:
+      fingerprint: sha256:91d59e0b1e9c7d311c1afe11551a03e3
+      summary: "Pi-Bench reinforces KOTA's completed proactive cross-session intent-resolution fixture; no duplicate task is needed because task-add-proactive-cross-session-intent-resolution-eval already covers the local hidden-intent and authorization-safe proactivity gap."
+      last_seen_at: "2026-05-28T02:14:09.107Z"
   - url: https://arxiv.org/abs/2605.14415
     added: "2026-05-19"
     notes: "SWE-Chain evaluates coding agents on chained release-level package upgrades where each transition inherits the prior codebase. Monitor as a harness-parity/eval signal for staged maintenance tasks, upgrade regression retention, and long-horizon package migration evidence."
