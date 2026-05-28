@@ -53,9 +53,9 @@ resources:
   - url: https://github.com/google-gemini/gemini-cli
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:19309b5e06e9d767b876d1f9f373615f
-      summary: "Gemini CLI continues to reinforce shell-safety evals, project-prioritized agent composition, and MCP/auth ergonomics; no nonduplicative KOTA task was opened from this refresh."
-      last_seen_at: "2026-05-26T01:44:23.761Z"
+      fingerprint: sha256:26f3635c7b0dd2058d17923a6f8e6166
+      summary: "Gemini CLI v0.45.0-nightly.20260527 surfaces an ACP PolicyEngine deadlock fix; this run opened task-bridge-acp-client-permission-decisions-into-daemon so KOTA's ACP adapter can round-trip permission decisions through the connected client instead of relying only on out-of-band approval."
+      last_seen_at: "2026-05-28T04:39:04.416Z"
   - url: https://agentclientprotocol.com/get-started/architecture
     added: "2026-05-27"
     notes: "Official Agent Client Protocol docs. Monitor architecture, schema, transport, registry, stdio/Streamable HTTP, MCP handoff, permission, and session-lifecycle changes as an interoperability signal for KOTA's module-owned ACP adapter task."
