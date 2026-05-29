@@ -61,6 +61,37 @@
       }
     }
   ],
+  "verifierCalibration": {
+    "null": {},
+    "golden": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/claim-result.json",
+          "targetPath": "claim-result.json"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/claim-holdout-result.json",
+          "targetPath": "claim-holdout-result.json"
+        }
+      ]
+    },
+    "adversarial": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/claim-result.json",
+          "targetPath": "claim-result.json"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/claim-holdout-result.json",
+          "targetPath": "claim-holdout-result.json"
+        }
+      ]
+    }
+  },
   "tags": [
     "autonomy",
     "builder-discipline",

@@ -43,6 +43,35 @@
       "expected": "pass"
     }
   ],
+  "verifierCalibration": {
+    "null": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/task-calibration-extra.md",
+          "targetPath": "data/tasks/ready/task-calibration-dedup-extra.md"
+        }
+      ]
+    },
+    "golden": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/marker.txt",
+          "targetPath": "calibration-golden-marker.txt"
+        }
+      ]
+    },
+    "adversarial": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/task-calibration-extra.md",
+          "targetPath": "data/tasks/ready/task-calibration-dedup-extra.md"
+        }
+      ]
+    }
+  },
   "controlDecisions": [
     "act",
     "stop"

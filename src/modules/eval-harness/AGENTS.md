@@ -82,6 +82,10 @@ or local deterministic commands and are reported in run/aggregate artifacts.
 Pass/fail gating stays predicate-only unless a fixture adds a threshold
 predicate. Compare metric deltas only for compatible profiles.
 
+`verifierCalibration` cases run before workflow execution with fixture-owned
+setup files, write `verifier-calibration.json`, and fail as fixture
+configuration errors.
+
 Code-health diagnostics are opt-in source-tree evidence for fixtures with
 `codeHealthDiagnostics.sourceGlobs`. They report baseline/checkpoint
 measurements and bounded warning codes for growth, duplication, and complexity

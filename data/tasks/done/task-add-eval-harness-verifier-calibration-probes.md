@@ -1,12 +1,12 @@
 ---
 id: task-add-eval-harness-verifier-calibration-probes
 title: Add eval-harness verifier calibration probes
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Require fixtures with custom or shell-backed scoring to prove their verifier against null, golden, and adversarial calibration cases before their outcomes can enter eval-harness aggregate scoring.
 created_at: 2026-05-29T09:14:10.598Z
-updated_at: 2026-05-29T09:14:10.598Z
+updated_at: 2026-05-29T09:28:07.843Z
 ---
 
 ## Problem

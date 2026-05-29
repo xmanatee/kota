@@ -108,6 +108,18 @@ describe("scorePerFixture", () => {
       ]),
     ).toThrow(FixtureConfigurationScoringError);
   });
+
+  it("rejects calibration configuration failures from aggregate scoring", () => {
+    expect(() =>
+      scoreFixtureSet([
+        {
+          ...BASE_RUN,
+          outcome: "configuration-error",
+          runArtifactPath: "/tmp/calibration-failed-0",
+        },
+      ]),
+    ).toThrow(FixtureConfigurationScoringError);
+  });
 });
 
 describe("computeFixtureDiagnostics", () => {

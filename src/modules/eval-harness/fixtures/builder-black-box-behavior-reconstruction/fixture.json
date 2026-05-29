@@ -44,6 +44,27 @@
       }
     }
   ],
+  "verifierCalibration": {
+    "null": {},
+    "golden": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/src/badge-code.mjs",
+          "targetPath": "src/badge-code.mjs"
+        }
+      ]
+    },
+    "adversarial": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/src/badge-code.mjs",
+          "targetPath": "src/badge-code.mjs"
+        }
+      ]
+    }
+  },
   "tags": [
     "autonomy",
     "builder-discipline",

@@ -61,6 +61,31 @@ export type FixtureProvenance =
   | { kind: "real-failure"; sourceRunId: string }
   | { kind: "smoke-fixture"; justification: string };
 
+export const VERIFIER_CALIBRATION_CASE_IDS = [
+  "null",
+  "golden",
+  "adversarial",
+] as const;
+
+export type VerifierCalibrationCaseId =
+  (typeof VERIFIER_CALIBRATION_CASE_IDS)[number];
+
+export type VerifierCalibrationSetupOperation = {
+  kind: "copy-fixture-file";
+  sourcePath: string;
+  targetPath: string;
+};
+
+export type VerifierCalibrationCaseSpec = {
+  id: VerifierCalibrationCaseId;
+  expected: "pass" | "fail";
+  setup: readonly VerifierCalibrationSetupOperation[];
+};
+
+export type VerifierCalibrationSpec = {
+  cases: readonly VerifierCalibrationCaseSpec[];
+};
+
 export const FIXTURE_CONTROL_DECISIONS = [
   "act",
   "ask",
@@ -167,6 +192,11 @@ export type FixtureSpecCommon = {
    * the measurements.
    */
   codeHealthDiagnostics?: CodeHealthDiagnosticsConfig;
+  /**
+   * Optional verifier calibration probes for nontrivial scoring paths. Case
+   * expectations are fixed: null/adversarial must fail, golden must pass.
+   */
+  verifierCalibration?: VerifierCalibrationSpec;
 };
 
 export type SingleWorkflowFixtureSpecFile = FixtureSpecCommon & {
@@ -258,6 +288,22 @@ export class FixtureProvenanceError extends Error {
     super(`Fixture at "${fixtureDir}" has invalid provenance: ${reason}`);
     this.name = "FixtureProvenanceError";
     this.fixtureDir = fixtureDir;
+  }
+}
+
+export class FixtureVerifierCalibrationError extends Error {
+  readonly fixtureDir: string;
+  readonly reason: "missing-required" | "malformed-declaration";
+
+  constructor(
+    fixtureDir: string,
+    reason: "missing-required" | "malformed-declaration",
+    detail: string,
+  ) {
+    super(`Fixture at "${fixtureDir}" has invalid verifierCalibration: ${detail}`);
+    this.name = "FixtureVerifierCalibrationError";
+    this.fixtureDir = fixtureDir;
+    this.reason = reason;
   }
 }
 
@@ -365,6 +411,10 @@ function isSafeRelativeAuditPath(path: string): boolean {
     return false;
   }
   return !path.split(/[\\/]+/).some((segment) => segment === "..");
+}
+
+function isSafeRelativeFixturePath(path: string): boolean {
+  return isSafeRelativeAuditPath(path);
 }
 
 function isValidEnvironmentStateExpectedEffect(
@@ -640,6 +690,143 @@ function parseExternalCallShims(
   return raw;
 }
 
+function expectedVerifierCalibrationOutcome(
+  id: VerifierCalibrationCaseId,
+): "pass" | "fail" {
+  return id === "golden" ? "pass" : "fail";
+}
+
+function parseVerifierCalibrationSetup(
+  raw: FixtureJsonValue | undefined,
+  fixtureDir: string,
+  caseId: VerifierCalibrationCaseId,
+): VerifierCalibrationSetupOperation[] {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw)) {
+    throw new FixtureVerifierCalibrationError(
+      fixtureDir,
+      "malformed-declaration",
+      `case "${caseId}" setup must be an array when present.`,
+    );
+  }
+  const operations: VerifierCalibrationSetupOperation[] = [];
+  for (const entry of raw) {
+    if (!isJsonObject(entry)) {
+      throw new FixtureVerifierCalibrationError(
+        fixtureDir,
+        "malformed-declaration",
+        `case "${caseId}" setup entry must be an object: ${JSON.stringify(entry)}.`,
+      );
+    }
+    const unknownKeys = Object.keys(entry).filter(
+      (key) => key !== "kind" && key !== "sourcePath" && key !== "targetPath",
+    );
+    if (unknownKeys.length > 0) {
+      throw new FixtureVerifierCalibrationError(
+        fixtureDir,
+        "malformed-declaration",
+        `case "${caseId}" setup entry has unknown field(s): ${unknownKeys.join(", ")}.`,
+      );
+    }
+    if (entry.kind !== "copy-fixture-file") {
+      throw new FixtureVerifierCalibrationError(
+        fixtureDir,
+        "malformed-declaration",
+        `case "${caseId}" setup kind must be "copy-fixture-file"; got ${JSON.stringify(entry.kind)}.`,
+      );
+    }
+    if (
+      typeof entry.sourcePath !== "string" ||
+      !isSafeRelativeFixturePath(entry.sourcePath) ||
+      typeof entry.targetPath !== "string" ||
+      !isSafeRelativeFixturePath(entry.targetPath)
+    ) {
+      throw new FixtureVerifierCalibrationError(
+        fixtureDir,
+        "malformed-declaration",
+        `case "${caseId}" copy-fixture-file setup must use safe relative sourcePath and targetPath strings.`,
+      );
+    }
+    const source = join(fixtureDir, entry.sourcePath);
+    if (!existsSync(source) || !statSync(source).isFile()) {
+      throw new FixtureVerifierCalibrationError(
+        fixtureDir,
+        "malformed-declaration",
+        `case "${caseId}" sourcePath "${entry.sourcePath}" must reference an existing fixture-owned file.`,
+      );
+    }
+    operations.push({
+      kind: "copy-fixture-file",
+      sourcePath: entry.sourcePath,
+      targetPath: entry.targetPath,
+    });
+  }
+  return operations;
+}
+
+function parseVerifierCalibrationCase(
+  raw: FixtureJsonValue | undefined,
+  fixtureDir: string,
+  caseId: VerifierCalibrationCaseId,
+): VerifierCalibrationCaseSpec {
+  if (!isJsonObject(raw)) {
+    throw new FixtureVerifierCalibrationError(
+      fixtureDir,
+      "malformed-declaration",
+      `must declare case "${caseId}" as an object.`,
+    );
+  }
+  const unknownKeys = Object.keys(raw).filter((key) => key !== "setup");
+  if (unknownKeys.length > 0) {
+    throw new FixtureVerifierCalibrationError(
+      fixtureDir,
+      "malformed-declaration",
+      `case "${caseId}" has unknown field(s): ${unknownKeys.join(", ")}.`,
+    );
+  }
+  const setup = parseVerifierCalibrationSetup(raw.setup, fixtureDir, caseId);
+  if (caseId !== "null" && setup.length === 0) {
+    throw new FixtureVerifierCalibrationError(
+      fixtureDir,
+      "malformed-declaration",
+      `case "${caseId}" must declare at least one fixture-owned setup file.`,
+    );
+  }
+  return {
+    id: caseId,
+    expected: expectedVerifierCalibrationOutcome(caseId),
+    setup,
+  };
+}
+
+function parseVerifierCalibration(
+  raw: FixtureJsonValue | undefined,
+  fixtureDir: string,
+): VerifierCalibrationSpec | undefined {
+  if (raw === undefined) return undefined;
+  if (!isJsonObject(raw)) {
+    throw new FixtureVerifierCalibrationError(
+      fixtureDir,
+      "malformed-declaration",
+      "field must be an object with null, golden, and adversarial cases.",
+    );
+  }
+  const legalCaseIds = new Set<string>(VERIFIER_CALIBRATION_CASE_IDS);
+  const unknownKeys = Object.keys(raw).filter((key) => !legalCaseIds.has(key));
+  if (unknownKeys.length > 0) {
+    throw new FixtureVerifierCalibrationError(
+      fixtureDir,
+      "malformed-declaration",
+      `unknown case field(s): ${unknownKeys.join(", ")}.`,
+    );
+  }
+  return {
+    cases: VERIFIER_CALIBRATION_CASE_IDS.map((caseId) =>
+      parseVerifierCalibrationCase(raw[caseId], fixtureDir, caseId),
+    ),
+  };
+}
+
 function parseObjectiveMetrics(
   raw: FixtureJsonValue | undefined,
   fixtureDir: string,
@@ -809,6 +996,10 @@ function parseCommonSpecFields(
     r.codeHealthDiagnostics,
     fixtureDir,
   );
+  const verifierCalibration = parseVerifierCalibration(
+    r.verifierCalibration,
+    fixtureDir,
+  );
   return {
     id: parseRequiredString(r, "id", fixtureDir),
     description: parseRequiredString(r, "description", fixtureDir),
@@ -818,7 +1009,107 @@ function parseCommonSpecFields(
     ...(externalCallShims !== undefined && { externalCallShims }),
     ...(tags !== undefined && { tags }),
     ...(codeHealthDiagnostics !== undefined && { codeHealthDiagnostics }),
+    ...(verifierCalibration !== undefined && { verifierCalibration }),
   };
+}
+
+export function predicateCanUseVerifierCalibration(
+  predicate: FixturePredicate,
+): boolean {
+  return (
+    predicate.kind === "shell-succeeds" ||
+    predicate.kind === "shell-fails" ||
+    predicate.kind === "lx12-scientific-claim-result"
+  );
+}
+
+function predicateRequiresVerifierCalibration(
+  predicate: FixturePredicate,
+): boolean {
+  return predicateCanUseVerifierCalibration(predicate);
+}
+
+function objectiveMetricsForSpec(spec: FixtureSpecFile): ObjectiveMetricSpec[] {
+  if (isSingleWorkflowFixtureSpec(spec)) {
+    return [...(spec.objectiveMetrics ?? [])];
+  }
+  return [
+    ...spec.rounds.flatMap((round) => round.objectiveMetrics ?? []),
+    ...(spec.aggregateObjectiveMetrics ?? []),
+  ];
+}
+
+function requiredVerifierCalibrationObjectiveMetricsForSpec(
+  spec: FixtureSpecFile,
+): ObjectiveMetricSpec[] {
+  return objectiveMetricsForSpec(spec);
+}
+
+function uniquePredicates(predicates: readonly FixturePredicate[]): FixturePredicate[] {
+  const seen = new Set<string>();
+  const unique: FixturePredicate[] = [];
+  for (const predicate of predicates) {
+    const key = JSON.stringify(predicate);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(predicate);
+  }
+  return unique;
+}
+
+export function verifierCalibrationPredicatesForSpec(
+  spec: FixtureSpecFile,
+): FixturePredicate[] {
+  const predicates = isSingleWorkflowFixtureSpec(spec)
+    ? spec.predicates
+    : [
+        ...spec.rounds.flatMap((round) => round.predicates),
+        ...(spec.aggregatePredicates ?? []),
+      ];
+  return uniquePredicates(predicates.filter(predicateCanUseVerifierCalibration));
+}
+
+function requiredVerifierCalibrationPredicatesForSpec(
+  spec: FixtureSpecFile,
+): FixturePredicate[] {
+  return verifierCalibrationPredicatesForSpec(spec).filter(
+    predicateRequiresVerifierCalibration,
+  );
+}
+
+function assertRequiredVerifierCalibration(
+  spec: FixtureSpecFile,
+  fixtureDir: string,
+): void {
+  const requiredPredicates = requiredVerifierCalibrationPredicatesForSpec(spec);
+  const requiredMetrics = requiredVerifierCalibrationObjectiveMetricsForSpec(spec);
+  if (
+    (requiredPredicates.length === 0 && requiredMetrics.length === 0) ||
+    spec.verifierCalibration !== undefined
+  ) {
+    return;
+  }
+  const required = [
+    ...(requiredPredicates.length > 0
+      ? [
+          `calibrated predicate kind(s): ${[
+            ...new Set(requiredPredicates.map((predicate) => predicate.kind)),
+          ].join(", ")}`,
+        ]
+      : []),
+    ...(requiredMetrics.length > 0
+      ? [
+          `objective metric(s): ${[
+            ...new Set(requiredMetrics.map((metric) => metric.name)),
+          ].join(", ")}`,
+        ]
+      : []),
+  ];
+  throw new FixtureVerifierCalibrationError(
+    fixtureDir,
+    "missing-required",
+    `missing null, golden, and adversarial cases for ${required.join("; ")}.`,
+  );
 }
 
 function parseFixtureSpec(rawJson: string, fixtureDir: string): FixtureSpecFile {
@@ -854,13 +1145,15 @@ function parseFixtureSpec(rawJson: string, fixtureDir: string): FixtureSpecFile 
       fixtureDir,
       "aggregateObjectiveMetrics",
     );
-    return {
+    const spec: FixtureSpecFile = {
       ...common,
       mode: "multi-round",
       rounds: parseRounds(r.rounds, fixtureDir),
       ...(aggregatePredicates !== undefined && { aggregatePredicates }),
       ...(aggregateObjectiveMetrics !== undefined && { aggregateObjectiveMetrics }),
     };
+    assertRequiredVerifierCalibration(spec, fixtureDir);
+    return spec;
   }
   if (mode !== "single-workflow") {
     throw new Error(
@@ -878,7 +1171,7 @@ function parseFixtureSpec(rawJson: string, fixtureDir: string): FixtureSpecFile 
     fixtureDir,
     "objectiveMetrics",
   );
-  return {
+  const spec: FixtureSpecFile = {
     ...common,
     mode: "single-workflow",
     workflowName: parseRequiredString(r, "workflowName", fixtureDir),
@@ -891,6 +1184,8 @@ function parseFixtureSpec(rawJson: string, fixtureDir: string): FixtureSpecFile 
     ...(triggerPayload !== undefined && { triggerPayload }),
     ...(objectiveMetrics !== undefined && { objectiveMetrics }),
   };
+  assertRequiredVerifierCalibration(spec, fixtureDir);
+  return spec;
 }
 
 function emptyControlDecisionCounts(): FixtureControlDecisionCounts {

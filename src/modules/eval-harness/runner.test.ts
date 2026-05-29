@@ -130,6 +130,100 @@ function writeMultiRoundFixture(fixturesRoot: string, id = "multi-round-mini"): 
   );
 }
 
+function writeCalibratedShellFixture(
+  fixturesRoot: string,
+  id: string,
+  checkerSource: string,
+): void {
+  const fixtureDir = join(fixturesRoot, id);
+  mkdirSync(join(fixtureDir, "initial", "scripts"), { recursive: true });
+  mkdirSync(join(fixtureDir, "calibration", "golden"), { recursive: true });
+  mkdirSync(join(fixtureDir, "calibration", "adversarial"), { recursive: true });
+  writeFileSync(join(fixtureDir, "initial", "scripts", "check.mjs"), checkerSource);
+  writeFileSync(join(fixtureDir, "calibration", "golden", "result.txt"), "ok\n");
+  writeFileSync(
+    join(fixtureDir, "calibration", "adversarial", "result.txt"),
+    "shortcut\n",
+  );
+  writeFileSync(
+    join(fixtureDir, "fixture.json"),
+    JSON.stringify({
+      id,
+      description: "calibrated shell verifier fixture",
+      role: "builder",
+      workflowName: "noop",
+      budgetMs: 60_000,
+      predicates: [
+        {
+          kind: "shell-succeeds",
+          command: "node scripts/check.mjs",
+          timeoutMs: 10_000,
+        },
+      ],
+      preRunExpectations: [
+        {
+          predicate: {
+            kind: "shell-succeeds",
+            command: "node scripts/check.mjs",
+            timeoutMs: 10_000,
+          },
+          expected: "fail",
+        },
+      ],
+      verifierCalibration: {
+        null: {},
+        golden: {
+          setup: [
+            {
+              kind: "copy-fixture-file",
+              sourcePath: "calibration/golden/result.txt",
+              targetPath: "result.txt",
+            },
+          ],
+        },
+        adversarial: {
+          setup: [
+            {
+              kind: "copy-fixture-file",
+              sourcePath: "calibration/adversarial/result.txt",
+              targetPath: "result.txt",
+            },
+          ],
+        },
+      },
+      controlDecisions: ["act"],
+      provenance: {
+        kind: "smoke-fixture",
+        justification: "tests verifier calibration without invoking an agent",
+      },
+    }),
+  );
+}
+
+const strictCheckerSource = `import { readFileSync } from "node:fs";
+
+let value = "";
+try {
+  value = readFileSync("result.txt", "utf8").trim();
+} catch {}
+process.exit(value === "ok" ? 0 : 1);
+`;
+
+const alwaysPassCheckerSource = `process.exit(0);
+`;
+
+const alwaysFailCheckerSource = `process.exit(1);
+`;
+
+const shortcutAcceptingCheckerSource = `import { readFileSync } from "node:fs";
+
+let value = "";
+try {
+  value = readFileSync("result.txt", "utf8").trim();
+} catch {}
+process.exit(value === "ok" || value === "shortcut" ? 0 : 1);
+`;
+
 describe("runFixture", () => {
   let fixturesRoot: string;
   let runsRoot: string;
@@ -173,6 +267,153 @@ describe("runFixture", () => {
     expect(raw.executionProfile.eligibilityReason).toBe("verified-profile");
     expect(raw.preRunExpectationResults).toHaveLength(2);
     expect(raw.objectiveMetrics).toEqual([]);
+    cleanupFixtureWorkingDir(report.workingDir);
+  });
+
+  it("runs verifier calibration before workflow execution and writes the artifact", async () => {
+    writeCalibratedShellFixture(fixturesRoot, "calibrated-shell", strictCheckerSource);
+    const fixture = loadFixture(fixturesRoot, "calibrated-shell");
+    let executorCalls = 0;
+    const executor: WorkflowExecutor = {
+      preflight: () => TEST_EXECUTION_PROFILE,
+      execute: async ({ workingDir }) => {
+        executorCalls++;
+        writeFileSync(join(workingDir, "result.txt"), "ok\n");
+        return { kind: "completed", durationMs: 5, runArtifactPath: null };
+      },
+    };
+
+    const report = await runFixture({
+      fixture,
+      executor,
+      executionProfile: TEST_EXECUTION_PROFILE,
+      runArtifactBaseDir: runsRoot,
+      runIndex: 0,
+      repeatCount: 1,
+    });
+
+    expect(executorCalls).toBe(1);
+    expect(report.run.outcome).toBe("pass");
+    const calibration = JSON.parse(
+      readFileSync(join(report.run.runArtifactPath, "verifier-calibration.json"), "utf-8"),
+    );
+    expect(calibration.passed).toBe(true);
+    expect(calibration.cases.map((entry: { id: string; passed: boolean }) => [entry.id, entry.passed])).toEqual([
+      ["null", true],
+      ["golden", true],
+      ["adversarial", true],
+    ]);
+    const runArtifact = JSON.parse(
+      readFileSync(join(report.run.runArtifactPath, "fixture-run.json"), "utf-8"),
+    );
+    expect(runArtifact.verifierCalibration.passed).toBe(true);
+    cleanupFixtureWorkingDir(report.workingDir);
+  });
+
+  it("aborts before workflow execution when null calibration is a false positive", async () => {
+    writeCalibratedShellFixture(
+      fixturesRoot,
+      "null-false-positive",
+      alwaysPassCheckerSource,
+    );
+    const fixture = loadFixture(fixturesRoot, "null-false-positive");
+    let executorCalls = 0;
+    const executor: WorkflowExecutor = {
+      preflight: () => TEST_EXECUTION_PROFILE,
+      execute: async () => {
+        executorCalls++;
+        return { kind: "completed", durationMs: 5, runArtifactPath: null };
+      },
+    };
+
+    const report = await runFixture({
+      fixture,
+      executor,
+      executionProfile: TEST_EXECUTION_PROFILE,
+      runArtifactBaseDir: runsRoot,
+      runIndex: 0,
+      repeatCount: 1,
+    });
+
+    expect(executorCalls).toBe(0);
+    expect(report.run.outcome).toBe("configuration-error");
+    expect(report.executionOutcome).toMatchObject({
+      kind: "not-started",
+      reason: "verifier-calibration-failed",
+    });
+    const calibration = JSON.parse(
+      readFileSync(join(report.run.runArtifactPath, "verifier-calibration.json"), "utf-8"),
+    );
+    expect(calibration.cases.find((entry: { id: string }) => entry.id === "null")).toMatchObject({
+      passed: false,
+      scoringPassed: true,
+    });
+    cleanupFixtureWorkingDir(report.workingDir);
+  });
+
+  it("aborts before workflow execution when golden calibration is a false negative", async () => {
+    writeCalibratedShellFixture(
+      fixturesRoot,
+      "golden-false-negative",
+      alwaysFailCheckerSource,
+    );
+    const fixture = loadFixture(fixturesRoot, "golden-false-negative");
+    const executor: WorkflowExecutor = {
+      preflight: () => TEST_EXECUTION_PROFILE,
+      execute: async () => ({ kind: "completed", durationMs: 5, runArtifactPath: null }),
+    };
+
+    const report = await runFixture({
+      fixture,
+      executor,
+      executionProfile: TEST_EXECUTION_PROFILE,
+      runArtifactBaseDir: runsRoot,
+      runIndex: 0,
+      repeatCount: 1,
+    });
+
+    expect(report.run.outcome).toBe("configuration-error");
+    const calibration = JSON.parse(
+      readFileSync(join(report.run.runArtifactPath, "verifier-calibration.json"), "utf-8"),
+    );
+    expect(calibration.cases.find((entry: { id: string }) => entry.id === "golden")).toMatchObject({
+      passed: false,
+      scoringPassed: false,
+    });
+    cleanupFixtureWorkingDir(report.workingDir);
+  });
+
+  it("aborts before workflow execution when adversarial calibration is a false positive", async () => {
+    writeCalibratedShellFixture(
+      fixturesRoot,
+      "adversarial-false-positive",
+      shortcutAcceptingCheckerSource,
+    );
+    const fixture = loadFixture(fixturesRoot, "adversarial-false-positive");
+    const executor: WorkflowExecutor = {
+      preflight: () => TEST_EXECUTION_PROFILE,
+      execute: async () => ({ kind: "completed", durationMs: 5, runArtifactPath: null }),
+    };
+
+    const report = await runFixture({
+      fixture,
+      executor,
+      executionProfile: TEST_EXECUTION_PROFILE,
+      runArtifactBaseDir: runsRoot,
+      runIndex: 0,
+      repeatCount: 1,
+    });
+
+    expect(report.run.outcome).toBe("configuration-error");
+    const calibration = JSON.parse(
+      readFileSync(join(report.run.runArtifactPath, "verifier-calibration.json"), "utf-8"),
+    );
+    expect(
+      calibration.cases.find((entry: { id: string }) => entry.id === "adversarial"),
+    ).toMatchObject({
+      passed: false,
+      scoringPassed: true,
+    });
     cleanupFixtureWorkingDir(report.workingDir);
   });
 
@@ -557,6 +798,15 @@ describe("runFixture", () => {
   it("evaluates declared objective metrics and writes them to the run artifact", async () => {
     const fixtureDir = join(fixturesRoot, "metric-mini");
     mkdirSync(join(fixtureDir, "initial"), { recursive: true });
+    mkdirSync(join(fixtureDir, "calibration", "golden"), { recursive: true });
+    mkdirSync(join(fixtureDir, "calibration", "adversarial"), {
+      recursive: true,
+    });
+    writeFileSync(join(fixtureDir, "calibration", "golden", "metrics.txt"), "bytes=42");
+    writeFileSync(
+      join(fixtureDir, "calibration", "adversarial", "metrics.txt"),
+      "bytes=99",
+    );
     writeFileSync(
       join(fixtureDir, "fixture.json"),
       JSON.stringify({
@@ -592,6 +842,27 @@ describe("runFixture", () => {
             },
           },
         ],
+        verifierCalibration: {
+          null: {},
+          golden: {
+            setup: [
+              {
+                kind: "copy-fixture-file",
+                sourcePath: "calibration/golden/metrics.txt",
+                targetPath: "metrics.txt",
+              },
+            ],
+          },
+          adversarial: {
+            setup: [
+              {
+                kind: "copy-fixture-file",
+                sourcePath: "calibration/adversarial/metrics.txt",
+                targetPath: "metrics.txt",
+              },
+            ],
+          },
+        },
         provenance: {
           kind: "smoke-fixture",
           justification: "tests objective metric extraction",
@@ -651,6 +922,15 @@ describe("runFixture", () => {
     for (const testCase of cases) {
       const fixtureDir = join(fixturesRoot, testCase.id);
       mkdirSync(join(fixtureDir, "initial"), { recursive: true });
+      mkdirSync(join(fixtureDir, "calibration", "golden"), { recursive: true });
+      mkdirSync(join(fixtureDir, "calibration", "adversarial"), {
+        recursive: true,
+      });
+      writeFileSync(join(fixtureDir, "calibration", "golden", "metric.txt"), "2");
+      writeFileSync(
+        join(fixtureDir, "calibration", "adversarial", "metric.txt"),
+        "1",
+      );
       writeFileSync(
         join(fixtureDir, "fixture.json"),
         JSON.stringify({
@@ -672,6 +952,27 @@ describe("runFixture", () => {
               source: { kind: "text-file", path: "metric.txt" },
             },
           ],
+          verifierCalibration: {
+            null: {},
+            golden: {
+              setup: [
+                {
+                  kind: "copy-fixture-file",
+                  sourcePath: "calibration/golden/metric.txt",
+                  targetPath: "metric.txt",
+                },
+              ],
+            },
+            adversarial: {
+              setup: [
+                {
+                  kind: "copy-fixture-file",
+                  sourcePath: "calibration/adversarial/metric.txt",
+                  targetPath: "metric.txt",
+                },
+              ],
+            },
+          },
           provenance: {
             kind: "smoke-fixture",
             justification: "tests objective metric validation failures",

@@ -44,6 +44,9 @@ import {
   isMultiRoundFixtureSpec,
   type LoadedFixture,
   type MultiRoundFixtureSpecFile,
+  type VerifierCalibrationCaseSpec,
+  type VerifierCalibrationSetupOperation,
+  verifierCalibrationPredicatesForSpec,
 } from "./fixture.js";
 import type {
   ExecutionProfilePreflightResult,
@@ -56,6 +59,9 @@ import { resourceProfileFromExecutionProfile } from "./fixture-run.js";
 import { applyFixtureTemplates } from "./fixture-templating.js";
 import {
   evaluateObjectiveMetrics,
+  type ObjectiveMetricDirection,
+  type ObjectiveMetricSpec,
+  ObjectiveMetricValidationError,
   type ObservedObjectiveMetric,
 } from "./objective-metrics.js";
 import type {
@@ -112,7 +118,7 @@ export type WorkflowExecutionOutcome =
   | {
       kind: "not-started";
       durationMs: number;
-      reason: "pre-run-sanity-failed";
+      reason: "pre-run-sanity-failed" | "verifier-calibration-failed";
       runArtifactPath: null;
     };
 
@@ -158,6 +164,45 @@ type RoundRunReport = {
     durationMs: number;
     budgetMs: number;
   };
+};
+
+type SerializedCalibrationError = {
+  name: string;
+  message: string;
+  reason?: string;
+  fixtureId?: string | null;
+  metricName?: string | null;
+};
+
+type VerifierCalibrationCaseResult = {
+  id: VerifierCalibrationCaseSpec["id"];
+  expected: VerifierCalibrationCaseSpec["expected"];
+  setup: readonly VerifierCalibrationSetupOperation[];
+  passed: boolean;
+  scoringPassed: boolean;
+  predicateResults: PredicateEvalResult[];
+  objectiveMetrics: ObservedObjectiveMetric[];
+  objectiveMetricError?: SerializedCalibrationError;
+  detail: string;
+};
+
+type VerifierCalibrationObjectiveMetricComparison = {
+  name: string;
+  direction: ObjectiveMetricDirection;
+  passed: boolean;
+  goldenValue?: number;
+  nullValue?: number;
+  adversarialValue?: number;
+  detail: string;
+};
+
+type VerifierCalibrationRunResult = {
+  fixtureId: string;
+  passed: boolean;
+  calibratedPredicates: readonly FixturePredicate[];
+  objectiveMetricCount: number;
+  objectiveMetricComparisons: readonly VerifierCalibrationObjectiveMetricComparison[];
+  cases: readonly VerifierCalibrationCaseResult[];
 };
 
 function runGitSync(cwd: string, args: string[]): void {
@@ -265,6 +310,7 @@ function writeRunArtifact(
     preRunExpectationResults: PredicateExpectationEvalResult[];
     predicateResults: PredicateEvalResult[];
     objectiveMetrics: ObservedObjectiveMetric[];
+    verifierCalibration?: VerifierCalibrationRunResult;
   },
 ): void {
   mkdirSync(runArtifactDir, { recursive: true });
@@ -287,6 +333,9 @@ function writeRunArtifact(
         preRunExpectationResults: payload.preRunExpectationResults,
         predicateResults: payload.predicateResults,
         objectiveMetrics: payload.objectiveMetrics,
+        ...(payload.verifierCalibration !== undefined && {
+          verifierCalibration: payload.verifierCalibration,
+        }),
       },
       null,
       2,
@@ -334,13 +383,16 @@ function relativePathInside(root: string, relativePath: string, label: string): 
   if (relativePath.length === 0 || isAbsolute(relativePath)) {
     throw new Error(`${label} must be a non-empty relative path.`);
   }
-  const resolved = resolve(root, relativePath);
-  const rootWithSep = root.endsWith(sep) ? root : `${root}${sep}`;
-  if (resolved !== root && !resolved.startsWith(rootWithSep)) {
-    throw new Error(`${label} must stay inside ${root}; got ${relativePath}.`);
+  const absoluteRoot = resolve(root);
+  const resolved = resolve(absoluteRoot, relativePath);
+  const rootWithSep = absoluteRoot.endsWith(sep)
+    ? absoluteRoot
+    : `${absoluteRoot}${sep}`;
+  if (resolved !== absoluteRoot && !resolved.startsWith(rootWithSep)) {
+    throw new Error(`${label} must stay inside ${absoluteRoot}; got ${relativePath}.`);
   }
-  if (resolved === root) {
-    throw new Error(`${label} must point at a file below ${root}.`);
+  if (resolved === absoluteRoot) {
+    throw new Error(`${label} must point at a file below ${absoluteRoot}.`);
   }
   return resolved;
 }
@@ -376,6 +428,311 @@ function applyRoundTaskInput(
       return undefined;
     }
   }
+}
+
+function collectObjectiveMetricSpecs(
+  spec: LoadedFixture["spec"],
+): ObjectiveMetricSpec[] {
+  if (isMultiRoundFixtureSpec(spec)) {
+    return [
+      ...spec.rounds.flatMap((round) => round.objectiveMetrics ?? []),
+      ...(spec.aggregateObjectiveMetrics ?? []),
+    ];
+  }
+  return [...(spec.objectiveMetrics ?? [])];
+}
+
+function serializeCalibrationError(error: Error): SerializedCalibrationError {
+  if (error instanceof ObjectiveMetricValidationError) {
+    return {
+      name: error.name,
+      message: error.message,
+      reason: error.reason,
+      fixtureId: error.fixtureId,
+      metricName: error.metricName,
+    };
+  }
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+    };
+  }
+  return {
+    name: "NonErrorThrown",
+    message: String(error),
+  };
+}
+
+function applyVerifierCalibrationSetup(params: {
+  fixtureDir: string;
+  workingDir: string;
+  operation: VerifierCalibrationSetupOperation;
+}): void {
+  switch (params.operation.kind) {
+    case "copy-fixture-file": {
+      const source = relativePathInside(
+        params.fixtureDir,
+        params.operation.sourcePath,
+        "verifierCalibration setup sourcePath",
+      );
+      const target = relativePathInside(
+        params.workingDir,
+        params.operation.targetPath,
+        "verifierCalibration setup targetPath",
+      );
+      mkdirSync(dirname(target), { recursive: true });
+      cpSync(source, target);
+      break;
+    }
+  }
+}
+
+function evaluateVerifierCalibrationCase(params: {
+  fixture: LoadedFixture;
+  caseSpec: VerifierCalibrationCaseSpec;
+  predicates: readonly FixturePredicate[];
+  objectiveMetricSpecs: readonly ObjectiveMetricSpec[];
+  executionProfile: ExecutionProfilePreflightResult;
+  runIndex: number;
+  repeatCount: number;
+}): VerifierCalibrationCaseResult {
+  const { workingDir } = materializeFixtureWorkingDir(params.fixture);
+  try {
+    for (const operation of params.caseSpec.setup) {
+      applyVerifierCalibrationSetup({
+        fixtureDir: params.fixture.fixtureDir,
+        workingDir,
+        operation,
+      });
+    }
+    const predicateEvaluation = evaluatePredicates(workingDir, params.predicates);
+    let objectiveMetrics: ObservedObjectiveMetric[] = [];
+    let objectiveMetricError: SerializedCalibrationError | undefined;
+    try {
+      objectiveMetrics = evaluateObjectiveMetrics({
+        fixtureId: params.fixture.spec.id,
+        metricSpecs: params.objectiveMetricSpecs,
+        workingDir,
+        executionProfile: params.executionProfile,
+        runIndex: params.runIndex,
+        repeatCount: params.repeatCount,
+      });
+    } catch (error) {
+      objectiveMetricError =
+        error instanceof Error
+          ? serializeCalibrationError(error)
+          : {
+              name: "NonErrorThrown",
+              message: String(error),
+            };
+    }
+    const hasPredicates = params.predicates.length > 0;
+    const scoringPassed = hasPredicates
+      ? predicateEvaluation.passed
+      : objectiveMetricError === undefined;
+    const expectedPassed = params.caseSpec.expected === "pass";
+    const expectedMatched = hasPredicates
+      ? scoringPassed === expectedPassed
+      : expectedPassed
+        ? objectiveMetricError === undefined
+        : true;
+    const metricsMatched = !expectedPassed || objectiveMetricError === undefined;
+    const passed = expectedMatched && metricsMatched;
+    const detail = passed
+      ? `case "${params.caseSpec.id}" matched expected verifier ${params.caseSpec.expected}`
+      : `case "${params.caseSpec.id}" expected verifier ${params.caseSpec.expected} but observed ${scoringPassed ? "pass" : "fail"}${
+          expectedPassed && objectiveMetricError !== undefined
+            ? ` with objective metric error: ${objectiveMetricError.message}`
+            : ""
+        }`;
+    return {
+      id: params.caseSpec.id,
+      expected: params.caseSpec.expected,
+      setup: params.caseSpec.setup,
+      passed,
+      scoringPassed,
+      predicateResults: predicateEvaluation.results,
+      objectiveMetrics,
+      ...(objectiveMetricError !== undefined && { objectiveMetricError }),
+      detail,
+    };
+  } finally {
+    rmSync(workingDir, { recursive: true, force: true });
+  }
+}
+
+function metricValue(
+  caseResult: VerifierCalibrationCaseResult,
+  metricName: string,
+): number | undefined {
+  return caseResult.objectiveMetrics.find((metric) => metric.name === metricName)
+    ?.value;
+}
+
+function metricIsBetter(params: {
+  direction: ObjectiveMetricDirection;
+  goldenValue: number;
+  candidateValue: number;
+}): boolean {
+  return params.direction === "higher_is_better"
+    ? params.goldenValue > params.candidateValue
+    : params.goldenValue < params.candidateValue;
+}
+
+function appendMetricFailure(
+  failures: Map<VerifierCalibrationCaseSpec["id"], string[]>,
+  caseId: VerifierCalibrationCaseSpec["id"],
+  detail: string,
+): void {
+  const existing = failures.get(caseId) ?? [];
+  existing.push(detail);
+  failures.set(caseId, existing);
+}
+
+function compareObjectiveMetricCalibration(params: {
+  objectiveMetricSpecs: readonly ObjectiveMetricSpec[];
+  cases: readonly VerifierCalibrationCaseResult[];
+}): {
+  cases: readonly VerifierCalibrationCaseResult[];
+  comparisons: readonly VerifierCalibrationObjectiveMetricComparison[];
+} {
+  if (params.objectiveMetricSpecs.length === 0) {
+    return { cases: params.cases, comparisons: [] };
+  }
+
+  const casesById = new Map(params.cases.map((caseResult) => [caseResult.id, caseResult]));
+  const golden = casesById.get("golden");
+  const metricFailures = new Map<VerifierCalibrationCaseSpec["id"], string[]>();
+  const comparisons = params.objectiveMetricSpecs.map((metricSpec) => {
+    const goldenValue =
+      golden === undefined ? undefined : metricValue(golden, metricSpec.name);
+    const values: {
+      goldenValue?: number;
+      nullValue?: number;
+      adversarialValue?: number;
+    } = {
+      ...(goldenValue !== undefined && { goldenValue }),
+    };
+
+    if (goldenValue === undefined) {
+      appendMetricFailure(
+        metricFailures,
+        "golden",
+        `golden case did not produce objective metric "${metricSpec.name}"`,
+      );
+      return {
+        name: metricSpec.name,
+        direction: metricSpec.direction,
+        passed: false,
+        ...values,
+        detail: `golden case did not produce objective metric "${metricSpec.name}"`,
+      };
+    }
+
+    const failedCaseDetails: string[] = [];
+    for (const caseId of ["null", "adversarial"] as const) {
+      const caseResult = casesById.get(caseId);
+      if (caseResult === undefined || caseResult.objectiveMetricError !== undefined) {
+        continue;
+      }
+      const candidateValue = metricValue(caseResult, metricSpec.name);
+      if (candidateValue === undefined) {
+        const detail = `${caseId} case did not produce objective metric "${metricSpec.name}"`;
+        appendMetricFailure(metricFailures, caseId, detail);
+        failedCaseDetails.push(detail);
+        continue;
+      }
+      if (caseId === "null") {
+        values.nullValue = candidateValue;
+      } else {
+        values.adversarialValue = candidateValue;
+      }
+      if (
+        !metricIsBetter({
+          direction: metricSpec.direction,
+          goldenValue,
+          candidateValue,
+        })
+      ) {
+        const detail = `${caseId} objective metric "${metricSpec.name}" value ${candidateValue} was not worse than golden value ${goldenValue}`;
+        appendMetricFailure(metricFailures, caseId, detail);
+        failedCaseDetails.push(detail);
+      }
+    }
+
+    return {
+      name: metricSpec.name,
+      direction: metricSpec.direction,
+      passed: failedCaseDetails.length === 0,
+      ...values,
+      detail:
+        failedCaseDetails.length === 0
+          ? `golden objective metric "${metricSpec.name}" was better than null and adversarial numeric values, or those cases failed metric evaluation`
+          : failedCaseDetails.join("; "),
+    };
+  });
+
+  return {
+    cases: params.cases.map((caseResult) => {
+      const failures = metricFailures.get(caseResult.id) ?? [];
+      if (failures.length === 0) return caseResult;
+      return {
+        ...caseResult,
+        passed: false,
+        detail: `${caseResult.detail}; objective metric calibration failed: ${failures.join("; ")}`,
+      };
+    }),
+    comparisons,
+  };
+}
+
+function evaluateVerifierCalibration(params: {
+  fixture: LoadedFixture;
+  executionProfile: ExecutionProfilePreflightResult;
+  runIndex: number;
+  repeatCount: number;
+}): VerifierCalibrationRunResult | undefined {
+  const spec = params.fixture.spec.verifierCalibration;
+  if (spec === undefined) return undefined;
+  const predicates = verifierCalibrationPredicatesForSpec(params.fixture.spec);
+  const objectiveMetricSpecs = collectObjectiveMetricSpecs(params.fixture.spec);
+  const cases = spec.cases.map((caseSpec) =>
+    evaluateVerifierCalibrationCase({
+      fixture: params.fixture,
+      caseSpec,
+      predicates,
+      objectiveMetricSpecs,
+      executionProfile: params.executionProfile,
+      runIndex: params.runIndex,
+      repeatCount: params.repeatCount,
+    }),
+  );
+  const objectiveMetricCalibration = compareObjectiveMetricCalibration({
+    objectiveMetricSpecs,
+    cases,
+  });
+  return {
+    fixtureId: params.fixture.spec.id,
+    passed:
+      objectiveMetricCalibration.cases.every((entry) => entry.passed) &&
+      objectiveMetricCalibration.comparisons.every((entry) => entry.passed),
+    calibratedPredicates: predicates,
+    objectiveMetricCount: objectiveMetricSpecs.length,
+    objectiveMetricComparisons: objectiveMetricCalibration.comparisons,
+    cases: objectiveMetricCalibration.cases,
+  };
+}
+
+function writeVerifierCalibrationArtifact(
+  runArtifactDir: string,
+  result: VerifierCalibrationRunResult,
+): void {
+  mkdirSync(runArtifactDir, { recursive: true });
+  writeFileSync(
+    join(runArtifactDir, "verifier-calibration.json"),
+    JSON.stringify(result, null, 2),
+  );
 }
 
 async function executeRound(params: {
@@ -497,6 +854,7 @@ function writeMultiRoundRunArtifact(
     roundResults: readonly RoundRunReport[];
     aggregatePredicateResults: readonly PredicateEvalResult[];
     objectiveMetrics: ObservedObjectiveMetric[];
+    verifierCalibration?: VerifierCalibrationRunResult;
   },
 ): void {
   mkdirSync(runArtifactDir, { recursive: true });
@@ -532,6 +890,9 @@ function writeMultiRoundRunArtifact(
         aggregatePredicates: payload.spec.aggregatePredicates ?? [],
         aggregatePredicateResults: payload.aggregatePredicateResults,
         objectiveMetrics: payload.objectiveMetrics,
+        ...(payload.verifierCalibration !== undefined && {
+          verifierCalibration: payload.verifierCalibration,
+        }),
       },
       null,
       2,
@@ -564,6 +925,68 @@ async function runSingleWorkflowFixture(
     params.runArtifactBaseDir,
     `${params.fixture.spec.id}-${params.runIndex}`,
   );
+  const verifierCalibration = evaluateVerifierCalibration({
+    fixture: params.fixture,
+    executionProfile: params.executionProfile,
+    runIndex: params.runIndex,
+    repeatCount: params.repeatCount,
+  });
+  if (verifierCalibration !== undefined) {
+    writeVerifierCalibrationArtifact(runArtifactDir, verifierCalibration);
+  }
+  if (verifierCalibration !== undefined && !verifierCalibration.passed) {
+    executionOutcome = {
+      kind: "not-started",
+      durationMs: Date.now() - startMs,
+      reason: "verifier-calibration-failed",
+      runArtifactPath: null,
+    };
+    const codeHealthDiagnostics =
+      spec.codeHealthDiagnostics !== undefined && codeHealthBaseline !== undefined
+        ? finalizeCodeHealthDiagnostics({
+            config: spec.codeHealthDiagnostics,
+            baseline: codeHealthBaseline,
+            rounds: [],
+          })
+        : undefined;
+    const run: FixtureRun = {
+      fixtureId: params.fixture.spec.id,
+      runIndex: params.runIndex,
+      repeatCount: params.repeatCount,
+      outcome: outcomeFromExecution(executionOutcome, false),
+      resourceProfile,
+      executionProfile: params.executionProfile,
+      objectiveMetrics: [],
+      ...(codeHealthDiagnostics !== undefined && { codeHealthDiagnostics }),
+      timing: {
+        startedAt: startedAt.toISOString(),
+        durationMs: executionOutcome.durationMs,
+        budgetMs: spec.budgetMs,
+      },
+      runArtifactPath: runArtifactDir,
+    };
+    writeRunArtifact(runArtifactDir, {
+      run,
+      fixtureId: spec.id,
+      workflowName: spec.workflowName,
+      workingDir,
+      executionOutcome,
+      executionProfile: params.executionProfile,
+      predicates: spec.predicates,
+      preRunExpectationResults: [],
+      predicateResults: [],
+      objectiveMetrics: [],
+      verifierCalibration,
+    });
+    return {
+      run,
+      predicateResults: [],
+      preRunExpectationResults: [],
+      objectiveMetrics: [],
+      workingDir,
+      executionOutcome,
+    };
+  }
   if (!preRunSanity.passed) {
     executionOutcome = {
       kind: "not-started",
@@ -606,6 +1029,7 @@ async function runSingleWorkflowFixture(
       preRunExpectationResults: preRunSanity.results,
       predicateResults: [],
       objectiveMetrics: [],
+      ...(verifierCalibration !== undefined && { verifierCalibration }),
     });
     return {
       run,
@@ -687,6 +1111,7 @@ async function runSingleWorkflowFixture(
     preRunExpectationResults: preRunSanity.results,
     predicateResults: results,
     objectiveMetrics,
+    ...(verifierCalibration !== undefined && { verifierCalibration }),
   });
 
   return {
@@ -720,6 +1145,67 @@ async function runMultiRoundFixture(
     params.runArtifactBaseDir,
     `${spec.id}-${params.runIndex}`,
   );
+  const verifierCalibration = evaluateVerifierCalibration({
+    fixture: params.fixture,
+    executionProfile: params.executionProfile,
+    runIndex: params.runIndex,
+    repeatCount: params.repeatCount,
+  });
+  if (verifierCalibration !== undefined) {
+    writeVerifierCalibrationArtifact(runArtifactDir, verifierCalibration);
+  }
+  if (verifierCalibration !== undefined && !verifierCalibration.passed) {
+    const executionOutcome: WorkflowExecutionOutcome = {
+      kind: "not-started",
+      durationMs: Date.now() - startMs,
+      reason: "verifier-calibration-failed",
+      runArtifactPath: null,
+    };
+    const codeHealthDiagnostics =
+      spec.codeHealthDiagnostics !== undefined && codeHealthBaseline !== undefined
+        ? finalizeCodeHealthDiagnostics({
+            config: spec.codeHealthDiagnostics,
+            baseline: codeHealthBaseline,
+            rounds: [],
+          })
+        : undefined;
+    const run: FixtureRun = {
+      fixtureId: spec.id,
+      runIndex: params.runIndex,
+      repeatCount: params.repeatCount,
+      outcome: outcomeFromExecution(executionOutcome, false),
+      resourceProfile,
+      executionProfile: params.executionProfile,
+      objectiveMetrics: [],
+      ...(codeHealthDiagnostics !== undefined && { codeHealthDiagnostics }),
+      rounds: [],
+      timing: {
+        startedAt: startedAt.toISOString(),
+        durationMs: executionOutcome.durationMs,
+        budgetMs: spec.rounds.reduce((sum, round) => sum + round.budgetMs, 0),
+      },
+      runArtifactPath: runArtifactDir,
+    };
+    writeMultiRoundRunArtifact(runArtifactDir, {
+      run,
+      fixtureId: spec.id,
+      workingDir,
+      executionProfile: params.executionProfile,
+      spec,
+      roundResults: [],
+      aggregatePredicateResults: [],
+      objectiveMetrics: [],
+      verifierCalibration,
+    });
+    return {
+      run,
+      predicateResults: [],
+      preRunExpectationResults: [],
+      objectiveMetrics: [],
+      workingDir,
+      executionOutcome,
+    };
+  }
 
   const roundResults: RoundRunReport[] = [];
   for (let roundIndex = 0; roundIndex < spec.rounds.length; roundIndex++) {
@@ -828,6 +1314,7 @@ async function runMultiRoundFixture(
     roundResults,
     aggregatePredicateResults,
     objectiveMetrics,
+    ...(verifierCalibration !== undefined && { verifierCalibration }),
   });
 
   return {

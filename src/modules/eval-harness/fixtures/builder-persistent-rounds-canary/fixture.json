@@ -133,6 +133,27 @@
       }
     }
   ],
+  "verifierCalibration": {
+    "null": {},
+    "golden": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/src/ledger.mjs",
+          "targetPath": "src/ledger.mjs"
+        }
+      ]
+    },
+    "adversarial": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/src/ledger.mjs",
+          "targetPath": "src/ledger.mjs"
+        }
+      ]
+    }
+  },
   "tags": [
     "autonomy",
     "builder-discipline",

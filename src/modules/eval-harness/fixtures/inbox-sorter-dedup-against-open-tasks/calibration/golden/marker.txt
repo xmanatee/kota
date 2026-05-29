@@ -1,0 +1,1 @@
+dedup golden keeps the single seeded task

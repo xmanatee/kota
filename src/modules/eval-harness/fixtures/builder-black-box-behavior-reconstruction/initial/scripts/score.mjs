@@ -29,9 +29,19 @@ for (let i = 2; i < process.argv.length; i += 1) {
 
 const root = process.cwd();
 const candidatePath = join(root, "src", "badge-code.mjs");
-const referencePath = join(root, "oracle", "run-reference.mjs");
 const oracleArtifactPath = join(root, "oracle", "reference.wasm.base64");
 const oracleArtifactBase64 = readFileSync(oracleArtifactPath, "utf8").trim();
+const oracleBytes = Buffer.from(oracleArtifactBase64, "base64");
+const { instance: oracleInstance } = await WebAssembly.instantiate(oracleBytes);
+const { mix, finish } = oracleInstance.exports;
+const families = ["amber", "cobalt", "fern", "slate", "violet"];
+const help = `badge-code
+
+Usage:
+  node src/badge-code.mjs <label>
+
+Prints: <normalized-label> <family>-<checksum>
+`;
 const bannedSourcePatterns = [
   /\boracle\b/i,
   /\breference\b/i,
@@ -51,6 +61,70 @@ function hashFile(path) {
 
 function compactBase64(text) {
   return text.replace(/[^A-Za-z0-9+/=]/g, "");
+}
+
+function referenceFailure(message) {
+  return {
+    status: 2,
+    stdout: "",
+    stderr: `error: ${message}`,
+  };
+}
+
+function normalize(raw) {
+  if (/[^A-Za-z0-9 _-]/.test(raw)) {
+    return {
+      ok: false,
+      failure: referenceFailure("label contains unsupported characters"),
+    };
+  }
+  const normalized = raw
+    .trim()
+    .toLowerCase()
+    .replace(/[ _-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  if (!/[a-z0-9]/.test(normalized)) {
+    return {
+      ok: false,
+      failure: referenceFailure("label must contain at least one alphanumeric character"),
+    };
+  }
+  if (normalized.length > 24) {
+    return {
+      ok: false,
+      failure: referenceFailure("normalized label exceeds 24 characters"),
+    };
+  }
+  return { ok: true, normalized };
+}
+
+function checksumFor(normalized) {
+  let state = 23;
+  for (let index = 0; index < normalized.length; index += 1) {
+    state = mix(state, normalized.charCodeAt(index), index);
+  }
+  return finish(state, normalized.length);
+}
+
+function runReference(argv) {
+  if (argv.length === 1 && (argv[0] === "--help" || argv[0] === "-h")) {
+    return { status: 0, stdout: help.trimEnd(), stderr: "" };
+  }
+  if (argv.length !== 1) {
+    return referenceFailure("expected exactly one label argument");
+  }
+  const normalized = normalize(argv[0]);
+  if (!normalized.ok) {
+    return normalized.failure;
+  }
+  const checksum = checksumFor(normalized.normalized);
+  const family = families[checksum % families.length];
+  const code = checksum.toString(36).toUpperCase().padStart(2, "0");
+  return {
+    status: 0,
+    stdout: `${normalized.normalized} ${family}-${code}`,
+    stderr: "",
+  };
 }
 
 function listFiles(dir) {
@@ -140,9 +214,15 @@ function generatedCases() {
       parts.push(text);
     }
     const label = parts.join(separators[next() % separators.length]);
-    cases.push({ name: `generated-${i}`, args: [i % 4 === 0 ? ` ${label} ` : label] });
+    cases.push({
+      name: `generated-${i}`,
+      args: [i % 4 === 0 ? ` ${label} ` : label],
+    });
   }
-  cases.push({ name: "generated separator edge", args: ["___edge--case  9___"] });
+  cases.push({
+    name: "generated separator edge",
+    args: ["___edge--case  9___"],
+  });
   return cases;
 }
 
@@ -167,7 +247,7 @@ function runNode(script, argv, forbidReference) {
 const cases = [...fixedCases(), ...generatedCases()];
 const mismatches = [];
 for (const testCase of cases) {
-  const expected = runNode(referencePath, testCase.args, false);
+  const expected = runReference(testCase.args);
   const actual = runNode(candidatePath, testCase.args, true);
   if (
     expected.status !== actual.status ||

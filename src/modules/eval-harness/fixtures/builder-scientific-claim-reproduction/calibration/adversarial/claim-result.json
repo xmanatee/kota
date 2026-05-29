@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "claimId": "claim-lx12-mature-week6-biomass",
+  "verdict": "refuted",
+  "metric": {
+    "name": "median_uplift_pct",
+    "value": 0,
+    "control_median": 10,
+    "treatment_median": 13,
+    "threshold_pct": 40
+  },
+  "command": "node scripts/analyze-claim.mjs --data data/claims/lx12-biomass.csv --output claim-result.json",
+  "provenance": {
+    "data": "data/claims/lx12-biomass.csv",
+    "method": "median",
+    "filters": {
+      "cohort": "mature",
+      "phase": "week6",
+      "site": "greenhouse-a",
+      "include_in_claim": "yes",
+      "quality_flag": "ok"
+    },
+    "row_ids": {
+      "control": ["C01", "C02", "C03", "C04", "C05"],
+      "lx12": ["T01", "T02", "T03", "T04", "T05"]
+    }
+  }
+}

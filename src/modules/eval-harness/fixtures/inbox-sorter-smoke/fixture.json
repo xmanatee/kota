@@ -38,6 +38,27 @@
       "expected": "pass"
     }
   ],
+  "verifierCalibration": {
+    "null": {},
+    "golden": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/task-calibration-inbox-sorter-smoke.md",
+          "targetPath": "data/tasks/ready/task-calibration-inbox-sorter-smoke.md"
+        }
+      ]
+    },
+    "adversarial": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/decoy.txt",
+          "targetPath": "calibration-decoy.txt"
+        }
+      ]
+    }
+  },
   "controlDecisions": [
     "act"
   ]

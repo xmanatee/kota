@@ -25,6 +25,27 @@
       }
     }
   ],
+  "verifierCalibration": {
+    "null": {},
+    "golden": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/builder-eval-ok.txt",
+          "targetPath": "data/markers/builder-eval-ok.txt"
+        }
+      ]
+    },
+    "adversarial": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/decoy.txt",
+          "targetPath": "data/not-markers/decoy.txt"
+        }
+      ]
+    }
+  },
   "tags": [
     "smoke",
     "autonomy"

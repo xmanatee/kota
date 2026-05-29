@@ -6,6 +6,7 @@ import { CodeHealthDiagnosticsValidationError } from "./code-health-diagnostics.
 import {
   FixtureProvenanceError,
   FixtureRecordingProvenanceError,
+  FixtureVerifierCalibrationError,
   isMultiRoundFixtureSpec,
   isSingleWorkflowFixtureSpec,
   loadAllFixtures,
@@ -288,6 +289,128 @@ describe("loadFixture", () => {
     expect(() => loadFixture(root, "bad")).toThrow(/invalid predicate/);
   });
 
+  it("rejects a custom-scored fixture that omits required verifier calibration", () => {
+    writeFixture(root, "missingCalibration", {
+      id: "missingCalibration",
+      description: "x",
+      role: "builder",
+      workflowName: "builder",
+      budgetMs: 600_000,
+      predicates: [
+        {
+          kind: "lx12-scientific-claim-result",
+          mainPath: "claim-result.json",
+          holdoutPath: "claim-holdout-result.json",
+          maxErrorPct: 0.000001,
+        },
+      ],
+    });
+    let caught: unknown;
+    try {
+      loadFixture(root, "missingCalibration");
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(FixtureVerifierCalibrationError);
+    expect((caught as FixtureVerifierCalibrationError).reason).toBe(
+      "missing-required",
+    );
+  });
+
+  it("rejects a shell-scored fixture that omits required verifier calibration", () => {
+    writeFixture(root, "missingShellCalibration", {
+      id: "missingShellCalibration",
+      description: "x",
+      role: "builder",
+      workflowName: "builder",
+      budgetMs: 600_000,
+      predicates: [
+        {
+          kind: "shell-succeeds",
+          command: "test -f result.txt",
+          timeoutMs: 10_000,
+        },
+      ],
+    });
+    let caught: unknown;
+    try {
+      loadFixture(root, "missingShellCalibration");
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(FixtureVerifierCalibrationError);
+    expect((caught as Error).message).toContain("shell-succeeds");
+  });
+
+  it("rejects an objective-metric fixture that omits required verifier calibration", () => {
+    writeFixture(root, "missingMetricCalibration", {
+      id: "missingMetricCalibration",
+      description: "x",
+      role: "builder",
+      workflowName: "builder",
+      budgetMs: 600_000,
+      predicates: [{ kind: "file-exists", path: "result.txt" }],
+      objectiveMetrics: [
+        {
+          name: "result_score",
+          unit: "points",
+          direction: "higher_is_better",
+          source: { kind: "text-file", path: "score.txt" },
+        },
+      ],
+    });
+    let caught: unknown;
+    try {
+      loadFixture(root, "missingMetricCalibration");
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(FixtureVerifierCalibrationError);
+    expect((caught as Error).message).toContain("result_score");
+  });
+
+  it("rejects malformed verifier calibration cases with fixture-specific errors", () => {
+    writeFixture(root, "badCalibration", {
+      id: "badCalibration",
+      description: "x",
+      role: "builder",
+      workflowName: "builder",
+      budgetMs: 600_000,
+      predicates: [
+        {
+          kind: "lx12-scientific-claim-result",
+          mainPath: "claim-result.json",
+          holdoutPath: "claim-holdout-result.json",
+          maxErrorPct: 0.000001,
+        },
+      ],
+      verifierCalibration: {
+        null: {},
+        golden: { setup: [] },
+        adversarial: {
+          setup: [
+            {
+              kind: "copy-fixture-file",
+              sourcePath: "../outside.json",
+              targetPath: "claim-result.json",
+            },
+          ],
+        },
+      },
+    });
+    let caught: unknown;
+    try {
+      loadFixture(root, "badCalibration");
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(FixtureVerifierCalibrationError);
+    expect((caught as FixtureVerifierCalibrationError).reason).toBe(
+      "malformed-declaration",
+    );
+    expect((caught as Error).message).toContain("golden");
+  });
+
   it("accepts a typed environment-state-audit predicate declaration", () => {
     writeFixture(root, "stateAudit", {
       id: "stateAudit",
@@ -537,9 +660,54 @@ describe("loadFixture", () => {
           source: { kind: "text-file", path: "final-score.txt" },
         },
       ],
+      verifierCalibration: {
+        null: {},
+        golden: {
+          setup: [
+            {
+              kind: "copy-fixture-file",
+              sourcePath: "calibration/golden/round-2-score.txt",
+              targetPath: "round-2-score.txt",
+            },
+            {
+              kind: "copy-fixture-file",
+              sourcePath: "calibration/golden/final-score.txt",
+              targetPath: "final-score.txt",
+            },
+          ],
+        },
+        adversarial: {
+          setup: [
+            {
+              kind: "copy-fixture-file",
+              sourcePath: "calibration/adversarial/round-2-score.txt",
+              targetPath: "round-2-score.txt",
+            },
+            {
+              kind: "copy-fixture-file",
+              sourcePath: "calibration/adversarial/final-score.txt",
+              targetPath: "final-score.txt",
+            },
+          ],
+        },
+      },
     });
     mkdirSync(join(root, "multi", "rounds"), { recursive: true });
     writeFileSync(join(root, "multi", "rounds", "round-2-task.md"), "round 2");
+    mkdirSync(join(root, "multi", "calibration", "golden"), { recursive: true });
+    mkdirSync(join(root, "multi", "calibration", "adversarial"), {
+      recursive: true,
+    });
+    writeFileSync(join(root, "multi", "calibration", "golden", "round-2-score.txt"), "2");
+    writeFileSync(join(root, "multi", "calibration", "golden", "final-score.txt"), "2");
+    writeFileSync(
+      join(root, "multi", "calibration", "adversarial", "round-2-score.txt"),
+      "1",
+    );
+    writeFileSync(
+      join(root, "multi", "calibration", "adversarial", "final-score.txt"),
+      "1",
+    );
 
     const loaded = loadFixture(root, "multi");
     expect(isMultiRoundFixtureSpec(loaded.spec)).toBe(true);
@@ -671,7 +839,42 @@ describe("loadFixture", () => {
           },
         },
       ],
+      verifierCalibration: {
+        null: {},
+        golden: {
+          setup: [
+            {
+              kind: "copy-fixture-file",
+              sourcePath: "calibration/golden/metrics.json",
+              targetPath: "metrics.json",
+            },
+          ],
+        },
+        adversarial: {
+          setup: [
+            {
+              kind: "copy-fixture-file",
+              sourcePath: "calibration/adversarial/metrics.json",
+              targetPath: "metrics.json",
+            },
+          ],
+        },
+      },
     });
+    mkdirSync(join(root, "withMetric", "calibration", "golden"), {
+      recursive: true,
+    });
+    mkdirSync(join(root, "withMetric", "calibration", "adversarial"), {
+      recursive: true,
+    });
+    writeFileSync(
+      join(root, "withMetric", "calibration", "golden", "metrics.json"),
+      JSON.stringify({ output: { bytes: 10 } }),
+    );
+    writeFileSync(
+      join(root, "withMetric", "calibration", "adversarial", "metrics.json"),
+      JSON.stringify({ output: { bytes: 20 } }),
+    );
     const loaded = loadFixture(root, "withMetric");
     expect(singleSpec(loaded).objectiveMetrics).toEqual([
       {

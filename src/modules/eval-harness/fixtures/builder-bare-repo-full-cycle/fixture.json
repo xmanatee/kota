@@ -66,6 +66,37 @@
       }
     }
   ],
+  "verifierCalibration": {
+    "null": {},
+    "golden": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/package.json",
+          "targetPath": "package.json"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/src/project-code.mjs",
+          "targetPath": "src/project-code.mjs"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/test/project-code.test.mjs",
+          "targetPath": "test/project-code.test.mjs"
+        }
+      ]
+    },
+    "adversarial": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/package.json",
+          "targetPath": "package.json"
+        }
+      ]
+    }
+  },
   "tags": [
     "autonomy",
     "builder-discipline",

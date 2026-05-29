@@ -89,6 +89,27 @@
       "expected": "pass"
     }
   ],
+  "verifierCalibration": {
+    "null": {},
+    "golden": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/task-calibration.md",
+          "targetPath": "data/tasks/ready/task-calibration-explorer-replay.md"
+        }
+      ]
+    },
+    "adversarial": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/task-calibration.md",
+          "targetPath": "data/tasks/ready/task-calibration-explorer-replay-low.md"
+        }
+      ]
+    }
+  },
   "controlDecisions": [
     "act"
   ]

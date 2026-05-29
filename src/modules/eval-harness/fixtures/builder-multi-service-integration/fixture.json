@@ -74,6 +74,27 @@
       }
     }
   ],
+  "verifierCalibration": {
+    "null": {},
+    "golden": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/src/catalog-routes.mjs",
+          "targetPath": "src/catalog-routes.mjs"
+        }
+      ]
+    },
+    "adversarial": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/decoy.txt",
+          "targetPath": "calibration-decoy.txt"
+        }
+      ]
+    }
+  },
   "tags": [
     "autonomy",
     "builder-discipline",
