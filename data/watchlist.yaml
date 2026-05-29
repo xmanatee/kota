@@ -31,6 +31,13 @@ resources:
       fingerprint: sha256:80f054daf64f6d50b2660e00564a4bb3
       summary: "CodeScaleBench is accessible; its retrieval diagnostics are already covered by completed harness-parity work, and this run opened task-add-eval-harness-verifier-calibration-probes for the remaining verifier-integrity QA signal."
       last_seen_at: "2026-05-29T09:16:50.140Z"
+  - url: https://github.com/datacurve-ai/deep-swe
+    added: "2026-05-29"
+    notes: "DeepSWE evaluates frontier coding agents on original long-horizon tasks with behavioral verifiers and Pier sandboxing. Monitor as an eval-harness signal for contamination-resistant task construction, behavior-first verification, and provider-only agent egress inside otherwise isolated task environments; do not import the benchmark runner."
+    snapshot:
+      fingerprint: sha256:1dabc33789d3e0add0c1477ac8af2178
+      summary: "DeepSWE is accessible; its nonduplicative KOTA signal is provider-only model API egress for containerized eval-harness agent steps while fixture task code stays offline, which opened task-add-provider-egress-policy-to-containerized-eval-h."
+      last_seen_at: "2026-05-29T10:32:22.816Z"
   - url: https://github.com/zeroclaw-labs/zeroclaw
     added: "2026-04-14"
     snapshot:
