@@ -17,6 +17,9 @@ resources:
       fingerprint: sha256:29ae5de4201ccf1d9aba6e8566ee9244
       summary: "ClawBench Core v1 reinforces KOTA's eval-harness fixture reliability diagnostics and adds a nonduplicative baseline-comparability signal: record strict eval-run configuration fingerprints before cadence compares scores."
       last_seen_at: "2026-05-28T03:23:21.763Z"
+  - url: https://github.com/InternLM/WildClawBench
+    added: "2026-05-29"
+    notes: "WildClawBench evaluates native-runtime CLI agents across long-horizon, multimodal, coding, and safety tasks with real tools. Monitor as an eval-harness signal for local environment-state side-effect auditing, multi-harness comparability, and artifact-grade grading; do not import the benchmark runner or add an LLM judge by default."
   - url: https://github.com/zeroclaw-labs/zeroclaw
     added: "2026-04-14"
     snapshot:
