@@ -575,3 +575,7 @@ resources:
   - url: https://www.endorlabs.com/research/ai-code-security-benchmark
     added: "2026-05-29"
     notes: "Agent Security League tracks coding-agent functional correctness separately from security correctness. Monitor as an eval-harness signal for secure-code canaries, benchmark anti-cheating controls, and functional-pass/security-fail divergence; do not import the leaderboard as a scoring system."
+    snapshot:
+      fingerprint: sha256:415babe04269439a287165fbab17ae20
+      summary: "Agent Security League is accessible; its functional-vs-secure scoring signal is already covered by KOTA's completed functional-security divergence fixture, and its git-history anti-cheating concern is structurally avoided by normal eval fixture materialization, so no duplicate task was opened."
+      last_seen_at: "2026-05-29T02:12:29.416Z"
