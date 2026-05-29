@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { KotaContentBlock, KotaMessage, KotaModelResponse, KotaTool, KotaToolResultBlock } from "#core/agent-harness/message-protocol.js";
 
@@ -6,6 +9,7 @@ const messagesCreateMock = vi.fn();
 const createModelClientMock = vi.fn();
 const executeToolMock = vi.fn();
 const getAllToolsMock = vi.fn<() => readonly KotaTool[]>();
+const getSecretStoreMock = vi.fn();
 
 vi.mock("#core/model/model-client.js", () => ({
   createModelClient: (...args: unknown[]) => createModelClientMock(...args),
@@ -16,6 +20,11 @@ vi.mock("#core/tools/index.js", () => ({
   getAllTools: () => getAllToolsMock(),
 }));
 
+vi.mock("#core/config/secrets.js", () => ({
+  getSecretStore: () => getSecretStoreMock(),
+}));
+
+import { runFileRead } from "#modules/filesystem/file-read.js";
 import {
   OPENAI_TOOLS_AGENT_HARNESS_NAME,
   openaiToolsAgentHarness,
@@ -65,6 +74,16 @@ const TEST_TOOL: KotaTool = {
   },
 };
 
+const FILE_READ_TOOL: KotaTool = {
+  name: "file_read",
+  description: "Read a file from the working directory",
+  input_schema: {
+    type: "object" as const,
+    properties: { path: { type: "string" } },
+    required: ["path"],
+  },
+};
+
 /**
  * Per-stream-call snapshot of `messages` taken at invocation time. Vitest's
  * `mock.calls` stores arg references, so the loop's mutation of the running
@@ -90,6 +109,7 @@ beforeEach(() => {
   createModelClientMock.mockReset();
   executeToolMock.mockReset();
   getAllToolsMock.mockReset();
+  getSecretStoreMock.mockReset();
   streamCallSnapshots.length = 0;
   streamReturnQueue.length = 0;
   messagesStreamMock.mockImplementation(
@@ -116,6 +136,7 @@ beforeEach(() => {
     providerName: "openai",
   }));
   getAllToolsMock.mockReturnValue([TEST_TOOL]);
+  getSecretStoreMock.mockReturnValue(null);
 });
 
 afterEach(() => {
@@ -231,6 +252,122 @@ describe("openaiToolsAgentHarness — happy path tool loop", () => {
       outputTokens: 7,
       isError: false,
     });
+  });
+
+  it("masks registered secrets before feeding raw tool results into the next model turn", async () => {
+    getSecretStoreMock.mockReturnValue({
+      mask: (text: string) => text.replaceAll("agent-secret-token", "<secret:API_TOKEN>"),
+    });
+
+    queueStream(
+      makeStubStream({
+        final: {
+          id: "msg_mask_1",
+          stop_reason: "tool_use",
+          content: [
+            {
+              type: "tool_use",
+              id: "call_mask",
+              name: "echo_tool",
+              input: { text: "show token" },
+            } as KotaContentBlock,
+          ],
+        },
+      }),
+    );
+    queueStream(
+      makeStubStream({
+        final: {
+          id: "msg_mask_2",
+          stop_reason: "end_turn",
+          content: [
+            { type: "text", text: "done", citations: null } as KotaContentBlock,
+          ],
+        },
+      }),
+    );
+
+    executeToolMock.mockResolvedValue({ content: "token=agent-secret-token" });
+
+    await openaiToolsAgentHarness.run({
+      prompt: "read token",
+      model: "openai/gpt-5.4-mini",
+      effort: "xhigh",
+    });
+
+    const followUpTurn = JSON.stringify(streamCallSnapshots[1].messages[2]);
+    expect(followUpTurn).toContain("<secret:API_TOKEN>");
+    expect(followUpTurn).not.toContain("agent-secret-token");
+  });
+
+  it("does not expose project secrets or env files through file_read tool results", async () => {
+    getAllToolsMock.mockReturnValue([FILE_READ_TOOL]);
+
+    queueStream(
+      makeStubStream({
+        final: {
+          id: "msg_file_read_1",
+          stop_reason: "tool_use",
+          content: [
+            {
+              type: "tool_use",
+              id: "read_secret_store",
+              name: "file_read",
+              input: { path: ".kota/secrets.json" },
+            },
+            {
+              type: "tool_use",
+              id: "read_env_file",
+              name: "file_read",
+              input: { path: ".env" },
+            },
+          ] as KotaContentBlock[],
+        },
+      }),
+    );
+    queueStream(
+      makeStubStream({
+        final: {
+          id: "msg_file_read_2",
+          stop_reason: "end_turn",
+          content: [
+            { type: "text", text: "blocked", citations: null } as KotaContentBlock,
+          ],
+        },
+      }),
+    );
+
+    const originalCwd = process.cwd();
+    const projectDir = mkdtempSync(join(tmpdir(), "openai-tools-file-read-protected-"));
+    try {
+      mkdirSync(join(projectDir, ".kota"), { recursive: true });
+      writeFileSync(
+        join(projectDir, ".kota", "secrets.json"),
+        '{"API_KEY":"file-backed-secret"}\n',
+      );
+      writeFileSync(join(projectDir, ".env"), "API_KEY=env-file-secret\n");
+      process.chdir(projectDir);
+
+      executeToolMock.mockImplementation(async (name: string, input: Record<string, unknown>) => {
+        if (name !== "file_read") throw new Error(`unexpected tool call: ${name}`);
+        return runFileRead(input);
+      });
+
+      await openaiToolsAgentHarness.run({
+        prompt: "read credentials",
+        model: "openai/gpt-5.4-mini",
+        effort: "xhigh",
+        cwd: projectDir,
+      });
+    } finally {
+      process.chdir(originalCwd);
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+
+    const followUpTurn = JSON.stringify(streamCallSnapshots[1].messages[2]);
+    expect(followUpTurn).toContain("protected project runtime credential");
+    expect(followUpTurn).not.toContain("file-backed-secret");
+    expect(followUpTurn).not.toContain("env-file-secret");
   });
 });
 

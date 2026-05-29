@@ -28,6 +28,7 @@ import { createModelClient } from "#core/model/model-client.js";
 import { resolveModelOutputTokenLimit } from "#core/model/output-token-limits.js";
 import { runWithAskOwnerSource } from "#core/tools/ask-owner.js";
 import { executeTool, getAllTools } from "#core/tools/index.js";
+import { maskToolResultSecrets } from "#core/tools/secret-masking.js";
 
 export const OPENAI_TOOLS_AGENT_HARNESS_NAME = "openai-tools";
 export const OPENAI_TOOLS_ASK_OWNER_TOOL_NAME = "ask_owner";
@@ -264,7 +265,7 @@ async function dispatchToolCall(
     }
   }
 
-  const toolResult = await executeTool(call.name, effectiveInput);
+  const toolResult = maskToolResultSecrets(await executeTool(call.name, effectiveInput));
   return {
     result: {
       type: "tool_result",

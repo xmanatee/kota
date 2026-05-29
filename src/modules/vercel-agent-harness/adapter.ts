@@ -52,6 +52,7 @@ import type {
 } from "#core/agent-harness/index.js";
 import { runWithAskOwnerSource } from "#core/tools/ask-owner.js";
 import { executeTool, getAllTools } from "#core/tools/index.js";
+import { maskToolResultSecrets } from "#core/tools/secret-masking.js";
 
 export const VERCEL_AGENT_HARNESS_NAME = "vercel";
 export const VERCEL_ASK_OWNER_TOOL_NAME = "ask_owner";
@@ -288,7 +289,7 @@ function buildVercelToolSet(
           }
         }
 
-        const result = await executeTool(kotaTool.name, effectiveInput);
+        const result = maskToolResultSecrets(await executeTool(kotaTool.name, effectiveInput));
         return {
           isError: result.is_error === true,
           content: result.content,

@@ -242,6 +242,28 @@ describe("runRepoMap", () => {
     expect(result.content).not.toContain("utils.ts");
   });
 
+  it("excludes project credential paths even when the requested pattern matches them", async () => {
+    const originalCwd = process.cwd();
+    const projectDir = mkdtempSync(join(tmpdir(), "repomap-protected-"));
+    try {
+      mkdirSync(join(projectDir, ".KOTA"), { recursive: true });
+      writeFileSync(
+        join(projectDir, ".KOTA", "secrets.json"),
+        'export const API_KEY = "secret-token";\n',
+      );
+      process.chdir(projectDir);
+
+      const result = await runRepoMap({ directory: ".KOTA", pattern: "**/*" });
+
+      expect(result.content).toBe("No source files found.");
+      expect(result.content).not.toContain("API_KEY");
+      expect(result.content).not.toContain("secret-token");
+    } finally {
+      process.chdir(originalCwd);
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+
   it("returns 'No exported symbols' when files have no exports", async () => {
     const noExportDir = mkdtempSync(join(tmpdir(), "noexport-"));
     writeFileSync(join(noExportDir, "plain.ts"), "const x = 1;");

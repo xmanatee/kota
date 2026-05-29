@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { glob as globFn } from "glob";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/index.js";
+import { isProtectedProjectPath, PROTECTED_PROJECT_GLOB_IGNORES } from "./protected-paths.js";
 
 export const repoMapTool: KotaTool = {
   name: "repo_map",
@@ -76,14 +77,15 @@ export async function runRepoMap(
   const files = await globFn(pattern, {
     cwd: directory,
     nodir: true,
-    ignore: ["**/node_modules/**", "**/.git/**", "**/dist/**", "**/*.d.ts"],
+    ignore: ["**/node_modules/**", "**/.git/**", "**/dist/**", "**/*.d.ts", ...PROTECTED_PROJECT_GLOB_IGNORES],
   });
+  const visibleFiles = files.filter((file) => !isProtectedProjectPath(`${directory}/${file}`));
 
-  if (files.length === 0) {
+  if (visibleFiles.length === 0) {
     return { content: "No source files found." };
   }
 
-  const sorted = files.sort();
+  const sorted = visibleFiles.sort();
   const limited = sorted.slice(0, MAX_FILES);
   const output: string[] = [];
   let symbolCount = 0;
@@ -114,8 +116,8 @@ export async function runRepoMap(
   }
 
   const suffix =
-    files.length > MAX_FILES
-      ? `\n\n[Scanned ${MAX_FILES} of ${files.length} files]`
+    visibleFiles.length > MAX_FILES
+      ? `\n\n[Scanned ${MAX_FILES} of ${visibleFiles.length} files]`
       : "";
 
   return { content: output.join("\n") + suffix };

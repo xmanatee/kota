@@ -40,6 +40,7 @@ import {
 } from "#core/agent-harness/index.js";
 import { runWithAskOwnerSource } from "#core/tools/ask-owner.js";
 import { executeTool, getAllTools } from "#core/tools/index.js";
+import { maskToolResultSecrets } from "#core/tools/secret-masking.js";
 
 /**
  * Lazy `@google/genai` import. Mirrors `vercel-agent-harness` — keeps module
@@ -319,7 +320,7 @@ async function dispatchFunctionCall(
     }
   }
 
-  const result = await executeTool(name, effectiveInput);
+  const result = maskToolResultSecrets(await executeTool(name, effectiveInput));
   const body = result.is_error === true
     ? { error: result.content }
     : { output: result.content };

@@ -4,7 +4,6 @@ import type {
   KotaTextBlock,
   KotaToolUseBlock,
 } from "#core/agent-harness/message-protocol.js";
-import { getSecretStore } from "#core/config/secrets.js";
 import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import { tryEmit } from "#core/events/event-bus.js";
 import { truncateToolResult } from "#core/loop/context.js";
@@ -24,6 +23,7 @@ import {
 } from "./guardrails-classify.js";
 import type { ToolResult, ToolResultBlock } from "./index.js";
 import { executeTool, getToolEffect } from "./index.js";
+import { maskToolResultSecrets } from "./secret-masking.js";
 import { getToolMiddleware } from "./tool-middleware.js";
 import {
   getToolTelemetry,
@@ -472,20 +472,24 @@ export async function executeToolCalls(
 
   const results = await executeToolCallSchedule(toolBlocks, executeBlock, mcpManager);
 
-  const secretStore = getSecretStore();
-  const mask = secretStore ? (s: string) => secretStore.mask(s) : (s: string) => s;
-
   return results.map((r) => {
     if (r.blocks) {
       // Truncate text blocks within rich results — images pass through untouched
       const truncatedBlocks = r.blocks.map((b) =>
         b.type === "text"
-          ? { ...b, text: mask(truncateToolResult(b.text, resultLimit)) }
+          ? { ...b, text: truncateToolResult(b.text, resultLimit) }
           : b,
       );
-      return { ...r, content: mask(truncateToolResult(r.content, resultLimit)), blocks: truncatedBlocks };
+      return maskToolResultSecrets({
+        ...r,
+        content: truncateToolResult(r.content, resultLimit),
+        blocks: truncatedBlocks,
+      });
     }
-    return { ...r, content: mask(truncateToolResult(r.content, resultLimit)) };
+    return maskToolResultSecrets({
+      ...r,
+      content: truncateToolResult(r.content, resultLimit),
+    });
   });
 }
 

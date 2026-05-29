@@ -13,6 +13,7 @@ const generateContentStreamMock = vi.fn();
 const googleGenAICtorMock = vi.fn();
 const executeToolMock = vi.fn();
 const getAllToolsMock = vi.fn<() => readonly KotaTool[]>();
+const getSecretStoreMock = vi.fn();
 
 vi.mock("@google/genai", () => ({
   GoogleGenAI: function MockGoogleGenAI(this: unknown, ...args: unknown[]) {
@@ -27,6 +28,10 @@ vi.mock("@google/genai", () => ({
 vi.mock("#core/tools/index.js", () => ({
   executeTool: (...args: unknown[]) => executeToolMock(...args),
   getAllTools: () => getAllToolsMock(),
+}));
+
+vi.mock("#core/config/secrets.js", () => ({
+  getSecretStore: () => getSecretStoreMock(),
 }));
 
 import {
@@ -70,7 +75,9 @@ beforeEach(() => {
   googleGenAICtorMock.mockReset();
   executeToolMock.mockReset();
   getAllToolsMock.mockReset();
+  getSecretStoreMock.mockReset();
   getAllToolsMock.mockReturnValue([TEST_TOOL]);
+  getSecretStoreMock.mockReturnValue(null);
 });
 
 afterEach(() => {
@@ -270,6 +277,60 @@ describe("geminiAgentHarness — multi-turn tool loop", () => {
       turns: 2,
       isError: false,
     });
+  });
+
+  it("masks registered secrets before feeding functionResponse content into the next model turn", async () => {
+    getSecretStoreMock.mockReturnValue({
+      mask: (text: string) => text.replaceAll("agent-secret-token", "<secret:API_TOKEN>"),
+    });
+    generateContentStreamMock
+      .mockResolvedValueOnce(
+        makeStreamFromChunks([
+          {
+            candidates: [
+              {
+                content: {
+                  role: "model",
+                  parts: [
+                    {
+                      functionCall: {
+                        id: "call_mask",
+                        name: "echo_tool",
+                        args: { text: "show token" },
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        ]),
+      )
+      .mockResolvedValueOnce(
+        makeStreamFromChunks([
+          {
+            candidates: [
+              {
+                content: { role: "model", parts: [{ text: "done" }] },
+                finishReason: "STOP",
+              },
+            ],
+          },
+        ]),
+      );
+
+    executeToolMock.mockResolvedValue({ content: "token=agent-secret-token" });
+
+    await geminiAgentHarness.run({
+      prompt: "read token",
+      model: "gemini-2.5-flash",
+      effort: "xhigh",
+    });
+
+    const secondCall = generateContentStreamMock.mock.calls[1][0] as GenerateContentArgs;
+    const followUpTurn = JSON.stringify(secondCall.contents);
+    expect(followUpTurn).toContain("<secret:API_TOKEN>");
+    expect(followUpTurn).not.toContain("agent-secret-token");
   });
 });
 

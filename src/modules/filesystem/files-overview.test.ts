@@ -102,12 +102,14 @@ describe("files_overview", () => {
     try {
       await mkdir(join(projectDir, ".KOTA"), { recursive: true });
       await writeFile(join(projectDir, ".KOTA", "daemon-control.json"), '{"token":"secret-token"}\n');
+      await writeFile(join(projectDir, ".env"), "API_KEY=secret-token\n");
       process.chdir(projectDir);
 
-      const r = await runFilesOverview({ path: ".KOTA" });
+      const r = await runFilesOverview({ path: "." });
 
       expect(r.content).toContain("empty");
       expect(r.content).not.toContain("daemon-control.json");
+      expect(r.content).not.toContain(".env");
       expect(r.content).not.toContain("secret-token");
     } finally {
       process.chdir(originalCwd);

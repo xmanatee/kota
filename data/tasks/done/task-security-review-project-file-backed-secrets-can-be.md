@@ -1,12 +1,12 @@
 ---
 id: task-security-review-project-file-backed-secrets-can-be
 title: Security review: Project file-backed secrets can be exposed to agents through ordinary filesystem read tools: secrets are stored in `.kota/secrets.json`, only `.kota/daemon-control.json` is protected, `file_read` returns file text after that narrow check, and KOTA-controlled harness adapters pass raw `executeTool` output back to the model without applying `SecretStore.mask`.
-status: ready
+status: done
 priority: p1
 area: security
 summary: Project file-backed secrets can be exposed to agents through ordinary filesystem read tools: secrets are stored in `.kota/secrets.json`, only `.kota/daemon-control.json` is protected, `file_read` returns file text after that narrow check, and KOTA-controlled harness adapters pass raw `executeTool` output back to the model without applying `SecretStore.mask`.
 created_at: 2026-05-29T03:26:06.359Z
-updated_at: 2026-05-29T03:26:06.359Z
+updated_at: 2026-05-29T03:36:11Z
 ---
 
 ## Problem
@@ -59,3 +59,10 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `NODE_OPTIONS=--conditions=source pnpm exec vitest run src/modules/filesystem/file-read.test.ts src/modules/filesystem/grep.test.ts src/modules/filesystem/glob.test.ts src/modules/filesystem/files-overview.test.ts src/modules/filesystem/repo-map.test.ts src/modules/openai-tools-agent-harness/adapter.test.ts` passed: 6 files, 172 tests.
+- `pnpm vitest run src/modules/gemini-agent-harness/adapter.test.ts src/modules/vercel-agent-harness/adapter.test.ts src/modules/openai-tools-agent-harness/adapter.test.ts` passed: 3 files, 60 tests.
+- `NODE_OPTIONS=--conditions=source pnpm exec vitest run src/core/tools/tool-runner.test.ts` passed: 1 file, 49 tests.
+- `pnpm exec biome check src/core/tools/secret-masking.ts src/core/tools/tool-runner.ts src/modules/filesystem/protected-paths.ts src/modules/filesystem/grep.ts src/modules/filesystem/glob.ts src/modules/filesystem/files-overview.ts src/modules/filesystem/repo-map.ts src/modules/openai-tools-agent-harness/adapter.ts src/modules/filesystem/file-read.test.ts src/modules/filesystem/grep.test.ts src/modules/filesystem/glob.test.ts src/modules/filesystem/files-overview.test.ts src/modules/filesystem/repo-map.test.ts src/modules/openai-tools-agent-harness/adapter.test.ts` passed.
+- `pnpm exec biome check src/modules/gemini-agent-harness/adapter.ts src/modules/gemini-agent-harness/adapter.test.ts src/modules/vercel-agent-harness/adapter.ts src/modules/vercel-agent-harness/adapter.test.ts` passed.
+- `pnpm typecheck` passed.
+- `NODE_OPTIONS=--conditions=source node --import tsx src/validate-queue.ts --summary` passed: errors=0 warnings=0.

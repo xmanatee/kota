@@ -50,6 +50,14 @@ describe("file_read: text files", () => {
     expect(result.content).toContain("protected project runtime credential");
   });
 
+  it("denies project file-backed secrets and env files", async () => {
+    for (const path of [".kota/secrets.json", ".env", ".env.local"]) {
+      const result = await runFileRead({ path });
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("protected project runtime credential");
+    }
+  });
+
   it("denies cased aliases of the daemon control credential file", async () => {
     const result = await runFileRead({ path: ".KOTA/daemon-control.json" });
     expect(result.is_error).toBe(true);

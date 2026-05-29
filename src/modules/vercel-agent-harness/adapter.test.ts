@@ -15,6 +15,7 @@ const dynamicToolMock = vi.fn((definition: unknown) => definition);
 const createOpenAIMock = vi.fn();
 const executeToolMock = vi.fn();
 const getAllToolsMock = vi.fn<() => readonly KotaTool[]>();
+const getSecretStoreMock = vi.fn();
 
 vi.mock("ai", () => ({
   streamText: (...args: unknown[]) => streamTextMock(...args),
@@ -30,6 +31,10 @@ vi.mock("@ai-sdk/openai", () => ({
 vi.mock("#core/tools/index.js", () => ({
   executeTool: (...args: unknown[]) => executeToolMock(...args),
   getAllTools: () => getAllToolsMock(),
+}));
+
+vi.mock("#core/config/secrets.js", () => ({
+  getSecretStore: () => getSecretStoreMock(),
 }));
 
 import {
@@ -85,7 +90,9 @@ beforeEach(() => {
   }));
   executeToolMock.mockReset();
   getAllToolsMock.mockReset();
+  getSecretStoreMock.mockReset();
   getAllToolsMock.mockReturnValue([TEST_TOOL]);
+  getSecretStoreMock.mockReturnValue(null);
 });
 
 afterEach(() => {
@@ -226,6 +233,25 @@ describe("vercelAgentHarness — guardrails", () => {
       isError: true,
       content: "echo_tool blocked by policy",
     });
+  });
+
+  it("masks registered secrets before returning raw tool results to the Vercel SDK", async () => {
+    getSecretStoreMock.mockReturnValue({
+      mask: (text: string) => text.replaceAll("agent-secret-token", "<secret:API_TOKEN>"),
+    });
+    executeToolMock.mockResolvedValue({ content: "token=agent-secret-token" });
+
+    const { toolExecute } = await runAndCaptureToolExecute({});
+    const result = await toolExecute(
+      { text: "show token" },
+      { toolCallId: "call_mask" },
+    );
+
+    expect(result).toEqual({
+      isError: false,
+      content: "token=<secret:API_TOKEN>",
+    });
+    expect(JSON.stringify(result)).not.toContain("agent-secret-token");
   });
 
   it("filters disallowedTools out of the Vercel ToolSet so the model never sees them", async () => {

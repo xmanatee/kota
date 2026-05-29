@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { glob as globFn } from "glob";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
-import { isProtectedProjectPath } from "./protected-paths.js";
+import { isProtectedProjectPath, PROTECTED_PROJECT_GLOB_IGNORES } from "./protected-paths.js";
 
 export const globTool: KotaTool = {
   name: "glob",
@@ -44,7 +44,7 @@ export async function runGlob(
   const files = (await globFn(pattern, {
     cwd: basePath,
     nodir: true,
-    ignore: ["**/node_modules/**", "**/.git/**", "**/dist/**", "**/.kota/daemon-control.json"],
+    ignore: ["**/node_modules/**", "**/.git/**", "**/dist/**", ...PROTECTED_PROJECT_GLOB_IGNORES],
   })).filter((file) => !isProtectedProjectPath(join(basePath, file)));
 
   if (files.length === 0) {

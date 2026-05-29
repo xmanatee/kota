@@ -34,12 +34,24 @@ describe("grep: input validation", () => {
     expect(result.content).toContain("protected project runtime credential");
   });
 
+  it("denies direct searches of project secrets and env files", async () => {
+    for (const path of [".kota/secrets.json", ".env", ".env.local"]) {
+      const result = await runGrep({
+        pattern: "token",
+        path,
+      });
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("protected project runtime credential");
+    }
+  });
+
   it("excludes cased .kota credential aliases from recursive searches", async () => {
     const originalCwd = process.cwd();
     const projectDir = mkdtempSync(join(tmpdir(), "kota-grep-protected-"));
     try {
       mkdirSync(join(projectDir, ".KOTA"), { recursive: true });
       writeFileSync(join(projectDir, ".KOTA", "daemon-control.json"), '{"token":"secret-token"}\n');
+      writeFileSync(join(projectDir, ".KOTA", "secrets.json"), '{"API_KEY":"secret-token"}\n');
       process.chdir(projectDir);
 
       const result = await runGrep({ pattern: "secret-token", path: ".KOTA" });

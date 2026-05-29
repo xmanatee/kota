@@ -149,6 +149,26 @@ async function waitFor(assertion: () => void, timeoutMs = 2_000): Promise<void> 
   throw lastError ?? new Error("Timed out waiting for assertion");
 }
 
+async function waitForResult<T>(
+  read: () => Promise<T>,
+  assertion: (value: T) => void,
+  timeoutMs = 2_000,
+): Promise<T> {
+  const started = Date.now();
+  let lastError: Error | null = null;
+  while (Date.now() - started < timeoutMs) {
+    try {
+      const value = await read();
+      assertion(value);
+      return value;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  }
+  throw lastError ?? new Error("Timed out waiting for result");
+}
+
 describe("namespaceTool", () => {
   it("creates namespaced tool name", () => {
     expect(namespaceTool("sqlite", "query")).toBe("mcp__sqlite__query");
@@ -2134,12 +2154,14 @@ describe("McpManager", () => {
         mcp: { cache: [{ source: "cache", reason: "fresh" }] },
       });
 
-      await new Promise((resolve) => setTimeout(resolve, 80));
-
-      const refreshed = await manager.executeTool("mcp_skills__remote__list", {});
-      expect(refreshed.structuredContent).toMatchObject({
-        skills: [{ name: "second-skill" }],
-      });
+      const refreshed = await waitForResult(
+        () => manager.executeTool("mcp_skills__remote__list", {}),
+        (result) => {
+          expect(result.structuredContent).toMatchObject({
+            skills: [{ name: "second-skill" }],
+          });
+        },
+      );
       expect(refreshed._meta).toMatchObject({
         mcp: { cache: [{ source: "server", reason: "list_changed" }] },
       });
@@ -2332,20 +2354,26 @@ describe("McpManager", () => {
         mcp: { cache: [{ source: "cache", reason: "fresh" }] },
       });
 
-      await new Promise((resolve) => setTimeout(resolve, 80));
-
-      const refreshedResources = await manager.executeTool("mcp_resources__remote__list", {});
-      expect(refreshedResources.structuredContent).toEqual({
-        resources: [{ uri: "file:///tmp/resource-2.md", name: "resource-2" }],
-      });
+      const refreshedResources = await waitForResult(
+        () => manager.executeTool("mcp_resources__remote__list", {}),
+        (result) => {
+          expect(result.structuredContent).toEqual({
+            resources: [{ uri: "file:///tmp/resource-2.md", name: "resource-2" }],
+          });
+        },
+      );
       expect(refreshedResources._meta).toMatchObject({
         mcp: { cache: [{ source: "server", reason: "list_changed" }] },
       });
 
-      const refreshedPrompts = await manager.executeTool("mcp_prompts__remote__list", {});
-      expect(refreshedPrompts.structuredContent).toEqual({
-        prompts: [{ name: "prompt-2" }],
-      });
+      const refreshedPrompts = await waitForResult(
+        () => manager.executeTool("mcp_prompts__remote__list", {}),
+        (result) => {
+          expect(result.structuredContent).toEqual({
+            prompts: [{ name: "prompt-2" }],
+          });
+        },
+      );
       expect(refreshedPrompts._meta).toMatchObject({
         mcp: { cache: [{ source: "server", reason: "list_changed" }] },
       });

@@ -89,6 +89,7 @@ describe("runGlob", () => {
     try {
       mkdirSync(join(projectDir, ".KOTA"), { recursive: true });
       writeFileSync(join(projectDir, ".KOTA", "daemon-control.json"), '{"token":"secret-token"}\n');
+      writeFileSync(join(projectDir, ".KOTA", "secrets.json"), '{"API_KEY":"secret-token"}\n');
       process.chdir(projectDir);
 
       const result = await runGlob({ pattern: "**/*", path: ".KOTA" });
