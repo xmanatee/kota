@@ -41,6 +41,32 @@ export type ScenarioVerification = {
   timeoutMs: number;
 };
 
+export type ScenarioContextRetrievalTarget =
+  | {
+      id: string;
+      kind: "path";
+      path: string;
+    }
+  | {
+      id: string;
+      kind: "glob";
+      glob: string;
+    }
+  | {
+      id: string;
+      kind: "path-group";
+      paths: readonly string[];
+    }
+  | {
+      id: string;
+      kind: "glob-group";
+      globs: readonly string[];
+    };
+
+export type ScenarioContextRetrievalSpec = {
+  targets: readonly ScenarioContextRetrievalTarget[];
+};
+
 export type ScenarioStageSpec = {
   /** Stable stage id used for per-stage artifact directories. */
   id: string;
@@ -52,6 +78,8 @@ export type ScenarioStageSpec = {
    * working directory for operator preview.
    */
   previewArtifacts: readonly string[];
+  /** Optional expected context targets this stage should discover before editing. */
+  contextRetrieval?: ScenarioContextRetrievalSpec;
 };
 
 export type ScenarioSpecFile = {
@@ -68,6 +96,8 @@ export type ScenarioSpecFile = {
    * directory for operator preview. Paths are normalized POSIX-relative paths.
    */
   previewArtifacts: readonly string[];
+  /** Optional expected context targets for the single-stage scenario shape. */
+  contextRetrieval?: ScenarioContextRetrievalSpec;
   /** Whether the source metadata was the original single-stage shape or staged. */
   stageMode: "single" | "staged";
   /** Ordered prompts and verifiers executed by the runner. */
@@ -133,6 +163,44 @@ function parseVerification(
   return { command: r.command, timeoutMs };
 }
 
+function parseNormalizedRelativePath(
+  value: string,
+  scenarioDir: string,
+  fieldName: string,
+): string {
+  if (value.includes("\\")) {
+    throw new ScenarioLoadError(
+      scenarioDir,
+      `${fieldName} must use POSIX "/" separators, got "${value}".`,
+    );
+  }
+  if (value.includes("\0")) {
+    throw new ScenarioLoadError(
+      scenarioDir,
+      `${fieldName} must not contain NUL bytes.`,
+    );
+  }
+  if (posix.isAbsolute(value)) {
+    throw new ScenarioLoadError(
+      scenarioDir,
+      `${fieldName} must be relative, got "${value}".`,
+    );
+  }
+  const normalized = posix.normalize(value);
+  if (
+    normalized !== value ||
+    normalized === "." ||
+    normalized === ".." ||
+    normalized.startsWith("../")
+  ) {
+    throw new ScenarioLoadError(
+      scenarioDir,
+      `${fieldName} must be a bounded normalized relative path, got "${value}".`,
+    );
+  }
+  return value;
+}
+
 function parsePreviewArtifacts(
   raw: JsonValue | undefined,
   scenarioDir: string,
@@ -155,36 +223,7 @@ function parsePreviewArtifacts(
         `${fieldName}[${index}] must be a non-empty string.`,
       );
     }
-    if (value.includes("\\")) {
-      throw new ScenarioLoadError(
-        scenarioDir,
-        `${fieldName}[${index}] must use POSIX "/" separators, got "${value}".`,
-      );
-    }
-    if (value.includes("\0")) {
-      throw new ScenarioLoadError(
-        scenarioDir,
-        `${fieldName}[${index}] must not contain NUL bytes.`,
-      );
-    }
-    if (posix.isAbsolute(value)) {
-      throw new ScenarioLoadError(
-        scenarioDir,
-        `${fieldName}[${index}] must be relative, got "${value}".`,
-      );
-    }
-    const normalized = posix.normalize(value);
-    if (
-      normalized !== value ||
-      normalized === "." ||
-      normalized === ".." ||
-      normalized.startsWith("../")
-    ) {
-      throw new ScenarioLoadError(
-        scenarioDir,
-        `${fieldName}[${index}] must be a bounded normalized relative path, got "${value}".`,
-      );
-    }
+    parseNormalizedRelativePath(value, scenarioDir, `${fieldName}[${index}]`);
     if (seen.has(value)) {
       throw new ScenarioLoadError(
         scenarioDir,
@@ -195,6 +234,145 @@ function parsePreviewArtifacts(
     paths.push(value);
   }
   return paths;
+}
+
+function parseNonEmptyPathList(
+  raw: JsonValue | undefined,
+  scenarioDir: string,
+  fieldName: string,
+): string[] {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw new ScenarioLoadError(
+      scenarioDir,
+      `${fieldName} must be a non-empty array of normalized relative paths.`,
+    );
+  }
+  const paths: string[] = [];
+  const seen = new Set<string>();
+  for (const [index, value] of raw.entries()) {
+    if (typeof value !== "string" || value.length === 0) {
+      throw new ScenarioLoadError(
+        scenarioDir,
+        `${fieldName}[${index}] must be a non-empty string.`,
+      );
+    }
+    parseNormalizedRelativePath(value, scenarioDir, `${fieldName}[${index}]`);
+    if (seen.has(value)) {
+      throw new ScenarioLoadError(
+        scenarioDir,
+        `${fieldName} contains duplicate path "${value}".`,
+      );
+    }
+    seen.add(value);
+    paths.push(value);
+  }
+  return paths;
+}
+
+function parseContextRetrievalTargetId(
+  raw: JsonValue | undefined,
+  scenarioDir: string,
+  fieldName: string,
+): string {
+  if (typeof raw !== "string" || raw.length === 0) {
+    throw new ScenarioLoadError(
+      scenarioDir,
+      `${fieldName}.id must be a non-empty string.`,
+    );
+  }
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(raw)) {
+    throw new ScenarioLoadError(
+      scenarioDir,
+      `${fieldName}.id must be a lowercase slug, got "${raw}".`,
+    );
+  }
+  return raw;
+}
+
+function parseContextRetrievalTarget(
+  raw: JsonValue | undefined,
+  scenarioDir: string,
+  index: number,
+): ScenarioContextRetrievalTarget {
+  const fieldName = `contextRetrieval.targets[${index}]`;
+  const r = requireJsonObject(raw, scenarioDir, `${fieldName} must be an object.`);
+  const id = parseContextRetrievalTargetId(r.id, scenarioDir, fieldName);
+  if (r.kind === "path") {
+    if (typeof r.path !== "string" || r.path.length === 0) {
+      throw new ScenarioLoadError(
+        scenarioDir,
+        `${fieldName}.path must be a non-empty string.`,
+      );
+    }
+    return {
+      id,
+      kind: "path",
+      path: parseNormalizedRelativePath(r.path, scenarioDir, `${fieldName}.path`),
+    };
+  }
+  if (r.kind === "glob") {
+    if (typeof r.glob !== "string" || r.glob.length === 0) {
+      throw new ScenarioLoadError(
+        scenarioDir,
+        `${fieldName}.glob must be a non-empty string.`,
+      );
+    }
+    return {
+      id,
+      kind: "glob",
+      glob: parseNormalizedRelativePath(r.glob, scenarioDir, `${fieldName}.glob`),
+    };
+  }
+  if (r.kind === "path-group") {
+    return {
+      id,
+      kind: "path-group",
+      paths: parseNonEmptyPathList(r.paths, scenarioDir, `${fieldName}.paths`),
+    };
+  }
+  if (r.kind === "glob-group") {
+    return {
+      id,
+      kind: "glob-group",
+      globs: parseNonEmptyPathList(r.globs, scenarioDir, `${fieldName}.globs`),
+    };
+  }
+  throw new ScenarioLoadError(
+    scenarioDir,
+    `${fieldName}.kind must be one of path, glob, path-group, or glob-group.`,
+  );
+}
+
+function parseContextRetrievalSpec(
+  raw: JsonValue | undefined,
+  scenarioDir: string,
+): ScenarioContextRetrievalSpec | undefined {
+  if (raw === undefined) return undefined;
+  const r = requireJsonObject(
+    raw,
+    scenarioDir,
+    "contextRetrieval must be an object.",
+  );
+  if (!Array.isArray(r.targets) || r.targets.length === 0) {
+    throw new ScenarioLoadError(
+      scenarioDir,
+      "contextRetrieval.targets must be a non-empty array.",
+    );
+  }
+  const targets = r.targets.map((target, index) =>
+    parseContextRetrievalTarget(target, scenarioDir, index),
+  );
+  const seen = new Set<string>();
+  for (const target of targets) {
+    if (seen.has(target.id)) {
+      throw new ScenarioLoadError(
+        scenarioDir,
+        `contextRetrieval.targets contains duplicate id "${target.id}".`,
+      );
+    }
+    seen.add(target.id);
+  }
+  return { targets };
 }
 
 function parseStageId(
@@ -230,6 +408,10 @@ function parseStage(
       `stages[${index}].prompt must be a non-empty string.`,
     );
   }
+  const contextRetrieval = parseContextRetrievalSpec(
+    r.contextRetrieval,
+    scenarioDir,
+  );
   return {
     id,
     prompt: r.prompt,
@@ -239,6 +421,7 @@ function parseStage(
       scenarioDir,
       `stages[${index}].previewArtifacts`,
     ),
+    ...(contextRetrieval !== undefined ? { contextRetrieval } : {}),
   };
 }
 
@@ -320,6 +503,12 @@ function parseScenarioSpec(rawJson: string, scenarioDir: string): ScenarioSpecFi
         "staged scenarios must declare previewArtifacts on each stage, not at the top level.",
       );
     }
+    if (r.contextRetrieval !== undefined) {
+      throw new ScenarioLoadError(
+        scenarioDir,
+        "staged scenarios must declare contextRetrieval on each stage, not at the top level.",
+      );
+    }
     const stages = parseStages(r.stages, scenarioDir);
     const firstStage = stages[0]!;
     const finalStage = stages[stages.length - 1]!;
@@ -343,12 +532,17 @@ function parseScenarioSpec(rawJson: string, scenarioDir: string): ScenarioSpecFi
   const prompt = r.prompt as string;
   const verification = parseVerification(r.verification, scenarioDir);
   const previewArtifacts = parsePreviewArtifacts(r.previewArtifacts, scenarioDir);
+  const contextRetrieval = parseContextRetrievalSpec(
+    r.contextRetrieval,
+    scenarioDir,
+  );
   return {
     id: r.id as string,
     description: r.description as string,
     prompt,
     verification,
     previewArtifacts,
+    ...(contextRetrieval !== undefined ? { contextRetrieval } : {}),
     stageMode: "single",
     stages: [
       {
@@ -356,6 +550,7 @@ function parseScenarioSpec(rawJson: string, scenarioDir: string): ScenarioSpecFi
         prompt,
         verification,
         previewArtifacts,
+        ...(contextRetrieval !== undefined ? { contextRetrieval } : {}),
       },
     ],
   };

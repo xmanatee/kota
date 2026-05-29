@@ -203,6 +203,90 @@ describe("scenario loader", () => {
     ]);
   });
 
+  it("loads bounded context-retrieval declarations", () => {
+    writeScenario(
+      scenariosRoot,
+      "demo",
+      {
+        id: "demo",
+        description: "demo scenario",
+        prompt: "do the thing",
+        verification: { command: "true" },
+        contextRetrieval: {
+          targets: [
+            { id: "main-file", kind: "path", path: "src/main.js" },
+            { id: "source-files", kind: "glob", glob: "src/*.js" },
+            {
+              id: "entrypoints",
+              kind: "path-group",
+              paths: ["src/index.js", "src/server.js"],
+            },
+            {
+              id: "tests",
+              kind: "glob-group",
+              globs: ["test/*.js", "spec/*.js"],
+            },
+          ],
+        },
+      },
+      { "hello.txt": "hi" },
+    );
+    const loaded = loadScenario(scenariosRoot, "demo");
+    expect(loaded.spec.contextRetrieval?.targets).toEqual([
+      { id: "main-file", kind: "path", path: "src/main.js" },
+      { id: "source-files", kind: "glob", glob: "src/*.js" },
+      {
+        id: "entrypoints",
+        kind: "path-group",
+        paths: ["src/index.js", "src/server.js"],
+      },
+      {
+        id: "tests",
+        kind: "glob-group",
+        globs: ["test/*.js", "spec/*.js"],
+      },
+    ]);
+    expect(loaded.spec.stages[0]?.contextRetrieval).toEqual(
+      loaded.spec.contextRetrieval,
+    );
+  });
+
+  it("loads stage-level context-retrieval declarations", () => {
+    writeScenario(
+      scenariosRoot,
+      "demo",
+      {
+        id: "demo",
+        description: "demo staged scenario",
+        stages: [
+          {
+            id: "upgrade-v2",
+            prompt: "apply v2 release notes",
+            verification: { command: "node test-v2.js" },
+            contextRetrieval: {
+              targets: [
+                { id: "ledger-kit", kind: "path", path: "packages/ledger-kit/index.js" },
+              ],
+            },
+          },
+          {
+            id: "upgrade-v3",
+            prompt: "apply v3 release notes",
+            verification: { command: "node test-v3.js" },
+          },
+        ],
+      },
+      { "hello.txt": "hi" },
+    );
+
+    const loaded = loadScenario(scenariosRoot, "demo");
+    expect(loaded.spec.contextRetrieval).toBeUndefined();
+    expect(loaded.spec.stages[0]?.contextRetrieval?.targets).toEqual([
+      { id: "ledger-kit", kind: "path", path: "packages/ledger-kit/index.js" },
+    ]);
+    expect(loaded.spec.stages[1]?.contextRetrieval).toBeUndefined();
+  });
+
   it("rejects malformed preview artifact declarations", () => {
     const cases: [string, unknown][] = [
       ["not-array", "preview.html"],
@@ -224,6 +308,60 @@ describe("scenario loader", () => {
           prompt: "do the thing",
           verification: { command: "true" },
           previewArtifacts,
+        },
+        { "hello.txt": "hi" },
+      );
+      expect(() => loadScenario(scenariosRoot, id)).toThrow(ScenarioLoadError);
+    }
+  });
+
+  it("rejects malformed context-retrieval declarations", () => {
+    const cases: [string, unknown][] = [
+      ["not-object", "src/main.js"],
+      ["missing-targets", {}],
+      ["empty-targets", { targets: [] }],
+      ["bad-kind", { targets: [{ id: "main", kind: "file", path: "src/main.js" }] }],
+      ["bad-id", { targets: [{ id: "Main", kind: "path", path: "src/main.js" }] }],
+      ["missing-path", { targets: [{ id: "main", kind: "path" }] }],
+      ["absolute-path", { targets: [{ id: "main", kind: "path", path: "/tmp/main.js" }] }],
+      ["parent-path", { targets: [{ id: "main", kind: "glob", glob: "../*.js" }] }],
+      [
+        "duplicate-target-id",
+        {
+          targets: [
+            { id: "main", kind: "path", path: "src/main.js" },
+            { id: "main", kind: "path", path: "src/other.js" },
+          ],
+        },
+      ],
+      [
+        "empty-group",
+        { targets: [{ id: "main", kind: "path-group", paths: [] }] },
+      ],
+      [
+        "duplicate-group-path",
+        {
+          targets: [
+            {
+              id: "main",
+              kind: "path-group",
+              paths: ["src/main.js", "src/main.js"],
+            },
+          ],
+        },
+      ],
+    ];
+
+    for (const [id, contextRetrieval] of cases) {
+      writeScenario(
+        scenariosRoot,
+        id,
+        {
+          id,
+          description: "demo scenario",
+          prompt: "do the thing",
+          verification: { command: "true" },
+          contextRetrieval,
         },
         { "hello.txt": "hi" },
       );
@@ -274,6 +412,29 @@ describe("scenario loader", () => {
           stages: [
             baseStages[0],
             { ...baseStages[1], previewArtifacts: ["../preview.html"] },
+          ],
+        },
+      ],
+      [
+        "top-level-context-retrieval",
+        {
+          stages: baseStages,
+          contextRetrieval: {
+            targets: [{ id: "main", kind: "path", path: "src/main.js" }],
+          },
+        },
+      ],
+      [
+        "bad-stage-context-retrieval",
+        {
+          stages: [
+            baseStages[0],
+            {
+              ...baseStages[1],
+              contextRetrieval: {
+                targets: [{ id: "main", kind: "path", path: "../main.js" }],
+              },
+            },
           ],
         },
       ],

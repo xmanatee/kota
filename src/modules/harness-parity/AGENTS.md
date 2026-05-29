@@ -49,6 +49,10 @@ Per harness run the module writes:
   as missing post-edit verification, blind failing-command retries, edits
   after a passing verification, and missing frames from a streaming-capable
   harness.
+- `context-retrieval-diagnostics.json` — deterministic advisory diagnostics,
+  written only for scenarios or stages that declare `contextRetrieval`
+  targets, showing whether search/read/navigation actions reached expected
+  files or globs before the first implementation edit.
 - `diff.patch` — `git diff --no-index` output against the scenario's
   `initial/` tree.
 - `verification.json` — command, timeout, exit status, and tail of combined
@@ -64,10 +68,10 @@ The top-level harness directory keeps the final diff plus a compact staged
 summary in `run-meta.json`; `parity.json` carries the same per-stage status for
 side-by-side comparison.
 
-The top-level `parity.json` keeps compact capability and trajectory metadata
-beside each harness outcome, including trajectory-diagnostic warning counts
-and artifact paths, so side-by-side comparison does not require opening every
-child run directory.
+The top-level `parity.json` keeps compact capability, trajectory, and optional
+context-retrieval metadata beside each harness outcome, including warning
+counts and artifact paths, so side-by-side comparison does not require opening
+every child run directory.
 
 ## Scenario Coverage
 

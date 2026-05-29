@@ -39,6 +39,13 @@ import type {
   KotaJsonValue,
 } from "#core/agent-harness/message-protocol.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import {
+  aggregateContextRetrievalDiagnosticsMetadata,
+  buildContextRetrievalDiagnosticsArtifact,
+  CONTEXT_RETRIEVAL_DIAGNOSTICS_ARTIFACT_NAME,
+  type ContextRetrievalDiagnosticsMetadata,
+  contextRetrievalDiagnosticsMetadata,
+} from "./context-retrieval-diagnostics.js";
 import type {
   LoadedScenario,
   ScenarioStageSpec,
@@ -136,6 +143,8 @@ export type HarnessParityArtifact = {
   trajectory: HarnessParityTrajectoryMetadata;
   /** Advisory process-quality diagnostics derived from structured trajectory frames. */
   trajectoryDiagnostics: HarnessParityTrajectoryDiagnosticsMetadata;
+  /** Advisory diagnostics showing whether declared context targets were reached before edits. */
+  contextRetrievalDiagnostics?: ContextRetrievalDiagnosticsMetadata;
   /** Original scenario execution mode. */
   stageMode: "single" | "staged";
   /** Ordered stage artifacts. Single-stage scenarios contain one `main` stage. */
@@ -166,6 +175,7 @@ export type HarnessParityStageArtifact = {
   artifactDir: string;
   trajectory: HarnessParityTrajectoryMetadata;
   trajectoryDiagnostics: HarnessParityTrajectoryDiagnosticsMetadata;
+  contextRetrievalDiagnostics?: ContextRetrievalDiagnosticsMetadata;
 };
 
 export type HarnessParityStageSummary = {
@@ -179,6 +189,7 @@ export type HarnessParityStageSummary = {
   previewArtifacts: readonly PreviewArtifactResult[];
   trajectory: HarnessParityTrajectoryMetadata;
   trajectoryDiagnostics: HarnessParityTrajectoryDiagnosticsMetadata;
+  contextRetrievalDiagnostics?: ContextRetrievalDiagnosticsMetadata;
 };
 
 export type HarnessParityStagedSummary = {
@@ -744,6 +755,26 @@ function writeTrajectoryArtifacts(args: {
   };
 }
 
+function writeContextRetrievalDiagnosticsArtifact(args: {
+  artifactDir: string;
+  capability: HarnessCapabilitySnapshot;
+  messages: readonly KotaAgentMessage[];
+  stage: ScenarioStageSpec;
+}): ContextRetrievalDiagnosticsMetadata | undefined {
+  if (args.stage.contextRetrieval === undefined) return undefined;
+  const artifactPath = join(
+    args.artifactDir,
+    CONTEXT_RETRIEVAL_DIAGNOSTICS_ARTIFACT_NAME,
+  );
+  const artifact = buildContextRetrievalDiagnosticsArtifact({
+    capability: args.capability,
+    messages: args.messages,
+    expectation: args.stage.contextRetrieval,
+  });
+  writeFileSync(artifactPath, JSON.stringify(artifact, null, 2));
+  return contextRetrievalDiagnosticsMetadata(artifact, artifactPath);
+}
+
 function buildTrajectorySummary(
   artifact: TrajectoryArtifact,
   diagnostics: HarnessParityTrajectoryDiagnosticsMetadata,
@@ -1029,6 +1060,12 @@ async function runScenarioStageOnHarness(args: {
     changedFiles,
     verification: stage.verification,
   });
+  const contextRetrievalDiagnostics = writeContextRetrievalDiagnosticsArtifact({
+    artifactDir,
+    capability,
+    messages: trajectoryMessages,
+    stage,
+  });
 
   const artifact: HarnessParityStageArtifact = {
     stageId: stage.id,
@@ -1047,6 +1084,9 @@ async function runScenarioStageOnHarness(args: {
     artifactDir,
     trajectory,
     trajectoryDiagnostics,
+    ...(contextRetrievalDiagnostics !== undefined
+      ? { contextRetrievalDiagnostics }
+      : {}),
     ...(runResult?.inputTokens !== undefined
       ? { inputTokens: runResult.inputTokens }
       : {}),
@@ -1134,6 +1174,9 @@ function buildStagedSummary(
       previewArtifacts: stage.previewArtifacts,
       trajectory: stage.trajectory,
       trajectoryDiagnostics: stage.trajectoryDiagnostics,
+      ...(stage.contextRetrievalDiagnostics !== undefined
+        ? { contextRetrievalDiagnostics: stage.contextRetrievalDiagnostics }
+        : {}),
     })),
   };
 }
@@ -1173,6 +1216,11 @@ function buildStagedTraceSummary(artifact: HarnessParityArtifact): string {
   lines.push(
     `- trajectoryDiagnostics: warnings=${artifact.trajectoryDiagnostics.warningCount}, artifact=${artifact.trajectoryDiagnostics.artifactPath}`,
   );
+  if (artifact.contextRetrievalDiagnostics !== undefined) {
+    lines.push(
+      `- contextRetrievalDiagnostics: warnings=${artifact.contextRetrievalDiagnostics.warningCount}, missed=${artifact.contextRetrievalDiagnostics.missedTargetCount}, relevantBeforeEdit=${artifact.contextRetrievalDiagnostics.relevantRetrievalBeforeFirstEdit}, artifact=${artifact.contextRetrievalDiagnostics.artifactPath}`,
+    );
+  }
   lines.push(`- changedFiles (${artifact.changedFiles.length}):`);
   for (const path of artifact.changedFiles) lines.push(`  - ${path}`);
   lines.push("");
@@ -1184,6 +1232,11 @@ function buildStagedTraceSummary(artifact: HarnessParityArtifact): string {
     );
     lines.push(`  - artifacts: ${stage.artifactDir}`);
     lines.push(`  - diagnostics: ${stage.trajectoryDiagnostics.artifactPath}`);
+    if (stage.contextRetrievalDiagnostics !== undefined) {
+      lines.push(
+        `  - contextRetrieval: warnings=${stage.contextRetrievalDiagnostics.warningCount}, missed=${stage.contextRetrievalDiagnostics.missedTargetCount}, artifact=${stage.contextRetrievalDiagnostics.artifactPath}`,
+      );
+    }
   }
   lines.push("");
   lines.push("## Capability boundary");
@@ -1264,6 +1317,52 @@ function writeStagedTrajectoryArtifacts(artifact: HarnessParityArtifact): void {
   );
 }
 
+function writeStagedContextRetrievalDiagnosticsArtifact(
+  artifact: HarnessParityArtifact,
+): void {
+  if (artifact.contextRetrievalDiagnostics === undefined) return;
+  writeFileSync(
+    join(artifact.artifactDir, CONTEXT_RETRIEVAL_DIAGNOSTICS_ARTIFACT_NAME),
+    JSON.stringify(
+      {
+        version: 1,
+        status: "staged",
+        counts: {
+          expectedTargetCount:
+            artifact.contextRetrievalDiagnostics.expectedTargetCount,
+          reachedTargetCount:
+            artifact.contextRetrievalDiagnostics.reachedTargetCount,
+          missedTargetCount:
+            artifact.contextRetrievalDiagnostics.missedTargetCount,
+          retrievalActionCount:
+            artifact.contextRetrievalDiagnostics.retrievalActionCount,
+          relevantRetrievalActionCount:
+            artifact.contextRetrievalDiagnostics.relevantRetrievalActionCount,
+          preEditRelevantRetrievalActionCount:
+            artifact.contextRetrievalDiagnostics
+              .preEditRelevantRetrievalActionCount,
+          lateRelevantRetrievalActionCount:
+            artifact.contextRetrievalDiagnostics
+              .lateRelevantRetrievalActionCount,
+          noisyIrrelevantReadCount:
+            artifact.contextRetrievalDiagnostics.noisyIrrelevantReadCount,
+          unsupportedTrajectoryFrameCount:
+            artifact.contextRetrievalDiagnostics.unsupportedTrajectoryFrameCount,
+          warningCount: artifact.contextRetrievalDiagnostics.warningCount,
+        },
+        stages: artifact.stages
+          .filter((stage) => stage.contextRetrievalDiagnostics !== undefined)
+          .map((stage) => ({
+            stageId: stage.stageId,
+            diagnostics: stage.contextRetrievalDiagnostics,
+          })),
+      },
+      null,
+      2,
+    ),
+  );
+}
+
 function buildHarnessArtifact(args: {
   scenario: LoadedScenario;
   harness: AgentHarness;
@@ -1292,6 +1391,20 @@ function buildHarnessArtifact(args: {
           stages.map((stage) => stage.trajectoryDiagnostics),
           join(args.artifactDir, TRAJECTORY_DIAGNOSTICS_ARTIFACT_NAME),
         );
+  const contextRetrievalDiagnostics =
+    args.scenario.spec.stageMode === "single"
+      ? finalStage.contextRetrievalDiagnostics
+      : aggregateContextRetrievalDiagnosticsMetadata(
+          stages
+            .map((stage) => stage.contextRetrievalDiagnostics)
+            .filter(
+              (
+                diagnostics,
+              ): diagnostics is ContextRetrievalDiagnosticsMetadata =>
+                diagnostics !== undefined,
+            ),
+          join(args.artifactDir, CONTEXT_RETRIEVAL_DIAGNOSTICS_ARTIFACT_NAME),
+        );
 
   return {
     scenarioId: args.scenario.spec.id,
@@ -1309,6 +1422,9 @@ function buildHarnessArtifact(args: {
     artifactDir: args.artifactDir,
     trajectory: finalStage.trajectory,
     trajectoryDiagnostics,
+    ...(contextRetrievalDiagnostics !== undefined
+      ? { contextRetrievalDiagnostics }
+      : {}),
     stageMode: args.scenario.spec.stageMode,
     stages,
     stagedSummary,
@@ -1366,6 +1482,7 @@ function writeHarnessArtifact(args: {
       ),
     );
     writeStagedTrajectoryArtifacts(artifact);
+    writeStagedContextRetrievalDiagnosticsArtifact(artifact);
   }
 
   writeFileSync(
@@ -1494,6 +1611,11 @@ function buildTraceSummary(
   lines.push(
     `- trajectoryDiagnostics: warnings=${artifact.trajectoryDiagnostics.warningCount}, artifact=${artifact.trajectoryDiagnostics.artifactPath}`,
   );
+  if (artifact.contextRetrievalDiagnostics !== undefined) {
+    lines.push(
+      `- contextRetrievalDiagnostics: warnings=${artifact.contextRetrievalDiagnostics.warningCount}, missed=${artifact.contextRetrievalDiagnostics.missedTargetCount}, relevantBeforeEdit=${artifact.contextRetrievalDiagnostics.relevantRetrievalBeforeFirstEdit}, artifact=${artifact.contextRetrievalDiagnostics.artifactPath}`,
+    );
+  }
   lines.push(`- changedFiles (${artifact.changedFiles.length}):`);
   for (const path of artifact.changedFiles) lines.push(`  - ${path}`);
   if (artifact.previewArtifacts.length > 0) {
@@ -1631,6 +1753,9 @@ export async function runScenarioAcrossHarnesses(params: {
           capability: summarizeHarnessCapability(a.capability),
           trajectory: a.trajectory,
           trajectoryDiagnostics: a.trajectoryDiagnostics,
+          ...(a.contextRetrievalDiagnostics !== undefined
+            ? { contextRetrievalDiagnostics: a.contextRetrievalDiagnostics }
+            : {}),
           stagedSummary: a.stagedSummary,
           previewArtifacts: a.previewArtifacts,
           totalCostUsd: a.totalCostUsd,

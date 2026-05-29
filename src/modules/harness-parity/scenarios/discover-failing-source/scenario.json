@@ -5,5 +5,14 @@
   "verification": {
     "command": "node test.js",
     "timeoutMs": 30000
+  },
+  "contextRetrieval": {
+    "targets": [
+      {
+        "id": "normalizer",
+        "kind": "path",
+        "path": "src/normalize.js"
+      }
+    ]
   }
 }

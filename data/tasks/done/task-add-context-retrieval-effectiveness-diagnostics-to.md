@@ -1,12 +1,12 @@
 ---
 id: task-add-context-retrieval-effectiveness-diagnostics-to
 title: Add context-retrieval effectiveness diagnostics to harness-parity artifacts
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Derive deterministic retrieval-quality diagnostics from harness-parity trajectories so code-context tool runs show whether searches and reads reached task-relevant files before implementation.
 created_at: 2026-05-29T08:38:32.627Z
-updated_at: 2026-05-29T08:38:32.627Z
+updated_at: 2026-05-29T08:56:48.120Z
 ---
 
 ## Problem
