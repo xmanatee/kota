@@ -8,6 +8,7 @@ import {
   type PersistedBaseline,
   saveBaseline,
 } from "./baseline-store.js";
+import { OFFLINE_CONTAINER_NETWORK_POLICY } from "./provider-egress.js";
 import type { EvalRunConfiguration } from "./run-configuration.js";
 
 const sampleRunConfiguration: EvalRunConfiguration = {
@@ -78,6 +79,7 @@ const sampleRunConfiguration: EvalRunConfiguration = {
         memoryKillThresholdMB: 4096,
       },
       verification: "enforced",
+      networkPolicy: OFFLINE_CONTAINER_NETWORK_POLICY,
       gateEligible: true,
       eligibilityReason: "verified-profile",
       diagnostics: [],

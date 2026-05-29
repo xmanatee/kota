@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ExecutionProfilePreflightResult, FixtureRun } from "./fixture-run.js";
+import { OFFLINE_CONTAINER_NETWORK_POLICY } from "./provider-egress.js";
 import {
   computeFixtureDiagnostics,
   FixtureConfigurationScoringError,
@@ -21,6 +22,7 @@ const EXECUTION_PROFILE: ExecutionProfilePreflightResult = {
   requestedProfile: RESOURCE_PROFILE,
   observedOrEnforcedProfile: RESOURCE_PROFILE,
   verification: "enforced",
+  networkPolicy: OFFLINE_CONTAINER_NETWORK_POLICY,
   gateEligible: true,
   eligibilityReason: "verified-profile",
   diagnostics: [],

@@ -12,6 +12,8 @@
 
 import { isAbsolute, join } from "node:path";
 import { Command } from "commander";
+import { loadConfig } from "#core/config/config.js";
+import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import {
   DEFAULT_CALIBRATION_MIN_SAMPLE,
@@ -29,6 +31,11 @@ import type {
   EvalCalibrationOptions,
   EvalRunOptions,
 } from "./client.js";
+import {
+  type ProviderEgressProvider,
+  providerEgressProviderForPreset,
+  validateProviderEgressProxyUrl,
+} from "./provider-egress.js";
 import {
   extractAgentStepRecording,
   extractJudgeCallRecording,
@@ -55,16 +62,26 @@ function resolveCliIsolationBackend(opts: {
   containerExecutable?: string;
   containerImage?: string;
   containerKotaBinaryPath?: string;
-}): EvalRunOptions["isolationBackend"] | undefined {
+  containerNetworkPolicy?: string;
+  providerEgressNetwork?: string;
+  providerEgressProxy?: string;
+  providerEgressProvider?: string;
+}, projectDir: string): EvalRunOptions["isolationBackend"] | undefined {
   const isolation = opts.isolation ?? "host-subprocess";
+  const requestedNetworkPolicy = opts.containerNetworkPolicy ?? "offline";
   if (isolation === "host-subprocess") {
     if (
       opts.containerExecutable !== undefined ||
       opts.containerImage !== undefined ||
-      opts.containerKotaBinaryPath !== undefined
+      opts.containerKotaBinaryPath !== undefined ||
+      opts.containerNetworkPolicy !== undefined ||
+      requestedNetworkPolicy !== "offline" ||
+      opts.providerEgressNetwork !== undefined ||
+      opts.providerEgressProxy !== undefined ||
+      opts.providerEgressProvider !== undefined
     ) {
       throw new Error(
-        "--container-executable, --container-image, and --container-kota-binary-path require --isolation container.",
+        "Container and provider-egress options require --isolation container.",
       );
     }
     return undefined;
@@ -88,11 +105,101 @@ function resolveCliIsolationBackend(opts: {
       "--container-kota-binary-path must be an absolute path inside the container image.",
     );
   }
+  const networkPolicy = resolveCliContainerNetworkPolicy(
+    {
+      containerNetworkPolicy: requestedNetworkPolicy,
+      providerEgressNetwork: opts.providerEgressNetwork,
+      providerEgressProxy: opts.providerEgressProxy,
+      providerEgressProvider: opts.providerEgressProvider,
+    },
+    projectDir,
+  );
   return {
     kind: "container",
     executable: opts.containerExecutable,
     image: opts.containerImage,
     kotaBinaryPath: opts.containerKotaBinaryPath,
+    networkPolicy,
+  };
+}
+
+function resolveProviderEgressProvider(
+  rawProvider: string | undefined,
+  projectDir: string,
+): ProviderEgressProvider {
+  if (rawProvider !== undefined) {
+    if (
+      rawProvider === "anthropic" ||
+      rawProvider === "openai" ||
+      rawProvider === "google"
+    ) {
+      return rawProvider;
+    }
+    throw new Error(
+      `--provider-egress-provider must be anthropic, openai, or google, got "${rawProvider}".`,
+    );
+  }
+  return providerEgressProviderForPreset(
+    resolveActivePresetFromConfig(loadConfig(projectDir)),
+  );
+}
+
+function resolveCliContainerNetworkPolicy(
+  opts: {
+    containerNetworkPolicy: string;
+    providerEgressNetwork?: string;
+    providerEgressProxy?: string;
+    providerEgressProvider?: string;
+  },
+  projectDir: string,
+): NonNullable<
+  Extract<EvalRunOptions["isolationBackend"], { kind: "container" }>["networkPolicy"]
+> {
+  if (opts.containerNetworkPolicy === "offline") {
+    if (
+      opts.providerEgressNetwork !== undefined ||
+      opts.providerEgressProxy !== undefined ||
+      opts.providerEgressProvider !== undefined
+    ) {
+      throw new Error(
+        "--provider-egress-network, --provider-egress-proxy, and --provider-egress-provider require --container-network-policy provider-egress.",
+      );
+    }
+    return { kind: "offline" };
+  }
+  if (opts.containerNetworkPolicy !== "provider-egress") {
+    throw new Error(
+      `--container-network-policy must be "offline" or "provider-egress", got "${opts.containerNetworkPolicy}".`,
+    );
+  }
+  if (
+    opts.providerEgressNetwork === undefined ||
+    opts.providerEgressNetwork.length === 0
+  ) {
+    throw new Error(
+      "--container-network-policy provider-egress requires --provider-egress-network.",
+    );
+  }
+  if (
+    opts.providerEgressProxy === undefined ||
+    opts.providerEgressProxy.length === 0
+  ) {
+    throw new Error(
+      "--container-network-policy provider-egress requires --provider-egress-proxy.",
+    );
+  }
+  validateProviderEgressProxyUrl(opts.providerEgressProxy);
+  return {
+    kind: "provider-egress",
+    provider: resolveProviderEgressProvider(
+      opts.providerEgressProvider,
+      projectDir,
+    ),
+    enforcement: {
+      kind: "docker-internal-proxy",
+      networkName: opts.providerEgressNetwork,
+      proxyUrl: opts.providerEgressProxy,
+    },
   };
 }
 
@@ -162,6 +269,10 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
     .option("--container-executable <path>", "Docker-compatible executable for --isolation container")
     .option("--container-image <image>", "Container image for --isolation container")
     .option("--container-kota-binary-path <path>", "Absolute path to bin/kota.mjs inside the container image")
+    .option("--container-network-policy <kind>", "Container network policy: offline or provider-egress")
+    .option("--provider-egress-network <name>", "Docker internal network with provider-egress allowlist labels")
+    .option("--provider-egress-proxy <url>", "HTTP proxy URL reachable from the provider-egress Docker network")
+    .option("--provider-egress-provider <provider>", "Provider endpoint catalog: anthropic, openai, or google")
     .option("--keep", "Keep fixture working directories for post-mortem")
     .action(async (opts: {
       fixture: string[];
@@ -175,10 +286,14 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
       containerExecutable?: string;
       containerImage?: string;
       containerKotaBinaryPath?: string;
+      containerNetworkPolicy?: string;
+      providerEgressNetwork?: string;
+      providerEgressProxy?: string;
+      providerEgressProvider?: string;
       keep?: boolean;
     }) => {
       const repeats = parsePositiveInt(opts.repeats, "repeats");
-      const isolationBackend = resolveCliIsolationBackend(opts);
+      const isolationBackend = resolveCliIsolationBackend(opts, ctx.cwd);
       const runOptions: EvalRunOptions = {
         repeatCount: repeats,
         ...(opts.fixture.length > 0 && { fixtureIds: opts.fixture }),

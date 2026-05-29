@@ -7,9 +7,12 @@
  */
 import { mkdirSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { resolveAgentHarness } from "#core/agent-harness/index.js";
+import { loadConfig } from "#core/config/config.js";
 import { deriveProjectId } from "#core/daemon/project-registry.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import { getCriticPromptHash } from "#modules/autonomy/critic.js";
 import {
   aggregateCalibration,
@@ -37,6 +40,10 @@ import {
 } from "./fixture.js";
 import type { ResourceProfile } from "./fixture-run.js";
 import { ObjectiveMetricValidationError } from "./objective-metrics.js";
+import {
+  type ProviderEgressTaskSubprocessBoundaryRequest,
+  providerEgressAuthEnvKeysFor,
+} from "./provider-egress.js";
 import {
   compareRunConfigurations,
   missingPriorRunConfigurationComparison,
@@ -66,6 +73,44 @@ function kotaBinaryPathFor(projectDir: string): string {
 
 function isolationBackendForRun(options: EvalRunOptions): SubprocessIsolationBackend {
   return options.isolationBackend ?? { kind: "host-subprocess" };
+}
+
+function providerEgressTaskBoundaryForRun(
+  projectDir: string,
+  backend: SubprocessIsolationBackend,
+): ProviderEgressTaskSubprocessBoundaryRequest | undefined {
+  if (
+    backend.kind !== "container" ||
+    backend.networkPolicy?.kind !== "provider-egress"
+  ) {
+    return undefined;
+  }
+  const activePreset = resolveActivePresetFromConfig(loadConfig(projectDir));
+  const harness = resolveAgentHarness(activePreset.harness);
+  return {
+    agentHarness: activePreset.harness,
+    toolControl: harness.toolControl,
+  };
+}
+
+function providerEgressAuthEnvForRun(
+  backend: SubprocessIsolationBackend,
+  env: NodeJS.ProcessEnv = process.env,
+): Record<string, string> | undefined {
+  if (
+    backend.kind !== "container" ||
+    backend.networkPolicy?.kind !== "provider-egress"
+  ) {
+    return undefined;
+  }
+  const authEnv: Record<string, string> = {};
+  for (const key of providerEgressAuthEnvKeysFor(
+    backend.networkPolicy.provider,
+  )) {
+    const value = env[key];
+    if (value !== undefined) authEnv[key] = value;
+  }
+  return Object.keys(authEnv).length > 0 ? authEnv : undefined;
 }
 
 export function listEvalFixtures(projectDir: string): EvalListResult {
@@ -136,9 +181,15 @@ export async function runEvalHarness(
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const runArtifactBaseDir = join(evalRunsRootFor(projectDir), stamp);
   mkdirSync(runArtifactBaseDir, { recursive: true });
+  const isolationBackend = isolationBackendForRun(options);
   const executor = createSubprocessExecutor({
     kotaBinaryPath: kotaBinaryPathFor(projectDir),
-    isolationBackend: isolationBackendForRun(options),
+    isolationBackend,
+    extraEnv: providerEgressAuthEnvForRun(isolationBackend),
+    providerEgressTaskBoundary: providerEgressTaskBoundaryForRun(
+      projectDir,
+      isolationBackend,
+    ),
   });
   const requestedProfile = buildProfile(options, DEFAULT_HOST_CLASS);
   const repeatCount = options.repeatCount ?? DEFAULT_REPEATS;

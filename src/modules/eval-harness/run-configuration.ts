@@ -17,6 +17,7 @@ import type {
   ExecutionProfilePreflightResult,
   ResourceProfile,
 } from "./fixture-run.js";
+import type { ExecutionNetworkPolicy } from "./provider-egress.js";
 import type { FixtureRunReport } from "./runner.js";
 
 type JsonValue =
@@ -206,6 +207,52 @@ function resourceProfileJson(profile: ResourceProfile): JsonObject {
   };
 }
 
+function executionNetworkPolicyJson(policy: ExecutionNetworkPolicy): JsonObject {
+  if (policy.kind === "host-subprocess" || policy.kind === "offline") {
+    return {
+      kind: policy.kind,
+      enforcementMode: policy.enforcementMode,
+      allowedProviderEndpoints: [],
+      gateEligible: policy.gateEligible,
+    };
+  }
+  return {
+    kind: policy.kind,
+    provider: policy.provider,
+    enforcementMode: policy.enforcementMode,
+    networkName: policy.networkName,
+    proxyUrl: policy.proxyUrl,
+    allowedProviderEndpoints: policy.allowedProviderEndpoints.map((endpoint) => ({
+      id: endpoint.id,
+      protocol: endpoint.protocol,
+      host: endpoint.host,
+      port: endpoint.port,
+    })),
+    containerNetworkScope: policy.containerNetworkScope,
+    taskSubprocessBoundary:
+      policy.taskSubprocessBoundary.kind === "agent-harness-unresolved"
+        ? {
+            kind: policy.taskSubprocessBoundary.kind,
+            gateEligible: policy.taskSubprocessBoundary.gateEligible,
+          }
+        : policy.taskSubprocessBoundary.kind === "kota-tool-provider-env-filter"
+          ? {
+              kind: policy.taskSubprocessBoundary.kind,
+              agentHarness: policy.taskSubprocessBoundary.agentHarness,
+              providerProxyEnv: policy.taskSubprocessBoundary.providerProxyEnv,
+              providerAuthEnv: policy.taskSubprocessBoundary.providerAuthEnv,
+              networkBoundary: policy.taskSubprocessBoundary.networkBoundary,
+              gateEligible: policy.taskSubprocessBoundary.gateEligible,
+            }
+        : {
+            kind: policy.taskSubprocessBoundary.kind,
+            agentHarness: policy.taskSubprocessBoundary.agentHarness,
+            gateEligible: policy.taskSubprocessBoundary.gateEligible,
+          },
+    gateEligible: policy.gateEligible,
+  };
+}
+
 function executionProfileJson(
   profile: ExecutionProfilePreflightResult,
 ): JsonObject {
@@ -217,6 +264,7 @@ function executionProfileJson(
       profile.observedOrEnforcedProfile,
     ),
     verification: profile.verification,
+    networkPolicy: executionNetworkPolicyJson(profile.networkPolicy),
     gateEligible: profile.gateEligible,
   };
   if (profile.status === "verified") {
@@ -247,6 +295,7 @@ function executionProfileComparableJson(
     status: profile.status,
     backendKind: profile.backendKind,
     verification: profile.verification,
+    networkPolicy: executionNetworkPolicyJson(profile.networkPolicy),
     gateEligible: profile.gateEligible,
     reason: executionProfileReason(profile),
   };

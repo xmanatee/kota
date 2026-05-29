@@ -205,6 +205,28 @@ export {
   evaluatePredicateExpectations,
   evaluatePredicates,
 } from "./predicates.js";
+export type {
+  ContainerNetworkPolicyRequest,
+  ExecutionNetworkPolicy,
+  ProviderEgressEndpoint,
+  ProviderEgressNetworkEnforcement,
+  ProviderEgressProvider,
+  ProviderEgressTaskSubprocessBoundary,
+  ProviderEgressTaskSubprocessBoundaryRequest,
+} from "./provider-egress.js";
+export {
+  enforcedProviderEgressNetworkPolicy,
+  HOST_SUBPROCESS_NETWORK_POLICY,
+  OFFLINE_CONTAINER_NETWORK_POLICY,
+  PROVIDER_EGRESS_NETWORK_LABELS,
+  providerEgressAuthEnvKeysFor,
+  providerEgressEndpointLabelValue,
+  providerEgressEndpointsFor,
+  providerEgressProviderForPreset,
+  providerEgressTaskSubprocessBoundary,
+  unavailableProviderEgressNetworkPolicy,
+  validateProviderEgressProxyUrl,
+} from "./provider-egress.js";
 export {
   createReplayAgentHarness,
   REPLAY_AGENT_HARNESS_NAME_ENV,

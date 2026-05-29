@@ -21,6 +21,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { PRESET_ENV_VAR } from "#core/model/preset.js";
+import {
+  OFFLINE_CONTAINER_NETWORK_POLICY,
+  PROVIDER_EGRESS_NETWORK_LABELS,
+  providerEgressEndpointLabelValue,
+  providerEgressEndpointsFor,
+} from "./provider-egress.js";
 import { REPLAY_AGENT_HARNESS_NAME_ENV } from "./replay-harness.js";
 import {
   createSubprocessExecutor,
@@ -57,6 +63,13 @@ function writeFakeContainerBackend(path: string): void {
       "if (args[0] === '--version') process.exit(0);",
       "if (args[0] === 'image' && args[1] === 'inspect') {",
       "  process.exit(args[2] === 'missing:image' ? 2 : 0);",
+      "}",
+      "if (args[0] === 'network' && args[1] === 'inspect') {",
+      "  if (args[2] === 'missing-network') process.exit(2);",
+      "  const labels = JSON.parse(process.env.KOTA_FAKE_CONTAINER_NETWORK_LABELS ?? '{}');",
+      "  const internal = process.env.KOTA_FAKE_CONTAINER_NETWORK_INTERNAL !== 'false';",
+      "  console.log(JSON.stringify([{ Internal: internal, Labels: labels }]));",
+      "  process.exit(0);",
       "}",
       "if (args[0] !== 'run') process.exit(64);",
       "const env = {};",
@@ -385,6 +398,234 @@ describe("createSubprocessExecutor", () => {
     expect(preflight.verification).toBe("enforced");
     expect(preflight.gateEligible).toBe(true);
     expect(preflight.observedOrEnforcedProfile).toEqual(requestedProfile);
+    expect(preflight.networkPolicy).toEqual(OFFLINE_CONTAINER_NETWORK_POLICY);
+  });
+
+  it("marks provider-egress non-gating when the whole fixture container shares the provider network", () => {
+    const fakeContainer = join(binariesDir, "fake-container.mjs");
+    writeFakeContainerBackend(fakeContainer);
+    const allowedEndpoints = providerEgressEndpointsFor("openai");
+    process.env.KOTA_FAKE_CONTAINER_NETWORK_LABELS = JSON.stringify({
+      [PROVIDER_EGRESS_NETWORK_LABELS.policy]: "provider-egress",
+      [PROVIDER_EGRESS_NETWORK_LABELS.provider]: "openai",
+      [PROVIDER_EGRESS_NETWORK_LABELS.endpoints]:
+        providerEgressEndpointLabelValue(allowedEndpoints),
+    });
+    try {
+      const executor = createSubprocessExecutor({
+        kotaBinaryPath: join(binariesDir, "unused.mjs"),
+        providerEgressTaskBoundary: {
+          agentHarness: "openai-tools",
+          toolControl: "kota",
+        },
+        isolationBackend: {
+          kind: "container",
+          executable: fakeContainer,
+          image: "kota-eval:latest",
+          kotaBinaryPath: "/opt/kota/bin/kota.mjs",
+          networkPolicy: {
+            kind: "provider-egress",
+            provider: "openai",
+            enforcement: {
+              kind: "docker-internal-proxy",
+              networkName: "kota-provider-egress",
+              proxyUrl: "http://provider-proxy:8080",
+            },
+          },
+        },
+      });
+      const preflight = executor.preflight({
+        hostClass: "container-test",
+        cpuAllocationCores: 2,
+        cpuKillThresholdCores: 2,
+        memoryAllocationMB: 1024,
+        memoryKillThresholdMB: 2048,
+      });
+
+      expect(preflight.status).toBe("non-gating");
+      if (preflight.status !== "non-gating") throw new Error("unreachable");
+      expect(preflight.backendKind).toBe("container");
+      expect(preflight.verification).toBe("enforced");
+      expect(preflight.gateEligible).toBe(false);
+      expect(preflight.nonGatingReason).toBe(
+        "provider-egress-task-boundary-unverified",
+      );
+      expect(preflight.networkPolicy).toMatchObject({
+        kind: "provider-egress",
+        provider: "openai",
+        enforcementMode: "docker-internal-proxy",
+        networkName: "kota-provider-egress",
+        proxyUrl: "http://provider-proxy:8080",
+        containerNetworkScope: "whole-container-provider-proxy",
+        taskSubprocessBoundary: {
+          kind: "kota-tool-provider-env-filter",
+          agentHarness: "openai-tools",
+          providerProxyEnv: "stripped",
+          providerAuthEnv: "stripped",
+          networkBoundary: "shared-container-network",
+          gateEligible: false,
+        },
+        gateEligible: false,
+      });
+      expect(preflight.networkPolicy.allowedProviderEndpoints).toEqual(
+        allowedEndpoints,
+      );
+    } finally {
+      delete process.env.KOTA_FAKE_CONTAINER_NETWORK_LABELS;
+    }
+  });
+
+  it("marks provider-egress non-gating for native CLI tool runtimes", () => {
+    const fakeContainer = join(binariesDir, "fake-container.mjs");
+    writeFakeContainerBackend(fakeContainer);
+    const allowedEndpoints = providerEgressEndpointsFor("openai");
+    process.env.KOTA_FAKE_CONTAINER_NETWORK_LABELS = JSON.stringify({
+      [PROVIDER_EGRESS_NETWORK_LABELS.policy]: "provider-egress",
+      [PROVIDER_EGRESS_NETWORK_LABELS.provider]: "openai",
+      [PROVIDER_EGRESS_NETWORK_LABELS.endpoints]:
+        providerEgressEndpointLabelValue(allowedEndpoints),
+    });
+    try {
+      const executor = createSubprocessExecutor({
+        kotaBinaryPath: join(binariesDir, "unused.mjs"),
+        providerEgressTaskBoundary: {
+          agentHarness: "codex",
+          toolControl: "native",
+        },
+        isolationBackend: {
+          kind: "container",
+          executable: fakeContainer,
+          image: "kota-eval:latest",
+          kotaBinaryPath: "/opt/kota/bin/kota.mjs",
+          networkPolicy: {
+            kind: "provider-egress",
+            provider: "openai",
+            enforcement: {
+              kind: "docker-internal-proxy",
+              networkName: "kota-provider-egress",
+              proxyUrl: "http://provider-proxy:8080",
+            },
+          },
+        },
+      });
+      const preflight = executor.preflight({
+        hostClass: "container-test",
+        cpuAllocationCores: 2,
+        cpuKillThresholdCores: 2,
+        memoryAllocationMB: 1024,
+        memoryKillThresholdMB: 2048,
+      });
+
+      expect(preflight.status).toBe("non-gating");
+      if (preflight.status !== "non-gating") throw new Error("unreachable");
+      expect(preflight.nonGatingReason).toBe(
+        "provider-egress-task-boundary-unverified",
+      );
+      expect(preflight.networkPolicy).toMatchObject({
+        kind: "provider-egress",
+        enforcementMode: "docker-internal-proxy",
+        taskSubprocessBoundary: {
+          kind: "native-tool-runtime-unverified",
+          agentHarness: "codex",
+          gateEligible: false,
+        },
+        gateEligible: false,
+      });
+    } finally {
+      delete process.env.KOTA_FAKE_CONTAINER_NETWORK_LABELS;
+    }
+  });
+
+  it("marks provider-egress non-gating when the Docker network cannot enforce it", () => {
+    const fakeContainer = join(binariesDir, "fake-container.mjs");
+    writeFakeContainerBackend(fakeContainer);
+    const executor = createSubprocessExecutor({
+      kotaBinaryPath: join(binariesDir, "unused.mjs"),
+      isolationBackend: {
+        kind: "container",
+        executable: fakeContainer,
+        image: "kota-eval:latest",
+        kotaBinaryPath: "/opt/kota/bin/kota.mjs",
+        networkPolicy: {
+          kind: "provider-egress",
+          provider: "openai",
+          enforcement: {
+            kind: "docker-internal-proxy",
+            networkName: "missing-network",
+            proxyUrl: "http://provider-proxy:8080",
+          },
+        },
+      },
+    });
+    const preflight = executor.preflight({
+      hostClass: "container-test",
+      cpuAllocationCores: 2,
+      cpuKillThresholdCores: 2,
+      memoryAllocationMB: 1024,
+      memoryKillThresholdMB: 2048,
+    });
+
+    expect(preflight.status).toBe("non-gating");
+    if (preflight.status !== "non-gating") throw new Error("unreachable");
+    expect(preflight.nonGatingReason).toBe(
+      "provider-egress-enforcement-unavailable",
+    );
+    expect(preflight.networkPolicy).toMatchObject({
+      kind: "provider-egress",
+      enforcementMode: "unavailable",
+      gateEligible: false,
+    });
+  });
+
+  it("refuses to run a container when provider-egress enforcement is unavailable", async () => {
+    const fakeContainer = join(binariesDir, "fake-container.mjs");
+    const fakeKota = join(binariesDir, "unused-kota.mjs");
+    const fakeContainerLog = join(workingDir, "container-should-not-run.jsonl");
+    writeFakeContainerBackend(fakeContainer);
+    writeFakeKotaScript(fakeKota, "process.exit(0);\n");
+    const executor = createSubprocessExecutor({
+      kotaBinaryPath: fakeKota,
+      isolationBackend: {
+        kind: "container",
+        executable: fakeContainer,
+        image: "kota-eval:latest",
+        kotaBinaryPath: "/opt/kota/bin/kota.mjs",
+        networkPolicy: {
+          kind: "provider-egress",
+          provider: "openai",
+          enforcement: {
+            kind: "docker-internal-proxy",
+            networkName: "missing-network",
+            proxyUrl: "http://provider-proxy:8080",
+          },
+        },
+      },
+    });
+    const preflight = executor.preflight({
+      hostClass: "container-test",
+      cpuAllocationCores: 2,
+      cpuKillThresholdCores: 2,
+      memoryAllocationMB: 1024,
+      memoryKillThresholdMB: 2048,
+    });
+    if (preflight.status !== "non-gating") throw new Error("unreachable");
+
+    process.env.KOTA_FAKE_CONTAINER_LOG = fakeContainerLog;
+    try {
+      const outcome = await executor.execute({
+        workflowName: "noop",
+        workingDir,
+        budgetMs: 5_000,
+        executionProfile: preflight,
+      });
+
+      expect(outcome.kind).toBe("error");
+      if (outcome.kind !== "error") throw new Error("unreachable");
+      expect(outcome.message).toMatch(/refusing to downgrade/);
+      expect(existsSync(fakeContainerLog)).toBe(false);
+    } finally {
+      delete process.env.KOTA_FAKE_CONTAINER_LOG;
+    }
   });
 
   it("remaps HOME and KOTA_PROJECT_DIR inside the child process", async () => {
@@ -493,6 +734,7 @@ describe("createSubprocessExecutor", () => {
     process.env.KOTA_FAKE_CONTAINER_KOTA_BINARY_PATH = containerKotaBinaryPath;
     process.env.KOTA_FAKE_CONTAINER_KOTA_BINARY_SOURCE = fakeKota;
     process.env.KOTA_FAKE_CONTAINER_LOG = fakeContainerLog;
+    process.env.KOTA_PARENT_SECRET_LEAK_TEST = "do-not-forward";
     try {
       try {
         const outcome = await executor.execute({
@@ -513,6 +755,7 @@ describe("createSubprocessExecutor", () => {
       delete process.env.KOTA_FAKE_CONTAINER_LOG;
       delete process.env.KOTA_FAKE_CONTAINER_KOTA_BINARY_SOURCE;
       delete process.env.KOTA_FAKE_CONTAINER_KOTA_BINARY_PATH;
+      delete process.env.KOTA_PARENT_SECRET_LEAK_TEST;
     }
 
     const envCapture = JSON.parse(
@@ -535,6 +778,7 @@ describe("createSubprocessExecutor", () => {
       command: string;
       commandArgs: string[];
       mounts: string[];
+      env: Record<string, string>;
       workdir: string;
     };
     expect(log.image).toBe("kota-eval:latest");
@@ -567,6 +811,132 @@ describe("createSubprocessExecutor", () => {
     expect(log.args[networkIndex + 1]).toBe("none");
     expect(log.args).not.toContain("--privileged");
     expect(log.args).not.toContain("--device");
+    expect(log.env.KOTA_PARENT_SECRET_LEAK_TEST).toBeUndefined();
+  });
+
+  it("runs provider-egress containers as non-gating with provider proxy and auth env", async () => {
+    const fakeContainer = join(binariesDir, "fake-container.mjs");
+    const fakeKota = join(binariesDir, "kota-provider-egress.mjs");
+    const containerKotaBinaryPath = "/opt/kota/bin/kota.mjs";
+    const fakeContainerLog = join(workingDir, "container-provider-log.jsonl");
+    const endpoints = providerEgressEndpointsFor("openai");
+    writeFakeContainerBackend(fakeContainer);
+    writeFakeKotaScript(
+      fakeKota,
+      [
+        "import { mkdirSync, writeFileSync } from 'node:fs';",
+        "import { join } from 'node:path';",
+        "writeFileSync(join(process.cwd(), 'provider-env.json'), JSON.stringify({",
+        "  httpProxy: process.env.HTTP_PROXY,",
+        "  httpsProxy: process.env.HTTPS_PROXY,",
+        "  apiKey: process.env.OPENAI_API_KEY,",
+        "  authEnvKeys: process.env.KOTA_EVAL_PROVIDER_EGRESS_AUTH_ENV_KEYS,",
+        "  provider: process.env.KOTA_EVAL_PROVIDER_EGRESS_PROVIDER,",
+        "  endpoints: process.env.KOTA_EVAL_PROVIDER_EGRESS_ENDPOINTS,",
+        "  taskBoundary: process.env.KOTA_EVAL_PROVIDER_EGRESS_TASK_BOUNDARY,",
+        "  agentHarness: process.env.KOTA_EVAL_PROVIDER_EGRESS_AGENT_HARNESS,",
+        "}));",
+        "const runDir = join(process.cwd(), '.kota', 'runs', 'run-1-noop-provider-egress');",
+        "mkdirSync(runDir, { recursive: true });",
+        "writeFileSync(join(runDir, 'metadata.json'), JSON.stringify({",
+        "  id: 'run-1-noop-provider-egress', workflow: 'noop', status: 'success',",
+        "}));",
+      ].join("\n"),
+    );
+    process.env.KOTA_FAKE_CONTAINER_KOTA_BINARY_PATH = containerKotaBinaryPath;
+    process.env.KOTA_FAKE_CONTAINER_KOTA_BINARY_SOURCE = fakeKota;
+    process.env.KOTA_FAKE_CONTAINER_LOG = fakeContainerLog;
+    process.env.KOTA_FAKE_CONTAINER_NETWORK_LABELS = JSON.stringify({
+      [PROVIDER_EGRESS_NETWORK_LABELS.policy]: "provider-egress",
+      [PROVIDER_EGRESS_NETWORK_LABELS.provider]: "openai",
+      [PROVIDER_EGRESS_NETWORK_LABELS.endpoints]:
+        providerEgressEndpointLabelValue(endpoints),
+    });
+    try {
+      const executor = createSubprocessExecutor({
+        kotaBinaryPath: fakeKota,
+        extraEnv: { OPENAI_API_KEY: "sk-provider-egress-test" },
+        providerEgressTaskBoundary: {
+          agentHarness: "openai-tools",
+          toolControl: "kota",
+        },
+        isolationBackend: {
+          kind: "container",
+          executable: fakeContainer,
+          image: "kota-eval:latest",
+          kotaBinaryPath: containerKotaBinaryPath,
+          networkPolicy: {
+            kind: "provider-egress",
+            provider: "openai",
+            enforcement: {
+              kind: "docker-internal-proxy",
+              networkName: "kota-provider-egress",
+              proxyUrl: "http://provider-proxy:8080",
+            },
+          },
+        },
+      });
+      const preflight = executor.preflight({
+        hostClass: "container-test",
+        cpuAllocationCores: 2,
+        cpuKillThresholdCores: 2,
+        memoryAllocationMB: 1024,
+        memoryKillThresholdMB: 2048,
+      });
+      expect(preflight.status).toBe("non-gating");
+      expect(preflight.gateEligible).toBe(false);
+
+      const outcome = await executor.execute({
+        workflowName: "noop",
+        workingDir,
+        budgetMs: 5_000,
+        executionProfile: preflight,
+      });
+
+      expect(outcome.kind).toBe("completed");
+      const envCapture = JSON.parse(
+        readFileSync(join(workingDir, "provider-env.json"), "utf8"),
+      ) as Record<string, string>;
+      const endpointLabel = providerEgressEndpointLabelValue(endpoints);
+      expect(envCapture.httpProxy).toBe("http://provider-proxy:8080");
+      expect(envCapture.httpsProxy).toBe("http://provider-proxy:8080");
+      expect(envCapture.apiKey).toBe("sk-provider-egress-test");
+      expect(envCapture.authEnvKeys).toBe("OPENAI_API_KEY");
+      expect(envCapture.provider).toBe("openai");
+      expect(envCapture.endpoints).toBe(endpointLabel);
+      expect(envCapture.taskBoundary).toBe("kota-tool-provider-env-filter");
+      expect(envCapture.agentHarness).toBe("openai-tools");
+
+      const log = JSON.parse(
+        readFileSync(fakeContainerLog, "utf8").trim().split("\n")[0]!,
+      ) as {
+        args: string[];
+        env: Record<string, string>;
+      };
+      const networkIndex = log.args.indexOf("--network");
+      expect(log.args[networkIndex + 1]).toBe("kota-provider-egress");
+      expect(log.env.HTTPS_PROXY).toBe("http://provider-proxy:8080");
+      expect(log.env.OPENAI_API_KEY).toBe("sk-provider-egress-test");
+      expect(log.env.KOTA_EVAL_PROVIDER_EGRESS_ACTIVE).toBe("1");
+      expect(log.env.KOTA_EVAL_PROVIDER_EGRESS_AUTH_ENV_KEYS).toBe(
+        "OPENAI_API_KEY",
+      );
+      expect(log.env.KOTA_EVAL_PROVIDER_EGRESS_ENDPOINTS).toBe(endpointLabel);
+      expect(log.env.KOTA_EVAL_PROVIDER_EGRESS_SCOPE).toBe(
+        "whole-container-provider-proxy",
+      );
+      expect(log.env.KOTA_EVAL_PROVIDER_EGRESS_TASK_BOUNDARY).toBe(
+        "kota-tool-provider-env-filter",
+      );
+      expect(log.env.KOTA_EVAL_PROVIDER_EGRESS_AGENT_HARNESS).toBe(
+        "openai-tools",
+      );
+    } finally {
+      delete process.env.KOTA_FAKE_CONTAINER_LOG;
+      delete process.env.KOTA_FAKE_CONTAINER_KOTA_BINARY_SOURCE;
+      delete process.env.KOTA_FAKE_CONTAINER_KOTA_BINARY_PATH;
+      delete process.env.KOTA_FAKE_CONTAINER_NETWORK_LABELS;
+    }
   });
 
   it("reports timeout when the container backend exceeds the fixture budget", async () => {

@@ -19,6 +19,7 @@ import type {
   AggregateObjectiveMetric,
   ObjectiveMetricValidationReason,
 } from "./objective-metrics.js";
+import type { ContainerNetworkPolicyRequest } from "./provider-egress.js";
 import type {
   EvalRunConfigurationComparison,
   EvalRunConfigurationOperatorSummary,
@@ -47,6 +48,7 @@ export type EvalRunIsolationBackend =
       executable: string;
       image: string;
       kotaBinaryPath: string;
+      networkPolicy?: ContainerNetworkPolicyRequest;
     };
 
 /**

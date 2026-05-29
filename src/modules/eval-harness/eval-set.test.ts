@@ -8,6 +8,10 @@ import type {
   ExecutionProfilePreflightResult,
   ResourceProfile,
 } from "./fixture-run.js";
+import {
+  HOST_SUBPROCESS_NETWORK_POLICY,
+  OFFLINE_CONTAINER_NETWORK_POLICY,
+} from "./provider-egress.js";
 import type { WorkflowExecutor } from "./runner.js";
 
 const PROFILE: ResourceProfile = {
@@ -24,6 +28,7 @@ const EXECUTION_PROFILE: ExecutionProfilePreflightResult = {
   requestedProfile: PROFILE,
   observedOrEnforcedProfile: PROFILE,
   verification: "enforced",
+  networkPolicy: OFFLINE_CONTAINER_NETWORK_POLICY,
   gateEligible: true,
   eligibilityReason: "verified-profile",
   diagnostics: [],
@@ -554,6 +559,7 @@ describe("runEvalSet", () => {
       requestedProfile: PROFILE,
       observedOrEnforcedProfile: PROFILE,
       verification: "unverified",
+      networkPolicy: HOST_SUBPROCESS_NETWORK_POLICY,
       gateEligible: false,
       nonGatingReason: "host-subprocess-unverified",
       diagnostics: [],
@@ -633,6 +639,7 @@ describe("runEvalSet", () => {
         cpuKillThresholdCores: PROFILE.cpuKillThresholdCores + 1,
       },
       verification: "observed",
+      networkPolicy: HOST_SUBPROCESS_NETWORK_POLICY,
       gateEligible: false,
       rejectionReason: "requested-observed-mismatch",
       diagnostics: [],

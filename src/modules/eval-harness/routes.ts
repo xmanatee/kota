@@ -21,12 +21,28 @@ import type {
 } from "./client.js";
 import { runEvalHarness } from "./eval-operations.js";
 import { evalHarnessSetCompleted } from "./events.js";
+import {
+  type ContainerNetworkPolicyRequest,
+  type ProviderEgressProvider,
+  validateProviderEgressProxyUrl,
+} from "./provider-egress.js";
 
 type IsolationBackendRequest = {
   kind?: string;
   executable?: string;
   image?: string;
   kotaBinaryPath?: string;
+  networkPolicy?: object;
+};
+
+type NetworkPolicyRequest = {
+  kind?: string;
+  provider?: string;
+  enforcement?: {
+    kind?: string;
+    networkName?: string;
+    proxyUrl?: string;
+  };
 };
 
 function writeJson(res: ServerResponse, status: number, body: unknown): void {
@@ -138,6 +154,75 @@ function validateIsolationBackend(raw: object): EvalRunIsolationBackend {
     executable: r.executable,
     image: r.image,
     kotaBinaryPath: r.kotaBinaryPath,
+    networkPolicy: validateNetworkPolicy(r.networkPolicy),
+  };
+}
+
+function validateProvider(raw: string): ProviderEgressProvider {
+  if (raw === "anthropic" || raw === "openai" || raw === "google") {
+    return raw;
+  }
+  throw new Error(
+    "isolationBackend.networkPolicy.provider must be anthropic, openai, or google.",
+  );
+}
+
+function validateNetworkPolicy(raw: object | undefined): ContainerNetworkPolicyRequest {
+  if (raw === undefined) return { kind: "offline" };
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    throw new Error("isolationBackend.networkPolicy must be an object.");
+  }
+  const r = raw as NetworkPolicyRequest;
+  if (r.kind === "offline") {
+    return { kind: "offline" };
+  }
+  if (r.kind !== "provider-egress") {
+    throw new Error(
+      'isolationBackend.networkPolicy.kind must be "offline" or "provider-egress".',
+    );
+  }
+  if (typeof r.provider !== "string" || r.provider.length === 0) {
+    throw new Error(
+      "isolationBackend.networkPolicy.provider must be a non-empty string.",
+    );
+  }
+  if (
+    typeof r.enforcement !== "object" ||
+    r.enforcement === null ||
+    Array.isArray(r.enforcement)
+  ) {
+    throw new Error("isolationBackend.networkPolicy.enforcement must be an object.");
+  }
+  if (r.enforcement.kind !== "docker-internal-proxy") {
+    throw new Error(
+      'isolationBackend.networkPolicy.enforcement.kind must be "docker-internal-proxy".',
+    );
+  }
+  if (
+    typeof r.enforcement.networkName !== "string" ||
+    r.enforcement.networkName.length === 0
+  ) {
+    throw new Error(
+      "isolationBackend.networkPolicy.enforcement.networkName must be a non-empty string.",
+    );
+  }
+  if (
+    typeof r.enforcement.proxyUrl !== "string" ||
+    r.enforcement.proxyUrl.length === 0
+  ) {
+    throw new Error(
+      "isolationBackend.networkPolicy.enforcement.proxyUrl must be a non-empty string.",
+    );
+  }
+  validateProviderEgressProxyUrl(r.enforcement.proxyUrl);
+  return {
+    kind: "provider-egress",
+    provider: validateProvider(r.provider),
+    enforcement: {
+      kind: "docker-internal-proxy",
+      networkName: r.enforcement.networkName,
+      proxyUrl: r.enforcement.proxyUrl,
+    },
   };
 }
 

@@ -9,6 +9,7 @@
 
 import type { CodeHealthDiagnostics } from "./code-health-diagnostics.js";
 import type { ObservedObjectiveMetric } from "./objective-metrics.js";
+import type { ExecutionNetworkPolicy } from "./provider-egress.js";
 
 /**
  * Container resource configuration observed for a single fixture run.
@@ -49,7 +50,10 @@ export type ExecutionProfileDiagnostic = {
 export type ExecutionProfileNonGatingReason =
   | "host-subprocess-unverified"
   | "isolation-backend-unavailable"
-  | "isolation-backend-config-invalid";
+  | "isolation-backend-config-invalid"
+  | "provider-egress-enforcement-unavailable"
+  | "provider-egress-policy-invalid"
+  | "provider-egress-task-boundary-unverified";
 
 export type ExecutionProfileRejectionReason = "requested-observed-mismatch";
 
@@ -60,6 +64,7 @@ export type ExecutionProfilePreflightResult =
       requestedProfile: ResourceProfile;
       observedOrEnforcedProfile: ResourceProfile;
       verification: Exclude<ExecutionProfileVerification, "unverified">;
+      networkPolicy: ExecutionNetworkPolicy;
       gateEligible: true;
       eligibilityReason: "verified-profile";
       diagnostics: ExecutionProfileDiagnostic[];
@@ -70,6 +75,7 @@ export type ExecutionProfilePreflightResult =
       requestedProfile: ResourceProfile;
       observedOrEnforcedProfile: ResourceProfile;
       verification: ExecutionProfileVerification;
+      networkPolicy: ExecutionNetworkPolicy;
       gateEligible: false;
       nonGatingReason: ExecutionProfileNonGatingReason;
       diagnostics: ExecutionProfileDiagnostic[];
@@ -80,6 +86,7 @@ export type ExecutionProfilePreflightResult =
       requestedProfile: ResourceProfile;
       observedOrEnforcedProfile: ResourceProfile;
       verification: Extract<ExecutionProfileVerification, "observed">;
+      networkPolicy: ExecutionNetworkPolicy;
       gateEligible: false;
       rejectionReason: ExecutionProfileRejectionReason;
       diagnostics: ExecutionProfileDiagnostic[];

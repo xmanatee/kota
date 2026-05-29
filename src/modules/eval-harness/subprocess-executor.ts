@@ -23,9 +23,25 @@ import { PRESET_ENV_VAR } from "#core/model/preset.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type {
   ExecutionProfilePreflightResult,
+  ExecutionProfileVerification,
   ResourceProfile,
 } from "./fixture-run.js";
 import { resourceProfilesComparable } from "./fixture-run.js";
+import {
+  type ContainerNetworkPolicyRequest,
+  type ExecutionNetworkPolicy,
+  enforcedProviderEgressNetworkPolicy,
+  HOST_SUBPROCESS_NETWORK_POLICY,
+  OFFLINE_CONTAINER_NETWORK_POLICY,
+  PROVIDER_EGRESS_NETWORK_LABELS,
+  type ProviderEgressTaskSubprocessBoundaryRequest,
+  providerEgressAuthEnvKeysFor,
+  providerEgressEndpointLabelValue,
+  providerEgressEndpointsFor,
+  providerEgressTaskSubprocessBoundary,
+  unavailableProviderEgressNetworkPolicy,
+  validateProviderEgressProxyUrl,
+} from "./provider-egress.js";
 import { REPLAY_AGENT_HARNESS_NAME_ENV } from "./replay-harness.js";
 import type {
   WorkflowExecutionOutcome,
@@ -42,6 +58,13 @@ export type SubprocessExecutorOptions = {
    * effects cannot leak from the operator's real environment.
    */
   extraEnv?: Record<string, string>;
+  /**
+   * Active agent harness tool-control facts used to decide whether a
+   * provider-egress container can honestly gate. KOTA-hosted tool loops route
+   * task subprocesses through KOTA's filtered tool env; native CLI tool loops
+   * own their subprocess env and therefore remain runnable but non-gating.
+   */
+  providerEgressTaskBoundary?: ProviderEgressTaskSubprocessBoundaryRequest;
   /**
    * Optional isolation backend request. Host subprocess execution is the
    * default and is explicitly non-gating because it cannot enforce CPU or
@@ -64,6 +87,11 @@ export type SubprocessIsolationBackend =
        * The image must preserve the package layout so `../dist` exists.
        */
       kotaBinaryPath: string;
+      /**
+       * Container network policy. Omitted means the strict offline default:
+       * Docker receives `--network none` and no provider proxy env.
+       */
+      networkPolicy?: ContainerNetworkPolicyRequest;
     };
 
 type RunMetadataSnapshot = {
@@ -78,6 +106,27 @@ type WorkflowRunMetadataSnapshot = RunMetadataSnapshot & {
 const REPLAY_PRESET_ID = "claude";
 const CONTAINER_DEFAULT_PATH =
   "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
+
+type DockerNetworkInspectRecord = {
+  Internal?: boolean;
+  Labels?: Record<string, string> | null;
+};
+
+type ContainerNetworkPreflight =
+  | {
+      status: "verified";
+      policy: ExecutionNetworkPolicy;
+      diagnostics: ExecutionProfilePreflightResult["diagnostics"];
+    }
+  | {
+      status: "non-gating";
+      policy: ExecutionNetworkPolicy;
+      nonGatingReason: Extract<
+        ExecutionProfilePreflightResult,
+        { status: "non-gating" }
+      >["nonGatingReason"];
+      diagnostics: ExecutionProfilePreflightResult["diagnostics"];
+    };
 
 export function detectHostSubprocessResourceProfile(
   hostClass: string,
@@ -155,6 +204,7 @@ function enforceableContainerProfile(
 function rejectContainerProfile(
   requestedProfile: ResourceProfile,
   enforceableProfile: ResourceProfile,
+  networkPolicy: ExecutionNetworkPolicy,
 ): ExecutionProfilePreflightResult {
   return {
     status: "rejected",
@@ -162,6 +212,7 @@ function rejectContainerProfile(
     requestedProfile,
     observedOrEnforcedProfile: enforceableProfile,
     verification: "observed",
+    networkPolicy,
     gateEligible: false,
     rejectionReason: "requested-observed-mismatch",
     diagnostics: [
@@ -194,6 +245,7 @@ function preflightHostSubprocess(
       requestedProfile,
       observedOrEnforcedProfile: observedProfile,
       verification: "observed",
+      networkPolicy: HOST_SUBPROCESS_NETWORK_POLICY,
       gateEligible: false,
       rejectionReason: "requested-observed-mismatch",
       diagnostics: [
@@ -212,19 +264,215 @@ function preflightHostSubprocess(
     requestedProfile,
     observedOrEnforcedProfile: observedProfile,
     verification: "unverified",
+    networkPolicy: HOST_SUBPROCESS_NETWORK_POLICY,
     gateEligible: false,
     nonGatingReason: "host-subprocess-unverified",
     diagnostics,
   };
 }
 
+function containerNetworkPolicyRequest(
+  backend: Extract<SubprocessIsolationBackend, { kind: "container" }>,
+): ContainerNetworkPolicyRequest {
+  return backend.networkPolicy ?? { kind: "offline" };
+}
+
+function nonGatingNetworkPreflight(params: {
+  request: Extract<ContainerNetworkPolicyRequest, { kind: "provider-egress" }>;
+  taskBoundary?: ProviderEgressTaskSubprocessBoundaryRequest;
+  reason: Extract<
+    ExecutionProfilePreflightResult,
+    { status: "non-gating" }
+  >["nonGatingReason"];
+  message: string;
+}): ContainerNetworkPreflight {
+  return {
+    status: "non-gating",
+    policy: unavailableProviderEgressNetworkPolicy(
+      params.request,
+      providerEgressTaskSubprocessBoundary(params.taskBoundary),
+    ),
+    nonGatingReason: params.reason,
+    diagnostics: [{ severity: "warning", message: params.message }],
+  };
+}
+
+function parseDockerNetworkInspect(
+  stdout: string,
+): DockerNetworkInspectRecord | null {
+  try {
+    const parsed = JSON.parse(stdout) as DockerNetworkInspectRecord[];
+    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+    return parsed[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function validateProviderEgressNetwork(
+  record: DockerNetworkInspectRecord | null,
+  request: Extract<ContainerNetworkPolicyRequest, { kind: "provider-egress" }>,
+): string | null {
+  if (record === null) {
+    return "Docker network inspect did not return a parseable network record.";
+  }
+  if (record.Internal !== true) {
+    return "Provider-egress requires a Docker internal network so the fixture container has no direct broad internet route.";
+  }
+  const labels = record.Labels ?? {};
+  const expectedEndpoints = providerEgressEndpointLabelValue(
+    providerEgressEndpointsFor(request.provider),
+  );
+  if (labels[PROVIDER_EGRESS_NETWORK_LABELS.policy] !== "provider-egress") {
+    return `Docker network is missing ${PROVIDER_EGRESS_NETWORK_LABELS.policy}=provider-egress.`;
+  }
+  if (labels[PROVIDER_EGRESS_NETWORK_LABELS.provider] !== request.provider) {
+    return `Docker network provider label must be ${request.provider}.`;
+  }
+  if (labels[PROVIDER_EGRESS_NETWORK_LABELS.endpoints] !== expectedEndpoints) {
+    return `Docker network endpoint label must be ${expectedEndpoints}.`;
+  }
+  return null;
+}
+
+function preflightContainerNetworkPolicy(
+  backend: Extract<SubprocessIsolationBackend, { kind: "container" }>,
+  taskBoundaryRequest: ProviderEgressTaskSubprocessBoundaryRequest | undefined,
+): ContainerNetworkPreflight {
+  const request = containerNetworkPolicyRequest(backend);
+  if (request.kind === "offline") {
+    return {
+      status: "verified",
+      policy: OFFLINE_CONTAINER_NETWORK_POLICY,
+      diagnostics: [
+        {
+          severity: "info",
+          message:
+            "Container network policy is offline; Docker run will use --network none.",
+        },
+      ],
+    };
+  }
+
+  try {
+    validateProviderEgressProxyUrl(request.enforcement.proxyUrl);
+  } catch (err) {
+    return nonGatingNetworkPreflight({
+      request,
+      taskBoundary: taskBoundaryRequest,
+      reason: "provider-egress-policy-invalid",
+      message: (err as Error).message,
+    });
+  }
+
+  const networkProbe = spawnSync(
+    backend.executable,
+    ["network", "inspect", request.enforcement.networkName],
+    {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  if (networkProbe.status !== 0 || networkProbe.error !== undefined) {
+    const detail = diagnosticText(networkProbe);
+    return nonGatingNetworkPreflight({
+      request,
+      taskBoundary: taskBoundaryRequest,
+      reason: "provider-egress-enforcement-unavailable",
+      message:
+        `Provider-egress Docker network "${request.enforcement.networkName}" is not inspectable through "${backend.executable}".` +
+        (detail.length > 0 ? ` ${detail}` : ""),
+    });
+  }
+
+  const invalidReason = validateProviderEgressNetwork(
+    parseDockerNetworkInspect(networkProbe.stdout),
+    request,
+  );
+  if (invalidReason !== null) {
+    return nonGatingNetworkPreflight({
+      request,
+      taskBoundary: taskBoundaryRequest,
+      reason: "provider-egress-enforcement-unavailable",
+      message: invalidReason,
+    });
+  }
+
+  const taskBoundary = providerEgressTaskSubprocessBoundary(
+    taskBoundaryRequest,
+  );
+  const policy = enforcedProviderEgressNetworkPolicy(request, taskBoundary);
+  if (!policy.gateEligible) {
+    const detail =
+      taskBoundary.kind === "kota-tool-provider-env-filter"
+        ? `agent harness "${taskBoundary.agentHarness}" routes tools through KOTA, so task subprocesses strip provider proxy and auth env, but they still share the fixture container's provider-egress network namespace`
+        : taskBoundary.kind === "native-tool-runtime-unverified"
+          ? `agent harness "${taskBoundary.agentHarness}" owns a native tool runtime, so KOTA cannot strip provider proxy or auth env from task/candidate subprocesses launched inside that runtime`
+          : "the active agent harness could not be resolved, so KOTA cannot prove task/candidate subprocesses strip provider proxy and auth env";
+    return {
+      status: "non-gating",
+      policy,
+      nonGatingReason: "provider-egress-task-boundary-unverified",
+      diagnostics: [
+        {
+          severity: "warning",
+          message:
+            `Provider-egress network "${request.enforcement.networkName}" is enforceable for ${request.provider}, but ${detail}.`,
+        },
+      ],
+    };
+  }
+  if (taskBoundary.kind !== "kota-tool-provider-env-filter") {
+    throw new Error("Internal provider-egress boundary mismatch.");
+  }
+
+  return {
+    status: "verified",
+    policy,
+    diagnostics: [
+      {
+        severity: "info",
+        message:
+          `Provider-egress network "${request.enforcement.networkName}" is an internal Docker network with allowlist labels for ${request.provider}; ` +
+          `agent harness "${taskBoundary.agentHarness}" routes tools through KOTA, so task subprocesses strip provider proxy and auth env before execution.`,
+      },
+    ],
+  };
+}
+
+function containerNetworkVerification(
+  networkPreflight: ContainerNetworkPreflight,
+): ExecutionProfileVerification {
+  return networkPreflight.policy.enforcementMode === "docker-internal-proxy"
+    ? "enforced"
+    : "unverified";
+}
+
+function unavailableContainerNetworkPolicy(
+  backend: Extract<SubprocessIsolationBackend, { kind: "container" }>,
+  taskBoundaryRequest?: ProviderEgressTaskSubprocessBoundaryRequest,
+): ExecutionNetworkPolicy {
+  const request = containerNetworkPolicyRequest(backend);
+  return request.kind === "offline"
+    ? OFFLINE_CONTAINER_NETWORK_POLICY
+    : unavailableProviderEgressNetworkPolicy(
+        request,
+        providerEgressTaskSubprocessBoundary(taskBoundaryRequest),
+      );
+}
+
 function preflightContainerBackend(
   backend: Extract<SubprocessIsolationBackend, { kind: "container" }>,
   requestedProfile: ResourceProfile,
+  taskBoundaryRequest: ProviderEgressTaskSubprocessBoundaryRequest | undefined,
 ): ExecutionProfilePreflightResult {
   const enforceableProfile = enforceableContainerProfile(requestedProfile);
   if (enforceableProfile !== null) {
-    return rejectContainerProfile(requestedProfile, enforceableProfile);
+    return rejectContainerProfile(
+      requestedProfile,
+      enforceableProfile,
+      unavailableContainerNetworkPolicy(backend, taskBoundaryRequest),
+    );
   }
 
   const probe = spawnSync(backend.executable, ["--version"], {
@@ -240,6 +488,10 @@ function preflightContainerBackend(
         requestedProfile.hostClass,
       ),
       verification: "observed",
+      networkPolicy: unavailableContainerNetworkPolicy(
+        backend,
+        taskBoundaryRequest,
+      ),
       gateEligible: false,
       nonGatingReason: "isolation-backend-unavailable",
       diagnostics: [
@@ -266,6 +518,10 @@ function preflightContainerBackend(
       requestedProfile,
       observedOrEnforcedProfile: requestedProfile,
       verification: "unverified",
+      networkPolicy: unavailableContainerNetworkPolicy(
+        backend,
+        taskBoundaryRequest,
+      ),
       gateEligible: false,
       nonGatingReason: "isolation-backend-config-invalid",
       diagnostics: [
@@ -278,12 +534,31 @@ function preflightContainerBackend(
       ],
     };
   }
+  const networkPreflight = preflightContainerNetworkPolicy(
+    backend,
+    taskBoundaryRequest,
+  );
+  if (networkPreflight.status === "non-gating") {
+    return {
+      status: "non-gating",
+      backendKind: "container",
+      requestedProfile,
+      observedOrEnforcedProfile: requestedProfile,
+      verification: containerNetworkVerification(networkPreflight),
+      networkPolicy: networkPreflight.policy,
+      gateEligible: false,
+      nonGatingReason: networkPreflight.nonGatingReason,
+      diagnostics: networkPreflight.diagnostics,
+    };
+  }
+
   return {
     status: "verified",
     backendKind: "container",
     requestedProfile,
     observedOrEnforcedProfile: requestedProfile,
     verification: "enforced",
+    networkPolicy: networkPreflight.policy,
     gateEligible: true,
     eligibilityReason: "verified-profile",
     diagnostics: [
@@ -292,19 +567,40 @@ function preflightContainerBackend(
         message:
           `Container backend "${backend.executable}" and image "${backend.image}" are available; run arguments enforce the requested CPU and memory profile and use image-local KOTA binary "${backend.kotaBinaryPath}".`,
       },
+      ...networkPreflight.diagnostics,
     ],
   };
+}
+
+function containerExecutionProfileCanRun(
+  profile: ExecutionProfilePreflightResult | undefined,
+): profile is ExecutionProfilePreflightResult & { backendKind: "container" } {
+  if (profile === undefined || profile.backendKind !== "container") {
+    return false;
+  }
+  if (profile.status === "verified") return true;
+  return (
+    profile.status === "non-gating" &&
+    profile.nonGatingReason === "provider-egress-task-boundary-unverified" &&
+    profile.networkPolicy.kind === "provider-egress" &&
+    profile.networkPolicy.enforcementMode === "docker-internal-proxy"
+  );
 }
 
 function preflightExecutionProfile(
   backend: SubprocessIsolationBackend,
   requestedProfile: ResourceProfile,
+  taskBoundaryRequest: ProviderEgressTaskSubprocessBoundaryRequest | undefined,
 ): ExecutionProfilePreflightResult {
   switch (backend.kind) {
     case "host-subprocess":
       return preflightHostSubprocess(requestedProfile);
     case "container":
-      return preflightContainerBackend(backend, requestedProfile);
+      return preflightContainerBackend(
+        backend,
+        requestedProfile,
+        taskBoundaryRequest,
+      );
   }
 }
 
@@ -344,6 +640,7 @@ function containerExecutionEnv(
   options: SubprocessExecutorOptions,
   request: WorkflowExecutionRequest,
   kotaDistDir: string,
+  networkPolicy: ExecutionNetworkPolicy,
 ): Record<string, string> {
   const basePath = options.extraEnv?.PATH ?? CONTAINER_DEFAULT_PATH;
   const pathWithShims =
@@ -356,11 +653,46 @@ function containerExecutionEnv(
     KOTA_PROJECT_DIR: request.workingDir,
     KOTA_DIST_DIR: kotaDistDir,
     PATH: pathWithShims,
+    ...containerNetworkEnv(networkPolicy),
     ...envWithReplay(request),
   });
   return Object.fromEntries(
     Object.entries(env).filter((entry): entry is [string, string] => entry[1] !== undefined),
   );
+}
+
+function containerNetworkEnv(
+  networkPolicy: ExecutionNetworkPolicy,
+): Record<string, string> {
+  if (
+    networkPolicy.kind !== "provider-egress" ||
+    networkPolicy.enforcementMode !== "docker-internal-proxy"
+  ) {
+    return {};
+  }
+  const endpoints = providerEgressEndpointLabelValue(
+    networkPolicy.allowedProviderEndpoints,
+  );
+  return {
+    KOTA_EVAL_PROVIDER_EGRESS_ACTIVE: "1",
+    KOTA_EVAL_PROVIDER_EGRESS_AUTH_ENV_KEYS:
+      providerEgressAuthEnvKeysFor(networkPolicy.provider).join(","),
+    HTTP_PROXY: networkPolicy.proxyUrl,
+    HTTPS_PROXY: networkPolicy.proxyUrl,
+    KOTA_EVAL_PROVIDER_EGRESS_ENDPOINTS: endpoints,
+    KOTA_EVAL_PROVIDER_EGRESS_PROVIDER: networkPolicy.provider,
+    KOTA_EVAL_PROVIDER_EGRESS_PROXY_URL: networkPolicy.proxyUrl,
+    KOTA_EVAL_PROVIDER_EGRESS_SCOPE: networkPolicy.containerNetworkScope,
+    KOTA_EVAL_PROVIDER_EGRESS_TASK_BOUNDARY:
+      networkPolicy.taskSubprocessBoundary.kind,
+    ...(networkPolicy.taskSubprocessBoundary.kind !==
+    "agent-harness-unresolved"
+      ? {
+          KOTA_EVAL_PROVIDER_EGRESS_AGENT_HARNESS:
+            networkPolicy.taskSubprocessBoundary.agentHarness,
+        }
+      : {}),
+  };
 }
 
 function envArgs(env: Record<string, string>): string[] {
@@ -408,6 +740,7 @@ function containerRunArgs(params: {
   execArgs: string[];
 }): string[] {
   const profile = params.executionProfile.observedOrEnforcedProfile;
+  const networkPolicy = params.executionProfile.networkPolicy;
   const mountArgs = containerMountArgs({
     workingDir: params.workingDir,
     replayRecordingsRoot: params.replayRecordingsRoot,
@@ -416,8 +749,7 @@ function containerRunArgs(params: {
     "run",
     "--rm",
     "--init",
-    "--network",
-    "none",
+    ...containerNetworkArgs(networkPolicy),
     "--cpus",
     cpuArg(profile.cpuKillThresholdCores),
     "--memory-reservation",
@@ -432,6 +764,16 @@ function containerRunArgs(params: {
     "node",
     ...params.execArgs,
   ];
+}
+
+function containerNetworkArgs(networkPolicy: ExecutionNetworkPolicy): string[] {
+  if (
+    networkPolicy.kind === "provider-egress" &&
+    networkPolicy.enforcementMode === "docker-internal-proxy"
+  ) {
+    return ["--network", networkPolicy.networkName];
+  }
+  return ["--network", "none"];
 }
 
 function bindMountArg(source: string, readonly: boolean): string {
@@ -514,7 +856,11 @@ export function createSubprocessExecutor(
   const isolationBackend = options.isolationBackend ?? { kind: "host-subprocess" };
   return {
     preflight(requestedProfile) {
-      return preflightExecutionProfile(isolationBackend, requestedProfile);
+      return preflightExecutionProfile(
+        isolationBackend,
+        requestedProfile,
+        options.providerEgressTaskBoundary,
+      );
     },
     async execute(request: WorkflowExecutionRequest): Promise<WorkflowExecutionOutcome> {
       const startMs = Date.now();
@@ -541,8 +887,7 @@ export function createSubprocessExecutor(
               env: hostExecutionEnv(options, request, hostKotaDistDir),
               label: "kota workflow exec",
             }
-          : request.executionProfile?.status === "verified" &&
-              request.executionProfile.backendKind === "container"
+          : containerExecutionProfileCanRun(request.executionProfile)
             ? {
                 command: isolationBackend.executable,
                 args: containerRunArgs({
@@ -554,6 +899,7 @@ export function createSubprocessExecutor(
                     options,
                     request,
                     containerKotaDistDir(isolationBackend),
+                    request.executionProfile.networkPolicy,
                   ),
                   execArgs: workflowExecArgs(
                     isolationBackend.kotaBinaryPath,

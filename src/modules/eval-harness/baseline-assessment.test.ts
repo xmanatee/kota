@@ -8,6 +8,10 @@ import type {
   ExecutionProfilePreflightResult,
   ResourceProfile,
 } from "./fixture-run.js";
+import {
+  HOST_SUBPROCESS_NETWORK_POLICY,
+  OFFLINE_CONTAINER_NETWORK_POLICY,
+} from "./provider-egress.js";
 import type { EvalRunConfiguration } from "./run-configuration.js";
 
 const stableProfile: ResourceProfile = {
@@ -32,6 +36,7 @@ function verifiedProfile(
     requestedProfile: profile,
     observedOrEnforcedProfile: profile,
     verification: "enforced",
+    networkPolicy: OFFLINE_CONTAINER_NETWORK_POLICY,
     gateEligible: true,
     eligibilityReason: "verified-profile",
     diagnostics: [],
@@ -47,6 +52,7 @@ function observedVerifiedProfile(
     requestedProfile: profile,
     observedOrEnforcedProfile: profile,
     verification: "observed",
+    networkPolicy: OFFLINE_CONTAINER_NETWORK_POLICY,
     gateEligible: true,
     eligibilityReason: "verified-profile",
     diagnostics: [],
@@ -202,6 +208,7 @@ describe("assessAgainstBaseline", () => {
       requestedProfile: stableProfile,
       observedOrEnforcedProfile: stableProfile,
       verification: "unverified",
+      networkPolicy: HOST_SUBPROCESS_NETWORK_POLICY,
       gateEligible: false,
       nonGatingReason: "host-subprocess-unverified",
       diagnostics: [],
@@ -222,6 +229,7 @@ describe("assessAgainstBaseline", () => {
       requestedProfile: stableProfile,
       observedOrEnforcedProfile: driftedProfile,
       verification: "observed",
+      networkPolicy: HOST_SUBPROCESS_NETWORK_POLICY,
       gateEligible: false,
       rejectionReason: "requested-observed-mismatch",
       diagnostics: [],

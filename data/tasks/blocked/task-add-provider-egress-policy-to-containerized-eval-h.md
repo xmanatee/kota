@@ -1,12 +1,12 @@
 ---
 id: task-add-provider-egress-policy-to-containerized-eval-h
 title: Add provider-egress policy to containerized eval-harness runs
-status: ready
+status: blocked
 priority: p2
 area: modules
 summary: Let containerized eval-harness agent steps reach only configured model-provider endpoints while keeping task code offline, so live-builder fixtures can become gate-eligible without broad internet access.
 created_at: 2026-05-29T10:32:22.816Z
-updated_at: 2026-05-29T10:32:22.816Z
+updated_at: 2026-05-29T11:50:15.000Z
 ---
 
 ## Problem
@@ -77,6 +77,38 @@ The default container policy remains `offline` and continues to use
   fixture compatibility, and refusal to silently downgrade to host subprocess.
 - Existing eval-harness container, host-subprocess, replay-smoke, and fixture
   loading tests remain green.
+
+## Unblock Precondition
+
+```
+kind: operator-capture
+path: .kota/runs/provider-egress-live-pass
+description: live provider-egress eval-harness artifact — operator runs a non-replay fixture such as `builder-trivial-edit` with `pnpm kota eval run --fixture builder-trivial-edit --repeats 1 --isolation container --container-executable docker --container-image kota-eval:latest --container-kota-binary-path /opt/kota/bin/kota.mjs --container-network-policy provider-egress --provider-egress-network <internal-provider-egress-network> --provider-egress-proxy http://<provider-proxy-host>:<port> --provider-egress-provider <provider>` in an environment with the selected provider auth configured and a Docker internal provider-egress network labeled with the matching allowlist. Store the full transcript, eval-resource-profile-preflight.json, eval-set-report.json, and the produced fixture-run.json under .kota/runs/provider-egress-live-pass/. The run must not use `KOTA_EVAL_HARNESS_REPLAY_ROOT`, replay-backed fixtures, or a fake container executable.
+```
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-05-29T11:50:15.000Z -->
+
+## Status (2026-05-29 builder repair)
+
+The typed provider-egress policy, Docker network-label preflight, execution
+profile recording, provider proxy env for the KOTA process, explicit
+provider-auth env allowlisting, and KOTA tool-launched task subprocess
+provider proxy/auth-env filtering are implemented. Provider-egress runs are
+intentionally runnable but non-gating because the current Docker backend
+attaches the whole fixture container to the provider-egress network; KOTA can
+strip provider env from its own tool subprocesses, but it cannot yet prove
+task/candidate subprocesses are network-isolated from the provider proxy.
+Focused local tests pass for offline command construction, provider-egress
+command construction, unavailable enforcement diagnostics, shared-network
+non-gating diagnostics, parent-env non-leakage, provider-auth forwarding, and
+task subprocess provider proxy/auth-env stripping.
+
+The required live provider container run is still not complete in this
+environment: no provider auth variables are present and the sandbox does not
+provide an operator-configured Docker provider-egress proxy/network. The prior
+artifact used a replay-backed fixture and fake container executable, so it was
+not valid evidence for the live-provider Done When item. This task stays
+blocked on the operator-captured live pass above.
 
 ## Source / Intent
 

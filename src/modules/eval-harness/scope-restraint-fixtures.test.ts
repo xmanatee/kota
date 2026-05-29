@@ -13,6 +13,7 @@ import type {
   ExecutionProfilePreflightResult,
   ResourceProfile,
 } from "./fixture-run.js";
+import { OFFLINE_CONTAINER_NETWORK_POLICY } from "./provider-egress.js";
 import {
   cleanupFixtureWorkingDir,
   runFixture,
@@ -37,6 +38,7 @@ const TEST_EXECUTION_PROFILE: ExecutionProfilePreflightResult = {
   requestedProfile: TEST_PROFILE,
   observedOrEnforcedProfile: TEST_PROFILE,
   verification: "enforced",
+  networkPolicy: OFFLINE_CONTAINER_NETWORK_POLICY,
   gateEligible: true,
   eligibilityReason: "verified-profile",
   diagnostics: [],
