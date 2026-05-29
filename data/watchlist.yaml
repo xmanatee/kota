@@ -506,9 +506,9 @@ resources:
     added: "2026-05-17"
     notes: "GitHub Agentic Workflows is a GitHub Actions-hosted agent workflow runtime; monitor for event-trigger, safe-output, input-sanitization, and multi-engine guardrail patterns relevant to KOTA's workflow runtime."
     snapshot:
-      fingerprint: sha256:4dc644a8e849ff941737652fd7770c62
-      summary: "GitHub Agentic Workflows still reinforces KOTA's existing workflow guardrail and trial-mode posture; no new task was opened."
-      last_seen_at: "2026-05-20T02:32:53.824Z"
+      fingerprint: sha256:b836805b9e0619f55d0a92a0a22e9d22
+      summary: "GitHub Agentic Workflows now has a concrete Agent Performance Analyzer signal: repeated multi-day workflow failures are detected from run evidence and auto-escalated, which opened task-escalate-persistent-workflow-failure-patterns-into for KOTA's matching deterministic repair-task gap."
+      last_seen_at: "2026-05-29T02:51:44.897Z"
   - url: https://github.com/github/copilot-cli/blob/main/changelog.md
     added: "2026-05-26"
     notes: "GitHub Copilot CLI changelog is a fast-moving peer terminal-agent signal. Monitor for delegate/subagent guardrails, permissions and autopilot behavior, session resume/control, MCP/plugin/skill loading, security-review commands, and terminal UX constraints that map to KOTA's session, delegate, workflow, and operator-client runtime."
