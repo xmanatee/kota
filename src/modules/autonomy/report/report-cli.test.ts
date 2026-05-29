@@ -137,6 +137,7 @@ describe("kota report CLI", () => {
     expect(parsed.windowDays).toBe(7);
     expect(Array.isArray(parsed.cost.byWorkflow)).toBe(true);
     expect(parsed.explorer.byClassification).toHaveLength(3);
+    expect(Array.isArray(parsed.trajectoryDiagnostics.activePatterns)).toBe(true);
   });
 
   it("respects --days override", async () => {

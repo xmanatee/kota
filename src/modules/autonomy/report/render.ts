@@ -25,6 +25,7 @@ import type {
   ExplorerBalance,
   QueueBalance,
   ReportPriority,
+  TrajectoryDiagnosticReport,
 } from "./aggregate.js";
 
 const DOLLARS_DECIMALS = 2;
@@ -91,6 +92,9 @@ export function renderAutonomyReport(data: AutonomyReportData): RenderNode {
     blank(),
     heading("Builder breakdown", 2),
     ...renderBuilderBreakdown(data.builder),
+    blank(),
+    heading("Trajectory diagnostics", 2),
+    ...renderTrajectoryDiagnostics(data.trajectoryDiagnostics),
     blank(),
     heading("Blockers", 2),
     ...renderBlockers(data.blockers),
@@ -230,6 +234,30 @@ function renderBuilderBreakdown(builder: BuilderBreakdown): RenderNode[] {
       plain("  "),
       span(row.classification.padEnd(10), classificationRole(row.classification)),
       plain(` ${String(row.commits).padStart(3)}   ${fmtUsd(row.totalCostUsd).padStart(8)} (${pct(row.commits, builder.totalCommittedRuns)})`),
+    ));
+  }
+  return lines;
+}
+
+function renderTrajectoryDiagnostics(
+  report: TrajectoryDiagnosticReport,
+): RenderNode[] {
+  if (report.activePatterns.length === 0) {
+    return [line(span("(no recurring trajectory diagnostic patterns)", "muted"))];
+  }
+  const lines: RenderNode[] = [
+    line(span("Top active patterns", "muted", true)),
+  ];
+  for (const pattern of report.activePatterns) {
+    lines.push(line(
+      plain("  "),
+      span(`${String(pattern.runCount).padStart(2)}x`, "warn"),
+      plain(" "),
+      plain(`${pattern.workflow}/${pattern.stepId}`.padEnd(30)),
+      plain(" "),
+      span(pattern.code, "info"),
+      plain(" -> "),
+      span(pattern.repairTaskId, "accent"),
     ));
   }
   return lines;

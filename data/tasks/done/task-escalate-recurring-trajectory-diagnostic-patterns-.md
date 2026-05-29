@@ -1,12 +1,12 @@
 ---
 id: task-escalate-recurring-trajectory-diagnostic-patterns-
 title: Escalate recurring trajectory-diagnostic patterns into repair tasks
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Aggregate repeated workflow agent-step trajectory diagnostic warnings from run artifacts and open stable, idempotent repair tasks when the same process-quality pattern keeps recurring.
 created_at: 2026-05-29T05:22:54.401Z
-updated_at: 2026-05-29T05:22:54.401Z
+updated_at: 2026-05-29T05:39:11.419Z
 ---
 
 ## Problem

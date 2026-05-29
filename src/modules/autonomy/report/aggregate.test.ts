@@ -79,6 +79,41 @@ function writeRunSummary(
   );
 }
 
+function writeTrajectoryDiagnostics(
+  runsDir: string,
+  runId: string,
+  stepId: string,
+): void {
+  const stepsDir = join(runsDir, runId, "steps");
+  mkdirSync(stepsDir, { recursive: true });
+  writeFileSync(
+    join(stepsDir, `${stepId}.trajectory-diagnostics.json`),
+    JSON.stringify({
+      version: 1,
+      status: "supported",
+      emitsAgentMessageStream: true,
+      counts: {
+        warningCount: 1,
+        unsupportedTrajectoryCount: 0,
+        missingStreamingFramesCount: 0,
+        missingFinalVerificationAfterEditCount: 1,
+        repeatedIdenticalFailingCommandCount: 0,
+        editAfterSuccessfulVerificationCount: 0,
+        longPreambleWithoutTaskTouchCount: 0,
+      },
+      diagnostics: [
+        {
+          code: "missing_final_verification_after_edit",
+          severity: "warning",
+          summary: "A file-editing action was not followed by verification.",
+          frameIndexes: [4],
+          details: ["lastEditFrame=4", "lastEditTool=apply_patch"],
+        },
+      ],
+    }),
+  );
+}
+
 describe("classifyTaskShape", () => {
   const shape = (area: string, title = "", summary = "") =>
     classifyTaskShape({ area, title, summary });
@@ -467,6 +502,39 @@ describe("aggregateAutonomyReport", () => {
       "operator-capture": 1,
       "missing-section": 1,
     });
+  });
+
+  it("surfaces top active recurring trajectory-diagnostic patterns", () => {
+    for (const [index, hour] of [9, 10, 11].entries()) {
+      const runId = `2026-04-28T${String(hour).padStart(2, "0")}-00-00-000Z-builder-td${index}`;
+      writeRun(runsDir, runId, {
+        workflow: "builder",
+        startedAt: new Date(NOW - (4 - index) * 60 * 60 * 1000).toISOString(),
+        completedAt: new Date(NOW - (4 - index) * 60 * 60 * 1000 + 1000).toISOString(),
+        status: "success",
+        durationMs: 1000,
+        steps: [],
+      });
+      writeTrajectoryDiagnostics(runsDir, runId, "build");
+    }
+
+    const report = aggregateAutonomyReport({
+      projectDir,
+      runsDir,
+      windowEndMs: NOW,
+      windowDays: 7,
+    });
+
+    expect(report.trajectoryDiagnostics.activePatterns).toHaveLength(1);
+    expect(report.trajectoryDiagnostics.activePatterns[0]).toMatchObject({
+      workflow: "builder",
+      stepId: "build",
+      code: "missing_final_verification_after_edit",
+      runCount: 3,
+    });
+    expect(
+      report.trajectoryDiagnostics.activePatterns[0]?.repairTaskId,
+    ).toMatch(/^task-repair-trajectory-diagnostic-pattern-/);
   });
 
   it("breaks cost down by workflow over the window", () => {

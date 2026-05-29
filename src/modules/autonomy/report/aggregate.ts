@@ -16,6 +16,11 @@ import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
 import {
+  DEFAULT_TRAJECTORY_DIAGNOSTIC_REPORT_LIMIT,
+  detectRecurringTrajectoryDiagnosticPatterns,
+  type TrajectoryDiagnosticPattern,
+} from "#modules/autonomy/trajectory-diagnostic-escalation.js";
+import {
   type BlockedPreconditionKind,
   parseBlockedPrecondition,
 } from "#modules/repo-tasks/blocked-precondition.js";
@@ -132,6 +137,19 @@ export type CostBreakdown = {
   byWorkflow: WorkflowCostRow[];
 };
 
+export type TrajectoryDiagnosticPatternSummary = {
+  workflow: string;
+  stepId: string;
+  code: TrajectoryDiagnosticPattern["code"];
+  runCount: number;
+  repairTaskId: string;
+  evidenceArtifactPaths: string[];
+};
+
+export type TrajectoryDiagnosticReport = {
+  activePatterns: TrajectoryDiagnosticPatternSummary[];
+};
+
 export type AutonomyReportData = {
   windowStartedAt: string;
   windowEndedAt: string;
@@ -140,6 +158,7 @@ export type AutonomyReportData = {
   doneInWindow: QueueBalance;
   explorer: ExplorerBalance;
   builder: BuilderBreakdown;
+  trajectoryDiagnostics: TrajectoryDiagnosticReport;
   blockers: BlockerClassMix;
   cost: CostBreakdown;
 };
@@ -205,6 +224,11 @@ export function aggregateAutonomyReport(
     input.addedFilesBySha,
   );
   const builder = buildBuilderBreakdown(runs, taskById, input.runsDir);
+  const trajectoryDiagnostics = buildTrajectoryDiagnosticReport(
+    input.runsDir,
+    input.windowEndMs,
+    windowMs,
+  );
   const blockers = buildBlockerMix(allTasks);
   const cost = buildCostBreakdown(runs);
 
@@ -216,6 +240,7 @@ export function aggregateAutonomyReport(
     doneInWindow,
     explorer,
     builder,
+    trajectoryDiagnostics,
     blockers,
     cost,
   };
@@ -489,6 +514,29 @@ function buildBlockerMix(allTasks: RepoTaskFullRecord[]): BlockerClassMix {
     byKind: [...counts.entries()]
       .map(([kind, count]) => ({ kind, count }))
       .sort((a, b) => (order.get(a.kind) ?? 9) - (order.get(b.kind) ?? 9)),
+  };
+}
+
+function buildTrajectoryDiagnosticReport(
+  runsDir: string,
+  windowEndMs: number,
+  windowMs: number,
+): TrajectoryDiagnosticReport {
+  const patterns = detectRecurringTrajectoryDiagnosticPatterns(runsDir, {
+    nowMs: windowEndMs,
+    windowMs,
+  });
+  return {
+    activePatterns: patterns
+      .slice(0, DEFAULT_TRAJECTORY_DIAGNOSTIC_REPORT_LIMIT)
+      .map((pattern) => ({
+        workflow: pattern.workflow,
+        stepId: pattern.stepId,
+        code: pattern.code,
+        runCount: pattern.runCount,
+        repairTaskId: pattern.taskId,
+        evidenceArtifactPaths: pattern.artifactPaths,
+      })),
   };
 }
 
