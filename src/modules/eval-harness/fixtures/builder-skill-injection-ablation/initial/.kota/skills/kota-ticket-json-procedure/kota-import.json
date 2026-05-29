@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "skillName": "kota-ticket-json-procedure",
+  "source": "fixture://builder-skill-injection-ablation/kota-ticket-json-procedure",
+  "sourceKind": "fixture",
+  "selectedSkillPath": "skills/kota-ticket-json-procedure/SKILL.md",
+  "provenance": "fixture-local focused treatment skill for ticket JSON normalization",
+  "importedFiles": [
+    "SKILL.md"
+  ],
+  "skippedFiles": []
+}

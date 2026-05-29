@@ -9,6 +9,7 @@ import {
   FixtureVerifierCalibrationError,
   isMultiRoundFixtureSpec,
   isSingleWorkflowFixtureSpec,
+  isSkillAblationFixtureSpec,
   loadAllFixtures,
   loadFixture,
 } from "./fixture.js";
@@ -46,7 +47,8 @@ function writeFixture(
       ? { ...withProvenance, controlDecisions: ["act"] }
       : withProvenance;
   const fullSpec =
-    withControlDecisions.mode !== "multi-round" &&
+    (withControlDecisions.mode === undefined ||
+      withControlDecisions.mode === "single-workflow") &&
     withControlDecisions.preRunExpectations === undefined
       ? {
           ...withControlDecisions,
@@ -62,6 +64,86 @@ function singleSpec(fixture: ReturnType<typeof loadFixture>) {
     throw new Error(`expected ${fixture.spec.id} to be a single-workflow fixture`);
   }
   return fixture.spec;
+}
+
+function skillAblationSpec(fixture: ReturnType<typeof loadFixture>) {
+  if (!isSkillAblationFixtureSpec(fixture.spec)) {
+    throw new Error(`expected ${fixture.spec.id} to be a skill-ablation fixture`);
+  }
+  return fixture.spec;
+}
+
+function skillAblationVariant(params: {
+  id: string;
+  selectedSkills: readonly string[];
+  skillProvenance: "none" | "imported";
+  expectedOutcome?: "pass" | "fail";
+}): Record<string, unknown> {
+  return {
+    id: params.id,
+    workflowName: `${params.id}-workflow`,
+    agentName: `${params.id}-agent`,
+    agentStepId: `${params.id}-step`,
+    selectedSkills: params.selectedSkills,
+    skillProvenance: params.skillProvenance,
+    expectedOutcome: params.expectedOutcome ?? "fail",
+    promptEvidence:
+      params.selectedSkills.length === 0
+        ? { forbiddenNeedles: ["Ticket JSON Normalization Procedure"] }
+        : { requiredNeedles: ["Ticket JSON Normalization Procedure"] },
+    preRunExpectations: [
+      {
+        predicate: { kind: "file-exists", path: "output/result.json" },
+        expected: "fail",
+      },
+    ],
+    predicates: [
+      { kind: "file-exists", path: "output/result.json" },
+      {
+        kind: "file-contains",
+        path: "output/result.json",
+        needle: '"valid": true',
+      },
+    ],
+  };
+}
+
+function skillAblationFixtureSpec(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    id: "skillAblation",
+    description: "skill ablation fixture",
+    role: "builder",
+    mode: "skill-ablation",
+    budgetMs: 60_000,
+    variants: [
+      skillAblationVariant({
+        id: "control",
+        selectedSkills: [],
+        skillProvenance: "none",
+      }),
+      skillAblationVariant({
+        id: "focused",
+        selectedSkills: ["ticket-json-procedure"],
+        skillProvenance: "imported",
+        expectedOutcome: "pass",
+      }),
+      skillAblationVariant({
+        id: "noisy",
+        selectedSkills: ["outdated-ticket-procedure"],
+        skillProvenance: "imported",
+      }),
+    ],
+    expectedDirection: {
+      kind: "treatment-passes-control-fails",
+      controlVariantId: "control",
+      treatmentVariantId: "focused",
+      noisyVariantId: "noisy",
+      summary: "Focused skill should pass while the control fails.",
+    },
+    ...overrides,
+  };
 }
 
 describe("loadFixture", () => {
@@ -776,6 +858,136 @@ describe("loadFixture", () => {
     expect(() => loadFixture(root, "badRoundInput")).toThrow(/taskInput/);
   });
 
+  it("loads a well-formed skill-ablation fixture", () => {
+    writeFixture(root, "skillAblation", skillAblationFixtureSpec());
+
+    const loaded = loadFixture(root, "skillAblation");
+    const spec = skillAblationSpec(loaded);
+
+    expect(spec.mode).toBe("skill-ablation");
+    expect(spec.variants.map((variant) => variant.id)).toEqual([
+      "control",
+      "focused",
+      "noisy",
+    ]);
+    expect(spec.variants[0].selectedSkills).toEqual([]);
+    expect(spec.variants[1].selectedSkills).toEqual(["ticket-json-procedure"]);
+    expect(spec.expectedDirection).toMatchObject({
+      controlVariantId: "control",
+      treatmentVariantId: "focused",
+      noisyVariantId: "noisy",
+    });
+  });
+
+  it("rejects skill-ablation fixtures without a no-skill control", () => {
+    writeFixture(
+      root,
+      "skillAblation",
+      skillAblationFixtureSpec({
+        variants: [
+          skillAblationVariant({
+            id: "focused",
+            selectedSkills: ["ticket-json-procedure"],
+            skillProvenance: "imported",
+            expectedOutcome: "pass",
+          }),
+          skillAblationVariant({
+            id: "noisy",
+            selectedSkills: ["outdated-ticket-procedure"],
+            skillProvenance: "imported",
+          }),
+        ],
+      }),
+    );
+
+    expect(() => loadFixture(root, "skillAblation")).toThrow(/no-skill control/);
+  });
+
+  it("rejects skill-ablation fixtures without an explicit-skill treatment", () => {
+    writeFixture(
+      root,
+      "skillAblation",
+      skillAblationFixtureSpec({
+        variants: [
+          skillAblationVariant({
+            id: "control",
+            selectedSkills: [],
+            skillProvenance: "none",
+          }),
+          skillAblationVariant({
+            id: "other-control",
+            selectedSkills: [],
+            skillProvenance: "none",
+          }),
+        ],
+      }),
+    );
+
+    expect(() => loadFixture(root, "skillAblation")).toThrow(
+      /explicit-skill treatment/,
+    );
+  });
+
+  it("rejects duplicate skill-ablation variant ids", () => {
+    writeFixture(
+      root,
+      "skillAblation",
+      skillAblationFixtureSpec({
+        variants: [
+          skillAblationVariant({
+            id: "control",
+            selectedSkills: [],
+            skillProvenance: "none",
+          }),
+          skillAblationVariant({
+            id: "control",
+            selectedSkills: ["ticket-json-procedure"],
+            skillProvenance: "imported",
+            expectedOutcome: "pass",
+          }),
+        ],
+      }),
+    );
+
+    expect(() => loadFixture(root, "skillAblation")).toThrow(/duplicate/);
+  });
+
+  it("rejects skill-ablation expectedDirection references that do not match variant roles", () => {
+    writeFixture(
+      root,
+      "skillAblation",
+      skillAblationFixtureSpec({
+        expectedDirection: {
+          kind: "treatment-passes-control-fails",
+          controlVariantId: "focused",
+          treatmentVariantId: "control",
+          summary: "Incorrectly reversed direction.",
+        },
+      }),
+    );
+
+    expect(() => loadFixture(root, "skillAblation")).toThrow(
+      /controlVariantId must reference a no-skill control/,
+    );
+  });
+
+  it("rejects skill-ablation expectedDirection references to unknown variants", () => {
+    writeFixture(
+      root,
+      "skillAblation",
+      skillAblationFixtureSpec({
+        expectedDirection: {
+          kind: "treatment-passes-control-fails",
+          controlVariantId: "control",
+          treatmentVariantId: "missing",
+          summary: "Unknown treatment.",
+        },
+      }),
+    );
+
+    expect(() => loadFixture(root, "skillAblation")).toThrow(/unknown/);
+  });
+
   it("accepts an optional externalCallShims list and validates entry shape", () => {
     writeFixture(root, "withShims", {
       id: "withShims",
@@ -1142,6 +1354,13 @@ describe("loadAllFixtures", () => {
             (expectation) => expectation.expected === "fail",
           );
         }
+        if (isSkillAblationFixtureSpec(fixture.spec)) {
+          return fixture.spec.variants.every((variant) =>
+            variant.preRunExpectations.some(
+              (expectation) => expectation.expected === "fail",
+            ),
+          );
+        }
         return fixture.spec.rounds.every((round) =>
           round.preRunExpectations.some(
             (expectation) => expectation.expected === "fail",
@@ -1181,17 +1400,21 @@ describe("loadAllFixtures", () => {
       for (const fixture of fixtures) {
         const workDir = join(scratch, fixture.spec.id);
         cpSync(fixture.initialStateDir, workDir, { recursive: true });
-        const expectations = isSingleWorkflowFixtureSpec(fixture.spec)
-          ? fixture.spec.preRunExpectations
-          : fixture.spec.rounds[0].preRunExpectations;
-        const result = evaluatePredicateExpectations(
-          workDir,
-          expectations,
-        );
-        expect(
-          result.results.filter((entry) => !entry.passed),
-          fixture.spec.id,
-        ).toEqual([]);
+        const expectationSets = isSingleWorkflowFixtureSpec(fixture.spec)
+          ? [fixture.spec.preRunExpectations]
+          : isSkillAblationFixtureSpec(fixture.spec)
+            ? fixture.spec.variants.map((variant) => variant.preRunExpectations)
+            : [fixture.spec.rounds[0].preRunExpectations];
+        for (const expectations of expectationSets) {
+          const result = evaluatePredicateExpectations(
+            workDir,
+            expectations,
+          );
+          expect(
+            result.results.filter((entry) => !entry.passed),
+            fixture.spec.id,
+          ).toEqual([]);
+        }
       }
     } finally {
       rmSync(scratch, { recursive: true, force: true });

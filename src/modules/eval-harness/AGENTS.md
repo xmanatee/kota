@@ -69,18 +69,15 @@ union and evaluator.
 Fixtures also declare `preRunExpectations`: initial predicate results. At
 least one must be `expected: "fail"`; mismatches are fixture config errors.
 
-Persistent multi-round fixtures use `mode: "multi-round"` with ordered
-`rounds`. Each round names workflow, budget, task input (`initial-state`,
-`copy-fixture-file`, or `trigger-payload`), pre-run expectations, and
-predicates. The runner preserves one working directory, scores one
-pass@k/pass^k unit, and records round outcomes in `fixture-run.json`.
-Single-workflow fixtures are default when `mode` is absent.
+Persistent multi-round fixtures use `mode: "multi-round"` and ordered
+`rounds`; the runner preserves one workspace and records round outcomes.
+Skill-ablation fixtures use `mode: "skill-ablation"` for no-skill control
+and explicit-skill treatments, recording prompt/provenance evidence under
+`skillAblation`. Single-workflow fixtures are default when `mode` is absent.
 
-Objective metrics are deterministic numeric evidence on the fixture path, not
-a second benchmark runner. They may come from fixture files, runtime artifacts,
-or local deterministic commands and are reported in run/aggregate artifacts.
-Pass/fail gating stays predicate-only unless a fixture adds a threshold
-predicate. Compare metric deltas only for compatible profiles.
+Objective metrics are deterministic fixture-path evidence, not a second
+benchmark runner. Pass/fail gating stays predicate-only unless a fixture adds
+a threshold predicate; compare metric deltas only for compatible profiles.
 
 `verifierCalibration` cases run before workflow execution with fixture-owned
 setup files, write `verifier-calibration.json`, and fail as fixture

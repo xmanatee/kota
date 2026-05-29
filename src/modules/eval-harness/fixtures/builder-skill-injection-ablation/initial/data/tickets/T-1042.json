@@ -1,0 +1,7 @@
+{
+  "id": "T-1042",
+  "paid": true,
+  "approvals": ["manager"],
+  "risk": "low",
+  "requested_change": "release"
+}

@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "workflowName": "skill-ablation-focused-skill",
+  "stepId": "solve-focused-skill",
+  "sourceRunId": "fixture-skill-ablation-replay-2026-05-29",
+  "response": {
+    "text": "Completed the ticket normalization with the focused explicit skill and applied the release routing rule.",
+    "subtype": "success",
+    "turns": 1,
+    "totalCostUsd": 0,
+    "inputTokens": 1350,
+    "outputTokens": 130,
+    "sessionId": "skill-ablation-focused-skill"
+  },
+  "fileOperations": [
+    {
+      "op": "delete",
+      "path": "data/tasks/ready/task-normalize-ticket-json.md"
+    },
+    {
+      "op": "write",
+      "path": "data/tasks/done/task-normalize-ticket-json.md",
+      "content": "---\nid: task-normalize-ticket-json\ntitle: Normalize ticket JSON for release routing\nstatus: done\npriority: p2\narea: modules\nsummary: Read data/tickets/T-1042.json and write output/ticket-summary.json with the canonical validity and routing fields, then move this task to done.\ncreated_at: 2026-05-29T00:00:00.000Z\nupdated_at: 2026-05-29T14:00:00.000Z\n---\n\n## Result\n\nFocused-skill treatment used the ticket JSON normalization procedure and produced the canonical release routing.\n"
+    },
+    {
+      "op": "write",
+      "path": "output/ticket-summary.json",
+      "content": "{\n  \"ticketId\": \"T-1042\",\n  \"valid\": true,\n  \"routing\": \"release\",\n  \"source\": \"focused-skill-treatment\"\n}\n"
+    }
+  ]
+}

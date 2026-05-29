@@ -1,0 +1,242 @@
+{
+  "id": "builder-skill-injection-ablation",
+  "description": "Paired replay fixture that runs the same local ticket-normalization task with no skill, a focused explicit imported skill, and a noisy explicit imported skill, then records whether the focused skill changes the predicate outcome and prompt evidence.",
+  "role": "builder",
+  "mode": "skill-ablation",
+  "budgetMs": 120000,
+  "variants": [
+    {
+      "id": "no-skill",
+      "workflowName": "skill-ablation-no-skill",
+      "agentName": "skill-ablation-no-skill-agent",
+      "agentStepId": "solve-no-skill",
+      "selectedSkills": [],
+      "skillProvenance": "none",
+      "expectedOutcome": "fail",
+      "promptEvidence": {
+        "forbiddenNeedles": [
+          "Ticket JSON Normalization Procedure",
+          "Outdated Ticket Procedure"
+        ]
+      },
+      "preRunExpectations": [
+        {
+          "predicate": {
+            "kind": "file-exists",
+            "path": "output/ticket-summary.json"
+          },
+          "expected": "fail"
+        },
+        {
+          "predicate": {
+            "kind": "file-exists",
+            "path": "data/tasks/ready/task-normalize-ticket-json.md"
+          },
+          "expected": "pass"
+        }
+      ],
+      "predicates": [
+        {
+          "kind": "file-absent",
+          "path": "data/tasks/ready/task-normalize-ticket-json.md"
+        },
+        {
+          "kind": "file-exists",
+          "path": "data/tasks/done/task-normalize-ticket-json.md"
+        },
+        {
+          "kind": "file-contains",
+          "path": "data/tasks/done/task-normalize-ticket-json.md",
+          "needle": "status: done"
+        },
+        {
+          "kind": "file-exists",
+          "path": "output/ticket-summary.json"
+        },
+        {
+          "kind": "file-contains",
+          "path": "output/ticket-summary.json",
+          "needle": "\"valid\": true"
+        },
+        {
+          "kind": "file-contains",
+          "path": "output/ticket-summary.json",
+          "needle": "\"routing\": \"release\""
+        },
+        {
+          "kind": "git-changes-within",
+          "allowedPaths": [
+            "data/tasks/ready/task-normalize-ticket-json.md",
+            "data/tasks/done/task-normalize-ticket-json.md",
+            "output/ticket-summary.json"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "focused-skill",
+      "workflowName": "skill-ablation-focused-skill",
+      "agentName": "skill-ablation-focused-skill-agent",
+      "agentStepId": "solve-focused-skill",
+      "selectedSkills": [
+        "kota-ticket-json-procedure"
+      ],
+      "skillProvenance": "imported",
+      "expectedOutcome": "pass",
+      "promptEvidence": {
+        "requiredNeedles": [
+          "Ticket JSON Normalization Procedure",
+          "Compute routing as release"
+        ],
+        "forbiddenNeedles": [
+          "Outdated Ticket Procedure"
+        ]
+      },
+      "preRunExpectations": [
+        {
+          "predicate": {
+            "kind": "file-exists",
+            "path": "output/ticket-summary.json"
+          },
+          "expected": "fail"
+        },
+        {
+          "predicate": {
+            "kind": "file-exists",
+            "path": "data/tasks/ready/task-normalize-ticket-json.md"
+          },
+          "expected": "pass"
+        }
+      ],
+      "predicates": [
+        {
+          "kind": "file-absent",
+          "path": "data/tasks/ready/task-normalize-ticket-json.md"
+        },
+        {
+          "kind": "file-exists",
+          "path": "data/tasks/done/task-normalize-ticket-json.md"
+        },
+        {
+          "kind": "file-contains",
+          "path": "data/tasks/done/task-normalize-ticket-json.md",
+          "needle": "status: done"
+        },
+        {
+          "kind": "file-exists",
+          "path": "output/ticket-summary.json"
+        },
+        {
+          "kind": "file-contains",
+          "path": "output/ticket-summary.json",
+          "needle": "\"valid\": true"
+        },
+        {
+          "kind": "file-contains",
+          "path": "output/ticket-summary.json",
+          "needle": "\"routing\": \"release\""
+        },
+        {
+          "kind": "git-changes-within",
+          "allowedPaths": [
+            "data/tasks/ready/task-normalize-ticket-json.md",
+            "data/tasks/done/task-normalize-ticket-json.md",
+            "output/ticket-summary.json"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "noisy-skill",
+      "workflowName": "skill-ablation-noisy-skill",
+      "agentName": "skill-ablation-noisy-skill-agent",
+      "agentStepId": "solve-noisy-skill",
+      "selectedSkills": [
+        "kota-outdated-ticket-procedure"
+      ],
+      "skillProvenance": "imported",
+      "expectedOutcome": "fail",
+      "promptEvidence": {
+        "requiredNeedles": [
+          "Outdated Ticket Procedure",
+          "routing to pending-review"
+        ],
+        "forbiddenNeedles": [
+          "Ticket JSON Normalization Procedure"
+        ]
+      },
+      "preRunExpectations": [
+        {
+          "predicate": {
+            "kind": "file-exists",
+            "path": "output/ticket-summary.json"
+          },
+          "expected": "fail"
+        },
+        {
+          "predicate": {
+            "kind": "file-exists",
+            "path": "data/tasks/ready/task-normalize-ticket-json.md"
+          },
+          "expected": "pass"
+        }
+      ],
+      "predicates": [
+        {
+          "kind": "file-absent",
+          "path": "data/tasks/ready/task-normalize-ticket-json.md"
+        },
+        {
+          "kind": "file-exists",
+          "path": "data/tasks/done/task-normalize-ticket-json.md"
+        },
+        {
+          "kind": "file-contains",
+          "path": "data/tasks/done/task-normalize-ticket-json.md",
+          "needle": "status: done"
+        },
+        {
+          "kind": "file-exists",
+          "path": "output/ticket-summary.json"
+        },
+        {
+          "kind": "file-contains",
+          "path": "output/ticket-summary.json",
+          "needle": "\"valid\": true"
+        },
+        {
+          "kind": "file-contains",
+          "path": "output/ticket-summary.json",
+          "needle": "\"routing\": \"release\""
+        },
+        {
+          "kind": "git-changes-within",
+          "allowedPaths": [
+            "data/tasks/ready/task-normalize-ticket-json.md",
+            "data/tasks/done/task-normalize-ticket-json.md",
+            "output/ticket-summary.json"
+          ]
+        }
+      ]
+    }
+  ],
+  "expectedDirection": {
+    "kind": "treatment-passes-control-fails",
+    "controlVariantId": "no-skill",
+    "treatmentVariantId": "focused-skill",
+    "noisyVariantId": "noisy-skill",
+    "summary": "The focused explicit skill should be the only variant that produces the canonical release routing result; the no-skill control and outdated/noisy skill remain represented as failing variants rather than being treated as automatic value."
+  },
+  "tags": [
+    "autonomy",
+    "skill-ablation",
+    "agent-call-replay"
+  ],
+  "provenance": {
+    "kind": "smoke-fixture",
+    "justification": "This is a harness-integrity smoke fixture for the skill-resolution/eval boundary: it proves the eval harness can compare no-skill, focused explicit imported-skill, and noisy explicit imported-skill variants of the same local task and record marginal evidence rather than treating skill injection itself as success."
+  },
+  "controlDecisions": [
+    "act"
+  ]
+}

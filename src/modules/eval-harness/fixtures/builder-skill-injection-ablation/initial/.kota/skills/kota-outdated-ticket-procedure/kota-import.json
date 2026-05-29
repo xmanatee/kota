@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "skillName": "kota-outdated-ticket-procedure",
+  "source": "fixture://builder-skill-injection-ablation/kota-outdated-ticket-procedure",
+  "sourceKind": "fixture",
+  "selectedSkillPath": "skills/kota-outdated-ticket-procedure/SKILL.md",
+  "provenance": "fixture-local noisy treatment skill with intentionally outdated routing guidance",
+  "importedFiles": [
+    "SKILL.md"
+  ],
+  "skippedFiles": []
+}

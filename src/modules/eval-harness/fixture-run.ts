@@ -8,7 +8,16 @@
  */
 
 import type { CodeHealthDiagnostics } from "./code-health-diagnostics.js";
+import type {
+  SkillAblationExpectedDirection,
+  SkillAblationExpectedOutcome,
+  SkillAblationSkillProvenance,
+} from "./fixture.js";
 import type { ObservedObjectiveMetric } from "./objective-metrics.js";
+import type {
+  PredicateEvalResult,
+  PredicateExpectationEvalResult,
+} from "./predicates.js";
 import type { ExecutionNetworkPolicy } from "./provider-egress.js";
 
 /**
@@ -120,6 +129,82 @@ export type FixtureRoundRun = {
   runArtifactPath: string | null;
 };
 
+export type SkillAblationPromptNeedleResult = {
+  needle: string;
+  present: boolean;
+  passed: boolean;
+};
+
+export type SkillAblationResolvedSkill = {
+  name: string;
+  expectedProvenance: SkillAblationSkillProvenance;
+  resolved: boolean;
+  provenance: "none" | "imported" | "unresolved";
+  promptPath: string | null;
+  importedFrom: string | null;
+  resourceSummary: string | null;
+  importedFiles: readonly string[];
+};
+
+export type SkillAblationPromptResolution = {
+  agentName: string;
+  agentStepId: string;
+  selectedSkills: readonly string[];
+  resolutionSource: "ModuleLoader.getSkillsPromptFor";
+  resolvedPromptHash: string;
+  resolvedPromptLength: number;
+  agentInputPath: string | null;
+  agentInputFound: boolean;
+  requiredNeedles: readonly SkillAblationPromptNeedleResult[];
+  forbiddenNeedles: readonly SkillAblationPromptNeedleResult[];
+  resolvedSkills: readonly SkillAblationResolvedSkill[];
+  passed: boolean;
+  detail: string;
+};
+
+export type SkillAblationUsageFacts = {
+  turns: number | null;
+  totalCostUsd: number | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  subtype: string | null;
+};
+
+export type SkillAblationObjectiveMetric = {
+  name: string;
+  unit: string;
+  direction: "lower_is_better" | "higher_is_better";
+  source: "predicate-results";
+  value: number;
+};
+
+export type SkillAblationVariantRun = {
+  id: string;
+  variantIndex: number;
+  workflowName: string;
+  agentName: string;
+  agentStepId: string;
+  selectedSkills: readonly string[];
+  expectedOutcome: SkillAblationExpectedOutcome;
+  observedOutcome: FixtureRunOutcome;
+  expectationPassed: boolean;
+  promptResolution: SkillAblationPromptResolution;
+  preRunExpectationResults: readonly PredicateExpectationEvalResult[];
+  predicateResults: readonly PredicateEvalResult[];
+  objectiveMetrics: readonly SkillAblationObjectiveMetric[];
+  timing: TimingEnvelope;
+  usage: SkillAblationUsageFacts;
+  runArtifactPath: string | null;
+  workingDir: string;
+};
+
+export type SkillAblationRun = {
+  expectedDirection: SkillAblationExpectedDirection;
+  directionPassed: boolean;
+  passed: boolean;
+  variants: readonly SkillAblationVariantRun[];
+};
+
 export type FixtureRun = {
   fixtureId: string;
   /** 0-based index of this run within a repeat set for the same fixture. */
@@ -145,6 +230,11 @@ export type FixtureRun = {
    * remains one scored run; round records preserve diagnostic outcomes.
    */
   rounds?: readonly FixtureRoundRun[];
+  /**
+   * Present only for skill-ablation fixtures. The top-level fixture remains
+   * one scored run; variant records preserve paired skill/no-skill evidence.
+   */
+  skillAblation?: SkillAblationRun;
   timing: TimingEnvelope;
   /** Absolute path to the run artifact directory under `.kota/runs/`. */
   runArtifactPath: string;

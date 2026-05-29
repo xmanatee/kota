@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "workflowName": "skill-ablation-no-skill",
+  "stepId": "solve-no-skill",
+  "sourceRunId": "fixture-skill-ablation-replay-2026-05-29",
+  "response": {
+    "text": "Completed the ticket normalization without using a skill, but the routing rule was guessed and remains incorrect.",
+    "subtype": "success",
+    "turns": 1,
+    "totalCostUsd": 0,
+    "inputTokens": 900,
+    "outputTokens": 120,
+    "sessionId": "skill-ablation-no-skill"
+  },
+  "fileOperations": [
+    {
+      "op": "delete",
+      "path": "data/tasks/ready/task-normalize-ticket-json.md"
+    },
+    {
+      "op": "write",
+      "path": "data/tasks/done/task-normalize-ticket-json.md",
+      "content": "---\nid: task-normalize-ticket-json\ntitle: Normalize ticket JSON for release routing\nstatus: done\npriority: p2\narea: modules\nsummary: Read data/tickets/T-1042.json and write output/ticket-summary.json with the canonical validity and routing fields, then move this task to done.\ncreated_at: 2026-05-29T00:00:00.000Z\nupdated_at: 2026-05-29T14:00:00.000Z\n---\n\n## Result\n\nNo-skill control completed the task movement but guessed the routing rule.\n"
+    },
+    {
+      "op": "write",
+      "path": "output/ticket-summary.json",
+      "content": "{\n  \"ticketId\": \"T-1042\",\n  \"valid\": false,\n  \"routing\": \"review\",\n  \"source\": \"no-skill-control\"\n}\n"
+    }
+  ]
+}

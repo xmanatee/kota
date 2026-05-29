@@ -137,6 +137,12 @@ export type {
   LoadedFixture,
   MultiRoundFixtureSpecFile,
   SingleWorkflowFixtureSpecFile,
+  SkillAblationExpectedDirection,
+  SkillAblationExpectedOutcome,
+  SkillAblationFixtureSpecFile,
+  SkillAblationPromptEvidenceSpec,
+  SkillAblationSkillProvenance,
+  SkillAblationVariantSpec,
 } from "./fixture.js";
 export {
   FIXTURE_CONTROL_DECISIONS,
@@ -144,6 +150,7 @@ export {
   FixtureRecordingProvenanceError,
   isMultiRoundFixtureSpec,
   isSingleWorkflowFixtureSpec,
+  isSkillAblationFixtureSpec,
   loadAllFixtures,
   loadFixture,
   summarizeControlDecisionCoverage,
@@ -159,6 +166,13 @@ export type {
   FixtureRun,
   FixtureRunOutcome,
   ResourceProfile,
+  SkillAblationObjectiveMetric,
+  SkillAblationPromptNeedleResult,
+  SkillAblationPromptResolution,
+  SkillAblationResolvedSkill,
+  SkillAblationRun,
+  SkillAblationUsageFacts,
+  SkillAblationVariantRun,
   TimingEnvelope,
 } from "./fixture-run.js";
 export {

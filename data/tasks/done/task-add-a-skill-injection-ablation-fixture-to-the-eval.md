@@ -1,12 +1,12 @@
 ---
 id: task-add-a-skill-injection-ablation-fixture-to-the-eval
 title: Add a skill-injection ablation fixture to the eval harness
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a compact paired eval-harness fixture that proves KOTA can measure whether explicit skill injection helps, harms, or adds overhead on a local software task without treating skill presence as automatic value.
 created_at: 2026-05-29T13:55:31.378Z
-updated_at: 2026-05-29T13:55:31.378Z
+updated_at: 2026-05-29T14:31:10Z
 ---
 
 ## Problem

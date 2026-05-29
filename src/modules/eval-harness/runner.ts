@@ -17,17 +17,21 @@
  */
 
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
+import { readImportedSkillRecords } from "#core/modules/imported-skills.js";
+import { ModuleLoader } from "#core/modules/module-loader.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import {
   type CodeHealthDiagnostics,
@@ -39,11 +43,15 @@ import {
 } from "./code-health-diagnostics.js";
 import { installExternalCallShims } from "./external-call-shim.js";
 import {
+  type FixtureJsonValue,
   type FixtureRoundSpec,
   type FixtureRoundTaskInput,
   isMultiRoundFixtureSpec,
+  isSkillAblationFixtureSpec,
   type LoadedFixture,
   type MultiRoundFixtureSpecFile,
+  type SkillAblationFixtureSpecFile,
+  type SkillAblationVariantSpec,
   type VerifierCalibrationCaseSpec,
   type VerifierCalibrationSetupOperation,
   verifierCalibrationPredicatesForSpec,
@@ -54,6 +62,13 @@ import type {
   FixtureRun,
   FixtureRunOutcome,
   ResourceProfile,
+  SkillAblationObjectiveMetric,
+  SkillAblationPromptNeedleResult,
+  SkillAblationPromptResolution,
+  SkillAblationResolvedSkill,
+  SkillAblationRun,
+  SkillAblationUsageFacts,
+  SkillAblationVariantRun,
 } from "./fixture-run.js";
 import { resourceProfileFromExecutionProfile } from "./fixture-run.js";
 import { applyFixtureTemplates } from "./fixture-templating.js";
@@ -253,19 +268,57 @@ function initFixtureGit(workingDir: string): void {
  * The directory is created under the OS tmp dir by default so harness runs
  * never mutate the operator's repo even if something misbehaves.
  */
-function materializeFixtureWorkingDir(fixture: LoadedFixture): {
+function applySetupOperation(params: {
+  fixtureDir: string;
+  workingDir: string;
+  operation: VerifierCalibrationSetupOperation;
+  sourceLabel: string;
+  targetLabel: string;
+}): void {
+  const source = relativePathInside(
+    params.fixtureDir,
+    params.operation.sourcePath,
+    params.sourceLabel,
+  );
+  const target = relativePathInside(
+    params.workingDir,
+    params.operation.targetPath,
+    params.targetLabel,
+  );
+  if (!existsSync(source) || !statSync(source).isFile()) {
+    throw new Error(
+      `${params.sourceLabel} ${params.operation.sourcePath} must reference an existing fixture file.`,
+    );
+  }
+  mkdirSync(dirname(target), { recursive: true });
+  cpSync(source, target);
+}
+
+function materializeFixtureWorkingDirAt(params: {
+  fixture: LoadedFixture;
+  workingDir: string;
+  setup?: readonly VerifierCalibrationSetupOperation[];
+}): {
   workingDir: string;
   shimDir: string | null;
 } {
-  const workingDir = mkdtempSync(
-    join(tmpdir(), `kota-eval-${fixture.spec.id}-`),
-  );
+  const { fixture, workingDir } = params;
+  mkdirSync(workingDir, { recursive: true });
   cpSync(fixture.initialStateDir, workingDir, { recursive: true });
   // Rewrite `{{NOW_MINUS_HOURS:N}}` / `{{NOW_MINUS_MINUTES:N}}` placeholders so
   // fixtures that depend on a sliding time window (e.g. improver reading a
   // "failed in the last 24h" run under .kota/runs/) stay deterministic
   // without a second setup surface. No-op for fixtures without templates.
   applyFixtureTemplates(workingDir, Date.now());
+  for (const operation of params.setup ?? []) {
+    applySetupOperation({
+      fixtureDir: fixture.fixtureDir,
+      workingDir,
+      operation,
+      sourceLabel: "variant setup sourcePath",
+      targetLabel: "variant setup targetPath",
+    });
+  }
   initFixtureGit(workingDir);
   let shimDir: string | null = null;
   if (
@@ -279,6 +332,16 @@ function materializeFixtureWorkingDir(fixture: LoadedFixture): {
     shimDir = installed.shimDir;
   }
   return { workingDir, shimDir };
+}
+
+function materializeFixtureWorkingDir(fixture: LoadedFixture): {
+  workingDir: string;
+  shimDir: string | null;
+} {
+  return materializeFixtureWorkingDirAt({
+    fixture,
+    workingDir: mkdtempSync(join(tmpdir(), `kota-eval-${fixture.spec.id}-`)),
+  });
 }
 
 function outcomeFromExecution(
@@ -438,6 +501,9 @@ function collectObjectiveMetricSpecs(
       ...spec.rounds.flatMap((round) => round.objectiveMetrics ?? []),
       ...(spec.aggregateObjectiveMetrics ?? []),
     ];
+  }
+  if (isSkillAblationFixtureSpec(spec)) {
+    return [];
   }
   return [...(spec.objectiveMetrics ?? [])];
 }
@@ -900,6 +966,352 @@ function writeMultiRoundRunArtifact(
   );
 }
 
+function sha256(text: string): string {
+  return createHash("sha256").update(text).digest("hex");
+}
+
+function resolveSkillsPromptEvidence(params: {
+  workingDir: string;
+  variant: SkillAblationVariantSpec;
+}): {
+  resolvedPrompt: string;
+  resolvedSkills: SkillAblationResolvedSkill[];
+} {
+  const loader = new ModuleLoader({}, false, { mode: "commands" });
+  loader.setCwd(params.workingDir);
+  const resolvedPrompt = loader.getSkillsPromptFor(
+    [...params.variant.selectedSkills],
+    params.variant.agentName,
+  );
+  const records = readImportedSkillRecords(params.workingDir);
+  const recordsByName = new Map(records.map((record) => [record.def.name, record]));
+  const resolvedSkills: SkillAblationResolvedSkill[] =
+    params.variant.selectedSkills.map((name) => {
+      const record = recordsByName.get(name);
+      if (record === undefined) {
+        return {
+          name,
+          expectedProvenance: params.variant.skillProvenance,
+          resolved: false,
+          provenance: "unresolved",
+          promptPath: null,
+          importedFrom: null,
+          resourceSummary: null,
+          importedFiles: [],
+        };
+      }
+      return {
+        name,
+        expectedProvenance: params.variant.skillProvenance,
+        resolved: true,
+        provenance: "imported",
+        promptPath: record.def.promptPath,
+        importedFrom: record.provenance ?? null,
+        resourceSummary: record.resourceSummary ?? null,
+        importedFiles: record.importedFiles ?? [],
+      };
+    });
+  return { resolvedPrompt, resolvedSkills };
+}
+
+function readAgentInputArtifact(
+  runArtifactPath: string | null,
+  agentStepId: string,
+): { path: string | null; text: string | null } {
+  if (runArtifactPath === null) return { path: null, text: null };
+  const path = join(runArtifactPath, "steps", `${agentStepId}.input.md`);
+  if (!existsSync(path) || !statSync(path).isFile()) {
+    return { path, text: null };
+  }
+  return { path, text: readFileSync(path, "utf8") };
+}
+
+function evaluateRequiredNeedles(
+  text: string | null,
+  needles: readonly string[] | undefined,
+): SkillAblationPromptNeedleResult[] {
+  return (needles ?? []).map((needle) => {
+    const present = text?.includes(needle) ?? false;
+    return { needle, present, passed: present };
+  });
+}
+
+function evaluateForbiddenNeedles(
+  text: string | null,
+  needles: readonly string[] | undefined,
+): SkillAblationPromptNeedleResult[] {
+  return (needles ?? []).map((needle) => {
+    const present = text?.includes(needle) ?? false;
+    return { needle, present, passed: !present };
+  });
+}
+
+function evaluatePromptResolution(params: {
+  workingDir: string;
+  variant: SkillAblationVariantSpec;
+  executionOutcome: WorkflowExecutionOutcome;
+}): SkillAblationPromptResolution {
+  const { resolvedPrompt, resolvedSkills } = resolveSkillsPromptEvidence({
+    workingDir: params.workingDir,
+    variant: params.variant,
+  });
+  const agentInput = readAgentInputArtifact(
+    params.executionOutcome.runArtifactPath,
+    params.variant.agentStepId,
+  );
+  const requiredNeedles = evaluateRequiredNeedles(
+    agentInput.text,
+    params.variant.promptEvidence.requiredNeedles,
+  );
+  const forbiddenNeedles = evaluateForbiddenNeedles(
+    agentInput.text,
+    params.variant.promptEvidence.forbiddenNeedles,
+  );
+  const selectedSkillsResolved =
+    params.variant.skillProvenance === "none"
+      ? params.variant.selectedSkills.length === 0 && resolvedSkills.length === 0
+      : resolvedSkills.length === params.variant.selectedSkills.length &&
+        resolvedSkills.every((skill) => skill.resolved && skill.provenance === "imported");
+  const needlesPassed =
+    requiredNeedles.every((result) => result.passed) &&
+    forbiddenNeedles.every((result) => result.passed);
+  const passed =
+    selectedSkillsResolved &&
+    agentInput.text !== null &&
+    needlesPassed;
+  const detail = passed
+    ? `variant "${params.variant.id}" prompt evidence matched selected skill set`
+    : `variant "${params.variant.id}" prompt evidence failed: ${
+        selectedSkillsResolved ? "" : "selected skills did not resolve; "
+      }${agentInput.text === null ? "agent input artifact missing; " : ""}${
+        needlesPassed ? "" : "prompt needles did not match"
+      }`.trimEnd();
+  return {
+    agentName: params.variant.agentName,
+    agentStepId: params.variant.agentStepId,
+    selectedSkills: params.variant.selectedSkills,
+    resolutionSource: "ModuleLoader.getSkillsPromptFor",
+    resolvedPromptHash: sha256(resolvedPrompt),
+    resolvedPromptLength: resolvedPrompt.length,
+    agentInputPath: agentInput.path,
+    agentInputFound: agentInput.text !== null,
+    requiredNeedles,
+    forbiddenNeedles,
+    resolvedSkills,
+    passed,
+    detail,
+  };
+}
+
+type AgentStepUsageFile = {
+  output?: {
+    turns?: FixtureJsonValue;
+    totalCostUsd?: FixtureJsonValue;
+    inputTokens?: FixtureJsonValue;
+    outputTokens?: FixtureJsonValue;
+    subtype?: FixtureJsonValue;
+  };
+};
+
+function nullableNumber(value: FixtureJsonValue | undefined): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function nullableString(value: FixtureJsonValue | undefined): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function readAgentStepUsage(
+  runArtifactPath: string | null,
+  agentStepId: string,
+): SkillAblationUsageFacts {
+  const empty: SkillAblationUsageFacts = {
+    turns: null,
+    totalCostUsd: null,
+    inputTokens: null,
+    outputTokens: null,
+    subtype: null,
+  };
+  if (runArtifactPath === null) return empty;
+  const path = join(runArtifactPath, "steps", `${agentStepId}.json`);
+  if (!existsSync(path) || !statSync(path).isFile()) return empty;
+  let parsed: AgentStepUsageFile;
+  try {
+    parsed = JSON.parse(readFileSync(path, "utf8")) as AgentStepUsageFile;
+  } catch {
+    return empty;
+  }
+  return {
+    turns: nullableNumber(parsed.output?.turns),
+    totalCostUsd: nullableNumber(parsed.output?.totalCostUsd),
+    inputTokens: nullableNumber(parsed.output?.inputTokens),
+    outputTokens: nullableNumber(parsed.output?.outputTokens),
+    subtype: nullableString(parsed.output?.subtype),
+  };
+}
+
+function skillAblationObjectiveMetrics(
+  variant: SkillAblationVariantSpec,
+  predicateResults: readonly PredicateEvalResult[],
+): SkillAblationObjectiveMetric[] {
+  const passedCount = predicateResults.filter((result) => result.passed).length;
+  const total = predicateResults.length;
+  return [
+    {
+      name: `${variant.id}.predicate_pass_rate`,
+      unit: "ratio",
+      direction: "higher_is_better",
+      source: "predicate-results",
+      value: total === 0 ? 0 : passedCount / total,
+    },
+  ];
+}
+
+function topLevelObjectiveMetricsForSkillAblation(params: {
+  fixtureId: string;
+  variantRuns: readonly SkillAblationVariantRun[];
+  executionProfile: ExecutionProfilePreflightResult;
+  runIndex: number;
+  repeatCount: number;
+}): ObservedObjectiveMetric[] {
+  const resourceProfile = resourceProfileFromExecutionProfile(
+    params.executionProfile,
+  );
+  const executionProfile =
+    params.executionProfile.status === "verified"
+      ? {
+          status: params.executionProfile.status,
+          backendKind: params.executionProfile.backendKind,
+          verification: params.executionProfile.verification,
+          gateEligible: params.executionProfile.gateEligible,
+          reason: params.executionProfile.eligibilityReason,
+        }
+      : params.executionProfile.status === "rejected"
+        ? {
+            status: params.executionProfile.status,
+            backendKind: params.executionProfile.backendKind,
+            verification: params.executionProfile.verification,
+            gateEligible: params.executionProfile.gateEligible,
+            reason: params.executionProfile.rejectionReason,
+          }
+        : {
+            status: params.executionProfile.status,
+            backendKind: params.executionProfile.backendKind,
+            verification: params.executionProfile.verification,
+            gateEligible: params.executionProfile.gateEligible,
+            reason: params.executionProfile.nonGatingReason,
+          };
+  return params.variantRuns.flatMap((variantRun) =>
+    variantRun.objectiveMetrics.map((metric) => ({
+      fixtureId: params.fixtureId,
+      name: metric.name,
+      unit: metric.unit,
+      direction: metric.direction,
+      source: {
+        kind: "text-file" as const,
+        path: `skill-ablation:${variantRun.id}`,
+      },
+      value: metric.value,
+      runIndex: params.runIndex,
+      repeatCount: params.repeatCount,
+      resourceProfile,
+      executionProfile,
+    })),
+  );
+}
+
+function evaluateSkillAblationDirection(params: {
+  spec: SkillAblationFixtureSpecFile;
+  variants: readonly SkillAblationVariantRun[];
+}): boolean {
+  const byId = new Map(params.variants.map((variant) => [variant.id, variant]));
+  const direction = params.spec.expectedDirection;
+  const control = byId.get(direction.controlVariantId);
+  const treatment = byId.get(direction.treatmentVariantId);
+  if (control === undefined || treatment === undefined) return false;
+  return control.observedOutcome === "fail" && treatment.observedOutcome === "pass";
+}
+
+function summarizeSkillAblationOutcome(
+  variants: readonly SkillAblationVariantRun[],
+  directionPassed: boolean,
+): FixtureRunOutcome {
+  if (variants.some((variant) => variant.observedOutcome === "error")) {
+    return "error";
+  }
+  if (variants.some((variant) => variant.observedOutcome === "timeout")) {
+    return "timeout";
+  }
+  if (
+    variants.some((variant) => variant.observedOutcome === "configuration-error")
+  ) {
+    return "configuration-error";
+  }
+  return variants.every((variant) => variant.expectationPassed) && directionPassed
+    ? "pass"
+    : "fail";
+}
+
+function skillAblationExecutionOutcome(
+  outcome: FixtureRunOutcome,
+  durationMs: number,
+): WorkflowExecutionOutcome {
+  if (outcome === "timeout") {
+    return { kind: "timeout", durationMs, runArtifactPath: null };
+  }
+  if (outcome === "error") {
+    return {
+      kind: "error",
+      durationMs,
+      message: "one or more skill-ablation variants errored",
+      runArtifactPath: null,
+    };
+  }
+  if (outcome === "configuration-error") {
+    return {
+      kind: "not-started",
+      durationMs,
+      reason: "pre-run-sanity-failed",
+      runArtifactPath: null,
+    };
+  }
+  return { kind: "completed", durationMs, runArtifactPath: null };
+}
+
+function writeSkillAblationRunArtifact(
+  runArtifactDir: string,
+  payload: {
+    run: FixtureRun;
+    fixtureId: string;
+    workingDir: string;
+    executionProfile: ExecutionProfilePreflightResult;
+    skillAblation: SkillAblationRun;
+    objectiveMetrics: ObservedObjectiveMetric[];
+    executionOutcome: WorkflowExecutionOutcome;
+  },
+): void {
+  mkdirSync(runArtifactDir, { recursive: true });
+  writeFileSync(
+    join(runArtifactDir, "fixture-run.json"),
+    JSON.stringify(
+      {
+        ...payload.run,
+        fixture: {
+          id: payload.fixtureId,
+          mode: "skill-ablation",
+          workingDir: payload.workingDir,
+        },
+        executionProfile: payload.executionProfile,
+        execution: payload.executionOutcome,
+        skillAblation: payload.skillAblation,
+        objectiveMetrics: payload.objectiveMetrics,
+      },
+      null,
+      2,
+    ),
+  );
+}
+
 async function runSingleWorkflowFixture(
   params: RunFixtureParams,
 ): Promise<FixtureRunReport> {
@@ -1124,6 +1536,235 @@ async function runSingleWorkflowFixture(
   };
 }
 
+async function executeSkillAblationVariant(params: {
+  fixture: LoadedFixture;
+  spec: SkillAblationFixtureSpecFile;
+  variant: SkillAblationVariantSpec;
+  variantIndex: number;
+  executor: WorkflowExecutor;
+  executionProfile: ExecutionProfilePreflightResult;
+  workingDir: string;
+  runIndex: number;
+  repeatCount: number;
+}): Promise<SkillAblationVariantRun> {
+  const { shimDir } = materializeFixtureWorkingDirAt({
+    fixture: params.fixture,
+    workingDir: params.workingDir,
+    setup: params.variant.setup,
+  });
+  // Resolve imported skills before executing so malformed skill metadata fails
+  // through the same loader path the agent step uses, without spending a run.
+  resolveSkillsPromptEvidence({
+    workingDir: params.workingDir,
+    variant: params.variant,
+  });
+  const startedAt = new Date();
+  const startMs = startedAt.getTime();
+  const preRunSanity = evaluatePredicateExpectations(
+    params.workingDir,
+    params.variant.preRunExpectations,
+  );
+  let executionOutcome: WorkflowExecutionOutcome;
+  if (!preRunSanity.passed) {
+    executionOutcome = {
+      kind: "not-started",
+      durationMs: Date.now() - startMs,
+      reason: "pre-run-sanity-failed",
+      runArtifactPath: null,
+    };
+    const promptResolution = evaluatePromptResolution({
+      workingDir: params.workingDir,
+      variant: params.variant,
+      executionOutcome,
+    });
+    const observedOutcome = outcomeFromExecution(executionOutcome, false);
+    return {
+      id: params.variant.id,
+      variantIndex: params.variantIndex,
+      workflowName: params.variant.workflowName,
+      agentName: params.variant.agentName,
+      agentStepId: params.variant.agentStepId,
+      selectedSkills: params.variant.selectedSkills,
+      expectedOutcome: params.variant.expectedOutcome,
+      observedOutcome,
+      expectationPassed: false,
+      promptResolution,
+      preRunExpectationResults: preRunSanity.results,
+      predicateResults: [],
+      objectiveMetrics: [],
+      timing: {
+        startedAt: startedAt.toISOString(),
+        durationMs: executionOutcome.durationMs,
+        budgetMs: params.spec.budgetMs,
+      },
+      usage: readAgentStepUsage(null, params.variant.agentStepId),
+      runArtifactPath: null,
+      workingDir: params.workingDir,
+    };
+  }
+  try {
+    executionOutcome = await params.executor.execute({
+      workflowName: params.variant.workflowName,
+      workingDir: params.workingDir,
+      budgetMs: params.spec.budgetMs,
+      executionProfile: params.executionProfile,
+      ...(params.variant.triggerPayload !== undefined && {
+        triggerPayload: params.variant.triggerPayload,
+      }),
+      ...(params.fixture.agentStepRecordings.length > 0 && {
+        replayRecordingsRoot: params.fixture.fixtureDir,
+      }),
+      ...(shimDir !== null && { externalCallShimDir: shimDir }),
+    });
+  } catch (err) {
+    executionOutcome = {
+      kind: "error",
+      durationMs: Date.now() - startMs,
+      message: err instanceof Error ? err.message : String(err),
+      runArtifactPath: null,
+    };
+  }
+  const predicateEvaluation = evaluatePredicates(
+    params.workingDir,
+    params.variant.predicates,
+  );
+  const observedOutcome = outcomeFromExecution(
+    executionOutcome,
+    predicateEvaluation.passed,
+  );
+  const promptResolution = evaluatePromptResolution({
+    workingDir: params.workingDir,
+    variant: params.variant,
+    executionOutcome,
+  });
+  const objectiveMetrics = skillAblationObjectiveMetrics(
+    params.variant,
+    predicateEvaluation.results,
+  );
+  const expectationPassed =
+    observedOutcome === params.variant.expectedOutcome && promptResolution.passed;
+  return {
+    id: params.variant.id,
+    variantIndex: params.variantIndex,
+    workflowName: params.variant.workflowName,
+    agentName: params.variant.agentName,
+    agentStepId: params.variant.agentStepId,
+    selectedSkills: params.variant.selectedSkills,
+    expectedOutcome: params.variant.expectedOutcome,
+    observedOutcome,
+    expectationPassed,
+    promptResolution,
+    preRunExpectationResults: preRunSanity.results,
+    predicateResults: predicateEvaluation.results,
+    objectiveMetrics,
+    timing: {
+      startedAt: startedAt.toISOString(),
+      durationMs: executionOutcome.durationMs,
+      budgetMs: params.spec.budgetMs,
+    },
+    usage: readAgentStepUsage(
+      executionOutcome.runArtifactPath,
+      params.variant.agentStepId,
+    ),
+    runArtifactPath: executionOutcome.runArtifactPath,
+    workingDir: params.workingDir,
+  };
+}
+
+async function runSkillAblationFixture(
+  params: RunFixtureParams,
+): Promise<FixtureRunReport> {
+  const spec = params.fixture.spec;
+  if (!isSkillAblationFixtureSpec(spec)) {
+    throw new Error(
+      `runSkillAblationFixture received non-ablation fixture "${spec.id}".`,
+    );
+  }
+  const parentWorkingDir = mkdtempSync(
+    join(tmpdir(), `kota-eval-${spec.id}-`),
+  );
+  const runArtifactDir = join(
+    params.runArtifactBaseDir,
+    `${spec.id}-${params.runIndex}`,
+  );
+  const startedAt = new Date();
+  const variantRuns: SkillAblationVariantRun[] = [];
+  for (let variantIndex = 0; variantIndex < spec.variants.length; variantIndex++) {
+    const variant = spec.variants[variantIndex];
+    const variantWorkingDir = join(parentWorkingDir, variant.id);
+    const variantRun = await executeSkillAblationVariant({
+      fixture: params.fixture,
+      spec,
+      variant,
+      variantIndex,
+      executor: params.executor,
+      executionProfile: params.executionProfile,
+      workingDir: variantWorkingDir,
+      runIndex: params.runIndex,
+      repeatCount: params.repeatCount,
+    });
+    variantRuns.push(variantRun);
+  }
+  const directionPassed = evaluateSkillAblationDirection({
+    spec,
+    variants: variantRuns,
+  });
+  const outcome = summarizeSkillAblationOutcome(variantRuns, directionPassed);
+  const durationMs = Date.now() - startedAt.getTime();
+  const executionOutcome = skillAblationExecutionOutcome(outcome, durationMs);
+  const objectiveMetrics = topLevelObjectiveMetricsForSkillAblation({
+    fixtureId: spec.id,
+    variantRuns,
+    executionProfile: params.executionProfile,
+    runIndex: params.runIndex,
+    repeatCount: params.repeatCount,
+  });
+  const resourceProfile = resourceProfileFromExecutionProfile(
+    params.executionProfile,
+  );
+  const skillAblation: SkillAblationRun = {
+    expectedDirection: spec.expectedDirection,
+    directionPassed,
+    passed: outcome === "pass",
+    variants: variantRuns,
+  };
+  const run: FixtureRun = {
+    fixtureId: spec.id,
+    runIndex: params.runIndex,
+    repeatCount: params.repeatCount,
+    outcome,
+    resourceProfile,
+    executionProfile: params.executionProfile,
+    objectiveMetrics,
+    skillAblation,
+    timing: {
+      startedAt: startedAt.toISOString(),
+      durationMs,
+      budgetMs: spec.budgetMs * spec.variants.length,
+    },
+    runArtifactPath: runArtifactDir,
+  };
+  writeSkillAblationRunArtifact(runArtifactDir, {
+    run,
+    fixtureId: spec.id,
+    workingDir: parentWorkingDir,
+    executionProfile: params.executionProfile,
+    skillAblation,
+    objectiveMetrics,
+    executionOutcome,
+  });
+  return {
+    run,
+    predicateResults: variantRuns.flatMap((variant) => variant.predicateResults),
+    preRunExpectationResults: variantRuns.flatMap(
+      (variant) => variant.preRunExpectationResults,
+    ),
+    objectiveMetrics,
+    workingDir: parentWorkingDir,
+    executionOutcome,
+  };
+}
+
 async function runMultiRoundFixture(
   params: RunFixtureParams,
 ): Promise<FixtureRunReport> {
@@ -1333,15 +1974,19 @@ async function runMultiRoundFixture(
 }
 
 /**
- * Run a single fixture attempt. Single-workflow fixtures get an isolated
- * tmpdir per attempt; multi-round fixtures get one isolated tmpdir per
- * attempt and preserve it across their ordered rounds.
+ * Run a single fixture attempt. Single-workflow fixtures get one isolated
+ * tmpdir per attempt; multi-round fixtures preserve one tmpdir across their
+ * ordered rounds; skill-ablation fixtures get one parent tmpdir containing
+ * one isolated materialized workspace per variant.
  */
 export async function runFixture(
   params: RunFixtureParams,
 ): Promise<FixtureRunReport> {
   if (isMultiRoundFixtureSpec(params.fixture.spec)) {
     return runMultiRoundFixture(params);
+  }
+  if (isSkillAblationFixtureSpec(params.fixture.spec)) {
+    return runSkillAblationFixture(params);
   }
   return runSingleWorkflowFixture(params);
 }

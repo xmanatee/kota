@@ -132,6 +132,295 @@ function writeMultiRoundFixture(fixturesRoot: string, id = "multi-round-mini"): 
   );
 }
 
+function writeImportedSkill(params: {
+  fixtureDir: string;
+  name: string;
+  body: string;
+  frontmatter?: string;
+}): void {
+  const skillDir = join(params.fixtureDir, "initial", ".kota", "skills", params.name);
+  mkdirSync(skillDir, { recursive: true });
+  writeFileSync(
+    join(skillDir, "SKILL.md"),
+    [
+      "---",
+      params.frontmatter ?? `name: ${params.name}`,
+      "---",
+      params.body,
+      "",
+    ].join("\n"),
+  );
+  writeFileSync(
+    join(skillDir, "kota-import.json"),
+    JSON.stringify(
+      {
+        version: 1,
+        skillName: params.name,
+        source: "fixture",
+        sourceKind: "local",
+        selectedSkillPath: `${params.name}/SKILL.md`,
+        provenance: "fixture-local imported skill",
+        importedFiles: ["SKILL.md"],
+        skippedFiles: [],
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+function skillAblationVariantFixture(params: {
+  id: string;
+  workflowName: string;
+  agentName: string;
+  agentStepId: string;
+  selectedSkills: readonly string[];
+  skillProvenance: "none" | "imported";
+  expectedOutcome: "pass" | "fail";
+  promptEvidence: Record<string, readonly string[]>;
+}): Record<string, unknown> {
+  return {
+    id: params.id,
+    workflowName: params.workflowName,
+    agentName: params.agentName,
+    agentStepId: params.agentStepId,
+    selectedSkills: params.selectedSkills,
+    skillProvenance: params.skillProvenance,
+    expectedOutcome: params.expectedOutcome,
+    promptEvidence: params.promptEvidence,
+    preRunExpectations: [
+      {
+        predicate: { kind: "file-exists", path: "output/ticket-summary.json" },
+        expected: "fail",
+      },
+      {
+        predicate: {
+          kind: "file-exists",
+          path: "data/tasks/ready/task-normalize-ticket-json.md",
+        },
+        expected: "pass",
+      },
+    ],
+    predicates: [
+      {
+        kind: "file-absent",
+        path: "data/tasks/ready/task-normalize-ticket-json.md",
+      },
+      {
+        kind: "file-exists",
+        path: "data/tasks/done/task-normalize-ticket-json.md",
+      },
+      {
+        kind: "file-contains",
+        path: "output/ticket-summary.json",
+        needle: '"valid": true',
+      },
+      {
+        kind: "file-contains",
+        path: "output/ticket-summary.json",
+        needle: '"routing": "release"',
+      },
+      {
+        kind: "git-changes-within",
+        allowedPaths: [
+          "data/tasks/ready/task-normalize-ticket-json.md",
+          "data/tasks/done/task-normalize-ticket-json.md",
+          "output/ticket-summary.json",
+        ],
+      },
+    ],
+  };
+}
+
+function writeSkillAblationFixture(
+  fixturesRoot: string,
+  params: {
+    id?: string;
+    focusedSkillFrontmatter?: string;
+  } = {},
+): void {
+  const id = params.id ?? "skill-ablation-mini";
+  const fixtureDir = join(fixturesRoot, id);
+  mkdirSync(join(fixtureDir, "initial", "data", "tasks", "ready"), {
+    recursive: true,
+  });
+  writeFileSync(
+    join(fixtureDir, "initial", "data", "tasks", "ready", "task-normalize-ticket-json.md"),
+    [
+      "---",
+      "id: task-normalize-ticket-json",
+      "status: ready",
+      "---",
+      "",
+      "Normalize T-1042 ticket JSON.",
+      "",
+    ].join("\n"),
+  );
+  writeImportedSkill({
+    fixtureDir,
+    name: "focused-procedure",
+    frontmatter: params.focusedSkillFrontmatter,
+    body: [
+      "Ticket JSON Normalization Procedure",
+      "Compute routing as release after validating required fields.",
+    ].join("\n"),
+  });
+  writeImportedSkill({
+    fixtureDir,
+    name: "outdated-procedure",
+    body: [
+      "Outdated Ticket Procedure",
+      "Set routing to pending-review when the ticket has any optional field.",
+    ].join("\n"),
+  });
+  writeFileSync(
+    join(fixtureDir, "fixture.json"),
+    JSON.stringify(
+      {
+        id,
+        description: "skill ablation runner fixture",
+        role: "builder",
+        mode: "skill-ablation",
+        budgetMs: 60_000,
+        variants: [
+          skillAblationVariantFixture({
+            id: "no-skill",
+            workflowName: "skill-ablation-no-skill",
+            agentName: "skill-ablation-no-skill-agent",
+            agentStepId: "solve-no-skill",
+            selectedSkills: [],
+            skillProvenance: "none",
+            expectedOutcome: "fail",
+            promptEvidence: {
+              forbiddenNeedles: [
+                "Ticket JSON Normalization Procedure",
+                "Outdated Ticket Procedure",
+              ],
+            },
+          }),
+          skillAblationVariantFixture({
+            id: "focused-skill",
+            workflowName: "skill-ablation-focused-skill",
+            agentName: "skill-ablation-focused-skill-agent",
+            agentStepId: "solve-focused-skill",
+            selectedSkills: ["focused-procedure"],
+            skillProvenance: "imported",
+            expectedOutcome: "pass",
+            promptEvidence: {
+              requiredNeedles: [
+                "Ticket JSON Normalization Procedure",
+                "Compute routing as release",
+              ],
+              forbiddenNeedles: ["Outdated Ticket Procedure"],
+            },
+          }),
+          skillAblationVariantFixture({
+            id: "noisy-skill",
+            workflowName: "skill-ablation-noisy-skill",
+            agentName: "skill-ablation-noisy-skill-agent",
+            agentStepId: "solve-noisy-skill",
+            selectedSkills: ["outdated-procedure"],
+            skillProvenance: "imported",
+            expectedOutcome: "fail",
+            promptEvidence: {
+              requiredNeedles: [
+                "Outdated Ticket Procedure",
+                "routing to pending-review",
+              ],
+              forbiddenNeedles: ["Ticket JSON Normalization Procedure"],
+            },
+          }),
+        ],
+        expectedDirection: {
+          kind: "treatment-passes-control-fails",
+          controlVariantId: "no-skill",
+          treatmentVariantId: "focused-skill",
+          noisyVariantId: "noisy-skill",
+          summary: "The focused skill should be the only passing variant.",
+        },
+        controlDecisions: ["act"],
+        provenance: {
+          kind: "smoke-fixture",
+          justification: "tests skill-ablation runner wiring",
+        },
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+function completeTicketNormalization(params: {
+  workingDir: string;
+  valid: boolean;
+  routing: string;
+}): void {
+  const readyPath = join(
+    params.workingDir,
+    "data",
+    "tasks",
+    "ready",
+    "task-normalize-ticket-json.md",
+  );
+  const donePath = join(
+    params.workingDir,
+    "data",
+    "tasks",
+    "done",
+    "task-normalize-ticket-json.md",
+  );
+  mkdirSync(join(params.workingDir, "data", "tasks", "done"), {
+    recursive: true,
+  });
+  const taskText = readFileSync(readyPath, "utf-8");
+  rmSync(readyPath, { force: true });
+  writeFileSync(donePath, taskText.replace("status: ready", "status: done"));
+  mkdirSync(join(params.workingDir, "output"), { recursive: true });
+  writeFileSync(
+    join(params.workingDir, "output", "ticket-summary.json"),
+    JSON.stringify({ valid: params.valid, routing: params.routing }, null, 2),
+  );
+}
+
+function writeAgentStepArtifact(params: {
+  workingDir: string;
+  workflowName: string;
+  agentStepId: string;
+  promptText: string;
+  inputTokens: number;
+  outputTokens: number;
+}): string {
+  const runArtifactPath = join(
+    params.workingDir,
+    ".kota",
+    "runs",
+    params.workflowName,
+  );
+  const stepsDir = join(runArtifactPath, "steps");
+  mkdirSync(stepsDir, { recursive: true });
+  writeFileSync(
+    join(stepsDir, `${params.agentStepId}.input.md`),
+    params.promptText,
+  );
+  writeFileSync(
+    join(stepsDir, `${params.agentStepId}.json`),
+    JSON.stringify(
+      {
+        output: {
+          turns: 1,
+          totalCostUsd: 0.01,
+          inputTokens: params.inputTokens,
+          outputTokens: params.outputTokens,
+          subtype: "success",
+        },
+      },
+      null,
+      2,
+    ),
+  );
+  return runArtifactPath;
+}
+
 function writeCalibratedShellFixture(
   fixturesRoot: string,
   id: string,
@@ -645,6 +934,212 @@ describe("runFixture", () => {
       ]),
     );
     cleanupFixtureWorkingDir(report.workingDir);
+  });
+
+  it("runs skill-ablation variants and writes prompt-resolution evidence", async () => {
+    writeSkillAblationFixture(fixturesRoot);
+    const fixture = loadFixture(fixturesRoot, "skill-ablation-mini");
+    const calls: string[] = [];
+    const executor: WorkflowExecutor = {
+      preflight: () => TEST_EXECUTION_PROFILE,
+      execute: async ({ workflowName, workingDir }) => {
+        calls.push(workflowName);
+        if (workflowName === "skill-ablation-focused-skill") {
+          completeTicketNormalization({
+            workingDir,
+            valid: true,
+            routing: "release",
+          });
+          return {
+            kind: "completed",
+            durationMs: 5,
+            runArtifactPath: writeAgentStepArtifact({
+              workingDir,
+              workflowName,
+              agentStepId: "solve-focused-skill",
+              promptText: [
+                "Solve the ticket.",
+                "Ticket JSON Normalization Procedure",
+                "Compute routing as release after validating required fields.",
+              ].join("\n"),
+              inputTokens: 1350,
+              outputTokens: 130,
+            }),
+          };
+        }
+        if (workflowName === "skill-ablation-noisy-skill") {
+          completeTicketNormalization({
+            workingDir,
+            valid: false,
+            routing: "pending-review",
+          });
+          return {
+            kind: "completed",
+            durationMs: 5,
+            runArtifactPath: writeAgentStepArtifact({
+              workingDir,
+              workflowName,
+              agentStepId: "solve-noisy-skill",
+              promptText: [
+                "Solve the ticket.",
+                "Outdated Ticket Procedure",
+                "Set routing to pending-review when optional fields exist.",
+              ].join("\n"),
+              inputTokens: 1280,
+              outputTokens: 125,
+            }),
+          };
+        }
+        completeTicketNormalization({
+          workingDir,
+          valid: false,
+          routing: "review",
+        });
+        return {
+          kind: "completed",
+          durationMs: 5,
+          runArtifactPath: writeAgentStepArtifact({
+            workingDir,
+            workflowName,
+            agentStepId: "solve-no-skill",
+            promptText: "Solve the ticket without additional skill guidance.",
+            inputTokens: 900,
+            outputTokens: 120,
+          }),
+        };
+      },
+    };
+
+    const report = await runFixture({
+      fixture,
+      executor,
+      executionProfile: TEST_EXECUTION_PROFILE,
+      runArtifactBaseDir: runsRoot,
+      runIndex: 0,
+      repeatCount: 1,
+    });
+
+    expect(calls).toEqual([
+      "skill-ablation-no-skill",
+      "skill-ablation-focused-skill",
+      "skill-ablation-noisy-skill",
+    ]);
+    expect(report.run.outcome).toBe("pass");
+    expect(report.run.skillAblation?.directionPassed).toBe(true);
+    expect(report.objectiveMetrics.map((metric) => metric.name)).toEqual([
+      "no-skill.predicate_pass_rate",
+      "focused-skill.predicate_pass_rate",
+      "noisy-skill.predicate_pass_rate",
+    ]);
+
+    const raw = JSON.parse(
+      readFileSync(join(report.run.runArtifactPath, "fixture-run.json"), "utf-8"),
+    ) as {
+      fixture: { mode: string; workingDir: string };
+      outcome: string;
+      skillAblation: {
+        directionPassed: boolean;
+        variants: Array<{
+          id: string;
+          observedOutcome: string;
+          expectationPassed: boolean;
+          promptResolution: {
+            selectedSkills: string[];
+            resolvedSkills: Array<{
+              name: string;
+              expectedProvenance: string;
+              resolved: boolean;
+              provenance: string;
+              importedFiles: string[];
+            }>;
+            agentInputFound: boolean;
+            requiredNeedles: Array<{ passed: boolean }>;
+            forbiddenNeedles: Array<{ passed: boolean }>;
+          };
+          objectiveMetrics: Array<{ name: string; value: number }>;
+          usage: {
+            inputTokens: number | null;
+            outputTokens: number | null;
+            totalCostUsd: number | null;
+          };
+        }>;
+      };
+    };
+    expect(raw.fixture.mode).toBe("skill-ablation");
+    expect(raw.outcome).toBe("pass");
+    expect(raw.skillAblation.directionPassed).toBe(true);
+    const byId = new Map(
+      raw.skillAblation.variants.map((variant) => [variant.id, variant]),
+    );
+    expect(byId.get("no-skill")).toMatchObject({
+      observedOutcome: "fail",
+      expectationPassed: true,
+      promptResolution: {
+        selectedSkills: [],
+        resolvedSkills: [],
+        agentInputFound: true,
+      },
+    });
+    expect(byId.get("focused-skill")).toMatchObject({
+      observedOutcome: "pass",
+      expectationPassed: true,
+      usage: {
+        inputTokens: 1350,
+        outputTokens: 130,
+        totalCostUsd: 0.01,
+      },
+    });
+    expect(byId.get("focused-skill")?.promptResolution.resolvedSkills[0]).toMatchObject({
+      name: "focused-procedure",
+      expectedProvenance: "imported",
+      resolved: true,
+      provenance: "imported",
+      importedFiles: ["SKILL.md"],
+    });
+    expect(
+      byId
+        .get("focused-skill")
+        ?.promptResolution.requiredNeedles.every((needle) => needle.passed),
+    ).toBe(true);
+    expect(
+      byId
+        .get("noisy-skill")
+        ?.promptResolution.forbiddenNeedles.every((needle) => needle.passed),
+    ).toBe(true);
+    expect(byId.get("focused-skill")?.objectiveMetrics[0]).toMatchObject({
+      name: "focused-skill.predicate_pass_rate",
+      value: 1,
+    });
+    expect(byId.get("no-skill")?.objectiveMetrics[0].value).toBeLessThan(1);
+    cleanupFixtureWorkingDir(report.workingDir);
+  });
+
+  it("rejects malformed imported skill metadata before executing a skill-ablation variant", async () => {
+    writeSkillAblationFixture(fixturesRoot, {
+      id: "skill-ablation-invalid-skill",
+      focusedSkillFrontmatter: "name: focused-procedure\nallowed-tools: [Read]",
+    });
+    const fixture = loadFixture(fixturesRoot, "skill-ablation-invalid-skill");
+    let executorCalls = 0;
+    const executor: WorkflowExecutor = {
+      preflight: () => TEST_EXECUTION_PROFILE,
+      execute: async () => {
+        executorCalls++;
+        return { kind: "completed", durationMs: 5, runArtifactPath: null };
+      },
+    };
+
+    await expect(
+      runFixture({
+        fixture,
+        executor,
+        executionProfile: TEST_EXECUTION_PROFILE,
+        runArtifactBaseDir: runsRoot,
+        runIndex: 0,
+        repeatCount: 1,
+      }),
+    ).rejects.toThrow(/unsupported skill tool-policy frontmatter "allowed-tools"/);
+    expect(executorCalls).toBe(0);
   });
 
   it("initializes git for plain fixtures so git-change predicates can score", async () => {
