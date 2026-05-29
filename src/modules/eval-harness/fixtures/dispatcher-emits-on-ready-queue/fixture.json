@@ -1,10 +1,55 @@
 {
   "id": "dispatcher-emits-on-ready-queue",
-  "description": "Dispatcher inspects a ready queue of size 1 and must emit autonomy.queue.available plus autonomy.queue.thin. It must not emit autonomy.queue.empty or autonomy.inbox.available. Proves the emit-only predicate plumbing (run-emits-event / run-omits-event) against a real dispatcher run.",
+  "description": "Dispatcher inspects a ready queue of size 1 and must emit autonomy.queue.available plus autonomy.queue.thin. It must not emit autonomy.queue.empty or autonomy.inbox.available. Proves emit-only predicate plumbing plus environment-state audit of the run-local emitted-events ledger against a real dispatcher run.",
   "role": "dispatcher",
   "workflowName": "dispatcher",
   "budgetMs": 60000,
+  "triggerPayload": {
+    "_runId": "fixture-dispatcher-environment-state-audit"
+  },
   "predicates": [
+    {
+      "kind": "environment-state-audit",
+      "files": [
+        {
+          "path": ".kota/runs/fixture-dispatcher-environment-state-audit/emitted-events.jsonl",
+          "format": "jsonl",
+          "expectedEffects": [
+            {
+              "match": {
+                "event": "autonomy.queue.available",
+                "payload": {
+                  "pullableCount": 1,
+                  "actionableCount": 1
+                }
+              },
+              "count": 1
+            },
+            {
+              "match": {
+                "event": "autonomy.queue.thin",
+                "payload": {
+                  "pullableCount": 1
+                }
+              },
+              "count": 1
+            }
+          ],
+          "forbiddenEffects": [
+            {
+              "match": {
+                "event": "autonomy.queue.empty"
+              }
+            },
+            {
+              "match": {
+                "event": "autonomy.inbox.available"
+              }
+            }
+          ]
+        }
+      ]
+    },
     {
       "kind": "run-emits-event",
       "event": "autonomy.queue.available",
@@ -40,9 +85,33 @@
   ],
   "provenance": {
     "kind": "smoke-fixture",
-    "justification": "Proves the fixture → workflow → run-emits-event / run-omits-event predicate plumbing works end-to-end for emit-only autonomy workflows. Orthogonal to per-workflow regression coverage: all 987 dispatcher runs in .kota/runs/ are success on this branch, so there is no real-failure history to encode yet. This fixture exists to fail loudly when the emitted-events.jsonl logging, the predicate kinds themselves, or dispatcher's queue-shape event emission regress; a real-failure dispatcher fixture should replace it once the first bad dispatcher run lands."
+    "justification": "Proves the fixture → workflow → run-emits-event / run-omits-event predicate plumbing works end-to-end for emit-only autonomy workflows, and now also proves the environment-state-audit predicate against the same run-local emitted-events JSONL ledger. Orthogonal to per-workflow regression coverage: all 987 dispatcher runs in .kota/runs/ are success on this branch, so there is no real-failure history to encode yet. This fixture exists to fail loudly when the emitted-events.jsonl logging, the predicate kinds themselves, or dispatcher's queue-shape event emission regress; a real-failure dispatcher fixture should replace it once the first bad dispatcher run lands."
   },
   "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "environment-state-audit",
+        "files": [
+          {
+            "path": ".kota/runs/fixture-dispatcher-environment-state-audit/emitted-events.jsonl",
+            "format": "jsonl",
+            "expectedEffects": [
+              {
+                "match": {
+                  "event": "autonomy.queue.available",
+                  "payload": {
+                    "pullableCount": 1,
+                    "actionableCount": 1
+                  }
+                },
+                "count": 1
+              }
+            ]
+          }
+        ]
+      },
+      "expected": "fail"
+    },
     {
       "predicate": {
         "kind": "run-emits-event",

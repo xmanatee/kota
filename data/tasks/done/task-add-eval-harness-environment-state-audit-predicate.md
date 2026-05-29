@@ -1,12 +1,12 @@
 ---
 id: task-add-eval-harness-environment-state-audit-predicate
 title: Add eval-harness environment-state audit predicates
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Extend eval-harness fixture predicates so native-runtime scenarios can assert expected and forbidden local environment side effects, not only git diffs, bus events, or external command calls.
 created_at: 2026-05-29T07:22:48.184Z
-updated_at: 2026-05-29T07:22:48.184Z
+updated_at: 2026-05-29T07:36:53.000Z
 ---
 
 ## Problem
@@ -109,3 +109,15 @@ agent self-report.
 - Transcript and fixture-run artifact under `.kota/runs/<run-id>/` for
   `pnpm kota eval run --fixture <state-audit-fixture-id> --repeats 1` showing
   the environment-state audit predicate passing and reporting useful details.
+
+## Completion Evidence
+
+- Run directory: `.kota/runs/2026-05-29T07-27-32-752Z-builder-cpva09/`.
+- Targeted tests: `targeted-tests-transcript.txt` for
+  `pnpm test src/modules/eval-harness/predicates.test.ts src/modules/eval-harness/fixture.test.ts`.
+- Fixture load: `eval-list-transcript.txt` for `pnpm kota eval list`.
+- Fixture run: `dispatcher-state-audit-fixture-transcript.txt` for
+  `pnpm kota eval run --fixture dispatcher-emits-on-ready-queue --repeats 1`.
+- Fixture artifact: `dispatcher-state-audit-fixture-run.json` shows the
+  `environment-state-audit` pre-run expectation failed initially and the final
+  predicate passed with two expected and two forbidden effects.

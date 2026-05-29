@@ -10,8 +10,15 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import {
+  existsSync,
+  lstatSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  statSync,
+} from "node:fs";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 
 /**
@@ -41,6 +48,37 @@ export type ExternalCallArgvMatch =
   | { kind: "argv-equals"; argv: readonly string[] }
   | { kind: "argv-prefix"; argv: readonly string[] }
   | { kind: "argv-includes"; arg: string };
+
+export type EnvironmentStateAuditExpectedEffect = {
+  /**
+   * Shallow/deep subset matched against one local state record. Every key in
+   * this object must be present with the same value, but extra record fields
+   * are ignored.
+   */
+  match: EventPayloadMatch;
+  /** Exact number of matching records that must exist. */
+  count: number;
+};
+
+export type EnvironmentStateAuditForbiddenEffect = {
+  /**
+   * Shallow/deep subset matched against one local state record. Any matching
+   * record is an unauthorized side effect and fails the audit.
+   */
+  match: EventPayloadMatch;
+};
+
+export type EnvironmentStateAuditFile = {
+  /** Fixture-working-dir-relative path to a local JSON state ledger. */
+  path: string;
+  /**
+   * `json-array` reads a whole file whose root is an array of objects.
+   * `jsonl` reads one JSON object per non-empty line.
+   */
+  format: "json-array" | "jsonl";
+  expectedEffects?: readonly EnvironmentStateAuditExpectedEffect[];
+  forbiddenEffects?: readonly EnvironmentStateAuditForbiddenEffect[];
+};
 
 export type FixturePredicate =
   | { kind: "file-exists"; path: string }
@@ -124,6 +162,17 @@ export type FixturePredicate =
        * code must fall in the named class.
        */
       exitClass?: "zero" | "non-zero";
+    }
+  | {
+      /**
+       * Audits fixture-owned local environment state after a run. Each file is
+       * a deterministic JSON ledger inside the materialized fixture working
+       * directory; expected effects must appear exactly `count` times and
+       * forbidden effects must appear zero times. Agent self-report and judge
+       * output are never accepted as evidence.
+       */
+      kind: "environment-state-audit";
+      files: readonly EnvironmentStateAuditFile[];
     };
 
 export type PredicateEvalResult = {
@@ -920,6 +969,217 @@ function evaluateExternalCallLog(
   };
 }
 
+type AuditRecordsRead =
+  | { ok: true; path: string; records: JsonObject[]; missing: boolean }
+  | { ok: false; issue: string };
+
+function pathInsideWorkingDir(
+  workingDir: string,
+  relativePath: string,
+): { ok: true; path: string } | { ok: false; issue: string } {
+  if (relativePath.length === 0 || isAbsolute(relativePath)) {
+    return {
+      ok: false,
+      issue: `environment-state-audit path must be a non-empty relative path: ${JSON.stringify(relativePath)}`,
+    };
+  }
+  const absolute = resolve(workingDir, relativePath);
+  if (!isStrictlyInsideDirectory(workingDir, absolute)) {
+    return {
+      ok: false,
+      issue: `environment-state-audit path must stay inside the fixture working directory: ${relativePath}`,
+    };
+  }
+  const realWorkingDir = realpathSync(workingDir);
+  const existingAnchor = nearestExistingPath(absolute);
+  const realExistingAnchor = realpathSync(existingAnchor);
+  if (!isInsideOrSameDirectory(realWorkingDir, realExistingAnchor)) {
+    return {
+      ok: false,
+      issue: `environment-state-audit path must stay inside the fixture working directory: ${relativePath}`,
+    };
+  }
+  return { ok: true, path: absolute };
+}
+
+function nearestExistingPath(absolutePath: string): string {
+  let current = absolutePath;
+  while (!existsSync(current)) {
+    const parent = dirname(current);
+    if (parent === current) return current;
+    current = parent;
+  }
+  return current;
+}
+
+function isInsideOrSameDirectory(directory: string, candidate: string): boolean {
+  const rel = relative(directory, candidate);
+  return rel === "" || (!rel.startsWith(`..${sep}`) && rel !== ".." && !isAbsolute(rel));
+}
+
+function isStrictlyInsideDirectory(directory: string, candidate: string): boolean {
+  const rel = relative(directory, candidate);
+  return rel !== "" && !rel.startsWith(`..${sep}`) && rel !== ".." && !isAbsolute(rel);
+}
+
+function readJsonArrayAuditRecords(
+  raw: string,
+  file: EnvironmentStateAuditFile,
+): AuditRecordsRead {
+  let parsed: JsonValue;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      ok: false,
+      issue: `${file.path}: invalid JSON audit artifact: ${message}`,
+    };
+  }
+  if (!Array.isArray(parsed)) {
+    return {
+      ok: false,
+      issue: `${file.path}: json-array audit artifact must have an array root`,
+    };
+  }
+  const records: JsonObject[] = [];
+  for (let index = 0; index < parsed.length; index++) {
+    const record = parsed[index] as JsonValue | undefined;
+    if (!isJsonObject(record)) {
+      return {
+        ok: false,
+        issue: `${file.path}: record ${index} must be a JSON object`,
+      };
+    }
+    records.push(record);
+  }
+  return { ok: true, path: file.path, records, missing: false };
+}
+
+function readJsonlAuditRecords(
+  raw: string,
+  file: EnvironmentStateAuditFile,
+): AuditRecordsRead {
+  const records: JsonObject[] = [];
+  const lines = raw.split("\n");
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index].trim();
+    if (line.length === 0) continue;
+    let parsed: JsonValue;
+    try {
+      parsed = JSON.parse(line);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        ok: false,
+        issue: `${file.path}: invalid JSONL audit artifact at line ${index + 1}: ${message}`,
+      };
+    }
+    const record = parsed as JsonValue | undefined;
+    if (!isJsonObject(record)) {
+      return {
+        ok: false,
+        issue: `${file.path}: JSONL line ${index + 1} must be a JSON object`,
+      };
+    }
+    records.push(record);
+  }
+  return { ok: true, path: file.path, records, missing: false };
+}
+
+function readEnvironmentStateAuditRecords(
+  workingDir: string,
+  file: EnvironmentStateAuditFile,
+): AuditRecordsRead {
+  const resolved = pathInsideWorkingDir(workingDir, file.path);
+  if (!resolved.ok) return { ok: false, issue: resolved.issue };
+  if (!existsSync(resolved.path)) {
+    return { ok: true, path: file.path, records: [], missing: true };
+  }
+  if (lstatSync(resolved.path).isSymbolicLink()) {
+    return {
+      ok: false,
+      issue: `${file.path}: environment-state-audit refuses to read symlinks`,
+    };
+  }
+  if (!statSync(resolved.path).isFile()) {
+    return {
+      ok: false,
+      issue: `${file.path}: environment-state-audit path is not a regular file`,
+    };
+  }
+  const raw = readFileSync(resolved.path, "utf-8");
+  switch (file.format) {
+    case "json-array":
+      return readJsonArrayAuditRecords(raw, file);
+    case "jsonl":
+      return readJsonlAuditRecords(raw, file);
+  }
+}
+
+function countMatchingRecords(
+  records: readonly JsonObject[],
+  match: EventPayloadMatch,
+): number {
+  return records.filter((record) => payloadSubsetMatches(record, match)).length;
+}
+
+function evaluateEnvironmentStateAuditFile(
+  workingDir: string,
+  file: EnvironmentStateAuditFile,
+): string[] {
+  const read = readEnvironmentStateAuditRecords(workingDir, file);
+  if (!read.ok) return [read.issue];
+  const issues: string[] = [];
+  const expectedEffects = file.expectedEffects ?? [];
+  const forbiddenEffects = file.forbiddenEffects ?? [];
+  for (const expected of expectedEffects) {
+    const count = countMatchingRecords(read.records, expected.match);
+    if (count !== expected.count) {
+      issues.push(
+        `${file.path}: expected ${expected.count} record(s) matching ${JSON.stringify(expected.match)} but found ${count}`,
+      );
+    }
+  }
+  for (const forbidden of forbiddenEffects) {
+    const count = countMatchingRecords(read.records, forbidden.match);
+    if (count !== 0) {
+      issues.push(
+        `${file.path}: forbidden effect ${JSON.stringify(forbidden.match)} matched ${count} record(s)`,
+      );
+    }
+  }
+  if (read.missing && expectedEffects.length > 0 && issues.length === 0) {
+    issues.push(`${file.path}: state file is missing`);
+  }
+  return issues;
+}
+
+function evaluateEnvironmentStateAudit(
+  workingDir: string,
+  predicate: Extract<FixturePredicate, { kind: "environment-state-audit" }>,
+): PredicateEvalResult {
+  const issues = predicate.files.flatMap((file) =>
+    evaluateEnvironmentStateAuditFile(workingDir, file),
+  );
+  const expectedEffectCount = predicate.files.reduce(
+    (sum, file) => sum + (file.expectedEffects?.length ?? 0),
+    0,
+  );
+  const forbiddenEffectCount = predicate.files.reduce(
+    (sum, file) => sum + (file.forbiddenEffects?.length ?? 0),
+    0,
+  );
+  return {
+    predicate,
+    passed: issues.length === 0,
+    detail:
+      issues.length === 0
+        ? `environment-state-audit verified ${predicate.files.length} file(s), ${expectedEffectCount} expected effect(s), and ${forbiddenEffectCount} forbidden effect(s)`
+        : `environment-state-audit failed:\n- ${issues.join("\n- ")}`,
+  };
+}
+
 export function evaluatePredicate(
   workingDir: string,
   predicate: FixturePredicate,
@@ -944,6 +1204,8 @@ export function evaluatePredicate(
       return evaluateRunOmitsEvent(workingDir, predicate);
     case "external-call-log":
       return evaluateExternalCallLog(workingDir, predicate);
+    case "environment-state-audit":
+      return evaluateEnvironmentStateAudit(workingDir, predicate);
   }
 }
 

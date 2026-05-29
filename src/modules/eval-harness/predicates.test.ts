@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -469,5 +469,188 @@ describe("evaluatePredicate — external-call-log predicate", () => {
         match: { kind: "argv-prefix", argv: ["pr"] },
       }),
     ).toThrow();
+  });
+});
+
+describe("evaluatePredicate — environment-state-audit predicate", () => {
+  let workDir: string;
+
+  beforeEach(() => {
+    workDir = mkdtempSync(join(tmpdir(), "kota-eval-harness-state-audit-"));
+  });
+
+  afterEach(() => {
+    rmSync(workDir, { recursive: true, force: true });
+  });
+
+  it("passes when expected local effects match exact counts and forbidden effects are absent", () => {
+    mkdirSync(join(workDir, "state"), { recursive: true });
+    writeFileSync(
+      join(workDir, "state", "messages.json"),
+      JSON.stringify([
+        {
+          kind: "message",
+          id: "msg-1",
+          account: "fixture",
+          payload: { subject: "hello", unread: true },
+        },
+      ]),
+    );
+    writeFileSync(
+      join(workDir, "state", "ledger.jsonl"),
+      [
+        JSON.stringify({
+          kind: "task-ledger",
+          taskId: "task-1",
+          status: "done",
+          metadata: { actor: "workflow" },
+        }),
+        "",
+      ].join("\n"),
+    );
+
+    const result = evaluatePredicate(workDir, {
+      kind: "environment-state-audit",
+      files: [
+        {
+          path: "state/messages.json",
+          format: "json-array",
+          expectedEffects: [
+            {
+              match: { kind: "message", payload: { subject: "hello" } },
+              count: 1,
+            },
+          ],
+          forbiddenEffects: [
+            { match: { kind: "message", account: "operator-real-account" } },
+          ],
+        },
+        {
+          path: "state/ledger.jsonl",
+          format: "jsonl",
+          expectedEffects: [
+            { match: { kind: "task-ledger", status: "done" }, count: 1 },
+          ],
+        },
+      ],
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.detail).toContain("environment-state-audit verified");
+  });
+
+  it("fails when an expected local effect is missing", () => {
+    mkdirSync(join(workDir, "state"), { recursive: true });
+    writeFileSync(join(workDir, "state", "messages.json"), "[]");
+
+    const result = evaluatePredicate(workDir, {
+      kind: "environment-state-audit",
+      files: [
+        {
+          path: "state/messages.json",
+          format: "json-array",
+          expectedEffects: [
+            { match: { kind: "message", id: "msg-1" }, count: 1 },
+          ],
+        },
+      ],
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.detail).toContain("expected 1 record");
+    expect(result.detail).toContain("found 0");
+  });
+
+  it("fails when a forbidden local effect is present", () => {
+    mkdirSync(join(workDir, "state"), { recursive: true });
+    writeFileSync(
+      join(workDir, "state", "messages.json"),
+      JSON.stringify([{ kind: "message", account: "operator-real-account" }]),
+    );
+
+    const result = evaluatePredicate(workDir, {
+      kind: "environment-state-audit",
+      files: [
+        {
+          path: "state/messages.json",
+          format: "json-array",
+          forbiddenEffects: [
+            { match: { kind: "message", account: "operator-real-account" } },
+          ],
+        },
+      ],
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.detail).toContain("forbidden effect");
+    expect(result.detail).toContain("matched 1 record");
+  });
+
+  it("fails with useful detail when an audit artifact is malformed", () => {
+    mkdirSync(join(workDir, "state"), { recursive: true });
+    writeFileSync(join(workDir, "state", "messages.json"), "{not-json}");
+
+    const result = evaluatePredicate(workDir, {
+      kind: "environment-state-audit",
+      files: [
+        {
+          path: "state/messages.json",
+          format: "json-array",
+          expectedEffects: [
+            { match: { kind: "message", id: "msg-1" }, count: 1 },
+          ],
+        },
+      ],
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.detail).toContain("invalid JSON audit artifact");
+  });
+
+  it("rejects path traversal and out-of-working-directory audit paths", () => {
+    const result = evaluatePredicate(workDir, {
+      kind: "environment-state-audit",
+      files: [
+        {
+          path: "../outside.json",
+          format: "json-array",
+          expectedEffects: [
+            { match: { kind: "message", id: "msg-1" }, count: 1 },
+          ],
+        },
+      ],
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.detail).toContain("must stay inside the fixture working directory");
+  });
+
+  it("rejects audit paths that escape through a symlinked parent directory", () => {
+    const outsideDir = mkdtempSync(join(tmpdir(), "kota-eval-harness-state-outside-"));
+    try {
+      writeFileSync(
+        join(outsideDir, "messages.json"),
+        JSON.stringify([{ kind: "message", id: "operator-local-state" }]),
+      );
+      symlinkSync(outsideDir, join(workDir, "state"), "dir");
+
+      const result = evaluatePredicate(workDir, {
+        kind: "environment-state-audit",
+        files: [
+          {
+            path: "state/messages.json",
+            format: "json-array",
+            expectedEffects: [
+              { match: { kind: "message", id: "operator-local-state" }, count: 1 },
+            ],
+          },
+        ],
+      });
+
+      expect(result.passed).toBe(false);
+      expect(result.detail).toContain("must stay inside the fixture working directory");
+    } finally {
+      rmSync(outsideDir, { recursive: true, force: true });
+    }
   });
 });

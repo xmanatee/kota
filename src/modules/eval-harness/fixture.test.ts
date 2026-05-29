@@ -288,6 +288,107 @@ describe("loadFixture", () => {
     expect(() => loadFixture(root, "bad")).toThrow(/invalid predicate/);
   });
 
+  it("accepts a typed environment-state-audit predicate declaration", () => {
+    writeFixture(root, "stateAudit", {
+      id: "stateAudit",
+      description: "x",
+      role: "dispatcher",
+      workflowName: "dispatcher",
+      budgetMs: 60_000,
+      predicates: [
+        {
+          kind: "environment-state-audit",
+          files: [
+            {
+              path: ".kota/runs/fixture-dispatcher/emitted-events.jsonl",
+              format: "jsonl",
+              expectedEffects: [
+                {
+                  match: { event: "autonomy.queue.available" },
+                  count: 1,
+                },
+              ],
+              forbiddenEffects: [
+                { match: { event: "autonomy.queue.empty" } },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const loaded = loadFixture(root, "stateAudit");
+    expect(singleSpec(loaded).predicates).toEqual([
+      {
+        kind: "environment-state-audit",
+        files: [
+          {
+            path: ".kota/runs/fixture-dispatcher/emitted-events.jsonl",
+            format: "jsonl",
+            expectedEffects: [
+              {
+                match: { event: "autonomy.queue.available" },
+                count: 1,
+              },
+            ],
+            forbiddenEffects: [
+              { match: { event: "autonomy.queue.empty" } },
+            ],
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("rejects malformed environment-state-audit predicate declarations", () => {
+    writeFixture(root, "badStateAudit", {
+      id: "badStateAudit",
+      description: "x",
+      role: "dispatcher",
+      workflowName: "dispatcher",
+      budgetMs: 60_000,
+      predicates: [
+        {
+          kind: "environment-state-audit",
+          files: [
+            {
+              path: "../outside.json",
+              format: "json-array",
+              expectedEffects: [
+                { match: { event: "autonomy.queue.available" }, count: 1 },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    expect(() => loadFixture(root, "badStateAudit")).toThrow(/invalid predicate/);
+
+    writeFixture(root, "badStateAuditCount", {
+      id: "badStateAuditCount",
+      description: "x",
+      role: "dispatcher",
+      workflowName: "dispatcher",
+      budgetMs: 60_000,
+      predicates: [
+        {
+          kind: "environment-state-audit",
+          files: [
+            {
+              path: "state/events.json",
+              format: "json-array",
+              expectedEffects: [
+                { match: { event: "autonomy.queue.available" }, count: 0 },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    expect(() => loadFixture(root, "badStateAuditCount")).toThrow(
+      /invalid predicate/,
+    );
+  });
+
   it("rejects a fixture that omits provenance", () => {
     const id = "missingProvenance";
     const dir = join(root, id);

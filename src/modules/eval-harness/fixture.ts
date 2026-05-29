@@ -285,56 +285,56 @@ export type LoadedFixture = {
 const MAX_BUDGET_MS = 60 * 60 * 1000;
 const MIN_BUDGET_MS = 30_000;
 
-function isFixturePredicate(value: unknown): value is FixturePredicate {
-  if (typeof value !== "object" || value === null) return false;
-  const v = value as { kind?: unknown };
-  if (typeof v.kind !== "string") return false;
-  const p = v as Record<string, unknown>;
-  switch (v.kind) {
+type FixturePredicateJson = FixturePredicate & FixtureJsonObject;
+
+function isFixturePredicate(
+  value: FixtureJsonValue | undefined,
+): value is FixturePredicateJson {
+  if (!isJsonObject(value) || typeof value.kind !== "string") return false;
+  switch (value.kind) {
     case "file-exists":
     case "file-absent":
-      return typeof p.path === "string";
+      return typeof value.path === "string";
     case "file-contains":
-      return typeof p.path === "string" && typeof p.needle === "string";
+      return typeof value.path === "string" && typeof value.needle === "string";
     case "git-changes-within":
-      return isStringArray(p.allowedPaths);
+      return isStringArray(value.allowedPaths);
     case "lx12-scientific-claim-result":
       return (
-        typeof p.mainPath === "string" &&
-        typeof p.holdoutPath === "string" &&
-        typeof p.maxErrorPct === "number" &&
-        Number.isFinite(p.maxErrorPct) &&
-        p.maxErrorPct >= 0
+        typeof value.mainPath === "string" &&
+        typeof value.holdoutPath === "string" &&
+        typeof value.maxErrorPct === "number" &&
+        Number.isFinite(value.maxErrorPct) &&
+        value.maxErrorPct >= 0
       );
     case "shell-succeeds":
     case "shell-fails":
       return (
-        typeof p.command === "string" &&
-        (p.timeoutMs === undefined || typeof p.timeoutMs === "number")
+        typeof value.command === "string" &&
+        (value.timeoutMs === undefined || typeof value.timeoutMs === "number")
       );
     case "run-emits-event":
       return (
-        typeof p.event === "string" &&
-        (p.workflow === undefined || typeof p.workflow === "string") &&
-        (p.payloadMatch === undefined ||
-          (typeof p.payloadMatch === "object" &&
-            p.payloadMatch !== null &&
-            !Array.isArray(p.payloadMatch)))
+        typeof value.event === "string" &&
+        (value.workflow === undefined || typeof value.workflow === "string") &&
+        (value.payloadMatch === undefined || isJsonObject(value.payloadMatch))
       );
     case "run-omits-event":
       return (
-        typeof p.event === "string" &&
-        (p.workflow === undefined || typeof p.workflow === "string")
+        typeof value.event === "string" &&
+        (value.workflow === undefined || typeof value.workflow === "string")
       );
     case "external-call-log":
       return (
-        typeof p.binary === "string" &&
-        p.binary.length > 0 &&
-        isValidExternalCallMatch(p.match) &&
-        (p.exitClass === undefined ||
-          p.exitClass === "zero" ||
-          p.exitClass === "non-zero")
+        typeof value.binary === "string" &&
+        value.binary.length > 0 &&
+        isValidExternalCallMatch(value.match) &&
+        (value.exitClass === undefined ||
+          value.exitClass === "zero" ||
+          value.exitClass === "non-zero")
       );
+    case "environment-state-audit":
+      return isValidEnvironmentStateAuditFiles(value.files);
     default:
       return false;
   }
@@ -358,6 +358,77 @@ function isValidExternalCallMatch(value: unknown): boolean {
     default:
       return false;
   }
+}
+
+function isSafeRelativeAuditPath(path: string): boolean {
+  if (path.length === 0 || path.startsWith("/") || path.startsWith("\\")) {
+    return false;
+  }
+  return !path.split(/[\\/]+/).some((segment) => segment === "..");
+}
+
+function isValidEnvironmentStateExpectedEffect(
+  value: FixtureJsonValue | undefined,
+): boolean {
+  if (!isJsonObject(value)) return false;
+  return (
+    isJsonObject(value.match) &&
+    typeof value.count === "number" &&
+    Number.isInteger(value.count) &&
+    value.count > 0
+  );
+}
+
+function isValidEnvironmentStateForbiddenEffect(
+  value: FixtureJsonValue | undefined,
+): boolean {
+  if (!isJsonObject(value)) return false;
+  return isJsonObject(value.match);
+}
+
+function isValidOptionalEffectArray(
+  value: FixtureJsonValue | undefined,
+  validator: (entry: FixtureJsonValue | undefined) => boolean,
+): boolean {
+  return (
+    value === undefined ||
+    (Array.isArray(value) && value.length > 0 && value.every(validator))
+  );
+}
+
+function isValidEnvironmentStateAuditFile(
+  value: FixtureJsonValue | undefined,
+): boolean {
+  if (!isJsonObject(value)) return false;
+  if (typeof value.path !== "string" || !isSafeRelativeAuditPath(value.path)) {
+    return false;
+  }
+  if (value.format !== "json-array" && value.format !== "jsonl") {
+    return false;
+  }
+  if (
+    !isValidOptionalEffectArray(
+      value.expectedEffects,
+      isValidEnvironmentStateExpectedEffect,
+    ) ||
+    !isValidOptionalEffectArray(
+      value.forbiddenEffects,
+      isValidEnvironmentStateForbiddenEffect,
+    )
+  ) {
+    return false;
+  }
+  return value.expectedEffects !== undefined || value.forbiddenEffects !== undefined;
+}
+
+function isValidEnvironmentStateAuditFiles(
+  value: FixtureJsonValue | undefined,
+): boolean {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every(isValidEnvironmentStateAuditFile)
+  );
 }
 
 function parseProvenance(raw: unknown, fixtureDir: string): FixtureProvenance {
