@@ -579,6 +579,9 @@ resources:
       fingerprint: sha256:003b8a8815f1650ea4018c0748980e06
       summary: "SWE-Cycle reinforces KOTA's completed bare-repository full-cycle builder fixture: environment reconstruction, verification-test generation, and implementation repair now have artifact-graded local coverage, so no duplicate task was opened."
       last_seen_at: "2026-05-26T20:51:58.355Z"
+  - url: https://github.com/scaleapi/SWE-Atlas
+    added: "2026-05-29"
+    notes: "SWE Atlas evaluates coding agents on Codebase QnA, Test Writing, and Refactoring across professional repository tasks. Monitor as an eval-methodology signal for targeted test-writing, mutation-style test relevance checks, behavior-preserving refactors, and codebase-exploration diagnostics; do not import Harbor, Modal, or an LLM judge."
   - url: https://github.com/ShadeCloak/SaaSbench
     added: "2026-05-27"
     notes: "SaaSBench project repository for the long-horizon enterprise SaaS engineering benchmark. Monitor code, dataset, and DockerHub release status as an eval-harness signal for multi-component SaaS setup, dependency-aware validation nodes, and configuration/integration failures that happen before isolated business logic."
