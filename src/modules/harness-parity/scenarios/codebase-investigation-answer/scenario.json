@@ -1,0 +1,31 @@
+{
+  "id": "codebase-investigation-answer",
+  "description": "Investigate a small checkout codebase question and produce a cited answer artifact backed by source paths and runtime evidence, without editing production source.",
+  "prompt": "There is a small Node.js checkout project in this directory. A GB gift order is unexpectedly sent to manual review even though GB is an allowed destination. Investigate why and write the answer, not a code fix.\n\nCreate two files in the repository root:\n\n- `runtime-evidence.txt` containing the exact stdout from the local command that reproduces the current behavior.\n- `answer.json` with this shape: `{ \"summary\": string, \"findings\": [{ \"id\": string, \"statement\": string, \"sourceCitations\": [{ \"path\": string, \"reason\": string }], \"runtimeCitations\": [{ \"path\": \"runtime-evidence.txt\", \"command\": string, \"lines\": string[] }] }] }`.\n\nYour answer must explain the actual manual-review cause, cite source paths, and cite runtime evidence lines. Do not edit files under `src/`, `test.js`, `reproduce.js`, or `verify-answer.js`. Run `node verify-answer.js` when done; it must print `ok` and exit 0.",
+  "verification": {
+    "command": "node -e \"const { createHash } = require('node:crypto'); const { readFileSync } = require('node:fs'); const expected = '09cc89a976670e4f932e5c4896dbca4586f01bbb48748f08a5a28fc56a6534b0'; const actual = createHash('sha256').update(readFileSync('verify-answer.js')).digest('hex'); if (actual !== expected) { console.error('verify-answer.js was modified'); process.exit(1); } require('./verify-answer.js');\"",
+    "timeoutMs": 30000
+  },
+  "previewArtifacts": [
+    "answer.json",
+    "runtime-evidence.txt"
+  ],
+  "contextRetrieval": {
+    "targets": [
+      {
+        "id": "checkout-flow",
+        "kind": "path-group",
+        "paths": [
+          "src/checkout.js",
+          "src/catalog.js",
+          "src/regions.js"
+        ]
+      },
+      {
+        "id": "runtime-reproduction",
+        "kind": "path",
+        "path": "reproduce.js"
+      }
+    ]
+  }
+}

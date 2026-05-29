@@ -1,12 +1,12 @@
 ---
 id: task-add-a-codebase-investigation-answer-scenario-to-ha
 title: Add a codebase-investigation answer scenario to harness parity
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a no-production-edit harness-parity scenario where the agent investigates a small codebase question, records cited runtime-backed findings in an answer artifact, and passes deterministic verification without changing source code.
 created_at: 2026-05-29T13:16:13.655Z
-updated_at: 2026-05-29T13:16:13.655Z
+updated_at: 2026-05-29T13:28:21.000Z
 ---
 
 ## Problem
@@ -141,3 +141,9 @@ produce cited, runtime-backed answers without unnecessary edits.
 - Sample harness-parity artifact under `.kota/runs/<run-id>/` or a committed
   test fixture showing the answer artifact, verification result, trajectory
   diagnostics, and `parity.json` summary for the new scenario.
+
+## Completion Evidence
+
+- Focused tests: `.kota/runs/2026-05-29T13-18-29-339Z-builder-qmdgjy/focused-test-transcript.txt`.
+- CLI list transcript: `.kota/runs/2026-05-29T13-18-29-339Z-builder-qmdgjy/harness-parity-list.txt`.
+- Sample parity artifact: `.kota/runs/2026-05-29T13-18-29-339Z-builder-qmdgjy/harness-parity-sample/codebase-investigation-answer/parity.json`.

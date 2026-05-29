@@ -102,6 +102,79 @@ function writeLedgerKitV3(workDir: string): void {
   );
 }
 
+function runLoadedVerification(
+  loaded: ReturnType<typeof loadScenario>,
+  workDir: string,
+): ReturnType<typeof spawnSync> {
+  return spawnSync(loaded.spec.verification.command, {
+    shell: true,
+    cwd: workDir,
+    timeout: loaded.spec.verification.timeoutMs,
+    encoding: "utf-8",
+  });
+}
+
+function writeInvestigationRuntimeEvidence(workDir: string): void {
+  const runtime = spawnSync("node", ["reproduce.js"], {
+    cwd: workDir,
+    encoding: "utf-8",
+  });
+  expect(runtime.status).toBe(0);
+  writeFileSync(join(workDir, "runtime-evidence.txt"), runtime.stdout);
+}
+
+function writeInvestigationAnswer(
+  workDir: string,
+  runtimeCitations: readonly {
+    path: string;
+    command: string;
+    lines: readonly string[];
+  }[],
+): void {
+  writeFileSync(
+    join(workDir, "answer.json"),
+    JSON.stringify(
+      {
+        summary:
+          "GB is allowed; the gift order reaches manual review because gift wrap raises the order total to 5500, meeting the 5000 review threshold.",
+        findings: [
+          {
+            id: "gb-region-is-allowed",
+            statement:
+              "GB is an allowed destination, so the region gate is not the manual review cause.",
+            sourceCitations: [
+              { path: "src/regions.js", reason: "declares allowed destinations" },
+              { path: "src/checkout.js", reason: "uses the region gate" },
+            ],
+            runtimeCitations,
+          },
+          {
+            id: "gift-wrap-raises-total",
+            statement:
+              "Gift wrap adds 1000 to the 4500 base price, raising the total to 5500 against the 5000 threshold.",
+            sourceCitations: [
+              { path: "src/catalog.js", reason: "defines item and gift wrap prices" },
+              { path: "src/checkout.js", reason: "adds gift wrap into totalMinor" },
+            ],
+            runtimeCitations,
+          },
+          {
+            id: "threshold-causes-manual-review",
+            statement:
+              "The checkout path returns decision=manual_review when totalMinor meets the 5000 threshold.",
+            sourceCitations: [
+              { path: "src/checkout.js", reason: "selects manual_review at the threshold" },
+            ],
+            runtimeCitations,
+          },
+        ],
+      },
+      null,
+      2,
+    ),
+  );
+}
+
 describe("scenario loader", () => {
   let scenariosRoot: string;
   beforeEach(() => {
@@ -535,11 +608,12 @@ describe("scenario loader", () => {
 });
 
 describe("shipped scenarios", () => {
-  it("covers the arithmetic-fix smoke, the multi-file workload, the failure-and-revise probe, the discovery probe, the cross-file rename probe, and the frontend preview probe", () => {
+  it("covers the arithmetic-fix smoke, the multi-file workload, the failure-and-revise probe, the discovery probe, the cross-file rename probe, the frontend preview probe, package upgrade, and investigation answer probe", () => {
     const all = loadAllScenarios(SHIPPED_SCENARIOS_ROOT);
     const ids = all.map((s) => s.spec.id);
     expect(ids).toEqual(
       expect.arrayContaining([
+        "codebase-investigation-answer",
         "fix-arithmetic-bug",
         "extract-shared-helper",
         "revise-from-test-output",
@@ -551,7 +625,100 @@ describe("shipped scenarios", () => {
     );
     // Guard against regressions that accidentally drop coverage back to a
     // single fixture. If a new scenario is added, bump this bound deliberately.
-    expect(all.length).toBeGreaterThanOrEqual(7);
+    expect(all.length).toBeGreaterThanOrEqual(8);
+  });
+
+  it("codebase-investigation-answer loads with an answer-only prompt and context targets", () => {
+    const loaded = loadScenario(
+      SHIPPED_SCENARIOS_ROOT,
+      "codebase-investigation-answer",
+    );
+    expect(loaded.spec.id).toBe("codebase-investigation-answer");
+    expect(loaded.spec.prompt).toMatch(/answer\.json/);
+    expect(loaded.spec.prompt).toMatch(/runtime-evidence\.txt/);
+    expect(loaded.spec.prompt).toMatch(/node verify-answer\.js/);
+    expect(loaded.spec.prompt).not.toMatch(/src\/checkout\.js/);
+    expect(loaded.spec.prompt).not.toMatch(/src\/catalog\.js/);
+    expect(loaded.spec.prompt).not.toMatch(/src\/regions\.js/);
+    expect(loaded.spec.verification.command).toMatch(/verify-answer\.js/);
+    expect(loaded.spec.previewArtifacts).toEqual([
+      "answer.json",
+      "runtime-evidence.txt",
+    ]);
+    expect(loaded.spec.contextRetrieval?.targets).toEqual([
+      {
+        id: "checkout-flow",
+        kind: "path-group",
+        paths: ["src/checkout.js", "src/catalog.js", "src/regions.js"],
+      },
+      {
+        id: "runtime-reproduction",
+        kind: "path",
+        path: "reproduce.js",
+      },
+    ]);
+    expect(existsSync(loaded.initialStateDir)).toBe(true);
+    expect(statSync(loaded.initialStateDir).isDirectory()).toBe(true);
+  });
+
+  it("codebase-investigation-answer verifier requires cited runtime-backed answers and rejects source edits", () => {
+    const loaded = loadScenario(
+      SHIPPED_SCENARIOS_ROOT,
+      "codebase-investigation-answer",
+    );
+    const workDir = mkdtempSync(join(tmpdir(), "kota-harness-parity-answer-"));
+    try {
+      cpSync(loaded.initialStateDir, workDir, { recursive: true });
+
+      const beforeAnswer = runLoadedVerification(loaded, workDir);
+      expect(beforeAnswer.status).not.toBe(0);
+      expect(`${beforeAnswer.stdout ?? ""}\n${beforeAnswer.stderr ?? ""}`).toMatch(
+        /answer\.json is required/,
+      );
+
+      writeInvestigationRuntimeEvidence(workDir);
+      writeInvestigationAnswer(workDir, []);
+      const sourceOnly = runLoadedVerification(loaded, workDir);
+      expect(sourceOnly.status).not.toBe(0);
+      expect(`${sourceOnly.stdout ?? ""}\n${sourceOnly.stderr ?? ""}`).toMatch(
+        /must cite runtime line/,
+      );
+
+      const runtimeCitations = [
+        {
+          path: "runtime-evidence.txt",
+          command: "node reproduce.js",
+          lines: [
+            "destination=GB",
+            "regionAllowed=true",
+            "baseMinor=4500",
+            "giftWrapMinor=1000",
+            "totalMinor=5500",
+            "reviewThresholdMinor=5000",
+            "decision=manual_review",
+          ],
+        },
+      ];
+      writeInvestigationAnswer(workDir, runtimeCitations);
+      const validAnswer = runLoadedVerification(loaded, workDir);
+      expect(validAnswer.status).toBe(0);
+      expect(validAnswer.stdout).toContain("ok");
+
+      writeFileSync(
+        join(workDir, "src/checkout.js"),
+        readFileSync(join(workDir, "src/checkout.js"), "utf-8").replace(
+          "manual_review",
+          "review_later",
+        ),
+      );
+      const sourceEdit = runLoadedVerification(loaded, workDir);
+      expect(sourceEdit.status).not.toBe(0);
+      expect(`${sourceEdit.stdout ?? ""}\n${sourceEdit.stderr ?? ""}`).toMatch(
+        /src\/checkout\.js was modified/,
+      );
+    } finally {
+      rmSync(workDir, { recursive: true, force: true });
+    }
   });
 
   it("package-upgrade-chain loads as a staged release-note scenario", () => {
