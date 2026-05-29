@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { type ExecFileSyncOptions, execFileSync } from "node:child_process";
 import { accessSync, realpathSync } from "node:fs";
 import { delimiter } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -29,6 +29,16 @@ const mockAccess = vi.mocked(accessSync);
 const mockRealpath = vi.mocked(realpathSync);
 const TRUSTED_CLICLICK = "/opt/homebrew/bin/cliclick";
 const TRUSTED_OSASCRIPT = "/usr/bin/osascript";
+
+function lastExecOptions(): ExecFileSyncOptions {
+	const call = mockExec.mock.calls.at(-1);
+	if (!call) throw new Error("expected execFileSync call");
+	const options = call[2];
+	if (!options || typeof options !== "object") {
+		throw new Error("expected execFileSync options");
+	}
+	return options as ExecFileSyncOptions;
+}
 
 function setExecutablePaths(paths: readonly string[]): void {
 	const executablePaths = new Set(paths);
@@ -68,6 +78,21 @@ describe("computer-use-actions-mac", () => {
 		const result = macClick(5, 15);
 		expect(result).toBe("Clicked at (5, 15)");
 		expect(mockExec).toHaveBeenCalledWith(TRUSTED_CLICLICK, ["c:5,15"], expect.any(Object));
+	});
+
+	it("runs cliclick with a minimal GUI environment instead of inherited secrets", () => {
+		vi.stubEnv("__CF_USER_TEXT_ENCODING", "0x1F5:0x0:0x0");
+		vi.stubEnv("KOTA_GUI_HELPER_SECRET", "should-not-leak");
+
+		macClick(5, 15);
+
+		const env = lastExecOptions().env;
+		if (!env) throw new Error("expected GUI helper env");
+		expect(env).toEqual(expect.objectContaining({
+			__CF_USER_TEXT_ENCODING: "0x1F5:0x0:0x0",
+		}));
+		expect(env).not.toHaveProperty("KOTA_GUI_HELPER_SECRET");
+		expect(env).not.toBe(process.env);
 	});
 
 	it("macDoubleClick returns correct label", () => {

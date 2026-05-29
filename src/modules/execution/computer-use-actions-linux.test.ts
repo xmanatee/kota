@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { type ExecFileSyncOptions, execFileSync } from "node:child_process";
 import { accessSync, realpathSync } from "node:fs";
 import { delimiter } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -29,6 +29,16 @@ const mockAccess = vi.mocked(accessSync);
 const mockRealpath = vi.mocked(realpathSync);
 const TRUSTED_XDOTOOL = "/usr/bin/xdotool";
 
+function lastExecOptions(): ExecFileSyncOptions {
+	const call = mockExec.mock.calls.at(-1);
+	if (!call) throw new Error("expected execFileSync call");
+	const options = call[2];
+	if (!options || typeof options !== "object") {
+		throw new Error("expected execFileSync options");
+	}
+	return options as ExecFileSyncOptions;
+}
+
 function setExecutablePaths(paths: readonly string[]): void {
 	const executablePaths = new Set(paths);
 	mockAccess.mockImplementation((path) => {
@@ -56,6 +66,23 @@ describe("computer-use-actions-linux", () => {
 	it("linuxClick invokes xdotool and returns label", () => {
 		expect(linuxClick(10, 20)).toBe("Clicked at (10, 20)");
 		expect(mockExec).toHaveBeenCalledWith(TRUSTED_XDOTOOL, expect.arrayContaining(["mousemove"]), expect.any(Object));
+	});
+
+	it("runs xdotool with a minimal GUI environment instead of inherited secrets", () => {
+		vi.stubEnv("DISPLAY", ":44");
+		vi.stubEnv("XAUTHORITY", "/tmp/kota-xauth");
+		vi.stubEnv("KOTA_GUI_HELPER_SECRET", "should-not-leak");
+
+		linuxClick(10, 20);
+
+		const env = lastExecOptions().env;
+		if (!env) throw new Error("expected GUI helper env");
+		expect(env).toEqual(expect.objectContaining({
+			DISPLAY: ":44",
+			XAUTHORITY: "/tmp/kota-xauth",
+		}));
+		expect(env).not.toHaveProperty("KOTA_GUI_HELPER_SECRET");
+		expect(env).not.toBe(process.env);
 	});
 
 	it("linuxDoubleClick returns correct label", () => {

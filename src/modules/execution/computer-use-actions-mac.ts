@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { EXEC_OPTS, parseCombo, truncText } from "./computer-use-actions-shared.js";
+import { guiHelperExecOptions, parseCombo, truncText } from "./computer-use-actions-shared.js";
 import { resolveTrustedGuiHelper } from "./computer-use-trusted-executables.js";
 
 // ─── Key mappings ─────────────────────────────────────────────────────────────
@@ -49,7 +49,7 @@ function osascriptPath(): string {
 
 function runOsascript(script: string): string {
 	return execFileSync(osascriptPath(), ["-e", script], {
-		...EXEC_OPTS,
+		...guiHelperExecOptions(),
 		encoding: "utf-8",
 	}).trim();
 }
@@ -65,7 +65,7 @@ function asString(text: string): string {
 export function macClick(x: number, y: number): string {
 	const helper = cliclickPath();
 	if (helper) {
-		execFileSync(helper, [`c:${x},${y}`], EXEC_OPTS);
+		execFileSync(helper, [`c:${x},${y}`], guiHelperExecOptions());
 	} else {
 		runOsascript(
 			`tell application "System Events" to click at {${x}, ${y}}`,
@@ -77,7 +77,7 @@ export function macClick(x: number, y: number): string {
 export function macDoubleClick(x: number, y: number): string {
 	const helper = cliclickPath();
 	if (helper) {
-		execFileSync(helper, [`dc:${x},${y}`], EXEC_OPTS);
+		execFileSync(helper, [`dc:${x},${y}`], guiHelperExecOptions());
 	} else {
 		runOsascript(
 			`tell application "System Events" to click at {${x}, ${y}}`,
@@ -96,7 +96,7 @@ export function macRightClick(x: number, y: number): string {
 			"Right-click requires cliclick on macOS. Install: brew install cliclick",
 		);
 	}
-	execFileSync(helper, [`rc:${x},${y}`], EXEC_OPTS);
+	execFileSync(helper, [`rc:${x},${y}`], guiHelperExecOptions());
 	return `Right-clicked at (${x}, ${y})`;
 }
 
@@ -107,7 +107,7 @@ export function macMove(x: number, y: number): string {
 			"Mouse move requires cliclick on macOS. Install: brew install cliclick",
 		);
 	}
-	execFileSync(helper, [`m:${x},${y}`], EXEC_OPTS);
+	execFileSync(helper, [`m:${x},${y}`], guiHelperExecOptions());
 	return `Moved cursor to (${x}, ${y})`;
 }
 
@@ -118,14 +118,14 @@ export function macDrag(sx: number, sy: number, ex: number, ey: number): string 
 			"Drag requires cliclick on macOS. Install: brew install cliclick",
 		);
 	}
-	execFileSync(helper, [`dd:${sx},${sy}`, `du:${ex},${ey}`], EXEC_OPTS);
+	execFileSync(helper, [`dd:${sx},${sy}`, `du:${ex},${ey}`], guiHelperExecOptions());
 	return `Dragged from (${sx}, ${sy}) to (${ex}, ${ey})`;
 }
 
 export function macType(text: string): string {
 	const helper = cliclickPath();
 	if (helper) {
-		execFileSync(helper, [`t:${text}`], EXEC_OPTS);
+		execFileSync(helper, [`t:${text}`], guiHelperExecOptions());
 	} else {
 		runOsascript(
 			`tell application "System Events" to keystroke ${asString(text)}`,
@@ -175,7 +175,7 @@ export function macCursorPosition(): string {
 		);
 	}
 	const out = execFileSync(helper, ["p"], {
-		...EXEC_OPTS,
+		...guiHelperExecOptions(),
 		encoding: "utf-8",
 	}).trim();
 	return `Cursor position: ${out}`;

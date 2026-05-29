@@ -1,12 +1,12 @@
 ---
 id: task-security-review-computeruse-gui-helper-subprocesse
 title: Security review: computer_use GUI helper subprocesses inherit the full process environment by default, so secrets injected by get_secret into process.env can be exposed to osascript, cliclick, or xdotool even though those helpers do not need credentials.
-status: ready
+status: done
 priority: p3
 area: security
 summary: computer_use GUI helper subprocesses inherit the full process environment by default, so secrets injected by get_secret into process.env can be exposed to osascript, cliclick, or xdotool even though those helpers do not need credentials.
 created_at: 2026-05-29T10:28:29.986Z
-updated_at: 2026-05-29T10:28:29.986Z
+updated_at: 2026-05-29T10:40:02.000Z
 ---
 
 ## Problem
@@ -55,3 +55,10 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm test src/modules/execution/computer-use-actions-linux.test.ts src/modules/execution/computer-use-actions-mac.test.ts` passed, covering Linux and macOS secret-env exclusion from `execFileSync`.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm validate-tasks` passed after staging the task move.

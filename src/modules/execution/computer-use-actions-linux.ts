@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { EXEC_OPTS, parseCombo, truncText } from "./computer-use-actions-shared.js";
+import { guiHelperExecOptions, parseCombo, truncText } from "./computer-use-actions-shared.js";
 import { resolveTrustedGuiHelper } from "./computer-use-trusted-executables.js";
 
 // ─── Key mappings ─────────────────────────────────────────────────────────────
@@ -45,7 +45,7 @@ function requireXdotool(): string {
 
 function xdotool(...args: string[]): string {
 	return execFileSync(requireXdotool(), args, {
-		...EXEC_OPTS,
+		...guiHelperExecOptions(),
 		encoding: "utf-8",
 	}).trim();
 }
