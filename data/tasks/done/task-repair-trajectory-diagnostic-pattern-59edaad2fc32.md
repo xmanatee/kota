@@ -1,12 +1,12 @@
 ---
 id: task-repair-trajectory-diagnostic-pattern-59edaad2fc32
 title: Repair recurring security-review trajectory diagnostic
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Fix the recurring unsupported_trajectory trajectory warning in security-review/investigate-candidates.
 created_at: 2026-05-29T05:54:10.802Z
-updated_at: 2026-05-29T05:54:10.802Z
+updated_at: 2026-05-29T06:27:53.000Z
 ---
 
 ## Problem
@@ -105,6 +105,22 @@ weak success patterns.
   escalation gate on fresh evidence.
 - Operator-facing report or attention fixture showing future escalations
   include the repair task id without cost fields.
+
+## Completion Evidence
+
+- `src/modules/autonomy/trajectory-diagnostic-escalation.ts` treats
+  unsupported trajectory artifacts and `unsupported_trajectory` diagnostics as
+  non-escalatable capability-boundary evidence, while leaving supported
+  process-quality diagnostics escalatable.
+- `pnpm test src/modules/autonomy/trajectory-diagnostic-escalation.test.ts src/modules/autonomy/report/render.test.ts`
+  passed on 2026-05-29 with 14 tests. The focused tests cover repeated
+  unsupported harness artifacts, unsupported codes in otherwise supported
+  artifacts, supported warning recurrence, and report rendering of future
+  repair task ids without cost fields.
+- `pnpm kota report --json` on 2026-05-29 reported
+  `trajectoryDiagnostics.activePatterns: []`, so the recorded
+  security-review/investigate-candidates unsupported trajectory fingerprint no
+  longer crosses the operator report gate.
 
 <!-- trajectory-diagnostic-pattern-fingerprint: trajectory-diagnostic:security-review:investigate-candidates:unsupported_trajectory:29e0ec93e82e -->
 <!-- trajectory-diagnostic-evidence-fingerprint: 73691ab439ff82b0ed0a5070848637206b6be345be09665be29404d9d7bd7367 -->
