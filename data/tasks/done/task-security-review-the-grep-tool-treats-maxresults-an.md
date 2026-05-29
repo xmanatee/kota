@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-grep-tool-treats-maxresults-an
 title: Security review: The grep tool treats max_results and context_lines as numbers via TypeScript casts but does not validate them at runtime before interpolating them into an execSync shell command. A non-number string can inject shell syntax through a tool registered as read-only.
-status: ready
+status: done
 priority: p1
 area: security
 summary: The grep tool treats max_results and context_lines as numbers via TypeScript casts but does not validate them at runtime before interpolating them into an execSync shell command. A non-number string can inject shell syntax through a tool registered as read-only.
 created_at: 2026-05-29T04:37:12.340Z
-updated_at: 2026-05-29T04:37:12.340Z
+updated_at: 2026-05-29T04:42:00.000Z
 ---
 
 ## Problem
@@ -56,4 +56,5 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `src/modules/filesystem/grep.test.ts` includes regression coverage for string `max_results` / `context_lines` shell metacharacter probes.
+- `pnpm test src/modules/filesystem/grep.test.ts` passed; `pnpm typecheck`, `pnpm lint`, and source-mode task queue validation also passed.

@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import {
@@ -50,10 +50,10 @@ export const grepTool: KotaTool = {
   },
 };
 
-/** Escape a string for safe interpolation inside single quotes in shell commands. */
-function shellEscape(s: string): string {
-  return s.replace(/'/g, "'\\''");
-}
+const DEFAULT_MAX_RESULTS = 50;
+const MAX_RESULTS_LIMIT = 10_000;
+const DEFAULT_CONTEXT_LINES = 0;
+const MAX_CONTEXT_LINES_LIMIT = 100;
 
 /** Format rg --count output: add total and filter zero-count lines (grep -c includes them). */
 export function formatCountOutput(raw: string): string {
@@ -78,12 +78,44 @@ export async function runGrep(
   const pattern = input.pattern as string;
   const path = (input.path as string) || ".";
   const fileGlob = input.file_glob as string | undefined;
-  const maxResults = (input.max_results as number) || 50;
-  const contextLines = (input.context_lines as number) || 0;
 
   if (!pattern) {
     return { content: "Error: pattern is required", is_error: true };
   }
+
+  const rawMaxResults = input.max_results;
+  if (
+    rawMaxResults !== undefined &&
+    (typeof rawMaxResults !== "number" ||
+      !Number.isFinite(rawMaxResults) ||
+      !Number.isInteger(rawMaxResults) ||
+      rawMaxResults < 1 ||
+      rawMaxResults > MAX_RESULTS_LIMIT)
+  ) {
+    return {
+      content: `Error: max_results must be a finite integer between 1 and ${MAX_RESULTS_LIMIT}`,
+      is_error: true,
+    };
+  }
+  const maxResults =
+    rawMaxResults === undefined ? DEFAULT_MAX_RESULTS : rawMaxResults;
+
+  const rawContextLines = input.context_lines;
+  if (
+    rawContextLines !== undefined &&
+    (typeof rawContextLines !== "number" ||
+      !Number.isFinite(rawContextLines) ||
+      !Number.isInteger(rawContextLines) ||
+      rawContextLines < 0 ||
+      rawContextLines > MAX_CONTEXT_LINES_LIMIT)
+  ) {
+    return {
+      content: `Error: context_lines must be a finite integer between 0 and ${MAX_CONTEXT_LINES_LIMIT}`,
+      is_error: true,
+    };
+  }
+  const contextLines =
+    rawContextLines === undefined ? DEFAULT_CONTEXT_LINES : rawContextLines;
 
   if (isProtectedProjectPath(path)) {
     return { content: protectedProjectPathError(path), is_error: true };
@@ -92,7 +124,7 @@ export async function runGrep(
   // Try ripgrep first, fall back to grep
   const hasRg = (() => {
     try {
-      execSync("which rg", { encoding: "utf-8", stdio: "pipe" });
+      execFileSync("rg", ["--version"], { encoding: "utf-8", stdio: "pipe" });
       return true;
     } catch {
       return false;
@@ -102,40 +134,43 @@ export async function runGrep(
   const filesOnly = Boolean(input.files_only);
   const countOnly = Boolean(input.count_only);
 
-  let cmd: string;
+  let command: string;
+  const args: string[] = [];
   if (hasRg) {
+    command = "rg";
     if (filesOnly) {
-      cmd = `rg --files-with-matches`;
+      args.push("--files-with-matches");
     } else if (countOnly) {
-      cmd = `rg --count`;
+      args.push("--count");
     } else {
-      cmd = `rg -n --no-heading -m ${maxResults}`;
-      if (contextLines > 0) cmd += ` -C ${contextLines}`;
+      args.push("-n", "--no-heading", "-m", String(maxResults));
+      if (contextLines > 0) args.push("-C", String(contextLines));
     }
-    if (fileGlob) cmd += ` --glob '${shellEscape(fileGlob)}'`;
+    if (fileGlob) args.push("--glob", fileGlob);
     for (const ignore of PROTECTED_PROJECT_GLOB_IGNORES) {
-      cmd += ` --iglob '!${shellEscape(ignore)}'`;
+      args.push("--iglob", `!${ignore}`);
     }
-    cmd += ` '${shellEscape(pattern)}' '${shellEscape(path)}'`;
+    args.push("--", pattern, path);
   } else {
+    command = "grep";
     if (filesOnly) {
-      cmd = `grep -rl`;
+      args.push("-rl");
     } else if (countOnly) {
-      cmd = `grep -rc`;
+      args.push("-rc");
     } else {
-      cmd = `grep -rn -m ${maxResults}`;
-      if (contextLines > 0) cmd += ` -C ${contextLines}`;
+      args.push("-rn", "-m", String(maxResults));
+      if (contextLines > 0) args.push("-C", String(contextLines));
     }
-    if (fileGlob) cmd += ` --include='${shellEscape(fileGlob)}'`;
-    else if (!filesOnly && !countOnly) cmd += ` --include='${shellEscape("*")}'`;
+    if (fileGlob) args.push(`--include=${fileGlob}`);
+    else if (!filesOnly && !countOnly) args.push("--include=*");
     for (const exclude of PROTECTED_PROJECT_GREP_EXCLUDES) {
-      cmd += ` --exclude='${shellEscape(exclude)}'`;
+      args.push(`--exclude=${exclude}`);
     }
-    cmd += ` '${shellEscape(pattern)}' '${shellEscape(path)}'`;
+    args.push("--", pattern, path);
   }
 
   try {
-    const output = execSync(cmd, {
+    const output = execFileSync(command, args, {
       encoding: "utf-8",
       maxBuffer: 1024 * 1024,
       timeout: 30_000,

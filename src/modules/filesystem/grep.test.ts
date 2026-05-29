@@ -1,4 +1,10 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -23,6 +29,63 @@ describe("grep: input validation", () => {
     const result = await runGrep({ pattern: "" });
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("pattern is required");
+  });
+
+  it("rejects string max_results without executing shell metacharacters", async () => {
+    const probeDir = mkdtempSync(join(tmpdir(), "kota-grep-max-results-"));
+    const marker = join(probeDir, "injected");
+    try {
+      const result = await runGrep({
+        pattern: "42",
+        path: TEST_DIR,
+        max_results: `1; touch ${marker} #`,
+      });
+
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("max_results must be a finite integer");
+      expect(existsSync(marker)).toBe(false);
+    } finally {
+      rmSync(probeDir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects string context_lines without executing shell metacharacters", async () => {
+    const probeDir = mkdtempSync(join(tmpdir(), "kota-grep-context-lines-"));
+    const marker = join(probeDir, "injected");
+    try {
+      const result = await runGrep({
+        pattern: "42",
+        path: TEST_DIR,
+        context_lines: `1; touch ${marker} #`,
+      });
+
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("context_lines must be a finite integer");
+      expect(existsSync(marker)).toBe(false);
+    } finally {
+      rmSync(probeDir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects non-integer and out-of-range numeric options", async () => {
+    const invalidInputs = [
+      { max_results: 0 },
+      { max_results: 1.5 },
+      { max_results: 10_001 },
+      { context_lines: -1 },
+      { context_lines: 1.5 },
+      { context_lines: 101 },
+    ];
+
+    for (const invalidInput of invalidInputs) {
+      const result = await runGrep({
+        pattern: "42",
+        path: TEST_DIR,
+        ...invalidInput,
+      });
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("must be a finite integer");
+    }
   });
 
   it("denies direct searches of the daemon control credential file", async () => {
