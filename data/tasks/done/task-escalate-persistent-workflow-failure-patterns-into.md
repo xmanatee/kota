@@ -1,12 +1,12 @@
 ---
 id: task-escalate-persistent-workflow-failure-patterns-into
 title: Escalate persistent workflow failure patterns into repair tasks
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Detect repeated workflow-level failure patterns from run artifacts and open or refresh one evidence-backed repair task instead of leaving the signal only in digests or improver context.
 created_at: 2026-05-29T02:45:38.351Z
-updated_at: 2026-05-29T02:45:38.351Z
+updated_at: 2026-05-29T03:06:14.000Z
 ---
 
 ## Problem

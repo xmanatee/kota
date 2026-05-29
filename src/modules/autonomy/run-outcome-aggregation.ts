@@ -272,7 +272,7 @@ function hasClassifiedAgentRuntimeFailure(run: WorkflowRunMetadata): boolean {
   return false;
 }
 
-function hasInfrastructureAgentFailure(run: WorkflowRunMetadata): boolean {
+export function hasInfrastructureAgentFailure(run: WorkflowRunMetadata): boolean {
   return findAgentStepTimeout(run) !== null || hasClassifiedAgentRuntimeFailure(run);
 }
 
