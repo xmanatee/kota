@@ -1,12 +1,12 @@
 ---
 id: task-repair-trajectory-diagnostic-pattern-b13b2864f301
 title: Repair recurring security-review trajectory diagnostic
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Fix the recurring unsupported_trajectory trajectory warning in security-review/revalidate-findings.
 created_at: 2026-05-29T05:54:10.823Z
-updated_at: 2026-05-29T05:54:10.823Z
+updated_at: 2026-05-29T06:40:16.907Z
 ---
 
 ## Problem
@@ -95,6 +95,13 @@ weak success patterns.
   escalation gate on fresh evidence.
 - Operator-facing report or attention fixture showing future escalations
   include the repair task id without cost fields.
+
+## Completion Evidence
+
+- `NODE_OPTIONS=--conditions=source pnpm exec vitest run src/modules/autonomy/trajectory-diagnostic-escalation.test.ts src/modules/autonomy/report/aggregate.test.ts src/modules/autonomy/report/render.test.ts`
+  passed on 2026-05-29 with 3 files and 30 tests.
+- `node --conditions=source --import tsx -e ...detectRecurringTrajectoryDiagnosticPatterns(".kota/runs", { nowMs: Date.parse("2026-05-29T06:39:40.000Z") })`
+  returned `[]` for current run artifacts.
 
 <!-- trajectory-diagnostic-pattern-fingerprint: trajectory-diagnostic:security-review:revalidate-findings:unsupported_trajectory:29e0ec93e82e -->
 <!-- trajectory-diagnostic-evidence-fingerprint: 2746c72c8490919d0454d5e9756b04b728efd4049201bf8c4288b4eb531cc553 -->
