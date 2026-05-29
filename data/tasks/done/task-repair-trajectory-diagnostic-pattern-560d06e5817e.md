@@ -1,12 +1,12 @@
 ---
 id: task-repair-trajectory-diagnostic-pattern-560d06e5817e
 title: Repair recurring improver trajectory diagnostic
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Fix the recurring unsupported_trajectory trajectory warning in improver/improve.
 created_at: 2026-05-29T05:54:10.845Z
-updated_at: 2026-05-29T05:54:10.845Z
+updated_at: 2026-05-29T06:53:47.213Z
 ---
 
 ## Problem
@@ -83,6 +83,23 @@ weak success patterns.
   escalation gate on fresh evidence.
 - Operator-facing report or attention fixture showing future escalations
   include the repair task id without cost fields.
+
+## Completion Evidence
+
+- `src/modules/autonomy/trajectory-diagnostic-escalation.test.ts` now locks
+  repeated `improver/improve` `unsupported_trajectory` artifacts below the
+  escalation gate, matching the recorded fingerprint for this task.
+- `node --conditions=source --import tsx -e ...detectRecurringTrajectoryDiagnosticPatterns(".kota/runs", { nowMs: Date.parse("2026-05-29T06:52:30.000Z") })`
+  returned `[]` for the current run artifacts, so the recorded
+  `improver/improve` unsupported trajectory fingerprint no longer crosses the
+  active pattern gate.
+- `pnpm test src/modules/autonomy/trajectory-diagnostic-escalation.test.ts src/modules/autonomy/report/aggregate.test.ts src/modules/autonomy/report/render.test.ts`
+  passed on 2026-05-29 with 3 files and 31 tests. The suite covers
+  unsupported capability-boundary artifacts, supported warning recurrence,
+  report aggregation of future repair task ids, and report rendering without
+  cost fields in the trajectory-diagnostics section.
+- `pnpm kota report --json` on 2026-05-29 reported
+  `trajectoryDiagnostics.activePatterns: []`.
 
 <!-- trajectory-diagnostic-pattern-fingerprint: trajectory-diagnostic:improver:improve:unsupported_trajectory:29e0ec93e82e -->
 <!-- trajectory-diagnostic-evidence-fingerprint: 5be294a4140a2387f32d94fb35bb88352b30ad91172a097afa79709fc6e6f4cd -->

@@ -243,6 +243,25 @@ describe("detectRecurringTrajectoryDiagnosticPatterns", () => {
     );
   });
 
+  it("keeps the improver unsupported_trajectory fingerprint below the escalation gate", () => {
+    for (const [index, hour] of [9, 10, 11].entries()) {
+      seedTrajectoryRun(projectDir, {
+        id: `2026-05-29T${String(hour).padStart(2, "0")}-00-00-000Z-improver-unsupported-${index}`,
+        hoursAgo: 3 - index,
+        code: "unsupported_trajectory",
+        workflow: "improver",
+        stepId: "improve",
+      });
+    }
+
+    const patterns = detect(projectDir);
+
+    expect(patterns).toEqual([]);
+    expect(JSON.stringify(patterns)).not.toContain(
+      "trajectory-diagnostic:improver:improve:unsupported_trajectory",
+    );
+  });
+
   it("does not escalate unsupported_trajectory codes from otherwise supported artifacts", () => {
     for (const [index, hour] of [9, 10, 11].entries()) {
       seedTrajectoryRun(projectDir, {
