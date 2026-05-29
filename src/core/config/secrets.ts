@@ -23,6 +23,10 @@ const GLOBAL_DIR = join(homedir(), ".kota");
 const PROJECT_DIR = ".kota";
 const SECRETS_FILE = "secrets.json";
 
+export type SecretStoreOptions = {
+  globalDir: string;
+};
+
 export class SecretStore {
   private providers: (EnvProvider | FileProvider | KeychainProvider)[];
   private projectFileProvider: FileProvider;
@@ -31,20 +35,21 @@ export class SecretStore {
   private knownSecrets = new Map<string, string>();
   private maskRegex: RegExp | null = null;
 
-  constructor(cwd?: string) {
+  constructor(cwd?: string, options?: SecretStoreOptions) {
     const projectDir = cwd || process.cwd();
+    const globalDir = options?.globalDir ?? GLOBAL_DIR;
 
     this.projectFileProvider = new FileProvider(
       join(projectDir, PROJECT_DIR, SECRETS_FILE),
       "project-file",
     );
     this.globalFileProvider = new FileProvider(
-      join(GLOBAL_DIR, SECRETS_FILE),
+      join(globalDir, SECRETS_FILE),
       "global-file",
     );
 
     const projectEnv = new EnvProvider(join(projectDir, ".env"));
-    const globalEnv = new EnvProvider(join(GLOBAL_DIR, ".env"));
+    const globalEnv = new EnvProvider(join(globalDir, ".env"));
     const keychain = new KeychainProvider();
 
     // Provider chain: project file → global file → project .env → global .env → keychain
@@ -53,10 +58,8 @@ export class SecretStore {
       this.globalFileProvider,
       projectEnv,
       globalEnv,
+      keychain,
     ];
-    if (keychain.isAvailable()) {
-      this.providers.push(keychain);
-    }
 
     this.refreshKnownSecrets();
   }
@@ -64,7 +67,12 @@ export class SecretStore {
   /** Resolve a secret by walking the provider chain. */
   get(key: string): string | null {
     for (const provider of this.providers) {
-      const value = provider.get(key);
+      let value: string | null;
+      try {
+        value = provider.get(key);
+      } catch {
+        continue;
+      }
       if (value !== null) {
         this.trackSecret(key, value);
         return value;
@@ -101,7 +109,13 @@ export class SecretStore {
     const seen = new Set<string>();
     const results: { name: string; source: string }[] = [];
     for (const provider of this.providers) {
-      for (const name of provider.list()) {
+      let names: string[];
+      try {
+        names = provider.list();
+      } catch {
+        continue;
+      }
+      for (const name of names) {
         if (!seen.has(name)) {
           seen.add(name);
           results.push({ name, source: provider.name });
@@ -159,9 +173,18 @@ export class SecretStore {
 
   private refreshKnownSecrets(): void {
     for (const provider of this.providers) {
-      for (const name of provider.list()) {
-        const value = provider.get(name);
-        if (value !== null) this.trackSecret(name, value);
+      let names: string[];
+      try {
+        names = provider.list();
+      } catch {
+        continue;
+      }
+      for (const name of names) {
+        try {
+          const value = provider.get(name);
+          if (value !== null) this.trackSecret(name, value);
+        } catch {
+        }
       }
     }
   }

@@ -460,6 +460,17 @@ function relativePathInside(root: string, relativePath: string, label: string): 
   return resolved;
 }
 
+function resolveSkillAblationVariantWorkingDir(
+  parentWorkingDir: string,
+  variantId: string,
+): string {
+  return relativePathInside(
+    parentWorkingDir,
+    variantId,
+    `skill-ablation variant "${variantId}" working directory`,
+  );
+}
+
 function applyRoundTaskInput(
   taskInput: FixtureRoundTaskInput,
   fixtureDir: string,
@@ -1691,7 +1702,10 @@ async function runSkillAblationFixture(
   const variantRuns: SkillAblationVariantRun[] = [];
   for (let variantIndex = 0; variantIndex < spec.variants.length; variantIndex++) {
     const variant = spec.variants[variantIndex];
-    const variantWorkingDir = join(parentWorkingDir, variant.id);
+    const variantWorkingDir = resolveSkillAblationVariantWorkingDir(
+      parentWorkingDir,
+      variant.id,
+    );
     const variantRun = await executeSkillAblationVariant({
       fixture: params.fixture,
       spec,

@@ -11,7 +11,7 @@
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join, win32 } from "node:path";
 import {
   type AgentStepRecording,
   AgentStepRecordingError,
@@ -631,6 +631,30 @@ function parseRequiredString(
   return value;
 }
 
+const SAFE_SKILL_ABLATION_VARIANT_ID = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
+
+function parseSkillAblationVariantId(
+  raw: FixtureJsonObject,
+  fixtureDir: string,
+  index: number,
+): string {
+  const id = parseRequiredString(raw, "id", fixtureDir);
+  if (
+    !SAFE_SKILL_ABLATION_VARIANT_ID.test(id) ||
+    id === "." ||
+    id === ".." ||
+    id.includes("/") ||
+    id.includes("\\") ||
+    isAbsolute(id) ||
+    win32.isAbsolute(id)
+  ) {
+    throw new Error(
+      `Fixture at "${fixtureDir}" skill-ablation variants[${index}].id must be a safe single path component matching ${SAFE_SKILL_ABLATION_VARIANT_ID}: ${JSON.stringify(id)}.`,
+    );
+  }
+  return id;
+}
+
 function parseBudgetMs(
   raw: FixtureJsonValue | undefined,
   fixtureDir: string,
@@ -1158,7 +1182,7 @@ function parseSkillAblationVariant(
       `Fixture at "${fixtureDir}" skill-ablation variants[${index}] must be an object.`,
     );
   }
-  const id = parseRequiredString(raw, "id", fixtureDir);
+  const id = parseSkillAblationVariantId(raw, fixtureDir, index);
   const selectedSkills = isStringArray(raw.selectedSkills)
     ? raw.selectedSkills
     : null;

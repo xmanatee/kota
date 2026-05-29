@@ -1,12 +1,12 @@
 ---
 id: task-security-review-skill-ablation-variant-ids-are-acc
 title: Security review: Skill-ablation variant ids are accepted as arbitrary strings and then used directly as filesystem path components, so a crafted fixture can escape the eval parent tmpdir and materialize or run a variant in another local path.
-status: ready
+status: done
 priority: p2
 area: security
 summary: Skill-ablation variant ids are accepted as arbitrary strings and then used directly as filesystem path components, so a crafted fixture can escape the eval parent tmpdir and materialize or run a variant in another local path.
 created_at: 2026-05-29T14:47:34.537Z
-updated_at: 2026-05-29T14:47:34.537Z
+updated_at: 2026-05-29T14:59:25.000Z
 ---
 
 ## Problem
@@ -56,3 +56,15 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Result
+
+Skill-ablation variant ids now fail fixture loading unless they match a safe
+single-component id pattern, and the runner resolves each variant workspace
+under the parent tmpdir before materialization.
+
+Verification:
+
+- `NODE_OPTIONS=--conditions=source pnpm exec vitest run src/modules/eval-harness/fixture.test.ts src/modules/eval-harness/runner.test.ts`
+- `pnpm typecheck`
+- `pnpm exec biome check src/modules/eval-harness/fixture.ts src/modules/eval-harness/fixture.test.ts src/modules/eval-harness/runner.ts src/modules/eval-harness/runner.test.ts`

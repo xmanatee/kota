@@ -1,8 +1,15 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { loadFixture } from "./fixture.js";
+import { isSkillAblationFixtureSpec, loadFixture } from "./fixture.js";
 import type {
   ExecutionProfilePreflightResult,
   ResourceProfile,
@@ -1140,6 +1147,45 @@ describe("runFixture", () => {
       }),
     ).rejects.toThrow(/unsupported skill tool-policy frontmatter "allowed-tools"/);
     expect(executorCalls).toBe(0);
+  });
+
+  it("checks skill-ablation variant working dirs stay inside the parent before materializing", async () => {
+    writeSkillAblationFixture(fixturesRoot, {
+      id: "skill-ablation-mutated-variant-id",
+    });
+    const fixture = loadFixture(fixturesRoot, "skill-ablation-mutated-variant-id");
+    if (!isSkillAblationFixtureSpec(fixture.spec)) {
+      throw new Error("expected skill-ablation fixture");
+    }
+    const escapeName = `kota-eval-variant-escape-${process.pid}-${Date.now()}`;
+    const escapePath = join(tmpdir(), escapeName);
+    rmSync(escapePath, { recursive: true, force: true });
+    fixture.spec.variants[0].id = `../${escapeName}`;
+    let executorCalls = 0;
+    const executor: WorkflowExecutor = {
+      preflight: () => TEST_EXECUTION_PROFILE,
+      execute: async () => {
+        executorCalls++;
+        return { kind: "completed", durationMs: 5, runArtifactPath: null };
+      },
+    };
+
+    try {
+      await expect(
+        runFixture({
+          fixture,
+          executor,
+          executionProfile: TEST_EXECUTION_PROFILE,
+          runArtifactBaseDir: runsRoot,
+          runIndex: 0,
+          repeatCount: 1,
+        }),
+      ).rejects.toThrow(/working directory must stay inside/);
+      expect(executorCalls).toBe(0);
+      expect(existsSync(escapePath)).toBe(false);
+    } finally {
+      rmSync(escapePath, { recursive: true, force: true });
+    }
   });
 
   it("initializes git for plain fixtures so git-change predicates can score", async () => {

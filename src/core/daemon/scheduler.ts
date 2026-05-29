@@ -1,7 +1,7 @@
 /**
  * Scheduler — manages timed reminders and scheduled tasks.
  *
- * Stores items in ~/.kota/schedules-<hash>.json with the same
+ * Stores items in the target project's `.kota/schedules-<hash>.json` with the same
  * project-scoping pattern as TaskStore. Supports one-shot reminders
  * and repeating schedules.
  *
@@ -9,7 +9,6 @@
  * schedule-parser.ts. File I/O helpers live in scheduler-store.ts.
  */
 
-import { homedir } from "node:os";
 import { join } from "node:path";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
@@ -44,7 +43,7 @@ export class Scheduler {
       this.filePath = null;
       this.loaded = true;
     } else {
-      const baseDir = storageDir || join(homedir(), ".kota");
+      const baseDir = storageDir || join(this.project, ".kota");
       this.filePath = join(baseDir, `schedules-${projectHash(this.project)}.json`);
     }
   }

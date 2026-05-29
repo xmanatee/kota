@@ -297,11 +297,14 @@ describe("KeychainProvider", () => {
 
 describe("SecretStore", () => {
   let dir: string;
+  let globalDir: string;
   let originalEnv: Record<string, string | undefined>;
 
   beforeEach(() => {
     dir = makeTmpDir();
+    globalDir = join(dir, "global");
     mkdirSync(join(dir, ".kota"), { recursive: true });
+    mkdirSync(globalDir, { recursive: true });
     originalEnv = { ...process.env };
     resetSecretStore();
   });
@@ -461,15 +464,13 @@ describe("SecretStore", () => {
   });
 
   it("stores and retrieves global-scoped secrets", () => {
-    // Use a temp dir as the global dir stand-in via project file provider
-    const store = new SecretStore(dir);
+    const store = new SecretStore(dir, { globalDir });
     store.set("GLOBAL_KEY", "global-val-123", "global");
-    // Global store resolves via the global file provider
     expect(store.get("GLOBAL_KEY")).toBe("global-val-123");
   });
 
   it("removes global-scoped secrets", () => {
-    const store = new SecretStore(dir);
+    const store = new SecretStore(dir, { globalDir });
     store.set("G_KEY", "gval-123456", "global");
     expect(store.remove("G_KEY", "global")).toBe(true);
     expect(store.remove("G_KEY", "global")).toBe(false);

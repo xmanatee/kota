@@ -392,6 +392,21 @@ describe("singleton management", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
+  it("initTaskStore defaults persistence to the project runtime directory", () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "kota-task-project-"));
+    try {
+      initTaskStore(projectDir);
+      const store = getTaskStore();
+      store.add("Project-local task");
+      expect(
+        existsSync(join(projectDir, ".kota", `tasks-${hashProject(projectDir)}.json`)),
+      ).toBe(true);
+    } finally {
+      resetTaskStore();
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+
   it("resetTaskStore clears singleton", () => {
     const store = getTaskStore();
     store.add("Before reset");

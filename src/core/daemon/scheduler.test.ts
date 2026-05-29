@@ -1,5 +1,9 @@
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
+import { projectHash } from "./schedule-parser.js";
 import { resetScheduler, Scheduler } from "./scheduler.js";
 
 describe("Scheduler", () => {
@@ -312,6 +316,21 @@ describe("Scheduler", () => {
   it("stopTimer is idempotent", () => {
     scheduler.stopTimer();
     scheduler.stopTimer(); // no error
+  });
+
+  it("defaults persistence to the project runtime directory", () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "kota-scheduler-project-"));
+    const persistentScheduler = new Scheduler(projectDir);
+    try {
+      persistentScheduler.add("Persist locally", new Date(Date.now() + 60_000));
+      expect(
+        existsSync(join(projectDir, ".kota", `schedules-${projectHash(projectDir)}.json`)),
+      ).toBe(true);
+    } finally {
+      persistentScheduler.stopTimer();
+      persistentScheduler.disconnectBus();
+      rmSync(projectDir, { recursive: true, force: true });
+    }
   });
 });
 

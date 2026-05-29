@@ -1,5 +1,4 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { projectHash } from "./schedule-parser.js";
@@ -32,7 +31,7 @@ export class TaskStore {
       // Defer dir creation to persist() so constructing a TaskStore — for
       // example as part of the per-project runtime bundle — does not touch
       // the filesystem until the project actually writes a task.
-      const baseDir = storageDir || join(homedir(), ".kota");
+      const baseDir = storageDir || join(this.project, ".kota");
       const hash = projectHash(this.project);
       this.filePath = join(baseDir, `tasks-${hash}.json`);
     }

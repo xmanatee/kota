@@ -952,6 +952,59 @@ describe("loadFixture", () => {
     expect(() => loadFixture(root, "skillAblation")).toThrow(/duplicate/);
   });
 
+  it("rejects skill-ablation variant ids that are not safe path components", () => {
+    const unsafeIds = [
+      "../escape",
+      "nested/escape",
+      "nested\\escape",
+      "/tmp/escape",
+      "C:\\escape",
+      ".",
+      "..",
+    ];
+
+    for (const [index, unsafeId] of unsafeIds.entries()) {
+      const fixtureId = `skillAblationUnsafe${index}`;
+      writeFixture(
+        root,
+        fixtureId,
+        skillAblationFixtureSpec({
+          id: fixtureId,
+          variants: [
+            skillAblationVariant({
+              id: unsafeId,
+              selectedSkills: [],
+              skillProvenance: "none",
+            }),
+            skillAblationVariant({
+              id: "focused",
+              selectedSkills: ["ticket-json-procedure"],
+              skillProvenance: "imported",
+              expectedOutcome: "pass",
+            }),
+          ],
+          expectedDirection: {
+            kind: "treatment-passes-control-fails",
+            controlVariantId: unsafeId,
+            treatmentVariantId: "focused",
+            summary: "Unsafe control id should be rejected before scoring.",
+          },
+        }),
+      );
+
+      let caught: Error | null = null;
+      try {
+        loadFixture(root, fixtureId);
+      } catch (err) {
+        caught = err instanceof Error ? err : new Error(String(err));
+      }
+      expect(caught, `unsafe variant id ${JSON.stringify(unsafeId)}`).toBeInstanceOf(
+        Error,
+      );
+      expect(caught?.message).toMatch(/safe single path component/);
+    }
+  });
+
   it("rejects skill-ablation expectedDirection references that do not match variant roles", () => {
     writeFixture(
       root,
