@@ -586,6 +586,9 @@ resources:
       fingerprint: sha256:df29d9074aacbd0f06d27ee7039b4191
       summary: "SWE Atlas is accessible; Test Writing and Refactoring signals are already covered locally, and this run opened task-add-a-codebase-investigation-answer-scenario-to-ha for the remaining Codebase Q&A answer-completeness parity gap."
       last_seen_at: "2026-05-29T13:18:14.681Z"
+  - url: https://github.com/GeniusHTX/SWE-Skills-Bench
+    added: "2026-05-29"
+    notes: "SWE-Skills-Bench evaluates the marginal utility of injected software-engineering skill documents through paired skill/no-skill runs. Monitor as an eval-harness and skill-integrity signal for explicit skill activation, stale-skill harm, token overhead, and outcome-graded skill usefulness; do not import the benchmark dataset or runner."
   - url: https://github.com/ShadeCloak/SaaSbench
     added: "2026-05-27"
     notes: "SaaSBench project repository for the long-horizon enterprise SaaS engineering benchmark. Monitor code, dataset, and DockerHub release status as an eval-harness signal for multi-component SaaS setup, dependency-aware validation nodes, and configuration/integration failures that happen before isolated business logic."
