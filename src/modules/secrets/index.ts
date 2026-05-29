@@ -18,7 +18,7 @@ import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { getSecretStore, initSecretStore } from "#core/config/secrets.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
-import { readOnlyDaemonEffect } from "#core/tools/effect.js";
+import { credentialInjectionEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/index.js";
 import type {
   SecretGetResult,
@@ -234,7 +234,7 @@ const secretsModule: KotaModule = {
     {
       tool: getSecretTool,
       runner: makeGetSecretRunner(ctx),
-      effect: readOnlyDaemonEffect(),
+      effect: credentialInjectionEffect(),
       group: "management",
     },
   ],

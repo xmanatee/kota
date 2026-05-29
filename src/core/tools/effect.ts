@@ -27,6 +27,7 @@ export type ToolEffectKind = "read" | "write" | "destructive";
  * - `local-fs`         — host filesystem under the project root.
  * - `daemon-state`     — persisted KOTA state (modules, queues, history,
  *                        approvals, scheduler).
+ * - `process-env`      — host process environment inherited by later tools.
  * - `external-network` — outbound network call (HTTP, MCP server, third-party
  *                        SaaS).
  * - `operator-surface` — surface visible to the operator (notifications,
@@ -36,6 +37,7 @@ export type ToolEffectScope =
   | "session"
   | "local-fs"
   | "daemon-state"
+  | "process-env"
   | "external-network"
   | "operator-surface";
 
@@ -95,6 +97,16 @@ export function daemonWriteEffect(opts?: { idempotent?: boolean }): ToolEffect {
     kind: "write",
     scope: "daemon-state",
     idempotent: opts?.idempotent ?? false,
+    openWorld: false,
+  };
+}
+
+/** Injects a credential into the host process environment for later tool calls. */
+export function credentialInjectionEffect(): ToolEffect {
+  return {
+    kind: "write",
+    scope: "process-env",
+    idempotent: false,
     openWorld: false,
   };
 }
@@ -207,7 +219,8 @@ export type RiskTier = "safe" | "moderate" | "dangerous";
  *   write,       scope ∈ {session,
  *                         operator-surface,
  *                         daemon-state}            → safe   (internal coordination)
- *   write,       scope ∈ {local-fs,
+ *   write,       scope ∈ {process-env,
+ *                         local-fs,
  *                         external-network}        → moderate
  *
  * Internal-coordination writes (todo edits, approval queue updates, operator
@@ -229,6 +242,7 @@ export function riskFromEffect(effect: ToolEffect): RiskTier {
     case "operator-surface":
     case "daemon-state":
       return "safe";
+    case "process-env":
     case "local-fs":
     case "external-network":
       return "moderate";

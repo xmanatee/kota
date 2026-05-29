@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-getsecret-tool-injects-a-secre
 title: Security review: The get_secret tool injects a secret into process.env but is registered as a read-only daemon tool, so passive and supervised autonomy gates classify credential injection as safe and do not require approval.
-status: ready
+status: done
 priority: p2
 area: security
 summary: The get_secret tool injects a secret into process.env but is registered as a read-only daemon tool, so passive and supervised autonomy gates classify credential injection as safe and do not require approval.
 created_at: 2026-05-29T00:05:29.625Z
-updated_at: 2026-05-29T00:05:29.625Z
+updated_at: 2026-05-29T00:10:36Z
 ---
 
 ## Problem
@@ -57,3 +57,6 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- 2026-05-29 verification: `pnpm test src/core/tools/effect.test.ts src/modules/secrets/index.test.ts`
+  passed, `pnpm test src/core/tools/guardrails.test.ts src/core/tools/autonomy-mode.test.ts src/core/tools/autonomy-mode-boundary.integration.test.ts src/modules/secrets/index.test.ts`
+  passed, `pnpm typecheck` passed, and `pnpm lint` passed.

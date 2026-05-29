@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolDef } from "#core/modules/module-types.js";
 import {
+  credentialInjectionEffect,
   daemonWriteEffect,
   legacyEffect,
   localWriteEffect,
@@ -27,6 +28,10 @@ describe("riskFromEffect", () => {
 
   it("maps local-fs writes to moderate", () => {
     expect(riskFromEffect(localWriteEffect())).toBe("moderate");
+  });
+
+  it("maps credential injection into process env to moderate", () => {
+    expect(riskFromEffect(credentialInjectionEffect())).toBe("moderate");
   });
 
   it("maps coordination-surface writes (session, operator-surface, daemon-state) to safe", () => {
@@ -182,6 +187,7 @@ describe("ToolDef requires an effect at compile time", () => {
       "session",
       "local-fs",
       "daemon-state",
+      "process-env",
       "external-network",
       "operator-surface",
     ];
