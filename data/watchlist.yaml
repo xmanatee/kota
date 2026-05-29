@@ -20,6 +20,10 @@ resources:
   - url: https://github.com/InternLM/WildClawBench
     added: "2026-05-29"
     notes: "WildClawBench evaluates native-runtime CLI agents across long-horizon, multimodal, coding, and safety tasks with real tools. Monitor as an eval-harness signal for local environment-state side-effect auditing, multi-harness comparability, and artifact-grade grading; do not import the benchmark runner or add an LLM judge by default."
+    snapshot:
+      fingerprint: sha256:b9ecffe266d4d76263e9785391bdf8a4
+      summary: "WildClawBench reinforces KOTA's completed environment-state audit predicate, run-configuration fingerprint, fixture diagnostics, and harness-parity evidence work; no duplicate task is needed from this snapshot."
+      last_seen_at: "2026-05-29T08:06:16.541Z"
   - url: https://github.com/zeroclaw-labs/zeroclaw
     added: "2026-04-14"
     snapshot:
