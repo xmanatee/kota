@@ -1,12 +1,12 @@
 ---
 id: task-security-review-workflow-trial-mode-does-not-block
 title: Security review: Workflow trial mode does not block tools whose declared effect is `process-env`, so a trial workflow can run `get_secret` and mutate the daemon process environment despite trial mode being intended to isolate side effects.
-status: ready
+status: done
 priority: p2
 area: security
 summary: Workflow trial mode does not block tools whose declared effect is `process-env`, so a trial workflow can run `get_secret` and mutate the daemon process environment despite trial mode being intended to isolate side effects.
 created_at: 2026-05-29T01:23:57.307Z
-updated_at: 2026-05-29T01:23:57.307Z
+updated_at: 2026-05-29T01:42:39Z
 ---
 
 ## Problem
@@ -57,3 +57,18 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Final Verification
+
+- `pnpm vitest run src/modules/workflow-ops/execution/trial.test.ts -t process-env`
+  passed: 2 tests passed, 13 skipped.
+- `pnpm exec biome check src/modules/workflow-ops/execution/trial.ts
+  src/modules/workflow-ops/execution/trial.test.ts` passed.
+- `pnpm typecheck` passed.
+- `node --conditions=source --import tsx src/validate-queue.ts --min-ready 0`
+  passed after staging the task move.
+- The broader `pnpm vitest run src/modules/workflow-ops/execution/trial.test.ts`
+  reached the new tests but failed in existing local trial fallback cases because
+  this sandbox cannot load all project modules cleanly (`chmod ~/.kota` denied,
+  followed by duplicate tool registrations). The focused regression command
+  covers the changed process-env boundary.

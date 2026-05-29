@@ -8,7 +8,12 @@ import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { deriveProjectId, ProjectRegistry } from "#core/daemon/project-registry.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import { daemonWriteEffect, localWriteEffect, networkDestructiveEffect } from "#core/tools/effect.js";
+import {
+  credentialInjectionEffect,
+  daemonWriteEffect,
+  localWriteEffect,
+  networkDestructiveEffect,
+} from "#core/tools/effect.js";
 import { deregisterTool, executeTool, registerTool } from "#core/tools/index.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 import { fileWriteTool, runFileWrite } from "#modules/filesystem/file-write.js";
@@ -22,7 +27,10 @@ import {
 const EXTERNAL_TOOL = "workflow_trial_external_test";
 const DAEMON_WRITE_TOOL = "workflow_trial_daemon_write_test";
 const UNSCOPED_LOCAL_WRITE_TOOL = "workflow_trial_unscoped_local_write_test";
+const PROCESS_ENV_TOOL = "workflow_trial_process_env_test";
 const AGENT_HARNESS = "workflow_trial_agent_harness_test";
+const PROCESS_ENV_AGENT_HARNESS = "workflow_trial_process_env_agent_harness_test";
+const PROCESS_ENV_KEY = "KOTA_WORKFLOW_TRIAL_PROCESS_ENV_TEST";
 
 function makeProjectDir(): string {
   const dir = join(
@@ -99,8 +107,10 @@ describe("workflow trial execution", () => {
     deregisterTool(EXTERNAL_TOOL);
     deregisterTool(DAEMON_WRITE_TOOL);
     deregisterTool(UNSCOPED_LOCAL_WRITE_TOOL);
+    deregisterTool(PROCESS_ENV_TOOL);
     deregisterTool("file_write");
     deregisterTool("shell");
+    delete process.env[PROCESS_ENV_KEY];
     for (const dir of cleanup.splice(0)) {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -277,6 +287,51 @@ describe("workflow trial execution", () => {
       expect.objectContaining({
         stepId: "write-local",
         tool: UNSCOPED_LOCAL_WRITE_TOOL,
+      }),
+    ]);
+  });
+
+  it("blocks process-env tool steps before they can mutate the daemon environment", async () => {
+    const projectDir = makeProjectDir();
+    cleanup.push(projectDir);
+    const processEnvRunner = vi.fn(async () => {
+      process.env[PROCESS_ENV_KEY] = "mutated";
+      return { content: "injected" };
+    });
+    registerTool(
+      {
+        name: PROCESS_ENV_TOOL,
+        description: "fixture process env injector",
+        input_schema: { type: "object", properties: {} },
+      },
+      processEnvRunner,
+      "workflow-trial-test",
+      { effect: credentialInjectionEffect() },
+    );
+
+    const summary = await runWorkflowTrial({
+      sourceProjectDir: projectDir,
+      workflowName: "process-env-fixture",
+      runtimeFactory: makeRuntimeFactory((trialProjectDir) => [
+        makeDefinition(trialProjectDir, {
+          name: "process-env-fixture",
+          steps: [{ id: "inject-process-env", type: "tool", tool: PROCESS_ENV_TOOL }],
+        }),
+      ]),
+    });
+
+    expect(summary.status).toBe("failed");
+    expect(summary.blocked).toBe(1);
+    const attempt = summary.attempts[0]!;
+    cleanup.push(attempt.trialProjectPath);
+    expect(attempt.status).toBe("blocked");
+    expect(processEnvRunner).not.toHaveBeenCalled();
+    expect(process.env[PROCESS_ENV_KEY]).toBeUndefined();
+    expect(attempt.blockedExternalSideEffects).toEqual([
+      expect.objectContaining({
+        stepId: "inject-process-env",
+        tool: PROCESS_ENV_TOOL,
+        effect: expect.objectContaining({ scope: "process-env" }),
       }),
     ]);
   });
@@ -466,6 +521,93 @@ describe("workflow trial execution", () => {
       expect.objectContaining({
         stepId: "code-attempts-tools",
         tool: DAEMON_WRITE_TOOL,
+      }),
+    ]);
+  });
+
+  it("blocks KOTA-controlled agent process-env tools before adapter execution", async () => {
+    const projectDir = makeProjectDir();
+    cleanup.push(projectDir);
+    const processEnvRunner = vi.fn(async () => {
+      process.env[PROCESS_ENV_KEY] = "mutated";
+      return { content: "injected" };
+    });
+    registerTool(
+      {
+        name: PROCESS_ENV_TOOL,
+        description: "fixture process env injector",
+        input_schema: { type: "object", properties: {} },
+      },
+      processEnvRunner,
+      "workflow-trial-test",
+      { effect: credentialInjectionEffect() },
+    );
+    registerAgentHarness({
+      name: PROCESS_ENV_AGENT_HARNESS,
+      description: "trial process-env agent harness fixture",
+      supportsMultiTurn: false,
+      supportedHookKinds: [],
+      askOwnerToolName: null,
+      emitsAgentMessageStream: false,
+      toolControl: "kota",
+      async run(options: AgentHarnessRunOptions) {
+        const decision = await options.canUseTool?.(PROCESS_ENV_TOOL, {}, {
+          signal: options.abortController?.signal ?? new AbortController().signal,
+          suggestions: [],
+          toolUseId: "agent-process-env-tool-call",
+        });
+        if (!decision || decision.behavior === "allow") {
+          const input = decision?.behavior === "allow" && decision.updatedInput
+            ? decision.updatedInput
+            : {};
+          await executeTool(PROCESS_ENV_TOOL, input);
+        }
+        return {
+          text: "agent finished",
+          streamedText: "agent finished",
+          turns: 1,
+          isError: false,
+        };
+      },
+    });
+
+    const summary = await runWorkflowTrial({
+      sourceProjectDir: projectDir,
+      workflowName: "agent-process-env-fixture",
+      runtimeFactory: makeRuntimeFactory((trialProjectDir) => [
+        makeDefinition(trialProjectDir, {
+          name: "agent-process-env-fixture",
+          steps: [
+            {
+              id: "agent-attempts-process-env-tool",
+              type: "agent",
+              harness: PROCESS_ENV_AGENT_HARNESS,
+              promptPath: "AGENTS.md",
+              moduleRoot: trialProjectDir,
+              model: "test-model",
+              effort: "low",
+              autonomyMode: "autonomous",
+            },
+          ],
+        }),
+      ]),
+    });
+
+    expect(summary.status).toBe("failed");
+    expect(summary.blocked).toBe(1);
+    const attempt = summary.attempts[0]!;
+    cleanup.push(attempt.trialProjectPath);
+    expect(attempt.status).toBe("blocked");
+    expect(processEnvRunner).not.toHaveBeenCalled();
+    expect(process.env[PROCESS_ENV_KEY]).toBeUndefined();
+    expect(attempt.stepStatuses).toContainEqual(
+      expect.objectContaining({ id: "agent-attempts-process-env-tool", status: "success" }),
+    );
+    expect(attempt.blockedExternalSideEffects).toEqual([
+      expect.objectContaining({
+        stepId: "agent-attempts-process-env-tool",
+        tool: PROCESS_ENV_TOOL,
+        effect: expect.objectContaining({ scope: "process-env" }),
       }),
     ]);
   });

@@ -208,6 +208,9 @@ function trialBlockedReason(
   if (effect.scope === "daemon-state" && effect.kind !== "read") {
     return "tool would mutate daemon state outside the isolated trial project";
   }
+  if (effect.scope === "process-env" && effect.kind !== "read") {
+    return "tool would mutate the daemon process environment in trial mode";
+  }
   if (
     effect.scope === "local-fs" &&
     effect.kind !== "read" &&
