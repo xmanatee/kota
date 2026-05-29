@@ -351,6 +351,9 @@ function collectDiagnosticObservations(
         Math.max(latestScopeObservationMs.get(scope) ?? 0, entry.timeMs),
       );
       const artifact = readTrajectoryDiagnosticsArtifact(artifactPath);
+      // Unsupported artifacts document harness capability boundaries, not
+      // process-quality patterns the workflow can repair.
+      if (artifact.status === "unsupported") continue;
       for (const diagnostic of artifact.diagnostics) {
         const detailFingerprint = diagnosticDetailFingerprint(diagnostic);
         const fingerprint = patternFingerprint({

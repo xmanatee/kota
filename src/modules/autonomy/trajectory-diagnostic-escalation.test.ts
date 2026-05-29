@@ -59,10 +59,11 @@ function countsFor(code: TrajectoryDiagnosticCode | null) {
 }
 
 function artifactFor(code: TrajectoryDiagnosticCode | null): TrajectoryDiagnosticsArtifact {
+  const unsupported = code === "unsupported_trajectory";
   return {
     version: 1,
-    status: "supported",
-    emitsAgentMessageStream: true,
+    status: unsupported ? "unsupported" : "supported",
+    emitsAgentMessageStream: !unsupported,
     counts: countsFor(code),
     diagnostics:
       code === null
@@ -71,10 +72,13 @@ function artifactFor(code: TrajectoryDiagnosticCode | null): TrajectoryDiagnosti
             {
               code,
               severity: "warning",
-              summary:
-                "A file-editing action was not followed by a verification-like command.",
-              frameIndexes: [8],
-              details: ["lastEditFrame=8", "lastEditTool=apply_patch"],
+              summary: unsupported
+                ? "Harness does not emit KOTA-native message frames, so trajectory-quality checks are unsupported."
+                : "A file-editing action was not followed by a verification-like command.",
+              frameIndexes: unsupported ? [] : [8],
+              details: unsupported
+                ? ["capability.emitsAgentMessageStream=false"]
+                : ["lastEditFrame=8", "lastEditTool=apply_patch"],
             },
           ],
   };
@@ -186,6 +190,26 @@ describe("detectRecurringTrajectoryDiagnosticPatterns", () => {
       id: "2026-05-29T11-00-00-000Z-builder-isolated-c",
       hoursAgo: 1,
       code: null,
+    });
+
+    expect(detect(projectDir)).toEqual([]);
+  });
+
+  it("does not escalate repeated unsupported harness capability artifacts", () => {
+    seedTrajectoryRun(projectDir, {
+      id: "2026-05-29T09-00-00-000Z-builder-unsupported-a",
+      hoursAgo: 3,
+      code: "unsupported_trajectory",
+    });
+    seedTrajectoryRun(projectDir, {
+      id: "2026-05-29T10-00-00-000Z-builder-unsupported-b",
+      hoursAgo: 2,
+      code: "unsupported_trajectory",
+    });
+    seedTrajectoryRun(projectDir, {
+      id: "2026-05-29T11-00-00-000Z-builder-unsupported-c",
+      hoursAgo: 1,
+      code: "unsupported_trajectory",
     });
 
     expect(detect(projectDir)).toEqual([]);

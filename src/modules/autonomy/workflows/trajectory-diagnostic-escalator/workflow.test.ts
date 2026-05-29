@@ -105,7 +105,39 @@ function diagnosticArtifact(): TrajectoryDiagnosticsArtifact {
   };
 }
 
-function seedRun(projectDir: string, id: string, hoursAgo: number): void {
+function unsupportedDiagnosticArtifact(): TrajectoryDiagnosticsArtifact {
+  return {
+    version: 1,
+    status: "unsupported",
+    emitsAgentMessageStream: false,
+    counts: {
+      warningCount: 1,
+      unsupportedTrajectoryCount: 1,
+      missingStreamingFramesCount: 0,
+      missingFinalVerificationAfterEditCount: 0,
+      repeatedIdenticalFailingCommandCount: 0,
+      editAfterSuccessfulVerificationCount: 0,
+      longPreambleWithoutTaskTouchCount: 0,
+    },
+    diagnostics: [
+      {
+        code: "unsupported_trajectory",
+        severity: "warning",
+        summary:
+          "Harness does not emit KOTA-native message frames, so trajectory-quality checks are unsupported.",
+        frameIndexes: [],
+        details: ["capability.emitsAgentMessageStream=false"],
+      },
+    ],
+  };
+}
+
+function seedRun(
+  projectDir: string,
+  id: string,
+  hoursAgo: number,
+  artifact = diagnosticArtifact(),
+): void {
   const completedAt = new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString();
   const metadata: WorkflowRunMetadata = {
     id,
@@ -134,7 +166,7 @@ function seedRun(projectDir: string, id: string, hoursAgo: number): void {
   writeFileSync(join(runDir, "metadata.json"), JSON.stringify(metadata, null, 2));
   writeFileSync(
     join(stepsDir, "build.trajectory-diagnostics.json"),
-    JSON.stringify(diagnosticArtifact(), null, 2),
+    JSON.stringify(artifact, null, 2),
   );
 }
 
@@ -224,6 +256,38 @@ describe("trajectory-diagnostic-escalator workflow", () => {
     expect(attentionJson).toContain("Trajectory diagnostic escalated");
     expect(attentionJson).toContain("task-repair-trajectory-diagnostic-pattern");
     expect(attentionJson).not.toMatch(/cost|throughput/i);
+  });
+
+  it("does not open repair work for repeated unsupported harness artifacts", async () => {
+    const artifact = unsupportedDiagnosticArtifact();
+    seedRun(projectDir, "2026-05-29T09-00-00-000Z-builder-unsupported-a", 3, artifact);
+    seedRun(projectDir, "2026-05-29T10-00-00-000Z-builder-unsupported-b", 2, artifact);
+    seedRun(projectDir, "2026-05-29T11-00-00-000Z-builder-unsupported-c", 1, artifact);
+
+    const harness = new WorkflowTestHarness(trajectoryDiagnosticEscalator, {
+      projectDir,
+      trigger: {
+        event: "workflow.completed",
+        payload: { workflow: "builder", tags: ["monitored"] },
+      },
+    });
+    const result = await harness.run();
+
+    expect(result.status).toBe("success");
+    expect(result.steps["inspect-patterns"].output).toMatchObject({
+      status: "none",
+      patterns: [],
+    });
+    expect(result.steps["write-artifact"].status).toBe("skipped");
+    expect(result.steps["emit-attention"].status).toBe("skipped");
+    const readyDir = join(projectDir, "data", "tasks", "ready");
+    const readyTasks = execFileSync("find", [readyDir, "-name", "*.md"], {
+      encoding: "utf-8",
+    })
+      .trim()
+      .split("\n")
+      .filter(Boolean);
+    expect(readyTasks).toEqual([]);
   });
 
   it("skips detection and mutation on recovery triggers after the reset step", async () => {

@@ -1,12 +1,12 @@
 ---
 id: task-repair-trajectory-diagnostic-pattern-4b6ea137ded0
 title: Repair recurring builder trajectory diagnostic
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Fix the recurring unsupported_trajectory trajectory warning in builder/build.
 created_at: 2026-05-29T05:54:10.761Z
-updated_at: 2026-05-29T05:54:10.761Z
+updated_at: 2026-05-29T05:58:58.000Z
 ---
 
 ## Problem
