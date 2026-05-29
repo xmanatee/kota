@@ -589,3 +589,7 @@ resources:
   - url: https://ibm.github.io/CLEAR/
     added: "2026-05-29"
     notes: "Agentic CLEAR evaluates agent traces at system, node, and trace levels and clusters recurring failure patterns. Monitor as an autonomy-evaluation signal for aggregating KOTA's existing typed trajectory diagnostics into repairable process-quality patterns; do not import CLEAR or add an LLM trace judge by default."
+    snapshot:
+      fingerprint: sha256:2323052bb481c38e2ba1ff17ed8e17dd
+      summary: "Agentic CLEAR is accessible and now maps to KOTA's completed recurring trajectory-diagnostic escalation path; no duplicate task is needed because task-escalate-recurring-trajectory-diagnostic-patterns- already covered the nonduplicative local gap and the current ready queue contains a generated repair from that mechanism."
+      last_seen_at: "2026-05-29T06:50:42.687Z"
