@@ -58,7 +58,7 @@ function writeFakeContainerBackend(path: string): void {
     [
       "#!/usr/bin/env node",
       "import { spawnSync } from 'node:child_process';",
-      "import { appendFileSync } from 'node:fs';",
+      "import { appendFileSync, readFileSync, statSync } from 'node:fs';",
       "const args = process.argv.slice(2);",
       "if (args[0] === '--version') process.exit(0);",
       "if (args[0] === 'image' && args[1] === 'inspect') {",
@@ -73,6 +73,8 @@ function writeFakeContainerBackend(path: string): void {
       "}",
       "if (args[0] !== 'run') process.exit(64);",
       "const env = {};",
+      "const envFiles = [];",
+      "const envFileModes = [];",
       "const mounts = [];",
       "let workdir = process.cwd();",
       "let image = null;",
@@ -90,12 +92,25 @@ function writeFakeContainerBackend(path: string): void {
       "    index += 2;",
       "    continue;",
       "  }",
+      "  if (arg === '--env-file') {",
+      "    const envFile = args[index + 1];",
+      "    envFiles.push(envFile);",
+      "    envFileModes.push((statSync(envFile).mode & 0o777).toString(8).padStart(3, '0'));",
+      "    for (const line of readFileSync(envFile, 'utf8').split(/\\r?\\n/)) {",
+      "      if (!line || line.startsWith('#')) continue;",
+      "      const eq = line.indexOf('=');",
+      "      if (eq === -1) { env[line] = process.env[line] ?? ''; continue; }",
+      "      env[line.slice(0, eq)] = line.slice(eq + 1);",
+      "    }",
+      "    index += 2;",
+      "    continue;",
+      "  }",
       "  image = arg;",
       "  index += 1;",
       "  break;",
       "}",
       "if (process.env.KOTA_FAKE_CONTAINER_LOG) {",
-      "  appendFileSync(process.env.KOTA_FAKE_CONTAINER_LOG, JSON.stringify({ args, env, mounts, workdir, image, command: args[index], commandArgs: args.slice(index + 1) }) + '\\n');",
+      "  appendFileSync(process.env.KOTA_FAKE_CONTAINER_LOG, JSON.stringify({ args, env, envFiles, envFileModes, inheritedOpenAiApiKey: process.env.OPENAI_API_KEY, mounts, workdir, image, command: args[index], commandArgs: args.slice(index + 1) }) + '\\n');",
       "}",
       "const mountTargets = mounts.map((mount) => {",
       "  const fields = {};",
@@ -779,6 +794,8 @@ describe("createSubprocessExecutor", () => {
       commandArgs: string[];
       mounts: string[];
       env: Record<string, string>;
+      envFiles: string[];
+      envFileModes: string[];
       workdir: string;
     };
     expect(log.image).toBe("kota-eval:latest");
@@ -809,6 +826,11 @@ describe("createSubprocessExecutor", () => {
     ]);
     const networkIndex = log.args.indexOf("--network");
     expect(log.args[networkIndex + 1]).toBe("none");
+    expect(log.args).toContain("--env-file");
+    expect(log.args).not.toContain("--env");
+    expect(log.envFiles).toHaveLength(1);
+    expect(log.envFileModes).toEqual(["600"]);
+    expect(existsSync(log.envFiles[0]!)).toBe(false);
     expect(log.args).not.toContain("--privileged");
     expect(log.args).not.toContain("--device");
     expect(log.env.KOTA_PARENT_SECRET_LEAK_TEST).toBeUndefined();
@@ -820,6 +842,7 @@ describe("createSubprocessExecutor", () => {
     const containerKotaBinaryPath = "/opt/kota/bin/kota.mjs";
     const fakeContainerLog = join(workingDir, "container-provider-log.jsonl");
     const endpoints = providerEgressEndpointsFor("openai");
+    const previousOpenAiApiKey = process.env.OPENAI_API_KEY;
     writeFakeContainerBackend(fakeContainer);
     writeFakeKotaScript(
       fakeKota,
@@ -852,6 +875,7 @@ describe("createSubprocessExecutor", () => {
       [PROVIDER_EGRESS_NETWORK_LABELS.endpoints]:
         providerEgressEndpointLabelValue(endpoints),
     });
+    process.env.OPENAI_API_KEY = "sk-parent-provider-egress-test";
     try {
       const executor = createSubprocessExecutor({
         kotaBinaryPath: fakeKota,
@@ -912,9 +936,21 @@ describe("createSubprocessExecutor", () => {
       ) as {
         args: string[];
         env: Record<string, string>;
+        envFiles: string[];
+        envFileModes: string[];
+        inheritedOpenAiApiKey?: string;
       };
       const networkIndex = log.args.indexOf("--network");
       expect(log.args[networkIndex + 1]).toBe("kota-provider-egress");
+      const argvText = log.args.join("\0");
+      expect(argvText).not.toContain("sk-provider-egress-test");
+      expect(argvText).not.toContain("OPENAI_API_KEY=sk-provider-egress-test");
+      expect(log.args).toContain("--env-file");
+      expect(log.args).not.toContain("--env");
+      expect(log.envFiles).toHaveLength(1);
+      expect(log.envFileModes).toEqual(["600"]);
+      expect(existsSync(log.envFiles[0]!)).toBe(false);
+      expect(log.inheritedOpenAiApiKey).toBeUndefined();
       expect(log.env.HTTPS_PROXY).toBe("http://provider-proxy:8080");
       expect(log.env.OPENAI_API_KEY).toBe("sk-provider-egress-test");
       expect(log.env.KOTA_EVAL_PROVIDER_EGRESS_ACTIVE).toBe("1");
@@ -936,6 +972,11 @@ describe("createSubprocessExecutor", () => {
       delete process.env.KOTA_FAKE_CONTAINER_KOTA_BINARY_SOURCE;
       delete process.env.KOTA_FAKE_CONTAINER_KOTA_BINARY_PATH;
       delete process.env.KOTA_FAKE_CONTAINER_NETWORK_LABELS;
+      if (previousOpenAiApiKey === undefined) {
+        delete process.env.OPENAI_API_KEY;
+      } else {
+        process.env.OPENAI_API_KEY = previousOpenAiApiKey;
+      }
     }
   });
 

@@ -1,12 +1,12 @@
 ---
 id: task-security-review-provider-egress-eval-runs-place-pr
 title: Security review: Provider-egress eval runs place provider API keys directly in Docker CLI argv via --env KEY=value, exposing secrets to local process-list inspection for the duration of the container run.
-status: ready
+status: done
 priority: p2
 area: security
 summary: Provider-egress eval runs place provider API keys directly in Docker CLI argv via --env KEY=value, exposing secrets to local process-list inspection for the duration of the container run.
 created_at: 2026-05-29T13:01:14.835Z
-updated_at: 2026-05-29T13:01:14.835Z
+updated_at: 2026-05-29T13:07:49.196Z
 ---
 
 ## Problem
@@ -58,3 +58,9 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm test src/modules/eval-harness/subprocess-executor.test.ts` passed (20 tests), including a provider-egress regression assertion that the provider auth value is absent from Docker argv while still present in the container environment.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.

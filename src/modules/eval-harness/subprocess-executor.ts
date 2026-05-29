@@ -16,8 +16,16 @@
  */
 
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { availableParallelism, totalmem } from "node:os";
+import {
+  chmodSync,
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { availableParallelism, tmpdir, totalmem } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { PRESET_ENV_VAR } from "#core/model/preset.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
@@ -103,9 +111,24 @@ type WorkflowRunMetadataSnapshot = RunMetadataSnapshot & {
   terminal: boolean;
 };
 
+type ContainerEnvFile = {
+  path: string;
+  cleanup: () => void;
+};
+
+type SubprocessChildSpec = {
+  command: string;
+  args: string[];
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+  label: string;
+  cleanup?: () => void;
+};
+
 const REPLAY_PRESET_ID = "claude";
 const CONTAINER_DEFAULT_PATH =
   "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
+const DOCKER_ENV_KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 type DockerNetworkInspectRecord = {
   Internal?: boolean;
@@ -695,10 +718,48 @@ function containerNetworkEnv(
   };
 }
 
-function envArgs(env: Record<string, string>): string[] {
+function dockerEnvFileContent(env: Record<string, string>): string {
   return Object.entries(env)
     .sort(([a], [b]) => a.localeCompare(b))
-    .flatMap(([key, value]) => ["--env", `${key}=${value}`]);
+    .map(([key, value]) => {
+      if (!DOCKER_ENV_KEY_PATTERN.test(key)) {
+        throw new Error(`Container env key "${key}" is not a valid env name.`);
+      }
+      if (value.includes("\n") || value.includes("\r")) {
+        throw new Error(
+          `Container env value for "${key}" cannot contain line breaks.`,
+        );
+      }
+      return `${key}=${value}`;
+    })
+    .join("\n")
+    .concat("\n");
+}
+
+function writeContainerEnvFile(env: Record<string, string>): ContainerEnvFile {
+  const dir = mkdtempSync(join(tmpdir(), "kota-eval-container-env-"));
+  const path = join(dir, "env");
+  writeFileSync(path, dockerEnvFileContent(env), {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+  chmodSync(path, 0o600);
+  return {
+    path,
+    cleanup: () => {
+      rmSync(dir, { recursive: true, force: true });
+    },
+  };
+}
+
+function dockerCliEnv(networkPolicy: ExecutionNetworkPolicy): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  if (networkPolicy.kind === "provider-egress") {
+    for (const key of providerEgressAuthEnvKeysFor(networkPolicy.provider)) {
+      delete env[key];
+    }
+  }
+  return env;
 }
 
 function memoryArg(mb: number): string {
@@ -736,7 +797,7 @@ function containerRunArgs(params: {
   executionProfile: ExecutionProfilePreflightResult;
   workingDir: string;
   replayRecordingsRoot?: string;
-  env: Record<string, string>;
+  envFilePath: string;
   execArgs: string[];
 }): string[] {
   const profile = params.executionProfile.observedOrEnforcedProfile;
@@ -759,7 +820,8 @@ function containerRunArgs(params: {
     ...mountArgs,
     "--workdir",
     params.workingDir,
-    ...envArgs(params.env),
+    "--env-file",
+    params.envFilePath,
     params.backend.image,
     "node",
     ...params.execArgs,
@@ -878,39 +940,41 @@ export function createSubprocessExecutor(
           (run) => run.id,
         ),
       );
-      const childSpec =
-        isolationBackend.kind === "host-subprocess"
-          ? {
-              command: "node",
-              args: hostExecArgs,
-              cwd: request.workingDir,
-              env: hostExecutionEnv(options, request, hostKotaDistDir),
-              label: "kota workflow exec",
-            }
-          : containerExecutionProfileCanRun(request.executionProfile)
-            ? {
-                command: isolationBackend.executable,
-                args: containerRunArgs({
-                  backend: isolationBackend,
-                  executionProfile: request.executionProfile,
-                  workingDir: request.workingDir,
-                  replayRecordingsRoot: request.replayRecordingsRoot,
-                  env: containerExecutionEnv(
-                    options,
-                    request,
-                    containerKotaDistDir(isolationBackend),
-                    request.executionProfile.networkPolicy,
-                  ),
-                  execArgs: workflowExecArgs(
-                    isolationBackend.kotaBinaryPath,
-                    request,
-                  ),
-                }),
-                cwd: request.workingDir,
-                env: process.env,
-                label: `container isolation backend "${isolationBackend.executable}"`,
-              }
-            : null;
+      let childSpec: SubprocessChildSpec | null;
+      if (isolationBackend.kind === "host-subprocess") {
+        childSpec = {
+          command: "node",
+          args: hostExecArgs,
+          cwd: request.workingDir,
+          env: hostExecutionEnv(options, request, hostKotaDistDir),
+          label: "kota workflow exec",
+        };
+      } else if (containerExecutionProfileCanRun(request.executionProfile)) {
+        const containerEnv = containerExecutionEnv(
+          options,
+          request,
+          containerKotaDistDir(isolationBackend),
+          request.executionProfile.networkPolicy,
+        );
+        const containerEnvFile = writeContainerEnvFile(containerEnv);
+        childSpec = {
+          command: isolationBackend.executable,
+          args: containerRunArgs({
+            backend: isolationBackend,
+            executionProfile: request.executionProfile,
+            workingDir: request.workingDir,
+            replayRecordingsRoot: request.replayRecordingsRoot,
+            envFilePath: containerEnvFile.path,
+            execArgs: workflowExecArgs(isolationBackend.kotaBinaryPath, request),
+          }),
+          cwd: request.workingDir,
+          env: dockerCliEnv(request.executionProfile.networkPolicy),
+          label: `container isolation backend "${isolationBackend.executable}"`,
+          cleanup: containerEnvFile.cleanup,
+        };
+      } else {
+        childSpec = null;
+      }
 
       if (childSpec === null) {
         return {
@@ -922,89 +986,95 @@ export function createSubprocessExecutor(
         };
       }
 
-      const child = spawn(childSpec.command, childSpec.args, {
-        cwd: childSpec.cwd,
-        env: childSpec.env,
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-      child.stdout.resume();
-      // Forward child stderr to the parent so module-load diagnostics and
-      // workflow-step errors surface in `pnpm kota eval run` output. Parent
-      // logs include the same information the daemon would; piping through
-      // here keeps fixture failures debuggable without reading tmp dirs.
-      child.stderr.on("data", (chunk) => {
-        process.stderr.write(chunk);
-      });
+      try {
+        const child = spawn(childSpec.command, childSpec.args, {
+          cwd: childSpec.cwd,
+          env: childSpec.env,
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+        child.stdout.resume();
+        // Forward child stderr to the parent so module-load diagnostics and
+        // workflow-step errors surface in `pnpm kota eval run` output. Parent
+        // logs include the same information the daemon would; piping through
+        // here keeps fixture failures debuggable without reading tmp dirs.
+        child.stderr.on("data", (chunk) => {
+          process.stderr.write(chunk);
+        });
 
-      let timedOut = false;
-      const budgetTimer = setTimeout(() => {
-        timedOut = true;
-        child.kill("SIGTERM");
-      }, request.budgetMs);
+        let timedOut = false;
+        const budgetTimer = setTimeout(() => {
+          timedOut = true;
+          child.kill("SIGTERM");
+        }, request.budgetMs);
 
-      const { code, spawnError } = await new Promise<{
-        code: number | null;
-        spawnError: Error | null;
-      }>((resolve) => {
-        child.on("exit", (exitCode) => resolve({ code: exitCode, spawnError: null }));
-        child.on("error", (err) => resolve({ code: null, spawnError: err }));
-      });
-      clearTimeout(budgetTimer);
+        const { code, spawnError } = await new Promise<{
+          code: number | null;
+          spawnError: Error | null;
+        }>((resolve) => {
+          child.on("exit", (exitCode) =>
+            resolve({ code: exitCode, spawnError: null }),
+          );
+          child.on("error", (err) => resolve({ code: null, spawnError: err }));
+        });
+        clearTimeout(budgetTimer);
 
-      const durationMs = Date.now() - startMs;
+        const durationMs = Date.now() - startMs;
 
-      if (timedOut) {
+        if (timedOut) {
+          return {
+            kind: "timeout",
+            durationMs,
+            runArtifactPath: null,
+          };
+        }
+
+        if (spawnError) {
+          return {
+            kind: "error",
+            durationMs,
+            message: `Failed to spawn ${childSpec.label}: ${spawnError.message}`,
+            runArtifactPath: null,
+          };
+        }
+
+        const terminal = readTerminalRunForWorkflow(
+          request.workingDir,
+          request.workflowName,
+          existingWorkflowRunIds,
+        );
+        const runArtifactPath = terminal
+          ? join(request.workingDir, ".kota", "runs", terminal.id)
+          : null;
+
+        if (code !== 0) {
+          return {
+            kind: "error",
+            durationMs,
+            message: terminal
+              ? `${childSpec.label} exited with status ${code}; run ${terminal.id} terminal status: ${terminal.status}.`
+              : `${childSpec.label} exited with status ${code}; no terminal run produced.`,
+            runArtifactPath,
+          };
+        }
+
+        if (!terminal) {
+          return {
+            kind: "error",
+            durationMs,
+            message:
+              "kota workflow exec exited cleanly but produced no terminal run artifact.",
+            runArtifactPath: null,
+          };
+        }
+
         return {
-          kind: "timeout",
+          kind: "completed",
           durationMs,
-          runArtifactPath: null,
-        };
-      }
-
-      if (spawnError) {
-        return {
-          kind: "error",
-          durationMs,
-          message: `Failed to spawn ${childSpec.label}: ${spawnError.message}`,
-          runArtifactPath: null,
-        };
-      }
-
-      const terminal = readTerminalRunForWorkflow(
-        request.workingDir,
-        request.workflowName,
-        existingWorkflowRunIds,
-      );
-      const runArtifactPath = terminal
-        ? join(request.workingDir, ".kota", "runs", terminal.id)
-        : null;
-
-      if (code !== 0) {
-        return {
-          kind: "error",
-          durationMs,
-          message: terminal
-            ? `${childSpec.label} exited with status ${code}; run ${terminal.id} terminal status: ${terminal.status}.`
-            : `${childSpec.label} exited with status ${code}; no terminal run produced.`,
           runArtifactPath,
         };
+      } finally {
+        childSpec.cleanup?.();
       }
-
-      if (!terminal) {
-        return {
-          kind: "error",
-          durationMs,
-          message:
-            "kota workflow exec exited cleanly but produced no terminal run artifact.",
-          runArtifactPath: null,
-        };
-      }
-
-      return {
-        kind: "completed",
-        durationMs,
-        runArtifactPath,
-      };
     },
   };
 }
