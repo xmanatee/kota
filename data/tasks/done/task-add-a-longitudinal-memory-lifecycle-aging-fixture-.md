@@ -1,12 +1,12 @@
 ---
 id: task-add-a-longitudinal-memory-lifecycle-aging-fixture-
 title: Add a longitudinal memory-lifecycle aging fixture to the eval harness
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a compact eval-harness fixture that measures whether KOTA recall and session memory retain, revise, and recover evidence across repeated sessions and a controlled maintenance shock, with stage-local diagnostic artifacts instead of a one-shot recall pass.
 created_at: 2026-05-29T04:06:51.859Z
-updated_at: 2026-05-29T04:06:51.859Z
+updated_at: 2026-05-29T04:19:35.256Z
 ---
 
 ## Problem
