@@ -572,3 +572,6 @@ resources:
       fingerprint: sha256:c2bec5f42afd453adc5073f108a52743
       summary: "SWE-WebDev-Bench is accessible and reinforces KOTA's completed product-requirements canary fixture direction; no duplicate task is needed because task-add-a-product-requirements-canary-fixture-to-the-e already covers the nonduplicative local gap."
       last_seen_at: "2026-05-27T18:40:29.960Z"
+  - url: https://www.endorlabs.com/research/ai-code-security-benchmark
+    added: "2026-05-29"
+    notes: "Agent Security League tracks coding-agent functional correctness separately from security correctness. Monitor as an eval-harness signal for secure-code canaries, benchmark anti-cheating controls, and functional-pass/security-fail divergence; do not import the leaderboard as a scoring system."
