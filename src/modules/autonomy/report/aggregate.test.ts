@@ -114,6 +114,42 @@ function writeTrajectoryDiagnostics(
   );
 }
 
+function writeUnsupportedTrajectoryDiagnostics(
+  runsDir: string,
+  runId: string,
+  stepId: string,
+): void {
+  const stepsDir = join(runsDir, runId, "steps");
+  mkdirSync(stepsDir, { recursive: true });
+  writeFileSync(
+    join(stepsDir, `${stepId}.trajectory-diagnostics.json`),
+    JSON.stringify({
+      version: 1,
+      status: "unsupported",
+      emitsAgentMessageStream: false,
+      counts: {
+        warningCount: 1,
+        unsupportedTrajectoryCount: 1,
+        missingStreamingFramesCount: 0,
+        missingFinalVerificationAfterEditCount: 0,
+        repeatedIdenticalFailingCommandCount: 0,
+        editAfterSuccessfulVerificationCount: 0,
+        longPreambleWithoutTaskTouchCount: 0,
+      },
+      diagnostics: [
+        {
+          code: "unsupported_trajectory",
+          severity: "warning",
+          summary:
+            "Harness does not emit KOTA-native message frames, so trajectory-quality checks are unsupported.",
+          frameIndexes: [],
+          details: ["capability.emitsAgentMessageStream=false"],
+        },
+      ],
+    }),
+  );
+}
+
 describe("classifyTaskShape", () => {
   const shape = (area: string, title = "", summary = "") =>
     classifyTaskShape({ area, title, summary });
@@ -535,6 +571,36 @@ describe("aggregateAutonomyReport", () => {
     expect(
       report.trajectoryDiagnostics.activePatterns[0]?.repairTaskId,
     ).toMatch(/^task-repair-trajectory-diagnostic-pattern-/);
+    expect(
+      JSON.stringify(report.trajectoryDiagnostics.activePatterns[0]),
+    ).not.toMatch(/cost|throughput/i);
+  });
+
+  it("omits repeated unsupported explorer capability artifacts from active report patterns", () => {
+    for (const [index, hour] of [9, 10, 11].entries()) {
+      const runId = `2026-04-28T${String(hour).padStart(2, "0")}-00-00-000Z-explorer-td${index}`;
+      writeRun(runsDir, runId, {
+        workflow: "explorer",
+        startedAt: new Date(NOW - (4 - index) * 60 * 60 * 1000).toISOString(),
+        completedAt: new Date(NOW - (4 - index) * 60 * 60 * 1000 + 1000).toISOString(),
+        status: "success",
+        durationMs: 1000,
+        steps: [],
+      });
+      writeUnsupportedTrajectoryDiagnostics(runsDir, runId, "explore");
+    }
+
+    const report = aggregateAutonomyReport({
+      projectDir,
+      runsDir,
+      windowEndMs: NOW,
+      windowDays: 7,
+    });
+
+    expect(report.trajectoryDiagnostics.activePatterns).toEqual([]);
+    expect(JSON.stringify(report.trajectoryDiagnostics)).not.toContain(
+      "trajectory-diagnostic:explorer:explore:unsupported_trajectory",
+    );
   });
 
   it("breaks cost down by workflow over the window", () => {

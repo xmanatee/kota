@@ -84,12 +84,21 @@ function artifactFor(code: TrajectoryDiagnosticCode | null): TrajectoryDiagnosti
   };
 }
 
+function supportedArtifactWithUnsupportedDiagnostic(): TrajectoryDiagnosticsArtifact {
+  return {
+    ...artifactFor("unsupported_trajectory"),
+    status: "supported",
+    emitsAgentMessageStream: true,
+  };
+}
+
 function seedTrajectoryRun(
   projectDir: string,
   opts: {
     id: string;
     hoursAgo: number;
     code: TrajectoryDiagnosticCode | null;
+    artifact?: TrajectoryDiagnosticsArtifact;
     workflow?: string;
     stepId?: string;
     status?: WorkflowRunMetadata["status"];
@@ -125,7 +134,7 @@ function seedTrajectoryRun(
   writeFileSync(join(runDir, "metadata.json"), JSON.stringify(metadata, null, 2));
   writeFileSync(
     join(stepsDir, `${stepId}.trajectory-diagnostics.json`),
-    JSON.stringify(artifactFor(opts.code), null, 2),
+    JSON.stringify(opts.artifact ?? artifactFor(opts.code), null, 2),
   );
 }
 
@@ -211,6 +220,38 @@ describe("detectRecurringTrajectoryDiagnosticPatterns", () => {
       hoursAgo: 1,
       code: "unsupported_trajectory",
     });
+
+    expect(detect(projectDir)).toEqual([]);
+  });
+
+  it("keeps the explorer unsupported_trajectory fingerprint below the escalation gate", () => {
+    for (const [index, hour] of [9, 10, 11].entries()) {
+      seedTrajectoryRun(projectDir, {
+        id: `2026-05-29T${String(hour).padStart(2, "0")}-00-00-000Z-explorer-unsupported-${index}`,
+        hoursAgo: 3 - index,
+        code: "unsupported_trajectory",
+        workflow: "explorer",
+        stepId: "explore",
+      });
+    }
+
+    const patterns = detect(projectDir);
+
+    expect(patterns).toEqual([]);
+    expect(JSON.stringify(patterns)).not.toContain(
+      "trajectory-diagnostic:explorer:explore:unsupported_trajectory",
+    );
+  });
+
+  it("does not escalate unsupported_trajectory codes from otherwise supported artifacts", () => {
+    for (const [index, hour] of [9, 10, 11].entries()) {
+      seedTrajectoryRun(projectDir, {
+        id: `2026-05-29T${String(hour).padStart(2, "0")}-00-00-000Z-builder-supported-unsupported-${index}`,
+        hoursAgo: 3 - index,
+        code: "unsupported_trajectory",
+        artifact: supportedArtifactWithUnsupportedDiagnostic(),
+      });
+    }
 
     expect(detect(projectDir)).toEqual([]);
   });

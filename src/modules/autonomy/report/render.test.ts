@@ -49,6 +49,13 @@ function render(data: AutonomyReportData): string {
   });
 }
 
+function section(text: string, start: string, end: string): string {
+  const startIndex = text.indexOf(start);
+  const endIndex = text.indexOf(end, startIndex + start.length);
+  if (startIndex < 0 || endIndex < 0) return "";
+  return text.slice(startIndex, endIndex);
+}
+
 describe("renderAutonomyReport", () => {
   it("renders all dimension headings even when data is empty", () => {
     const text = render(empty);
@@ -70,6 +77,31 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("(no recurring trajectory diagnostic patterns)");
     expect(text).toContain("(no blocked tasks)");
     expect(text).toContain("(no finished runs in window)");
+  });
+
+  it("renders trajectory repair task ids without cost fields in that section", () => {
+    const text = render({
+      ...empty,
+      trajectoryDiagnostics: {
+        activePatterns: [
+          {
+            workflow: "explorer",
+            stepId: "explore",
+            code: "missing_final_verification_after_edit",
+            runCount: 3,
+            repairTaskId: "task-repair-trajectory-diagnostic-pattern-abc123def456",
+            evidenceArtifactPaths: [
+              ".kota/runs/r1/steps/explore.trajectory-diagnostics.json",
+            ],
+          },
+        ],
+      },
+    });
+
+    const trajectorySection = section(text, "Trajectory diagnostics", "Blockers");
+    expect(trajectorySection).toContain("explorer/explore");
+    expect(trajectorySection).toContain("task-repair-trajectory-diagnostic-pattern");
+    expect(trajectorySection).not.toMatch(/\$|cost|throughput/i);
   });
 
   it("includes priority/area mix and explorer additions when populated", () => {

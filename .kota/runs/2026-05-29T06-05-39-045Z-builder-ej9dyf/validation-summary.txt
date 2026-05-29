@@ -1,0 +1,20 @@
+Task: task-repair-trajectory-diagnostic-pattern-6ccd6154d90c
+
+Repair summary:
+- `detectRecurringTrajectoryDiagnosticPatterns` now treats `unsupported_trajectory` as a non-escalatable harness capability diagnostic, not workflow-repairable process-quality debt.
+- The existing unsupported-artifact skip is preserved, and a diagnostic-code guard covers inconsistent artifacts that carry `unsupported_trajectory` under an otherwise supported status.
+- The task remains done because the escalator no longer opens the explorer/explore unsupported_trajectory fingerprint.
+
+Evidence:
+- `.kota/runs/2026-05-29T06-05-39-045Z-builder-ej9dyf/explorer-trajectory-escalation-evidence.json` shows targetActiveInDetector=false and targetActiveInOperatorReport=false for `trajectory-diagnostic:explorer:explore:unsupported_trajectory:29e0ec93e82e`.
+- `.kota/runs/2026-05-29T06-05-39-045Z-builder-ej9dyf/trajectory-attention-fixture.json` shows a trajectory attention item with a repair task id and `includesCostOrThroughputField=false`.
+
+Commands run:
+- `pnpm test src/modules/autonomy/trajectory-diagnostic-escalation.test.ts src/modules/autonomy/report/aggregate.test.ts src/modules/autonomy/report/render.test.ts src/modules/autonomy/workflows/trajectory-diagnostic-escalator/workflow.test.ts src/core/workflow/steps/step-executor-agent-trajectory-diagnostics.test.ts`
+  Result: pass, 5 test files, 40 tests.
+- `pnpm exec biome check src/modules/autonomy/trajectory-diagnostic-escalation.ts src/modules/autonomy/trajectory-diagnostic-escalation.test.ts src/modules/autonomy/report/aggregate.test.ts src/modules/autonomy/report/render.test.ts`
+  Result: pass.
+- `node --conditions=source --import tsx src/validate-queue.ts --summary`
+  Result: pass; `task-queue-valid: errors=0 warnings=0`.
+- `pnpm test src/task-files.test.ts`
+  Result: pass, 1 test file, 5 tests.

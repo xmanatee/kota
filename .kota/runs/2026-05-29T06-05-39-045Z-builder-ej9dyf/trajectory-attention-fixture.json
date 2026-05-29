@@ -1,0 +1,13 @@
+{
+  "attention": {
+    "items": [
+      {
+        "label": "Trajectory diagnostic escalated",
+        "detail": "explorer/explore missing_final_verification_after_edit; task task-repair-trajectory-diagnostic-pattern-abc123def456; action created; runs run-a, run-b, run-c"
+      }
+    ],
+    "text": "Attention digest (1 item):\n• *Trajectory diagnostic escalated*: explorer/explore missing_final_verification_after_edit; task task-repair-trajectory-diagnostic-pattern-abc123def456; action created; runs run-a, run-b, run-c"
+  },
+  "includesRepairTaskId": true,
+  "includesCostOrThroughputField": false
+}

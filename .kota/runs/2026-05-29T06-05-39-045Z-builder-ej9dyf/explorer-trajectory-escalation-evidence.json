@@ -1,0 +1,9 @@
+{
+  "generatedAt": "2026-05-29T06:30:00.000Z",
+  "targetFingerprint": "trajectory-diagnostic:explorer:explore:unsupported_trajectory:29e0ec93e82e",
+  "targetActiveInDetector": false,
+  "detectorActivePatternCount": 0,
+  "detectorActivePatterns": [],
+  "targetActiveInOperatorReport": false,
+  "reportActivePatterns": []
+}

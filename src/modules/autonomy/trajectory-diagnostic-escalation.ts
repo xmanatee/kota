@@ -47,6 +47,10 @@ const DIAGNOSTIC_CODES = new Set<TrajectoryDiagnosticCode>([
   "long_preamble_without_task_touch",
 ]);
 
+const NON_ESCALATABLE_DIAGNOSTIC_CODES = new Set<TrajectoryDiagnosticCode>([
+  "unsupported_trajectory",
+]);
+
 export type TrajectoryDiagnosticPatternConfig = {
   nowMs?: number;
   windowMs?: number;
@@ -330,6 +334,16 @@ function stepIdFromArtifactPath(artifactPath: string): string {
   return file.slice(0, -DIAGNOSTIC_ARTIFACT_SUFFIX.length);
 }
 
+function isEscalatableDiagnosticArtifact(
+  artifact: TrajectoryDiagnosticsArtifact,
+): boolean {
+  return artifact.status === "supported";
+}
+
+function isEscalatableDiagnostic(diagnostic: TrajectoryDiagnostic): boolean {
+  return !NON_ESCALATABLE_DIAGNOSTIC_CODES.has(diagnostic.code);
+}
+
 function collectDiagnosticObservations(
   runsDir: string,
   runs: RunWithTime[],
@@ -351,10 +365,11 @@ function collectDiagnosticObservations(
         Math.max(latestScopeObservationMs.get(scope) ?? 0, entry.timeMs),
       );
       const artifact = readTrajectoryDiagnosticsArtifact(artifactPath);
-      // Unsupported artifacts document harness capability boundaries, not
-      // process-quality patterns the workflow can repair.
-      if (artifact.status === "unsupported") continue;
+      // Unsupported trajectory signals document harness capability boundaries,
+      // not process-quality patterns the workflow can repair.
+      if (!isEscalatableDiagnosticArtifact(artifact)) continue;
       for (const diagnostic of artifact.diagnostics) {
+        if (!isEscalatableDiagnostic(diagnostic)) continue;
         const detailFingerprint = diagnosticDetailFingerprint(diagnostic);
         const fingerprint = patternFingerprint({
           workflow: entry.run.workflow,

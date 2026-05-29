@@ -1,12 +1,12 @@
 ---
 id: task-repair-trajectory-diagnostic-pattern-6ccd6154d90c
 title: Repair recurring explorer trajectory diagnostic
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Fix the recurring unsupported_trajectory trajectory warning in explorer/explore.
 created_at: 2026-05-29T05:54:10.782Z
-updated_at: 2026-05-29T05:54:10.782Z
+updated_at: 2026-05-29T06:30:00.000Z
 ---
 
 ## Problem
@@ -136,6 +136,17 @@ weak success patterns.
   escalation gate on fresh evidence.
 - Operator-facing report or attention fixture showing future escalations
   include the repair task id without cost fields.
+
+## Completion Evidence
+
+- Detector repair: `unsupported_trajectory` is treated as a harness capability
+  boundary and is not escalated as workflow-repairable process-quality debt.
+- Focused tests: `pnpm test src/modules/autonomy/trajectory-diagnostic-escalation.test.ts src/modules/autonomy/report/aggregate.test.ts src/modules/autonomy/report/render.test.ts src/modules/autonomy/workflows/trajectory-diagnostic-escalator/workflow.test.ts src/core/workflow/steps/step-executor-agent-trajectory-diagnostics.test.ts`
+  passed 5 files / 40 tests.
+- Run evidence: `.kota/runs/2026-05-29T06-05-39-045Z-builder-ej9dyf/explorer-trajectory-escalation-evidence.json`
+  records the target fingerprint inactive, and
+  `.kota/runs/2026-05-29T06-05-39-045Z-builder-ej9dyf/trajectory-attention-fixture.json`
+  records a repair-task-id attention item with no cost or throughput fields.
 
 <!-- trajectory-diagnostic-pattern-fingerprint: trajectory-diagnostic:explorer:explore:unsupported_trajectory:29e0ec93e82e -->
 <!-- trajectory-diagnostic-evidence-fingerprint: 46fff4483c04db6581c9769eebe9b5acc5e1a9c368ec7bfe1300b771d25cf80e -->
