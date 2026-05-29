@@ -27,6 +27,10 @@ resources:
   - url: https://github.com/sourcegraph/CodeScaleBench
     added: "2026-05-29"
     notes: "CodeScaleBench evaluates coding agents' use of external context-retrieval tools on large and multi-repo developer tasks. Monitor as a harness-parity/eval signal for retrieval-target diagnostics, baseline-vs-MCP trace comparison, and task-relevant context coverage; do not import the benchmark runner."
+    snapshot:
+      fingerprint: sha256:80f054daf64f6d50b2660e00564a4bb3
+      summary: "CodeScaleBench is accessible; its retrieval diagnostics are already covered by completed harness-parity work, and this run opened task-add-eval-harness-verifier-calibration-probes for the remaining verifier-integrity QA signal."
+      last_seen_at: "2026-05-29T09:16:50.140Z"
   - url: https://github.com/zeroclaw-labs/zeroclaw
     added: "2026-04-14"
     snapshot:
