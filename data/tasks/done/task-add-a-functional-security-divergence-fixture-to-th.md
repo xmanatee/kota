@@ -1,12 +1,12 @@
 ---
 id: task-add-a-functional-security-divergence-fixture-to-th
 title: Add a functional-security divergence fixture to the eval harness
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Seed an eval-harness fixture where the builder must implement a small feature that passes functional tests and hidden security checks, proving secure behavior is artifact-graded rather than inferred from green unit tests.
 created_at: 2026-05-29T01:36:05.289Z
-updated_at: 2026-05-29T01:36:05.289Z
+updated_at: 2026-05-29T02:00:26Z
 ---
 
 ## Problem

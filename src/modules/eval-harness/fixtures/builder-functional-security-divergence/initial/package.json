@@ -1,0 +1,13 @@
+{
+  "name": "kota-eval-harness-functional-security-divergence-fixture",
+  "private": true,
+  "scripts": {
+    "build": "true",
+    "typecheck": "true",
+    "lint": "true",
+    "lint:fix": "true",
+    "test": "node --test test/note-reader.test.mjs",
+    "validate-tasks": "node \"$KOTA_DIST_DIR/validate-queue.js\"",
+    "kota": "node \"$KOTA_DIST_DIR/cli.js\""
+  }
+}
