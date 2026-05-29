@@ -3,7 +3,7 @@
  */
 
 import { execSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { platform } from "node:os";
 import { dirname } from "node:path";
 
@@ -15,6 +15,9 @@ export interface SecretProvider {
   remove(key: string): boolean;
   list(): string[];
 }
+
+const SECRET_DIR_MODE = 0o700;
+const SECRET_FILE_MODE = 0o600;
 
 // --- Env Provider ---
 
@@ -112,6 +115,7 @@ export class FileProvider implements SecretProvider {
       this.data = {};
       return this.data;
     }
+    this.secureExistingStorage();
     try {
       const raw = readFileSync(this.filePath, "utf-8");
       const parsed = JSON.parse(raw);
@@ -126,9 +130,23 @@ export class FileProvider implements SecretProvider {
 
   private save(data: Record<string, string>): void {
     this.data = data;
+    this.ensureStorageDir();
+    writeFileSync(this.filePath, `${JSON.stringify(data, null, 2)}\n`, {
+      encoding: "utf-8",
+      mode: SECRET_FILE_MODE,
+    });
+    chmodSync(this.filePath, SECRET_FILE_MODE);
+  }
+
+  private ensureStorageDir(): void {
     const dir = dirname(this.filePath);
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-    writeFileSync(this.filePath, `${JSON.stringify(data, null, 2)}\n`, "utf-8");
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: SECRET_DIR_MODE });
+    chmodSync(dir, SECRET_DIR_MODE);
+  }
+
+  private secureExistingStorage(): void {
+    this.ensureStorageDir();
+    chmodSync(this.filePath, SECRET_FILE_MODE);
   }
 }
 

@@ -1,6 +1,14 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   EnvProvider,
@@ -16,6 +24,10 @@ function makeTmpDir(): string {
   const dir = join(tmpdir(), `kota-secrets-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   mkdirSync(dir, { recursive: true });
   return dir;
+}
+
+function modeOf(path: string): number {
+  return statSync(path).mode & 0o777;
 }
 
 describe("EnvProvider", () => {
@@ -166,6 +178,46 @@ describe("FileProvider", () => {
     const provider = new FileProvider(nested);
     provider.set("KEY", "val");
     expect(existsSync(nested)).toBe(true);
+  });
+
+  it("creates secret directories and files with owner-only permissions", () => {
+    const nested = join(dir, "deep", "nested", "secrets.json");
+    const provider = new FileProvider(nested);
+    provider.set("KEY", "val");
+
+    expect(modeOf(dirname(nested))).toBe(0o700);
+    expect(modeOf(nested)).toBe(0o600);
+  });
+
+  it("repairs permissive existing storage permissions on load", () => {
+    const path = join(dir, ".kota", "secrets.json");
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, JSON.stringify({ KEY: "val" }));
+    chmodSync(dirname(path), 0o755);
+    chmodSync(path, 0o644);
+
+    const provider = new FileProvider(path);
+    expect(provider.get("KEY")).toBe("val");
+    expect(modeOf(dirname(path))).toBe(0o700);
+    expect(modeOf(path)).toBe(0o600);
+  });
+
+  it("repairs permissive existing storage permissions on save", () => {
+    const path = join(dir, ".kota", "secrets.json");
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, JSON.stringify({ KEY: "old" }));
+    chmodSync(dirname(path), 0o755);
+    chmodSync(path, 0o644);
+
+    const provider = new FileProvider(path);
+    expect(provider.get("KEY")).toBe("old");
+    chmodSync(dirname(path), 0o755);
+    chmodSync(path, 0o644);
+
+    provider.set("KEY", "new");
+
+    expect(modeOf(dirname(path))).toBe(0o700);
+    expect(modeOf(path)).toBe(0o600);
   });
 
   it("handles corrupted JSON", () => {
