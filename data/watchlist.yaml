@@ -533,6 +533,10 @@ resources:
   - url: https://arxiv.org/abs/2605.26302
     added: "2026-05-29"
     notes: "AgingBench / agent lifespan engineering evaluates longitudinal agent reliability across compression, interference, revision, and maintenance aging. Monitor as an eval-harness signal for KOTA memory-lifecycle fixtures, maintenance-shock diagnostics, and per-stage write/store/retrieve/utilize evidence rather than importing the benchmark runner."
+    snapshot:
+      fingerprint: sha256:278564466a0d309dcfac4d27866ea3ce
+      summary: "AgingBench is accessible and reinforces KOTA's completed longitudinal memory-lifecycle aging fixture; no duplicate task is needed because task-add-a-longitudinal-memory-lifecycle-aging-fixture- already covers the local eval-harness gap."
+      last_seen_at: "2026-05-29T04:50:32.723Z"
   - url: https://arxiv.org/abs/2605.14678
     added: "2026-05-28"
     notes: "Pi-Bench evaluates proactive personal-assistant agents across hidden user intents, inter-task dependencies, and cross-session continuity. Monitor as an eval-harness signal for assistant proactivity that remains evidence-grounded and authorization-safe."
