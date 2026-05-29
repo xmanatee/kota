@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "tests": [
+    {
+      "file": "test/pricing.test.mjs",
+      "name": "applies the gold loyalty discount at the threshold subtotal"
+    },
+    {
+      "file": "test/pricing.test.mjs",
+      "name": "does not give loyalty discount to silver customers"
+    },
+    {
+      "file": "test/pricing.test.mjs",
+      "name": "keeps free delivery based on subtotal before discounts"
+    }
+  ]
+}

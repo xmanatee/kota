@@ -1,0 +1,149 @@
+{
+  "id": "builder-targeted-test-writing",
+  "description": "Replay-backed builder fixture for adding focused production-style tests to existing cart-pricing behavior, with manifest, placement, mutation, and changed-path predicates rejecting source edits and broad test spam.",
+  "role": "builder",
+  "workflowName": "builder",
+  "budgetMs": 1800000,
+  "predicates": [
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-targeted-tests.mjs",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-targeted-tests.mjs --self-test-shortcuts",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "file-exists",
+      "path": "test/targeted-tests.json"
+    },
+    {
+      "kind": "file-contains",
+      "path": "test/targeted-tests.json",
+      "needle": "applies the gold loyalty discount at the threshold subtotal"
+    },
+    {
+      "kind": "file-exists",
+      "path": "artifacts/test-writing-evidence.json"
+    },
+    {
+      "kind": "file-contains",
+      "path": "artifacts/test-writing-evidence.json",
+      "needle": "\"mutationsCaught\": 3"
+    },
+    {
+      "kind": "file-absent",
+      "path": "data/tasks/ready/task-cover-cart-pricing-rules.md"
+    },
+    {
+      "kind": "file-exists",
+      "path": "data/tasks/done/task-cover-cart-pricing-rules.md"
+    },
+    {
+      "kind": "file-contains",
+      "path": "data/tasks/done/task-cover-cart-pricing-rules.md",
+      "needle": "status: done"
+    },
+    {
+      "kind": "git-changes-within",
+      "allowedPaths": [
+        "artifacts/test-writing-evidence.json",
+        "test/pricing.test.mjs",
+        "test/targeted-tests.json",
+        "data/tasks/ready/task-cover-cart-pricing-rules.md",
+        "data/tasks/done/task-cover-cart-pricing-rules.md"
+      ]
+    }
+  ],
+  "objectiveMetrics": [
+    {
+      "name": "mutations_caught",
+      "unit": "mutations",
+      "direction": "higher_is_better",
+      "source": {
+        "kind": "json-file",
+        "path": "artifacts/test-writing-evidence.json",
+        "pointer": "/mutationsCaught"
+      }
+    }
+  ],
+  "verifierCalibration": {
+    "null": {},
+    "golden": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/test/pricing.test.mjs",
+          "targetPath": "test/pricing.test.mjs"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/test/targeted-tests.json",
+          "targetPath": "test/targeted-tests.json"
+        }
+      ]
+    },
+    "adversarial": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/test/pricing.test.mjs",
+          "targetPath": "test/pricing.test.mjs"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/test/targeted-tests.json",
+          "targetPath": "test/targeted-tests.json"
+        }
+      ]
+    }
+  },
+  "tags": [
+    "autonomy",
+    "builder-discipline",
+    "test-writing",
+    "agent-call-replay",
+    "objective-metric"
+  ],
+  "provenance": {
+    "kind": "smoke-fixture",
+    "justification": "Synthetic replay-backed builder canary for SWE Atlas Test Writing and OmniCode-shaped test-generation work: the builder must add a small manifest-backed test patch for existing correct behavior, prove those tests pass on the baseline, and catch deterministic local mutations without changing production code, runner scripts, or fixture metadata. It uses the existing replay path so `pnpm kota eval run` remains deterministic and network-free while predicates and the mutations_caught objective metric grade the produced test artifact. No past KOTA failure run exists for this exact tests-only measurement gap."
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-targeted-tests.mjs",
+        "timeoutMs": 20000
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-targeted-tests.mjs --self-test-shortcuts",
+        "timeoutMs": 10000
+      },
+      "expected": "pass"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/tasks/ready/task-cover-cart-pricing-rules.md"
+      },
+      "expected": "pass"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "test/targeted-tests.json"
+      },
+      "expected": "fail"
+    }
+  ],
+  "controlDecisions": [
+    "act"
+  ]
+}

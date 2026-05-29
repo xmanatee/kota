@@ -1,12 +1,12 @@
 ---
 id: task-add-a-targeted-test-writing-fixture-to-the-eval-ha
 title: Add a targeted test-writing fixture to the eval harness
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Seed an eval-harness fixture where the builder writes precise production-style tests for existing behavior without product-code edits, using mutation-style checks and placement/convention predicates so test-writing quality is artifact-graded.
 created_at: 2026-05-29T12:34:48.216Z
-updated_at: 2026-05-29T12:34:48.216Z
+updated_at: 2026-05-29T12:48:37Z
 ---
 
 ## Problem

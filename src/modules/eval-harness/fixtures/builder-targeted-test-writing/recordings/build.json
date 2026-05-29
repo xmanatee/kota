@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "workflowName": "builder",
+  "stepId": "build",
+  "sourceRunId": "synthetic-builder-targeted-test-writing-2026-05-29",
+  "response": {
+    "text": "Targeted test-writing fixture task completed. Extended the existing pricing test bucket with focused loyalty and delivery tests, added the targeted test manifest, verified the local mutation scorer, moved the task to done, and wrote run-directory success evidence plus a commit message.",
+    "subtype": "success",
+    "turns": 1,
+    "totalCostUsd": 0,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "sessionId": "builder-targeted-test-writing-replay"
+  },
+  "fileOperations": [
+    {
+      "op": "delete",
+      "path": "data/tasks/ready/task-cover-cart-pricing-rules.md"
+    },
+    {
+      "op": "write",
+      "path": "data/tasks/done/task-cover-cart-pricing-rules.md",
+      "content": "---\nid: task-cover-cart-pricing-rules\ntitle: Cover cart pricing loyalty and delivery rules\nstatus: done\npriority: p2\narea: eval-harness\nsummary: Add precise tests for existing cart-pricing loyalty and delivery behavior without changing product code, runner scripts, or fixture metadata.\ncreated_at: 2026-05-29T00:00:00.000Z\nupdated_at: 2026-05-29T01:00:00.000Z\n---\n\n## Problem\n\n`src/cart-pricing.mjs` already implements the cart pricing rules correctly, but\nthe existing tests only cover a standard small cart. The under-tested behavior\nis important because a future refactor could quietly move the loyalty threshold,\napply the gold discount to the wrong customer tier, or calculate free delivery\nafter discounts instead of from the pre-discount subtotal.\n\n## Desired Outcome\n\nExtend the existing `test/pricing.test.mjs` bucket with focused tests for the\ncurrent loyalty and delivery behavior. Add `test/targeted-tests.json` listing\nthe tests you added so the scorer can run only the targeted tests.\n\nUse this verification command:\n\n```sh\nnode scripts/check-targeted-tests.mjs\n```\n\n## Required Test Names\n\nThe manifest must list these exact tests in `test/pricing.test.mjs`:\n\n- `applies the gold loyalty discount at the threshold subtotal`\n- `does not give loyalty discount to silver customers`\n- `keeps free delivery based on subtotal before discounts`\n\n## Constraints\n\n- Only edit `test/pricing.test.mjs`, add `test/targeted-tests.json`, and move\n  this task to `done/`.\n- Do not change `src/cart-pricing.mjs`, `scripts/check-targeted-tests.mjs`,\n  `package.json`, fixture metadata, or runner scripts.\n- Do not add dependencies, snapshots, generated golden-output dumps, broad\n  unrelated tests, a new test bucket, network calls, or LLM judges.\n- Use the existing helper style from `test/helpers/pricing-helpers.mjs`.\n- Do not commit from the agent step; the workflow commit step handles that.\n\n## Done When\n\n- `node scripts/check-targeted-tests.mjs` exits successfully.\n- `test/targeted-tests.json` lists exactly the targeted tests added.\n- The targeted tests pass against the unmodified baseline behavior.\n- The targeted tests fail against all deterministic mutations applied by the\n  scorer.\n- No product/source code, scorer, runner, package, or fixture metadata changes.\n- This task has moved from `data/tasks/ready/` to `data/tasks/done/`.\n\n## Acceptance Evidence\n\n- Command output from `node scripts/check-targeted-tests.mjs`.\n- `test/targeted-tests.json`.\n- The fixture run artifact records the `mutations_caught` objective metric.\n\n## Source / Intent\n\nEval-harness fixture seed for measuring tests-only builder quality. The builder\nshould add precise tests for correct existing behavior and prove relevance\nthrough deterministic mutation checks, not hide behind product-code edits,\nmisplaced test buckets, or broad tests that do not catch regressions.\n\n## Initiative\n\nOutcome-grade autonomy evaluation: KOTA should grade whether builders can add\nfocused tests that protect existing behavior without changing implementation\ncode.\n"
+    },
+    {
+      "op": "write",
+      "path": "test/pricing.test.mjs",
+      "content": "import assert from \"node:assert/strict\";\nimport test from \"node:test\";\nimport { priceOrder } from \"../src/cart-pricing.mjs\";\nimport { item, order } from \"./helpers/pricing-helpers.mjs\";\n\ntest(\"prices standard small carts with paid delivery\", () => {\n  const summary = priceOrder(\n    order({\n      items: [item(\"starter pack\", 1250, 2)],\n    }),\n  );\n\n  assert.deepEqual(summary, {\n    currency: \"USD\",\n    customerTier: \"standard\",\n    itemCount: 2,\n    subtotalCents: 2500,\n    loyaltyDiscountCents: 0,\n    deliveryFeeCents: 799,\n    totalCents: 3299,\n  });\n});\n\ntest(\"applies the gold loyalty discount at the threshold subtotal\", () => {\n  const summary = priceOrder(\n    order({\n      tier: \"gold\",\n      items: [item(\"threshold bundle\", 2500, 2)],\n    }),\n  );\n\n  assert.equal(summary.subtotalCents, 5000);\n  assert.equal(summary.loyaltyDiscountCents, 500);\n  assert.equal(summary.deliveryFeeCents, 799);\n  assert.equal(summary.totalCents, 5299);\n});\n\ntest(\"does not give loyalty discount to silver customers\", () => {\n  const summary = priceOrder(\n    order({\n      tier: \"silver\",\n      items: [item(\"silver bundle\", 3000, 2)],\n    }),\n  );\n\n  assert.equal(summary.subtotalCents, 6000);\n  assert.equal(summary.loyaltyDiscountCents, 0);\n  assert.equal(summary.deliveryFeeCents, 799);\n  assert.equal(summary.totalCents, 6799);\n});\n\ntest(\"keeps free delivery based on subtotal before discounts\", () => {\n  const summary = priceOrder(\n    order({\n      tier: \"gold\",\n      items: [item(\"large cart\", 4000, 2)],\n    }),\n  );\n\n  assert.equal(summary.subtotalCents, 8000);\n  assert.equal(summary.loyaltyDiscountCents, 800);\n  assert.equal(summary.deliveryFeeCents, 0);\n  assert.equal(summary.totalCents, 7200);\n});\n"
+    },
+    {
+      "op": "write",
+      "path": "test/targeted-tests.json",
+      "content": "{\n  \"schemaVersion\": 1,\n  \"tests\": [\n    {\n      \"file\": \"test/pricing.test.mjs\",\n      \"name\": \"applies the gold loyalty discount at the threshold subtotal\"\n    },\n    {\n      \"file\": \"test/pricing.test.mjs\",\n      \"name\": \"does not give loyalty discount to silver customers\"\n    },\n    {\n      \"file\": \"test/pricing.test.mjs\",\n      \"name\": \"keeps free delivery based on subtotal before discounts\"\n    }\n  ]\n}\n"
+    },
+    {
+      "op": "write",
+      "path": "{{runDir}}/success-criteria.txt",
+      "content": "1. Extend the existing pricing test bucket with the three required targeted test names.\n2. Add `test/targeted-tests.json` listing exactly the targeted tests.\n3. Make `node scripts/check-targeted-tests.mjs` pass on the unmutated baseline.\n4. Make the targeted tests catch all deterministic scorer mutations.\n5. Keep product source, scorer, package, runner, and fixture metadata unchanged.\n6. Move `task-cover-cart-pricing-rules` from ready to done.\n"
+    },
+    {
+      "op": "write",
+      "path": "{{runDir}}/success-criteria-verified.txt",
+      "content": "1. `test/pricing.test.mjs` contains the three required focused loyalty and delivery tests in the existing bucket.\n2. `test/targeted-tests.json` lists exactly those three tests in `test/pricing.test.mjs`.\n3. `node scripts/check-targeted-tests.mjs` passes under the fixture scorer.\n4. The scorer records `mutationsCaught: 3` for the targeted tests.\n5. The replay only changes the accepted test, manifest, evidence, and task-state paths.\n6. The task file is removed from `data/tasks/ready/`, written to `data/tasks/done/`, and has `status: done`.\n"
+    },
+    {
+      "op": "write",
+      "path": "{{runDir}}/commit-message.txt",
+      "content": "Add targeted test-writing eval fixture task\n\nExtends the tiny cart pricing fixture with focused manifest-backed tests, mutation-scored evidence, and a done task state.\n"
+    }
+  ]
+}

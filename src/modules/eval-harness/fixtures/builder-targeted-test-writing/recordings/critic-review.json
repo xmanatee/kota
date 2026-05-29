@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "workflowName": "builder",
+  "stepId": "critic-review",
+  "sourceRunId": "synthetic-builder-targeted-test-writing-2026-05-29",
+  "response": {
+    "text": "{\n  \"verdict\": \"pass\",\n  \"critical_issues\": [],\n  \"warnings\": [],\n  \"summary\": \"The replayed targeted test-writing fixture satisfies the task: the builder extended the existing pricing test bucket, added an exact manifest, the scorer passes on baseline behavior, all deterministic mutations are caught, the objective metric is available, changed paths stay within the accepted test/task evidence set, and the task moved to done.\"\n}",
+    "subtype": "success",
+    "turns": 1,
+    "totalCostUsd": 0,
+    "inputTokens": 0,
+    "outputTokens": 0
+  },
+  "fileOperations": []
+}
