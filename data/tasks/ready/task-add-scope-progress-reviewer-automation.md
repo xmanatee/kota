@@ -1,13 +1,13 @@
 ---
 id: task-add-scope-progress-reviewer-automation
 title: Add scope progress reviewer automation
-status: backlog
+status: ready
 priority: p1
 area: autonomy
 summary: Add a generic progress-reviewer automation that periodically or count-threshold reviews scoped runs, logs, tasks, artifacts, and changes to assess whether agents and workflows are producing the intended outcomes.
 depends_on: [task-promote-projects-into-hierarchical-scopes, task-unify-hooks-and-workflows-under-one-automation-pro, task-add-generic-event-batching-to-workflow-triggers]
 created_at: 2026-06-03T13:40:47.946Z
-updated_at: 2026-06-03T13:41:17.000Z
+updated_at: 2026-06-04T10:51:23.481Z
 ---
 
 ## Problem
