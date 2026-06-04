@@ -86,7 +86,7 @@ function makeStubQueue(state: StubQueueState) {
 
 const ESCALATION_RECOVERY_TRIGGER = {
   event: "runtime.recovered" as const,
-  payload: {
+  schemaRef: null, payload: {
     recoveredAt: "2026-04-18T10:00:00Z",
     sourceRunId: "run-failed-builder",
     sourceWorkflow: "builder",
@@ -145,7 +145,7 @@ function makeFailedBuilderMetadata(opts: {
     id: "run-failed-builder",
     workflow: "builder",
     definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
-    trigger: { event: "autonomy.queue.available", payload: {} },
+    trigger: { event: "autonomy.queue.available", schemaRef: null, payload: {} },
     startedAt: "2026-04-10T20:00:00Z",
     completedAt: "2026-04-10T21:00:00Z",
     status: "failed",
@@ -209,7 +209,7 @@ describe("decomposer workflow", () => {
     );
 
     const harness = new WorkflowTestHarness(decomposerWorkflow, {
-      trigger: { event: "workflow.completed", payload: TRIGGER_PAYLOAD },
+      trigger: { event: "workflow.completed", schemaRef: null, payload: TRIGGER_PAYLOAD },
       stepMocks: { decompose: { decomposed: true } },
     });
 
@@ -229,7 +229,7 @@ describe("decomposer workflow", () => {
     const harness = new WorkflowTestHarness(decomposerWorkflow, {
       trigger: {
         event: "workflow.completed",
-        payload: { workflow: "builder", status: "failed" },
+        schemaRef: null, payload: { workflow: "builder", status: "failed" },
       },
       stepMocks: { decompose: { decomposed: true } },
     });
@@ -256,7 +256,7 @@ describe("decomposer workflow", () => {
     });
 
     const harness = new WorkflowTestHarness(decomposerWorkflow, {
-      trigger: { event: "workflow.completed", payload: TRIGGER_PAYLOAD },
+      trigger: { event: "workflow.completed", schemaRef: null, payload: TRIGGER_PAYLOAD },
       stepMocks: { decompose: { decomposed: true } },
     });
 
@@ -292,7 +292,7 @@ describe("decomposer workflow", () => {
     vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
 
     const harness = new WorkflowTestHarness(decomposerWorkflow, {
-      trigger: { event: "workflow.completed", payload: TRIGGER_PAYLOAD },
+      trigger: { event: "workflow.completed", schemaRef: null, payload: TRIGGER_PAYLOAD },
       stepMocks: { decompose: { decomposed: true, subtaskCount: 3 } },
     });
 
@@ -331,7 +331,7 @@ describe("decomposer workflow", () => {
     vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
 
     const harness = new WorkflowTestHarness(decomposerWorkflow, {
-      trigger: { event: "workflow.completed", payload: TRIGGER_PAYLOAD },
+      trigger: { event: "workflow.completed", schemaRef: null, payload: TRIGGER_PAYLOAD },
       stepMocks: { decompose: { decomposed: true } },
     });
 
@@ -365,7 +365,7 @@ describe("decomposer workflow", () => {
     });
 
     const harness = new WorkflowTestHarness(decomposerWorkflow, {
-      trigger: { event: "workflow.completed", payload: TRIGGER_PAYLOAD },
+      trigger: { event: "workflow.completed", schemaRef: null, payload: TRIGGER_PAYLOAD },
       stepMocks: { decompose: { decomposed: true } },
     });
 
@@ -386,7 +386,7 @@ describe("decomposer workflow", () => {
     );
 
     const harness = new WorkflowTestHarness(decomposerWorkflow, {
-      trigger: { event: "workflow.completed", payload: TRIGGER_PAYLOAD },
+      trigger: { event: "workflow.completed", schemaRef: null, payload: TRIGGER_PAYLOAD },
       stepMocks: { decompose: { decomposed: true } },
     });
 
@@ -416,7 +416,7 @@ describe("decomposer workflow", () => {
     vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
 
     const harness = new WorkflowTestHarness(decomposerWorkflow, {
-      trigger: { event: "workflow.completed", payload: TRIGGER_PAYLOAD },
+      trigger: { event: "workflow.completed", schemaRef: null, payload: TRIGGER_PAYLOAD },
       stepMocks: { decompose: { decomposed: true } },
     });
 
@@ -448,7 +448,7 @@ describe("decomposer workflow", () => {
     const harness = new WorkflowTestHarness(decomposerWorkflow, {
       trigger: {
         event: "runtime.recovered",
-        payload: {
+        schemaRef: null, payload: {
           recoveredAt: "2026-04-18T10:00:00Z",
           sourceRunId: "run-failed-builder",
           sourceWorkflow: "builder",
@@ -475,7 +475,7 @@ describe("decomposer workflow", () => {
     const harness = new WorkflowTestHarness(decomposerWorkflow, {
       trigger: {
         event: "runtime.recovered",
-        payload: {
+        schemaRef: null, payload: {
           recoveredAt: "2026-04-18T10:00:00Z",
           sourceRunId: "run-failed-improver",
           sourceWorkflow: "improver",
@@ -516,7 +516,7 @@ describe("decomposer workflow", () => {
       vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
 
       const harness = new WorkflowTestHarness(decomposerWorkflow, {
-        trigger: { event: "workflow.completed", payload: TRIGGER_PAYLOAD },
+        trigger: { event: "workflow.completed", schemaRef: null, payload: TRIGGER_PAYLOAD },
         stepMocks: { decompose: { decomposed: true } },
       });
 
@@ -785,7 +785,7 @@ describe("decomposer workflow", () => {
     vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: false } as never);
 
     const harness = new WorkflowTestHarness(decomposerWorkflow, {
-      trigger: { event: "workflow.completed", payload: TRIGGER_PAYLOAD },
+      trigger: { event: "workflow.completed", schemaRef: null, payload: TRIGGER_PAYLOAD },
       stepMocks: { decompose: { decomposed: true } },
     });
 

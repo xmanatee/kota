@@ -28,7 +28,7 @@ import { AgentWriteScopeViolationError } from "./steps/agent-write-scope.js";
 import type { AgentStepResult } from "./steps/step-executor-agent.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 
-const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", payload: {} };
+const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", schemaRef: null, payload: {} };
 
 const EMPTY_TRAJECTORY_DIAGNOSTICS: TrajectoryDiagnosticsMetadata = {
   artifactPath: ".kota/runs/test/steps/agent.trajectory-diagnostics.json",

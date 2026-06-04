@@ -10,4 +10,15 @@ export const scopeImprovementRequested =
   defineProjectScopedModuleEvent<ScopeImprovementRequest>(
     "autonomy.scope-improvement.requested",
     ["reason", "requestedBy", "windowMs"],
+    {
+      payloadSchema: {
+        type: "object",
+        properties: {
+          reason: { type: "string", required: false },
+          requestedBy: { type: "string", required: false },
+          windowMs: { type: "number", required: false },
+        },
+      },
+      sensitivity: "internal",
+    },
   );

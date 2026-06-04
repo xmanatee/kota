@@ -126,6 +126,7 @@ const workflowModule: KotaModule = {
             workflow: r.workflow,
             status: r.status,
             triggerEvent: r.trigger.event,
+            triggerSchemaRef: r.trigger.schemaRef,
             startedAt: r.startedAt,
             durationMs: r.durationMs,
             totalCostUsd: r.totalCostUsd,
@@ -235,6 +236,7 @@ const workflowModule: KotaModule = {
         const tags = options?.tags;
         const trigger: WorkflowRunTrigger = {
           event: options?.event ?? "manual",
+          schemaRef: null,
           payload: {
             ...(options?.payload ?? {}),
             triggeredAt: new Date().toISOString(),
@@ -612,6 +614,7 @@ function runDetailFromMetadata(meta: WorkflowRunMetadata): WorkflowRunDetail {
     workflow: meta.workflow,
     status: meta.status,
     triggerEvent: meta.trigger.event,
+    triggerSchemaRef: meta.trigger.schemaRef,
     startedAt: meta.startedAt,
     ...(meta.completedAt !== undefined && { completedAt: meta.completedAt }),
     ...(meta.durationMs !== undefined && { durationMs: meta.durationMs }),

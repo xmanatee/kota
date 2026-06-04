@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
@@ -5550,6 +5550,16 @@ describe("sampling", () => {
 
 		expect(calls).toHaveLength(1);
 		expect(calls[0].model).toBe("claude-haiku-4-5-20251001");
+		const runIds = readdirSync(join(projectDir, ".kota", "runs"));
+		expect(runIds).toHaveLength(1);
+		const metadata = JSON.parse(
+			readFileSync(join(projectDir, ".kota", "runs", runIds[0]!, "metadata.json"), "utf8"),
+		) as { trigger: { event: string; schemaRef: unknown; payload: Record<string, unknown> } };
+		expect(metadata.trigger).toEqual({
+			event: "mcp.sampling",
+			schemaRef: null,
+			payload: {},
+		});
 
 		server.stop();
 	});

@@ -147,7 +147,11 @@ export async function handleWorkflowRetry(
   }
 
   const now = Date.now();
-  const trigger = { event: "retry", payload: { retryOf: runId, triggeredAt: new Date().toISOString() } };
+  const trigger = {
+    event: "retry",
+    schemaRef: null,
+    payload: { retryOf: runId, triggeredAt: new Date().toISOString() },
+  };
   store.setPendingRuns([
     ...state.pendingRuns,
     { workflowName: run.workflow, trigger, enqueuedAtMs: now, notBeforeMs: now },
@@ -276,6 +280,7 @@ export async function handleWorkflowReplay(
   const newRunId = formatRunId(original.workflow);
   const trigger = {
     event: "workflow.replay",
+    schemaRef: null,
     payload: {
       ...cleanPayload,
       replayOf: runId,
@@ -422,6 +427,7 @@ export async function handleWorkflowTrigger(
   const now = Date.now();
   const trigger = {
     event: "manual",
+    schemaRef: null,
     payload: {
       ...(extraPayload ?? {}),
       triggeredAt: new Date().toISOString(),

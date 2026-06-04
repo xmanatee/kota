@@ -1,4 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  defineDaemonWideModuleEvent,
+  initModuleEventRegistry,
+  resetModuleEventRegistry,
+} from "#core/events/module-event.js";
 import type {
   ModuleSetupMutationResult,
   ModuleSetupRequirementStatus,
@@ -111,6 +116,7 @@ describe("DaemonControlServer", () => {
 
   afterEach(async () => {
     await server.stop();
+    resetModuleEventRegistry();
   });
 
   describe("auth", () => {
@@ -488,6 +494,99 @@ describe("DaemonControlServer", () => {
 
     it("requires the bearer token", async () => {
       const res = await fetchNoToken(port, "/capabilities");
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe("GET /event-schemas", () => {
+    it("returns module event schema summaries and full detail", async () => {
+      initModuleEventRegistry().register(
+        "fixture-module",
+        defineDaemonWideModuleEvent<{ value: string; actor: { trust: string } }>(
+          "fixture.schema.event",
+          ["value", "actor"],
+          {
+            schemaVersion: 3,
+            payloadSchema: {
+              type: "object",
+              properties: {
+                value: { type: "string" },
+                actor: {
+                  type: "object",
+                  properties: {
+                    trust: { type: "string" },
+                  },
+                },
+              },
+            },
+            filterablePaths: ["value", "actor.trust"],
+            sensitivity: "sensitive",
+            examples: [
+              {
+                name: "trusted actor",
+                payload: { value: "hello", actor: { trust: "trusted" } },
+              },
+            ],
+          },
+        ),
+      );
+
+      const summaryRes = await fetchWithToken(port, "/event-schemas");
+      expect(summaryRes.status).toBe(200);
+      const summaryBody = await summaryRes.json();
+      expect(summaryBody.events).toEqual([
+        {
+          name: "fixture.schema.event",
+          module: "fixture-module",
+          scope: "daemon",
+          currentVersion: 3,
+          fields: ["value", "actor"],
+          filterablePaths: ["value", "actor.trust"],
+          sensitivity: "sensitive",
+          compatibility: "backward",
+        },
+      ]);
+
+      const detailRes = await fetchWithToken(
+        port,
+        "/event-schemas/fixture.schema.event",
+      );
+      expect(detailRes.status).toBe(200);
+      const detailBody = await detailRes.json();
+      expect(detailBody).toMatchObject({
+        name: "fixture.schema.event",
+        currentVersion: 3,
+        payloadSchema: {
+          type: "object",
+          properties: {
+            value: { type: "string" },
+            actor: {
+              type: "object",
+              properties: { trust: { type: "string" } },
+            },
+          },
+        },
+        examples: [
+          {
+            name: "trusted actor",
+            payload: { value: "hello", actor: { trust: "trusted" } },
+          },
+        ],
+      });
+    });
+
+    it("returns a typed 404 for unknown event schema detail", async () => {
+      const res = await fetchWithToken(port, "/event-schemas/missing.event");
+      expect(res.status).toBe(404);
+      await expect(res.json()).resolves.toEqual({
+        error: "Unknown event schema",
+        reason: "unknown_event_schema",
+        event: "missing.event",
+      });
+    });
+
+    it("requires the bearer token", async () => {
+      const res = await fetchNoToken(port, "/event-schemas");
       expect(res.status).toBe(401);
     });
   });
@@ -1138,7 +1237,7 @@ describe("DaemonControlServer", () => {
     });
 
     it("returns runs from handle", async () => {
-      const run = { id: "run-1", workflow: "builder", status: "success", triggerEvent: "runtime.idle", startedAt: "2026-01-01T00:00:00.000Z" };
+      const run = { id: "run-1", workflow: "builder", status: "success", triggerEvent: "runtime.idle", triggerSchemaRef: null, startedAt: "2026-01-01T00:00:00.000Z" };
       handle = makeHandle({ listWorkflowRuns: vi.fn(() => [run]) });
       await server.stop();
       server = new DaemonControlServer(handle, TEST_TOKEN);
@@ -1177,7 +1276,7 @@ describe("DaemonControlServer", () => {
 
   describe("GET /workflow/runs/:id", () => {
     it("returns 200 with run detail when found", async () => {
-      const run = { id: "run-1", workflow: "builder", status: "success", triggerEvent: "runtime.idle", startedAt: "2026-01-01T00:00:00.000Z", steps: [] };
+      const run = { id: "run-1", workflow: "builder", status: "success", triggerEvent: "runtime.idle", triggerSchemaRef: null, startedAt: "2026-01-01T00:00:00.000Z", steps: [] };
       handle = makeHandle({ getWorkflowRun: vi.fn(() => run) });
       await server.stop();
       server = new DaemonControlServer(handle, TEST_TOKEN);

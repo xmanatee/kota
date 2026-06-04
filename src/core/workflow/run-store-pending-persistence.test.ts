@@ -49,7 +49,7 @@ function producerMetadata(status: "success" | "interrupted"): WorkflowRunMetadat
     id: `explorer-${status}`,
     workflow: "explorer",
     definitionPath: "src/modules/autonomy/workflows/explorer/workflow.ts",
-    trigger: { event: "autonomy.queue.thin", payload: {} },
+    trigger: { event: "autonomy.queue.thin", schemaRef: null, payload: {} },
     startedAt: "2026-01-01T00:00:00.000Z",
     status,
     completedAt: "2026-01-01T00:05:00.000Z",
@@ -83,6 +83,7 @@ describe("pending workflow.completed queue persistence", () => {
 
       const envelope: BusEnvelope = {
         type: "workflow.completed",
+        schemaRef: null,
         payload: completedPayload as unknown as Record<string, unknown>,
       };
 
@@ -130,7 +131,7 @@ describe("pending workflow.completed queue persistence", () => {
       {
         runId: "queued-bad",
         workflowName: "attention-digest",
-        trigger: { event: "workflow.completed", payload: cyclicPayload },
+        trigger: { event: "workflow.completed", schemaRef: null, payload: cyclicPayload },
         enqueuedAtMs: 1,
         notBeforeMs: 1,
       },

@@ -35,7 +35,7 @@ function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDe
   };
 }
 
-const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", payload: {} };
+const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", schemaRef: null, payload: {} };
 
 describe("parallel step groups", () => {
   let projectDir: string;

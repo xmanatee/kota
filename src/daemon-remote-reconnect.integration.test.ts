@@ -132,7 +132,7 @@ function writeRunArtifacts(projectDir: string): string {
     id: RUN_ID,
     workflow: "builder",
     definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
-    trigger: { event: "remote.reconnect.test", payload: { projectId: PROJECT_ID } },
+    trigger: { event: "remote.reconnect.test", schemaRef: null, payload: { projectId: PROJECT_ID } },
     tags: ["remote-reconnect"],
     startedAt: STARTED_AT,
     status: "running",
@@ -170,6 +170,7 @@ function makeHandle(
     workflow: "builder",
     status: "running",
     triggerEvent: "remote.reconnect.test",
+    triggerSchemaRef: null,
     startedAt: STARTED_AT,
     tags: ["remote-reconnect"],
     steps: [
@@ -186,6 +187,7 @@ function makeHandle(
     workflow: "builder",
     status: "running",
     triggerEvent: "remote.reconnect.test",
+    triggerSchemaRef: null,
     startedAt: STARTED_AT,
     tags: ["remote-reconnect"],
   };

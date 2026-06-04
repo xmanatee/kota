@@ -49,7 +49,7 @@ describe("workflow history", () => {
 
   describe("loadRunsInWindow", () => {
     it("returns all recent runs within the time window", () => {
-      const trigger = { event: "test", payload: {} };
+      const trigger = { event: "test", schemaRef: null, payload: {} };
       const run1 = store.createRun(minimalWorkflow("builder"), trigger);
       run1.finish({ status: "success", durationMs: 1000 });
       const run2 = store.createRun(minimalWorkflow("explorer"), trigger);
@@ -61,7 +61,7 @@ describe("workflow history", () => {
     });
 
     it("excludes runs when cutoff is in the future", () => {
-      const trigger = { event: "test", payload: {} };
+      const trigger = { event: "test", schemaRef: null, payload: {} };
       const run = store.createRun(minimalWorkflow("builder"), trigger);
       run.finish({ status: "success", durationMs: 1000 });
 
@@ -78,7 +78,7 @@ describe("workflow history", () => {
 
   describe("computeHistoryStats", () => {
     it("computes correct counts and success rate", () => {
-      const trigger = { event: "test", payload: {} };
+      const trigger = { event: "test", schemaRef: null, payload: {} };
 
       const run1 = store.createRun(minimalWorkflow("builder"), trigger);
       run1.recordStep(makeAgentStep("s1", 0.10, 10_000));
@@ -104,7 +104,7 @@ describe("workflow history", () => {
     });
 
     it("computes cost stats correctly", () => {
-      const trigger = { event: "test", payload: {} };
+      const trigger = { event: "test", schemaRef: null, payload: {} };
 
       const run1 = store.createRun(minimalWorkflow("builder"), trigger);
       run1.recordStep(makeAgentStep("s1", 0.10, 1000));
@@ -122,7 +122,7 @@ describe("workflow history", () => {
     });
 
     it("computes duration stats including p95", () => {
-      const trigger = { event: "test", payload: {} };
+      const trigger = { event: "test", schemaRef: null, payload: {} };
       const durations = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10_000];
 
       for (const dur of durations) {
@@ -139,7 +139,7 @@ describe("workflow history", () => {
     });
 
     it("handles missing cost data by treating as zero", () => {
-      const trigger = { event: "test", payload: {} };
+      const trigger = { event: "test", schemaRef: null, payload: {} };
       const run = store.createRun(minimalWorkflow("builder"), trigger);
       run.finish({ status: "success", durationMs: 5000 });
 

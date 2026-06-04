@@ -1,8 +1,16 @@
 import type { ChannelStatus } from "#core/channels/channel.js";
 import type {
   BusEvents,
+  EventSchemaReference,
   SessionGuardrailsReloadSummary,
 } from "#core/events/event-bus-types.js";
+import type {
+  ModuleEventCompatibilityPolicy,
+  ModuleEventPayloadExample,
+  ModuleEventPayloadSchema,
+  ModuleEventScope,
+  ModuleEventSensitivity,
+} from "#core/events/module-event.js";
 import type {
   ModuleSetupCompleteInput,
   ModuleSetupFormValues,
@@ -72,6 +80,22 @@ export type WorkflowDefinitionSummary = {
   triggers: WorkflowDefinitionTriggerSummary[];
   inputSchema?: Record<string, unknown>;
   outputSchema?: Record<string, unknown>;
+};
+
+export type EventSchemaSummary = {
+  name: string;
+  module: string;
+  scope: ModuleEventScope;
+  currentVersion: number;
+  fields: readonly string[];
+  filterablePaths: readonly string[];
+  sensitivity: ModuleEventSensitivity;
+  compatibility: ModuleEventCompatibilityPolicy;
+};
+
+export type EventSchemaDetail = EventSchemaSummary & {
+  payloadSchema: ModuleEventPayloadSchema;
+  examples: readonly ModuleEventPayloadExample[];
 };
 
 export type DaemonControlAddress = {
@@ -167,6 +191,7 @@ export type WorkflowRunSummary = {
   workflow: string;
   status: string;
   triggerEvent: string;
+  triggerSchemaRef: EventSchemaReference | null;
   startedAt: string;
   durationMs?: number;
   totalCostUsd?: number;

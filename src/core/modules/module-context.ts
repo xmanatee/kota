@@ -10,9 +10,10 @@ import { getSecretStore, initSecretStore } from "#core/config/secrets.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { BusEnvelope, BusEvents } from "#core/events/event-bus-types.js";
 import {
-  assertModuleEventPayloadScope,
+  assertModuleEventPayload,
   type ModuleEventDef,
   type ModuleEventPayload,
+  type ModuleEventPayloadObject,
 } from "#core/events/module-event.js";
 import { registerCleanupHook } from "#core/loop/cleanup-hooks.js";
 import { registerDynamicStateProvider } from "#core/loop/dynamic-state.js";
@@ -79,10 +80,11 @@ class ModuleEventProxyImpl implements ModuleEventProxy {
     const bus = this.getBus();
     if (!bus) return;
     if (typeof event !== "string") {
-      assertModuleEventPayloadScope(event, payload);
+      assertModuleEventPayload(event, payload as ModuleEventPayloadObject);
+      bus.emit(event, payload as ModuleEventPayload<typeof event>);
+      return;
     }
-    const name = typeof event === "string" ? event : event.name;
-    bus.emit(name, payload);
+    bus.emit(event, payload);
   }
 
   subscribe<K extends keyof BusEvents>(

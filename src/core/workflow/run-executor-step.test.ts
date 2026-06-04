@@ -117,13 +117,13 @@ describe("executeWorkflowStep — costUsd capture", () => {
     workflow: "test-wf",
     runDir: ".kota/runs/run-cost-01",
     definitionPath: "src/modules/test/workflows/test/workflow.ts",
-    trigger: { event: "runtime.idle" as const, payload: {} },
+    trigger: { event: "runtime.idle" as const, schemaRef: null, payload: {} },
     startedAt: new Date().toISOString(),
     status: "running" as const,
     steps: [],
   };
 
-  const trigger = { event: "runtime.idle" as const, payload: {} };
+  const trigger = { event: "runtime.idle" as const, schemaRef: null, payload: {} };
 
   const context = {
     projectDir: "/tmp",

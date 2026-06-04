@@ -1,7 +1,11 @@
+import type { EventSchemaReference } from "#core/events/event-bus.js";
+import type { ModuleEventPayloadObject } from "#core/events/module-event.js";
+import { getModuleEventRegistry } from "#core/events/module-event.js";
+import { validatePayloadAgainstSchema } from "#core/events/module-event-payload-validation.js";
 import { matchesFilter } from "#core/workflow/run-executor-utils.js";
 import type { WorkflowPredicate, WorkflowStepContext } from "#core/workflow/run-types.js";
 import type { WorkflowStep } from "#core/workflow/step-types.js";
-import type { WorkflowTrigger } from "#core/workflow/trigger-types.js";
+import type { WorkflowRunTrigger, WorkflowTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 
 export type DryRunWhenResult = "runs" | "skipped" | "error" | "no-condition";
@@ -15,6 +19,7 @@ export type DryRunDiagnostic = {
 export type DryRunTriggerMatch = {
   matched: boolean;
   matchedEvent?: string;
+  schemaRef?: EventSchemaReference | null;
   matchedFilter?: Record<string, unknown>;
 };
 
@@ -48,7 +53,7 @@ export type DryRunOptions = {
 
 function makeDryRunContext(
   definition: WorkflowDefinition,
-  payload?: Record<string, unknown>,
+  trigger: WorkflowRunTrigger,
 ): WorkflowStepContext {
   return {
     projectDir: process.cwd(),
@@ -59,7 +64,7 @@ function makeDryRunContext(
       runDir: "dry-run",
       runDirPath: process.cwd(),
     },
-    trigger: { event: payload ? "dry-run" : "dry-run", payload: payload ?? {} },
+    trigger,
     previousOutput: undefined,
     stepOutputs: {},
     stepResults: {},
@@ -160,12 +165,15 @@ function checkToolAvailability(
 function resolveTriggerMatch(
   triggers: WorkflowTrigger[],
   payload: Record<string, unknown>,
+  diagnostics: DryRunDiagnostic[],
 ): DryRunTriggerMatch {
   for (const trigger of triggers) {
     if (trigger.event && matchesFilter(trigger.filter, payload)) {
+      const schemaRef = resolveDryRunSchemaRef(trigger, payload, diagnostics);
       return {
         matched: true,
         matchedEvent: trigger.event,
+        schemaRef,
         ...(trigger.filter && { matchedFilter: trigger.filter }),
       };
     }
@@ -173,13 +181,50 @@ function resolveTriggerMatch(
   return { matched: false };
 }
 
+function resolveDryRunSchemaRef(
+  trigger: WorkflowTrigger,
+  payload: WorkflowRunTrigger["payload"],
+  diagnostics: DryRunDiagnostic[],
+): EventSchemaReference | null {
+  const declared = getModuleEventRegistry()?.get(trigger.event);
+  if (!declared) {
+    return trigger.schemaVersion === undefined
+      ? null
+      : { name: trigger.event, version: trigger.schemaVersion };
+  }
+
+  const version = trigger.schemaVersion ?? declared.currentVersion;
+  if (version !== declared.currentVersion) {
+    diagnostics.push({
+      level: "error",
+      message:
+        `trigger event "${trigger.event}" references schemaVersion ${version}, ` +
+        `but module "${declared.module}" currently declares schemaVersion ${declared.currentVersion}`,
+    });
+  }
+
+  const payloadError = validatePayloadAgainstSchema(
+    declared.payloadSchema,
+    payload as ModuleEventPayloadObject,
+  );
+  if (payloadError) {
+    diagnostics.push({
+      level: "error",
+      message:
+        `payload for event "${trigger.event}" failed schema v${declared.currentVersion}: ${payloadError}`,
+    });
+  }
+
+  return { name: declared.name, version };
+}
+
 export async function buildDryRunPlan(
   definition: WorkflowDefinition,
   options: DryRunOptions = {},
 ): Promise<DryRunResult> {
-  const context = makeDryRunContext(definition, options.payload);
   const diagnostics: DryRunDiagnostic[] = [];
   const steps: DryRunStepPlan[] = [];
+  const payload = options.payload ?? {};
 
   if (options.availableToolNames) {
     for (const step of definition.steps) {
@@ -189,7 +234,7 @@ export async function buildDryRunPlan(
 
   let triggerMatch: DryRunTriggerMatch | undefined;
   if (options.payload) {
-    triggerMatch = resolveTriggerMatch(definition.triggers, options.payload);
+    triggerMatch = resolveTriggerMatch(definition.triggers, payload, diagnostics);
     if (!triggerMatch.matched) {
       diagnostics.push({
         level: "error",
@@ -197,6 +242,16 @@ export async function buildDryRunPlan(
       });
     }
   }
+
+  const trigger: WorkflowRunTrigger =
+    triggerMatch?.matched && triggerMatch.matchedEvent
+      ? {
+          event: triggerMatch.matchedEvent,
+          schemaRef: triggerMatch.schemaRef ?? null,
+          payload,
+        }
+      : { event: "dry-run", schemaRef: null, payload };
+  const context = makeDryRunContext(definition, trigger);
 
   for (const step of definition.steps) {
     const { result, error } = await evalWhen(step.when, context);

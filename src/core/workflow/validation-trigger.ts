@@ -55,10 +55,11 @@ export function validateTrigger(
       trigger.batch != null ||
       trigger.schedule != null ||
       trigger.intervalMs != null ||
+      trigger.schemaVersion != null ||
       trigger.webhook === true
     ) {
       throw new WorkflowDefinitionError(
-        `triggers[${index}]: watch triggers do not support event, filter, batch, schedule, intervalMs, or webhook`,
+        `triggers[${index}]: watch triggers do not support event, filter, batch, schedule, intervalMs, schemaVersion, or webhook`,
         definitionPath,
       );
     }
@@ -90,10 +91,11 @@ export function validateTrigger(
       trigger.filter != null ||
       trigger.batch != null ||
       trigger.schedule != null ||
-      trigger.intervalMs != null
+      trigger.intervalMs != null ||
+      trigger.schemaVersion != null
     ) {
       throw new WorkflowDefinitionError(
-        `triggers[${index}]: webhook triggers do not support event, filter, batch, schedule, or intervalMs`,
+        `triggers[${index}]: webhook triggers do not support event, filter, batch, schedule, intervalMs, or schemaVersion`,
         definitionPath,
       );
     }
@@ -141,6 +143,20 @@ export function validateTrigger(
       definitionPath,
       0,
     ) ?? 0;
+
+  const schemaVersion = expectOptionalInteger(
+    trigger.schemaVersion,
+    `triggers[${index}].schemaVersion`,
+    definitionPath,
+    1,
+  );
+
+  if (isSchedule && schemaVersion !== undefined) {
+    throw new WorkflowDefinitionError(
+      `triggers[${index}]: schedule triggers do not support schemaVersion`,
+      definitionPath,
+    );
+  }
 
   if (trigger.schedule != null) {
     if (typeof trigger.schedule !== "string" || !trigger.schedule.trim()) {
@@ -192,6 +208,20 @@ export function validateTrigger(
     return { event, cooldownMs, intervalMs };
   }
 
+  const registry = getModuleEventRegistry();
+  const declared = registry?.get(event);
+  if (
+    declared &&
+    schemaVersion !== undefined &&
+    schemaVersion !== declared.currentVersion
+  ) {
+    throw new WorkflowDefinitionError(
+      `triggers[${index}] references schemaVersion ${schemaVersion} for event "${event}", ` +
+        `but module "${declared.module}" currently declares schemaVersion ${declared.currentVersion}.`,
+      definitionPath,
+    );
+  }
+
   const filter = expectOptionalScalarFilter(
     trigger.filter,
     `triggers[${index}].filter`,
@@ -199,15 +229,14 @@ export function validateTrigger(
   );
 
   if (filter) {
-    const registry = getModuleEventRegistry();
-    const declared = registry?.get(event);
     if (declared) {
-      const allowed = new Set(declared.fields);
+      const allowed = new Set(declared.filterablePaths);
       for (const key of Object.keys(filter)) {
         if (!isDeclaredOrScopeAlias(key, allowed)) {
           throw new WorkflowDefinitionError(
-            `triggers[${index}].filter references field "${key}" not declared on event "${event}" ` +
-              `(declared by module "${declared.module}"). Declared fields: ${declared.fields.join(", ") || "(none)"}.`,
+            `triggers[${index}].filter references field "${key}" not filterable on event "${event}" ` +
+              `(declared by module "${declared.module}" schemaVersion ${declared.currentVersion}). ` +
+              `Filterable paths: ${declared.filterablePaths.join(", ") || "(none)"}.`,
             definitionPath,
           );
         }
@@ -221,15 +250,14 @@ export function validateTrigger(
       : validateBatchTrigger(trigger.batch, event, definitionPath, index);
 
   if (batch) {
-    const registry = getModuleEventRegistry();
-    const declared = registry?.get(event);
     if (declared) {
-      const allowed = new Set(declared.fields);
+      const allowed = new Set(declared.filterablePaths);
       for (const key of batch.groupBy) {
         if (!isDeclaredOrScopeAlias(key, allowed)) {
           throw new WorkflowDefinitionError(
-            `triggers[${index}].batch.groupBy references field "${key}" not declared on event "${event}" ` +
-              `(declared by module "${declared.module}"). Declared fields: ${declared.fields.join(", ") || "(none)"}.`,
+            `triggers[${index}].batch.groupBy references field "${key}" not filterable on event "${event}" ` +
+              `(declared by module "${declared.module}" schemaVersion ${declared.currentVersion}). ` +
+              `Filterable paths: ${declared.filterablePaths.join(", ") || "(none)"}.`,
             definitionPath,
           );
         }
@@ -239,6 +267,7 @@ export function validateTrigger(
 
   return {
     event,
+    ...(schemaVersion !== undefined ? { schemaVersion } : {}),
     filter,
     batch,
     cooldownMs,

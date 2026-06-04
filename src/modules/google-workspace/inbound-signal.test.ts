@@ -313,6 +313,10 @@ describe("Google Workspace inbound signal workflow dispatch", () => {
     enqueueMatchingWorkflows(
       {
         type: "inbound.signal.received",
+        schemaRef: {
+          name: inboundSignalReceived.name,
+          version: inboundSignalReceived.schema.currentVersion,
+        },
         payload: {
           ...payload,
           provider: "github",
@@ -325,7 +329,14 @@ describe("Google Workspace inbound signal workflow dispatch", () => {
     expect(queued).toHaveLength(0);
 
     enqueueMatchingWorkflows(
-      { type: inboundSignalReceived.name, payload },
+      {
+        type: inboundSignalReceived.name,
+        schemaRef: {
+          name: inboundSignalReceived.name,
+          version: inboundSignalReceived.schema.currentVersion,
+        },
+        payload,
+      },
       [definition],
       (_definition, _trigger, run) => queued.push(run),
     );

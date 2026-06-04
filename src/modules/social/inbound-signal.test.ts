@@ -240,6 +240,10 @@ describe("Social-origin inbound signal workflow dispatch", () => {
     enqueueMatchingWorkflows(
       {
         type: inboundSignalReceived.name,
+        schemaRef: {
+          name: inboundSignalReceived.name,
+          version: inboundSignalReceived.schema.currentVersion,
+        },
         payload: {
           ...trustedPayload,
           provider: "github",
@@ -252,12 +256,26 @@ describe("Social-origin inbound signal workflow dispatch", () => {
     expect(queued).toHaveLength(0);
 
     enqueueMatchingWorkflows(
-      { type: inboundSignalReceived.name, payload: trustedPayload },
+      {
+        type: inboundSignalReceived.name,
+        schemaRef: {
+          name: inboundSignalReceived.name,
+          version: inboundSignalReceived.schema.currentVersion,
+        },
+        payload: trustedPayload,
+      },
       [definition],
       (_definition, _trigger, run) => queued.push(run),
     );
     enqueueMatchingWorkflows(
-      { type: inboundSignalReceived.name, payload: untrustedPayload },
+      {
+        type: inboundSignalReceived.name,
+        schemaRef: {
+          name: inboundSignalReceived.name,
+          version: inboundSignalReceived.schema.currentVersion,
+        },
+        payload: untrustedPayload,
+      },
       [definition],
       (_definition, _trigger, run) => queued.push(run),
     );

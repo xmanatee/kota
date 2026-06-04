@@ -29,8 +29,13 @@ import type {
 } from "./event-bus-types.js";
 import {
   defineModuleEvent,
+  getModuleEventRegistry,
   type ModuleEventDef,
+  type ModuleEventOptions,
   type ModuleEventPayload,
+  type ModuleEventPayloadSchema,
+  type ModuleEventSchemaNode,
+  type ModuleEventSchemaProperties,
 } from "./module-event.js";
 
 /** Object-shaped event payload constraint, used only inside this module. */
@@ -84,17 +89,53 @@ export type ProjectScopedModuleEventDef<TPayload extends Payload = Payload> =
 export function defineProjectScopedModuleEvent<TPayload extends Payload>(
   name: string,
   fields: ReadonlyArray<keyof TPayload & string>,
+  options?: ModuleEventOptions<ProjectScopedPayload<TPayload>>,
 ): ProjectScopedModuleEventDef<TPayload> {
   const allFields: ReadonlyArray<keyof ProjectScopedPayload<TPayload> & string> = [
     "scopeId",
     "projectId",
     ...fields,
   ];
+  const scopedOptions = {
+    ...options,
+    payloadSchema: withScopePayloadSchema(
+      options?.payloadSchema ?? payloadSchemaFromFields(fields),
+    ),
+    filterablePaths: options?.filterablePaths
+      ? ["scopeId", "projectId", ...options.filterablePaths]
+      : undefined,
+  };
   return defineModuleEvent<ProjectScopedPayload<TPayload>>(
     name,
     allFields,
     "project",
+    scopedOptions,
   );
+}
+
+function withScopePayloadSchema(
+  schema: ModuleEventPayloadSchema,
+): ModuleEventPayloadSchema {
+  const properties: ModuleEventSchemaProperties = {
+    scopeId: { type: "string", required: false },
+    projectId: { type: "string", required: false },
+    ...schema.properties,
+  };
+  return { ...schema, properties };
+}
+
+function payloadSchemaFromFields(
+  fields: ReadonlyArray<string>,
+): ModuleEventPayloadSchema {
+  const properties: { [key: string]: ModuleEventSchemaNode } = {};
+  for (const field of fields) {
+    properties[field] = { type: "json" };
+  }
+  return {
+    type: "object",
+    properties,
+    additionalProperties: true,
+  };
 }
 
 /**
@@ -207,9 +248,18 @@ export class ProjectScopedEventBus {
    * selector must match this bus view so one scope cannot emit another
    * scope's runtime event by accident.
    */
-  emitDynamic(event: string, payload: Record<string, unknown>): void {
-    this.bus.emit(event, withScopeAttribution(payload, this.scopeId));
+  emitDynamic(event: string, payload: Payload): Payload {
+    const emittedPayload = shouldInjectDynamicScope(event)
+      ? withScopeAttribution(payload, this.scopeId)
+      : payload;
+    this.bus.emit(event, emittedPayload);
+    return emittedPayload;
   }
+}
+
+function shouldInjectDynamicScope(event: string): boolean {
+  const registration = getModuleEventRegistry()?.get(event);
+  return registration?.scope !== "daemon";
 }
 
 function explicitPayloadScope(payload: Payload): ScopeId | undefined {

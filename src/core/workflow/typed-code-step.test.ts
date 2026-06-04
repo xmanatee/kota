@@ -11,7 +11,7 @@ import type { WorkflowDefinition } from "./types.js";
 
 type SamplePayload = { value: number; tag: string };
 
-const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", payload: {} };
+const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", schemaRef: null, payload: {} };
 
 function makeDefinition(steps: WorkflowDefinition["steps"]): WorkflowDefinition {
   return {

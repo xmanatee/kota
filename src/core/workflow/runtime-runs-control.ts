@@ -54,7 +54,7 @@ export function enqueuePendingRun(
   const runId = formatRunId(name);
   const trigger = {
     event: "manual",
-    payload: {
+    schemaRef: null, payload: {
       ...(extraPayload ?? {}),
       triggeredAt: new Date().toISOString(),
       _runId: runId,
@@ -85,6 +85,7 @@ export function enqueueWebhookRun(
   const now = Date.now();
   const trigger: WorkflowRunTrigger = {
     event: "webhook",
+    schemaRef: null,
     payload: { ...webhookPayload, _runId: runId },
   };
   const runtimeState = state.store.readState();

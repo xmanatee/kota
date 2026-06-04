@@ -336,7 +336,104 @@ describe("workflow validation", () => {
           ],
           projectDir,
         ),
-      ).toThrow(/ghostField.*not declared on event "fixture\.module\.event"/);
+      ).toThrow(/ghostField.*not filterable on event "fixture\.module\.event"/);
+    } finally {
+      resetModuleEventRegistry();
+    }
+  });
+
+  it("validates nested trigger filters against module-event schema paths", () => {
+    resetModuleEventRegistry();
+    const moduleEvents = initModuleEventRegistry();
+    moduleEvents.register(
+      "fixture-module",
+      defineDaemonWideModuleEvent<{
+        actor: { id: string; trust: "trusted" | "blocked" };
+      }>(
+        "fixture.nested.event",
+        ["actor"],
+        {
+          payloadSchema: {
+            type: "object",
+            properties: {
+              actor: {
+                type: "object",
+                properties: {
+                  id: { type: "string" },
+                  trust: { type: "string", enum: ["trusted", "blocked"] },
+                },
+              },
+            },
+          },
+        },
+      ),
+    );
+
+    try {
+      const definitions = validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/nested-observer.ts", {
+            name: "fixture-nested-observer",
+            triggers: [
+              {
+                event: "fixture.nested.event",
+                filter: { "actor.trust": "trusted" },
+              },
+            ],
+            steps: [
+              { id: "noop", type: "emit", event: "fixture.nested.done" },
+            ],
+          }),
+        ],
+        projectDir,
+      );
+      expect(definitions[0]?.triggers[0]?.filter).toEqual({
+        "actor.trust": "trusted",
+      });
+    } finally {
+      resetModuleEventRegistry();
+    }
+  });
+
+  it("rejects trigger schema versions that differ from the registered current version", () => {
+    resetModuleEventRegistry();
+    const moduleEvents = initModuleEventRegistry();
+    moduleEvents.register(
+      "fixture-module",
+      defineDaemonWideModuleEvent<{ value: string }>(
+        "fixture.versioned.event",
+        ["value"],
+        {
+          schemaVersion: 2,
+          payloadSchema: {
+            type: "object",
+            properties: { value: { type: "string" } },
+          },
+        },
+      ),
+    );
+
+    try {
+      expect(() =>
+        validateWorkflowDefinitions(
+          [
+            registerWorkflowDefinition("test/version-observer.ts", {
+              name: "fixture-version-observer",
+              triggers: [
+                {
+                  event: "fixture.versioned.event",
+                  schemaVersion: 1,
+                  filter: { value: "ok" },
+                },
+              ],
+              steps: [
+                { id: "noop", type: "emit", event: "fixture.version.done" },
+              ],
+            }),
+          ],
+          projectDir,
+        ),
+      ).toThrow(/schemaVersion 1.*currently declares schemaVersion 2/);
     } finally {
       resetModuleEventRegistry();
     }

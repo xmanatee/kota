@@ -20,7 +20,7 @@ import type { WorkflowApprovalStep } from "./step-types.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
-const TRIGGER: WorkflowRunTrigger = { event: "manual", payload: {} };
+const TRIGGER: WorkflowRunTrigger = { event: "manual", schemaRef: null, payload: {} };
 
 const ACTION = {
   actionId: "book-court",

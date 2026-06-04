@@ -518,6 +518,7 @@ describe("autonomous workflow loop integration", () => {
     const enqueued: string[] = [];
     const envelope = {
       type: "workflow.completed" as const,
+      schemaRef: null,
       payload: {
         workflow: "brand-new-workflow",
         runId: "run-xyz",

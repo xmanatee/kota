@@ -89,7 +89,7 @@ describe("cooldown race condition", () => {
         id: "run-alpha-1",
         workflow: "alpha",
         definitionPath: "test/alpha.ts",
-        trigger: { event: "test", payload: {} },
+        trigger: { event: "test", schemaRef: null, payload: {} },
         startedAt: "2026-04-11T11:00:00.000Z",
         status: "running",
         runDir: ".kota/runs/run-alpha-1",
@@ -99,7 +99,7 @@ describe("cooldown race condition", () => {
         id: "run-beta-1",
         workflow: "beta",
         definitionPath: "test/beta.ts",
-        trigger: { event: "test", payload: {} },
+        trigger: { event: "test", schemaRef: null, payload: {} },
         startedAt: "2026-04-11T11:00:00.000Z",
         status: "running",
         runDir: ".kota/runs/run-beta-1",
@@ -181,7 +181,7 @@ describe("cooldown race condition", () => {
         id: "run-alpha-old",
         workflow: "alpha",
         definitionPath: "test/alpha.ts",
-        trigger: { event: "test", payload: {} },
+        trigger: { event: "test", schemaRef: null, payload: {} },
         startedAt: "2026-04-11T09:00:00.000Z",
         status: "running",
         runDir: ".kota/runs/run-alpha-old",
@@ -260,7 +260,7 @@ describe("cooldown race condition", () => {
         {
           runId: "run-explorer-1",
           workflowName: "explorer",
-          trigger: { event: "queue.empty", payload: {} },
+          trigger: { event: "queue.empty", schemaRef: null, payload: {} },
           enqueuedAtMs: Date.now() - 60_000,
           notBeforeMs: Date.now() - 30_000, // stale: looks eligible
         },
@@ -319,7 +319,7 @@ describe("cooldown race condition", () => {
         {
           runId: "run-explorer-2",
           workflowName: "explorer",
-          trigger: { event: "queue.empty", payload: {} },
+          trigger: { event: "queue.empty", schemaRef: null, payload: {} },
           enqueuedAtMs: Date.now() - 60_000,
           notBeforeMs: Date.now() - 30_000,
         },
@@ -375,7 +375,7 @@ describe("cooldown race condition", () => {
         {
           runId: "run-explorer-stale-delay",
           workflowName: "explorer",
-          trigger: { event: "queue.empty", payload: {} },
+          trigger: { event: "queue.empty", schemaRef: null, payload: {} },
           enqueuedAtMs: Date.now() - 60_000,
           notBeforeMs: Date.now() + 3_600_000,
         },

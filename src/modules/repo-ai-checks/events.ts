@@ -16,4 +16,19 @@ export const repoAiChecksCompletedEvent =
   defineDaemonWideModuleEvent<RepoAiChecksCompletedPayload>(
     "repo-ai-checks.completed",
     ["repo", "prNumber", "total", "pass", "fail", "skip", "artifactDir"],
+    {
+      payloadSchema: {
+        type: "object",
+        properties: {
+          repo: { type: "string" },
+          prNumber: { type: "number" },
+          total: { type: "number" },
+          pass: { type: "number" },
+          fail: { type: "number" },
+          skip: { type: "number" },
+          artifactDir: { type: "string" },
+        },
+      },
+      sensitivity: "internal",
+    },
   );

@@ -29,6 +29,32 @@
  */
 
 import type { BusEnvelope } from "./event-bus-types.js";
+import { validatePayloadAgainstSchema } from "./module-event-payload-validation.js";
+import {
+  buildModuleEventSchemaContract,
+  type ModuleEventCompatibilityPolicy,
+  type ModuleEventOptions,
+  type ModuleEventPayloadExample,
+  type ModuleEventPayloadObject,
+  type ModuleEventPayloadSchema,
+  type ModuleEventSchema,
+  type ModuleEventSensitivity,
+} from "./module-event-schema.js";
+
+export type {
+  ModuleEventCompatibilityPolicy,
+  ModuleEventDiscriminatedUnionSchemaNode,
+  ModuleEventObjectSchemaNode,
+  ModuleEventOptions,
+  ModuleEventPayloadExample,
+  ModuleEventPayloadObject,
+  ModuleEventPayloadSchema,
+  ModuleEventPayloadValue,
+  ModuleEventSchema,
+  ModuleEventSchemaNode,
+  ModuleEventSchemaProperties,
+  ModuleEventSensitivity,
+} from "./module-event-schema.js";
 
 /**
  * Scope discriminator for {@link ModuleEventDef}. `project` is retained as
@@ -39,26 +65,52 @@ import type { BusEnvelope } from "./event-bus-types.js";
  */
 export type ModuleEventScope = "project" | "daemon";
 
-export type ModuleEventDef<TPayload = unknown> = {
+export type ModuleEventDef<TPayload extends object = object> = {
   readonly name: string;
   readonly fields: ReadonlyArray<string>;
   readonly scope: ModuleEventScope;
+  readonly schema: ModuleEventSchema;
+  readonly filterablePaths: ReadonlyArray<string>;
+  readonly sensitivity: ModuleEventSensitivity;
+  readonly compatibility: ModuleEventCompatibilityPolicy;
+  readonly examples: readonly ModuleEventPayloadExample<TPayload>[];
+  readonly normalizeExternal?: (input: ModuleEventPayloadObject) => TPayload;
   /**
    * Phantom marker carrying the payload type for inference. Stored as a
-   * function return so `ModuleEventDef<TSpecific>` is assignable to the
-   * default `ModuleEventDef<unknown>` (covariant). Always undefined at
+   * function return so `ModuleEventDef<TSpecific>` is assignable to a wider
+   * `ModuleEventDef<object>` (covariant). Always undefined at
    * runtime. The `defineModuleEvent` helper enforces that `TPayload` is a
-   * record-shaped object at construction time.
+   * object-shaped payload at construction time.
    */
   readonly __payload?: () => TPayload;
 };
 
-export function defineModuleEvent<TPayload extends Record<string, unknown>>(
+export function defineModuleEvent<TPayload extends object>(
   name: string,
   fields: ReadonlyArray<keyof TPayload & string>,
   scope: ModuleEventScope,
+  options?: ModuleEventOptions<TPayload>,
 ): ModuleEventDef<TPayload> {
-  return { name, fields, scope };
+  const fieldList = fields.map((field) => field.trim());
+  const contract = buildModuleEventSchemaContract<TPayload>(
+    name,
+    fieldList,
+    options,
+  );
+  const base = {
+    name,
+    fields: fieldList,
+    scope,
+    schema: contract.schema,
+    filterablePaths: contract.filterablePaths,
+    sensitivity: contract.sensitivity,
+    compatibility: contract.compatibility,
+    examples: contract.examples,
+  };
+  if (contract.normalizeExternal) {
+    return { ...base, normalizeExternal: contract.normalizeExternal };
+  }
+  return base;
 }
 
 /**
@@ -71,11 +123,12 @@ export function defineModuleEvent<TPayload extends Record<string, unknown>>(
  * subscriber receives every emit. Document the rationale next to the
  * declaration so a future migration knows what changes.
  */
-export function defineDaemonWideModuleEvent<TPayload extends Record<string, unknown>>(
+export function defineDaemonWideModuleEvent<TPayload extends object>(
   name: string,
   fields: ReadonlyArray<keyof TPayload & string>,
+  options?: ModuleEventOptions<TPayload>,
 ): ModuleEventDef<TPayload> {
-  return defineModuleEvent<TPayload>(name, fields, "daemon");
+  return defineModuleEvent<TPayload>(name, fields, "daemon", options);
 }
 
 /**
@@ -89,7 +142,7 @@ export function defineDaemonWideModuleEvent<TPayload extends Record<string, unkn
  */
 export function assertModuleEventPayloadScope(
   def: ModuleEventDef,
-  payload: Record<string, unknown>,
+  payload: ModuleEventPayloadObject,
 ): void {
   if (def.scope !== "project") return;
   const scopeId =
@@ -113,17 +166,39 @@ export function assertModuleEventPayloadScope(
   }
 }
 
+export function assertModuleEventPayload(
+  def: ModuleEventDef,
+  payload: ModuleEventPayloadObject,
+): void {
+  assertModuleEventPayloadScope(def, payload);
+  const error = validatePayloadAgainstSchema(def.schema.payload, payload);
+  if (error) {
+    throw new Error(
+      `Module event "${def.name}" payload failed schema v${def.schema.currentVersion}: ${error}`,
+    );
+  }
+}
+
 export type ModuleEventPayload<E> = E extends ModuleEventDef<infer P> ? P : never;
 
 export type ModuleEventRegistration = {
   readonly module: string;
+  readonly name: string;
+  readonly scope: ModuleEventScope;
   readonly fields: ReadonlyArray<string>;
+  readonly currentVersion: number;
+  readonly payloadSchema: ModuleEventPayloadSchema;
+  readonly filterablePaths: ReadonlyArray<string>;
+  readonly sensitivity: ModuleEventSensitivity;
+  readonly compatibility: ModuleEventCompatibilityPolicy;
+  readonly examples: readonly ModuleEventPayloadExample[];
 };
 
 class ModuleEventRegistry {
   private events = new Map<string, ModuleEventRegistration>();
 
   register(moduleName: string, def: ModuleEventDef): void {
+    const next = registrationFromDef(moduleName, def);
     const prior = this.events.get(def.name);
     if (prior && prior.module !== moduleName) {
       throw new Error(
@@ -131,7 +206,13 @@ class ModuleEventRegistry {
           `module "${moduleName}" cannot redeclare it. Each module event has a single owner.`,
       );
     }
-    this.events.set(def.name, { module: moduleName, fields: def.fields });
+    if (prior && !sameRegistrationContract(prior, next)) {
+      throw new Error(
+        `Module event "${def.name}" already declared by module "${moduleName}" with an incompatible schema. ` +
+          `Existing version: ${prior.currentVersion}; new version: ${next.currentVersion}.`,
+      );
+    }
+    this.events.set(def.name, next);
   }
 
   unregisterModule(moduleName: string): void {
@@ -176,3 +257,46 @@ export function resetModuleEventRegistry(): void {
 }
 
 export type WildcardEventHandler = (envelope: BusEnvelope) => void;
+
+function registrationFromDef(
+  moduleName: string,
+  def: ModuleEventDef,
+): ModuleEventRegistration {
+  return {
+    module: moduleName,
+    name: def.name,
+    scope: def.scope,
+    fields: def.fields,
+    currentVersion: def.schema.currentVersion,
+    payloadSchema: def.schema.payload,
+    filterablePaths: def.filterablePaths,
+    sensitivity: def.sensitivity,
+    compatibility: def.compatibility,
+    examples: def.examples,
+  };
+}
+
+function sameRegistrationContract(
+  a: ModuleEventRegistration,
+  b: ModuleEventRegistration,
+): boolean {
+  return (
+    a.scope === b.scope &&
+    JSON.stringify({
+      fields: a.fields,
+      currentVersion: a.currentVersion,
+      payloadSchema: a.payloadSchema,
+      filterablePaths: a.filterablePaths,
+      sensitivity: a.sensitivity,
+      compatibility: a.compatibility,
+    }) ===
+      JSON.stringify({
+        fields: b.fields,
+        currentVersion: b.currentVersion,
+        payloadSchema: b.payloadSchema,
+        filterablePaths: b.filterablePaths,
+        sensitivity: b.sensitivity,
+        compatibility: b.compatibility,
+      })
+  );
+}

@@ -77,7 +77,7 @@ function makeStepContext(
       runDir: "run-test",
       runDirPath: overrides.runDir,
     },
-    trigger: { event: "autonomy.queue.available", payload: {} },
+    trigger: { event: "autonomy.queue.available", schemaRef: null, payload: {} },
     previousOutput: undefined,
     stepOutputs: overrides.stepOutputs ?? {},
     stepResults: overrides.stepResults ?? {},

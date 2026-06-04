@@ -110,7 +110,7 @@ function writeFailedRun(projectDir: string, runId: string): void {
 function trigger(files: string[]) {
   return {
     event: "files.changed",
-    payload: { files, triggeredAt: NOW.toISOString() },
+    schemaRef: null, payload: { files, triggeredAt: NOW.toISOString() },
   };
 }
 
@@ -458,6 +458,7 @@ describe("scope-improver workflow", () => {
       inputEvents: [
         {
           event: "task.changed",
+          schemaRef: null,
           receivedAt: NOW.toISOString(),
           payload: {
             scopeId,
@@ -479,7 +480,7 @@ describe("scope-improver workflow", () => {
       projectDir,
       trigger: {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
-        payload: batchPayload,
+        schemaRef: null, payload: batchPayload,
       },
       now: NOW,
     });

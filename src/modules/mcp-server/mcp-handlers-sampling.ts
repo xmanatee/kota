@@ -119,19 +119,24 @@ export class SamplingHandler {
 			const runId = `${stamp}-mcp-sampling-${suffix}`;
 			const runDir = join(this.options.projectDir, ".kota", "runs", runId);
 
-			const tracker = new CostTracker();
-			tracker.addUsage(model, {
-				input_tokens: usage.input_tokens,
-				output_tokens: usage.output_tokens,
-			});
-			const costUsd = tracker.getTotalCost();
+			let costUsd = 0;
+			try {
+				const tracker = new CostTracker();
+				tracker.addUsage(model, {
+					input_tokens: usage.input_tokens,
+					output_tokens: usage.output_tokens,
+				});
+				costUsd = tracker.getTotalCost();
+			} catch {
+				this.ctx.log("Warning: failed to calculate sampling cost");
+			}
 
 			const now = new Date().toISOString();
 			const metadata = {
 				id: runId,
 				workflow: "mcp-sampling",
 				definitionPath: "",
-				trigger: { event: "mcp.sampling", payload: {} },
+				trigger: { event: "mcp.sampling", schemaRef: null, payload: {} },
 				startedAt: now,
 				completedAt: now,
 				durationMs: 0,

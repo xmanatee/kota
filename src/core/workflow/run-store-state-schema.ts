@@ -136,7 +136,12 @@ function isWorkflowAgentBackoffState(value: unknown): value is WorkflowAgentBack
 }
 
 function isWorkflowRunTrigger(value: unknown): value is WorkflowRunTrigger {
-  return isPlainObject(value) && typeof value.event === "string" && isPlainObject(value.payload);
+  return (
+    isPlainObject(value) &&
+    typeof value.event === "string" &&
+    (value.schemaRef === null || isEventSchemaReference(value.schemaRef)) &&
+    isPlainObject(value.payload)
+  );
 }
 
 function isQueuedRunTrigger(value: unknown): value is WorkflowRunTrigger {
@@ -194,11 +199,23 @@ function isWorkflowBatchGroupValue(value: Parameters<typeof isPlainObject>[0]): 
   );
 }
 
+function isEventSchemaReference(value: Parameters<typeof isPlainObject>[0]): boolean {
+  return (
+    isPlainObject(value) &&
+    typeof value.name === "string" &&
+    value.name.trim().length > 0 &&
+    typeof value.version === "number" &&
+    Number.isInteger(value.version) &&
+    value.version >= 1
+  );
+}
+
 function isWorkflowBatchInputEventEnvelope(value: Parameters<typeof isPlainObject>[0]): boolean {
   return (
     isPlainObject(value) &&
     typeof value.event === "string" &&
     value.event.trim().length > 0 &&
+    (value.schemaRef === null || isEventSchemaReference(value.schemaRef)) &&
     typeof value.receivedAt === "string" &&
     value.receivedAt.trim().length > 0 &&
     isPlainObject(value.payload)

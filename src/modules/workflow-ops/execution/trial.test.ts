@@ -7,6 +7,11 @@ import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { deriveDirectoryScopeId, ScopeRegistry } from "#core/daemon/scope-registry.js";
+import {
+  defineDaemonWideModuleEvent,
+  initModuleEventRegistry,
+  resetModuleEventRegistry,
+} from "#core/events/module-event.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import {
   credentialInjectionEffect,
@@ -103,6 +108,7 @@ describe("workflow trial execution", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    resetModuleEventRegistry();
     process.exitCode = undefined;
     deregisterTool(EXTERNAL_TOOL);
     deregisterTool(DAEMON_WRITE_TOOL);
@@ -119,6 +125,18 @@ describe("workflow trial execution", () => {
   it("runs in an isolated project and reports changed files, steps, and bus events", async () => {
     const projectDir = makeProjectDir();
     cleanup.push(projectDir);
+    const trialFixtureEvent = defineDaemonWideModuleEvent<{ marker: string }>(
+      "trial.fixture",
+      ["marker"],
+      {
+        payloadSchema: {
+          type: "object",
+          properties: { marker: { type: "string" } },
+          additionalProperties: false,
+        },
+      },
+    );
+    initModuleEventRegistry().register("workflow-trial-test", trialFixtureEvent);
 
     const summary = await runWorkflowTrial({
       sourceProjectDir: projectDir,
@@ -142,7 +160,11 @@ describe("workflow trial execution", () => {
     expect(attempt.stepStatuses).toEqual([
       expect.objectContaining({ id: "write-marker", status: "success" }),
     ]);
-    expect(attempt.busEvents.some((event) => event.type === "trial.fixture")).toBe(true);
+    expect(attempt.busEvents.find((event) => event.type === trialFixtureEvent.name)).toEqual({
+      type: trialFixtureEvent.name,
+      schemaRef: { name: trialFixtureEvent.name, version: 1 },
+      payload: { marker: "isolated" },
+    });
     expect(existsSync(join(projectDir, summary.reportDir, "summary.json"))).toBe(true);
   });
 

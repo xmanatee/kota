@@ -19,6 +19,7 @@ import type {
 import type { WorkflowStepInput } from "#core/workflow/step-input-types.js";
 import { resolveValue } from "#core/workflow/steps/step-executor.js";
 import type { WorkflowStepOutput } from "#core/workflow/steps/step-executor-agent.js";
+import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 
 export type HarnessStepResult = {
@@ -49,12 +50,17 @@ export type HarnessRunResult = {
   status: "success" | "failed";
   steps: Record<string, HarnessStepResult>;
   error?: string;
-  emitted: Array<{ event: string; payload: Record<string, unknown> }>;
+  emitted: Array<{
+    event: string;
+    schemaRef: WorkflowRunTrigger["schemaRef"];
+    payload: Record<string, unknown>;
+  }>;
   restartRequested?: string;
 };
 
 export type HarnessTrigger = {
   event: string;
+  schemaRef?: WorkflowRunTrigger["schemaRef"];
   payload?: Record<string, unknown>;
 };
 
@@ -182,6 +188,7 @@ export class WorkflowTestHarness {
   async run(): Promise<HarnessRunResult> {
     const trigger = {
       event: this.#options.trigger?.event ?? "runtime.idle",
+      schemaRef: this.#options.trigger?.schemaRef ?? null,
       payload: this.#options.trigger?.payload ?? {},
     };
     const projectDir = this.#options.projectDir ?? tmpdir();
@@ -191,8 +198,7 @@ export class WorkflowTestHarness {
     const stepOutputsById: Record<string, unknown> = {};
     const stepResultsById: Record<string, WorkflowStepResult> = {};
     const stepOutputList: unknown[] = [];
-    const emitted: Array<{ event: string; payload: Record<string, unknown> }> =
-      [];
+    const emitted: HarnessRunResult["emitted"] = [];
     let restartRequested: string | undefined;
 
     const allStepResults: Record<string, HarnessStepResult> = {};
@@ -232,7 +238,7 @@ export class WorkflowTestHarness {
               "runTool called but no contextOverrides.runTool mock was provided",
             );
           }),
-        emit: (event, payload) => emitted.push({ event, payload }),
+        emit: (event, payload) => emitted.push({ event, schemaRef: null, payload }),
         requestRestart: (reason) => {
           restartRequested = reason;
         },
@@ -571,7 +577,7 @@ export class WorkflowTestHarness {
           context.requestRestart(reason as string);
           output = {
             event: "runtime.restart_requested",
-            payload: { reason },
+            schemaRef: null, payload: { reason },
           };
         } else if (step.type === "trigger") {
           if (step.id in stepMocks) {

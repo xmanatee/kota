@@ -44,7 +44,7 @@ export function queueMatchingEventFirst(
     trigger: WorkflowRunTrigger;
   }> = [];
   enqueueMatchingWorkflows(
-    { type: event, payload },
+    { type: event, schemaRef: null, payload },
     filteredDefs,
     (definition, _trigger, run) => {
       queued.push({ workflowName: definition.name, trigger: run });

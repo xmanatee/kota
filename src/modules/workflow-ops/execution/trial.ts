@@ -540,6 +540,7 @@ async function runAttempt(args: {
     bus.on("*", (event) => {
       busEvents.push({
         type: event.type,
+        schemaRef: event.schemaRef,
         payload: clonePayload(event.payload),
       });
     });
@@ -548,6 +549,7 @@ async function runAttempt(args: {
     const runId = formatRunId(`${args.variant.workflow}-trial`);
     const trigger: WorkflowRunTrigger = {
       event: "manual",
+      schemaRef: null,
       payload: {
         ...args.variant.payload,
         triggeredAt: new Date().toISOString(),
@@ -564,6 +566,7 @@ async function runAttempt(args: {
       const childRunId = formatRunId(`${workflowName}-trial-child`);
       const childTrigger: WorkflowRunTrigger = {
         event: "trial.triggered",
+        schemaRef: null,
         payload: {
           ...payload,
           triggeredAt: new Date().toISOString(),

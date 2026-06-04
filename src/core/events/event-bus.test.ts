@@ -7,9 +7,15 @@ import {
   resetEventBus,
   tryEmit,
 } from "./event-bus.js";
+import {
+  defineDaemonWideModuleEvent,
+  initModuleEventRegistry,
+  resetModuleEventRegistry,
+} from "./module-event.js";
 
 afterEach(() => {
   resetEventBus();
+  resetModuleEventRegistry();
 });
 
 describe("EventBus", () => {
@@ -110,7 +116,34 @@ describe("EventBus", () => {
       expect(wildcard).toHaveBeenCalledOnce();
       expect(wildcard).toHaveBeenCalledWith({
         type: "runtime.idle",
+        schemaRef: null,
         payload,
+      });
+    });
+
+    it("includes the module event schema reference on wildcard envelopes", () => {
+      const bus = new EventBus();
+      const wildcard = vi.fn();
+      const event = defineDaemonWideModuleEvent<{ value: string }>(
+        "schema.ref.test",
+        ["value"],
+        {
+          schemaVersion: 4,
+          payloadSchema: {
+            type: "object",
+            properties: { value: { type: "string" } },
+          },
+        },
+      );
+      initModuleEventRegistry().register("schema-ref", event);
+      bus.on("*", wildcard);
+
+      bus.emit(event, { value: "ok" });
+
+      expect(wildcard).toHaveBeenCalledWith({
+        type: "schema.ref.test",
+        schemaRef: { name: "schema.ref.test", version: 4 },
+        payload: { value: "ok" },
       });
     });
 
@@ -224,7 +257,7 @@ describe("EventBus", () => {
 
       expect(middleware).toHaveBeenCalledOnce();
       expect(middleware).toHaveBeenCalledWith(
-        { type: "runtime.idle", payload },
+        { type: "runtime.idle", schemaRef: null, payload },
         expect.any(Function),
       );
       expect(handler).toHaveBeenCalledOnce();

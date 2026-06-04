@@ -51,6 +51,14 @@ export type GitHubIssueCommentMentionEventPayload = {
   reason: string;
 };
 
+const githubActorSchema = {
+  type: "object" as const,
+  properties: {
+    login: { type: "string" as const, nullable: true },
+    type: { type: "string" as const, nullable: true },
+  },
+};
+
 // GitHub webhook routes do not carry project attribution today; this should
 // migrate to project scope when inbound webhook routes are project-addressed.
 export const githubPullRequestEvent =
@@ -74,4 +82,36 @@ export const githubPullRequestEvent =
       "actorIntegrity",
       "actorIntegrityReason",
     ],
+    {
+      payloadSchema: {
+        type: "object",
+        properties: {
+          repo: { type: "string", nullable: true },
+          action: { type: "string", nullable: true },
+          number: { type: "number", nullable: true },
+          title: { type: "string", nullable: true },
+          state: { type: "string", nullable: true },
+          merged: { type: "boolean", nullable: true },
+          headBranch: { type: "string", nullable: true },
+          baseBranch: { type: "string", nullable: true },
+          headRepo: { type: "string", nullable: true },
+          isFork: { type: "boolean", nullable: true },
+          headSha: { type: "string", nullable: true },
+          sender: githubActorSchema,
+          prAuthor: githubActorSchema,
+          authorAssociation: { type: "string", nullable: true },
+          actorIntegrity: {
+            type: "string",
+            enum: [
+              "allowed",
+              "blocked_actor",
+              "low_trust_actor",
+              "missing_metadata",
+            ],
+          },
+          actorIntegrityReason: { type: "string" },
+        },
+      },
+      sensitivity: "internal",
+    },
   );

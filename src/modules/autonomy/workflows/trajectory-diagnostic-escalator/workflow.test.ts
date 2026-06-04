@@ -143,7 +143,7 @@ function seedRun(
     id,
     workflow: "builder",
     definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
-    trigger: { event: "workflow.completed", payload: {} },
+    trigger: { event: "workflow.completed", schemaRef: null, payload: {} },
     startedAt: new Date(Date.now() - hoursAgo * 60 * 60 * 1000 - 1000).toISOString(),
     completedAt,
     status: "success",
@@ -218,7 +218,7 @@ describe("trajectory-diagnostic-escalator workflow", () => {
       projectDir,
       trigger: {
         event: "workflow.completed",
-        payload: { workflow: "builder", tags: ["monitored"] },
+        schemaRef: null, payload: { workflow: "builder", tags: ["monitored"] },
       },
     });
     const result = await harness.run();
@@ -268,7 +268,7 @@ describe("trajectory-diagnostic-escalator workflow", () => {
       projectDir,
       trigger: {
         event: "workflow.completed",
-        payload: { workflow: "builder", tags: ["monitored"] },
+        schemaRef: null, payload: { workflow: "builder", tags: ["monitored"] },
       },
     });
     const result = await harness.run();
@@ -293,7 +293,7 @@ describe("trajectory-diagnostic-escalator workflow", () => {
   it("skips detection and mutation on recovery triggers after the reset step", async () => {
     const harness = new WorkflowTestHarness(trajectoryDiagnosticEscalator, {
       projectDir,
-      trigger: { event: "runtime.recovered", payload: {} },
+      trigger: { event: "runtime.recovered", schemaRef: null, payload: {} },
     });
     const result = await harness.run();
 

@@ -21,7 +21,7 @@ import type { WorkflowAgentStep } from "../step-types.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 import type { WorkflowDefinition } from "../types.js";
 
-const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", payload: {} };
+const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", schemaRef: null, payload: {} };
 
 const AGENT_OK_RESULT: AgentHarnessResult = {
   text: "done",

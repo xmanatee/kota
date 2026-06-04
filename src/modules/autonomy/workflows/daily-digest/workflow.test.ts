@@ -112,7 +112,7 @@ describe("daily-digest build-digest step", () => {
         runDir,
         runDirPath,
       },
-      trigger: { event: "schedule", payload: {} },
+      trigger: { event: "schedule", schemaRef: null, payload: {} },
       previousOutput: undefined,
       stepOutputs: {},
       stepResults: {},
@@ -161,7 +161,7 @@ describe("daily-digest build-digest step", () => {
 
     const ctxBase = {
       projectDir,
-      trigger: { event: "schedule", payload: {} },
+      trigger: { event: "schedule", schemaRef: null, payload: {} },
       previousOutput: undefined,
       stepOutputs: {},
       stepResults: {},

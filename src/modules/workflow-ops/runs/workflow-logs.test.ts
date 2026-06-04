@@ -180,7 +180,7 @@ describe("followRunLogs", () => {
       id: RUN_ID,
       workflow: "builder",
       definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
-      trigger: { event: "manual", payload: {} },
+      trigger: { event: "manual", schemaRef: null, payload: {} },
       startedAt: new Date().toISOString(),
       status,
       runDir: `.kota/runs/${RUN_ID}`,

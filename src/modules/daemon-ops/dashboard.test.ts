@@ -40,7 +40,7 @@ function pendingRun(
 	return {
 		runId: `2026-04-21T17-01-09-667Z-${workflowName}-w8047d`,
 		workflowName,
-		trigger: { event: "workflow.completed", payload: {} },
+		trigger: { event: "workflow.completed", schemaRef: null, payload: {} },
 		enqueuedAtMs: Date.now() - 60_000,
 		notBeforeMs,
 	};

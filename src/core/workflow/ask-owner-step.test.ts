@@ -33,7 +33,7 @@ import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
-const TRIGGER: WorkflowRunTrigger = { event: "manual", payload: {} };
+const TRIGGER: WorkflowRunTrigger = { event: "manual", schemaRef: null, payload: {} };
 
 const SAMPLE_INPUT = {
   context: "Resolving an architectural ambiguity in the recovery contract.",

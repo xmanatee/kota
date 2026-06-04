@@ -26,7 +26,7 @@ function writeRunMetadata(
     id,
     workflow,
     definitionPath: `src/modules/test/workflows/${workflow}/workflow.ts`,
-    trigger: { event: "runtime.idle", payload: {} },
+    trigger: { event: "runtime.idle", schemaRef: null, payload: {} },
     startedAt: new Date(Date.now() - 60_000).toISOString(),
     status,
     runDir: `.kota/runs/${id}`,
@@ -88,7 +88,7 @@ describe("WorkflowRunStore.recoverInterruptedRuns", () => {
         id,
         workflow: "builder",
         definitionPath: "src/modules/test/workflows/builder/workflow.ts",
-        trigger: { event: "runtime.idle", payload: {} },
+        trigger: { event: "runtime.idle", schemaRef: null, payload: {} },
         startedAt: new Date(Date.now() - 60_000).toISOString(),
         status: "running",
         runDir: `.kota/runs/${id}`,
@@ -189,7 +189,7 @@ describe("WorkflowRunStore.recoverInterruptedRuns", () => {
       steps: [],
     };
 
-    const handle = store.createRun(workflow, { event: "runtime.idle", payload: {} });
+    const handle = store.createRun(workflow, { event: "runtime.idle", schemaRef: null, payload: {} });
 
     expect(handle.metadata.runDir).toBe(`.kota/runs/${handle.metadata.id}`);
     expect(existsSync(join(projectDir, handle.metadata.runDir))).toBe(true);

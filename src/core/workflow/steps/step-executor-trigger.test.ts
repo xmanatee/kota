@@ -15,7 +15,7 @@ function makeContext(
       runDir: ".kota/runs/run-1",
       runDirPath: "/project/.kota/runs/run-1",
     },
-    trigger: { event: "runtime.idle", payload: { taskId: "task-123" } },
+    trigger: { event: "runtime.idle", schemaRef: null, payload: { taskId: "task-123" } },
     previousOutput: null,
     stepOutputs: {},
     stepResults: {},
@@ -119,7 +119,7 @@ describe("executeTriggerStep", () => {
 
   it("interpolates {{trigger.payload.field}} in payload strings", async () => {
     const context = makeContext({
-      trigger: { event: "runtime.idle", payload: { taskId: "task-abc" } },
+      trigger: { event: "runtime.idle", schemaRef: null, payload: { taskId: "task-abc" } },
     });
     const step = makeTriggerStep({
       payload: { source: "builder", taskId: "{{trigger.payload.taskId}}" },

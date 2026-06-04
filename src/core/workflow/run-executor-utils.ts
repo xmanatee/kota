@@ -7,16 +7,16 @@ import type {
   WorkflowStepResult,
 } from "./run-types.js";
 import type { WorkflowStep } from "./step-types.js";
-import type { WorkflowFilterValue, WorkflowRunTrigger, WorkflowTrigger } from "./trigger-types.js";
+import type { WorkflowRunTrigger, WorkflowTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
 export function matchesFilter(
-  filter: Record<string, WorkflowFilterValue> | undefined,
-  payload: Record<string, unknown>,
+  filter: WorkflowTrigger["filter"],
+  payload: WorkflowRunTrigger["payload"],
 ): boolean {
   if (!filter) return true;
   for (const [key, expected] of Object.entries(filter)) {
-    let actual = payload[key];
+    let actual = payloadPathValue(payload, key);
     if (actual === undefined) {
       if (key === "scopeId") actual = payload.projectId;
       if (key === "projectId") actual = payload.scopeId;
@@ -36,6 +36,26 @@ export function matchesFilter(
     if (actual !== expected) return false;
   }
   return true;
+}
+
+function payloadPathValue(
+  payload: WorkflowRunTrigger["payload"],
+  path: string,
+): WorkflowRunTrigger["payload"][string] {
+  const segments = path.split(".");
+  let current: WorkflowRunTrigger["payload"] | WorkflowRunTrigger["payload"][string] =
+    payload;
+  for (const segment of segments) {
+    if (!isPayloadObject(current)) return undefined;
+    current = current[segment];
+  }
+  return current;
+}
+
+function isPayloadObject(
+  value: WorkflowRunTrigger["payload"] | WorkflowRunTrigger["payload"][string],
+): value is WorkflowRunTrigger["payload"] {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 export function getEligibleAtMs(
@@ -298,6 +318,7 @@ export function enqueueMatchingWorkflows(
       if (!matchesFilter(trigger.filter, envelope.payload)) continue;
       enqueue(definition, trigger, {
         event: envelope.type,
+        schemaRef: envelope.schemaRef,
         payload: cloneTriggerPayload(envelope.payload),
       });
     }

@@ -50,7 +50,7 @@ function makeAwaitDefinition(): WorkflowDefinition {
   };
 }
 
-const TRIGGER: WorkflowRunTrigger = { event: "manual", payload: {} };
+const TRIGGER: WorkflowRunTrigger = { event: "manual", schemaRef: null, payload: {} };
 
 describe("await-event step", () => {
   let projectDir: string;

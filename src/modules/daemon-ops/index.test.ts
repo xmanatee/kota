@@ -243,7 +243,7 @@ describe("formatDaemonStatus", () => {
   it("shows pending runs summarized with overflow count", () => {
     const pending = Array.from({ length: 8 }, (_, i) => ({
       workflowName: `workflow-${i}`,
-      trigger: { type: "event" as const, event: "test", payload: {} },
+      trigger: { type: "event" as const, event: "test", schemaRef: null, payload: {} },
       enqueuedAtMs: Date.now(),
       notBeforeMs: 0,
     }));
@@ -315,7 +315,7 @@ describe("formatDaemonStatus", () => {
           { runId: "2026-04-15T13-13-57-840Z-builder-i8tz5a", workflow: "builder", startedAt: "2026-01-01T00:55:00Z" },
         ],
         pendingRuns: [
-          { workflowName: "explorer", trigger: { event: "test", payload: {} }, enqueuedAtMs: Date.now(), notBeforeMs: 0, runId: "2026-04-15T14-00-00-000Z-explorer-abc123" },
+          { workflowName: "explorer", trigger: { event: "test", schemaRef: null, payload: {} }, enqueuedAtMs: Date.now(), notBeforeMs: 0, runId: "2026-04-15T14-00-00-000Z-explorer-abc123" },
         ],
         queueLength: 1,
         completedRuns: 4,

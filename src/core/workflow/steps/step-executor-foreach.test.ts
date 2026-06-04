@@ -17,7 +17,7 @@ import type { WorkflowDefinition } from "../types.js";
 import { validateWorkflowDefinitions } from "../validation.js";
 
 function makeRetryTrigger(retryOf: string): WorkflowRunTrigger {
-  return { event: "retry", payload: { retryOf, triggeredAt: new Date().toISOString() } };
+  return { event: "retry", schemaRef: null, payload: { retryOf, triggeredAt: new Date().toISOString() } };
 }
 
 function makeDefinition(
@@ -37,7 +37,7 @@ function makeDefinition(
   };
 }
 
-const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", payload: {} };
+const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", schemaRef: null, payload: {} };
 
 const AGENT_OK_RESULT: AgentHarnessResult = {
   text: "done",

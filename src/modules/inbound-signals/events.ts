@@ -83,6 +83,66 @@ export const inboundSignalReceived =
       "actor",
       "body",
     ],
+    {
+      payloadSchema: {
+        type: "object",
+        properties: {
+          provider: { type: "string" },
+          channel: { type: "string" },
+          accountId: { type: "string" },
+          sourceId: { type: "string" },
+          sourceUrl: { type: "string" },
+          externalId: { type: "string" },
+          occurredAt: { type: "string", format: "date-time" },
+          receivedAt: { type: "string", format: "date-time" },
+          actor: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              displayName: { type: "string" },
+              trust: {
+                type: "string",
+                enum: ["trusted", "untrusted", "blocked"],
+              },
+              trustReason: { type: "string" },
+            },
+          },
+          body: {
+            type: "discriminatedUnion",
+            discriminator: "kind",
+            variants: {
+              message: {
+                type: "object",
+                properties: {
+                  kind: { type: "string", enum: ["message"] },
+                  format: {
+                    type: "string",
+                    enum: ["plain", "markdown"],
+                  },
+                  text: { type: "string" },
+                },
+                additionalProperties: false,
+              },
+              action: {
+                type: "object",
+                properties: {
+                  kind: { type: "string", enum: ["action"] },
+                  action: { type: "string" },
+                  label: { type: "string" },
+                  data: {
+                    type: "object",
+                    properties: {},
+                    additionalProperties: true,
+                  },
+                },
+                additionalProperties: false,
+              },
+            },
+          },
+        },
+      },
+      sensitivity: "internal",
+    },
   );
 
 function nonEmpty(value: string): boolean {

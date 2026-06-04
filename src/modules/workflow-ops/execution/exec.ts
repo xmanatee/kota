@@ -86,7 +86,7 @@ export function registerExecCommand(
         const store = new WorkflowRunStore(ctx.cwd);
         const trigger: WorkflowRunTrigger = {
           event: opts.event,
-          payload: {
+          schemaRef: null, payload: {
             ...(extraPayload ?? {}),
             triggeredAt: new Date().toISOString(),
           },

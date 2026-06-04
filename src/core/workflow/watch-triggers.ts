@@ -177,6 +177,7 @@ export class WatchTriggerManager {
       entry.pendingFiles.clear();
       this.enqueueRun(entry.definition, entry.trigger, {
         event: "files.changed",
+        schemaRef: null,
         payload: { files, triggeredAt: new Date().toISOString() },
       });
       this.maybeStartNext();

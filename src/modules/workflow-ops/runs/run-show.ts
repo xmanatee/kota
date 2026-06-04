@@ -303,7 +303,11 @@ function metadataFromDetail(run: WorkflowRunDetail): WorkflowRunMetadata {
     id: run.id,
     workflow: run.workflow,
     definitionPath: "",
-    trigger: { event: run.triggerEvent, payload: run.triggerPayload ?? {} },
+    trigger: {
+      event: run.triggerEvent,
+      schemaRef: run.triggerSchemaRef,
+      payload: run.triggerPayload ?? {},
+    },
     startedAt: run.startedAt,
     status: run.status as WorkflowRunMetadata["status"],
     runDir: "",

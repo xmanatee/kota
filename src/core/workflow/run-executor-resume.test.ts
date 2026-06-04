@@ -24,7 +24,7 @@ function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDe
   };
 }
 
-const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", payload: {} };
+const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", schemaRef: null, payload: {} };
 
 // ---------------------------------------------------------------------------
 // findResumeFromIndex
@@ -144,7 +144,7 @@ describe("resume execution", () => {
 
     const resumeTrigger: WorkflowRunTrigger = {
       event: "resume",
-      payload: { resumedFromRunId: originalId, resumeFromStep: "step-b" },
+      schemaRef: null, payload: { resumedFromRunId: originalId, resumeFromStep: "step-b" },
     };
 
     const resumed = await runDefinition(resumeDefinition, resumeTrigger);
@@ -206,7 +206,7 @@ describe("resume execution", () => {
 
     await runDefinition(resumeDefinition, {
       event: "resume",
-      payload: { resumedFromRunId: originalId, resumeFromStep: "step-b" },
+      schemaRef: null, payload: { resumedFromRunId: originalId, resumeFromStep: "step-b" },
     });
 
     // step-a's output from the original run should be in stepOutputs
@@ -238,7 +238,7 @@ describe("resume execution", () => {
 
     const resumed = await runDefinition(resumeDefinition, {
       event: "resume",
-      payload: { resumedFromRunId: originalId, resumeFromStep: "step-a" },
+      schemaRef: null, payload: { resumedFromRunId: originalId, resumeFromStep: "step-a" },
     });
 
     expect(executed).toEqual(["step-a", "step-b"]);
@@ -267,7 +267,7 @@ describe("resume execution", () => {
 
     const resumed = await runDefinition(resumeDefinition, {
       event: "resume",
-      payload: { resumedFromRunId: originalId, resumeFromStep: "step-b" },
+      schemaRef: null, payload: { resumedFromRunId: originalId, resumeFromStep: "step-b" },
     });
 
     expect(resumed.metadata.resumedFromRunId).toBe(originalId);
@@ -286,7 +286,7 @@ describe("resume execution", () => {
 
     const result = await runDefinition(definition, {
       event: "resume",
-      payload: { resumedFromRunId: "nonexistent-run-id", resumeFromStep: "step-a" },
+      schemaRef: null, payload: { resumedFromRunId: "nonexistent-run-id", resumeFromStep: "step-a" },
     });
 
     expect(result.metadata.status).toBe("failed");

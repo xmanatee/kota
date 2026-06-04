@@ -111,7 +111,7 @@ function seedTrajectoryRun(
     id: opts.id,
     workflow,
     definitionPath: `src/modules/autonomy/workflows/${workflow}/workflow.ts`,
-    trigger: { event: "workflow.completed", payload: {} },
+    trigger: { event: "workflow.completed", schemaRef: null, payload: {} },
     startedAt: new Date(NOW - opts.hoursAgo * 60 * 60 * 1000 - 1000).toISOString(),
     completedAt,
     status: opts.status ?? "success",

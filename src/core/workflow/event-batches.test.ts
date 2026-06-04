@@ -152,6 +152,50 @@ describe("WorkflowEventBatchManager", () => {
     });
   });
 
+  it("groups batch buffers by dotted payload paths", async () => {
+    const projectDir = trackProjectDir();
+    const bus = new EventBus();
+    const processed: WorkflowBatchFlushPayload[] = [];
+
+    startRuntime(projectDir, bus, [
+      {
+        name: "nested-group-batch",
+        triggers: [
+          {
+            event: "inbound.signal",
+            batch: {
+              maxCount: 2,
+              groupBy: "actor.trust",
+              maxBufferSize: 4,
+              overflow: "flush-oldest",
+            },
+          },
+        ],
+        steps: [
+          {
+            id: "process",
+            type: "code",
+            run: (ctx) => {
+              processed.push(ctx.trigger.payload as WorkflowBatchFlushPayload);
+            },
+          },
+        ],
+      },
+    ]);
+
+    bus.emit("inbound.signal", { actor: { trust: "trusted" }, id: "one" });
+    bus.emit("inbound.signal", { actor: { trust: "blocked" }, id: "two" });
+    bus.emit("inbound.signal", { actor: { trust: "trusted" }, id: "three" });
+    await wait(80);
+
+    expect(processed).toHaveLength(1);
+    expect(processed[0]?.groupingKey).toBe("actor.trust=trusted");
+    expect(processed[0]?.inputEvents.map((entry) => entry.payload.id)).toEqual([
+      "one",
+      "three",
+    ]);
+  });
+
   it("validates strict batch payload schemas without internal run metadata", async () => {
     const projectDir = trackProjectDir();
     const bus = new EventBus();
@@ -533,7 +577,7 @@ describe("WorkflowEventBatchManager", () => {
           steps: [{ id: "noop", type: "code", run: () => undefined }],
         }),
       ]),
-    ).toThrow(/batch\.groupBy references field "missing"/);
+    ).toThrow(/batch\.groupBy references field "missing" not filterable/);
 
     expect(() =>
       validateWorkflowDefinitions([
@@ -554,6 +598,69 @@ describe("WorkflowEventBatchManager", () => {
           steps: [{ id: "noop", type: "code", run: () => undefined }],
         }),
       ]),
-    ).toThrow(/filter references field "missing"/);
+    ).toThrow(/filter references field "missing" not filterable/);
+  });
+
+  it("preserves module event schema references on batch input envelopes", async () => {
+    const projectDir = trackProjectDir();
+    const bus = new EventBus();
+    const pbus = new ProjectScopedEventBus(bus, "schema-batch-scope");
+    const event = defineProjectScopedModuleEvent<{ kind: string; id: string }>(
+      "declared.batch.input",
+      ["kind", "id"],
+      {
+        schemaVersion: 2,
+        payloadSchema: {
+          type: "object",
+          properties: {
+            kind: { type: "string" },
+            id: { type: "string" },
+          },
+        },
+      },
+    );
+    initModuleEventRegistry().register("declared", event);
+    const processed: WorkflowBatchFlushPayload[] = [];
+
+    startRuntime(
+      projectDir,
+      bus,
+      [
+        {
+          name: "schema-ref-batch",
+          triggers: [
+            {
+              event: event.name,
+              batch: {
+                maxCount: 2,
+                groupBy: "kind",
+                maxBufferSize: 2,
+                overflow: "flush-oldest",
+              },
+            },
+          ],
+          steps: [
+            {
+              id: "process",
+              type: "code",
+              run: (ctx) => {
+                processed.push(ctx.trigger.payload as WorkflowBatchFlushPayload);
+              },
+            },
+          ],
+        },
+      ],
+      pbus,
+    );
+
+    pbus.emit(event, { kind: "alpha", id: "one" });
+    pbus.emit(event, { kind: "alpha", id: "two" });
+    await wait(80);
+
+    expect(processed).toHaveLength(1);
+    expect(processed[0]!.inputEvents.map((entry) => entry.schemaRef)).toEqual([
+      { name: "declared.batch.input", version: 2 },
+      { name: "declared.batch.input", version: 2 },
+    ]);
   });
 });

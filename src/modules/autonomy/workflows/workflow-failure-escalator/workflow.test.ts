@@ -82,7 +82,7 @@ function seedFailedRun(
     id,
     workflow: "decomposer",
     definitionPath: "src/modules/autonomy/workflows/decomposer/workflow.ts",
-    trigger: { event: "workflow.completed", payload: {} },
+    trigger: { event: "workflow.completed", schemaRef: null, payload: {} },
     startedAt: new Date(NOW - hoursAgo * 60 * 60 * 1000 - 1000).toISOString(),
     completedAt,
     status: "failed",
@@ -159,7 +159,7 @@ describe("workflow-failure-escalator workflow", () => {
       projectDir,
       trigger: {
         event: "workflow.completed",
-        payload: { workflow: "decomposer", tags: ["monitored"] },
+        schemaRef: null, payload: { workflow: "decomposer", tags: ["monitored"] },
       },
     });
     const result = await harness.run();
@@ -202,7 +202,7 @@ describe("workflow-failure-escalator workflow", () => {
   it("skips detection and mutation on recovery triggers after the reset step", async () => {
     const harness = new WorkflowTestHarness(workflowFailureEscalator, {
       projectDir,
-      trigger: { event: "runtime.recovered", payload: {} },
+      trigger: { event: "runtime.recovered", schemaRef: null, payload: {} },
     });
     const result = await harness.run();
 

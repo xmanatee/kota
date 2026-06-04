@@ -30,4 +30,21 @@ export const injectionDefenseAssessed =
   defineDaemonWideModuleEvent<InjectionDefenseAssessedPayload>(
     "injection.defense.assessed",
     ["tool", "suspicious", "reasons", "action", "autonomyMode", "session"],
+    {
+      payloadSchema: {
+        type: "object",
+        properties: {
+          tool: { type: "string" },
+          suspicious: { type: "boolean" },
+          reasons: { type: "array", items: { type: "string" } },
+          action: { type: "string", enum: ["annotate", "skip"] },
+          autonomyMode: {
+            type: "string",
+            enum: ["passive", "supervised", "autonomous"],
+          },
+          session: { type: "string", required: false },
+        },
+      },
+      sensitivity: "internal",
+    },
   );

@@ -37,7 +37,7 @@ describe("workflow trigger command logic", () => {
     store.setPendingRuns([
       {
         workflowName: "builder",
-        trigger: { event: "manual", payload: { triggeredAt: new Date().toISOString() } },
+        trigger: { event: "manual", schemaRef: null, payload: { triggeredAt: new Date().toISOString() } },
         enqueuedAtMs: now,
         notBeforeMs: now,
       },
@@ -54,7 +54,7 @@ describe("workflow trigger command logic", () => {
     store.setPendingRuns([
       {
         workflowName: "builder",
-        trigger: { event: "manual", payload: {} },
+        trigger: { event: "manual", schemaRef: null, payload: {} },
         enqueuedAtMs: now,
         notBeforeMs: now,
       },
@@ -174,7 +174,7 @@ describe("WorkflowRunStore causal chain", () => {
     const parentRunId = "2026-01-01T00-00-00-000Z-explorer-abc123";
     const run = store.createRun(workflow, {
       event: "workflow.completed",
-      payload: { runId: parentRunId, workflow: "explorer", status: "success" },
+      schemaRef: null, payload: { runId: parentRunId, workflow: "explorer", status: "success" },
     });
     expect(run.metadata.triggeredByRunId).toBe(parentRunId);
   });
@@ -182,7 +182,7 @@ describe("WorkflowRunStore causal chain", () => {
   it("omits triggeredByRunId when trigger payload has no runId", () => {
     const run = store.createRun(workflow, {
       event: "runtime.idle",
-      payload: {},
+      schemaRef: null, payload: {},
     });
     expect(run.metadata.triggeredByRunId).toBeUndefined();
   });
@@ -190,7 +190,7 @@ describe("WorkflowRunStore causal chain", () => {
   it("omits triggeredByRunId when payload runId is not a string", () => {
     const run = store.createRun(workflow, {
       event: "workflow.completed",
-      payload: { runId: 42 },
+      schemaRef: null, payload: { runId: 42 },
     });
     expect(run.metadata.triggeredByRunId).toBeUndefined();
   });
@@ -199,7 +199,7 @@ describe("WorkflowRunStore causal chain", () => {
     const parentRunId = "2026-01-01T00-00-00-000Z-explorer-abc123";
     const run = store.createRun(workflow, {
       event: "workflow.completed",
-      payload: { runId: parentRunId, workflow: "explorer", status: "success" },
+      schemaRef: null, payload: { runId: parentRunId, workflow: "explorer", status: "success" },
     });
     expect(run.metadata.causedBy).toEqual({ runId: parentRunId, workflow: "explorer" });
   });
@@ -207,7 +207,7 @@ describe("WorkflowRunStore causal chain", () => {
   it("omits causedBy when trigger is not workflow.completed", () => {
     const run = store.createRun(workflow, {
       event: "runtime.idle",
-      payload: {},
+      schemaRef: null, payload: {},
     });
     expect(run.metadata.causedBy).toBeUndefined();
   });
@@ -216,7 +216,7 @@ describe("WorkflowRunStore causal chain", () => {
     const parentRunId = "2026-01-01T00-00-00-000Z-explorer-abc123";
     const run = store.createRun(workflow, {
       event: "workflow.completed",
-      payload: { runId: parentRunId },
+      schemaRef: null, payload: { runId: parentRunId },
     });
     expect(run.metadata.causedBy).toBeUndefined();
   });
@@ -271,13 +271,13 @@ describe("WorkflowRunStore cost aggregation", () => {
   });
 
   it("sets totalCostUsd to 0 when no agent steps exist", () => {
-    const run = store.createRun(minimalWorkflow, { event: "test", payload: {} });
+    const run = store.createRun(minimalWorkflow, { event: "test", schemaRef: null, payload: {} });
     const completed = run.finish({ status: "success", durationMs: 100 });
     expect(completed.totalCostUsd).toBe(0);
   });
 
   it("sums totalCostUsd across agent step outputs", () => {
-    const run = store.createRun(minimalWorkflow, { event: "test", payload: {} });
+    const run = store.createRun(minimalWorkflow, { event: "test", schemaRef: null, payload: {} });
     run.recordStep(makeStepResult("step1", "agent", { content: "ok", totalCostUsd: 0.01 }));
     run.recordStep(makeStepResult("step2", "agent", { content: "ok", totalCostUsd: 0.02 }));
     const completed = run.finish({ status: "success", durationMs: 200 });
@@ -285,7 +285,7 @@ describe("WorkflowRunStore cost aggregation", () => {
   });
 
   it("ignores cost from non-agent steps", () => {
-    const run = store.createRun(minimalWorkflow, { event: "test", payload: {} });
+    const run = store.createRun(minimalWorkflow, { event: "test", schemaRef: null, payload: {} });
     run.recordStep(makeStepResult("s1", "agent", { content: "ok", totalCostUsd: 0.05 }));
     run.recordStep(makeStepResult("s2", "code", { result: "done" }));
     run.recordStep(makeStepResult("s3", "tool", { content: "ok", totalCostUsd: 99 }));
@@ -294,7 +294,7 @@ describe("WorkflowRunStore cost aggregation", () => {
   });
 
   it("treats agent steps with no cost output as zero", () => {
-    const run = store.createRun(minimalWorkflow, { event: "test", payload: {} });
+    const run = store.createRun(minimalWorkflow, { event: "test", schemaRef: null, payload: {} });
     run.recordStep(makeStepResult("s1", "agent", { content: "ok" }));
     run.recordStep(makeStepResult("s2", "agent", { content: "ok", totalCostUsd: 0.03 }));
     const completed = run.finish({ status: "success", durationMs: 200 });
@@ -302,7 +302,7 @@ describe("WorkflowRunStore cost aggregation", () => {
   });
 
   it("accumulates totalCostUsd in runtime state across multiple runs", () => {
-    const trigger = { event: "test", payload: {} };
+    const trigger = { event: "test", schemaRef: null, payload: {} };
 
     const run1 = store.createRun(minimalWorkflow, trigger);
     run1.recordStep(makeStepResult("s1", "agent", { content: "ok", totalCostUsd: 0.10 }));
@@ -322,7 +322,7 @@ describe("WorkflowRunStore cost aggregation", () => {
     const state = store.readState();
     expect(state.totalCostUsd).toBeUndefined();
 
-    const run = store.createRun(minimalWorkflow, { event: "test", payload: {} });
+    const run = store.createRun(minimalWorkflow, { event: "test", schemaRef: null, payload: {} });
     run.recordStep(makeStepResult("s1", "agent", { content: "ok", totalCostUsd: 0.05 }));
     run.finish({ status: "success", durationMs: 100 });
 
@@ -427,7 +427,7 @@ describe("workflow show --step flag", () => {
   });
 
   it("returns full JSON output for a step with output", () => {
-    const run = store.createRun(minimalWorkflow, { event: "test", payload: {} });
+    const run = store.createRun(minimalWorkflow, { event: "test", schemaRef: null, payload: {} });
     run.recordStep(makeStepResult("inspect-queue", "code", { taskCounts: { ready: 2 } }));
     run.finish({ status: "success", durationMs: 100 });
 
@@ -441,7 +441,7 @@ describe("workflow show --step flag", () => {
   });
 
   it("returns error string for a failed step", () => {
-    const run = store.createRun(minimalWorkflow, { event: "test", payload: {} });
+    const run = store.createRun(minimalWorkflow, { event: "test", schemaRef: null, payload: {} });
     run.recordStep({
       id: "build",
       type: "agent",
@@ -462,7 +462,7 @@ describe("workflow show --step flag", () => {
   });
 
   it("step with null output prints null as JSON", () => {
-    const run = store.createRun(minimalWorkflow, { event: "test", payload: {} });
+    const run = store.createRun(minimalWorkflow, { event: "test", schemaRef: null, payload: {} });
     run.recordStep({
       id: "noop",
       type: "code",

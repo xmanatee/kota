@@ -212,6 +212,7 @@ describe("github-mention-intake workflow", () => {
     );
     expect(result.emitted).toContainEqual({
       event: "workflow.github-mention.intake.posted",
+      schemaRef: null,
       payload: {
         repo: "owner/repo",
         issueNumber: 17,
@@ -239,14 +240,21 @@ describe("github-mention-intake workflow", () => {
     });
 
     enqueueMatchingWorkflows(
-      { type: "github.issue_comment.mention", payload: makePayload() },
+      { type: "github.issue_comment.mention", schemaRef: null, payload: makePayload() },
       [definition],
       (_definition, _trigger, run) => queued.push(run),
     );
     expect(queued).toHaveLength(0);
 
     enqueueMatchingWorkflows(
-      { type: inboundSignalReceived.name, payload },
+      {
+        type: inboundSignalReceived.name,
+        schemaRef: {
+          name: inboundSignalReceived.name,
+          version: inboundSignalReceived.schema.currentVersion,
+        },
+        payload,
+      },
       [definition],
       (_definition, _trigger, run) => queued.push(run),
     );

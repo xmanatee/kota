@@ -8,7 +8,7 @@ import {
 
 const path = "/state.json";
 
-const validTrigger = { event: "runtime.idle", payload: {} };
+const validTrigger = { event: "runtime.idle", schemaRef: null, payload: {} };
 
 const validState = {
   completedRuns: 0,
@@ -117,6 +117,7 @@ describe("assertWorkflowRuntimeState", () => {
           workflowName: "attention-digest",
           trigger: {
             event: "workflow.completed",
+            schemaRef: { name: "workflow.completed", version: 2 },
             payload: {
               workflow: "explorer",
               runId: "run-1",
@@ -145,6 +146,7 @@ describe("assertWorkflowRuntimeState", () => {
           workflowName: "attention-digest",
           trigger: {
             event: "workflow.completed",
+            schemaRef: null,
             payload: {
               workflow: "explorer",
               runId: "run-1",
@@ -359,6 +361,15 @@ describe("assertWorkflowRunMetadata", () => {
   it("throws when trigger is invalid", () => {
     expect(() =>
       assertWorkflowRunMetadata(path, { ...validMetadata, trigger: { event: "x" } }),
+    ).toThrow(JsonFileError);
+  });
+
+  it("throws when trigger schemaRef is malformed", () => {
+    expect(() =>
+      assertWorkflowRunMetadata(path, {
+        ...validMetadata,
+        trigger: { event: "x", schemaRef: { name: "x", version: 0 }, payload: {} },
+      }),
     ).toThrow(JsonFileError);
   });
 

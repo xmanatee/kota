@@ -23,7 +23,7 @@ function makeRun(
     id,
     workflow,
     definitionPath: "",
-    trigger: { event: "manual", payload: {} },
+    trigger: { event: "manual", schemaRef: null, payload: {} },
     startedAt: "2026-01-01T00:00:00Z",
     status: "success",
     runDir: "",

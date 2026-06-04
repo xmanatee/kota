@@ -89,7 +89,7 @@ describe("automation authoring adapter", () => {
     const store = new WorkflowRunStore(projectDir);
     const trigger = {
       event: "task.ready",
-      payload: {
+      schemaRef: null, payload: {
         _runId: "hook-run-1",
         taskId: "task-123",
         projectId: "scope-1",

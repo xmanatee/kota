@@ -85,7 +85,7 @@ function makeMetadata(): WorkflowRunMetadata {
     id: "run-1",
     workflow: "test",
     definitionPath: "src/modules/test/workflows/test/workflow.ts",
-    trigger: { event: "runtime.idle", payload: {} },
+    trigger: { event: "runtime.idle", schemaRef: null, payload: {} },
     startedAt: new Date().toISOString(),
     status: "running",
     runDir: ".kota/runs/run-1",
@@ -93,7 +93,7 @@ function makeMetadata(): WorkflowRunMetadata {
   };
 }
 
-const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", payload: {} };
+const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", schemaRef: null, payload: {} };
 
 const SUCCESS_RESULT = {
   text: "done",
@@ -678,7 +678,7 @@ describe("buildAgentPrompt", () => {
       makeDefinition(),
       makeStep(projectDir),
       makeMetadata(),
-      { event: "workflow.completed", payload: { runId: "run-123" } },
+      { event: "workflow.completed", schemaRef: null, payload: { runId: "run-123" } },
       projectDir,
       {},
       KOTA_OWNER_QUESTIONS_MCP_TOOL,

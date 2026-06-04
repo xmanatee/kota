@@ -170,7 +170,14 @@ describe("Slack-origin inbound signal workflow dispatch", () => {
     const queued: Array<{ event: string; payload: Record<string, unknown> }> = [];
 
     enqueueMatchingWorkflows(
-      { type: inboundSignalReceived.name, payload: signal.payload },
+      {
+        type: inboundSignalReceived.name,
+        schemaRef: {
+          name: inboundSignalReceived.name,
+          version: inboundSignalReceived.schema.currentVersion,
+        },
+        payload: signal.payload,
+      },
       [definition],
       (_definition, _trigger, run) => queued.push(run),
     );

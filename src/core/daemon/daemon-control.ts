@@ -38,6 +38,8 @@ export type {
   DaemonSseEventType,
   DaemonSseStreamEvent,
   DaemonTimelineEvent,
+  EventSchemaDetail,
+  EventSchemaSummary,
   HealthStatus,
   InteractiveSession,
   WorkflowCostEntry,

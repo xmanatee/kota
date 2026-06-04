@@ -132,6 +132,7 @@ async function triggerWorkflowFromStep(
   const now = Date.now();
   const runTrigger: WorkflowRunTrigger = {
     event: "workflow.triggered",
+    schemaRef: null,
     payload: { ...payload, _runId: runId, triggeredAt: new Date().toISOString() },
   };
 

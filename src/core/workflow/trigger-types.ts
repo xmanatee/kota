@@ -64,6 +64,7 @@ export type WorkflowBatchGroupValue = {
 
 export type WorkflowBatchInputEventEnvelope = {
   event: string;
+  schemaRef: BusEnvelope["schemaRef"];
   receivedAt: string;
   payload: BusEnvelope["payload"];
 };
@@ -108,6 +109,7 @@ export type WorkflowBatchFlushPayload = {
 
 export type WorkflowTriggerInput = {
   event?: keyof BusEvents | string;
+  schemaVersion?: number;
   filter?: Record<string, WorkflowFilterValue>;
   batch?: WorkflowBatchTriggerInput;
   cooldownMs?: number;
@@ -144,6 +146,7 @@ export type WorkflowTriggerInput = {
 
 export type WorkflowTrigger = {
   event: string;
+  schemaVersion?: number;
   filter?: Record<string, WorkflowFilterValue>;
   batch?: WorkflowBatchTrigger;
   cooldownMs: number;
@@ -163,5 +166,6 @@ export type WorkflowTrigger = {
 
 export type WorkflowRunTrigger = {
   event: string;
+  schemaRef: BusEnvelope["schemaRef"];
   payload: Record<string, unknown>;
 };

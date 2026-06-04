@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { EventBus } from "#core/events/event-bus.js";
 import {
   type InboundSignalReceivedPayload,
   inboundSignalReceived,
@@ -104,6 +105,20 @@ describe("inbound-signals module", () => {
       ok: false,
       error: "occurredAt must be an ISO-compatible timestamp",
     });
+  });
+
+  it("rejects malformed internal message bodies at the event emit boundary", () => {
+    const bus = new EventBus();
+    const received: InboundSignalReceivedPayload[] = [];
+    bus.on(inboundSignalReceived, (payload) => received.push(payload));
+
+    expect(() =>
+      bus.emit(inboundSignalReceived, {
+        ...sampleSignal(),
+        body: { kind: "message" },
+      } as unknown as never),
+    ).toThrow(/payload\.body\.format is required/);
+    expect(received).toEqual([]);
   });
 
   it("normalizes an adapter input by injecting project scope and receive time", () => {

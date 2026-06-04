@@ -9,13 +9,25 @@
  * Scheduler (schedule fires). Foundation for daemon mode and event-based triggers.
  */
 
-export type { BusEnvelope, BusEventHandler, BusEvents } from "./event-bus-types.js";
+export type {
+  BusEnvelope,
+  BusEventHandler,
+  BusEvents,
+  EventSchemaReference,
+} from "./event-bus-types.js";
 
-import type { BusEnvelope, BusEventHandler, BusEvents } from "./event-bus-types.js";
+import type {
+  BusEnvelope,
+  BusEventHandler,
+  BusEvents,
+  EventSchemaReference,
+} from "./event-bus-types.js";
 import {
-  assertModuleEventPayloadScope,
+  assertModuleEventPayload,
+  getModuleEventRegistry,
   type ModuleEventDef,
   type ModuleEventPayload,
+  type ModuleEventPayloadObject,
 } from "./module-event.js";
 
 /**
@@ -29,6 +41,18 @@ import {
  * than relying on the bus to skip them.
  */
 export type EmitMiddleware = (envelope: BusEnvelope, next: () => void) => void;
+
+export function resolveEventSchemaReference(
+  event: string | ModuleEventDef,
+): EventSchemaReference | null {
+  if (typeof event !== "string") {
+    return { name: event.name, version: event.schema.currentVersion };
+  }
+  const registered = getModuleEventRegistry()?.get(event);
+  return registered
+    ? { name: registered.name, version: registered.currentVersion }
+    : null;
+}
 
 /**
  * Typed event bus. Supports:
@@ -132,13 +156,35 @@ export class EventBus {
     event: string | ModuleEventDef,
     payload: Record<string, unknown>,
   ): void {
+    const schemaRef = resolveEventSchemaReference(event);
     if (typeof event !== "string") {
-      assertModuleEventPayloadScope(event, payload);
+      assertModuleEventPayload(event, payload as ModuleEventPayloadObject);
+    } else {
+      const registered = getModuleEventRegistry()?.get(event);
+      if (registered) {
+        assertModuleEventPayload(
+          {
+            name: registered.name,
+            fields: registered.fields,
+            scope: registered.scope,
+            schema: {
+              currentVersion: registered.currentVersion,
+              payload: registered.payloadSchema,
+            },
+            filterablePaths: registered.filterablePaths,
+            sensitivity: registered.sensitivity,
+            compatibility: registered.compatibility,
+            examples: registered.examples,
+          },
+          payload as ModuleEventPayloadObject,
+        );
+      }
     }
     const name = typeof event === "string" ? event : event.name;
+    const envelope: BusEnvelope = { type: name, schemaRef, payload };
 
     if (this.middlewares.length === 0) {
-      this.fanOut(name, payload);
+      this.fanOut(envelope);
       return;
     }
 
@@ -146,16 +192,17 @@ export class EventBus {
     let i = 0;
     const next = (): void => {
       if (i >= chain.length) {
-        this.fanOut(name, payload);
+        this.fanOut(envelope);
         return;
       }
       const mw = chain[i++]!;
-      mw({ type: name, payload }, next);
+      mw(envelope, next);
     };
     next();
   }
 
-  private fanOut(name: string, payload: Record<string, unknown>): void {
+  private fanOut(envelope: BusEnvelope): void {
+    const { type: name, payload } = envelope;
     const set = this.handlers.get(name);
     if (set) {
       for (const handler of set) {
@@ -166,7 +213,6 @@ export class EventBus {
     if (name !== "*") {
       const wildcardSet = this.handlers.get("*");
       if (wildcardSet) {
-        const envelope: BusEnvelope = { type: name, payload };
         for (const handler of wildcardSet) {
           (handler as BusEventHandler<BusEnvelope>)(envelope);
         }

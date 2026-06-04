@@ -1,6 +1,10 @@
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import type { EventBus } from "#core/events/event-bus.js";
+import {
+  type EventBus,
+  type EventSchemaReference,
+  resolveEventSchemaReference,
+} from "#core/events/event-bus.js";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { executeTool } from "#core/tools/index.js";
 import type { WorkflowRunStore } from "../run-store.js";
@@ -24,11 +28,13 @@ export const EMITTED_EVENTS_LOG_FILENAME = "emitted-events.jsonl";
 function recordEmittedEvent(
   runDirPath: string,
   event: string,
+  schemaRef: EventSchemaReference | null,
   payload: Record<string, unknown>,
 ): void {
   const logPath = join(runDirPath, EMITTED_EVENTS_LOG_FILENAME);
   const entry = {
     event,
+    schemaRef,
     payload,
     emittedAt: new Date().toISOString(),
   };
@@ -86,17 +92,13 @@ export function createStepContext(
       return result;
     },
     emit: (event, payload) => {
-      // Inject scope attribution for scoped events. Step authors emit
-      // application events (queue-shape, autonomy state) without knowing
-      // the runtime's scope id; the wrapper attaches it. Daemon-wide event
-      // subscribers ignore the extra fields.
-      const scopeId = deps.pbus.getScopeId();
-      const augmented =
-        "scopeId" in payload && typeof payload.scopeId === "string"
-          ? payload
-          : { ...payload, scopeId, projectId: scopeId };
-      recordEmittedEvent(runDirPath, event, augmented);
-      deps.pbus.emitDynamic(event, augmented);
+      const emittedPayload = deps.pbus.emitDynamic(event, payload);
+      recordEmittedEvent(
+        runDirPath,
+        event,
+        resolveEventSchemaReference(event),
+        emittedPayload,
+      );
     },
     requestRestart: (reason) => {
       const payload = {
@@ -104,7 +106,7 @@ export function createStepContext(
         workflow: metadata.workflow,
         runId: metadata.id,
       };
-      recordEmittedEvent(runDirPath, "runtime.restart_requested", payload);
+      recordEmittedEvent(runDirPath, "runtime.restart_requested", null, payload);
       deps.pbus.emit("runtime.restart_requested", payload);
     },
     readPrompt: (promptPath) => {

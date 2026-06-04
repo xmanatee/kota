@@ -24,7 +24,7 @@ function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDe
   };
 }
 
-const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", payload: {} };
+const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", schemaRef: null, payload: {} };
 
 describe("findRetryFromIndex", () => {
   it("returns 0 when original steps is empty", () => {
@@ -148,7 +148,7 @@ describe("retry execution", () => {
 
     const retryTrigger: WorkflowRunTrigger = {
       event: "retry",
-      payload: { retryOf: originalId, triggeredAt: new Date().toISOString() },
+      schemaRef: null, payload: { retryOf: originalId, triggeredAt: new Date().toISOString() },
     };
 
     const retried = await runDefinition(retryDefinition, retryTrigger);
@@ -202,7 +202,7 @@ describe("retry execution", () => {
     firstStepShouldFail = false;
     const retryTrigger: WorkflowRunTrigger = {
       event: "retry",
-      payload: { retryOf: originalId, triggeredAt: new Date().toISOString() },
+      schemaRef: null, payload: { retryOf: originalId, triggeredAt: new Date().toISOString() },
     };
 
     const retried = await runDefinition(definition, retryTrigger);
@@ -272,7 +272,7 @@ describe("retry execution", () => {
 
     const retryTrigger: WorkflowRunTrigger = {
       event: "retry",
-      payload: { retryOf: originalId },
+      schemaRef: null, payload: { retryOf: originalId },
     };
     await runDefinition(retryDefinition, retryTrigger);
 
@@ -305,7 +305,7 @@ describe("retry execution", () => {
 
     const retryTrigger: WorkflowRunTrigger = {
       event: "retry",
-      payload: { retryOf: originalId },
+      schemaRef: null, payload: { retryOf: originalId },
     };
     const retried = await runDefinition(retryDefinition, retryTrigger);
 

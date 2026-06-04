@@ -63,7 +63,7 @@ function makeTrigger(overrides: MentionPayload = {}) {
   }
   return {
     event: inboundSignalReceived.name,
-    payload: {
+    schemaRef: null, payload: {
       ...result.payload,
       body: {
         ...result.payload.body,
@@ -172,7 +172,7 @@ describe("github-mention-responder workflow", () => {
     ]);
     expect(result.emitted).toContainEqual({
       event: "workflow.github-mention.response.posted",
-      payload: expect.objectContaining({
+      schemaRef: null, payload: expect.objectContaining({
         repo: "owner/repo",
         issueNumber: 17,
         isPullRequest: true,

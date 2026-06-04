@@ -116,6 +116,7 @@ function queueResumeRun(
     workflowName: suspension.workflowName,
     trigger: {
       event: "resume",
+      schemaRef: null,
       payload: {
         _runId: newRunId,
         resumedFromRunId: suspension.runId,

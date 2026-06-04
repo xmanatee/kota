@@ -248,11 +248,11 @@ describe("Daemon — two-project isolation across emit/persist/session boundarie
         // Persisted runs land in each project's own `.kota/runs/` tree.
         runStoreA.createRun(makeFakeWorkflowDefinition("wf-a"), {
           event: "manual",
-          payload: {},
+          schemaRef: null, payload: {},
         });
         runStoreB.createRun(makeFakeWorkflowDefinition("wf-b"), {
           event: "manual",
-          payload: {},
+          schemaRef: null, payload: {},
         });
 
         // ---- Assertions ----

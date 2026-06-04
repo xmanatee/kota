@@ -12,6 +12,7 @@
  */
 
 import type { ServerResponse } from "node:http";
+import { getModuleEventRegistry } from "#core/events/module-event.js";
 import type { ControlRouteRegistration } from "#core/modules/module-types.js";
 import type {
   ModuleSetupCompleteInput,
@@ -36,7 +37,13 @@ import {
 } from "./daemon-chat-handlers.js";
 import type { DaemonChatMakeAgent, DaemonChatPool } from "./daemon-chat-pool.js";
 import { handleRegisterSession, handleUnregisterSession } from "./daemon-control-sessions.js";
-import type { DaemonControlHandle, DaemonLiveStatus, InteractiveSession } from "./daemon-control-types.js";
+import type {
+  DaemonControlHandle,
+  DaemonLiveStatus,
+  EventSchemaDetail,
+  EventSchemaSummary,
+  InteractiveSession,
+} from "./daemon-control-types.js";
 import { jsonResponse, parseActiveProjectPatchBody, readBody, resolveProjectIdParam } from "./daemon-control-utils.js";
 import {
   handleAbortWorkflow,
@@ -112,6 +119,38 @@ function eventTypeMatchesGlob(eventType: string, glob: string): boolean {
   if (suffix === "") return true;
   const suffixStart = eventType.length - suffix.length;
   return suffixStart >= offset && eventType.endsWith(suffix);
+}
+
+function listEventSchemaDetails(): EventSchemaDetail[] {
+  const registry = getModuleEventRegistry();
+  if (!registry) return [];
+  return [...registry.all().values()]
+    .map((registration): EventSchemaDetail => ({
+      name: registration.name,
+      module: registration.module,
+      scope: registration.scope,
+      currentVersion: registration.currentVersion,
+      fields: registration.fields,
+      filterablePaths: registration.filterablePaths,
+      sensitivity: registration.sensitivity,
+      compatibility: registration.compatibility,
+      payloadSchema: registration.payloadSchema,
+      examples: registration.examples,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function eventSchemaSummary(detail: EventSchemaDetail): EventSchemaSummary {
+  return {
+    name: detail.name,
+    module: detail.module,
+    scope: detail.scope,
+    currentVersion: detail.currentVersion,
+    fields: detail.fields,
+    filterablePaths: detail.filterablePaths,
+    sensitivity: detail.sensitivity,
+    compatibility: detail.compatibility,
+  };
 }
 
 type SetupJsonObject = { [key: string]: ModuleSetupJsonValue };
@@ -365,6 +404,34 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
       path: "/capabilities",
       capabilityScope: "read",
       handler: (_req, res) => h.probeCapabilityReadiness().then((response) => jsonResponse(res, 200, response)),
+    },
+    {
+      method: "GET",
+      path: "/event-schemas",
+      capabilityScope: "read",
+      handler: (_req, res) =>
+        jsonResponse(res, 200, {
+          events: listEventSchemaDetails().map(eventSchemaSummary),
+        }),
+    },
+    {
+      method: "GET",
+      path: "/event-schemas/:name",
+      capabilityScope: "read",
+      handler: (_req, res, params) => {
+        const detail = listEventSchemaDetails().find(
+          (candidate) => candidate.name === params.name,
+        );
+        if (!detail) {
+          jsonResponse(res, 404, {
+            error: "Unknown event schema",
+            reason: "unknown_event_schema",
+            event: params.name,
+          });
+          return;
+        }
+        jsonResponse(res, 200, detail);
+      },
     },
     {
       method: "GET",

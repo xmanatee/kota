@@ -40,7 +40,7 @@ describe("workflow state shape: start / completion separation", () => {
   });
 
   it("start records lastStarted only; completion records lastCompletion", () => {
-    const handle = store.createRun(BUILDER, { event: "runtime.idle", payload: {} });
+    const handle = store.createRun(BUILDER, { event: "runtime.idle", schemaRef: null, payload: {} });
 
     const afterStart = store.readState();
     const startedEntry = afterStart.workflows.builder;
@@ -62,10 +62,10 @@ describe("workflow state shape: start / completion separation", () => {
   });
 
   it("interruption records lastCompletion without conflating a newer run", () => {
-    const firstHandle = store.createRun(BUILDER, { event: "runtime.idle", payload: {} });
+    const firstHandle = store.createRun(BUILDER, { event: "runtime.idle", schemaRef: null, payload: {} });
     firstHandle.finish({ status: "success", durationMs: 500 });
 
-    const secondHandle = store.createRun(BUILDER, { event: "runtime.idle", payload: {} });
+    const secondHandle = store.createRun(BUILDER, { event: "runtime.idle", schemaRef: null, payload: {} });
 
     const midRunState = store.readState();
     // lastStarted points at the new run; lastCompletion is still the first run.

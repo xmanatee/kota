@@ -26,4 +26,30 @@ export const webhookChannelSession =
   defineDaemonWideModuleEvent<WebhookChannelSessionPayload>(
     "webhook-channel.session",
     ["sessionId", "identity", "resumed", "source"],
+    {
+      payloadSchema: {
+        type: "object",
+        properties: {
+          sessionId: { type: "string" },
+          identity: {
+            type: "object",
+            properties: {
+              channelUserId: { type: "string" },
+              displayName: { type: "string", required: false },
+              channel: { type: "string" },
+              meta: {
+                type: "object",
+                properties: {},
+                additionalProperties: true,
+                required: false,
+              },
+            },
+            additionalProperties: true,
+          },
+          resumed: { type: "boolean" },
+          source: { type: "string", required: false },
+        },
+      },
+      sensitivity: "internal",
+    },
   );

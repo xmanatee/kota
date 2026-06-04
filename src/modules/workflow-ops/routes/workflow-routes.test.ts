@@ -48,7 +48,7 @@ function writeRunMetadata(
     id,
     workflow,
     definitionPath: `src/modules/test/workflows/${workflow}/workflow.ts`,
-    trigger: { event: "runtime.idle", payload: {} },
+    trigger: { event: "runtime.idle", schemaRef: null, payload: {} },
     startedAt: new Date(1700000000000).toISOString(),
     status,
     completedAt: new Date(1700001000000).toISOString(),
@@ -591,7 +591,7 @@ describe("workflow-routes", () => {
       const state = store.readState();
       state.pendingRuns = [{
         workflowName: "builder",
-        trigger: { event: "manual", payload: {} },
+        trigger: { event: "manual", schemaRef: null, payload: {} },
         enqueuedAtMs: Date.now(),
         notBeforeMs: Date.now(),
       }];
@@ -670,7 +670,7 @@ describe("workflow-routes", () => {
       const state = store.readState();
       state.pendingRuns = [{
         workflowName: "builder",
-        trigger: { event: "manual", payload: {} },
+        trigger: { event: "manual", schemaRef: null, payload: {} },
         enqueuedAtMs: Date.now(),
         notBeforeMs: Date.now(),
       }];
@@ -720,7 +720,7 @@ describe("workflow-routes", () => {
       const state = store.readState();
       state.pendingRuns = [{
         workflowName: "builder",
-        trigger: { event: "manual", payload: {} },
+        trigger: { event: "manual", schemaRef: null, payload: {} },
         enqueuedAtMs: Date.now(),
         notBeforeMs: Date.now(),
       }];

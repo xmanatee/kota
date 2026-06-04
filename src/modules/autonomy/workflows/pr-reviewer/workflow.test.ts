@@ -24,7 +24,7 @@ type PrPayload = {
 function makeTrigger(overrides: PrPayload = {}) {
   return {
     event: "github.pull_request",
-    payload: {
+    schemaRef: null, payload: {
       repo: "owner/repo",
       action: "opened",
       number: 42,

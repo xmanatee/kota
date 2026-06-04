@@ -187,7 +187,7 @@ function writeRun(
   );
   writeFileSync(
     join(runDir, "trigger.json"),
-    JSON.stringify({ event: "autonomy.queue.available", payload: {} }, null, 2),
+    JSON.stringify({ event: "autonomy.queue.available", schemaRef: null, payload: {} }, null, 2),
   );
   writeFileSync(
     join(runDir, "run-summary.json"),
@@ -267,6 +267,10 @@ function channelBatchPayload(projectDir: string): WorkflowBatchFlushPayload {
     inputEvents: [
       {
         event: inboundSignalReceived.name,
+        schemaRef: {
+          name: inboundSignalReceived.name,
+          version: inboundSignalReceived.schema.currentVersion,
+        },
         receivedAt: "2026-06-04T11:55:00.000Z",
         payload: {
           scopeId,
@@ -294,6 +298,10 @@ function channelBatchPayload(projectDir: string): WorkflowBatchFlushPayload {
       },
       {
         event: inboundSignalReceived.name,
+        schemaRef: {
+          name: inboundSignalReceived.name,
+          version: inboundSignalReceived.schema.currentVersion,
+        },
         receivedAt: "2026-06-04T11:56:00.000Z",
         payload: {
           scopeId,
@@ -423,7 +431,7 @@ describe("progress-reviewer workflow", () => {
       projectDir,
       trigger: {
         event: progressReviewRequested.name,
-        payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+        schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
       },
       stepMocks: {
         "review-evidence": readFixture("autonomous-coding-review"),
@@ -467,7 +475,7 @@ describe("progress-reviewer workflow", () => {
       projectDir,
       trigger: {
         event: "schedule",
-        payload: { scheduledAt: "2026-06-04T12:00:00.000Z" },
+        schemaRef: null, payload: { scheduledAt: "2026-06-04T12:00:00.000Z" },
       },
       stepMocks: {
         "review-evidence": readFixture("autonomous-coding-review"),
@@ -522,6 +530,7 @@ describe("progress-reviewer workflow", () => {
         projectDir,
         trigger: {
           event: WORKFLOW_BATCH_FLUSH_EVENT,
+          schemaRef: null,
           payload,
         },
         now: NOW,
@@ -545,6 +554,7 @@ describe("progress-reviewer workflow", () => {
       inputEvents: [
         {
           event: "workflow.completed",
+          schemaRef: null,
           receivedAt: NOW.toISOString(),
           payload: {
             projectId: channelBatch.projectId,
@@ -566,6 +576,7 @@ describe("progress-reviewer workflow", () => {
       inputEvents: [
         {
           event: "workflow.build.committed",
+          schemaRef: null,
           receivedAt: NOW.toISOString(),
           payload: {
             projectId: channelBatch.projectId,
@@ -582,19 +593,19 @@ describe("progress-reviewer workflow", () => {
     expect(
       classifyProgressReviewTrigger({
         event: WORKFLOW_BATCH_FLUSH_EVENT,
-        payload: runBatch,
+        schemaRef: null, payload: runBatch,
       }),
     ).toBe("run-count");
     expect(
       classifyProgressReviewTrigger({
         event: WORKFLOW_BATCH_FLUSH_EVENT,
-        payload: taskBatch,
+        schemaRef: null, payload: taskBatch,
       }),
     ).toBe("task-count");
     expect(
       classifyProgressReviewTrigger({
         event: WORKFLOW_BATCH_FLUSH_EVENT,
-        payload: channelBatch,
+        schemaRef: null, payload: channelBatch,
       }),
     ).toBe("message-batch");
   });
@@ -612,7 +623,7 @@ describe("progress-reviewer workflow", () => {
       projectDir: projectA,
       trigger: {
         event: progressReviewRequested.name,
-        payload: { scopeId: scopeA, projectId: scopeA, windowMs: 3_600_000 },
+        schemaRef: null, payload: { scopeId: scopeA, projectId: scopeA, windowMs: 3_600_000 },
       },
       now: NOW,
     });
@@ -639,7 +650,7 @@ describe("progress-reviewer workflow", () => {
       projectDir,
       trigger: {
         event: progressReviewRequested.name,
-        payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+        schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
       },
       now: NOW,
     });
@@ -725,7 +736,7 @@ describe("progress-reviewer workflow", () => {
       projectDir,
       trigger: {
         event: progressReviewRequested.name,
-        payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+        schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
       },
       now: NOW,
     });
@@ -824,7 +835,7 @@ describe("progress-reviewer workflow", () => {
       projectDir,
       trigger: {
         event: progressReviewRequested.name,
-        payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+        schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
       },
       now: NOW,
     });
@@ -877,7 +888,7 @@ describe("progress-reviewer workflow", () => {
         projectDir,
         trigger: {
           event: progressReviewRequested.name,
-          payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+          schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
         },
         now: NOW,
       });
@@ -927,7 +938,7 @@ describe("progress-reviewer workflow", () => {
         projectDir,
         trigger: {
           event: progressReviewRequested.name,
-          payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+          schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
         },
         now: NOW,
       });
@@ -960,7 +971,7 @@ describe("progress-reviewer workflow", () => {
       projectDir,
       trigger: {
         event: progressReviewRequested.name,
-        payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+        schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
       },
       now: NOW,
     });
@@ -1010,7 +1021,7 @@ describe("progress-reviewer workflow", () => {
       projectDir: projectA,
       trigger: {
         event: progressReviewRequested.name,
-        payload: {
+        schemaRef: null, payload: {
           scopeId: GLOBAL_SCOPE_ID,
           projectId: GLOBAL_SCOPE_ID,
           windowMs: 3_600_000,
@@ -1047,6 +1058,7 @@ describe("progress-reviewer workflow", () => {
         projectDir,
         trigger: {
           event: WORKFLOW_BATCH_FLUSH_EVENT,
+          schemaRef: null,
           payload,
         },
         now: NOW,
@@ -1119,6 +1131,7 @@ describe("progress-reviewer workflow", () => {
       projectDir,
       trigger: {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
+        schemaRef: null,
         payload,
       },
       now: NOW,

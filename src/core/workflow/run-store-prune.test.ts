@@ -26,7 +26,7 @@ function writeRun(
     id,
     workflow,
     definitionPath: `src/modules/test/workflows/${workflow}/workflow.ts`,
-    trigger: { event: "runtime.idle", payload: {} },
+    trigger: { event: "runtime.idle", schemaRef: null, payload: {} },
     startedAt: new Date(startedAtMs).toISOString(),
     status: "success",
     completedAt: new Date(startedAtMs + 1000).toISOString(),
@@ -202,7 +202,7 @@ describe("WorkflowRunStore tags", () => {
   it("persists tags from trigger payload in metadata.json", () => {
     const trigger = {
       event: "manual",
-      payload: { triggeredAt: new Date().toISOString(), tags: ["release-v2", "debug"] },
+      schemaRef: null, payload: { triggeredAt: new Date().toISOString(), tags: ["release-v2", "debug"] },
     };
     const handle = store.createRun(minimalWorkflow, trigger);
     const meta = store.getRun(handle.metadata.id);
@@ -210,7 +210,7 @@ describe("WorkflowRunStore tags", () => {
   });
 
   it("omits tags field when trigger payload has no tags", () => {
-    const trigger = { event: "manual", payload: { triggeredAt: new Date().toISOString() } };
+    const trigger = { event: "manual", schemaRef: null, payload: { triggeredAt: new Date().toISOString() } };
     const handle = store.createRun(minimalWorkflow, trigger);
     const meta = store.getRun(handle.metadata.id);
     expect(meta?.tags).toBeUndefined();
@@ -219,15 +219,15 @@ describe("WorkflowRunStore tags", () => {
   it("listRuns with tag filter returns only matching runs", () => {
     const triggerA = {
       event: "manual",
-      payload: { triggeredAt: new Date().toISOString(), tags: ["alpha"] },
+      schemaRef: null, payload: { triggeredAt: new Date().toISOString(), tags: ["alpha"] },
     };
     const triggerB = {
       event: "manual",
-      payload: { triggeredAt: new Date().toISOString(), tags: ["beta"] },
+      schemaRef: null, payload: { triggeredAt: new Date().toISOString(), tags: ["beta"] },
     };
     const triggerC = {
       event: "manual",
-      payload: { triggeredAt: new Date().toISOString() },
+      schemaRef: null, payload: { triggeredAt: new Date().toISOString() },
     };
     store.createRun(minimalWorkflow, triggerA);
     store.createRun(minimalWorkflow, triggerB);

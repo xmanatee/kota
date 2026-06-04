@@ -51,4 +51,31 @@ export const evalHarnessSetCompleted =
       "startedAt",
       "completedAt",
     ],
+    {
+      payloadSchema: {
+        type: "object",
+        properties: {
+          fixtureCount: { type: "number" },
+          repeatCount: { type: "number" },
+          passAtK: { type: "number" },
+          passHatK: { type: "number" },
+          fixtureDiagnostics: {
+            type: "object",
+            properties: {},
+            additionalProperties: true,
+          },
+          hostClass: { type: "string" },
+          runArtifactBaseDir: { type: "string" },
+          runConfigurationFingerprint: { type: "string" },
+          runConfigurationSummary: {
+            type: "object",
+            properties: {},
+            additionalProperties: true,
+          },
+          startedAt: { type: "string", format: "date-time" },
+          completedAt: { type: "string", format: "date-time" },
+        },
+      },
+      sensitivity: "internal",
+    },
   );

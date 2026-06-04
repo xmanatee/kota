@@ -16,6 +16,7 @@ import type {
   WorkflowRunDetail,
   WorkflowRunSummary,
 } from "#core/daemon/daemon-control.js";
+import type { EventSchemaReference } from "#core/events/event-bus.js";
 
 /** Filters accepted by `client.workflow.listRuns`. */
 export type WorkflowRunsListFilter = {
@@ -175,6 +176,7 @@ export type WorkflowTrialPayload = KotaJsonObject;
 
 export type WorkflowTrialEvent = {
   type: string;
+  schemaRef: EventSchemaReference | null;
   payload: WorkflowTrialPayload;
 };
 

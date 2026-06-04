@@ -554,9 +554,15 @@ export type ProjectScopedBusEventName = {
 export type ProjectScopedBusEventPayload<K extends ProjectScopedBusEventName> =
   Omit<BusEvents[K], "projectId" | "scopeId">;
 
-/** An event as seen by wildcard listeners: type + payload. */
+export type EventSchemaReference = {
+  name: string;
+  version: number;
+};
+
+/** An event as seen by wildcard listeners: type + payload plus schema identity. */
 export type BusEnvelope<K extends string = string> = {
   type: K;
+  schemaRef: EventSchemaReference | null;
   payload: K extends keyof BusEvents ? BusEvents[K] : Record<string, unknown>;
 };
 

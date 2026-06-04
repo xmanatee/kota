@@ -193,7 +193,7 @@ describe("WorkflowRuntime", () => {
         workflowName: "improver",
         trigger: {
           event: "workflow.completed",
-          payload: {
+          schemaRef: null, payload: {
             workflow: "builder",
             runId: "run-builder-success",
             status: "success",
@@ -1042,7 +1042,7 @@ describe("WorkflowRuntime", () => {
     const store = new WorkflowRunStore(projectDir);
     store.createRun(builderDefinition, {
       event: "runtime.idle",
-      payload: {},
+      schemaRef: null, payload: {},
     });
 
     writeFileSync(join(projectDir, "README.md"), "dirty\n");
@@ -1110,7 +1110,7 @@ describe("WorkflowRuntime", () => {
     const store = new WorkflowRunStore(projectDir);
     store.createRun(builderDefinition, {
       event: "runtime.idle",
-      payload: {},
+      schemaRef: null, payload: {},
     });
 
     const bus = new EventBus();

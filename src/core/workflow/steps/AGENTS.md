@@ -45,7 +45,8 @@ single phase live in that phase file, not in the orchestrator.
 ## Per-Run Emitted-Events Log
 
 `createStepContext` wraps `ctx.emit` so every emission a step makes appends
-a `{event, payload, emittedAt}` entry to `<runDir>/emitted-events.jsonl`.
+a `{event, schemaRef, payload, emittedAt}` entry to
+`<runDir>/emitted-events.jsonl`.
 This is the authoritative per-run bus-event trace: the bus itself does not
 retain history, and step output only captures emissions the step chose to
 list in its returned summary. The eval-harness `run-emits-event` and

@@ -151,6 +151,7 @@ export class WorkflowEventBatchManager {
     const receivedAt = new Date().toISOString();
     const inputEvent: WorkflowBatchInputEventEnvelope = {
       event: envelope.type,
+      schemaRef: envelope.schemaRef,
       receivedAt,
       payload: { ...envelope.payload },
     };
@@ -239,6 +240,7 @@ export class WorkflowEventBatchManager {
     };
     this.enqueueRun(target.definition, target.trigger, {
       event: WORKFLOW_BATCH_FLUSH_EVENT,
+      schemaRef: null,
       payload,
     });
     this.getProjectBus().emitDynamic(WORKFLOW_BATCH_FLUSH_EVENT, payload);
@@ -334,7 +336,7 @@ function resolveGroup(batch: WorkflowBatchTrigger, payload: EventPayload): Group
   }
   const groupValues: WorkflowBatchGroupValue[] = [];
   for (const field of batch.groupBy) {
-    const resolved = resolveGroupField(field, payload[field]);
+    const resolved = resolveGroupField(field, payloadPathValue(payload, field));
     if (!resolved.ok) return resolved;
     groupValues.push({ field, value: resolved.value });
   }
@@ -369,6 +371,25 @@ function resolveGroupField(
     return { ok: true, value: JSON.stringify(value) };
   }
   return { ok: false, reason: `batch.groupBy field "${field}" must resolve to a scalar or scalar array` };
+}
+
+function payloadPathValue(
+  payload: EventPayload,
+  path: string,
+): EventPayloadValue {
+  const segments = path.split(".");
+  let current: EventPayload | EventPayloadValue = payload;
+  for (const segment of segments) {
+    if (!isPayloadObject(current)) return undefined;
+    current = current[segment];
+  }
+  return current;
+}
+
+function isPayloadObject(
+  value: EventPayload | EventPayloadValue,
+): value is EventPayload {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function explicitScope(payload: EventPayload): string | undefined {

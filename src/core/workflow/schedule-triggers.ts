@@ -82,6 +82,7 @@ export class ScheduleTriggerManager {
 
       this.enqueueRun(definition, trigger, {
         event: "schedule",
+        schemaRef: null,
         payload: { scheduledAt: new Date(now).toISOString() },
       });
       this.maybeStartNext();

@@ -35,6 +35,7 @@ describe("enqueueMatchingWorkflows", () => {
     const enqueued: WorkflowRunTrigger[] = [];
     const envelope: BusEnvelope = {
       type: "workflow.completed",
+      schemaRef: null,
       payload: {
         workflow: "explorer",
         runId: "run-1",
@@ -69,6 +70,32 @@ describe("enqueueMatchingWorkflows", () => {
     expect(serialized).not.toContain("[Circular]");
   });
 
+  it("copies the bus envelope schema reference into matched run triggers", () => {
+    const enqueued: WorkflowRunTrigger[] = [];
+    const envelope: BusEnvelope = {
+      type: "workflow.completed",
+      schemaRef: { name: "workflow.completed", version: 3 },
+      payload: {
+        workflow: "builder",
+        runId: "run-1",
+        status: "success",
+        tags: ["monitored"],
+      },
+    };
+
+    enqueueMatchingWorkflows(
+      envelope,
+      [workflow("attention-digest")],
+      (_def, _trigger, run) => enqueued.push(run),
+    );
+
+    expect(enqueued).toHaveLength(1);
+    expect(enqueued[0]?.schemaRef).toEqual({
+      name: "workflow.completed",
+      version: 3,
+    });
+  });
+
   it("rejects circular trigger payloads before they enter the queue", () => {
     const payload: Record<string, unknown> = {
       workflow: "explorer",
@@ -78,6 +105,7 @@ describe("enqueueMatchingWorkflows", () => {
 
     const envelope: BusEnvelope = {
       type: "workflow.completed",
+      schemaRef: null,
       payload,
     };
 
@@ -114,6 +142,24 @@ describe("matchesFilter", () => {
         { scopeId: "scope-a", taskId: "task-1" },
       ),
     ).toBe(true);
+  });
+
+  it("matches dotted filter paths against nested payload objects", () => {
+    expect(
+      matchesFilter(
+        { "actor.trust": "trusted", "body.kind": "message" },
+        {
+          actor: { trust: "trusted" },
+          body: { kind: "message" },
+        },
+      ),
+    ).toBe(true);
+    expect(
+      matchesFilter(
+        { "actor.trust": "blocked" },
+        { actor: { trust: "trusted" } },
+      ),
+    ).toBe(false);
   });
 });
 
