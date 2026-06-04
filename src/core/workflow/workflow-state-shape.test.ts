@@ -140,4 +140,78 @@ describe("workflow state shape: start / completion separation", () => {
       status: "failed",
     });
   });
+
+  it("migrates legacy queued triggers and batch envelopes to explicit null schema refs", () => {
+    const statePath = join(projectDir, ".kota", "workflow-state.json");
+    const timestamp = "2026-06-04T20:00:00.000Z";
+    const legacyInputEvent = {
+      event: "workflow.completed",
+      receivedAt: timestamp,
+      payload: { workflow: "builder", runId: "run-1" },
+    };
+    const legacy = {
+      completedRuns: 18400,
+      pendingRuns: [
+        {
+          runId: "queued-progress-review",
+          workflowName: "progress-reviewer",
+          trigger: {
+            event: "workflow.batch.flushed",
+            payload: {
+              scopeId: "scope-1",
+              projectId: "scope-1",
+              sourceEventName: "workflow.completed",
+              groupingKey: "scopeId=scope-1",
+              reason: "count",
+              count: 1,
+              window: {
+                firstEventAt: timestamp,
+                lastEventAt: timestamp,
+                flushedAt: timestamp,
+              },
+              inputEvents: [legacyInputEvent],
+              batch: {
+                workflow: "progress-reviewer",
+                triggerIndex: 0,
+                maxBufferSize: 100,
+                overflow: "drop-newest",
+                droppedInputCount: 0,
+              },
+            },
+          },
+          enqueuedAtMs: 1000,
+          notBeforeMs: 1000,
+        },
+      ],
+      workflows: {},
+      batchBuffers: {
+        "progress-reviewer:0:scope-1:scopeId=scope-1": {
+          definitionName: "progress-reviewer",
+          triggerIndex: 0,
+          sourceEventName: "workflow.completed",
+          scopeId: "scope-1",
+          projectId: "scope-1",
+          groupingKey: "scopeId=scope-1",
+          groupValues: [{ field: "scopeId", value: "scope-1" }],
+          firstEventAt: timestamp,
+          lastEventAt: timestamp,
+          inputEvents: [legacyInputEvent],
+          droppedInputCount: 0,
+        },
+      },
+    };
+    writeFileSync(statePath, JSON.stringify(legacy), "utf-8");
+
+    const migrated = store.readState();
+
+    const pendingRun = migrated.pendingRuns[0]!;
+    expect(pendingRun.trigger.schemaRef).toBeNull();
+    const pendingInputEvents = pendingRun.trigger.payload.inputEvents as Array<{
+      schemaRef: unknown;
+    }>;
+    expect(pendingInputEvents[0]!.schemaRef).toBeNull();
+
+    const buffer = migrated.batchBuffers?.["progress-reviewer:0:scope-1:scopeId=scope-1"];
+    expect(buffer?.inputEvents[0]?.schemaRef).toBeNull();
+  });
 });

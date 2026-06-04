@@ -1,6 +1,55 @@
 import { isPlainObject, isWorkflowRunStatus } from "./run-store-state-schema.js";
 import type { WorkflowStateEntry } from "./run-types.js";
 
+function addMissingSchemaRef(record: Record<string, unknown>): boolean {
+  if ("schemaRef" in record) return false;
+  record.schemaRef = null;
+  return true;
+}
+
+function migrateLegacyBatchInputEvents(value: unknown): boolean {
+  if (!Array.isArray(value)) return false;
+
+  let changed = false;
+  for (const entry of value) {
+    if (!isPlainObject(entry)) continue;
+    changed = addMissingSchemaRef(entry) || changed;
+  }
+  return changed;
+}
+
+function migrateLegacyWorkflowRunTrigger(trigger: unknown): boolean {
+  if (!isPlainObject(trigger)) return false;
+
+  let changed = addMissingSchemaRef(trigger);
+  if (isPlainObject(trigger.payload)) {
+    changed = migrateLegacyBatchInputEvents(trigger.payload.inputEvents) || changed;
+  }
+  return changed;
+}
+
+function migrateLegacyPendingRuns(raw: Record<string, unknown>): boolean {
+  if (!Array.isArray(raw.pendingRuns)) return false;
+
+  let changed = false;
+  for (const run of raw.pendingRuns) {
+    if (!isPlainObject(run)) continue;
+    changed = migrateLegacyWorkflowRunTrigger(run.trigger) || changed;
+  }
+  return changed;
+}
+
+function migrateLegacyBatchBuffers(raw: Record<string, unknown>): boolean {
+  if (!isPlainObject(raw.batchBuffers)) return false;
+
+  let changed = false;
+  for (const buffer of Object.values(raw.batchBuffers)) {
+    if (!isPlainObject(buffer)) continue;
+    changed = migrateLegacyBatchInputEvents(buffer.inputEvents) || changed;
+  }
+  return changed;
+}
+
 /**
  * Convert a legacy per-workflow entry (lastRunId/lastStartedAt/lastCompletedAt/
  * lastStatus flat fields) into the discriminated {lastStarted, lastCompletion}
@@ -62,26 +111,28 @@ function migrateLegacyWorkflowEntry(
  * Returns true when at least one entry was rewritten.
  */
 export function migrateLegacyWorkflowState(raw: Record<string, unknown>): boolean {
+  let changed = false;
   const workflows = raw.workflows;
-  if (!isPlainObject(workflows)) return false;
+  if (isPlainObject(workflows)) {
+    const activeRunIds = new Set<string>();
+    if (Array.isArray(raw.activeRuns)) {
+      for (const run of raw.activeRuns) {
+        if (isPlainObject(run) && typeof run.runId === "string") {
+          activeRunIds.add(run.runId);
+        }
+      }
+    }
 
-  const activeRunIds = new Set<string>();
-  if (Array.isArray(raw.activeRuns)) {
-    for (const run of raw.activeRuns) {
-      if (isPlainObject(run) && typeof run.runId === "string") {
-        activeRunIds.add(run.runId);
+    for (const [name, entry] of Object.entries(workflows)) {
+      if (!isPlainObject(entry)) continue;
+      const migrated = migrateLegacyWorkflowEntry(entry, activeRunIds);
+      if (migrated !== null) {
+        workflows[name] = migrated;
+        changed = true;
       }
     }
   }
-
-  let changed = false;
-  for (const [name, entry] of Object.entries(workflows)) {
-    if (!isPlainObject(entry)) continue;
-    const migrated = migrateLegacyWorkflowEntry(entry, activeRunIds);
-    if (migrated !== null) {
-      workflows[name] = migrated;
-      changed = true;
-    }
-  }
+  changed = migrateLegacyPendingRuns(raw) || changed;
+  changed = migrateLegacyBatchBuffers(raw) || changed;
   return changed;
 }
