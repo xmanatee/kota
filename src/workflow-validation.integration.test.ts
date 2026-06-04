@@ -29,6 +29,7 @@ import {
   initModuleEventRegistry,
   resetModuleEventRegistry,
 } from "#core/events/module-event.js";
+import { defineProjectScopedModuleEvent } from "#core/events/project-scope.js";
 
 function validateWorkflowDefinitions(
   definitions: readonly RegisteredWorkflowDefinitionInput[],
@@ -371,6 +372,44 @@ describe("workflow validation", () => {
         projectDir,
       );
       expect(definitions[0]?.triggers[0]?.filter).toEqual({ passAtK: 1 });
+    } finally {
+      resetModuleEventRegistry();
+    }
+  });
+
+  it("accepts scopeId filters for project-scoped module events that declare projectId", () => {
+    resetModuleEventRegistry();
+    const moduleEvents = initModuleEventRegistry();
+    moduleEvents.register(
+      "fixture-module",
+      defineProjectScopedModuleEvent<{ taskId: string }>(
+        "fixture.scoped.event",
+        ["taskId"],
+      ),
+    );
+
+    try {
+      const definitions = validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/scoped-observer.ts", {
+            name: "fixture-scoped-observer",
+            triggers: [
+              {
+                event: "fixture.scoped.event",
+                filter: { scopeId: "scope-a", taskId: "task-1" },
+              },
+            ],
+            steps: [
+              { id: "noop", type: "emit", event: "fixture.scoped.done" },
+            ],
+          }),
+        ],
+        projectDir,
+      );
+      expect(definitions[0]?.triggers[0]?.filter).toEqual({
+        scopeId: "scope-a",
+        taskId: "task-1",
+      });
     } finally {
       resetModuleEventRegistry();
     }

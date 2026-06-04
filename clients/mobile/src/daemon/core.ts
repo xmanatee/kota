@@ -4,7 +4,9 @@
 
 import {
   parseProjectRegistryProjection,
+  parseScopeRegistryProjection,
   type ProjectRegistryProjection,
+  type ScopeRegistryProjection,
 } from './conformance/decoders';
 import { daemonRequest, withProject, type DaemonHttp } from './http';
 
@@ -123,6 +125,13 @@ export async function getProjects(
 ): Promise<ProjectRegistryProjection> {
   const raw = await daemonRequest<unknown>(http, '/projects');
   return parseProjectRegistryProjection(raw);
+}
+
+export async function getScopes(
+  http: DaemonHttp,
+): Promise<ScopeRegistryProjection> {
+  const raw = await daemonRequest<unknown>(http, '/scopes');
+  return parseScopeRegistryProjection(raw);
 }
 
 export function getStatus(

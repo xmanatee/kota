@@ -44,6 +44,7 @@ import {
   WORKFLOW_TRIGGER_CAPABILITY_ID,
 } from "./client-identity.js";
 import type { WorkflowDefinitionSummary } from "./daemon-control-types.js";
+import type { ScopeRegistryProjection } from "./scope-registry.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PATH = resolve(
@@ -72,6 +73,7 @@ type Fixture = {
   identity: ClientIdentity;
   identityWithoutDashboard: ClientIdentity;
   projects: FixtureProjection;
+  scopes: ScopeRegistryProjection;
   unknownProjectError: FixtureUnknownProjectError;
   capabilities: CapabilityReadinessResponse;
   workflowDefinitions: { definitions: WorkflowDefinitionSummary[] };
@@ -139,6 +141,18 @@ describe("thin-client contract — shared fixture", () => {
       expect(err.error).toBe("Unknown project");
       expect(err.reason).toBe("unknown_project");
       expect(err.projectId).toBe("p-not-configured");
+    });
+
+    it("exposes the canonical scope projection as a distinct top-level fixture", () => {
+      const scopes = fixture.scopes;
+      expect(scopes.rootScopeId).toBe("global");
+      expect(scopes.defaultScopeId).toBe("p-kota-fixture-default");
+      expect(scopes.scopes.map((scope) => scope.scopeId)).toEqual([
+        "global",
+        "p-kota-fixture-default",
+        "p-side-fixture",
+      ]);
+      expect(scopes.scopes.filter((scope) => scope.directoryRoot)).toHaveLength(2);
     });
 
     it("decodes the dashboard-unavailable identity payload", () => {

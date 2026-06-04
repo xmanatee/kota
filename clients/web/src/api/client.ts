@@ -10,6 +10,7 @@ import {
   parseMemorySearchResponse,
   parseRecallResult,
   parseRetractResult,
+  parseScopeRegistryProjection,
   parseTasksSearchResponse,
 } from "../../../conformance/decoders";
 import type {
@@ -42,6 +43,7 @@ import type {
   RetractRequest,
   RetractResult,
   ScheduleEntry,
+  ScopeRegistryProjection,
   SlashCommand,
   SlashCommandInvocation,
   TasksSearchResponse,
@@ -125,6 +127,12 @@ export const api = {
   getCapabilities: () => apiJson<CapabilityReadinessResponse>("/capabilities"),
 
   getIdentity: () => apiJson<ClientIdentity>("/identity"),
+
+  getScopes: () =>
+    apiDecoded<ScopeRegistryProjection>(
+      "/scopes",
+      parseScopeRegistryProjection,
+    ),
 
   getWorkflowStatus: (projectId: string) =>
     apiJson<WorkflowLiveStatus>(withProject("/api/workflow/status", projectId)),

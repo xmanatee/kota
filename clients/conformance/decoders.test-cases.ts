@@ -21,6 +21,7 @@ import {
   parseProjectRegistryProjection,
   parseRecallResult,
   parseRetractResult,
+  parseScopeRegistryProjection,
   parseTasksSearchResponse,
   parseUnknownProjectError,
   parseVoiceFailure,
@@ -71,6 +72,27 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
     name: "projects: typed unknown_project rejection",
     path: "unknownProjectError",
     parse: parseUnknownProjectError,
+  },
+  {
+    name: "scopes: global root plus directory-backed children",
+    path: "scopes",
+    parse: parseScopeRegistryProjection,
+    assertPositive: (decoded) => {
+      const p = decoded as {
+        rootScopeId: string;
+        defaultScopeId: string;
+        scopes: Array<{ scopeId: string; directoryRoot?: string }>;
+      };
+      if (p.rootScopeId !== "global") {
+        throw new Error("expected global root scope");
+      }
+      if (!p.scopes.some((entry) => entry.scopeId === p.defaultScopeId)) {
+        throw new Error("defaultScopeId must match a listed scope");
+      }
+      if (p.scopes.filter((entry) => entry.directoryRoot).length !== 2) {
+        throw new Error("expected two directory-backed child scopes");
+      }
+    },
   },
   // recall
   {

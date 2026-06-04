@@ -247,6 +247,70 @@ struct ProjectRegistryProjection: Codable, Equatable {
     }
 }
 
+/// Mirror of the daemon's canonical `ScopeRegistryProjection` shape.
+/// The root and default ids must both name entries in `scopes`; directory
+/// backed scopes carry `directoryRoot`, while the global root does not.
+struct ConfiguredScopeEntry: Codable, Equatable {
+    let scopeId: String
+    let displayName: String
+    let parentScopeId: String?
+    let directoryRoot: String?
+}
+
+struct ScopeRegistryProjection: Codable, Equatable {
+    let rootScopeId: String
+    let defaultScopeId: String
+    let scopes: [ConfiguredScopeEntry]
+
+    init(rootScopeId: String, defaultScopeId: String, scopes: [ConfiguredScopeEntry]) {
+        self.rootScopeId = rootScopeId
+        self.defaultScopeId = defaultScopeId
+        self.scopes = scopes
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let rootScopeId = try container.decode(String.self, forKey: .rootScopeId)
+        let defaultScopeId = try container.decode(String.self, forKey: .defaultScopeId)
+        let scopes = try container.decode([ConfiguredScopeEntry].self, forKey: .scopes)
+        if scopes.isEmpty {
+            throw DecodingError.dataCorruptedError(
+                forKey: .scopes,
+                in: container,
+                debugDescription: "scopes must declare at least one entry"
+            )
+        }
+        if !scopes.contains(where: { $0.scopeId == rootScopeId }) {
+            throw DecodingError.dataCorruptedError(
+                forKey: .rootScopeId,
+                in: container,
+                debugDescription: "rootScopeId \(rootScopeId) does not match any registered scope"
+            )
+        }
+        if !scopes.contains(where: { $0.scopeId == defaultScopeId }) {
+            throw DecodingError.dataCorruptedError(
+                forKey: .defaultScopeId,
+                in: container,
+                debugDescription: "defaultScopeId \(defaultScopeId) does not match any registered scope"
+            )
+        }
+        self.rootScopeId = rootScopeId
+        self.defaultScopeId = defaultScopeId
+        self.scopes = scopes
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(rootScopeId, forKey: .rootScopeId)
+        try container.encode(defaultScopeId, forKey: .defaultScopeId)
+        try container.encode(scopes, forKey: .scopes)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case rootScopeId, defaultScopeId, scopes
+    }
+}
+
 /// Mirror of the daemon's typed `unknown_project` rejection that
 /// project-scoped routes emit when `?projectId=` is set to an
 /// unconfigured id. Strict decode: any other `reason` value fails.

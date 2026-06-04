@@ -174,7 +174,7 @@ export function validateTrigger(
     if (declared) {
       const allowed = new Set(declared.fields);
       for (const key of Object.keys(filter)) {
-        if (!allowed.has(key)) {
+        if (!isDeclaredOrScopeAlias(key, allowed)) {
           throw new WorkflowDefinitionError(
             `triggers[${index}].filter references field "${key}" not declared on event "${event}" ` +
               `(declared by module "${declared.module}"). Declared fields: ${declared.fields.join(", ") || "(none)"}.`,
@@ -190,4 +190,11 @@ export function validateTrigger(
     filter,
     cooldownMs,
   };
+}
+
+function isDeclaredOrScopeAlias(key: string, allowed: Set<string>): boolean {
+  if (allowed.has(key)) return true;
+  if (key === "scopeId") return allowed.has("projectId");
+  if (key === "projectId") return allowed.has("scopeId");
+  return false;
 }

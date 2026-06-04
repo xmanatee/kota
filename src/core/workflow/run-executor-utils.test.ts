@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BusEnvelope } from "#core/events/event-bus.js";
-import { enqueueMatchingWorkflows, workflowUsesAgent } from "./run-executor-utils.js";
+import { enqueueMatchingWorkflows, matchesFilter, workflowUsesAgent } from "./run-executor-utils.js";
 import { safeJsonStringify } from "./run-io.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
@@ -88,6 +88,32 @@ describe("enqueueMatchingWorkflows", () => {
         () => {},
       ),
     ).toThrow("Workflow trigger payload cannot contain circular references");
+  });
+});
+
+describe("matchesFilter", () => {
+  it("matches scopeId filters against existing projectId payloads", () => {
+    expect(
+      matchesFilter(
+        { scopeId: "scope-a" },
+        { projectId: "scope-a", taskId: "task-1" },
+      ),
+    ).toBe(true);
+    expect(
+      matchesFilter(
+        { scopeId: "scope-b" },
+        { projectId: "scope-a", taskId: "task-1" },
+      ),
+    ).toBe(false);
+  });
+
+  it("keeps projectId filters compatible with scopeId-only payloads", () => {
+    expect(
+      matchesFilter(
+        { projectId: "scope-a" },
+        { scopeId: "scope-a", taskId: "task-1" },
+      ),
+    ).toBe(true);
   });
 });
 

@@ -239,6 +239,35 @@ describe("DaemonControlServer", () => {
     });
   });
 
+  describe("GET /scopes", () => {
+    it("returns the global root plus directory-backed child scopes", async () => {
+      const res = await fetchWithToken(port, "/scopes");
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toEqual({
+        rootScopeId: "global",
+        defaultScopeId: "test-project-id",
+        scopes: [
+          {
+            scopeId: "global",
+            displayName: "Global",
+          },
+          {
+            scopeId: "test-project-id",
+            displayName: "test-project",
+            parentScopeId: "global",
+            directoryRoot: "/tmp/test-project",
+          },
+        ],
+      });
+    });
+
+    it("requires the bearer token", async () => {
+      const res = await fetchNoToken(port, "/scopes");
+      expect(res.status).toBe(401);
+    });
+  });
+
   describe("active project selection", () => {
     it("GET /projects/active returns the current active project (null by default)", async () => {
       const res = await fetchWithToken(port, "/projects/active");

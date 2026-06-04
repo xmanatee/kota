@@ -73,6 +73,10 @@ export class DaemonClient {
     return core.getProjects(this.http);
   }
 
+  getScopes(): Promise<import('./daemon/conformance/decoders').ScopeRegistryProjection> {
+    return core.getScopes(this.http);
+  }
+
   getStatus(projectId?: string): Promise<DaemonStatus> {
     return core.getStatus(this.http, projectId);
   }

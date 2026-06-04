@@ -112,6 +112,48 @@ final class ContractFixtureTests: XCTestCase {
         )
     }
 
+    // MARK: - Scope registry projection
+
+    func testDecodesScopeRegistryProjection() throws {
+        let data = try Self.sectionData("scopes")
+        let projection = try JSONDecoder().decode(ScopeRegistryProjection.self, from: data)
+        XCTAssertEqual(projection.rootScopeId, "global")
+        XCTAssertEqual(projection.defaultScopeId, "p-kota-fixture-default")
+        XCTAssertEqual(projection.scopes.count, 3)
+        XCTAssertEqual(projection.scopes.first?.scopeId, "global")
+        XCTAssertEqual(projection.scopes.filter { $0.directoryRoot != nil }.count, 2)
+    }
+
+    func testScopeRegistryProjectionRejectsUnknownDefault() throws {
+        let json = """
+        {
+          "rootScopeId": "global",
+          "defaultScopeId": "missing",
+          "scopes": [
+            { "scopeId": "global", "displayName": "Global" }
+          ]
+        }
+        """
+        let data = Data(json.utf8)
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(ScopeRegistryProjection.self, from: data)
+        )
+    }
+
+    func testScopeRegistryProjectionRejectsEmptyScopes() throws {
+        let json = """
+        {
+          "rootScopeId": "global",
+          "defaultScopeId": "global",
+          "scopes": []
+        }
+        """
+        let data = Data(json.utf8)
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(ScopeRegistryProjection.self, from: data)
+        )
+    }
+
     func testDecodesUnknownProjectError() throws {
         let data = try Self.sectionData("unknownProjectError")
         let err = try JSONDecoder().decode(UnknownProjectError.self, from: data)

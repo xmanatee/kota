@@ -54,6 +54,19 @@ export type ProjectRegistryProjection = {
   projects: ProjectRegistryEntry[];
 };
 
+export type ScopeRegistryEntry = {
+  scopeId: string;
+  displayName: string;
+  parentScopeId?: string;
+  directoryRoot?: string;
+};
+
+export type ScopeRegistryProjection = {
+  rootScopeId: string;
+  defaultScopeId: string;
+  scopes: ScopeRegistryEntry[];
+};
+
 export type ClientIdentity = {
   projectName: string;
   projectDir: string;

@@ -16,7 +16,11 @@ export function matchesFilter(
 ): boolean {
   if (!filter) return true;
   for (const [key, expected] of Object.entries(filter)) {
-    const actual = payload[key];
+    let actual = payload[key];
+    if (actual === undefined) {
+      if (key === "scopeId") actual = payload.projectId;
+      if (key === "projectId") actual = payload.scopeId;
+    }
     if (Array.isArray(actual)) {
       if (Array.isArray(expected)) {
         if (!expected.some((value) => actual.includes(value))) return false;

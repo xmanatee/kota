@@ -145,6 +145,63 @@ export function parseProjectRegistryProjection(
   return { defaultProjectId, projects };
 }
 
+// MARK: - Scope registry projection
+
+export type ScopeRegistryEntry = {
+  scopeId: string;
+  displayName: string;
+  parentScopeId?: string;
+  directoryRoot?: string;
+};
+
+export type ScopeRegistryProjection = {
+  rootScopeId: string;
+  defaultScopeId: string;
+  scopes: ScopeRegistryEntry[];
+};
+
+export function parseScopeRegistryProjection(
+  raw: unknown,
+): ScopeRegistryProjection {
+  const obj = asObject(raw, "scopes");
+  const rootScopeId = asString(obj.rootScopeId, "scopes.rootScopeId");
+  const defaultScopeId = asString(
+    obj.defaultScopeId,
+    "scopes.defaultScopeId",
+  );
+  const scopesRaw = asArray(obj.scopes, "scopes.scopes");
+  if (scopesRaw.length === 0) {
+    fail("scopes.scopes must declare at least one entry");
+  }
+  const scopes = scopesRaw.map((entry, index) => {
+    const e = asObject(entry, `scopes.scopes[${index}]`);
+    return {
+      scopeId: asString(e.scopeId, `scopes.scopes[${index}].scopeId`),
+      displayName: asString(
+        e.displayName,
+        `scopes.scopes[${index}].displayName`,
+      ),
+      parentScopeId: asOptionalString(
+        e.parentScopeId,
+        `scopes.scopes[${index}].parentScopeId`,
+      ),
+      directoryRoot: asOptionalString(
+        e.directoryRoot,
+        `scopes.scopes[${index}].directoryRoot`,
+      ),
+    };
+  });
+  if (!scopes.some((scope) => scope.scopeId === rootScopeId)) {
+    fail(`scopes.rootScopeId ${rootScopeId} does not match any registered scope`);
+  }
+  if (!scopes.some((scope) => scope.scopeId === defaultScopeId)) {
+    fail(
+      `scopes.defaultScopeId ${defaultScopeId} does not match any registered scope`,
+    );
+  }
+  return { rootScopeId, defaultScopeId, scopes };
+}
+
 export type UnknownProjectError = {
   error: "Unknown project";
   reason: "unknown_project";

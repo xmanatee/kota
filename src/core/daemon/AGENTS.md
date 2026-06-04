@@ -74,10 +74,12 @@ Scope is the daemon's canonical context identity. `ScopeRegistry`
 project ids are compatibility ids. `DaemonConfig.projects` accepts directory
 scopes, and `projectDir` is the single-directory shorthand.
 
-Keep the boundary explicit: scope-specific routes, `scopeId` event payloads,
-and renamed runtime/store bundles belong in their own slices. Until then,
-project-scoped routes, `ProjectScopedEventBus`, and `ProjectRuntime` remain the
-active integration surfaces.
+Keep the boundary explicit: `/scopes` exposes the canonical scope projection,
+while `/projects`, `?projectId=`, `ProjectScopedEventBus`, and
+`ProjectRuntime` remain directory-scope compatibility surfaces until their
+own callers migrate. Workflow trigger filters may use `scopeId` against
+existing project-scoped event payloads; emitters still carry `projectId`
+until the event payload slice lands.
 
 ## Recoverability
 

@@ -13,10 +13,9 @@
  * `events/` and other foundational subsystems can import it without taking a
  * daemon-tree dependency.
  *
- * Slice 3a (this file) ships the primitives and a focused isolation test.
- * Slice 3b migrates per-project core subsystems (workflow runtime, scheduler,
- * approval/owner-question queues, task store) onto these primitives. Slice 3c
- * migrates module-defined events.
+ * `projectId` remains the emitted compatibility field for directory-backed
+ * scopes. Workflow trigger filters may use the canonical `scopeId` spelling;
+ * the workflow matcher treats it as an alias for `projectId`.
  */
 
 import type { EventBus } from "./event-bus.js";

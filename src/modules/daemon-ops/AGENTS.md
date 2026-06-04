@@ -37,11 +37,12 @@ CLI commands.
   consume the helpers in `src/core/server/daemon-client.ts` because they
   bridge `kota serve` ⇄ daemon and are not part of the namespace contract.
 
-## Project Scope
+## Directory-Scope Compatibility
 
-Project scope flows through one place — the registry surface — and every
-operator command consumes it through the same paths. Do not reinvent
-project selection per command.
+Scope is the core abstraction. The `kota project` operator command and
+`?projectId=` flags are compatibility language for directory-backed scopes,
+and every operator command consumes that compatibility adapter through the
+same paths. Do not reinvent selection per command.
 
 - Reads come through `client.projects.list()`. The daemon's `/projects`
   route returns the registry projection plus the operator-selected

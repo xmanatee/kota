@@ -101,7 +101,9 @@ and belong in `src/core/`.
 - `agent` protocol: role, defaults, skill list, tool policy, and ownership
   scope.
 - `scope` protocol: stable id, display name, optional parent scope, optional
-  directory root, and a registry projection.
+  directory root, and a registry projection. The daemon exposes a canonical
+  scope projection; project-named control surfaces are compatibility adapters
+  for directory-backed scopes.
 - `daemon` protocol: lifecycle, ownership of runtime state, module loading,
   and control-plane hosting.
 - `client` protocol: daemon discovery, capability-scoped control calls, and

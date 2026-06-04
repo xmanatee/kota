@@ -181,6 +181,13 @@ public final class DaemonClient {
         try await get("/projects")
     }
 
+    /// `GET /scopes` — canonical scope registry projection. `GET /projects`
+    /// stays as a directory-scope compatibility adapter for existing project
+    /// selectors.
+    func fetchScopes() async throws -> ScopeRegistryProjection {
+        try await get("/scopes")
+    }
+
     /// `GET /capabilities` — typed capability readiness payload. Each
     /// entry carries a stable id, status, optional reason code, and short
     /// operator-facing message. Clients should hide or disable controls
