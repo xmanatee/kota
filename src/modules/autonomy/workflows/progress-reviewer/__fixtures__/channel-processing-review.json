@@ -1,0 +1,30 @@
+{
+  "verdict": "needs-steering",
+  "summary": "Channel processing produced activity but lacks a reviewable rendered-routing fixture.",
+  "claims": [
+    {
+      "id": "claim-channel-routing-evidence",
+      "claim": "The channel-processing scope needs a concrete fixture tying inbound messages to the routed workflow outcome.",
+      "evidenceIds": ["event:1"],
+      "confidence": "medium"
+    }
+  ],
+  "followUpTasks": [
+    {
+      "title": "Add channel progress review routing fixture",
+      "summary": "Create a fixture that shows an inbound channel batch being reviewed with routed workflow evidence.",
+      "priority": "p2",
+      "area": "channel",
+      "evidenceIds": ["event:1"],
+      "acceptanceEvidence": "Progress-review workflow test or fixture artifact showing the inbound channel batch and resulting review action."
+    }
+  ],
+  "ownerQuestions": [
+    {
+      "question": "Should channel progress reviews require rendered message fixtures for every channel batch?",
+      "reason": "The current evidence shows channel activity but not the operator-visible routed outcome.",
+      "evidenceIds": ["event:1"],
+      "proposedAnswers": ["Require rendered fixtures", "Runtime transcript is enough"]
+    }
+  ]
+}

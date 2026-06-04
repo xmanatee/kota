@@ -1,0 +1,14 @@
+{
+  "verdict": "on-track",
+  "summary": "Recent autonomous coding work completed with bounded evidence and no steering gap.",
+  "claims": [
+    {
+      "id": "claim-builder-success",
+      "claim": "The reviewed coding scope has a successful builder run with matching task evidence.",
+      "evidenceIds": ["run:builder-success", "task:task-ship-coding-slice"],
+      "confidence": "high"
+    }
+  ],
+  "followUpTasks": [],
+  "ownerQuestions": []
+}

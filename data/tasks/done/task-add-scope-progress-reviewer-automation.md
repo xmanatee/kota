@@ -1,13 +1,13 @@
 ---
 id: task-add-scope-progress-reviewer-automation
 title: Add scope progress reviewer automation
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Add a generic progress-reviewer automation that periodically or count-threshold reviews scoped runs, logs, tasks, artifacts, and changes to assess whether agents and workflows are producing the intended outcomes.
 depends_on: [task-promote-projects-into-hierarchical-scopes, task-unify-hooks-and-workflows-under-one-automation-pro, task-add-generic-event-batching-to-workflow-triggers]
 created_at: 2026-06-03T13:40:47.946Z
-updated_at: 2026-06-04T10:51:23.481Z
+updated_at: 2026-06-04T11:04:41.000Z
 ---
 
 ## Problem
@@ -97,3 +97,13 @@ questions when evidence says it is not.
 - A run artifact under `.kota/runs/<run-id>/` containing a structured review,
   cited evidence, and either no-op justification or created task ids.
 - Task queue validation output after any reviewer-created task fixture.
+
+## Completion
+
+Implemented `progress-reviewer` as a scoped autonomy workflow with manual,
+scheduled, run-count, task-count, and inbound-signal batch triggers. The
+workflow collects bounded run/task/event/artifact/git/owner-question evidence
+and approval outcome evidence, records structured review artifacts, creates
+deduped normalized follow-up tasks, and enqueues deduped owner questions when
+the reviewer asks for steering. Focused fixtures cover autonomous coding and
+channel-processing reviews.
