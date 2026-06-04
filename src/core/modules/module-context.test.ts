@@ -5,7 +5,7 @@
 
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { initSecretStore, resetSecretStore } from "#core/config/secrets.js";
+import { getSecretStore, initSecretStore, resetSecretStore } from "#core/config/secrets.js";
 import { initEventBus, resetEventBus } from "#core/events/event-bus.js";
 import {
   defineDaemonWideModuleEvent,
@@ -101,13 +101,16 @@ describe("ModuleContext.log", () => {
 // ── ctx.getSecret ────────────────────────────────────────────────────────
 
 describe("ModuleContext.getSecret", () => {
-  it("returns null when secret store is not initialized", async () => {
+  it("initializes the project secret store lazily", async () => {
     const onLoad = vi.fn();
     const loader = new ModuleLoader({});
+    loader.setCwd("/tmp/test-secret-lazy");
     await loader.load({ name: "secret-test", onLoad });
 
     const ctx: ModuleContext = onLoad.mock.calls[0][0];
+    expect(getSecretStore()).toBeNull();
     expect(ctx.getSecret("MY_KEY")).toBeNull();
+    expect(getSecretStore()).not.toBeNull();
   });
 
   it("returns secret value when store is initialized", async () => {

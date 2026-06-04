@@ -300,7 +300,7 @@ export async function checkProviderConnectivity(projectDir: string): Promise<Che
   const providerType = mpConfig?.type ?? "anthropic";
   const explicitKey = mpConfig?.apiKey;
   const baseUrl = mpConfig?.baseUrl;
-  const apiKey = resolveApiKey(providerType, explicitKey);
+  const apiKey = resolveApiKey(providerType, explicitKey, { projectDir });
   const presetDefaultModel = resolveActivePresetFromConfig(config).defaultModel;
   const model = PROBE_MODEL[providerType] ?? config.model ?? presetDefaultModel;
 
@@ -313,7 +313,13 @@ export async function checkProviderConnectivity(projectDir: string): Promise<Che
   }
 
   try {
-    const { client } = createModelClient({ model, provider: providerType, baseUrl, apiKey });
+    const { client } = createModelClient({
+      model,
+      provider: providerType,
+      baseUrl,
+      apiKey,
+      projectDir,
+    });
     await client.messages.create({
       model,
       max_tokens: 1,

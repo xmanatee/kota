@@ -224,7 +224,10 @@ async function runDelegateWithBudget(
   const urlsFetched = new Set<string>();
   const searchQueries = new Set<string>();
 
-  const client = delegateConfig.client ?? createModelClient({ model: delegateConfig.model }).client;
+  const client = delegateConfig.client ?? createModelClient({
+    model: delegateConfig.model,
+    projectDir: delegateConfig.cwd,
+  }).client;
   const costTracker = delegateConfig.costTracker;
   const transport = delegateConfig.transport;
   const messages: KotaMessage[] = [{ role: "user", content: task }];

@@ -51,6 +51,7 @@ import type { RecallClient } from "#modules/recall/client.js";
 import type { RepoTasksClient } from "#modules/repo-tasks/client.js";
 import type { RetractClient } from "#modules/retract/client.js";
 import type { SecretsClient } from "#modules/secrets/client.js";
+import type { SetupClient } from "#modules/setup/client.js";
 import type { SkillsClient } from "#modules/skill-ops/client.js";
 import type { VoiceClient } from "#modules/voice/client.js";
 import type { WebClient } from "#modules/web/client.js";
@@ -95,6 +96,7 @@ export interface KotaClient {
   readonly answer: AnswerClient;
   readonly capture: CaptureClient;
   readonly retract: RetractClient;
+  readonly setup: SetupClient;
 }
 
 /**
@@ -131,6 +133,7 @@ export const KOTA_CLIENT_NAMESPACES = [
   "answer",
   "capture",
   "retract",
+  "setup",
 ] as const satisfies ReadonlyArray<keyof KotaClient>;
 
 export type KotaClientNamespace = (typeof KOTA_CLIENT_NAMESPACES)[number];

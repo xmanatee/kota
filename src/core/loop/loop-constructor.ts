@@ -92,7 +92,10 @@ export function initAgentSession(
     ? thinkingBudget + state.maxTokens
     : state.maxTokens;
 
-  state.client = options.client ?? createModelClient({ model: state.model }).client;
+  state.client = options.client ?? createModelClient({
+    model: state.model,
+    projectDir,
+  }).client;
   state.costTracker = new CostTracker();
 
   if (options.projectRuntime) {

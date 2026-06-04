@@ -3,6 +3,13 @@ import type {
   BusEvents,
   SessionGuardrailsReloadSummary,
 } from "#core/events/event-bus-types.js";
+import type {
+  ModuleSetupCompleteInput,
+  ModuleSetupFormValues,
+  ModuleSetupMutationResult,
+  ModuleSetupStartResult,
+  ModuleSetupStatusResponse,
+} from "#core/modules/setup-requirements.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { GuardrailsSnapshot } from "#core/tools/guardrails.js";
 import type { ToolCallSummaryEntry, WorkflowActiveRun, WorkflowQueuedRun, WorkflowRuntimeState, WorkflowStepSkipReason } from "#core/workflow/run-types.js";
@@ -255,6 +262,34 @@ export type DaemonControlHandle = {
   getWorkflowLiveStatus(projectId?: ProjectId): WorkflowLiveStatus;
   /** Snapshot of every contributed channel's startup posture. */
   listChannelStatuses(): ChannelStatus[];
+  /** Setup/auth requirements and current readiness status for loaded modules. */
+  listModuleSetupStatuses(): Promise<ModuleSetupStatusResponse>;
+  submitModuleSetupForm(
+    moduleName: string,
+    requirementId: string,
+    values: ModuleSetupFormValues,
+  ): Promise<ModuleSetupMutationResult>;
+  storeModuleSetupSecret(
+    moduleName: string,
+    requirementId: string,
+    secretValues: Record<string, string>,
+  ): Promise<ModuleSetupMutationResult>;
+  startModuleSetup(
+    moduleName: string,
+    requirementId: string,
+  ): Promise<ModuleSetupStartResult>;
+  completeModuleSetup(
+    actionId: string,
+    input: ModuleSetupCompleteInput,
+  ): Promise<ModuleSetupMutationResult>;
+  refreshModuleSetup(
+    moduleName: string,
+    requirementId: string,
+  ): Promise<ModuleSetupMutationResult>;
+  revokeModuleSetup(
+    moduleName: string,
+    requirementId: string,
+  ): Promise<ModuleSetupMutationResult>;
   /** Typed projection of the daemon's configured project registry. */
   getProjectRegistryProjection(): ProjectRegistryProjection;
   /**

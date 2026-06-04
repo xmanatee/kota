@@ -20,6 +20,7 @@ import {
   DaemonControlServer,
   type WorkflowMetricCounts,
 } from "#core/daemon/daemon-control.js";
+import { daemonSetupControlHandleStubs } from "#core/daemon/daemon-setup-control-test-stubs.js";
 import {
   getProviderRegistry,
   initProviderRegistry,
@@ -105,6 +106,7 @@ function makeHandle(): DaemonControlHandle {
         message: "No module contributed a dashboard capability.",
       },
     })),
+    ...daemonSetupControlHandleStubs(),
   };
 }
 

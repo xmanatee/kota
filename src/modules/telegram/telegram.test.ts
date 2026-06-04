@@ -95,7 +95,7 @@ function makeStubCtx(
     getModuleSummaries: () => [],
     getModuleConfig: () => undefined,
     log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
-    getSecret: () => null,
+    getSecret: (key) => process.env[key] ?? null,
     listTools: () => [],
     events: makeStubEventProxy(b),
     createSession: () => ({ send: async () => "", close: () => {} }),
@@ -145,6 +145,7 @@ describe("telegramModule", () => {
       "recall",
       "repo-tasks",
       "retract",
+      "secrets",
       "transcription",
     ]);
   });

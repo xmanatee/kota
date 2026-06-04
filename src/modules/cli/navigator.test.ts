@@ -201,6 +201,26 @@ function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
     retract: {
       retract: stub({ ok: false, reason: "no_contributors" }),
     },
+    setup: {
+      list: stub({
+        requirements: [],
+        summary: {
+          ready: 0,
+          missing: 0,
+          pending: 0,
+          expired: 0,
+          revoked: 0,
+          unknown: 0,
+          unavailable: 0,
+        },
+      }),
+      submitForm: stub({ ok: false, reason: "not_found", message: "stub" }),
+      storeSecret: stub({ ok: false, reason: "not_found", message: "stub" }),
+      start: stub({ ok: false, reason: "not_found", message: "stub" }),
+      complete: stub({ ok: false, reason: "not_found", message: "stub" }),
+      refresh: stub({ ok: false, reason: "not_found", message: "stub" }),
+      revoke: stub({ ok: false, reason: "not_found", message: "stub" }),
+    },
   };
   return { ...base, ...overrides };
 }

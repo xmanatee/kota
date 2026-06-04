@@ -175,6 +175,7 @@ export function registerHistoryCommands(program: Command) {
         provider: config.modelProvider?.type,
         baseUrl: config.modelProvider?.baseUrl,
         apiKey: config.modelProvider?.apiKey,
+        projectDir: resume.projectDir,
       });
       await interactiveMode({
         autonomyMode: resolveChannelAutonomyMode(

@@ -22,6 +22,7 @@ import {
   parseRecallResult,
   parseRetractResult,
   parseScopeRegistryProjection,
+  parseSetupStatusResponse,
   parseTasksSearchResponse,
   parseUnknownProjectError,
   parseVoiceFailure,
@@ -93,6 +94,49 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
         throw new Error("expected two directory-backed child scopes");
       }
     },
+  },
+  {
+    name: "setupRequirements: status arms for config, secret, oauth, and browser profile",
+    path: "setupRequirements.status",
+    parse: parseSetupStatusResponse,
+    assertPositive: (decoded) => {
+      const r = decoded as {
+        requirements: Array<{ kind: string; state: string; sensitivity: string }>;
+      };
+      if (r.requirements.length !== 4) {
+        throw new Error("expected 4 setup requirement statuses");
+      }
+      if (!r.requirements.some((entry) => entry.kind === "oauth" && entry.state === "pending")) {
+        throw new Error("expected pending OAuth setup arm");
+      }
+      if (!r.requirements.some((entry) => entry.sensitivity === "browser-profile")) {
+        throw new Error("expected browser-profile sensitivity arm");
+      }
+    },
+  },
+  {
+    name: "setupRequirements: unknown state rejected",
+    path: "setupRequirements.negative_unknownState",
+    parse: parseSetupStatusResponse,
+    expectThrow: true,
+  },
+  {
+    name: "setupRequirements: unknown kind rejected",
+    path: "setupRequirements.negative_unknownKind",
+    parse: parseSetupStatusResponse,
+    expectThrow: true,
+  },
+  {
+    name: "setupRequirements: unknown setup mode rejected",
+    path: "setupRequirements.negative_unknownSetupMode",
+    parse: parseSetupStatusResponse,
+    expectThrow: true,
+  },
+  {
+    name: "setupRequirements: unknown field value kind rejected",
+    path: "setupRequirements.negative_unknownFieldValueKind",
+    parse: parseSetupStatusResponse,
+    expectThrow: true,
   },
   // recall
   {

@@ -110,6 +110,7 @@ export class DaemonControlClient implements KotaClient {
   readonly answer: KotaClient["answer"];
   readonly capture: KotaClient["capture"];
   readonly retract: KotaClient["retract"];
+  readonly setup: KotaClient["setup"];
 
   private readonly transport: DaemonTransport;
   private readonly baseUrl: string;
@@ -145,6 +146,7 @@ export class DaemonControlClient implements KotaClient {
     this.answer = handlers.answer;
     this.capture = handlers.capture;
     this.retract = handlers.retract;
+    this.setup = handlers.setup;
   }
 
   forProject(projectId: string): KotaClient {

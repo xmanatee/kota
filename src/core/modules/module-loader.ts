@@ -32,6 +32,7 @@ import type {
   ModuleSummary,
   RouteRegistration,
 } from "./module-types.js";
+import type { ModuleSetupRequirementContribution } from "./setup-requirements.js";
 
 export type { ModuleSource, ModuleSummary } from "./module-types.js";
 
@@ -186,6 +187,12 @@ export class ModuleLoader {
   getContributedControlRoutes(): ControlRouteRegistration[] {
     this.assertRuntime("getContributedControlRoutes");
     return this.collectFromModules((name) => this.state.moduleControlRoutes.get(name));
+  }
+
+  getContributedSetupRequirements(): ModuleSetupRequirementContribution[] {
+    return this.collectFromModules((name) =>
+      this.state.moduleSetupRequirementDefs.get(name)
+    );
   }
 
   getContributedWorkflows(): RegisteredWorkflowDefinitionInput[] { return this.state.contributedWorkflows; }

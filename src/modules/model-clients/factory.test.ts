@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AnthropicModelClient } from "./anthropic.js";
 import {
@@ -69,6 +72,25 @@ describe("resolveApiKey", () => {
 
 	it("returns explicit key when provided", () => {
 		expect(resolveApiKey("anthropic", "my-key")).toBe("my-key");
+	});
+
+	it("resolves explicit $KEY config references through setup secrets", () => {
+		expect(
+			resolveApiKey("anthropic", "$ANTHROPIC_API_KEY", {
+				secretResolver: (key) =>
+					key === "ANTHROPIC_API_KEY" ? "sk-ant-stored" : null,
+			}),
+		).toBe("sk-ant-stored");
+	});
+
+	it("reads setup-stored provider keys before process.env", () => {
+		process.env.OPENAI_API_KEY = "sk-env";
+		expect(
+			resolveApiKey("openai", undefined, {
+				secretResolver: (key) =>
+					key === "OPENAI_API_KEY" ? "sk-openai-stored" : null,
+			}),
+		).toBe("sk-openai-stored");
 	});
 
 	it("reads ANTHROPIC_API_KEY for anthropic provider", () => {
@@ -200,6 +222,25 @@ describe("createModelClientImpl", () => {
 				presetName: "openai",
 			});
 			expect(call.effortTranslator?.wireSurface).toBe("openai-reasoning-effort");
+		});
+
+		it("passes setup-stored OpenAI API key to OpenAIModelClient", () => {
+			delete process.env.OPENAI_API_KEY;
+			const projectDir = mkdtempSync(join(tmpdir(), "kota-model-client-"));
+			mkdirSync(join(projectDir, ".kota"), { recursive: true });
+			writeFileSync(
+				join(projectDir, ".kota", "secrets.json"),
+				`${JSON.stringify({ OPENAI_API_KEY: "sk-openai-project" })}\n`,
+			);
+
+			createModelClientImpl({
+				model: "openai/gpt-4o",
+				projectDir,
+			});
+
+			const call = (OpenAIModelClient as unknown as { mock: { calls: unknown[][] } })
+				.mock.calls[0][0] as { apiKey: string };
+			expect(call.apiKey).toBe("sk-openai-project");
 		});
 
 		it("parses anthropic-oai/claude-sonnet-4-6 and attaches the thinking translator", () => {

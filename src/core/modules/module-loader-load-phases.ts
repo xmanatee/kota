@@ -18,10 +18,12 @@ import {
   type ModuleRuntimeContext,
   resolveModuleAgents,
   resolveModuleChannels,
+  resolveModuleSetupRequirements,
   resolveModuleSkills,
   resolveModuleWorkflows,
   type ToolDef,
 } from "./module-types.js";
+import { validateModuleSetupRequirements } from "./setup-requirements.js";
 
 /**
  * Cwd + lifecycle-mode the load phases need but that does not belong on the
@@ -242,6 +244,23 @@ export async function attachModuleAgents(
   state.moduleAgentDefs.set(mod.name, agents);
 }
 
+export async function attachModuleSetupRequirements(
+  state: LoaderState,
+  mod: KotaModule,
+  ctx: ModuleRuntimeContext,
+): Promise<void> {
+  const requirements = await resolveModuleSetupRequirements(mod, ctx);
+  if (requirements.length === 0) return;
+  validateModuleSetupRequirements(mod.name, requirements);
+  state.moduleSetupRequirementDefs.set(
+    mod.name,
+    requirements.map((requirement) => ({
+      moduleName: mod.name,
+      requirement,
+    })),
+  );
+}
+
 /**
  * Drive every load phase a single module passes through, in order. The early
  * phases (duplicate check, dependency check, config slices, module events)
@@ -266,6 +285,7 @@ export async function runModuleLoadPhases(
   await runModuleOnLoad(policy, mod, ctx);
   await attachModuleSkills(state, policy, mod, ctx);
   await attachModuleAgents(state, mod, ctx);
+  await attachModuleSetupRequirements(state, mod, ctx);
 
   state.modules.push(mod);
   state.moduleRegistry.set(mod.name, mod);

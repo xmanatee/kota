@@ -2,9 +2,9 @@
  * Google Workspace module — Gmail, Calendar, and Drive tools for agents.
  *
  * Config (under modules.google-workspace):
- *   clientId:     OAuth 2.0 client ID or $ENV_VAR reference. Required.
- *   clientSecret: OAuth 2.0 client secret or $ENV_VAR reference. Required.
- *   refreshToken: OAuth 2.0 refresh token or $ENV_VAR reference. Required.
+ *   clientId:     OAuth 2.0 client ID or $SECRET_NAME reference. Required.
+ *   clientSecret: OAuth 2.0 client secret or $SECRET_NAME reference. Required.
+ *   refreshToken: OAuth 2.0 refresh token or $SECRET_NAME reference. Required.
  *   userId:       Gmail/Calendar user (default: "me")
  *   calendarId:   Calendar ID (default: "primary")
  *   inbound:      Optional account identity and trust lists for inbound routes.
@@ -17,9 +17,10 @@
  *      https://www.googleapis.com/auth/calendar
  *      https://www.googleapis.com/auth/drive.readonly
  *   4. Store credentials in .kota/config.json under modules.google-workspace,
- *      or use $ENV_VAR references to environment variables.
+ *      or use $SECRET_NAME references resolved by the shared secret provider.
  */
 
+import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type {
   KotaModule,
@@ -28,13 +29,18 @@ import type {
   RouteRegistration,
   ToolDef,
 } from "#core/modules/module-types.js";
+import type { ModuleSetupRequirement } from "#core/modules/setup-requirements.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import {
   type InboundSignalJsonObject,
   inboundSignalReceived,
 } from "#modules/inbound-signals/events.js";
-import { getAccessToken, resolveEnv } from "./auth.js";
+import { getAccessToken, resolveSecretReference } from "./auth.js";
 import { makeCalendarCreateEvent, makeCalendarListEvents } from "./calendar.js";
+import {
+  createGoogleWorkspaceReadinessSource,
+  GOOGLE_WORKSPACE_OAUTH_CAPABILITY_ID,
+} from "./capability-readiness.js";
 import { makeDriveListFiles, makeDriveReadFile } from "./drive.js";
 import { makeGmailGetMessage, makeGmailListMessages, makeGmailSend } from "./gmail.js";
 import {
@@ -53,11 +59,11 @@ type GoogleWorkspaceInboundConfig = GoogleWorkspaceInboundTrustConfig & {
 };
 
 type GoogleWorkspaceConfig = {
-  /** OAuth 2.0 client ID or $ENV_VAR reference. Required. */
+  /** OAuth 2.0 client ID or $SECRET_NAME reference. Required. */
   clientId: string;
-  /** OAuth 2.0 client secret or $ENV_VAR reference. Required. */
+  /** OAuth 2.0 client secret or $SECRET_NAME reference. Required. */
   clientSecret: string;
-  /** OAuth 2.0 refresh token or $ENV_VAR reference. Required. */
+  /** OAuth 2.0 refresh token or $SECRET_NAME reference. Required. */
   refreshToken: string;
   /** Gmail user ID (default: "me") */
   userId?: string;
@@ -66,6 +72,79 @@ type GoogleWorkspaceConfig = {
   /** Optional sender/organizer trust lists for inbound Gmail and Calendar signals. */
   inbound?: GoogleWorkspaceInboundConfig;
 };
+
+const googleWorkspaceSetupRequirements: ModuleSetupRequirement[] = [
+  {
+    id: "oauth-config",
+    kind: "config",
+    title: "Google Workspace OAuth config references",
+    description:
+      "Non-sensitive config paths that point runtime OAuth fields at secret names.",
+    required: true,
+    scope: "project",
+    owner: "google-workspace",
+    sensitivity: "none",
+    setup: {
+      mode: "form",
+      fields: [
+        {
+          id: "client-id-ref",
+          label: "Client ID reference",
+          type: "string",
+          valueKind: "secret-reference",
+          configPath: "modules.google-workspace.clientId",
+          required: true,
+          placeholder: "$GOOGLE_CLIENT_ID",
+          helperText: "Use an environment or secret reference, not the raw client id.",
+        },
+        {
+          id: "client-secret-ref",
+          label: "Client secret reference",
+          type: "string",
+          valueKind: "secret-reference",
+          configPath: "modules.google-workspace.clientSecret",
+          required: true,
+          placeholder: "$GOOGLE_CLIENT_SECRET",
+          helperText: "Use an environment or secret reference, not the raw secret.",
+        },
+        {
+          id: "refresh-token-ref",
+          label: "Refresh token reference",
+          type: "string",
+          valueKind: "secret-reference",
+          configPath: "modules.google-workspace.refreshToken",
+          required: true,
+          placeholder: "$GOOGLE_REFRESH_TOKEN",
+          helperText: "Use an environment or secret reference, not the raw refresh token.",
+        },
+      ],
+    },
+  },
+  {
+    id: "oauth-credentials",
+    kind: "oauth",
+    title: "Google Workspace OAuth credentials",
+    description:
+      "OAuth client and refresh token values stored through the shared secret provider.",
+    required: true,
+    scope: "project",
+    owner: "google-workspace",
+    health: { capabilityIds: [GOOGLE_WORKSPACE_OAUTH_CAPABILITY_ID] },
+    sensitivity: "oauth",
+    reauth: true,
+    setup: {
+      mode: "url",
+      url: "https://console.cloud.google.com/apis/credentials",
+      label: "Open Google Cloud OAuth credentials",
+      pendingTtlMs: 30 * 60 * 1000,
+    },
+    secretRefs: [
+      { name: "GOOGLE_CLIENT_ID", scope: "project" },
+      { name: "GOOGLE_CLIENT_SECRET", scope: "project" },
+      { name: "GOOGLE_REFRESH_TOKEN", scope: "project" },
+    ],
+  },
+];
 
 function inboundSignalContext(
   ctx: ModuleContext,
@@ -193,6 +272,7 @@ const googleWorkspaceModule: KotaModule = {
   version: "1.0.0",
   description: "Gmail, Calendar, and Drive tools for agents",
   dependencies: ["inbound-signals"],
+  setupRequirements: googleWorkspaceSetupRequirements,
   configSchema: {
     type: "object",
     additionalProperties: false,
@@ -233,6 +313,16 @@ const googleWorkspaceModule: KotaModule = {
     },
   },
 
+  onLoad(ctx) {
+    ctx.registerProvider(
+      CAPABILITY_READINESS_PROVIDER_TYPE,
+      createGoogleWorkspaceReadinessSource({
+        getConfig: () => ctx.getModuleConfig<GoogleWorkspaceConfig>(),
+        getSecret: ctx.getSecret,
+      }),
+    );
+  },
+
   tools(ctx: ModuleContext): ToolDef[] {
     const config = ctx.getModuleConfig<GoogleWorkspaceConfig>();
 
@@ -243,9 +333,9 @@ const googleWorkspaceModule: KotaModule = {
       return [];
     }
 
-    const clientId = resolveEnv(config.clientId);
-    const clientSecret = resolveEnv(config.clientSecret);
-    const refreshToken = resolveEnv(config.refreshToken);
+    const clientId = resolveSecretReference(config.clientId, ctx.getSecret);
+    const clientSecret = resolveSecretReference(config.clientSecret, ctx.getSecret);
+    const refreshToken = resolveSecretReference(config.refreshToken, ctx.getSecret);
 
     if (!clientId || !clientSecret || !refreshToken) {
       ctx.log.warn(

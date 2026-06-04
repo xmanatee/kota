@@ -1,5 +1,6 @@
 /**
- * Provider factory — resolves a ModelClient from CLI flags, config, and env vars.
+ * Provider factory — resolves a ModelClient from CLI flags, config, setup
+ * secrets, and env-backed secret providers.
  *
  * Supports provider/model notation `<provider>/<model>` (e.g.
  * `ollama/<model>`, `openai/<model>`, `anthropic/<model>`) and explicit
@@ -8,6 +9,7 @@
  */
 
 import type { KotaConfig } from "#core/config/config.js";
+import { getSecretStore, SecretStore } from "#core/config/secrets.js";
 import type { ModelClient, ProviderFactoryOptions, ResolvedProvider } from "#core/model/model-client.js";
 import { AnthropicModelClient } from "./anthropic.js";
 import { FailoverModelClient } from "./failover-client.js";
@@ -49,6 +51,13 @@ export const PROVIDER_PRESETS: Record<
 	lmstudio: { baseUrl: "http://localhost:1234/v1", apiKeyEnv: "" },
 };
 
+export type ModelClientSecretResolver = (key: string) => string | null;
+
+type SecretResolutionOptions = {
+	projectDir?: string;
+	secretResolver?: ModelClientSecretResolver;
+};
+
 /** Parse "provider/model" notation. Returns just the model if no slash. */
 export function parseModelString(model: string): {
 	provider?: string;
@@ -61,26 +70,54 @@ export function parseModelString(model: string): {
 	return { model };
 }
 
-/** Resolve the API key for a given provider from explicit value or env var. */
+function lookupSecret(
+	key: string,
+	options: SecretResolutionOptions = {},
+): string {
+	const injected = options.secretResolver?.(key);
+	if (injected) return injected;
+	if (options.projectDir) {
+		return new SecretStore(options.projectDir).get(key) ?? "";
+	}
+	return getSecretStore()?.get(key) ?? process.env[key] ?? "";
+}
+
+function resolveSecretReference(
+	raw: string,
+	options: SecretResolutionOptions = {},
+): string {
+	if (!raw.startsWith("$")) return raw;
+	return lookupSecret(raw.slice(1), options);
+}
+
+function apiKeyNameForProvider(providerName: string): string {
+	if (providerName === "anthropic") return "ANTHROPIC_API_KEY";
+	const preset = PROVIDER_PRESETS[providerName];
+	if (preset?.apiKeyEnv) return preset.apiKeyEnv;
+	return providerName === "ollama" || providerName === "lmstudio"
+		? ""
+		: "OPENAI_API_KEY";
+}
+
+/** Resolve the API key for a given provider from explicit config, setup secrets, or env-backed providers. */
 export function resolveApiKey(
 	providerName: string,
 	explicit?: string,
+	options: SecretResolutionOptions = {},
 ): string {
-	if (explicit) return explicit;
-	if (providerName === "anthropic")
-		return process.env.ANTHROPIC_API_KEY || "";
-	const preset = PROVIDER_PRESETS[providerName];
-	if (preset?.apiKeyEnv) return process.env[preset.apiKeyEnv] || "";
-	return process.env.OPENAI_API_KEY || "";
+	if (explicit) return resolveSecretReference(explicit, options);
+	const keyName = apiKeyNameForProvider(providerName);
+	return keyName ? lookupSecret(keyName, options) : "";
 }
 
 function createClientForProvider(
 	providerName: string,
 	baseUrl?: string,
 	apiKey?: string,
+	options: SecretResolutionOptions = {},
 ): ModelClient {
 	if (providerName === "anthropic") {
-		const resolvedKey = resolveApiKey(providerName, apiKey);
+		const resolvedKey = resolveApiKey(providerName, apiKey, options);
 		return new AnthropicModelClient({
 			maxRetries: 5,
 			...(resolvedKey ? { apiKey: resolvedKey } : {}),
@@ -97,7 +134,7 @@ function createClientForProvider(
 		);
 	}
 
-	const resolvedKey = resolveApiKey(providerName, apiKey);
+	const resolvedKey = resolveApiKey(providerName, apiKey, options);
 	return new OpenAIModelClient({
 		baseUrl: resolvedBaseUrl,
 		apiKey: resolvedKey,
@@ -129,7 +166,12 @@ export function createModelClientImpl(
 	const providerName = opts.provider || parsed.provider || "anthropic";
 	const model = parsed.model;
 
-	const primary = createClientForProvider(providerName, opts.baseUrl, opts.apiKey);
+	const primary = createClientForProvider(
+		providerName,
+		opts.baseUrl,
+		opts.apiKey,
+		opts,
+	);
 
 	return {
 		client: primary,
@@ -150,11 +192,17 @@ export function createModelClientWithFailover(
 	const providerName = opts.provider || parsed.provider || "anthropic";
 	const model = parsed.model;
 
-	const primary = createClientForProvider(providerName, opts.baseUrl, opts.apiKey);
+	const primary = createClientForProvider(
+		providerName,
+		opts.baseUrl,
+		opts.apiKey,
+		opts,
+	);
 	const fallback = createClientForProvider(
 		failoverConfig.provider,
 		failoverConfig.baseUrl,
 		failoverConfig.apiKey,
+		opts,
 	);
 
 	const failoverClient = new FailoverModelClient({

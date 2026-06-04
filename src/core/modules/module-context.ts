@@ -6,7 +6,7 @@ import {
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
-import { getSecretStore } from "#core/config/secrets.js";
+import { getSecretStore, initSecretStore } from "#core/config/secrets.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { BusEnvelope, BusEvents } from "#core/events/event-bus-types.js";
 import {
@@ -170,8 +170,8 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
     },
     log,
     getSecret: (key: string): string | null => {
-      const store = getSecretStore();
-      return store?.get(key) ?? null;
+      const store = getSecretStore() ?? initSecretStore(cwd);
+      return store.get(key);
     },
     listTools: (): string[] => {
       return getRegisteredTools().map((t) => t.name);

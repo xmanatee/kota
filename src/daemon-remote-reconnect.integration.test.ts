@@ -15,6 +15,7 @@ import type {
   WorkflowRunSummary,
 } from "#core/daemon/daemon-control.js";
 import { DaemonControlServer } from "#core/daemon/daemon-control.js";
+import { daemonSetupControlHandleStubs } from "#core/daemon/daemon-setup-control-test-stubs.js";
 import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
 import { OwnerQuestionQueue, resetOwnerQuestionQueue, setOwnerQuestionQueueInstance } from "#core/daemon/owner-question-queue.js";
 import { EventBus } from "#core/events/event-bus.js";
@@ -319,6 +320,7 @@ function makeHandle(
     unregisterSession: () => undefined,
     listSessions: () => sessions,
     setSessionAutonomyMode: () => ({ ok: true }),
+    ...daemonSetupControlHandleStubs(),
   };
 }
 

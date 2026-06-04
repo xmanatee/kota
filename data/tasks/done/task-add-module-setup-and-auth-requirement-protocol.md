@@ -1,13 +1,13 @@
 ---
 id: task-add-module-setup-and-auth-requirement-protocol
 title: Add module setup and auth requirement protocol
-status: ready
+status: done
 priority: p1
 area: modules
 summary: Let modules declare structured setup, config, secret, OAuth, reauth, and health requirements that every client can render and satisfy without exposing credentials to agents or prompts.
 depends_on: [task-promote-projects-into-hierarchical-scopes]
 created_at: 2026-06-03T13:40:18.801Z
-updated_at: 2026-06-04T08:08:29.864Z
+updated_at: 2026-06-04T10:26:00.000Z
 ---
 
 ## Problem

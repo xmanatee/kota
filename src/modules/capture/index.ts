@@ -106,6 +106,7 @@ function createDefaultClassifier(ctx: ModuleContext): CaptureClassifier {
           ...(config.modelProvider?.apiKey !== undefined && {
             apiKey: config.modelProvider.apiKey,
           }),
+          projectDir: ctx.cwd,
         });
       } catch (err) {
         ctx.log.warn(

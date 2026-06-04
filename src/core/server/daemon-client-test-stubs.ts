@@ -42,6 +42,50 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
     retract: {
       retract: async () => ({ ok: false, reason: "no_contributors" }),
     },
+    setup: {
+      list: async () => ({
+        requirements: [],
+        summary: {
+          ready: 0,
+          missing: 0,
+          pending: 0,
+          expired: 0,
+          revoked: 0,
+          unknown: 0,
+          unavailable: 0,
+        },
+      }),
+      submitForm: async () => ({
+        ok: false as const,
+        reason: "not_found" as const,
+        message: "stub",
+      }),
+      storeSecret: async () => ({
+        ok: false as const,
+        reason: "not_found" as const,
+        message: "stub",
+      }),
+      start: async () => ({
+        ok: false as const,
+        reason: "not_found" as const,
+        message: "stub",
+      }),
+      complete: async () => ({
+        ok: false as const,
+        reason: "not_found" as const,
+        message: "stub",
+      }),
+      refresh: async () => ({
+        ok: false as const,
+        reason: "not_found" as const,
+        message: "stub",
+      }),
+      revoke: async () => ({
+        ok: false as const,
+        reason: "not_found" as const,
+        message: "stub",
+      }),
+    },
     answer: {
       answer: async () => ({ ok: false, reason: "no_hits" }),
       log: async () => ({ entries: [] }),

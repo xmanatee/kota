@@ -18,6 +18,7 @@ import {
   type WorkflowLiveStatus,
   type WorkflowMetricCounts,
 } from "./daemon-control.js";
+import { daemonSetupControlHandleStubs } from "./daemon-setup-control-test-stubs.js";
 
 const TEST_TOKEN = "identity-test-token";
 
@@ -108,6 +109,7 @@ function makeHandle(
       summary: { ready: 0, unavailable: 0, init_failed: 0 },
     })),
     getClientIdentity: vi.fn(async () => defaultIdentity),
+    ...daemonSetupControlHandleStubs(),
     ...overrides,
   };
 }

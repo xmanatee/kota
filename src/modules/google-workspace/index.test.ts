@@ -92,6 +92,37 @@ describe("google-workspace module metadata", () => {
     expect(googleWorkspaceModule.name).toBe("google-workspace");
     expect(googleWorkspaceModule.version).toBe("1.0.0");
   });
+
+  it("requires Google OAuth config form values to be secret references", () => {
+    const setupRequirements = googleWorkspaceModule.setupRequirements;
+    if (!setupRequirements || typeof setupRequirements === "function") {
+      throw new Error("expected static setup requirements");
+    }
+    const configRequirement = setupRequirements.find(
+      (requirement) => requirement.id === "oauth-config",
+    );
+    if (!configRequirement || configRequirement.kind !== "config") {
+      throw new Error("expected oauth-config setup requirement");
+    }
+    expect(configRequirement.setup.fields.map((field) => ({
+      id: field.id,
+      valueKind: field.valueKind,
+    }))).toEqual([
+      { id: "client-id-ref", valueKind: "secret-reference" },
+      { id: "client-secret-ref", valueKind: "secret-reference" },
+      { id: "refresh-token-ref", valueKind: "secret-reference" },
+    ]);
+
+    const credentialsRequirement = setupRequirements.find(
+      (requirement) => requirement.id === "oauth-credentials",
+    );
+    if (!credentialsRequirement || credentialsRequirement.kind !== "oauth") {
+      throw new Error("expected oauth-credentials setup requirement");
+    }
+    expect(credentialsRequirement.health?.capabilityIds).toEqual([
+      "google-workspace.oauth",
+    ]);
+  });
 });
 
 describe("google-workspace module tools()", () => {
@@ -107,10 +138,7 @@ describe("google-workspace module tools()", () => {
     expect(tools).toEqual([]);
   });
 
-  it("returns empty array when env var references are unset", () => {
-    delete process.env.UNSET_CID;
-    delete process.env.UNSET_CS;
-    delete process.env.UNSET_RT;
+  it("returns empty array when secret references are unset", () => {
     const ctx = makeCtx({
       clientId: "$UNSET_CID",
       clientSecret: "$UNSET_CS",
@@ -118,6 +146,29 @@ describe("google-workspace module tools()", () => {
     });
     const tools = resolveModuleTools(googleWorkspaceModule, ctx);
     expect(tools).toEqual([]);
+  });
+
+  it("returns tools when config references setup-stored secrets", () => {
+    const ctx = makeCtx({
+      clientId: "$GOOGLE_CLIENT_ID",
+      clientSecret: "$GOOGLE_CLIENT_SECRET",
+      refreshToken: "$GOOGLE_REFRESH_TOKEN",
+    });
+    const secrets: Record<string, string> = {
+      GOOGLE_CLIENT_ID: "stored-client-id",
+      GOOGLE_CLIENT_SECRET: "stored-client-secret",
+      GOOGLE_REFRESH_TOKEN: "stored-refresh-token",
+    };
+    (ctx.getSecret as ReturnType<typeof vi.fn>).mockImplementation(
+      (key: string) => secrets[key] ?? null,
+    );
+
+    const tools = resolveModuleTools(googleWorkspaceModule, ctx);
+
+    expect(tools).toHaveLength(7);
+    expect(ctx.getSecret).toHaveBeenCalledWith("GOOGLE_CLIENT_ID");
+    expect(ctx.getSecret).toHaveBeenCalledWith("GOOGLE_CLIENT_SECRET");
+    expect(ctx.getSecret).toHaveBeenCalledWith("GOOGLE_REFRESH_TOKEN");
   });
 
   it("returns 7 tools with valid config", () => {

@@ -476,6 +476,7 @@ export async function runPipeLoop(piped: string): Promise<void> {
     provider: config.modelProvider?.type,
     baseUrl: config.modelProvider?.baseUrl,
     apiKey: config.modelProvider?.apiKey,
+    projectDir: process.cwd(),
   });
   await runAgentLoop(piped, {
     autonomyMode: resolveChannelAutonomyMode(

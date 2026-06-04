@@ -27,7 +27,7 @@ This module uses OAuth 2.0 with a refresh token. One-time setup:
 }
 ```
 
-Values starting with `$` are resolved from environment variables. Alternatively, store the raw values directly in the config (project-scoped `.kota/config.json` is gitignored by default).
+Values starting with `$` are resolved through the shared secret provider, so setup-stored secrets and environment-backed secrets use the same runtime path. Alternatively, store the raw values directly in the config (project-scoped `.kota/config.json` is gitignored by default).
 
 ## Config
 

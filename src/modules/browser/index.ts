@@ -1,4 +1,5 @@
 import type { KotaModule, ModuleContext, ModuleRuntimeContext, ToolDef } from "#core/modules/module-types.js";
+import type { ModuleSetupRequirement } from "#core/modules/setup-requirements.js";
 import { daemonWriteEffect, networkDestructiveEffect } from "#core/tools/effect.js";
 import { buildBrowserCommand } from "./cli.js";
 import {
@@ -98,11 +99,47 @@ function buildTools(): ToolDef[] {
   ];
 }
 
+const browserSetupRequirements: ModuleSetupRequirement[] = [
+  {
+    id: "auth-profile",
+    kind: "browser-profile",
+    title: "Authenticated browser profile",
+    description:
+      "Playwright storage-state file used for auth-walled and JavaScript-gated sources.",
+    required: false,
+    scope: "project",
+    owner: "browser",
+    sensitivity: "browser-profile",
+    storageStateConfigPath: "modules.browser.storageStatePath",
+    setup: {
+      mode: "form",
+      fields: [
+        {
+          id: "storage-state-path",
+          label: "Storage state path",
+          type: "string",
+          configPath: "modules.browser.storageStatePath",
+          required: true,
+          placeholder: "browser/storage-state.json",
+        },
+        {
+          id: "persist-profile",
+          label: "Persist profile",
+          type: "boolean",
+          configPath: "modules.browser.persistProfile",
+          required: false,
+        },
+      ],
+    },
+  },
+];
+
 const browserModule: KotaModule = {
   name: "browser",
   version: "1.0.0",
   description:
     "Headless browser automation tools powered by Playwright: navigation, interaction, screenshots, JS evaluation, and scoped content-ingest tools for auth-walled / JS-gated sources",
+  setupRequirements: browserSetupRequirements,
   tools: buildTools(),
   commands: (ctx: ModuleContext) => [buildBrowserCommand(ctx)],
 

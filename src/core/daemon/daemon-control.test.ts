@@ -1,4 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type {
+  ModuleSetupMutationResult,
+  ModuleSetupRequirementStatus,
+  ModuleSetupStartResult,
+  ModuleSetupStatusResponse,
+} from "#core/modules/setup-requirements.js";
 import {
   type DaemonControlHandle,
   DaemonControlServer,
@@ -6,6 +12,7 @@ import {
   type WorkflowLiveStatus,
   type WorkflowMetricCounts,
 } from "./daemon-control.js";
+import { daemonSetupControlHandleStubs } from "./daemon-setup-control-test-stubs.js";
 import {
   makeDaemonConfigReloadEvent,
   makeTaskChangedEvent,
@@ -76,6 +83,7 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
         message: "No module contributed a dashboard capability.",
       },
     })),
+    ...daemonSetupControlHandleStubs(),
     ...overrides,
   };
 }
@@ -481,6 +489,146 @@ describe("DaemonControlServer", () => {
     it("requires the bearer token", async () => {
       const res = await fetchNoToken(port, "/capabilities");
       expect(res.status).toBe(401);
+    });
+  });
+
+  describe("setup requirement control routes", () => {
+    it("lists statuses and routes form, secret, URL, complete, refresh, and revoke mutations", async () => {
+      const status: ModuleSetupRequirementStatus = {
+        moduleName: "demo",
+        requirementId: "oauth",
+        kind: "oauth",
+        title: "OAuth",
+        required: true,
+        scope: "project",
+        sensitivity: "oauth",
+        setup: {
+          mode: "url",
+          url: "https://auth.example.test/start",
+          label: "Open OAuth",
+        },
+        state: "missing",
+        reason: "secret_missing",
+        message: "Required credential is missing",
+        secretRefs: [
+          {
+            name: "DEMO_TOKEN",
+            scope: "project",
+            present: false,
+          },
+        ],
+      };
+      const listResponse: ModuleSetupStatusResponse = {
+        requirements: [status],
+        summary: {
+          ready: 0,
+          missing: 1,
+          pending: 0,
+          expired: 0,
+          revoked: 0,
+          unknown: 0,
+          unavailable: 0,
+        },
+      };
+      const mutation: ModuleSetupMutationResult = { ok: true, status };
+      const start: ModuleSetupStartResult = {
+        ok: true,
+        status: { ...status, state: "pending", reason: "url_setup_pending" },
+        action: {
+          actionId: "demo.oauth.1",
+          moduleName: "demo",
+          requirementId: "oauth",
+          url: "https://auth.example.test/start",
+          label: "Open OAuth",
+          status: "pending",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          expiresAt: "2026-01-01T00:10:00.000Z",
+        },
+      };
+      const submitModuleSetupForm = vi.fn(async () => mutation);
+      const storeModuleSetupSecret = vi.fn(async () => mutation);
+      const startModuleSetup = vi.fn(async () => start);
+      const completeModuleSetup = vi.fn(async () => mutation);
+      const refreshModuleSetup = vi.fn(async () => mutation);
+      const revokeModuleSetup = vi.fn(async () => mutation);
+      handle = makeHandle({
+        listModuleSetupStatuses: vi.fn(async () => listResponse),
+        submitModuleSetupForm,
+        storeModuleSetupSecret,
+        startModuleSetup,
+        completeModuleSetup,
+        refreshModuleSetup,
+        revokeModuleSetup,
+      });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const listed = await fetchWithToken(port, "/setup/requirements");
+      expect(listed.status).toBe(200);
+      expect(await listed.json()).toEqual(listResponse);
+
+      const form = await fetchWithToken(port, "/setup/requirements/demo/oauth/form", {
+        method: "POST",
+        body: JSON.stringify({ values: { "base-url": "https://api.example.test" } }),
+      });
+      expect(form.status).toBe(200);
+      expect(submitModuleSetupForm).toHaveBeenCalledWith("demo", "oauth", {
+        "base-url": "https://api.example.test",
+      });
+
+      const secret = await fetchWithToken(port, "/setup/requirements/demo/oauth/secret", {
+        method: "POST",
+        body: JSON.stringify({ secretValues: { DEMO_TOKEN: "redacted-demo-token" } }),
+      });
+      expect(secret.status).toBe(200);
+      expect(storeModuleSetupSecret).toHaveBeenCalledWith("demo", "oauth", {
+        DEMO_TOKEN: "redacted-demo-token",
+      });
+      expect(JSON.stringify(await secret.json())).not.toContain("redacted-demo-token");
+
+      const startRes = await fetchWithToken(port, "/setup/requirements/demo/oauth/start", {
+        method: "POST",
+      });
+      expect(startRes.status).toBe(200);
+      expect(startModuleSetup).toHaveBeenCalledWith("demo", "oauth");
+
+      const complete = await fetchWithToken(port, "/setup/actions/demo.oauth.1/complete", {
+        method: "POST",
+        body: JSON.stringify({
+          configValues: { account: "me" },
+          secretValues: { DEMO_TOKEN: "redacted-demo-token" },
+        }),
+      });
+      expect(complete.status).toBe(200);
+      expect(completeModuleSetup).toHaveBeenCalledWith("demo.oauth.1", {
+        configValues: { account: "me" },
+        secretValues: { DEMO_TOKEN: "redacted-demo-token" },
+      });
+
+      const refreshed = await fetchWithToken(port, "/setup/requirements/demo/oauth/refresh", {
+        method: "POST",
+      });
+      expect(refreshed.status).toBe(200);
+      expect(refreshModuleSetup).toHaveBeenCalledWith("demo", "oauth");
+
+      const revoked = await fetchWithToken(port, "/setup/requirements/demo/oauth", {
+        method: "DELETE",
+      });
+      expect(revoked.status).toBe(200);
+      expect(revokeModuleSetup).toHaveBeenCalledWith("demo", "oauth");
+    });
+
+    it("rejects invalid setup route bodies", async () => {
+      const res = await fetchWithToken(port, "/setup/requirements/demo/oauth/form", {
+        method: "POST",
+        body: JSON.stringify({ values: { bad: null } }),
+      });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({
+        ok: false,
+        reason: "invalid_request",
+      });
     });
   });
 

@@ -79,7 +79,7 @@
       "additionalProperties": false,
       "properties": {
         "apiKey": {
-          "description": "Fallback API key. Resolved from env if omitted.",
+          "description": "Fallback API key. Resolved through setup secrets or env if omitted.",
           "type": "string"
         },
         "baseUrl": {

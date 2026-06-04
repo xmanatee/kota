@@ -455,7 +455,7 @@ function makeCtx(
     getModuleSummaries: () => [],
     getModuleConfig: () => undefined,
     log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
-    getSecret: () => null,
+    getSecret: (key) => process.env[key] ?? null,
     listTools: () => [],
     events: makeStubEventProxy(bus),
     createSession: () => ({ send: async () => "", close: () => {} }),

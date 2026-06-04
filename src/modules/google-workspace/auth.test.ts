@@ -1,23 +1,25 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { apiError, getAccessToken, googleFetch, resolveEnv } from "./auth.js";
+import { apiError, getAccessToken, googleFetch, resolveSecretReference } from "./auth.js";
 
-describe("resolveEnv", () => {
+describe("resolveSecretReference", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
   it("returns literal strings as-is", () => {
-    expect(resolveEnv("my-client-id")).toBe("my-client-id");
+    expect(resolveSecretReference("my-client-id", () => null)).toBe("my-client-id");
   });
 
-  it("resolves $ENV_VAR from process.env", () => {
-    vi.stubEnv("TEST_GWS_CLIENT", "resolved-value");
-    expect(resolveEnv("$TEST_GWS_CLIENT")).toBe("resolved-value");
+  it("resolves $ references through the supplied secret resolver", () => {
+    expect(
+      resolveSecretReference("$TEST_GWS_CLIENT", (key) =>
+        key === "TEST_GWS_CLIENT" ? "resolved-value" : null,
+      ),
+    ).toBe("resolved-value");
   });
 
-  it("returns empty string for unset env var", () => {
-    delete process.env.MISSING_VAR;
-    expect(resolveEnv("$MISSING_VAR")).toBe("");
+  it("returns empty string for unresolved references", () => {
+    expect(resolveSecretReference("$MISSING_VAR", () => null)).toBe("");
   });
 });
 

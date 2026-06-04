@@ -24,7 +24,7 @@ export type FailoverConfig = {
   model?: string;
   /** Fallback base URL. Uses preset if omitted. */
   baseUrl?: string;
-  /** Fallback API key. Resolved from env if omitted. */
+  /** Fallback API key. Resolved through setup secrets or env if omitted. */
   apiKey?: string;
   /** Errors in the sliding window that trigger failover. Default: 5. */
   errorThreshold?: number;

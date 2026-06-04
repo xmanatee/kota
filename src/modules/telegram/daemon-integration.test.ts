@@ -427,7 +427,7 @@ describe("Telegram personal-assistant daemon integration", () => {
       getModuleConfig: () =>
         ({ defaultAutonomyMode: "supervised" }) as never,
       log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
-      getSecret: () => null,
+      getSecret: (key) => process.env[key] ?? null,
       listTools: () => [],
       events: makeStubEventProxy(bus),
       createSession: () => ({ send: async () => "", close: () => {} }),

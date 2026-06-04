@@ -82,6 +82,8 @@ export type ProviderFactoryOptions = {
 	baseUrl?: string;
 	/** Explicit API key, overrides env var resolution. */
 	apiKey?: string;
+	/** Project directory used to resolve setup-stored secret references. */
+	projectDir?: string;
 };
 
 /** Result of resolving a model client. */

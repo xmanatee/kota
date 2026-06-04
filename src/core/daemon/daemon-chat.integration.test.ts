@@ -26,6 +26,7 @@ import {
   type WorkflowLiveStatus,
   type WorkflowMetricCounts,
 } from "./daemon-control.js";
+import { daemonSetupControlHandleStubs } from "./daemon-setup-control-test-stubs.js";
 import { resetScheduler } from "./scheduler.js";
 import { deriveDirectoryScopeId } from "./scope-registry.js";
 
@@ -138,6 +139,7 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
         message: "No module contributed a dashboard capability.",
       },
     })),
+    ...daemonSetupControlHandleStubs(),
     ...overrides,
   };
 }

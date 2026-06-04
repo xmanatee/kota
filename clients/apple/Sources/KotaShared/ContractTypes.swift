@@ -110,6 +110,184 @@ struct CapabilityReadinessResponse: Codable, Equatable {
     let summary: CapabilityReadinessSummary
 }
 
+// MARK: Module setup requirements
+
+enum SetupRequirementKind: String, Codable, Equatable {
+    case config
+    case secret
+    case oauth
+    case browserProfile = "browser-profile"
+    case externalUrl = "external-url"
+    case capability
+}
+
+enum SetupSensitivity: String, Codable, Equatable {
+    case none
+    case secret
+    case oauth
+    case browserProfile = "browser-profile"
+}
+
+enum SetupRequirementState: String, Codable, Equatable {
+    case ready
+    case missing
+    case pending
+    case expired
+    case revoked
+    case unknown
+    case unavailable
+}
+
+enum SetupScope: String, Codable, Equatable {
+    case project
+    case globalScope = "global"
+}
+
+enum SetupFieldType: String, Codable, Equatable {
+    case string
+    case number
+    case boolean
+}
+
+enum SetupFieldValueKind: String, Codable, Equatable {
+    case secretReference = "secret-reference"
+}
+
+enum SetupActionStatus: String, Codable, Equatable {
+    case pending
+    case completed
+    case revoked
+}
+
+struct SetupFormField: Codable, Equatable {
+    let id: String
+    let label: String
+    let type: SetupFieldType
+    let valueKind: SetupFieldValueKind?
+    let configPath: String
+    let required: Bool
+    let placeholder: String?
+    let helperText: String?
+}
+
+enum SetupMode: Codable, Equatable {
+    case form(fields: [SetupFormField])
+    case url(url: String, label: String, pendingTtlMs: Int?)
+    case none
+
+    private enum CodingKeys: String, CodingKey {
+        case mode, fields, url, label, pendingTtlMs
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let mode = try container.decode(String.self, forKey: .mode)
+        switch mode {
+        case "form":
+            self = .form(fields: try container.decode([SetupFormField].self, forKey: .fields))
+        case "url":
+            self = .url(
+                url: try container.decode(String.self, forKey: .url),
+                label: try container.decode(String.self, forKey: .label),
+                pendingTtlMs: try container.decodeIfPresent(Int.self, forKey: .pendingTtlMs)
+            )
+        case "none":
+            self = .none
+        default:
+            throw DecodingError.dataCorruptedError(
+                forKey: .mode,
+                in: container,
+                debugDescription: "Unknown setup mode \(mode)"
+            )
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .form(let fields):
+            try container.encode("form", forKey: .mode)
+            try container.encode(fields, forKey: .fields)
+        case .url(let url, let label, let pendingTtlMs):
+            try container.encode("url", forKey: .mode)
+            try container.encode(url, forKey: .url)
+            try container.encode(label, forKey: .label)
+            try container.encodeIfPresent(pendingTtlMs, forKey: .pendingTtlMs)
+        case .none:
+            try container.encode("none", forKey: .mode)
+        }
+    }
+}
+
+struct SetupSecretRefStatus: Codable, Equatable {
+    let name: String
+    let scope: SetupScope
+    let present: Bool
+    let source: String?
+}
+
+struct SetupConfigFieldStatus: Codable, Equatable {
+    let id: String
+    let label: String
+    let configPath: String
+    let required: Bool
+    let present: Bool
+}
+
+struct SetupCapabilityStatus: Codable, Equatable {
+    let id: String
+    let status: CapabilityStatus
+    let reason: String?
+    let message: String?
+}
+
+struct SetupPendingAction: Codable, Equatable {
+    let actionId: String
+    let moduleName: String
+    let requirementId: String
+    let url: String
+    let label: String
+    let status: SetupActionStatus
+    let createdAt: String
+    let expiresAt: String
+    let completedAt: String?
+}
+
+struct SetupRequirementStatus: Codable, Equatable {
+    let moduleName: String
+    let requirementId: String
+    let kind: SetupRequirementKind
+    let title: String
+    let description: String?
+    let required: Bool
+    let scope: SetupScope
+    let owner: String?
+    let sensitivity: SetupSensitivity
+    let setup: SetupMode
+    let state: SetupRequirementState
+    let reason: String
+    let message: String
+    let secretRefs: [SetupSecretRefStatus]?
+    let configFields: [SetupConfigFieldStatus]?
+    let capabilities: [SetupCapabilityStatus]?
+    let pendingAction: SetupPendingAction?
+}
+
+struct SetupStatusSummary: Codable, Equatable {
+    let ready: Int
+    let missing: Int
+    let pending: Int
+    let expired: Int
+    let revoked: Int
+    let unknown: Int
+    let unavailable: Int
+}
+
+struct SetupStatusResponse: Codable, Equatable {
+    let requirements: [SetupRequirementStatus]
+    let summary: SetupStatusSummary
+}
+
 // MARK: Stable capability ids
 
 /// Stable id for the embedded dashboard capability. Mirrors

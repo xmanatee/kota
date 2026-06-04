@@ -35,6 +35,7 @@ import type { ToolResult } from "#core/tools/tool-result.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "#core/workflow/types.js";
 import type { ModuleStorage } from "./module-storage.js";
 import type { ProviderToken } from "./provider-token.js";
+import type { ModuleSetupRequirement } from "./setup-requirements.js";
 
 /** Health state for a foreign (KEMP) module subprocess. */
 export type ModuleHealth = {
@@ -66,6 +67,7 @@ export type ModuleSummary = {
   agentNames: string[];
   agents: AgentDef[];
   skills: SkillDef[];
+  setupRequirements?: readonly ModuleSetupRequirement[];
   commandNames: string[];
   routeSummaries: string[];
   commandError?: string;
@@ -529,6 +531,13 @@ export type KotaModule = {
   agents?: ModuleContribution<AgentDef>;
 
   /**
+   * Structured setup/auth requirements this module needs before its full
+   * capability surface can operate. Core validates and exposes these through
+   * the daemon setup protocol; modules still own the declarations.
+   */
+  setupRequirements?: ModuleContribution<ModuleSetupRequirement>;
+
+  /**
    * Local-side handlers for the KotaClient namespaces this module owns.
    * The loader always invokes this factory at module load — including on
    * the CLI's `"commands"` lifecycle path — so the selector can assemble
@@ -623,4 +632,11 @@ export async function resolveModuleAgents(
   ctx: ModuleContext,
 ): Promise<readonly AgentDef[]> {
   return resolveContribution(mod.agents, ctx);
+}
+
+export async function resolveModuleSetupRequirements(
+  mod: KotaModule,
+  ctx: ModuleContext,
+): Promise<readonly ModuleSetupRequirement[]> {
+  return resolveContribution(mod.setupRequirements, ctx);
 }

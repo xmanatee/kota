@@ -25,6 +25,7 @@ import {
   DaemonControlServer,
   type WorkflowMetricCounts,
 } from "#core/daemon/daemon-control.js";
+import { daemonSetupControlHandleStubs } from "#core/daemon/daemon-setup-control-test-stubs.js";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
 import {
@@ -96,6 +97,7 @@ function makeHandle(): DaemonControlHandle {
         message: "No module contributed a dashboard capability.",
       },
     })),
+    ...daemonSetupControlHandleStubs(),
   };
 }
 

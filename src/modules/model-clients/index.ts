@@ -1,6 +1,7 @@
 import { registerModelClientFactory } from "#core/model/model-client.js";
 import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { MODEL_PRICING_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
+import type { ModuleSetupRequirement } from "#core/modules/setup-requirements.js";
 import { failoverConfigSlice, modelProviderConfigSlice } from "./config-slice.js";
 import {
   createModelClientImpl,
@@ -11,10 +12,50 @@ import { createShippedModelPricingProvider } from "./pricing.js";
 
 registerModelClientFactory(createModelClientImpl);
 
+const modelClientSetupRequirements: ModuleSetupRequirement[] = [
+  {
+    id: "anthropic-api-key",
+    kind: "secret",
+    title: "Anthropic API key",
+    description:
+      "Default Anthropic provider credential resolved through the shared secret provider.",
+    required: false,
+    scope: "global",
+    owner: "model-clients",
+    sensitivity: "secret",
+    setup: {
+      mode: "url",
+      url: "https://console.anthropic.com/settings/keys",
+      label: "Open Anthropic API keys",
+      pendingTtlMs: 30 * 60 * 1000,
+    },
+    secretRefs: [{ name: "ANTHROPIC_API_KEY", scope: "global" }],
+  },
+  {
+    id: "openai-api-key",
+    kind: "secret",
+    title: "OpenAI API key",
+    description:
+      "OpenAI-compatible provider credential resolved through the shared secret provider.",
+    required: false,
+    scope: "global",
+    owner: "model-clients",
+    sensitivity: "secret",
+    setup: {
+      mode: "url",
+      url: "https://platform.openai.com/api-keys",
+      label: "Open OpenAI API keys",
+      pendingTtlMs: 30 * 60 * 1000,
+    },
+    secretRefs: [{ name: "OPENAI_API_KEY", scope: "global" }],
+  },
+];
+
 const modelClientsModule: KotaModule = {
   name: "model-clients",
   description: "ModelClient implementations: Anthropic SDK and OpenAI-compatible providers, with optional failover.",
   configSlices: [modelProviderConfigSlice, failoverConfigSlice],
+  setupRequirements: modelClientSetupRequirements,
 
   onLoad(ctx: ModuleRuntimeContext) {
     ctx.registerProvider(MODEL_PRICING_PROVIDER_TOKEN, createShippedModelPricingProvider());

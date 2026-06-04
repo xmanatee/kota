@@ -54,6 +54,7 @@ const STUB_OMITTED_NAMESPACES: ReadonlySet<string> = new Set<string>([
   "config",
   "tasks",
   "workflow",
+  "setup",
 ]);
 
 function makeFakeTransport(): DaemonTransport {
@@ -94,6 +95,29 @@ function makeStubAudit(): DaemonClientHandlers["audit"] {
 function makeStubRetract(): DaemonClientHandlers["retract"] {
   return {
     retract: async () => ({ ok: false, reason: "no_contributors" }),
+  };
+}
+
+function makeStubSetup(): DaemonClientHandlers["setup"] {
+  return {
+    list: async () => ({
+      requirements: [],
+      summary: {
+        ready: 0,
+        missing: 0,
+        pending: 0,
+        expired: 0,
+        revoked: 0,
+        unknown: 0,
+        unavailable: 0,
+      },
+    }),
+    submitForm: async () => ({ ok: false, reason: "not_found", message: "stub" }),
+    storeSecret: async () => ({ ok: false, reason: "not_found", message: "stub" }),
+    start: async () => ({ ok: false, reason: "not_found", message: "stub" }),
+    complete: async () => ({ ok: false, reason: "not_found", message: "stub" }),
+    refresh: async () => ({ ok: false, reason: "not_found", message: "stub" }),
+    revoke: async () => ({ ok: false, reason: "not_found", message: "stub" }),
   };
 }
 
@@ -395,6 +419,7 @@ describe("assembleDaemonClientHandlers", () => {
       config: makeStubConfig(),
       tasks: makeStubTasks(),
       workflow: makeStubWorkflow(),
+      setup: makeStubSetup(),
     });
     for (const name of KOTA_CLIENT_NAMESPACES) {
       expect(handlers[name], `assembled client must cover "${name}"`).toBeDefined();
@@ -432,6 +457,7 @@ describe("assembleDaemonClientHandlers", () => {
       config: makeStubConfig(),
       tasks: makeStubTasks(),
       workflow: customWorkflow,
+      setup: makeStubSetup(),
     });
     expect(merged.workflow).toBe(customWorkflow);
   });
@@ -443,7 +469,7 @@ describe("assembleDaemonClientHandlers", () => {
 
   it("throws naming each migrated namespace when no module contributes it", () => {
     expect(() => assembleDaemonClientHandlers(transport)).toThrow(
-      /missing daemon handler\(s\) for: workflow, approvals, secrets, tasks, memory, ownerQuestions, history, knowledge, sessions, modules, agents, skills, harnessParity, webhook, voice, web, mcpServer, audit, config, modulesAdmin, daemonOps, projects, doctor, evalHarness, recall, answer, capture, retract/,
+      /missing daemon handler\(s\) for: workflow, approvals, secrets, tasks, memory, ownerQuestions, history, knowledge, sessions, modules, agents, skills, harnessParity, webhook, voice, web, mcpServer, audit, config, modulesAdmin, daemonOps, projects, doctor, evalHarness, recall, answer, capture, retract, setup/,
     );
   });
 });

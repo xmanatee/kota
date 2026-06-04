@@ -120,6 +120,275 @@
     ],
     "summary": { "ready": 3, "unavailable": 1, "init_failed": 0 }
   },
+  "setupRequirements": {
+    "status": {
+      "requirements": [
+        {
+          "moduleName": "telegram",
+          "requirementId": "bot-credentials",
+          "kind": "secret",
+          "title": "Telegram bot credentials",
+          "description": "Bot token and default alert chat reference used by Telegram channels.",
+          "required": true,
+          "scope": "project",
+          "owner": "telegram",
+          "sensitivity": "secret",
+          "setup": {
+            "mode": "url",
+            "url": "https://t.me/BotFather",
+            "label": "Open BotFather",
+            "pendingTtlMs": 1800000
+          },
+          "state": "missing",
+          "reason": "secret_missing",
+          "message": "Required credential is missing",
+          "secretRefs": [
+            {
+              "name": "TELEGRAM_BOT_TOKEN",
+              "scope": "project",
+              "present": false
+            }
+          ]
+        },
+        {
+          "moduleName": "google-workspace",
+          "requirementId": "oauth-config",
+          "kind": "config",
+          "title": "Google Workspace OAuth config references",
+          "required": true,
+          "scope": "project",
+          "owner": "google-workspace",
+          "sensitivity": "none",
+          "setup": {
+            "mode": "form",
+            "fields": [
+              {
+                "id": "client-id-ref",
+                "label": "Client ID reference",
+                "type": "string",
+                "valueKind": "secret-reference",
+                "configPath": "modules.google-workspace.clientId",
+                "required": true,
+                "placeholder": "$GOOGLE_CLIENT_ID"
+              }
+            ]
+          },
+          "state": "ready",
+          "reason": "config_present",
+          "message": "Required configuration is present",
+          "configFields": [
+            {
+              "id": "client-id-ref",
+              "label": "Client ID reference",
+              "configPath": "modules.google-workspace.clientId",
+              "required": true,
+              "present": true
+            }
+          ]
+        },
+        {
+          "moduleName": "google-workspace",
+          "requirementId": "oauth-credentials",
+          "kind": "oauth",
+          "title": "Google Workspace OAuth credentials",
+          "required": true,
+          "scope": "project",
+          "owner": "google-workspace",
+          "sensitivity": "oauth",
+          "setup": {
+            "mode": "url",
+            "url": "https://console.cloud.google.com/apis/credentials",
+            "label": "Open Google Cloud OAuth credentials",
+            "pendingTtlMs": 1800000
+          },
+          "state": "pending",
+          "reason": "url_setup_pending",
+          "message": "Setup URL action is pending",
+          "secretRefs": [
+            {
+              "name": "GOOGLE_REFRESH_TOKEN",
+              "scope": "project",
+              "present": true,
+              "source": "project-file"
+            }
+          ],
+          "pendingAction": {
+            "actionId": "google-workspace.oauth-credentials.1770000000000",
+            "moduleName": "google-workspace",
+            "requirementId": "oauth-credentials",
+            "url": "https://console.cloud.google.com/apis/credentials",
+            "label": "Open Google Cloud OAuth credentials",
+            "status": "pending",
+            "createdAt": "2026-06-04T08:00:00.000Z",
+            "expiresAt": "2026-06-04T08:30:00.000Z"
+          }
+        },
+        {
+          "moduleName": "browser",
+          "requirementId": "auth-profile",
+          "kind": "browser-profile",
+          "title": "Authenticated browser profile",
+          "required": false,
+          "scope": "project",
+          "owner": "browser",
+          "sensitivity": "browser-profile",
+          "setup": {
+            "mode": "form",
+            "fields": [
+              {
+                "id": "storage-state-path",
+                "label": "Storage state path",
+                "type": "string",
+                "configPath": "modules.browser.storageStatePath",
+                "required": true
+              }
+            ]
+          },
+          "state": "unavailable",
+          "reason": "browser_profile_file_missing",
+          "message": "Browser profile file does not exist",
+          "configFields": [
+            {
+              "id": "storage-state-path",
+              "label": "Storage state path",
+              "configPath": "modules.browser.storageStatePath",
+              "required": true,
+              "present": true
+            }
+          ]
+        }
+      ],
+      "summary": {
+        "ready": 1,
+        "missing": 1,
+        "pending": 1,
+        "expired": 0,
+        "revoked": 0,
+        "unknown": 0,
+        "unavailable": 1
+      }
+    },
+    "negative_unknownState": {
+      "requirements": [
+        {
+          "moduleName": "demo",
+          "requirementId": "bad-state",
+          "kind": "config",
+          "title": "Bad state",
+          "required": true,
+          "scope": "project",
+          "sensitivity": "none",
+          "setup": { "mode": "none" },
+          "state": "installing",
+          "reason": "bad_state",
+          "message": "Bad state"
+        }
+      ],
+      "summary": {
+        "ready": 0,
+        "missing": 0,
+        "pending": 0,
+        "expired": 0,
+        "revoked": 0,
+        "unknown": 0,
+        "unavailable": 0
+      }
+    },
+    "negative_unknownKind": {
+      "requirements": [
+        {
+          "moduleName": "demo",
+          "requirementId": "bad-kind",
+          "kind": "token",
+          "title": "Bad kind",
+          "required": true,
+          "scope": "project",
+          "sensitivity": "secret",
+          "setup": {
+            "mode": "url",
+            "url": "https://example.test",
+            "label": "Open"
+          },
+          "state": "missing",
+          "reason": "bad_kind",
+          "message": "Bad kind"
+        }
+      ],
+      "summary": {
+        "ready": 0,
+        "missing": 1,
+        "pending": 0,
+        "expired": 0,
+        "revoked": 0,
+        "unknown": 0,
+        "unavailable": 0
+      }
+    },
+    "negative_unknownSetupMode": {
+      "requirements": [
+        {
+          "moduleName": "demo",
+          "requirementId": "bad-mode",
+          "kind": "external-url",
+          "title": "Bad mode",
+          "required": true,
+          "scope": "project",
+          "sensitivity": "none",
+          "setup": { "mode": "qr" },
+          "state": "unknown",
+          "reason": "bad_mode",
+          "message": "Bad mode"
+        }
+      ],
+      "summary": {
+        "ready": 0,
+        "missing": 0,
+        "pending": 0,
+        "expired": 0,
+        "revoked": 0,
+        "unknown": 1,
+        "unavailable": 0
+      }
+    },
+    "negative_unknownFieldValueKind": {
+      "requirements": [
+        {
+          "moduleName": "demo",
+          "requirementId": "bad-field-value-kind",
+          "kind": "config",
+          "title": "Bad field value kind",
+          "required": true,
+          "scope": "project",
+          "sensitivity": "none",
+          "setup": {
+            "mode": "form",
+            "fields": [
+              {
+                "id": "secret-ref",
+                "label": "Secret reference",
+                "type": "string",
+                "valueKind": "password",
+                "configPath": "modules.demo.secretRef",
+                "required": true
+              }
+            ]
+          },
+          "state": "missing",
+          "reason": "bad_field_value_kind",
+          "message": "Bad field value kind"
+        }
+      ],
+      "summary": {
+        "ready": 0,
+        "missing": 1,
+        "pending": 0,
+        "expired": 0,
+        "revoked": 0,
+        "unknown": 0,
+        "unavailable": 0
+      }
+    }
+  },
   "workflowDefinitions": {
     "definitions": [
       {

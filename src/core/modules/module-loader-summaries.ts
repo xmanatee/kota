@@ -17,6 +17,7 @@ export function collectModuleSummaries(state: LoaderState): ModuleSummary[] {
       for (const r of cachedRoutes) routeSummaries.push(`${r.method} ${r.path}`);
     }
     const routeError = state.moduleRouteErrors.get(mod.name);
+    const setupRequirements = state.moduleSetupRequirementDefs.get(mod.name);
     return {
       name: mod.name,
       source: state.moduleSources.get(mod.name) ?? "project",
@@ -30,6 +31,9 @@ export function collectModuleSummaries(state: LoaderState): ModuleSummary[] {
       agentNames: (state.moduleAgentDefs.get(mod.name) ?? []).map((a) => a.name),
       agents: [...(state.moduleAgentDefs.get(mod.name) ?? [])],
       skills: [...(state.moduleSkillDefs.get(mod.name) ?? [])],
+      ...(setupRequirements !== undefined && {
+        setupRequirements: setupRequirements.map((entry) => entry.requirement),
+      }),
       commandNames,
       routeSummaries,
       ...(commandError ? { commandError } : {}),

@@ -200,6 +200,48 @@ final class ContractFixtureTests: XCTestCase {
         XCTAssertEqual(semantic?.reason, "embedding_unsupported")
     }
 
+    // MARK: - Setup requirements
+
+    func testDecodesSetupRequirementsStatus() throws {
+        let data = try Self.nestedData(["setupRequirements", "status"])
+        let response = try JSONDecoder().decode(SetupStatusResponse.self, from: data)
+        XCTAssertEqual(response.requirements.count, 4)
+        XCTAssertEqual(response.summary.ready, 1)
+        XCTAssertEqual(response.summary.missing, 1)
+        XCTAssertEqual(response.summary.pending, 1)
+        let oauth = response.requirements.first { $0.kind == .oauth }
+        XCTAssertEqual(oauth?.state, .pending)
+        XCTAssertEqual(oauth?.pendingAction?.status, .pending)
+        let config = response.requirements.first { $0.kind == .config }
+        if case .form(let fields)? = config?.setup {
+            XCTAssertEqual(fields.first?.valueKind, .secretReference)
+        } else {
+            XCTFail("expected config setup form fields")
+        }
+        let browser = response.requirements.first { $0.kind == .browserProfile }
+        XCTAssertEqual(browser?.sensitivity, .browserProfile)
+    }
+
+    func testSetupRequirementsRejectUnknownState() throws {
+        let data = try Self.nestedData(["setupRequirements", "negative_unknownState"])
+        XCTAssertThrowsError(try JSONDecoder().decode(SetupStatusResponse.self, from: data))
+    }
+
+    func testSetupRequirementsRejectUnknownKind() throws {
+        let data = try Self.nestedData(["setupRequirements", "negative_unknownKind"])
+        XCTAssertThrowsError(try JSONDecoder().decode(SetupStatusResponse.self, from: data))
+    }
+
+    func testSetupRequirementsRejectUnknownMode() throws {
+        let data = try Self.nestedData(["setupRequirements", "negative_unknownSetupMode"])
+        XCTAssertThrowsError(try JSONDecoder().decode(SetupStatusResponse.self, from: data))
+    }
+
+    func testSetupRequirementsRejectUnknownFieldValueKind() throws {
+        let data = try Self.nestedData(["setupRequirements", "negative_unknownFieldValueKind"])
+        XCTAssertThrowsError(try JSONDecoder().decode(SetupStatusResponse.self, from: data))
+    }
+
     // MARK: - Workflow definitions
 
     func testDecodesWorkflowDefinitions() throws {

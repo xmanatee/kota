@@ -141,6 +141,7 @@ function createDefaultSynthesizer(ctx: ModuleContext): Synthesizer {
       provider: config.modelProvider?.type,
       baseUrl: config.modelProvider?.baseUrl,
       apiKey: config.modelProvider?.apiKey,
+      projectDir: ctx.cwd,
     });
     const userPrompt = buildSynthesisUserPrompt(input);
     const response = await resolved.client.messages.create({
@@ -196,7 +197,7 @@ const answerModule: KotaModule = {
           const config = loadConfig(ctx.cwd);
           const provider = config.modelProvider?.type ?? "anthropic";
           const explicit = config.modelProvider?.apiKey;
-          const key = resolveApiKey(provider, explicit);
+          const key = resolveApiKey(provider, explicit, { projectDir: ctx.cwd });
           return Boolean(key);
         },
       }),

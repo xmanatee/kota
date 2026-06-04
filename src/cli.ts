@@ -151,10 +151,11 @@ function ensureAnthropicApiKey(
   providerName: string | undefined,
   modelSpec: string,
   explicitApiKey: string | undefined,
+  projectDir: string,
 ): void {
   const effectiveProvider = providerName || parseModelString(modelSpec).provider || "anthropic";
   if (effectiveProvider !== "anthropic") return;
-  if (resolveApiKey("anthropic", explicitApiKey)) return;
+  if (resolveApiKey("anthropic", explicitApiKey, { projectDir })) return;
   const message = formatAuthError(
     new Error("Could not resolve authentication method. Expected apiKey to be set."),
   ) ?? "Error: ANTHROPIC_API_KEY environment variable is not set.";
@@ -315,12 +316,18 @@ program
 
     const { preset: classicPreset } = presetResolution;
     const modelSpec = opts.model || config.model || classicPreset.defaultModel;
-    ensureAnthropicApiKey(providerName, modelSpec, config.modelProvider?.apiKey);
+    ensureAnthropicApiKey(
+      providerName,
+      modelSpec,
+      config.modelProvider?.apiKey,
+      runProjectDir,
+    );
     const resolved = createModelClient({
       model: modelSpec,
       provider: providerName,
       baseUrl: opts.baseUrl || config.modelProvider?.baseUrl,
       apiKey: config.modelProvider?.apiKey,
+      projectDir: runProjectDir,
     });
     const model = resolved.model;
     const editorModel = opts.editorModel || config.editorModel;

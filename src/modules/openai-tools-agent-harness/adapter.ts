@@ -322,7 +322,10 @@ async function runOpenaiToolsLoop(
     }
 
     const system = options.systemPrompt;
-    const resolved = createModelClient({ model: options.model });
+    const resolved = createModelClient({
+      model: options.model,
+      projectDir: options.cwd,
+    });
     const outputTokenLimit = resolveModelOutputTokenLimit(
       resolved.model,
       options.modelOutputTokenLimits,

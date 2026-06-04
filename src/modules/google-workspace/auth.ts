@@ -1,9 +1,12 @@
 import type { ToolResult } from "#core/tools/tool-result.js";
 
-export function resolveEnv(raw: string): string {
-  if (raw.startsWith("$")) {
-    return process.env[raw.slice(1)] ?? "";
-  }
+export type GoogleWorkspaceSecretResolver = (key: string) => string | null;
+
+export function resolveSecretReference(
+  raw: string,
+  getSecret: GoogleWorkspaceSecretResolver,
+): string {
+  if (raw.startsWith("$")) return getSecret(raw.slice(1)) ?? "";
   return raw;
 }
 
@@ -14,16 +17,16 @@ type TokenCache = {
 
 let tokenCache: TokenCache | null = null;
 
-export async function getAccessToken(
+export type GoogleAccessTokenRefresh = {
+  accessToken: string;
+  expiresIn: number;
+};
+
+export async function refreshGoogleAccessToken(
   clientId: string,
   clientSecret: string,
   refreshToken: string,
-): Promise<string> {
-  const now = Date.now();
-  if (tokenCache && tokenCache.expiresAt > now + 60_000) {
-    return tokenCache.accessToken;
-  }
-
+): Promise<GoogleAccessTokenRefresh> {
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -36,14 +39,30 @@ export async function getAccessToken(
   });
 
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Google token refresh failed (${res.status}): ${body}`);
+    throw new Error(`Google token refresh failed (${res.status})`);
   }
 
   const data = (await res.json()) as { access_token: string; expires_in: number };
-  tokenCache = {
+  return {
     accessToken: data.access_token,
-    expiresAt: now + data.expires_in * 1000,
+    expiresIn: data.expires_in,
+  };
+}
+
+export async function getAccessToken(
+  clientId: string,
+  clientSecret: string,
+  refreshToken: string,
+): Promise<string> {
+  const now = Date.now();
+  if (tokenCache && tokenCache.expiresAt > now + 60_000) {
+    return tokenCache.accessToken;
+  }
+
+  const refreshed = await refreshGoogleAccessToken(clientId, clientSecret, refreshToken);
+  tokenCache = {
+    accessToken: refreshed.accessToken,
+    expiresAt: now + refreshed.expiresIn * 1000,
   };
   return tokenCache.accessToken;
 }

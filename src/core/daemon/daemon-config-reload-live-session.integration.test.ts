@@ -219,6 +219,7 @@ function mockModuleMetadata(): void {
       { name: "git", dependencies: [] },
       { name: "github", dependencies: ["git"] },
     ],
+    getContributedSetupRequirements: () => [],
     getContributedWorkflows: () => [],
   } as unknown as Awaited<ReturnType<typeof loadModuleMetadata>>);
 }

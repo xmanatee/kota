@@ -4,6 +4,7 @@ import { loadConfig } from "#core/config/config.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { SessionGuardrailsReloadSummary } from "#core/events/event-bus-types.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
+import { ModuleSetupService } from "#core/modules/setup-requirements.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import {
   type GuardrailsConfig,
@@ -76,6 +77,14 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
   // Per-project metric counts cache. Each project has its own run store,
   // so a single global cache would leak rows across projects.
   const metricCountsCache = new Map<ProjectId, { value: WorkflowMetricCounts; at: number }>();
+  const setupService = new ModuleSetupService({
+    projectDir,
+    getRequirements: () => config.setupRequirements ?? [],
+    probeCapabilities: async () => {
+      const response = await ctx.probeCapabilityReadiness();
+      return response.capabilities;
+    },
+  });
 
   // Operator-selected active project id. Lives in-memory only — a daemon
   // restart drops the selection back to the registry default, which matches
@@ -109,6 +118,19 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
     },
     getDaemonLiveState: () => ({ ...ctx.getState(), running: ctx.isRunning() }),
     listChannelStatuses: () => [...ctx.getChannelStatuses()],
+    listModuleSetupStatuses: () => setupService.list(),
+    submitModuleSetupForm: (moduleName, requirementId, values) =>
+      setupService.submitForm(moduleName, requirementId, values),
+    storeModuleSetupSecret: (moduleName, requirementId, secretValues) =>
+      setupService.storeSecret(moduleName, requirementId, secretValues),
+    startModuleSetup: (moduleName, requirementId) =>
+      setupService.start(moduleName, requirementId),
+    completeModuleSetup: (actionId, input) =>
+      setupService.complete(actionId, input),
+    refreshModuleSetup: (moduleName, requirementId) =>
+      setupService.refresh(moduleName, requirementId),
+    revokeModuleSetup: (moduleName, requirementId) =>
+      setupService.revoke(moduleName, requirementId),
     getProjectRegistryProjection: (): ProjectRegistryProjection =>
       projectRegistry.toProjection(),
     hasProject: (projectId: string) => projectRegistry.get(projectId) !== undefined,
@@ -197,6 +219,7 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
           projectDir,
           config.verbose ?? false,
         );
+        config.setupRequirements = loader.getContributedSetupRequirements();
         const allModules = loader.getModuleSummaries().map((s) => ({
           name: s.name,
           dependencies: s.dependencies,

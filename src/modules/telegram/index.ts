@@ -10,6 +10,7 @@ import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.
 import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
 import type { BusEvents } from "#core/events/event-bus.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { ModuleSetupRequirement } from "#core/modules/setup-requirements.js";
 import type { KotaClient } from "#core/server/kota-client.js";
 import { AUTONOMY_MODES, type AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { TelegramBot } from "./bot.js";
@@ -226,9 +227,33 @@ type TelegramConfig = {
   inboundSignals?: TelegramInboundSignalConfig;
 };
 
-function getCredentials(): { token: string; chatId: string } | null {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_ALERT_CHAT_ID;
+const telegramSetupRequirements: ModuleSetupRequirement[] = [
+  {
+    id: "bot-credentials",
+    kind: "secret",
+    title: "Telegram bot credentials",
+    description:
+      "Bot token and default alert chat reference used by Telegram channels.",
+    required: true,
+    scope: "project",
+    owner: "telegram",
+    sensitivity: "secret",
+    setup: {
+      mode: "url",
+      url: "https://t.me/BotFather",
+      label: "Open BotFather",
+      pendingTtlMs: 30 * 60 * 1000,
+    },
+    secretRefs: [
+      { name: "TELEGRAM_BOT_TOKEN", scope: "project" },
+      { name: "TELEGRAM_ALERT_CHAT_ID", scope: "project" },
+    ],
+  },
+];
+
+function getCredentials(ctx: ModuleContext): { token: string; chatId: string } | null {
+  const token = ctx.getSecret("TELEGRAM_BOT_TOKEN");
+  const chatId = ctx.getSecret("TELEGRAM_ALERT_CHAT_ID");
   if (!token || !chatId) return null;
   return { token, chatId };
 }
@@ -298,13 +323,12 @@ function makeTelegramStatusChannel(
     description:
       "Responds to /status, /digest, /attention, /knowledge, /memory, /history, /tasks, /recall, /answer, /answer-log, /answer-show, /capture, /capture-to-memory, /capture-to-knowledge, /capture-to-tasks, /capture-to-inbox, /retract, /retract-memory, /retract-knowledge, /retract-tasks, and /retract-inbox in Telegram",
     create(ctx) {
-      const token = process.env.TELEGRAM_BOT_TOKEN;
-      const chatId = process.env.TELEGRAM_ALERT_CHAT_ID;
-      if (!token || !chatId) {
+      const credentials = getCredentials(moduleCtx);
+      if (!credentials) {
         return {
           status: "unavailable",
           reason:
-            "TELEGRAM_BOT_TOKEN and TELEGRAM_ALERT_CHAT_ID env vars are required",
+            "TELEGRAM_BOT_TOKEN and TELEGRAM_ALERT_CHAT_ID secret refs are required",
         };
       }
       const projectRouting = resolveTelegramProjectRouting(
@@ -318,8 +342,8 @@ function makeTelegramStatusChannel(
         adapter: {
           async start() {
             stop = startTelegramStatusPoll(
-              token,
-              chatId,
+              credentials.token,
+              credentials.chatId,
               ctx.projectDir,
               ctx.getWorkflowStatus,
               moduleCtx.client.knowledge,
@@ -351,11 +375,11 @@ function makeTelegramInteractiveChannel(
     name: "telegram-interactive",
     description: "Hosts the interactive Telegram bot as a daemon channel (one session per chat)",
     create(channelCtx) {
-      const token = process.env.TELEGRAM_BOT_TOKEN;
+      const token = ctx.getSecret("TELEGRAM_BOT_TOKEN");
       if (!token) {
         return {
           status: "unavailable",
-          reason: "TELEGRAM_BOT_TOKEN env var is required",
+          reason: "TELEGRAM_BOT_TOKEN secret ref is required",
         };
       }
 
@@ -449,7 +473,8 @@ const telegramModule: KotaModule = {
   name: "telegram",
   version: "1.0.0",
   description: "Telegram bot frontend for KOTA",
-  dependencies: ["answer", "approval-queue", "autonomy", "capture", "daemon-ops", "history", "inbound-signals", "knowledge", "memory", "recall", "repo-tasks", "retract", "transcription"],
+  dependencies: ["answer", "approval-queue", "autonomy", "capture", "daemon-ops", "history", "inbound-signals", "knowledge", "memory", "recall", "repo-tasks", "retract", "secrets", "transcription"],
+  setupRequirements: telegramSetupRequirements,
   configSchema: {
     type: "object",
     additionalProperties: false,
@@ -517,7 +542,7 @@ const telegramModule: KotaModule = {
     const chatProjectBindings = telegramConfig?.chatProjectBindings ?? [];
     const optInEvents = new Set(telegramConfig?.events ?? []);
 
-    const creds = getCredentials();
+    const creds = getCredentials(ctx);
     if (creds) {
       stopCallbackPoll = startCallbackPoll(
         creds.token,
@@ -530,7 +555,7 @@ const telegramModule: KotaModule = {
 
     notificationUnsubs = [
       ctx.events.subscribe("workflow.failure.alert", (payload) => {
-        const creds = getCredentials();
+        const creds = getCredentials(ctx);
         if (!creds) return;
         void sendTelegramProjectMessage(
           creds.token,
@@ -542,7 +567,7 @@ const telegramModule: KotaModule = {
         );
       }),
       ctx.events.subscribe("workflow.attention.digest", (payload) => {
-        const creds = getCredentials();
+        const creds = getCredentials(ctx);
         if (!creds) return;
         void sendTelegramProjectMessage(
           creds.token,
@@ -554,7 +579,7 @@ const telegramModule: KotaModule = {
         );
       }),
       ctx.events.subscribe("workflow.daily.digest", (payload) => {
-        const creds = getCredentials();
+        const creds = getCredentials(ctx);
         if (!creds) return;
         void sendTelegramProjectMessage(
           creds.token,
@@ -566,7 +591,7 @@ const telegramModule: KotaModule = {
         );
       }),
       ctx.events.subscribe("workflow.approval.expired", (payload) => {
-        const creds = getCredentials();
+        const creds = getCredentials(ctx);
         if (!creds) return;
         void sendTelegramProjectMessage(
           creds.token,
@@ -578,12 +603,12 @@ const telegramModule: KotaModule = {
         );
       }),
       ctx.events.subscribe("module.crash.alert", (payload) => {
-        const creds = getCredentials();
+        const creds = getCredentials(ctx);
         if (!creds) return;
         void sendTelegramMessage(creds.token, creds.chatId, payload.text as string, ctx.log);
       }),
       ctx.events.subscribe("approval.requested", (payload) => {
-        const creds = getCredentials();
+        const creds = getCredentials(ctx);
         if (!creds) return;
         const id = payload.id as string;
         const tool = payload.tool as string;
@@ -612,7 +637,7 @@ const telegramModule: KotaModule = {
         );
       }),
       ctx.events.subscribe("owner.question.asked", (payload) => {
-        const creds = getCredentials();
+        const creds = getCredentials(ctx);
         if (!creds) return;
         const id = payload.id as string;
         const question = payload.question as string;
@@ -658,7 +683,7 @@ const telegramModule: KotaModule = {
       ...(optInEvents.has("workflow.build.committed")
         ? [
             ctx.events.subscribe("workflow.build.committed", (payload) => {
-              const creds = getCredentials();
+              const creds = getCredentials(ctx);
               if (!creds) return;
               const commitMessage = payload.commitMessage as string;
               const taskId = payload.taskId as string | null;

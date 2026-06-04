@@ -12,6 +12,7 @@ import type {
   ModuleSource,
   RouteRegistration,
 } from "./module-types.js";
+import type { ModuleSetupRequirementContribution } from "./setup-requirements.js";
 
 /**
  * Single mutable state object the loader, load-phase functions, lifecycle
@@ -28,6 +29,7 @@ export interface LoaderState {
   moduleChannelDefs: Map<string, readonly ChannelDef[]>;
   moduleSkillDefs: Map<string, readonly SkillDef[]>;
   moduleAgentDefs: Map<string, readonly AgentDef[]>;
+  moduleSetupRequirementDefs: Map<string, readonly ModuleSetupRequirementContribution[]>;
   moduleRoutes: Map<string, RouteRegistration[]>;
   moduleCommands: Map<string, Command[]>;
   moduleControlRoutes: Map<string, ControlRouteRegistration[]>;
@@ -57,6 +59,7 @@ export function createLoaderState(): LoaderState {
     moduleChannelDefs: new Map(),
     moduleSkillDefs: new Map(),
     moduleAgentDefs: new Map(),
+    moduleSetupRequirementDefs: new Map(),
     moduleRoutes: new Map(),
     moduleCommands: new Map(),
     moduleControlRoutes: new Map(),

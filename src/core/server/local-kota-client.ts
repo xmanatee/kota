@@ -67,6 +67,7 @@ export class LocalKotaClient implements KotaClient {
   readonly answer: KotaClient["answer"];
   readonly capture: KotaClient["capture"];
   readonly retract: KotaClient["retract"];
+  readonly setup: KotaClient["setup"];
 
   forProject(projectId: string): KotaClient {
     return createProjectScopedKotaClient(this, projectId);
@@ -101,5 +102,6 @@ export class LocalKotaClient implements KotaClient {
     this.answer = handlers.answer;
     this.capture = handlers.capture;
     this.retract = handlers.retract;
+    this.setup = handlers.setup;
   }
 }

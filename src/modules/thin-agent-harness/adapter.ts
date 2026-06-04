@@ -129,7 +129,10 @@ export const thinAgentHarness: AgentHarness = {
     }
 
     const system = options.systemPrompt;
-    const resolved = createModelClient({ model });
+    const resolved = createModelClient({
+      model,
+      projectDir: options.cwd,
+    });
     const outputTokenLimit = resolveModelOutputTokenLimit(
       resolved.model,
       options.modelOutputTokenLimits,

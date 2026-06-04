@@ -360,6 +360,7 @@ const daemonModule: KotaModule = {
           channels: loader.getContributedChannels(),
           controlRoutes: loader.getContributedControlRoutes(),
           routes: loader.getRoutes(),
+          setupRequirements: loader.getContributedSetupRequirements(),
           logFormat,
           resolveAgentDef: (name) => loader.getAgentDef(name),
           resolveSkillsPrompt: (names, agentName) => loader.getSkillsPromptFor(names, agentName),
