@@ -25,10 +25,10 @@ export class WebAccessTargetError extends Error {
 
 const MAX_WEB_ACCESS_REDIRECTS = 20;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+const CROSS_ORIGIN_REDIRECT_BODYLESS_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const CROSS_ORIGIN_REDIRECT_SAFE_HEADERS = new Set([
   "accept",
   "accept-language",
-  "content-type",
   "user-agent",
 ]);
 
@@ -104,13 +104,21 @@ export async function fetchPublicWebAccessUrl(
     }
 
     const nextUrl = new URL(location, currentUrl).toString();
-    if (new URL(nextUrl).origin !== new URL(currentUrl).origin) {
-      headers = retainCrossOriginRedirectSafeHeaders(headers);
-    }
     const normalizedMethod = (method ?? "GET").toUpperCase();
     if (response.status === 303 || ((response.status === 301 || response.status === 302) && normalizedMethod === "POST")) {
       method = "GET";
       body = undefined;
+    }
+    const currentOrigin = new URL(currentUrl).origin;
+    const nextOrigin = new URL(nextUrl).origin;
+    if (nextOrigin !== currentOrigin) {
+      const nextMethod = (method ?? "GET").toUpperCase();
+      if (body != null || !CROSS_ORIGIN_REDIRECT_BODYLESS_METHODS.has(nextMethod)) {
+        throw new WebAccessTargetError(
+          `Error: cross-origin redirect from ${currentOrigin} to ${nextOrigin} would replay a request body or state-changing method`,
+        );
+      }
+      headers = retainCrossOriginRedirectSafeHeaders(headers);
     }
     currentUrl = nextUrl;
     redirected = true;

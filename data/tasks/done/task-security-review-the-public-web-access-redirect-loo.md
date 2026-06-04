@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-public-web-access-redirect-loo
 title: Security review: The public web-access redirect loop preserves request bodies across cross-origin redirects while only filtering headers, allowing `http_request` POST/PUT/PATCH bodies to be replayed to a different origin on 307/308 redirects and leaking sensitive request data.
-status: ready
+status: done
 priority: p2
 area: security
 summary: The public web-access redirect loop preserves request bodies across cross-origin redirects while only filtering headers, allowing `http_request` POST/PUT/PATCH bodies to be replayed to a different origin on 307/308 redirects and leaking sensitive request data.
 created_at: 2026-06-04T10:34:18.611Z
-updated_at: 2026-06-04T10:34:18.611Z
+updated_at: 2026-06-04T10:46:47Z
 ---
 
 ## Problem
@@ -58,3 +58,4 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Verification: `pnpm vitest run src/modules/web-access/*.test.ts`; `pnpm typecheck`; `pnpm lint`.
