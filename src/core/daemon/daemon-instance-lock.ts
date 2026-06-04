@@ -1,6 +1,6 @@
-import { existsSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
+import { JsonFileError, readOptionalJsonFile } from "#core/util/json-file.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
 
 export const CONTROL_FILE = "daemon-control.json";
@@ -62,7 +62,24 @@ export async function acquireInstanceLock(
 }
 
 export function writeControlFile(stateDir: string, payload: DaemonControlFilePayload): void {
-  writeJsonFileAtomic(join(stateDir, CONTROL_FILE), payload);
+  const controlPath = join(stateDir, CONTROL_FILE);
+  const tmpPath = `${controlPath}.tmp`;
+
+  try {
+    mkdirSync(stateDir, { recursive: true, mode: 0o700 });
+    chmodSync(stateDir, 0o700);
+    rmSync(tmpPath, { force: true });
+    writeFileSync(tmpPath, `${JSON.stringify(payload, null, 2)}\n`, {
+      encoding: "utf-8",
+      mode: 0o600,
+    });
+    chmodSync(tmpPath, 0o600);
+    renameSync(tmpPath, controlPath);
+    chmodSync(controlPath, 0o600);
+  } catch (error) {
+    const message = error instanceof Error && error.message ? error.message : String(error);
+    throw new JsonFileError(controlPath, "write", `failed to write daemon control file securely: ${message}`);
+  }
 }
 
 export function releaseInstanceLock(stateDir: string): void {

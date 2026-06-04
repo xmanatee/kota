@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-daemon-control-bearer-token-is
 title: Security review: The daemon control bearer token is written through the generic JSON writer without enforcing restrictive directory or file permissions, so a fresh state directory under a normal permissive umask can expose `.kota/daemon-control.json` to other local users who can then authorize loopback control requests.
-status: ready
+status: done
 priority: p2
 area: security
 summary: The daemon control bearer token is written through the generic JSON writer without enforcing restrictive directory or file permissions, so a fresh state directory under a normal permissive umask can expose `.kota/daemon-control.json` to other local users who can then authorize loopback control requests.
 created_at: 2026-06-04T10:34:18.600Z
-updated_at: 2026-06-04T10:34:18.600Z
+updated_at: 2026-06-04T10:38:12.739Z
 ---
 
 ## Problem
@@ -57,3 +57,7 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm test src/core/daemon/daemon-instance-lock.test.ts`
