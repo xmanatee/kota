@@ -64,7 +64,7 @@ type MenuEntry = { key: string; label: string; screen: ScreenName };
 const MENU: MenuEntry[] = [
   { key: "1", label: "Sessions", screen: "sessions" },
   { key: "2", label: "Modules", screen: "modules" },
-  { key: "3", label: "Workflows", screen: "workflows" },
+  { key: "3", label: "Automations", screen: "workflows" },
   { key: "4", label: "Approvals", screen: "approvals" },
   { key: "5", label: "Tasks", screen: "tasks" },
   { key: "6", label: "Secrets", screen: "secrets" },
@@ -268,7 +268,7 @@ async function workflowsScreen(
   const result = await callOrError(output, "workflow.listDefinitions", () => client.workflow.listDefinitions());
   if (!result) return;
   if (result.definitions.length === 0) {
-    output.write(stack(heading("Workflows", 2), line(span("No workflow definitions registered.", "muted"))));
+    output.write(stack(heading("Automations", 2), line(span("No automation workflow definitions registered.", "muted"))));
     return;
   }
   const rows: LineNode[] = result.definitions.map((def) => {
@@ -284,13 +284,13 @@ async function workflowsScreen(
     );
   });
   output.write(stack(
-    heading("Workflows", 2),
+    heading("Automations", 2),
     line(span(`source: ${result.source}`, "muted")),
     blank(),
     ...rows,
     blank(),
   ));
-  const action = await prompt.ask('Toggle workflow? "<name> enable|disable", enter to skip: ');
+  const action = await prompt.ask('Toggle automation workflow? "<name> enable|disable", enter to skip: ');
   if (action === null) return;
   const trimmed = action.trim();
   if (trimmed === "") return;
@@ -304,7 +304,7 @@ async function workflowsScreen(
     ? await client.workflow.enable(name)
     : await client.workflow.disable(name);
   if (mutation.ok) {
-    output.write(line(span(`Workflow ${name} ${op}d.`, "success")));
+    output.write(line(span(`Automation workflow ${name} ${op}d.`, "success")));
     return;
   }
   if (mutation.reason === "not_found") {

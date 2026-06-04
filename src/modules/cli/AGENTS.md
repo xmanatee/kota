@@ -28,9 +28,9 @@ transports.
   launch and prints the equivalent one-shot subcommand hint so pipes,
   cron jobs, and scripted callers fail loudly instead of hanging on a
   prompt.
-- The first slice covers sessions, modules, workflows, the approval
-  queue, secrets (list + remove only), tasks, memory, knowledge, history,
-  and owner questions. Logs/events arrive in a later pass on the same
-  pattern.
+- The first slice covers sessions, modules, automations backed by workflow
+  definitions, the approval queue, secrets (list + remove only), tasks,
+  memory, knowledge, history, and owner questions. Logs/events arrive in a
+  later pass on the same pattern.
 - Secrets values are never rendered. The screen lists names and sources
   only; the only mutation is removal.

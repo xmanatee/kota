@@ -1,6 +1,7 @@
 # Workflow Ops Module
 
-This module owns the `kota workflow` CLI surface and the workflow HTTP API routes.
+This module owns the `kota workflow` CLI surface, its `kota automation` authoring
+alias, and the workflow HTTP API routes.
 
 ## Internal Structure
 
@@ -14,6 +15,9 @@ Shared utilities (`utils.ts`, `definitions-source.ts`) stay at the module root.
 ## Boundaries
 
 - No change to command names, flags, aliases, or output without updating docs.
+- Do not add a second automation client namespace. Operator-facing labels may
+  say automation or hook, but commands and clients still route through the
+  workflow contract and workflow run store.
 - Tests are co-located with the code they cover inside each subdomain.
 - HTTP routes are contributed via `routes/routes.ts` using handlers in the same subdirectory.
 

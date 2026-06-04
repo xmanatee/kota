@@ -1,12 +1,12 @@
 ---
 id: task-unify-hooks-and-workflows-under-one-automation-pro
 title: Unify hooks and workflows under one automation protocol
-status: ready
+status: done
 priority: p1
 area: core
 summary: Make KOTA expose one automation protocol where hook-style event reactions, schedules, watches, code steps, agent steps, approvals, and chained runs compile to the existing durable workflow runtime instead of becoming parallel trigger engines.
 created_at: 2026-06-03T13:40:09.383Z
-updated_at: 2026-06-04T01:38:39.216Z
+updated_at: 2026-06-04T07:57:04Z
 ---
 
 ## Problem

@@ -238,6 +238,7 @@ describe("runtime navigator", () => {
     });
     const joined = output.frames.join("\n");
     expect(joined).toMatch(/KOTA navigator/);
+    expect(joined).toMatch(/Automations/);
     expect(joined).toMatch(/Modules/);
     expect(joined).toMatch(/approval-queue/);
     expect(client.modules.list).toHaveBeenCalledTimes(1);

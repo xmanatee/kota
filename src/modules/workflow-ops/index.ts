@@ -1,5 +1,5 @@
 /**
- * Workflow ops module — owns the `kota workflow` CLI surface.
+ * Workflow ops module — owns the `kota workflow` / `kota automation` CLI surface.
  *
  * Registers all workflow subcommands: run list/show/step-inspect/follow/trigger,
  * control (pause/resume/abort/reload), validate, definitions, logs, gc, export,
@@ -64,9 +64,9 @@ import { listRuns } from "./utils.js";
 
 export function buildWorkflowCommand(ctx: ModuleContext): Command {
   const wfCmd = new Command("workflow")
-    .alias("wf")
+    .aliases(["wf", "automation"])
     .description(
-      "Inspect workflow runs and control the daemon.\n\n" +
+      "Inspect automation workflow runs and control the daemon.\n\n" +
         "  Control commands (status, pause, resume, abort, reload) use the daemon\n" +
         "  control API when a daemon is running, and fall back to signal files when\n" +
         "  no daemon is reachable.\n\n" +
@@ -101,7 +101,7 @@ export function buildWorkflowCommand(ctx: ModuleContext): Command {
 const workflowModule: KotaModule = {
   name: "workflow-ops",
   version: "1.0.0",
-  description: "Workflow CLI surface — kota workflow list/show/run/trial/control/validate/definitions/deps/logs/gc/export/diff/cost/stats",
+  description: "Automation workflow CLI surface — kota workflow/automation list/show/run/trial/control/validate/definitions/deps/logs/gc/export/diff/cost/stats",
   dependencies: ["rendering"],
   commands: (ctx) => [buildWorkflowCommand(ctx)],
   routes: (ctx) => workflowRoutes(ctx),

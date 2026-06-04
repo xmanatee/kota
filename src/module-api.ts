@@ -23,3 +23,12 @@ export type {
   ToolDef,
 } from "./core/modules/module-types.js";
 export type { ToolResult } from "./core/tools/tool-result.js";
+export type {
+  AutomationDefinitionInput,
+  AutomationKind,
+  HookDefinitionInput,
+} from "./core/workflow/automation.js";
+export {
+  defineAutomation,
+  defineHook,
+} from "./core/workflow/automation.js";

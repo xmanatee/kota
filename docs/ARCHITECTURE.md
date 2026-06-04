@@ -20,8 +20,18 @@ adding a parallel surface.
   channels, sessions, stores, module runtime state, and the control API.
 - `session` = a stateful execution context for an agent. Interactive chats and
   autonomous agent steps both run in sessions.
-- `workflow` = a deterministic trigger plus ordered steps. Hooks, cron jobs,
-  standing orders, and autonomous loops are all workflows.
+- `automation` = an operator- or module-authored reaction with one or more
+  triggers and ordered steps.
+- `hook` = an automation whose name emphasizes the thing it reacts to: a typed
+  event, schedule tick, file watch, webhook, or future batch trigger.
+- `workflow` = the durable compiled/runtime representation of an automation.
+  Workflow definitions and runs are the single execution engine for hooks, cron
+  jobs, standing orders, and autonomous loops.
+- `trigger` = the condition or producer that queues a workflow run: typed
+  event, cron schedule, interval, file watch, webhook, or a trigger step.
+- `schedule` = a trigger producer. Schedules are not agent properties.
+- `step` = an ordered executor inside a workflow: code, agent, tool, approval,
+  await-event, emit, trigger, parallel, branch, or foreach.
 - `client` = an operator or user-facing app that talks to the daemon's control
   API. Daemon-backed CLI mode, native desktop apps, web apps, and mobile apps
   are clients.
@@ -42,7 +52,7 @@ adding a parallel surface.
 - Add a specialist worker: add an `agent`.
 - Add runtime context identity: add or select a `scope`.
 - Add a long-lived runtime host capability: extend the `daemon`.
-- Add automation: add a `workflow`.
+- Add automation: author an automation or hook that compiles to a `workflow`.
 - Add an operator or user-facing app: add a `client`.
 - Add an external interaction transport: add a `channel`.
 - Add or ship an integration: add a `module`.
@@ -147,6 +157,19 @@ CLI daemon mode, web dashboard, or mobile app are not channels unless they also
 own message routing for sessions.
 
 New channels should use the channel protocol and be contributed by modules.
+
+## Automation Model
+
+KOTA differs from Temporal by not exposing a separate workflow/activity/message
+programming model: KOTA steps are the executor boundary, and event delivery
+uses the daemon event bus plus workflow triggers. KOTA differs from Home
+Assistant by not making trigger/condition/action a separate automation engine:
+conditions are workflow predicates or branch steps, actions are workflow steps,
+and the workflow run store remains the execution record.
+
+Use `defineAutomation` or `defineHook` only as authoring helpers. They compile
+to ordinary workflow definitions before validation, scheduling, approvals,
+run storage, and daemon/client APIs see them.
 
 ## External Anchors
 
