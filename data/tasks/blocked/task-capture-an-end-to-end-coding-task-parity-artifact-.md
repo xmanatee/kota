@@ -140,4 +140,4 @@ unblock action is exactly the `kota harness-parity run` capture described in
 the precondition; if it is not captured, blocked-promoter should re-instruct it
 after the 14-day operator-capture cadence rather than letting it disappear.
 
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-05-21T12:40:49.403Z -->
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-06-04T13:05:31.912Z -->

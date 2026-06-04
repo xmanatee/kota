@@ -104,4 +104,4 @@ supervisor setup. This task should not keep spawning autonomous deploy-artifact
 work; blocked-promoter should re-instruct the capture after the 14-day cadence
 until `.kota/runs/telegram-deploy-staging/` exists.
 
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-05-21T12:40:49.403Z -->
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-06-04T13:05:31.912Z -->
