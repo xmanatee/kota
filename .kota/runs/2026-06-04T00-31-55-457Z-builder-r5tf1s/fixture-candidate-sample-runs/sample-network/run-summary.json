@@ -1,0 +1,13 @@
+{
+  "runId": "sample-network",
+  "workflow": "builder",
+  "taskId": "task-sample-network",
+  "taskTitle": "Sample network rejection",
+  "outcome": "success",
+  "commitSha": "abc123",
+  "commitMessage": "Sample network rejection",
+  "filesChanged": [
+    "src/modules/eval-harness/fixture-candidates.ts"
+  ],
+  "completedAt": "2026-06-01T00:01:00.000Z"
+}

@@ -1,0 +1,32 @@
+{
+  "id": "sample-secret",
+  "workflow": "builder",
+  "startedAt": "2026-06-01T00:00:00.000Z",
+  "status": "success",
+  "runDir": ".kota/runs/sample-secret",
+  "trigger": {
+    "event": "autonomy.queue.available",
+    "payload": {
+      "pullableCount": 1
+    }
+  },
+  "steps": [
+    {
+      "id": "build",
+      "type": "agent",
+      "status": "success",
+      "output": {
+        "content": "$ API_TOKEN=sample-secret-value pnpm test src/modules/eval-harness/fixture-candidates.test.ts\n$ rm -rf .kota/tmp"
+      }
+    },
+    {
+      "id": "verify",
+      "type": "code",
+      "status": "success",
+      "output": {
+        "command": "API_TOKEN=sample-secret-value pnpm test src/modules/eval-harness/fixture-candidates.test.ts",
+        "exitCode": 0
+      }
+    }
+  ]
+}

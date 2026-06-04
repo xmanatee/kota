@@ -1,0 +1,8 @@
+1. `kota eval fixture-candidates` can scan a bounded local run set by explicit run ids and write deterministic `fixture-candidates.json` plus `fixture-candidates.md` under a requested output directory.
+2. Candidate records classify traces as `viable`, `needs-review`, or `rejected` with stable reason codes spanning safety, privacy, reproducibility, verifier signal, duplicate coverage, and operator-capture dependencies.
+3. The miner recognizes shell/process command evidence, verification commands, task state movement, changed files, final task outcome, and structured run artifacts already produced by workflow runs.
+4. Safety screening redacts secret-like values and rejects or flags destructive, network-bound, auth-walled, and host-specific traces before any trace is recommended as viable.
+5. Viable candidate reports include state-based verifier targets plus no-op and partial-ablation calibration ideas without emitting a complete fixture spec or creating fixtures automatically.
+6. Focused tests cover viable, duplicate-covered, secret-bearing, network/auth-bound, malformed-artifact, and sparse/no-verifier-signal inputs, plus CLI artifact writing.
+7. The local eval-harness `AGENTS.md` records the durable candidate-reporting convention.
+8. Acceptance artifacts under this run directory include a CLI transcript and sample report showing at least one viable candidate, one secret/destructive rejection, one network/auth rejection, and one duplicate-covered rejection.

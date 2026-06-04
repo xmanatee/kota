@@ -1,0 +1,8 @@
+$ pnpm kota eval fixture-candidates --runs-dir .kota/runs/2026-06-04T00-31-55-457Z-builder-r5tf1s/fixture-candidate-sample-runs --run-id sample-viable --run-id sample-secret --run-id sample-network --run-id 2026-04-24T15-11-48-347Z-builder-gnt9c6 --output-dir .kota/runs/2026-06-04T00-31-55-457Z-builder-r5tf1s/fixture-candidate-report
+
+> kota@0.1.0 kota /Users/xmanatee/Desktop/mono/apps/kota
+> node bin/kota.mjs eval fixture-candidates --runs-dir .kota/runs/2026-06-04T00-31-55-457Z-builder-r5tf1s/fixture-candidate-sample-runs --run-id sample-viable --run-id sample-secret --run-id sample-network --run-id 2026-04-24T15-11-48-347Z-builder-gnt9c6 --output-dir .kota/runs/2026-06-04T00-31-55-457Z-builder-r5tf1s/fixture-candidate-report
+
+fixture candidates: 4 scanned  1 viable  0 needs-review  3 rejected
+json: /Users/xmanatee/Desktop/mono/apps/kota/.kota/runs/2026-06-04T00-31-55-457Z-builder-r5tf1s/fixture-candidate-report/fixture-candidates.json
+summary: /Users/xmanatee/Desktop/mono/apps/kota/.kota/runs/2026-06-04T00-31-55-457Z-builder-r5tf1s/fixture-candidate-report/fixture-candidates.md

@@ -1,0 +1,13 @@
+{
+  "runId": "2026-04-24T15-11-48-347Z-builder-gnt9c6",
+  "workflow": "builder",
+  "taskId": "task-sample-duplicate",
+  "taskTitle": "Sample duplicate-covered rejection",
+  "outcome": "success",
+  "commitSha": "abc123",
+  "commitMessage": "Sample duplicate-covered rejection",
+  "filesChanged": [
+    "src/modules/eval-harness/fixture-candidates.ts"
+  ],
+  "completedAt": "2026-06-01T00:01:00.000Z"
+}

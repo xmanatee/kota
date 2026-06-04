@@ -1,0 +1,9 @@
+{
+  "runId": "sample-secret",
+  "workflow": "builder",
+  "taskId": "task-sample-secret",
+  "taskFinalState": "done",
+  "sourceFilesChanged": [
+    "src/modules/eval-harness/fixture-candidates.ts"
+  ]
+}

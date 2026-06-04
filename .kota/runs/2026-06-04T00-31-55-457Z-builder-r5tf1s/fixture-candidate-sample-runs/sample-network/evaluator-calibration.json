@@ -1,0 +1,9 @@
+{
+  "runId": "sample-network",
+  "workflow": "builder",
+  "taskId": "task-sample-network",
+  "taskFinalState": "done",
+  "sourceFilesChanged": [
+    "src/modules/eval-harness/fixture-candidates.ts"
+  ]
+}

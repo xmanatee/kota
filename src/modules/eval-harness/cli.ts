@@ -31,6 +31,7 @@ import type {
   EvalCalibrationOptions,
   EvalRunOptions,
 } from "./client.js";
+import { mineFixtureCandidates } from "./fixture-candidates.js";
 import {
   type ProviderEgressProvider,
   providerEgressProviderForPreset,
@@ -653,6 +654,61 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
       if (decision.status === "gated") {
         process.exitCode = 2;
       }
+    });
+
+  cmd
+    .command("fixture-candidates")
+    .description(
+      "Mine bounded local .kota/runs artifacts for eval fixture candidate traces.",
+    )
+    .requiredOption(
+      "--output-dir <path>",
+      "Directory where fixture-candidates.json and fixture-candidates.md are written.",
+    )
+    .option(
+      "--run-id <id>",
+      "Run id under .kota/runs to inspect (repeatable).",
+      (v, prev: string[]) => [...prev, v],
+      [] as string[],
+    )
+    .option("--runs-dir <path>", "Override runs directory (default <projectDir>/.kota/runs)")
+    .option("--workflow <name>", "Only include runs from this workflow")
+    .option("--limit <n>", `Maximum recent runs to scan when --run-id is absent (default ${20})`, "20")
+    .option("--since <iso>", "Only scan runs at or after this ISO timestamp when --run-id is absent")
+    .action((opts: {
+      outputDir: string;
+      runId: string[];
+      runsDir?: string;
+      workflow?: string;
+      limit: string;
+      since?: string;
+    }) => {
+      const limit = parsePositiveInt(opts.limit, "limit");
+      if (opts.since !== undefined && Number.isNaN(Date.parse(opts.since))) {
+        throw new Error(`--since must be a parseable ISO timestamp, got "${opts.since}".`);
+      }
+      const result = mineFixtureCandidates(ctx.cwd, {
+        outputDir: opts.outputDir,
+        ...(opts.runId.length > 0 && { runIds: opts.runId }),
+        ...(opts.runsDir !== undefined && { runsDir: opts.runsDir }),
+        ...(opts.workflow !== undefined && { workflow: opts.workflow }),
+        limit,
+        ...(opts.since !== undefined && { since: opts.since }),
+      });
+      print(stack(
+        line(
+          plain("fixture candidates: "),
+          span(String(result.report.totals.scannedRuns), "accent"),
+          plain(" scanned  "),
+          span(`${result.report.totals.viable} viable`, "success"),
+          plain("  "),
+          span(`${result.report.totals.needsReview} needs-review`, "warn"),
+          plain("  "),
+          span(`${result.report.totals.rejected} rejected`, "error"),
+        ),
+        line(span(`json: ${result.jsonPath}`, "muted")),
+        line(span(`summary: ${result.summaryPath}`, "muted")),
+      ));
     });
 
   return cmd;

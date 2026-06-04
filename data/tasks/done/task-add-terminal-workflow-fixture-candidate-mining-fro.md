@@ -1,12 +1,12 @@
 ---
 id: task-add-terminal-workflow-fixture-candidate-mining-fro
 title: Add terminal-workflow fixture candidate mining from KOTA run artifacts
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Scan KOTA run artifacts for terminal-heavy workflow traces and emit bounded eval-harness fixture candidate reports with safety, reproducibility, and state-based verifier signals.
 created_at: 2026-05-29T15:27:57.578Z
-updated_at: 2026-05-29T15:27:57.578Z
+updated_at: 2026-06-04T00:46:11.300Z
 ---
 
 ## Problem
@@ -158,3 +158,17 @@ choose authentic, reproducible, state-checkable terminal workflows.
 - Sample report artifact demonstrating at least one viable candidate, one
   rejected unsafe/secret-bearing trace, one network-bound or auth-walled
   rejection, and one duplicate-covered trace.
+
+## Completion Evidence
+
+- Added `kota eval fixture-candidates` and the module-owned candidate miner in
+  `src/modules/eval-harness/`, with typed report records, stable reason codes,
+  bounded command excerpts, secret redaction, duplicate fixture provenance
+  checks, verifier hints, and deterministic JSON/markdown output.
+- Focused tests pass:
+  `pnpm test src/modules/eval-harness/fixture-candidates.test.ts src/modules/eval-harness/cli.test.ts`.
+- Acceptance artifacts are under
+  `.kota/runs/2026-06-04T00-31-55-457Z-builder-r5tf1s/`: the CLI transcript,
+  tiny sample run set, and generated candidate report covering viable,
+  secret/destructive rejected, network/auth rejected, and duplicate-covered
+  rejected traces.

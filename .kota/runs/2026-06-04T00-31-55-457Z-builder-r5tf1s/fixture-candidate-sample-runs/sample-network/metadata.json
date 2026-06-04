@@ -1,0 +1,32 @@
+{
+  "id": "sample-network",
+  "workflow": "builder",
+  "startedAt": "2026-06-01T00:00:00.000Z",
+  "status": "success",
+  "runDir": ".kota/runs/sample-network",
+  "trigger": {
+    "event": "autonomy.queue.available",
+    "payload": {
+      "pullableCount": 1
+    }
+  },
+  "steps": [
+    {
+      "id": "build",
+      "type": "agent",
+      "status": "success",
+      "output": {
+        "content": "$ curl https://example.com/private-report\n$ gh auth status"
+      }
+    },
+    {
+      "id": "verify",
+      "type": "code",
+      "status": "success",
+      "output": {
+        "command": "curl https://example.com/private-report",
+        "exitCode": 0
+      }
+    }
+  ]
+}

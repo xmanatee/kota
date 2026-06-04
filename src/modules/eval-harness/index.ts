@@ -156,6 +156,23 @@ export {
   summarizeControlDecisionCoverage,
 } from "./fixture.js";
 export type {
+  FixtureCandidateCommand,
+  FixtureCandidateMiningOptions,
+  FixtureCandidateMiningResult,
+  FixtureCandidateReasonCode,
+  FixtureCandidateRecord,
+  FixtureCandidateReport,
+  FixtureCandidateReproducibility,
+  FixtureCandidateSafety,
+  FixtureCandidateStatus,
+  FixtureCandidateStructuredArtifact,
+  FixtureCandidateVerifierHints,
+} from "./fixture-candidates.js";
+export {
+  FIXTURE_CANDIDATE_REASON_CODES,
+  mineFixtureCandidates,
+} from "./fixture-candidates.js";
+export type {
   ExecutionBackendKind,
   ExecutionProfileDiagnostic,
   ExecutionProfileNonGatingReason,

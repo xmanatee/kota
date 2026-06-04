@@ -1,0 +1,32 @@
+{
+  "id": "sample-viable",
+  "workflow": "builder",
+  "startedAt": "2026-06-01T00:00:00.000Z",
+  "status": "success",
+  "runDir": ".kota/runs/sample-viable",
+  "trigger": {
+    "event": "autonomy.queue.available",
+    "payload": {
+      "pullableCount": 1
+    }
+  },
+  "steps": [
+    {
+      "id": "build",
+      "type": "agent",
+      "status": "success",
+      "output": {
+        "content": "$ pnpm test src/modules/eval-harness/fixture-candidates.test.ts\n$ pnpm typecheck"
+      }
+    },
+    {
+      "id": "verify",
+      "type": "code",
+      "status": "success",
+      "output": {
+        "command": "pnpm test src/modules/eval-harness/fixture-candidates.test.ts",
+        "exitCode": 0
+      }
+    }
+  ]
+}

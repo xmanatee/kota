@@ -150,6 +150,12 @@ Time-sliding fixtures use the runner templating pass:
 `{{NOW_MINUS_HOURS:N}}` and `{{NOW_MINUS_MINUTES:N}}` rewrite to ISO
 timestamps before `Date.now()` at materialization.
 
+## Fixture Candidate Mining
+
+Candidate mining is advisory: `kota eval fixture-candidates` writes bounded
+JSON/Markdown from local `.kota/runs/` with rejection codes, but never creates
+fixtures or affects pass@k/pass^k.
+
 ## Boundaries
 
 - Scoring, fixture-run contract, runner, gate decisions, and persisted cadence

@@ -1,0 +1,416 @@
+{
+  "version": 1,
+  "input": {
+    "runsDir": ".kota/runs/2026-06-04T00-31-55-457Z-builder-r5tf1s/fixture-candidate-sample-runs",
+    "runIds": [
+      "2026-04-24T15-11-48-347Z-builder-gnt9c6",
+      "sample-network",
+      "sample-secret",
+      "sample-viable"
+    ],
+    "workflow": null,
+    "limit": 20,
+    "since": null
+  },
+  "totals": {
+    "scannedRuns": 4,
+    "viable": 1,
+    "needsReview": 0,
+    "rejected": 3
+  },
+  "candidates": [
+    {
+      "runId": "2026-04-24T15-11-48-347Z-builder-gnt9c6",
+      "workflow": "builder",
+      "runStatus": "success",
+      "taskId": "task-sample-duplicate",
+      "taskFinalState": "done",
+      "status": "rejected",
+      "reasonCodes": [
+        "duplicate-existing-fixture"
+      ],
+      "reasonSummary": "rejected: duplicate-existing-fixture",
+      "terminalEvidence": {
+        "commandCount": 1,
+        "commands": [
+          {
+            "source": "metadata.steps.build.output",
+            "kind": "shell",
+            "command": "pnpm test src/modules/eval-harness/fixture-candidates.test.ts",
+            "risk": []
+          }
+        ],
+        "verificationCommands": [
+          "pnpm test src/modules/eval-harness/fixture-candidates.test.ts"
+        ],
+        "taskStateMoves": []
+      },
+      "changedPaths": [
+        "src/modules/eval-harness/fixture-candidates.ts"
+      ],
+      "structuredArtifacts": [
+        {
+          "path": "evaluator-calibration.json",
+          "kind": "json",
+          "signal": "object keys: runId, sourceFilesChanged, taskFinalState, taskId, workflow"
+        },
+        {
+          "path": "run-summary.json",
+          "kind": "json",
+          "signal": "object keys: commitMessage, commitSha, completedAt, filesChanged, outcome"
+        },
+        {
+          "path": "verification.json",
+          "kind": "json",
+          "signal": "object keys: predicatePass"
+        }
+      ],
+      "safety": {
+        "redactionCount": 0,
+        "findings": []
+      },
+      "reproducibility": {
+        "localOnly": true,
+        "requiredServices": [],
+        "generatedArtifacts": [
+          "evaluator-calibration.json",
+          "run-summary.json",
+          "verification.json"
+        ],
+        "hostAssumptions": []
+      },
+      "verifierHints": {
+        "stateTargets": [
+          ".kota/runs/<run-id>/evaluator-calibration.json",
+          ".kota/runs/<run-id>/run-summary.json",
+          ".kota/runs/<run-id>/verification.json",
+          "src/modules/eval-harness/fixture-candidates.ts"
+        ],
+        "objectiveMetricCandidates": [
+          "evaluator-calibration.json: numeric fields or counts",
+          "run-summary.json: numeric fields or counts",
+          "verification.json: numeric fields or counts"
+        ],
+        "noOpChecks": [
+          "no-op leaves .kota/runs/<run-id>/evaluator-calibration.json absent or unchanged",
+          "no-op leaves .kota/runs/<run-id>/run-summary.json absent or unchanged",
+          "no-op leaves .kota/runs/<run-id>/verification.json absent or unchanged",
+          "no-op leaves src/modules/eval-harness/fixture-candidates.ts absent or unchanged"
+        ],
+        "partialAblationChecks": [
+          "drop or perturb pnpm test src/modules/eval-harness/fixture-candidates.test.ts and expect verifier failure"
+        ]
+      },
+      "duplicateCoverage": {
+        "covered": true,
+        "fixtureIds": [
+          "builder-agent-call-replay"
+        ]
+      }
+    },
+    {
+      "runId": "sample-network",
+      "workflow": "builder",
+      "runStatus": "success",
+      "taskId": "task-sample-network",
+      "taskFinalState": "done",
+      "status": "rejected",
+      "reasonCodes": [
+        "reproducibility-auth-walled",
+        "reproducibility-network-bound",
+        "verifier-no-state-signal"
+      ],
+      "reasonSummary": "rejected: reproducibility-auth-walled, reproducibility-network-bound, verifier-no-state-signal",
+      "terminalEvidence": {
+        "commandCount": 2,
+        "commands": [
+          {
+            "source": "metadata.steps.build.output",
+            "kind": "shell",
+            "command": "curl https://example.com/private-report",
+            "risk": [
+              "reproducibility-network-bound"
+            ]
+          },
+          {
+            "source": "metadata.steps.build.output",
+            "kind": "shell",
+            "command": "gh auth status",
+            "risk": [
+              "reproducibility-network-bound",
+              "reproducibility-auth-walled"
+            ]
+          }
+        ],
+        "verificationCommands": [],
+        "taskStateMoves": []
+      },
+      "changedPaths": [
+        "src/modules/eval-harness/fixture-candidates.ts"
+      ],
+      "structuredArtifacts": [
+        {
+          "path": "evaluator-calibration.json",
+          "kind": "json",
+          "signal": "object keys: runId, sourceFilesChanged, taskFinalState, taskId, workflow"
+        },
+        {
+          "path": "run-summary.json",
+          "kind": "json",
+          "signal": "object keys: commitMessage, commitSha, completedAt, filesChanged, outcome"
+        },
+        {
+          "path": "verification.json",
+          "kind": "json",
+          "signal": "object keys: predicatePass"
+        }
+      ],
+      "safety": {
+        "redactionCount": 0,
+        "findings": []
+      },
+      "reproducibility": {
+        "localOnly": false,
+        "requiredServices": [
+          "curl",
+          "gh"
+        ],
+        "generatedArtifacts": [
+          "evaluator-calibration.json",
+          "run-summary.json",
+          "verification.json"
+        ],
+        "hostAssumptions": []
+      },
+      "verifierHints": {
+        "stateTargets": [
+          ".kota/runs/<run-id>/evaluator-calibration.json",
+          ".kota/runs/<run-id>/run-summary.json",
+          ".kota/runs/<run-id>/verification.json",
+          "src/modules/eval-harness/fixture-candidates.ts"
+        ],
+        "objectiveMetricCandidates": [
+          "evaluator-calibration.json: numeric fields or counts",
+          "run-summary.json: numeric fields or counts",
+          "verification.json: numeric fields or counts"
+        ],
+        "noOpChecks": [
+          "no-op leaves .kota/runs/<run-id>/evaluator-calibration.json absent or unchanged",
+          "no-op leaves .kota/runs/<run-id>/run-summary.json absent or unchanged",
+          "no-op leaves .kota/runs/<run-id>/verification.json absent or unchanged",
+          "no-op leaves src/modules/eval-harness/fixture-candidates.ts absent or unchanged"
+        ],
+        "partialAblationChecks": []
+      },
+      "duplicateCoverage": {
+        "covered": false,
+        "fixtureIds": []
+      }
+    },
+    {
+      "runId": "sample-secret",
+      "workflow": "builder",
+      "runStatus": "success",
+      "taskId": "task-sample-secret",
+      "taskFinalState": "done",
+      "status": "rejected",
+      "reasonCodes": [
+        "privacy-secret-like-value",
+        "safety-destructive-command"
+      ],
+      "reasonSummary": "rejected: privacy-secret-like-value, safety-destructive-command",
+      "terminalEvidence": {
+        "commandCount": 3,
+        "commands": [
+          {
+            "source": "metadata.steps.build.output",
+            "kind": "shell",
+            "command": "API_TOKEN=[REDACTED] pnpm test src/modules/eval-harness/fixture-candidates.test.ts",
+            "risk": [
+              "privacy-secret-like-value"
+            ]
+          },
+          {
+            "source": "metadata.steps.build.output",
+            "kind": "shell",
+            "command": "rm -rf .kota/tmp",
+            "risk": [
+              "safety-destructive-command"
+            ]
+          },
+          {
+            "source": "metadata.steps.build.output",
+            "kind": "shell",
+            "command": "pnpm test src/modules/eval-harness/fixture-candidates.test.ts",
+            "risk": []
+          }
+        ],
+        "verificationCommands": [
+          "API_TOKEN=[REDACTED] pnpm test src/modules/eval-harness/fixture-candidates.test.ts",
+          "pnpm test src/modules/eval-harness/fixture-candidates.test.ts"
+        ],
+        "taskStateMoves": []
+      },
+      "changedPaths": [
+        "src/modules/eval-harness/fixture-candidates.ts"
+      ],
+      "structuredArtifacts": [
+        {
+          "path": "evaluator-calibration.json",
+          "kind": "json",
+          "signal": "object keys: runId, sourceFilesChanged, taskFinalState, taskId, workflow"
+        },
+        {
+          "path": "run-summary.json",
+          "kind": "json",
+          "signal": "object keys: commitMessage, commitSha, completedAt, filesChanged, outcome"
+        },
+        {
+          "path": "verification.json",
+          "kind": "json",
+          "signal": "object keys: predicatePass"
+        }
+      ],
+      "safety": {
+        "redactionCount": 1,
+        "findings": [
+          "privacy-secret-like-value",
+          "safety-destructive-command"
+        ]
+      },
+      "reproducibility": {
+        "localOnly": true,
+        "requiredServices": [],
+        "generatedArtifacts": [
+          "evaluator-calibration.json",
+          "run-summary.json",
+          "verification.json"
+        ],
+        "hostAssumptions": []
+      },
+      "verifierHints": {
+        "stateTargets": [
+          ".kota/runs/<run-id>/evaluator-calibration.json",
+          ".kota/runs/<run-id>/run-summary.json",
+          ".kota/runs/<run-id>/verification.json",
+          "src/modules/eval-harness/fixture-candidates.ts"
+        ],
+        "objectiveMetricCandidates": [
+          "evaluator-calibration.json: numeric fields or counts",
+          "run-summary.json: numeric fields or counts",
+          "verification.json: numeric fields or counts"
+        ],
+        "noOpChecks": [
+          "no-op leaves .kota/runs/<run-id>/evaluator-calibration.json absent or unchanged",
+          "no-op leaves .kota/runs/<run-id>/run-summary.json absent or unchanged",
+          "no-op leaves .kota/runs/<run-id>/verification.json absent or unchanged",
+          "no-op leaves src/modules/eval-harness/fixture-candidates.ts absent or unchanged"
+        ],
+        "partialAblationChecks": [
+          "drop or perturb API_TOKEN=[REDACTED] pnpm test src/modules/eval-harness/fixture-candidates.test.ts and expect verifier failure",
+          "drop or perturb pnpm test src/modules/eval-harness/fixture-candidates.test.ts and expect verifier failure"
+        ]
+      },
+      "duplicateCoverage": {
+        "covered": false,
+        "fixtureIds": []
+      }
+    },
+    {
+      "runId": "sample-viable",
+      "workflow": "builder",
+      "runStatus": "success",
+      "taskId": "task-sample-viable",
+      "taskFinalState": "done",
+      "status": "viable",
+      "reasonCodes": [],
+      "reasonSummary": "Local terminal trace with verification commands and state-based verifier targets.",
+      "terminalEvidence": {
+        "commandCount": 2,
+        "commands": [
+          {
+            "source": "metadata.steps.build.output",
+            "kind": "shell",
+            "command": "pnpm test src/modules/eval-harness/fixture-candidates.test.ts",
+            "risk": []
+          },
+          {
+            "source": "metadata.steps.build.output",
+            "kind": "shell",
+            "command": "pnpm typecheck",
+            "risk": []
+          }
+        ],
+        "verificationCommands": [
+          "pnpm test src/modules/eval-harness/fixture-candidates.test.ts",
+          "pnpm typecheck"
+        ],
+        "taskStateMoves": []
+      },
+      "changedPaths": [
+        ".kota/runs/sample-viable/verification.json",
+        "src/modules/eval-harness/fixture-candidates.ts"
+      ],
+      "structuredArtifacts": [
+        {
+          "path": "evaluator-calibration.json",
+          "kind": "json",
+          "signal": "object keys: runId, sourceFilesChanged, taskFinalState, taskId, workflow"
+        },
+        {
+          "path": "run-summary.json",
+          "kind": "json",
+          "signal": "object keys: commitMessage, commitSha, completedAt, filesChanged, outcome"
+        },
+        {
+          "path": "verification.json",
+          "kind": "json",
+          "signal": "object keys: objectiveScore, predicatePass"
+        }
+      ],
+      "safety": {
+        "redactionCount": 0,
+        "findings": []
+      },
+      "reproducibility": {
+        "localOnly": true,
+        "requiredServices": [],
+        "generatedArtifacts": [
+          ".kota/runs/sample-viable/verification.json",
+          "evaluator-calibration.json",
+          "run-summary.json",
+          "verification.json"
+        ],
+        "hostAssumptions": []
+      },
+      "verifierHints": {
+        "stateTargets": [
+          ".kota/runs/<run-id>/evaluator-calibration.json",
+          ".kota/runs/<run-id>/run-summary.json",
+          ".kota/runs/<run-id>/verification.json",
+          ".kota/runs/sample-viable/verification.json",
+          "src/modules/eval-harness/fixture-candidates.ts"
+        ],
+        "objectiveMetricCandidates": [
+          "evaluator-calibration.json: numeric fields or counts",
+          "run-summary.json: numeric fields or counts",
+          "verification.json: numeric fields or counts"
+        ],
+        "noOpChecks": [
+          "no-op leaves .kota/runs/<run-id>/evaluator-calibration.json absent or unchanged",
+          "no-op leaves .kota/runs/<run-id>/run-summary.json absent or unchanged",
+          "no-op leaves .kota/runs/<run-id>/verification.json absent or unchanged",
+          "no-op leaves .kota/runs/sample-viable/verification.json absent or unchanged"
+        ],
+        "partialAblationChecks": [
+          "drop or perturb pnpm test src/modules/eval-harness/fixture-candidates.test.ts and expect verifier failure",
+          "drop or perturb pnpm typecheck and expect verifier failure"
+        ]
+      },
+      "duplicateCoverage": {
+        "covered": false,
+        "fixtureIds": []
+      }
+    }
+  ]
+}

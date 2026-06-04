@@ -1,0 +1,14 @@
+{
+  "runId": "sample-viable",
+  "workflow": "builder",
+  "taskId": "task-sample-viable",
+  "taskTitle": "Sample viable fixture candidate",
+  "outcome": "success",
+  "commitSha": "abc123",
+  "commitMessage": "Sample viable fixture candidate",
+  "filesChanged": [
+    "src/modules/eval-harness/fixture-candidates.ts",
+    ".kota/runs/sample-viable/verification.json"
+  ],
+  "completedAt": "2026-06-01T00:01:00.000Z"
+}

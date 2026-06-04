@@ -39,6 +39,18 @@ logs/
 !/.kota/runs/2026-05-29T06-05-39-045Z-builder-ej9dyf/success-criteria.txt
 !/.kota/runs/2026-05-29T06-05-39-045Z-builder-ej9dyf/trajectory-attention-fixture.json
 !/.kota/runs/2026-05-29T06-05-39-045Z-builder-ej9dyf/validation-summary.txt
+!/.kota/runs/2026-06-04T00-31-55-457Z-builder-r5tf1s/
+/.kota/runs/2026-06-04T00-31-55-457Z-builder-r5tf1s/*
+!/.kota/runs/2026-06-04T00-31-55-457Z-builder-r5tf1s/commit-message.txt
+!/.kota/runs/2026-06-04T00-31-55-457Z-builder-r5tf1s/fixture-candidate-report/
+!/.kota/runs/2026-06-04T00-31-55-457Z-builder-r5tf1s/fixture-candidate-report/fixture-candidates.json
+!/.kota/runs/2026-06-04T00-31-55-457Z-builder-r5tf1s/fixture-candidate-report/fixture-candidates.md
+!/.kota/runs/2026-06-04T00-31-55-457Z-builder-r5tf1s/fixture-candidate-sample-runs/
+!/.kota/runs/2026-06-04T00-31-55-457Z-builder-r5tf1s/fixture-candidate-sample-runs/*/
+!/.kota/runs/2026-06-04T00-31-55-457Z-builder-r5tf1s/fixture-candidate-sample-runs/*/*.json
+!/.kota/runs/2026-06-04T00-31-55-457Z-builder-r5tf1s/fixture-candidates-cli-transcript.txt
+!/.kota/runs/2026-06-04T00-31-55-457Z-builder-r5tf1s/success-criteria-verified.txt
+!/.kota/runs/2026-06-04T00-31-55-457Z-builder-r5tf1s/success-criteria.txt
 # Eval-harness fixtures legitimately seed prior run state; the runner copies
 # `initial/` verbatim into an isolated tmpdir at fixture-run time.
 !src/modules/eval-harness/fixtures/**/initial/.kota/

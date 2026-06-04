@@ -1,0 +1,13 @@
+{
+  "runId": "sample-secret",
+  "workflow": "builder",
+  "taskId": "task-sample-secret",
+  "taskTitle": "Sample secret-bearing rejection",
+  "outcome": "success",
+  "commitSha": "abc123",
+  "commitMessage": "Sample secret-bearing rejection",
+  "filesChanged": [
+    "src/modules/eval-harness/fixture-candidates.ts"
+  ],
+  "completedAt": "2026-06-01T00:01:00.000Z"
+}

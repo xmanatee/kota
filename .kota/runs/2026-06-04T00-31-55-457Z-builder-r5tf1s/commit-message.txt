@@ -1,0 +1,1 @@
+Reject malformed fixture candidate JSON artifacts
