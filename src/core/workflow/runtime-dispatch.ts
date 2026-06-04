@@ -109,7 +109,7 @@ export function maybeStartNext(state: WorkflowRuntimeDispatchState): void {
     if (!definition) continue;
 
     state.log(`Dispatching workflow "${queued!.workflowName}"`);
-    void runWorkflow(state, definition, queued!.trigger);
+    void runWorkflow(state, definition, queued!.trigger, queued!.runId);
   }
 }
 
@@ -192,6 +192,7 @@ export async function runWorkflow(
   state: WorkflowRuntimeDispatchState,
   definition: WorkflowDefinition,
   trigger: WorkflowRunTrigger,
+  runId?: string,
 ): Promise<void> {
   const preRunFingerprint = getRepoWorktreeStatus(state.projectDir).fingerprint;
   // Claim the concurrency slot synchronously BEFORE executeWorkflowRun runs.
@@ -230,6 +231,7 @@ export async function runWorkflow(
       resolveAgentDef: state.resolveAgentDef,
       resolveSkillsPrompt: state.resolveSkillsPrompt,
       agentRunLimiter: state.agentRunLimiter,
+      runId,
     },
     abortController,
   );

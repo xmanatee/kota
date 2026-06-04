@@ -3,7 +3,11 @@ import { getEligibleAtMs } from "./run-executor-utils.js";
 import { formatRunId } from "./run-io.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowQueuedRun } from "./run-types.js";
-import type { WorkflowAgentBackoffState, WorkflowRunTrigger } from "./trigger-types.js";
+import {
+  WORKFLOW_BATCH_FLUSH_EVENT,
+  type WorkflowAgentBackoffState,
+  type WorkflowRunTrigger,
+} from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
 export type WorkflowQueueManagerConfig = {
@@ -87,13 +91,20 @@ export class WorkflowQueueManager {
       }
     }
 
-    const existingIndex = this.queue.findIndex(
-      (queued) => queued.workflowName === definition.name,
-    );
+    const distinctQueuedRun = trigger.event === WORKFLOW_BATCH_FLUSH_EVENT;
+    const existingIndex = distinctQueuedRun
+      ? -1
+      : this.queue.findIndex(
+          (queued) => queued.workflowName === definition.name,
+        );
     const state = this.config.store.readState();
     const existing = existingIndex >= 0 ? this.queue[existingIndex] : undefined;
+    const providedRunId =
+      typeof trigger.payload._runId === "string" && trigger.payload._runId.trim().length > 0
+        ? trigger.payload._runId
+        : undefined;
     const queuedRun: WorkflowQueuedRun = {
-      runId: existing?.runId ?? formatRunId(definition.name),
+      runId: existing?.runId ?? providedRunId ?? formatRunId(definition.name),
       workflowName: definition.name,
       trigger,
       enqueuedAtMs: existing ? existing.enqueuedAtMs : Date.now(),

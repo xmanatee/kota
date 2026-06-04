@@ -293,6 +293,7 @@ export function enqueueMatchingWorkflows(
   for (const definition of definitions) {
     if (!definition.enabled) continue;
     for (const trigger of definition.triggers) {
+      if (trigger.batch) continue;
       if (trigger.event !== envelope.type) continue;
       if (!matchesFilter(trigger.filter, envelope.payload)) continue;
       enqueue(definition, trigger, {

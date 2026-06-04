@@ -43,6 +43,7 @@ export type RunExecutorDeps = {
   store: WorkflowRunStore;
   model?: string;
   config?: KotaConfig;
+  runId?: string;
   log: (message: string) => void;
   /**
    * Optional callback invoked by trigger steps to queue or run another workflow.
@@ -84,7 +85,7 @@ export function executeWorkflowRun(
       inputDeps.pbus ??
       new ProjectScopedEventBus(inputDeps.bus, deriveDirectoryScopeId(inputDeps.projectDir)),
   };
-  const run = deps.store.createRun(definition, trigger);
+  const run = deps.store.createRun(definition, trigger, deps.runId);
   const startedAt = Date.now();
   const agentRunLimiter =
     deps.agentRunLimiter ?? createAgentRunLimiter(deps.agentConcurrency);

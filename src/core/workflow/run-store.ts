@@ -22,7 +22,11 @@ import type {
   WorkflowRuntimeState,
 } from "./run-types.js";
 import type { WorkflowStep } from "./step-types.js";
-import type { WorkflowAgentBackoffState, WorkflowRunTrigger } from "./trigger-types.js";
+import type {
+  WorkflowAgentBackoffState,
+  WorkflowBatchBuffers,
+  WorkflowRunTrigger,
+} from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
 export type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
@@ -74,6 +78,7 @@ export class WorkflowRunStore {
       ...(state?.definitionsLoadedAt ? { definitionsLoadedAt: state.definitionsLoadedAt } : {}),
       ...(state?.agentBackoff ? { agentBackoff: state.agentBackoff } : {}),
       ...(state?.recovery ? { recovery: state.recovery } : {}),
+      ...(state?.batchBuffers ? { batchBuffers: state.batchBuffers } : {}),
     };
   }
 
@@ -156,6 +161,20 @@ export class WorkflowRunStore {
       state.recovery = recovery;
     } else {
       delete state.recovery;
+    }
+    this.writeState(state);
+  }
+
+  getBatchBuffers(): WorkflowBatchBuffers {
+    return this.readState().batchBuffers ?? {};
+  }
+
+  setBatchBuffers(batchBuffers: WorkflowBatchBuffers): void {
+    const state = this.readState();
+    if (Object.keys(batchBuffers).length > 0) {
+      state.batchBuffers = batchBuffers;
+    } else {
+      delete state.batchBuffers;
     }
     this.writeState(state);
   }
@@ -255,11 +274,17 @@ export class WorkflowRunStore {
   createRun(
     workflow: WorkflowDefinition,
     trigger: WorkflowRunTrigger,
+    runId?: string,
   ) {
     const state = this.readState();
-    const id = typeof trigger.payload._runId === "string" && trigger.payload._runId
-      ? trigger.payload._runId
-      : formatRunId(workflow.name);
+    if (runId !== undefined && runId.trim().length === 0) {
+      throw new Error(`Workflow "${workflow.name}" queued run id must be non-empty`);
+    }
+    const id = runId ?? (
+      typeof trigger.payload._runId === "string" && trigger.payload._runId
+        ? trigger.payload._runId
+        : formatRunId(workflow.name)
+    );
     const runDirPath = join(this.runsDir, id);
     ensureDir(runDirPath);
     ensureDir(join(runDirPath, "steps"));

@@ -1,4 +1,6 @@
-import type { BusEvents } from "#core/events/event-bus.js";
+import type { BusEnvelope, BusEvents } from "#core/events/event-bus.js";
+
+export const WORKFLOW_BATCH_FLUSH_EVENT = "workflow.batch.flushed";
 
 export type WorkflowRetryConfig = {
   maxAttempts: number;
@@ -26,9 +28,88 @@ export type WorkflowFilterValue =
   | WorkflowFilterScalar
   | readonly WorkflowFilterScalar[];
 
+export type WorkflowBatchFlushReason =
+  | "count"
+  | "max-age"
+  | "idle-timeout"
+  | "manual"
+  | "overflow";
+
+export type WorkflowBatchOverflowPolicy = "drop-newest" | "flush-oldest";
+
+export type WorkflowBatchTriggerInput = {
+  maxCount?: number;
+  maxAgeMs?: number;
+  idleTimeoutMs?: number;
+  groupBy?: string | readonly string[];
+  flushEvent?: string;
+  maxBufferSize: number;
+  overflow: WorkflowBatchOverflowPolicy;
+};
+
+export type WorkflowBatchTrigger = {
+  maxCount?: number;
+  maxAgeMs?: number;
+  idleTimeoutMs?: number;
+  groupBy: readonly string[];
+  flushEvent?: string;
+  maxBufferSize: number;
+  overflow: WorkflowBatchOverflowPolicy;
+};
+
+export type WorkflowBatchGroupValue = {
+  field: string;
+  value: string;
+};
+
+export type WorkflowBatchInputEventEnvelope = {
+  event: string;
+  receivedAt: string;
+  payload: BusEnvelope["payload"];
+};
+
+export type WorkflowBatchBufferState = {
+  definitionName: string;
+  triggerIndex: number;
+  sourceEventName: string;
+  scopeId: string;
+  projectId: string;
+  groupingKey: string;
+  groupValues: readonly WorkflowBatchGroupValue[];
+  firstEventAt: string;
+  lastEventAt: string;
+  inputEvents: WorkflowBatchInputEventEnvelope[];
+  droppedInputCount: number;
+};
+
+export type WorkflowBatchBuffers = Record<string, WorkflowBatchBufferState>;
+
+export type WorkflowBatchFlushPayload = {
+  scopeId: string;
+  projectId: string;
+  sourceEventName: string;
+  groupingKey: string;
+  reason: WorkflowBatchFlushReason;
+  count: number;
+  window: {
+    firstEventAt: string;
+    lastEventAt: string;
+    flushedAt: string;
+  };
+  inputEvents: WorkflowBatchInputEventEnvelope[];
+  batch: {
+    workflow: string;
+    triggerIndex: number;
+    maxBufferSize: number;
+    overflow: WorkflowBatchOverflowPolicy;
+    droppedInputCount: number;
+  };
+};
+
 export type WorkflowTriggerInput = {
   event?: keyof BusEvents | string;
   filter?: Record<string, WorkflowFilterValue>;
+  batch?: WorkflowBatchTriggerInput;
   cooldownMs?: number;
   /** Standard 5-field cron expression (MIN HOUR DOM MONTH DOW). */
   schedule?: string;
@@ -64,6 +145,7 @@ export type WorkflowTriggerInput = {
 export type WorkflowTrigger = {
   event: string;
   filter?: Record<string, WorkflowFilterValue>;
+  batch?: WorkflowBatchTrigger;
   cooldownMs: number;
   /** Standard 5-field cron expression, if this is a schedule trigger. */
   schedule?: string;

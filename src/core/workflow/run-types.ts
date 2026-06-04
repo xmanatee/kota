@@ -2,7 +2,7 @@ import type { TrajectoryDiagnosticsMetadata } from "#core/agent-harness/index.js
 import type { ToolResult } from "#core/tools/index.js";
 import type { WorkflowStepProgressReporter } from "./step-idle-timeout.js";
 import type { WorkflowAgentStep, WorkflowStep } from "./step-types.js";
-import type { WorkflowAgentBackoffSignal, WorkflowAgentBackoffState, WorkflowRunTrigger } from "./trigger-types.js";
+import type { WorkflowAgentBackoffSignal, WorkflowAgentBackoffState, WorkflowBatchBuffers, WorkflowRunTrigger } from "./trigger-types.js";
 
 export type WorkflowRunStatus =
   | "success"
@@ -85,6 +85,7 @@ export type WorkflowRuntimeState = {
   definitionsLoadedAt?: string;
   agentBackoff?: WorkflowAgentBackoffState;
   recovery?: WorkflowRecoveryState;
+  batchBuffers?: WorkflowBatchBuffers;
   pendingRuns: WorkflowQueuedRun[];
   workflows: Record<string, WorkflowStateEntry>;
 };

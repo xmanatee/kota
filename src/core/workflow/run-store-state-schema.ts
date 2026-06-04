@@ -10,7 +10,11 @@ import type {
   WorkflowRuntimeState,
   WorkflowStepSkipReason,
 } from "./run-types.js";
-import type { WorkflowAgentBackoffState, WorkflowRunTrigger } from "./trigger-types.js";
+import type {
+  WorkflowAgentBackoffState,
+  WorkflowBatchBufferState,
+  WorkflowRunTrigger,
+} from "./trigger-types.js";
 
 function fail(path: string, message: string): never {
   throw new JsonFileError(path, "parse", message);
@@ -181,6 +185,59 @@ function isWorkflowRecoveryState(value: unknown): value is WorkflowRecoveryState
   );
 }
 
+function isWorkflowBatchGroupValue(value: Parameters<typeof isPlainObject>[0]): boolean {
+  return (
+    isPlainObject(value) &&
+    typeof value.field === "string" &&
+    value.field.trim().length > 0 &&
+    typeof value.value === "string"
+  );
+}
+
+function isWorkflowBatchInputEventEnvelope(value: Parameters<typeof isPlainObject>[0]): boolean {
+  return (
+    isPlainObject(value) &&
+    typeof value.event === "string" &&
+    value.event.trim().length > 0 &&
+    typeof value.receivedAt === "string" &&
+    value.receivedAt.trim().length > 0 &&
+    isPlainObject(value.payload)
+  );
+}
+
+function isWorkflowBatchBufferState(
+  value: Parameters<typeof isPlainObject>[0],
+): value is WorkflowBatchBufferState {
+  return (
+    isPlainObject(value) &&
+    typeof value.definitionName === "string" &&
+    value.definitionName.trim().length > 0 &&
+    typeof value.triggerIndex === "number" &&
+    Number.isInteger(value.triggerIndex) &&
+    value.triggerIndex >= 0 &&
+    typeof value.sourceEventName === "string" &&
+    value.sourceEventName.trim().length > 0 &&
+    typeof value.scopeId === "string" &&
+    value.scopeId.trim().length > 0 &&
+    typeof value.projectId === "string" &&
+    value.projectId === value.scopeId &&
+    typeof value.groupingKey === "string" &&
+    value.groupingKey.trim().length > 0 &&
+    Array.isArray(value.groupValues) &&
+    value.groupValues.every(isWorkflowBatchGroupValue) &&
+    typeof value.firstEventAt === "string" &&
+    value.firstEventAt.trim().length > 0 &&
+    typeof value.lastEventAt === "string" &&
+    value.lastEventAt.trim().length > 0 &&
+    Array.isArray(value.inputEvents) &&
+    value.inputEvents.length > 0 &&
+    value.inputEvents.every(isWorkflowBatchInputEventEnvelope) &&
+    typeof value.droppedInputCount === "number" &&
+    Number.isInteger(value.droppedInputCount) &&
+    value.droppedInputCount >= 0
+  );
+}
+
 export function assertWorkflowRuntimeState(
   path: string,
   value: unknown,
@@ -203,6 +260,16 @@ export function assertWorkflowRuntimeState(
   }
   if (value.recovery !== undefined && !isWorkflowRecoveryState(value.recovery)) {
     fail(path, "workflow state has invalid recovery");
+  }
+  if (value.batchBuffers !== undefined) {
+    if (!isPlainObject(value.batchBuffers)) {
+      fail(path, "workflow state has invalid batchBuffers");
+    }
+    for (const [key, entry] of Object.entries(value.batchBuffers)) {
+      if (!isWorkflowBatchBufferState(entry)) {
+        fail(path, `workflow state batch buffer "${key}" is invalid`);
+      }
+    }
   }
   for (const [workflowName, entry] of Object.entries(value.workflows)) {
     if (!isPlainObject(entry)) {

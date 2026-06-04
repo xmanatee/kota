@@ -1,13 +1,13 @@
 ---
 id: task-add-generic-event-batching-to-workflow-triggers
 title: Add generic event batching to workflow triggers
-status: ready
+status: done
 priority: p1
 area: core
 summary: Add a durable, scope-aware batching primitive for any typed event stream so high-volume channels and periodic review workflows can buffer by count or time and emit one validated batch payload.
 depends_on: [task-promote-projects-into-hierarchical-scopes]
 created_at: 2026-06-03T13:40:14.237Z
-updated_at: 2026-06-04T08:08:29.843Z
+updated_at: 2026-06-04T08:24:28.000Z
 ---
 
 ## Problem
@@ -96,3 +96,12 @@ contract for channels, stores, schedules, watches, and autonomy telemetry.
   events and emits one batch payload.
 - A run artifact showing a batch flush reason, grouped inputs, and downstream
   staged processing.
+
+## Completion Evidence
+
+- Runtime implementation and synthetic examples landed in `src/core/workflow/event-batches.ts`
+  and `src/core/workflow/event-batches.test.ts`.
+- Verified with focused workflow tests, workflow runtime/validation integration
+  tests, typecheck, lint, and strict-types policy.
+- Run artifact:
+  `.kota/runs/2026-06-04T08-09-02-951Z-builder-njd2ly/batch-flush-artifact.json`.

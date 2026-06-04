@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { installAwaitResumers } from "./awaits-resume.js";
 import { isWithinDispatchWindow, msUntilDispatchWindowOpens } from "./dispatch-window.js";
+import type { WorkflowEventBatchManager } from "./event-batches.js";
 import {
   emitIdleEvent,
   loadDefinitions as loadDefinitionsViaDispatch,
@@ -17,6 +18,7 @@ export const WORKFLOW_STOP_ABORT_WAIT_MS = 15_000;
 
 export interface WorkflowRuntimeLifecycleState extends WorkflowRuntimeDispatchState {
   watchTriggers: WatchTriggerManager;
+  eventBatches: WorkflowEventBatchManager;
   awaitResumeDisposers: Array<() => void>;
   // Mutable lifecycle slots. Owned by start/stop.
   idleTimer: ReturnType<typeof setInterval> | null;
@@ -79,6 +81,7 @@ export function startRuntime(state: WorkflowRuntimeLifecycleState): void {
   });
 
   state.scheduleTriggers.setup(state.definitions);
+  state.eventBatches.setup(state.definitions);
   state.watchTriggers.setup(state.definitions, (handler) =>
     state.runtimeConfig.bus.on("file.changed", handler),
   );
@@ -131,6 +134,7 @@ export async function stopRuntime(
     }
   }
   state.scheduleTriggers.clearAll();
+  state.eventBatches.clearAll();
   state.watchTriggers.clearAll();
 
   if (state.activeRuns.size === 0) return;

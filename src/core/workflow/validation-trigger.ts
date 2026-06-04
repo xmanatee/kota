@@ -1,7 +1,13 @@
 import { matchesGlob } from "node:path";
 import { getModuleEventRegistry } from "#core/events/module-event.js";
 import { validateCronExpr, validateTimezone } from "./cron.js";
-import type { WorkflowTrigger, WorkflowTriggerInput } from "./trigger-types.js";
+import type {
+  WorkflowBatchOverflowPolicy,
+  WorkflowBatchTrigger,
+  WorkflowBatchTriggerInput,
+  WorkflowTrigger,
+  WorkflowTriggerInput,
+} from "./trigger-types.js";
 import {
   expectNonEmptyString,
   expectOptionalInteger,
@@ -11,6 +17,10 @@ import {
 
 const MIN_DEBOUNCE_MS = 200;
 const DEFAULT_DEBOUNCE_MS = 500;
+const BATCH_OVERFLOW_POLICIES: readonly WorkflowBatchOverflowPolicy[] = [
+  "drop-newest",
+  "flush-oldest",
+];
 
 /** Validates that a glob pattern is syntactically usable. */
 function validateGlobPattern(pattern: string, field: string, definitionPath: string): void {
@@ -39,9 +49,16 @@ export function validateTrigger(
   }
 
   if (trigger.watch != null) {
-    if (trigger.event != null || trigger.filter != null || trigger.schedule != null || trigger.intervalMs != null || trigger.webhook === true) {
+    if (
+      trigger.event != null ||
+      trigger.filter != null ||
+      trigger.batch != null ||
+      trigger.schedule != null ||
+      trigger.intervalMs != null ||
+      trigger.webhook === true
+    ) {
       throw new WorkflowDefinitionError(
-        `triggers[${index}]: watch triggers do not support event, filter, schedule, intervalMs, or webhook`,
+        `triggers[${index}]: watch triggers do not support event, filter, batch, schedule, intervalMs, or webhook`,
         definitionPath,
       );
     }
@@ -68,9 +85,15 @@ export function validateTrigger(
   }
 
   if (trigger.webhook === true) {
-    if (trigger.event != null || trigger.filter != null || trigger.schedule != null || trigger.intervalMs != null) {
+    if (
+      trigger.event != null ||
+      trigger.filter != null ||
+      trigger.batch != null ||
+      trigger.schedule != null ||
+      trigger.intervalMs != null
+    ) {
       throw new WorkflowDefinitionError(
-        `triggers[${index}]: webhook triggers do not support event, filter, schedule, or intervalMs`,
+        `triggers[${index}]: webhook triggers do not support event, filter, batch, schedule, or intervalMs`,
         definitionPath,
       );
     }
@@ -82,6 +105,13 @@ export function validateTrigger(
   if (isSchedule && trigger.filter != null) {
     throw new WorkflowDefinitionError(
       `triggers[${index}]: schedule triggers do not support filter`,
+      definitionPath,
+    );
+  }
+
+  if (isSchedule && trigger.batch != null) {
+    throw new WorkflowDefinitionError(
+      `triggers[${index}]: schedule triggers do not support batch`,
       definitionPath,
     );
   }
@@ -185,11 +215,143 @@ export function validateTrigger(
     }
   }
 
+  const batch =
+    trigger.batch === undefined
+      ? undefined
+      : validateBatchTrigger(trigger.batch, event, definitionPath, index);
+
+  if (batch) {
+    const registry = getModuleEventRegistry();
+    const declared = registry?.get(event);
+    if (declared) {
+      const allowed = new Set(declared.fields);
+      for (const key of batch.groupBy) {
+        if (!isDeclaredOrScopeAlias(key, allowed)) {
+          throw new WorkflowDefinitionError(
+            `triggers[${index}].batch.groupBy references field "${key}" not declared on event "${event}" ` +
+              `(declared by module "${declared.module}"). Declared fields: ${declared.fields.join(", ") || "(none)"}.`,
+            definitionPath,
+          );
+        }
+      }
+    }
+  }
+
   return {
     event,
     filter,
+    batch,
     cooldownMs,
   };
+}
+
+function validateBatchTrigger(
+  rawBatch: WorkflowTriggerInput["batch"],
+  event: string,
+  definitionPath: string,
+  index: number,
+): WorkflowBatchTrigger {
+  if (!rawBatch || typeof rawBatch !== "object" || Array.isArray(rawBatch)) {
+    throw new WorkflowDefinitionError(
+      `triggers[${index}].batch must be an object`,
+      definitionPath,
+    );
+  }
+
+  const maxCount = expectOptionalInteger(
+    rawBatch.maxCount,
+    `triggers[${index}].batch.maxCount`,
+    definitionPath,
+    1,
+  );
+  const maxAgeMs = expectOptionalInteger(
+    rawBatch.maxAgeMs,
+    `triggers[${index}].batch.maxAgeMs`,
+    definitionPath,
+    1,
+  );
+  const idleTimeoutMs = expectOptionalInteger(
+    rawBatch.idleTimeoutMs,
+    `triggers[${index}].batch.idleTimeoutMs`,
+    definitionPath,
+    1,
+  );
+  if (maxCount === undefined && maxAgeMs === undefined && idleTimeoutMs === undefined) {
+    throw new WorkflowDefinitionError(
+      `triggers[${index}].batch must set at least one of maxCount, maxAgeMs, or idleTimeoutMs`,
+      definitionPath,
+    );
+  }
+
+  const maxBufferSize = expectOptionalInteger(
+    rawBatch.maxBufferSize,
+    `triggers[${index}].batch.maxBufferSize`,
+    definitionPath,
+    1,
+  );
+  if (maxBufferSize === undefined) {
+    throw new WorkflowDefinitionError(
+      `triggers[${index}].batch.maxBufferSize is required`,
+      definitionPath,
+    );
+  }
+  if (maxCount !== undefined && maxCount > maxBufferSize) {
+    throw new WorkflowDefinitionError(
+      `triggers[${index}].batch.maxCount must be <= batch.maxBufferSize`,
+      definitionPath,
+    );
+  }
+  if (!BATCH_OVERFLOW_POLICIES.includes(rawBatch.overflow)) {
+    throw new WorkflowDefinitionError(
+      `triggers[${index}].batch.overflow must be one of ${BATCH_OVERFLOW_POLICIES.join(", ")}`,
+      definitionPath,
+    );
+  }
+
+  const groupBy = validateBatchGroupBy(rawBatch.groupBy, definitionPath, index);
+  const flushEvent =
+    rawBatch.flushEvent === undefined
+      ? undefined
+      : expectNonEmptyString(
+          rawBatch.flushEvent,
+          `triggers[${index}].batch.flushEvent`,
+          definitionPath,
+        );
+  if (flushEvent === event) {
+    throw new WorkflowDefinitionError(
+      `triggers[${index}].batch.flushEvent must differ from the source event`,
+      definitionPath,
+    );
+  }
+
+  return {
+    ...(maxCount !== undefined ? { maxCount } : {}),
+    ...(maxAgeMs !== undefined ? { maxAgeMs } : {}),
+    ...(idleTimeoutMs !== undefined ? { idleTimeoutMs } : {}),
+    groupBy,
+    ...(flushEvent !== undefined ? { flushEvent } : {}),
+    maxBufferSize,
+    overflow: rawBatch.overflow,
+  };
+}
+
+function validateBatchGroupBy(
+  rawGroupBy: WorkflowBatchTriggerInput["groupBy"],
+  definitionPath: string,
+  index: number,
+): readonly string[] {
+  if (rawGroupBy === undefined) return [];
+  const fields = Array.isArray(rawGroupBy) ? rawGroupBy : [rawGroupBy];
+  if (
+    fields.length === 0 ||
+    fields.some((field) => typeof field !== "string" || !field.trim())
+  ) {
+    throw new WorkflowDefinitionError(
+      `triggers[${index}].batch.groupBy must be a non-empty string or array of non-empty strings`,
+      definitionPath,
+    );
+  }
+  return fields.map((field) => field.trim());
 }
 
 function isDeclaredOrScopeAlias(key: string, allowed: Set<string>): boolean {

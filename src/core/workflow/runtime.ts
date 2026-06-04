@@ -3,6 +3,7 @@ import type { KotaConfig } from "#core/config/config.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { AgentBackoffManager } from "./agent-backoff.js";
+import { WorkflowEventBatchManager } from "./event-batches.js";
 import { workflowUsesAgent } from "./run-executor-utils.js";
 import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowRunExecutionResult, WorkflowRuntimeState } from "./run-types.js";
@@ -65,6 +66,7 @@ export interface WorkflowRuntimeContext {
   readonly wfQueue: WorkflowQueueManager;
   readonly scheduleTriggers: ScheduleTriggerManager;
   readonly watchTriggers: WatchTriggerManager;
+  readonly eventBatches: WorkflowEventBatchManager;
   readonly backoff: AgentBackoffManager;
   readonly agentConcurrency: number;
   readonly agentRunLimiter: AgentRunLimiter;
@@ -166,6 +168,14 @@ export class WorkflowRuntime {
       new ProjectScopedEventBus(runtimeConfig.bus, deriveDirectoryScopeId(projectDir));
 
     const agentConcurrency = runtimeConfig.agentConcurrency ?? 1;
+    const eventBatches = new WorkflowEventBatchManager(
+      store,
+      () => ctx.stopping,
+      (def, trigger, run) => wfQueue.enqueue(def, trigger, run),
+      () => maybeStartNext(ctx),
+      () => ctx.pbus,
+      log,
+    );
     ctx = {
       projectDir,
       config: runtimeConfig.config,
@@ -173,6 +183,7 @@ export class WorkflowRuntime {
       wfQueue,
       scheduleTriggers,
       watchTriggers,
+      eventBatches,
       backoff,
       agentConcurrency,
       agentRunLimiter: createAgentRunLimiter(agentConcurrency)!,

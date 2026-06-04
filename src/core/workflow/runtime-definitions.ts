@@ -1,3 +1,4 @@
+import type { WorkflowEventBatchManager } from "./event-batches.js";
 import type { WorkflowRuntimeState } from "./run-types.js";
 import {
   loadDefinitions as loadDefinitionsViaDispatch,
@@ -10,6 +11,7 @@ import type { WatchTriggerManager } from "./watch-triggers.js";
 
 export interface WorkflowRuntimeDefinitionsState extends WorkflowRuntimeDispatchState {
   watchTriggers: WatchTriggerManager;
+  eventBatches: WorkflowEventBatchManager;
   definitionSourceEnabled: Map<string, boolean>;
 }
 
@@ -25,6 +27,7 @@ export function reloadWorkflowDefinitions(
 ): { count: number } {
   const defs = loadDefinitionsViaDispatch(state);
   state.scheduleTriggers.reconcile(defs);
+  state.eventBatches.setup(defs);
   state.watchTriggers.reconcile(defs, (handler) =>
     state.runtimeConfig.bus.on("file.changed", handler),
   );
