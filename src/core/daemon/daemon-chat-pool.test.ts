@@ -69,17 +69,11 @@ describe("DaemonChatPool", () => {
 
   it("list returns source daemon", () => {
     const pool = makePool();
-    pool.create(() => mockAgentSession() as never, "supervised", CONV_ID, {
-      projectId: PROJECT_ID,
-      mcpServers: {
-        fs: { type: "stdio", command: "/usr/bin/env" },
-      },
-    });
+    pool.create(() => mockAgentSession() as never, "supervised", CONV_ID, { projectId: PROJECT_ID });
     const list = pool.list();
     expect(list).toHaveLength(1);
     expect(list[0].source).toBe("daemon");
     expect(list[0].projectId).toBe(PROJECT_ID);
-    expect(list[0].mcpServerNames).toEqual(["fs"]);
   });
 
   it("list can filter by project id", () => {

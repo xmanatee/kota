@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-daemon-session-creation-path-a
 title: Security review: The daemon session creation path accepts caller-supplied stdio MCP server configs and passes their command, args, and env into AgentSession. When MCP initializes, KOTA spawns that command outside the normal tool approval path, so a bearer-control client can turn session creation/chat into local process execution by embedding an MCP server command.
-status: ready
+status: done
 priority: p2
 area: security
-summary: The daemon session creation path accepts caller-supplied stdio MCP server configs and passes their command, args, and env into AgentSession. When MCP initializes, KOTA spawns that command outside the normal tool approval path, so a bearer-control client can turn session creation/chat into local process execution by embedding an MCP server command.
+summary: The daemon session creation path accepted caller-supplied stdio MCP server configs and passed their command, args, and env into AgentSession. KOTA now rejects non-empty daemon-control session mcp_servers before AgentSession creation, and ACP rejects non-empty mcpServers before daemon side effects.
 created_at: 2026-06-04T01:24:52.055Z
-updated_at: 2026-06-04T01:24:52.055Z
+updated_at: 2026-06-04T01:32:35.000Z
 ---
 
 ## Problem
@@ -56,4 +56,14 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `pnpm test src/core/daemon/daemon-chat-handlers.test.ts src/core/daemon/daemon-chat-pool.test.ts`
+- `pnpm test src/modules/agent-client-protocol/index.test.ts`
+
+## Outcome
+
+Daemon-owned sessions no longer accept non-empty client-supplied `mcp_servers`;
+the route rejects them before calling the session factory. The daemon chat
+pool and factory no longer carry a session-level MCP handoff, so project
+configuration is the remaining daemon session MCP startup path. ACP now rejects
+non-empty `mcpServers` as an unsupported feature before project lookup or
+daemon session creation/resume.

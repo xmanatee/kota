@@ -10,7 +10,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { KotaJsonObject, KotaJsonValue } from "#core/agent-harness/message-protocol.js";
 import { type AgentEvent, NullTransport } from "#core/loop/transport.js";
-import type { McpServerConfig } from "#core/mcp/manager.js";
 import { isSensitiveToolInputKey } from "#core/tools/approval-redaction.js";
 import { type AutonomyMode, isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import {
@@ -129,9 +128,8 @@ export async function handleCreateDaemonSession(
 
   const requestedSessionId = typeof body.session_id === "string" ? body.session_id : undefined;
   const requestedConversationId = typeof body.conversation_id === "string" ? body.conversation_id : undefined;
-  let mcpServers: Record<string, McpServerConfig>;
   try {
-    mcpServers = decodeDaemonMcpServers(body.mcp_servers);
+    rejectClientSuppliedMcpServers(body.mcp_servers);
   } catch (err) {
     jsonResponse(res, 400, { error: (err as Error).message });
     return;
@@ -213,7 +211,6 @@ export async function handleCreateDaemonSession(
     const session = pool.create(makeAgent, mode, conversationId, {
       projectId,
       ...(wakeSessionId !== undefined ? { sessionId: wakeSessionId } : {}),
-      mcpServers,
     });
     bindings.put(session.id, session.conversationId, session.projectId);
     jsonResponse(res, 201, {
@@ -523,92 +520,20 @@ function isRecordObject(value: ClientApprovalInputValue): value is ClientApprova
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-const DAEMON_MCP_STDIO_FIELDS = new Set(["type", "command", "args", "env"]);
-const DAEMON_MCP_HTTP_FIELDS = new Set(["type", "url", "headers"]);
-
 function isJsonObject(value: KotaJsonValue | undefined): value is KotaJsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function decodeDaemonMcpServers(
-  value: KotaJsonValue | undefined,
-): Record<string, McpServerConfig> {
-  if (value === undefined) return {};
+function rejectClientSuppliedMcpServers(value: KotaJsonValue | undefined): void {
+  if (value === undefined) return;
   if (!isJsonObject(value)) {
     throw new Error("mcp_servers must be an object");
   }
-  const out: Record<string, McpServerConfig> = {};
-  for (const [name, config] of Object.entries(value)) {
-    if (name.length === 0) throw new Error("mcp_servers keys must be non-empty");
-    out[name] = decodeDaemonMcpServer(name, config);
-  }
-  return out;
-}
-
-function decodeDaemonMcpServer(name: string, value: KotaJsonValue): McpServerConfig {
-  if (!isJsonObject(value)) {
-    throw new Error(`mcp_servers.${name} must be an object`);
-  }
-  const type = value.type;
-  if (type === undefined || type === "stdio") {
-    rejectUnknownMcpFields(name, value, DAEMON_MCP_STDIO_FIELDS);
-    return {
-      type: "stdio",
-      command: requiredString(value.command, `mcp_servers.${name}.command`),
-      ...(value.args !== undefined ? { args: stringArray(value.args, `mcp_servers.${name}.args`) } : {}),
-      ...(value.env !== undefined ? { env: stringRecord(value.env, `mcp_servers.${name}.env`) } : {}),
-    };
-  }
-  if (type === "http") {
-    rejectUnknownMcpFields(name, value, DAEMON_MCP_HTTP_FIELDS);
-    return {
-      type: "http",
-      url: requiredString(value.url, `mcp_servers.${name}.url`),
-      ...(value.headers !== undefined ? { headers: stringRecord(value.headers, `mcp_servers.${name}.headers`) } : {}),
-    };
-  }
-  throw new Error(`mcp_servers.${name}.type must be stdio or http`);
-}
-
-function rejectUnknownMcpFields(
-  name: string,
-  value: KotaJsonObject,
-  allowed: Set<string>,
-): void {
-  const unknown = Object.keys(value).filter((field) => !allowed.has(field));
-  if (unknown.length > 0) {
+  if (Object.keys(value).length > 0) {
     throw new Error(
-      `mcp_servers.${name} has unexpected field${unknown.length === 1 ? "" : "s"} ${unknown.join(", ")}`,
+      "client-supplied mcp_servers are not supported by daemon sessions; configure MCP servers in project config",
     );
   }
-}
-
-function requiredString(value: KotaJsonValue | undefined, label: string): string {
-  if (typeof value !== "string" || value.length === 0) {
-    throw new Error(`${label} must be a non-empty string`);
-  }
-  return value;
-}
-
-function stringArray(value: KotaJsonValue, label: string): string[] {
-  if (!Array.isArray(value) || !value.every((entry) => typeof entry === "string")) {
-    throw new Error(`${label} must be an array of strings`);
-  }
-  return [...value];
-}
-
-function stringRecord(value: KotaJsonValue, label: string): Record<string, string> {
-  if (!isJsonObject(value)) {
-    throw new Error(`${label} must be an object with string values`);
-  }
-  const out: Record<string, string> = {};
-  for (const [key, entry] of Object.entries(value)) {
-    if (typeof entry !== "string") {
-      throw new Error(`${label}.${key} must be a string`);
-    }
-    out[key] = entry;
-  }
-  return out;
 }
 
 /** GET /sessions/:id/events - subscribe to the active daemon chat turn. */

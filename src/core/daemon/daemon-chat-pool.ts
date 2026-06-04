@@ -10,7 +10,6 @@
 import { randomUUID } from "node:crypto";
 import type { AgentSession } from "#core/loop/loop.js";
 import { type AgentEvent, ProxyTransport, type Transport } from "#core/loop/transport.js";
-import type { McpServerConfig } from "#core/mcp/manager.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { GuardrailsConfig, GuardrailsSnapshot } from "#core/tools/guardrails.js";
 import type { ToolApprovalDecision, ToolApprovalRequest } from "#core/tools/tool-runner.js";
@@ -22,7 +21,6 @@ export type DaemonChatMakeAgent = (
   mode: AutonomyMode,
   resumeConversation: string | undefined,
   projectId: ProjectId,
-  mcpServers: Record<string, McpServerConfig>,
 ) => AgentSession;
 
 /** An agent session owned by the daemon control server. */
@@ -31,7 +29,6 @@ export type DaemonChatSession = {
   createdAt: string;
   projectId: ProjectId;
   conversationId: string;
-  mcpServers: Record<string, McpServerConfig>;
   agent: AgentSession;
   proxy: ProxyTransport;
   subscribers: Set<DaemonChatStreamSink>;
@@ -78,7 +75,6 @@ export type DaemonChatListEntry = {
   guardrailsSnapshot: GuardrailsSnapshot;
   projectId: ProjectId;
   conversationId: string;
-  mcpServerNames: string[];
   source: "daemon";
 };
 
@@ -98,7 +94,6 @@ export type DaemonChatPoolOptions = {
 export type DaemonChatCreateOptions = {
   projectId: ProjectId;
   sessionId?: string;
-  mcpServers?: Record<string, McpServerConfig>;
 };
 
 /** Manages daemon-owned AgentSession instances with idle TTL eviction. */
@@ -128,7 +123,6 @@ export class DaemonChatPool {
     options: DaemonChatCreateOptions,
   ): DaemonChatSession {
     const { projectId, sessionId } = options;
-    const mcpServers = options.mcpServers ?? {};
     if (sessionId && this.sessions.has(sessionId)) {
       throw new Error(`Session ${sessionId} already live`);
     }
@@ -138,14 +132,13 @@ export class DaemonChatPool {
     }
     const id = sessionId ?? randomUUID().slice(0, 8);
     const proxy = new ProxyTransport();
-    const agent = makeAgent(proxy, mode, conversationId, projectId, mcpServers);
+    const agent = makeAgent(proxy, mode, conversationId, projectId);
     const now = new Date().toISOString();
     const session: DaemonChatSession = {
       id,
       createdAt: now,
       projectId,
       conversationId,
-      mcpServers,
       agent,
       proxy,
       subscribers: new Set(),
@@ -194,7 +187,6 @@ export class DaemonChatPool {
         guardrailsSnapshot: s.agent.getGuardrailsSnapshot(),
         projectId: s.projectId,
         conversationId: s.conversationId,
-        mcpServerNames: Object.keys(s.mcpServers).sort(),
         source: "daemon" as const,
       }));
   }

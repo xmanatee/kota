@@ -1,10 +1,7 @@
 import { resolve } from "node:path";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
-import type {
-  AcpMcpServers,
-  AcpPermissionDecision,
-} from "./protocol.js";
+import type { AcpPermissionDecision } from "./protocol.js";
 import {
   AcpProtocolError,
   agentMessageUpdate,
@@ -67,9 +64,9 @@ export type PromptSessionResult = {
 
 export interface AcpDaemonClient {
   listProjects(): Promise<AcpProjectList>;
-  createSession(project: AcpProject, mcpServers: AcpMcpServers): Promise<{ sessionId: string }>;
+  createSession(project: AcpProject): Promise<{ sessionId: string }>;
   listSessions(project: AcpProject): Promise<AcpDaemonSession[]>;
-  resumeSession(project: AcpProject, sessionId: string, mcpServers: AcpMcpServers): Promise<{ sessionId: string }>;
+  resumeSession(project: AcpProject, sessionId: string): Promise<{ sessionId: string }>;
   promptSession(args: PromptSessionArgs): Promise<PromptSessionResult>;
   cancelSession(sessionId: string): Promise<void>;
   closeSession(sessionId: string): Promise<void>;
@@ -101,7 +98,6 @@ type SessionListWireEntry = {
   busy?: boolean;
   projectId?: string;
   conversationId?: string;
-  mcpServerNames?: string[];
 };
 
 type SessionListWireBody = {
@@ -142,7 +138,7 @@ export class HttpAcpDaemonClient implements AcpDaemonClient {
     };
   }
 
-  async createSession(project: AcpProject, mcpServers: AcpMcpServers): Promise<{ sessionId: string }> {
+  async createSession(project: AcpProject): Promise<{ sessionId: string }> {
     const query = new URLSearchParams({ projectId: project.projectId });
     const res = await this.transport.fetchRaw(`/sessions?${query.toString()}`, {
       method: "POST",
@@ -152,7 +148,6 @@ export class HttpAcpDaemonClient implements AcpDaemonClient {
       },
       body: JSON.stringify({
         autonomy_mode: this.autonomyMode,
-        mcp_servers: mcpServers,
       }),
     });
     if (!res.ok) {
@@ -180,7 +175,6 @@ export class HttpAcpDaemonClient implements AcpDaemonClient {
   async resumeSession(
     project: AcpProject,
     sessionId: string,
-    mcpServers: AcpMcpServers,
   ): Promise<{ sessionId: string }> {
     const query = new URLSearchParams({ projectId: project.projectId });
     const res = await this.transport.fetchRaw(`/sessions?${query.toString()}`, {
@@ -192,7 +186,6 @@ export class HttpAcpDaemonClient implements AcpDaemonClient {
       body: JSON.stringify({
         autonomy_mode: this.autonomyMode,
         session_id: sessionId,
-        mcp_servers: mcpServers,
       }),
     });
     if (!res.ok) {
@@ -531,7 +524,6 @@ function mapLiveSession(project: AcpProject, entry: SessionListWireEntry): AcpDa
       source: "daemon",
       projectId: entry.projectId ?? project.projectId,
       ...(entry.conversationId ? { conversationId: entry.conversationId } : {}),
-      ...(Array.isArray(entry.mcpServerNames) ? { mcpServerNames: entry.mcpServerNames } : {}),
       busy: entry.busy === true,
     },
   };

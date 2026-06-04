@@ -234,7 +234,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
 
   const controlServer = new DaemonControlServer(handle, token, {
     eventBufferSize: config.config?.daemon?.eventBufferSize,
-    makeAgent: (transport: Transport, autonomyMode, resumeConversation, projectId, mcpServers) => {
+    makeAgent: (transport: Transport, autonomyMode, resumeConversation, projectId) => {
       const runtime = projectRuntimes.get(projectId);
       return new AgentSession({
         autonomyMode,
@@ -245,7 +245,6 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
         resumeConversation,
         projectDir: runtime.project.projectDir,
         projectRuntime: runtime,
-        mcpServers,
       });
     },
     defaultAutonomyMode: config.config?.serve?.defaultAutonomyMode,

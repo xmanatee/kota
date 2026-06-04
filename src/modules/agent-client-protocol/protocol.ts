@@ -1,5 +1,4 @@
 import { isAbsolute } from "node:path";
-import type { McpServerConfig } from "#core/mcp/manager.js";
 import { isSensitiveToolInputKey } from "#core/tools/approval-redaction.js";
 
 export const ACP_PROTOCOL_VERSION = 1;
@@ -264,16 +263,13 @@ export function decodeInitializeParams(params: JsonValue | undefined): Initializ
 
 export type NewSessionParams = {
   cwd: string;
-  mcpServers: AcpMcpServers;
 };
-
-export type AcpMcpServers = Record<string, McpServerConfig>;
 
 export function decodeNewSessionParams(params: JsonValue | undefined): NewSessionParams {
   const obj = objectParams(params, "session/new");
   const cwd = decodeAbsoluteCwd(obj.cwd);
-  const mcpServers = decodeMcpServers(obj);
-  return { cwd, mcpServers };
+  rejectUnsupportedMcpServers(obj);
+  return { cwd };
 }
 
 export type ListSessionParams = {
@@ -293,7 +289,6 @@ export function decodeListSessionParams(params: JsonValue | undefined): ListSess
 export type ResumeSessionParams = {
   cwd: string;
   sessionId: string;
-  mcpServers: AcpMcpServers;
 };
 
 export function decodeResumeSessionParams(params: JsonValue | undefined): ResumeSessionParams {
@@ -303,8 +298,8 @@ export function decodeResumeSessionParams(params: JsonValue | undefined): Resume
   if (typeof sessionId !== "string" || sessionId.length === 0) {
     throw invalidParams("sessionId must be a non-empty string");
   }
-  const mcpServers = decodeMcpServers(obj);
-  return { cwd, sessionId, mcpServers };
+  rejectUnsupportedMcpServers(obj);
+  return { cwd, sessionId };
 }
 
 export type PromptParams = {
@@ -367,32 +362,31 @@ const ACP_MCP_HTTP_FIELDS = new Set(["type", "name", "url", "headers"]);
 const ACP_MCP_SSE_FIELDS = ACP_MCP_HTTP_FIELDS;
 const ACP_MCP_NAME_PATTERN = /^[A-Za-z0-9._-]+$/;
 
-function decodeMcpServers(params: JsonObject): AcpMcpServers {
+function rejectUnsupportedMcpServers(params: JsonObject): void {
   const mcpServers = params.mcpServers;
   if (!Array.isArray(mcpServers)) {
     throw invalidParams("mcpServers must be an array");
   }
-  const normalized: AcpMcpServers = {};
+  if (mcpServers.length === 0) return;
   for (const [index, raw] of mcpServers.entries()) {
-    const server = decodeMcpServer(raw, index);
-    if (Object.hasOwn(normalized, server.name)) {
-      throw invalidParams(`mcpServers[${index}].name duplicates "${server.name}"`);
-    }
-    normalized[server.name] = server.config;
+    rejectUnsupportedMcpServer(raw, index);
   }
-  return normalized;
 }
 
-function decodeMcpServer(
+function rejectUnsupportedMcpServer(
   value: JsonValue,
   index: number,
-): { name: string; config: McpServerConfig } {
+): void {
   if (!isJsonObject(value)) {
     throw invalidParams(`mcpServers[${index}] must be an object`);
   }
   const type = value.type;
   if (type === undefined || type === "stdio") {
-    return decodeStdioMcpServer(value, index);
+    validateUnsupportedStdioMcpServer(value, index);
+    throw unsupportedFeature(
+      "mcpServers.stdio",
+      "ACP stdio MCP handoff is not supported by this adapter; configure MCP servers in project config",
+    );
   }
   if (type === "http") {
     validateUnsupportedHttpMcpServer(value, index);
@@ -411,24 +405,15 @@ function decodeMcpServer(
   throw invalidParams(`mcpServers[${index}].type must be "stdio", "http", or "sse"`);
 }
 
-function decodeStdioMcpServer(
+function validateUnsupportedStdioMcpServer(
   value: JsonObject,
   index: number,
-): { name: string; config: McpServerConfig } {
+): void {
   rejectUnknownFields(value, ACP_MCP_STDIO_FIELDS, `mcpServers[${index}]`);
-  const name = decodeMcpServerName(value.name, `mcpServers[${index}].name`);
-  const command = decodeAbsoluteCommand(value.command, `mcpServers[${index}].command`);
-  const args = decodeRequiredStringArray(value.args, `mcpServers[${index}].args`);
-  const env = decodeOptionalNameValueArray(value.env, `mcpServers[${index}].env`);
-  return {
-    name,
-    config: {
-      type: "stdio",
-      command,
-      args,
-      ...(env ? { env } : {}),
-    },
-  };
+  decodeMcpServerName(value.name, `mcpServers[${index}].name`);
+  decodeAbsoluteCommand(value.command, `mcpServers[${index}].command`);
+  decodeRequiredStringArray(value.args, `mcpServers[${index}].args`);
+  decodeOptionalNameValueArray(value.env, `mcpServers[${index}].env`);
 }
 
 function validateUnsupportedHttpMcpServer(value: JsonObject, index: number): void {
