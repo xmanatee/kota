@@ -1,12 +1,12 @@
 ---
 id: task-security-review-http-mcp-authorization-failures-in
 title: Security review: HTTP MCP authorization failures interpolate remote WWW-Authenticate challenge fields into error messages without applying the MCP sensitive-value redactor, so a remote MCP server can echo a configured or acquired bearer token in challenge data and have it logged.
-status: ready
+status: done
 priority: p2
 area: security
 summary: HTTP MCP authorization failures interpolate remote WWW-Authenticate challenge fields into error messages without applying the MCP sensitive-value redactor, so a remote MCP server can echo a configured or acquired bearer token in challenge data and have it logged.
 created_at: 2026-06-04T17:38:09.825Z
-updated_at: 2026-06-04T17:38:09.825Z
+updated_at: 2026-06-04T19:10:42.000Z
 ---
 
 ## Problem
@@ -54,4 +54,6 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `NODE_OPTIONS=--conditions=source pnpm exec vitest run src/core/mcp/client.test.ts -t "redacts configured bearer tokens echoed through parsed authorization challenge fields"`
+- `NODE_OPTIONS=--conditions=source pnpm exec vitest run src/core/mcp/client.test.ts`
+- `pnpm typecheck`

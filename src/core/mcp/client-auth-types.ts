@@ -235,6 +235,8 @@ export type McpAuthorizationChallenge = {
   error?: string;
 };
 
+export type McpAuthorizationChallengeMessageRedactor = (value: string) => string;
+
 export type McpProtectedResourceMetadata = {
   resource: string;
   authorizationServers: string[];
@@ -422,19 +424,22 @@ export class McpAuthorizationError extends Error {
     readonly method: string,
     readonly status: 401 | 403,
     readonly challenge: McpAuthorizationChallenge,
+    redactChallengeDetail: McpAuthorizationChallengeMessageRedactor,
   ) {
     const details: string[] = [];
-    if (challenge.error) details.push(`error=${challenge.error}`);
+    if (challenge.error) details.push(`error=${redactChallengeDetail(challenge.error)}`);
     if (challenge.resourceMetadataUrl) {
-      details.push(`resource_metadata=${challenge.resourceMetadataUrl}`);
+      details.push(`resource_metadata=${redactChallengeDetail(challenge.resourceMetadataUrl)}`);
     }
     if (challenge.scopes.length > 0) {
-      details.push(`scope=${challenge.scopes.join(" ")}`);
+      details.push(`scope=${redactChallengeDetail(challenge.scopes.join(" "))}`);
     }
     if (challenge.metadataDiscovery?.status === "found") {
       const { authorizationServers } = challenge.metadataDiscovery.metadata;
       if (authorizationServers.length > 0) {
-        details.push(`authorization_servers=${authorizationServers.join(" ")}`);
+        details.push(
+          `authorization_servers=${redactChallengeDetail(authorizationServers.join(" "))}`,
+        );
       }
     }
     const reason = status === 403

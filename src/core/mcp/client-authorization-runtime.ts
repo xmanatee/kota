@@ -41,6 +41,7 @@ export abstract class McpClientAuthorizationRuntime extends McpClientOAuthTokenR
       method,
       response.status,
       challenge,
+      (detail) => this.redactSensitiveErrorMessage(detail),
     );
   }
 

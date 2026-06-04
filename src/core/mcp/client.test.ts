@@ -3392,6 +3392,42 @@ describe("McpClient Streamable HTTP transport", () => {
     await expect(client.callTool("write_file", {})).rejects.not.toThrow(/configured-secret/);
   });
 
+  it("redacts configured bearer tokens echoed through parsed authorization challenge fields", async () => {
+    mockClientHttpFetch((request) => {
+      if (request.method === "GET") {
+        return new Response("not found", { status: 404 });
+      }
+      return new Response("missing token", {
+        status: 401,
+        headers: {
+          "content-type": "text/plain",
+          "www-authenticate": 'Bearer error="configured-secret", scope="files:read configured-secret"',
+        },
+      });
+    });
+    client = new McpClient(
+      {
+        type: "http",
+        url: "https://mcp.example.test/mcp",
+        headers: { Authorization: "Bearer configured-secret" },
+      },
+      "auth-challenge-redaction-client",
+    );
+
+    let thrown: unknown;
+    try {
+      await client.connect();
+    } catch (err) {
+      thrown = err;
+    }
+
+    expect(thrown).toBeInstanceOf(McpAuthorizationError);
+    const message = thrown instanceof Error ? thrown.message : "";
+    expect(message).toContain("error=[redacted]");
+    expect(message).toContain("scope=files:read [redacted]");
+    expect(message).not.toContain("configured-secret");
+  });
+
   it("completes OAuth authorization-code with PKCE and retries protected Streamable HTTP requests with a scoped token", async () => {
     const requests: RecordedClientHttpRequest[] = [];
     const resolverCalls: Array<{ authorizationUrl: string; state: string; scopes: string[] }> = [];
