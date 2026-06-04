@@ -1,13 +1,13 @@
 ---
 id: task-add-event-schema-version-registry
 title: Add event schema version registry
-status: backlog
+status: ready
 priority: p1
 area: core
 summary: Extend module event declarations into a strict schema and compatibility registry so payloads, filters, batches, simulations, and clients can validate event shapes by name and version.
 depends_on: [task-promote-projects-into-hierarchical-scopes]
 created_at: 2026-06-03T15:50:11.437Z
-updated_at: 2026-06-03T15:50:11.437Z
+updated_at: 2026-06-04T19:54:59.592Z
 ---
 
 ## Problem
