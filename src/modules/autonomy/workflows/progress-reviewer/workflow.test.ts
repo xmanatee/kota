@@ -1054,6 +1054,40 @@ describe("progress-reviewer workflow", () => {
         extra: "not allowed",
       }),
     ).toContain("unexpected field");
+    expect(
+      validatePayloadSchema(progressReviewOutputSchema, {
+        ...readFixture("autonomous-coding-review"),
+        verdict: "healthy",
+      }),
+    ).toContain('payload.verdict: expected one of "on-track"');
+    expect(
+      validatePayloadSchema(progressReviewOutputSchema, {
+        ...readFixture("autonomous-coding-review"),
+        claims: [
+          {
+            id: "claim-invalid-confidence",
+            claim: "Confidence must stay inside the runtime enum.",
+            evidenceIds: ["task:task-autonomous-coding-review-fixture"],
+            confidence: "certain",
+          },
+        ],
+      }),
+    ).toContain('payload.claims[0].confidence: expected one of "low"');
+    expect(
+      validatePayloadSchema(progressReviewOutputSchema, {
+        ...readFixture("autonomous-coding-review"),
+        followUpTasks: [
+          {
+            title: "Invalid priority fixture",
+            summary: "Priority must stay inside the task enum.",
+            priority: "urgent",
+            area: "autonomy",
+            evidenceIds: ["task:task-autonomous-coding-review-fixture"],
+            acceptanceEvidence: "Schema rejects invalid follow-up priority.",
+          },
+        ],
+      }),
+    ).toContain('payload.followUpTasks[0].priority: expected one of "p0"');
   });
 
   it("rejects review evidence ids outside the collected packet", () => {

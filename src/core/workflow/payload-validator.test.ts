@@ -90,6 +90,33 @@ describe("validatePayloadSchema", () => {
     expect(validatePayloadSchema(schema, { tags: ["a", "b"] })).toBeNull();
   });
 
+  it("rejects values outside an enum", () => {
+    const schema = {
+      type: "object",
+      properties: {
+        verdict: {
+          type: "string",
+          enum: ["pass", "fail"],
+        },
+      },
+    };
+    const result = validatePayloadSchema(schema, { verdict: "maybe" });
+    expect(result).toBe('payload.verdict: expected one of "pass" | "fail"');
+  });
+
+  it("accepts values inside an enum", () => {
+    const schema = {
+      type: "object",
+      properties: {
+        verdict: {
+          type: "string",
+          enum: ["pass", "fail"],
+        },
+      },
+    };
+    expect(validatePayloadSchema(schema, { verdict: "pass" })).toBeNull();
+  });
+
   it("allows multiple types via array", () => {
     const schema = { type: ["string", "number"] };
     expect(validatePayloadSchema(schema, "hello" as unknown as Record<string, unknown>)).toBeNull();

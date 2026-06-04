@@ -43,7 +43,15 @@ const progressReviewOutputSchema = {
   required: ["verdict", "summary", "claims", "followUpTasks", "ownerQuestions"],
   additionalProperties: false,
   properties: {
-    verdict: { type: "string" },
+    verdict: {
+      type: "string",
+      enum: [
+        "on-track",
+        "needs-steering",
+        "blocked",
+        "insufficient-evidence",
+      ],
+    },
     summary: { type: "string" },
     claims: {
       type: "array",
@@ -55,7 +63,10 @@ const progressReviewOutputSchema = {
           id: { type: "string" },
           claim: { type: "string" },
           evidenceIds: { type: "array", items: { type: "string" } },
-          confidence: { type: "string" },
+          confidence: {
+            type: "string",
+            enum: ["low", "medium", "high"],
+          },
         },
       },
     },
@@ -75,7 +86,10 @@ const progressReviewOutputSchema = {
         properties: {
           title: { type: "string" },
           summary: { type: "string" },
-          priority: { type: "string" },
+          priority: {
+            type: "string",
+            enum: ["p0", "p1", "p2", "p3"],
+          },
           area: { type: "string" },
           evidenceIds: { type: "array", items: { type: "string" } },
           acceptanceEvidence: { type: "string" },
