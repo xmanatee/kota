@@ -1,13 +1,13 @@
 ---
 id: task-add-persisted-owner-confirmed-action-protocol
 title: Add persisted owner confirmed action protocol
-status: backlog
+status: ready
 priority: p1
 area: core
 summary: Add a structured owner-decision and external-action protocol so workflows can persist choices, request confirmation, and execute provider-specific side effects only after the required approval.
 depends_on: [task-promote-projects-into-hierarchical-scopes, task-unify-hooks-and-workflows-under-one-automation-pro, task-add-module-setup-and-auth-requirement-protocol]
 created_at: 2026-06-03T14:01:17.340Z
-updated_at: 2026-06-03T14:08:54.000Z
+updated_at: 2026-06-04T17:13:04.035Z
 ---
 
 ## Problem
