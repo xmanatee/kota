@@ -1,12 +1,12 @@
 ---
 id: task-remove-raw-secret-argv-ingestion-from-setup-cli
 title: Remove raw secret argv ingestion from setup CLI
-status: ready
+status: done
 priority: p1
 area: modules
 summary: Change setup CLI secret collection so raw credentials are not accepted through process arguments or shell history.
 created_at: 2026-06-04T13:06:33.550Z
-updated_at: 2026-06-04T13:06:33.550Z
+updated_at: 2026-06-04T16:28:07.000Z
 ---
 
 ## Problem
@@ -70,3 +70,10 @@ Protocolized setup and credential lifecycle.
 - CLI test output or transcript showing safe secret submission with redacted
   output.
 - Help output or snapshot proving raw `--secret-values <json>` is gone.
+
+## Result
+
+Setup CLI secret submission now reads secret JSON from stdin, the removed raw
+argv option is rejected, and CLI rendering redacts submitted secret values from
+text and JSON output. Focused setup CLI tests cover stdin submission, removed
+help entries, removed-option rejection, and redaction.
