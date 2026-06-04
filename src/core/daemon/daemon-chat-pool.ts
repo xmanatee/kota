@@ -13,7 +13,7 @@ import { type AgentEvent, ProxyTransport, type Transport } from "#core/loop/tran
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { GuardrailsConfig, GuardrailsSnapshot } from "#core/tools/guardrails.js";
 import type { ToolApprovalDecision, ToolApprovalRequest } from "#core/tools/tool-runner.js";
-import type { ProjectId } from "./project-registry.js";
+import type { ProjectId } from "./scope-registry.js";
 
 /** Factory signature for building an AgentSession inside the daemon. */
 export type DaemonChatMakeAgent = (

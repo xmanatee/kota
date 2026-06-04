@@ -13,7 +13,7 @@
  * directly.
  */
 
-import { deriveProjectId } from "#core/daemon/project-registry.js";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { ModuleContext, ModuleRouteHandler, RouteRegistration } from "#core/modules/module-types.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import {
@@ -50,7 +50,7 @@ function makeEventTriggerHandler(ctx: ModuleContext): ModuleRouteHandler {
       const receivedAt = new Date().toISOString();
       const normalized = normalizeInboundSignalInput(
         payload as InboundSignalInputObject,
-        { projectId: deriveProjectId(ctx.cwd), receivedAt },
+        { projectId: deriveDirectoryScopeId(ctx.cwd), receivedAt },
       );
       if (!normalized.ok) {
         jsonResponse(res, 400, { error: normalized.error });

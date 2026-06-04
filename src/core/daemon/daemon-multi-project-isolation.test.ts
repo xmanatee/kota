@@ -49,11 +49,11 @@ import type { WorkflowDefinition } from "#core/workflow/types.js";
 import { ApprovalQueue } from "./approval-queue.js";
 import { Daemon } from "./daemon.js";
 import { OwnerQuestionQueue } from "./owner-question-queue.js";
-import {
-  deriveProjectId,
-  loadRegistryFileFromDisk,
-} from "./project-registry.js";
 import { resetScheduler } from "./scheduler.js";
+import {
+  deriveDirectoryScopeId,
+  loadRegistryFileFromDisk,
+} from "./scope-registry.js";
 
 vi.mock("./task-store.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./task-store.js")>();
@@ -122,8 +122,8 @@ describe("Daemon — two-project isolation across emit/persist/session boundarie
       // Deterministic projectId derivation from the resolved projectDir is
       // the same primitive the registry uses, so the test's expected ids
       // match whatever the daemon writes to disk and emits on the bus.
-      const idA = deriveProjectId(dirA);
-      const idB = deriveProjectId(dirB);
+      const idA = deriveDirectoryScopeId(dirA);
+      const idB = deriveDirectoryScopeId(dirB);
       expect(idA).not.toEqual(idB);
 
       // Capture every envelope that crosses the bus from daemon construction

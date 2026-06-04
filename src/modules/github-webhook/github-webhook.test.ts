@@ -2,7 +2,7 @@ import { createHmac } from "node:crypto";
 import { EventEmitter } from "node:events";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
-import { deriveProjectId } from "#core/daemon/project-registry.js";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
@@ -597,7 +597,7 @@ describe("githubWebhookModule handler — event emission", () => {
     expect(legacyMentions).toHaveLength(0);
     expect(inboundSignals).toHaveLength(1);
     expect(inboundSignals[0]).toMatchObject({
-      projectId: deriveProjectId("/tmp/test"),
+      projectId: deriveDirectoryScopeId("/tmp/test"),
       provider: "github",
       channel: "github.issue_comment",
       accountId: "github:owner/repo",

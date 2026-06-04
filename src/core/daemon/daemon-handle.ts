@@ -33,12 +33,12 @@ import type {
   WorkflowRunSummary,
 } from "./daemon-control-types.js";
 import type { DaemonState } from "./daemon-state.js";
+import type { ProjectRuntime, ProjectRuntimeRegistry } from "./project-runtime.js";
 import type {
   ProjectId,
-  ProjectRegistry,
   ProjectRegistryProjection,
-} from "./project-registry.js";
-import type { ProjectRuntime, ProjectRuntimeRegistry } from "./project-runtime.js";
+  ScopeRegistry,
+} from "./scope-registry.js";
 
 export type DaemonHandleContext = {
   getState: () => DaemonState;
@@ -48,7 +48,7 @@ export type DaemonHandleContext = {
   sessions: Map<string, InteractiveSession>;
   runStore: WorkflowRunStore;
   projectDir: string;
-  projectRegistry: ProjectRegistry;
+  projectRegistry: ScopeRegistry;
   projectRuntimes: ProjectRuntimeRegistry;
   config: DaemonConfig;
   refreshLiveSessionGuardrails: (config: GuardrailsConfig) => {

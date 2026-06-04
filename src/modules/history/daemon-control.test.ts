@@ -21,7 +21,7 @@ import {
   DaemonControlServer,
   type WorkflowMetricCounts,
 } from "#core/daemon/daemon-control.js";
-import { buildConfiguredProject } from "#core/daemon/project-registry.js";
+import { buildConfiguredProject } from "#core/daemon/scope-registry.js";
 import {
   HISTORY_PROVIDER_TOKEN,
   initProviderRegistry,

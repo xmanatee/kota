@@ -4,7 +4,7 @@ title: Add daemon project registry primitive and DaemonConfig multi-project plum
 status: done
 priority: p2
 area: architecture
-summary: Introduce a typed ProjectRegistry primitive and DaemonConfig multi-project plumbing so subsequent slices can convert per-project runtime bundles, projectId payloads, and control-API scope on top of one foundation.
+summary: Introduce a typed ScopeRegistry primitive and DaemonConfig multi-project plumbing so subsequent slices can convert per-project runtime bundles, projectId payloads, and control-API scope on top of one foundation.
 created_at: 2026-05-07T23:59:14.156Z
 updated_at: 2026-05-08T01:00:22.269Z
 ---
@@ -35,7 +35,7 @@ foundation slice; the four follow-up tasks below carry the rest.
 
 ## Desired Outcome (this slice)
 
-- A typed `ProjectRegistry` primitive in `src/core/daemon/` with stable
+- A typed `ScopeRegistry` primitive in `src/core/daemon/` with stable
   derived `projectId`, deterministic-from-`projectDir` identity, and
   file-backed persistence under the daemon state directory.
 - `DaemonConfig` accepts more than one configured project. `projectDir`
@@ -52,7 +52,8 @@ foundation slice; the four follow-up tasks below carry the rest.
 
 - One daemon-owned registry. Project metadata is not pushed into client
   files or a multi-daemon façade.
-- Strict typed scope. The primitive's `ProjectId` is derived
+- Strict typed scope. The primitive's directory `ScopeId` / compatibility
+  `ProjectId` is derived
   deterministically from the resolved `projectDir`; no nullable
   fall-through to a global root. Empty inputs throw, duplicate inputs
   throw.
@@ -64,7 +65,7 @@ foundation slice; the four follow-up tasks below carry the rest.
 
 ## Done When (this slice)
 
-- A `ProjectRegistry` primitive exists in the daemon core with typed
+- A `ScopeRegistry` primitive exists in the daemon core with typed
   `projectId`, `projectDir`, and `displayName`, persisted under the
   daemon state directory.
 - `DaemonConfig` accepts more than one configured project; `projectDir`
@@ -118,7 +119,7 @@ same daemon control contract.
 
 ## Acceptance Evidence
 
-- `pnpm vitest run src/core/daemon/project-registry.test.ts` — focused
+- `pnpm vitest run src/core/daemon/scope-registry.test.ts` — focused
   unit suite for the new primitive (deterministic id derivation,
   configured-project resolution, registry lookup/default/persistence,
   `ConfiguredProjectInput` resolution paths).

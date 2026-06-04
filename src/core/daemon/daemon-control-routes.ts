@@ -46,7 +46,7 @@ import {
   handleTriggerWorkflow,
 } from "./daemon-control-workflow.js";
 import type { EventRingBuffer } from "./event-ring-buffer.js";
-import type { ProjectId } from "./project-registry.js";
+import type { ProjectId } from "./scope-registry.js";
 
 /** Inputs the built-in route closures bind at registration time. */
 export type BuiltinControlRouteDeps = {

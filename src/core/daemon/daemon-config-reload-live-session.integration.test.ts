@@ -15,8 +15,8 @@ import type { DaemonConfig } from "./daemon.js";
 import { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import { DaemonControlServer } from "./daemon-control.js";
 import { buildDaemonHandle } from "./daemon-handle.js";
-import type { ProjectRegistry } from "./project-registry.js";
 import type { ProjectRuntime, ProjectRuntimeRegistry } from "./project-runtime.js";
+import type { ScopeRegistry } from "./scope-registry.js";
 
 const { mockStreamMessage } = vi.hoisted(() => ({
   mockStreamMessage: vi.fn(),
@@ -268,7 +268,7 @@ async function startDaemonWithLiveSessionReload(
       defaultProjectId: "test-project",
       projects: [runtime.project],
     })),
-  } as unknown as ProjectRegistry;
+  } as unknown as ScopeRegistry;
   const daemonConfig: DaemonConfig = {
     config: initialConfig,
     verbose: false,

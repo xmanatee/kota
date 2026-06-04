@@ -26,11 +26,11 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { BusEnvelope } from "#core/events/event-bus.js";
 import { EventBus } from "#core/events/event-bus.js";
+import { createProjectRuntime, type ProjectRuntime } from "./project-runtime.js";
 import {
   buildConfiguredProject,
   type ConfiguredProject,
-} from "./project-registry.js";
-import { createProjectRuntime, type ProjectRuntime } from "./project-runtime.js";
+} from "./scope-registry.js";
 
 type TwoProjects = {
   bus: EventBus;
@@ -41,7 +41,7 @@ type TwoProjects = {
 };
 
 function makeTwoProjects(): TwoProjects {
-  // Two on-disk project roots so `deriveProjectId` produces two distinct
+  // Two on-disk project roots so `deriveDirectoryScopeId` produces two distinct
   // stable ids without any test-only override of the derivation. The
   // registry reuses the same hash the rest of the daemon uses, so this
   // mirrors a real multi-project daemon configuration.

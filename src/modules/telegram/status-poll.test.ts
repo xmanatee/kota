@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ConfiguredProject } from "#core/daemon/project-registry.js";
+import type { ConfiguredProject } from "#core/daemon/scope-registry.js";
 import type { KotaClient } from "#core/server/kota-client.js";
 import type {
   AnswerClient,

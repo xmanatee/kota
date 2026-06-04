@@ -12,6 +12,10 @@ adding a parallel surface.
   `AGENTS.md` and `CLAUDE.md` files are scoped skills.
 - `agent` = a named worker with a role, model defaults, skill set, tool scope,
   and write boundaries.
+- `scope` = a daemon-hosted runtime context. The root scope is global;
+  directory-backed scopes are the first concrete child scopes and use stable
+  ids derived from their directory roots. Project is compatibility language for
+  directory-backed scopes, not the core abstraction.
 - `daemon` = the long-lived runtime host. When running, it owns workflows,
   channels, sessions, stores, module runtime state, and the control API.
 - `session` = a stateful execution context for an agent. Interactive chats and
@@ -36,6 +40,7 @@ adding a parallel surface.
 - Add a new action: add a `tool`.
 - Add reusable repo guidance: add a `skill`.
 - Add a specialist worker: add an `agent`.
+- Add runtime context identity: add or select a `scope`.
 - Add a long-lived runtime host capability: extend the `daemon`.
 - Add automation: add a `workflow`.
 - Add an operator or user-facing app: add a `client`.
@@ -62,8 +67,9 @@ packs unless a shared runtime primitive truly has to stay in core. The
 the `model-pricing` provider seam belong to whichever module owns the
 model client.
 
-Quiet-hours gating, crash-loop alerting, provider registry state, and approval
-queue state are shared daemon/runtime primitives and belong in `src/core/`.
+Scope registry identity, quiet-hours gating, crash-loop alerting, provider
+registry state, and approval queue state are shared daemon/runtime primitives
+and belong in `src/core/`.
 
 ## Direction
 
@@ -94,6 +100,8 @@ queue state are shared daemon/runtime primitives and belong in `src/core/`.
 - `skill` protocol: scoped guidance entry point plus optional assets.
 - `agent` protocol: role, defaults, skill list, tool policy, and ownership
   scope.
+- `scope` protocol: stable id, display name, optional parent scope, optional
+  directory root, and a registry projection.
 - `daemon` protocol: lifecycle, ownership of runtime state, module loading,
   and control-plane hosting.
 - `client` protocol: daemon discovery, capability-scoped control calls, and

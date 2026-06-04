@@ -3,7 +3,7 @@ import type {
   DaemonControlHandle,
   UnknownProjectError,
 } from "./daemon-control-types.js";
-import type { ProjectId } from "./project-registry.js";
+import type { ProjectId } from "./scope-registry.js";
 
 export function readBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {

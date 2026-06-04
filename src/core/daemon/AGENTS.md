@@ -11,14 +11,11 @@ and live runtime state.
   event names, capability scopes, and status values belong in source, typed
   clients, and focused tests rather than durable docs.
 - Modules extend the control API through `KotaModule.controlRoutes`, not by
-  adding handlers under `src/core/daemon/`. Built-in and contributed routes use
-  one `ControlRouteRegistration` shape (`method`, `path`, `capabilityScope`,
-  `bypassAuth`, optional auth-failure handler, `handler`); the server merges
-  them into one table and matches once per request. Built-in route closures
-  bind runtime state at registration time (see `daemon-control-routes.ts`), so
-  the dispatcher stays free of route-specific dependencies. Route paths may
-  include `:name` segments and collisions throw at server construction. Use
-  this seam for module-owned control-plane endpoints.
+  adding handlers here. Built-in and contributed routes share
+  `ControlRouteRegistration`; the server merges one table, matches once,
+  supports `:name` paths, and throws on collisions. Built-in route closures
+  bind runtime state at registration time (`daemon-control-routes.ts`) so the
+  dispatcher stays route-agnostic.
 - Clients should use daemon client wrappers for URL construction, response
   decoding, authentication, polling, and live updates. They must not read
   daemon runtime files directly.
@@ -27,12 +24,10 @@ and live runtime state.
 
 ## Per-Concern Sibling Files
 
-`daemon.ts` is a thin orchestrator. Lifecycle-time concerns live in
-`daemon-*.ts` sibling phase files. `runDaemonShutdown` is the single
-teardown body shared by normal stop and failed-start — do not fork it.
-Named subsystems use a shared `<subsystem>-*.ts` prefix, one concern per
-file: `daemon-chat-*` (bindings, pool, handlers) groups chat-session
-lifecycle, distinct from the `daemon-control-*` control-plane wiring.
+`daemon.ts` is a thin orchestrator. Lifecycle concerns live in `daemon-*.ts`
+sibling phase files. `runDaemonShutdown` is shared by normal stop and
+failed-start — do not fork it. Prefix named subsystem files consistently:
+`daemon-chat-*` for chat lifecycle, `daemon-control-*` for control-plane wiring.
 
 ## Module Control-Plane Seams
 
@@ -72,13 +67,17 @@ shape. Clients join `dashboard.path` onto the daemon base URL when
 `available` is true; otherwise hide the control. See
 `clients/AGENTS.md` for the contract.
 
-## Multi-Project Runtime Shape
+## Scope Registry Foundation
 
-Single-project today; Variant A is the resolved shape — one daemon hosts
-project-scoped runtimes. `ProjectRegistry` (`project-registry.ts`) names
-every configured project. `DaemonConfig.projects` accepts a list;
-`projectDir` is the single-project shorthand. Per-project runtime bundles,
-event-payload `projectId`, and route scoping are follow-up slices on it.
+Scope is the daemon's canonical context identity. `ScopeRegistry`
+(`scope-registry.ts`) owns global/root plus directory child scopes; existing
+project ids are compatibility ids. `DaemonConfig.projects` accepts directory
+scopes, and `projectDir` is the single-directory shorthand.
+
+Keep the boundary explicit: scope-specific routes, `scopeId` event payloads,
+and renamed runtime/store bundles belong in their own slices. Until then,
+project-scoped routes, `ProjectScopedEventBus`, and `ProjectRuntime` remain the
+active integration surfaces.
 
 ## Recoverability
 

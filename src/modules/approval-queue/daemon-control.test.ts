@@ -26,11 +26,11 @@ import {
   type WorkflowMetricCounts,
 } from "#core/daemon/daemon-control.js";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
+import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
 import {
   buildConfiguredProject,
   type ConfiguredProject,
-} from "#core/daemon/project-registry.js";
-import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
+} from "#core/daemon/scope-registry.js";
 import {
   initProviderRegistry,
   resetProviderRegistry,

@@ -3,7 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { buildConfiguredProject } from "#core/daemon/project-registry.js";
+import { buildConfiguredProject } from "#core/daemon/scope-registry.js";
 import type { KnowledgeEntry, KnowledgeProvider } from "#core/modules/provider-types.js";
 import { KnowledgeProjectStores } from "./project-scope.js";
 import { handleAddKnowledge, handleDeleteKnowledge, handleGetKnowledge, handleListKnowledge, handleSearchKnowledge, handleUpdateKnowledge } from "./routes.js";

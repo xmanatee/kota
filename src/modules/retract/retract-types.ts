@@ -12,7 +12,7 @@
  * enum edit.
  */
 
-import type { ProjectId } from "#core/daemon/project-registry.js";
+import type { ProjectId } from "#core/daemon/scope-registry.js";
 import {
   defineProviderToken,
   type ProviderToken,

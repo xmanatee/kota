@@ -6,13 +6,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChannelDef } from "#core/channels/channel.js";
 import { Daemon } from "#core/daemon/daemon.js";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control.js";
-import {
-  buildConfiguredProject,
-  type ConfiguredProject,
-} from "#core/daemon/project-registry.js";
 import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
 import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
 import { resetScheduler, Scheduler } from "#core/daemon/scheduler.js";
+import {
+  buildConfiguredProject,
+  type ConfiguredProject,
+} from "#core/daemon/scope-registry.js";
 import { EventBus, getEventBus, resetEventBus } from "#core/events/event-bus.js";
 import type { LoopOptions } from "#core/loop/loop.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";

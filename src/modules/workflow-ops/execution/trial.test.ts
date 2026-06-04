@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
 import type { KotaConfig } from "#core/config/config.js";
-import { deriveProjectId, ProjectRegistry } from "#core/daemon/project-registry.js";
+import { deriveDirectoryScopeId, ScopeRegistry } from "#core/daemon/scope-registry.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import {
   credentialInjectionEffect,
@@ -737,7 +737,7 @@ describe("workflow trial execution", () => {
     const defaultProjectDir = makeProjectDir();
     const selectedProjectDir = makeProjectDir();
     cleanup.push(defaultProjectDir, selectedProjectDir);
-    new ProjectRegistry({
+    new ScopeRegistry({
       stateDir: join(defaultProjectDir, ".kota"),
       projects: [
         { projectDir: defaultProjectDir },
@@ -765,7 +765,7 @@ describe("workflow trial execution", () => {
         }],
       };
     `);
-    const selectedProjectId = deriveProjectId(selectedProjectDir);
+    const selectedProjectId = deriveDirectoryScopeId(selectedProjectDir);
 
     const result = await runLocalWorkflowTrial(
       { cwd: defaultProjectDir } as ModuleContext,

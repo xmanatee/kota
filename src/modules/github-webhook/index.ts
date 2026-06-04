@@ -17,7 +17,7 @@
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { deriveProjectId } from "#core/daemon/project-registry.js";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type {
   KotaModule,
   ModuleContext,
@@ -513,7 +513,7 @@ function makeWebhookHandler(
       const inboundSignal = githubIssueCommentMentionToInboundSignal(
         decision.payload,
         {
-          projectId: deriveProjectId(ctx.cwd),
+          projectId: deriveDirectoryScopeId(ctx.cwd),
           occurredAt,
           receivedAt,
         },

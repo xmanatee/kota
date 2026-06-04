@@ -26,8 +26,8 @@ import {
   type WorkflowLiveStatus,
   type WorkflowMetricCounts,
 } from "./daemon-control.js";
-import { deriveProjectId } from "./project-registry.js";
 import { resetScheduler } from "./scheduler.js";
+import { deriveDirectoryScopeId } from "./scope-registry.js";
 
 const CONV_ID = "c-fixture-0000";
 const DEFAULT_PROJECT_ID = "test-project-id";
@@ -768,7 +768,7 @@ describe("Daemon chat project-scoped history", () => {
         expect(existsSync(join(stateDir, "daemon-control.json"))).toBe(true);
       });
       const address = readDaemonControlAddress(stateDir);
-      const selectedProjectId = deriveProjectId(selectedProjectDir);
+      const selectedProjectId = deriveDirectoryScopeId(selectedProjectDir);
 
       const createRes = await fetchWithDaemonToken(
         address.port,

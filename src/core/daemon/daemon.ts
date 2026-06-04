@@ -13,12 +13,12 @@ import { runDaemonShutdown } from "./daemon-shutdown.js";
 import { runDaemonStartup } from "./daemon-startup.js";
 import type { DaemonState } from "./daemon-state.js";
 import { loadDaemonStateFromDisk, saveDaemonStateToDisk } from "./daemon-state-persistence.js";
+import { ProjectRuntimeRegistry } from "./project-runtime.js";
 import {
   type ConfiguredProjectInput,
-  ProjectRegistry,
   resolveConfiguredProjects,
-} from "./project-registry.js";
-import { ProjectRuntimeRegistry } from "./project-runtime.js";
+  ScopeRegistry,
+} from "./scope-registry.js";
 
 export type { DaemonControlAddress } from "./daemon-control.js";
 export type { DaemonState } from "./daemon-state.js";
@@ -109,7 +109,7 @@ export class Daemon {
     const stateDir =
       config.stateDir ?? join(configuredProjects[0]!.projectDir, ".kota");
 
-    const projectRegistry = new ProjectRegistry({
+    const projectRegistry = new ScopeRegistry({
       stateDir,
       projects: configuredProjects,
     });

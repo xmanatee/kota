@@ -12,7 +12,7 @@
 
 import { basename } from "node:path";
 import type { CapabilityReadinessResponse } from "./capability-readiness.js";
-import type { ProjectRegistryProjection } from "./project-registry.js";
+import type { ProjectRegistryProjection } from "./scope-registry.js";
 
 /**
  * Stable capability id the daemon's `web` module registers when the

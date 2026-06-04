@@ -1,7 +1,7 @@
 /**
  * ProjectRuntime — typed per-project bundle of daemon-owned runtime state.
  *
- * Slice 2 of the multi-project supervision foundation. The {@link ProjectRegistry}
+ * Slice 2 of the multi-project supervision foundation. The {@link ScopeRegistry}
  * primitive (slice 1) names every configured project; this file constructs and
  * holds the per-project runtime each registry entry needs. One bundle owns one
  * project's workflow runtime, run store, task store, scheduler, module-log
@@ -37,12 +37,12 @@ import {
   OwnerQuestionQueue,
   setOwnerQuestionQueueInstance,
 } from "./owner-question-queue.js";
+import { Scheduler, setSchedulerInstance } from "./scheduler.js";
 import type {
   ConfiguredProject,
   ProjectId,
-  ProjectRegistry,
-} from "./project-registry.js";
-import { Scheduler, setSchedulerInstance } from "./scheduler.js";
+  ScopeRegistry,
+} from "./scope-registry.js";
 import { setTaskStoreInstance, TaskStore } from "./task-store.js";
 
 /**
@@ -181,7 +181,7 @@ export class ProjectRuntimeRegistry {
   }
 
   static create(opts: {
-    registry: ProjectRegistry;
+    registry: ScopeRegistry;
     bus: EventBus;
     config?: KotaConfig;
     workflows?: readonly RegisteredWorkflowDefinitionInput[];

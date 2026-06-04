@@ -1,10 +1,10 @@
 import { join } from "node:path";
+import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
 import {
 	buildConfiguredProject,
 	type ConfiguredProject,
 	type ProjectId,
-} from "#core/daemon/project-registry.js";
-import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
+} from "#core/daemon/scope-registry.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import type { MemoryProvider } from "#core/modules/provider-types.js";
 import { MemoryStore } from "./store.js";

@@ -6,11 +6,11 @@ import { JsonFileError } from "#core/util/json-file.js";
 import {
   buildConfiguredProject,
   type ConfiguredProject,
-  deriveProjectId,
+  deriveDirectoryScopeId,
   loadRegistryFileFromDisk,
-  ProjectRegistry,
   resolveConfiguredProjects,
-} from "./project-registry.js";
+  ScopeRegistry,
+} from "./scope-registry.js";
 
 function makeStateDir(): string {
   const dir = mkdtempSync(join(tmpdir(), "kota-project-registry-"));
@@ -18,22 +18,27 @@ function makeStateDir(): string {
   return dir;
 }
 
-describe("deriveProjectId", () => {
+describe("deriveDirectoryScopeId", () => {
   it("derives the same id from the same resolved path", () => {
-    const id1 = deriveProjectId("/Users/operator/projects/kota");
-    const id2 = deriveProjectId("/Users/operator/projects/kota");
+    const id1 = deriveDirectoryScopeId("/Users/operator/projects/kota");
+    const id2 = deriveDirectoryScopeId("/Users/operator/projects/kota");
     expect(id1).toBe(id2);
   });
 
   it("normalizes paths through path.resolve before hashing", () => {
     const absolute = resolve("/tmp/sample/project");
-    const id = deriveProjectId("/tmp/sample/project");
-    const idDuplicate = deriveProjectId(absolute);
+    const id = deriveDirectoryScopeId("/tmp/sample/project");
+    const idDuplicate = deriveDirectoryScopeId(absolute);
     expect(id).toBe(idDuplicate);
   });
 
   it("derives different ids for different roots", () => {
-    expect(deriveProjectId("/tmp/a")).not.toBe(deriveProjectId("/tmp/b"));
+    expect(deriveDirectoryScopeId("/tmp/a")).not.toBe(deriveDirectoryScopeId("/tmp/b"));
+  });
+
+  it("rejects empty roots instead of normalizing them to cwd", () => {
+    expect(() => deriveDirectoryScopeId("")).toThrow(/projectDir must be a non-empty string/);
+    expect(() => deriveDirectoryScopeId("   ")).toThrow(/projectDir must be a non-empty string/);
   });
 });
 
@@ -42,7 +47,7 @@ describe("buildConfiguredProject", () => {
     const project = buildConfiguredProject({ projectDir: "/tmp/sample-project" });
     expect(project.displayName).toBe("sample-project");
     expect(project.projectDir).toBe(resolve("/tmp/sample-project"));
-    expect(project.projectId).toBe(deriveProjectId("/tmp/sample-project"));
+    expect(project.projectId).toBe(deriveDirectoryScopeId("/tmp/sample-project"));
   });
 
   it("trims operator-supplied displayName and falls back to basename when empty", () => {
@@ -55,12 +60,18 @@ describe("buildConfiguredProject", () => {
     const blank = buildConfiguredProject({ projectDir: "/tmp/p", displayName: "   " });
     expect(blank.displayName).toBe("p");
   });
+
+  it("rejects empty projectDir input", () => {
+    expect(() => buildConfiguredProject({ projectDir: "" })).toThrow(
+      /projectDir must be a non-empty string/,
+    );
+  });
 });
 
-describe("ProjectRegistry", () => {
+describe("ScopeRegistry", () => {
   it("rejects an empty project list", () => {
     const stateDir = makeStateDir();
-    expect(() => new ProjectRegistry({ stateDir, projects: [] })).toThrow(
+    expect(() => new ScopeRegistry({ stateDir, projects: [] })).toThrow(
       /at least one project/,
     );
   });
@@ -69,7 +80,7 @@ describe("ProjectRegistry", () => {
     const stateDir = makeStateDir();
     expect(
       () =>
-        new ProjectRegistry({
+        new ScopeRegistry({
           stateDir,
           projects: [
             { projectDir: "/tmp/dup" },
@@ -81,7 +92,7 @@ describe("ProjectRegistry", () => {
 
   it("constructs from a single project and treats it as the default", () => {
     const stateDir = makeStateDir();
-    const registry = new ProjectRegistry({
+    const registry = new ScopeRegistry({
       stateDir,
       projects: [{ projectDir: "/tmp/solo" }],
     });
@@ -89,12 +100,12 @@ describe("ProjectRegistry", () => {
     expect(list).toHaveLength(1);
     expect(list[0]?.projectDir).toBe(resolve("/tmp/solo"));
     expect(registry.getDefault().projectDir).toBe(resolve("/tmp/solo"));
-    expect(registry.getDefaultProjectId()).toBe(deriveProjectId("/tmp/solo"));
+    expect(registry.getDefaultProjectId()).toBe(deriveDirectoryScopeId("/tmp/solo"));
   });
 
   it("supports lookup by id and by resolved directory", () => {
     const stateDir = makeStateDir();
-    const registry = new ProjectRegistry({
+    const registry = new ScopeRegistry({
       stateDir,
       projects: [
         { projectDir: "/tmp/proj-a", displayName: "Alpha" },
@@ -108,9 +119,18 @@ describe("ProjectRegistry", () => {
     expect(registry.getByDir("/tmp/missing")).toBeUndefined();
   });
 
+  it("rejects empty directory lookups instead of normalizing them to cwd", () => {
+    const stateDir = makeStateDir();
+    const registry = new ScopeRegistry({
+      stateDir,
+      projects: [{ projectDir: "/tmp/proj-a" }],
+    });
+    expect(() => registry.getByDir("")).toThrow(/projectDir must be a non-empty string/);
+  });
+
   it("first input is the default project", () => {
     const stateDir = makeStateDir();
-    const registry = new ProjectRegistry({
+    const registry = new ScopeRegistry({
       stateDir,
       projects: [
         { projectDir: "/tmp/first" },
@@ -122,7 +142,7 @@ describe("ProjectRegistry", () => {
 
   it("persists a typed registry file under the state dir", () => {
     const stateDir = makeStateDir();
-    new ProjectRegistry({
+    new ScopeRegistry({
       stateDir,
       projects: [
         { projectDir: "/tmp/host-a", displayName: "Host A" },
@@ -134,7 +154,7 @@ describe("ProjectRegistry", () => {
     expect(file?.schema).toBe(1);
     expect(file?.projects).toHaveLength(2);
     expect(file?.projects[0]?.displayName).toBe("Host A");
-    expect(file?.defaultProjectId).toBe(deriveProjectId("/tmp/host-a"));
+    expect(file?.defaultProjectId).toBe(deriveDirectoryScopeId("/tmp/host-a"));
 
     const raw = JSON.parse(readFileSync(join(stateDir, "project-registry.json"), "utf8"));
     expect(raw.schema).toBe(1);
@@ -142,7 +162,7 @@ describe("ProjectRegistry", () => {
 
   it("toProjection emits the typed wire shape", () => {
     const stateDir = makeStateDir();
-    const registry = new ProjectRegistry({
+    const registry = new ScopeRegistry({
       stateDir,
       projects: [
         { projectDir: "/tmp/wire-a", displayName: "Wire A" },
@@ -150,10 +170,39 @@ describe("ProjectRegistry", () => {
       ],
     });
     const projection = registry.toProjection();
-    expect(projection.defaultProjectId).toBe(deriveProjectId("/tmp/wire-a"));
+    expect(projection.defaultProjectId).toBe(deriveDirectoryScopeId("/tmp/wire-a"));
     expect(projection.projects.map((p) => p.displayName)).toEqual([
       "Wire A",
       "Wire B",
+    ]);
+  });
+
+  it("toScopeProjection emits global plus directory-backed child scopes", () => {
+    const stateDir = makeStateDir();
+    const registry = new ScopeRegistry({
+      stateDir,
+      projects: [
+        { projectDir: "/tmp/scope-a", displayName: "Scope A" },
+        { projectDir: "/tmp/scope-b", displayName: "Scope B" },
+      ],
+    });
+    const projection = registry.toScopeProjection();
+    expect(projection.rootScopeId).toBe("global");
+    expect(projection.defaultScopeId).toBe(deriveDirectoryScopeId("/tmp/scope-a"));
+    expect(projection.scopes).toEqual([
+      { scopeId: "global", displayName: "Global" },
+      {
+        scopeId: deriveDirectoryScopeId("/tmp/scope-a"),
+        displayName: "Scope A",
+        parentScopeId: "global",
+        directoryRoot: resolve("/tmp/scope-a"),
+      },
+      {
+        scopeId: deriveDirectoryScopeId("/tmp/scope-b"),
+        displayName: "Scope B",
+        parentScopeId: "global",
+        directoryRoot: resolve("/tmp/scope-b"),
+      },
     ]);
   });
 });
@@ -182,7 +231,7 @@ describe("loadRegistryFileFromDisk", () => {
         defaultProjectId: "no-such-id",
         projects: [
           {
-            projectId: deriveProjectId("/tmp/x"),
+            projectId: deriveDirectoryScopeId("/tmp/x"),
             projectDir: resolve("/tmp/x"),
             displayName: "x",
           },
@@ -223,5 +272,29 @@ describe("resolveConfiguredProjects", () => {
       fallbackProjectDir: "/tmp/fallback",
     });
     expect(result).toEqual([{ projectDir: "/tmp/single" }]);
+  });
+
+  it("rejects empty DaemonConfig projectDir shorthand input", () => {
+    expect(() =>
+      resolveConfiguredProjects({
+        projectDir: "",
+        fallbackProjectDir: "/tmp/fallback",
+      }),
+    ).toThrow(/projectDir must be a non-empty string/);
+  });
+
+  it("rejects empty DaemonConfig projects entries", () => {
+    expect(() =>
+      resolveConfiguredProjects({
+        projects: [{ projectDir: "" }],
+        fallbackProjectDir: "/tmp/fallback",
+      }),
+    ).toThrow(/projects\[0\]\.projectDir must be a non-empty string/);
+  });
+
+  it("rejects empty daemon fallback input", () => {
+    expect(() => resolveConfiguredProjects({ fallbackProjectDir: "" })).toThrow(
+      /fallbackProjectDir must be a non-empty string/,
+    );
   });
 });

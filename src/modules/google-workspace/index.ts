@@ -20,7 +20,7 @@
  *      or use $ENV_VAR references to environment variables.
  */
 
-import { deriveProjectId } from "#core/daemon/project-registry.js";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type {
   KotaModule,
   ModuleContext,
@@ -73,7 +73,7 @@ function inboundSignalContext(
 ): GoogleWorkspaceInboundSignalContext {
   const inbound = config.inbound ?? {};
   return {
-    projectId: deriveProjectId(ctx.cwd),
+    projectId: deriveDirectoryScopeId(ctx.cwd),
     accountId: inbound.accountId ?? config.userId ?? "me",
     receivedAt: new Date().toISOString(),
     trustedSenders: inbound.trustedSenders,

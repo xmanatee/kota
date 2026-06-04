@@ -1,19 +1,13 @@
 /**
- * Project registry — typed primitive that names every project a single
- * daemon process is configured to host.
+ * Scope registry — typed primitive that names the daemon-hosted runtime
+ * contexts KOTA can reason about.
  *
- * Today the daemon is single-project: every store, scheduler, queue, event,
- * and control-API handler binds to one `projectDir` consumed at construction.
- * The registry is the foundation for the multi-project runtime: it gives the
- * daemon (and clients through the control API) one authoritative answer to
- * "which projects am I configured for, what is each project's stable id, and
- * which one is the default for single-project operators."
- *
- * Wiring the registry through every daemon-owned subsystem and adding a
- * `projectId` scope to events / API routes / decoders is intentionally NOT
- * part of this file. Those slices ship as follow-up tasks; this file only
- * owns the primitive's typed shape, deterministic id derivation, and
- * file-backed persistence so later slices have something to attach to.
+ * Directory-backed scopes are the first concrete provider. The existing
+ * control API, event payloads, and per-project runtime bundles still use
+ * `projectId` while their scope-specific migration slices remain separate.
+ * This file owns only the registry shape, deterministic directory-scope id
+ * derivation, the root-scope projection, and the existing file-backed
+ * registry persistence.
  */
 
 import { join, resolve } from "node:path";
@@ -25,12 +19,16 @@ import {
 } from "#core/util/json-file.js";
 import { projectHash } from "./schedule-parser.js";
 
+export const GLOBAL_SCOPE_ID = "global";
+
+export type ScopeId = ProjectId;
+
 /**
- * Stable opaque project identity. The type alias lives in
+ * Stable opaque directory-scope identity. The compatibility alias lives in
  * `#core/events/project-scope.js` so foundational subsystems can scope
  * events without depending on the daemon tree; this module owns the
- * deterministic runtime derivation ({@link deriveProjectId}) and the
- * file-backed registry that persists configured projects.
+ * deterministic runtime derivation ({@link deriveDirectoryScopeId}) and the
+ * file-backed registry that persists configured directory scopes.
  */
 export type { ProjectId };
 
@@ -60,6 +58,24 @@ export type ConfiguredProject = {
   readonly displayName: string;
 };
 
+/**
+ * Canonical scope projection entry. The global root has no parent or directory
+ * root; directory-backed scopes use the existing derived project id as their
+ * scope id until event and route selectors migrate.
+ */
+export type ConfiguredScope = {
+  readonly scopeId: ScopeId;
+  readonly displayName: string;
+  readonly parentScopeId?: ScopeId;
+  readonly directoryRoot?: string;
+};
+
+export type ScopeRegistryProjection = {
+  readonly rootScopeId: ScopeId;
+  readonly defaultScopeId: ScopeId;
+  readonly scopes: ConfiguredScope[];
+};
+
 const REGISTRY_SCHEMA_VERSION = 1;
 const REGISTRY_FILE = "project-registry.json";
 
@@ -77,8 +93,8 @@ type ProjectRegistryFile = {
  * any existing per-project storage rather than introducing a parallel
  * identifier.
  */
-export function deriveProjectId(projectDir: string): ProjectId {
-  return projectHash(resolve(projectDir));
+export function deriveDirectoryScopeId(projectDir: string): ProjectId {
+  return projectHash(resolveDirectoryScopeRoot(projectDir));
 }
 
 /**
@@ -88,13 +104,20 @@ export function deriveProjectId(projectDir: string): ProjectId {
 export function buildConfiguredProject(
   input: ConfiguredProjectInput,
 ): ConfiguredProject {
-  const projectDir = resolve(input.projectDir);
+  const projectDir = resolveDirectoryScopeRoot(input.projectDir);
   const displayName = (input.displayName ?? "").trim() || basename(projectDir);
   return {
-    projectId: deriveProjectId(projectDir),
+    projectId: deriveDirectoryScopeId(projectDir),
     projectDir,
     displayName,
   };
+}
+
+function resolveDirectoryScopeRoot(projectDir: string): string {
+  if (!projectDir.trim()) {
+    throw new Error("projectDir must be a non-empty string");
+  }
+  return resolve(projectDir);
 }
 
 function basename(path: string): string {
@@ -189,7 +212,7 @@ function assertRegistryFile(
   return { schema: REGISTRY_SCHEMA_VERSION, defaultProjectId, projects };
 }
 
-export type ProjectRegistryInit = {
+export type ScopeRegistryInit = {
   /** Daemon state directory. The registry file is written under this dir. */
   stateDir: string;
   /** One or more configured projects. The first entry is the default. */
@@ -197,7 +220,8 @@ export type ProjectRegistryInit = {
 };
 
 /**
- * In-memory project registry, persisted to `<stateDir>/project-registry.json`.
+ * In-memory scope registry, persisted to the existing
+ * `<stateDir>/project-registry.json` store.
  *
  * The registry is constructed from operator config (`DaemonConfig.projects`
  * or the legacy single-project `DaemonConfig.projectDir`). Construction
@@ -210,28 +234,27 @@ export type ProjectRegistryInit = {
  * matches how `daemon-state.json` already behaves: the running daemon owns
  * the live state, and the file is a checkpoint.
  *
- * Mutators (add/remove/setDefault) are intentionally not on the surface
- * yet. The first slice only covers the typed shape and the configured
- * projection used by every other slice; runtime registration arrives with
- * the per-project ProjectRuntime bundle.
+ * Mutators (add/remove/setDefault) are intentionally not on the surface yet.
+ * This slice does not change control routes, event payloads, or store/runtime
+ * bindings; those integrations continue to consume the project projection.
  */
-export class ProjectRegistry {
+export class ScopeRegistry {
   private readonly stateDir: string;
   private readonly byId: Map<ProjectId, ConfiguredProject>;
   private readonly byDir: Map<string, ConfiguredProject>;
   private readonly orderedIds: ProjectId[];
   private readonly defaultProjectId: ProjectId;
 
-  constructor(init: ProjectRegistryInit) {
+  constructor(init: ScopeRegistryInit) {
     if (init.projects.length === 0) {
-      throw new Error("ProjectRegistry requires at least one project");
+      throw new Error("ScopeRegistry requires at least one project");
     }
     const resolved = init.projects.map(buildConfiguredProject);
     const seen = new Set<ProjectId>();
     for (const project of resolved) {
       if (seen.has(project.projectId)) {
         throw new Error(
-          `ProjectRegistry: duplicate projectDir resolved to projectId ${project.projectId} (${project.projectDir})`,
+          `ScopeRegistry: duplicate projectDir resolved to projectId ${project.projectId} (${project.projectDir})`,
         );
       }
       seen.add(project.projectId);
@@ -242,7 +265,7 @@ export class ProjectRegistry {
     this.orderedIds = resolved.map((p) => p.projectId);
     const firstId = resolved[0]?.projectId;
     if (firstId === undefined) {
-      throw new Error("ProjectRegistry resolved zero projects");
+      throw new Error("ScopeRegistry resolved zero projects");
     }
     this.defaultProjectId = firstId;
     this.persist();
@@ -253,7 +276,7 @@ export class ProjectRegistry {
     return this.orderedIds.map((id) => {
       const project = this.byId.get(id);
       if (!project) {
-        throw new Error(`ProjectRegistry: missing entry for ${id}`);
+        throw new Error(`ScopeRegistry: missing entry for ${id}`);
       }
       return project;
     });
@@ -266,7 +289,7 @@ export class ProjectRegistry {
 
   /** Look up a configured project by resolved projectDir. */
   getByDir(projectDir: string): ConfiguredProject | undefined {
-    return this.byDir.get(resolve(projectDir));
+    return this.byDir.get(resolveDirectoryScopeRoot(projectDir));
   }
 
   /** The project the daemon picks when an operation does not name one. */
@@ -274,7 +297,7 @@ export class ProjectRegistry {
     const project = this.byId.get(this.defaultProjectId);
     if (!project) {
       throw new Error(
-        `ProjectRegistry: defaultProjectId ${this.defaultProjectId} missing from byId map`,
+        `ScopeRegistry: defaultProjectId ${this.defaultProjectId} missing from byId map`,
       );
     }
     return project;
@@ -282,6 +305,11 @@ export class ProjectRegistry {
 
   /** Stable id of the default project. */
   getDefaultProjectId(): ProjectId {
+    return this.defaultProjectId;
+  }
+
+  /** Stable id of the default directory-backed scope. */
+  getDefaultScopeId(): ScopeId {
     return this.defaultProjectId;
   }
 
@@ -299,6 +327,14 @@ export class ProjectRegistry {
         displayName: p.displayName,
       })),
     };
+  }
+
+  /**
+   * Canonical scope projection. It is intentionally registry-only in this
+   * slice; no daemon control route exposes it yet.
+   */
+  toScopeProjection(): ScopeRegistryProjection {
+    return scopeProjectionFromProjects(this.defaultProjectId, this.list());
   }
 
   private persist(): void {
@@ -339,9 +375,28 @@ export type ProjectRegistryProjection = {
   projects: ConfiguredProject[];
 };
 
+export function scopeProjectionFromProjects(
+  defaultScopeId: ScopeId,
+  projects: readonly ConfiguredProject[],
+): ScopeRegistryProjection {
+  return {
+    rootScopeId: GLOBAL_SCOPE_ID,
+    defaultScopeId,
+    scopes: [
+      { scopeId: GLOBAL_SCOPE_ID, displayName: "Global" },
+      ...projects.map((project) => ({
+        scopeId: project.projectId,
+        displayName: project.displayName,
+        parentScopeId: GLOBAL_SCOPE_ID,
+        directoryRoot: project.projectDir,
+      })),
+    ],
+  };
+}
+
 /**
  * Resolve `DaemonConfig`'s project-shape inputs into the canonical list the
- * {@link ProjectRegistry} consumes.
+ * {@link ScopeRegistry} consumes.
  *
  * Single-project operators set only `projectDir`. Multi-project operators
  * set `projects` (and may still set `projectDir`, in which case the array
@@ -355,7 +410,21 @@ export function resolveConfiguredProjects(opts: {
   fallbackProjectDir: string;
 }): readonly ConfiguredProjectInput[] {
   if (opts.projects && opts.projects.length > 0) {
+    opts.projects.forEach((project, index) => {
+      assertNonEmptyProjectDir(project.projectDir, `projects[${index}].projectDir`);
+    });
     return opts.projects;
   }
-  return [{ projectDir: opts.projectDir ?? opts.fallbackProjectDir }];
+  if (opts.projectDir !== undefined) {
+    assertNonEmptyProjectDir(opts.projectDir, "projectDir");
+    return [{ projectDir: opts.projectDir }];
+  }
+  assertNonEmptyProjectDir(opts.fallbackProjectDir, "fallbackProjectDir");
+  return [{ projectDir: opts.fallbackProjectDir }];
+}
+
+function assertNonEmptyProjectDir(projectDir: string, field: string): void {
+  if (!projectDir.trim()) {
+    throw new Error(`${field} must be a non-empty string`);
+  }
 }

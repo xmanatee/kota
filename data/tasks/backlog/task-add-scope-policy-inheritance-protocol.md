@@ -78,7 +78,7 @@ needs to follow the scope migration rather than widen the old project concept.
 Relevant local code:
 
 - `src/core/events/project-scope.ts`
-- `src/core/daemon/project-registry.ts`
+- `src/core/daemon/scope-registry.ts`
 - `src/core/agents/agent-types.ts`
 - `src/core/tools/guardrails.ts`
 - `src/modules/telegram/AGENTS.md`

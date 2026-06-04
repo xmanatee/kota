@@ -9,7 +9,7 @@
  * wrapper bus per-project subsystems use to emit / subscribe without threading
  * `projectId` through every call. The runtime registry that derives ids from
  * project roots and tracks configured projects lives in
- * `#core/daemon/project-registry.js`; the type alias is owned here so
+ * `#core/daemon/scope-registry.js`; the type alias is owned here so
  * `events/` and other foundational subsystems can import it without taking a
  * daemon-tree dependency.
  *
@@ -38,7 +38,7 @@ type Payload = Record<string, unknown>;
 
 /**
  * Stable opaque project identity. Re-exported as-is by
- * `#core/daemon/project-registry.js`, where the deterministic derivation and
+ * `#core/daemon/scope-registry.js`, where the deterministic derivation and
  * file-backed registry live.
  */
 export type ProjectId = string;

@@ -13,14 +13,14 @@ import {
   resetOwnerQuestionQueue,
 } from "./owner-question-queue.js";
 import {
-  buildConfiguredProject,
-  ProjectRegistry,
-} from "./project-registry.js";
-import {
   createProjectRuntime,
   ProjectRuntimeRegistry,
 } from "./project-runtime.js";
 import { getScheduler, resetScheduler } from "./scheduler.js";
+import {
+  buildConfiguredProject,
+  ScopeRegistry,
+} from "./scope-registry.js";
 import { getTaskStore, resetTaskStore } from "./task-store.js";
 
 function makeProjectDir(name: string): string {
@@ -134,7 +134,7 @@ describe("ProjectRuntimeRegistry — independence across projects", () => {
     const dirB = makeProjectDir("twin-b");
     const stateDir = mkdtempSync(join(tmpdir(), "kota-project-runtime-state-"));
 
-    const registry = new ProjectRegistry({
+    const registry = new ScopeRegistry({
       stateDir,
       projects: [{ projectDir: dirA }, { projectDir: dirB }],
     });
@@ -209,7 +209,7 @@ describe("ProjectRuntimeRegistry — independence across projects", () => {
   it("getProjectRuntime throws on an unknown projectId", () => {
     const dir = makeProjectDir("solo-lookup");
     const stateDir = mkdtempSync(join(tmpdir(), "kota-project-runtime-state-"));
-    const registry = new ProjectRegistry({
+    const registry = new ScopeRegistry({
       stateDir,
       projects: [{ projectDir: dir }],
     });

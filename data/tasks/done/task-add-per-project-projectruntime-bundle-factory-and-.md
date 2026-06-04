@@ -11,7 +11,7 @@ updated_at: 2026-05-08T03:13:14.008Z
 
 ## Problem
 
-The `ProjectRegistry` primitive exists (`src/core/daemon/project-registry.ts`)
+The `ScopeRegistry` primitive exists (`src/core/daemon/scope-registry.ts`)
 and `DaemonConfig.projects` accepts more than one configured project, but
 every daemon-owned subsystem still binds to a single `projectDir` at
 construction. Today the daemon constructs one `WorkflowRunStore`, one

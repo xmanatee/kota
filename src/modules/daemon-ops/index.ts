@@ -8,7 +8,7 @@ import type {
   ConfiguredProject,
   ProjectId,
   ProjectRegistryProjection,
-} from "#core/daemon/project-registry.js";
+} from "#core/daemon/scope-registry.js";
 import type { SessionGuardrailsReloadSummary } from "#core/events/event-bus-types.js";
 import {
   checkPresetAuth,

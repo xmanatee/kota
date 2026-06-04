@@ -10,17 +10,6 @@ export {
 	RESTART_EXIT_CODE,
 } from "./daemon.js";
 export {
-	buildConfiguredProject,
-	type ConfiguredProject,
-	type ConfiguredProjectInput,
-	deriveProjectId,
-	loadRegistryFileFromDisk,
-	type ProjectId,
-	ProjectRegistry,
-	type ProjectRegistryProjection,
-	resolveConfiguredProjects,
-} from "./project-registry.js";
-export {
 	formatRelative,
 	matchesFilter,
 	projectHash,
@@ -35,6 +24,17 @@ export {
 	Scheduler,
 	setSchedulerInstance,
 } from "./scheduler.js";
+export {
+	buildConfiguredProject,
+	type ConfiguredProject,
+	type ConfiguredProjectInput,
+	deriveDirectoryScopeId,
+	loadRegistryFileFromDisk,
+	type ProjectId,
+	type ProjectRegistryProjection,
+	resolveConfiguredProjects,
+	ScopeRegistry,
+} from "./scope-registry.js";
 export {
 	formatTaskHint,
 	routeTask,

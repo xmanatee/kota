@@ -7,7 +7,7 @@ import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { ClientDashboardAvailability, ClientIdentity } from "#core/daemon/client-identity.js";
 import type { DaemonLiveStatus } from "#core/daemon/daemon-control.js";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control-types.js";
-import type { ConfiguredProject } from "#core/daemon/project-registry.js";
+import type { ConfiguredProject } from "#core/daemon/scope-registry.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { getDaemonTransport } from "#core/server/daemon-transport.js";
 import { isProcessAlive } from "#core/util/process-alive.js";

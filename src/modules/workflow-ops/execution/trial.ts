@@ -12,7 +12,7 @@ import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import type { Command } from "commander";
 import type { AgentCanUseTool } from "#core/agent-harness/index.js";
 import { type KotaConfig, loadConfig } from "#core/config/config.js";
-import { deriveProjectId, loadRegistryFileFromDisk } from "#core/daemon/project-registry.js";
+import { deriveDirectoryScopeId, loadRegistryFileFromDisk } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { PRESET_ENV_VAR, resolvePreset } from "#core/model/preset.js";
@@ -543,7 +543,7 @@ async function runAttempt(args: {
         payload: clonePayload(event.payload),
       });
     });
-    const pbus = new ProjectScopedEventBus(bus, deriveProjectId(trialProjectDir));
+    const pbus = new ProjectScopedEventBus(bus, deriveDirectoryScopeId(trialProjectDir));
     const store = new WorkflowRunStore(trialProjectDir);
     const runId = formatRunId(`${args.variant.workflow}-trial`);
     const trigger: WorkflowRunTrigger = {
@@ -751,7 +751,7 @@ export async function runWorkflowTrial(
   const summary: WorkflowTrialSummary = {
     runId,
     workflow: args.workflowName,
-    projectId: args.options?.projectId ?? deriveProjectId(args.sourceProjectDir),
+    projectId: args.options?.projectId ?? deriveDirectoryScopeId(args.sourceProjectDir),
     sourceProjectPath: args.sourceProjectDir,
     reportDir: relative(args.sourceProjectDir, reportDirPath),
     payload: clonePayload(args.options?.payload ?? {}),
@@ -813,7 +813,7 @@ function resolveWorkflowTrialProject(
   options: WorkflowTrialOptions | undefined,
 ): TrialProjectResolution {
   const requestedProjectId = options?.projectId;
-  const defaultProjectId = deriveProjectId(ctx.cwd);
+  const defaultProjectId = deriveDirectoryScopeId(ctx.cwd);
   if (requestedProjectId === undefined || requestedProjectId === defaultProjectId) {
     return {
       ok: true,

@@ -1,4 +1,4 @@
-import type { ConfiguredProject } from "#core/daemon/project-registry.js";
+import type { ConfiguredProject } from "#core/daemon/scope-registry.js";
 import type { ModuleStorage } from "#core/modules/module-storage.js";
 import type { KotaClient } from "#core/server/kota-client.js";
 

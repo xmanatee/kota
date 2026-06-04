@@ -88,7 +88,7 @@ end-to-end fulfillment.
 
 1. **Daemon registry primitive + DaemonConfig multi-project plumbing** —
    `task-add-daemon-project-registry-and-projectid-attribut` (in
-   progress / done after this run). Typed `ProjectRegistry`, derived
+   progress / done after this run). Typed `ScopeRegistry`, derived
    stable `projectId`, `DaemonConfig.projects` shape, runtime context
    exposes the registry. No store/event/route changes yet.
 2. **Per-project ProjectRuntime bundle factory + singleton-binding

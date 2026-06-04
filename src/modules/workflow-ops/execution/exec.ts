@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
-import { deriveProjectId } from "#core/daemon/project-registry.js";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { PRESET_ENV_VAR, resolvePreset } from "#core/model/preset.js";
@@ -82,7 +82,7 @@ export function registerExecCommand(
         }
 
         const bus = new EventBus();
-        const pbus = new ProjectScopedEventBus(bus, deriveProjectId(ctx.cwd));
+        const pbus = new ProjectScopedEventBus(bus, deriveDirectoryScopeId(ctx.cwd));
         const store = new WorkflowRunStore(ctx.cwd);
         const trigger: WorkflowRunTrigger = {
           event: opts.event,

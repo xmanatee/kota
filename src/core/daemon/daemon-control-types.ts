@@ -10,7 +10,7 @@ import type { WorkflowAgentBackoffState } from "#core/workflow/trigger-types.js"
 import type { CapabilityReadinessResponse } from "./capability-readiness.js";
 import type { ClientIdentity } from "./client-identity.js";
 import type { DaemonState } from "./daemon-state.js";
-import type { ProjectId, ProjectRegistryProjection } from "./project-registry.js";
+import type { ProjectId, ProjectRegistryProjection } from "./scope-registry.js";
 
 /**
  * Typed wire-shape for the daemon's "unknown projectId" rejection on a

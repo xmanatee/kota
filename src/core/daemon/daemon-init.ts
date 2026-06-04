@@ -37,9 +37,9 @@ import {
   WORKFLOW_METRICS_SOURCE_PROVIDER_TYPE,
   type WorkflowMetricsSource,
 } from "./metrics-source-provider.js";
-import type { ProjectRegistry } from "./project-registry.js";
 import type { ProjectRuntimeRegistry } from "./project-runtime.js";
 import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "./project-scope-provider.js";
+import type { ScopeRegistry } from "./scope-registry.js";
 
 /**
  * Per-instance lifecycle context for one running daemon.
@@ -65,7 +65,7 @@ export type DaemonRuntimeContext = {
   readonly token: string;
   readonly state: DaemonState;
   readonly sessions: Map<string, InteractiveSession>;
-  readonly projectRegistry: ProjectRegistry;
+  readonly projectRegistry: ScopeRegistry;
   readonly projectRuntimes: ProjectRuntimeRegistry;
 
   // Mutable lifecycle state owned by startup/shutdown phases.
@@ -93,7 +93,7 @@ export type BuildDaemonInitParams = {
   log: (message: string) => void;
   state: DaemonState;
   token: string;
-  projectRegistry: ProjectRegistry;
+  projectRegistry: ScopeRegistry;
   projectRuntimes: ProjectRuntimeRegistry;
 };
 

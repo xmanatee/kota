@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it } from "vitest";
-import { deriveProjectId } from "#core/daemon/project-registry.js";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
@@ -128,13 +128,13 @@ describe("eventTriggerRoutes inbound signal path", () => {
     expect(JSON.parse(response.body!)).toMatchObject({
       ok: true,
       event: inboundSignalReceived.name,
-      projectId: deriveProjectId("/tmp/test"),
+      projectId: deriveDirectoryScopeId("/tmp/test"),
       actorTrust: "trusted",
       listeners: 1,
     });
     expect(emitted).toHaveLength(1);
     expect(emitted[0]).toMatchObject({
-      projectId: deriveProjectId("/tmp/test"),
+      projectId: deriveDirectoryScopeId("/tmp/test"),
       provider: "webhook",
       channel: "http",
       actor: { trust: "trusted" },

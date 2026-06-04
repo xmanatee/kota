@@ -3,8 +3,8 @@ import {
   type ProviderToken,
 } from "#core/modules/provider-registry.js";
 import type { UnknownProjectError } from "./daemon-control-types.js";
-import type { ProjectId, ProjectRegistryProjection } from "./project-registry.js";
 import type { ProjectRuntime } from "./project-runtime.js";
+import type { ProjectId, ProjectRegistryProjection } from "./scope-registry.js";
 
 export type DaemonProjectRuntimeScope = Pick<
   ProjectRuntime,

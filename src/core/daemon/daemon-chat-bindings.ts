@@ -19,7 +19,7 @@
 
 import { join } from "node:path";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
-import type { ProjectId } from "./project-registry.js";
+import type { ProjectId } from "./scope-registry.js";
 
 export type DaemonChatBinding = {
   sessionId: string;

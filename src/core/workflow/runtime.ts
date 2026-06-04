@@ -1,6 +1,6 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
-import { deriveProjectId } from "#core/daemon/project-registry.js";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { AgentBackoffManager } from "./agent-backoff.js";
 import { workflowUsesAgent } from "./run-executor-utils.js";
@@ -163,7 +163,7 @@ export class WorkflowRuntime {
 
     const pbus =
       runtimeConfig.pbus ??
-      new ProjectScopedEventBus(runtimeConfig.bus, deriveProjectId(projectDir));
+      new ProjectScopedEventBus(runtimeConfig.bus, deriveDirectoryScopeId(projectDir));
 
     const agentConcurrency = runtimeConfig.agentConcurrency ?? 1;
     ctx = {

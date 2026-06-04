@@ -23,7 +23,7 @@
   "src/core/daemon/daemon-startup.ts": 1,
   "src/core/daemon/daemon-state.ts": 4,
   "src/core/daemon/notification-gate.ts": 3,
-  "src/core/daemon/project-registry.ts": 4,
+  "src/core/daemon/scope-registry.ts": 4,
   "src/core/daemon/schedule-parser.ts": 1,
   "src/core/daemon/scheduler.ts": 1,
   "src/core/daemon/task-store.ts": 1,

@@ -26,7 +26,7 @@ import type {
 import type {
   ConfiguredProject,
   ProjectId,
-} from "#core/daemon/project-registry.js";
+} from "#core/daemon/scope-registry.js";
 import type { SessionGuardrailsReloadSummary } from "#core/events/event-bus-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 

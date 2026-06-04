@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   buildConfiguredProject,
   type ConfiguredProject,
-} from "#core/daemon/project-registry.js";
+} from "#core/daemon/scope-registry.js";
 import { resetProviderRegistry } from "#core/modules/provider-registry.js";
 import { getProjectHistoryStore, resetHistory } from "#modules/history/history.js";
 import { HistoryProjectStores } from "#modules/history/project-scope.js";

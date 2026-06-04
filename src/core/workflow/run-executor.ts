@@ -1,7 +1,7 @@
 import type { AgentCanUseTool } from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
-import { deriveProjectId } from "#core/daemon/project-registry.js";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import {
@@ -36,7 +36,7 @@ export type RunExecutorDeps = {
    * Per-project view over {@link bus}. The executor emits every workflow-
    * lifecycle event through this wrapper so subscribers can attribute the
    * emitting project without inferring scope from paths. When omitted, the
-   * executor builds the wrapper from `deriveProjectId(projectDir)` so a
+   * executor builds the wrapper from `deriveDirectoryScopeId(projectDir)` so a
    * standalone run is still attributed to its own project.
    */
   pbus?: ProjectScopedEventBus;
@@ -82,7 +82,7 @@ export function executeWorkflowRun(
     ...inputDeps,
     pbus:
       inputDeps.pbus ??
-      new ProjectScopedEventBus(inputDeps.bus, deriveProjectId(inputDeps.projectDir)),
+      new ProjectScopedEventBus(inputDeps.bus, deriveDirectoryScopeId(inputDeps.projectDir)),
   };
   const run = deps.store.createRun(definition, trigger);
   const startedAt = Date.now();

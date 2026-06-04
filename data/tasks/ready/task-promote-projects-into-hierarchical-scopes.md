@@ -6,13 +6,13 @@ priority: p1
 area: core
 summary: Generalize KOTA's project registry/runtime/event scoping into a minimal hierarchical scope model, with directories as the first scope provider and project terminology kept only as compatibility UI language where needed.
 created_at: 2026-06-03T13:40:04.426Z
-updated_at: 2026-06-04T01:38:39.188Z
+updated_at: 2026-06-04T03:06:13.000Z
 ---
 
 ## Problem
 
 The daemon currently has a typed multi-project foundation:
-`ProjectRegistry`, `ProjectRuntimeRegistry`, `ProjectScopedEventBus`,
+`ScopeRegistry`, `ProjectRuntimeRegistry`, `ProjectScopedEventBus`,
 `projectId` event payloads, `/projects`, and project-aware client contracts.
 That implementation works for directory-backed code projects, but the owner
 explicitly wants the core abstraction to be scope, not project. A scope can be
@@ -69,7 +69,7 @@ The scope model should support:
   compatibility coverage for existing `projectId` callers.
 - Clients consume the scope projection or a compatibility adapter instead of
   deriving behavior from `.kota` files.
-- Existing project-registry and project-runtime isolation tests are migrated or
+- Existing scope-registry and project-runtime isolation tests are migrated or
   mirrored to prove scope isolation.
 - `pnpm test` for daemon, event, workflow, and client-contract tests passes.
 
@@ -81,7 +81,7 @@ scope could be a directory with a project... every scope is equal and scopes
 could be arranged in a hierarchy. probably we could start with scopes being
 directories."
 
-Current relevant code includes `src/core/daemon/project-registry.ts`,
+Current relevant code includes `src/core/daemon/scope-registry.ts`,
 `src/core/daemon/project-runtime.ts`, `src/core/events/project-scope.ts`,
 `src/modules/daemon-ops/projects-cli.ts`, `clients/AGENTS.md`, and
 `clients/web/AGENTS.md`.

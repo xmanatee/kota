@@ -9,7 +9,7 @@ import { mkdirSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import { loadConfig } from "#core/config/config.js";
-import { deriveProjectId } from "#core/daemon/project-registry.js";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
@@ -220,7 +220,7 @@ export async function runEvalHarness(
   }
 
   if (bus) {
-    const pbus = new ProjectScopedEventBus(bus, deriveProjectId(projectDir));
+    const pbus = new ProjectScopedEventBus(bus, deriveDirectoryScopeId(projectDir));
     pbus.emit(evalHarnessSetCompleted, {
       fixtureCount: report.aggregate.fixtureCount,
       repeatCount: report.repeatCount,

@@ -10,8 +10,8 @@ import { loadModuleMetadata } from "#core/modules/module-metadata.js";
 import type { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRuntime } from "#core/workflow/runtime.js";
 import { buildDaemonHandle } from "./daemon-handle.js";
-import type { ProjectRegistry } from "./project-registry.js";
 import type { ProjectRuntime, ProjectRuntimeRegistry } from "./project-runtime.js";
+import type { ScopeRegistry } from "./scope-registry.js";
 
 vi.mock("#core/config/config.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("#core/config/config.js")>();
@@ -57,7 +57,7 @@ function makeReloadSubject(initialConfig: KotaConfig = {}): ReloadSubject {
   const projectRegistry = {
     get: vi.fn(),
     toProjection: vi.fn(() => ({ defaultProjectId: "test-project", projects: [] })),
-  } as unknown as ProjectRegistry;
+  } as unknown as ScopeRegistry;
   const projectDir = mkdtempSync(join(tmpdir(), "kota-daemon-handle-test-"));
   const refreshLiveSessionGuardrails = vi.fn(() => ({
     refreshed: 0,

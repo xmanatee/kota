@@ -27,7 +27,7 @@ import type {
 } from "./daemon-chat-pool.js";
 import { rejectPendingClientApprovals } from "./daemon-chat-pool.js";
 import { jsonResponse } from "./daemon-control-utils.js";
-import type { ProjectId } from "./project-registry.js";
+import type { ProjectId } from "./scope-registry.js";
 
 /** Read the HTTP request body as a parsed JSON object (max 1MB). */
 export function readChatBody(req: IncomingMessage): Promise<KotaJsonObject> {
