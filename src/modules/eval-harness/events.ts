@@ -30,12 +30,10 @@ export type EvalHarnessSetCompletedPayload = {
  * store. Operators wire telemetry exporters to this event to publish
  * `pass@k` / `pass^k` trends.
  *
- * Project-scoped: each eval run belongs to exactly one project (the project
- * directory the runner was invoked against), so subscribers can filter
- * aggregate telemetry per project. The helper prepends `projectId` to the
- * declared field set; emitters route through a {@link ProjectScopedEventBus}
- * (which injects the wrapper's id) or attach `projectId` to the payload
- * before emitting on the raw bus.
+ * Project-scoped: each eval run belongs to exactly one directory scope, so
+ * subscribers can filter aggregate telemetry per scope. The helper prepends
+ * canonical `scopeId` and compatibility `projectId` to the declared field set;
+ * emitters route through a {@link ProjectScopedEventBus}, which injects both.
  */
 export const evalHarnessSetCompleted =
   defineProjectScopedModuleEvent<EvalHarnessSetCompletedPayload>(

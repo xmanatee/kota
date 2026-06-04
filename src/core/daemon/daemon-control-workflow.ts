@@ -5,7 +5,7 @@ import { jsonResponse, readBody, resolveProjectIdParam } from "./daemon-control-
 export function handleGetWorkflowStatus(handle: DaemonControlHandle, res: ServerResponse, url: URL): void {
   const scope = resolveProjectIdParam(handle, url);
   if (!scope.ok) {
-    jsonResponse(res, 404, scope.error);
+    jsonResponse(res, scope.status, scope.error);
     return;
   }
   jsonResponse(res, 200, handle.getWorkflowLiveStatus(scope.projectId));
@@ -14,7 +14,7 @@ export function handleGetWorkflowStatus(handle: DaemonControlHandle, res: Server
 export function handleGetWorkflowDefinitions(handle: DaemonControlHandle, res: ServerResponse, url: URL): void {
   const scope = resolveProjectIdParam(handle, url);
   if (!scope.ok) {
-    jsonResponse(res, 404, scope.error);
+    jsonResponse(res, scope.status, scope.error);
     return;
   }
   jsonResponse(res, 200, { definitions: handle.getWorkflowDefinitions(scope.projectId) });
@@ -27,7 +27,7 @@ export function handleListWorkflowRuns(
 ): void {
   const scope = resolveProjectIdParam(handle, url);
   if (!scope.ok) {
-    jsonResponse(res, 404, scope.error);
+    jsonResponse(res, scope.status, scope.error);
     return;
   }
   const workflow = url.searchParams.get("workflow") ?? undefined;
@@ -48,7 +48,7 @@ export function handleGetWorkflowRun(
 ): void {
   const scope = resolveProjectIdParam(handle, url);
   if (!scope.ok) {
-    jsonResponse(res, 404, scope.error);
+    jsonResponse(res, scope.status, scope.error);
     return;
   }
   const run = handle.getWorkflowRun(params.id, scope.projectId);
@@ -62,7 +62,7 @@ export function handleGetWorkflowRun(
 export function handlePauseWorkflow(handle: DaemonControlHandle, res: ServerResponse, url: URL): void {
   const scope = resolveProjectIdParam(handle, url);
   if (!scope.ok) {
-    jsonResponse(res, 404, scope.error);
+    jsonResponse(res, scope.status, scope.error);
     return;
   }
   const { already } = handle.pauseWorkflowDispatch(scope.projectId);
@@ -72,7 +72,7 @@ export function handlePauseWorkflow(handle: DaemonControlHandle, res: ServerResp
 export function handleResumeWorkflow(handle: DaemonControlHandle, res: ServerResponse, url: URL): void {
   const scope = resolveProjectIdParam(handle, url);
   if (!scope.ok) {
-    jsonResponse(res, 404, scope.error);
+    jsonResponse(res, scope.status, scope.error);
     return;
   }
   const { already } = handle.resumeWorkflowDispatch(scope.projectId);
@@ -82,7 +82,7 @@ export function handleResumeWorkflow(handle: DaemonControlHandle, res: ServerRes
 export function handleAbortWorkflow(handle: DaemonControlHandle, res: ServerResponse, url: URL): void {
   const scope = resolveProjectIdParam(handle, url);
   if (!scope.ok) {
-    jsonResponse(res, 404, scope.error);
+    jsonResponse(res, scope.status, scope.error);
     return;
   }
   const { aborted } = handle.abortActiveRuns(scope.projectId);
@@ -97,7 +97,7 @@ export function handleAbortWorkflowRun(
 ): void {
   const scope = resolveProjectIdParam(handle, url);
   if (!scope.ok) {
-    jsonResponse(res, 404, scope.error);
+    jsonResponse(res, scope.status, scope.error);
     return;
   }
   const result = handle.abortActiveRun(params.id, scope.projectId);
@@ -115,7 +115,7 @@ export function handleAbortWorkflowRun(
 export function handleReloadWorkflow(handle: DaemonControlHandle, res: ServerResponse, url: URL): void {
   const scope = resolveProjectIdParam(handle, url);
   if (!scope.ok) {
-    jsonResponse(res, 404, scope.error);
+    jsonResponse(res, scope.status, scope.error);
     return;
   }
   const { count } = handle.reloadWorkflowDefinitions(scope.projectId);
@@ -139,7 +139,7 @@ export function handleCancelWorkflowRun(
 ): void {
   const scope = resolveProjectIdParam(handle, url);
   if (!scope.ok) {
-    jsonResponse(res, 404, scope.error);
+    jsonResponse(res, scope.status, scope.error);
     return;
   }
   const result = handle.cancelQueuedRun(params.id, scope.projectId);
@@ -162,7 +162,7 @@ export function handleDisableWorkflow(
 ): void {
   const scope = resolveProjectIdParam(handle, url);
   if (!scope.ok) {
-    jsonResponse(res, 404, scope.error);
+    jsonResponse(res, scope.status, scope.error);
     return;
   }
   const result = handle.disableWorkflow(params.name, scope.projectId);
@@ -181,7 +181,7 @@ export function handleEnableWorkflow(
 ): void {
   const scope = resolveProjectIdParam(handle, url);
   if (!scope.ok) {
-    jsonResponse(res, 404, scope.error);
+    jsonResponse(res, scope.status, scope.error);
     return;
   }
   const result = handle.enableWorkflow(params.name, scope.projectId);
@@ -200,7 +200,7 @@ export function handleTriggerWorkflow(
 ): void {
   const scope = resolveProjectIdParam(handle, url);
   if (!scope.ok) {
-    jsonResponse(res, 404, scope.error);
+    jsonResponse(res, scope.status, scope.error);
     return;
   }
   readBody(req)

@@ -86,14 +86,15 @@ export function createStepContext(
       return result;
     },
     emit: (event, payload) => {
-      // Inject projectId for project-scoped events. Step authors emit
+      // Inject scope attribution for scoped events. Step authors emit
       // application events (queue-shape, autonomy state) without knowing
-      // the runtime's projectId; the wrapper attaches it. Daemon-wide
-      // event subscribers ignore the extra field.
+      // the runtime's scope id; the wrapper attaches it. Daemon-wide event
+      // subscribers ignore the extra fields.
+      const scopeId = deps.pbus.getScopeId();
       const augmented =
-        "projectId" in payload && typeof payload.projectId === "string"
+        "scopeId" in payload && typeof payload.scopeId === "string"
           ? payload
-          : { ...payload, projectId: deps.pbus.getProjectId() };
+          : { ...payload, scopeId, projectId: scopeId };
       recordEmittedEvent(runDirPath, event, augmented);
       deps.pbus.emitDynamic(event, augmented);
     },

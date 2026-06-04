@@ -1,7 +1,9 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type {
+  ConflictingScopeSelectorsError,
   DaemonControlHandle,
   UnknownProjectError,
+  UnknownScopeError,
 } from "./daemon-control-types.js";
 import type { ProjectId } from "./scope-registry.js";
 
@@ -21,14 +23,22 @@ export function jsonResponse(res: ServerResponse, status: number, body: unknown)
 }
 
 /**
- * Result of resolving a `?projectId=` query parameter against the daemon's
- * configured projects. Either resolves to an explicit `projectId`
- * (undefined for "use default") or rejects with the typed
- * {@link UnknownProjectError} the route handler returns as a 404 body.
+ * Result of resolving `?scopeId=` / `?projectId=` query parameters against
+ * the daemon's configured directory scopes. Either resolves to the internal
+ * directory-scope compatibility id (`projectId`, undefined for "use
+ * default") or rejects with the typed error and status the route handler
+ * returns.
  */
 export type ProjectScopeParam =
   | { ok: true; projectId: ProjectId | undefined }
-  | { ok: false; error: UnknownProjectError };
+  | {
+      ok: false;
+      status: 400 | 404;
+      error:
+        | UnknownProjectError
+        | UnknownScopeError
+        | ConflictingScopeSelectorsError;
+    };
 
 /**
  * Result of parsing the `PATCH /projects/active` request body. The
@@ -69,35 +79,69 @@ export function parseActiveProjectPatchBody(raw: string): ActiveProjectPatchBody
 }
 
 /**
- * Read and validate the optional `?projectId=` query parameter for a
- * project-scoped control-API route.
+ * Read and validate optional `?scopeId=` / `?projectId=` query parameters for
+ * a scope-scoped control-API route.
  *
- * - When the parameter is absent or empty, returns the operator-selected
- *   active project id from the handle, or `{ projectId: undefined }` when
- *   no selection is in force so the handle resolves the registry's
- *   default project.
- * - When the parameter is present, validates against
+ * - When both parameters are absent or empty, returns the operator-selected
+ *   active directory-scope id from the handle, or `{ projectId: undefined }`
+ *   when no selection is in force so the handle resolves the registry's
+ *   default directory scope.
+ * - When both parameters are present, they must match exactly; mismatches are
+ *   rejected as a malformed request instead of choosing one silently.
+ * - When a parameter is present, validates against
  *   {@link DaemonControlHandle.hasProject}. Unknown ids return the
- *   typed wire-shape rejection that route handlers translate to a 404.
+ *   typed wire-shape rejection that route handlers translate to a 404. The
+ *   error vocabulary follows the caller's selector spelling.
  */
 export function resolveProjectIdParam(
   handle: DaemonControlHandle,
   url: URL,
 ): ProjectScopeParam {
-  const raw = url.searchParams.get("projectId");
-  if (raw === null || raw === "") {
-    const active = handle.getActiveProjectId();
-    return { ok: true, projectId: active ?? undefined };
-  }
-  if (!handle.hasProject(raw)) {
+  const projectId = nonEmptyQueryParam(url, "projectId");
+  const scopeId = nonEmptyQueryParam(url, "scopeId");
+  if (projectId && scopeId && projectId !== scopeId) {
     return {
       ok: false,
+      status: 400,
       error: {
-        error: "Unknown project",
-        reason: "unknown_project",
-        projectId: raw,
+        error: "Conflicting scope selectors",
+        reason: "conflicting_scope_selectors",
+        scopeId,
+        projectId,
       },
     };
   }
-  return { ok: true, projectId: raw };
+  const selected = scopeId ?? projectId;
+  if (!selected) {
+    const active = handle.getActiveProjectId();
+    return { ok: true, projectId: active ?? undefined };
+  }
+  if (!handle.hasProject(selected)) {
+    if (scopeId) {
+      return {
+        ok: false,
+        status: 404,
+        error: {
+          error: "Unknown scope",
+          reason: "unknown_scope",
+          scopeId: selected,
+        },
+      };
+    }
+    return {
+      ok: false,
+      status: 404,
+      error: {
+        error: "Unknown project",
+        reason: "unknown_project",
+        projectId: selected,
+      },
+    };
+  }
+  return { ok: true, projectId: selected };
+}
+
+function nonEmptyQueryParam(url: URL, key: string): string | undefined {
+  const raw = url.searchParams.get(key);
+  return raw === null || raw === "" ? undefined : raw;
 }

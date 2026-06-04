@@ -305,6 +305,8 @@ describe("runtime navigator", () => {
   it("toggles a workflow's autonomy registration via the sessions screen", async () => {
     const session: InteractiveSession = {
       id: "sess-1",
+      scopeId: "test-project",
+      projectId: "test-project",
       createdAt: new Date().toISOString(),
       lastActive: Date.now(),
       autonomyMode: "supervised",

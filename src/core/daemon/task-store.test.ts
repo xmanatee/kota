@@ -435,7 +435,7 @@ describe("task.changed events", () => {
     store.add("Task 1");
     const calls = received.filter(({ event }) => event === "task.changed");
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.payload).toEqual({ projectId: "test-project", counts: { pending: 1, in_progress: 0, done: 0 } });
+    expect(calls[0]?.payload).toEqual({ scopeId: "test-project", projectId: "test-project", counts: { pending: 1, in_progress: 0, done: 0 } });
   });
 
   it("emits task.changed on update with updated counts", () => {
@@ -444,7 +444,7 @@ describe("task.changed events", () => {
     store.update(1, { status: "in_progress" });
     const calls = received.filter(({ event }) => event === "task.changed");
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.payload).toEqual({ projectId: "test-project", counts: { pending: 0, in_progress: 1, done: 0 } });
+    expect(calls[0]?.payload).toEqual({ scopeId: "test-project", projectId: "test-project", counts: { pending: 0, in_progress: 1, done: 0 } });
   });
 
   it("emits task.changed on clear with zero counts", () => {
@@ -453,7 +453,7 @@ describe("task.changed events", () => {
     store.clear();
     const calls = received.filter(({ event }) => event === "task.changed");
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.payload).toEqual({ projectId: "test-project", counts: { pending: 0, in_progress: 0, done: 0 } });
+    expect(calls[0]?.payload).toEqual({ scopeId: "test-project", projectId: "test-project", counts: { pending: 0, in_progress: 0, done: 0 } });
   });
 
   it("emits task.changed on archiveCompleted when tasks are removed", () => {
@@ -463,7 +463,7 @@ describe("task.changed events", () => {
     store.archiveCompleted();
     const calls = received.filter(({ event }) => event === "task.changed");
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.payload).toEqual({ projectId: "test-project", counts: { pending: 0, in_progress: 0, done: 0 } });
+    expect(calls[0]?.payload).toEqual({ scopeId: "test-project", projectId: "test-project", counts: { pending: 0, in_progress: 0, done: 0 } });
   });
 
   it("does not emit task.changed on archiveCompleted when nothing to archive", () => {

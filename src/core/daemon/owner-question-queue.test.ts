@@ -242,7 +242,7 @@ describe("OwnerQuestionQueue", () => {
       queue.answer(item.id, "yes");
       const changed = received.filter(({ event }) => event === "owner.question.changed");
       expect(changed).toHaveLength(1);
-      expect(changed[0]?.payload).toEqual({ projectId: "test-project", id: item.id, pendingCount: 0 });
+      expect(changed[0]?.payload).toEqual({ scopeId: "test-project", projectId: "test-project", id: item.id, pendingCount: 0 });
     });
 
     it("emits owner.question.resolved with answered=true on answer", () => {
@@ -274,7 +274,7 @@ describe("OwnerQuestionQueue", () => {
       queue.dismiss(item.id, "no longer needed");
       const dismissed = received.filter(({ event }) => event === "owner.question.dismissed");
       expect(dismissed).toHaveLength(1);
-      expect(dismissed[0]?.payload).toEqual({ projectId: "test-project", id: item.id, reason: "no longer needed" });
+      expect(dismissed[0]?.payload).toEqual({ scopeId: "test-project", projectId: "test-project", id: item.id, reason: "no longer needed" });
     });
 
     it("emits owner.question.expired on expireStale", () => {
@@ -286,7 +286,7 @@ describe("OwnerQuestionQueue", () => {
       queue.expireStale();
       const expired = received.filter(({ event }) => event === "owner.question.expired");
       expect(expired).toHaveLength(1);
-      expect(expired[0]?.payload).toEqual({ projectId: "test-project", id: item.id, defaultResolution: "dismiss" });
+      expect(expired[0]?.payload).toEqual({ scopeId: "test-project", projectId: "test-project", id: item.id, defaultResolution: "dismiss" });
     });
   });
 });

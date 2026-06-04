@@ -144,7 +144,7 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
         const url = new URL(req.url ?? "/", "http://127.0.0.1");
         const scope = resolveProjectIdParam(h, url);
         if (!scope.ok) {
-          jsonResponse(res, 404, scope.error);
+          jsonResponse(res, scope.status, scope.error);
           return;
         }
         const daemonState = h.getDaemonLiveState();
@@ -398,7 +398,7 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
         const url = new URL(req.url ?? "/", "http://127.0.0.1");
         const scope = resolveProjectIdParam(h, url);
         if (!scope.ok) {
-          jsonResponse(res, 404, scope.error);
+          jsonResponse(res, scope.status, scope.error);
           return;
         }
         jsonResponse(res, 200, { sessions: listInteractiveSessions(h, chatPool, scope.projectId) });
@@ -416,7 +416,7 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
         const url = new URL(req.url ?? "/", "http://127.0.0.1");
         const scope = resolveProjectIdParam(h, url);
         if (!scope.ok) {
-          jsonResponse(res, 404, scope.error);
+          jsonResponse(res, scope.status, scope.error);
           return;
         }
         jsonResponse(res, 200, { bindings: listDaemonChatBindings(chatBindings, scope.projectId) });
@@ -433,7 +433,7 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
         }
         const scope = resolveProjectIdParam(h, new URL(req.url ?? "/", "http://127.0.0.1"));
         if (!scope.ok) {
-          jsonResponse(res, 404, scope.error);
+          jsonResponse(res, scope.status, scope.error);
           return;
         }
         const projectId = scope.projectId ?? h.getProjectRegistryProjection().defaultProjectId;
@@ -453,7 +453,13 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
       method: "POST",
       path: "/sessions/register",
       capabilityScope: "control",
-      handler: (req, res) => handleRegisterSession(h, req, res),
+      handler: (req, res) =>
+        handleRegisterSession(
+          h,
+          req,
+          res,
+          new URL(req.url ?? "/", "http://127.0.0.1"),
+        ),
     },
     {
       method: "POST",

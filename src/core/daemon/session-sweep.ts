@@ -2,21 +2,22 @@ import type { InteractiveSession } from "./daemon-control.js";
 
 /**
  * Removes sessions whose lastActive timestamp is older than idleTtlMs from `now`.
- * Returns the IDs of removed sessions.
+ * Returns the removed session records so callers can emit scoped lifecycle
+ * events after deletion.
  */
 export function sweepExpiredSessions(
   sessions: Map<string, InteractiveSession>,
   now: number,
   idleTtlMs: number,
-): string[] {
-  const expired: string[] = [];
-  for (const [id, session] of sessions) {
+): InteractiveSession[] {
+  const expired: InteractiveSession[] = [];
+  for (const session of sessions.values()) {
     if (now - session.lastActive > idleTtlMs) {
-      expired.push(id);
+      expired.push(session);
     }
   }
-  for (const id of expired) {
-    sessions.delete(id);
+  for (const session of expired) {
+    sessions.delete(session.id);
   }
   return expired;
 }

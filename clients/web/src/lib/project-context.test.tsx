@@ -63,6 +63,8 @@ const SESSIONS_BY_PROJECT: Record<
   string,
   Array<{
     id: string;
+    scopeId: string;
+    projectId: string;
     createdAt: string;
     lastActive: number;
     autonomyMode: "passive" | "supervised" | "autonomous";
@@ -71,6 +73,8 @@ const SESSIONS_BY_PROJECT: Record<
   alpha: [
     {
       id: "alpha-session-id-aaaaaaaa",
+      scopeId: "alpha",
+      projectId: "alpha",
       createdAt: "2026-05-08T01:00:00.000Z",
       lastActive: 0,
       autonomyMode: "supervised",
@@ -79,6 +83,8 @@ const SESSIONS_BY_PROJECT: Record<
   beta: [
     {
       id: "beta-session-id-bbbbbbbb",
+      scopeId: "beta",
+      projectId: "beta",
       createdAt: "2026-05-08T01:30:00.000Z",
       lastActive: 0,
       autonomyMode: "autonomous",

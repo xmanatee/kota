@@ -69,9 +69,11 @@ export async function runDaemonStartup(
   const idleTtlMs = ctx.config.sessionIdleTtlMs ?? 5 * 60_000;
   const sweepMs = ctx.config.sessionSweepIntervalMs ?? 60_000;
   ctx.sessionSweepTimer = setInterval(() => {
-    const expired = sweepExpiredSessions(ctx.sessions, Date.now(), idleTtlMs);
-    for (const id of expired) {
-      ctx.bus.emit("session.unregistered", { id });
+    const expiredSessions = sweepExpiredSessions(ctx.sessions, Date.now(), idleTtlMs);
+    for (const session of expiredSessions) {
+      ctx.projectRuntimes
+        .get(session.projectId)
+        .pbus.emit("session.unregistered", { id: session.id });
     }
   }, sweepMs);
 
@@ -95,7 +97,10 @@ export async function runDaemonStartup(
 
   ctx.unsubscribe = subscribeDaemon({
     bus: ctx.bus,
-    projectDir: ctx.projectDir,
+    failureAlertScopes: ctx.projectRuntimes.list().map((runtime) => ({
+      pbus: runtime.pbus,
+      projectDir: runtime.project.projectDir,
+    })),
     pollIntervalMs: pollMs,
     approvalTtlMs: ctx.config.config?.approvalTtlMs,
     alertCooldownMs: ctx.config.config?.notifications?.alertCooldownMs,

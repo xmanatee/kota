@@ -8,7 +8,9 @@ import type {
   AgentHarnessResult,
   AgentHarnessRunOptions,
 } from "#core/agent-harness/types.js";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
+import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { DEFAULT_STEP_TIMEOUT_MS } from "./run-executor-step.js";
 import { WorkflowRunStore } from "./run-store.js";
@@ -70,6 +72,10 @@ function registerWorkflowTestHarness(
     toolControl: "kota",
     run,
   });
+}
+
+function makeScopedBus(projectDir: string, bus: EventBus): ProjectScopedEventBus {
+  return new ProjectScopedEventBus(bus, deriveDirectoryScopeId(projectDir));
 }
 
 function makeAgentStep(
@@ -398,7 +404,8 @@ describe("step timeout", () => {
 
   it("emits workflow.failure.alert on step timeout", async () => {
     const { subscribeWorkflowFailureAlert } = await import("./failure-alert.js");
-    subscribeWorkflowFailureAlert(bus, projectDir);
+    const pbus = makeScopedBus(projectDir, bus);
+    subscribeWorkflowFailureAlert(pbus, projectDir);
 
     const alerts: unknown[] = [];
     bus.on("workflow.failure.alert", (payload) => alerts.push(payload));
@@ -414,11 +421,12 @@ describe("step timeout", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, pbus, store, log });
     await promise;
 
     expect(alerts).toHaveLength(1);
     expect((alerts[0] as { status: string }).status).toBe("failed");
+    expect((alerts[0] as { scopeId: string }).scopeId).toBe(deriveDirectoryScopeId(projectDir));
   }, 10_000);
 
   it("lets code steps exceed idleTimeoutMs when they report typed progress", async () => {
@@ -625,7 +633,8 @@ describe("step timeout", () => {
 
   it("records structured idle-timeout failure details and emits the failure path", async () => {
     const { subscribeWorkflowFailureAlert } = await import("./failure-alert.js");
-    subscribeWorkflowFailureAlert(bus, projectDir);
+    const pbus = makeScopedBus(projectDir, bus);
+    subscribeWorkflowFailureAlert(pbus, projectDir);
     const alerts: unknown[] = [];
     bus.on("workflow.failure.alert", (payload) => alerts.push(payload));
 
@@ -646,7 +655,7 @@ describe("step timeout", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, pbus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("failed");

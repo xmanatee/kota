@@ -1,12 +1,11 @@
 /**
- * ProjectRuntime — typed per-project bundle of daemon-owned runtime state.
+ * ProjectRuntime — compatibility-named directory-scope runtime bundle.
  *
- * Slice 2 of the multi-project supervision foundation. The {@link ScopeRegistry}
- * primitive (slice 1) names every configured project; this file constructs and
- * holds the per-project runtime each registry entry needs. One bundle owns one
- * project's workflow runtime, run store, task store, scheduler, module-log
- * store, approval queue, owner-question queue, push-token store path, and (when
- * configured) notification gate.
+ * The {@link ScopeRegistry} primitive names every configured directory scope;
+ * this file constructs and holds the runtime each directory entry needs. One
+ * bundle owns one scope's workflow runtime, run store, task store, scheduler,
+ * module-log store, approval queue, owner-question queue, push-token store
+ * path, and (when configured) notification gate.
  *
  * The bundle factory is the single declared place where these per-project
  * subsystems are constructed. The companion {@link
@@ -15,11 +14,10 @@
  * skips this factory and reaches `new XStore(projectDir)` /
  * `init*(projectDir)` from somewhere else in the daemon source tree.
  *
- * The default project's bundle still installs the legacy singletons
+ * The default directory scope's bundle still installs the legacy singletons
  * (`getTaskStore` / `getScheduler` / etc.) so single-project consumers and
- * the modules that read them continue to work unchanged. Non-default project
- * bundles intentionally do not touch the singletons; future slices will
- * thread `projectId` through every consumer and remove the global getters.
+ * the modules that read them continue to work unchanged. Non-default directory
+ * bundles intentionally do not touch the singletons.
  */
 
 import { join } from "node:path";
@@ -46,16 +44,16 @@ import type {
 import { setTaskStoreInstance, TaskStore } from "./task-store.js";
 
 /**
- * Per-project runtime bundle. Each field is project-scoped: file paths and
- * in-memory state cannot leak across projects because the bundle holds one
- * dedicated instance per registered project root.
+ * Directory-scope runtime bundle. Each field is scope-scoped: file paths and
+ * in-memory state cannot leak across scopes because the bundle holds one
+ * dedicated instance per registered directory root.
  *
- * `pbus` is the {@link ProjectScopedEventBus} every project-scoped emitter
+ * `pbus` is the {@link ProjectScopedEventBus} every scoped emitter
  * inside this bundle uses (TaskStore, Scheduler, ApprovalQueue,
  * OwnerQuestionQueue, NotificationGate, WorkflowRuntime). It wraps the
- * shared daemon bus and injects the project's stable `projectId` on every
- * emit so cross-project subscribers can filter without inferring from
- * paths.
+ * shared daemon bus and injects stable `scopeId` plus compatibility
+ * `projectId` on every emit so cross-scope subscribers can filter without
+ * inferring from paths.
  *
  * `notificationGate` is genuinely optional — quiet-hours is a daemon-level
  * config; non-default bundles leave the slot at `null` because each

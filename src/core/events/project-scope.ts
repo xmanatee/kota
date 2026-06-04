@@ -1,21 +1,22 @@
 /**
- * Project scope primitives for the typed event bus.
+ * Scope primitives for the typed event bus.
  *
- * The KOTA daemon hosts one or more configured projects. Most runtime events
- * belong to a specific project (workflow runs, queue shape, approvals,
- * sessions). A few are daemon-wide (registry change, daemon lifecycle).
+ * The KOTA daemon hosts one or more configured scopes. Most runtime events
+ * belong to a specific directory-backed scope (workflow runs, queue shape,
+ * approvals, sessions). A few are daemon-wide (registry change, daemon
+ * lifecycle).
  *
  * This module owns the typed primitives that distinguish the two and the
- * wrapper bus per-project subsystems use to emit / subscribe without threading
- * `projectId` through every call. The runtime registry that derives ids from
- * project roots and tracks configured projects lives in
+ * wrapper bus per-scope subsystems use to emit / subscribe without threading
+ * scope identity through every call. The runtime registry that derives ids
+ * from directory roots and tracks configured directory scopes lives in
  * `#core/daemon/scope-registry.js`; the type alias is owned here so
  * `events/` and other foundational subsystems can import it without taking a
  * daemon-tree dependency.
  *
- * `projectId` remains the emitted compatibility field for directory-backed
- * scopes. Workflow trigger filters may use the canonical `scopeId` spelling;
- * the workflow matcher treats it as an alias for `projectId`.
+ * `scopeId` is the canonical emitted field. `projectId` remains a
+ * compatibility field for directory-backed scopes while clients and route
+ * selectors migrate.
  */
 
 import type { EventBus } from "./event-bus.js";
@@ -36,54 +37,56 @@ import {
 type Payload = Record<string, unknown>;
 
 /**
- * Stable opaque project identity. Re-exported as-is by
- * `#core/daemon/scope-registry.js`, where the deterministic derivation and
+ * Stable opaque scope identity. Re-exported as-is by the daemon scope
+ * registry, where deterministic directory-scope derivation and the
  * file-backed registry live.
  */
-export type ProjectId = string;
+export type ScopeId = string;
 
 /**
- * Helper that adds the required `projectId` field to a base payload type.
- * Used by both the BusEvents map (slice 3b) and module-event declarations
- * to express "this event is project-scoped" without admitting nullable
- * variants.
+ * Compatibility alias for directory-backed scopes whose public client and
+ * route surfaces still use project language.
+ */
+export type ProjectId = ScopeId;
+
+/**
+ * Helper that adds the required canonical `scopeId` field plus the
+ * directory-scope compatibility `projectId` field to a base payload type.
  */
 export type ProjectScopedPayload<T extends Payload = Payload> = T & {
+  scopeId: ScopeId;
   projectId: ProjectId;
 };
 
 /**
- * Discriminated event scope. `kind: "project"` events carry a `projectId`;
- * `kind: "daemon"` events are daemon-wide (registry change, daemon lifecycle).
- *
- * Today the discriminator is expressed by the presence or absence of
- * `projectId` on the payload. The `EventScope` union exists so slice 3b
- * subsystems that need to reason about scope at runtime (project router,
- * cross-project filters) can do so without parsing payloads.
+ * Discriminated event scope. `kind: "scope"` events carry a canonical
+ * `scopeId` plus directory-scope compatibility `projectId`; `kind: "daemon"`
+ * events are daemon-wide.
  */
 export type EventScope =
-  | { kind: "project"; projectId: ProjectId }
+  | { kind: "scope"; scopeId: ScopeId; projectId: ProjectId }
   | { kind: "daemon" };
 
 /**
- * Typed module event whose payload is always project-scoped. Subscribers
- * always see a typed `projectId` field; emitters always supply one (either
- * directly through the raw `EventBus` or by going through
- * {@link ProjectScopedEventBus}, which injects it).
+ * Typed module event whose payload is always directory-scope attributed. Subscribers
+ * always see typed `scopeId` and `projectId` fields; emitters either supply
+ * them directly through the raw `EventBus` or go through
+ * {@link ProjectScopedEventBus}, which injects both.
  */
 export type ProjectScopedModuleEventDef<TPayload extends Payload = Payload> =
   ModuleEventDef<ProjectScopedPayload<TPayload>>;
 
 /**
- * Declare a project-scoped module event. The runtime fields list always
- * includes `projectId` so workflow trigger filters can reference it without
- * each module declaration restating the field.
+ * Declare a directory-scope module event. The runtime fields list always
+ * includes `scopeId` and `projectId` so workflow trigger filters can use the
+ * canonical selector while existing projectId filters keep validating.
  */
 export function defineProjectScopedModuleEvent<TPayload extends Payload>(
   name: string,
   fields: ReadonlyArray<keyof TPayload & string>,
 ): ProjectScopedModuleEventDef<TPayload> {
   const allFields: ReadonlyArray<keyof ProjectScopedPayload<TPayload> & string> = [
+    "scopeId",
     "projectId",
     ...fields,
   ];
@@ -95,12 +98,12 @@ export function defineProjectScopedModuleEvent<TPayload extends Payload>(
 }
 
 /**
- * Per-project view over a shared underlying {@link EventBus}.
+ * Per-scope view over a shared underlying {@link EventBus}.
  *
- * Constructed once per project by the daemon's per-project bundle. Emit
- * injects `projectId` into the payload; subscribe filters delivery so the
- * subscriber only sees this view's project. Cross-project listeners that
- * want every project's events still go through the raw bus.
+ * Constructed once per directory scope by the daemon's runtime bundle. Emit
+ * injects `scopeId` and compatibility `projectId` into the payload; subscribe
+ * filters delivery so the subscriber only sees this view's scope. Cross-scope
+ * listeners that want every scope's events still go through the raw bus.
  *
  * The wrapper does not own the underlying bus's lifecycle. Multiple views
  * share one bus, and clearing the bus clears every view.
@@ -108,12 +111,17 @@ export function defineProjectScopedModuleEvent<TPayload extends Payload>(
 export class ProjectScopedEventBus {
   constructor(
     private readonly bus: EventBus,
-    private readonly projectId: ProjectId,
+    private readonly scopeId: ScopeId,
   ) {}
 
-  /** This view's stable project id. */
+  /** This view's stable scope id. */
+  getScopeId(): ScopeId {
+    return this.scopeId;
+  }
+
+  /** Compatibility id for directory-backed scope callers that still say project. */
   getProjectId(): ProjectId {
-    return this.projectId;
+    return this.scopeId;
   }
 
   /** The underlying shared bus. Use sparingly — most callers should not need it. */
@@ -121,16 +129,16 @@ export class ProjectScopedEventBus {
     return this.bus;
   }
 
-  /** Emit a project-scoped module-declared event with projectId injected. */
+  /** Emit a module-declared event with scope attribution injected. */
   emit<TPayload extends Payload>(
     event: ProjectScopedModuleEventDef<TPayload>,
     payload: TPayload,
   ): void;
   /**
-   * Emit a project-scoped {@link BusEvents} entry. The wrapper injects this
-   * view's `projectId` so callers do not have to thread it through every
-   * call site. Only `BusEvents` keys whose static payload carries
-   * `projectId` are accepted — daemon-wide events have to go through the
+   * Emit a directory-scoped {@link BusEvents} entry. The wrapper injects this
+   * view's `scopeId` and compatibility `projectId` so callers do not have to
+   * thread them through every call site. Only `BusEvents` keys whose static
+   * payload carries `projectId` are accepted — daemon-wide events go through the
    * raw bus.
    */
   emit<K extends ProjectScopedBusEventName>(
@@ -141,17 +149,17 @@ export class ProjectScopedEventBus {
     event: ProjectScopedModuleEventDef | ProjectScopedBusEventName,
     payload: Payload,
   ): void {
+    const fullPayload = withScopeAttribution(payload, this.scopeId);
     if (typeof event === "string") {
-      const fullPayload = { ...payload, projectId: this.projectId } as BusEvents[ProjectScopedBusEventName];
-      this.bus.emit(event, fullPayload);
+      this.bus.emit(event, fullPayload as BusEvents[ProjectScopedBusEventName]);
       return;
     }
-    this.bus.emit(event, { ...payload, projectId: this.projectId });
+    this.bus.emit(event, fullPayload);
   }
 
   /**
-   * Subscribe to a project-scoped event. The handler only fires for payloads
-   * tagged with this view's `projectId`. Returns an unsubscribe function.
+   * Subscribe to a directory-scoped event. The handler only fires for payloads
+   * tagged with this view's scope. Returns an unsubscribe function.
    */
   on<E extends ProjectScopedModuleEventDef>(
     event: E,
@@ -167,27 +175,25 @@ export class ProjectScopedEventBus {
   ): () => void {
     if (typeof event === "string") {
       return this.bus.on(event, (payload: BusEvents[ProjectScopedBusEventName]) => {
-        if (payload.projectId !== this.projectId) return;
+        if (!payloadBelongsToScope(payload, this.scopeId)) return;
         (handler as BusEventHandler<BusEvents[ProjectScopedBusEventName]>)(payload);
       });
     }
     return this.bus.on(event, (payload) => {
-      if ((payload as ProjectScopedPayload).projectId !== this.projectId) return;
+      if (!payloadBelongsToScope(payload, this.scopeId)) return;
       handler(payload);
     });
   }
 
   /**
-   * Wildcard subscriber filtered to this view's project. Daemon-wide events
-   * (no `projectId` on payload) are delivered to every view; project-scoped
-   * events are delivered only to the matching view. Per-project workflow
-   * runtimes use this to subscribe to events without seeing other projects'
-   * traffic.
+   * Wildcard subscriber filtered to this view's scope. Daemon-wide events
+   * (no scope selectors on payload) are delivered to every view; scoped events
+   * are delivered only to the matching view. Directory-scope workflow runtimes
+   * use this to subscribe without seeing other scopes' traffic.
    */
   onAny(handler: (envelope: BusEnvelope) => void): () => void {
     return this.bus.on("*", (envelope) => {
-      const payload = envelope.payload as { projectId?: ProjectId };
-      if (payload && typeof payload.projectId === "string" && payload.projectId !== this.projectId) {
+      if (!payloadBelongsToScope(envelope.payload, this.scopeId)) {
         return;
       }
       handler(envelope);
@@ -196,16 +202,47 @@ export class ProjectScopedEventBus {
 
   /**
    * Untyped emit path used by step-author surfaces (workflow `ctx.emit`)
-   * where the event name is dynamic. Always injects `projectId` for
-   * project-scoped events; preserves an existing `projectId` if a caller
-   * supplied one. Daemon-wide event subscribers tolerate the extraneous
-   * field; project-scoped event subscribers see the runtime's own id.
+   * where the event name is dynamic. Always injects canonical `scopeId` and
+   * compatibility `projectId` for scope-scoped events. A caller-supplied
+   * selector must match this bus view so one scope cannot emit another
+   * scope's runtime event by accident.
    */
   emitDynamic(event: string, payload: Record<string, unknown>): void {
-    const augmented =
-      "projectId" in payload && typeof payload.projectId === "string"
-        ? payload
-        : { ...payload, projectId: this.projectId };
-    this.bus.emit(event, augmented);
+    this.bus.emit(event, withScopeAttribution(payload, this.scopeId));
   }
+}
+
+function explicitPayloadScope(payload: Payload): ScopeId | undefined {
+  const scopeId =
+    typeof payload.scopeId === "string" && payload.scopeId.length > 0
+      ? payload.scopeId
+      : undefined;
+  const projectId =
+    typeof payload.projectId === "string" && payload.projectId.length > 0
+      ? payload.projectId
+      : undefined;
+  if (scopeId && projectId && scopeId !== projectId) {
+    throw new Error(
+      `Conflicting scope selectors on event payload: scopeId=${scopeId}, projectId=${projectId}`,
+    );
+  }
+  return scopeId ?? projectId;
+}
+
+function withScopeAttribution(
+  payload: Payload,
+  scopeId: ScopeId,
+): ProjectScopedPayload {
+  const explicit = explicitPayloadScope(payload);
+  if (explicit && explicit !== scopeId) {
+    throw new Error(
+      `Event payload selector ${explicit} does not match scoped bus ${scopeId}`,
+    );
+  }
+  return { ...payload, scopeId, projectId: scopeId };
+}
+
+function payloadBelongsToScope(payload: Payload, scopeId: ScopeId): boolean {
+  const explicit = explicitPayloadScope(payload);
+  return explicit === undefined || explicit === scopeId;
 }

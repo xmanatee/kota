@@ -5,6 +5,8 @@ import { sweepExpiredSessions } from "./session-sweep.js";
 function makeSession(id: string, lastActive: number): InteractiveSession {
   return {
     id,
+    scopeId: "default-project",
+    projectId: "default-project",
     createdAt: new Date(lastActive).toISOString(),
     lastActive,
     autonomyMode: "supervised",
@@ -22,7 +24,7 @@ describe("sweepExpiredSessions", () => {
 
     const expired = sweepExpiredSessions(sessions, now, ttl);
 
-    expect(expired).toEqual(["old-session"]);
+    expect(expired.map((session) => session.id)).toEqual(["old-session"]);
     expect(sessions.has("old-session")).toBe(false);
     expect(sessions.has("fresh-session")).toBe(true);
   });
@@ -35,13 +37,13 @@ describe("sweepExpiredSessions", () => {
 
     const expired = sweepExpiredSessions(sessions, now, 60_000);
 
-    expect(expired).toEqual([]);
+    expect(expired.map((session) => session.id)).toEqual([]);
     expect(sessions.size).toBe(1);
   });
 
   it("returns empty array for empty session map", () => {
     const expired = sweepExpiredSessions(new Map(), Date.now(), 60_000);
-    expect(expired).toEqual([]);
+    expect(expired.map((session) => session.id)).toEqual([]);
   });
 
   it("removes all sessions when all have exceeded the TTL", () => {
@@ -66,7 +68,7 @@ describe("sweepExpiredSessions", () => {
 
     const expired = sweepExpiredSessions(sessions, now, ttl);
 
-    expect(expired).toEqual([]);
+    expect(expired.map((session) => session.id)).toEqual([]);
     expect(sessions.has("boundary")).toBe(true);
   });
 });

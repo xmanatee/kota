@@ -568,6 +568,7 @@ export function gmailMessageToInboundSignal(
     context.receivedAt;
 
   return validateInboundSignalPayload({
+    scopeId: context.projectId,
     projectId: context.projectId,
     provider: "google-workspace",
     channel: "gmail.message",
@@ -614,6 +615,7 @@ export function calendarEventChangeToInboundSignal(
     `https://calendar.google.com/calendar/event?eid=${encodeURIComponent(change.id)}`;
 
   return validateInboundSignalPayload({
+    scopeId: context.projectId,
     projectId: context.projectId,
     provider: "google-workspace",
     channel: "calendar.event",

@@ -108,6 +108,7 @@ export function slackTextMessageToInboundSignal(
     `/channel/${encodeURIComponent(event.channel ?? "unknown-channel")}` +
     `/message/${encodeURIComponent(messageTs)}`;
   const signal = validateInboundSignalPayload({
+    scopeId: context.projectId,
     projectId: context.projectId,
     provider: "slack",
     channel: "slack.message",

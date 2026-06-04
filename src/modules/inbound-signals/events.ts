@@ -170,6 +170,7 @@ export function validateInboundSignalPayload(
   payload: InboundSignalReceivedPayload,
 ): InboundSignalValidationResult {
   const stringFields = [
+    ["scopeId", payload.scopeId],
     ["projectId", payload.projectId],
     ["provider", payload.provider],
     ["channel", payload.channel],
@@ -182,6 +183,9 @@ export function validateInboundSignalPayload(
     if (!nonEmpty(value)) {
       return { ok: false, error: `${field} must be a non-empty string` };
     }
+  }
+  if (payload.scopeId !== payload.projectId) {
+    return { ok: false, error: "scopeId and projectId must match" };
   }
   if (!validTimestamp(payload.occurredAt)) {
     return { ok: false, error: "occurredAt must be an ISO-compatible timestamp" };
@@ -248,6 +252,7 @@ export function normalizeInboundSignalInput(
   }
 
   return validateInboundSignalPayload({
+    scopeId: context.projectId,
     projectId: context.projectId,
     provider: stringValue(input.provider) ?? "",
     channel: stringValue(input.channel) ?? "",

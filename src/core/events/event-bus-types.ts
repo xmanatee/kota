@@ -1,7 +1,7 @@
 import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowStepSkipReason } from "#core/workflow/run-types.js";
-import type { ProjectId } from "./project-scope.js";
+import type { ProjectId, ScopeId } from "./project-scope.js";
 
 export type GuardrailsNonRefreshableSession = {
   id: string;
@@ -41,15 +41,15 @@ export type DaemonConfigReloadEvent =
 /**
  * Known event payloads. Extend this map to add new typed events.
  *
- * Project-scoped event payloads carry a required `projectId` field — every
- * event a project-bound subsystem emits (workflow runtime, run store,
- * scheduler, task store, approval/owner-question queues, notification gate,
- * queue-shape) is attributed to exactly one project.
+ * Directory-scope event payloads carry a required `projectId` compatibility
+ * field in this static map. Emitters that route through `ProjectScopedEventBus`
+ * also receive the canonical `scopeId` field at runtime, so workflow filters
+ * and clients can use scope terminology without breaking existing projectId
+ * callers.
  *
  * Daemon-wide events (module loader, model provider failover) intentionally
- * omit `projectId`. Cross-process session register/unregister and
- * tool-call-level guardrail events stay daemon-default until session
- * projectId attribution lands; their wire shape is owned by other slices.
+ * omit scope attribution. Tool-call-level guardrail events stay session-bound
+ * rather than directory-scope attributed.
  */
 export type BusEvents = {
   "runtime.idle": {
@@ -394,11 +394,15 @@ export type BusEvents = {
     counts: { pending: number; in_progress: number; done: number };
   };
   "session.registered": {
+    scopeId: ScopeId;
+    projectId: ProjectId;
     id: string;
     createdAt: string;
     autonomyMode: AutonomyMode;
   };
   "session.unregistered": {
+    scopeId: ScopeId;
+    projectId: ProjectId;
     id: string;
   };
   "module.failed": {
@@ -488,19 +492,19 @@ export type BusEvents = {
 };
 
 /**
- * Set of {@link BusEvents} keys whose payload carries a `projectId` field —
- * the typed registry of project-scoped event names. Workflow runtime, daemon
- * stores, queue-shape emitters, etc. emit only these names through the
- * project-scoped wrapper. Daemon-wide names (`module.*`, `model.*`,
+ * Set of {@link BusEvents} keys whose payload carries a `projectId`
+ * compatibility field — the typed registry of directory-scoped event names.
+ * Workflow runtime, daemon stores, queue-shape emitters, etc. emit only these
+ * names through the scoped wrapper. Daemon-wide names (`module.*`, `model.*`,
  * `session.*` for now) are intentionally excluded.
  */
 export type ProjectScopedBusEventName = {
   [K in keyof BusEvents]: BusEvents[K] extends { projectId: ProjectId } ? K : never;
 }[keyof BusEvents];
 
-/** Payload of a project-scoped BusEvents entry minus the injected `projectId`. */
+/** Payload of a directory-scoped BusEvents entry minus injected scope attribution. */
 export type ProjectScopedBusEventPayload<K extends ProjectScopedBusEventName> =
-  Omit<BusEvents[K], "projectId">;
+  Omit<BusEvents[K], "projectId" | "scopeId">;
 
 /** An event as seen by wildcard listeners: type + payload. */
 export type BusEnvelope<K extends string = string> = {

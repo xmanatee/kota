@@ -10,7 +10,7 @@ export function handleListSessions(
 ): void {
   const scope = url ? resolveProjectIdParam(handle, url) : { ok: true as const, projectId: undefined };
   if (!scope.ok) {
-    jsonResponse(res, 404, scope.error);
+    jsonResponse(res, scope.status, scope.error);
     return;
   }
   jsonResponse(res, 200, { sessions: handle.listSessions(scope.projectId) });
@@ -20,7 +20,13 @@ export function handleRegisterSession(
   handle: DaemonControlHandle,
   req: IncomingMessage,
   res: ServerResponse,
+  url: URL,
 ): void {
+  const scope = resolveProjectIdParam(handle, url);
+  if (!scope.ok) {
+    jsonResponse(res, scope.status, scope.error);
+    return;
+  }
   readBody(req)
     .then((buf) => {
       let body: Record<string, unknown>;
@@ -41,7 +47,7 @@ export function handleRegisterSession(
         jsonResponse(res, 400, { error: "autonomyMode is required (passive, supervised, autonomous)" });
         return;
       }
-      handle.registerSession(id, createdAt, autonomyMode);
+      handle.registerSession(id, createdAt, autonomyMode, scope.projectId);
       jsonResponse(res, 200, { ok: true });
     })
     .catch(() => jsonResponse(res, 500, { error: "Internal error" }));

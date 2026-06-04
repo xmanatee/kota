@@ -112,6 +112,7 @@ export function telegramTextMessageToInboundSignal(
   const actor = actorIdentity(message.from, chatId);
   const trust = actorTrust(chatId, context);
   const signal = validateInboundSignalPayload({
+    scopeId: context.projectId,
     projectId: context.projectId,
     provider: "telegram",
     channel: "telegram.message",

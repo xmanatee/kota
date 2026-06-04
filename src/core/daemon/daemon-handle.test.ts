@@ -6,6 +6,7 @@ import type { KotaConfig } from "#core/config/config.js";
 import { loadConfig } from "#core/config/config.js";
 import { EventBus } from "#core/events/event-bus.js";
 import type { BusEvents } from "#core/events/event-bus-types.js";
+import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
 import type { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRuntime } from "#core/workflow/runtime.js";
@@ -48,7 +49,8 @@ function makeReloadSubject(initialConfig: KotaConfig = {}): ReloadSubject {
     reloadWorkflowDefinitions: vi.fn(() => ({ count: 5 })),
     getDefinitionCount: vi.fn(() => 3),
   };
-  const runtime = { workflowRuntime } as unknown as ProjectRuntime;
+  const pbus = new ProjectScopedEventBus(bus, "test-project");
+  const runtime = { workflowRuntime, pbus } as unknown as ProjectRuntime;
   const projectRuntimes = {
     list: vi.fn(() => [runtime]),
     getDefault: vi.fn(() => runtime),
@@ -56,6 +58,7 @@ function makeReloadSubject(initialConfig: KotaConfig = {}): ReloadSubject {
   } as unknown as ProjectRuntimeRegistry;
   const projectRegistry = {
     get: vi.fn(),
+    getDefaultProjectId: vi.fn(() => "test-project"),
     toProjection: vi.fn(() => ({ defaultProjectId: "test-project", projects: [] })),
   } as unknown as ScopeRegistry;
   const projectDir = mkdtempSync(join(tmpdir(), "kota-daemon-handle-test-"));
@@ -203,5 +206,110 @@ describe("buildDaemonHandle reloadConfig events", () => {
       errorClass: "Error",
       errorMessage: "Config reload failed",
     });
+  });
+});
+
+describe("buildDaemonHandle sessions", () => {
+  it("attributes serve-registered sessions to the selected scope", () => {
+    const bus = new EventBus();
+    const registered: BusEvents["session.registered"][] = [];
+    const unregistered: BusEvents["session.unregistered"][] = [];
+    bus.on("session.registered", (payload) => registered.push(payload));
+    bus.on("session.unregistered", (payload) => unregistered.push(payload));
+
+    const workflowRuntime = {
+      getDefinitionCount: vi.fn(() => 0),
+    };
+    const runtimeA = {
+      pbus: new ProjectScopedEventBus(bus, "project-a"),
+      workflowRuntime,
+    } as unknown as ProjectRuntime;
+    const runtimeB = {
+      pbus: new ProjectScopedEventBus(bus, "project-b"),
+      workflowRuntime,
+    } as unknown as ProjectRuntime;
+    const runtimes = new Map([
+      ["project-a", runtimeA],
+      ["project-b", runtimeB],
+    ]);
+    const projectRuntimes = {
+      list: vi.fn(() => [runtimeA, runtimeB]),
+      getDefault: vi.fn(() => runtimeA),
+      get: vi.fn((projectId: string) => {
+        const runtime = runtimes.get(projectId);
+        if (!runtime) throw new Error(`unknown project ${projectId}`);
+        return runtime;
+      }),
+    } as unknown as ProjectRuntimeRegistry;
+    const projectRegistry = {
+      get: vi.fn((projectId: string) =>
+        projectId === "project-a" || projectId === "project-b"
+          ? { projectId }
+          : undefined,
+      ),
+      getDefaultProjectId: vi.fn(() => "project-a"),
+      toProjection: vi.fn(() => ({ defaultProjectId: "project-a", projects: [] })),
+    } as unknown as ScopeRegistry;
+    const handle = buildDaemonHandle({
+      getState: () => ({
+        startedAt: "2026-01-01T00:00:00.000Z",
+        completedRuns: 0,
+        pid: 1234,
+      }),
+      isRunning: () => true,
+      workflows: workflowRuntime as unknown as WorkflowRuntime,
+      bus,
+      sessions: new Map(),
+      runStore: {} as WorkflowRunStore,
+      projectDir: mkdtempSync(join(tmpdir(), "kota-daemon-session-test-")),
+      projectRegistry,
+      projectRuntimes,
+      config: { config: {}, verbose: false },
+      refreshLiveSessionGuardrails: () => ({ refreshed: 0, unchanged: 0 }),
+      log: () => {},
+      getModuleHealthChecks: () => ({}),
+      probeCapabilityReadiness: async () => ({
+        capabilities: [],
+        summary: { ready: 0, unavailable: 0, init_failed: 0 },
+      }),
+      getChannelStatuses: () => [],
+    });
+
+    handle.registerSession(
+      "serve-b",
+      "2026-01-01T00:00:00.000Z",
+      "supervised",
+      "project-b",
+    );
+
+    expect(handle.listSessions("project-a")).toEqual([]);
+    expect(handle.listSessions("project-b")).toMatchObject([
+      {
+        id: "serve-b",
+        scopeId: "project-b",
+        projectId: "project-b",
+        source: "serve",
+      },
+    ]);
+    expect(registered).toEqual([
+      {
+        id: "serve-b",
+        scopeId: "project-b",
+        projectId: "project-b",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        autonomyMode: "supervised",
+      },
+    ]);
+
+    handle.unregisterSession("serve-b");
+
+    expect(handle.listSessions("project-b")).toEqual([]);
+    expect(unregistered).toEqual([
+      {
+        id: "serve-b",
+        scopeId: "project-b",
+        projectId: "project-b",
+      },
+    ]);
   });
 });

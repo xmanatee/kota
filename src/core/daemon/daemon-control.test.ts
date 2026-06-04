@@ -363,6 +363,47 @@ describe("DaemonControlServer", () => {
         "test-project-id",
       );
     });
+
+    it("forwards a configured scopeId through to the same scoped handle path", async () => {
+      const res = await fetchWithToken(
+        port,
+        "/workflow/status?scopeId=test-project-id",
+      );
+      expect(res.status).toBe(200);
+      expect(handle.getWorkflowLiveStatus).toHaveBeenCalledWith(
+        "test-project-id",
+      );
+    });
+
+    it("returns 404 with the typed unknown_scope shape when ?scopeId= names an unconfigured scope", async () => {
+      const res = await fetchWithToken(
+        port,
+        "/workflow/status?scopeId=p-not-configured",
+      );
+      expect(res.status).toBe(404);
+      expect(await res.json()).toEqual({
+        error: "Unknown scope",
+        reason: "unknown_scope",
+        scopeId: "p-not-configured",
+      });
+    });
+
+    it("rejects conflicting projectId and scopeId selectors", async () => {
+      const lookup = handle.getWorkflowLiveStatus as ReturnType<typeof vi.fn>;
+      lookup.mockClear();
+      const res = await fetchWithToken(
+        port,
+        "/workflow/status?projectId=test-project-id&scopeId=other-project",
+      );
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({
+        error: "Conflicting scope selectors",
+        reason: "conflicting_scope_selectors",
+        projectId: "test-project-id",
+        scopeId: "other-project",
+      });
+      expect(lookup).not.toHaveBeenCalled();
+    });
   });
 
   describe("GET /channels", () => {

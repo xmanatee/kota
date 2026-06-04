@@ -7,8 +7,9 @@
  * are checked against the declared shape. The `fields` array records the
  * declared payload field names at runtime so workflow trigger validation can
  * reject filters that reference nonexistent fields. The `scope` field
- * separates project-scoped events (whose payloads must carry `projectId`)
- * from daemon-wide events (registry change, daemon lifecycle, session-bound
+ * separates scope-scoped events (whose payloads carry `scopeId` plus the
+ * directory-scope compatibility `projectId`) from daemon-wide events
+ * (registry change, daemon lifecycle, session-bound
  * tool-call events that stay daemon-default until session-projectId
  * attribution lands).
  *
@@ -19,7 +20,7 @@
  * `ctx.events` and validate at the boundary.
  *
  * Module authors declare the scope explicitly through the helper they choose:
- * - {@link defineProjectScopedModuleEvent} for project-scoped events.
+ * - {@link defineProjectScopedModuleEvent} for directory-scope events.
  * - {@link defineDaemonWideModuleEvent} for daemon-wide events.
  *
  * The lower-level {@link defineModuleEvent} primitive both helpers wrap takes
@@ -30,11 +31,11 @@
 import type { BusEnvelope } from "./event-bus-types.js";
 
 /**
- * Scope discriminator for {@link ModuleEventDef}. `project` events carry a
- * `projectId` field on every payload (the helper prepends it) and the
- * runtime rejects emits whose payload lacks one; `daemon` events are
- * delivered without project attribution (registry/daemon lifecycle, or
- * session-bound events pending session-projectId attribution).
+ * Scope discriminator for {@link ModuleEventDef}. `project` is retained as
+ * the compatibility discriminator for directory-scope events: payloads carry
+ * canonical `scopeId` plus compatibility `projectId`, and the runtime rejects
+ * emits that lack both. `daemon` events are delivered without scope
+ * attribution.
  */
 export type ModuleEventScope = "project" | "daemon";
 
@@ -79,23 +80,35 @@ export function defineDaemonWideModuleEvent<TPayload extends Record<string, unkn
 
 /**
  * Throws if `def` is project-scoped and `payload` does not carry a non-empty
- * `projectId` string. Used by the lowest-level emit paths
+ * scope selector. Used by the lowest-level emit paths
  * (`EventBus.emit(def, payload)`, `ModuleEventProxy.emit(def, payload)`,
  * `tryEmit(def, payload)`) so callers cannot accidentally leak a
- * project-scoped module event onto the bus without identity. Routes that
- * already inject projectId via {@link ProjectScopedEventBus} pass this check
- * trivially; bare-`EventBus` callers fail loudly.
+ * project-scoped module event onto the bus without identity. Callers that
+ * still provide only `projectId` remain valid compatibility callers; callers
+ * that provide both selectors must make them agree.
  */
 export function assertModuleEventPayloadScope(
   def: ModuleEventDef,
   payload: Record<string, unknown>,
 ): void {
   if (def.scope !== "project") return;
-  const projectId = payload.projectId;
-  if (typeof projectId !== "string" || projectId.length === 0) {
+  const scopeId =
+    typeof payload.scopeId === "string" && payload.scopeId.length > 0
+      ? payload.scopeId
+      : undefined;
+  const projectId =
+    typeof payload.projectId === "string" && payload.projectId.length > 0
+      ? payload.projectId
+      : undefined;
+  if (!scopeId && !projectId) {
     throw new Error(
-      `Module event "${def.name}" is project-scoped; emit payload must include a non-empty string projectId. ` +
-        `Emit through a ProjectScopedEventBus to inject it automatically, or set projectId on the payload before emitting.`,
+      `Module event "${def.name}" is project-scoped; emit payload must include a non-empty string scopeId or projectId. ` +
+        `Emit through a ProjectScopedEventBus to inject scope attribution automatically.`,
+    );
+  }
+  if (scopeId && projectId && scopeId !== projectId) {
+    throw new Error(
+      `Module event "${def.name}" has conflicting scope selectors: scopeId=${scopeId}, projectId=${projectId}.`,
     );
   }
 }

@@ -309,7 +309,7 @@ describe("approval.changed events", () => {
 		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
 		const calls = received.filter(({ event }) => event === "approval.changed").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
-		expect(calls[0][1]).toEqual({ projectId: "test-project", id: item.id, pendingCount: 1 });
+			expect(calls[0][1]).toEqual({ scopeId: "test-project", projectId: "test-project", id: item.id, pendingCount: 1 });
 	});
 
 	it("emits approval.requested with source and session correlation", () => {
@@ -342,7 +342,7 @@ describe("approval.changed events", () => {
 		queue.approve(item2.id);
 		const calls = received.filter(({ event }) => event === "approval.changed").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
-		expect(calls[0][1]).toEqual({ projectId: "test-project", id: item2.id, pendingCount: 1 });
+			expect(calls[0][1]).toEqual({ scopeId: "test-project", projectId: "test-project", id: item2.id, pendingCount: 1 });
 	});
 
 	it("emits approval.resolved with source and session correlation", () => {
@@ -378,7 +378,7 @@ describe("approval.changed events", () => {
 		queue.reject(item.id, "too risky");
 		const calls = received.filter(({ event }) => event === "approval.changed").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
-		expect(calls[0][1]).toEqual({ projectId: "test-project", id: item.id, pendingCount: 0 });
+			expect(calls[0][1]).toEqual({ scopeId: "test-project", projectId: "test-project", id: item.id, pendingCount: 0 });
 	});
 
 	it("emits approval.changed on expireStale", () => {
@@ -391,7 +391,7 @@ describe("approval.changed events", () => {
 		queue.expireStale(1000);
 		const calls = received.filter(({ event }) => event === "approval.changed").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
-		expect(calls[0][1]).toEqual({ projectId: "test-project", id: item.id, pendingCount: 0 });
+			expect(calls[0][1]).toEqual({ scopeId: "test-project", projectId: "test-project", id: item.id, pendingCount: 0 });
 	});
 
 	it("emits approval.expired on expireStale", () => {
@@ -404,7 +404,7 @@ describe("approval.changed events", () => {
 		queue.expireStale(1000);
 		const calls = received.filter(({ event }) => event === "approval.expired").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
-		expect(calls[0][1]).toEqual({ projectId: "test-project", id: item.id, tool: item.tool });
+			expect(calls[0][1]).toEqual({ scopeId: "test-project", projectId: "test-project", id: item.id, tool: item.tool });
 	});
 
 	it("emits approval.expired for item with per-item timeoutMs", () => {
@@ -417,7 +417,7 @@ describe("approval.changed events", () => {
 		queue.expireStale();
 		const calls = received.filter(({ event }) => event === "approval.expired").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
-		expect(calls[0][1]).toEqual({ projectId: "test-project", id: item.id, tool: item.tool });
+			expect(calls[0][1]).toEqual({ scopeId: "test-project", projectId: "test-project", id: item.id, tool: item.tool });
 	});
 
 	it("emits workflow.approval.timeout on expireStale (auto-deny)", () => {
@@ -430,7 +430,7 @@ describe("approval.changed events", () => {
 		queue.expireStale();
 		const calls = received.filter(({ event }) => event === "workflow.approval.timeout").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
-		expect(calls[0][1]).toEqual({ projectId: "test-project", id: item.id, tool: item.tool, defaultResolution: "deny" });
+			expect(calls[0][1]).toEqual({ scopeId: "test-project", projectId: "test-project", id: item.id, tool: item.tool, defaultResolution: "deny" });
 	});
 
 	it("emits workflow.approval.timeout on expireStale (auto-approve)", () => {
@@ -443,7 +443,7 @@ describe("approval.changed events", () => {
 		queue.expireStale();
 		const calls = received.filter(({ event }) => event === "workflow.approval.timeout").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
-		expect(calls[0][1]).toEqual({ projectId: "test-project", id: item.id, tool: item.tool, defaultResolution: "approve" });
+			expect(calls[0][1]).toEqual({ scopeId: "test-project", projectId: "test-project", id: item.id, tool: item.tool, defaultResolution: "approve" });
 	});
 
 	it("emits approval.resolved with approved=true for auto-approve timeout", () => {

@@ -11,6 +11,7 @@ const RECEIVED_AT = "2026-05-25T02:40:00.000Z";
 
 function sampleSignal(): InboundSignalReceivedPayload {
   return {
+    scopeId: "project-1",
     projectId: "project-1",
     provider: "webhook",
     channel: "http",
@@ -40,6 +41,7 @@ describe("inbound-signals module", () => {
     expect(inboundSignalReceived.name).toBe("inbound.signal.received");
     expect(inboundSignalReceived.scope).toBe("project");
     expect(inboundSignalReceived.fields).toEqual([
+      "scopeId",
       "projectId",
       "provider",
       "channel",
@@ -58,10 +60,22 @@ describe("inbound-signals module", () => {
     expect(validateInboundSignalPayload(sampleSignal())).toMatchObject({ ok: true });
 
     expect(
+      validateInboundSignalPayload({ ...sampleSignal(), scopeId: "" }),
+    ).toEqual({
+      ok: false,
+      error: "scopeId must be a non-empty string",
+    });
+    expect(
       validateInboundSignalPayload({ ...sampleSignal(), projectId: "" }),
     ).toEqual({
       ok: false,
       error: "projectId must be a non-empty string",
+    });
+    expect(
+      validateInboundSignalPayload({ ...sampleSignal(), projectId: "other" }),
+    ).toEqual({
+      ok: false,
+      error: "scopeId and projectId must match",
     });
     expect(
       validateInboundSignalPayload({
@@ -121,6 +135,7 @@ describe("inbound-signals module", () => {
     expect(result).toMatchObject({
       ok: true,
       payload: {
+        scopeId: "project-2",
         projectId: "project-2",
         receivedAt: RECEIVED_AT,
         body: {

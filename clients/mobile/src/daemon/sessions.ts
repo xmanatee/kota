@@ -6,6 +6,8 @@ export type AutonomyMode = 'passive' | 'supervised' | 'autonomous';
 
 export interface InteractiveSession {
   id: string;
+  scopeId: string;
+  projectId: string;
   createdAt: string;
   lastActive: number;
   autonomyMode: AutonomyMode;

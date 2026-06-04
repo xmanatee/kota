@@ -1,4 +1,5 @@
 import type { BusEvents, EventBus } from "#core/events/event-bus.js";
+import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { subscribeWorkflowFailureAlert } from "#core/workflow/failure-alert.js";
 import type { WorkflowNotifyConfig } from "#core/workflow/step-input-base.js";
 import { getApprovalQueue } from "./approval-queue.js";
@@ -9,7 +10,10 @@ import { getScheduler } from "./scheduler.js";
 
 export type DaemonSubscriptionsOptions = {
   bus: EventBus;
-  projectDir: string;
+  failureAlertScopes: readonly {
+    pbus: ProjectScopedEventBus;
+    projectDir: string;
+  }[];
   pollIntervalMs: number;
   onDueItems: (items: ScheduledItem[]) => void;
   onWorkflowCompleted: (payload: BusEvents["workflow.completed"]) => void;
@@ -25,7 +29,7 @@ export type DaemonSubscriptionsOptions = {
 export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
   const {
     bus,
-    projectDir,
+    failureAlertScopes,
     pollIntervalMs,
     onDueItems,
     onWorkflowCompleted,
@@ -50,7 +54,12 @@ export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
     onRestartRequested(payload.reason ?? "workflow requested restart");
   });
 
-  const stopFailureAlert = subscribeWorkflowFailureAlert(bus, projectDir, onLog, { alertCooldownMs, getWorkflowNotify });
+  const stopFailureAlerts = failureAlertScopes.map(({ pbus, projectDir }) =>
+    subscribeWorkflowFailureAlert(pbus, projectDir, onLog, {
+      alertCooldownMs,
+      getWorkflowNotify,
+    }),
+  );
   const stopCrashAlert = subscribeModuleCrashAlert(bus, moduleCrashAlertOpts);
 
   const approvalSweepTimer = setInterval(() => {
@@ -68,7 +77,9 @@ export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
     stopSchedulerTimer();
     stopWorkflowListener();
     stopRestartListener();
-    stopFailureAlert();
+    for (const stopFailureAlert of stopFailureAlerts) {
+      stopFailureAlert();
+    }
     stopCrashAlert();
     clearInterval(approvalSweepTimer);
     clearInterval(ownerQuestionSweepTimer);

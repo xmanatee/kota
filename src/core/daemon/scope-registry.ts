@@ -2,12 +2,11 @@
  * Scope registry — typed primitive that names the daemon-hosted runtime
  * contexts KOTA can reason about.
  *
- * Directory-backed scopes are the first concrete provider. The existing
- * control API, event payloads, and per-project runtime bundles still use
- * `projectId` while their scope-specific migration slices remain separate.
- * This file owns only the registry shape, deterministic directory-scope id
- * derivation, the root-scope projection, and the existing file-backed
- * registry persistence.
+ * Directory-backed scopes are the first concrete provider. The control API
+ * exposes the canonical `/scopes` projection; project-named routes and ids are
+ * compatibility language for directory-backed scopes. This file owns the
+ * registry shape, deterministic directory-scope id derivation, root-scope
+ * projection, and existing file-backed registry persistence.
  */
 
 import { join, resolve } from "node:path";
@@ -60,8 +59,8 @@ export type ConfiguredProject = {
 
 /**
  * Canonical scope projection entry. The global root has no parent or directory
- * root; directory-backed scopes use the existing derived project id as their
- * scope id until event and route selectors migrate.
+ * root; directory-backed scopes use the deterministic directory id as their
+ * scope id.
  */
 export type ConfiguredScope = {
   readonly scopeId: ScopeId;
@@ -235,8 +234,8 @@ export type ScopeRegistryInit = {
  * the live state, and the file is a checkpoint.
  *
  * Mutators (add/remove/setDefault) are intentionally not on the surface yet.
- * This slice does not change control routes, event payloads, or store/runtime
- * bindings; those integrations continue to consume the project projection.
+ * Control routes expose both the canonical scope projection and the
+ * project-named compatibility projection from this registry.
  */
 export class ScopeRegistry {
   private readonly stateDir: string;
@@ -330,8 +329,7 @@ export class ScopeRegistry {
   }
 
   /**
-   * Canonical scope projection. It is intentionally registry-only in this
-   * slice; no daemon control route exposes it yet.
+   * Canonical scope projection exposed by `GET /scopes`.
    */
   toScopeProjection(): ScopeRegistryProjection {
     return scopeProjectionFromProjects(this.defaultProjectId, this.list());

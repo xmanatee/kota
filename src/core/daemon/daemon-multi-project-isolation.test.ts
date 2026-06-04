@@ -128,7 +128,7 @@ describe("Daemon — two-project isolation across emit/persist/session boundarie
 
       // Capture every envelope that crosses the bus from daemon construction
       // forward. The envelope log is the load-bearing evidence for the
-      // "every project-scoped emit carries the right projectId" assertion
+      // "every scoped emit carries the right scopeId" assertion
       // below.
       const bus = initEventBus();
       const envelopes: BusEnvelope[] = [];
@@ -163,8 +163,8 @@ describe("Daemon — two-project isolation across emit/persist/session boundarie
         expect(persistedIds).toEqual([idA, idB].sort());
         expect(registry?.defaultProjectId).toBe(idA);
 
-        // Slice 3 contract: project-scoped events injected through a
-        // per-project pbus carry the right projectId on every emit. Use the
+        // Scope contract: scoped events injected through a per-project pbus
+        // carry the right scopeId/projectId pair on every emit. Use the
         // shared bus the daemon installed and tag emits per project. This
         // is exactly the wiring per-project bundles use internally; the
         // test-side pbuses share that bus, so a leak in either direction
@@ -213,7 +213,7 @@ describe("Daemon — two-project isolation across emit/persist/session boundarie
           origin: { kind: "manual", source: "test-B" },
         });
 
-        // Project-scoped lifecycle events emitted directly through the
+        // Scope-scoped lifecycle events emitted directly through the
         // pbus — the same path the per-project workflow runtime uses when
         // a run starts/completes. Verifying these here proves the typed
         // bus contract end-to-end without spinning up a workflow agent.
@@ -246,15 +246,16 @@ describe("Daemon — two-project isolation across emit/persist/session boundarie
 
         // ---- Assertions ----
 
-        // 1. Project-scoped envelopes never carry the wrong projectId.
+        // 1. Scoped envelopes never carry the wrong scopeId/projectId pair.
         // Loop over every envelope produced after the cursor; whenever
-        // `projectId` is present, it must match exactly one of the two
-        // configured projects. A subtle leak (forgotten getDefault(),
+        // `scopeId` is present, it must match exactly one of the two
+        // configured directory scopes. A subtle leak (forgotten getDefault(),
         // wrong pbus, typo in a route filter) would fail here with the
         // offending envelope's payload printed.
         const newEnvelopes = envelopes.slice(cursor);
         const projectScoped = newEnvelopes.filter(
           (env) =>
+            typeof (env.payload as { scopeId?: unknown }).scopeId === "string" ||
             typeof (env.payload as { projectId?: unknown }).projectId === "string",
         );
         expect(
@@ -262,11 +263,16 @@ describe("Daemon — two-project isolation across emit/persist/session boundarie
           "expected project-scoped envelopes from per-project queue/lifecycle emits",
         ).toBeGreaterThan(0);
         for (const env of projectScoped) {
-          const projectId = (env.payload as { projectId: string }).projectId;
+          const payload = env.payload as { scopeId?: unknown; projectId?: unknown };
+          if (typeof payload.scopeId !== "string") {
+            throw new Error(`envelope ${env.type} is missing scopeId`);
+          }
+          const scopeId = payload.scopeId;
+          expect(payload.projectId).toBe(scopeId);
           expect(
             [idA, idB],
-            `envelope ${env.type} carried unknown projectId=${projectId} on payload ${JSON.stringify(env.payload)}`,
-          ).toContain(projectId);
+            `envelope ${env.type} carried unknown scopeId=${String(scopeId)} on payload ${JSON.stringify(env.payload)}`,
+          ).toContain(scopeId);
         }
 
         // 2. Per-project event-name set: each project sees its own
@@ -276,7 +282,7 @@ describe("Daemon — two-project isolation across emit/persist/session boundarie
           projectScoped
             .filter(
               (env) =>
-                (env.payload as { projectId: string }).projectId === projectId,
+                (env.payload as { scopeId: string }).scopeId === projectId,
             )
             .map((env) => env.type)
             .sort();
@@ -369,10 +375,9 @@ describe("Daemon — two-project isolation across emit/persist/session boundarie
           ).toBe(false);
         }
 
-        // 5. Sessions: today every interactive session is anchored to the
-        // registry's default project (see `daemon-handle.ts` listSessions).
+        // 5. Sessions: serve-registered sessions carry the selected scope.
         // Read the daemon-control file the daemon wrote at startup, then
-        // exercise the session HTTP routes with a project filter.
+        // exercise the session HTTP routes with project filters.
         const controlPayload = JSON.parse(
           readFileSync(
             join(daemonStateDir, "daemon-control.json"),
@@ -385,28 +390,44 @@ describe("Daemon — two-project isolation across emit/persist/session boundarie
           "content-type": "application/json",
         };
 
-        const sessionId = "test-session-1";
-        const registerResp = await fetch(`${baseUrl}/sessions/register`, {
+        const defaultSessionId = "test-session-default";
+        const registerDefaultResp = await fetch(`${baseUrl}/sessions/register`, {
           method: "POST",
           headers: authHeaders,
           body: JSON.stringify({
-            id: sessionId,
+            id: defaultSessionId,
             createdAt: new Date().toISOString(),
             autonomyMode: "supervised",
           }),
         });
-        expect(registerResp.status).toBe(200);
+        expect(registerDefaultResp.status).toBe(200);
 
-        // Listing without projectId returns the daemon's full session set.
+        const scopedSessionId = "test-session-non-default";
+        const registerScopedResp = await fetch(
+          `${baseUrl}/sessions/register?projectId=${idB}`,
+          {
+            method: "POST",
+            headers: authHeaders,
+            body: JSON.stringify({
+              id: scopedSessionId,
+              createdAt: new Date().toISOString(),
+              autonomyMode: "supervised",
+            }),
+          },
+        );
+        expect(registerScopedResp.status).toBe(200);
+
+        // Listing without projectId follows the daemon's default scope.
         const listAllResp = await fetch(`${baseUrl}/sessions`, {
           headers: authHeaders,
         });
         expect(listAllResp.status).toBe(200);
         const listAll = (await listAllResp.json()) as {
-          sessions: Array<{ id: string }>;
+          sessions: Array<{ id: string; scopeId: string; projectId: string }>;
         };
         const allIds = listAll.sessions.map((s) => s.id).sort();
-        expect(allIds).toContain(sessionId);
+        expect(allIds).toContain(defaultSessionId);
+        expect(allIds).not.toContain(scopedSessionId);
 
         // Listing scoped to the default project surfaces the session.
         const listDefaultResp = await fetch(
@@ -415,26 +436,35 @@ describe("Daemon — two-project isolation across emit/persist/session boundarie
         );
         expect(listDefaultResp.status).toBe(200);
         const listDefault = (await listDefaultResp.json()) as {
-          sessions: Array<{ id: string }>;
+          sessions: Array<{ id: string; scopeId: string; projectId: string }>;
         };
-        expect(listDefault.sessions.map((s) => s.id)).toContain(sessionId);
+        expect(listDefault.sessions).toContainEqual(
+          expect.objectContaining({
+            id: defaultSessionId,
+            scopeId: idA,
+            projectId: idA,
+          }),
+        );
+        expect(listDefault.sessions.map((s) => s.id)).not.toContain(scopedSessionId);
 
-        // Listing scoped to the non-default project filters it out — the
-        // daemon-default session contract documented in `daemon-handle.ts`.
-        // A regression that anchored a session to the wrong project would
-        // surface here with the leaked id.
+        // Listing scoped to the non-default project surfaces only the
+        // session registered against that project.
         const listNonDefaultResp = await fetch(
           `${baseUrl}/sessions?projectId=${idB}`,
           { headers: authHeaders },
         );
         expect(listNonDefaultResp.status).toBe(200);
         const listNonDefault = (await listNonDefaultResp.json()) as {
-          sessions: Array<{ id: string }>;
+          sessions: Array<{ id: string; scopeId: string; projectId: string }>;
         };
-        expect(
-          listNonDefault.sessions.map((s) => s.id),
-          `non-default project ${idB} unexpectedly returned sessions: ${JSON.stringify(listNonDefault.sessions)}`,
-        ).not.toContain(sessionId);
+        expect(listNonDefault.sessions).toContainEqual(
+          expect.objectContaining({
+            id: scopedSessionId,
+            scopeId: idB,
+            projectId: idB,
+          }),
+        );
+        expect(listNonDefault.sessions.map((s) => s.id)).not.toContain(defaultSessionId);
       } finally {
         if (daemon) {
           await daemon.stop(0);

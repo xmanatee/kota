@@ -15,11 +15,25 @@ import type { ProjectId, ProjectRegistryProjection } from "./scope-registry.js";
 /**
  * Typed wire-shape for the daemon's "unknown projectId" rejection on a
  * project-scoped route. Built by `daemon-control-utils` when the route
- * validates `?projectId=` and the id does not match a configured project.
+ * validates `?projectId=` and the id does not match a configured directory
+ * scope.
  */
 export type UnknownProjectError = {
   error: "Unknown project";
   reason: "unknown_project";
+  projectId: string;
+};
+
+export type UnknownScopeError = {
+  error: "Unknown scope";
+  reason: "unknown_scope";
+  scopeId: string;
+};
+
+export type ConflictingScopeSelectorsError = {
+  error: "Conflicting scope selectors";
+  reason: "conflicting_scope_selectors";
+  scopeId: string;
   projectId: string;
 };
 
@@ -176,6 +190,8 @@ export type WorkflowRunDetail = WorkflowRunSummary & {
 
 export type InteractiveSession = {
   id: string;
+  scopeId: ProjectId;
+  projectId: ProjectId;
   createdAt: string;
   lastActive: number;
   /** Operator supervision mode the session runs under. */
@@ -289,7 +305,12 @@ export type DaemonControlHandle = {
   // Thin-client identity (project + dashboard availability)
   getClientIdentity(): Promise<ClientIdentity>;
   // Interactive sessions
-  registerSession(id: string, createdAt: string, autonomyMode: AutonomyMode): void;
+  registerSession(
+    id: string,
+    createdAt: string,
+    autonomyMode: AutonomyMode,
+    projectId?: ProjectId,
+  ): void;
   unregisterSession(id: string): void;
   listSessions(projectId?: ProjectId): InteractiveSession[];
   /**

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import type { EventBus } from "#core/events/event-bus.js";
+import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import type { WorkflowNotifyConfig } from "./step-input-base.js";
 
 const MAX_ERROR_LENGTH = 300;
@@ -50,7 +50,7 @@ export type FailureAlertOptions = {
 };
 
 export function subscribeWorkflowFailureAlert(
-  bus: EventBus,
+  bus: ProjectScopedEventBus,
   projectDir: string,
   log: (message: string) => void = () => {},
   opts?: FailureAlertOptions,
@@ -81,7 +81,6 @@ export function subscribeWorkflowFailureAlert(
     );
 
     bus.emit("workflow.failure.alert", {
-      projectId: payload.projectId,
       workflow: payload.workflow,
       runId: payload.runId,
       status: payload.status,

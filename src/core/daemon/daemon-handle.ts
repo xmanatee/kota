@@ -452,29 +452,38 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       metricCountsCache.set(cacheKey, { value: result, at: now });
       return result;
     },
-    registerSession: (id: string, createdAt: string, autonomyMode: AutonomyMode) => {
-      sessions.set(id, { id, createdAt, lastActive: Date.now(), autonomyMode, source: "serve" });
-      bus.emit("session.registered", { id, createdAt, autonomyMode });
+    registerSession: (
+      id: string,
+      createdAt: string,
+      autonomyMode: AutonomyMode,
+      projectId?: ProjectId,
+    ) => {
+      const resolvedProjectId = projectId ?? projectRegistry.getDefaultProjectId();
+      sessions.set(id, {
+        id,
+        scopeId: resolvedProjectId,
+        projectId: resolvedProjectId,
+        createdAt,
+        lastActive: Date.now(),
+        autonomyMode,
+        source: "serve",
+      });
+      lookupRuntime(resolvedProjectId).pbus.emit("session.registered", {
+        id,
+        createdAt,
+        autonomyMode,
+      });
     },
     unregisterSession: (id: string) => {
+      const session = sessions.get(id);
+      if (!session) return;
       sessions.delete(id);
-      bus.emit("session.unregistered", { id });
+      lookupRuntime(session.projectId).pbus.emit("session.unregistered", { id });
     },
     listSessions: (projectId?: ProjectId) => {
-      // Sessions are daemon-default today: every interactive session is
-      // anchored to the registry's default project. When `projectId` is
-      // supplied for a non-default project, the list is empty until
-      // session-projectId attribution lands in the foundation slice that
-      // assigns project scope at registration time. The validation that
-      // `projectId` matches a configured project happens at the route
-      // level via `hasProject`.
-      if (
-        projectId !== undefined &&
-        projectId !== projectRegistry.getDefaultProjectId()
-      ) {
-        return [];
-      }
-      return [...sessions.values()];
+      return [...sessions.values()].filter(
+        (session) => projectId === undefined || session.projectId === projectId,
+      );
     },
     setSessionAutonomyMode: (id: string, mode: AutonomyMode) => {
       const session = sessions.get(id);

@@ -1,15 +1,14 @@
 /**
- * Focused two-project isolation test for the project-scope primitives.
+ * Focused two-scope isolation test for the scope primitives.
  *
- * Proves the typed surface introduced in slice 3a:
+ * Proves the typed surface:
  *  - `defineProjectScopedModuleEvent` declares the runtime fields list with
- *    `projectId` first so workflow trigger validation can reference it.
+ *    `scopeId` first and compatibility `projectId` second so workflow trigger
+ *    validation can reference either spelling.
  *  - Two `ProjectScopedEventBus` views over one underlying `EventBus` deliver
- *    events only to handlers attached to the same project view.
- *  - A cross-project subscriber on the raw bus still sees every emit and can
- *    distinguish payloads by `projectId`.
- *
- * No production emit site has migrated yet; that is the goal of slices 3b/3c.
+ *    events only to handlers attached to the same scope view.
+ *  - A cross-scope subscriber on the raw bus still sees every emit and can
+ *    distinguish payloads by `scopeId`.
  */
 
 import { describe, expect, it, vi } from "vitest";
@@ -21,26 +20,26 @@ import {
 } from "./project-scope.js";
 
 describe("defineProjectScopedModuleEvent", () => {
-  it("prepends projectId to the declared field list", () => {
+  it("prepends scopeId and projectId to the declared field list", () => {
     const decl = defineProjectScopedModuleEvent<{ taskId: string }>(
       "queue.shape.changed",
       ["taskId"],
     );
     expect(decl.name).toBe("queue.shape.changed");
-    expect(decl.fields).toEqual(["projectId", "taskId"]);
+    expect(decl.fields).toEqual(["scopeId", "projectId", "taskId"]);
   });
 
-  it("never duplicates projectId when the caller did not include it", () => {
+  it("never duplicates scope fields when the caller did not include them", () => {
     const decl = defineProjectScopedModuleEvent<{ a: string; b: number }>(
       "scoped.example",
       ["a", "b"],
     );
-    expect(decl.fields).toEqual(["projectId", "a", "b"]);
+    expect(decl.fields).toEqual(["scopeId", "projectId", "a", "b"]);
   });
 });
 
 describe("ProjectScopedEventBus isolation", () => {
-  it("delivers each emit only to subscribers of the matching project view", () => {
+  it("delivers each emit only to subscribers of the matching scope view", () => {
     const bus = new EventBus();
     const projectA = new ProjectScopedEventBus(bus, "project-a");
     const projectB = new ProjectScopedEventBus(bus, "project-b");
@@ -60,17 +59,19 @@ describe("ProjectScopedEventBus isolation", () => {
 
     expect(handlerA).toHaveBeenCalledTimes(1);
     expect(handlerA).toHaveBeenCalledWith({
+      scopeId: "project-a",
       projectId: "project-a",
       runId: "run-1",
     });
     expect(handlerB).toHaveBeenCalledTimes(1);
     expect(handlerB).toHaveBeenCalledWith({
+      scopeId: "project-b",
       projectId: "project-b",
       runId: "run-2",
     });
   });
 
-  it("injects projectId on emit so cross-project listeners can filter explicitly", () => {
+  it("injects scopeId and projectId on emit so cross-scope listeners can filter explicitly", () => {
     const bus = new EventBus();
     const projectA = new ProjectScopedEventBus(bus, "project-a");
     const projectB = new ProjectScopedEventBus(bus, "project-b");
@@ -90,12 +91,12 @@ describe("ProjectScopedEventBus isolation", () => {
     projectA.emit(decl, { runId: "a-2" });
 
     expect(seen).toEqual([
-      { projectId: "project-a", runId: "a-1" },
-      { projectId: "project-b", runId: "b-1" },
-      { projectId: "project-a", runId: "a-2" },
+      { scopeId: "project-a", projectId: "project-a", runId: "a-1" },
+      { scopeId: "project-b", projectId: "project-b", runId: "b-1" },
+      { scopeId: "project-a", projectId: "project-a", runId: "a-2" },
     ]);
 
-    const onlyA = seen.filter((p) => p.projectId === "project-a");
+    const onlyA = seen.filter((p) => p.scopeId === "project-a");
     expect(onlyA.map((p) => p.runId)).toEqual(["a-1", "a-2"]);
   });
 
@@ -118,10 +119,22 @@ describe("ProjectScopedEventBus isolation", () => {
     expect(handler).toHaveBeenCalledTimes(1);
   });
 
-  it("exposes the project id and underlying bus for slice 3b consumers", () => {
+  it("exposes the scope id, compatibility project id, and underlying bus", () => {
     const bus = new EventBus();
     const view = new ProjectScopedEventBus(bus, "project-a");
+    expect(view.getScopeId()).toBe("project-a");
     expect(view.getProjectId()).toBe("project-a");
     expect(view.getUnderlying()).toBe(bus);
+  });
+
+  it("rejects conflicting explicit selectors on dynamic emits", () => {
+    const bus = new EventBus();
+    const view = new ProjectScopedEventBus(bus, "project-a");
+    expect(() =>
+      view.emitDynamic("conflict.example", {
+        scopeId: "project-a",
+        projectId: "project-b",
+      }),
+    ).toThrow(/Conflicting scope selectors/);
   });
 });

@@ -205,6 +205,8 @@ export type AutonomyMode = "passive" | "supervised" | "autonomous";
 
 export type InteractiveSession = {
   id: string;
+  scopeId: string;
+  projectId: string;
   createdAt: string;
   lastActive: number;
   autonomyMode: AutonomyMode;

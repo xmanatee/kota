@@ -48,7 +48,12 @@ describe("approval expiry × event bus integration", () => {
 		queue.expireStale(1000);
 
 		expect(received).toHaveLength(1);
-		expect(received[0]).toEqual({ projectId: TEST_PROJECT_ID, id: item.id, tool: item.tool });
+		expect(received[0]).toEqual({
+			scopeId: TEST_PROJECT_ID,
+			projectId: TEST_PROJECT_ID,
+			id: item.id,
+			tool: item.tool,
+		});
 	});
 
 	it("emits approval.expired on the bus when per-item timeoutMs expires", () => {
@@ -63,7 +68,12 @@ describe("approval expiry × event bus integration", () => {
 		queue.expireStale();
 
 		expect(received).toHaveLength(1);
-		expect(received[0]).toEqual({ projectId: TEST_PROJECT_ID, id: item.id, tool: item.tool });
+		expect(received[0]).toEqual({
+			scopeId: TEST_PROJECT_ID,
+			projectId: TEST_PROJECT_ID,
+			id: item.id,
+			tool: item.tool,
+		});
 	});
 
 	it("does not emit approval.expired for items within TTL", () => {
@@ -91,6 +101,7 @@ describe("approval expiry × event bus integration", () => {
 
 		expect(received).toHaveLength(1);
 		expect(received[0]).toEqual({
+			scopeId: TEST_PROJECT_ID,
 			projectId: TEST_PROJECT_ID,
 			id: item.id,
 			tool: item.tool,
@@ -110,6 +121,7 @@ describe("approval expiry × event bus integration", () => {
 
 		expect(received).toHaveLength(1);
 		expect(received[0]).toEqual({
+			scopeId: TEST_PROJECT_ID,
 			projectId: TEST_PROJECT_ID,
 			id: item.id,
 			tool: item.tool,

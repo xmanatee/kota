@@ -25,8 +25,9 @@ This directory contains the project-owned modules.
 - Module-owned events are typed declarations contributed through
   `KotaModule.events`. Pick one of two scope helpers in a co-located
   `events.ts`: `defineProjectScopedModuleEvent<TPayload>(name, fields)` for
-  events that belong to a single project (the helper prepends `projectId`
-  to the field set and the runtime rejects emits whose payload omits it),
+  events that belong to one directory-backed scope (the helper prepends
+  canonical `scopeId` plus compatibility `projectId`, and the runtime rejects
+  emits that omit both selectors or provide conflicting values),
   or `defineDaemonWideModuleEvent<TPayload>(name, fields)` for daemon-process
   signals and session-bound events that stay daemon-default until
   session-projectId attribution lands. Document the rationale next to a

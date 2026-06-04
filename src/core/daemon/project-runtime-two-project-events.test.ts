@@ -1,23 +1,23 @@
 /**
- * Two-project isolation test for daemon-scoped runtime events (slice 3b).
+ * Two-directory-scope isolation test for daemon-scoped runtime events.
  *
  * Slice 3a established the typed `ProjectScopedEventBus` primitive. Slice 3b
  * migrated every per-project core subsystem onto it: workflow runtime, run
  * store, scheduler, task store, approval/owner-question queues, notification
  * gate, and queue-shape emitters. This test is the load-bearing proof that
- * those migrations actually attribute every emit to its emitting project.
+ * those migrations actually attribute every emit to its emitting scope.
  *
  * Two `ProjectRuntime` bundles built over one shared `EventBus`:
- *   1. Each project's typed `workflow.started`/`workflow.completed` event
- *      carries that project's `projectId` — never the other's, never empty.
+ *   1. Each directory scope's typed `workflow.started`/`workflow.completed`
+ *      event carries that scope's `scopeId` and compatibility `projectId` —
+ *      never the other's, never empty.
  *   2. Each project's `task.changed`, `approval.changed`, and
- *      `owner.question.asked` queue/control event carries its own
- *      `projectId`, so a single subscriber can filter or partition by
- *      project without inferring scope from paths.
+ *      `owner.question.asked` queue/control event carries its own scope
+ *      selectors, so a single subscriber can filter without inferring scope
+ *      from paths.
  *
  * The test also asserts no project-scoped event ever reaches the bus without
- * `projectId` populated, which is the strict-contract guardrail the task's
- * "no nullable / optional `projectId`" constraint is designed to enforce.
+ * `scopeId`/`projectId` populated and equal.
  */
 
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
@@ -85,9 +85,15 @@ function makeTwoProjects(): TwoProjects {
 
 function projectScopedEnvelopes(envelopes: BusEnvelope[]): BusEnvelope[] {
   return envelopes.filter((env) => {
-    const payload = env.payload as { projectId?: unknown };
-    return typeof payload.projectId === "string";
+    const payload = env.payload as { scopeId?: unknown; projectId?: unknown };
+    return typeof payload.scopeId === "string" || typeof payload.projectId === "string";
   });
+}
+
+function expectScopeAttribution(env: BusEnvelope, scopeId: string): void {
+  const payload = env.payload as { scopeId?: unknown; projectId?: unknown };
+  expect(payload.scopeId).toBe(scopeId);
+  expect(payload.projectId).toBe(scopeId);
 }
 
 describe("two-project core daemon events", () => {
@@ -101,7 +107,7 @@ describe("two-project core daemon events", () => {
     twoProjects.cleanup();
   });
 
-  it("queue/control emits — task.changed, approval.changed, owner.question.asked — carry the right projectId", () => {
+  it("queue/control emits — task.changed, approval.changed, owner.question.asked — carry the right scopeId", () => {
     const { envelopes, projectA, projectB } = twoProjects;
 
     // Each subsystem in each bundle emits exactly one project-scoped event.
@@ -138,17 +144,19 @@ describe("two-project core daemon events", () => {
       origin: { kind: "manual", source: "project-b source" },
     });
 
-    // Filter the cross-project bus listener by projectId; each project's
+    // Filter the cross-project bus listener by scopeId; each project's
     // subscriber should see only its own emits.
     const idA = projectA.configured.projectId;
     const idB = projectB.configured.projectId;
 
     const seenByA = projectScopedEnvelopes(envelopes).filter(
-      (env) => (env.payload as { projectId: string }).projectId === idA,
+      (env) => (env.payload as { scopeId: string }).scopeId === idA,
     );
     const seenByB = projectScopedEnvelopes(envelopes).filter(
-      (env) => (env.payload as { projectId: string }).projectId === idB,
+      (env) => (env.payload as { scopeId: string }).scopeId === idB,
     );
+    for (const env of seenByA) expectScopeAttribution(env, idA);
+    for (const env of seenByB) expectScopeAttribution(env, idB);
 
     const eventNamesA = seenByA.map((env) => env.type).sort();
     const eventNamesB = seenByB.map((env) => env.type).sort();
@@ -168,13 +176,13 @@ describe("two-project core daemon events", () => {
     ]);
   });
 
-  it("workflow lifecycle emits carry the right projectId for two project workflow runtimes over one bus", async () => {
+  it("workflow lifecycle emits carry the right scopeId for two project workflow runtimes over one bus", async () => {
     const { envelopes, projectA, projectB } = twoProjects;
 
     // Pull workflow lifecycle emits straight off the per-project pbus's
     // emit path. Building a real workflow run would also exercise the
     // run-executor's lifecycle, but the canonical contract under test here
-    // is that the per-project pbus injects projectId on every emit. The
+    // is that the per-project pbus injects scope attribution on every emit. The
     // run-executor uses the same pbus, so this same proof carries through.
     const workflowStartedPayload = (suffix: string) => ({
       workflow: `wf-${suffix}`,
@@ -207,25 +215,27 @@ describe("two-project core daemon events", () => {
     const seenA = envelopes.filter(
       (env) =>
         (env.type === "workflow.started" || env.type === "workflow.completed") &&
-        (env.payload as { projectId: string }).projectId === idA,
+        (env.payload as { scopeId: string }).scopeId === idA,
     );
     const seenB = envelopes.filter(
       (env) =>
         (env.type === "workflow.started" || env.type === "workflow.completed") &&
-        (env.payload as { projectId: string }).projectId === idB,
+        (env.payload as { scopeId: string }).scopeId === idB,
     );
     expect(seenA.map((env) => env.type)).toEqual(["workflow.started", "workflow.completed"]);
     expect(seenB.map((env) => env.type)).toEqual(["workflow.started", "workflow.completed"]);
 
-    // No project-scoped lifecycle event ever leaves with a missing projectId.
+    // No project-scoped lifecycle event ever leaves with missing or divergent
+    // scope attribution.
     const lifecycle = envelopes.filter(
       (env) =>
         env.type === "workflow.started" || env.type === "workflow.completed",
     );
     for (const env of lifecycle) {
-      const payload = env.payload as { projectId?: unknown };
-      expect(typeof payload.projectId).toBe("string");
-      expect(payload.projectId).not.toBe("");
+      const payload = env.payload as { scopeId?: unknown; projectId?: unknown };
+      expect(typeof payload.scopeId).toBe("string");
+      expect(payload.scopeId).not.toBe("");
+      expect(payload.projectId).toBe(payload.scopeId);
     }
   });
 

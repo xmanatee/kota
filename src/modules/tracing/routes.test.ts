@@ -211,6 +211,8 @@ describe("tracing module daemon-control routes", () => {
         listSessions: () => [
           {
             id: "s1",
+            scopeId: "test-project",
+            projectId: "test-project",
             createdAt: "2026-01-01T00:00:00Z",
             lastActive: 0,
             autonomyMode: "supervised" as const,

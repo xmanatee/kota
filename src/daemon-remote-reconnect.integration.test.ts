@@ -203,6 +203,8 @@ function makeHandle(
   const sessions = [
     {
       id: SESSION_ID,
+      scopeId: PROJECT_ID,
+      projectId: PROJECT_ID,
       createdAt: STARTED_AT,
       lastActive: new Date(STARTED_AT).getTime(),
       autonomyMode: "supervised" as const,
@@ -414,7 +416,7 @@ describe("daemon remote-client reconnect contract", () => {
       startedAt: STARTED_AT,
       autonomyMode: "supervised",
     });
-    bus.emit("session.registered", {
+    pbus.emit("session.registered", {
       id: SESSION_ID,
       createdAt: STARTED_AT,
       autonomyMode: "supervised",

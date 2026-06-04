@@ -76,10 +76,10 @@ scopes, and `projectDir` is the single-directory shorthand.
 
 Keep the boundary explicit: `/scopes` exposes the canonical scope projection,
 while `/projects`, `?projectId=`, `ProjectScopedEventBus`, and
-`ProjectRuntime` remain directory-scope compatibility surfaces until their
-own callers migrate. Workflow trigger filters may use `scopeId` against
-existing project-scoped event payloads; emitters still carry `projectId`
-until the event payload slice lands.
+`ProjectRuntime` remain directory-scope compatibility surfaces. Project-scoped
+control routes also accept `?scopeId=`; when both selectors are present they
+must match. Scoped event emitters carry canonical `scopeId` plus compatibility
+`projectId`, and workflow trigger filters may use either spelling.
 
 ## Recoverability
 

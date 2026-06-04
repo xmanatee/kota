@@ -352,6 +352,7 @@ export function socialDeliveryToInboundSignal(
   const channel = `${provider}.${delivery.kind}`;
   const account = accountId(provider, context.connector.accountId);
   return validateInboundSignalPayload({
+    scopeId: context.projectId,
     projectId: context.projectId,
     provider,
     channel,

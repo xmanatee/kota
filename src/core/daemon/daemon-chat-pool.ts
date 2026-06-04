@@ -68,12 +68,13 @@ export type DaemonChatStreamSink = {
 
 export type DaemonChatListEntry = {
   id: string;
+  scopeId: ProjectId;
+  projectId: ProjectId;
   createdAt: string;
   busy: boolean;
   lastActive: number;
   autonomyMode: AutonomyMode;
   guardrailsSnapshot: GuardrailsSnapshot;
-  projectId: ProjectId;
   conversationId: string;
   source: "daemon";
 };
@@ -180,12 +181,13 @@ export class DaemonChatPool {
       .filter((s) => projectId === undefined || s.projectId === projectId)
       .map((s) => ({
         id: s.id,
+        scopeId: s.projectId,
+        projectId: s.projectId,
         createdAt: s.createdAt,
         busy: s.busy,
         lastActive: s.lastActive,
         autonomyMode: s.agent.getAutonomyMode(),
         guardrailsSnapshot: s.agent.getGuardrailsSnapshot(),
-        projectId: s.projectId,
         conversationId: s.conversationId,
         source: "daemon" as const,
       }));

@@ -5,8 +5,8 @@
  * is enforced at construction time by the helper signatures and at runtime
  * by `EventBus.emit` (see `src/core/events/module-event.test.ts`). This file
  * pins the eval-harness contract: the aggregate score event is declared as
- * project-scoped, raw-bus emits without `projectId` fail loudly, and routing
- * through a `ProjectScopedEventBus` injects the wrapper's id.
+ * project-scoped, raw-bus emits without scope attribution fail loudly, and
+ * routing through a `ProjectScopedEventBus` injects the wrapper's id.
  */
 
 import { describe, expect, it } from "vitest";
@@ -47,10 +47,10 @@ const SAMPLE: EvalHarnessSetCompletedPayload = {
 };
 
 describe("evalHarnessSetCompleted", () => {
-  it("is project-scoped and prepends projectId to the declared field set", () => {
+  it("is project-scoped and prepends scope selectors to the declared field set", () => {
     expect(evalHarnessSetCompleted.scope).toBe("project");
-    expect(evalHarnessSetCompleted.fields[0]).toBe("projectId");
     expect(evalHarnessSetCompleted.fields).toEqual([
+      "scopeId",
       "projectId",
       "fixtureCount",
       "repeatCount",
@@ -66,21 +66,22 @@ describe("evalHarnessSetCompleted", () => {
     ]);
   });
 
-  it("EventBus.emit rejects payloads without projectId", () => {
+  it("EventBus.emit rejects payloads without scope attribution", () => {
     const bus = new EventBus();
     // Cast bypasses the typed overload so we can exercise the runtime guard
-    // with a payload that genuinely omits projectId.
+    // with a payload that genuinely omits scope attribution.
     expect(() =>
       bus.emit(evalHarnessSetCompleted, SAMPLE as unknown as never),
     ).toThrow(/project-scoped/);
   });
 
-  it("ProjectScopedEventBus.emit injects projectId and routes to underlying subscribers", () => {
+  it("ProjectScopedEventBus.emit injects scopeId and projectId and routes to underlying subscribers", () => {
     const bus = new EventBus();
     const pbus = new ProjectScopedEventBus(bus, "test-project");
-    const received: { projectId: string; fixtureCount: number }[] = [];
+    const received: { scopeId: string; projectId: string; fixtureCount: number }[] = [];
     bus.on(evalHarnessSetCompleted, (payload) =>
       received.push({
+        scopeId: payload.scopeId,
         projectId: payload.projectId,
         fixtureCount: payload.fixtureCount,
       }),
@@ -89,7 +90,7 @@ describe("evalHarnessSetCompleted", () => {
     pbus.emit(evalHarnessSetCompleted, SAMPLE);
 
     expect(received).toEqual([
-      { projectId: "test-project", fixtureCount: 1 },
+      { scopeId: "test-project", projectId: "test-project", fixtureCount: 1 },
     ]);
   });
 

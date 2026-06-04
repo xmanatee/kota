@@ -59,6 +59,7 @@ export function githubIssueCommentMentionToInboundSignal(
 ): InboundSignalValidationResult {
   const actor = actorIdentity(payload);
   return validateInboundSignalPayload({
+    scopeId: context.projectId,
     projectId: context.projectId,
     provider: "github",
     channel: "github.issue_comment",
