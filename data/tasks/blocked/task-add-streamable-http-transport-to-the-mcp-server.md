@@ -154,3 +154,5 @@ Implementation progress in run `2026-05-21T16-38-28-976Z-builder-3qw64n`:
   operator-captured live endpoint transcript must be written to
   `.kota/runs/2026-05-21T16-38-28-976Z-builder-3qw64n/operator-http-transcript.txt`
   before this task can return to `done/`.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-06-04T19:03:36.512Z -->
