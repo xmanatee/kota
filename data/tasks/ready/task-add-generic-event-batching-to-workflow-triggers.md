@@ -1,13 +1,13 @@
 ---
 id: task-add-generic-event-batching-to-workflow-triggers
 title: Add generic event batching to workflow triggers
-status: backlog
+status: ready
 priority: p1
 area: core
 summary: Add a durable, scope-aware batching primitive for any typed event stream so high-volume channels and periodic review workflows can buffer by count or time and emit one validated batch payload.
 depends_on: [task-promote-projects-into-hierarchical-scopes]
 created_at: 2026-06-03T13:40:14.237Z
-updated_at: 2026-06-03T14:08:54.000Z
+updated_at: 2026-06-04T08:08:29.843Z
 ---
 
 ## Problem
