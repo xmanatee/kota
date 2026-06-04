@@ -1,12 +1,12 @@
 ---
 id: task-promote-projects-into-hierarchical-scopes
 title: Promote projects into hierarchical scopes
-status: backlog
+status: ready
 priority: p1
 area: core
 summary: Generalize KOTA's project registry/runtime/event scoping into a minimal hierarchical scope model, with directories as the first scope provider and project terminology kept only as compatibility UI language where needed.
 created_at: 2026-06-03T13:40:04.426Z
-updated_at: 2026-06-03T13:41:17.000Z
+updated_at: 2026-06-04T01:38:39.188Z
 ---
 
 ## Problem
