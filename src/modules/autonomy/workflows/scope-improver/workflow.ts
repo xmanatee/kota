@@ -28,23 +28,38 @@ import {
   type ScopeImprovementCandidate,
   type ScopeImprovementEvidencePacket,
   type ScopeImprovementInputs,
+  type ScopeImprovementPreflight,
   type ScopeImprovementRecommendation,
   writeScopeImprovementArtifact,
 } from "./scope-improvement.js";
 import { scopeImproverTriggers } from "./triggers.js";
 
 type WorktreeInspection = {
+  available: boolean;
   dirty: boolean;
+  entries: string[];
+  summary: string;
 };
 
 const inspectWorktree = typedCodeStep<WorktreeInspection>({
   id: "inspect-worktree",
   type: "code",
   when: onNormalTrigger,
-  validate: (raw) => expectStructuredOutput<WorktreeInspection>(raw, ["dirty"]),
+  validate: (raw) =>
+    expectStructuredOutput<WorktreeInspection>(raw, [
+      "available",
+      "dirty",
+      "entries",
+      "summary",
+    ]),
   run: ({ projectDir }) => {
     const worktree = getRepoWorktreeStatus(projectDir);
-    return { dirty: worktree.available && worktree.trackedDirty };
+    return {
+      available: worktree.available,
+      dirty: !worktree.available || worktree.dirty,
+      entries: worktree.entries,
+      summary: worktree.summary,
+    };
   },
 });
 
@@ -158,6 +173,20 @@ function emptyActions(): ScopeImprovementActionResult {
   };
 }
 
+function scopeImproverPreflight(
+  ctx: Parameters<typeof inspectWorktree.outputRequired>[0],
+): ScopeImprovementPreflight {
+  const worktree = inspectWorktree.outputRequired(ctx);
+  return {
+    worktree: {
+      available: worktree.available,
+      dirty: worktree.dirty,
+      entries: worktree.entries,
+      summary: worktree.summary,
+    },
+  };
+}
+
 const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
   id: "write-artifact",
   type: "code",
@@ -170,6 +199,7 @@ const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
   run: (ctx) => {
     const artifact: ScopeImprovementArtifact = {
       generatedAt: new Date().toISOString(),
+      preflight: scopeImproverPreflight(ctx),
       inputs: collectInputs.outputRequired(ctx),
       evidence: gatherEvidence.outputRequired(ctx),
       recommendations: recommend.output(ctx)?.recommendations ?? [],

@@ -131,8 +131,18 @@ export type ScopeImprovementActionResult = {
   requiresCommit: boolean;
 };
 
+export type ScopeImprovementPreflight = {
+  worktree: {
+    available: boolean;
+    dirty: boolean;
+    entries: string[];
+    summary: string;
+  };
+};
+
 export type ScopeImprovementArtifact = {
   generatedAt: string;
+  preflight: ScopeImprovementPreflight;
   inputs: ScopeImprovementInputs;
   evidence: ScopeImprovementEvidencePacket;
   recommendations: ScopeImprovementRecommendation[];

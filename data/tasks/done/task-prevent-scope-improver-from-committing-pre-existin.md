@@ -1,12 +1,12 @@
 ---
 id: task-prevent-scope-improver-from-committing-pre-existin
 title: Prevent scope improver from committing pre-existing untracked files
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Make scope-improver commit only workflow-owned mutations and block pre-existing untracked or dirty files before applying recommendations.
 created_at: 2026-06-04T13:07:22.333Z
-updated_at: 2026-06-04T13:07:22.333Z
+updated_at: 2026-06-04T16:05:16.746Z
 ---
 
 ## Problem

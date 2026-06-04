@@ -178,6 +178,7 @@ describe("scope-improver workflow", () => {
     writeConfig(projectDir, { minMinutesBetweenRuns: 0 });
     mkdirSync(join(projectDir, "notes"), { recursive: true });
     writeFileSync(join(projectDir, "notes", "plan.md"), "changed plan\n");
+    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
 
     const result = await new WorkflowTestHarness(scopeImproverWorkflow, {
       projectDir,
@@ -185,6 +186,7 @@ describe("scope-improver workflow", () => {
     }).run();
 
     expect(result.status).toBe("success");
+    expect(vi.mocked(commitWorkflowChanges)).toHaveBeenCalledTimes(1);
     const readyFiles = readdirSync(join(projectDir, "data", "tasks", "ready"))
       .filter((file) => file.endsWith(".md") && file !== "AGENTS.md");
     expect(readyFiles).toHaveLength(1);
@@ -193,6 +195,59 @@ describe("scope-improver workflow", () => {
     expect(
       existsSync(join(projectDir, ".kota", "runs", "harness", SCOPE_IMPROVEMENT_ARTIFACT)),
     ).toBe(true);
+  });
+
+  it("does not apply or commit recommendations when pre-existing untracked files are present", async () => {
+    const projectDir = track("untracked");
+    writeRootAgents(projectDir);
+    writeConfig(projectDir, { minMinutesBetweenRuns: 0 });
+    mkdirSync(join(projectDir, "notes"), { recursive: true });
+    writeFileSync(join(projectDir, "notes", "plan.md"), "changed plan\n");
+    writeFileSync(join(projectDir, "owner-note.md"), "owner draft\n");
+    const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
+    vi.mocked(getRepoWorktreeStatus).mockReturnValue({
+      available: true,
+      dirty: true,
+      trackedDirty: false,
+      entries: ["?? owner-note.md"],
+      fingerprint: "?? owner-note.md",
+      summary: "owner-note.md",
+      headSha: "abc1234",
+    });
+    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
+
+    const result = await new WorkflowTestHarness(scopeImproverWorkflow, {
+      projectDir,
+      trigger: trigger(["notes/plan.md"]),
+    }).run();
+
+    expect(result.status).toBe("success");
+    expect(result.steps["apply-recommendations"].status).toBe("skipped");
+    expect(result.steps["write-commit-message"].status).toBe("skipped");
+    expect(result.steps.commit.status).toBe("skipped");
+    expect(vi.mocked(commitWorkflowChanges)).not.toHaveBeenCalled();
+    const readyFiles = readdirSync(join(projectDir, "data", "tasks", "ready"))
+      .filter((file) => file.endsWith(".md") && file !== "AGENTS.md");
+    expect(readyFiles).toHaveLength(0);
+    const staged = execFileSync("git", ["diff", "--cached", "--name-only"], {
+      cwd: projectDir,
+      encoding: "utf-8",
+    }).trim();
+    expect(staged).toBe("");
+    expect(readFileSync(join(projectDir, "owner-note.md"), "utf-8")).toBe(
+      "owner draft\n",
+    );
+    const artifact = JSON.parse(
+      readFileSync(
+        join(projectDir, ".kota", "runs", "harness", SCOPE_IMPROVEMENT_ARTIFACT),
+        "utf-8",
+      ),
+    );
+    expect(artifact.preflight.worktree).toMatchObject({
+      dirty: true,
+      entries: ["?? owner-note.md"],
+      summary: "owner-note.md",
+    });
   });
 
   it("keeps scope state isolated and dedupes repeated recommendations", () => {
