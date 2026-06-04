@@ -21,6 +21,7 @@ import {
   resetModuleEventRegistry,
 } from "#core/events/module-event.js";
 import { validatePayloadSchema } from "#core/workflow/payload-validator.js";
+import { safeJsonStringify } from "#core/workflow/run-io.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import {
   WORKFLOW_BATCH_FLUSH_EVENT,
@@ -655,6 +656,15 @@ describe("progress-reviewer workflow", () => {
     expect(evidence.evidence.map((item) => item.id)).toContain(
       "approval:a1b2c3d4",
     );
+    const approvalRef = evidence.evidence.find((item) => item.id === "approval:a1b2c3d4");
+    expect(approvalRef).toEqual(
+      expect.objectContaining({
+        id: "approval:a1b2c3d4",
+        kind: "approval",
+        path: ".kota/approvals/a1b2c3d4.json",
+      }),
+    );
+    expect(approvalRef).not.toHaveProperty("tool");
     expect(() =>
       decodeProgressReviewAgentOutputForEvidence(
         {
@@ -744,6 +754,18 @@ describe("progress-reviewer workflow", () => {
     expect(evidence.evidence.map((item) => item.id)).toContain(
       "artifact:builder-success:steps/build.input.md",
     );
+    const artifactRef = evidence.evidence.find(
+      (item) => item.id === "artifact:builder-success:steps/build.input.md",
+    );
+    expect(artifactRef).toEqual(
+      expect.objectContaining({
+        id: "artifact:builder-success:steps/build.input.md",
+        kind: "artifact",
+        path: ".kota/runs/builder-success/steps/build.input.md",
+      }),
+    );
+    expect(artifactRef).not.toHaveProperty("runId");
+    expect(safeJsonStringify({ output: evidence })).not.toContain("[Circular]");
     expect(evidence.artifacts.map((artifact) => artifact.file)).not.toEqual(
       expect.arrayContaining(["metadata.json", "trigger.json", "workflow.json"]),
     );

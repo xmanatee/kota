@@ -985,6 +985,15 @@ function listScopedApprovalEvidence(
     .map((approval) => approval.evidence);
 }
 
+function toEvidenceRef(evidence: ProgressReviewEvidenceRef): ProgressReviewEvidenceRef {
+  return {
+    id: evidence.id,
+    kind: evidence.kind,
+    summary: evidence.summary,
+    ...(evidence.path ? { path: evidence.path } : {}),
+  };
+}
+
 function batchSummary(trigger: WorkflowRunTrigger): ProgressReviewEvidencePacket["batch"] {
   const batch = batchPayload(trigger);
   if (!batch) return null;
@@ -1025,7 +1034,7 @@ export function collectProgressReviewEvidence(args: {
     ...git,
     ...ownerQuestions,
     ...approvals,
-  ];
+  ].map(toEvidenceRef);
 
   return {
     generatedAt: endedAt,
