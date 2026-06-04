@@ -548,7 +548,7 @@ describe("DaemonControlServer", () => {
       const submitModuleSetupForm = vi.fn(async () => mutation);
       const storeModuleSetupSecret = vi.fn(async () => mutation);
       const startModuleSetup = vi.fn(async () => start);
-      const completeModuleSetup = vi.fn(async () => mutation);
+      const completeModuleSetup = vi.fn(async (): Promise<ModuleSetupMutationResult> => mutation);
       const refreshModuleSetup = vi.fn(async () => mutation);
       const revokeModuleSetup = vi.fn(async () => mutation);
       handle = makeHandle({
@@ -605,6 +605,26 @@ describe("DaemonControlServer", () => {
         configValues: { account: "me" },
         secretValues: { DEMO_TOKEN: "redacted-demo-token" },
       });
+
+      completeModuleSetup.mockResolvedValueOnce({
+        ok: false,
+        reason: "invalid_request",
+        message: 'Setup action "demo.oauth.1" expired',
+      });
+      const staleComplete = await fetchWithToken(port, "/setup/actions/demo.oauth.1/complete", {
+        method: "POST",
+        body: JSON.stringify({
+          secretValues: { DEMO_TOKEN: "stale-redacted-demo-token" },
+        }),
+      });
+      expect(staleComplete.status).toBe(400);
+      const staleBody = await staleComplete.json();
+      expect(staleBody).toEqual({
+        ok: false,
+        reason: "invalid_request",
+        message: 'Setup action "demo.oauth.1" expired',
+      });
+      expect(JSON.stringify(staleBody)).not.toContain("stale-redacted-demo-token");
 
       const refreshed = await fetchWithToken(port, "/setup/requirements/demo/oauth/refresh", {
         method: "POST",

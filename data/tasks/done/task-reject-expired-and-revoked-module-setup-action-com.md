@@ -1,12 +1,12 @@
 ---
 id: task-reject-expired-and-revoked-module-setup-action-com
 title: Reject expired and revoked module setup action completions
-status: ready
+status: done
 priority: p1
 area: modules
 summary: Harden the setup/auth action lifecycle so URL/OAuth completion cannot write config or secrets after an action expires or is revoked.
 created_at: 2026-06-04T13:06:27.522Z
-updated_at: 2026-06-04T13:06:27.522Z
+updated_at: 2026-06-04T13:56:08.000Z
 ---
 
 ## Problem
@@ -50,6 +50,13 @@ client. Every client and daemon route should inherit the same behavior.
 - Daemon setup-control route tests still pass through the same typed failure
   shape.
 - `pnpm run typecheck` and focused setup tests pass.
+
+## Result
+
+`ModuleSetupService.complete()` now validates action status, URL-setup
+ownership, and expiry before any config or secret mutation. Focused service
+tests cover expired, revoked, completed, and malformed actions; daemon-control
+tests cover typed failure pass-through without secret echo.
 
 ## Source / Intent
 

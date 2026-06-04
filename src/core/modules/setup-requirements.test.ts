@@ -1,8 +1,8 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { resetSecretStore } from "#core/config/secrets.js";
+import { getSecretStore, resetSecretStore } from "#core/config/secrets.js";
 import {
   type ModuleSetupCapabilityRequirement,
   type ModuleSetupCapabilityStatus,
@@ -251,6 +251,138 @@ describe("module setup requirements", () => {
         },
       ]);
     }
+  });
+
+  it("rejects expired setup action completion before writing submitted values", async () => {
+    const sut = service([oauthRequirement()]);
+    const started = await sut.start("demo", "oauth");
+    expect(started.ok).toBe(true);
+    if (!started.ok) throw new Error(started.message);
+
+    now = new Date("2026-01-01T00:00:02.000Z");
+    const rejected = await sut.complete(started.action.actionId, {
+      configValues: { "base-url": "https://expired.example.test" },
+      secretValues: { DEMO_REFRESH_TOKEN: "expired-refresh-token-secret" },
+    });
+
+    expect(rejected).toMatchObject({
+      ok: false,
+      reason: "invalid_request",
+      message: expect.stringContaining("expired"),
+    });
+    expect(existsSync(join(projectDir, ".kota", "config.json"))).toBe(false);
+    expect(existsSync(join(projectDir, ".kota", "secrets.json"))).toBe(false);
+    expect(JSON.stringify(rejected)).not.toContain("expired-refresh-token-secret");
+  });
+
+  it("rejects revoked setup action completion before writing submitted secrets", async () => {
+    const sut = service([oauthRequirement()]);
+    const started = await sut.start("demo", "oauth");
+    expect(started.ok).toBe(true);
+    if (!started.ok) throw new Error(started.message);
+
+    const revoked = await sut.revoke("demo", "oauth");
+    expect(revoked.ok).toBe(true);
+    const rejected = await sut.complete(started.action.actionId, {
+      secretValues: { DEMO_REFRESH_TOKEN: "revoked-refresh-token-secret" },
+    });
+
+    expect(rejected).toMatchObject({
+      ok: false,
+      reason: "invalid_request",
+      message: expect.stringContaining("revoked"),
+    });
+    expect(existsSync(join(projectDir, ".kota", "secrets.json"))).toBe(false);
+    expect(JSON.stringify(rejected)).not.toContain("revoked-refresh-token-secret");
+  });
+
+  it("rejects completed setup action completion before overwriting stored secrets", async () => {
+    const sut = service([oauthRequirement()]);
+    const started = await sut.start("demo", "oauth");
+    expect(started.ok).toBe(true);
+    if (!started.ok) throw new Error(started.message);
+
+    const completed = await sut.complete(started.action.actionId, {
+      secretValues: { DEMO_REFRESH_TOKEN: "original-refresh-token-secret" },
+    });
+    expect(completed.ok).toBe(true);
+
+    const rejected = await sut.complete(started.action.actionId, {
+      secretValues: { DEMO_REFRESH_TOKEN: "replacement-refresh-token-secret" },
+    });
+
+    expect(rejected).toMatchObject({
+      ok: false,
+      reason: "invalid_request",
+      message: expect.stringContaining("completed"),
+    });
+    expect(getSecretStore()?.get("DEMO_REFRESH_TOKEN")).toBe("original-refresh-token-secret");
+    expect(JSON.stringify(rejected)).not.toContain("replacement-refresh-token-secret");
+  });
+
+  it("rejects malformed setup actions before applying form values", async () => {
+    const sut = service([configRequirement()]);
+    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    writeFileSync(
+      join(projectDir, ".kota", "setup-actions.json"),
+      `${JSON.stringify({
+        actions: [{
+          actionId: "demo.endpoint.malformed",
+          moduleName: "demo",
+          requirementId: "endpoint",
+          url: "https://auth.example.test/start",
+          label: "Open setup",
+          status: "pending",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          expiresAt: "2026-01-01T00:10:00.000Z",
+        }],
+      }, null, 2)}\n`,
+      "utf8",
+    );
+
+    const rejected = await sut.complete("demo.endpoint.malformed", {
+      configValues: { "base-url": "https://malformed.example.test" },
+    });
+
+    expect(rejected).toMatchObject({
+      ok: false,
+      reason: "invalid_request",
+      message: expect.stringContaining("URL setup"),
+    });
+    expect(existsSync(join(projectDir, ".kota", "config.json"))).toBe(false);
+  });
+
+  it("rejects setup actions with malformed status before writing submitted secrets", async () => {
+    const sut = service([oauthRequirement()]);
+    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    writeFileSync(
+      join(projectDir, ".kota", "setup-actions.json"),
+      `${JSON.stringify({
+        actions: [{
+          actionId: "demo.oauth.malformed",
+          moduleName: "demo",
+          requirementId: "oauth",
+          url: "https://auth.example.test/start",
+          label: "Open OAuth",
+          status: "paused",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          expiresAt: "2026-01-01T00:10:00.000Z",
+        }],
+      }, null, 2)}\n`,
+      "utf8",
+    );
+
+    const rejected = await sut.complete("demo.oauth.malformed", {
+      secretValues: { DEMO_REFRESH_TOKEN: "malformed-refresh-token-secret" },
+    });
+
+    expect(rejected).toMatchObject({
+      ok: false,
+      reason: "invalid_request",
+      message: expect.stringContaining("invalid status"),
+    });
+    expect(existsSync(join(projectDir, ".kota", "secrets.json"))).toBe(false);
+    expect(JSON.stringify(rejected)).not.toContain("malformed-refresh-token-secret");
   });
 
   it("reports expired URL setup for reauth-capable OAuth requirements", async () => {
