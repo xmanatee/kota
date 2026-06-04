@@ -1,8 +1,0 @@
-1. Added client-side MCP Tasks extension constants and typed representations for task capabilities, `CreateTaskResult`, task state, and `tasks/get`, `tasks/update`, and `tasks/cancel` responses in `src/core/mcp/client-protocol.ts`.
-2. Updated `decodeCallToolResult` and task-method decoders to accept official `resultType` task shapes, empty task update/cancel acknowledgements, nullable TTLs, omitted poll intervals, and strict malformed-task checks for ids, statuses, timestamps, terminal payloads, and input-required fields.
-3. Added `McpClient.getTask`, `McpClient.updateTask`, and `McpClient.cancelTask`; client tests cover stdio and Streamable HTTP task methods with existing metadata/header paths.
-4. Updated `McpManager.executeTool` to resolve remote task-backed tool calls through polling, input-required routing through `tasks/update`, TTL expiry handling, and abort-triggered `tasks/cancel`.
-5. Task diagnostics are recorded on returned tool-result metadata without remote payloads; full crash-resume persistence is recorded as follow-up task `task-persist-remote-mcp-task-handles-for-crash-resume`.
-6. Added focused negative tests for malformed create-task results, missing task negotiation, unknown task ids, TTL expiry, failed/cancelled terminal states, task update errors, abort cancellation, and redaction.
-7. Existing focused external MCP client and manager tests pass after the change: `pnpm test src/core/mcp/client.test.ts src/core/mcp/manager.test.ts`; `pnpm typecheck` also passes.
-8. Added `.kota/runs/2026-05-25T12-55-33-218Z-builder-85azbp/remote-task-protocol-fixture.json` showing a fake remote task flow through `tools/call`, `tasks/get`, `tasks/update`, and final result.

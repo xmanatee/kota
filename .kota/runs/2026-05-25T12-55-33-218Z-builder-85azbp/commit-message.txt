@@ -1,3 +1,0 @@
-Consume official MCP task method results
-
-Decode task get/ack shapes, accept empty task update/cancel acknowledgements, route HTTP task methods by task id, and handle nullable task TTLs.

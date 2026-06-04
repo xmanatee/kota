@@ -1,7 +1,0 @@
-1. Verified by `pnpm test src/modules/a2a-channel`: v1.0 is accepted through the `A2A-Version` header and through the `?A2A-Version=1.0` request parameter.
-2. Verified by focused route tests and `.kota/runs/2026-05-27T07-36-07-584Z-builder-v2alwu/protocol-transcript.txt`: unsupported, missing, and empty versions return before backendFactory is called.
-3. Verified by focused route tests and the protocol transcript: unsupported versions return JSON-RPC code `-32009`, reason `VERSION_NOT_SUPPORTED`, and ErrorInfo metadata containing `requestedVersion` plus `supportedVersions`.
-4. Verified by focused route tests and the protocol transcript: streaming mismatches produce one `text/event-stream` frame containing the version error and close without backend work.
-5. Verified by `pnpm test src/modules/a2a-channel`: public and extended Agent Cards expose the same v1.0 supported interface set.
-6. Verified by `pnpm test src/modules/a2a-channel`: coverage includes accepted v1.0, explicit unsupported versions, missing and empty versions, streaming mismatch failure, and backendFactory call-count assertions.
-7. Verified by `pnpm test src/modules/a2a-channel`, `pnpm run typecheck`, `pnpm exec biome check src/modules/a2a-channel`, and `.kota/runs/2026-05-27T07-36-07-584Z-builder-v2alwu/protocol-transcript.txt`.

@@ -1,7 +1,0 @@
-1. The A2A RPC route accepts requests that explicitly select protocol version 1.0 via the A2A-Version header or KOTA's supported request-parameter version path.
-2. Requests selecting unsupported, missing, or empty protocol versions fail before backendFactory or daemon transport work starts.
-3. Unsupported versions return a typed JSON-RPC A2A version-not-supported error with google.rpc.ErrorInfo metadata naming the requested and supported versions.
-4. SendStreamingMessage and SubscribeToTask return exactly one SSE-framed version error and close without opening backend streams for unsupported versions.
-5. Public and extended Agent Cards remain consistent with the accepted protocol version set.
-6. Focused tests cover accepted v1.0, unsupported explicit versions, missing and empty versions, streaming mismatch failure, and no daemon calls on version mismatch.
-7. Acceptance evidence includes the requested protocol transcript plus targeted A2A tests, typecheck, and Biome verification.

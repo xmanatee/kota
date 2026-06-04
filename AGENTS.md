@@ -4,11 +4,8 @@ KOTA uses repo-local docs, project data files, and directory-level `AGENTS.md` f
 explain structure, standards, current priorities, and how work moves through
 the repo.
 
-@docs/STANDARDS.md
-@docs/ARCHITECTURE.md
-
-@data/AGENTS.md
-@data/tasks/AGENTS.md
-
+- This launch root is part of the mono workspace. Before broad work, read and follow `../../AGENTS.md`.
+- Before broad KOTA changes, read `docs/STANDARDS.md` and `docs/ARCHITECTURE.md`.
+- Before touching data files or task state, read `data/AGENTS.md` and `data/tasks/AGENTS.md`.
 - When touching a directory, read its local `AGENTS.md` first if present.
 - Keep docs, data files, and local `AGENTS.md` files aligned with reality.

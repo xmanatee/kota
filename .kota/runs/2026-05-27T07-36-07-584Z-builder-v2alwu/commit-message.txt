@@ -1,3 +1,0 @@
-Enforce A2A protocol version negotiation
-
-Reject unsupported A2A-Version values before backend work and cover JSON-RPC/SSE version errors.
