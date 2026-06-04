@@ -13,6 +13,12 @@ import {
 import { getRepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { scopeImprovementRequested } from "./events.js";
 import {
+  failedRunCandidates,
+  missingGuidanceCandidate,
+  recentChangeCandidate,
+  taskQueueEventWithoutActionableEvidence,
+} from "./scope-improvement-candidates.js";
+import {
   readScopeImprovementConfig,
   readScopeImprovementState,
 } from "./scope-improvement-state.js";
@@ -193,71 +199,22 @@ export function discoverScopeImprovementCandidates(
 ): ScopeImprovementCandidate[] {
   if (!inputs.config.enabled || inputs.throttle) return [];
   const candidates: ScopeImprovementCandidate[] = [];
+  const skippedCandidates: ScopeImprovementCandidate[] = [];
   const hasInstructions = inputs.instructions.length > 0;
   if (!hasInstructions) candidates.push(missingGuidanceCandidate(inputs));
   if (hasInstructions && inputs.changedFiles.length > 0) {
-    candidates.push(recentChangeCandidate(inputs));
+    const candidate = recentChangeCandidate(inputs);
+    if (candidate.preferredAction === "skip") {
+      skippedCandidates.push(candidate);
+    } else {
+      candidates.push(candidate);
+    }
   }
   candidates.push(...failedRunCandidates(inputs));
   if (hasInstructions && inputs.triggerKind === "task") {
-    candidates.push({
-      id: "task-queue-review",
-      signature: `${inputs.scope.scopeId}:task-queue-review`,
-      title: `Review ${inputs.scope.displayName} task queue for improvement work`,
-      summary:
-        "A task queue event occurred; inspect whether the scoped queue now points at the right next improvement.",
-      evidenceIds: ["queue:snapshot"],
-      preferredAction: "create-task",
-    });
+    skippedCandidates.push(taskQueueEventWithoutActionableEvidence(inputs));
   }
-  return candidates.slice(0, inputs.config.maxActionsPerRun);
-}
-
-function missingGuidanceCandidate(
-  inputs: ScopeImprovementInputs,
-): ScopeImprovementCandidate {
-  return {
-    id: "missing-scope-guidance",
-    signature: `${inputs.scope.scopeId}:missing-scope-guidance`,
-    title: `Add scope guidance for ${inputs.scope.displayName}`,
-    summary:
-      "The scope has no AGENTS.md guidance, so improvement work lacks local constraints.",
-    evidenceIds: ["policy:scope-improvement"],
-    preferredAction: inputs.config.allowAutonomousEdits ? "safe-edit" : "owner-question",
-  };
-}
-
-function recentChangeCandidate(
-  inputs: ScopeImprovementInputs,
-): ScopeImprovementCandidate {
-  return {
-    id: "recent-file-change-review",
-    signature:
-      `${inputs.scope.scopeId}:recent-file-change-review:` +
-      inputs.changedFiles.join("|"),
-    title: `Review recent scoped changes in ${inputs.scope.displayName}`,
-    summary:
-      "Recent scoped files changed; create a reviewable task to identify concrete improvement work.",
-    evidenceIds: inputs.evidence
-      .filter((item) => item.kind === "file")
-      .map((item) => item.id),
-    preferredAction: "create-task",
-  };
-}
-
-function failedRunCandidates(
-  inputs: ScopeImprovementInputs,
-): ScopeImprovementCandidate[] {
-  return inputs.evidence
-    .filter((item) => item.kind === "run")
-    .map((failure) => ({
-      id: failure.id,
-      signature: `${inputs.scope.scopeId}:${failure.id}`,
-      title: `Investigate ${failure.summary}`,
-      summary: "A failed run is evidence of scope work that may need repair.",
-      evidenceIds: [failure.id],
-      preferredAction: "create-task" as const,
-    }));
+  return [...candidates, ...skippedCandidates].slice(0, inputs.config.maxActionsPerRun);
 }
 
 export function gatherScopeImprovementEvidence(args: {

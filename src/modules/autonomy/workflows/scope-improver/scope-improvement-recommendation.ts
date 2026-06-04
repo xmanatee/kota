@@ -10,6 +10,14 @@ export function recommendScopeImprovements(args: {
   evidence: ScopeImprovementEvidencePacket;
 }): ScopeImprovementRecommendation[] {
   return args.evidence.candidates.map((candidate) => {
+    if (candidate.preferredAction === "skip") {
+      return {
+        kind: "skipped",
+        signature: candidate.signature,
+        reason: candidate.skipReason,
+        evidenceIds: candidate.evidenceIds,
+      };
+    }
     if (hasSeenSignature(args.inputs, candidate.signature)) {
       return {
         kind: "skipped",
@@ -22,12 +30,17 @@ export function recommendScopeImprovements(args: {
     if (candidate.preferredAction === "owner-question") {
       return ownerQuestion(args.inputs, candidate);
     }
+    if (candidate.preferredAction !== "create-task") {
+      const unhandled: never = candidate;
+      throw new Error(`Unhandled scope-improvement action: ${String(unhandled)}`);
+    }
     return {
       kind: "create-task",
       signature: candidate.signature,
       title: candidate.title,
       summary: candidate.summary,
       evidenceIds: candidate.evidenceIds,
+      task: candidate.task,
     };
   });
 }

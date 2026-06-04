@@ -1,0 +1,5 @@
+scope-improver: suppress vague file-change recommendations
+
+- require concrete task specs for scope-improver create-task output
+- skip task-file-only, recent-file-only, and queue-count-only evidence with auditable reasons
+- cover vague task suppression in the focused workflow test

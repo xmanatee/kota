@@ -51,6 +51,14 @@ logs/
 !/.kota/runs/2026-06-04T00-31-55-457Z-builder-r5tf1s/fixture-candidates-cli-transcript.txt
 !/.kota/runs/2026-06-04T00-31-55-457Z-builder-r5tf1s/success-criteria-verified.txt
 !/.kota/runs/2026-06-04T00-31-55-457Z-builder-r5tf1s/success-criteria.txt
+!/.kota/runs/2026-06-04T16-44-19-605Z-builder-q99e7j/
+/.kota/runs/2026-06-04T16-44-19-605Z-builder-q99e7j/*
+!/.kota/runs/2026-06-04T16-44-19-605Z-builder-q99e7j/commit-message.txt
+!/.kota/runs/2026-06-04T16-44-19-605Z-builder-q99e7j/scope-improvement-recent-file-artifact.json
+!/.kota/runs/2026-06-04T16-44-19-605Z-builder-q99e7j/scope-improvement-task-file-only-artifact.json
+!/.kota/runs/2026-06-04T16-44-19-605Z-builder-q99e7j/success-criteria-verified.txt
+!/.kota/runs/2026-06-04T16-44-19-605Z-builder-q99e7j/success-criteria.txt
+!/.kota/runs/2026-06-04T16-44-19-605Z-builder-q99e7j/validation-summary.txt
 # Eval-harness fixtures legitimately seed prior run state; the runner copies
 # `initial/` verbatim into an isolated tmpdir at fixture-run time.
 !src/modules/eval-harness/fixtures/**/initial/.kota/

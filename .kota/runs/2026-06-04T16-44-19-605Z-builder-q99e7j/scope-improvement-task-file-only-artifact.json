@@ -1,0 +1,60 @@
+{
+  "generatedAt": "2026-06-04T16:52:30.000Z",
+  "trigger": {
+    "event": "files.changed",
+    "files": [
+      "data/tasks/ready/task-security-review-the-progress-review-evidence-colle.md"
+    ]
+  },
+  "evidence": {
+    "evidence": [
+      {
+        "id": "file:0:data/tasks/ready/task-security-review-the-progress-review-evidence-colle.md",
+        "kind": "file",
+        "summary": "Changed file data/tasks/ready/task-security-review-the-progress-review-evidence-colle.md",
+        "path": "data/tasks/ready/task-security-review-the-progress-review-evidence-colle.md"
+      },
+      {
+        "id": "policy:scope-improvement",
+        "kind": "policy",
+        "summary": "scope-improver must create evidence-backed work, owner questions, safe edits, or explicit skips"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "task-file-only-change-without-scope-gap",
+        "signature": "8nrg1m:task-file-only-change-without-scope-gap:data/tasks/ready/task-security-review-the-progress-review-evidence-colle.md",
+        "title": "Skip task-file-only change evidence in kota",
+        "summary": "Changed task file(s) alone do not identify durable scope-improvement work: data/tasks/ready/task-security-review-the-progress-review-evidence-colle.md",
+        "evidenceIds": [
+          "file:0:data/tasks/ready/task-security-review-the-progress-review-evidence-colle.md"
+        ],
+        "preferredAction": "skip",
+        "skipReason": "task-file-only change evidence is queue churn, not a concrete scope gap"
+      }
+    ]
+  },
+  "recommendations": [
+    {
+      "kind": "skipped",
+      "signature": "8nrg1m:task-file-only-change-without-scope-gap:data/tasks/ready/task-security-review-the-progress-review-evidence-colle.md",
+      "reason": "task-file-only change evidence is queue churn, not a concrete scope gap",
+      "evidenceIds": [
+        "file:0:data/tasks/ready/task-security-review-the-progress-review-evidence-colle.md"
+      ]
+    }
+  ],
+  "actions": {
+    "createdTaskIds": [],
+    "ownerQuestionIds": [],
+    "safeEditPaths": [],
+    "applied": [
+      {
+        "kind": "skipped",
+        "signature": "8nrg1m:task-file-only-change-without-scope-gap:data/tasks/ready/task-security-review-the-progress-review-evidence-colle.md",
+        "reason": "task-file-only change evidence is queue churn, not a concrete scope gap"
+      }
+    ],
+    "requiresCommit": false
+  }
+}

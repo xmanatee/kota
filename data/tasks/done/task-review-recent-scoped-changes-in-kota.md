@@ -1,12 +1,12 @@
 ---
 id: task-review-recent-scoped-changes-in-kota
 title: Make scope-improver recommendations specific enough to execute
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Tighten scope-improver candidate generation so it does not create vague self-referential review tasks from ordinary task-file changes.
 created_at: 2026-06-04T13:02:47.903Z
-updated_at: 2026-06-04T13:07:31.000Z
+updated_at: 2026-06-04T16:53:30.000Z
 ---
 
 ## Problem

@@ -1,0 +1,16 @@
+Focused validation:
+
+- `pnpm vitest run src/modules/autonomy/workflows/scope-improver/workflow.test.ts`
+  - Passed: 1 test file, 11 tests.
+- `pnpm lint`
+  - Passed.
+- `pnpm run typecheck`
+  - Passed.
+- `pnpm run validate-tasks`
+  - Passed after staging the task move.
+- `git diff --check`
+  - Passed.
+
+Artifact generation note:
+
+- Attempting to generate the original JSON artifact through an inline `tsx` command was blocked by sandbox IPC restrictions (`listen EPERM` on the tsx pipe). The artifacts were written directly from the validated candidate/recommendation shapes exercised by the focused tests.

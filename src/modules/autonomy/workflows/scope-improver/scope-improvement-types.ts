@@ -68,14 +68,37 @@ export type ScopeImprovementInputs = {
   throttle: { reason: string; eventCount: number } | null;
 };
 
-export type ScopeImprovementCandidate = {
+export type ScopeImprovementTaskSpec = {
+  problem: string;
+  desiredOutcome: string;
+  constraints: string[];
+  doneWhen: string[];
+  acceptanceEvidence: string[];
+};
+
+type ScopeImprovementCandidateBase = {
   id: string;
   signature: string;
   title: string;
   summary: string;
   evidenceIds: string[];
-  preferredAction: "create-task" | "owner-question" | "safe-edit";
 };
+
+export type ScopeImprovementCandidate =
+  | (ScopeImprovementCandidateBase & {
+      preferredAction: "create-task";
+      task: ScopeImprovementTaskSpec;
+    })
+  | (ScopeImprovementCandidateBase & {
+      preferredAction: "owner-question";
+    })
+  | (ScopeImprovementCandidateBase & {
+      preferredAction: "safe-edit";
+    })
+  | (ScopeImprovementCandidateBase & {
+      preferredAction: "skip";
+      skipReason: string;
+    });
 
 export type ScopeImprovementEvidencePacket = {
   generatedAt: string;
@@ -93,6 +116,7 @@ export type ScopeImprovementRecommendation =
       title: string;
       summary: string;
       evidenceIds: string[];
+      task: ScopeImprovementTaskSpec;
     }
   | {
       kind: "owner-question";

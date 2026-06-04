@@ -99,6 +99,14 @@ function writeRootAgents(projectDir: string): void {
   );
 }
 
+function writeFailedRun(projectDir: string, runId: string): void {
+  mkdirSync(join(projectDir, ".kota", "runs", runId), { recursive: true });
+  writeFileSync(
+    join(projectDir, ".kota", "runs", runId, "metadata.json"),
+    `${JSON.stringify({ workflow: "builder", status: "failed" }, null, 2)}\n`,
+  );
+}
+
 function trigger(files: string[]) {
   return {
     event: "files.changed",
@@ -172,7 +180,7 @@ describe("scope-improver workflow", () => {
     expect(registered.triggers[2]?.watch).toContain("**/*.md");
   });
 
-  it("runs the workflow and creates a review task from scoped file evidence", async () => {
+  it("skips recent file-change evidence without a concrete scope gap", async () => {
     const projectDir = track("workflow");
     writeRootAgents(projectDir);
     writeConfig(projectDir, { minMinutesBetweenRuns: 0 });
@@ -186,15 +194,121 @@ describe("scope-improver workflow", () => {
     }).run();
 
     expect(result.status).toBe("success");
+    expect(vi.mocked(commitWorkflowChanges)).not.toHaveBeenCalled();
+    const readyFiles = readdirSync(join(projectDir, "data", "tasks", "ready"))
+      .filter((file) => file.endsWith(".md") && file !== "AGENTS.md");
+    expect(readyFiles).toHaveLength(0);
+    const artifact = JSON.parse(
+      readFileSync(
+        join(projectDir, ".kota", "runs", "harness", SCOPE_IMPROVEMENT_ARTIFACT),
+        "utf-8",
+      ),
+    );
+    expect(artifact.recommendations).toContainEqual(
+      expect.objectContaining({
+        kind: "skipped",
+        evidenceIds: ["file:0:notes/plan.md"],
+        reason: expect.stringContaining("recent file-change"),
+      }),
+    );
+    expect(artifact.actions.applied).toContainEqual(
+      expect.objectContaining({
+        kind: "skipped",
+        reason: expect.stringContaining("recent file-change"),
+      }),
+    );
+    expect(
+      existsSync(join(projectDir, ".kota", "runs", "harness", SCOPE_IMPROVEMENT_ARTIFACT)),
+    ).toBe(true);
+  });
+
+  it("creates a concrete task from failed run evidence", async () => {
+    const projectDir = track("failed-run");
+    writeRootAgents(projectDir);
+    writeConfig(projectDir, { minMinutesBetweenRuns: 0 });
+    writeFailedRun(projectDir, "2026-06-04T11-00-00-000Z-builder-failed");
+    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
+
+    const result = await new WorkflowTestHarness(scopeImproverWorkflow, {
+      projectDir,
+      trigger: trigger(["notes/plan.md"]),
+    }).run();
+
+    expect(result.status).toBe("success");
     expect(vi.mocked(commitWorkflowChanges)).toHaveBeenCalledTimes(1);
     const readyFiles = readdirSync(join(projectDir, "data", "tasks", "ready"))
       .filter((file) => file.endsWith(".md") && file !== "AGENTS.md");
     expect(readyFiles).toHaveLength(1);
-    expect(readFileSync(join(projectDir, "data", "tasks", "ready", readyFiles[0]!), "utf-8"))
-      .toContain("scope-improver workflow run harness-run-id");
-    expect(
-      existsSync(join(projectDir, ".kota", "runs", "harness", SCOPE_IMPROVEMENT_ARTIFACT)),
-    ).toBe(true);
+    const taskText = readFileSync(
+      join(projectDir, "data", "tasks", "ready", readyFiles[0]!),
+      "utf-8",
+    );
+    expect(taskText).toContain(
+      "Failed workflow run builder (2026-06-04T11-00-00-000Z-builder-failed)",
+    );
+    expect(taskText).toContain("repair the concrete failure");
+    expect(taskText).not.toContain("Review recent scoped changes");
+    expect(taskText).not.toContain("Assess notes/plan.md");
+  });
+
+  it("skips task-file-only change evidence with an artifact reason", async () => {
+    const projectDir = track("task-file-only");
+    writeRootAgents(projectDir);
+    writeConfig(projectDir, { minMinutesBetweenRuns: 0 });
+    const taskPath =
+      "data/tasks/ready/task-security-review-the-progress-review-evidence-colle.md";
+    writeFileSync(
+      join(projectDir, taskPath),
+      [
+        "---",
+        "id: task-security-review-the-progress-review-evidence-colle",
+        "title: Security review progress-review evidence collection",
+        "status: ready",
+        "priority: p2",
+        "area: autonomy",
+        "summary: Review a security finding.",
+        "created_at: 2026-06-04T12:00:00.000Z",
+        "updated_at: 2026-06-04T12:00:00.000Z",
+        "---",
+        "",
+        "## Problem",
+        "",
+        "A security-review task was created.",
+      ].join("\n"),
+    );
+    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
+
+    const result = await new WorkflowTestHarness(scopeImproverWorkflow, {
+      projectDir,
+      trigger: trigger([taskPath]),
+    }).run();
+
+    expect(result.status).toBe("success");
+    expect(vi.mocked(commitWorkflowChanges)).not.toHaveBeenCalled();
+    const readyFiles = readdirSync(join(projectDir, "data", "tasks", "ready"))
+      .filter((file) => file.endsWith(".md") && file !== "AGENTS.md");
+    expect(readyFiles).toEqual([
+      "task-security-review-the-progress-review-evidence-colle.md",
+    ]);
+    const artifact = JSON.parse(
+      readFileSync(
+        join(projectDir, ".kota", "runs", "harness", SCOPE_IMPROVEMENT_ARTIFACT),
+        "utf-8",
+      ),
+    );
+    expect(artifact.recommendations).toContainEqual(
+      expect.objectContaining({
+        kind: "skipped",
+        evidenceIds: [`file:0:${taskPath}`],
+        reason: expect.stringContaining("task-file-only"),
+      }),
+    );
+    expect(artifact.actions.applied).toContainEqual(
+      expect.objectContaining({
+        kind: "skipped",
+        reason: expect.stringContaining("task-file-only"),
+      }),
+    );
   });
 
   it("does not apply or commit recommendations when pre-existing untracked files are present", async () => {
@@ -255,14 +369,15 @@ describe("scope-improver workflow", () => {
     const notesScope = track("notes");
     writeRootAgents(codeScope);
     writeConfig(codeScope, { minMinutesBetweenRuns: 0 });
+    writeFailedRun(codeScope, "2026-06-04T11-00-00-000Z-builder-failed");
     writeConfig(notesScope, {
       minMinutesBetweenRuns: 0,
       allowAutonomousEdits: true,
       writePaths: ["AGENTS.md"],
     });
 
-    const first = runCycle(codeScope, ["src/app.ts"]);
-    const second = runCycle(codeScope, ["src/app.ts"]);
+    const first = runCycle(codeScope, []);
+    const second = runCycle(codeScope, []);
     const other = runCycle(notesScope, ["plans/birthday.txt"]);
 
     expect(first.actions.createdTaskIds).toHaveLength(1);
@@ -323,7 +438,7 @@ describe("scope-improver workflow", () => {
     ).toContain("What durable guidance should KOTA follow");
   });
 
-  it("discovers task-queue review work from real task.changed batch flushes", () => {
+  it("skips queue-only task.changed batch flushes without concrete scope evidence", () => {
     const projectDir = track("task-batch");
     writeRootAgents(projectDir);
     writeConfig(projectDir, { minMinutesBetweenRuns: 0 });
@@ -372,7 +487,11 @@ describe("scope-improver workflow", () => {
 
     expect(inputs.triggerKind).toBe("task");
     expect(candidates).toContainEqual(
-      expect.objectContaining({ id: "task-queue-review" }),
+      expect.objectContaining({
+        id: "task-queue-event-without-actionable-evidence",
+        preferredAction: "skip",
+        skipReason: expect.stringContaining("queue counts"),
+      }),
     );
   });
 

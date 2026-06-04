@@ -1,0 +1,4 @@
+1. `ScopeImprovementTaskSpec` is required on create-task candidates and recommendations, generated task bodies render that concrete task spec, and raw recent-file evidence now returns a skipped recommendation instead of a create-task recommendation.
+2. `src/modules/autonomy/workflows/scope-improver/workflow.test.ts` includes `skips task-file-only change evidence with an artifact reason`, asserting no new ready task and a skipped artifact/action reason.
+3. `pnpm vitest run src/modules/autonomy/workflows/scope-improver/workflow.test.ts` passed with 11 tests, and `pnpm run typecheck` passed.
+4. `scope-improvement-task-file-only-artifact.json` and `scope-improvement-recent-file-artifact.json` record the cited file evidence, skip candidates, skipped recommendations, and skipped action reasons for both vague evidence paths.

@@ -104,25 +104,24 @@ function taskBody(args: {
   runId: string;
   recommendation: Extract<ScopeImprovementRecommendation, { kind: "create-task" }>;
 }): string {
+  const task = args.recommendation.task;
   return [
     "",
     "## Problem",
     "",
-    args.recommendation.summary,
+    task.problem,
     "",
     "## Desired Outcome",
     "",
-    `Resolve the scope-improvement finding from run ${args.runId}.`,
+    task.desiredOutcome,
     "",
     "## Constraints",
     "",
-    "- Preserve the cited evidence ids until this task is resolved.",
-    "- Keep the work scoped to the directory that produced the finding.",
+    ...task.constraints.map((item) => `- ${item}`),
     "",
     "## Done When",
     "",
-    "- The cited improvement is implemented or explicitly rejected with evidence.",
-    "- The scope-improvement artifact remains enough to audit the decision.",
+    ...task.doneWhen.map((item) => `- ${item}`),
     "",
     "## Source / Intent",
     "",
@@ -138,7 +137,7 @@ function taskBody(args: {
     "",
     "## Acceptance Evidence",
     "",
-    "- Scope-improvement artifact and narrow validation output.",
+    ...task.acceptanceEvidence.map((item) => `- ${item}`),
     "",
   ].join("\n");
 }

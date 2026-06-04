@@ -1,0 +1,4 @@
+1. Scope-improver create-task recommendations carry a concrete problem statement, desired outcome, and Done When text derived from the cited evidence, while raw recent-file evidence is skipped instead of becoming a generic recent-change placeholder.
+2. A regression test covers the failure mode where a changed task file alone would create a vague self-referential ready task.
+3. Existing scope-improver behavior for task creation, owner-question creation, safe edits, multi-scope isolation, and dedupe remains covered and passing.
+4. The run includes auditable scope-improvement artifacts showing task-file-only and recent-file-only evidence are skipped with explicit reasons rather than becoming generic tasks.

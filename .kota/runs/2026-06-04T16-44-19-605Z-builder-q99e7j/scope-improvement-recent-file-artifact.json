@@ -1,0 +1,66 @@
+{
+  "generatedAt": "2026-06-04T18:01:07.000Z",
+  "trigger": {
+    "event": "files.changed",
+    "files": [
+      "notes/plan.md"
+    ]
+  },
+  "evidence": {
+    "evidence": [
+      {
+        "id": "instruction:AGENTS.md",
+        "kind": "instruction",
+        "summary": "Scoped instruction file AGENTS.md",
+        "path": "AGENTS.md"
+      },
+      {
+        "id": "file:0:notes/plan.md",
+        "kind": "file",
+        "summary": "Changed file notes/plan.md",
+        "path": "notes/plan.md"
+      },
+      {
+        "id": "policy:scope-improvement",
+        "kind": "policy",
+        "summary": "scope-improver must create evidence-backed work, owner questions, safe edits, or explicit skips"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "recent-file-change-without-scope-gap",
+        "signature": "8nrg1m:recent-file-change-without-scope-gap:notes/plan.md",
+        "title": "Skip recent file-change evidence in kota",
+        "summary": "Changed scoped file(s) alone do not identify durable scope-improvement work: notes/plan.md.",
+        "evidenceIds": [
+          "file:0:notes/plan.md"
+        ],
+        "preferredAction": "skip",
+        "skipReason": "recent file-change evidence does not name a concrete scope gap without task, run, or owner context"
+      }
+    ]
+  },
+  "recommendations": [
+    {
+      "kind": "skipped",
+      "signature": "8nrg1m:recent-file-change-without-scope-gap:notes/plan.md",
+      "reason": "recent file-change evidence does not name a concrete scope gap without task, run, or owner context",
+      "evidenceIds": [
+        "file:0:notes/plan.md"
+      ]
+    }
+  ],
+  "actions": {
+    "createdTaskIds": [],
+    "ownerQuestionIds": [],
+    "safeEditPaths": [],
+    "applied": [
+      {
+        "kind": "skipped",
+        "signature": "8nrg1m:recent-file-change-without-scope-gap:notes/plan.md",
+        "reason": "recent file-change evidence does not name a concrete scope gap without task, run, or owner context"
+      }
+    ],
+    "requiresCommit": false
+  }
+}
