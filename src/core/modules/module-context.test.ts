@@ -18,6 +18,8 @@ import { ModuleLoader } from "./module-loader.js";
 import type { KotaModule, ModuleContext, ToolDef } from "./module-types.js";
 import { resolveModuleTools } from "./module-types.js";
 
+const TEXT_LOG_CONFIG = { log: { format: "text" as const } };
+
 beforeEach(() => {
   clearCustomTools();
   clearCustomGroups();
@@ -25,6 +27,7 @@ beforeEach(() => {
   resetSecretStore();
   resetEventBus();
   resetModuleEventRegistry();
+  vi.restoreAllMocks();
 });
 
 afterEach(() => {
@@ -54,7 +57,7 @@ describe("ModuleContext.log", () => {
   it("prefixes messages with [module:<name>]", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const onLoad = vi.fn();
-    const loader = new ModuleLoader({});
+    const loader = new ModuleLoader(TEXT_LOG_CONFIG);
     await loader.load({ name: "my-mod", onLoad });
 
     const ctx: ModuleContext = onLoad.mock.calls[0][0];
@@ -75,7 +78,7 @@ describe("ModuleContext.log", () => {
 
     // Non-verbose — debug is silent
     const onLoadQuiet = vi.fn();
-    const loaderQuiet = new ModuleLoader({}, false);
+    const loaderQuiet = new ModuleLoader(TEXT_LOG_CONFIG, false);
     await loaderQuiet.load({ name: "quiet-mod", onLoad: onLoadQuiet });
     const ctxQuiet: ModuleContext = onLoadQuiet.mock.calls[0][0];
     ctxQuiet.log.debug("hidden");
@@ -83,7 +86,7 @@ describe("ModuleContext.log", () => {
 
     // Verbose — debug logs
     const onLoadVerbose = vi.fn();
-    const loaderVerbose = new ModuleLoader({}, true);
+    const loaderVerbose = new ModuleLoader(TEXT_LOG_CONFIG, true);
     await loaderVerbose.load({ name: "verbose-mod", onLoad: onLoadVerbose });
     const ctxVerbose: ModuleContext = onLoadVerbose.mock.calls[0][0];
     ctxVerbose.log.debug("visible");
@@ -225,7 +228,7 @@ describe("tools as factory function", () => {
 
   it("tool runner can access ctx.log via closure", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const loader = new ModuleLoader({}, true);
+    const loader = new ModuleLoader(TEXT_LOG_CONFIG, true);
 
     const mod: KotaModule = {
       name: "logging-factory",

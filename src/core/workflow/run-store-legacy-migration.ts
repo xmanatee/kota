@@ -1,13 +1,16 @@
 import { isPlainObject, isWorkflowRunStatus } from "./run-store-state-schema.js";
 import type { WorkflowStateEntry } from "./run-types.js";
 
-function addMissingSchemaRef(record: Record<string, unknown>): boolean {
+type LegacyRecord = Record<string, Parameters<typeof isPlainObject>[0]>;
+type LegacyValue = Parameters<typeof isPlainObject>[0];
+
+function addMissingSchemaRef(record: LegacyRecord): boolean {
   if ("schemaRef" in record) return false;
   record.schemaRef = null;
   return true;
 }
 
-function migrateLegacyBatchInputEvents(value: unknown): boolean {
+function migrateLegacyBatchInputEvents(value: LegacyValue): boolean {
   if (!Array.isArray(value)) return false;
 
   let changed = false;
@@ -18,7 +21,7 @@ function migrateLegacyBatchInputEvents(value: unknown): boolean {
   return changed;
 }
 
-function migrateLegacyWorkflowRunTrigger(trigger: unknown): boolean {
+function migrateLegacyWorkflowRunTrigger(trigger: LegacyValue): boolean {
   if (!isPlainObject(trigger)) return false;
 
   let changed = addMissingSchemaRef(trigger);
@@ -28,7 +31,7 @@ function migrateLegacyWorkflowRunTrigger(trigger: unknown): boolean {
   return changed;
 }
 
-function migrateLegacyPendingRuns(raw: Record<string, unknown>): boolean {
+function migrateLegacyPendingRuns(raw: LegacyRecord): boolean {
   if (!Array.isArray(raw.pendingRuns)) return false;
 
   let changed = false;
@@ -39,7 +42,7 @@ function migrateLegacyPendingRuns(raw: Record<string, unknown>): boolean {
   return changed;
 }
 
-function migrateLegacyBatchBuffers(raw: Record<string, unknown>): boolean {
+function migrateLegacyBatchBuffers(raw: LegacyRecord): boolean {
   if (!isPlainObject(raw.batchBuffers)) return false;
 
   let changed = false;
