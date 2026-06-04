@@ -6,7 +6,7 @@ import {
   readFileSync,
   writeFileSync,
 } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { z } from "zod";
 import type { ApprovalStatus, PendingApproval } from "#core/daemon/approval-queue.js";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
@@ -40,6 +40,7 @@ export const PROGRESS_REVIEW_MAX_RUNS = 20;
 export const PROGRESS_REVIEW_MAX_TASKS = 20;
 export const PROGRESS_REVIEW_MAX_EVENTS = 30;
 export const PROGRESS_REVIEW_MAX_ARTIFACTS = 40;
+export const PROGRESS_REVIEW_MAX_ARTIFACT_DEPTH = 6;
 export const PROGRESS_REVIEW_MAX_GIT_ENTRIES = 60;
 export const PROGRESS_REVIEW_MAX_GIT_STATUS_LINES = 20;
 export const PROGRESS_REVIEW_MAX_GIT_COMMITS = 10;
@@ -283,6 +284,12 @@ type ScopedRunEvidence = {
   evidence: ProgressReviewRunEvidence;
 };
 
+type RunArtifactListing = {
+  files: string[];
+  hitFileLimit: boolean;
+  hitDepthLimit: boolean;
+};
+
 type ExistingWorkItem = {
   id: string;
   state: RepoTaskState | "inbox";
@@ -420,13 +427,35 @@ function readRunTrigger(projectDir: string, runId: string): WorkflowRunTrigger |
   );
 }
 
+function isSafeRunIdBasename(value: string): boolean {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value !== "." &&
+    value !== ".." &&
+    value === basename(value) &&
+    !value.includes("/") &&
+    !value.includes("\\")
+  );
+}
+
+function validatedMetadataRunId(
+  metadata: WorkflowRunMetadata,
+  runDirName: string,
+): string | null {
+  if (!isSafeRunIdBasename(metadata.id)) return null;
+  if (metadata.id !== runDirName) return null;
+  return metadata.id;
+}
+
 function summarizeRun(
   source: ProgressReviewDirectorySource,
+  runDirName: string,
   metadata: WorkflowRunMetadata,
 ): ProgressReviewRunEvidence {
-  const trigger = readRunTrigger(source.projectDir, metadata.id);
+  const trigger = readRunTrigger(source.projectDir, runDirName);
   return {
-    id: sourceEvidenceId(source, `run:${metadata.id}`),
+    id: sourceEvidenceId(source, `run:${runDirName}`),
     kind: "run",
     workflow: metadata.workflow,
     status: metadata.status,
@@ -434,10 +463,10 @@ function summarizeRun(
     ...(metadata.completedAt ? { completedAt: metadata.completedAt } : {}),
     ...(metadata.durationMs !== undefined ? { durationMs: metadata.durationMs } : {}),
     ...(trigger ? { triggerEvent: trigger.event } : {}),
-    path: join(".kota", "runs", metadata.id, "metadata.json"),
+    path: join(".kota", "runs", runDirName, "metadata.json"),
     summary: sourceSummary(
       source,
-      `${metadata.workflow} ${metadata.status} (${metadata.id})`,
+      `${metadata.workflow} ${metadata.status} (${runDirName})`,
     ),
   };
 }
@@ -454,19 +483,30 @@ function listRecentRuns(
   }
 
   const runs: ScopedRunEvidence[] = [];
-  for (const runId of readdirSync(runsDir).sort().reverse()) {
+  const entries = readdirSync(runsDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .sort((a, b) => b.name.localeCompare(a.name));
+  for (const entry of entries) {
+    const runDirName = entry.name;
     const metadata = readOptionalJsonFile<WorkflowRunMetadata>(
-      join(runsDir, runId, "metadata.json"),
+      join(runsDir, runDirName, "metadata.json"),
     );
     if (!metadata) continue;
+    const runId = validatedMetadataRunId(metadata, runDirName);
+    if (!runId) {
+      excluded.push(
+        `${source.displayName} workflow run ${runDirName}: metadata id is not a safe basename matching the run directory`,
+      );
+      continue;
+    }
     const startedMs = Date.parse(metadata.startedAt);
     if (!Number.isFinite(startedMs)) continue;
     if (startedMs < windowStartMs) continue;
     runs.push({
       source,
-      runId: metadata.id,
+      runId,
       startedMs,
-      evidence: summarizeRun(source, metadata),
+      evidence: summarizeRun(source, runDirName, metadata),
     });
   }
   return runs;
@@ -562,26 +602,56 @@ function isArtifactFile(relativePath: string): boolean {
   );
 }
 
-function listRunArtifactFiles(runDir: string): string[] {
+function isPathInside(parent: string, child: string): boolean {
+  const fromParent = relative(parent, child);
+  return fromParent === "" || (!fromParent.startsWith("..") && !isAbsolute(fromParent));
+}
+
+function assertPathInside(parent: string, child: string, label: string): void {
+  if (isPathInside(parent, child)) return;
+  throw new Error(`${label} escaped progress-review artifact boundary`);
+}
+
+function listRunArtifactFiles(runDir: string, maxFiles: number): RunArtifactListing {
+  const root = resolve(runDir);
   const files: string[] = [];
-  function visit(dir: string, relativeParts: string[]): void {
+  let hitDepthLimit = false;
+  function visit(dir: string, relativeParts: string[]): boolean {
+    if (files.length >= maxFiles) return true;
+    const resolvedDir = resolve(dir);
+    assertPathInside(root, resolvedDir, "progress-review artifact directory");
+    if (relativeParts.length >= PROGRESS_REVIEW_MAX_ARTIFACT_DEPTH) {
+      hitDepthLimit = true;
+      return false;
+    }
     const entries = readdirSync(dir, { withFileTypes: true }).sort((a, b) =>
       a.name.localeCompare(b.name),
     );
     for (const entry of entries) {
+      if (files.length >= maxFiles) return true;
       const nextParts = [...relativeParts, entry.name];
-      const path = join(dir, entry.name);
+      const path = resolve(dir, entry.name);
+      assertPathInside(root, path, "progress-review artifact path");
+      if (nextParts.length > PROGRESS_REVIEW_MAX_ARTIFACT_DEPTH) {
+        hitDepthLimit = true;
+        continue;
+      }
       if (entry.isDirectory()) {
-        visit(path, nextParts);
+        if (nextParts.length >= PROGRESS_REVIEW_MAX_ARTIFACT_DEPTH) {
+          hitDepthLimit = true;
+          continue;
+        }
+        if (visit(path, nextParts)) return true;
         continue;
       }
       if (!entry.isFile()) continue;
       const relativePath = nextParts.join("/");
       if (isArtifactFile(relativePath)) files.push(relativePath);
     }
+    return files.length >= maxFiles;
   }
-  visit(runDir, []);
-  return files.sort();
+  const hitFileLimit = visit(root, []);
+  return { files: files.sort(), hitFileLimit, hitDepthLimit };
 }
 
 function listArtifactEvidence(
@@ -590,9 +660,15 @@ function listArtifactEvidence(
 ): ProgressReviewArtifactEvidence[] {
   const artifacts: ProgressReviewArtifactEvidence[] = [];
   for (const run of runs) {
-    const runDir = join(run.source.projectDir, ".kota", "runs", run.runId);
+    const runsRoot = resolve(run.source.projectDir, ".kota", "runs");
+    const runDir = resolve(runsRoot, run.runId);
+    assertPathInside(runsRoot, runDir, "progress-review run directory");
     if (!existsSync(runDir)) continue;
-    for (const name of listRunArtifactFiles(runDir)) {
+    const remaining = PROGRESS_REVIEW_MAX_ARTIFACTS - artifacts.length;
+    const listing = listRunArtifactFiles(runDir, remaining);
+    for (const name of listing.files) {
+      const path = resolve(runDir, ...name.split("/"));
+      assertPathInside(runDir, path, "progress-review artifact path");
       artifacts.push({
         id: sourceEvidenceId(run.source, `artifact:${run.runId}:${name}`),
         kind: "artifact",
@@ -604,10 +680,15 @@ function listArtifactEvidence(
           `${name} from ${run.evidence.workflow} ${run.evidence.status} (${run.runId})`,
         ),
       });
-      if (artifacts.length >= PROGRESS_REVIEW_MAX_ARTIFACTS) {
-        excluded.push(`artifacts: truncated after ${PROGRESS_REVIEW_MAX_ARTIFACTS} files`);
-        return artifacts;
-      }
+    }
+    if (listing.hitDepthLimit) {
+      excluded.push(
+        `artifacts for ${run.runId}: skipped entries deeper than ${PROGRESS_REVIEW_MAX_ARTIFACT_DEPTH} path segments`,
+      );
+    }
+    if (listing.hitFileLimit) {
+      excluded.push(`artifacts: truncated after ${PROGRESS_REVIEW_MAX_ARTIFACTS} files`);
+      return artifacts;
     }
   }
   return artifacts;

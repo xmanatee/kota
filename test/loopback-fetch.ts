@@ -667,7 +667,10 @@ async function createIncomingMessage(request: Request, url: URL): Promise<Incomi
   req.method = request.method;
   req.url = `${url.pathname}${url.search}`;
   req.headers = headersFromRequest(request.headers);
-  req.rawHeaders = rawHeadersFromRequest(request.headers);
+  if (req.headers.host === undefined) {
+    req.headers.host = url.host;
+  }
+  req.rawHeaders = rawHeadersFromIncomingHeaders(req.headers);
   return req;
 }
 

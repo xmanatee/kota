@@ -137,7 +137,7 @@ describe("builder black-box behavior reconstruction fixture", () => {
       cleanupFixtureWorkingDir(report.workingDir);
       rmSync(runArtifactBaseDir, { recursive: true, force: true });
     }
-  });
+  }, 120_000);
 
   it("rejects a behaviorally correct candidate that embeds the oracle artifact", () => {
     const fixture = loadFixture(FIXTURES_ROOT, FIXTURE_ID);

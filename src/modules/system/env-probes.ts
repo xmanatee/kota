@@ -41,6 +41,15 @@ function formatUptime(seconds: number): string {
 	return parts.join(" ");
 }
 
+function queryUptime(): string {
+	try {
+		return formatUptime(uptime());
+	} catch (err) {
+		const reason = err instanceof Error ? err.message : String(err);
+		return `unavailable (${reason})`;
+	}
+}
+
 export async function queryOS(): Promise<string> {
 	const lines: string[] = ["## OS"];
 	const plat = platform();
@@ -71,7 +80,7 @@ export async function queryOS(): Promise<string> {
 	}
 
 	lines.push(`shell: ${process.env.SHELL ?? (plat === "win32" ? "cmd.exe" : "unknown")}`);
-	lines.push(`uptime: ${formatUptime(uptime())}`);
+	lines.push(`uptime: ${queryUptime()}`);
 
 	if (plat !== "win32") {
 		const sudo = await exec("sh", ["-c", "command -v sudo"]);

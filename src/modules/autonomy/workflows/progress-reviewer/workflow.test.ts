@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -39,6 +40,8 @@ import {
   decodeProgressReviewAgentOutput,
   decodeProgressReviewAgentOutputForEvidence,
   PROGRESS_REVIEW_ARTIFACT,
+  PROGRESS_REVIEW_MAX_ARTIFACT_DEPTH,
+  PROGRESS_REVIEW_MAX_ARTIFACTS,
   type ProgressReviewActionResult,
   type ProgressReviewAgentOutput,
   readTaskStatus,
@@ -743,6 +746,177 @@ describe("progress-reviewer workflow", () => {
     );
     expect(evidence.artifacts.map((artifact) => artifact.file)).not.toEqual(
       expect.arrayContaining(["metadata.json", "trigger.json", "workflow.json"]),
+    );
+  });
+
+  it("rejects unsafe or mismatched run metadata ids before path lookup", () => {
+    const projectDir = trackProjectDir("progress-reviewer-run-id-boundary");
+    const scopeId = deriveDirectoryScopeId(projectDir);
+    writeRun(
+      projectDir,
+      "builder-success",
+      "builder",
+      "success",
+      "2026-06-04T11:20:00.000Z",
+    );
+    writeRun(
+      projectDir,
+      "renamed-run",
+      "builder",
+      "success",
+      "2026-06-04T11:30:00.000Z",
+    );
+    writeRunArtifactFile(projectDir, "builder-success", "artifact.txt", "inside");
+    writeFileSync(
+      join(projectDir, ".kota", "runs", "builder-success", "metadata.json"),
+      JSON.stringify(
+        {
+          id: "../../../outside-run-root",
+          workflow: "builder",
+          status: "success",
+          startedAt: "2026-06-04T11:20:00.000Z",
+          completedAt: "2026-06-04T11:20:00.000Z",
+          durationMs: 1000,
+        },
+        null,
+        2,
+      ),
+    );
+    writeFileSync(
+      join(projectDir, ".kota", "runs", "renamed-run", "metadata.json"),
+      JSON.stringify(
+        {
+          id: "other-run",
+          workflow: "builder",
+          status: "success",
+          startedAt: "2026-06-04T11:30:00.000Z",
+          completedAt: "2026-06-04T11:30:00.000Z",
+          durationMs: 1000,
+        },
+        null,
+        2,
+      ),
+    );
+
+    const evidence = collectProgressReviewEvidence({
+      projectDir,
+      trigger: {
+        event: progressReviewRequested.name,
+        payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+      },
+      now: NOW,
+    });
+
+    expect(evidence.runs).toHaveLength(0);
+    expect(evidence.artifacts).toHaveLength(0);
+    expect(evidence.excluded).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("workflow run builder-success"),
+        expect.stringContaining("workflow run renamed-run"),
+      ]),
+    );
+    expect(
+      evidence.evidence.map((item) => item.path ?? "").join("\n"),
+    ).not.toContain("outside-run-root");
+  });
+
+  it("stops artifact traversal at the max artifact count", () => {
+    const projectDir = trackProjectDir("progress-reviewer-artifact-count");
+    const scopeId = deriveDirectoryScopeId(projectDir);
+    writeRun(
+      projectDir,
+      "builder-success",
+      "builder",
+      "success",
+      "2026-06-04T11:20:00.000Z",
+    );
+    for (let index = 0; index < PROGRESS_REVIEW_MAX_ARTIFACTS; index += 1) {
+      writeRunArtifactFile(
+        projectDir,
+        "builder-success",
+        `artifact-${String(index).padStart(2, "0")}.txt`,
+        "artifact",
+      );
+    }
+    const unreadableDir = join(
+      projectDir,
+      ".kota",
+      "runs",
+      "builder-success",
+      "zz-unreadable",
+    );
+    mkdirSync(unreadableDir);
+    writeFileSync(join(unreadableDir, "blocked.txt"), "blocked");
+    chmodSync(unreadableDir, 0);
+
+    let evidence: ReturnType<typeof collectProgressReviewEvidence> | null = null;
+    try {
+      evidence = collectProgressReviewEvidence({
+        projectDir,
+        trigger: {
+          event: progressReviewRequested.name,
+          payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+        },
+        now: NOW,
+      });
+    } finally {
+      chmodSync(unreadableDir, 0o700);
+    }
+
+    if (!evidence) throw new Error("progress-review evidence was not collected");
+    expect(evidence.artifacts).toHaveLength(PROGRESS_REVIEW_MAX_ARTIFACTS);
+    expect(evidence.artifacts.map((artifact) => artifact.file)).not.toContain(
+      "zz-unreadable/blocked.txt",
+    );
+    expect(evidence.excluded).toContain(
+      `artifacts: truncated after ${PROGRESS_REVIEW_MAX_ARTIFACTS} files`,
+    );
+  });
+
+  it("does not traverse artifact directories at the max artifact depth", () => {
+    const projectDir = trackProjectDir("progress-reviewer-artifact-depth");
+    const scopeId = deriveDirectoryScopeId(projectDir);
+    writeRun(
+      projectDir,
+      "builder-success",
+      "builder",
+      "success",
+      "2026-06-04T11:20:00.000Z",
+    );
+    const maxDepthDirParts = Array.from(
+      { length: PROGRESS_REVIEW_MAX_ARTIFACT_DEPTH },
+      (_, index) => `level-${index}`,
+    );
+    const tooDeepPath = [...maxDepthDirParts, "too-deep.txt"].join("/");
+    const maxDepthDir = join(
+      projectDir,
+      ".kota",
+      "runs",
+      "builder-success",
+      ...maxDepthDirParts,
+    );
+    mkdirSync(maxDepthDir, { recursive: true });
+    writeFileSync(join(maxDepthDir, "too-deep.txt"), "too deep");
+    chmodSync(maxDepthDir, 0);
+
+    let evidence: ReturnType<typeof collectProgressReviewEvidence> | null = null;
+    try {
+      evidence = collectProgressReviewEvidence({
+        projectDir,
+        trigger: {
+          event: progressReviewRequested.name,
+          payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+        },
+        now: NOW,
+      });
+    } finally {
+      chmodSync(maxDepthDir, 0o700);
+    }
+
+    if (!evidence) throw new Error("progress-review evidence was not collected");
+    expect(evidence.artifacts.map((artifact) => artifact.file)).not.toContain(tooDeepPath);
+    expect(evidence.excluded).toContain(
+      `artifacts for builder-success: skipped entries deeper than ${PROGRESS_REVIEW_MAX_ARTIFACT_DEPTH} path segments`,
     );
   });
 
