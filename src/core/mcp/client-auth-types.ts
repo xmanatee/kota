@@ -461,10 +461,13 @@ export class McpAuthorizationFlowError extends Error {
     readonly issuer: string,
     readonly scopes: readonly string[],
     reason: string,
+    redactFlowDetail: (value: string) => string,
   ) {
     super(
       `MCP authorization flow failed for server "${serverName}" ` +
-        `resource "${resource}" issuer "${issuer}" scopes="${scopes.join(" ")}": ${reason}`,
+        `resource "${redactFlowDetail(resource)}" ` +
+        `issuer "${redactFlowDetail(issuer)}" ` +
+        `scopes="${redactFlowDetail(scopes.join(" "))}": ${redactFlowDetail(reason)}`,
     );
   }
 }

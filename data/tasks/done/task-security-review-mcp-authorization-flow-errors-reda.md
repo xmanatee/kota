@@ -1,12 +1,12 @@
 ---
 id: task-security-review-mcp-authorization-flow-errors-reda
 title: Security review: MCP authorization flow errors redact only the reason string, then interpolate resource, issuer, and scopes into the thrown error message without applying the MCP sensitive-value redactor. A remote MCP server can echo a configured or acquired bearer token in challenge scopes or protected-resource metadata and have it surfaced in logs when the follow-up authorization flow fails.
-status: ready
+status: done
 priority: p2
 area: security
 summary: MCP authorization flow errors redact only the reason string, then interpolate resource, issuer, and scopes into the thrown error message without applying the MCP sensitive-value redactor. A remote MCP server can echo a configured or acquired bearer token in challenge scopes or protected-resource metadata and have it surfaced in logs when the follow-up authorization flow fails.
 created_at: 2026-06-04T19:22:02.173Z
-updated_at: 2026-06-04T19:22:02.173Z
+updated_at: 2026-06-04T19:35:11.000Z
 ---
 
 ## Problem
@@ -54,4 +54,6 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `pnpm test src/core/mcp/client.test.ts` — 138 passed, including regressions for configured OAuth secrets in authorization-flow resource/issuer/scopes and acquired bearer tokens echoed through protected-resource metadata.
+- `pnpm lint` — passed.
+- `pnpm typecheck` — passed.

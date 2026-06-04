@@ -256,13 +256,13 @@ export abstract class McpClientAuthorizationRuntime extends McpClientOAuthTokenR
     scopes: readonly string[],
     reason: string,
   ): McpAuthorizationFlowError {
-    const redactedReason = this.redactSensitiveErrorMessage(reason);
     return new McpAuthorizationFlowError(
       this.serverName,
       resource,
       issuer,
       scopes,
-      redactedReason,
+      reason,
+      (detail) => this.redactSensitiveErrorMessage(detail),
     );
   }
 
