@@ -12,6 +12,7 @@ import { attentionRoutes } from "./workflows/attention-digest/attention-route.js
 import { buildDigestCommand } from "./workflows/daily-digest/digest-cli.js";
 import { digestRoutes } from "./workflows/daily-digest/digest-route.js";
 import { progressReviewRequested } from "./workflows/progress-reviewer/events.js";
+import { scopeImprovementRequested } from "./workflows/scope-improver/events.js";
 
 // Absolute path to KOTA's install root (the directory that contains `src/` in
 // source mode and `dist/` in built mode). Workflow `promptPath` values are
@@ -91,7 +92,7 @@ const autonomyModule: KotaModule = {
     "inbound-signals",
     "repo-ai-checks",
   ],
-  events: [progressReviewRequested],
+  events: [progressReviewRequested, scopeImprovementRequested],
   workflows: async () => await discoverAutonomyWorkflowDefinitions(),
   agents: async () => await discoverAutonomyAgents(),
   commands: () => [

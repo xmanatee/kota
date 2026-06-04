@@ -343,11 +343,14 @@ describe("progress-reviewer workflow", () => {
   const projectDirs: string[] = [];
 
   beforeEach(async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
     vi.clearAllMocks();
     await mockCleanWorktree();
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     resetModuleEventRegistry();
     for (const projectDir of projectDirs.splice(0)) {
       rmSync(projectDir, { recursive: true, force: true });

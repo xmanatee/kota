@@ -1,6 +1,7 @@
 import type { DaemonRuntimeContext } from "./daemon-init.js";
 import { releaseInstanceLock } from "./daemon-instance-lock.js";
 import { saveDaemonStateToDisk } from "./daemon-state-persistence.js";
+import { stopDaemonWorkflowRuntimes } from "./daemon-workflows.js";
 
 /**
  * Single unified teardown for the daemon. Both `stop()` and the failed-start
@@ -49,7 +50,7 @@ export async function runDaemonShutdown(
   ctx.activeChannels = [];
   ctx.channelStatuses = [];
 
-  await ctx.workflows.stop(...options.workflowsStopArgs);
+  await stopDaemonWorkflowRuntimes(ctx, ...options.workflowsStopArgs);
   await ctx.controlServer.stop();
 
   releaseInstanceLock(ctx.stateDir);

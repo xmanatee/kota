@@ -37,6 +37,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -46,6 +47,7 @@ import { initEventBus, resetEventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
+import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import { ApprovalQueue } from "./approval-queue.js";
 import { Daemon } from "./daemon.js";
 import { OwnerQuestionQueue } from "./owner-question-queue.js";
@@ -62,6 +64,15 @@ vi.mock("./task-store.js", async (importOriginal) => {
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitFor(predicate: () => boolean, timeoutMs = 2_000): Promise<void> {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (predicate()) return;
+    await wait(20);
+  }
+  expect(predicate()).toBe(true);
 }
 
 /**
@@ -475,4 +486,71 @@ describe("Daemon — two-project isolation across emit/persist/session boundarie
     },
     20_000,
   );
+
+  it("starts workflow event listeners for non-default configured projects", async () => {
+    const idA = deriveDirectoryScopeId(dirA);
+    const idB = deriveDirectoryScopeId(dirB);
+    const bus = initEventBus();
+
+    daemon = new Daemon({
+      projects: [{ projectDir: dirA }, { projectDir: dirB }],
+      stateDir: daemonStateDir,
+      idleIntervalMs: 1_000,
+      pollIntervalMs: 60_000,
+      workflows: [
+        registerWorkflowDefinition("test/non-default-event.ts", {
+          name: "non-default-event-listener",
+          triggers: [{ event: "test.scope.event" }],
+          steps: [
+            {
+              id: "mark-project",
+              type: "code",
+              run: ({ projectDir }) => {
+                mkdirSync(join(projectDir, ".kota"), { recursive: true });
+                writeFileSync(
+                  join(projectDir, ".kota", "scoped-event-marker.txt"),
+                  "ran\n",
+                  "utf-8",
+                );
+                return { marked: true };
+              },
+            },
+          ],
+        }),
+      ],
+    });
+
+    const startPromise = daemon.start();
+    try {
+      await wait(80);
+      expect(daemon.isRunning()).toBe(true);
+
+      new ProjectScopedEventBus(bus, idB).emitDynamic("test.scope.event", {
+        marker: "project-b",
+      });
+
+      await waitFor(() =>
+        existsSync(join(dirB, ".kota", "scoped-event-marker.txt")),
+      );
+
+      expect(existsSync(join(dirA, ".kota", "scoped-event-marker.txt"))).toBe(false);
+      expect(
+        new WorkflowRunStore(dirA).listRuns().filter(
+          (run) => run.workflow === "non-default-event-listener",
+        ),
+      ).toHaveLength(0);
+      expect(
+        new WorkflowRunStore(dirB).listRuns().filter(
+          (run) => run.workflow === "non-default-event-listener",
+        ),
+      ).toHaveLength(1);
+      expect(idA).not.toBe(idB);
+    } finally {
+      if (daemon) {
+        await daemon.stop(0);
+        await startPromise;
+        daemon = null;
+      }
+    }
+  });
 });

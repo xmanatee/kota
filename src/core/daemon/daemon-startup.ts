@@ -9,6 +9,10 @@ import type { DaemonRuntimeContext } from "./daemon-init.js";
 import { acquireInstanceLock, writeControlFile } from "./daemon-instance-lock.js";
 import { saveDaemonStateToDisk } from "./daemon-state-persistence.js";
 import { subscribeDaemon } from "./daemon-subscriptions.js";
+import {
+  startDaemonWorkflowRuntimes,
+  validateDaemonWorkflowRuntimes,
+} from "./daemon-workflows.js";
 import { getScheduler, type ScheduledItem } from "./scheduler.js";
 import { sweepExpiredSessions } from "./session-sweep.js";
 
@@ -50,7 +54,7 @@ export async function runDaemonStartup(
   process.on("SIGTERM", ctx.shutdownHandler);
 
   await acquireInstanceLock(ctx.stateDir, ctx.log);
-  ctx.workflows.validateDefinitions();
+  validateDaemonWorkflowRuntimes(ctx);
 
   ctx.log("Daemon starting...");
   warnIgnoredUntrustedProjectConfig(ctx.projectDir, ctx.log);
@@ -124,7 +128,7 @@ export async function runDaemonStartup(
     ctx.log(`Notification gate active: quiet hours ${quietHours.start}–${quietHours.end}`);
   }
 
-  ctx.workflows.start();
+  startDaemonWorkflowRuntimes(ctx);
 
   const operator = process.env.KOTA_OPERATOR;
   const channelCtx = {

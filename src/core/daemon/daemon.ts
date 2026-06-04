@@ -14,6 +14,10 @@ import { runDaemonShutdown } from "./daemon-shutdown.js";
 import { runDaemonStartup } from "./daemon-startup.js";
 import type { DaemonState } from "./daemon-state.js";
 import { loadDaemonStateFromDisk, saveDaemonStateToDisk } from "./daemon-state-persistence.js";
+import {
+  anyDaemonWorkflowRuntimeBusy,
+  setDaemonWorkflowDispatchPaused,
+} from "./daemon-workflows.js";
 import { ProjectRuntimeRegistry } from "./project-runtime.js";
 import {
   type ConfiguredProjectInput,
@@ -201,7 +205,7 @@ export class Daemon {
   }
 
   hasActiveWorkflow(): boolean {
-    return this.ctx.workflows.isBusy();
+    return anyDaemonWorkflowRuntimeBusy(this.ctx);
   }
 
   /** Snapshot of every contributed channel's startup posture. */
@@ -237,14 +241,14 @@ export class Daemon {
     if (this.ctx.restartRequested) return;
     this.ctx.restartRequested = true;
     this.ctx.restartReason = reason;
-    this.ctx.workflows.setDispatchPaused(true);
+    setDaemonWorkflowDispatchPaused(this.ctx, true);
     this.ctx.log(`${reason} — restart requested`);
     this.maybeRestart();
   }
 
   private maybeRestart(): void {
     if (!this.ctx.restartRequested || this.ctx.stopping) return;
-    if (this.ctx.workflows.isBusy()) return;
+    if (anyDaemonWorkflowRuntimeBusy(this.ctx)) return;
 
     const reason = this.ctx.restartReason ?? "workflow requested restart";
     this.ctx.log(`Restarting daemon: ${reason}`);

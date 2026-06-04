@@ -1,13 +1,13 @@
 ---
 id: task-add-continuous-scope-improvement-automation
 title: Add continuous scope improvement automation
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Add a scope-aware autonomous improvement loop that watches configured scopes, tracks changes and outcomes, and proposes or executes evidence-backed improvements without hardcoding project types.
 depends_on: [task-promote-projects-into-hierarchical-scopes, task-unify-hooks-and-workflows-under-one-automation-pro, task-add-generic-event-batching-to-workflow-triggers]
 created_at: 2026-06-03T14:01:12.443Z
-updated_at: 2026-06-04T10:51:23.503Z
+updated_at: 2026-06-04T13:22:00.000Z
 ---
 
 ## Problem

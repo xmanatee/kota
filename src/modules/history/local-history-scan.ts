@@ -9,6 +9,7 @@ import { PROJECT_DIR_ENV_VAR } from "#core/config/project-dir.js";
 import type { ConversationRecord } from "#core/modules/provider-types.js";
 
 const LOCAL_HISTORY_SCAN_MAX_GENERAL_CHILDREN = 1000;
+const LOCAL_HISTORY_SCAN_MAX_PREFERRED_CHILDREN = 1000;
 
 export type LocalHistoryScanOptions = {
   cwd: string;
@@ -18,60 +19,96 @@ export type LocalHistoryScanOptions = {
 export function listLocalProjectHistoryRecords(
   options: LocalHistoryScanOptions,
 ): ConversationRecord[] {
+  const seen = new Set<string>();
   const conversations: ConversationRecord[] = [];
-  for (const projectDir of localHistoryCandidateProjectDirs(options.cwd)) {
-    conversations.push(...readLocalProjectHistoryRecords(projectDir));
-    if (options.limit !== undefined && conversations.length >= options.limit) {
-      return conversations.slice(0, options.limit);
-    }
+  if (addProjectHistoryRecords(options.cwd, seen, conversations, options.limit)) {
+    return conversations.slice(0, options.limit);
+  }
+  if (
+    addProjectHistoryRecords(
+      process.env[PROJECT_DIR_ENV_VAR],
+      seen,
+      conversations,
+      options.limit,
+    )
+  ) {
+    return conversations.slice(0, options.limit);
+  }
+  if (
+    addChildHistoryProjects(options.cwd, seen, conversations, options.limit)
+  ) {
+    return conversations.slice(0, options.limit);
+  }
+  if (
+    addChildHistoryProjects(
+      dirname(options.cwd),
+      seen,
+      conversations,
+      options.limit,
+    )
+  ) {
+    return conversations.slice(0, options.limit);
   }
   return conversations;
 }
 
-function localHistoryCandidateProjectDirs(cwd: string): string[] {
-  const dirs = new Set<string>();
-  const add = (dir: string | undefined) => {
-    const trimmed = dir?.trim();
-    if (trimmed) dirs.add(resolve(trimmed));
-  };
-
-  add(cwd);
-  add(process.env[PROJECT_DIR_ENV_VAR]);
-  addChildHistoryProjects(cwd, dirs);
-  addChildHistoryProjects(dirname(cwd), dirs);
-  return [...dirs];
+function addProjectHistoryRecords(
+  dir: string | undefined,
+  seen: Set<string>,
+  conversations: ConversationRecord[],
+  limit: number | undefined,
+): boolean {
+  const trimmed = dir?.trim();
+  if (!trimmed) return false;
+  const projectDir = resolve(trimmed);
+  if (seen.has(projectDir)) return hasReachedLimit(conversations, limit);
+  seen.add(projectDir);
+  conversations.push(...readLocalProjectHistoryRecords(projectDir));
+  return hasReachedLimit(conversations, limit);
 }
 
-function addChildHistoryProjects(root: string, dirs: Set<string>): void {
+function addChildHistoryProjects(
+  root: string,
+  seen: Set<string>,
+  conversations: ConversationRecord[],
+  limit: number | undefined,
+): boolean {
   let entries: Dirent[];
   try {
     entries = readdirSync(root, { withFileTypes: true });
   } catch {
-    return;
+    return false;
   }
 
-  const preferred = entries.filter((entry) => entry.name.includes("kota"));
-  const general = entries.filter((entry) => !entry.name.includes("kota"));
-  scanChildHistoryProjects(root, preferred, dirs);
-  scanChildHistoryProjects(
-    root,
-    general.slice(0, LOCAL_HISTORY_SCAN_MAX_GENERAL_CHILDREN),
-    dirs,
+  const preferred = entries
+    .filter((entry) => entry.name.includes("kota"))
+    .slice(0, LOCAL_HISTORY_SCAN_MAX_PREFERRED_CHILDREN);
+  const general = entries
+    .filter((entry) => !entry.name.includes("kota"))
+    .slice(0, LOCAL_HISTORY_SCAN_MAX_GENERAL_CHILDREN);
+  return (
+    scanChildHistoryProjects(root, preferred, seen, conversations, limit) ||
+    scanChildHistoryProjects(root, general, seen, conversations, limit)
   );
 }
 
 function scanChildHistoryProjects(
   root: string,
   entries: Dirent[],
-  dirs: Set<string>,
-): void {
+  seen: Set<string>,
+  conversations: ConversationRecord[],
+  limit: number | undefined,
+): boolean {
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     const projectDir = join(root, entry.name);
     if (existsSync(join(projectDir, ".kota", "history", "index.json"))) {
-      dirs.add(resolve(projectDir));
+      if (addProjectHistoryRecords(projectDir, seen, conversations, limit)) {
+        return true;
+      }
     }
   }
+  return false;
 }
 
 function readLocalProjectHistoryRecords(projectDir: string): ConversationRecord[] {
@@ -86,6 +123,13 @@ function readLocalProjectHistoryRecords(projectDir: string): ConversationRecord[
   } catch {
     return [];
   }
+}
+
+function hasReachedLimit(
+  conversations: ConversationRecord[],
+  limit: number | undefined,
+): boolean {
+  return limit !== undefined && conversations.length >= limit;
 }
 
 function isConversationRecord(
