@@ -1,5 +1,10 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
+import { isAbortError } from "./http-request-utils.js";
+import {
+  fetchPublicWebAccessUrl,
+  WebAccessTargetError,
+} from "./private-network.js";
 import {
   type BraveSearchResponse,
   formatResults,
@@ -30,6 +35,11 @@ export const webSearchTool: KotaTool = {
   },
 };
 
+type SearchProviderResult =
+  | { status: "results"; results: SearchResult[] }
+  | { status: "unavailable" }
+  | { status: "blocked"; message: string };
+
 export async function runWebSearch(
   input: Record<string, unknown>,
 ): Promise<ToolResult> {
@@ -44,8 +54,11 @@ export async function runWebSearch(
   const braveKey = process.env.BRAVE_SEARCH_API_KEY;
   if (braveKey) {
     const braveResults = await fetchBraveSearch(query, numResults, braveKey);
-    if (braveResults && braveResults.length > 0) {
-      return { content: formatResults(braveResults) };
+    if (braveResults.status === "blocked") {
+      return { content: braveResults.message, is_error: true };
+    }
+    if (braveResults.status === "results") {
+      return { content: formatResults(braveResults.results) };
     }
     // Brave returned no results — fall through to DDG
   }
@@ -57,14 +70,14 @@ async function fetchBraveSearch(
   query: string,
   numResults: number,
   apiKey: string,
-): Promise<SearchResult[] | null> {
+): Promise<SearchProviderResult> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
   try {
     const url =
       `https://api.search.brave.com/res/v1/web/search` +
       `?q=${encodeURIComponent(query)}&count=${numResults}`;
-    const response = await fetch(url, {
+    const { response } = await fetchPublicWebAccessUrl(url, {
       signal: controller.signal,
       headers: {
         Accept: "application/json",
@@ -72,13 +85,19 @@ async function fetchBraveSearch(
         "X-Subscription-Token": apiKey,
       },
     });
-    clearTimeout(timeout);
-    if (!response.ok) return null;
+    if (!response.ok) return { status: "unavailable" };
     const data = (await response.json()) as BraveSearchResponse;
-    return parseBraveResults(data, numResults);
-  } catch {
+    const results = parseBraveResults(data, numResults);
+    return results.length > 0
+      ? { status: "results", results }
+      : { status: "unavailable" };
+  } catch (err) {
+    if (err instanceof WebAccessTargetError) {
+      return { status: "blocked", message: err.message };
+    }
+    return { status: "unavailable" };
+  } finally {
     clearTimeout(timeout);
-    return null;
   }
 }
 
@@ -86,12 +105,11 @@ async function fetchDuckDuckGo(
   query: string,
   numResults: number,
 ): Promise<ToolResult> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15_000);
-
     const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-    const response = await fetch(searchUrl, {
+    const { response } = await fetchPublicWebAccessUrl(searchUrl, {
       signal: controller.signal,
       headers: {
         "User-Agent":
@@ -99,10 +117,7 @@ async function fetchDuckDuckGo(
           "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         Accept: "text/html",
       },
-      redirect: "follow",
     });
-
-    clearTimeout(timeout);
 
     if (!response.ok) {
       return { content: `Search failed: HTTP ${response.status}`, is_error: true };
@@ -125,11 +140,15 @@ async function fetchDuckDuckGo(
     }
     return { content: formatResults(results) };
   } catch (err) {
-    if (err instanceof DOMException && err.name === "AbortError" ||
-        err instanceof Error && err.name === "AbortError") {
+    if (isAbortError(err)) {
       return { content: "Search timed out (15s)", is_error: true };
+    }
+    if (err instanceof WebAccessTargetError) {
+      return { content: err.message, is_error: true };
     }
     const msg = err instanceof Error ? err.message : String(err);
     return { content: `Search error: ${msg}`, is_error: true };
+  } finally {
+    clearTimeout(timeout);
   }
 }

@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-websearch-tool-uses-raw-fetch-
 title: Security review: The web_search tool uses raw fetch for Brave and DuckDuckGo instead of the shared public-target fetcher, so redirects are not revalidated against loopback/private-network targets. The Brave path also sends X-Subscription-Token through this unguarded redirect path.
-status: ready
+status: done
 priority: p2
 area: security
 summary: The web_search tool uses raw fetch for Brave and DuckDuckGo instead of the shared public-target fetcher, so redirects are not revalidated against loopback/private-network targets. The Brave path also sends X-Subscription-Token through this unguarded redirect path.
 created_at: 2026-06-04T19:22:02.188Z
-updated_at: 2026-06-04T19:22:02.188Z
+updated_at: 2026-06-04T19:49:11Z
 ---
 
 ## Problem
@@ -56,3 +56,9 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Completion Evidence
+
+- `pnpm vitest run src/modules/web-access/web-search.test.ts` — 39 tests passed, including Brave cross-origin redirect token stripping and DuckDuckGo loopback redirect rejection.
+- `pnpm typecheck` — passed.
+- `pnpm exec biome check src/modules/web-access/web-search.ts src/modules/web-access/web-search.test.ts` — passed.

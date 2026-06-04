@@ -1,6 +1,54 @@
+import { lookup } from "node:dns/promises";
+import { request as httpRequest, type IncomingMessage, type RequestOptions } from "node:http";
+import { request as httpsRequest } from "node:https";
+import { Readable } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { runWebSearch } from "./web-search.js";
 import { isRateLimited, parseBraveResults, parseSearchResults } from "./web-search-helpers.js";
+
+vi.mock("node:dns/promises", () => ({
+  lookup: vi.fn(),
+}));
+
+vi.mock("node:http", () => ({
+  request: vi.fn(),
+}));
+
+vi.mock("node:https", () => ({
+  request: vi.fn(),
+}));
+
+type QueuedSearchResponse =
+  | {
+    status: number;
+    statusText: string;
+    headers?: Record<string, string>;
+    body?: string;
+  }
+  | { error: Error | DOMException };
+
+type CapturedSearchRequest = {
+  url: string;
+  method: string | undefined;
+  headers: Record<string, string>;
+  body: string | Uint8Array | undefined;
+};
+
+const mockLookup = vi.mocked(lookup);
+const mockHttpRequest = vi.mocked(httpRequest);
+const mockHttpsRequest = vi.mocked(httpsRequest);
+const originalBraveSearchApiKey = process.env.BRAVE_SEARCH_API_KEY;
+
+afterEach(() => {
+  mockLookup.mockReset();
+  mockHttpRequest.mockReset();
+  mockHttpsRequest.mockReset();
+  if (originalBraveSearchApiKey === undefined) {
+    delete process.env.BRAVE_SEARCH_API_KEY;
+  } else {
+    process.env.BRAVE_SEARCH_API_KEY = originalBraveSearchApiKey;
+  }
+});
 
 describe("isRateLimited", () => {
   it("detects CAPTCHA pages", () => {
@@ -351,20 +399,77 @@ describe("parseSearchResults — entity decoding (cross-module: html-extract)", 
   });
 });
 
-describe("runWebSearch — abort detection", () => {
-  const originalFetch = globalThis.fetch;
-
+describe("runWebSearch — public target fetch boundary", () => {
   beforeEach(() => {
-    delete process.env.BRAVE_SEARCH_API_KEY;
+    mockLookup.mockResolvedValue([{ address: "93.184.216.34", family: 4 }] as never);
   });
 
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
+  it("strips the Brave subscription token on cross-origin redirects", async () => {
+    process.env.BRAVE_SEARCH_API_KEY = "secret-brave-token";
+    const requests = mockHttpsResponses([
+      {
+        status: 302,
+        statusText: "Found",
+        headers: { location: "https://search-cdn.example.test/final" },
+      },
+      {
+        status: 200,
+        statusText: "OK",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          web: {
+            results: [
+              {
+                title: "Result",
+                url: "https://example.com/result",
+                description: "Search result",
+              },
+            ],
+          },
+        }),
+      },
+    ]);
+
+    const result = await runWebSearch({ query: "token redirect" });
+
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("Result");
+    expect(requests).toHaveLength(2);
+    expect(requests[0]?.headers["X-Subscription-Token"]).toBe("secret-brave-token");
+    expect(requests[1]?.url).toBe("https://search-cdn.example.test/final");
+    expect(requests[1]?.headers["X-Subscription-Token"]).toBeUndefined();
+    expect(requests[1]?.headers["Accept-Encoding"]).toBeUndefined();
+    expect(requests[1]?.headers.Accept).toBe("application/json");
+  });
+
+  it("rejects DuckDuckGo redirects to loopback targets before following them", async () => {
+    delete process.env.BRAVE_SEARCH_API_KEY;
+    const requests = mockHttpsResponses([
+      {
+        status: 302,
+        statusText: "Found",
+        headers: { location: "http://127.0.0.1:8765/status" },
+      },
+    ]);
+
+    const result = await runWebSearch({ query: "private redirect" });
+
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("loopback/private-network");
+    expect(requests).toHaveLength(1);
+    expect(mockHttpRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe("runWebSearch — abort detection", () => {
+  beforeEach(() => {
+    delete process.env.BRAVE_SEARCH_API_KEY;
+    mockLookup.mockResolvedValue([{ address: "93.184.216.34", family: 4 }] as never);
   });
 
   it("detects AbortError by error name, not message content", () => {
     const abortErr = new DOMException("The operation was aborted", "AbortError");
-    globalThis.fetch = vi.fn().mockRejectedValue(abortErr);
+    mockHttpsResponses([{ error: abortErr }]);
 
     return runWebSearch({ query: "test" }).then((result) => {
       expect(result.content).toBe("Search timed out (15s)");
@@ -374,7 +479,7 @@ describe("runWebSearch — abort detection", () => {
 
   it("does not misidentify generic errors mentioning 'abort'", () => {
     const genericErr = new Error("Connection aborted by remote host");
-    globalThis.fetch = vi.fn().mockRejectedValue(genericErr);
+    mockHttpsResponses([{ error: genericErr }]);
 
     return runWebSearch({ query: "test" }).then((result) => {
       expect(result.content).toBe("Search error: Connection aborted by remote host");
@@ -384,7 +489,7 @@ describe("runWebSearch — abort detection", () => {
 
   it("handles non-abort errors normally", () => {
     const networkErr = new Error("getaddrinfo ENOTFOUND html.duckduckgo.com");
-    globalThis.fetch = vi.fn().mockRejectedValue(networkErr);
+    mockHttpsResponses([{ error: networkErr }]);
 
     return runWebSearch({ query: "test" }).then((result) => {
       expect(result.content).toContain("Search error:");
@@ -393,3 +498,52 @@ describe("runWebSearch — abort detection", () => {
     });
   });
 });
+
+function mockHttpsResponses(responses: QueuedSearchResponse[]): CapturedSearchRequest[] {
+  const requests: CapturedSearchRequest[] = [];
+  mockHttpsRequest.mockImplementation(mockRequestFactory(responses, requests) as never);
+  return requests;
+}
+
+function mockRequestFactory(
+  responses: QueuedSearchResponse[],
+  requests: CapturedSearchRequest[],
+) {
+  const queued = [...responses];
+  return (url: URL, options: RequestOptions, callback: (response: IncomingMessage) => void) => {
+    const response = queued.shift();
+    if (!response) throw new Error(`unexpected request to ${url.toString()}`);
+
+    let errorHandler: ((err: Error | DOMException) => void) | undefined;
+    const request = {
+      on: vi.fn((event: string, handler: (err: Error | DOMException) => void) => {
+        if (event === "error") errorHandler = handler;
+        return request;
+      }),
+      end: vi.fn((body: string | Uint8Array | undefined) => {
+        requests.push({
+          url: url.toString(),
+          method: options.method,
+          headers: options.headers as Record<string, string>,
+          body,
+        });
+        if ("error" in response) {
+          errorHandler?.(response.error);
+          return;
+        }
+        callback(readableSearchResponse(response));
+      }),
+    };
+    return request;
+  };
+}
+
+function readableSearchResponse(response: Exclude<QueuedSearchResponse, { error: Error | DOMException }>): IncomingMessage {
+  const stream = Readable.from(response.body ? [Buffer.from(response.body)] : []);
+  Object.assign(stream, {
+    statusCode: response.status,
+    statusMessage: response.statusText,
+    headers: response.headers ?? {},
+  });
+  return stream as IncomingMessage;
+}
