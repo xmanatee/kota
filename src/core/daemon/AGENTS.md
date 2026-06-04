@@ -98,6 +98,8 @@ Recoverable surfaces (append-only or file-backed; survive crash):
   `add`, `cancel`, and `markFired`.
 - **Approval queue** (`.kota/approvals/*.json`) — one file per approval,
   rewritten on every status transition.
+- **Owner decisions** (`.kota/owner-decisions/*.json`) — one file per
+  decision, rewritten on answer, cancel, expire, and consumption.
 - **Owner-question queue** (`.kota/owner-questions/*.json`) — one file per
   question, rewritten on every status transition.
 - **Task store** (`data/tasks/`) — file-backed; unaffected by daemon crash.
@@ -138,8 +140,7 @@ the cost):
 - **SSE subscriptions and chat pool sweep timers** — transient; clients
   reconnect.
 
-New daemon-owned runtime state must answer this question at design time.
-Default to writing through to run artifacts or emitting a typed bus event
-rather than holding state only in process memory. Do not introduce
-session-state write-through on every event if a coarser checkpoint preserves
-the wake-path guarantee.
+New daemon-owned runtime state must answer this question at design time. Prefer
+run artifacts or typed bus events over process-only state. Do not add
+per-event session write-through when a coarser checkpoint preserves wake-path
+guarantees.

@@ -389,6 +389,54 @@ export type BusEvents = {
     id: string;
     pendingCount: number;
   };
+  "owner.decision.requested": {
+    projectId: ProjectId;
+    id: string;
+    status: "pending" | "answered" | "canceled" | "expired" | "consumed";
+    kind: "single-choice" | "multi-choice" | "free-text" | "form";
+    requesterKind: "workflow" | "session" | "manual";
+    ownerQuestionId: string | null;
+    actionId: string | null;
+    workflowName: string | null;
+    runId: string | null;
+    pendingCount: number;
+  };
+  "owner.decision.changed": {
+    projectId: ProjectId;
+    id: string;
+    status: "pending" | "answered" | "canceled" | "expired" | "consumed";
+    kind: "single-choice" | "multi-choice" | "free-text" | "form";
+    requesterKind: "workflow" | "session" | "manual";
+    ownerQuestionId: string | null;
+    actionId: string | null;
+    workflowName: string | null;
+    runId: string | null;
+    pendingCount: number;
+  };
+  "owner.decision.resolved": {
+    projectId: ProjectId;
+    id: string;
+    status: "pending" | "answered" | "canceled" | "expired" | "consumed";
+    kind: "single-choice" | "multi-choice" | "free-text" | "form";
+    requesterKind: "workflow" | "session" | "manual";
+    ownerQuestionId: string | null;
+    actionId: string | null;
+    workflowName: string | null;
+    runId: string | null;
+    pendingCount: number;
+  };
+  "owner.decision.consumed": {
+    projectId: ProjectId;
+    id: string;
+    status: "pending" | "answered" | "canceled" | "expired" | "consumed";
+    kind: "single-choice" | "multi-choice" | "free-text" | "form";
+    requesterKind: "workflow" | "session" | "manual";
+    ownerQuestionId: string | null;
+    actionId: string | null;
+    workflowName: string | null;
+    runId: string | null;
+    pendingCount: number;
+  };
   "task.changed": {
     projectId: ProjectId;
     counts: { pending: number; in_progress: number; done: number };

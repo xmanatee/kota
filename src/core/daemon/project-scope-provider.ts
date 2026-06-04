@@ -8,7 +8,7 @@ import type { ProjectId, ProjectRegistryProjection } from "./scope-registry.js";
 
 export type DaemonProjectRuntimeScope = Pick<
   ProjectRuntime,
-  "project" | "approvalQueue" | "ownerQuestionQueue"
+  "project" | "approvalQueue" | "ownerDecisionStore" | "ownerQuestionQueue"
 >;
 
 export type DaemonProjectRuntimeResolution =

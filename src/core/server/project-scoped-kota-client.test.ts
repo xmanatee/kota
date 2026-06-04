@@ -3,7 +3,7 @@ import type { KotaClient } from "./kota-client.js";
 import { createProjectScopedKotaClient } from "./project-scoped-kota-client.js";
 
 describe("createProjectScopedKotaClient", () => {
-  it("injects projectId into approvals and ownerQuestions namespaces", async () => {
+  it("injects projectId into approvals, ownerDecisions, and ownerQuestions namespaces", async () => {
     const calls: unknown[] = [];
     const base = {
       forProject: () => {
@@ -47,6 +47,24 @@ describe("createProjectScopedKotaClient", () => {
           return { ok: false as const, reason: "not_found" as const };
         },
       },
+      ownerDecisions: {
+        list: async (filter: unknown) => {
+          calls.push(["ownerDecisions.list", filter]);
+          return { decisions: [] };
+        },
+        show: async (id: string, project: unknown) => {
+          calls.push(["ownerDecisions.show", id, project]);
+          return { found: false as const };
+        },
+        answer: async (id: string, selectedValue: unknown, project: unknown) => {
+          calls.push(["ownerDecisions.answer", id, selectedValue, project]);
+          return { ok: false as const, reason: "not_found" as const };
+        },
+        cancel: async (id: string, reason: string, project: unknown) => {
+          calls.push(["ownerDecisions.cancel", id, reason, project]);
+          return { ok: false as const, reason: "not_found" as const };
+        },
+      },
       ownerQuestions: {
         list: async (filter: unknown) => {
           calls.push(["ownerQuestions.list", filter]);
@@ -69,6 +87,10 @@ describe("createProjectScopedKotaClient", () => {
     await scoped.approvals.list({ status: "all" });
     await scoped.approvals.approve("approval-1", "ok");
     await scoped.approvals.reject("approval-2", "no");
+    await scoped.ownerDecisions.list({ status: "pending" });
+    await scoped.ownerDecisions.show("decision-1");
+    await scoped.ownerDecisions.answer("decision-1", { kind: "single-choice", optionId: "yes" });
+    await scoped.ownerDecisions.cancel("decision-2", "stale");
     await scoped.ownerQuestions.list({ status: "pending" });
     await scoped.ownerQuestions.answer("question-1", "yes");
     await scoped.ownerQuestions.dismiss("question-2", "stale");
@@ -79,6 +101,10 @@ describe("createProjectScopedKotaClient", () => {
       ["approvals.list", { status: "all", projectId: "project-b" }],
       ["approvals.approve", "approval-1", "ok", { projectId: "project-b" }],
       ["approvals.reject", "approval-2", "no", { projectId: "project-b" }],
+      ["ownerDecisions.list", { status: "pending", projectId: "project-b" }],
+      ["ownerDecisions.show", "decision-1", { projectId: "project-b" }],
+      ["ownerDecisions.answer", "decision-1", { kind: "single-choice", optionId: "yes" }, { projectId: "project-b" }],
+      ["ownerDecisions.cancel", "decision-2", "stale", { projectId: "project-b" }],
       ["ownerQuestions.list", { status: "pending", projectId: "project-b" }],
       ["ownerQuestions.answer", "question-1", "yes", { projectId: "project-b" }],
       ["ownerQuestions.dismiss", "question-2", "stale", { projectId: "project-b" }],

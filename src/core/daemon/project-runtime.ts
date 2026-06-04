@@ -32,6 +32,10 @@ import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js"
 import { ApprovalQueue, setApprovalQueueInstance } from "./approval-queue.js";
 import { NotificationGate, type QuietHoursConfig } from "./notification-gate.js";
 import {
+  OwnerDecisionStore,
+  setOwnerDecisionStoreInstance,
+} from "./owner-decision-store.js";
+import {
   OwnerQuestionQueue,
   setOwnerQuestionQueueInstance,
 } from "./owner-question-queue.js";
@@ -68,6 +72,7 @@ export type ProjectRuntime = {
   readonly scheduler: Scheduler;
   readonly moduleLogStore: ModuleLogStore;
   readonly approvalQueue: ApprovalQueue;
+  readonly ownerDecisionStore: OwnerDecisionStore;
   readonly ownerQuestionQueue: OwnerQuestionQueue;
   readonly workflowRuntime: WorkflowRuntime;
   /** Absolute path to this project's `push-tokens.json`. */
@@ -112,6 +117,11 @@ export function createProjectRuntime(
   const scheduler = new Scheduler(projectDir, undefined, pbus);
   const moduleLogStore = new ModuleLogStore(projectDir);
   const approvalQueue = new ApprovalQueue(join(projectDir, ".kota", "approvals"), pbus);
+  const ownerDecisionStore = new OwnerDecisionStore(
+    join(projectDir, ".kota", "owner-decisions"),
+    opts.project.projectId,
+    pbus,
+  );
   const ownerQuestionQueue = new OwnerQuestionQueue(
     join(projectDir, ".kota", "owner-questions"),
     pbus,
@@ -138,6 +148,7 @@ export function createProjectRuntime(
     setSchedulerInstance(scheduler);
     setModuleLogStoreInstance(moduleLogStore);
     setApprovalQueueInstance(approvalQueue);
+    setOwnerDecisionStoreInstance(ownerDecisionStore);
     setOwnerQuestionQueueInstance(ownerQuestionQueue);
   }
 
@@ -154,6 +165,7 @@ export function createProjectRuntime(
     scheduler,
     moduleLogStore,
     approvalQueue,
+    ownerDecisionStore,
     ownerQuestionQueue,
     workflowRuntime,
     pushTokenStorePath: join(projectDir, ".kota", "push-tokens.json"),

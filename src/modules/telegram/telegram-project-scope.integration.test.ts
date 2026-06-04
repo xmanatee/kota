@@ -408,6 +408,7 @@ function registerDaemonProjectScopeProvider(
         runtime: {
           project,
           approvalQueue: {} as never,
+          ownerDecisionStore: {} as never,
           ownerQuestionQueue: {} as never,
         },
       };

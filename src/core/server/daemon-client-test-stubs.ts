@@ -91,6 +91,12 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
       log: async () => ({ entries: [] }),
       show: async () => ({ ok: false, reason: "not_found" }),
     },
+    ownerDecisions: {
+      list: async () => ({ decisions: [] }),
+      show: async () => ({ found: false as const }),
+      answer: async () => ({ ok: false as const, reason: "not_found" as const }),
+      cancel: async () => ({ ok: false as const, reason: "not_found" as const }),
+    },
     ownerQuestions: {
       list: async () => ({ questions: [] }),
       answer: async () => ({ ok: false, reason: "not_found" }),

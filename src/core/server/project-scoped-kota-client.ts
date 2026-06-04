@@ -206,6 +206,24 @@ export function createProjectScopedKotaClient(
           base.approvals.reject(id, reason, withProject(project, selectedProjectId)),
         ),
     },
+    ownerDecisions: {
+      list: (filter) =>
+        scoped(selectedProjectId, () =>
+          base.ownerDecisions.list(withProject(filter, selectedProjectId)),
+        ),
+      show: (id, project) =>
+        scoped(selectedProjectId, () =>
+          base.ownerDecisions.show(id, withProject(project, selectedProjectId)),
+        ),
+      answer: (id, selectedValue, project) =>
+        scoped(selectedProjectId, () =>
+          base.ownerDecisions.answer(id, selectedValue, withProject(project, selectedProjectId)),
+        ),
+      cancel: (id, reason, project) =>
+        scoped(selectedProjectId, () =>
+          base.ownerDecisions.cancel(id, reason, withProject(project, selectedProjectId)),
+        ),
+    },
     ownerQuestions: {
       list: (filter) =>
         scoped(selectedProjectId, () =>

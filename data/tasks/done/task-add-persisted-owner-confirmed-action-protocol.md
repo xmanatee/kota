@@ -1,13 +1,13 @@
 ---
 id: task-add-persisted-owner-confirmed-action-protocol
 title: Add persisted owner confirmed action protocol
-status: ready
+status: done
 priority: p1
 area: core
 summary: Add a structured owner-decision and external-action protocol so workflows can persist choices, request confirmation, and execute provider-specific side effects only after the required approval.
 depends_on: [task-promote-projects-into-hierarchical-scopes, task-unify-hooks-and-workflows-under-one-automation-pro, task-add-module-setup-and-auth-requirement-protocol]
 created_at: 2026-06-03T14:01:17.340Z
-updated_at: 2026-06-04T17:13:04.035Z
+updated_at: 2026-06-04T18:07:06.300Z
 ---
 
 ## Problem
@@ -92,3 +92,18 @@ them safely without turning confirmations into informal chat text.
   action step.
 - CLI transcript or rendered client fixture showing pending, answered,
   expired, and consumed decision states with secrets redacted.
+
+## Completion Notes
+
+- Added `OwnerDecisionStore`, validation/projection helpers, storage redaction
+  for sensitive selected values, typed events,
+  workflow decision steps, and confirmed action execution.
+- Added the owner-decisions module with CLI, local/daemon client namespace,
+  public routes, and daemon control routes.
+- Acceptance artifacts:
+  `.kota/runs/2026-06-04T17-40-24-826Z-builder-l3zcfw/owner-decision-action-fixture.json`
+  and
+  `.kota/runs/2026-06-04T17-40-24-826Z-builder-l3zcfw/owner-decision-client-fixture.txt`.
+- Verification: `pnpm test -- src/core/loop/instruction-files.test.ts src/modules/repo-tasks/task-queue-validation.test.ts`
+  completed with 723 test files passing; `pnpm exec tsc --noEmit --pretty false --incremental false`
+  completed successfully.

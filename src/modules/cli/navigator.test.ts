@@ -92,6 +92,12 @@ function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
       search: stub({ ok: true, entries: [] }),
       reindex: stub({ indexed: 0, failed: 0 }),
     },
+    ownerDecisions: {
+      list: stub({ decisions: [] }),
+      show: stub({ found: false }),
+      answer: stub({ ok: false, reason: "not_found" }),
+      cancel: stub({ ok: false, reason: "not_found" }),
+    },
     ownerQuestions: {
       list: stub({ questions: [] }),
       answer: stub({ ok: false, reason: "not_found" }),

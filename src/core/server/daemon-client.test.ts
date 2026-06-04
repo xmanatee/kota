@@ -31,6 +31,7 @@ const STUB_OMITTED_NAMESPACES: ReadonlySet<string> = new Set<string>([
   "audit",
   "retract",
   "answer",
+  "ownerDecisions",
   "ownerQuestions",
   "modules",
   "modulesAdmin",
@@ -134,6 +135,15 @@ function makeStubOwnerQuestions(): DaemonClientHandlers["ownerQuestions"] {
     list: async () => ({ questions: [] }),
     answer: async () => ({ ok: false, reason: "not_found" }),
     dismiss: async () => ({ ok: false, reason: "not_found" }),
+  };
+}
+
+function makeStubOwnerDecisions(): DaemonClientHandlers["ownerDecisions"] {
+  return {
+    list: async () => ({ decisions: [] }),
+    show: async () => ({ found: false }),
+    answer: async () => ({ ok: false, reason: "not_found" }),
+    cancel: async () => ({ ok: false, reason: "not_found" }),
   };
 }
 
@@ -396,6 +406,7 @@ describe("assembleDaemonClientHandlers", () => {
       audit: makeStubAudit(),
       retract: makeStubRetract(),
       answer: makeStubAnswer(),
+      ownerDecisions: makeStubOwnerDecisions(),
       ownerQuestions: makeStubOwnerQuestions(),
       modules: makeStubModules(),
       modulesAdmin: makeStubModulesAdmin(),
@@ -434,6 +445,7 @@ describe("assembleDaemonClientHandlers", () => {
       audit: makeStubAudit(),
       retract: makeStubRetract(),
       answer: makeStubAnswer(),
+      ownerDecisions: makeStubOwnerDecisions(),
       ownerQuestions: makeStubOwnerQuestions(),
       modules: makeStubModules(),
       modulesAdmin: makeStubModulesAdmin(),
@@ -469,7 +481,7 @@ describe("assembleDaemonClientHandlers", () => {
 
   it("throws naming each migrated namespace when no module contributes it", () => {
     expect(() => assembleDaemonClientHandlers(transport)).toThrow(
-      /missing daemon handler\(s\) for: workflow, approvals, secrets, tasks, memory, ownerQuestions, history, knowledge, sessions, modules, agents, skills, harnessParity, webhook, voice, web, mcpServer, audit, config, modulesAdmin, daemonOps, projects, doctor, evalHarness, recall, answer, capture, retract, setup/,
+      /missing daemon handler\(s\) for: workflow, approvals, secrets, tasks, memory, ownerDecisions, ownerQuestions, history, knowledge, sessions, modules, agents, skills, harnessParity, webhook, voice, web, mcpServer, audit, config, modulesAdmin, daemonOps, projects, doctor, evalHarness, recall, answer, capture, retract, setup/,
     );
   });
 });

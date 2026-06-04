@@ -27,6 +27,7 @@ const NAMESPACE_OWNERS: Record<(typeof KOTA_CLIENT_NAMESPACES)[number], string> 
   secrets: "secrets",
   tasks: "repo-tasks",
   memory: "memory",
+  ownerDecisions: "owner-decisions",
   ownerQuestions: "owner-questions",
   history: "history",
   knowledge: "knowledge",

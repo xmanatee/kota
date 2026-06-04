@@ -26,6 +26,7 @@ import {
   type WorkflowMetricCounts,
 } from "#core/daemon/daemon-control.js";
 import { daemonSetupControlHandleStubs } from "#core/daemon/daemon-setup-control-test-stubs.js";
+import { OwnerDecisionStore } from "#core/daemon/owner-decision-store.js";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
 import {
@@ -116,6 +117,7 @@ function registerProjectQueueProvider(
   entries: Array<{
     project: ConfiguredProject;
     approvalQueue: ApprovalQueue;
+    ownerDecisionStore: OwnerDecisionStore;
     ownerQuestionQueue: OwnerQuestionQueue;
   }>,
 ): void {
@@ -147,6 +149,7 @@ function registerProjectQueueProvider(
         runtime: {
           project: entry.project,
           approvalQueue: entry.approvalQueue,
+          ownerDecisionStore: entry.ownerDecisionStore,
           ownerQuestionQueue: entry.ownerQuestionQueue,
         },
       };
@@ -245,11 +248,13 @@ describe("approval-queue module daemon-control routes", () => {
       });
       const approvalA = new ApprovalQueue(join(projectA.projectDir, ".kota", "approvals"));
       const approvalB = new ApprovalQueue(join(projectB.projectDir, ".kota", "approvals"));
+      const decisionA = new OwnerDecisionStore(join(projectA.projectDir, ".kota", "owner-decisions"), projectA.projectId);
+      const decisionB = new OwnerDecisionStore(join(projectB.projectDir, ".kota", "owner-decisions"), projectB.projectId);
       const ownerA = new OwnerQuestionQueue(join(projectA.projectDir, ".kota", "owner-questions"));
       const ownerB = new OwnerQuestionQueue(join(projectB.projectDir, ".kota", "owner-questions"));
       registerProjectQueueProvider([
-        { project: projectA, approvalQueue: approvalA, ownerQuestionQueue: ownerA },
-        { project: projectB, approvalQueue: approvalB, ownerQuestionQueue: ownerB },
+        { project: projectA, approvalQueue: approvalA, ownerDecisionStore: decisionA, ownerQuestionQueue: ownerA },
+        { project: projectB, approvalQueue: approvalB, ownerDecisionStore: decisionB, ownerQuestionQueue: ownerB },
       ]);
 
       const itemA = approvalA.enqueue("shell", { command: "a" }, "moderate", "a");

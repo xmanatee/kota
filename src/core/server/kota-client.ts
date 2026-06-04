@@ -46,6 +46,7 @@ import type {
   ModulesAdminClient,
   ModulesClient,
 } from "#modules/module-manager/client.js";
+import type { OwnerDecisionsClient } from "#modules/owner-decisions/client.js";
 import type { OwnerQuestionsClient } from "#modules/owner-questions/client.js";
 import type { RecallClient } from "#modules/recall/client.js";
 import type { RepoTasksClient } from "#modules/repo-tasks/client.js";
@@ -73,6 +74,7 @@ export interface KotaClient {
   readonly secrets: SecretsClient;
   readonly tasks: RepoTasksClient;
   readonly memory: MemoryClient;
+  readonly ownerDecisions: OwnerDecisionsClient;
   readonly ownerQuestions: OwnerQuestionsClient;
   readonly history: HistoryClient;
   readonly knowledge: KnowledgeClient;
@@ -110,6 +112,7 @@ export const KOTA_CLIENT_NAMESPACES = [
   "secrets",
   "tasks",
   "memory",
+  "ownerDecisions",
   "ownerQuestions",
   "history",
   "knowledge",
