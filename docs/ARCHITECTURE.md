@@ -12,6 +12,10 @@ adding a parallel surface.
   `AGENTS.md` and `CLAUDE.md` files are scoped skills.
 - `agent` = a named worker with a role, model defaults, skill set, tool scope,
   and write boundaries.
+- `prompt` = instruction text used by an agent, workflow step, skill, or
+  harness adapter. Prompts are artifacts, not runtime identity.
+- `harness` = the adapter that executes an agent step against a provider or
+  local runner. Harness-specific options stay adapter-private.
 - `scope` = a daemon-hosted runtime context. The root scope is global;
   directory-backed scopes are the first concrete child scopes and use stable
   ids derived from their directory roots. Project is compatibility language for
@@ -44,6 +48,12 @@ adding a parallel surface.
   are: history (conversation records), memory (agent notes), knowledge
   (structured reference entries), working memory (session scratchpad), and run
   artifacts (workflow execution evidence).
+- `setup requirement` = a module-declared config, secret, OAuth, browser
+  profile, external URL, or capability prerequisite that clients can render and
+  satisfy without exposing secret values to agents.
+- `owner decision` = a durable owner choice that can resume a workflow or
+  authorize a later action. It is distinct from a one-off owner question and
+  from tool-call approval.
 
 ## Single Way
 
@@ -128,6 +138,53 @@ and belong in `src/core/`.
   belong in the core module code, schema, examples, and focused tests rather
   than in a durable prose catalog.
 
+## Concept Map
+
+The architecture source of truth is the typed protocol plus this concise map.
+Local source links point to representative contracts, not exhaustive catalogs.
+
+| Concept | Canonical Mechanism | Boundary |
+| --- | --- | --- |
+| Scope and project | `ScopeRegistry` and `ProjectScopedEventBus` in `src/core/daemon/scope-registry.ts` and `src/core/events/project-scope.ts`. | `scopeId` is canonical. `projectId`, `/projects`, and project route parameters are compatibility language for directory-backed scopes. |
+| Event | `EventBus`, `BusEvents`, and module event declarations in `src/core/events/`. | Payload shape is owned by the event declaration. Scope-scoped events carry `scopeId` plus compatibility `projectId`; daemon-wide events omit scope. The bus is synchronous and in-process. The daemon SSE ring buffer in `src/core/daemon/event-ring-buffer.ts` is recent-event convenience, not durable replay. |
+| Durable event data | Future `EventEnvelope`, event schema registry, journal, idempotency, and dead-letter queue tasks. | Do not overload the live bus with audit, replay, dedupe, or retention semantics. |
+| Module | `KotaModule` in `src/core/modules/module-types.ts`. | Modules are the only integration unit. Provider-specific tools, workflows, channels, routes, setup requirements, effects, and stores stay module-owned. |
+| Tool and action | `ToolDef` plus `ToolEffect` guardrail metadata. | External writes must be represented as typed tools or action adapters with explicit effect metadata; prose approval is not an execution contract. |
+| Agent | `AgentDef` in `src/core/agents/agent-types.ts` plus workflow agent steps in `src/core/workflow/step-types.ts`. | Agent definitions declare role, prompt, model, effort, skills, tool policy, and write scope. Agent steps resolve through a harness; adapter-private options stay under the harness key. |
+| Delegation | The `delegate` tool in `src/core/tools/delegate.ts` and workflow trigger chaining. | Agents can delegate through generic explore/execute/research modes, and workflows can chain runs. First-class named-agent handoff remains a separate protocol gap. |
+| Prompt and skill | `SkillDef`, workflow prompt paths, and scoped `AGENTS.md` files. | Prompts guide roles; durable conventions belong in scoped docs or typed contracts. Do not encode new runtime mechanisms only in prompts. |
+| Session | Core session runtime plus daemon session control routes. | Every interactive run and autonomous step runs in a session. Channels may own session pools; clients only observe or control sessions through the daemon API. |
+| Automation, hook, schedule, workflow | `defineAutomation`, `defineHook`, workflow triggers, and workflow steps in `src/core/workflow/`. | Hook is an authoring view. Workflow is the compiled/runtime mechanism for event, schedule, interval, watch, webhook, and batch triggers. Do not add parallel trigger engines. |
+| Channel | `ChannelDef` in `src/core/channels/channel.ts`. | Channels translate external I/O into sessions or typed inbound events. They are daemon-owned module contributions, not clients. |
+| Client | Thin apps under `clients/` consuming `KotaClient`, HTTP+JSON, and SSE. | Clients render daemon contracts and never parse `.kota/` files or start a second runtime. The shared UI contribution protocol is the intended renderer contract; until it lands, conformance fixtures keep wire shapes aligned. |
+| Setup, auth, and secrets | Module setup requirements in `src/core/modules/setup-requirements.ts` plus the secrets module. | Setup prompts collect prerequisites and secret references. Raw credentials stay in secret stores or provider auth flows, not decision records, prompts, screenshots, or client fixtures. |
+| Owner question, approval, owner decision | `OwnerQuestionQueue`, `ApprovalQueue`, workflow approval steps, and the persisted owner-confirmed action task. | Owner questions ask for judgment; approvals gate tool calls; owner decisions must persist reusable choices and authorize at most the intended later action. |
+| Store and evidence | Module-owned history, memory, knowledge, working memory, task, and run-artifact stores. | Git history and `.kota/runs/` are the review record. Do not create parallel changelogs, lesson stores, or ad hoc audit files. |
+| UI contribution | Planned typed UI tree rendered by CLI, web, Apple, and mobile clients. | Operator-facing forms, actions, status, setup, approvals, owner requests, runs, and module capabilities should be declared once and rendered natively by each client. |
+
+## Scenario Matrix
+
+Open gaps are tracked by normalized tasks; this matrix explains the
+architecture fit without becoming a second queue.
+
+| Scenario | Expression Today | Gap | Normalized Task |
+| --- | --- | --- | --- |
+| Multi-scope continuous improvement | Directory-backed scopes, scoped events/stores, and the `scope-improver` automation can observe scope-local instructions, tasks, run artifacts, and changes. | Hierarchical scope policy is still shallow when parent/child scopes need inherited autonomy and write rules. | `data/tasks/done/task-add-continuous-scope-improvement-automation.md`; `data/tasks/backlog/task-add-scope-policy-inheritance-protocol.md`. |
+| Weekly meta-review | Workflow schedules and generic batching can trigger the progress reviewer over scoped run, task, message, and artifact windows. | Durable replay across daemon restarts still depends on event journaling instead of the live bus. | `data/tasks/done/task-add-scope-progress-reviewer-automation.md`; `data/tasks/backlog/task-add-durable-event-envelope-and-journal.md`. |
+| Telegram blocked or archived source handling | Telegram and other adapters can emit normalized inbound signals and owner/approval messages through module events. | Routing, source trust/status, and blocked-source no-op behavior are still adapter-specific, and Telegram intake is text-first. | `data/tasks/backlog/task-add-declarative-inbound-signal-routing-for-channel.md`; `data/tasks/backlog/task-expand-telegram-signals-beyond-text-messages.md`. |
+| Telegram sports availability with schedule matching | Inbound signals, generic event batches, setup/auth requirements, owner questions, and provider tools are composable workflow pieces. | A reference workflow still needs routing rules, calendar availability lookup, owner confirmation, and provider-specific booking/reply/reaction actions. | `data/tasks/backlog/task-add-channel-opportunity-matching-reference-workflo.md`; `data/tasks/ready/task-add-persisted-owner-confirmed-action-protocol.md`. |
+| Confirmation-to-booking flow | Owner questions and approvals can ask and gate one tool call. Setup/auth requirements separate credential collection from agent context. | Durable owner choice, duplicate-consumption rejection, dry-run/action metadata, and provider-specific confirmed action adapters are missing. | `data/tasks/ready/task-add-persisted-owner-confirmed-action-protocol.md`; `data/tasks/backlog/task-add-generic-idempotency-and-dedupe-protocol.md`. |
+| High-volume event batching with staged model passes | Workflow trigger batching supports scoped buffers, grouping, count/time/idle flushes, and batch payloads for cheap-first workflow stages. | Event schemas, durable envelopes, DLQ, capability/effect manifests, and compiled explain output are needed for simulation, replay, audit, and client inspection. | `data/tasks/done/task-add-generic-event-batching-to-workflow-triggers.md`; `data/tasks/backlog/task-add-event-schema-version-registry.md`; `data/tasks/backlog/task-add-durable-event-envelope-and-journal.md`; `data/tasks/backlog/task-add-dead-letter-queue-for-poisoned-events-and-batc.md`; `data/tasks/backlog/task-add-module-capability-and-effect-manifest.md`; `data/tasks/backlog/task-add-compiled-automation-graph-explain-api.md`. |
+| Progress review by task count or message count | Progress reviewer plus workflow batching can review bounded windows by schedule, count, or event batch. | Message-count review needs durable channel/event history when live buffers are insufficient or a daemon restart occurs. | `data/tasks/done/task-add-scope-progress-reviewer-automation.md`; `data/tasks/backlog/task-add-durable-event-envelope-and-journal.md`. |
+
+Known current gaps that affect the scenarios are: project terminology remains
+as compatibility language on some routes and client code; event replay is not
+durable beyond the live bus and fixed-size SSE ring buffer; Telegram signal
+intake is still text-heavy; some credentials still flow through env/config
+before every module has setup declarations; the richer daemon-backed CLI is
+still behind `kota navigate` until the shared UI contribution protocol and
+default CLI client work land.
+
 ## Context Gathering
 
 Agents should receive only the runtime facts they cannot reconstruct
@@ -184,3 +241,21 @@ run storage, and daemon/client APIs see them.
   - https://docs.openclaw.ai/tools/creating-skills
 - Codex skills and background automations:
   - https://openai.com/index/introducing-the-codex-app/
+- Temporal workflows and message passing:
+  - https://docs.temporal.io/workflows
+  - https://docs.temporal.io/develop/typescript/workflows/message-passing
+- Home Assistant automations and config flows:
+  - https://www.home-assistant.io/docs/automation/trigger/
+  - https://developers.home-assistant.io/docs/core/integration/config_flow/
+- Node-RED message design:
+  - https://nodered.org/docs/developing-flows/message-design
+- JSON Forms architecture:
+  - https://jsonforms.io/docs/architecture/
+- Backstage frontend plugins and extensions:
+  - https://backstage.io/docs/frontend-system/architecture/plugins/
+- Terminal and client UI references:
+  - https://github.com/vadimdemedes/ink
+  - https://github.com/charmbracelet/bubbletea
+  - https://textual.textualize.io/
+- MCP elicitation:
+  - https://modelcontextprotocol.io/specification/2025-11-25/client/elicitation

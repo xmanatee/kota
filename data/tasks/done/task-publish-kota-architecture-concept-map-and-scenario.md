@@ -1,12 +1,12 @@
 ---
 id: task-publish-kota-architecture-concept-map-and-scenario
 title: Publish KOTA architecture concept map and scenario matrix
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Document KOTA's existing and intended concepts, protocols, constraints, and scenario mappings so future implementation work has one verifiable architecture source of truth.
 created_at: 2026-06-03T13:39:58.360Z
-updated_at: 2026-06-04T17:13:04.068Z
+updated_at: 2026-06-04T17:26:00.000Z
 ---
 
 ## Problem
