@@ -1,12 +1,12 @@
 ---
 id: task-repair-workflow-failure-pattern-faf869e90a2c
 title: Repair persistent progress-reviewer workflow failure pattern
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Fix the local cause behind progress-reviewer's persistent consecutive failure signal (step review-evidence error 1eda855dc25d).
 created_at: 2026-06-05T20:05:28.959Z
-updated_at: 2026-06-05T20:05:28.959Z
+updated_at: 2026-06-05T21:21:46Z
 ---
 
 ## Problem
@@ -58,6 +58,18 @@ without evidence that the failure is actually outside KOTA's control.
   have caught this recurrence.
 - Operator-facing attention output still reports future escalations with
   the generated task id and without cost fields.
+
+## Result
+
+Commit `0aebb807` added harness readiness gating before native agent-harness
+launch, so missing `codex` now fails as `harness_readiness` instead of raw
+`spawn codex ENOENT`. The detector excludes that readiness class, and fresh
+progress-reviewer runs `2026-06-05T20-52-22-954Z-progress-reviewer-0obwhx`,
+`2026-06-05T20-52-24-802Z-progress-reviewer-pr3jgc`, and
+`2026-06-05T21-15-49-177Z-progress-reviewer-wmxbj0` completed successfully.
+The latest progress-reviewer attention event states the existing task is the
+only remaining steering item and that fresh health checks show no active
+recurrence.
 
 ## Source / Intent
 

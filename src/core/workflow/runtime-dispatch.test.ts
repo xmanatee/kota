@@ -11,6 +11,20 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function waitUntil(
+  predicate: () => boolean,
+  message: string,
+  timeoutMs = 5_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await wait(10);
+  }
+  if (predicate()) return;
+  throw new Error(message);
+}
+
 function makeProjectDir(): string {
   const projectDir = join(
     tmpdir(),
@@ -241,8 +255,17 @@ describe("runtime idle dispatch", () => {
     });
 
     runtime.start();
-    await wait(260);
-    await runtime.stop();
+    try {
+      await waitUntil(
+        () =>
+          countWorkflowRuns(projectDir, "builder-like-agent-slot") === 1 &&
+          countWorkflowRuns(projectDir, "security-review") === 1 &&
+          runtime.getState().pendingRuns.length === 0,
+        "Timed out waiting for emitted workflow to dispatch after the agent slot freed",
+      );
+    } finally {
+      await runtime.stop();
+    }
 
     expect(countWorkflowRuns(projectDir, "builder-like-agent-slot")).toBe(1);
     expect(countWorkflowRuns(projectDir, "security-review")).toBe(1);
