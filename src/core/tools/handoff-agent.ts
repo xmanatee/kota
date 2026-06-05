@@ -142,10 +142,11 @@ export const handoffAgentTool: KotaTool = {
       childSessionId: { type: "string" },
       resumedSessionId: { type: "string" },
       turns: { type: "number" },
+      content: { type: "string" },
       trace: { type: "object" },
       structuredOutput: { type: "object" },
     },
-    required: ["kind", "agentName", "mode", "turns", "trace"],
+    required: ["kind", "agentName", "mode", "turns", "content", "trace"],
   },
 };
 
@@ -593,6 +594,7 @@ export async function runHandoffAgent(
         agentName: agent.name,
         mode,
         turns: result.turns,
+        content: result.text,
         trace: traceWithChild,
         ...(result.sessionId ? { childSessionId: result.sessionId } : {}),
         ...(resumeSessionId !== undefined ? { resumedSessionId: resumeSessionId } : {}),

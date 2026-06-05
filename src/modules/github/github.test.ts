@@ -74,6 +74,45 @@ describe("github module", () => {
   });
 
   describe("tool registration", () => {
+    it("declares setup requirements for token config and storage", () => {
+      const setupRequirements = githubModule.setupRequirements;
+      if (!setupRequirements || typeof setupRequirements === "function") {
+        throw new Error("expected static setup requirements");
+      }
+      const configRequirement = setupRequirements.find(
+        (requirement) => requirement.id === "token-config",
+      );
+      if (!configRequirement || configRequirement.kind !== "config") {
+        throw new Error("expected token-config setup requirement");
+      }
+      expect(configRequirement.setup.fields.map((field) => ({
+        id: field.id,
+        valueKind: field.valueKind,
+        configPath: field.configPath,
+      }))).toEqual([
+        {
+          id: "token-ref",
+          valueKind: "secret-reference",
+          configPath: "modules.github.token",
+        },
+        {
+          id: "default-repo",
+          valueKind: undefined,
+          configPath: "modules.github.repo",
+        },
+      ]);
+
+      const tokenRequirement = setupRequirements.find(
+        (requirement) => requirement.id === "token",
+      );
+      if (!tokenRequirement || tokenRequirement.kind !== "secret") {
+        throw new Error("expected token setup requirement");
+      }
+      expect(tokenRequirement.secretRefs).toEqual([
+        { name: "GITHUB_TOKEN", scope: "project" },
+      ]);
+    });
+
     it("registers all eleven tools when token is configured", () => {
       const ctx = makeCtx();
       const tools = getTools(ctx);
@@ -100,6 +139,14 @@ describe("github module", () => {
       expect(ctx.log.warn).toHaveBeenCalledWith(
         expect.stringContaining("token is required"),
       );
+    });
+
+    it("resolves configured token references through the module secret store", () => {
+      const ctx = makeCtx("$GITHUB_TOKEN");
+      vi.mocked(ctx.getSecret).mockReturnValue("stored-gh-token");
+      const tools = getTools(ctx);
+      expect(tools).toHaveLength(11);
+      expect(ctx.getSecret).toHaveBeenCalledWith("GITHUB_TOKEN");
     });
   });
 

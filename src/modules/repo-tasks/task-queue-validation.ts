@@ -14,10 +14,10 @@ import {
 } from "./blocked-precondition.js";
 import {
   getRepoTaskStateDir,
+  hasConcreteTaskAcceptanceEvidence,
   REPO_TASK_STATES,
   REPO_TASKS_DIR,
   type RepoTaskState,
-  TASK_ACCEPTANCE_EVIDENCE_PLACEHOLDER,
   TASK_INITIATIVE_PLACEHOLDER,
   TASK_SOURCE_INTENT_PLACEHOLDER,
 } from "./repo-tasks-domain.js";
@@ -304,15 +304,6 @@ function hasSubstantiveSection(raw: string, heading: string): boolean {
     return false;
   }
   return section.replace(/[-*\s]/g, "").length >= 12;
-}
-
-function hasAcceptanceEvidence(raw: string): boolean {
-  const section = extractSection(raw, "Acceptance Evidence");
-  if (!section) return false;
-  if (section.includes(TASK_ACCEPTANCE_EVIDENCE_PLACEHOLDER)) {
-    return false;
-  }
-  return /(?:^|\n)\s*-\s+\S/.test(section) || /\b(?:transcript|screenshot|fixture|test|command|artifact|validation|demo|snapshot)\b/i.test(section);
 }
 
 function listDuplicateFanOutConsolidationRows(raw: string): string[] {
@@ -740,7 +731,7 @@ export function validateTaskQueue(
         });
       }
 
-      if (!hasAcceptanceEvidence(entry.raw)) {
+      if (!hasConcreteTaskAcceptanceEvidence(entry.raw)) {
         findings.push({
           code: "open-task-missing-acceptance-evidence",
           severity: "error",

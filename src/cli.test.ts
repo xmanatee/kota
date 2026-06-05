@@ -295,6 +295,29 @@ describe("preset resolution", () => {
   });
 });
 
+describe("harness REPL", () => {
+  it("starts interactive harness mode without relying on runtime rendering providers", () => {
+    const projectDir = realpathSync(mkdtempForCli("kota-test-repl"));
+    seedProjectConfig(projectDir, { defaultPreset: "claude" });
+    const { stderr, exitCode } = runFull(
+      ["run", "--harness", "thin", "--model", "test-model", "-i"],
+      {
+        cwd: projectDir,
+        input: "exit\n",
+        env: {
+          HOME: projectDir,
+          KOTA_PROJECT_DIR: projectDir,
+          KOTA_PRESET: "claude",
+          ANTHROPIC_API_KEY: "",
+        },
+      },
+    );
+    expect(exitCode).toBe(0);
+    expect(stderr).toContain("kota [claude:thin] test-model");
+    expect(stderr).not.toContain("runHarnessRepl requires a ReplChrome");
+  });
+});
+
 describe("--continue validation", () => {
   it("exits with error when no previous conversation exists", () => {
     const { exitCode } = runFull(["run", "--continue", "hello"], {

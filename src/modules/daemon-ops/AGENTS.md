@@ -32,7 +32,11 @@ CLI commands.
   `status()`/`pid()` through `GET /status` and `reload()` through
   `POST /reload`. `stop()` always throws on the daemon-up branch — the
   daemon cannot SIGTERM itself, so the local handler is the only one that
-  performs the actual stop. The non-namespace direct methods
+  performs the actual stop. Lifecycle CLI subcommands that accept
+  `--project-dir` resolve the target project after command parsing and then
+  select that project's control file/transport; `stop` still uses the local
+  pid path so the supervised child exits and lets the supervisor return. The
+  non-namespace direct methods
   `DaemonControlClient.getDaemonStatus()` and `reloadConfig()` continue to
   consume the helpers in `src/core/server/daemon-client.ts` because they
   bridge `kota serve` ⇄ daemon and are not part of the namespace contract.

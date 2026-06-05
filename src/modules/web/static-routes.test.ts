@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { matchRoutePath } from "#core/modules/route-matcher.js";
-import { setWebUiDir, staticWebUiRoutes } from "./static-routes.js";
+import { staticWebUiRoutes } from "./static-routes.js";
 
 type Captured = {
   res: ServerResponse;
@@ -46,7 +46,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  setWebUiDir(undefined);
   rmSync(tmpDir, { recursive: true, force: true });
 });
 
@@ -67,9 +66,27 @@ describe("staticWebUiRoutes", () => {
     }
   });
 
-  it("serves index.html with text/html content-type when webUiDir is set", () => {
-    setWebUiDir(tmpDir);
-    const routes = staticWebUiRoutes();
+  it("serves a built dashboard from projectDir without serve-time global setup", () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "kota-web-project-"));
+    const distDir = join(projectDir, "clients", "web", "dist");
+    try {
+      mkdirSync(join(distDir, "assets"), { recursive: true });
+      writeFileSync(join(distDir, "index.html"), "<html><body>daemon dashboard</body></html>");
+
+      const routes = staticWebUiRoutes({ projectDir });
+      const captured = mockResponse();
+      routes[0].handler(mockRequest("/"), captured.res, {});
+
+      expect(captured.status).toBe(200);
+      expect(captured.headers?.["Content-Type"]).toBe("text/html; charset=utf-8");
+      expect(captured.body.toString()).toContain("daemon dashboard");
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+
+  it("serves index.html with text/html content-type from a webUiDir option", () => {
+    const routes = staticWebUiRoutes({ webUiDir: tmpDir });
     const captured = mockResponse();
     routes[0].handler(mockRequest("/"), captured.res, {});
     expect(captured.status).toBe(200);
@@ -79,8 +96,7 @@ describe("staticWebUiRoutes", () => {
   });
 
   it("treats /index.html identically to /", () => {
-    setWebUiDir(tmpDir);
-    const routes = staticWebUiRoutes();
+    const routes = staticWebUiRoutes({ webUiDir: tmpDir });
     const captured = mockResponse();
     routes[1].handler(mockRequest("/index.html"), captured.res, {});
     expect(captured.status).toBe(200);
@@ -88,8 +104,7 @@ describe("staticWebUiRoutes", () => {
   });
 
   it("serves /assets/* with immutable cache and inferred content-type", () => {
-    setWebUiDir(tmpDir);
-    const routes = staticWebUiRoutes();
+    const routes = staticWebUiRoutes({ webUiDir: tmpDir });
     const assetsRoute = routes[2];
 
     const js = mockResponse();
@@ -109,9 +124,8 @@ describe("staticWebUiRoutes", () => {
 
   it("falls back to application/octet-stream for unknown extensions", () => {
     writeFileSync(join(tmpDir, "assets", "data.bin"), "binary-payload");
-    setWebUiDir(tmpDir);
     const captured = mockResponse();
-    staticWebUiRoutes()[2].handler(
+    staticWebUiRoutes({ webUiDir: tmpDir })[2].handler(
       mockRequest("/assets/data.bin"),
       captured.res,
       { rest: "data.bin" },
@@ -130,24 +144,17 @@ describe("staticWebUiRoutes", () => {
     )).toBeNull();
   });
 
-  it("strips literal .. segments from pathnames before joining", () => {
-    // Defense in depth for any code path that bypasses URL normalization
-    // and still routes a literal `..` to the asset handler. The strip must
-    // remove every occurrence so `join` cannot escape webUiDir.
-    setWebUiDir(tmpDir);
+  it("does not decode encoded separators into traversal", () => {
     const captured = mockResponse();
-    staticWebUiRoutes()[2].handler(
+    staticWebUiRoutes({ webUiDir: tmpDir })[2].handler(
       { url: "/assets/..%2Fsecret" } as IncomingMessage,
       captured.res,
       { rest: "..%2Fsecret" },
     );
-    // %2F survives URL.pathname; strip removes any literal `..`; join stays
-    // inside webUiDir and the missing path returns 404.
     expect(captured.status).toBe(404);
   });
 
-  it("returns JSON 404 'Web UI not installed' for / when webUiDir unset", () => {
-    setWebUiDir(undefined);
+  it("returns JSON 404 'Web UI not installed' for / when no UI directory is configured", () => {
     const captured = mockResponse();
     staticWebUiRoutes()[0].handler(mockRequest("/"), captured.res, {});
     expect(captured.status).toBe(404);
@@ -157,17 +164,19 @@ describe("staticWebUiRoutes", () => {
   });
 
   it("returns JSON 404 'Web UI not installed' for / when index.html missing", () => {
-    setWebUiDir(join(tmpDir, "missing-subdir"));
     const captured = mockResponse();
-    staticWebUiRoutes()[0].handler(mockRequest("/"), captured.res, {});
+    staticWebUiRoutes({ webUiDir: join(tmpDir, "missing-subdir") })[0].handler(
+      mockRequest("/"),
+      captured.res,
+      {},
+    );
     expect(captured.status).toBe(404);
     expect(JSON.parse(captured.body.toString())).toEqual({
       error: "Web UI not installed",
     });
   });
 
-  it("returns JSON 404 'Not found' for /assets/* when webUiDir unset", () => {
-    setWebUiDir(undefined);
+  it("returns JSON 404 'Not found' for /assets/* when no UI directory is configured", () => {
     const captured = mockResponse();
     staticWebUiRoutes()[2].handler(
       mockRequest("/assets/app.js"),
@@ -178,10 +187,9 @@ describe("staticWebUiRoutes", () => {
     expect(JSON.parse(captured.body.toString())).toEqual({ error: "Not found" });
   });
 
-  it("returns JSON 404 'Not found' for missing assets when webUiDir set", () => {
-    setWebUiDir(tmpDir);
+  it("returns JSON 404 'Not found' for missing assets with a webUiDir option", () => {
     const captured = mockResponse();
-    staticWebUiRoutes()[2].handler(
+    staticWebUiRoutes({ webUiDir: tmpDir })[2].handler(
       mockRequest("/assets/missing.js"),
       captured.res,
       { rest: "missing.js" },

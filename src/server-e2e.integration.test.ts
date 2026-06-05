@@ -43,12 +43,9 @@ vi.mock("./core/loop/loop.js", () => {
   return { AgentSession: MockAgentSession };
 });
 
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
 import { ModuleLoader } from "./core/modules/module-loader.js";
 import { discoverProjectModules } from "./core/modules/project-discovery.js";
 import { startServer } from "./core/server/server.js";
-import { setWebUiDir } from "./modules/web/static-routes.js";
 
 let server: Server;
 let baseUrl: string;
@@ -132,8 +129,6 @@ beforeAll(async () => {
   // commands-mode contributions invisible to runtime hosts on purpose.
   const loader = new ModuleLoader(testConfig, false, { mode: "runtime" });
   await loader.loadAll(projectModules);
-  const webDir = resolve("clients/web/dist");
-  setWebUiDir(existsSync(webDir) ? webDir : undefined);
   const moduleRoutes = loader.getRoutes();
   server = startServer({
     port: 0,

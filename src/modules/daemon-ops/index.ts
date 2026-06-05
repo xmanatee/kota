@@ -1,4 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
+import { join } from "node:path";
 import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
 import { resolveProjectDir } from "#core/config/project-dir.js";
@@ -18,7 +19,14 @@ import {
 import type { KotaModule } from "#core/modules/module-types.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import { daemonManagedHttp } from "#core/server/daemon-client.js";
-import type { DaemonTransport } from "#core/server/daemon-transport.js";
+import {
+  isDaemonControlAddressReachable,
+  readLiveDaemonControlAddress,
+} from "#core/server/daemon-control-address.js";
+import {
+  type DaemonTransport,
+  daemonTransportFromAddress,
+} from "#core/server/daemon-transport.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { LogFormat } from "#core/util/log-format.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
@@ -80,6 +88,12 @@ export {
 } from "./service-install.js";
 
 const DAEMON_CHILD_ENV = "KOTA_DAEMON_CHILD";
+const DAEMON_PROJECT_DIR_OPTION_DESCRIPTION =
+  "Project directory the daemon operates on (overrides KOTA_PROJECT_DIR env and cwd)";
+
+type DaemonProjectDirOptions = {
+  projectDir?: string;
+};
 
 function parseIntOption(value: string, name: string): number {
   const parsed = Number.parseInt(value, 10);
@@ -120,6 +134,31 @@ function preflightDaemonPresetAuth(args: {
       `Run \`kota doctor --preset ${args.preset.id}\` to diagnose before starting the daemon.`,
   );
   process.exit(1);
+}
+
+function resolveDaemonCommandProjectDir(
+  opts: DaemonProjectDirOptions,
+  command?: Command,
+): string {
+  const parentOpts = command?.parent?.opts<DaemonProjectDirOptions>() ?? {};
+  return resolveProjectDir(opts.projectDir ?? parentOpts.projectDir);
+}
+
+function localDaemonOpsClientForProject(projectDir: string): DaemonOpsClient {
+  return {
+    status: async () => localDaemonStatus({ projectDir }),
+    pid: async () => localDaemonPid({ projectDir }),
+    stop: async (options) => localDaemonStop({ ...options, projectDir }),
+    reload: async () => localDaemonReload({ projectDir }),
+  };
+}
+
+async function daemonOpsClientForProject(projectDir: string): Promise<DaemonOpsClient> {
+  const address = readLiveDaemonControlAddress(join(projectDir, ".kota"));
+  if (address && await isDaemonControlAddressReachable(address)) {
+    return buildDaemonOpsDaemonHandler(daemonTransportFromAddress(address));
+  }
+  return localDaemonOpsClientForProject(projectDir);
 }
 
 function resolveDaemonHarness(args: {
@@ -296,7 +335,7 @@ const daemonModule: KotaModule = {
       .option("--poll-interval <seconds>", "Scheduler poll interval in seconds", "30")
       .option(
         "--project-dir <path>",
-        "Project directory the daemon operates on (overrides KOTA_PROJECT_DIR env and cwd)",
+        DAEMON_PROJECT_DIR_OPTION_DESCRIPTION,
       )
       .option("--log-format <format>", "Log format: text (default) or json", (v) => {
         if (v !== "text" && v !== "json") {
@@ -385,17 +424,17 @@ const daemonModule: KotaModule = {
         } else {
           await daemon.start();
         }
-        if (process.exitCode === RESTART_EXIT_CODE) {
-          process.exit(RESTART_EXIT_CODE);
-        }
       });
 
     cmd
       .command("status")
       .description("Show daemon health summary (exits 0 if reachable)")
+      .option("--project-dir <path>", DAEMON_PROJECT_DIR_OPTION_DESCRIPTION)
       .option("--json", "Output as JSON")
-      .action(async (opts: { json?: boolean }) => {
-        const result = await ctx.client.daemonOps.status();
+      .action(async (opts: { json?: boolean; projectDir?: string }, command: Command) => {
+        const projectDir = resolveDaemonCommandProjectDir(opts, command);
+        const client = await daemonOpsClientForProject(projectDir);
+        const result = await client.status();
         if (result.state === "running") {
           if (opts.json) {
             console.log(JSON.stringify({ ...result.status, managed: result.managed }));
@@ -425,8 +464,11 @@ const daemonModule: KotaModule = {
     cmd
       .command("pid")
       .description("Print the PID of the running daemon (exits non-zero if not running)")
-      .action(async () => {
-        const result = await ctx.client.daemonOps.pid();
+      .option("--project-dir <path>", DAEMON_PROJECT_DIR_OPTION_DESCRIPTION)
+      .action(async (opts: DaemonProjectDirOptions, command: Command) => {
+        const projectDir = resolveDaemonCommandProjectDir(opts, command);
+        const client = await daemonOpsClientForProject(projectDir);
+        const result = await client.pid();
         if (result.state === "running") {
           console.log(String(result.pid));
           return;
@@ -442,10 +484,12 @@ const daemonModule: KotaModule = {
     cmd
       .command("stop")
       .description("Gracefully stop the running daemon (exits 0 on success)")
+      .option("--project-dir <path>", DAEMON_PROJECT_DIR_OPTION_DESCRIPTION)
       .option("--timeout <seconds>", "Seconds to wait for clean exit", "90")
-      .action(async (opts: { timeout: string }) => {
+      .action(async (opts: { timeout: string; projectDir?: string }, command: Command) => {
         const timeoutSec = Math.max(1, Number.parseInt(opts.timeout, 10) || 10);
-        const result = await ctx.client.daemonOps.stop({ timeoutSec });
+        const projectDir = resolveDaemonCommandProjectDir(opts, command);
+        const result = await localDaemonStop({ timeoutSec, projectDir });
         if (result.ok) {
           console.log("Daemon stopped.");
           return;
@@ -463,8 +507,11 @@ const daemonModule: KotaModule = {
     cmd
       .command("reload")
       .description("Reload daemon config and re-register module workflow contributions without restart")
-      .action(async () => {
-        const result = await ctx.client.daemonOps.reload();
+      .option("--project-dir <path>", DAEMON_PROJECT_DIR_OPTION_DESCRIPTION)
+      .action(async (opts: DaemonProjectDirOptions, command: Command) => {
+        const projectDir = resolveDaemonCommandProjectDir(opts, command);
+        const client = await daemonOpsClientForProject(projectDir);
+        const result = await client.reload();
         if (!result.ok) {
           if (result.reason === "not_running") {
             console.error("Daemon is not running.");
@@ -493,9 +540,10 @@ const daemonModule: KotaModule = {
     cmd
       .command("install")
       .description("Register the KOTA daemon as a user-level OS service (launchd on macOS, systemd on Linux)")
+      .option("--project-dir <path>", DAEMON_PROJECT_DIR_OPTION_DESCRIPTION)
       .option("--dry-run", "Print the service unit without installing")
-      .action((opts: { dryRun?: boolean }) => {
-        const projectDir = resolveProjectDir();
+      .action((opts: { dryRun?: boolean; projectDir?: string }, command: Command) => {
+        const projectDir = resolveDaemonCommandProjectDir(opts, command);
 
         if (process.platform === "darwin") {
           const plistPath = getLaunchdPlistPath();

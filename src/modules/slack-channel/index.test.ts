@@ -60,7 +60,7 @@ function makeStubCtx(
       error: () => {},
       debug: () => {},
     }),
-    getSecret: () => null,
+    getSecret: vi.fn(() => null),
     listTools: () => [],
     events: makeStubEventProxy(b),
     createSession: () => ({ send: async () => "", close: () => {} }),
@@ -107,6 +107,51 @@ describe("slackChannelModule metadata", () => {
 
   it("description mentions Slack", () => {
     expect(slackChannelModule.description).toContain("Slack");
+  });
+
+  it("declares setup requirements for Socket Mode token references and secrets", () => {
+    const setupRequirements = slackChannelModule.setupRequirements;
+    if (!setupRequirements || typeof setupRequirements === "function") {
+      throw new Error("expected static setup requirements");
+    }
+    const configRequirement = setupRequirements.find(
+      (requirement) => requirement.id === "socket-mode-config",
+    );
+    if (!configRequirement || configRequirement.kind !== "config") {
+      throw new Error("expected socket-mode-config setup requirement");
+    }
+    expect(configRequirement.setup.fields.map((field) => ({
+      id: field.id,
+      valueKind: field.valueKind,
+      configPath: field.configPath,
+    }))).toEqual([
+      {
+        id: "bot-token-ref",
+        valueKind: "secret-reference",
+        configPath: "modules.slack-channel.botToken",
+      },
+      {
+        id: "app-token-ref",
+        valueKind: "secret-reference",
+        configPath: "modules.slack-channel.appToken",
+      },
+      {
+        id: "notify-channel",
+        valueKind: undefined,
+        configPath: "modules.slack-channel.notifyChannel",
+      },
+    ]);
+
+    const credentialsRequirement = setupRequirements.find(
+      (requirement) => requirement.id === "socket-mode-credentials",
+    );
+    if (!credentialsRequirement || credentialsRequirement.kind !== "secret") {
+      throw new Error("expected socket-mode-credentials setup requirement");
+    }
+    expect(credentialsRequirement.secretRefs).toEqual([
+      { name: "SLACK_BOT_TOKEN", scope: "project" },
+      { name: "SLACK_APP_TOKEN", scope: "project" },
+    ]);
   });
 
   it("contributes a slack-channel channel", async () => {
@@ -209,6 +254,29 @@ describe("slackChannelModule channel adapter", () => {
     );
     expect(constructed.digest).toEqual(
       expect.objectContaining({ snapshot: expect.any(Function) }),
+    );
+  });
+
+  it("resolves token references through the module secret store", async () => {
+    const ctx = makeStubCtx(undefined, {
+      botToken: "$SLACK_BOT_TOKEN",
+      appToken: "$SLACK_APP_TOKEN",
+      notifyChannel: "C-ALERTS",
+    });
+    vi.mocked(ctx.getSecret).mockImplementation(
+      (key) => ({
+        SLACK_BOT_TOKEN: "xoxb-stored",
+        SLACK_APP_TOKEN: "xapp-stored",
+      })[key] ?? null,
+    );
+
+    await resolveAdapter(ctx);
+
+    expect(MockedSlackBot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        botToken: "xoxb-stored",
+        appToken: "xapp-stored",
+      }),
     );
   });
 

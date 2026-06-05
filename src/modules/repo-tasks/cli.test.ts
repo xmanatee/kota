@@ -383,6 +383,19 @@ describe("kota task move", () => {
     expect(content).toMatch(/^status: doing$/m);
   });
 
+  it("refuses to move a task to done without concrete acceptance evidence", async () => {
+    writeTaskFile(projectDir, "ready", "task-no-evidence", { status: "ready" });
+    mkdirSync(join(projectDir, "data", "tasks", "done"), { recursive: true });
+
+    const program = makeProgram();
+    await expect(
+      program.parseAsync(["node", "kota", "task", "move", "task-no-evidence", "done"]),
+    ).rejects.toThrow(/concrete ## Acceptance Evidence/);
+
+    expect(existsSync(join(projectDir, "data", "tasks", "ready", "task-no-evidence.md"))).toBe(true);
+    expect(existsSync(join(projectDir, "data", "tasks", "done", "task-no-evidence.md"))).toBe(false);
+  });
+
   it("prints message when task is already in target state", async () => {
     writeTaskFile(projectDir, "ready", "task-already");
 

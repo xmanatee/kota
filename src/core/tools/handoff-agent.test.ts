@@ -136,6 +136,7 @@ describe("handoff_agent", () => {
       agentName: "reviewer",
       mode: "transfer",
       childSessionId: "child-session-1",
+      content: 'review complete\n```json\n{"verdict":"pass","notes":"linked"}\n```',
       structuredOutput: { verdict: "pass", notes: "linked" },
       trace: {
         parentSessionId: "parent-session",

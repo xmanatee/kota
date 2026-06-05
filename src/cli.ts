@@ -9,6 +9,7 @@ import { getActiveKotaClient } from "#core/server/client-holder.js";
 import { resolveKotaClient } from "#core/server/client-selector.js";
 import { setSkipConfirmations } from "#core/util/confirm.js";
 import { blank, line, span } from "#modules/rendering/primitives.js";
+import { createRenderingProvider } from "#modules/rendering/rendering-provider.js";
 import { TerminalTransport } from "#modules/rendering/transport.js";
 import { resolveAgentHarness, runAgentHarness } from "./core/agent-harness/index.js";
 import { AgentSession, runAgentLoop } from "./core/loop/loop.js";
@@ -272,6 +273,7 @@ program
             model,
             cwd: runProjectDir,
             run: runOverrides,
+            chrome: createRenderingProvider().createReplChrome(),
             ...(resumeSession
               ? {
                   initialTranscript: transcriptFromKotaMessages(

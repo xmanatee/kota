@@ -19,13 +19,15 @@
  *     events?: string[]      // opt-in extra events; default: all notification events
  *   }
  *
- * Disabled gracefully when smtp.host is absent or empty.
+ * Disabled gracefully when required routing config or referenced credentials are absent.
  * Credentials are read from config; never logged.
  */
 
 import type { ChannelDef } from "#core/channels/channel.js";
+import { resolveSecretReference } from "#core/config/secret-reference.js";
 import type { BusEvents } from "#core/events/event-bus.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { ModuleSetupRequirement } from "#core/modules/setup-requirements.js";
 import { formatEmail } from "./format.js";
 import { createMailer, type Mailer } from "./mailer.js";
 
@@ -65,7 +67,18 @@ function getConfig(ctx: ModuleContext): EmailConfig | null {
   const config = ctx.getModuleConfig<EmailConfig>();
   if (!config?.smtp?.host) return null;
   if (!config.from || !config.to) return null;
-  return config;
+  const auth = config.smtp.auth;
+  if (!auth) return config;
+  const user = resolveSecretReference(auth.user, ctx.getSecret);
+  const pass = resolveSecretReference(auth.pass, ctx.getSecret);
+  if (!user || !pass) return null;
+  return {
+    ...config,
+    smtp: {
+      ...config.smtp,
+      auth: { user, pass },
+    },
+  };
 }
 
 let mailer: Mailer | null = null;
@@ -117,6 +130,102 @@ const emailModule: KotaModule = {
   name: "email",
   version: "1.0.0",
   description: "Email notification channel for KOTA via SMTP",
+  setupRequirements: [
+    {
+      id: "smtp-config",
+      kind: "config",
+      title: "SMTP routing config",
+      description:
+        "Project SMTP host and email routing fields used for operator notifications.",
+      required: true,
+      scope: "project",
+      owner: "email",
+      sensitivity: "none",
+      setup: {
+        mode: "form",
+        fields: [
+          {
+            id: "smtp-host",
+            label: "SMTP host",
+            type: "string",
+            configPath: "modules.email.smtp.host",
+            required: true,
+            placeholder: "smtp.example.com",
+          },
+          {
+            id: "from",
+            label: "From address",
+            type: "string",
+            configPath: "modules.email.from",
+            required: true,
+            placeholder: "kota@example.com",
+          },
+          {
+            id: "to",
+            label: "To address",
+            type: "string",
+            configPath: "modules.email.to",
+            required: true,
+            placeholder: "operator@example.com",
+          },
+          {
+            id: "smtp-port",
+            label: "SMTP port",
+            type: "number",
+            configPath: "modules.email.smtp.port",
+            required: false,
+            placeholder: "587",
+          },
+          {
+            id: "smtp-secure",
+            label: "SMTP secure",
+            type: "boolean",
+            configPath: "modules.email.smtp.secure",
+            required: false,
+          },
+          {
+            id: "smtp-user-ref",
+            label: "SMTP user reference",
+            type: "string",
+            valueKind: "secret-reference",
+            configPath: "modules.email.smtp.auth.user",
+            required: false,
+            placeholder: "$SMTP_USER",
+          },
+          {
+            id: "smtp-pass-ref",
+            label: "SMTP password reference",
+            type: "string",
+            valueKind: "secret-reference",
+            configPath: "modules.email.smtp.auth.pass",
+            required: false,
+            placeholder: "$SMTP_PASS",
+          },
+        ],
+      },
+    },
+    {
+      id: "smtp-credentials",
+      kind: "secret",
+      title: "SMTP credentials",
+      description:
+        "Optional SMTP username and password values stored through the shared secret provider.",
+      required: false,
+      scope: "project",
+      owner: "email",
+      sensitivity: "secret",
+      setup: {
+        mode: "url",
+        url: "https://nodemailer.com/smtp/",
+        label: "Open SMTP setup guide",
+        pendingTtlMs: 30 * 60 * 1000,
+      },
+      secretRefs: [
+        { name: "SMTP_USER", scope: "project" },
+        { name: "SMTP_PASS", scope: "project" },
+      ],
+    },
+  ] satisfies ModuleSetupRequirement[],
 
   channels: [emailAlertsChannel],
 

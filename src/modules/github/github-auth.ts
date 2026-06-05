@@ -1,4 +1,5 @@
 import { execSync } from "node:child_process";
+import { resolveSecretReference, type SecretResolver } from "#core/config/secret-reference.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 
@@ -25,11 +26,8 @@ export type GitHubResponse = {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-export function resolveToken(raw: string): string {
-  if (raw.startsWith("$")) {
-    return process.env[raw.slice(1)] ?? "";
-  }
-  return raw;
+export function resolveToken(raw: string, getSecret?: SecretResolver): string {
+  return resolveSecretReference(raw, getSecret);
 }
 
 export function resolveRepo(configured?: string): string | null {

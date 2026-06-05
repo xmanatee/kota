@@ -33,6 +33,34 @@ export const REPO_TASK_STATES = [
 
 export type RepoTaskState = (typeof REPO_TASK_STATES)[number];
 
+function extractRepoTaskSection(raw: string, heading: string): string | null {
+  const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = raw.match(
+    new RegExp(`^## ${escapedHeading}\\s*\\n([\\s\\S]*?)(?=^## |(?![\\s\\S]))`, "m"),
+  );
+  if (!match) return null;
+  const body = match[1].trim();
+  return body.length > 0 ? body : null;
+}
+
+export function hasConcreteTaskAcceptanceEvidence(raw: string): boolean {
+  const section = extractRepoTaskSection(raw, "Acceptance Evidence");
+  if (!section) return false;
+  if (section.includes(TASK_ACCEPTANCE_EVIDENCE_PLACEHOLDER)) {
+    return false;
+  }
+  return /(?:^|\n)\s*-\s+\S/.test(section) ||
+    /\b(?:transcript|screenshot|fixture|test|command|artifact|validation|demo|snapshot)\b/i.test(section);
+}
+
+function assertDoneTransitionEvidence(id: string, content: string): void {
+  if (hasConcreteTaskAcceptanceEvidence(content)) return;
+  throw new Error(
+    `Task "${id}" cannot move to "done" without concrete ## Acceptance Evidence. ` +
+      "Add a command, artifact, transcript, screenshot, fixture, demo, or validation bullet before completing it.",
+  );
+}
+
 export type RepoTaskQueueSnapshot = {
   counts: Record<RepoTaskState, number>;
   inboxCount: number;
@@ -449,6 +477,9 @@ export function moveTaskById(
   }
   const dstPath = join(tasksDir, toState, `${id}.md`);
   const content = readFileSync(fromPath, "utf-8");
+  if (toState === "done") {
+    assertDoneTransitionEvidence(id, content);
+  }
   const { attrs, body } = parseFlatFrontMatter(content);
   attrs.status = toState;
   attrs.updated_at = new Date().toISOString();

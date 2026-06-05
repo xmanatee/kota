@@ -20,15 +20,19 @@ import type {
 } from "./client.js";
 import { isServiceInstalled } from "./service-install.js";
 
-function readControlAddress(): DaemonControlAddress | null {
+type DaemonOpsProjectOptions = {
+  projectDir?: string;
+};
+
+function readControlAddress(options: DaemonOpsProjectOptions = {}): DaemonControlAddress | null {
   return readOptionalJsonFile<DaemonControlAddress>(
-    join(resolveProjectDir(), ".kota", "daemon-control.json"),
+    join(resolveProjectDir(options.projectDir), ".kota", "daemon-control.json"),
   );
 }
 
-export function localDaemonStatus(): DaemonOpsStatusResult {
+export function localDaemonStatus(options: DaemonOpsProjectOptions = {}): DaemonOpsStatusResult {
   const managed = isServiceInstalled();
-  const address = readControlAddress();
+  const address = readControlAddress(options);
   if (!address || typeof address.pid !== "number") {
     return { state: "not_running", managed };
   }
@@ -43,17 +47,17 @@ export function localDaemonStatus(): DaemonOpsStatusResult {
   return { state: "stale", managed, pid: address.pid };
 }
 
-export function localDaemonPid(): DaemonOpsPidResult {
-  const address = readControlAddress();
+export function localDaemonPid(options: DaemonOpsProjectOptions = {}): DaemonOpsPidResult {
+  const address = readControlAddress(options);
   if (!address || typeof address.pid !== "number") return { state: "not_running" };
   if (!isProcessAlive(address.pid)) return { state: "stale", pid: address.pid };
   return { state: "running", pid: address.pid };
 }
 
 export async function localDaemonStop(
-  options?: { timeoutSec?: number },
+  options?: { timeoutSec?: number; projectDir?: string },
 ): Promise<DaemonOpsStopResult> {
-  const address = readControlAddress();
+  const address = readControlAddress(options);
   if (!address || typeof address.pid !== "number") return { ok: false, reason: "not_running" };
   const pid = address.pid;
   if (!isProcessAlive(pid)) return { ok: false, reason: "stale", pid };
@@ -67,11 +71,11 @@ export async function localDaemonStop(
   return { ok: false, reason: "timeout", pid };
 }
 
-export function localDaemonReload(): DaemonOpsReloadResult {
+export function localDaemonReload(options: DaemonOpsProjectOptions = {}): DaemonOpsReloadResult {
   // Reload requires a live daemon HTTP endpoint; the local handler can
   // only honestly surface "not running" because the daemon is the
   // process that owns the reload pipeline.
-  const address = readControlAddress();
+  const address = readControlAddress(options);
   if (!address || typeof address.pid !== "number") return { ok: false, reason: "not_running" };
   if (!isProcessAlive(address.pid)) return { ok: false, reason: "not_running" };
   return { ok: false, reason: "reload_failed" };

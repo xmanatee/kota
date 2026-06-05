@@ -9,7 +9,9 @@
 
 import type { ChannelDef } from "#core/channels/channel.js";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
+import { resolveSecretReference } from "#core/config/secret-reference.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { ModuleSetupRequirement } from "#core/modules/setup-requirements.js";
 import { AUTONOMY_MODES, type AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { renderOnDemandAttention } from "#modules/autonomy/workflows/attention-digest/step.js";
 import { renderOnDemandDigest } from "#modules/autonomy/workflows/daily-digest/on-demand.js";
@@ -32,7 +34,10 @@ type SlackChannelConfig = {
 function getConfig(ctx: ModuleContext): SlackChannelConfig | null {
   const config = ctx.getModuleConfig<SlackChannelConfig>();
   if (!config?.botToken || !config?.appToken) return null;
-  return config;
+  const botToken = resolveSecretReference(config.botToken, ctx.getSecret);
+  const appToken = resolveSecretReference(config.appToken, ctx.getSecret);
+  if (!botToken || !appToken) return null;
+  return { ...config, botToken, appToken };
 }
 
 function makeSlackChannelDef(moduleCtx: ModuleContext): ChannelDef {
@@ -122,6 +127,71 @@ const slackChannelModule: KotaModule = {
   name: "slack-channel",
   version: "1.0.0",
   description: "Bidirectional Slack bot channel for KOTA (Socket Mode)",
+  setupRequirements: [
+    {
+      id: "socket-mode-config",
+      kind: "config",
+      title: "Slack Socket Mode config references",
+      description:
+        "Project config references that point the Slack bot and app tokens at stored secrets.",
+      required: true,
+      scope: "project",
+      owner: "slack-channel",
+      sensitivity: "none",
+      setup: {
+        mode: "form",
+        fields: [
+          {
+            id: "bot-token-ref",
+            label: "Bot token reference",
+            type: "string",
+            valueKind: "secret-reference",
+            configPath: "modules.slack-channel.botToken",
+            required: true,
+            placeholder: "$SLACK_BOT_TOKEN",
+          },
+          {
+            id: "app-token-ref",
+            label: "App token reference",
+            type: "string",
+            valueKind: "secret-reference",
+            configPath: "modules.slack-channel.appToken",
+            required: true,
+            placeholder: "$SLACK_APP_TOKEN",
+          },
+          {
+            id: "notify-channel",
+            label: "Notify channel",
+            type: "string",
+            configPath: "modules.slack-channel.notifyChannel",
+            required: false,
+            placeholder: "C0123456789",
+          },
+        ],
+      },
+    },
+    {
+      id: "socket-mode-credentials",
+      kind: "secret",
+      title: "Slack Socket Mode credentials",
+      description:
+        "Slack bot and app token values stored through the shared secret provider.",
+      required: true,
+      scope: "project",
+      owner: "slack-channel",
+      sensitivity: "secret",
+      setup: {
+        mode: "url",
+        url: "https://api.slack.com/apps",
+        label: "Open Slack app settings",
+        pendingTtlMs: 30 * 60 * 1000,
+      },
+      secretRefs: [
+        { name: "SLACK_BOT_TOKEN", scope: "project" },
+        { name: "SLACK_APP_TOKEN", scope: "project" },
+      ],
+    },
+  ] satisfies ModuleSetupRequirement[],
   dependencies: [
     "answer",
     "autonomy",

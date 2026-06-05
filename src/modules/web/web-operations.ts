@@ -28,7 +28,6 @@ import type { ModuleContext } from "#core/modules/module-types.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import { startServer } from "#core/server/server.js";
 import type { WebClient, WebStartOptions, WebStartResult } from "./client.js";
-import { setWebUiDir } from "./static-routes.js";
 
 export function localWebClient(ctx: ModuleContext): WebClient {
   return {
@@ -52,7 +51,6 @@ export function localWebClient(ctx: ModuleContext): WebClient {
       if (!webUiBuilt) {
         console.warn("Warning: Web UI not built. Run `pnpm --filter @kota/web build` in the web client directory.");
       }
-      setWebUiDir(webUiBuilt ? webUiDir : undefined);
 
       const moduleRoutes = runtimeLoader.getRoutes();
 

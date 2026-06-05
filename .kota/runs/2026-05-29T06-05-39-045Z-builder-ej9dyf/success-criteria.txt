@@ -1,3 +1,0 @@
-1. Fresh run/report evidence no longer surfaces the explorer unsupported_trajectory trajectory-diagnostic pattern as active.
-2. Focused tests cover unsupported harness-capability artifacts and recurring supported trajectory-diagnostic detection.
-3. Operator-facing report coverage still surfaces future active trajectory-diagnostic repair task ids without cost fields.

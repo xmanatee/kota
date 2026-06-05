@@ -71,7 +71,7 @@ const webModule: KotaModule = {
     return [cmd];
   },
 
-  routes: () => staticWebUiRoutes(),
+  routes: (ctx) => staticWebUiRoutes({ projectDir: ctx.cwd }),
   localClient: (ctx) => ({ web: localWebClient(ctx) }),
 
   daemonClient: (_link: DaemonTransport) => ({

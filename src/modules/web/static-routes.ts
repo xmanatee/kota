@@ -1,16 +1,13 @@
 /**
  * Static web UI route registrations contributed by the `web` module.
  *
- * The `serve` command resolves `clients/web/dist` once and hands the result
- * to `setWebUiDir`. The route handlers close over that resolved directory
- * via module-local state, which keeps directory resolution and the
- * "Web UI not built" warning in the serve command (the single owner) while
- * letting the route registrations remain pure data the loader can collect.
+ * Runtime hosts pass their project directory so the daemon and `kota serve`
+ * resolve the same `clients/web/dist` path from the same module context.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { extname, join } from "node:path";
+import { extname, join, resolve, sep } from "node:path";
 import type { RouteRegistration } from "#core/modules/module-types.js";
 import { jsonResponse, setCors } from "#core/server/session-pool.js";
 
@@ -26,63 +23,100 @@ const MIME_TYPES: Record<string, string> = {
   ".woff2": "font/woff2",
 };
 
-let webUiDir: string | undefined;
+export type StaticWebUiRoutesOptions = {
+  /** Explicit built UI directory. Mostly useful for tests. */
+  webUiDir?: string;
+  /** Project directory containing `clients/web/dist`. */
+  projectDir?: string;
+};
 
-/**
- * Set the resolved web UI directory used by the static route handlers.
- * Called by the serve command after it resolves `clients/web/dist`.
- * Pass `undefined` when the UI is not built so the handlers respond with
- * the "Web UI not installed" / "Not found" 404 fallback.
- */
-export function setWebUiDir(dir: string | undefined): void {
-  webUiDir = dir;
+function resolveWebUiDir(options: StaticWebUiRoutesOptions): string | undefined {
+  if (options.webUiDir !== undefined) return options.webUiDir;
+  if (options.projectDir !== undefined) {
+    return resolve(options.projectDir, "clients", "web", "dist");
+  }
+  return undefined;
 }
 
-function serveIndex(_req: IncomingMessage, res: ServerResponse): void {
-  if (!webUiDir) {
+function serveIndex(
+  _req: IncomingMessage,
+  res: ServerResponse,
+  options: StaticWebUiRoutesOptions,
+): void {
+  const dir = resolveWebUiDir(options);
+  if (!dir) {
     jsonResponse(res, 404, { error: "Web UI not installed" });
     return;
   }
-  try {
-    const html = readFileSync(join(webUiDir, "index.html"), "utf-8");
-    setCors(res);
-    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-    res.end(html);
-  } catch {
+  const indexPath = join(dir, "index.html");
+  if (!isReadableFile(indexPath)) {
     jsonResponse(res, 404, { error: "Web UI not installed" });
+    return;
   }
+
+  const html = readFileSync(indexPath, "utf-8");
+  setCors(res);
+  res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+  res.end(html);
 }
 
-function serveAsset(req: IncomingMessage, res: ServerResponse): void {
-  if (!webUiDir) {
+function serveAsset(
+  req: IncomingMessage,
+  res: ServerResponse,
+  options: StaticWebUiRoutesOptions,
+): void {
+  const dir = resolveWebUiDir(options);
+  if (!dir) {
     jsonResponse(res, 404, { error: "Not found" });
     return;
   }
-  const url = new URL(req.url ?? "/", "http://localhost");
-  const safePath = url.pathname.replace(/\.\./g, "");
-  try {
-    const data = readFileSync(join(webUiDir, safePath));
-    const ext = extname(safePath);
-    const contentType = MIME_TYPES[ext] ?? "application/octet-stream";
-    setCors(res);
-    res.writeHead(200, {
-      "Content-Type": contentType,
-      "Cache-Control": "public, max-age=31536000, immutable",
-    });
-    res.end(data);
-  } catch {
+  const assetPath = resolveAssetPath(dir, req);
+  if (!assetPath || !isReadableFile(assetPath)) {
     jsonResponse(res, 404, { error: "Not found" });
+    return;
   }
+
+  const data = readFileSync(assetPath);
+  const ext = extname(assetPath);
+  const contentType = MIME_TYPES[ext] ?? "application/octet-stream";
+  setCors(res);
+  res.writeHead(200, {
+    "Content-Type": contentType,
+    "Cache-Control": "public, max-age=31536000, immutable",
+  });
+  res.end(data);
 }
 
-export function staticWebUiRoutes(): RouteRegistration[] {
+function resolveAssetPath(dir: string, req: IncomingMessage): string | null {
+  const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
+  if (!pathname.startsWith("/assets/")) return null;
+
+  const relativeAssetPath = pathname.slice("/assets/".length);
+  if (!relativeAssetPath) return null;
+
+  const assetsRoot = resolve(dir, "assets");
+  const assetPath = resolve(assetsRoot, relativeAssetPath);
+  if (assetPath !== assetsRoot && !assetPath.startsWith(`${assetsRoot}${sep}`)) {
+    return null;
+  }
+
+  return assetPath;
+}
+
+function isReadableFile(path: string): boolean {
+  return existsSync(path) && statSync(path).isFile();
+}
+
+export function staticWebUiRoutes(
+  options: StaticWebUiRoutesOptions = {},
+): RouteRegistration[] {
   return [
-    { method: "GET", path: "/", handler: serveIndex },
-    { method: "GET", path: "/index.html", handler: serveIndex },
+    { method: "GET", path: "/", handler: (req, res) => serveIndex(req, res, options) },
+    { method: "GET", path: "/index.html", handler: (req, res) => serveIndex(req, res, options) },
     {
       method: "GET",
       path: "/assets/*rest",
-      handler: serveAsset,
+      handler: (req, res) => serveAsset(req, res, options),
     },
   ];
 }

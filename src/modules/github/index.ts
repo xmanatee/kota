@@ -30,16 +30,73 @@
 
 import type { KotaModule, ModuleContext, ModuleRuntimeContext, ToolDef } from "#core/modules/module-types.js";
 import { TASK_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
+import type { ModuleSetupRequirement } from "#core/modules/setup-requirements.js";
 import type { GitHubConfig } from "./github-auth.js";
 import { githubFetch, resolveRepo, resolveToken } from "./github-auth.js";
 import { makeIssueTools } from "./github-issues.js";
 import { makePrTools } from "./github-pr.js";
 import { GitHubTaskProvider } from "./task-provider.js";
 
+const githubSetupRequirements: ModuleSetupRequirement[] = [
+  {
+    id: "token-config",
+    kind: "config",
+    title: "GitHub token config reference",
+    description:
+      "Project config reference that points GitHub tools and task sync at a stored token.",
+    required: true,
+    scope: "project",
+    owner: "github",
+    sensitivity: "none",
+    setup: {
+      mode: "form",
+      fields: [
+        {
+          id: "token-ref",
+          label: "Token reference",
+          type: "string",
+          valueKind: "secret-reference",
+          configPath: "modules.github.token",
+          required: true,
+          placeholder: "$GITHUB_TOKEN",
+          helperText: "Use a secret reference, not a raw personal access token.",
+        },
+        {
+          id: "default-repo",
+          label: "Default repository",
+          type: "string",
+          configPath: "modules.github.repo",
+          required: false,
+          placeholder: "owner/repo",
+        },
+      ],
+    },
+  },
+  {
+    id: "token",
+    kind: "secret",
+    title: "GitHub personal access token",
+    description:
+      "Token value stored through the shared secret provider. Required for GitHub tools and task-provider sync.",
+    required: true,
+    scope: "project",
+    owner: "github",
+    sensitivity: "secret",
+    setup: {
+      mode: "url",
+      url: "https://github.com/settings/tokens",
+      label: "Open GitHub token settings",
+      pendingTtlMs: 30 * 60 * 1000,
+    },
+    secretRefs: [{ name: "GITHUB_TOKEN", scope: "project" }],
+  },
+];
+
 const githubModule: KotaModule = {
   name: "github",
   version: "1.0.0",
   description: "GitHub REST API tools for PR and issue operations",
+  setupRequirements: githubSetupRequirements,
 
   tools(ctx: ModuleContext): ToolDef[] {
     const config = ctx.getModuleConfig<GitHubConfig>();
@@ -50,10 +107,10 @@ const githubModule: KotaModule = {
       return [];
     }
 
-    const token = resolveToken(config.token);
+    const token = resolveToken(config.token, ctx.getSecret);
     if (!token) {
       ctx.log.warn(
-        `GitHub module: token env var "${config.token}" is not set — module inactive`,
+        `GitHub module: token reference "${config.token}" did not resolve — module inactive`,
       );
       return [];
     }
@@ -76,10 +133,10 @@ const githubModule: KotaModule = {
       );
       return;
     }
-    const token = resolveToken(config.token);
+    const token = resolveToken(config.token, ctx.getSecret);
     if (!token) {
       ctx.log.warn(
-        `GitHub task provider: token env var "${config.token}" is not set — provider inactive`,
+        `GitHub task provider: token reference "${config.token}" did not resolve — provider inactive`,
       );
       return;
     }

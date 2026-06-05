@@ -41,11 +41,9 @@ export type DaemonConfig = {
    * single daemon set this; KOTA-on-itself can leave it unset and let the
    * `projectDir` shorthand drive a single-project registry.
    *
-   * The per-project runtime bundle (workflow runtime, run store, task store,
-   * scheduler, module-log store, notification gate, approval queue,
-   * owner-question queue, push-token store) is wired in a follow-up slice;
-   * today the daemon still constructs one global runtime against the
-   * registry's default project.
+   * Each configured project gets a runtime bundle through
+   * `ProjectRuntimeRegistry`; daemon-wide control surfaces keep a default
+   * project for compatibility with older single-project clients.
    */
   projects?: readonly ConfiguredProjectInput[];
   model?: string;
@@ -93,8 +91,9 @@ export type DaemonConfig = {
   moduleConfigKeys?: ReadonlySet<string>;
   /**
    * Called after a restart-requested daemon has completed clean shutdown.
-   * The CLI child uses this to exit immediately with the supervised restart
-   * code; tests can inject a recorder instead of terminating the process.
+   * Defaults to `process.exit(code)`, which lets the supervisor restart the
+   * child without leaving an idle process alive. Tests and embedders can
+   * inject a recorder or alternate shutdown handoff.
    */
   restartExit?: (code: number) => void;
 };
@@ -271,7 +270,7 @@ export class Daemon {
       void this.stop()
         .then(() => {
           const restartExit = this.ctx.config.restartExit ?? ((code: number) => {
-            process.exitCode = code;
+            process.exit(code);
           });
           restartExit(RESTART_EXIT_CODE);
         })

@@ -36,7 +36,9 @@ Create a Slack App (api.slack.com/apps > Create New App > From Scratch).
 
 Configure bot messaging scopes, enable Socket Mode with an app-level token,
 subscribe to DM events, and enable interactivity. Socket Mode handles the
-endpoint; install the app to the workspace and keep tokens in local config.
+endpoint; install the app to the workspace and keep tokens in the shared
+secret store through `$SLACK_BOT_TOKEN` and `$SLACK_APP_TOKEN` config
+references.
 
 ## Boundaries
 
