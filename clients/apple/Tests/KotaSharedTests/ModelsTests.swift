@@ -273,7 +273,7 @@ final class ModelsTests: XCTestCase {
         let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         XCTAssertEqual(obj?["name"] as? String, "builder")
         XCTAssertNil(obj?["payload"])
-        XCTAssertNil(obj?["workflow"], "wire body must use the daemon's `name` key, not the legacy `workflow` key")
+        XCTAssertNil(obj?["workflow"], "wire body must use the daemon's `name` key, not `workflow`")
     }
 
     func testTriggerRequestEncodesPayloadObject() throws {

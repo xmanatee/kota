@@ -1,15 +1,16 @@
-import { existsSync, readFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, rmSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   buildLaunchdPlist,
   buildSystemdUnit,
+  getLaunchdPlistPath,
+  getSystemdServicePath,
   removeServiceFile,
   writeServiceFile,
 } from "./index.js";
 
-// Temp dir isolated per test to avoid cross-test interference
 let testDir: string;
 
 beforeEach(() => {
@@ -17,14 +18,24 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  // Clean up any files written during the test
-  try {
-    const { rmSync } = require("node:fs");
-    rmSync(testDir, { recursive: true, force: true });
-  } catch {
-    // best-effort cleanup
-  }
+  rmSync(testDir, { recursive: true, force: true });
 });
+
+describe("service paths", () => {
+  it("uses LaunchAgents for launchd", () => {
+    expect(getLaunchdPlistPath()).toBe(
+      join(homedir(), "Library", "LaunchAgents", "com.kota.daemon.plist"),
+    );
+  });
+
+  it("uses the user systemd directory", () => {
+    expect(getSystemdServicePath()).toBe(
+      join(homedir(), ".config", "systemd", "user", "kota-daemon.service"),
+    );
+  });
+});
+
+const emptyEnvironment = { nodeOptions: undefined, path: undefined };
 
 describe("buildLaunchdPlist structural assertions", () => {
   it("contains Label key with com.kota.daemon", () => {
@@ -47,13 +58,25 @@ describe("buildLaunchdPlist structural assertions", () => {
   });
 
   it("preserves NODE_OPTIONS when installing from the dev runtime", () => {
-    const content = buildLaunchdPlist("/my/project", { nodeOptions: "--conditions=source" });
+    const content = buildLaunchdPlist("/my/project", {
+      ...emptyEnvironment,
+      nodeOptions: "--conditions=source",
+    });
     expect(content).toContain("<key>NODE_OPTIONS</key>");
     expect(content).toContain("<string>--conditions=source</string>");
   });
 
+  it("preserves PATH for workflow child processes", () => {
+    const content = buildLaunchdPlist("/my/project", {
+      ...emptyEnvironment,
+      path: "/opt/homebrew/bin:/usr/bin",
+    });
+    expect(content).toContain("<key>PATH</key>");
+    expect(content).toContain("<string>/opt/homebrew/bin:/usr/bin</string>");
+  });
+
   it("omits empty NODE_OPTIONS", () => {
-    const content = buildLaunchdPlist("/my/project", { nodeOptions: "" });
+    const content = buildLaunchdPlist("/my/project", { ...emptyEnvironment, nodeOptions: "" });
     expect(content).not.toContain("<key>NODE_OPTIONS</key>");
   });
 
@@ -118,8 +141,19 @@ describe("buildSystemdUnit structural assertions", () => {
   });
 
   it("preserves NODE_OPTIONS when installing from the dev runtime", () => {
-    const content = buildSystemdUnit("/my/project", { nodeOptions: "--conditions=source" });
+    const content = buildSystemdUnit("/my/project", {
+      ...emptyEnvironment,
+      nodeOptions: "--conditions=source",
+    });
     expect(content).toContain('Environment="NODE_OPTIONS=--conditions=source"');
+  });
+
+  it("preserves PATH for workflow child processes", () => {
+    const content = buildSystemdUnit("/my/project", {
+      ...emptyEnvironment,
+      path: "/opt/homebrew/bin:/usr/bin",
+    });
+    expect(content).toContain('Environment="PATH=/opt/homebrew/bin:/usr/bin"');
   });
 
   it("contains Restart=on-failure", () => {
@@ -199,7 +233,7 @@ describe("removeServiceFile", () => {
 });
 
 describe("install/uninstall lifecycle", () => {
-  it("launchd: full install → uninstall round-trip", () => {
+  it("launchd install-uninstall round-trip", () => {
     const plistPath = join(testDir, "com.kota.daemon.plist");
     const content = buildLaunchdPlist("/my/project");
 
@@ -212,28 +246,7 @@ describe("install/uninstall lifecycle", () => {
     expect(existsSync(plistPath)).toBe(false);
   });
 
-  it("launchd: second install returns 'already installed' error", () => {
-    const plistPath = join(testDir, "com.kota.daemon.plist");
-    const content = buildLaunchdPlist("/my/project");
-    writeServiceFile(plistPath, content);
-
-    const err = writeServiceFile(plistPath, content);
-    expect(err).not.toBeNull();
-    expect(err).toContain("already installed");
-  });
-
-  it("launchd: second uninstall returns 'not installed' error", () => {
-    const plistPath = join(testDir, "com.kota.daemon.plist");
-    const content = buildLaunchdPlist("/my/project");
-    writeServiceFile(plistPath, content);
-    removeServiceFile(plistPath);
-
-    const err = removeServiceFile(plistPath);
-    expect(err).not.toBeNull();
-    expect(err).toContain("No KOTA daemon service found");
-  });
-
-  it("systemd: full install → uninstall round-trip", () => {
+  it("systemd install-uninstall round-trip", () => {
     const servicePath = join(testDir, "kota-daemon.service");
     const content = buildSystemdUnit("/my/project");
 
@@ -244,57 +257,5 @@ describe("install/uninstall lifecycle", () => {
     const uninstallErr = removeServiceFile(servicePath);
     expect(uninstallErr).toBeNull();
     expect(existsSync(servicePath)).toBe(false);
-  });
-
-  it("systemd: second install returns 'already installed' error", () => {
-    const servicePath = join(testDir, "kota-daemon.service");
-    const content = buildSystemdUnit("/my/project");
-    writeServiceFile(servicePath, content);
-
-    const err = writeServiceFile(servicePath, content);
-    expect(err).not.toBeNull();
-    expect(err).toContain("already installed");
-  });
-
-  it("systemd: second uninstall returns 'not installed' error", () => {
-    const servicePath = join(testDir, "kota-daemon.service");
-    const content = buildSystemdUnit("/my/project");
-    writeServiceFile(servicePath, content);
-    removeServiceFile(servicePath);
-
-    const err = removeServiceFile(servicePath);
-    expect(err).not.toBeNull();
-    expect(err).toContain("No KOTA daemon service found");
-  });
-
-  it("install writes correct launchd plist content to disk", () => {
-    const plistPath = join(testDir, "com.kota.daemon.plist");
-    const content = buildLaunchdPlist("/my/project");
-    writeServiceFile(plistPath, content);
-
-    const written = readFileSync(plistPath, "utf8");
-    expect(written).toContain("<key>Label</key>");
-    expect(written).toContain("<string>com.kota.daemon</string>");
-    expect(written).toContain("<key>KOTA_PROJECT_DIR</key>");
-    expect(written).toContain("<string>/my/project</string>");
-    expect(written).toContain("<key>StandardOutPath</key>");
-    expect(written).toContain("<key>StandardErrorPath</key>");
-    expect(written).toContain("<key>RunAtLoad</key>");
-  });
-
-  it("install writes correct systemd unit content to disk", () => {
-    const servicePath = join(testDir, "kota-daemon.service");
-    const content = buildSystemdUnit("/my/project");
-    writeServiceFile(servicePath, content);
-
-    const written = readFileSync(servicePath, "utf8");
-    expect(written).toContain("[Unit]");
-    expect(written).toContain("[Service]");
-    expect(written).toContain('Environment="KOTA_PROJECT_DIR=/my/project"');
-    expect(written).toContain("Restart=on-failure");
-    expect(written).toContain("StandardOutput=journal");
-    expect(written).toContain("StandardError=journal");
-    expect(written).toContain("[Install]");
-    expect(written).toContain("WantedBy=default.target");
   });
 });

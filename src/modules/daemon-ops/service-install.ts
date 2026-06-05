@@ -47,19 +47,39 @@ function systemdEnvironment(name: string, value: string): string {
   return `Environment="${escaped}"`;
 }
 
-type ServiceUnitOptions = {
-  nodeOptions?: string;
+type ServiceUnitEnvironment = {
+  nodeOptions: string | undefined;
+  path: string | undefined;
 };
 
-function serviceNodeOptions(options?: ServiceUnitOptions): string | undefined {
-  const nodeOptions = options?.nodeOptions ?? process.env.NODE_OPTIONS;
-  return nodeOptions && nodeOptions.trim() ? nodeOptions : undefined;
+function nonEmptyEnvironmentValue(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
 }
 
-export function buildLaunchdPlist(projectDir: string, options?: ServiceUnitOptions): string {
+function currentServiceUnitEnvironment(): ServiceUnitEnvironment {
+  return {
+    nodeOptions: process.env.NODE_OPTIONS,
+    path: process.env.PATH,
+  };
+}
+
+function serviceNodeOptions(environment: ServiceUnitEnvironment): string | undefined {
+  return nonEmptyEnvironmentValue(environment.nodeOptions);
+}
+
+function servicePath(environment: ServiceUnitEnvironment): string | undefined {
+  return nonEmptyEnvironmentValue(environment.path);
+}
+
+export function buildLaunchdPlist(
+  projectDir: string,
+  environment: ServiceUnitEnvironment = currentServiceUnitEnvironment(),
+): string {
   const kotaBin = process.argv[1]!;
   const logDir = join(projectDir, ".kota");
-  const nodeOptions = serviceNodeOptions(options);
+  const nodeOptions = serviceNodeOptions(environment);
+  const path = servicePath(environment);
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,
     `<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">`,
@@ -78,6 +98,12 @@ export function buildLaunchdPlist(projectDir: string, options?: ServiceUnitOptio
     `  <dict>`,
     `    <key>KOTA_PROJECT_DIR</key>`,
     `    <string>${plistString(projectDir)}</string>`,
+    ...(path
+      ? [
+          `    <key>PATH</key>`,
+          `    <string>${plistString(path)}</string>`,
+        ]
+      : []),
     ...(nodeOptions
       ? [
           `    <key>NODE_OPTIONS</key>`,
@@ -100,10 +126,14 @@ export function buildLaunchdPlist(projectDir: string, options?: ServiceUnitOptio
   ].join("\n");
 }
 
-export function buildSystemdUnit(projectDir: string, options?: ServiceUnitOptions): string {
+export function buildSystemdUnit(
+  projectDir: string,
+  environment: ServiceUnitEnvironment = currentServiceUnitEnvironment(),
+): string {
   const kotaBin = process.argv[1]!;
   const execArgs = [...process.execArgv, kotaBin, "daemon"].join(" ");
-  const nodeOptions = serviceNodeOptions(options);
+  const nodeOptions = serviceNodeOptions(environment);
+  const path = servicePath(environment);
   return [
     `[Unit]`,
     `Description=KOTA Daemon`,
@@ -114,6 +144,7 @@ export function buildSystemdUnit(projectDir: string, options?: ServiceUnitOption
     `ExecStart=${process.execPath} ${execArgs}`,
     `WorkingDirectory=${projectDir}`,
     systemdEnvironment("KOTA_PROJECT_DIR", projectDir),
+    ...(path ? [systemdEnvironment("PATH", path)] : []),
     ...(nodeOptions ? [systemdEnvironment("NODE_OPTIONS", nodeOptions)] : []),
     `Restart=on-failure`,
     `StandardOutput=journal`,

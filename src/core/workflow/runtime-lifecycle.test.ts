@@ -31,12 +31,12 @@ describe("WorkflowRuntime dispatch pause persistence", () => {
       workflows: [],
     });
 
-    runtime.setDispatchPaused(true, { persistent: true });
+    runtime.setDispatchPaused(true, "persistent");
 
     expect(existsSync(pausePath())).toBe(true);
     expect(runtime.isDispatchPaused()).toBe(true);
 
-    runtime.setDispatchPaused(false, { persistent: true });
+    runtime.setDispatchPaused(false, "persistent");
 
     expect(existsSync(pausePath())).toBe(false);
     expect(runtime.isDispatchPaused()).toBe(false);

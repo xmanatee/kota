@@ -2132,7 +2132,7 @@ final class DaemonClientTests: XCTestCase {
             XCTAssertNotNil(body)
             let obj = try? JSONSerialization.jsonObject(with: body!) as? [String: Any]
             XCTAssertEqual(obj?["name"] as? String, "builder",
-                           "daemon /workflow/trigger expects {name}; the legacy {workflow} body always 400s")
+                           "daemon /workflow/trigger expects {name}; {workflow} always 400s")
             XCTAssertNil(obj?["payload"], "no payload was supplied so the body must omit it entirely")
 
             let respBody = #"{"ok": true, "queued": "builder", "runId": "run-1"}"#.data(using: .utf8)!

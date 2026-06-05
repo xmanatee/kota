@@ -15,6 +15,7 @@ import { PAUSE_SIGNAL_FILE } from "./runtime-signals.js";
 import type { WatchTriggerManager } from "./watch-triggers.js";
 
 export const WORKFLOW_STOP_ABORT_WAIT_MS = 15_000;
+export type WorkflowDispatchPauseMode = "runtime" | "persistent";
 
 export interface WorkflowRuntimeLifecycleState extends WorkflowRuntimeDispatchState {
   watchTriggers: WatchTriggerManager;
@@ -129,8 +130,10 @@ export async function stopRuntime(
   for (const dispose of state.awaitResumeDisposers.splice(0)) {
     try {
       dispose();
-    } catch {
-      /* no-op */
+    } catch (error) {
+      state.log(
+        `Workflow await resumer cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
   state.scheduleTriggers.clearAll();
@@ -187,9 +190,9 @@ export function isDispatchPaused(state: WorkflowRuntimeLifecycleState): boolean 
 export function setDispatchPaused(
   state: WorkflowRuntimeLifecycleState,
   paused: boolean,
-  options: { persistent?: boolean } = {},
+  mode: WorkflowDispatchPauseMode,
 ): void {
-  if (options.persistent) {
+  if (mode === "persistent") {
     const stateDir = join(state.projectDir, ".kota");
     const pausePath = join(stateDir, PAUSE_SIGNAL_FILE);
     if (paused) {

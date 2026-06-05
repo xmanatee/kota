@@ -27,6 +27,7 @@ import {
   setDispatchPaused,
   startRuntime,
   stopRuntime,
+  type WorkflowDispatchPauseMode,
   WORKFLOW_STOP_ABORT_WAIT_MS,
 } from "./runtime-lifecycle.js";
 import {
@@ -229,8 +230,8 @@ export class WorkflowRuntime {
     return isDispatchPaused(this.ctx);
   }
 
-  setDispatchPaused(paused: boolean, options?: { persistent?: boolean }): void {
-    setDispatchPaused(this.ctx, paused, options);
+  setDispatchPaused(paused: boolean, mode: WorkflowDispatchPauseMode = "runtime"): void {
+    setDispatchPaused(this.ctx, paused, mode);
   }
 
   getDispatchWindowStatus(): { blocked: boolean; opensAt?: string } {

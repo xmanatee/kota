@@ -171,13 +171,13 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
     pauseWorkflowDispatch: (projectId?: ProjectId) => {
       const workflows = lookupRuntime(projectId).workflowRuntime;
       const already = workflows.isDispatchPaused();
-      if (!already) workflows.setDispatchPaused(true, { persistent: true });
+      if (!already) workflows.setDispatchPaused(true, "persistent");
       return { already };
     },
     resumeWorkflowDispatch: (projectId?: ProjectId) => {
       const workflows = lookupRuntime(projectId).workflowRuntime;
       const already = !workflows.isDispatchPaused();
-      if (!already) workflows.setDispatchPaused(false, { persistent: true });
+      if (!already) workflows.setDispatchPaused(false, "persistent");
       return { already };
     },
     probeCapabilityReadiness: () => ctx.probeCapabilityReadiness(),
