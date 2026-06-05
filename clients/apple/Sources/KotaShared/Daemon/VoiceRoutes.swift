@@ -20,7 +20,7 @@ extension DaemonClient {
         if let languageHint { payload["languageHint"] = languageHint }
         let body = try JSONSerialization.data(withJSONObject: payload)
 
-        var request = URLRequest(url: conn.baseURL.appendingPathComponent("/voice/transcribe"))
+        var request = URLRequest(url: routeURL("/voice/transcribe", connection: conn))
         request.httpMethod = "POST"
         request.setValue("Bearer \(conn.token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -54,7 +54,7 @@ extension DaemonClient {
         if let format { payload["format"] = format }
         let body = try JSONSerialization.data(withJSONObject: payload)
 
-        var request = URLRequest(url: conn.baseURL.appendingPathComponent("/voice/synthesize"))
+        var request = URLRequest(url: routeURL("/voice/synthesize", connection: conn))
         request.httpMethod = "POST"
         request.setValue("Bearer \(conn.token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")

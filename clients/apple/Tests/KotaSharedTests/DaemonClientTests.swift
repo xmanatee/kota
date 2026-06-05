@@ -85,6 +85,53 @@ final class DaemonClientTests: XCTestCase {
         XCTAssertEqual(status.workflow?.activeRuns.count, 0)
     }
 
+    func testProjectScopedStatusPreservesQueryString() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            let components = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)
+            XCTAssertEqual(request.url?.path, "/status")
+            XCTAssertEqual(components?.queryItems, [
+                URLQueryItem(name: "projectId", value: "p-kota"),
+            ])
+            let body = #"{"running": true, "workflow": {"activeRuns": [], "paused": false}}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, body)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        _ = try await client.fetchStatus(projectId: "p-kota")
+    }
+
+    func testProjectScopedRunHistoryPreservesExistingAndProjectQueryItems() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            let components = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)
+            XCTAssertEqual(request.url?.path, "/workflow/runs")
+            XCTAssertEqual(components?.queryItems, [
+                URLQueryItem(name: "limit", value: "3"),
+                URLQueryItem(name: "projectId", value: "p-kota"),
+            ])
+            let body = #"{"runs":[]}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, body)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        _ = try await client.fetchRecentRuns(limit: 3, projectId: "p-kota")
+    }
+
     func testFetchStatusThrowsOnHttpError() async throws {
         URLProtocol.registerClass(MockURLProtocol.self)
         defer { URLProtocol.unregisterClass(MockURLProtocol.self) }

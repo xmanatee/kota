@@ -249,9 +249,13 @@ public final class DaemonClient {
         }
     }
 
+    func routeURL(_ path: String, connection conn: DaemonConnection) -> URL {
+        URL(string: path, relativeTo: conn.baseURL)!.absoluteURL
+    }
+
     func get<T: Decodable>(_ path: String) async throws -> T {
         guard let conn = connection else { throw DaemonClientError.notConnected }
-        var request = URLRequest(url: conn.baseURL.appendingPathComponent(path))
+        var request = URLRequest(url: routeURL(path, connection: conn))
         request.setValue("Bearer \(conn.token)", forHTTPHeaderField: "Authorization")
         let (data, response) = try await URLSession.shared.data(for: request)
         try throwIfHTTPError(response: response, data: data)
@@ -261,7 +265,7 @@ public final class DaemonClient {
     @discardableResult
     func post<T: Decodable>(_ path: String, body: Data?) async throws -> T {
         guard let conn = connection else { throw DaemonClientError.notConnected }
-        var request = URLRequest(url: conn.baseURL.appendingPathComponent(path))
+        var request = URLRequest(url: routeURL(path, connection: conn))
         request.httpMethod = "POST"
         request.setValue("Bearer \(conn.token)", forHTTPHeaderField: "Authorization")
         if let body {
@@ -275,7 +279,7 @@ public final class DaemonClient {
 
     func post(_ path: String, body: Data?) async throws {
         guard let conn = connection else { throw DaemonClientError.notConnected }
-        var request = URLRequest(url: conn.baseURL.appendingPathComponent(path))
+        var request = URLRequest(url: routeURL(path, connection: conn))
         request.httpMethod = "POST"
         request.setValue("Bearer \(conn.token)", forHTTPHeaderField: "Authorization")
         if let body {
@@ -288,7 +292,7 @@ public final class DaemonClient {
 
     func patch<T: Decodable>(_ path: String, body: Data) async throws -> T {
         guard let conn = connection else { throw DaemonClientError.notConnected }
-        var request = URLRequest(url: conn.baseURL.appendingPathComponent(path))
+        var request = URLRequest(url: routeURL(path, connection: conn))
         request.httpMethod = "PATCH"
         request.setValue("Bearer \(conn.token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -300,7 +304,7 @@ public final class DaemonClient {
 
     func delete(_ path: String) async throws {
         guard let conn = connection else { throw DaemonClientError.notConnected }
-        var request = URLRequest(url: conn.baseURL.appendingPathComponent(path))
+        var request = URLRequest(url: routeURL(path, connection: conn))
         request.httpMethod = "DELETE"
         request.setValue("Bearer \(conn.token)", forHTTPHeaderField: "Authorization")
         let (data, response) = try await URLSession.shared.data(for: request)

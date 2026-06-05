@@ -6,7 +6,7 @@ extension DaemonClient {
     /// stream ends.
     func streamChat(sessionId: String, message: String, onEvent: @escaping (String, Data) -> Void) async throws {
         guard let conn = connection else { throw DaemonClientError.notConnected }
-        let url = conn.baseURL.appendingPathComponent("/sessions/\(sessionId)/chat")
+        let url = routeURL("/sessions/\(sessionId)/chat", connection: conn)
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(conn.token)", forHTTPHeaderField: "Authorization")
