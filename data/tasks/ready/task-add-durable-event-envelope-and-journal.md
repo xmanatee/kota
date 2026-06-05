@@ -1,13 +1,13 @@
 ---
 id: task-add-durable-event-envelope-and-journal
 title: Add durable event envelope and journal
-status: backlog
+status: ready
 priority: p1
 area: core
 summary: Introduce a durable event envelope and append-only event journal so module events, workflow triggers, channel signals, and daemon events carry stable identity, causality, scope, schema, and replay metadata beyond the in-memory bus.
 depends_on: [task-promote-projects-into-hierarchical-scopes, task-add-event-schema-version-registry]
 created_at: 2026-06-03T15:50:03.360Z
-updated_at: 2026-06-03T15:50:03.360Z
+updated_at: 2026-06-05T18:23:08.568Z
 ---
 
 ## Problem

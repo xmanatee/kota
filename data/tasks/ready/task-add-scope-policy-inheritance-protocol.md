@@ -1,13 +1,13 @@
 ---
 id: task-add-scope-policy-inheritance-protocol
 title: Add scope policy inheritance protocol
-status: backlog
+status: ready
 priority: p1
 area: core
 summary: Add a focused policy inheritance contract for hierarchical scopes so autonomy, writes, channel routing, setup visibility, retention, and owner-confirmation requirements can be resolved consistently without typed project categories.
 depends_on: [task-promote-projects-into-hierarchical-scopes]
 created_at: 2026-06-03T15:50:52.628Z
-updated_at: 2026-06-03T15:50:52.628Z
+updated_at: 2026-06-05T18:23:08.608Z
 ---
 
 ## Problem
