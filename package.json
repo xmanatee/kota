@@ -42,7 +42,7 @@
     "lint": "biome check src/",
     "lint:fix": "biome check --write src/",
     "build:schema": "node --conditions=source --import tsx src/core/config/build-schema.ts",
-    "validate-tasks": "node dist/validate-queue.js",
+    "validate-tasks": "node --conditions=source --import tsx src/validate-queue.ts",
     "kota": "node bin/kota.mjs"
   },
   "dependencies": {
