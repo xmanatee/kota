@@ -1,3 +1,4 @@
+import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { validatePayloadSchema } from "./payload-validator.js";
 import { getEligibleAtMs } from "./run-executor-utils.js";
 import { formatRunId } from "./run-io.js";
@@ -9,9 +10,11 @@ import {
   type WorkflowRunTrigger,
 } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
+import { workflowDispatchIdempotency } from "./workflow-idempotency.js";
 
 export type WorkflowQueueManagerConfig = {
   store: WorkflowRunStore;
+  idempotencyStore: IdempotencyStore;
   getActiveBackoff: () => WorkflowAgentBackoffState | null;
   shouldSuppressBackoff: (
     definition: WorkflowDefinition,
@@ -114,6 +117,32 @@ export class WorkflowQueueManager {
         state,
       ),
     };
+
+    const idempotency = workflowDispatchIdempotency(
+      this.config.idempotencyStore,
+      definition.name,
+      queuedRun.trigger,
+    );
+    if (idempotency) {
+      const idempotencyResult = this.config.idempotencyStore.record({
+        scopeId: idempotency.scopeId,
+        operation: "workflow-dispatch",
+        key: idempotency.key,
+        parameterFingerprint: idempotency.parameterFingerprint,
+        result: {
+          workflowName: definition.name,
+          runId: queuedRun.runId ?? "",
+          triggerEvent: trigger.event,
+          queuedAt: new Date(queuedRun.enqueuedAtMs).toISOString(),
+        },
+      });
+      if (idempotencyResult.status !== "accepted") {
+        this.config.log(
+          `Skipped workflow "${definition.name}" from event "${trigger.event}" due to idempotency status "${idempotencyResult.status}"`,
+        );
+        return;
+      }
+    }
 
     if (existingIndex >= 0) {
       this.queue[existingIndex] = {

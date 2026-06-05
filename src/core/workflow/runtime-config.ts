@@ -1,5 +1,6 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
+import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import type { WorkflowRunStore } from "./run-store.js";
@@ -23,6 +24,7 @@ export type WorkflowRuntimeConfig = {
    * let the runtime construct its own from `projectDir`.
    */
   runStore?: WorkflowRunStore;
+  idempotencyStore?: IdempotencyStore;
   model?: string;
   config?: KotaConfig;
   idleIntervalMs?: number;

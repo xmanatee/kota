@@ -1,5 +1,7 @@
+import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
+import { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { AgentBackoffManager } from "./agent-backoff.js";
@@ -47,6 +49,7 @@ import { type AgentRunLimiter, createAgentRunLimiter } from "./steps/agent-run-l
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinition } from "./types.js";
 import { WorkflowDefinitionError } from "./validation.js";
 import { WatchTriggerManager } from "./watch-triggers.js";
+import type { WebhookRunPayload } from "./workflow-dispatcher-provider.js";
 import { WorkflowQueueManager } from "./workflow-queue.js";
 
 export type { WorkflowRuntimeConfig };
@@ -64,6 +67,7 @@ export interface WorkflowRuntimeContext {
   readonly projectDir: string;
   readonly config?: KotaConfig;
   readonly store: WorkflowRunStore;
+  readonly idempotencyStore: IdempotencyStore;
   readonly wfQueue: WorkflowQueueManager;
   readonly scheduleTriggers: ScheduleTriggerManager;
   readonly watchTriggers: WatchTriggerManager;
@@ -121,6 +125,10 @@ export class WorkflowRuntime {
   constructor(runtimeConfig: WorkflowRuntimeConfig) {
     const projectDir = runtimeConfig.projectDir ?? process.cwd();
     const store = runtimeConfig.runStore ?? new WorkflowRunStore(projectDir);
+    const scopeId = deriveDirectoryScopeId(projectDir);
+    const idempotencyStore =
+      runtimeConfig.idempotencyStore ??
+      new IdempotencyStore(join(store.rootDir, "idempotency"), scopeId);
     const onLog = runtimeConfig.onLog;
     const log = (message: string): void => {
       onLog?.(message);
@@ -142,6 +150,7 @@ export class WorkflowRuntime {
     );
     const wfQueue = new WorkflowQueueManager({
       store,
+      idempotencyStore,
       getActiveBackoff: () => backoff.getActive(),
       shouldSuppressBackoff: (def) => backoff.shouldSuppress(def),
       workflowUsesAgent,
@@ -166,7 +175,7 @@ export class WorkflowRuntime {
 
     const pbus =
       runtimeConfig.pbus ??
-      new ProjectScopedEventBus(runtimeConfig.bus, deriveDirectoryScopeId(projectDir));
+      new ProjectScopedEventBus(runtimeConfig.bus, scopeId);
 
     const agentConcurrency = runtimeConfig.agentConcurrency ?? 1;
     const eventBatches = new WorkflowEventBatchManager(
@@ -181,6 +190,7 @@ export class WorkflowRuntime {
       projectDir,
       config: runtimeConfig.config,
       store,
+      idempotencyStore,
       wfQueue,
       scheduleTriggers,
       watchTriggers,
@@ -274,7 +284,7 @@ export class WorkflowRuntime {
 
   enqueueWebhookRun(
     name: string,
-    webhookPayload: { body: unknown; headers: Record<string, string>; timestamp: string },
+    webhookPayload: WebhookRunPayload,
   ): { ok: boolean; runId?: string; alreadyRunning?: boolean; error?: string } {
     return enqueueWebhookRun(this.ctx, name, webhookPayload);
   }

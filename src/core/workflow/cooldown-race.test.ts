@@ -2,6 +2,7 @@ import { rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { createActiveRunHandle } from "./active-run-handle.js";
 import { ensureDir, writeJsonFile } from "./run-io.js";
@@ -246,6 +247,7 @@ describe("cooldown race condition", () => {
           readState: () => readState(statePath),
           setPendingRuns: () => {},
         } as any,
+        idempotencyStore: new IdempotencyStore(join(kotaDir, "idempotency"), "scope-a"),
         getActiveBackoff: () => null,
         shouldSuppressBackoff: () => null,
         workflowUsesAgent: () => false,
@@ -307,6 +309,7 @@ describe("cooldown race condition", () => {
           readState: () => readState(statePath),
           setPendingRuns: () => {},
         } as any,
+        idempotencyStore: new IdempotencyStore(join(kotaDir, "idempotency"), "scope-a"),
         getActiveBackoff: () => null,
         shouldSuppressBackoff: () => null,
         workflowUsesAgent: () => false,
@@ -363,6 +366,7 @@ describe("cooldown race condition", () => {
           readState: () => readState(statePath),
           setPendingRuns: () => {},
         } as any,
+        idempotencyStore: new IdempotencyStore(join(kotaDir, "idempotency"), "scope-a"),
         getActiveBackoff: () => null,
         shouldSuppressBackoff: () => null,
         workflowUsesAgent: () => false,

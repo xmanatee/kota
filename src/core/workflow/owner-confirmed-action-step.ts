@@ -1,4 +1,12 @@
 import { type ApprovalQueue, getApprovalQueue } from "#core/daemon/approval-queue.js";
+import { getIdempotencyStore } from "#core/daemon/idempotency-singleton.js";
+import {
+  fingerprintIdempotencyParams,
+  hashIdempotencyMaterial,
+  type IdempotencyJsonObject,
+  type IdempotencyStore,
+  toIdempotencyJsonValue,
+} from "#core/daemon/idempotency-store.js";
 import {
   getOwnerDecisionStore,
   type OwnerConfirmedActionMetadata,
@@ -31,6 +39,7 @@ export type OwnerConfirmedActionStepOutput<TResult> = {
   dangerousEffect: boolean;
   approvalId: string | null;
   executedAt: string;
+  idempotency: { status: "accepted" | "replayed"; key: string };
   result: TResult;
 };
 
@@ -42,12 +51,10 @@ export type ConfirmedOwnerActionStepConfig<TInput extends OwnerDecisionJsonObjec
   adapter: OwnerConfirmedActionAdapter<TInput, TResult>;
   decisionStore?: () => OwnerDecisionStore;
   approvalQueue?: () => ApprovalQueue;
+  idempotencyStore?: () => IdempotencyStore;
 };
 
-async function resolveOptionalValue<T>(
-  context: WorkflowStepContext,
-  resolver: WorkflowValueResolver<T | null> | undefined,
-): Promise<T | null> {
+async function resolveOptionalValue<T>(context: WorkflowStepContext, resolver: WorkflowValueResolver<T | null> | undefined): Promise<T | null> {
   if (resolver === undefined) return null;
   return resolveValue(resolver, context);
 }
@@ -120,7 +127,7 @@ function assertDecisionAuthorizesAction(
   decision: OwnerDecisionRecord,
   metadata: OwnerConfirmedActionMetadata,
 ): { action: OwnerConfirmedActionMetadata; selectedValue: OwnerDecisionSelectedValue } {
-  if (decision.status !== "answered" || !decision.selectedValue) {
+  if ((decision.status !== "answered" && decision.status !== "consumed") || !decision.selectedValue) {
     throw new Error(`confirmedOwnerActionStep: decision ${decision.id} is not answered`);
   }
   const action = decision.action;
@@ -163,6 +170,19 @@ function assertDangerousApproval(
   }
 }
 
+function idempotencyResultOutput<TResult>(projection: IdempotencyJsonObject): OwnerConfirmedActionStepOutput<TResult> {
+  const output = projection.output;
+  if (!output || typeof output !== "object" || Array.isArray(output)) {
+    throw new Error("confirmedOwnerActionStep: stored idempotency result is malformed");
+  }
+  return output as OwnerConfirmedActionStepOutput<TResult>;
+}
+
+function idempotencyError(projection: IdempotencyJsonObject): Error | null {
+  const message = projection.error;
+  return typeof message === "string" ? new Error(message) : null;
+}
+
 export function confirmedOwnerActionStep<TInput extends OwnerDecisionJsonObject, TResult>(
   config: ConfirmedOwnerActionStepConfig<TInput, TResult>,
 ): TypedCodeStepInput<OwnerConfirmedActionStepOutput<TResult>> {
@@ -177,6 +197,7 @@ export function confirmedOwnerActionStep<TInput extends OwnerDecisionJsonObject,
       "dangerousEffect",
       "approvalId",
       "executedAt",
+      "idempotency",
       "result",
     ]),
     run: async (ctx): Promise<OwnerConfirmedActionStepOutput<TResult>> => {
@@ -192,31 +213,84 @@ export function confirmedOwnerActionStep<TInput extends OwnerDecisionJsonObject,
         approvalId,
         config.approvalQueue ? config.approvalQueue() : getApprovalQueue(),
       );
-      const consumed = store.consumeForAction(decisionId, {
-        workflowName: ctx.workflow.name,
-        runId: ctx.workflow.runId,
-        stepId: config.id,
-        actionId: authorization.action.actionId,
-        adapterName: authorization.action.adapterName,
-        approvalId,
-      });
-      if (!consumed.ok) throw new Error(`confirmedOwnerActionStep: decision ${decisionId} consumption failed: ${consumed.reason}`);
-      const result = await config.adapter.execute({
-        decision: consumed.decision,
-        selectedValue: authorization.selectedValue,
-        input,
-        context: ctx,
-      });
-      return {
+      const idempotencyStore = config.idempotencyStore
+        ? config.idempotencyStore()
+        : getIdempotencyStore();
+      const idempotencyKey = `owner-action:${hashIdempotencyMaterial([
+        decision.scopeId,
         decisionId,
-        actionId: authorization.action.actionId,
-        adapterName: authorization.action.adapterName,
-        dryRun: authorization.action.dryRun,
-        dangerousEffect: authorization.action.dangerousEffect,
-        approvalId,
-        executedAt: consumed.decision.consumption?.consumedAt ?? new Date().toISOString(),
-        result,
-      };
+        authorization.action.adapterName,
+        authorization.action.actionId,
+      ])}`;
+      const claim = idempotencyStore.claim({
+        scopeId: decision.scopeId,
+        operation: "owner-confirmed-action",
+        key: idempotencyKey,
+        parameterFingerprint: fingerprintIdempotencyParams({
+          action: authorization.action,
+          approvalId,
+          input: input as IdempotencyJsonObject,
+        }),
+      });
+      if (claim.status === "replayed") {
+        const error = idempotencyError(claim.result);
+        if (error) throw error;
+        return {
+          ...idempotencyResultOutput<TResult>(claim.result),
+          idempotency: { status: "replayed", key: idempotencyKey },
+        };
+      }
+      if (claim.status === "ignored") {
+        throw new Error(`confirmedOwnerActionStep: duplicate action ${idempotencyKey} is already in progress`);
+      }
+      if (claim.status === "expired") {
+        throw new Error(`confirmedOwnerActionStep: duplicate action ${idempotencyKey} expired before retry`);
+      }
+      if (claim.status === "rejected") {
+        throw new Error(
+          `confirmedOwnerActionStep: duplicate action ${idempotencyKey} reused different parameters`,
+        );
+      }
+      try {
+        const consumed = store.consumeForAction(decisionId, {
+          workflowName: ctx.workflow.name,
+          runId: ctx.workflow.runId,
+          stepId: config.id,
+          actionId: authorization.action.actionId,
+          adapterName: authorization.action.adapterName,
+          approvalId,
+        });
+        if (!consumed.ok) throw new Error(`confirmedOwnerActionStep: decision ${decisionId} consumption failed: ${consumed.reason}`);
+        const result = await config.adapter.execute({
+          decision: consumed.decision,
+          selectedValue: authorization.selectedValue,
+          input,
+          context: ctx,
+        });
+        const output: OwnerConfirmedActionStepOutput<TResult> = {
+          decisionId,
+          actionId: authorization.action.actionId,
+          adapterName: authorization.action.adapterName,
+          dryRun: authorization.action.dryRun,
+          dangerousEffect: authorization.action.dangerousEffect,
+          approvalId,
+          executedAt: consumed.decision.consumption?.consumedAt ?? new Date().toISOString(),
+          idempotency: { status: "accepted", key: idempotencyKey },
+          result,
+        };
+        idempotencyStore.complete(claim.reservation, {
+          kind: "owner-confirmed-action",
+          output: toIdempotencyJsonValue(output as IdempotencyJsonObject),
+        });
+        return output;
+      } catch (error) {
+        const failure = error instanceof Error ? error : new Error(String(error));
+        idempotencyStore.complete(claim.reservation, {
+          kind: "owner-confirmed-action",
+          error: failure.message,
+        });
+        throw failure;
+      }
     },
   });
 }

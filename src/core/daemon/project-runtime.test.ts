@@ -9,6 +9,10 @@ import {
 } from "#core/modules/module-log.js";
 import { getApprovalQueue, resetApprovalQueue } from "./approval-queue.js";
 import {
+  getIdempotencyStore,
+  resetIdempotencyStore,
+} from "./idempotency-singleton.js";
+import {
   getOwnerQuestionQueue,
   resetOwnerQuestionQueue,
 } from "./owner-question-queue.js";
@@ -34,6 +38,7 @@ function resetSingletons(): void {
   resetScheduler();
   resetModuleLogStore();
   resetApprovalQueue();
+  resetIdempotencyStore();
   resetOwnerQuestionQueue();
 }
 
@@ -70,6 +75,15 @@ describe("createProjectRuntime", () => {
 
     bundle.approvalQueue.enqueue("Bash", { cmd: "ls" }, "moderate", "test");
     expect(bundle.approvalQueue.list("pending")).toHaveLength(1);
+
+    bundle.idempotencyStore.record({
+      scopeId: project.projectId,
+      operation: "workflow-dispatch",
+      key: "manual:test",
+      parameterFingerprint: "fp",
+      result: { runId: "run-1" },
+    });
+    expect(bundle.idempotencyStore.list()).toHaveLength(1);
 
     bundle.ownerQuestionQueue.enqueue({
       context: "ctx",
@@ -111,6 +125,7 @@ describe("createProjectRuntime", () => {
     expect(getScheduler()).toBe(bundleA.scheduler);
     expect(getModuleLogStore()).toBe(bundleA.moduleLogStore);
     expect(getApprovalQueue()).toBe(bundleA.approvalQueue);
+    expect(getIdempotencyStore()).toBe(bundleA.idempotencyStore);
     expect(getOwnerQuestionQueue()).toBe(bundleA.ownerQuestionQueue);
 
     expect(bundleB.taskStore).not.toBe(bundleA.taskStore);
@@ -155,6 +170,7 @@ describe("ProjectRuntimeRegistry — independence across projects", () => {
     expect(a.taskStore).not.toBe(b.taskStore);
     expect(a.scheduler).not.toBe(b.scheduler);
     expect(a.approvalQueue).not.toBe(b.approvalQueue);
+    expect(a.idempotencyStore).not.toBe(b.idempotencyStore);
     expect(a.ownerQuestionQueue).not.toBe(b.ownerQuestionQueue);
     expect(a.moduleLogStore).not.toBe(b.moduleLogStore);
     expect(a.workflowRuntime).not.toBe(b.workflowRuntime);
@@ -178,6 +194,25 @@ describe("ProjectRuntimeRegistry — independence across projects", () => {
     expect(existsSync(join(dirB, ".kota", "approvals"))).toBe(true);
     expect(readdirSync(join(dirA, ".kota", "approvals")).length).toBe(1);
     expect(readdirSync(join(dirB, ".kota", "approvals")).length).toBe(2);
+
+    a.idempotencyStore.record({
+      scopeId: a.project.projectId,
+      operation: "event-ingestion",
+      key: "signal:shared",
+      parameterFingerprint: "a",
+      result: { accepted: true },
+    });
+    b.idempotencyStore.record({
+      scopeId: b.project.projectId,
+      operation: "event-ingestion",
+      key: "signal:shared",
+      parameterFingerprint: "b",
+      result: { accepted: true },
+    });
+    expect(a.idempotencyStore.list()).toHaveLength(1);
+    expect(b.idempotencyStore.list()).toHaveLength(1);
+    expect(existsSync(join(dirA, ".kota", "idempotency"))).toBe(true);
+    expect(existsSync(join(dirB, ".kota", "idempotency"))).toBe(true);
 
     a.moduleLogStore.append("mod", "info", "alpha-log");
     b.moduleLogStore.append("mod", "info", "beta-log");
@@ -278,6 +313,15 @@ describe("singleton-binding invariant", () => {
         pattern: /\bnew\s+ApprovalQueue\s*\(/,
         label: "new ApprovalQueue(",
         allowedFiles: [FACTORY_FILE, path.join(daemonDir, "approval-queue.ts")],
+      },
+      {
+        pattern: /\bnew\s+IdempotencyStore\s*\(/,
+        label: "new IdempotencyStore(",
+        allowedFiles: [
+          FACTORY_FILE,
+          path.join(daemonDir, "idempotency-store.ts"),
+          path.join(daemonDir, "idempotency-singleton.ts"),
+        ],
       },
       {
         pattern: /\bnew\s+OwnerQuestionQueue\s*\(/,

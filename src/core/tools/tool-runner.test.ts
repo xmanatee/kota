@@ -1,4 +1,8 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import type { AutonomyMode } from "./autonomy-mode.js";
 import {
   executeToolCalls,
@@ -295,6 +299,45 @@ describe("executeToolCalls", () => {
       { command: "pwd" },
       { sessionId: "session-7", toolUseId: "tool-42" },
     );
+  });
+
+  it("replays provider writes with the same idempotency key and rejects mismatched retries", async () => {
+    const root = mkdtempSync(join(tmpdir(), "kota-tool-idempotency-"));
+    const idempotencyStore = new IdempotencyStore(join(root, "idempotency"), "scope-a");
+    try {
+      mockGetToolEffect.mockReturnValue(writeEffect);
+      mockExecuteTool.mockResolvedValue({ content: "sent" });
+      const options = runOptions({ idempotencyStore });
+
+      const first = await executeToolCalls(
+        [toolBlock("send_message", { idempotencyKey: "msg-1", text: "hello" })],
+        options,
+      );
+      const replayed = await executeToolCalls(
+        [toolBlock("send_message", { idempotencyKey: "msg-1", text: "hello" })],
+        options,
+      );
+      const rejected = await executeToolCalls(
+        [toolBlock("send_message", { idempotencyKey: "msg-1", text: "changed" })],
+        options,
+      );
+
+      expect(first[0].content).toBe("sent");
+      expect(first[0]._meta?.idempotency).toEqual({
+        status: "accepted",
+        key: expect.stringContaining("tool:"),
+      });
+      expect(replayed[0].content).toBe("sent");
+      expect(replayed[0]._meta?.idempotency).toEqual({
+        status: "replayed",
+        key: expect.stringContaining("tool:"),
+      });
+      expect(rejected[0].is_error).toBe(true);
+      expect(rejected[0].content).toContain("different parameters");
+      expect(mockExecuteTool).toHaveBeenCalledTimes(1);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("executes multiple read-only tools in parallel", async () => {

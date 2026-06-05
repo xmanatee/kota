@@ -21,15 +21,27 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { KotaConfig } from "#core/config/config.js";
 import { jsonResponse, readBody } from "#core/daemon/daemon-control-utils.js";
+import {
+  hashIdempotencyMaterial,
+  type IdempotencyJsonObject,
+  type IdempotencyJsonValue,
+} from "#core/daemon/idempotency-store.js";
 import type { ControlRouteRegistration } from "#core/modules/module-types.js";
 import { getWorkflowDefinitionsSource } from "#core/workflow/workflow-definitions-provider.js";
-import { getWorkflowDispatcher } from "#core/workflow/workflow-dispatcher-provider.js";
+import {
+  getWorkflowDispatcher,
+  type WebhookRunPayload,
+} from "#core/workflow/workflow-dispatcher-provider.js";
 
 const WORKFLOW_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
 const TIMESTAMP_TOLERANCE_MS = 5 * 60 * 1000;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 
 type WebhookSecretLookup = (name: string) => string | undefined;
+type ParsedWebhookBody = {
+  body: WebhookRunPayload["body"];
+  bodyIdempotencyMaterial?: string;
+};
 
 export class WebhookRateLimiter {
   private readonly windows = new Map<string, number[]>();
@@ -68,29 +80,83 @@ function timestampWithinWindow(headerValue: string, now: number): boolean {
   return Math.abs(now - ts) <= TIMESTAMP_TOLERANCE_MS;
 }
 
+function trimmedHeader(req: IncomingMessage, key: string): string | undefined {
+  const value = req.headers[key];
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : undefined;
+}
+
+function isJsonObject(value: IdempotencyJsonValue): value is IdempotencyJsonObject {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function stringProperty(value: IdempotencyJsonValue, key: string): string | undefined {
+  if (!isJsonObject(value)) return undefined;
+  const candidate = value[key];
+  return typeof candidate === "string" && candidate.trim().length > 0
+    ? candidate.trim()
+    : undefined;
+}
+
+function parseWebhookBody(rawBody: Buffer): ParsedWebhookBody {
+  if (rawBody.length > 0) {
+    try {
+      const body = JSON.parse(rawBody.toString()) as IdempotencyJsonValue;
+      const bodyKey =
+        stringProperty(body, "idempotencyKey") ??
+        stringProperty(body, "externalId");
+      return {
+        body,
+        ...(bodyKey
+          ? { bodyIdempotencyMaterial: `webhook-body-key:${hashIdempotencyMaterial([bodyKey])}` }
+          : {}),
+      };
+    } catch {
+      return { body: rawBody.toString() };
+    }
+  }
+  return { body: null };
+}
+
+function webhookIdempotencyKey(
+  req: IncomingMessage,
+  rawBody: Buffer,
+  parsed: ParsedWebhookBody,
+): string {
+  const headerKey =
+    trimmedHeader(req, "x-kota-idempotency-key") ??
+    trimmedHeader(req, "idempotency-key");
+  if (headerKey) {
+    return `webhook-header:${hashIdempotencyMaterial([headerKey])}`;
+  }
+  if (parsed.bodyIdempotencyMaterial) return parsed.bodyIdempotencyMaterial;
+  return `webhook-body:${hashIdempotencyMaterial([rawBody.toString("base64")])}`;
+}
+
 function buildPayload(
   req: IncomingMessage,
   rawBody: Buffer,
-): { body: unknown; headers: Record<string, string>; timestamp: string } {
-  let body: unknown = null;
-  if (rawBody.length > 0) {
-    try {
-      body = JSON.parse(rawBody.toString()) as unknown;
-    } catch {
-      body = rawBody.toString();
-    }
-  }
+): WebhookRunPayload {
+  const parsed = parseWebhookBody(rawBody);
   const headers: Record<string, string> = {};
   for (const [key, val] of Object.entries(req.headers)) {
     if (
       key !== "x-kota-webhook-signature" &&
       key !== "x-kota-webhook-timestamp" &&
+      key !== "x-kota-idempotency-key" &&
+      key !== "idempotency-key" &&
       typeof val === "string"
     ) {
       headers[key] = val;
     }
   }
-  return { body, headers, timestamp: new Date().toISOString() };
+  return {
+    body: parsed.body,
+    headers,
+    timestamp: new Date().toISOString(),
+    idempotencyKey: webhookIdempotencyKey(req, rawBody, parsed),
+  };
 }
 
 export type WebhookTriggerHandlerOptions = {

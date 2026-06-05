@@ -19,6 +19,7 @@ import {
   anyDaemonWorkflowRuntimeBusy,
   setDaemonWorkflowDispatchPaused,
 } from "./daemon-workflows.js";
+import { installEventIdempotency } from "./idempotency-events.js";
 import { ProjectRuntimeRegistry } from "./project-runtime.js";
 import type { ScopePolicyFragment } from "./scope-policy.js";
 import {
@@ -147,7 +148,6 @@ export class Daemon {
     const eventJournal = new EventJournal(join(stateDir, "events"), {
       scopeLineage: (scopeId) => scopeLineageForId(scopeId, projectRegistry),
     });
-    const uninstallEventJournal = installEventJournal(bus, eventJournal);
 
     const projectRuntimes = ProjectRuntimeRegistry.create({
       registry: projectRegistry,
@@ -161,6 +161,16 @@ export class Daemon {
       onLog: log,
       quietHours: config.config?.notifications?.quietHours,
     });
+    const uninstallEventIdempotency = installEventIdempotency(bus, {
+      defaultScopeId: defaultProject.projectId,
+      resolveStore: (scopeId) => projectRuntimes.get(scopeId).idempotencyStore,
+      log,
+    });
+    const uninstallEventJournalMiddleware = installEventJournal(bus, eventJournal);
+    const uninstallEventJournal = () => {
+      uninstallEventJournalMiddleware();
+      uninstallEventIdempotency();
+    };
 
     this.ctx = buildDaemonInit({
       config,

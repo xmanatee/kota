@@ -1,9 +1,46 @@
+import type {
+  IdempotencyJsonObject,
+  IdempotencyReservation,
+} from "#core/daemon/idempotency-store.js";
 import { formatRunId } from "./run-io.js";
 import { maybeStartNext, type WorkflowRuntimeDispatchState } from "./runtime-dispatch.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
+import type { WebhookRunPayload } from "./workflow-dispatcher-provider.js";
+import { workflowDispatchIdempotency } from "./workflow-idempotency.js";
 
 
 export type WorkflowRuntimeRunsControlState = WorkflowRuntimeDispatchState;
+
+function workflowDispatchResult(
+  workflowName: string,
+  runId: string,
+  triggerEvent: string,
+  enqueuedAtMs: number,
+): IdempotencyJsonObject {
+  return {
+    workflowName,
+    runId,
+    triggerEvent,
+    queuedAt: new Date(enqueuedAtMs).toISOString(),
+  };
+}
+
+function runIdFromWorkflowDispatchResult(result: IdempotencyJsonObject): string {
+  const runId = result.runId;
+  if (typeof runId !== "string" || runId.trim().length === 0) {
+    throw new Error("workflow dispatch idempotency result is missing runId");
+  }
+  return runId;
+}
+
+function isExpiredIdempotencyEntry(expiresAt: string | undefined): boolean {
+  if (expiresAt === undefined) return false;
+  const expiresAtMs = Date.parse(expiresAt);
+  if (Number.isNaN(expiresAtMs)) {
+    throw new Error(`invalid idempotency expiry timestamp: ${expiresAt}`);
+  }
+  return expiresAtMs <= Date.now();
+}
 
 export function abortActiveRuns(state: WorkflowRuntimeRunsControlState): { aborted: number } {
   const count = state.activeRuns.size;
@@ -75,7 +112,7 @@ export function enqueuePendingRun(
 export function enqueueWebhookRun(
   state: WorkflowRuntimeRunsControlState,
   name: string,
-  webhookPayload: { body: unknown; headers: Record<string, string>; timestamp: string },
+  webhookPayload: WebhookRunPayload,
 ): { ok: boolean; runId?: string; alreadyRunning?: boolean; error?: string } {
   const definition = state.definitions.find((d) => d.name === name);
   if (!definition) return { ok: false, error: `Unknown workflow "${name}"` };
@@ -83,7 +120,6 @@ export function enqueueWebhookRun(
   if (!definition.triggers.some((t) => t.webhook === true)) {
     return { ok: false, error: `Workflow "${name}" has no webhook trigger` };
   }
-  if (state.activeRuns.has(name)) return { ok: false, alreadyRunning: true };
   const runId = formatRunId(name);
   const now = Date.now();
   const trigger: WorkflowRunTrigger = {
@@ -91,6 +127,68 @@ export function enqueueWebhookRun(
     schemaRef: null,
     payload: { ...webhookPayload, _runId: runId },
   };
+  const idempotency = workflowDispatchIdempotency(
+    state.idempotencyStore,
+    name,
+    trigger,
+  );
+  const existingIdempotency = idempotency
+    ? state.idempotencyStore.get(
+        idempotency.scopeId,
+        "workflow-dispatch",
+        idempotency.key,
+      )
+    : null;
+  if (
+    idempotency &&
+    existingIdempotency?.firstResult !== undefined &&
+    existingIdempotency.parameterFingerprint === idempotency.parameterFingerprint &&
+    !isExpiredIdempotencyEntry(existingIdempotency.expiresAt)
+  ) {
+    const replay = state.idempotencyStore.record({
+      scopeId: idempotency.scopeId,
+      operation: "workflow-dispatch",
+      key: idempotency.key,
+      parameterFingerprint: idempotency.parameterFingerprint,
+      result: existingIdempotency.firstResult,
+    });
+    if (replay.status === "replayed") {
+      return { ok: true, runId: runIdFromWorkflowDispatchResult(replay.result) };
+    }
+  }
+  if (state.activeRuns.has(name)) return { ok: false, alreadyRunning: true };
+  let idempotencyReservation: IdempotencyReservation | null = null;
+  if (idempotency) {
+    const claim = state.idempotencyStore.claim({
+      scopeId: idempotency.scopeId,
+      operation: "workflow-dispatch",
+      key: idempotency.key,
+      parameterFingerprint: idempotency.parameterFingerprint,
+    });
+    if (claim.status === "replayed") {
+      return { ok: true, runId: runIdFromWorkflowDispatchResult(claim.result) };
+    }
+    if (claim.status === "ignored") {
+      return {
+        ok: false,
+        alreadyRunning: true,
+        error: `Webhook dispatch for "${name}" is already in progress`,
+      };
+    }
+    if (claim.status === "expired") {
+      return {
+        ok: false,
+        error: `Webhook dispatch for "${name}" used an expired idempotency key; retry to claim fresh work`,
+      };
+    }
+    if (claim.status === "rejected") {
+      return {
+        ok: false,
+        error: `Webhook dispatch for "${name}" reused an idempotency key with different parameters`,
+      };
+    }
+    idempotencyReservation = claim.reservation;
+  }
   state.wfQueue.appendRun({
     runId,
     workflowName: name,
@@ -98,6 +196,12 @@ export function enqueueWebhookRun(
     enqueuedAtMs: now,
     notBeforeMs: now,
   });
+  if (idempotencyReservation) {
+    state.idempotencyStore.complete(
+      idempotencyReservation,
+      workflowDispatchResult(name, runId, trigger.event, now),
+    );
+  }
   maybeStartNext(state);
   return { ok: true, runId };
 }

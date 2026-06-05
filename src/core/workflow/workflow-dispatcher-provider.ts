@@ -32,6 +32,7 @@ export type WebhookRunPayload = {
   body: unknown;
   headers: Record<string, string>;
   timestamp: string;
+  idempotencyKey: string;
 };
 
 export type EnqueueWebhookRunResult = {

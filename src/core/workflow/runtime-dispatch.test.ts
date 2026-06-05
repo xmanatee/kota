@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { WorkflowRuntime } from "./runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "./types.js";
@@ -173,6 +174,7 @@ describe("runtime idle dispatch", () => {
       body: { ok: true },
       headers: {},
       timestamp: new Date().toISOString(),
+      idempotencyKey: "webhook-body:dispatch-test",
     });
     await wait(120);
     await runtime.stop();
@@ -180,6 +182,124 @@ describe("runtime idle dispatch", () => {
     expect(result.ok).toBe(true);
     expect(countWorkflowRuns(projectDir, "webhook-listener")).toBe(1);
     expect(runtime.getState().pendingRuns).toHaveLength(0);
+  });
+
+  it("dedupes repeated webhook deliveries before appending duplicate queued runs", async () => {
+    const idempotencyStore = new IdempotencyStore(
+      join(projectDir, ".kota", "idempotency"),
+      "scope-a",
+    );
+    const runtime = new WorkflowRuntime({
+      bus: new EventBus(),
+      projectDir,
+      idempotencyStore,
+      idleIntervalMs: 60_000,
+      workflows: [
+        {
+          name: "webhook-listener",
+          definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
+          moduleRoot: process.cwd(),
+          triggers: [{ webhook: true }],
+          steps: [
+            {
+              id: "noop",
+              type: "code",
+              run: () => ({ ok: true }),
+            },
+          ],
+        },
+      ],
+    });
+
+    runtime.start();
+    runtime.setDispatchPaused(true);
+    const first = runtime.enqueueWebhookRun("webhook-listener", {
+      body: { ok: true },
+      headers: { "content-type": "application/json" },
+      timestamp: "2026-06-05T12:00:00.000Z",
+      idempotencyKey: "webhook-body:duplicate-delivery",
+    });
+    const duplicate = runtime.enqueueWebhookRun("webhook-listener", {
+      body: { ok: true },
+      headers: { "content-type": "application/json" },
+      timestamp: "2026-06-05T12:00:01.000Z",
+      idempotencyKey: "webhook-body:duplicate-delivery",
+    });
+    await runtime.stop();
+
+    expect(first.ok).toBe(true);
+    expect(duplicate).toMatchObject({ ok: true, runId: first.runId });
+    expect(runtime.getState().pendingRuns).toHaveLength(1);
+    expect(idempotencyStore.list({ operation: "workflow-dispatch" })).toMatchObject([
+      {
+        scopeId: "scope-a",
+        operation: "workflow-dispatch",
+        status: "replayed",
+        duplicateCount: 1,
+      },
+    ]);
+  });
+
+  it("dedupes replayed durable event-triggered workflow dispatches", async () => {
+    const bus = new EventBus();
+    bus.addEmitMiddleware((envelope, next) => {
+      if (envelope.type === "custom.event") envelope.eventId = "evtj-000000000123";
+      next();
+    });
+    const idempotencyStore = new IdempotencyStore(
+      join(projectDir, ".kota", "idempotency"),
+      "scope-a",
+    );
+    const processed: string[] = [];
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idempotencyStore,
+      idleIntervalMs: 60_000,
+      workflows: [
+        {
+          name: "custom-event-listener",
+          definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
+          moduleRoot: process.cwd(),
+          triggers: [{ event: "custom.event", cooldownMs: 0 }],
+          steps: [
+            {
+              id: "record",
+              type: "code",
+              run: (ctx) => {
+                processed.push(String(ctx.trigger.payload.status));
+                return { ok: true };
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    runtime.start();
+    bus.emit("custom.event", { status: "ready" });
+    await waitUntil(
+      () =>
+        processed.length === 1 &&
+        !runtime.isBusy() &&
+        runtime.getState().pendingRuns.length === 0,
+      "Timed out waiting for first custom event workflow run",
+    );
+
+    bus.emit("custom.event", { status: "ready" });
+    await wait(120);
+    await runtime.stop();
+
+    expect(processed).toEqual(["ready"]);
+    expect(countWorkflowRuns(projectDir, "custom-event-listener")).toBe(1);
+    expect(idempotencyStore.list({ operation: "workflow-dispatch" })).toMatchObject([
+      {
+        scopeId: "scope-a",
+        operation: "workflow-dispatch",
+        status: "replayed",
+        duplicateCount: 1,
+      },
+    ]);
   });
 
   it("dispatches a workflow emitted by a running code step after an agent slot frees", async () => {

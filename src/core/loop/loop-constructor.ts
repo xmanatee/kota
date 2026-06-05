@@ -1,9 +1,13 @@
 import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { SYSTEM_PROMPT } from "#core/agents/system-prompt.js";
 import { buildUserProfile } from "#core/config/config.js";
 import { setApprovalQueueInstance } from "#core/daemon/approval-queue.js";
+import { setIdempotencyStoreInstance } from "#core/daemon/idempotency-singleton.js";
+import { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { setOwnerQuestionQueueInstance } from "#core/daemon/owner-question-queue.js";
 import { initScheduler, setSchedulerInstance } from "#core/daemon/scheduler.js";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { initTaskStore, setTaskStoreInstance } from "#core/daemon/task-store.js";
 import { tryEmit } from "#core/events/event-bus.js";
 import { createModelClient } from "#core/model/model-client.js";
@@ -108,11 +112,19 @@ export function initAgentSession(
     setSchedulerInstance(options.projectRuntime.scheduler);
     setModuleLogStoreInstance(options.projectRuntime.moduleLogStore);
     setApprovalQueueInstance(options.projectRuntime.approvalQueue);
+    setIdempotencyStoreInstance(options.projectRuntime.idempotencyStore);
     setOwnerQuestionQueueInstance(options.projectRuntime.ownerQuestionQueue);
+    state.idempotencyStore = options.projectRuntime.idempotencyStore;
   } else {
     initTaskStore(projectDir);
     initScheduler(projectDir);
     initModuleLogStore(projectDir);
+    const idempotencyStore = new IdempotencyStore(
+      join(projectDir, ".kota", "idempotency"),
+      deriveDirectoryScopeId(projectDir),
+    );
+    setIdempotencyStoreInstance(idempotencyStore);
+    state.idempotencyStore = idempotencyStore;
   }
   initChangeTracker();
   initProviderRegistry();

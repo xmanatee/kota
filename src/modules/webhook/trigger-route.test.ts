@@ -237,6 +237,7 @@ describe("webhook module signature-validated trigger route", () => {
       headers: {
         "X-Kota-Webhook-Signature": sign(WEBHOOK_SECRET, bodyStr),
         "X-Kota-Webhook-Timestamp": String(Date.now()),
+        "X-Kota-Idempotency-Key": "delivery-42",
         "Content-Type": "application/json",
       },
       body: bodyStr,
@@ -247,11 +248,33 @@ describe("webhook module signature-validated trigger route", () => {
         body: { event: "push" },
         headers: expect.objectContaining({ "content-type": "application/json" }),
         timestamp: expect.any(String),
+        idempotencyKey: expect.any(String),
       }),
     );
     const passedHeaders = fn.mock.calls[0][1].headers;
     expect(passedHeaders).not.toHaveProperty("x-kota-webhook-signature");
     expect(passedHeaders).not.toHaveProperty("x-kota-webhook-timestamp");
+    expect(passedHeaders).not.toHaveProperty("x-kota-idempotency-key");
+  });
+
+  it("derives a stable idempotency key from repeated signed bodies", async () => {
+    const fn = registerDispatcher({ ok: true, runId: "test-run-id" });
+    const bodyStr = JSON.stringify({ event: "push", ref: "refs/heads/main" });
+    for (let i = 0; i < 2; i++) {
+      const res = await globalThis.fetch(`http://127.0.0.1:${port}/webhooks/deploy`, {
+        method: "POST",
+        headers: {
+          "X-Kota-Webhook-Signature": sign(WEBHOOK_SECRET, bodyStr),
+          "Content-Type": "application/json",
+        },
+        body: bodyStr,
+      });
+      expect(res.status).toBe(200);
+    }
+
+    expect(fn).toHaveBeenCalledTimes(2);
+    expect(fn.mock.calls[0][1].idempotencyKey).toBe(fn.mock.calls[1][1].idempotencyKey);
+    expect(fn.mock.calls[0][1].idempotencyKey).toMatch(/^webhook-body:/);
   });
 
   it("accepts bare hex signature without the sha256= prefix", async () => {

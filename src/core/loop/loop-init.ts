@@ -1,5 +1,6 @@
 import type { KotaThinkingConfig } from "#core/agent-harness/message-protocol.js";
 import type { ChannelUserIdentity } from "#core/channels/channel.js";
+import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { getEventBus, tryEmit } from "#core/events/event-bus.js";
 import { runCleanupHooks } from "#core/loop/cleanup-hooks.js";
 import { listManifestModules } from "#core/manifest/index.js";
@@ -71,6 +72,7 @@ export interface AgentLoopState {
   stateMachine: SessionStateMachine;
   guardrailsConfig: GuardrailsConfig;
   guardrailsSnapshot: GuardrailsSnapshot;
+  idempotencyStore: IdempotencyStore;
   sessionPath: string | undefined;
   historyEnabled: boolean;
   historySource: "user" | "action";

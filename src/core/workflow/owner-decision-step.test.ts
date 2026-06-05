@@ -7,6 +7,11 @@ import {
   resetApprovalQueue,
   setApprovalQueueInstance,
 } from "#core/daemon/approval-queue.js";
+import {
+  resetIdempotencyStore,
+  setIdempotencyStoreInstance,
+} from "#core/daemon/idempotency-singleton.js";
+import { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { OwnerDecisionStore } from "#core/daemon/owner-decision-store.js";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { type EventBus, initEventBus, resetEventBus } from "#core/events/event-bus.js";
@@ -41,12 +46,14 @@ describe("owner decision workflow helpers", () => {
   let decisionDir: string;
   let questionDir: string;
   let approvalDir: string;
+  let idempotencyDir: string;
   let bus: EventBus;
   let pbus: ProjectScopedEventBus;
   let store: WorkflowRunStore;
   let decisionStore: OwnerDecisionStore;
   let questionQueue: OwnerQuestionQueue;
   let approvalQueue: ApprovalQueue;
+  let idempotencyStore: IdempotencyStore;
   const log = vi.fn();
 
   beforeEach(() => {
@@ -54,6 +61,7 @@ describe("owner decision workflow helpers", () => {
     decisionDir = mkdtempSync(join(tmpdir(), "owner-decision-store-"));
     questionDir = mkdtempSync(join(tmpdir(), "owner-decision-question-"));
     approvalDir = mkdtempSync(join(tmpdir(), "owner-decision-approval-"));
+    idempotencyDir = mkdtempSync(join(tmpdir(), "owner-decision-idempotency-"));
     resetEventBus();
     bus = initEventBus();
     pbus = new ProjectScopedEventBus(bus, "scope-a");
@@ -61,17 +69,21 @@ describe("owner decision workflow helpers", () => {
     decisionStore = new OwnerDecisionStore(decisionDir, "scope-a", pbus);
     questionQueue = new OwnerQuestionQueue(questionDir, pbus);
     approvalQueue = new ApprovalQueue(approvalDir, pbus);
+    idempotencyStore = new IdempotencyStore(idempotencyDir, "scope-a");
     setApprovalQueueInstance(approvalQueue);
+    setIdempotencyStoreInstance(idempotencyStore);
     log.mockReset();
   });
 
   afterEach(() => {
     resetApprovalQueue();
+    resetIdempotencyStore();
     resetEventBus();
     rmSync(projectDir, { recursive: true, force: true });
     rmSync(decisionDir, { recursive: true, force: true });
     rmSync(questionDir, { recursive: true, force: true });
     rmSync(approvalDir, { recursive: true, force: true });
+    rmSync(idempotencyDir, { recursive: true, force: true });
   });
 
   function makeDataOnlyWorkflow(): WorkflowDefinition {
@@ -142,6 +154,7 @@ describe("owner decision workflow helpers", () => {
       id: "book",
       decisionStore: () => decisionStore,
       approvalQueue: () => approvalQueue,
+      idempotencyStore: () => idempotencyStore,
       decisionId: (ctx) => decision.consume.outputRequired(ctx).decisionId,
       ...(approvalIdResolver === undefined ? {} : { approvalId: approvalIdResolver }),
       input: { slot: "7pm" },
@@ -238,6 +251,62 @@ describe("owner decision workflow helpers", () => {
     expect(action.output).toMatchObject({ actionId: "book-court", approvalId });
     const consumed = decisionStore.list("consumed")[0];
     expect(consumed.consumption?.approvalId).toBe(approvalId);
+  });
+
+  it("replays a confirmed action retry without consuming the decision twice", async () => {
+    const calls: string[] = [];
+    const definition = makeConfirmedActionWorkflow(calls);
+    const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      projectDir,
+      bus,
+      store,
+      log,
+    });
+
+    await answerPendingQuestion("yes");
+    const approvalId = await approvePendingApproval();
+    const result = await promise;
+    expect(result.metadata.status).toBe("success");
+    const consumed = decisionStore.list("consumed")[0]!;
+
+    const replayAction = confirmedOwnerActionStep({
+      id: "book-replay",
+      decisionStore: () => decisionStore,
+      approvalQueue: () => approvalQueue,
+      idempotencyStore: () => idempotencyStore,
+      decisionId: consumed.id,
+      approvalId,
+      input: { slot: "7pm" },
+      adapter: {
+        metadata: ACTION,
+        execute: ({ input }) => {
+          calls.push(String(input.slot));
+          return { ok: true, slot: String(input.slot) };
+        },
+      },
+    });
+    const replay = await executeWorkflowRun(
+      {
+        name: "owner-decision-action-replay-fixture",
+        enabled: true,
+        recoveryCapable: false,
+        definitionPath: "src/core/workflow/owner-decision-step.test.ts",
+        moduleRoot: "/test-module-root",
+        triggers: [],
+        steps: [replayAction],
+        tags: [],
+      },
+      TRIGGER,
+      { projectDir, bus, store, log },
+    ).promise;
+
+    expect(replay.metadata.status).toBe("success");
+    expect(calls).toEqual(["7pm"]);
+    const replayOutput = replay.metadata.steps.find((step) => step.id === "book-replay")!
+      .output as { idempotency: { status: string } };
+    expect(replayOutput.idempotency.status).toBe("replayed");
+    expect(decisionStore.list("consumed")).toHaveLength(1);
+    expect(idempotencyStore.list({ operation: "owner-confirmed-action" })[0]?.status).toBe("replayed");
   });
 
   it("confirmed external action fixture rejects a non-authorizing owner answer before executing", async () => {

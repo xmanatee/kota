@@ -30,6 +30,8 @@ import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { WorkflowRuntime } from "#core/workflow/runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import { ApprovalQueue, setApprovalQueueInstance } from "./approval-queue.js";
+import { setIdempotencyStoreInstance } from "./idempotency-singleton.js";
+import { IdempotencyStore } from "./idempotency-store.js";
 import { NotificationGate, type QuietHoursConfig } from "./notification-gate.js";
 import {
   OwnerDecisionStore,
@@ -72,6 +74,7 @@ export type ProjectRuntime = {
   readonly scheduler: Scheduler;
   readonly moduleLogStore: ModuleLogStore;
   readonly approvalQueue: ApprovalQueue;
+  readonly idempotencyStore: IdempotencyStore;
   readonly ownerDecisionStore: OwnerDecisionStore;
   readonly ownerQuestionQueue: OwnerQuestionQueue;
   readonly workflowRuntime: WorkflowRuntime;
@@ -117,6 +120,10 @@ export function createProjectRuntime(
   const scheduler = new Scheduler(projectDir, undefined, pbus);
   const moduleLogStore = new ModuleLogStore(projectDir);
   const approvalQueue = new ApprovalQueue(join(projectDir, ".kota", "approvals"), pbus);
+  const idempotencyStore = new IdempotencyStore(
+    join(projectDir, ".kota", "idempotency"),
+    opts.project.projectId,
+  );
   const ownerDecisionStore = new OwnerDecisionStore(
     join(projectDir, ".kota", "owner-decisions"),
     opts.project.projectId,
@@ -133,6 +140,7 @@ export function createProjectRuntime(
     projectDir,
     runStore,
     config: opts.config,
+    idempotencyStore,
     workflows: opts.workflows,
     model: opts.model,
     idleIntervalMs: opts.idleIntervalMs,
@@ -148,6 +156,7 @@ export function createProjectRuntime(
     setSchedulerInstance(scheduler);
     setModuleLogStoreInstance(moduleLogStore);
     setApprovalQueueInstance(approvalQueue);
+    setIdempotencyStoreInstance(idempotencyStore);
     setOwnerDecisionStoreInstance(ownerDecisionStore);
     setOwnerQuestionQueueInstance(ownerQuestionQueue);
   }
@@ -165,6 +174,7 @@ export function createProjectRuntime(
     scheduler,
     moduleLogStore,
     approvalQueue,
+    idempotencyStore,
     ownerDecisionStore,
     ownerQuestionQueue,
     workflowRuntime,

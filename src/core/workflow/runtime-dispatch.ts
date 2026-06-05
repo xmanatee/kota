@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
+import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import type { AgentBackoffManager } from "./agent-backoff.js";
@@ -32,6 +33,7 @@ export interface WorkflowRuntimeDispatchState {
   dispatchPaused: boolean;
   config?: KotaConfig;
   store: WorkflowRunStore;
+  idempotencyStore: IdempotencyStore;
   wfQueue: WorkflowQueueManager;
   definitions: WorkflowDefinition[];
   scheduleTriggers: ScheduleTriggerManager;

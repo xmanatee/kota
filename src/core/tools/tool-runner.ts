@@ -5,6 +5,12 @@ import type {
   KotaToolUseBlock,
 } from "#core/agent-harness/message-protocol.js";
 import { getApprovalQueue } from "#core/daemon/approval-queue.js";
+import {
+  fingerprintIdempotencyParams,
+  hashIdempotencyMaterial,
+  type IdempotencyJsonObject,
+  type IdempotencyStore,
+} from "#core/daemon/idempotency-store.js";
 import { tryEmit } from "#core/events/event-bus.js";
 import { truncateToolResult } from "#core/loop/context.js";
 import type { Transport } from "#core/loop/transport.js";
@@ -139,6 +145,7 @@ export type ToolCallExecutionOptions = {
   clientApprovalResolver?: ToolApprovalResolver;
   sessionId?: string;
   messages?: KotaMessage[];
+  idempotencyStore?: IdempotencyStore;
   signal?: AbortSignal;
 };
 
@@ -186,6 +193,69 @@ function isReadOnlyToolCall(
   );
   if (inputEffectOverride) return inputEffectOverride.kind === "read";
   return getToolEffect(block.name)?.kind === "read";
+}
+
+function stringInput(input: ToolCallInput, key: string): string | undefined {
+  const value = input[key];
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+}
+
+function providerWriteIdempotencyInput(
+  block: ToolUseBlock,
+  input: ToolCallInput,
+  scopeId: string,
+):
+  | {
+      scopeId: string;
+      key: string;
+      parameterFingerprint: string;
+    }
+  | null {
+  const explicitKey = stringInput(input, "idempotencyKey");
+  if (explicitKey === undefined) return null;
+  const effect = getToolEffect(block.name);
+  if (!effect || effect.kind === "read") return null;
+  const projection = { ...(input as IdempotencyJsonObject) };
+  delete projection.idempotencyKey;
+  return {
+    scopeId,
+    key: `tool:${hashIdempotencyMaterial([block.name, explicitKey])}`,
+    parameterFingerprint: fingerprintIdempotencyParams({
+      tool: block.name,
+      input: projection,
+    }),
+  };
+}
+
+function toolResultProjection(
+  block: ToolUseBlock,
+  result: ToolResult,
+): IdempotencyJsonObject {
+  return {
+    kind: "provider-write",
+    tool: block.name,
+    toolUseId: block.id,
+    content: result.content,
+    isError: result.is_error === true,
+    completedAt: new Date().toISOString(),
+  };
+}
+
+function toolResultFromProjection(
+  projection: IdempotencyJsonObject,
+  fallbackTool: string,
+): ToolResult {
+  const content = typeof projection.content === "string"
+    ? projection.content
+    : `Replayed idempotent result for ${fallbackTool}`;
+  return {
+    content,
+    ...(projection.isError === true ? { is_error: true } : {}),
+  };
+}
+
+function idempotencyMeta(status: string, key: string): KotaJsonObject {
+  return { idempotency: { status, key } };
 }
 
 async function executeToolCallSchedule(
@@ -246,6 +316,7 @@ export async function executeToolCalls(
     clientApprovalResolver,
     sessionId,
     messages,
+    idempotencyStore,
     signal,
   } = options;
   const executeBlock = async (block: ToolUseBlock): Promise<ToolResultEntry> => {
@@ -441,7 +512,60 @@ export async function executeToolCalls(
         ? mcpManager.executeTool(call.name, call.input, mcpOptions)
         : mcpManager.executeTool(call.name, call.input);
     };
-    const result = await middleware.execute(call, baseFn);
+    const executeWithMiddleware = () => middleware.execute(call, baseFn);
+    const idempotency = idempotencyStore
+      ? providerWriteIdempotencyInput(
+          block,
+          input,
+          idempotencyStore.getDefaultScopeId(),
+        )
+      : null;
+    const result = idempotency
+      ? await (async (): Promise<ToolResult> => {
+          const claim = idempotencyStore!.claim({
+            scopeId: idempotency.scopeId,
+            operation: "provider-write",
+            key: idempotency.key,
+            parameterFingerprint: idempotency.parameterFingerprint,
+          });
+          if (claim.status === "replayed") {
+            return {
+              ...toolResultFromProjection(claim.result, block.name),
+              _meta: idempotencyMeta("replayed", idempotency.key),
+            };
+          }
+          if (claim.status === "ignored") {
+            return {
+              content: `Ignored duplicate in-flight provider write for ${block.name} (${idempotency.key})`,
+              _meta: idempotencyMeta("ignored", idempotency.key),
+              is_error: true,
+            };
+          }
+          if (claim.status === "expired") {
+            return {
+              content: `Expired provider write idempotency key for ${block.name}: retry can claim fresh work`,
+              _meta: idempotencyMeta("expired", idempotency.key),
+              is_error: true,
+            };
+          }
+          if (claim.status === "rejected") {
+            return {
+              content: `Rejected duplicate provider write for ${block.name}: idempotency key reused with different parameters`,
+              _meta: idempotencyMeta("rejected", idempotency.key),
+              is_error: true,
+            };
+          }
+          const executed = await executeWithMiddleware();
+          idempotencyStore!.complete(claim.reservation, toolResultProjection(block, executed));
+          return {
+            ...executed,
+            _meta: {
+              ...(executed._meta ?? {}),
+              ...idempotencyMeta("accepted", idempotency.key),
+            },
+          };
+        })()
+      : await executeWithMiddleware();
     throwIfAborted(signal);
 
     const durationMs = Math.round(performance.now() - startMs);

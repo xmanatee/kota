@@ -48,11 +48,11 @@ This directory owns:
 - An optional `X-Kota-Webhook-Timestamp` header (Unix milliseconds)
   enables replay protection. Requests outside a ±5-minute window are
   rejected with 401.
-- Payload threaded through to the workflow run is
-  `{ body, headers, timestamp }`: `body` is parsed as JSON when the
+- Payload threaded through to the workflow run carries `body`, `headers`,
+  `timestamp`, and a hashed `idempotencyKey`: `body` is parsed as JSON when the
   raw body is non-empty (falling back to the original string on parse
-  failure); `headers` excludes the two webhook-specific headers;
-  `timestamp` is the daemon's ISO receive time.
+  failure); `headers` excludes the webhook signature, timestamp, and raw
+  idempotency-key headers; `timestamp` is the daemon's ISO receive time.
 - Per-workflow rate limiting is enforced before enqueueing. The
   workflow's `webhookRateLimit.maxPerMinute` (looked up via the
   `workflow-definitions` provider seam) caps deliveries in a sliding
