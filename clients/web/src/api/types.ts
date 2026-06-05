@@ -67,6 +67,8 @@ export type ScopeRegistryProjection = {
   scopes: ScopeRegistryEntry[];
 };
 
+export type { ScopePolicyRouteResponse } from "../../../conformance/decoders";
+
 export type ClientIdentity = {
   projectName: string;
   projectDir: string;

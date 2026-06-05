@@ -44,6 +44,7 @@ import {
   WORKFLOW_TRIGGER_CAPABILITY_ID,
 } from "./client-identity.js";
 import type { WorkflowDefinitionSummary } from "./daemon-control-types.js";
+import type { ScopePolicyRouteResponse } from "./scope-policy.js";
 import type { ScopeRegistryProjection } from "./scope-registry.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -74,6 +75,10 @@ type Fixture = {
   identityWithoutDashboard: ClientIdentity;
   projects: FixtureProjection;
   scopes: ScopeRegistryProjection;
+  scopePolicy: {
+    resolved: ScopePolicyRouteResponse;
+    negative_unknownOutcome: unknown;
+  };
   unknownProjectError: FixtureUnknownProjectError;
   capabilities: CapabilityReadinessResponse;
   workflowDefinitions: { definitions: WorkflowDefinitionSummary[] };
@@ -150,9 +155,37 @@ describe("thin-client contract — shared fixture", () => {
       expect(scopes.scopes.map((scope) => scope.scopeId)).toEqual([
         "global",
         "p-kota-fixture-default",
+        "p-kota-fixture-feature",
         "p-side-fixture",
       ]);
-      expect(scopes.scopes.filter((scope) => scope.directoryRoot)).toHaveLength(2);
+      expect(scopes.scopes.find((scope) => scope.scopeId === "p-kota-fixture-feature")).toMatchObject({
+        parentScopeId: "p-kota-fixture-default",
+        directoryRoot: "/Users/operator/projects/kota/feature",
+      });
+      expect(scopes.scopes.filter((scope) => scope.directoryRoot)).toHaveLength(3);
+    });
+
+    it("exposes resolved nested scope policy with inherited, overridden, and blocked values", () => {
+      const response = fixture.scopePolicy.resolved;
+      expect(response.policy.scopeId).toBe("p-kota-fixture-feature");
+      expect(response.policy.lineage).toEqual([
+        "global",
+        "p-kota-fixture-default",
+        "p-kota-fixture-feature",
+      ]);
+      expect(response.policy.directoryRoot).toBe("/Users/operator/projects/kota/feature");
+      expect(response.policy.retention.source.scopeId).toBe("global");
+      expect(response.policy.channels.source.scopeId).toBe("p-kota-fixture-feature");
+      expect(response.policy.writes.source.scopeId).toBe("p-kota-fixture-default");
+      expect(response.policy.channels.blockedSources).toContain("fixture-blocked-chat");
+      expect(response.decisionExamples.map((entry) => entry.outcome)).toEqual([
+        "allow",
+        "deny",
+        "deny",
+        "confirm",
+      ]);
+      expect(response.decisionExamples[1]?.rendered).toContain("-> deny");
+      expect(response.decisionExamples[2]?.rendered).toContain("scope directory write boundary");
     });
 
     it("decodes the dashboard-unavailable identity payload", () => {

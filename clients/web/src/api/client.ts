@@ -10,6 +10,7 @@ import {
   parseMemorySearchResponse,
   parseRecallResult,
   parseRetractResult,
+  parseScopePolicyRouteResponse,
   parseScopeRegistryProjection,
   parseTasksSearchResponse,
 } from "../../../conformance/decoders";
@@ -43,6 +44,7 @@ import type {
   RetractRequest,
   RetractResult,
   ScheduleEntry,
+  ScopePolicyRouteResponse,
   ScopeRegistryProjection,
   SlashCommand,
   SlashCommandInvocation,
@@ -132,6 +134,12 @@ export const api = {
     apiDecoded<ScopeRegistryProjection>(
       "/scopes",
       parseScopeRegistryProjection,
+    ),
+
+  getScopePolicy: (scopeId: string) =>
+    apiDecoded<ScopePolicyRouteResponse>(
+      `/scopes/${encodeURIComponent(scopeId)}/policy`,
+      parseScopePolicyRouteResponse,
     ),
 
   getWorkflowStatus: (projectId: string) =>

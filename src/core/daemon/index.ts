@@ -24,6 +24,18 @@ export {
 	Scheduler,
 	setSchedulerInstance,
 } from "./scheduler.js";
+export type {
+	ResolvedScopePolicy,
+	ScopePolicyDecision,
+	ScopePolicyFragment,
+	ScopePolicyRouteResponse,
+} from "./scope-policy.js";
+export {
+	decideScopePolicy,
+	defaultScopePolicyDecisionExamples,
+	resolveScopePolicy,
+	ScopePolicyValidationError,
+} from "./scope-policy.js";
 export {
 	buildConfiguredProject,
 	type ConfiguredProject,

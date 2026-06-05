@@ -25,7 +25,12 @@ import type { WorkflowAgentBackoffState } from "#core/workflow/trigger-types.js"
 import type { CapabilityReadinessResponse } from "./capability-readiness.js";
 import type { ClientIdentity } from "./client-identity.js";
 import type { DaemonState } from "./daemon-state.js";
-import type { ProjectId, ProjectRegistryProjection } from "./scope-registry.js";
+import type { ScopePolicyRouteResponse } from "./scope-policy.js";
+import type {
+  ProjectId,
+  ProjectRegistryProjection,
+  ScopeRegistryProjection,
+} from "./scope-registry.js";
 
 /**
  * Typed wire-shape for the daemon's "unknown projectId" rejection on a
@@ -317,6 +322,12 @@ export type DaemonControlHandle = {
   ): Promise<ModuleSetupMutationResult>;
   /** Typed projection of the daemon's configured project registry. */
   getProjectRegistryProjection(): ProjectRegistryProjection;
+  /** Canonical typed projection of the daemon scope registry. */
+  getScopeRegistryProjection(): ScopeRegistryProjection;
+  /** True when `scopeId` matches the global root or a configured directory scope. */
+  hasScope(scopeId: string): boolean;
+  /** Resolved scope policy plus examples clients can render as explanations. */
+  getScopePolicy(scopeId: string): ScopePolicyRouteResponse;
   /**
    * True when `projectId` matches a configured project. Route handlers
    * call this before invoking a project-scoped handle method so they can

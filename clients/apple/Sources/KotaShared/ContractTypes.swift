@@ -489,6 +489,183 @@ struct ScopeRegistryProjection: Codable, Equatable {
     }
 }
 
+// MARK: - Scope policy
+
+enum ScopePolicyArea: String, Codable, Equatable {
+    case autonomy
+    case writes
+    case channels
+    case setup
+    case ownerConfirmation
+    case retention
+    case modules
+    case externalEffects
+}
+
+enum ScopePolicyExplanationAction: String, Codable, Equatable {
+    case set
+    case override
+    case inherit
+}
+
+enum ScopePolicyAutonomyMode: String, Codable, Equatable {
+    case passive
+    case supervised
+    case autonomous
+}
+
+enum ScopePolicyWriteMode: String, Codable, Equatable {
+    case none
+    case scopeDirectory = "scope-directory"
+    case paths
+    case unrestricted
+}
+
+enum ScopePolicyChannelMode: String, Codable, Equatable {
+    case blocked
+    case allowList = "allow-list"
+    case allowAll = "allow-all"
+}
+
+enum ScopePolicyActionPolicy: String, Codable, Equatable {
+    case allow
+    case confirm
+    case deny
+}
+
+enum ScopePolicyRetentionMode: String, Codable, Equatable {
+    case retain
+    case expireAfterDays = "expire-after-days"
+}
+
+enum ScopePolicyRedactionProfile: String, Codable, Equatable {
+    case full
+    case sensitiveFields = "sensitive-fields"
+    case none
+}
+
+enum ScopePolicySetupVisibility: String, Codable, Equatable {
+    case hidden
+    case metadata
+    case full
+}
+
+enum ScopePolicyModuleAvailability: String, Codable, Equatable {
+    case enabled
+    case setupRequired = "setup-required"
+    case disabled
+}
+
+enum ScopePolicyDecisionKind: String, Codable, Equatable {
+    case channelRoute = "channel-route"
+    case toolEffect = "tool-effect"
+}
+
+enum ScopePolicyDecisionOutcome: String, Codable, Equatable {
+    case allow
+    case confirm
+    case deny
+    case ignore
+}
+
+struct ScopePolicySource: Codable, Equatable {
+    let scopeId: String
+    let reason: String
+}
+
+struct ScopeAutonomyPolicyProjection: Codable, Equatable {
+    let defaultMode: ScopePolicyAutonomyMode
+    let maxMode: ScopePolicyAutonomyMode
+    let source: ScopePolicySource
+}
+
+struct ScopeWritePolicyProjection: Codable, Equatable {
+    let mode: ScopePolicyWriteMode
+    let paths: [String]?
+    let source: ScopePolicySource
+}
+
+struct ScopeChannelPolicyProjection: Codable, Equatable {
+    let mode: ScopePolicyChannelMode
+    let allowedChannels: [String]
+    let blockedSources: [String]
+    let ignoredSources: [String]
+    let source: ScopePolicySource
+}
+
+struct ScopeOwnerConfirmationPolicyProjection: Codable, Equatable {
+    let localWrite: ScopePolicyActionPolicy
+    let externalWrite: ScopePolicyActionPolicy
+    let destructive: ScopePolicyActionPolicy
+    let source: ScopePolicySource
+}
+
+struct ScopeRetentionPolicyProjection: Codable, Equatable {
+    let mode: ScopePolicyRetentionMode
+    let maxAgeDays: Int?
+    let redaction: ScopePolicyRedactionProfile
+    let source: ScopePolicySource
+}
+
+struct ScopeModulePolicyOverrideProjection: Codable, Equatable {
+    let moduleName: String
+    let availability: ScopePolicyModuleAvailability
+}
+
+struct ScopeModulePolicyProjection: Codable, Equatable {
+    let defaultAvailability: ScopePolicyModuleAvailability
+    let overrides: [ScopeModulePolicyOverrideProjection]
+    let source: ScopePolicySource
+}
+
+struct ScopeExternalEffectPolicyProjection: Codable, Equatable {
+    let networkRead: ScopePolicyActionPolicy
+    let networkWrite: ScopePolicyActionPolicy
+    let networkDestructive: ScopePolicyActionPolicy
+    let source: ScopePolicySource
+}
+
+struct ScopePolicyExplanationProjection: Codable, Equatable {
+    let area: ScopePolicyArea
+    let scopeId: String
+    let action: ScopePolicyExplanationAction
+    let message: String
+}
+
+struct ScopePolicyProjection: Codable, Equatable {
+    let scopeId: String
+    let lineage: [String]
+    let directoryRoot: String?
+    let autonomy: ScopeAutonomyPolicyProjection
+    let writes: ScopeWritePolicyProjection
+    let channels: ScopeChannelPolicyProjection
+    let setup: ScopeSetupPolicyProjection
+    let ownerConfirmation: ScopeOwnerConfirmationPolicyProjection
+    let retention: ScopeRetentionPolicyProjection
+    let modules: ScopeModulePolicyProjection
+    let externalEffects: ScopeExternalEffectPolicyProjection
+    let explanations: [ScopePolicyExplanationProjection]
+}
+
+struct ScopeSetupPolicyProjection: Codable, Equatable {
+    let visibility: ScopePolicySetupVisibility
+    let source: ScopePolicySource
+}
+
+struct ScopePolicyDecisionProjection: Codable, Equatable {
+    let kind: ScopePolicyDecisionKind
+    let target: String
+    let outcome: ScopePolicyDecisionOutcome
+    let source: ScopePolicySource
+    let reason: String
+    let rendered: String
+}
+
+struct ScopePolicyRouteResponse: Codable, Equatable {
+    let policy: ScopePolicyProjection
+    let decisionExamples: [ScopePolicyDecisionProjection]
+}
+
 /// Mirror of the daemon's typed `unknown_project` rejection that
 /// project-scoped routes emit when `?projectId=` is set to an
 /// unconfigured id. Strict decode: any other `reason` value fails.

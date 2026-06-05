@@ -77,12 +77,268 @@
         "directoryRoot": "/Users/operator/projects/kota"
       },
       {
+        "scopeId": "p-kota-fixture-feature",
+        "displayName": "feature",
+        "parentScopeId": "p-kota-fixture-default",
+        "directoryRoot": "/Users/operator/projects/kota/feature"
+      },
+      {
         "scopeId": "p-side-fixture",
         "displayName": "side-project",
         "parentScopeId": "global",
         "directoryRoot": "/Users/operator/projects/side-project"
       }
     ]
+  },
+  "scopePolicy": {
+    "resolved": {
+      "policy": {
+        "scopeId": "p-kota-fixture-feature",
+        "lineage": ["global", "p-kota-fixture-default", "p-kota-fixture-feature"],
+        "directoryRoot": "/Users/operator/projects/kota/feature",
+        "autonomy": {
+          "defaultMode": "supervised",
+          "maxMode": "autonomous",
+          "source": {
+            "scopeId": "p-kota-fixture-default",
+            "reason": "Directory scope requires supervised interactive autonomy."
+          }
+        },
+        "writes": {
+          "mode": "scope-directory",
+          "source": {
+            "scopeId": "p-kota-fixture-default",
+            "reason": "Writes stay inside the directory-backed scope."
+          }
+        },
+        "channels": {
+          "mode": "allow-list",
+          "allowedChannels": ["telegram"],
+          "blockedSources": ["fixture-blocked-chat"],
+          "ignoredSources": ["fixture-muted-chat"],
+          "source": {
+            "scopeId": "p-kota-fixture-feature",
+            "reason": "Only trusted Telegram sources route into this nested feature scope."
+          }
+        },
+        "setup": {
+          "visibility": "metadata",
+          "source": {
+            "scopeId": "p-kota-fixture-default",
+            "reason": "Clients show setup state without secret-bearing details."
+          }
+        },
+        "ownerConfirmation": {
+          "localWrite": "confirm",
+          "externalWrite": "confirm",
+          "destructive": "deny",
+          "source": {
+            "scopeId": "p-kota-fixture-feature",
+            "reason": "Nested feature effects require owner confirmation unless they are destructive."
+          }
+        },
+        "retention": {
+          "mode": "retain",
+          "redaction": "sensitive-fields",
+          "source": {
+            "scopeId": "global",
+            "reason": "Built-in migration policy for existing directory scopes."
+          }
+        },
+        "modules": {
+          "defaultAvailability": "setup-required",
+          "overrides": [
+            {
+              "moduleName": "telegram",
+              "availability": "enabled"
+            },
+            {
+              "moduleName": "browser",
+              "availability": "disabled"
+            }
+          ],
+          "source": {
+            "scopeId": "p-kota-fixture-default",
+            "reason": "Only configured modules are enabled for this directory scope."
+          }
+        },
+        "externalEffects": {
+          "networkRead": "allow",
+          "networkWrite": "confirm",
+          "networkDestructive": "deny",
+          "source": {
+            "scopeId": "p-kota-fixture-default",
+            "reason": "External effects need owner-visible posture."
+          }
+        },
+        "explanations": [
+          {
+            "area": "retention",
+            "scopeId": "global",
+            "action": "set",
+            "message": "retention policy starts at global."
+          },
+          {
+            "area": "channels",
+            "scopeId": "p-kota-fixture-feature",
+            "action": "override",
+            "message": "p-kota-fixture-feature overrides channels: Only trusted Telegram sources route into this nested feature scope."
+          },
+          {
+            "area": "writes",
+            "scopeId": "p-kota-fixture-default",
+            "action": "override",
+            "message": "p-kota-fixture-default overrides writes: Writes stay inside the directory-backed scope."
+          },
+          {
+            "area": "externalEffects",
+            "scopeId": "p-kota-fixture-default",
+            "action": "override",
+            "message": "p-kota-fixture-default overrides externalEffects: External effects need owner-visible posture."
+          }
+        ]
+      },
+      "decisionExamples": [
+        {
+          "kind": "channel-route",
+          "target": "telegram channel event from operator-chat",
+          "outcome": "allow",
+          "source": {
+            "scopeId": "p-kota-fixture-feature",
+            "reason": "Only trusted Telegram sources route into this nested feature scope."
+          },
+          "reason": "telegram is eligible for this scope",
+          "rendered": "telegram channel event from operator-chat -> allow (telegram is eligible for this scope; source p-kota-fixture-feature)"
+        },
+        {
+          "kind": "channel-route",
+          "target": "telegram channel event from fixture-blocked-chat",
+          "outcome": "deny",
+          "source": {
+            "scopeId": "p-kota-fixture-feature",
+            "reason": "Only trusted Telegram sources route into this nested feature scope."
+          },
+          "reason": "fixture-blocked-chat is blocked by channel routing policy",
+          "rendered": "telegram channel event from fixture-blocked-chat -> deny (fixture-blocked-chat is blocked by channel routing policy; source p-kota-fixture-feature)"
+        },
+        {
+          "kind": "tool-effect",
+          "target": "edit_file write on local-fs at /Users/operator/projects/kota/README.md",
+          "outcome": "deny",
+          "source": {
+            "scopeId": "p-kota-fixture-default",
+            "reason": "Writes stay inside the directory-backed scope."
+          },
+          "reason": "target path is outside the scope directory write boundary",
+          "rendered": "edit_file write on local-fs at /Users/operator/projects/kota/README.md -> deny (target path is outside the scope directory write boundary; source p-kota-fixture-default)"
+        },
+        {
+          "kind": "tool-effect",
+          "target": "send_booking_request write on external-network",
+          "outcome": "confirm",
+          "source": {
+            "scopeId": "p-kota-fixture-default",
+            "reason": "External effects need owner-visible posture."
+          },
+          "reason": "scope policy resolves this tool effect to confirm",
+          "rendered": "send_booking_request write on external-network -> confirm (scope policy resolves this tool effect to confirm; source p-kota-fixture-default)"
+        }
+      ]
+    },
+    "negative_unknownOutcome": {
+      "policy": {
+        "scopeId": "p-kota-fixture-feature",
+        "lineage": ["global", "p-kota-fixture-default", "p-kota-fixture-feature"],
+        "directoryRoot": "/Users/operator/projects/kota/feature",
+        "autonomy": {
+          "defaultMode": "supervised",
+          "maxMode": "autonomous",
+          "source": {
+            "scopeId": "p-kota-fixture-default",
+            "reason": "Directory scope requires supervised interactive autonomy."
+          }
+        },
+        "writes": {
+          "mode": "scope-directory",
+          "source": {
+            "scopeId": "p-kota-fixture-default",
+            "reason": "Writes stay inside the directory-backed scope."
+          }
+        },
+        "channels": {
+          "mode": "allow-list",
+          "allowedChannels": ["telegram"],
+          "blockedSources": ["fixture-blocked-chat"],
+          "ignoredSources": ["fixture-muted-chat"],
+          "source": {
+            "scopeId": "p-kota-fixture-feature",
+            "reason": "Only trusted Telegram sources route into this nested feature scope."
+          }
+        },
+        "setup": {
+          "visibility": "metadata",
+          "source": {
+            "scopeId": "p-kota-fixture-default",
+            "reason": "Clients show setup state without secret-bearing details."
+          }
+        },
+        "ownerConfirmation": {
+          "localWrite": "confirm",
+          "externalWrite": "confirm",
+          "destructive": "deny",
+          "source": {
+            "scopeId": "p-kota-fixture-feature",
+            "reason": "Nested feature effects require owner confirmation unless they are destructive."
+          }
+        },
+        "retention": {
+          "mode": "retain",
+          "redaction": "sensitive-fields",
+          "source": {
+            "scopeId": "global",
+            "reason": "Built-in migration policy for existing directory scopes."
+          }
+        },
+        "modules": {
+          "defaultAvailability": "setup-required",
+          "overrides": [],
+          "source": {
+            "scopeId": "p-kota-fixture-default",
+            "reason": "Only configured modules are enabled for this directory scope."
+          }
+        },
+        "externalEffects": {
+          "networkRead": "allow",
+          "networkWrite": "confirm",
+          "networkDestructive": "deny",
+          "source": {
+            "scopeId": "p-kota-fixture-default",
+            "reason": "External effects need owner-visible posture."
+          }
+        },
+        "explanations": [
+          {
+            "area": "channels",
+            "scopeId": "p-kota-fixture-feature",
+            "action": "override",
+            "message": "p-kota-fixture-feature overrides channels."
+          }
+        ]
+      },
+      "decisionExamples": [
+        {
+          "kind": "channel-route",
+          "target": "telegram channel event from operator-chat",
+          "outcome": "maybe",
+          "source": {
+            "scopeId": "p-kota-fixture-feature",
+            "reason": "Only trusted Telegram sources route into this nested feature scope."
+          },
+          "reason": "telegram is eligible for this scope",
+          "rendered": "telegram channel event from operator-chat -> maybe"
+        }
+      ]
+    }
   },
   "unknownProjectError": {
     "error": "Unknown project",

@@ -141,6 +141,10 @@ public final class DaemonClient {
         return "\(path)\(separator)projectId=\(encoded)"
     }
 
+    static func pathComponent(_ value: String) -> String {
+        value.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? value
+    }
+
     func refreshConnection(projectDir: URL) -> Bool {
         let controlPath = projectDir
             .appendingPathComponent(".kota")
@@ -186,6 +190,12 @@ public final class DaemonClient {
     /// selectors.
     func fetchScopes() async throws -> ScopeRegistryProjection {
         try await get("/scopes")
+    }
+
+    /// `GET /scopes/:scopeId/policy` — resolved inherited policy for one
+    /// configured scope plus rendered decision examples.
+    func fetchScopePolicy(scopeId: String) async throws -> ScopePolicyRouteResponse {
+        try await get("/scopes/\(Self.pathComponent(scopeId))/policy")
     }
 
     /// `GET /capabilities` — typed capability readiness payload. Each

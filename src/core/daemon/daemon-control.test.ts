@@ -93,6 +93,57 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
       },
     })),
     ...daemonSetupControlHandleStubs(),
+    getScopeRegistryProjection: vi.fn(() => ({
+      rootScopeId: "global",
+      defaultScopeId: "test-project-id",
+      scopes: [
+        { scopeId: "global", displayName: "Global" },
+        {
+          scopeId: "test-project-id",
+          displayName: "test-project",
+          parentScopeId: "global",
+          directoryRoot: "/tmp/test-project",
+        },
+        {
+          scopeId: "test-feature",
+          displayName: "test-feature",
+          parentScopeId: "test-project-id",
+          directoryRoot: "/tmp/test-project/feature",
+        },
+      ],
+    })),
+    hasScope: vi.fn((id: string) => id === "global" || id === "test-project-id" || id === "test-feature"),
+    getScopePolicy: vi.fn((scopeId: string) => ({
+      policy: {
+        scopeId,
+        lineage: scopeId === "global"
+          ? ["global"]
+          : scopeId === "test-feature"
+            ? ["global", "test-project-id", "test-feature"]
+            : ["global", scopeId],
+        ...(scopeId === "test-project-id"
+          ? { directoryRoot: "/tmp/test-project" }
+          : scopeId === "test-feature"
+            ? { directoryRoot: "/tmp/test-project/feature" }
+            : {}),
+        autonomy: { defaultMode: "autonomous" as const, maxMode: "autonomous" as const, source: { scopeId: "global", reason: "test" } },
+        writes: { mode: "unrestricted" as const, source: { scopeId: "global", reason: "test" } },
+        channels: {
+          mode: "allow-all" as const,
+          allowedChannels: [],
+          blockedSources: [],
+          ignoredSources: [],
+          source: { scopeId: "global", reason: "test" },
+        },
+        setup: { visibility: "full" as const, source: { scopeId: "global", reason: "test" } },
+        ownerConfirmation: { localWrite: "allow" as const, externalWrite: "confirm" as const, destructive: "confirm" as const, source: { scopeId: "global", reason: "test" } },
+        retention: { mode: "retain" as const, redaction: "sensitive-fields" as const, source: { scopeId: "global", reason: "test" } },
+        modules: { defaultAvailability: "enabled" as const, overrides: [], source: { scopeId: "global", reason: "test" } },
+        externalEffects: { networkRead: "allow" as const, networkWrite: "confirm" as const, networkDestructive: "confirm" as const, source: { scopeId: "global", reason: "test" } },
+        explanations: [],
+      },
+      decisionExamples: [],
+    })),
     ...overrides,
   };
 }
@@ -356,7 +407,7 @@ describe("DaemonControlServer", () => {
   });
 
   describe("GET /scopes", () => {
-    it("returns the global root plus directory-backed child scopes", async () => {
+    it("returns the global root plus nested directory-backed child scopes", async () => {
       const res = await fetchWithToken(port, "/scopes");
       expect(res.status).toBe(200);
       const body = await res.json();
@@ -374,6 +425,12 @@ describe("DaemonControlServer", () => {
             parentScopeId: "global",
             directoryRoot: "/tmp/test-project",
           },
+          {
+            scopeId: "test-feature",
+            displayName: "test-feature",
+            parentScopeId: "test-project-id",
+            directoryRoot: "/tmp/test-project/feature",
+          },
         ],
       });
     });
@@ -381,6 +438,27 @@ describe("DaemonControlServer", () => {
     it("requires the bearer token", async () => {
       const res = await fetchNoToken(port, "/scopes");
       expect(res.status).toBe(401);
+    });
+
+    it("returns resolved policy for a configured nested scope", async () => {
+      const res = await fetchWithToken(port, "/scopes/test-feature/policy");
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.policy.scopeId).toBe("test-feature");
+      expect(body.policy.lineage).toEqual(["global", "test-project-id", "test-feature"]);
+      expect(body.policy.directoryRoot).toBe("/tmp/test-project/feature");
+      expect(handle.getScopePolicy).toHaveBeenCalledWith("test-feature");
+    });
+
+    it("returns typed unknown_scope for an unconfigured scope policy request", async () => {
+      const res = await fetchWithToken(port, "/scopes/not-configured/policy");
+      expect(res.status).toBe(404);
+      expect(await res.json()).toEqual({
+        error: "Unknown scope",
+        reason: "unknown_scope",
+        scopeId: "not-configured",
+      });
+      expect(handle.getScopePolicy).not.toHaveBeenCalled();
     });
   });
 

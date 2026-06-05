@@ -20,6 +20,7 @@ import {
   setDaemonWorkflowDispatchPaused,
 } from "./daemon-workflows.js";
 import { ProjectRuntimeRegistry } from "./project-runtime.js";
+import type { ScopePolicyFragment } from "./scope-policy.js";
 import {
   type ConfiguredProjectInput,
   resolveConfiguredProjects,
@@ -47,6 +48,8 @@ export type DaemonConfig = {
    * project for compatibility with older single-project clients.
    */
   projects?: readonly ConfiguredProjectInput[];
+  /** Scope policy fragments resolved against the daemon's scope hierarchy. */
+  scopePolicies?: readonly ScopePolicyFragment[];
   model?: string;
   verbose?: boolean;
   config?: KotaConfig;

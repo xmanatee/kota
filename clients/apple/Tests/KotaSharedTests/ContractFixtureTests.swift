@@ -119,9 +119,12 @@ final class ContractFixtureTests: XCTestCase {
         let projection = try JSONDecoder().decode(ScopeRegistryProjection.self, from: data)
         XCTAssertEqual(projection.rootScopeId, "global")
         XCTAssertEqual(projection.defaultScopeId, "p-kota-fixture-default")
-        XCTAssertEqual(projection.scopes.count, 3)
+        XCTAssertEqual(projection.scopes.count, 4)
         XCTAssertEqual(projection.scopes.first?.scopeId, "global")
-        XCTAssertEqual(projection.scopes.filter { $0.directoryRoot != nil }.count, 2)
+        XCTAssertEqual(projection.scopes.filter { $0.directoryRoot != nil }.count, 3)
+        let nested = projection.scopes.first { $0.scopeId == "p-kota-fixture-feature" }
+        XCTAssertEqual(nested?.parentScopeId, "p-kota-fixture-default")
+        XCTAssertEqual(nested?.directoryRoot, "/Users/operator/projects/kota/feature")
     }
 
     func testScopeRegistryProjectionRejectsUnknownDefault() throws {
@@ -151,6 +154,29 @@ final class ContractFixtureTests: XCTestCase {
         let data = Data(json.utf8)
         XCTAssertThrowsError(
             try JSONDecoder().decode(ScopeRegistryProjection.self, from: data)
+        )
+    }
+
+    // MARK: - Scope policy
+
+    func testDecodesScopePolicyRouteResponse() throws {
+        let data = try Self.nestedData(["scopePolicy", "resolved"])
+        let response = try JSONDecoder().decode(ScopePolicyRouteResponse.self, from: data)
+        XCTAssertEqual(response.policy.scopeId, "p-kota-fixture-feature")
+        XCTAssertEqual(response.policy.lineage, ["global", "p-kota-fixture-default", "p-kota-fixture-feature"])
+        XCTAssertEqual(response.policy.directoryRoot, "/Users/operator/projects/kota/feature")
+        XCTAssertEqual(response.policy.retention.source.scopeId, "global")
+        XCTAssertEqual(response.policy.writes.source.scopeId, "p-kota-fixture-default")
+        XCTAssertEqual(response.policy.channels.blockedSources, ["fixture-blocked-chat"])
+        XCTAssertEqual(response.decisionExamples.map(\.outcome), [.allow, .deny, .deny, .confirm])
+        XCTAssertTrue(response.decisionExamples[1].rendered.contains("-> deny"))
+        XCTAssertTrue(response.decisionExamples[2].rendered.contains("scope directory write boundary"))
+    }
+
+    func testScopePolicyRouteResponseRejectsUnknownOutcome() throws {
+        let data = try Self.nestedData(["scopePolicy", "negative_unknownOutcome"])
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(ScopePolicyRouteResponse.self, from: data)
         )
     }
 

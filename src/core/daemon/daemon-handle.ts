@@ -35,10 +35,16 @@ import type {
 } from "./daemon-control-types.js";
 import type { DaemonState } from "./daemon-state.js";
 import type { ProjectRuntime, ProjectRuntimeRegistry } from "./project-runtime.js";
+import {
+  defaultScopePolicyDecisionExamples,
+  resolveScopePolicy,
+  type ScopePolicyRouteResponse,
+} from "./scope-policy.js";
 import type {
   ProjectId,
   ProjectRegistryProjection,
   ScopeRegistry,
+  ScopeRegistryProjection,
 } from "./scope-registry.js";
 
 export type DaemonHandleContext = {
@@ -133,6 +139,21 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       setupService.revoke(moduleName, requirementId),
     getProjectRegistryProjection: (): ProjectRegistryProjection =>
       projectRegistry.toProjection(),
+    getScopeRegistryProjection: (): ScopeRegistryProjection =>
+      projectRegistry.toScopeProjection(),
+    hasScope: (scopeId: string) =>
+      projectRegistry.toScopeProjection().scopes.some((scope) => scope.scopeId === scopeId),
+    getScopePolicy: (scopeId: string): ScopePolicyRouteResponse => {
+      const policy = resolveScopePolicy({
+        projection: projectRegistry.toScopeProjection(),
+        scopeId,
+        fragments: config.scopePolicies,
+      });
+      return {
+        policy,
+        decisionExamples: defaultScopePolicyDecisionExamples(policy),
+      };
+    },
     hasProject: (projectId: string) => projectRegistry.get(projectId) !== undefined,
     getActiveProjectId: (): ProjectId | null => activeProjectId,
     setActiveProjectId: (next: ProjectId | null): SetActiveProjectResult => {

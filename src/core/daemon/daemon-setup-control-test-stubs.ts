@@ -6,9 +6,16 @@ import type {
   ModuleSetupStatusResponse,
 } from "#core/modules/setup-requirements.js";
 import type { DaemonControlHandle } from "./daemon-control-types.js";
+import {
+  defaultScopePolicyDecisionExamples,
+  resolveScopePolicy,
+} from "./scope-policy.js";
 
 type SetupControlHandleMethods = Pick<
   DaemonControlHandle,
+  | "getScopeRegistryProjection"
+  | "hasScope"
+  | "getScopePolicy"
   | "listModuleSetupStatuses"
   | "submitModuleSetupForm"
   | "storeModuleSetupSecret"
@@ -31,6 +38,26 @@ const EMPTY_SETUP_STATUS: ModuleSetupStatusResponse = {
   },
 };
 
+const TEST_SCOPE_PROJECTION = {
+  rootScopeId: "global",
+  defaultScopeId: "test-project-id",
+  scopes: [
+    { scopeId: "global", displayName: "Global" },
+    {
+      scopeId: "test-project-id",
+      displayName: "test-project",
+      parentScopeId: "global",
+      directoryRoot: "/tmp/test-project",
+    },
+    {
+      scopeId: "test-feature",
+      displayName: "test-feature",
+      parentScopeId: "test-project-id",
+      directoryRoot: "/tmp/test-project/feature",
+    },
+  ],
+};
+
 function missingSetupResult(): ModuleSetupMutationResult {
   return {
     ok: false,
@@ -49,6 +76,19 @@ function missingSetupStartResult(): ModuleSetupStartResult {
 
 export function daemonSetupControlHandleStubs(): SetupControlHandleMethods {
   return {
+    getScopeRegistryProjection: () => TEST_SCOPE_PROJECTION,
+    hasScope: (scopeId: string) =>
+      TEST_SCOPE_PROJECTION.scopes.some((scope) => scope.scopeId === scopeId),
+    getScopePolicy: (scopeId: string) => {
+      const policy = resolveScopePolicy({
+        projection: TEST_SCOPE_PROJECTION,
+        scopeId,
+      });
+      return {
+        policy,
+        decisionExamples: defaultScopePolicyDecisionExamples(policy),
+      };
+    },
     listModuleSetupStatuses: async () => EMPTY_SETUP_STATUS,
     submitModuleSetupForm: async (
       _moduleName: string,

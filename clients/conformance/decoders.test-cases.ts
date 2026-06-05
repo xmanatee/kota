@@ -22,6 +22,7 @@ import {
   parseRecallResult,
   parseRetractResult,
   parseScopeRegistryProjection,
+  parseScopePolicyRouteResponse,
   parseSetupStatusResponse,
   parseTasksSearchResponse,
   parseUnknownProjectError,
@@ -82,7 +83,7 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
       const p = decoded as {
         rootScopeId: string;
         defaultScopeId: string;
-        scopes: Array<{ scopeId: string; directoryRoot?: string }>;
+        scopes: Array<{ scopeId: string; parentScopeId?: string; directoryRoot?: string }>;
       };
       if (p.rootScopeId !== "global") {
         throw new Error("expected global root scope");
@@ -90,10 +91,65 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
       if (!p.scopes.some((entry) => entry.scopeId === p.defaultScopeId)) {
         throw new Error("defaultScopeId must match a listed scope");
       }
-      if (p.scopes.filter((entry) => entry.directoryRoot).length !== 2) {
-        throw new Error("expected two directory-backed child scopes");
+      if (p.scopes.filter((entry) => entry.directoryRoot).length !== 3) {
+        throw new Error("expected three directory-backed scopes");
+      }
+      const nested = p.scopes.find((entry) => entry.scopeId === "p-kota-fixture-feature");
+      if (nested?.parentScopeId !== "p-kota-fixture-default") {
+        throw new Error("expected nested feature scope under the default directory scope");
       }
     },
+  },
+  {
+    name: "scopePolicy: resolved policy with rendered decisions",
+    path: "scopePolicy.resolved",
+    parse: parseScopePolicyRouteResponse,
+    assertPositive: (decoded) => {
+      const response = decoded as {
+        policy: {
+          scopeId: string;
+          lineage: string[];
+          directoryRoot?: string;
+          channels: { blockedSources: string[]; source: { scopeId: string } };
+          retention: { source: { scopeId: string } };
+        };
+        decisionExamples: Array<{ outcome: string; rendered: string }>;
+      };
+      if (response.policy.scopeId !== "p-kota-fixture-feature") {
+        throw new Error("expected fixture policy for p-kota-fixture-feature");
+      }
+      if (response.policy.lineage.join("/") !== "global/p-kota-fixture-default/p-kota-fixture-feature") {
+        throw new Error("expected nested scope policy lineage");
+      }
+      if (response.policy.directoryRoot !== "/Users/operator/projects/kota/feature") {
+        throw new Error("expected directory root on nested scope policy");
+      }
+      if (!response.policy.channels.blockedSources.includes("fixture-blocked-chat")) {
+        throw new Error("expected blocked channel source in fixture policy");
+      }
+      if (response.policy.retention.source.scopeId !== "global") {
+        throw new Error("expected retention to demonstrate inherited global policy");
+      }
+      if (!response.decisionExamples.some((entry) => entry.outcome === "confirm")) {
+        throw new Error("expected a rendered owner-confirmation decision");
+      }
+      if (
+        !response.decisionExamples.some((entry) =>
+          entry.outcome === "deny" && entry.rendered.includes("scope directory write boundary")
+        )
+      ) {
+        throw new Error("expected a rendered local write-boundary denial");
+      }
+      if (!response.decisionExamples.every((entry) => entry.rendered.includes("->"))) {
+        throw new Error("expected rendered decision text");
+      }
+    },
+  },
+  {
+    name: "scopePolicy: unknown decision outcome rejected",
+    path: "scopePolicy.negative_unknownOutcome",
+    parse: parseScopePolicyRouteResponse,
+    expectThrow: true,
   },
   {
     name: "setupRequirements: status arms for config, secret, oauth, and browser profile",

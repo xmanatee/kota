@@ -63,7 +63,7 @@ import {
   handleTriggerWorkflow,
 } from "./daemon-control-workflow.js";
 import type { EventRingBuffer } from "./event-ring-buffer.js";
-import { type ProjectId, scopeProjectionFromProjects } from "./scope-registry.js";
+import type { ProjectId } from "./scope-registry.js";
 
 /** Inputs the built-in route closures bind at registration time. */
 export type BuiltinControlRouteDeps = {
@@ -383,13 +383,22 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
       method: "GET",
       path: "/scopes",
       capabilityScope: "read",
-      handler: (_req, res) => {
-        const projects = h.getProjectRegistryProjection();
-        jsonResponse(
-          res,
-          200,
-          scopeProjectionFromProjects(projects.defaultProjectId, projects.projects),
-        );
+      handler: (_req, res) => jsonResponse(res, 200, h.getScopeRegistryProjection()),
+    },
+    {
+      method: "GET",
+      path: "/scopes/:scopeId/policy",
+      capabilityScope: "read",
+      handler: (_req, res, params) => {
+        if (!h.hasScope(params.scopeId)) {
+          jsonResponse(res, 404, {
+            error: "Unknown scope",
+            reason: "unknown_scope",
+            scopeId: params.scopeId,
+          });
+          return;
+        }
+        jsonResponse(res, 200, h.getScopePolicy(params.scopeId));
       },
     },
     {

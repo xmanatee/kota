@@ -5,8 +5,10 @@
 import {
   parseProjectRegistryProjection,
   parseScopeRegistryProjection,
+  parseScopePolicyRouteResponse,
   type ProjectRegistryProjection,
   type ScopeRegistryProjection,
+  type ScopePolicyRouteResponse,
 } from './conformance/decoders';
 import { daemonRequest, withProject, type DaemonHttp } from './http';
 
@@ -132,6 +134,17 @@ export async function getScopes(
 ): Promise<ScopeRegistryProjection> {
   const raw = await daemonRequest<unknown>(http, '/scopes');
   return parseScopeRegistryProjection(raw);
+}
+
+export async function getScopePolicy(
+  http: DaemonHttp,
+  scopeId: string,
+): Promise<ScopePolicyRouteResponse> {
+  const raw = await daemonRequest<unknown>(
+    http,
+    `/scopes/${encodeURIComponent(scopeId)}/policy`,
+  );
+  return parseScopePolicyRouteResponse(raw);
 }
 
 export function getStatus(

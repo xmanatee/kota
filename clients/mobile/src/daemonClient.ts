@@ -77,6 +77,10 @@ export class DaemonClient {
     return core.getScopes(this.http);
   }
 
+  getScopePolicy(scopeId: string): Promise<import('./daemon/conformance/decoders').ScopePolicyRouteResponse> {
+    return core.getScopePolicy(this.http, scopeId);
+  }
+
   getStatus(projectId?: string): Promise<DaemonStatus> {
     return core.getStatus(this.http, projectId);
   }

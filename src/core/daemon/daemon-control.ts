@@ -57,6 +57,7 @@ export type {
   WorkflowRunStepSummary,
   WorkflowRunSummary,
 } from "./daemon-control-types.js";
+export type { ScopePolicyRouteResponse } from "./scope-policy.js";
 
 export type DaemonControlServerOptions = {
   /** Maximum number of events retained in the in-memory ring buffer. Default: 500. */
