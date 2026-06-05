@@ -30,12 +30,11 @@ CLI commands.
   handler (`buildDaemonOpsDaemonHandler` in `index.ts`, contributed through
   the same `daemonClient(link)` factory alongside `sessions`) routes
   `status()`/`pid()` through `GET /status` and `reload()` through
-  `POST /reload`. `stop()` always throws on the daemon-up branch — the
-  daemon cannot SIGTERM itself, so the local handler is the only one that
-  performs the actual stop. Lifecycle CLI subcommands that accept
-  `--project-dir` resolve the target project after command parsing and then
-  select that project's control file/transport; `stop` still uses the local
-  pid path so the supervised child exits and lets the supervisor return. The
+  `POST /reload`. Both client arms stop the daemon by signaling the published
+  pid and waiting for process exit, so the supervised child exits and lets the
+  supervisor return. Lifecycle CLI subcommands that accept `--project-dir`
+  resolve the target project after command parsing and then select that
+  project's control file/transport. The
   non-namespace direct methods
   `DaemonControlClient.getDaemonStatus()` and `reloadConfig()` continue to
   consume the helpers in `src/core/server/daemon-client.ts` because they

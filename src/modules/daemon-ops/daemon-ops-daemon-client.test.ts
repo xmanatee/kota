@@ -21,10 +21,9 @@
  *     collapses to `{ state: "running", pid: 1234 }`.
  *  5. `pid()` throws on `null` or missing `status.pid` with a message
  *     containing `"Daemon unreachable"`.
- *  6. `stop({ timeoutSec: 30 })` throws with a message containing
- *     `"daemonOps.stop is owned by the local handler"` — the arm exists to
- *     satisfy the typed contract; runtime callers always reach the local
- *     handler.
+ *  6. `stop({ timeoutSec: 30 })` routes through `link.request("GET",
+ *     "/status")`, reads the daemon pid, and reports not-running/stale states
+ *     through the shared stop result contract.
  *  7. `reload()` routes through `link.request("POST", "/reload")` and
  *     decodes the success arm correctly, including the session guardrails
  *     refresh summary.
@@ -164,13 +163,31 @@ describe("daemon-ops module daemonClient(link) — daemonOps namespace", () => {
     await expect(contributed.daemonOps!.pid()).rejects.toThrow(/Daemon unreachable/);
   });
 
-  it("stop() throws naming the local-handler ownership", async () => {
+  it("stop() routes through GET /status and reports unreachable daemon as not_running", async () => {
     const { transport, calls } = makeRecordingTransport(() => null);
     const contributed = daemonOpsModule.daemonClient!(transport);
-    await expect(
-      contributed.daemonOps!.stop({ timeoutSec: 30 }),
-    ).rejects.toThrow(/daemonOps\.stop is owned by the local handler/);
-    expect(calls).toHaveLength(0);
+    await expect(contributed.daemonOps!.stop({ timeoutSec: 30 })).resolves.toEqual({
+      ok: false,
+      reason: "not_running",
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.method).toBe("GET");
+    expect(calls[0]!.path).toBe("/status");
+  });
+
+  it("stop() reports stale when /status returns a dead pid", async () => {
+    const deadPid = Number.MAX_SAFE_INTEGER;
+    const { transport, calls } = makeRecordingTransport(() => ({
+      ...SAMPLE_DAEMON_STATUS,
+      pid: deadPid,
+    }));
+    const contributed = daemonOpsModule.daemonClient!(transport);
+    await expect(contributed.daemonOps!.stop({ timeoutSec: 1 })).resolves.toEqual({
+      ok: false,
+      reason: "stale",
+      pid: deadPid,
+    });
+    expect(calls).toHaveLength(1);
   });
 
   it("routes reload() through POST /reload and shapes the success arm", async () => {

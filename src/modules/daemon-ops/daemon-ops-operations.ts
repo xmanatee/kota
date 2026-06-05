@@ -54,21 +54,26 @@ export function localDaemonPid(options: DaemonOpsProjectOptions = {}): DaemonOps
   return { state: "running", pid: address.pid };
 }
 
-export async function localDaemonStop(
-  options?: { timeoutSec?: number; projectDir?: string },
+export async function stopDaemonPid(
+  pid: number,
+  timeoutSec = 90,
 ): Promise<DaemonOpsStopResult> {
-  const address = readControlAddress(options);
-  if (!address || typeof address.pid !== "number") return { ok: false, reason: "not_running" };
-  const pid = address.pid;
   if (!isProcessAlive(pid)) return { ok: false, reason: "stale", pid };
   process.kill(pid, "SIGTERM");
-  const timeoutSec = Math.max(1, options?.timeoutSec ?? 90);
-  const deadline = Date.now() + timeoutSec * 1000;
+  const deadline = Date.now() + Math.max(1, timeoutSec) * 1000;
   while (Date.now() < deadline) {
     await new Promise<void>((r) => setTimeout(r, 500));
     if (!isProcessAlive(pid)) return { ok: true };
   }
   return { ok: false, reason: "timeout", pid };
+}
+
+export async function localDaemonStop(
+  options?: { timeoutSec?: number; projectDir?: string },
+): Promise<DaemonOpsStopResult> {
+  const address = readControlAddress(options);
+  if (!address || typeof address.pid !== "number") return { ok: false, reason: "not_running" };
+  return stopDaemonPid(address.pid, options?.timeoutSec);
 }
 
 export function localDaemonReload(options: DaemonOpsProjectOptions = {}): DaemonOpsReloadResult {

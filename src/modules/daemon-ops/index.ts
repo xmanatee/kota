@@ -56,6 +56,7 @@ import {
   localDaemonReload,
   localDaemonStatus,
   localDaemonStop,
+  stopDaemonPid,
 } from "./daemon-ops-operations.js";
 import { DaemonDashboard } from "./dashboard.js";
 import { buildEventsCommand } from "./events-cli.js";
@@ -699,9 +700,8 @@ const daemonModule: KotaModule = {
  *    independently (no caching across calls). On `null` or missing
  *    `status.pid` it throws `"Daemon unreachable while reading daemon
  *    pid"`. On success it returns `{ state: "running", pid: status.pid }`.
- *  - `stop(options)` throws `"daemonOps.stop is owned by the local handler
- *    — the daemon cannot SIGTERM itself."`. The arm exists to satisfy the
- *    typed contract; runtime callers always reach the local handler.
+ *  - `stop(options)` reads `/status`, signals the published daemon pid, and
+ *    waits for process exit using the same helper as the local CLI path.
  *  - `reload()` calls `link.request` for the daemon's reload response. On `null` it returns
  *    `{ ok: false, reason: "reload_failed" }`. On success it returns `{ ok:
  *    true, workflows, changedModules, sessionGuardrails }`. The daemon-up branch never returns
@@ -725,10 +725,12 @@ function buildDaemonOpsDaemonHandler(link: DaemonTransport): DaemonOpsClient {
       }
       return { state: "running", pid: status.pid };
     },
-    stop: async (_options) => {
-      throw new Error(
-        "daemonOps.stop is owned by the local handler — the daemon cannot SIGTERM itself.",
-      );
+    stop: async (options) => {
+      const status = await link.request<DaemonLiveStatus>("GET", "/status");
+      if (!status || typeof status.pid !== "number") {
+        return { ok: false, reason: "not_running" };
+      }
+      return stopDaemonPid(status.pid, options?.timeoutSec);
     },
     reload: async () => {
       const result = await link.request<{
