@@ -1,13 +1,13 @@
 ---
 id: task-add-dead-letter-queue-for-poisoned-events-and-batc
 title: Add dead letter queue for poisoned events and batches
-status: backlog
+status: ready
 priority: p1
 area: core
 summary: Add a scope-aware dead-letter queue for events, batches, and automation dispatches that repeatedly fail validation or execution, with redrive, diagnostics, and owner-visible controls.
 depends_on: [task-add-durable-event-envelope-and-journal, task-add-generic-event-batching-to-workflow-triggers]
 created_at: 2026-06-03T15:50:30.605Z
-updated_at: 2026-06-03T15:50:30.605Z
+updated_at: 2026-06-05T22:41:22.543Z
 ---
 
 ## Problem

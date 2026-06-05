@@ -1,13 +1,13 @@
 ---
 id: task-add-generic-idempotency-and-dedupe-protocol
 title: Add generic idempotency and dedupe protocol
-status: backlog
+status: ready
 priority: p1
 area: core
 summary: Add a reusable idempotency-key and dedupe-result contract for event ingestion, workflow dispatch, owner-confirmed actions, and provider writes so retries cannot duplicate consequential work.
 depends_on: [task-add-durable-event-envelope-and-journal, task-add-persisted-owner-confirmed-action-protocol]
 created_at: 2026-06-03T15:50:20.481Z
-updated_at: 2026-06-03T15:50:20.481Z
+updated_at: 2026-06-05T22:41:22.517Z
 ---
 
 ## Problem
