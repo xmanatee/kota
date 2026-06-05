@@ -366,6 +366,9 @@ const daemonModule: KotaModule = {
           resolveSkillsPrompt: (names, agentName) => loader.getSkillsPromptFor(names, agentName),
           probeModuleHealthChecks: () => loader.probeHealthChecks(),
           moduleConfigKeys: loader.getRegisteredConfigKeys(),
+          restartExit: (code) => {
+            process.exit(code);
+          },
         });
 
         if (useDashboard) {
@@ -381,6 +384,9 @@ const daemonModule: KotaModule = {
           }
         } else {
           await daemon.start();
+        }
+        if (process.exitCode === RESTART_EXIT_CODE) {
+          process.exit(RESTART_EXIT_CODE);
         }
       });
 

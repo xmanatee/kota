@@ -43,12 +43,16 @@ const idleWorkflow: RegisteredWorkflowDefinitionInput = {
 };
 
 function countIdleRuns(projectDir: string): number {
+  return countWorkflowRuns(projectDir, "idle-listener");
+}
+
+function countWorkflowRuns(projectDir: string, workflowName: string): number {
   const runsDir = join(projectDir, ".kota", "runs");
   if (!existsSync(runsDir)) return 0;
   return readdirSync(runsDir).filter((runId) => {
     const metadataPath = join(runsDir, runId, "metadata.json");
     if (!existsSync(metadataPath)) return false;
-    return runId.includes("idle-listener");
+    return runId.includes(workflowName);
   }).length;
 }
 
@@ -94,5 +98,73 @@ describe("runtime idle dispatch", () => {
     await runtime.stop();
 
     expect(countIdleRuns(projectDir)).toBe(2);
+  });
+
+  it("dispatches manually enqueued workflow runs immediately", async () => {
+    const runtime = new WorkflowRuntime({
+      bus: new EventBus(),
+      projectDir,
+      idleIntervalMs: 60_000,
+      workflows: [
+        {
+          name: "manual-listener",
+          definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
+          moduleRoot: process.cwd(),
+          triggers: [{ event: "manual", cooldownMs: 0 }],
+          steps: [
+            {
+              id: "noop",
+              type: "code",
+              run: () => ({ ok: true }),
+            },
+          ],
+        },
+      ],
+    });
+
+    runtime.start();
+    const result = runtime.enqueuePendingRun("manual-listener");
+    await wait(120);
+    await runtime.stop();
+
+    expect(result.ok).toBe(true);
+    expect(countWorkflowRuns(projectDir, "manual-listener")).toBe(1);
+    expect(runtime.getState().pendingRuns).toHaveLength(0);
+  });
+
+  it("dispatches webhook-enqueued workflow runs immediately", async () => {
+    const runtime = new WorkflowRuntime({
+      bus: new EventBus(),
+      projectDir,
+      idleIntervalMs: 60_000,
+      workflows: [
+        {
+          name: "webhook-listener",
+          definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
+          moduleRoot: process.cwd(),
+          triggers: [{ webhook: true }],
+          steps: [
+            {
+              id: "noop",
+              type: "code",
+              run: () => ({ ok: true }),
+            },
+          ],
+        },
+      ],
+    });
+
+    runtime.start();
+    const result = runtime.enqueueWebhookRun("webhook-listener", {
+      body: { ok: true },
+      headers: {},
+      timestamp: new Date().toISOString(),
+    });
+    await wait(120);
+    await runtime.stop();
+
+    expect(result.ok).toBe(true);
+    expect(countWorkflowRuns(projectDir, "webhook-listener")).toBe(1);
+    expect(runtime.getState().pendingRuns).toHaveLength(0);
   });
 });

@@ -61,10 +61,13 @@ export function enqueuePendingRun(
       ...(tags && tags.length > 0 && { tags }),
     },
   };
-  state.store.setPendingRuns([
-    ...runtimeState.pendingRuns,
-    { runId, workflowName: name, trigger, enqueuedAtMs: now, notBeforeMs: now },
-  ]);
+  state.wfQueue.appendRun({
+    runId,
+    workflowName: name,
+    trigger,
+    enqueuedAtMs: now,
+    notBeforeMs: now,
+  });
   maybeStartNext(state);
   return { ok: true, queued: name, runId };
 }
@@ -88,11 +91,13 @@ export function enqueueWebhookRun(
     schemaRef: null,
     payload: { ...webhookPayload, _runId: runId },
   };
-  const runtimeState = state.store.readState();
-  state.store.setPendingRuns([
-    ...runtimeState.pendingRuns,
-    { runId, workflowName: name, trigger, enqueuedAtMs: now, notBeforeMs: now },
-  ]);
+  state.wfQueue.appendRun({
+    runId,
+    workflowName: name,
+    trigger,
+    enqueuedAtMs: now,
+    notBeforeMs: now,
+  });
   maybeStartNext(state);
   return { ok: true, runId };
 }

@@ -68,7 +68,7 @@ beforeAll(() => {
   }
 });
 
-type ControlAddress = { port: number; token: string };
+type ControlAddress = { port: number; token: string; startedAt: string };
 type LoopbackAwareGlobal = typeof globalThis & {
   __kotaRealLoopbackAvailable?: boolean;
 };
@@ -90,9 +90,9 @@ async function pollControlFile(
   while (Date.now() < deadline) {
     if (existsSync(controlPath)) {
       const raw = readFileSync(controlPath, "utf-8");
-      const parsed = JSON.parse(raw) as { port?: number; token?: string };
-      if (parsed.port && parsed.token) {
-        return { port: parsed.port, token: parsed.token };
+      const parsed = JSON.parse(raw) as { port?: number; token?: string; startedAt?: string };
+      if (parsed.port && parsed.token && parsed.startedAt) {
+        return { port: parsed.port, token: parsed.token, startedAt: parsed.startedAt };
       }
     }
     const tick = new Promise<"tick">((r) => setTimeout(() => r("tick"), 100));
@@ -108,14 +108,101 @@ async function pollControlFile(
   );
 }
 
+async function pollControlFileReplacement(
+  stateDir: string,
+  previous: ControlAddress,
+  timeoutMs: number,
+  earlyExit: Promise<number>,
+): Promise<ControlAddress> {
+  const deadline = Date.now() + timeoutMs;
+  const exitSentinel = Symbol("exit");
+  const exitWatcher = earlyExit.then((code) => ({ exitSentinel, code }));
+
+  while (Date.now() < deadline) {
+    const tick = new Promise<"tick">((r) => setTimeout(() => r("tick"), 100));
+    const result = await Promise.race([tick, exitWatcher]);
+    if (typeof result === "object" && result !== null && "exitSentinel" in result) {
+      throw new Error(
+        `daemon supervisor exited (code=${(result as { code: number }).code}) while restart was expected`,
+      );
+    }
+
+    const controlPath = join(stateDir, "daemon-control.json");
+    if (!existsSync(controlPath)) continue;
+    let current: ControlAddress | null = null;
+    try {
+      const parsed = JSON.parse(readFileSync(controlPath, "utf-8")) as {
+        port?: number;
+        token?: string;
+        startedAt?: string;
+      };
+      if (parsed.port && parsed.token && parsed.startedAt) {
+        current = {
+          port: parsed.port,
+          token: parsed.token,
+          startedAt: parsed.startedAt,
+        };
+      }
+    } catch {
+      continue;
+    }
+    if (current === null) continue;
+    if (
+      current.port !== previous.port ||
+      current.token !== previous.token ||
+      current.startedAt !== previous.startedAt
+    ) {
+      return current;
+    }
+  }
+
+  throw new Error(
+    `Timed out after ${timeoutMs}ms waiting for daemon-control.json to be replaced after restart.`,
+  );
+}
+
 async function fetchAuthorized(
   port: number,
   path: string,
   token: string,
+  init: RequestInit = {},
 ): Promise<Response> {
   return globalThis.fetch(`http://127.0.0.1:${port}${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
+    ...init,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...init.headers,
+    },
   });
+}
+
+function writeRestartRegressionModule(stateDir: string): void {
+  const moduleDir = join(stateDir, "modules", "restart-regression");
+  mkdirSync(moduleDir, { recursive: true });
+  writeFileSync(
+    join(moduleDir, "index.mjs"),
+    `export default {
+  name: "restart-regression",
+  version: "1.0.0",
+  description: "Built CLI supervised restart regression fixture",
+  workflows: [
+    {
+      name: "restart-regression",
+      triggers: [{ event: "manual" }],
+      steps: [
+        { id: "verify", type: "code", run: () => "ok" },
+        {
+          id: "request-restart",
+          type: "restart",
+          requires: ["verify"],
+          reason: "built CLI supervised restart regression"
+        }
+      ]
+    }
+  ]
+};
+`,
+  );
 }
 
 async function waitForExit(
@@ -237,4 +324,60 @@ describe.skipIf(!realLoopbackAvailable())("built CLI daemon smoke (provider-back
       "daemon-control.json must be removed on clean shutdown",
     ).toBe(false);
   }, 60_000);
+
+  it("relaunches the supervised child after a runtime restart request", async () => {
+    writeRestartRegressionModule(stateDir);
+    child = spawn(
+      process.execPath,
+      [CLI_PATH, "daemon", "--project-dir", projectDir, "--log-format", "json", "--poll-interval", "1"],
+      {
+        env: {
+          ...process.env,
+          HOME: homeDir,
+          NODE_OPTIONS: "",
+        },
+      },
+    );
+    child.stdout?.on("data", (d) => stdoutChunks.push(Buffer.from(d)));
+    child.stderr?.on("data", (d) => stderrChunks.push(Buffer.from(d)));
+
+    const exited = new Promise<number>((resolveExit) => {
+      child!.once("exit", (code) => resolveExit(code ?? -1));
+    });
+
+    const firstAddress = await pollControlFile(stateDir, 25_000, exited);
+    const triggerRes = await fetchAuthorized(
+      firstAddress.port,
+      "/workflow/trigger",
+      firstAddress.token,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "restart-regression" }),
+      },
+    );
+    const triggerBody = await triggerRes.text();
+    expect(
+      triggerRes.status,
+      `expected workflow trigger route to accept request; got ${triggerRes.status}; body=${triggerBody}`,
+    ).toBe(200);
+
+    const secondAddress = await pollControlFileReplacement(
+      stateDir,
+      firstAddress,
+      25_000,
+      exited,
+    );
+    const statusRes = await fetchAuthorized(secondAddress.port, "/status", secondAddress.token);
+    expect(statusRes.status).toBe(200);
+
+    child.kill("SIGTERM");
+    const exitCode = await waitForExit(child, 10_000);
+    expect(
+      exitCode,
+      `daemon supervisor did not exit cleanly within 10s after restart regression; ` +
+        `stderr:\n${Buffer.concat(stderrChunks).toString()}`,
+    ).not.toBeNull();
+    expect(exitCode).toBe(0);
+  }, 80_000);
 });

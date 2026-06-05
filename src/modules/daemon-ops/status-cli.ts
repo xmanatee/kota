@@ -8,6 +8,10 @@ import type { ClientDashboardAvailability, ClientIdentity } from "#core/daemon/c
 import type { DaemonLiveStatus } from "#core/daemon/daemon-control.js";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control-types.js";
 import type { ConfiguredProject } from "#core/daemon/scope-registry.js";
+import {
+  detectStrandedDaemonProcess,
+  type StrandedDaemonProcess,
+} from "#core/daemon/stranded-daemon.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { getDaemonTransport } from "#core/server/daemon-transport.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
@@ -44,6 +48,11 @@ export type StatusSnapshot = {
   projectName: string;
   /** Classification of `<projectDir>/.kota/daemon-control.json`. */
   controlFile: DaemonControlIdentity;
+  /**
+   * Last daemon-state pid is still a KOTA daemon process, but no control
+   * file/API is published. This is the broken restart handoff state.
+   */
+  strandedDaemon?: StrandedDaemonProcess;
   /**
    * The daemon's own view of the project (from `GET /identity`). Present
    * only when the daemon answered the identity probe.
@@ -172,6 +181,13 @@ export function buildStatusNode(snap: StatusSnapshot): RenderNode {
   if (baseURL) {
     entries.push({ label: "Daemon URL", value: baseURL, role: "muted" as const });
   }
+  if (snap.strandedDaemon) {
+    entries.push({
+      label: "Stranded daemon",
+      value: `pid ${snap.strandedDaemon.pid} is alive but has no control API — terminate it and restart`,
+      role: "warn" as const,
+    });
+  }
   if (snap.daemonProjectDir && snap.wrongProject) {
     entries.push({
       label: "Daemon project",
@@ -197,7 +213,15 @@ export function buildStatusNode(snap: StatusSnapshot): RenderNode {
     entries.push({ label: "Dashboard", value: dash.value, role: dash.role });
   }
   entries.push(
-    { label: "Daemon", value: daemonValue, role: snap.daemonRunning ? "success" as const : "muted" as const },
+    {
+      label: "Daemon",
+      value: daemonValue,
+      role: snap.daemonRunning
+        ? "success" as const
+        : snap.strandedDaemon
+          ? "warn" as const
+          : "muted" as const,
+    },
     { label: "Runs", value: `${snap.activeRuns} active, ${snap.queuedRuns} queued`, role: "muted" as const },
     { label: "Sessions", value: `${snap.sessions} interactive`, role: "muted" as const },
     {
@@ -326,6 +350,7 @@ export async function gatherStatus(
   const state = store.readState();
   const queue = getApprovalQueue(join(stateDir, "approvals"));
   const pendingApprovals = queue.count("pending");
+  const strandedDaemon = detectStrandedDaemonProcess(projectDir);
 
   return {
     daemonRunning: false,
@@ -336,6 +361,9 @@ export async function gatherStatus(
     projectDir,
     projectName,
     controlFile,
+    ...(strandedDaemon.kind === "stranded" && {
+      strandedDaemon: { pid: strandedDaemon.pid, command: strandedDaemon.command },
+    }),
   };
 }
 

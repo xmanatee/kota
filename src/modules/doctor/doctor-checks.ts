@@ -23,6 +23,7 @@ import type {
   HealthStatus,
   WorkflowDefinitionSummary,
 } from "#core/daemon/daemon-control.js";
+import { detectStrandedDaemonProcess } from "#core/daemon/stranded-daemon.js";
 import { createModelClient } from "#core/model/model-client.js";
 import {
   getPreset,
@@ -462,9 +463,17 @@ export async function runDoctorChecks(
   const link = getDaemonTransport(kotaDir);
   const status = link ? await link.request<DaemonLiveStatus>("GET", "/status") : null;
   const controlFilePid = readDaemonPid(join(kotaDir, "daemon-control.json"));
+  const strandedDaemon = detectStrandedDaemonProcess(projectDir);
 
   if (!link) {
-    results.push(warn("Daemon", "No daemon-control.json found — daemon is not running"));
+    if (strandedDaemon.kind === "stranded") {
+      results.push(fail(
+        "Daemon",
+        `Daemon process pid ${strandedDaemon.pid} is alive but no daemon-control.json/control API is published — terminate it and restart`,
+      ));
+    } else {
+      results.push(warn("Daemon", "No daemon-control.json found — daemon is not running"));
+    }
   } else if (!status) {
     if (typeof controlFilePid === "number" && !isProcessAlive(controlFilePid)) {
       results.push(fail("Daemon", `Stale daemon-control.json (pid ${controlFilePid} is not alive) — run 'kota doctor --fix' to clean up`));

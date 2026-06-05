@@ -88,6 +88,20 @@ describe("formatStatusOutput", () => {
     expect(out).toContain("daemon-control.json");
   });
 
+  it("flags a stranded daemon process when no control API is published", () => {
+    const snap = {
+      ...makeSnap({ controlFile: { kind: "missing" } }),
+      strandedDaemon: {
+        pid: 4242,
+        command: "/opt/node /repo/dist/cli.js daemon",
+      },
+    } as StatusSnapshot;
+    const out = formatStatusOutput(snap);
+    expect(out).toContain("Stranded daemon");
+    expect(out).toContain("pid 4242");
+    expect(out).toContain("no control API");
+  });
+
   it("reports a stale control file with the doctor hint and base URL", () => {
     const out = formatStatusOutput(makeSnap({
       controlFile: { kind: "stale", pid: 99999, baseURL: "http://127.0.0.1:8765" },

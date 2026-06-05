@@ -8,9 +8,14 @@ import {
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
 } from "#core/agent-harness/index.js";
+import type { StrandedDaemonInspection } from "#core/daemon/stranded-daemon.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
 import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
 import { checkProviderConnectivity, runDoctorChecks, runDoctorFixes } from "./index.js";
+
+const strandedDaemonMocks = vi.hoisted(() => ({
+  detectStrandedDaemonProcess: vi.fn<() => StrandedDaemonInspection>(() => ({ kind: "none" })),
+}));
 
 vi.mock("#core/workflow/validation.js", () => ({
   validateWorkflowDefinitions: vi.fn(() => [{ name: "builder" }]),
@@ -41,6 +46,10 @@ vi.mock("#core/config/config.js", () => ({
 
 vi.mock("#core/server/daemon-transport.js", () => ({
   getDaemonTransport: vi.fn(() => null),
+}));
+
+vi.mock("#core/daemon/stranded-daemon.js", () => ({
+  detectStrandedDaemonProcess: strandedDaemonMocks.detectStrandedDaemonProcess,
 }));
 
 vi.mock("#core/model/model-client.js", () => ({
@@ -141,6 +150,7 @@ function registerReadinessHarness(
 }
 
 beforeEach(() => {
+  strandedDaemonMocks.detectStrandedDaemonProcess.mockReturnValue({ kind: "none" });
   clearAgentHarnessRegistryForTest();
   registerReadinessHarness("claude-agent-sdk", "agent-sdk");
   registerReadinessHarness("codex", "native-cli", "ready");
@@ -184,6 +194,20 @@ describe("kota doctor — offline path", () => {
     const results = await runDoctorChecks(projectDir);
     const daemon = results.find((r) => r.label === "Daemon");
     expect(daemon?.status).toBe("warn");
+  });
+
+  it("fails when a daemon process is alive without a control API", async () => {
+    strandedDaemonMocks.detectStrandedDaemonProcess.mockReturnValueOnce({
+      kind: "stranded",
+      pid: 4242,
+      command: "/opt/node /repo/dist/cli.js daemon",
+    });
+
+    const results = await runDoctorChecks(projectDir);
+    const daemon = results.find((r) => r.label === "Daemon");
+    expect(daemon?.status).toBe("fail");
+    expect(daemon?.detail).toContain("pid 4242");
+    expect(daemon?.detail).toContain("no daemon-control.json/control API");
   });
 
   it("does not treat daemon-state.json as a live daemon lock", async () => {

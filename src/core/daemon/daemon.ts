@@ -91,6 +91,12 @@ export type DaemonConfig = {
   resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
   probeModuleHealthChecks?: () => Promise<Record<string, import("#core/modules/module-types.js").HealthCheckResult>>;
   moduleConfigKeys?: ReadonlySet<string>;
+  /**
+   * Called after a restart-requested daemon has completed clean shutdown.
+   * The CLI child uses this to exit immediately with the supervised restart
+   * code; tests can inject a recorder instead of terminating the process.
+   */
+  restartExit?: (code: number) => void;
 };
 
 export const RESTART_EXIT_CODE = 75;
@@ -104,6 +110,7 @@ const DEFAULT_SHUTDOWN_GRACE_PERIOD_MS = 60_000;
  */
 export class Daemon {
   private readonly ctx: DaemonRuntimeContext;
+  private restartShutdownScheduled = false;
 
   constructor(config: DaemonConfig) {
     const logger = new DaemonLogger(config.logFormat);
@@ -167,6 +174,7 @@ export class Daemon {
     this.ctx.running = true;
     this.ctx.restartRequested = false;
     this.ctx.restartReason = null;
+    this.restartShutdownScheduled = false;
 
     try {
       await runDaemonStartup(this.ctx, {
@@ -249,16 +257,28 @@ export class Daemon {
   private maybeRestart(): void {
     if (!this.ctx.restartRequested || this.ctx.stopping) return;
     if (anyDaemonWorkflowRuntimeBusy(this.ctx)) return;
+    if (this.restartShutdownScheduled) return;
+    this.restartShutdownScheduled = true;
 
     const reason = this.ctx.restartReason ?? "workflow requested restart";
-    this.ctx.log(`Restarting daemon: ${reason}`);
-    saveDaemonStateToDisk(this.ctx.stateDir, this.ctx.state);
-    void this.stop()
-      .then(() => {
-        process.exitCode = RESTART_EXIT_CODE;
-      })
-      .catch((error) => {
-        this.ctx.log(`Restart shutdown failed: ${(error as Error).message}`);
-      });
+    setImmediate(() => {
+      if (this.ctx.stopping || !this.ctx.running) {
+        this.restartShutdownScheduled = false;
+        return;
+      }
+      this.ctx.log(`Restarting daemon: ${reason}`);
+      saveDaemonStateToDisk(this.ctx.stateDir, this.ctx.state);
+      void this.stop()
+        .then(() => {
+          const restartExit = this.ctx.config.restartExit ?? ((code: number) => {
+            process.exitCode = code;
+          });
+          restartExit(RESTART_EXIT_CODE);
+        })
+        .catch((error) => {
+          this.restartShutdownScheduled = false;
+          this.ctx.log(`Restart shutdown failed: ${(error as Error).message}`);
+        });
+    });
   }
 }

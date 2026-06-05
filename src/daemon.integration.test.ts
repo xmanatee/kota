@@ -598,13 +598,16 @@ describe("Daemon", () => {
     ];
 
     try {
+      const restartExit = vi.fn();
       const firstDaemon = makeDaemon({
         workflows,
         idleIntervalMs: 50,
+        restartExit,
       });
       await firstDaemon.start();
 
-      expect(process.exitCode).toBe(RESTART_EXIT_CODE);
+      expect(restartExit).toHaveBeenCalledWith(RESTART_EXIT_CODE);
+      expect(process.exitCode).toBe(previousExitCode);
 
       const secondDaemon = makeDaemon({
         workflows,
