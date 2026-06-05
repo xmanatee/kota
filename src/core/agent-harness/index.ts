@@ -17,10 +17,13 @@ export type {
   HarnessCapabilitySnapshot,
   HarnessCapabilitySummary,
   HarnessCapabilityUnsupportedRunOption,
+  HarnessRequiredReadinessFailure,
 } from "./capability-snapshot.js";
 export {
   buildHarnessCapabilityArtifact,
   buildHarnessCapabilitySnapshot,
+  findRequiredHarnessReadinessFailures,
+  formatRequiredHarnessReadinessFailures,
   summarizeHarnessCapability,
 } from "./capability-snapshot.js";
 export {

@@ -1,12 +1,12 @@
 ---
 id: task-repair-workflow-failure-pattern-f5fc63f85021
 title: Repair persistent improver workflow failure pattern
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Fix the local cause behind improver's persistent consecutive failure signal (step improve error 1eda855dc25d).
 created_at: 2026-06-05T20:05:28.943Z
-updated_at: 2026-06-05T20:05:28.943Z
+updated_at: 2026-06-05T20:14:18.104Z
 ---
 
 ## Problem

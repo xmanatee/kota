@@ -71,6 +71,16 @@ describe("classifyAgentRuntimeFailure", () => {
     ).toEqual({ kind: "rate_limit", retryable: false });
   });
 
+  it("classifies harness readiness failures as operator setup/auth failures", () => {
+    expect(
+      classifyAgentRuntimeFailure({
+        subtype: "harness_readiness",
+        message:
+          'Agent step "improve" failed (harness_readiness): Required agent harness "codex" readiness failed: localRuntime missing: codex executable not found on PATH',
+      }),
+    ).toEqual({ kind: "auth", retryable: false });
+  });
+
   it("does not classify arbitrary request-disconnect text as a provider failure", () => {
     expect(
       classifyAgentRuntimeFailure({

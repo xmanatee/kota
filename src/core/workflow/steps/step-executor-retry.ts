@@ -170,6 +170,10 @@ export function classifyAgentRuntimeFailure(
 ): AgentFailureClassification | null {
   if (input.errorName === "AbortError") return null;
 
+  if (input.subtype === "harness_readiness") {
+    return { kind: "auth", retryable: false };
+  }
+
   if (input.subtype?.startsWith("error_")) {
     if (
       input.subtype === "error_max_turns" ||

@@ -243,11 +243,13 @@ describe("workflow agent-step harness capability artifacts", () => {
       adapterKind: "native-cli",
       localRuntime: {
         kind: "native-cli",
-        status: "missing",
+        status: "ready",
         required: true,
         command: "fake-native --version",
         binaryName: "fake-native",
-        summary: "fake-native executable not found on PATH",
+        executablePath: "/opt/bin/fake-native",
+        version: "fake-native 1.0.0",
+        summary: "fake-native 1.0.0 at /opt/bin/fake-native",
       },
       optionalRuntimes: [
         {
@@ -328,9 +330,9 @@ describe("workflow agent-step harness capability artifacts", () => {
         adapterKind: "native-cli",
         localRuntime: {
           kind: "native-cli",
-          status: "missing",
+          status: "ready",
           required: true,
-          summary: "fake-native executable not found on PATH",
+          summary: "fake-native 1.0.0 at /opt/bin/fake-native",
         },
         optionalRuntimes: [
           {
@@ -346,5 +348,65 @@ describe("workflow agent-step harness capability artifacts", () => {
       (artifact.localReadiness as { optionalRuntimes: Record<string, unknown>[] })
         .optionalRuntimes[0],
     ).not.toHaveProperty("detail");
+  });
+
+  it("fails before native harness launch when required readiness is missing", async () => {
+    const readiness: AgentHarnessReadiness = {
+      adapterKind: "native-cli",
+      localRuntime: {
+        kind: "native-cli",
+        status: "missing",
+        required: true,
+        command: "fake-native --version",
+        binaryName: "fake-native",
+        summary: "fake-native executable not found on PATH",
+      },
+      optionalRuntimes: [],
+      unsupportedOptions: [],
+    };
+    const run = vi.fn(async () => AGENT_OK_RESULT);
+    const harnessName = "capability-native-missing";
+    registerAgentHarness(
+      makeHarness(harnessName, run, {
+        toolControl: "native",
+        readiness: () => readiness,
+      }),
+    );
+
+    const step = makeAgentStep(projectDir, harnessName);
+    const { promise } = executeWorkflowRun(
+      makeDefinition(projectDir, step),
+      TRIGGER,
+      { projectDir, bus, store, log: () => {} },
+    );
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("failed");
+    expect(result.agentBackoff).toMatchObject({ kind: "auth" });
+    expect(result.metadata.steps[0]).toMatchObject({
+      id: "agent",
+      status: "failed",
+    });
+    expect(result.metadata.steps[0]?.error).toContain("(harness_readiness)");
+    expect(result.metadata.steps[0]?.error).toContain(
+      "fake-native executable not found on PATH",
+    );
+    expect(run).not.toHaveBeenCalled();
+
+    const artifact = readCapabilityArtifact(
+      projectDir,
+      result.metadata.runDir,
+      "agent",
+    );
+    expect(artifact).toMatchObject({
+      harnessName,
+      localReadiness: {
+        localRuntime: {
+          status: "missing",
+          required: true,
+          summary: "fake-native executable not found on PATH",
+        },
+      },
+    });
   });
 });

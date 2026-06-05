@@ -25,6 +25,16 @@ export type HarnessCapabilitySnapshot = {
   readonly localReadiness?: AgentHarnessReadiness;
 };
 
+export type HarnessRequiredReadinessFailure = {
+  readonly surface: "localRuntime" | "localAuth" | "optionalRuntime";
+  readonly kind: AgentHarnessRuntimeProbe["kind"] | AgentHarnessAuthProbe["kind"];
+  readonly status: Exclude<
+    AgentHarnessRuntimeProbe["status"] | AgentHarnessAuthProbe["status"],
+    "ready"
+  >;
+  readonly summary: string;
+};
+
 export type HarnessCapabilityReadinessProbeSummary = {
   readonly kind: AgentHarnessRuntimeProbe["kind"] | AgentHarnessAuthProbe["kind"];
   readonly status: AgentHarnessRuntimeProbe["status"] | AgentHarnessAuthProbe["status"];
@@ -112,6 +122,54 @@ function summarizeReadiness(
     optionalRuntimes: readiness.optionalRuntimes.map(summarizeProbe),
     unsupportedOptions: normalizeUnsupportedOptions(readiness.unsupportedOptions),
   };
+}
+
+function appendRequiredReadinessFailure(
+  failures: HarnessRequiredReadinessFailure[],
+  surface: HarnessRequiredReadinessFailure["surface"],
+  probe: AgentHarnessRuntimeProbe | AgentHarnessAuthProbe,
+): void {
+  if (!probe.required || probe.status === "ready") return;
+  failures.push({
+    surface,
+    kind: probe.kind,
+    status: probe.status,
+    summary: probe.summary,
+  });
+}
+
+export function findRequiredHarnessReadinessFailures(
+  snapshot: HarnessCapabilitySnapshot,
+): HarnessRequiredReadinessFailure[] {
+  const readiness = snapshot.localReadiness;
+  if (readiness === undefined) return [];
+
+  const failures: HarnessRequiredReadinessFailure[] = [];
+  appendRequiredReadinessFailure(
+    failures,
+    "localRuntime",
+    readiness.localRuntime,
+  );
+  if (readiness.localAuth !== undefined) {
+    appendRequiredReadinessFailure(failures, "localAuth", readiness.localAuth);
+  }
+  for (const runtime of readiness.optionalRuntimes) {
+    appendRequiredReadinessFailure(failures, "optionalRuntime", runtime);
+  }
+  return failures;
+}
+
+export function formatRequiredHarnessReadinessFailures(
+  harnessName: string,
+  failures: readonly HarnessRequiredReadinessFailure[],
+): string {
+  const details = failures
+    .map(
+      (failure) =>
+        `${failure.surface} ${failure.status}: ${failure.summary}`,
+    )
+    .join("; ");
+  return `Required agent harness "${harnessName}" readiness failed: ${details}`;
 }
 
 export function buildHarnessCapabilitySnapshot(

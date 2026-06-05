@@ -4,6 +4,7 @@ import {
   type AgentHarness,
   buildHarnessCapabilityArtifact,
   buildHarnessCapabilitySnapshot,
+  type HarnessCapabilitySnapshot,
 } from "#core/agent-harness/index.js";
 import type { WorkflowRunMetadata } from "../run-types.js";
 
@@ -12,7 +13,7 @@ export function writeHarnessCapabilityArtifact(
   metadata: WorkflowRunMetadata,
   projectDir: string,
   harness: AgentHarness,
-): void {
+): HarnessCapabilitySnapshot {
   const snapshot = buildHarnessCapabilitySnapshot(harness);
   const filePath = join(
     resolve(projectDir, metadata.runDir),
@@ -25,4 +26,5 @@ export function writeHarnessCapabilityArtifact(
     JSON.stringify(buildHarnessCapabilityArtifact(snapshot), null, 2),
     "utf-8",
   );
+  return snapshot;
 }

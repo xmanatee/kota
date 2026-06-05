@@ -3,6 +3,8 @@ import {
   type AgentCanUseTool,
   composeCanUseTools,
   createWorkflowAgentGuards,
+  findRequiredHarnessReadinessFailures,
+  formatRequiredHarnessReadinessFailures,
   type KotaAgentMessage,
   resolveAgentHarness,
   routeKotaToolControlOptions,
@@ -134,7 +136,24 @@ export async function executeAgentStep(
 ): Promise<AgentStepResult> {
   const resolvedHarness = resolveAgentHarness(step.harness);
   const resolvedModel = resolveAgentModel(step, agentConfig);
-  writeHarnessCapabilityArtifact(step.id, metadata, agentConfig.projectDir, resolvedHarness);
+  const capabilitySnapshot = writeHarnessCapabilityArtifact(
+    step.id,
+    metadata,
+    agentConfig.projectDir,
+    resolvedHarness,
+  );
+  const readinessFailures =
+    findRequiredHarnessReadinessFailures(capabilitySnapshot);
+  if (readinessFailures.length > 0) {
+    throw new AgentStepRuntimeError(
+      `Agent step "${step.id}" failed (harness_readiness): ${formatRequiredHarnessReadinessFailures(
+        resolvedHarness.name,
+        readinessFailures,
+      )}`,
+      "auth",
+      false,
+    );
+  }
 
   const agentPrompt = buildAgentPrompt(
     definition,

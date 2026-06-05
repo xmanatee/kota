@@ -283,6 +283,39 @@ describe("detectPersistentWorkflowFailurePatternsFromRuns", () => {
 
     expect(patterns).toEqual([]);
   });
+
+  it("ignores classified harness-readiness failures", () => {
+    const error =
+      'Agent step "improve" failed (harness_readiness): Required agent harness "codex" readiness failed: localRuntime missing: codex executable not found on PATH';
+    const patterns = detectPersistentWorkflowFailurePatternsFromRuns(
+      [
+        makeRun({
+          id: "readiness-a",
+          workflow: "improver",
+          hoursAgo: 3,
+          status: "failed",
+          stepError: error,
+        }),
+        makeRun({
+          id: "readiness-b",
+          workflow: "improver",
+          hoursAgo: 2,
+          status: "failed",
+          stepError: error,
+        }),
+        makeRun({
+          id: "readiness-c",
+          workflow: "improver",
+          hoursAgo: 1,
+          status: "failed",
+          stepError: error,
+        }),
+      ],
+      { nowMs: NOW },
+    );
+
+    expect(patterns).toEqual([]);
+  });
 });
 
 describe("workflow failure escalation tasks", () => {
