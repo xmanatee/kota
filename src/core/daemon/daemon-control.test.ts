@@ -143,14 +143,46 @@ describe("DaemonControlServer", () => {
       expect(res.status).toBe(200);
     });
 
-    it("accepts the daemon dashboard auth cookie", async () => {
+    it("rejects raw daemon tokens in dashboard cookies", async () => {
       const res = await fetchNoToken(port, "/status", {
-        headers: { Cookie: `kota_daemon_token=${TEST_TOKEN}` },
+        headers: { Cookie: `kota_daemon_token=${TEST_TOKEN}; kota_dashboard_session=${TEST_TOKEN}` },
       });
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(401);
     });
 
-    it("serves the dashboard entry route without a bearer token and sets the auth cookie", async () => {
+    it("rejects unauthenticated dashboard entry routes without setting a cookie", async () => {
+      const handler = vi.fn((_req, res) => {
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end("<html>dashboard</html>");
+      });
+      const dashboardServer = new DaemonControlServer(makeHandle(), TEST_TOKEN, {
+        routes: [
+          {
+            method: "GET",
+            path: "/",
+            handler,
+          },
+          {
+            method: "GET",
+            path: "/index.html",
+            handler,
+          },
+        ],
+      });
+      const dashboardPort = await dashboardServer.start();
+      try {
+        for (const path of ["/", "/index.html"]) {
+          const res = await fetchNoToken(dashboardPort, path);
+          expect(res.status).toBe(401);
+          expect(res.headers.get("set-cookie")).toBeNull();
+        }
+        expect(handler).not.toHaveBeenCalled();
+      } finally {
+        await dashboardServer.stop();
+      }
+    });
+
+    it("mints a separate dashboard session cookie only after bearer authentication", async () => {
       const dashboardServer = new DaemonControlServer(makeHandle(), TEST_TOKEN, {
         routes: [
           {
@@ -165,10 +197,45 @@ describe("DaemonControlServer", () => {
       });
       const dashboardPort = await dashboardServer.start();
       try {
+        const res = await fetchWithToken(dashboardPort, "/");
+        expect(res.status).toBe(200);
+
+        const cookie = res.headers.get("set-cookie");
+        if (!cookie) throw new Error("expected dashboard session cookie");
+        expect(cookie).toContain("kota_dashboard_session=");
+        expect(cookie).toContain("HttpOnly");
+        expect(cookie).not.toContain(TEST_TOKEN);
+
+        const cookiePair = cookie.split(";")[0];
+        if (!cookiePair) throw new Error("expected dashboard session cookie pair");
+        const status = await fetchNoToken(dashboardPort, "/status", {
+          headers: { Cookie: cookiePair },
+        });
+        expect(status.status).toBe(200);
+      } finally {
+        await dashboardServer.stop();
+      }
+    });
+
+    it("does not mint a dashboard session cookie for unauthenticated bypass routes", async () => {
+      const dashboardServer = new DaemonControlServer(makeHandle(), TEST_TOKEN, {
+        routes: [
+          {
+            method: "GET",
+            path: "/",
+            bypassAuth: true,
+            handler: (_req, res) => {
+              res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+              res.end("<html>public</html>");
+            },
+          },
+        ],
+      });
+      const dashboardPort = await dashboardServer.start();
+      try {
         const res = await fetchNoToken(dashboardPort, "/");
         expect(res.status).toBe(200);
-        expect(res.headers.get("set-cookie")).toContain(`kota_daemon_token=${TEST_TOKEN}`);
-        expect(res.headers.get("set-cookie")).toContain("HttpOnly");
+        expect(res.headers.get("set-cookie")).toBeNull();
       } finally {
         await dashboardServer.stop();
       }

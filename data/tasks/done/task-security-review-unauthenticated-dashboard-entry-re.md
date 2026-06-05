@@ -1,12 +1,12 @@
 ---
 id: task-security-review-unauthenticated-dashboard-entry-re
 title: Security review: Unauthenticated dashboard entry requests can mint a cookie containing the daemon control token; that same cookie is accepted as control-route authentication, so any local HTTP client that discovers the daemon port can bypass the protected daemon-control file boundary when the dashboard route is present.
-status: ready
+status: done
 priority: p1
 area: security
 summary: Unauthenticated dashboard entry requests can mint a cookie containing the daemon control token; that same cookie is accepted as control-route authentication, so any local HTTP client that discovers the daemon port can bypass the protected daemon-control file boundary when the dashboard route is present.
 created_at: 2026-06-05T21:00:10.462Z
-updated_at: 2026-06-05T21:00:10.462Z
+updated_at: 2026-06-05T21:10:04.445Z
 ---
 
 ## Problem
@@ -50,10 +50,20 @@ Evidence:
 - src/core/daemon/daemon-control.ts:351 - this.invokeRouteHandler(moduleMatch.route, req, res, moduleMatch.params);
 - src/modules/web/static-routes.ts:114 - { method: "GET", path: "/", handler: (req, res) => serveIndex(req, res, options) },
 
+## Result
+
+`DaemonControlServer` no longer accepts or emits raw daemon-token dashboard cookies. Dashboard entry routes follow the same auth check as other module routes; unauthenticated `GET /` and `GET /index.html` return 401 without invoking the dashboard handler or setting a cookie. Bearer-authenticated dashboard entry requests mint a separate daemon-local `kota_dashboard_session` cookie whose value is not the daemon control token, and that cookie can authorize subsequent browser UI control requests.
+
+Verification:
+
+- `pnpm test src/core/daemon/daemon-control.test.ts`
+- `pnpm typecheck`
+- `pnpm lint`
+
 ## Initiative
 
 Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Regression coverage in `src/core/daemon/daemon-control.test.ts` rejects raw daemon-token cookies, verifies unauthenticated `/` and `/index.html` do not set cookies, verifies bearer-authenticated dashboard entry mints a separate session cookie, and verifies protected control routes still reject unauthenticated requests.

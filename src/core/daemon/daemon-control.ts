@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { EventJournal } from "#core/events/event-journal.js";
 import type {
@@ -21,7 +22,7 @@ import type { DaemonControlHandle } from "./daemon-control-types.js";
 import { jsonResponse } from "./daemon-control-utils.js";
 import { type BufferedEvent, EventRingBuffer } from "./event-ring-buffer.js";
 
-const DASHBOARD_AUTH_COOKIE = "kota_daemon_token";
+const DASHBOARD_SESSION_COOKIE = "kota_dashboard_session";
 
 export type {
   ClientDashboardAvailability,
@@ -113,6 +114,7 @@ export class DaemonControlServer {
   private readonly chatSweepMs: number;
   private readonly controlRoutes: readonly ControlRouteRegistration[];
   private readonly moduleRoutes: readonly RouteRegistration[];
+  private readonly dashboardSessionToken: string | null;
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
@@ -121,6 +123,7 @@ export class DaemonControlServer {
     options?: DaemonControlServerOptions,
   ) {
     this.eventBuffer = new EventRingBuffer(options?.eventBufferSize ?? 500);
+    this.dashboardSessionToken = token ? randomBytes(32).toString("base64url") : null;
 
     const makeAgent = options?.makeAgent ?? null;
     let chatBindings: DaemonChatBindingStore | null = null;
@@ -241,7 +244,7 @@ export class DaemonControlServer {
     if (!this.token) return true;
     const header = req.headers.authorization ?? "";
     if (header === `Bearer ${this.token}`) return true;
-    return this.cookieValue(req, DASHBOARD_AUTH_COOKIE) === this.token;
+    return this.cookieValue(req, DASHBOARD_SESSION_COOKIE) === this.dashboardSessionToken;
   }
 
   private cookieValue(req: IncomingMessage, name: string): string | undefined {
@@ -260,10 +263,10 @@ export class DaemonControlServer {
   }
 
   private setDashboardAuthCookie(res: ServerResponse): void {
-    if (!this.token) return;
+    if (!this.dashboardSessionToken) return;
     res.setHeader(
       "Set-Cookie",
-      `${DASHBOARD_AUTH_COOKIE}=${encodeURIComponent(this.token)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400`,
+      `${DASHBOARD_SESSION_COOKIE}=${encodeURIComponent(this.dashboardSessionToken)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400`,
     );
   }
 
@@ -345,19 +348,15 @@ export class DaemonControlServer {
     const moduleMatch = findRouteMatch(this.moduleRoutes, method, path);
     if (moduleMatch) {
       const dashboardEntry = this.isDashboardEntry(method, path);
-      if (!moduleMatch.route.bypassAuth && !this.isAuthorized(req)) {
-        if (dashboardEntry) {
-          this.setDashboardAuthCookie(res);
-          this.invokeRouteHandler(moduleMatch.route, req, res, moduleMatch.params);
-          return;
-        }
+      const authorized = this.isAuthorized(req);
+      if (!moduleMatch.route.bypassAuth && !authorized) {
         if (this.invokeAuthFailureHandler(moduleMatch.route, req, res, moduleMatch.params)) {
           return;
         }
         jsonResponse(res, 401, { error: "Unauthorized" });
         return;
       }
-      if (dashboardEntry) this.setDashboardAuthCookie(res);
+      if (dashboardEntry && authorized) this.setDashboardAuthCookie(res);
       this.invokeRouteHandler(moduleMatch.route, req, res, moduleMatch.params);
       return;
     }
