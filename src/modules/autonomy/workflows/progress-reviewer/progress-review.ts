@@ -18,7 +18,11 @@ import {
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
-import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import type {
+  WorkflowQueuedRun,
+  WorkflowRunMetadata,
+  WorkflowRuntimeState,
+} from "#core/workflow/run-types.js";
 import {
   WORKFLOW_BATCH_FLUSH_EVENT,
   type WorkflowBatchFlushPayload,
@@ -471,6 +475,31 @@ function summarizeRun(
   };
 }
 
+function summarizePendingRun(
+  source: ProgressReviewDirectorySource,
+  runId: string,
+  queued: WorkflowQueuedRun,
+): ProgressReviewRunEvidence {
+  const queuedAt = new Date(queued.enqueuedAtMs).toISOString();
+  const eligibleAt =
+    Number.isFinite(queued.notBeforeMs) && queued.notBeforeMs > queued.enqueuedAtMs
+      ? `; eligible at ${new Date(queued.notBeforeMs).toISOString()}`
+      : "";
+  return {
+    id: sourceEvidenceId(source, `run:${runId}`),
+    kind: "run",
+    workflow: queued.workflowName,
+    status: "pending",
+    startedAt: queuedAt,
+    triggerEvent: queued.trigger.event,
+    path: join(".kota", "workflow-state.json"),
+    summary: sourceSummary(
+      source,
+      `${queued.workflowName} pending (${runId}) from ${queued.trigger.event}${eligibleAt}`,
+    ),
+  };
+}
+
 function listRecentRuns(
   source: ProgressReviewDirectorySource,
   windowStartMs: number,
@@ -512,13 +541,54 @@ function listRecentRuns(
   return runs;
 }
 
+function listPendingRuns(
+  source: ProgressReviewDirectorySource,
+  windowStartMs: number,
+  excluded: string[],
+): ScopedRunEvidence[] {
+  const statePath = join(source.projectDir, ".kota", "workflow-state.json");
+  const state = readOptionalJsonFile<WorkflowRuntimeState>(statePath);
+  if (!state || !Array.isArray(state.pendingRuns)) return [];
+
+  const pending: ScopedRunEvidence[] = [];
+  for (const queued of state.pendingRuns) {
+    const enqueuedMs = queued.enqueuedAtMs;
+    if (!Number.isFinite(enqueuedMs)) {
+      excluded.push(
+        `${source.displayName} workflow queue: skipped ${queued.workflowName} with invalid enqueuedAtMs`,
+      );
+      continue;
+    }
+    if (enqueuedMs < windowStartMs) continue;
+    if (!queued.runId || !isSafeRunIdBasename(queued.runId)) {
+      excluded.push(
+        `${source.displayName} workflow queue: skipped ${queued.workflowName} pending run with missing or unsafe runId`,
+      );
+      continue;
+    }
+    if (existsSync(join(source.projectDir, ".kota", "runs", queued.runId, "metadata.json"))) {
+      continue;
+    }
+    pending.push({
+      source,
+      runId: queued.runId,
+      startedMs: enqueuedMs,
+      evidence: summarizePendingRun(source, queued.runId, queued),
+    });
+  }
+  return pending;
+}
+
 function listRecentRunsForSources(
   sources: readonly ProgressReviewDirectorySource[],
   windowStartMs: number,
   excluded: string[],
 ): ScopedRunEvidence[] {
   const runs = sources
-    .flatMap((source) => listRecentRuns(source, windowStartMs, excluded))
+    .flatMap((source) => [
+      ...listRecentRuns(source, windowStartMs, excluded),
+      ...listPendingRuns(source, windowStartMs, excluded),
+    ])
     .sort((a, b) => b.startedMs - a.startedMs || a.evidence.id.localeCompare(b.evidence.id));
   if (runs.length > PROGRESS_REVIEW_MAX_RUNS) {
     excluded.push(`workflow runs: truncated after ${PROGRESS_REVIEW_MAX_RUNS} most recent runs`);

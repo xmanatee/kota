@@ -195,6 +195,44 @@ function writeRun(
   );
 }
 
+function writePendingWorkflowRun(
+  projectDir: string,
+  pendingRun: {
+    runId: string;
+    workflowName: string;
+    triggerEvent: string;
+    enqueuedAt: string;
+    notBeforeAt?: string;
+    payload?: Record<string, unknown>;
+  },
+): void {
+  mkdirSync(join(projectDir, ".kota"), { recursive: true });
+  writeFileSync(
+    join(projectDir, ".kota", "workflow-state.json"),
+    JSON.stringify(
+      {
+        completedRuns: 0,
+        pendingRuns: [
+          {
+            runId: pendingRun.runId,
+            workflowName: pendingRun.workflowName,
+            trigger: {
+              event: pendingRun.triggerEvent,
+              schemaRef: null,
+              payload: pendingRun.payload ?? {},
+            },
+            enqueuedAtMs: Date.parse(pendingRun.enqueuedAt),
+            notBeforeMs: Date.parse(pendingRun.notBeforeAt ?? pendingRun.enqueuedAt),
+          },
+        ],
+        workflows: {},
+      },
+      null,
+      2,
+    ),
+  );
+}
+
 function writeRunArtifactFile(
   projectDir: string,
   runId: string,
@@ -851,6 +889,47 @@ describe("progress-reviewer workflow", () => {
     expect(
       evidence.evidence.map((item) => item.path ?? "").join("\n"),
     ).not.toContain("outside-run-root");
+  });
+
+  it("collects pending workflow runs as citeable run evidence", () => {
+    const projectDir = trackProjectDir("progress-reviewer-pending-run");
+    const scopeId = deriveDirectoryScopeId(projectDir);
+    writePendingWorkflowRun(projectDir, {
+      runId: "security-review-pending",
+      workflowName: "security-review",
+      triggerEvent: "autonomy.security-review.due",
+      enqueuedAt: "2026-06-04T11:45:00.000Z",
+      notBeforeAt: "2026-06-04T11:50:00.000Z",
+      payload: { scopeId, projectId: scopeId, reason: "high-risk-security-sensitive-change" },
+    });
+
+    const evidence = collectProgressReviewEvidence({
+      projectDir,
+      trigger: {
+        event: progressReviewRequested.name,
+        schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+      },
+      now: NOW,
+    });
+
+    expect(evidence.runs).toEqual([
+      expect.objectContaining({
+        id: "run:security-review-pending",
+        workflow: "security-review",
+        status: "pending",
+        startedAt: "2026-06-04T11:45:00.000Z",
+        triggerEvent: "autonomy.security-review.due",
+        path: ".kota/workflow-state.json",
+      }),
+    ]);
+    expect(evidence.evidence).toContainEqual(
+      expect.objectContaining({
+        id: "run:security-review-pending",
+        kind: "run",
+        path: ".kota/workflow-state.json",
+      }),
+    );
+    expect(evidence.runs[0].summary).toContain("eligible at 2026-06-04T11:50:00.000Z");
   });
 
   it("stops artifact traversal at the max artifact count", () => {

@@ -167,4 +167,85 @@ describe("runtime idle dispatch", () => {
     expect(countWorkflowRuns(projectDir, "webhook-listener")).toBe(1);
     expect(runtime.getState().pendingRuns).toHaveLength(0);
   });
+
+  it("dispatches a workflow emitted by a running code step after an agent slot frees", async () => {
+    const runtime = new WorkflowRuntime({
+      bus: new EventBus(),
+      projectDir,
+      idleIntervalMs: 60_000,
+      agentConcurrency: 1,
+      workflows: [
+        {
+          name: "dispatcher",
+          definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
+          moduleRoot: process.cwd(),
+          triggers: [{ event: "runtime.idle", cooldownMs: 0 }],
+          steps: [
+            {
+              id: "emit-events",
+              type: "code",
+              run: ({ emit }) => {
+                emit("autonomy.queue.available", {
+                  pullableCount: 1,
+                  actionableCount: 1,
+                  counts: {
+                    backlog: 0,
+                    ready: 1,
+                    doing: 0,
+                    blocked: 0,
+                    done: 0,
+                    dropped: 0,
+                  },
+                });
+                emit("autonomy.security-review.due", {
+                  due: true,
+                  reason: "high-risk-security-sensitive-change",
+                });
+                return { emitted: true };
+              },
+            },
+          ],
+        },
+        {
+          name: "builder-like-agent-slot",
+          definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
+          moduleRoot: process.cwd(),
+          concurrencyGroup: "agent",
+          triggers: [{ event: "autonomy.queue.available", cooldownMs: 0 }],
+          steps: [
+            {
+              id: "hold-agent-slot",
+              type: "code",
+              run: async () => {
+                await wait(80);
+                return { ok: true };
+              },
+            },
+          ],
+        },
+        {
+          name: "security-review",
+          definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
+          moduleRoot: process.cwd(),
+          concurrencyGroup: "agent",
+          triggers: [{ event: "autonomy.security-review.due", cooldownMs: 0 }],
+          steps: [
+            {
+              id: "record-review",
+              type: "code",
+              run: () => ({ ok: true }),
+            },
+          ],
+        },
+      ],
+    });
+
+    runtime.start();
+    await wait(260);
+    await runtime.stop();
+
+    expect(countWorkflowRuns(projectDir, "builder-like-agent-slot")).toBe(1);
+    expect(countWorkflowRuns(projectDir, "security-review")).toBe(1);
+    expect(runtime.getState().pendingRuns).toHaveLength(0);
+  });
 });
