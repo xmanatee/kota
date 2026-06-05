@@ -200,4 +200,4 @@ stays green). The two on-host transcripts the task contracts for require real
 ANTHROPIC_API_KEY / GEMINI_API_KEY (or GOOGLE_API_KEY) plus an active Codex CLI
 login and must be operator-captured.
 
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-05-22T03:22:02.582Z -->
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-06-05T19:14:47.873Z -->
