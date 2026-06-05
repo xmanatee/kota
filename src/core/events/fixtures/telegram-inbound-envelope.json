@@ -1,0 +1,150 @@
+{
+  "envelope": {
+    "id": "evtj-000000000001",
+    "sequence": 1,
+    "event": {
+      "name": "inbound.signal.received",
+      "schema": {
+        "name": "inbound.signal.received",
+        "version": 2
+      }
+    },
+    "source": {
+      "kind": "channel",
+      "id": "telegram:telegram:acct-1:chat-9:message-1"
+    },
+    "scope": {
+      "kind": "scope",
+      "scopeId": "scope-a",
+      "projectId": "scope-a",
+      "lineage": ["global", "scope-a"]
+    },
+    "timestamps": {
+      "occurredAt": "2026-06-05T10:00:00.000Z",
+      "receivedAt": "2026-06-05T10:00:01.000Z",
+      "emittedAt": "2026-06-05T10:00:02.000Z",
+      "journaledAt": "2026-06-05T10:00:02.000Z"
+    },
+    "producer": {
+      "kind": "channel",
+      "provider": "telegram",
+      "channel": "telegram",
+      "accountId": "acct-1",
+      "sourceId": "chat-9",
+      "externalId": "message-1"
+    },
+    "causality": {
+      "correlationId": "corr-1",
+      "causationId": "owner-message-1",
+      "parentEventId": "evtj-000000000000"
+    },
+    "trace": {
+      "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+      "tracestate": "kota=telegram"
+    },
+    "idempotency": {
+      "idempotencyKey": "telegram:acct-1:message-1",
+      "externalProviderId": "message-1"
+    },
+    "data": {
+      "classification": "internal",
+      "redactionProfile": "redacted-client-projection"
+    },
+    "payload": {
+      "kind": "inline",
+      "payload": {
+        "scopeId": "scope-a",
+        "projectId": "scope-a",
+        "provider": "telegram",
+        "channel": "telegram",
+        "accountId": "acct-1",
+        "sourceId": "chat-9",
+        "sourceUrl": "https://t.me/c/9/1",
+        "externalId": "message-1",
+        "occurredAt": "2026-06-05T10:00:00.000Z",
+        "receivedAt": "2026-06-05T10:00:01.000Z",
+        "actor": {
+          "id": "user-7",
+          "displayName": "Owner",
+          "trust": "trusted",
+          "trustReason": "configured owner"
+        },
+        "body": {
+          "kind": "message",
+          "format": "plain",
+          "text": "Book the 7pm court if available."
+        },
+        "token": "telegram-secret-token",
+        "correlationId": "corr-1",
+        "causationId": "owner-message-1",
+        "parentEventId": "evtj-000000000000",
+        "idempotencyKey": "telegram:acct-1:message-1",
+        "traceContext": {
+          "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+          "tracestate": "kota=telegram"
+        }
+      }
+    },
+    "retention": {
+      "kind": "retain"
+    }
+  },
+  "clientProjection": {
+    "id": "evtj-000000000001",
+    "type": "inbound.signal.received",
+    "payload": {
+      "scopeId": "scope-a",
+      "projectId": "scope-a",
+      "provider": "telegram",
+      "channel": "telegram",
+      "accountId": "acct-1",
+      "sourceId": "chat-9",
+      "sourceUrl": "https://t.me/c/9/1",
+      "externalId": "message-1",
+      "occurredAt": "2026-06-05T10:00:00.000Z",
+      "receivedAt": "2026-06-05T10:00:01.000Z",
+      "actor": {
+        "id": "user-7",
+        "displayName": "Owner",
+        "trust": "trusted",
+        "trustReason": "configured owner"
+      },
+      "body": {
+        "kind": "message",
+        "format": "plain",
+        "text": "Book the 7pm court if available."
+      },
+      "token": "[redacted]",
+      "correlationId": "corr-1",
+      "causationId": "owner-message-1",
+      "parentEventId": "evtj-000000000000",
+      "idempotencyKey": "telegram:acct-1:message-1",
+      "traceContext": {
+        "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+        "tracestate": "kota=telegram"
+      }
+    },
+    "timestamp": "2026-06-05T10:00:01.000Z",
+    "schemaRef": {
+      "name": "inbound.signal.received",
+      "version": 2
+    },
+    "scope": {
+      "kind": "scope",
+      "scopeId": "scope-a",
+      "projectId": "scope-a",
+      "lineage": ["global", "scope-a"]
+    },
+    "source": {
+      "kind": "channel",
+      "id": "telegram:telegram:acct-1:chat-9:message-1"
+    },
+    "causationId": "owner-message-1",
+    "correlationId": "corr-1",
+    "parentEventId": "evtj-000000000000",
+    "trace": {
+      "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+      "tracestate": "kota=telegram"
+    }
+  }
+}

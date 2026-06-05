@@ -87,6 +87,14 @@ describe("WorkflowEventBatchManager", () => {
     const bus = new EventBus();
     const processed: WorkflowBatchFlushPayload[] = [];
     const emitted: WorkflowBatchFlushPayload[] = [];
+    let eventId = 0;
+    bus.addEmitMiddleware((envelope, next) => {
+      if (envelope.type === "telegram.message") {
+        eventId += 1;
+        envelope.eventId = `evtj-${eventId}`;
+      }
+      next();
+    });
     bus.on(WORKFLOW_BATCH_FLUSH_EVENT, (payload) => {
       emitted.push(payload as WorkflowBatchFlushPayload);
     });
@@ -143,6 +151,11 @@ describe("WorkflowEventBatchManager", () => {
       "one",
       "two",
       "three",
+    ]);
+    expect(processed[0]!.inputEvents.map((entry) => entry.eventId)).toEqual([
+      "evtj-1",
+      "evtj-2",
+      "evtj-3",
     ]);
     expect(emitted).toHaveLength(1);
     expect(readRunPayloads(projectDir)[0]).toMatchObject({

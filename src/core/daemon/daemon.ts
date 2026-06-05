@@ -4,6 +4,7 @@ import type { AgentDef } from "#core/agents/agent-types.js";
 import type { ChannelDef, ChannelStatus } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { initEventBus } from "#core/events/event-bus.js";
+import { EventJournal, installEventJournal } from "#core/events/event-journal.js";
 import type { ControlRouteRegistration, RouteRegistration } from "#core/modules/module-types.js";
 import type { ModuleSetupRequirementContribution } from "#core/modules/setup-requirements.js";
 import type { LogFormat } from "#core/util/log-format.js";
@@ -140,6 +141,10 @@ export class Daemon {
     const token = randomBytes(32).toString("hex");
 
     const bus = initEventBus();
+    const eventJournal = new EventJournal(join(stateDir, "events"), {
+      scopeLineage: (scopeId) => scopeLineageForId(scopeId, projectRegistry),
+    });
+    const uninstallEventJournal = installEventJournal(bus, eventJournal);
 
     const projectRuntimes = ProjectRuntimeRegistry.create({
       registry: projectRegistry,
@@ -163,6 +168,8 @@ export class Daemon {
       log,
       state,
       token,
+      eventJournal,
+      uninstallEventJournal,
       projectRegistry,
       projectRuntimes,
     });
@@ -280,4 +287,17 @@ export class Daemon {
         });
     });
   }
+}
+
+function scopeLineageForId(scopeId: string, registry: ScopeRegistry): readonly string[] {
+  const projection = registry.toScopeProjection();
+  const byId = new Map(projection.scopes.map((scope) => [scope.scopeId, scope]));
+  const lineage: string[] = [];
+  let current = byId.get(scopeId);
+  while (current) {
+    lineage.unshift(current.scopeId);
+    const parentId = current.parentScopeId;
+    current = parentId ? byId.get(parentId) : undefined;
+  }
+  return lineage.length > 0 ? lineage : [scopeId];
 }

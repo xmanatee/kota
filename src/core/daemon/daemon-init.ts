@@ -1,5 +1,6 @@
 import type { ChannelAdapter, ChannelStatus } from "#core/channels/channel.js";
 import type { EventBus } from "#core/events/event-bus.js";
+import type { EventJournal } from "#core/events/event-journal.js";
 import { AgentSession } from "#core/loop/loop.js";
 import type { Transport } from "#core/loop/transport.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
@@ -58,6 +59,8 @@ export type DaemonRuntimeContext = {
   readonly projectDir: string;
   readonly stateDir: string;
   readonly bus: EventBus;
+  readonly eventJournal: EventJournal;
+  readonly uninstallEventJournal: () => void;
   readonly runStore: WorkflowRunStore;
   readonly workflows: WorkflowRuntime;
   readonly controlServer: DaemonControlServer;
@@ -93,6 +96,8 @@ export type BuildDaemonInitParams = {
   log: (message: string) => void;
   state: DaemonState;
   token: string;
+  eventJournal: EventJournal;
+  uninstallEventJournal: () => void;
   projectRegistry: ScopeRegistry;
   projectRuntimes: ProjectRuntimeRegistry;
 };
@@ -114,6 +119,8 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     log,
     state,
     token,
+    eventJournal,
+    uninstallEventJournal,
     projectRegistry,
     projectRuntimes,
   } = params;
@@ -253,6 +260,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     conversationResolver,
     controlRoutes: config.controlRoutes,
     routes: config.routes,
+    eventJournal,
   });
 
   ctx = {
@@ -262,6 +270,8 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     projectDir,
     stateDir,
     bus,
+    eventJournal,
+    uninstallEventJournal,
     runStore,
     workflows,
     controlServer,

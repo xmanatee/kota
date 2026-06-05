@@ -126,9 +126,8 @@ the cost):
 
 - **Event ring buffer** (in-memory, 500 events) — clients must tolerate a
   reconnect-window gap after daemon restart. SSE clients already reconnect;
-  durable event history lives in run artifacts and module-log store. Adding
-  write-through would duplicate every bus event to disk for a UI-catchup
-  benefit clients already handle.
+  durable replay lives in the event journal. The ring buffer is only the live
+  SSE reconnect window, not the audit or replay store.
 - **Notification-gate buffer** (held `workflow.attention.digest` events during
   quiet hours) — low volume, single event type, automatically released at
   window end. If the daemon crashes mid-window, the held digest is lost; the

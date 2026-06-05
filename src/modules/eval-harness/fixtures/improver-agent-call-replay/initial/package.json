@@ -2,6 +2,7 @@
   "name": "kota-eval-harness-fixture",
   "private": true,
   "scripts": {
+    "dev": "node dist/cli.js",
     "build": "true",
     "typecheck": "true",
     "lint": "true",

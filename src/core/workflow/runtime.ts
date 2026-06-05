@@ -27,8 +27,8 @@ import {
   setDispatchPaused,
   startRuntime,
   stopRuntime,
-  type WorkflowDispatchPauseMode,
   WORKFLOW_STOP_ABORT_WAIT_MS,
+  type WorkflowDispatchPauseMode,
 } from "./runtime-lifecycle.js";
 import {
   abortActiveRun,

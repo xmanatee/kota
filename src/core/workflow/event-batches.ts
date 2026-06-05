@@ -152,6 +152,7 @@ export class WorkflowEventBatchManager {
     const inputEvent: WorkflowBatchInputEventEnvelope = {
       event: envelope.type,
       schemaRef: envelope.schemaRef,
+      ...(envelope.eventId !== undefined ? { eventId: envelope.eventId } : {}),
       receivedAt,
       payload: { ...envelope.payload },
     };

@@ -1,13 +1,13 @@
 ---
 id: task-add-durable-event-envelope-and-journal
 title: Add durable event envelope and journal
-status: ready
+status: done
 priority: p1
 area: core
 summary: Introduce a durable event envelope and append-only event journal so module events, workflow triggers, channel signals, and daemon events carry stable identity, causality, scope, schema, and replay metadata beyond the in-memory bus.
 depends_on: [task-promote-projects-into-hierarchical-scopes, task-add-event-schema-version-registry]
 created_at: 2026-06-03T15:50:03.360Z
-updated_at: 2026-06-05T18:23:08.568Z
+updated_at: 2026-06-05T19:44:29.377Z
 ---
 
 ## Problem
@@ -112,3 +112,22 @@ hooks, workflows, clients, auditing, batching, simulation, and review.
   client projection.
 - A daemon API transcript showing durable event query still works after a
   simulated daemon restart.
+
+## Completion Evidence
+
+- Added `EventEnvelope` and `EventJournal` in `src/core/events/event-journal.ts`;
+  the daemon installs the journal under its state directory at `events/`.
+- `/api/events` now reads durable journal projections when a journal is
+  available, while SSE reconnects still use the in-memory ring buffer.
+- Workflow dispatch, event batching, and dry-run replay now preserve durable
+  `eventId` references; owner-question and approval bus events flow through the
+  same journal middleware.
+- Added `src/core/events/fixtures/telegram-inbound-envelope.json` and focused
+  tests for identity uniqueness, scope filtering, restart cursor recovery,
+  causality, trace context, redacted projection, retention expiry, and replay.
+- Wrote daemon API route-handler transcript to
+  `.kota/runs/2026-06-05T19-14-44-783Z-builder-6aja7d/daemon-api-transcript.txt`;
+  direct socket capture was blocked by the sandbox with `listen EPERM`.
+- Validation passed: focused tests, `pnpm typecheck`, `pnpm lint`,
+  `pnpm build`, strict-types policy, workflow validation, and real-index task
+  validation after staging the `ready/` to `done/` task move.

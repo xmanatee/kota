@@ -563,6 +563,8 @@ export type EventSchemaReference = {
 export type BusEnvelope<K extends string = string> = {
   type: K;
   schemaRef: EventSchemaReference | null;
+  /** Stable durable journal id when a journal middleware has written this emit. */
+  eventId?: string;
   payload: K extends keyof BusEvents ? BusEvents[K] : Record<string, unknown>;
 };
 

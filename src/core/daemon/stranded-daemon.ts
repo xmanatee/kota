@@ -29,7 +29,7 @@ function readDaemonStatePid(projectDir: string): number | null {
   const statePath = join(projectDir, ".kota", "daemon-state.json");
   if (!existsSync(statePath)) return null;
   try {
-    const parsed = JSON.parse(readFileSync(statePath, "utf-8")) as { pid?: unknown };
+    const parsed = JSON.parse(readFileSync(statePath, "utf-8")) as { pid?: number };
     return typeof parsed.pid === "number" ? parsed.pid : null;
   } catch {
     return null;

@@ -319,6 +319,7 @@ export function enqueueMatchingWorkflows(
       enqueue(definition, trigger, {
         event: envelope.type,
         schemaRef: envelope.schemaRef,
+        ...(envelope.eventId !== undefined ? { eventId: envelope.eventId } : {}),
         payload: cloneTriggerPayload(envelope.payload),
       });
     }

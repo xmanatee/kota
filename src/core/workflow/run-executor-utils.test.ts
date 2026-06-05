@@ -96,6 +96,30 @@ describe("enqueueMatchingWorkflows", () => {
     });
   });
 
+  it("copies the durable bus envelope id into matched run triggers", () => {
+    const enqueued: WorkflowRunTrigger[] = [];
+    const envelope: BusEnvelope = {
+      type: "workflow.completed",
+      schemaRef: { name: "workflow.completed", version: 3 },
+      eventId: "evtj-000000000042",
+      payload: {
+        workflow: "builder",
+        runId: "run-1",
+        status: "success",
+        tags: ["monitored"],
+      },
+    };
+
+    enqueueMatchingWorkflows(
+      envelope,
+      [workflow("attention-digest")],
+      (_def, _trigger, run) => enqueued.push(run),
+    );
+
+    expect(enqueued).toHaveLength(1);
+    expect(enqueued[0]?.eventId).toBe("evtj-000000000042");
+  });
+
   it("rejects circular trigger payloads before they enter the queue", () => {
     const payload: Record<string, unknown> = {
       workflow: "explorer",

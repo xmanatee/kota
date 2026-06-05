@@ -1,4 +1,8 @@
+import { mkdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { EventJournal } from "#core/events/event-journal.js";
 import {
   defineDaemonWideModuleEvent,
   initModuleEventRegistry,
@@ -1667,6 +1671,86 @@ describe("DaemonControlServer", () => {
         type: "workflow.completed",
         payload: { runId: "run-3" },
       });
+    });
+
+    it("queries the durable journal after a simulated control-server restart", async () => {
+      await server.stop();
+      const dir = join(
+        tmpdir(),
+        `kota-daemon-event-journal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      );
+      mkdirSync(dir, { recursive: true });
+      try {
+        const writer = new EventJournal(dir, {
+          now: () => new Date("2026-06-05T10:00:00.000Z"),
+          scopeLineage: (scopeId) => ["global", scopeId],
+        });
+        writer.appendFromBusEnvelope({
+          type: "workflow.started",
+          schemaRef: null,
+          payload: {
+            projectId: "scope-a",
+            workflow: "builder",
+            runId: "run-1",
+            triggerEvent: "autonomy.queue.available",
+            definitionPath: "builder/workflow.ts",
+            runDir: ".kota/runs/run-1",
+            startedAt: "2026-06-05T10:00:00.000Z",
+          },
+        });
+        writer.appendFromBusEnvelope({
+          type: "workflow.completed",
+          schemaRef: null,
+          payload: {
+            projectId: "scope-a",
+            workflow: "builder",
+            runId: "run-2",
+            status: "success",
+            triggerEvent: "autonomy.queue.available",
+            durationMs: 10,
+            definitionPath: "builder/workflow.ts",
+            runDir: ".kota/runs/run-2",
+            tags: ["event-journal"],
+          },
+        });
+
+        server = new DaemonControlServer(handle, TEST_TOKEN, {
+          eventJournal: new EventJournal(dir),
+        });
+        port = await server.start();
+        const first = await fetchWithToken(port, "/api/events?type=workflow&scopeId=scope-a&limit=1");
+        expect(first.status).toBe(200);
+        await expect(first.json()).resolves.toMatchObject({
+          events: [
+            {
+              id: "evtj-000000000002",
+              type: "workflow.completed",
+              scope: { kind: "scope", scopeId: "scope-a" },
+              source: { kind: "workflow", id: "workflow:builder:run-2" },
+              payload: { runId: "run-2" },
+            },
+          ],
+        });
+
+        await server.stop();
+        server = new DaemonControlServer(handle, TEST_TOKEN, {
+          eventJournal: new EventJournal(dir),
+        });
+        port = await server.start();
+        const resumed = await fetchWithToken(port, "/api/events?after=evtj-000000000001");
+        expect(resumed.status).toBe(200);
+        await expect(resumed.json()).resolves.toMatchObject({
+          events: [
+            {
+              id: "evtj-000000000002",
+              type: "workflow.completed",
+              payload: { runId: "run-2" },
+            },
+          ],
+        });
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
     });
   });
 });

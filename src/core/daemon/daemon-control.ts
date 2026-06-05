@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import type { EventJournal } from "#core/events/event-journal.js";
 import type {
   ControlRouteRegistration,
   ModuleRouteHandler,
@@ -59,6 +60,8 @@ export type {
 export type DaemonControlServerOptions = {
   /** Maximum number of events retained in the in-memory ring buffer. Default: 500. */
   eventBufferSize?: number;
+  /** Durable event journal used by /api/events; the SSE stream still uses the ring buffer. */
+  eventJournal?: EventJournal;
   /**
    * When provided, enables POST /sessions, POST /sessions/:id/chat for daemon-owned sessions.
    * The factory receives the proxy transport, the session's autonomy mode, and
@@ -140,6 +143,7 @@ export class DaemonControlServer {
     const builtin = buildBuiltinControlRoutes({
       handle: this.handle,
       eventBuffer: this.eventBuffer,
+      ...(options?.eventJournal !== undefined ? { eventJournal: options.eventJournal } : {}),
       sseClients: this.sseClients,
       chatPool: this.chatPool,
       makeAgent,

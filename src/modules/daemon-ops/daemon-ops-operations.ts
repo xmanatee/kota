@@ -10,9 +10,18 @@
 import { join } from "node:path";
 import { resolveProjectDir } from "#core/config/project-dir.js";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control.js";
+import {
+  isDaemonControlAddressReachable,
+  readLiveDaemonControlAddress,
+} from "#core/server/daemon-control-address.js";
+import {
+  type DaemonTransport,
+  daemonTransportFromAddress,
+} from "#core/server/daemon-transport.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
 import type {
+  DaemonOpsClient,
   DaemonOpsPidResult,
   DaemonOpsReloadResult,
   DaemonOpsStatusResult,
@@ -84,4 +93,20 @@ export function localDaemonReload(options: DaemonOpsProjectOptions = {}): Daemon
   if (!address || typeof address.pid !== "number") return { ok: false, reason: "not_running" };
   if (!isProcessAlive(address.pid)) return { ok: false, reason: "not_running" };
   return { ok: false, reason: "reload_failed" };
+}
+
+export async function daemonOpsClientForProject(
+  projectDir: string,
+  buildDaemonClient: (link: DaemonTransport) => DaemonOpsClient,
+): Promise<DaemonOpsClient> {
+  const address = readLiveDaemonControlAddress(join(projectDir, ".kota"));
+  if (address && await isDaemonControlAddressReachable(address)) {
+    return buildDaemonClient(daemonTransportFromAddress(address));
+  }
+  return {
+    status: async () => localDaemonStatus({ projectDir }),
+    pid: async () => localDaemonPid({ projectDir }),
+    stop: async (options) => localDaemonStop({ ...options, projectDir }),
+    reload: async () => localDaemonReload({ projectDir }),
+  };
 }

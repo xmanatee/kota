@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
+import type { EventEnvelope } from "#core/events/event-journal.js";
 import {
   defineDaemonWideModuleEvent,
   initModuleEventRegistry,
@@ -384,6 +385,78 @@ describe("buildDryRunPlan with options", () => {
       event: event.name,
       schemaRef: { name: event.name, version: 3 },
       payload,
+    });
+    expect(result.steps[0].whenResult).toBe("runs");
+  });
+
+  it("replays a durable event envelope through trigger matching and step context", async () => {
+    let observedTrigger: WorkflowRunTrigger | undefined;
+    const def = makeDefinition({
+      triggers: [
+        {
+          event: "task.ready",
+          cooldownMs: 0,
+          filter: { area: "workflows" },
+        },
+      ],
+      steps: [
+        {
+          id: "capture-trigger",
+          type: "code",
+          run: () => null,
+          when: ({ trigger }) => {
+            observedTrigger = trigger;
+            return trigger.eventId === "evtj-000000000123";
+          },
+        },
+      ],
+    });
+    const eventEnvelope: EventEnvelope = {
+      id: "evtj-000000000123",
+      sequence: 123,
+      event: {
+        name: "task.ready",
+        schema: { name: "task.ready", version: 1 },
+      },
+      source: { kind: "module", id: "module:repo-tasks" },
+      scope: {
+        kind: "scope",
+        scopeId: "scope-a",
+        projectId: "scope-a",
+        lineage: ["global", "scope-a"],
+      },
+      timestamps: {
+        occurredAt: "2026-06-05T10:00:00.000Z",
+        receivedAt: "2026-06-05T10:00:00.000Z",
+        emittedAt: "2026-06-05T10:00:00.000Z",
+        journaledAt: "2026-06-05T10:00:00.000Z",
+      },
+      producer: { kind: "module", module: "repo-tasks" },
+      causality: {},
+      trace: {},
+      idempotency: {},
+      data: {
+        classification: "internal",
+        redactionProfile: "redacted-client-projection",
+      },
+      payload: { kind: "inline", payload: { area: "workflows", taskId: "task-1" } },
+      retention: { kind: "retain" },
+    };
+
+    const result = await buildDryRunPlan(def, { eventEnvelope });
+
+    expect(result.pass).toBe(true);
+    expect(result.triggerMatch).toMatchObject({
+      matched: true,
+      matchedEvent: "task.ready",
+      schemaRef: { name: "task.ready", version: 1 },
+      eventId: "evtj-000000000123",
+    });
+    expect(observedTrigger).toEqual({
+      event: "task.ready",
+      schemaRef: { name: "task.ready", version: 1 },
+      eventId: "evtj-000000000123",
+      payload: { area: "workflows", taskId: "task-1" },
     });
     expect(result.steps[0].whenResult).toBe("runs");
   });

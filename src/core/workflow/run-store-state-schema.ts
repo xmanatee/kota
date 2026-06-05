@@ -140,6 +140,7 @@ function isWorkflowRunTrigger(value: unknown): value is WorkflowRunTrigger {
     isPlainObject(value) &&
     typeof value.event === "string" &&
     (value.schemaRef === null || isEventSchemaReference(value.schemaRef)) &&
+    (value.eventId === undefined || typeof value.eventId === "string") &&
     isPlainObject(value.payload)
   );
 }
@@ -216,6 +217,7 @@ function isWorkflowBatchInputEventEnvelope(value: Parameters<typeof isPlainObjec
     typeof value.event === "string" &&
     value.event.trim().length > 0 &&
     (value.schemaRef === null || isEventSchemaReference(value.schemaRef)) &&
+    (value.eventId === undefined || typeof value.eventId === "string") &&
     typeof value.receivedAt === "string" &&
     value.receivedAt.trim().length > 0 &&
     isPlainObject(value.payload)

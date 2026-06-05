@@ -117,12 +117,15 @@ describe("workflow-failure-escalator workflow", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(NOW));
     await mockCleanWorktree();
     projectDir = makeProjectDir();
     process.env.KOTA_WORKFLOW_FAILURE_CONSECUTIVE_RUNS = "3";
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     rmSync(projectDir, { recursive: true, force: true });
     if (originalConsecutive === undefined) {
       delete process.env.KOTA_WORKFLOW_FAILURE_CONSECUTIVE_RUNS;

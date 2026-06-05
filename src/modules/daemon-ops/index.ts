@@ -1,5 +1,4 @@
 import { spawn, spawnSync } from "node:child_process";
-import { join } from "node:path";
 import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
 import { resolveProjectDir } from "#core/config/project-dir.js";
@@ -19,14 +18,7 @@ import {
 import type { KotaModule } from "#core/modules/module-types.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import { daemonManagedHttp } from "#core/server/daemon-client.js";
-import {
-  isDaemonControlAddressReachable,
-  readLiveDaemonControlAddress,
-} from "#core/server/daemon-control-address.js";
-import {
-  type DaemonTransport,
-  daemonTransportFromAddress,
-} from "#core/server/daemon-transport.js";
+import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { LogFormat } from "#core/util/log-format.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
@@ -52,6 +44,7 @@ import type {
   SessionsSetAutonomyModeResult,
 } from "./client.js";
 import {
+  daemonOpsClientForProject,
   localDaemonPid,
   localDaemonReload,
   localDaemonStatus,
@@ -145,23 +138,6 @@ function resolveDaemonCommandProjectDir(
   return resolveProjectDir(opts.projectDir ?? parentOpts.projectDir);
 }
 
-function localDaemonOpsClientForProject(projectDir: string): DaemonOpsClient {
-  return {
-    status: async () => localDaemonStatus({ projectDir }),
-    pid: async () => localDaemonPid({ projectDir }),
-    stop: async (options) => localDaemonStop({ ...options, projectDir }),
-    reload: async () => localDaemonReload({ projectDir }),
-  };
-}
-
-async function daemonOpsClientForProject(projectDir: string): Promise<DaemonOpsClient> {
-  const address = readLiveDaemonControlAddress(join(projectDir, ".kota"));
-  if (address && await isDaemonControlAddressReachable(address)) {
-    return buildDaemonOpsDaemonHandler(daemonTransportFromAddress(address));
-  }
-  return localDaemonOpsClientForProject(projectDir);
-}
-
 function resolveDaemonHarness(args: {
   configHarness: string | undefined;
   presetResolution: ReturnType<typeof resolvePreset>;
@@ -183,7 +159,7 @@ async function runDaemonSupervisor(): Promise<void> {
           stdio: "inherit",
           env: withProtectedGitBareRepositoryEnv({
             ...process.env,
-            [DAEMON_CHILD_ENV]: "1",
+            [DAEMON_CHILD_ENV]: String(process.pid),
           }),
         });
 
@@ -350,7 +326,7 @@ const daemonModule: KotaModule = {
           opts.logFormat ??
           (process.env.KOTA_DAEMON_LOG_FORMAT === "json" ? "json" : undefined);
 
-        if (process.env[DAEMON_CHILD_ENV] !== "1") {
+        if (process.env[DAEMON_CHILD_ENV] !== String(process.ppid)) {
           await runDaemonSupervisor();
           return;
         }
@@ -434,7 +410,7 @@ const daemonModule: KotaModule = {
       .option("--json", "Output as JSON")
       .action(async (opts: { json?: boolean; projectDir?: string }, command: Command) => {
         const projectDir = resolveDaemonCommandProjectDir(opts, command);
-        const client = await daemonOpsClientForProject(projectDir);
+        const client = await daemonOpsClientForProject(projectDir, buildDaemonOpsDaemonHandler);
         const result = await client.status();
         if (result.state === "running") {
           if (opts.json) {
@@ -468,7 +444,7 @@ const daemonModule: KotaModule = {
       .option("--project-dir <path>", DAEMON_PROJECT_DIR_OPTION_DESCRIPTION)
       .action(async (opts: DaemonProjectDirOptions, command: Command) => {
         const projectDir = resolveDaemonCommandProjectDir(opts, command);
-        const client = await daemonOpsClientForProject(projectDir);
+        const client = await daemonOpsClientForProject(projectDir, buildDaemonOpsDaemonHandler);
         const result = await client.pid();
         if (result.state === "running") {
           console.log(String(result.pid));
@@ -511,7 +487,7 @@ const daemonModule: KotaModule = {
       .option("--project-dir <path>", DAEMON_PROJECT_DIR_OPTION_DESCRIPTION)
       .action(async (opts: DaemonProjectDirOptions, command: Command) => {
         const projectDir = resolveDaemonCommandProjectDir(opts, command);
-        const client = await daemonOpsClientForProject(projectDir);
+        const client = await daemonOpsClientForProject(projectDir, buildDaemonOpsDaemonHandler);
         const result = await client.reload();
         if (!result.ok) {
           if (result.reason === "not_running") {

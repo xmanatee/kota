@@ -12,6 +12,7 @@
  */
 
 import type { ServerResponse } from "node:http";
+import type { EventJournal, EventJournalQuery } from "#core/events/event-journal.js";
 import { getModuleEventRegistry } from "#core/events/module-event.js";
 import type { ControlRouteRegistration } from "#core/modules/module-types.js";
 import type {
@@ -68,6 +69,7 @@ import { type ProjectId, scopeProjectionFromProjects } from "./scope-registry.js
 export type BuiltinControlRouteDeps = {
   handle: DaemonControlHandle;
   eventBuffer: EventRingBuffer;
+  eventJournal?: EventJournal;
   sseClients: Set<ServerResponse>;
   chatPool: DaemonChatPool | null;
   makeAgent: DaemonChatMakeAgent | null;
@@ -119,6 +121,32 @@ function eventTypeMatchesGlob(eventType: string, glob: string): boolean {
   if (suffix === "") return true;
   const suffixStart = eventType.length - suffix.length;
   return suffixStart >= offset && eventType.endsWith(suffix);
+}
+
+function parseEventJournalQuery(url: URL): EventJournalQuery {
+  const sinceParam = url.searchParams.get("since");
+  const sinceMs = sinceParam ? new Date(sinceParam).getTime() : undefined;
+  const limitParam = url.searchParams.get("limit");
+  const parsedLimit = limitParam ? Number.parseInt(limitParam, 10) : undefined;
+  const typeParam = url.searchParams.get("type");
+  const idParam = url.searchParams.get("id");
+  const scopeIdParam = url.searchParams.get("scopeId") ?? url.searchParams.get("projectId");
+  const sourceIdParam = url.searchParams.get("sourceId");
+  return {
+    ...(idParam ? { id: idParam } : {}),
+    ...(typeParam
+      ? typeParam.includes("*")
+        ? { typeGlob: typeParam }
+        : { typePrefix: typeParam }
+      : {}),
+    ...(scopeIdParam ? { scopeId: scopeIdParam } : {}),
+    ...(sourceIdParam ? { sourceId: sourceIdParam } : {}),
+    ...(sinceMs !== undefined && !Number.isNaN(sinceMs) ? { sinceMs } : {}),
+    ...(url.searchParams.get("after") ? { after: url.searchParams.get("after")! } : {}),
+    ...(parsedLimit !== undefined && Number.isFinite(parsedLimit) && parsedLimit > 0
+      ? { limit: parsedLimit }
+      : {}),
+  };
 }
 
 function listEventSchemaDetails(): EventSchemaDetail[] {
@@ -289,6 +317,7 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
   const {
     handle: h,
     eventBuffer,
+    eventJournal,
     sseClients,
     chatPool,
     makeAgent,
@@ -561,6 +590,13 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
       capabilityScope: "read",
       handler: (req, res) => {
         const url = new URL(req.url ?? "/", "http://127.0.0.1");
+        if (eventJournal) {
+          const entries = eventJournal.query(parseEventJournalQuery(url));
+          jsonResponse(res, 200, {
+            events: entries.map((entry) => eventJournal.toClientProjection(entry)),
+          });
+          return;
+        }
         const sinceParam = url.searchParams.get("since");
         const afterParam = url.searchParams.get("after");
         const limitParam = url.searchParams.get("limit");

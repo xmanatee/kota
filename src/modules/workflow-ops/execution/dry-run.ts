@@ -1,4 +1,8 @@
 import type { EventSchemaReference } from "#core/events/event-bus.js";
+import {
+  type EventEnvelope,
+  eventEnvelopeToBusEnvelope,
+} from "#core/events/event-journal.js";
 import type { ModuleEventPayloadObject } from "#core/events/module-event.js";
 import { getModuleEventRegistry } from "#core/events/module-event.js";
 import { validatePayloadAgainstSchema } from "#core/events/module-event-payload-validation.js";
@@ -20,6 +24,7 @@ export type DryRunTriggerMatch = {
   matched: boolean;
   matchedEvent?: string;
   schemaRef?: EventSchemaReference | null;
+  eventId?: string;
   matchedFilter?: Record<string, unknown>;
 };
 
@@ -48,6 +53,7 @@ export type DryRunResult = DryRunPlan & {
 
 export type DryRunOptions = {
   payload?: Record<string, unknown>;
+  eventEnvelope?: EventEnvelope;
   availableToolNames?: ReadonlySet<string>;
 };
 
@@ -166,14 +172,23 @@ function resolveTriggerMatch(
   triggers: WorkflowTrigger[],
   payload: Record<string, unknown>,
   diagnostics: DryRunDiagnostic[],
+  replay?: {
+    event: string;
+    schemaRef: EventSchemaReference | null;
+    eventId: string;
+  },
 ): DryRunTriggerMatch {
   for (const trigger of triggers) {
+    if (replay && trigger.event !== replay.event) continue;
     if (trigger.event && matchesFilter(trigger.filter, payload)) {
-      const schemaRef = resolveDryRunSchemaRef(trigger, payload, diagnostics);
+      const schemaRef = replay
+        ? replay.schemaRef
+        : resolveDryRunSchemaRef(trigger, payload, diagnostics);
       return {
         matched: true,
         matchedEvent: trigger.event,
         schemaRef,
+        ...(replay ? { eventId: replay.eventId } : {}),
         ...(trigger.filter && { matchedFilter: trigger.filter }),
       };
     }
@@ -224,7 +239,11 @@ export async function buildDryRunPlan(
 ): Promise<DryRunResult> {
   const diagnostics: DryRunDiagnostic[] = [];
   const steps: DryRunStepPlan[] = [];
-  const payload = options.payload ?? {};
+  const eventEnvelope = options.eventEnvelope;
+  const replayEnvelope = eventEnvelope
+    ? eventEnvelopeToBusEnvelope(eventEnvelope)
+    : undefined;
+  const payload = replayEnvelope?.payload ?? options.payload ?? {};
 
   if (options.availableToolNames) {
     for (const step of definition.steps) {
@@ -233,8 +252,21 @@ export async function buildDryRunPlan(
   }
 
   let triggerMatch: DryRunTriggerMatch | undefined;
-  if (options.payload) {
-    triggerMatch = resolveTriggerMatch(definition.triggers, payload, diagnostics);
+  if (options.payload || replayEnvelope) {
+    const replayInput =
+      eventEnvelope !== undefined && replayEnvelope !== undefined
+        ? {
+            event: replayEnvelope.type,
+            schemaRef: replayEnvelope.schemaRef,
+            eventId: eventEnvelope.id,
+          }
+        : undefined;
+    triggerMatch = resolveTriggerMatch(
+      definition.triggers,
+      payload,
+      diagnostics,
+      replayInput,
+    );
     if (!triggerMatch.matched) {
       diagnostics.push({
         level: "error",
@@ -248,6 +280,7 @@ export async function buildDryRunPlan(
       ? {
           event: triggerMatch.matchedEvent,
           schemaRef: triggerMatch.schemaRef ?? null,
+          ...(triggerMatch.eventId !== undefined ? { eventId: triggerMatch.eventId } : {}),
           payload,
         }
       : { event: "dry-run", schemaRef: null, payload };

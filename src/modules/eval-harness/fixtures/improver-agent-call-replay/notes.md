@@ -13,9 +13,11 @@ path the daemon runs in production, without invoking a real LLM.
 ## Shape
 
 - `initial/` seeds the minimal repo scaffolding improver needs:
-  - `package.json` whose script entries (`build`, `typecheck`, `lint`,
-    `lint:fix`, `test`) are idempotent `"true"` no-ops and `validate-tasks`
-    forwards to KOTA's own `validate-queue.js` via `$KOTA_DIST_DIR`.
+  - `package.json` whose `dev` script forwards workflow validation to the
+    fixture's `dist/cli.js` stub, whose `build`, `typecheck`, `lint`,
+    `lint:fix`, and `test` entries are idempotent `"true"` no-ops, and whose
+    `validate-tasks` forwards to KOTA's own `validate-queue.js` via
+    `$KOTA_DIST_DIR`.
   - Stub `dist/cli.js` for `node dist/cli.js workflow validate`.
   - A `.gitignore` that mirrors the repo-root unignore for nested fixture
     `initial/.kota/` paths so the workflow's `git add -A` stages cleanly.
