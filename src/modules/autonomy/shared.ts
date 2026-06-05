@@ -1,6 +1,6 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { delimiter, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import {
   PRESET_ENV_VAR,
@@ -18,6 +18,16 @@ import { loadRunsInWindow } from "#modules/workflow-ops/runs/workflow-history.js
 
 const RUN_CHECK_MAX_BUFFER = 10 * 1024 * 1024;
 const RUN_CHECK_OUTPUT_TAIL_LIMIT = 20_000;
+const SYSTEM_COMMAND_PATH_ENTRIES = [
+  "/opt/homebrew/bin",
+  "/opt/homebrew/sbin",
+  "/usr/local/bin",
+  "/usr/local/sbin",
+  "/usr/bin",
+  "/bin",
+  "/usr/sbin",
+  "/sbin",
+] as const;
 
 function tailTruncate(text: string, limit: number): string {
   if (text.length <= limit) return text;
@@ -27,11 +37,53 @@ function tailTruncate(text: string, limit: number): string {
   return `[... ${text.length - clean.length} chars truncated — showing tail ...]\n${clean}`;
 }
 
+function splitPath(value: string | undefined): string[] {
+  if (!value) return [];
+  return value.split(delimiter).filter((entry) => entry.length > 0);
+}
+
+function uniquePath(entries: readonly string[]): string {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const entry of entries) {
+    if (seen.has(entry)) continue;
+    seen.add(entry);
+    unique.push(entry);
+  }
+  return unique.join(delimiter);
+}
+
+function collectNodeModulesBinDirs(cwd: string): string[] {
+  const dirs: string[] = [];
+  let current = resolve(cwd);
+  while (true) {
+    const candidate = join(current, "node_modules", ".bin");
+    if (existsSync(candidate)) dirs.push(candidate);
+    const parent = dirname(current);
+    if (parent === current) return dirs;
+    current = parent;
+  }
+}
+
+function buildRunCheckEnv(cwd: string): NodeJS.ProcessEnv {
+  const env = withProtectedGitBareRepositoryEnv();
+  const pathValue = uniquePath([
+    ...collectNodeModulesBinDirs(cwd),
+    dirname(process.execPath),
+    ...splitPath(env.PATH),
+    ...splitPath(env.Path),
+    ...SYSTEM_COMMAND_PATH_ENTRIES,
+  ]);
+  env.PATH = pathValue;
+  if (env.Path !== undefined) env.Path = pathValue;
+  return env;
+}
+
 export function runCheck(command: string, cwd: string, timeoutMs = 120_000): string {
   const result = spawnSync(command, {
     shell: true,
     cwd,
-    env: withProtectedGitBareRepositoryEnv(),
+    env: buildRunCheckEnv(cwd),
     timeout: timeoutMs,
     encoding: "utf-8",
     maxBuffer: RUN_CHECK_MAX_BUFFER,
