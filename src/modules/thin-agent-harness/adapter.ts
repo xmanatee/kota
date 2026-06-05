@@ -44,6 +44,11 @@ const THIN_UNSUPPORTED_OPTIONS = [
     reason: "The thin harness does not accept per-step harnessOptions.",
   },
   {
+    runOption: "resumeSessionId",
+    option: "resumeSessionId",
+    reason: "The thin harness does not resume native sessions.",
+  },
+  {
     runOption: "onMessage",
     option: "onMessage",
     reason: "The thin harness emits text only, not KotaAgentMessage frames.",
@@ -81,6 +86,12 @@ function rejectUnsupportedToolOptions(options: AgentHarnessRunOptions): void {
     throw new Error(
       'The "thin" agent harness does not accept per-step harnessOptions. ' +
         "Drop harnessOptions[\"thin\"] or run an adapter that validates them.",
+    );
+  }
+  if (options.resumeSessionId !== undefined) {
+    throw new Error(
+      'The "thin" agent harness does not resume native sessions. ' +
+        "Drop resumeSessionId or run claude-agent-sdk.",
     );
   }
   if (options.onMessage !== undefined) {

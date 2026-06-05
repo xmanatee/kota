@@ -70,6 +70,7 @@ than silently ignoring them:
 - `autonomyMode === "supervised"` (no operator-approval-queue routing)
 - `harnessOverrides` of any shape (no per-step adapter fragment)
 - `persistSession: true`
+- `resumeSessionId`
 - `enableFileCheckpointing: true`
 - `thinkingEnabled: true`
 - `onMessage` (no `KotaAgentMessage` frames are emitted)

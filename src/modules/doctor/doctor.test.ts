@@ -8,6 +8,8 @@ import {
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
 } from "#core/agent-harness/index.js";
+import { loadModuleMetadata } from "#core/modules/module-metadata.js";
+import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
 import { checkProviderConnectivity, runDoctorChecks, runDoctorFixes } from "./index.js";
 
 vi.mock("#core/workflow/validation.js", () => ({
@@ -19,6 +21,17 @@ vi.mock("#core/modules/module-metadata.js", () => ({
   loadModuleMetadata: vi.fn(async () => ({
     getModuleSummaries: () => [{ name: "test-module" }],
     getContributedWorkflows: () => [],
+    getAgentDef: (name: string) =>
+      name === "doctor-agent"
+        ? {
+            name: "doctor-agent",
+            role: "Check workflows.",
+            promptPath: "AGENTS.md",
+            model: "doctor-agent-model",
+            effort: "low",
+            writeScope: [],
+          }
+        : undefined,
   })),
 }));
 
@@ -211,6 +224,23 @@ describe("kota doctor — offline path", () => {
     const results = await runDoctorChecks(projectDir);
     const wf = results.find((r) => r.label.startsWith("Workflows"));
     expect(wf?.status).toBe("pass");
+  });
+
+  it("passes registered agents into offline workflow validation", async () => {
+    vi.mocked(validateWorkflowDefinitions).mockClear();
+
+    const results = await runDoctorChecks(projectDir, { skipConnectivity: true });
+    const wf = results.find((r) => r.label.startsWith("Workflows"));
+    expect(wf?.status).toBe("pass");
+
+    const options = vi.mocked(validateWorkflowDefinitions).mock.calls[0]?.[2];
+    expect(options?.resolveAgentDef?.("doctor-agent")).toMatchObject({
+      name: "doctor-agent",
+      promptPath: "AGENTS.md",
+      model: "doctor-agent-model",
+      effort: "low",
+    });
+    expect(vi.mocked(loadModuleMetadata)).toHaveBeenCalled();
   });
 
   it("returns results for all check categories", async () => {

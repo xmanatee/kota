@@ -9,6 +9,7 @@ import type {
   AgentHarness,
   AgentHarnessStepOverrides,
 } from "#core/agent-harness/types.js";
+import { resolveAgentToolPolicy } from "#core/agents/handoff.js";
 import { DEFAULT_MODEL_TIERS, type ModelTier } from "#core/model/model-router.js";
 import { mergePresetTiers, type Preset } from "#core/model/preset.js";
 import { type AutonomyMode, isAutonomyMode } from "#core/tools/autonomy-mode.js";
@@ -147,14 +148,24 @@ export function validateAgentStep(
   const agentName = step.agentName !== undefined
     ? expectNonEmptyString(step.agentName, `${stepLabel}.agentName`, definitionPath)
     : undefined;
-
-  if (!step.promptPath) {
+  const agentDef = agentName && options.resolveAgentDef
+    ? options.resolveAgentDef(agentName)
+    : undefined;
+  if (agentName && options.resolveAgentDef && !agentDef) {
     throw new WorkflowDefinitionError(
-      `${stepLabel} must specify promptPath`,
+      `${stepLabel}.agentName references unknown registered agent "${agentName}"`,
       definitionPath,
     );
   }
-  const promptPath = expectRelativePath(step.promptPath, `${stepLabel}.promptPath`, definitionPath);
+
+  const rawPromptPath = step.promptPath ?? agentDef?.promptPath;
+  if (!rawPromptPath) {
+    throw new WorkflowDefinitionError(
+      `${stepLabel} must specify promptPath or reference a registered agent with promptPath`,
+      definitionPath,
+    );
+  }
+  const promptPath = expectRelativePath(rawPromptPath, `${stepLabel}.promptPath`, definitionPath);
   if (!promptPath.endsWith(".md")) {
     throw new WorkflowDefinitionError(
       `${stepLabel}.promptPath must point to a markdown file`,
@@ -168,7 +179,8 @@ export function validateAgentStep(
     );
   }
 
-  const effort = expectNonEmptyString(step.effort, `${stepLabel}.effort`, definitionPath);
+  const rawEffort = step.effort ?? agentDef?.effort;
+  const effort = expectNonEmptyString(rawEffort, `${stepLabel}.effort`, definitionPath);
   if (!VALID_EFFORT_LEVELS.has(effort)) {
     throw new WorkflowDefinitionError(
       `${stepLabel}.effort must be one of ${Array.from(VALID_EFFORT_LEVELS).join(", ")}`,
@@ -211,7 +223,7 @@ export function validateAgentStep(
   }
 
   const { model, tier } = resolveStepModel({
-    rawModel: step.model,
+    rawModel: step.model ?? (step.tier === undefined ? agentDef?.model : undefined),
     rawTier: step.tier,
     harnessName,
     stepLabel,
@@ -226,6 +238,26 @@ export function validateAgentStep(
     stepLabel,
     definitionPath,
   );
+
+  const requestedToolPolicy = {
+    allowed: expectOptionalStringArray(
+      step.allowedTools,
+      `${stepLabel}.allowedTools`,
+      definitionPath,
+    ),
+    disallowed: expectOptionalStringArray(
+      step.disallowedTools,
+      `${stepLabel}.disallowedTools`,
+      definitionPath,
+    ),
+  };
+  const toolPolicy = resolveAgentToolPolicy(agentDef?.tools, requestedToolPolicy);
+  if (!toolPolicy.ok) {
+    throw new WorkflowDefinitionError(
+      `${stepLabel}.allowedTools ${toolPolicy.message}`,
+      definitionPath,
+    );
+  }
 
   return {
     id: expectName(step.id, `${stepLabel}.id`, definitionPath),
@@ -255,16 +287,8 @@ export function validateAgentStep(
       definitionPath,
       1024,
     ),
-    allowedTools: expectOptionalStringArray(
-      step.allowedTools,
-      `${stepLabel}.allowedTools`,
-      definitionPath,
-    ),
-    disallowedTools: expectOptionalStringArray(
-      step.disallowedTools,
-      `${stepLabel}.disallowedTools`,
-      definitionPath,
-    ),
+    allowedTools: toolPolicy.policy.allowed,
+    disallowedTools: toolPolicy.policy.disallowed,
     harnessOptions,
     autonomyMode,
     when: expectOptionalFunction(

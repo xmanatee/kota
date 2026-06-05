@@ -97,6 +97,7 @@ than silently ignoring them:
 - `autonomyMode === "supervised"` (no operator-approval-queue routing)
 - `harnessOverrides` of any shape (no per-step adapter fragment)
 - `persistSession: true`
+- `resumeSessionId`
 - `enableFileCheckpointing: true`
 - `thinkingEnabled: true` / `thinkingBudget` (use the portable
   `effort` field — gemini maps it to `thinkingConfig.thinkingLevel`)

@@ -6,7 +6,7 @@ import type { WorkflowDefinition } from "./types.js";
 import { validateWorkflowDefinitions } from "./validation.js";
 
 export function compileDefinitions(
-  state: Pick<WorkflowRuntimeDispatchState, "workflowInputs" | "projectDir" | "config">,
+  state: Pick<WorkflowRuntimeDispatchState, "workflowInputs" | "projectDir" | "config" | "resolveAgentDef">,
 ): WorkflowDefinition[] {
   const { preset } = resolvePreset({
     env: process.env.KOTA_PRESET,
@@ -16,6 +16,7 @@ export function compileDefinitions(
     defaultAgentHarness: state.config?.defaultAgentHarness ?? preset.harness,
     preset,
     modelTiers: state.config?.modelTiers,
+    resolveAgentDef: state.resolveAgentDef,
   });
 }
 

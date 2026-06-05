@@ -241,7 +241,7 @@ describe("openaiToolsAgentHarness — happy path tool loop", () => {
       },
     ]);
 
-    expect(executeToolMock).toHaveBeenCalledWith("echo_tool", { text: "hello" });
+    expect(executeToolMock).toHaveBeenCalledWith("echo_tool", { text: "hello" }, { toolUseId: "call_1" });
     expect(writer.write).toHaveBeenCalledWith("all done");
     expect(result).toMatchObject({
       text: "all done",

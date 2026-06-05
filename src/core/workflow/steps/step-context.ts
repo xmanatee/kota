@@ -16,6 +16,40 @@ import type {
 } from "../run-types.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 
+function buildToolContext(
+  metadata: WorkflowRunMetadata,
+  pbus: ProjectScopedEventBus,
+  stepId: string,
+): {
+  stepId: string;
+  scopeId: string;
+  projectId: string;
+  workflow: {
+    workflowName: string;
+    runId: string;
+    stepId: string;
+    spanId: string;
+    scopeId: string;
+    projectId: string;
+  };
+} {
+  const scopeId = pbus.getScopeId();
+  const projectId = pbus.getProjectId();
+  return {
+    stepId,
+    scopeId,
+    projectId,
+    workflow: {
+      workflowName: metadata.workflow,
+      runId: metadata.id,
+      stepId,
+      spanId: `${metadata.id}:${stepId}`,
+      scopeId,
+      projectId,
+    },
+  };
+}
+
 /**
  * Per-run append-only log of events a step emitted via `ctx.emit`. The
  * harness eval layer's `run-emits-event` / `run-omits-event` predicates
@@ -80,12 +114,12 @@ export function createStepContext(
     stepResults: stepResultsById,
     stepOutputList,
     runTool: async (name, input, toolContext) => {
+      const stepId = toolContext?.stepId ?? deps.currentStepId ?? "unknown";
+      const context = buildToolContext(metadata, deps.pbus, stepId);
       if (deps.runTool) {
-        return deps.runTool(name, input, {
-          stepId: toolContext?.stepId ?? deps.currentStepId ?? "unknown",
-        });
+        return deps.runTool(name, input, context);
       }
-      const result = await executeTool(name, input);
+      const result = await executeTool(name, input, context);
       if (result.is_error) {
         throw new Error(result.content);
       }

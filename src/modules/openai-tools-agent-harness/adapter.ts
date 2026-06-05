@@ -52,6 +52,11 @@ const OPENAI_TOOLS_UNSUPPORTED_OPTIONS = [
     reason: "The openai-tools harness does not persist native sessions.",
   },
   {
+    runOption: "resumeSessionId",
+    option: "resumeSessionId",
+    reason: "The openai-tools harness does not resume native sessions.",
+  },
+  {
     runOption: "harnessOverrides",
     option: "harnessOverrides",
     reason: "The openai-tools harness does not accept per-step harnessOptions.",
@@ -98,6 +103,12 @@ function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
     throw new Error(
       'The "openai-tools" agent harness does not persist sessions. ' +
         "Drop persistSession or run claude-agent-sdk for native session resumption.",
+    );
+  }
+  if (options.resumeSessionId !== undefined) {
+    throw new Error(
+      'The "openai-tools" agent harness does not resume native sessions. ' +
+        "Drop resumeSessionId or run claude-agent-sdk.",
     );
   }
   if (options.harnessOverrides !== undefined) {
@@ -193,6 +204,7 @@ async function dispatchToolCall(
     allowedTools: readonly string[] | undefined;
     disallowedTools: readonly string[] | undefined;
     abortSignal: AbortSignal | undefined;
+    workflowContext: AgentHarnessRunOptions["workflowContext"];
   },
 ): Promise<{ result: KotaToolResultBlock; denial?: DenialOutcome }> {
   const validatedInput = validateToolUseBlock(call);
@@ -265,7 +277,17 @@ async function dispatchToolCall(
     }
   }
 
-  const toolResult = maskToolResultSecrets(await executeTool(call.name, effectiveInput));
+  const toolResult = maskToolResultSecrets(await executeTool(call.name, effectiveInput, {
+    toolUseId: call.id,
+    ...(options.abortSignal !== undefined ? { signal: options.abortSignal } : {}),
+    ...(options.workflowContext !== undefined
+      ? {
+          workflow: options.workflowContext,
+          scopeId: options.workflowContext.scopeId,
+          projectId: options.workflowContext.projectId,
+        }
+      : {}),
+  }));
   return {
     result: {
       type: "tool_result",
@@ -405,6 +427,7 @@ async function runOpenaiToolsLoop(
           allowedTools: options.allowedTools,
           disallowedTools: options.disallowedTools,
           abortSignal: options.abortController?.signal,
+          workflowContext: options.workflowContext,
         });
         resultBlocks.push(dispatched.result);
         if (dispatched.denial?.interrupt && !interrupted) {

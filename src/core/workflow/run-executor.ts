@@ -4,6 +4,7 @@ import type { KotaConfig } from "#core/config/config.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { createDelegateBudget } from "#core/tools/delegate-budget.js";
 import {
   buildStepCompletedPayload,
   buildStepStartedPayload,
@@ -89,6 +90,7 @@ export function executeWorkflowRun(
   const startedAt = Date.now();
   const agentRunLimiter =
     deps.agentRunLimiter ?? createAgentRunLimiter(deps.agentConcurrency);
+  const delegateBudget = createDelegateBudget();
 
   let runTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
   if (definition.runTimeoutMs !== undefined) {
@@ -150,6 +152,9 @@ export function executeWorkflowRun(
           resolveSkillsPrompt: deps.resolveSkillsPrompt,
           createCanUseTool: deps.createAgentCanUseTool,
           agentRunLimiter,
+          delegateBudget,
+          scopeId: deps.pbus.getScopeId(),
+          projectId: deps.pbus.getProjectId(),
         };
 
         const runDecision = await evaluateStepRunDecision(step, context);

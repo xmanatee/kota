@@ -1,4 +1,5 @@
 import { isAbsolute } from "node:path";
+import type { AgentDef } from "#core/agents/agent-types.js";
 import type { ModelTiers } from "../model/model-router.js";
 import type { Preset } from "../model/preset.js";
 import type { WorkflowBaseStep } from "./step-input-base.js";
@@ -33,6 +34,12 @@ export type WorkflowValidationOptions = {
    * default tier mapping.
    */
   modelTiers?: ModelTiers;
+  /**
+   * Registered agent resolver. When supplied, agent steps that declare
+   * `agentName` are compiled from the matching `AgentDef`; a missing name is a
+   * definition error instead of a late runtime surprise.
+   */
+  resolveAgentDef?: (name: string) => AgentDef | undefined;
 };
 
 export function isPlainObject(value: unknown): value is Record<string, unknown> {

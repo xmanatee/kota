@@ -8,6 +8,7 @@ import { registration as confirm } from "./confirm.js";
 import { registration as customTool, initCustomToolRegistry } from "./custom-tool.js";
 import { registration as delegate } from "./delegate.js";
 import type { ToolEffect } from "./effect.js";
+import { registration as handoffAgent } from "./handoff-agent.js";
 import { registration as moduleFactory } from "./module-factory/index.js";
 import { assertToolStructuredOutput } from "./output-schema.js";
 import { getTodoState, registration as todo } from "./todo.js";
@@ -20,6 +21,16 @@ export type ToolRunnerContext = {
   sessionId?: string;
   toolUseId?: string;
   signal?: AbortSignal;
+  scopeId?: string;
+  projectId?: string;
+  workflow?: {
+    workflowName: string;
+    runId: string;
+    stepId: string;
+    spanId: string;
+    scopeId: string;
+    projectId: string;
+  };
 };
 
 export type ToolRunner = (
@@ -58,6 +69,7 @@ const registrationImports = [
   () => approval,
   () => todo,
   () => delegate,
+  () => handoffAgent,
   () => askUser,
   () => askOwner,
   () => confirm,

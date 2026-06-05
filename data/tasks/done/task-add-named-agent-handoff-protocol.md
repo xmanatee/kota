@@ -1,13 +1,13 @@
 ---
 id: task-add-named-agent-handoff-protocol
 title: Add named agent handoff protocol
-status: ready
+status: done
 priority: p1
 area: core
 summary: Add a typed named-agent handoff protocol that lets agents and workflow steps delegate to registered agents with explicit inputs, scope, budgets, tool policy, trace links, and resume semantics.
 depends_on: [task-promote-projects-into-hierarchical-scopes]
 created_at: 2026-06-03T15:50:46.186Z
-updated_at: 2026-06-04T19:54:59.621Z
+updated_at: 2026-06-04T23:15:13Z
 ---
 
 ## Problem

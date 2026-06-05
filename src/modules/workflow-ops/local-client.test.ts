@@ -193,17 +193,32 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
       name: "demo-watch",
       enabled: true,
       definitionPath: "ignored",
+      moduleRoot: projectDir,
+      defaultAutonomyMode: "autonomous",
       triggers: [{ watch: ["**/*.md"], debounceMs: 750, cooldownMs: 0 }],
       steps: [
         {
-          id: "noop",
-          type: "code",
-          run: () => undefined,
+          id: "review",
+          type: "agent",
+          agentName: "demo-agent",
         },
       ],
     } as unknown as RegisteredWorkflowDefinitionInput;
+    writeFileSync(join(projectDir, "agent.md"), "Review the project.\n", "utf-8");
+    const resolveAgentDef = vi.fn((name: string) =>
+      name === "demo-agent"
+        ? {
+            name: "demo-agent",
+            role: "Review the project.",
+            promptPath: "agent.md",
+            model: "test-model",
+            effort: "low" as const,
+            writeScope: [],
+          }
+        : undefined
+    );
     const handler = buildHandler(projectDir, {
-      resolveAgentDef: vi.fn(),
+      resolveAgentDef,
       resolveSkillsPrompt: vi.fn(),
       config: { defaultAgentHarness: "thin" } as ModuleContext["config"],
       // The local listDefinitions handler reads from
@@ -219,6 +234,7 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
       enabled: true,
       stepCount: 1,
     });
+    expect(resolveAgentDef).toHaveBeenCalledWith("demo-agent");
     expect(result.definitions[0]?.triggers).toEqual([
       { type: "watch", patterns: ["**/*.md"], debounceMs: 750 },
     ]);

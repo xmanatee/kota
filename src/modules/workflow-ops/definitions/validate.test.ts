@@ -76,6 +76,45 @@ describe("validateDefinitions", () => {
     });
   });
 
+  it("resolves agentName-only steps through the supplied registered agent resolver", () => {
+    const results = validateDefinitions(
+      [
+        {
+          ...AGENT_DEF,
+          steps: [
+            {
+              type: "agent" as const,
+              id: "agent",
+              agentName: "reviewer",
+              autonomyMode: "autonomous" as const,
+            },
+          ],
+        },
+      ],
+      {
+        defaultAgentHarness: "claude-agent-sdk",
+        resolveAgentDef: (name) =>
+          name === "reviewer"
+            ? {
+                name: "reviewer",
+                role: "Review changes.",
+                promptPath: "AGENTS.md",
+                model: "claude-opus-4-7",
+                effort: "xhigh",
+                writeScope: [],
+              }
+            : undefined,
+      },
+    );
+
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({
+      name: "agent-workflow",
+      valid: true,
+      scope: "definition",
+    });
+  });
+
   it("reports global validation failures that isolated definitions cannot catch", () => {
     const dupA = { ...VALID_DEF, name: "duplicate-workflow" };
     const dupB = {

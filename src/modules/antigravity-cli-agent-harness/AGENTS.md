@@ -63,6 +63,7 @@ Reject unsupported neutral options loudly:
 - `askOwner`
 - `autonomyMode === "supervised"`
 - `persistSession`
+- `resumeSessionId`
 - `harnessOverrides`
 - `enableFileCheckpointing`
 - `thinkingEnabled` / `thinkingBudget`

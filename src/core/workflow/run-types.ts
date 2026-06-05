@@ -1,5 +1,5 @@
 import type { TrajectoryDiagnosticsMetadata } from "#core/agent-harness/index.js";
-import type { ToolResult } from "#core/tools/index.js";
+import type { ToolResult, ToolRunnerContext } from "#core/tools/index.js";
 import type { WorkflowStepProgressReporter } from "./step-idle-timeout.js";
 import type { WorkflowAgentStep, WorkflowStep } from "./step-types.js";
 import type { WorkflowAgentBackoffSignal, WorkflowAgentBackoffState, WorkflowBatchBuffers, WorkflowRunTrigger } from "./trigger-types.js";
@@ -174,7 +174,7 @@ export type WorkflowStepContext = {
   ) => Promise<{ runId: string; status: "queued" | "completed" | "failed" }>;
 };
 
-export type WorkflowRunToolCallContext = {
+export type WorkflowRunToolCallContext = ToolRunnerContext & {
   stepId: string;
 };
 

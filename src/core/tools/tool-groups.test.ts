@@ -38,7 +38,7 @@ describe("tool-groups", () => {
 
   describe("CORE_TOOL_NAMES", () => {
     it("includes essential tools", () => {
-      for (const name of ["shell", "file_read", "file_edit", "grep", "glob", "delegate", "enable_tools"]) {
+      for (const name of ["shell", "file_read", "file_edit", "grep", "glob", "delegate", "handoff_agent", "enable_tools"]) {
         expect(CORE_TOOL_NAMES.has(name)).toBe(true);
       }
     });

@@ -13,6 +13,7 @@ export const CORE_TOOL_NAMES = new Set([
   "glob",
   "ask_user",
   "delegate",
+  "handoff_agent",
   "enable_tools",
   "env_info",
   "custom_tool",

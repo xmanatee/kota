@@ -11,7 +11,10 @@ import {
 } from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
+import type { DelegateBudget } from "#core/tools/delegate-budget.js";
+import { withHandoffAgentRuntime } from "#core/tools/handoff-agent-runtime.js";
 import type { ToolResult } from "#core/tools/index.js";
 import { ToolTelemetry } from "#core/tools/tool-telemetry.js";
 import type { WorkflowRunMetadata, WorkflowStepContext } from "../run-types.js";
@@ -79,6 +82,9 @@ export type AgentStepConfig = {
   resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
   createCanUseTool?: (stepId: string) => AgentCanUseTool;
   agentRunLimiter?: AgentRunLimiter;
+  delegateBudget?: DelegateBudget;
+  scopeId?: string;
+  projectId?: string;
 };
 
 export {
@@ -202,6 +208,8 @@ export async function executeAgentStep(
       ? `${agentPrompt.prompt}\n\n[${lastJsonOutputFeedback}]`
       : agentPrompt.prompt;
     const harnessOverrides = step.harnessOptions?.[resolvedHarness.name];
+    const scopeId = agentConfig.scopeId ?? deriveDirectoryScopeId(agentConfig.projectDir);
+    const projectId = agentConfig.projectId ?? scopeId;
     const toolScope = resolveAgentToolScope(
       step.autonomyMode,
       step.allowedTools,
@@ -212,27 +220,53 @@ export async function executeAgentStep(
     const canUseTool = trialCanUseTool
       ? composeCanUseTools(trialCanUseTool, createWorkflowAgentGuards())
       : createWorkflowAgentGuards();
+    const askOwner = resolvedHarness.askOwnerToolName !== null
+      ? { source: `workflow:${metadata.workflow}/${metadata.id}/${step.id}` }
+      : undefined;
     try {
-      const harnessRun = runAgentHarness(
-        resolvedHarness,
-        {
-          prompt, model: resolvedModel, cwd: agentConfig.projectDir, systemPrompt,
-          modelOutputTokenLimits: agentConfig.config?.modelOutputTokenLimits,
-          maxTurns: step.maxTurns, effort: step.effort,
-          thinkingEnabled: step.thinkingEnabled, thinkingBudget: step.thinkingBudget,
-          ...routeKotaToolControlOptions(resolvedHarness, {
-            allowedTools: toolScope.allowedTools,
-            disallowedTools: toolScope.disallowedTools,
-            canUseTool,
-          }),
-          askOwner: resolvedHarness.askOwnerToolName !== null
-            ? { source: `workflow:${metadata.workflow}/${metadata.id}/${step.id}` }
-            : undefined,
-          autonomyMode: step.autonomyMode, harnessOverrides, abortController: attemptAbortController,
-          ...(trackedMessage !== undefined ? { onMessage: trackedMessage } : {}),
+      const harnessRunOptions = {
+        prompt, model: resolvedModel, cwd: agentConfig.projectDir, systemPrompt,
+        modelOutputTokenLimits: agentConfig.config?.modelOutputTokenLimits,
+        maxTurns: step.maxTurns, effort: step.effort,
+        thinkingEnabled: step.thinkingEnabled, thinkingBudget: step.thinkingBudget,
+        ...routeKotaToolControlOptions(resolvedHarness, {
+          allowedTools: toolScope.allowedTools,
+          disallowedTools: toolScope.disallowedTools,
+          canUseTool,
+        }),
+        askOwner,
+        autonomyMode: step.autonomyMode, harnessOverrides, abortController: attemptAbortController,
+        workflowContext: {
+          workflowName: metadata.workflow,
+          runId: metadata.id,
+          stepId: step.id,
+          spanId: `${metadata.id}:${step.id}`,
+          scopeId,
+          projectId,
         },
-        { write: () => true },
-      );
+        ...(trackedMessage !== undefined ? { onMessage: trackedMessage } : {}),
+      };
+      const runHarness = () =>
+        runAgentHarness(resolvedHarness, harnessRunOptions, { write: () => true });
+      const harnessRun = agentConfig.delegateBudget
+        ? withHandoffAgentRuntime(
+            {
+              cwd: agentConfig.projectDir,
+              harness: resolvedHarness.name,
+              resolveAgentDef: agentConfig.resolveAgentDef ?? (() => undefined),
+              ...(agentConfig.resolveSkillsPrompt !== undefined
+                ? { resolveSkillsPrompt: agentConfig.resolveSkillsPrompt }
+                : {}),
+              ...(agentConfig.config?.modelOutputTokenLimits !== undefined
+                ? { modelOutputTokenLimits: agentConfig.config.modelOutputTokenLimits }
+                : {}),
+              delegateBudget: agentConfig.delegateBudget,
+              canUseTool,
+              ...(askOwner !== undefined ? { askOwner } : {}),
+            },
+            runHarness,
+          )
+        : runHarness();
       const idleTimeoutMs = step.idleTimeoutMs;
       idleMonitor = idleTimeoutMs === undefined
         ? undefined

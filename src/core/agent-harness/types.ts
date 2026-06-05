@@ -130,6 +130,15 @@ export type AgentAskOwnerOptions = {
 
 export type AgentHarnessWriter = { write(text: string): boolean };
 
+export type AgentHarnessWorkflowContext = {
+  workflowName: string;
+  runId: string;
+  stepId: string;
+  spanId: string;
+  scopeId: string;
+  projectId: string;
+};
+
 /**
  * Per-step adapter-private fragment validated by `AgentHarness.validateStepOptions`.
  * The neutral protocol carries this as opaque `unknown` — only the resolved
@@ -178,6 +187,8 @@ export type AgentHarnessRunOptions = {
    */
   autonomyMode?: AutonomyMode;
   persistSession?: boolean;
+  resumeSessionId?: string;
+  workflowContext?: AgentHarnessWorkflowContext;
   effort: AgentEffort;
   abortController?: AbortController;
   enableFileCheckpointing?: boolean;

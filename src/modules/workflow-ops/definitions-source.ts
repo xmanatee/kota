@@ -21,5 +21,6 @@ export function getValidatedWorkflowDefinitions(
     defaultAgentHarness: ctx.config.defaultAgentHarness ?? preset.harness,
     preset,
     modelTiers: ctx.config.modelTiers,
+    resolveAgentDef: ctx.resolveAgentDef,
   });
 }

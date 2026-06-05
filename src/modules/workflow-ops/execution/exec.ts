@@ -68,6 +68,7 @@ export function registerExecCommand(
             defaultAgentHarness: runtimeConfig.defaultAgentHarness ?? preset.harness,
             preset,
             modelTiers: runtimeConfig.modelTiers,
+            resolveAgentDef: (agentName) => runtimeLoader.getAgentDef(agentName),
           },
         );
         const definition = definitions.find((d) => d.name === name);

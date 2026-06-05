@@ -40,6 +40,26 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function waitForCompletedWorkflows(
+  completedRuns: Array<{ workflow: string }>,
+  workflowNames: readonly string[],
+  timeoutMs: number,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const seen = new Set(completedRuns.map((run) => run.workflow));
+    if (workflowNames.every((name) => seen.has(name))) {
+      return;
+    }
+    await wait(25);
+  }
+  throw new Error(
+    `Timed out waiting for workflows ${workflowNames.join(", ")}; saw ${
+      completedRuns.map((run) => run.workflow).join(", ") || "none"
+    }`,
+  );
+}
+
 async function loadAutonomyWorkflowDefinitions(): Promise<RegisteredWorkflowDefinitionInput[]> {
   vi.resetModules();
   const { default: autonomyModule } = await import("./index.js");
@@ -200,7 +220,7 @@ describe("autonomous workflow loop integration", () => {
 
   it(
     "drives the inbox-sorter → builder → improver handoff using real workflow definitions",
-    { timeout: 25_000 },
+    { timeout: 45_000 },
     async () => {
       mockedExecuteWithAgentSDK
         .mockResolvedValueOnce({
@@ -247,16 +267,15 @@ describe("autonomous workflow loop integration", () => {
       });
 
       runtime.start();
-
-      // Wait for all three workflows to complete:
-      //   - inbox-sorter: ~50ms
-      //   - builder: ~5s (2 attempts with one 5s retry delay)
-      //   - improver: ~5s (2 attempts with one 5s retry delay)
-      // Keep extra slack because the runtime, filesystem, and test host all
-      // add jitter around event dispatch and artifact writes.
-      await wait(20_000);
-
-      await runtime.stop();
+      try {
+        await waitForCompletedWorkflows(
+          completedRuns,
+          ["inbox-sorter", "builder", "improver"],
+          35_000,
+        );
+      } finally {
+        await runtime.stop();
+      }
 
       // ── Inbox sorter ──────────────────────────────────────────────────────
       const inboxSorterRun = completedRuns.find((r) => r.workflow === "inbox-sorter");

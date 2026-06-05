@@ -50,11 +50,12 @@ export type WorkflowToolStepInput = WorkflowBaseStep & {
 export type WorkflowAgentStepInput = WorkflowBaseStep & {
   type: "agent";
   /**
-   * Optional logical agent label. Use this for model overrides and telemetry.
-   * Execution does not resolve workflow steps through a global agent catalog.
+   * Optional registered agent name. When the workflow validator receives an
+   * agent resolver, the definition supplies prompt/model/effort/tool defaults.
+   * Explicit step fields remain deliberate overrides.
    */
   agentName?: string;
-  /** Path to the prompt markdown file, relative to the owning module's root. */
+  /** Path to the prompt markdown file, relative to the owning module's root. Required unless inherited from `agentName`. */
   promptPath?: string;
   /**
    * Name of the agent harness adapter this step should run on. Must match a
@@ -65,10 +66,10 @@ export type WorkflowAgentStepInput = WorkflowBaseStep & {
    */
   harness?: string;
   /**
-   * Concrete model id the harness should run. Mutually exclusive with `tier`
-   * — the validator throws when both or neither is declared. Use this only
-   * when the workflow genuinely needs a specific provider id; prefer `tier`
-   * for harness-portable steps.
+   * Concrete model id the harness should run. Mutually exclusive with `tier`.
+   * When no registered agent supplies a model, the validator throws if both
+   * `model` and `tier` are absent. Use this only when the workflow genuinely
+   * needs a specific provider id; prefer `tier` for harness-portable steps.
    */
   model?: string;
   /**
@@ -80,11 +81,11 @@ export type WorkflowAgentStepInput = WorkflowBaseStep & {
    */
   tier?: ModelTier;
   /**
-   * How hard the model should think on each step. Required — KOTA workflows
-   * optimize for quality, so every agent step must declare its effort level
-   * explicitly rather than relying on a hidden default.
+   * How hard the model should think on each step. Required unless inherited
+   * from `agentName` — KOTA workflows optimize for quality, so effort must be
+   * explicit in the step or the registered agent definition.
    */
-  effort: "low" | "medium" | "high" | "xhigh" | "max";
+  effort?: "low" | "medium" | "high" | "xhigh" | "max";
   maxTurns?: number;
   thinkingEnabled?: boolean;
   thinkingBudget?: number;

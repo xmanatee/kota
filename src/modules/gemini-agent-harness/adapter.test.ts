@@ -253,7 +253,7 @@ describe("geminiAgentHarness — multi-turn tool loop", () => {
       effort: "xhigh",
     });
 
-    expect(executeToolMock).toHaveBeenCalledWith("echo_tool", { text: "ping" });
+    expect(executeToolMock).toHaveBeenCalledWith("echo_tool", { text: "ping" }, { toolUseId: "call_1" });
     expect(generateContentStreamMock).toHaveBeenCalledTimes(2);
 
     const secondCall = generateContentStreamMock.mock.calls[1][0] as GenerateContentArgs;

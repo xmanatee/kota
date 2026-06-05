@@ -76,6 +76,11 @@ const VERCEL_UNSUPPORTED_OPTIONS = [
     reason: "The vercel harness does not persist native sessions.",
   },
   {
+    runOption: "resumeSessionId",
+    option: "resumeSessionId",
+    reason: "The vercel harness does not resume native sessions.",
+  },
+  {
     runOption: "harnessOverrides",
     option: "harnessOverrides",
     reason: "The vercel harness does not accept per-step harnessOptions.",
@@ -172,6 +177,12 @@ function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
         "Drop persistSession or run claude-agent-sdk for native session resumption.",
     );
   }
+  if (options.resumeSessionId !== undefined) {
+    throw new Error(
+      'The "vercel" agent harness does not resume native sessions. ' +
+        "Drop resumeSessionId or run claude-agent-sdk.",
+    );
+  }
   if (options.harnessOverrides !== undefined) {
     throw new Error(
       'The "vercel" agent harness does not accept per-step harnessOptions. ' +
@@ -230,6 +241,7 @@ function buildVercelToolSet(
   guardrails: {
     canUseTool: AgentCanUseTool | undefined;
     abortSignal: AbortSignal | undefined;
+    workflowContext: AgentHarnessRunOptions["workflowContext"];
   },
   flags: LoopFlags,
   internalAbort: AbortController,
@@ -289,7 +301,17 @@ function buildVercelToolSet(
           }
         }
 
-        const result = maskToolResultSecrets(await executeTool(kotaTool.name, effectiveInput));
+        const result = maskToolResultSecrets(await executeTool(kotaTool.name, effectiveInput, {
+          toolUseId: _options.toolCallId,
+          ...(guardrails.abortSignal !== undefined ? { signal: guardrails.abortSignal } : {}),
+          ...(guardrails.workflowContext !== undefined
+            ? {
+                workflow: guardrails.workflowContext,
+                scopeId: guardrails.workflowContext.scopeId,
+                projectId: guardrails.workflowContext.projectId,
+              }
+            : {}),
+        }));
         return {
           isError: result.is_error === true,
           content: result.content,
@@ -373,6 +395,7 @@ async function runVercelLoop(
     {
       canUseTool: options.canUseTool,
       abortSignal: options.abortController?.signal,
+      workflowContext: options.workflowContext,
     },
     flags,
     internalAbort,

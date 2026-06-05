@@ -91,6 +91,7 @@ export type ExecutorOptions = {
   mcpServers?: ClaudeAgentMcpServers;
   permissionMode?: ClaudeAgentSdkPermissionMode;
   persistSession?: boolean;
+  resumeSessionId?: string;
   effort: AgentEffort;
   settingSources?: readonly ClaudeAgentSdkSettingSource[];
   pathToClaudeCodeExecutable?: string;
@@ -354,6 +355,7 @@ export function buildQueryOptions(options: ExecutorOptions): SDKQueryOptions {
     permissionMode,
     cwd: options.cwd ?? process.cwd(),
     persistSession: options.persistSession,
+    resume: options.resumeSessionId,
     effort: options.effort,
     settingSources: options.settingSources
       ? [...options.settingSources]

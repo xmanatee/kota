@@ -23,6 +23,7 @@ import { deregisterTool, executeTool, registerTool } from "#core/tools/index.js"
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 import { fileWriteTool, runFileWrite } from "#modules/filesystem/file-write.js";
 import {
+  createDefaultWorkflowTrialRuntimeFactory,
   registerTrialCommand,
   runLocalWorkflowTrial,
   runWorkflowTrial,
@@ -804,6 +805,50 @@ describe("workflow trial execution", () => {
     const attempt = result.summary.attempts[0]!;
     cleanup.push(attempt.trialProjectPath);
     expect(readFileSync(join(attempt.trialProjectPath, "data", "selected-marker.txt"), "utf-8")).toBe("selected");
+  });
+
+  it("default runtime factory resolves agentName-only workflow steps through registered agents", async () => {
+    const projectDir = makeProjectDir();
+    cleanup.push(projectDir);
+    writeProjectModule(projectDir, `
+      export default {
+        name: "trial-agent-fixture-module",
+        agents: [{
+          name: "trial-agent",
+          role: "Run trial agent steps.",
+          promptPath: "AGENTS.md",
+          model: "trial-agent-model",
+          effort: "low",
+          writeScope: [],
+        }],
+        workflows: [{
+          name: "trial-agent-fixture",
+          definitionPath: "trial-agent-fixture-module",
+          defaultAutonomyMode: "autonomous",
+          triggers: [{ event: "manual" }],
+          steps: [{
+            id: "agent",
+            type: "agent",
+            agentName: "trial-agent",
+          }],
+        }],
+      };
+    `);
+
+    const runtime = await createDefaultWorkflowTrialRuntimeFactory()(projectDir);
+    try {
+      const definition = runtime.definitions.find((d) => d.name === "trial-agent-fixture");
+      expect(definition?.steps[0]).toMatchObject({
+        id: "agent",
+        type: "agent",
+        agentName: "trial-agent",
+        promptPath: "AGENTS.md",
+        model: "trial-agent-model",
+        effort: "low",
+      });
+    } finally {
+      await runtime.unload?.();
+    }
   });
 
   it("rejects an unknown requested project id before trial execution", async () => {

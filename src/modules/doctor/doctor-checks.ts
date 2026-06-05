@@ -233,9 +233,10 @@ async function checkWorkflowDefinitions(projectDir: string): Promise<CheckResult
       config: config.defaultPreset,
     });
     const validated = validateWorkflowDefinitions(defs, projectDir, {
-      defaultAgentHarness: config.defaultAgentHarness,
+      defaultAgentHarness: config.defaultAgentHarness ?? preset.harness,
       preset,
       modelTiers: config.modelTiers,
+      resolveAgentDef: (name) => loader.getAgentDef(name),
     });
     return pass("Workflows: discoverable definitions", `${validated.length} valid`);
   } catch (err) {

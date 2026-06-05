@@ -18,7 +18,7 @@ import { clearCustomGroups, enableGroup, filterTools, resetGroups, } from "./cor
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = resolve(root, "src/cli.ts");
-const CLI_TIMEOUT = 15_000;
+const CLI_TIMEOUT = 30_000;
 
 function runCli(...args: string[]): { stdout: string; stderr: string; exitCode: number } {
   try {

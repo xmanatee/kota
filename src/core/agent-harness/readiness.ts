@@ -82,6 +82,7 @@ export type AgentHarnessUnsupportedRunOption =
   | "askOwner"
   | "autonomyMode.supervised"
   | "persistSession"
+  | "resumeSessionId"
   | "harnessOverrides"
   | "enableFileCheckpointing"
   | "thinking"

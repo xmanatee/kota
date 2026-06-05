@@ -1,3 +1,4 @@
+import type { AgentDef } from "#core/agents/agent-types.js";
 import type { CostTracker } from "#core/loop/cost.js";
 import type { Transport } from "#core/loop/transport.js";
 import type { McpManager } from "#core/mcp/manager.js";
@@ -49,6 +50,8 @@ export type DelegateConfig = {
    * throws if the field is missing when routed down the agent-harness path.
    */
   harness?: string;
+  resolveAgentDef?: (name: string) => AgentDef | undefined;
+  resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
   delegateBudgetLimits?: DelegateBudgetLimits;
   delegateBudget?: DelegateBudget;
 };

@@ -58,6 +58,11 @@ const CODEX_UNSUPPORTED_OPTIONS = [
     reason: "KOTA-managed session persistence is not exposed by this adapter.",
   },
   {
+    runOption: "resumeSessionId",
+    option: "resumeSessionId",
+    reason: "KOTA-managed session resume is not exposed by this adapter.",
+  },
+  {
     runOption: "harnessOverrides",
     option: "harnessOverrides",
     reason: "The codex adapter does not accept per-step harnessOptions.",
@@ -153,6 +158,12 @@ function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
     throw new Error(
       'The "codex" agent harness does not expose KOTA-managed session persistence. ' +
         "Drop persistSession.",
+    );
+  }
+  if (options.resumeSessionId !== undefined) {
+    throw new Error(
+      'The "codex" agent harness does not expose KOTA-managed session resume. ' +
+        "Drop resumeSessionId.",
     );
   }
   if (options.harnessOverrides !== undefined) {

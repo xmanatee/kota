@@ -44,6 +44,7 @@ export type SDKQueryOptions = {
   permissionMode?: ClaudeAgentSdkPermissionMode;
   cwd?: string;
   persistSession?: boolean;
+  resume?: string;
   effort?: "low" | "medium" | "high" | "xhigh" | "max";
   includePartialMessages?: boolean;
   settingSources?: ClaudeAgentSdkSettingSource[];

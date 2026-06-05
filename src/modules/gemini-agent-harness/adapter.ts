@@ -73,6 +73,11 @@ const GEMINI_UNSUPPORTED_OPTIONS = [
     reason: "The Gemini SDK loop does not persist native sessions.",
   },
   {
+    runOption: "resumeSessionId",
+    option: "resumeSessionId",
+    reason: "The Gemini SDK loop does not resume native sessions.",
+  },
+  {
     runOption: "harnessOverrides",
     option: "harnessOverrides",
     reason: "The gemini adapter does not accept per-step harnessOptions.",
@@ -131,6 +136,12 @@ function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
     throw new Error(
       'The "gemini" agent harness does not persist sessions. ' +
         "Drop persistSession or run claude-agent-sdk for native session resumption.",
+    );
+  }
+  if (options.resumeSessionId !== undefined) {
+    throw new Error(
+      'The "gemini" agent harness does not resume native sessions. ' +
+        "Drop resumeSessionId or run claude-agent-sdk.",
     );
   }
   if (options.harnessOverrides !== undefined) {
@@ -255,6 +266,7 @@ async function dispatchFunctionCall(
     allowedTools: readonly string[] | undefined;
     disallowedTools: readonly string[] | undefined;
     abortSignal: AbortSignal | undefined;
+    workflowContext: AgentHarnessRunOptions["workflowContext"];
   },
 ): Promise<DispatchResult> {
   const name = call.name;
@@ -320,7 +332,17 @@ async function dispatchFunctionCall(
     }
   }
 
-  const result = maskToolResultSecrets(await executeTool(name, effectiveInput));
+  const result = maskToolResultSecrets(await executeTool(name, effectiveInput, {
+    toolUseId: call.id ?? name,
+    ...(guardrails.abortSignal !== undefined ? { signal: guardrails.abortSignal } : {}),
+    ...(guardrails.workflowContext !== undefined
+      ? {
+          workflow: guardrails.workflowContext,
+          scopeId: guardrails.workflowContext.scopeId,
+          projectId: guardrails.workflowContext.projectId,
+        }
+      : {}),
+  }));
   const body = result.is_error === true
     ? { error: result.content }
     : { output: result.content };
@@ -458,6 +480,7 @@ async function runGeminiLoop(
         allowedTools: options.allowedTools,
         disallowedTools: options.disallowedTools,
         abortSignal: options.abortController?.signal,
+        workflowContext: options.workflowContext,
       });
       responseParts.push(dispatched.responsePart);
       if (dispatched.denial?.interrupt && !interruptDenial) {

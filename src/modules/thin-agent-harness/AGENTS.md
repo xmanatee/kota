@@ -10,7 +10,8 @@ completion loop that uses the core ModelClient registry.
 - The thin harness runs no tool loop, so there is no `KotaTool` translation
   seam in this module (see `src/core/agent-harness/AGENTS.md`).
 - Guardrail options (canUseTool, mcpServers, allowedTools, disallowedTools),
-  per-step `harnessOverrides`, `onMessage` subscriptions, and
+  session resume (`resumeSessionId`), per-step `harnessOverrides`,
+  `onMessage` subscriptions, and
   `autonomyMode === "supervised"` are rejected at the boundary. The harness
   has no tool surface to guard, no message stream to emit, and no
   approval-queue routing, so silently ignoring those options would violate

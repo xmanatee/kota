@@ -105,6 +105,8 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
       // not silently drop it.
       const previousDelegateConfig = getDelegateConfig();
       const previousHarness = previousDelegateConfig.harness;
+      const previousResolveAgentDef = previousDelegateConfig.resolveAgentDef;
+      const previousResolveSkillsPrompt = previousDelegateConfig.resolveSkillsPrompt;
       setDelegateConfig({
         model: state.editorModel,
         modelTiers: state.modelTiers,
@@ -117,6 +119,8 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
         transport: state.transport,
         mcpManager: state.mcpManager,
         ...(previousHarness !== undefined ? { harness: previousHarness } : {}),
+        ...(previousResolveAgentDef !== undefined ? { resolveAgentDef: previousResolveAgentDef } : {}),
+        ...(previousResolveSkillsPrompt !== undefined ? { resolveSkillsPrompt: previousResolveSkillsPrompt } : {}),
         delegateBudget: previousDelegateConfig.delegateBudget,
       });
       if (state.verbose) {

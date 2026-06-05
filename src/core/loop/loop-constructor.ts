@@ -169,6 +169,8 @@ export function initAgentSession(
 
   state.verifyTracker = new VerifyTracker(detectVerifyCommands(projectDir));
 
+  state.moduleLoader = new ModuleLoader(options.config || {}, state.verbose);
+  state.moduleLoader.setCwd(projectDir);
   const activePreset = resolveActivePresetFromConfig(options.config);
   setDelegateConfig({
     model: state.editorModel,
@@ -181,10 +183,10 @@ export function initAgentSession(
     costTracker: state.costTracker,
     transport: state.transport,
     harness: options.config?.defaultAgentHarness ?? activePreset.harness,
+    resolveAgentDef: (name) => state.moduleLoader.getAgentDef(name),
+    resolveSkillsPrompt: (names, agentName) =>
+      state.moduleLoader.getSkillsPromptFor(names, agentName),
   });
-
-  state.moduleLoader = new ModuleLoader(options.config || {}, state.verbose);
-  state.moduleLoader.setCwd(projectDir);
   setModuleInfoProvider(() =>
     state.moduleLoader.getLoadedModules().map((name) => ({
       name,

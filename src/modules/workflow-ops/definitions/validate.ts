@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import type { AgentDef } from "#core/agents/agent-types.js";
 import type { ModelTiers } from "#core/model/model-router.js";
 import { PRESET_ENV_VAR, type Preset, resolvePreset } from "#core/model/preset.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
@@ -19,6 +20,7 @@ type ValidateDefinitionsOptions = {
   defaultAgentHarness?: string;
   preset?: Preset;
   modelTiers?: ModelTiers;
+  resolveAgentDef?: (name: string) => AgentDef | undefined;
 };
 
 export function validateDefinitions(
@@ -44,6 +46,7 @@ export function validateDefinitions(
           defaultAgentHarness: options.defaultAgentHarness,
           preset: options.preset,
           modelTiers: options.modelTiers,
+          resolveAgentDef: options.resolveAgentDef,
         },
       );
       return { name: def.name, valid: true, scope: "definition" as const };
@@ -68,6 +71,7 @@ export function validateDefinitions(
           defaultAgentHarness: options.defaultAgentHarness,
           preset: options.preset,
           modelTiers: options.modelTiers,
+          resolveAgentDef: options.resolveAgentDef,
         },
       );
     } catch (err) {
@@ -108,6 +112,7 @@ export function registerValidateCommand(
           defaultAgentHarness: ctx.config.defaultAgentHarness ?? preset.harness,
           preset,
           modelTiers: ctx.config.modelTiers,
+          resolveAgentDef: ctx.resolveAgentDef,
         });
       } catch (err) {
         console.error(String(err instanceof Error ? err.message : err));

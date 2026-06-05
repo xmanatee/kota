@@ -67,6 +67,7 @@ Reject unsupported neutral options loudly:
 - `canUseTool`
 - `autonomyMode === "supervised"`
 - `persistSession`
+- `resumeSessionId`
 - `harnessOverrides`
 - `enableFileCheckpointing`
 - `thinkingEnabled` / `thinkingBudget`

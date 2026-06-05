@@ -794,6 +794,7 @@ export function createDefaultWorkflowTrialRuntimeFactory(): WorkflowTrialRuntime
           defaultAgentHarness: runtimeConfig.defaultAgentHarness ?? preset.harness,
           preset,
           modelTiers: runtimeConfig.modelTiers,
+          resolveAgentDef: (name) => runtimeLoader.getAgentDef(name),
         },
       );
       return {
