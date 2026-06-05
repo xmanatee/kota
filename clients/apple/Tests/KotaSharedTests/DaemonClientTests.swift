@@ -2177,6 +2177,56 @@ final class DaemonClientTests: XCTestCase {
         XCTAssertEqual(resp.runId, "run-2")
     }
 
+    func testPauseWorkflowPostsProjectScopedEndpoint() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/workflow/pause")
+            XCTAssertEqual(request.httpMethod, "POST")
+            let components = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)
+            XCTAssertEqual(components?.queryItems, [
+                URLQueryItem(name: "projectId", value: "p-kota"),
+            ])
+            let respBody = #"{"ok": true, "paused": true}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "t")
+
+        let resp = try await client.pauseWorkflow(projectId: "p-kota")
+        XCTAssertEqual(resp.paused, true)
+    }
+
+    func testResumeWorkflowPostsProjectScopedEndpoint() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/workflow/resume")
+            XCTAssertEqual(request.httpMethod, "POST")
+            let components = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)
+            XCTAssertEqual(components?.queryItems, [
+                URLQueryItem(name: "projectId", value: "p-kota"),
+            ])
+            let respBody = #"{"ok": true, "paused": false}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "t")
+
+        let resp = try await client.resumeWorkflow(projectId: "p-kota")
+        XCTAssertEqual(resp.paused, false)
+    }
+
     func testFetchWorkflowDefinitionsDecodesAndUsesGetEndpoint() async throws {
         URLProtocol.registerClass(MockURLProtocol.self)
         defer { URLProtocol.unregisterClass(MockURLProtocol.self) }

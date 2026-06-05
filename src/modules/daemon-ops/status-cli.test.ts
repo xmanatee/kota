@@ -14,6 +14,7 @@ function makeSnap(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
     daemonRunning: false,
     activeRuns: 0,
     queuedRuns: 0,
+    workflowPaused: false,
     sessions: 0,
     pendingApprovals: 0,
     projectDir: "/Users/op/Desktop/mono/apps/kota",
@@ -45,6 +46,13 @@ describe("formatStatusOutput", () => {
   it("shows active and queued run counts", () => {
     const out = formatStatusOutput(makeSnap({ activeRuns: 2, queuedRuns: 3 }));
     expect(out).toContain("2 active, 3 queued");
+  });
+
+  it("shows when workflow dispatch is paused", () => {
+    const out = formatStatusOutput(makeSnap({ workflowPaused: true, queuedRuns: 3 }));
+    expect(out).toContain("Dispatch");
+    expect(out).toContain("paused");
+    expect(out).toContain("kota workflow resume");
   });
 
   it("shows session count", () => {
@@ -324,6 +332,7 @@ describe("kota status — rendered transcript", () => {
           daemonUptimeMs: 2 * 60 * 60 * 1000 + 14 * 60 * 1000,
           activeRuns: 1,
           queuedRuns: 2,
+          workflowPaused: false,
           sessions: 1,
           pendingApprovals: 0,
           projectDir: "/Users/op/Desktop/mono/apps/kota",
@@ -340,6 +349,7 @@ describe("kota status — rendered transcript", () => {
           daemonRunning: false,
           activeRuns: 0,
           queuedRuns: 0,
+          workflowPaused: false,
           sessions: 0,
           pendingApprovals: 0,
           projectDir: "/Users/op/Desktop/other-project",
@@ -353,6 +363,7 @@ describe("kota status — rendered transcript", () => {
           daemonRunning: false,
           activeRuns: 0,
           queuedRuns: 0,
+          workflowPaused: false,
           sessions: 0,
           pendingApprovals: 0,
           projectDir: "/Users/op/Desktop/mono/apps/kota",
@@ -368,6 +379,7 @@ describe("kota status — rendered transcript", () => {
           daemonUptimeMs: 60_000,
           activeRuns: 0,
           queuedRuns: 0,
+          workflowPaused: false,
           sessions: 0,
           pendingApprovals: 1,
           projectDir: "/Users/op/Desktop/other-project",
@@ -387,6 +399,7 @@ describe("kota status — rendered transcript", () => {
           daemonUptimeMs: 30_000,
           activeRuns: 0,
           queuedRuns: 0,
+          workflowPaused: false,
           sessions: 0,
           pendingApprovals: 0,
           projectDir: "/Users/op/Desktop/mono/apps/kota",
@@ -409,6 +422,7 @@ describe("kota status — rendered transcript", () => {
           daemonUptimeMs: 60_000,
           activeRuns: 0,
           queuedRuns: 0,
+          workflowPaused: false,
           sessions: 0,
           pendingApprovals: 0,
           projectDir: "/Users/op/Desktop/mono/apps/kota",

@@ -229,8 +229,8 @@ export class WorkflowRuntime {
     return isDispatchPaused(this.ctx);
   }
 
-  setDispatchPaused(paused: boolean): void {
-    setDispatchPaused(this.ctx, paused);
+  setDispatchPaused(paused: boolean, options?: { persistent?: boolean }): void {
+    setDispatchPaused(this.ctx, paused, options);
   }
 
   getDispatchWindowStatus(): { blocked: boolean; opensAt?: string } {

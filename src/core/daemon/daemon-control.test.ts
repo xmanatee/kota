@@ -139,6 +139,37 @@ describe("DaemonControlServer", () => {
       expect(res.status).toBe(200);
     });
 
+    it("accepts the daemon dashboard auth cookie", async () => {
+      const res = await fetchNoToken(port, "/status", {
+        headers: { Cookie: `kota_daemon_token=${TEST_TOKEN}` },
+      });
+      expect(res.status).toBe(200);
+    });
+
+    it("serves the dashboard entry route without a bearer token and sets the auth cookie", async () => {
+      const dashboardServer = new DaemonControlServer(makeHandle(), TEST_TOKEN, {
+        routes: [
+          {
+            method: "GET",
+            path: "/",
+            handler: (_req, res) => {
+              res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+              res.end("<html>dashboard</html>");
+            },
+          },
+        ],
+      });
+      const dashboardPort = await dashboardServer.start();
+      try {
+        const res = await fetchNoToken(dashboardPort, "/");
+        expect(res.status).toBe(200);
+        expect(res.headers.get("set-cookie")).toContain(`kota_daemon_token=${TEST_TOKEN}`);
+        expect(res.headers.get("set-cookie")).toContain("HttpOnly");
+      } finally {
+        await dashboardServer.stop();
+      }
+    });
+
     it("requires token on control routes", async () => {
       const controlRoutes = [
         { path: "/workflow/pause", method: "POST" },

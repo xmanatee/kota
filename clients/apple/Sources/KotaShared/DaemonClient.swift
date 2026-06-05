@@ -211,6 +211,14 @@ public final class DaemonClient {
         try await get(Self.withProject("/workflow/runs/\(runId)", projectId: projectId))
     }
 
+    func pauseWorkflow(projectId: String? = nil) async throws -> WorkflowControlResponse {
+        try await post(Self.withProject("/workflow/pause", projectId: projectId), body: nil)
+    }
+
+    func resumeWorkflow(projectId: String? = nil) async throws -> WorkflowControlResponse {
+        try await post(Self.withProject("/workflow/resume", projectId: projectId), body: nil)
+    }
+
     /// `POST /workflow/trigger` — enqueue a manual workflow run. The
     /// daemon expects `{ name, payload? }`; the macOS surface forwards
     /// the picker's selected definition name and the operator-supplied

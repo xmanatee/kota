@@ -22,6 +22,10 @@ final class ModelsTests: XCTestCase {
                 "activeRuns": [
                     {"runId": "r1", "workflow": "builder", "startedAt": "2026-04-16T00:00:00Z"}
                 ],
+                "pendingRuns": [
+                    {"runId": "q1", "workflowName": "improver"}
+                ],
+                "queueLength": 2,
                 "paused": false
             }
         }
@@ -30,6 +34,8 @@ final class ModelsTests: XCTestCase {
         XCTAssertTrue(resp.running)
         XCTAssertEqual(resp.workflow?.activeRuns.count, 1)
         XCTAssertEqual(resp.workflow?.activeRuns.first?.runId, "r1")
+        XCTAssertEqual(resp.workflow?.pendingRuns?.first?.workflowName, "improver")
+        XCTAssertEqual(resp.workflow?.queuedRunCount, 2)
         XCTAssertEqual(resp.workflow?.paused, false)
     }
 
@@ -254,6 +260,10 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(DaemonHealth.running(1).systemImageName, "arrow.2.circlepath.circle.fill")
         XCTAssertEqual(DaemonHealth.running(1).label, "1 run active")
         XCTAssertEqual(DaemonHealth.running(3).label, "3 runs active")
+        XCTAssertEqual(DaemonHealth.paused(2).systemImageName, "pause.circle.fill")
+        XCTAssertEqual(DaemonHealth.paused(2).label, "Dispatch paused · 2 queued")
+        XCTAssertTrue(DaemonHealth.paused(0).isDispatchPaused)
+        XCTAssertFalse(DaemonHealth.idle.isDispatchPaused)
         XCTAssertEqual(DaemonHealth.error("boom").systemImageName, "exclamationmark.circle.fill")
         XCTAssertEqual(DaemonHealth.error("boom").label, "Error: boom")
     }

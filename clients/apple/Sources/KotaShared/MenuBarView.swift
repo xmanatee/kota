@@ -91,6 +91,10 @@ struct StatusHeaderView: View {
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("daemon-diagnostic-detail")
+
+            if appState.diagnostic.isConnected {
+                WorkflowDispatchControlRow()
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -99,7 +103,7 @@ struct StatusHeaderView: View {
     var healthColor: Color {
         switch appState.health {
         case .idle: return .green
-        case .running: return .orange
+        case .running, .paused: return .orange
         case .error: return .red
         case .offline, .unknown: return .secondary
         }
@@ -116,6 +120,44 @@ struct StatusHeaderView: View {
         case .warn: return .orange
         case .error: return .red
         }
+    }
+}
+
+struct WorkflowDispatchControlRow: View {
+    @EnvironmentObject var appState: AppState
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Label(dispatchLabel, systemImage: appState.health.systemImageName)
+                .font(.caption)
+                .foregroundStyle(appState.isWorkflowDispatchPaused ? .orange : .secondary)
+                .lineLimit(1)
+
+            Spacer(minLength: 8)
+
+            Button(action: {
+                Task {
+                    if appState.isWorkflowDispatchPaused {
+                        await appState.resumeWorkflowDispatch()
+                    } else {
+                        await appState.pauseWorkflowDispatch()
+                    }
+                }
+            }) {
+                Label(
+                    appState.isWorkflowDispatchPaused ? "Resume" : "Pause",
+                    systemImage: appState.isWorkflowDispatchPaused ? "play.fill" : "pause.fill"
+                )
+            }
+            .buttonStyle(.bordered)
+            .tint(appState.isWorkflowDispatchPaused ? Color.accentColor : Color.secondary)
+            .controlSize(.small)
+        }
+        .padding(.top, 4)
+    }
+
+    private var dispatchLabel: String {
+        appState.isWorkflowDispatchPaused ? appState.health.label : "Dispatch running"
     }
 }
 

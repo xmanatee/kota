@@ -46,6 +46,17 @@ describe("buildLaunchdPlist structural assertions", () => {
     expect(content).toContain("<string>/my/project</string>");
   });
 
+  it("preserves NODE_OPTIONS when installing from the dev runtime", () => {
+    const content = buildLaunchdPlist("/my/project", { nodeOptions: "--conditions=source" });
+    expect(content).toContain("<key>NODE_OPTIONS</key>");
+    expect(content).toContain("<string>--conditions=source</string>");
+  });
+
+  it("omits empty NODE_OPTIONS", () => {
+    const content = buildLaunchdPlist("/my/project", { nodeOptions: "" });
+    expect(content).not.toContain("<key>NODE_OPTIONS</key>");
+  });
+
   it("contains StandardOutPath pointing to .kota/daemon.log", () => {
     const content = buildLaunchdPlist("/my/project");
     expect(content).toContain("<key>StandardOutPath</key>");
@@ -103,7 +114,12 @@ describe("buildSystemdUnit structural assertions", () => {
 
   it("contains Environment= with KOTA_PROJECT_DIR", () => {
     const content = buildSystemdUnit("/my/project");
-    expect(content).toContain("Environment=KOTA_PROJECT_DIR=/my/project");
+    expect(content).toContain('Environment="KOTA_PROJECT_DIR=/my/project"');
+  });
+
+  it("preserves NODE_OPTIONS when installing from the dev runtime", () => {
+    const content = buildSystemdUnit("/my/project", { nodeOptions: "--conditions=source" });
+    expect(content).toContain('Environment="NODE_OPTIONS=--conditions=source"');
   });
 
   it("contains Restart=on-failure", () => {
@@ -274,7 +290,7 @@ describe("install/uninstall lifecycle", () => {
     const written = readFileSync(servicePath, "utf8");
     expect(written).toContain("[Unit]");
     expect(written).toContain("[Service]");
-    expect(written).toContain("Environment=KOTA_PROJECT_DIR=/my/project");
+    expect(written).toContain('Environment="KOTA_PROJECT_DIR=/my/project"');
     expect(written).toContain("Restart=on-failure");
     expect(written).toContain("StandardOutput=journal");
     expect(written).toContain("StandardError=journal");

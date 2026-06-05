@@ -22,7 +22,13 @@ struct DaemonStatusResponse: Codable {
 
 struct WorkflowStatusPayload: Codable {
     let activeRuns: [ActiveRun]
+    let pendingRuns: [PendingRun]?
+    let queueLength: Int?
     let paused: Bool?
+
+    var queuedRunCount: Int {
+        queueLength ?? pendingRuns?.count ?? 0
+    }
 }
 
 struct ActiveRun: Codable, Identifiable {
@@ -42,6 +48,19 @@ struct ActiveRun: Codable, Identifiable {
         let m = (seconds % 3600) / 60
         return "\(h)h \(m)m"
     }
+}
+
+struct PendingRun: Codable, Identifiable {
+    let runId: String?
+    let workflowName: String
+
+    var id: String { runId ?? workflowName }
+}
+
+struct WorkflowControlResponse: Codable {
+    let ok: Bool?
+    let paused: Bool?
+    let already: Bool?
 }
 
 // MARK: - Run detail
@@ -117,6 +136,7 @@ enum DaemonHealth {
     case offline
     case idle
     case running(Int)  // active run count
+    case paused(Int)  // queued run count
     case error(String)
 
     var systemImageName: String {
@@ -125,6 +145,7 @@ enum DaemonHealth {
         case .offline: return "circle.slash"
         case .idle: return "checkmark.circle.fill"
         case .running: return "arrow.2.circlepath.circle.fill"
+        case .paused: return "pause.circle.fill"
         case .error: return "exclamationmark.circle.fill"
         }
     }
@@ -135,7 +156,13 @@ enum DaemonHealth {
         case .offline: return "Daemon offline"
         case .idle: return "Idle"
         case .running(let n): return n == 1 ? "1 run active" : "\(n) runs active"
+        case .paused(let n): return n == 1 ? "Dispatch paused · 1 queued" : "Dispatch paused · \(n) queued"
         case .error(let msg): return "Error: \(msg)"
         }
+    }
+
+    var isDispatchPaused: Bool {
+        if case .paused = self { return true }
+        return false
     }
 }

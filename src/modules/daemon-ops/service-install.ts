@@ -33,9 +33,33 @@ export function isServiceInstalled(): boolean {
   return false;
 }
 
-export function buildLaunchdPlist(projectDir: string): string {
+function plistString(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
+function systemdEnvironment(name: string, value: string): string {
+  const escaped = `${name}=${value}`.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"");
+  return `Environment="${escaped}"`;
+}
+
+type ServiceUnitOptions = {
+  nodeOptions?: string;
+};
+
+function serviceNodeOptions(options?: ServiceUnitOptions): string | undefined {
+  const nodeOptions = options?.nodeOptions ?? process.env.NODE_OPTIONS;
+  return nodeOptions && nodeOptions.trim() ? nodeOptions : undefined;
+}
+
+export function buildLaunchdPlist(projectDir: string, options?: ServiceUnitOptions): string {
   const kotaBin = process.argv[1]!;
   const logDir = join(projectDir, ".kota");
+  const nodeOptions = serviceNodeOptions(options);
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,
     `<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">`,
@@ -53,26 +77,33 @@ export function buildLaunchdPlist(projectDir: string): string {
     `  <key>EnvironmentVariables</key>`,
     `  <dict>`,
     `    <key>KOTA_PROJECT_DIR</key>`,
-    `    <string>${projectDir}</string>`,
+    `    <string>${plistString(projectDir)}</string>`,
+    ...(nodeOptions
+      ? [
+          `    <key>NODE_OPTIONS</key>`,
+          `    <string>${plistString(nodeOptions)}</string>`,
+        ]
+      : []),
     `  </dict>`,
     `  <key>WorkingDirectory</key>`,
-    `  <string>${projectDir}</string>`,
+    `  <string>${plistString(projectDir)}</string>`,
     `  <key>RunAtLoad</key>`,
     `  <true/>`,
     `  <key>KeepAlive</key>`,
     `  <true/>`,
     `  <key>StandardOutPath</key>`,
-    `  <string>${logDir}/daemon.log</string>`,
+    `  <string>${plistString(`${logDir}/daemon.log`)}</string>`,
     `  <key>StandardErrorPath</key>`,
-    `  <string>${logDir}/daemon.err</string>`,
+    `  <string>${plistString(`${logDir}/daemon.err`)}</string>`,
     `</dict>`,
     `</plist>`,
   ].join("\n");
 }
 
-export function buildSystemdUnit(projectDir: string): string {
+export function buildSystemdUnit(projectDir: string, options?: ServiceUnitOptions): string {
   const kotaBin = process.argv[1]!;
   const execArgs = [...process.execArgv, kotaBin, "daemon"].join(" ");
+  const nodeOptions = serviceNodeOptions(options);
   return [
     `[Unit]`,
     `Description=KOTA Daemon`,
@@ -82,7 +113,8 @@ export function buildSystemdUnit(projectDir: string): string {
     `Type=simple`,
     `ExecStart=${process.execPath} ${execArgs}`,
     `WorkingDirectory=${projectDir}`,
-    `Environment=KOTA_PROJECT_DIR=${projectDir}`,
+    systemdEnvironment("KOTA_PROJECT_DIR", projectDir),
+    ...(nodeOptions ? [systemdEnvironment("NODE_OPTIONS", nodeOptions)] : []),
     `Restart=on-failure`,
     `StandardOutput=journal`,
     `StandardError=journal`,

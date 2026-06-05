@@ -222,6 +222,10 @@ public final class AppState: ObservableObject {
         identity?.dashboard.isAvailable ?? false
     }
 
+    var isWorkflowDispatchPaused: Bool {
+        health.isDispatchPaused
+    }
+
     /// Dashboard URL the operator should open. Returns nil when the
     /// daemon does not advertise a ready dashboard capability — the UI
     /// must hide the action in that case rather than constructing a URL.
@@ -858,9 +862,14 @@ public final class AppState: ObservableObject {
 
         switch sr {
         case .success(let status):
+            let workflow = status.workflow
             let runs = status.workflow?.activeRuns ?? []
             activeRuns = runs
-            health = runs.isEmpty ? .idle : .running(runs.count)
+            if workflow?.paused == true {
+                health = .paused(workflow?.queuedRunCount ?? 0)
+            } else {
+                health = runs.isEmpty ? .idle : .running(runs.count)
+            }
         case .failure(let error):
             health = .error(DaemonErrorPresenter.message(for: error))
             activeRuns = []
@@ -1012,6 +1021,24 @@ public final class AppState: ObservableObject {
     public func openDashboard() {
         guard let url = webUIURL else { return }
         platform.openURL(url)
+    }
+
+    func pauseWorkflowDispatch() async {
+        do {
+            _ = try await client.pauseWorkflow(projectId: activeProjectId)
+            await refresh()
+        } catch {
+            health = .error(DaemonErrorPresenter.message(for: error))
+        }
+    }
+
+    func resumeWorkflowDispatch() async {
+        do {
+            _ = try await client.resumeWorkflow(projectId: activeProjectId)
+            await refresh()
+        } catch {
+            health = .error(DaemonErrorPresenter.message(for: error))
+        }
     }
 
     public func promptForProjectDirectory() async {

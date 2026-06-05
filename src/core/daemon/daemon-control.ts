@@ -20,6 +20,8 @@ import type { DaemonControlHandle } from "./daemon-control-types.js";
 import { jsonResponse } from "./daemon-control-utils.js";
 import { type BufferedEvent, EventRingBuffer } from "./event-ring-buffer.js";
 
+const DASHBOARD_AUTH_COOKIE = "kota_daemon_token";
+
 export type {
   ClientDashboardAvailability,
   ClientIdentity,
@@ -234,7 +236,31 @@ export class DaemonControlServer {
   private isAuthorized(req: IncomingMessage): boolean {
     if (!this.token) return true;
     const header = req.headers.authorization ?? "";
-    return header === `Bearer ${this.token}`;
+    if (header === `Bearer ${this.token}`) return true;
+    return this.cookieValue(req, DASHBOARD_AUTH_COOKIE) === this.token;
+  }
+
+  private cookieValue(req: IncomingMessage, name: string): string | undefined {
+    const header = req.headers.cookie;
+    if (!header) return undefined;
+    for (const part of header.split(";")) {
+      const [rawName, ...rawValue] = part.trim().split("=");
+      if (rawName !== name) continue;
+      return rawValue.join("=");
+    }
+    return undefined;
+  }
+
+  private isDashboardEntry(method: string, path: string): boolean {
+    return method === "GET" && (path === "/" || path === "/index.html");
+  }
+
+  private setDashboardAuthCookie(res: ServerResponse): void {
+    if (!this.token) return;
+    res.setHeader(
+      "Set-Cookie",
+      `${DASHBOARD_AUTH_COOKIE}=${encodeURIComponent(this.token)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400`,
+    );
   }
 
   private serializeEvent(entry: BufferedEvent): string {
@@ -314,13 +340,20 @@ export class DaemonControlServer {
 
     const moduleMatch = findRouteMatch(this.moduleRoutes, method, path);
     if (moduleMatch) {
+      const dashboardEntry = this.isDashboardEntry(method, path);
       if (!moduleMatch.route.bypassAuth && !this.isAuthorized(req)) {
+        if (dashboardEntry) {
+          this.setDashboardAuthCookie(res);
+          this.invokeRouteHandler(moduleMatch.route, req, res, moduleMatch.params);
+          return;
+        }
         if (this.invokeAuthFailureHandler(moduleMatch.route, req, res, moduleMatch.params)) {
           return;
         }
         jsonResponse(res, 401, { error: "Unauthorized" });
         return;
       }
+      if (dashboardEntry) this.setDashboardAuthCookie(res);
       this.invokeRouteHandler(moduleMatch.route, req, res, moduleMatch.params);
       return;
     }

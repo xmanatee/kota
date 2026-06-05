@@ -30,7 +30,7 @@ public struct MenuBarLabel: View {
     var iconColor: Color {
         switch appState.health {
         case .idle: return .green
-        case .running: return .orange
+        case .running, .paused: return .orange
         case .error: return .red
         default: return .secondary
         }

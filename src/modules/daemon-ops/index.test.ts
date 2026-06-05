@@ -142,7 +142,15 @@ describe("buildLaunchdPlist", () => {
 describe("buildSystemdUnit", () => {
   it("includes KOTA_PROJECT_DIR environment", () => {
     const content = buildSystemdUnit("/my/project");
-    expect(content).toContain("KOTA_PROJECT_DIR=/my/project");
+    expect(content).toContain('Environment="KOTA_PROJECT_DIR=/my/project"');
+  });
+
+  it("includes NODE_OPTIONS when the installer runtime needs them", () => {
+    const launchd = buildLaunchdPlist("/my/project", { nodeOptions: "--conditions=source" });
+    const systemd = buildSystemdUnit("/my/project", { nodeOptions: "--conditions=source" });
+
+    expect(launchd).toContain("<key>NODE_OPTIONS</key>");
+    expect(systemd).toContain('Environment="NODE_OPTIONS=--conditions=source"');
   });
 
   it("includes Restart=on-failure", () => {

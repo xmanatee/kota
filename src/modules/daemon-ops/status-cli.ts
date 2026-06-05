@@ -16,6 +16,7 @@ import type { ModuleContext } from "#core/modules/module-types.js";
 import { getDaemonTransport } from "#core/server/daemon-transport.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import { PAUSE_SIGNAL_FILE } from "#core/workflow/runtime.js";
 import { kvBlock, type RenderNode } from "#modules/rendering/primitives.js";
 import { print, renderToString } from "#modules/rendering/transport.js";
 import { formatUptime as formatUptimeFromIso } from "./format-utils.js";
@@ -40,6 +41,7 @@ export type StatusSnapshot = {
   daemonUptimeMs?: number;
   activeRuns: number;
   queuedRuns: number;
+  workflowPaused: boolean;
   sessions: number;
   pendingApprovals: number;
   /** Project directory the CLI resolved before talking to the daemon. */
@@ -222,6 +224,13 @@ export function buildStatusNode(snap: StatusSnapshot): RenderNode {
           ? "warn" as const
           : "muted" as const,
     },
+    {
+      label: "Dispatch",
+      value: snap.workflowPaused
+        ? "paused  (run `kota workflow resume`)"
+        : "running",
+      role: snap.workflowPaused ? "warn" as const : "muted" as const,
+    },
     { label: "Runs", value: `${snap.activeRuns} active, ${snap.queuedRuns} queued`, role: "muted" as const },
     { label: "Sessions", value: `${snap.sessions} interactive`, role: "muted" as const },
     {
@@ -332,6 +341,7 @@ export async function gatherStatus(
         daemonUptimeMs: uptimeMs,
         activeRuns: status.workflow.activeRuns.length,
         queuedRuns: status.workflow.queueLength,
+        workflowPaused: status.workflow.paused,
         sessions: status.sessions.length,
         pendingApprovals,
         projectDir,
@@ -356,6 +366,7 @@ export async function gatherStatus(
     daemonRunning: false,
     activeRuns: (state.activeRuns ?? []).length,
     queuedRuns: (state.pendingRuns ?? []).length,
+    workflowPaused: existsSync(join(stateDir, PAUSE_SIGNAL_FILE)),
     sessions: 0,
     pendingApprovals,
     projectDir,

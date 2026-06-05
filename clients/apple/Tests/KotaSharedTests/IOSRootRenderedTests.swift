@@ -16,7 +16,7 @@ import XCTest
 final class IOSRootRenderedTests: XCTestCase {
 
     private let tabs: [(String, String, String)] = [
-        ("Status",   "circle.fill",            "StatusHeaderView + ActiveRunRow×N + AttentionInboxView"),
+        ("Status",   "circle.fill",            "StatusHeaderView (dispatch control) + ActiveRunRow×N + AttentionInboxView"),
         ("Ask",      "magnifyingglass",        "AskUnifiedView (mode picker: ask/recall/knowledge/memory/history/tasks)"),
         ("Capture",  "tray.and.arrow.down",    "ComposeSection (segmented: capture / retract)"),
         ("Settings", "gearshape",              "SettingsView (project chooser / remote daemon / Web UI port)"),
@@ -57,7 +57,7 @@ final class IOSRootRenderedTests: XCTestCase {
         lines.append("The same view types feed the macOS popover (`MenuBarView`) — there is no per-platform")
         lines.append("fork of these surfaces.")
         lines.append("")
-        lines.append("  - StatusHeaderView   — diagnostic header (also mounted in macOS popover)")
+        lines.append("  - StatusHeaderView   — diagnostic header and dispatch control (also mounted in macOS popover)")
         lines.append("  - AttentionInboxView — RESPOND group (also mounted in macOS popover)")
         lines.append("  - AskUnifiedView     — ASK group (also mounted in macOS popover)")
         lines.append("  - ComposeSection     — CAPTURE group (also mounted in macOS popover)")

@@ -154,7 +154,7 @@ final class MenuBarRenderedTests: XCTestCase {
     /// (a new top-level section sneaking in, or an existing group being
     /// dropped) shows up as a diff in the rendered fixture.
     private let intentGroups: [(String, String)] = [
-        ("MONITOR", "StatusHeaderView + ActiveRunRow×N (only when active runs > 0)"),
+        ("MONITOR", "StatusHeaderView (dispatch control) + ActiveRunRow×N (only when active runs > 0)"),
         ("RESPOND", "AttentionInboxView (approvals + owner questions + failed runs)"),
         ("ASK",     "AskUnifiedView (mode picker: ask/recall/knowledge/memory/history/tasks)"),
         ("CAPTURE", "ComposeSection (segmented: capture / retract)"),
