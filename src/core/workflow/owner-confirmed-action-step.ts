@@ -1,4 +1,9 @@
 import { type ApprovalQueue, getApprovalQueue } from "#core/daemon/approval-queue.js";
+import {
+  createConfirmedActionDeadLetter,
+  type DeadLetterQueueStore,
+  toEventJsonObject,
+} from "#core/daemon/dead-letter-queue.js";
 import { getIdempotencyStore } from "#core/daemon/idempotency-singleton.js";
 import {
   fingerprintIdempotencyParams,
@@ -52,6 +57,7 @@ export type ConfirmedOwnerActionStepConfig<TInput extends OwnerDecisionJsonObjec
   decisionStore?: () => OwnerDecisionStore;
   approvalQueue?: () => ApprovalQueue;
   idempotencyStore?: () => IdempotencyStore;
+  deadLetterQueue?: () => DeadLetterQueueStore;
 };
 
 async function resolveOptionalValue<T>(context: WorkflowStepContext, resolver: WorkflowValueResolver<T | null> | undefined): Promise<T | null> {
@@ -170,6 +176,64 @@ function assertDangerousApproval(
   }
 }
 
+function explicitRedriveId(context: WorkflowStepContext): string | null {
+  const redriveOf = context.trigger.payload.redriveOf;
+  return typeof redriveOf === "string" && redriveOf.trim().length > 0
+    ? redriveOf
+    : null;
+}
+
+function confirmedActionIdempotencyKey(
+  decision: OwnerDecisionRecord,
+  decisionId: string,
+  action: OwnerConfirmedActionMetadata,
+  redriveOf: string | null,
+): string {
+  const baseKey = `owner-action:${hashIdempotencyMaterial([
+    decision.scopeId,
+    decisionId,
+    action.adapterName,
+    action.actionId,
+  ])}`;
+  if (redriveOf === null) return baseKey;
+  return `owner-action-redrive:${hashIdempotencyMaterial([baseKey, redriveOf])}`;
+}
+
+function decisionForExecution(
+  store: OwnerDecisionStore,
+  decision: OwnerDecisionRecord,
+  action: OwnerConfirmedActionMetadata,
+  decisionId: string,
+  workflowName: string,
+  runId: string,
+  stepId: string,
+  approvalId: string | null,
+): OwnerDecisionRecord {
+  if (decision.status === "consumed") {
+    const consumption = decision.consumption;
+    if (
+      consumption === undefined ||
+      consumption.actionId !== action.actionId ||
+      consumption.adapterName !== action.adapterName ||
+      consumption.approvalId !== approvalId
+    ) {
+      throw new Error(`confirmedOwnerActionStep: decision ${decisionId} consumption does not match action ${action.actionId}`);
+    }
+    return decision;
+  }
+
+  const consumed = store.consumeForAction(decisionId, {
+    workflowName,
+    runId,
+    stepId,
+    actionId: action.actionId,
+    adapterName: action.adapterName,
+    approvalId,
+  });
+  if (!consumed.ok) throw new Error(`confirmedOwnerActionStep: decision ${decisionId} consumption failed: ${consumed.reason}`);
+  return consumed.decision;
+}
+
 function idempotencyResultOutput<TResult>(projection: IdempotencyJsonObject): OwnerConfirmedActionStepOutput<TResult> {
   const output = projection.output;
   if (!output || typeof output !== "object" || Array.isArray(output)) {
@@ -216,12 +280,12 @@ export function confirmedOwnerActionStep<TInput extends OwnerDecisionJsonObject,
       const idempotencyStore = config.idempotencyStore
         ? config.idempotencyStore()
         : getIdempotencyStore();
-      const idempotencyKey = `owner-action:${hashIdempotencyMaterial([
-        decision.scopeId,
+      const idempotencyKey = confirmedActionIdempotencyKey(
+        decision,
         decisionId,
-        authorization.action.adapterName,
-        authorization.action.actionId,
-      ])}`;
+        authorization.action,
+        explicitRedriveId(ctx),
+      );
       const claim = idempotencyStore.claim({
         scopeId: decision.scopeId,
         operation: "owner-confirmed-action",
@@ -252,17 +316,18 @@ export function confirmedOwnerActionStep<TInput extends OwnerDecisionJsonObject,
         );
       }
       try {
-        const consumed = store.consumeForAction(decisionId, {
-          workflowName: ctx.workflow.name,
-          runId: ctx.workflow.runId,
-          stepId: config.id,
-          actionId: authorization.action.actionId,
-          adapterName: authorization.action.adapterName,
+        const executionDecision = decisionForExecution(
+          store,
+          decision,
+          authorization.action,
+          decisionId,
+          ctx.workflow.name,
+          ctx.workflow.runId,
+          config.id,
           approvalId,
-        });
-        if (!consumed.ok) throw new Error(`confirmedOwnerActionStep: decision ${decisionId} consumption failed: ${consumed.reason}`);
+        );
         const result = await config.adapter.execute({
-          decision: consumed.decision,
+          decision: executionDecision,
           selectedValue: authorization.selectedValue,
           input,
           context: ctx,
@@ -274,7 +339,7 @@ export function confirmedOwnerActionStep<TInput extends OwnerDecisionJsonObject,
           dryRun: authorization.action.dryRun,
           dangerousEffect: authorization.action.dangerousEffect,
           approvalId,
-          executedAt: consumed.decision.consumption?.consumedAt ?? new Date().toISOString(),
+          executedAt: executionDecision.consumption?.consumedAt ?? new Date().toISOString(),
           idempotency: { status: "accepted", key: idempotencyKey },
           result,
         };
@@ -289,6 +354,23 @@ export function confirmedOwnerActionStep<TInput extends OwnerDecisionJsonObject,
           kind: "owner-confirmed-action",
           error: failure.message,
         });
+        const deadLetterQueue = config.deadLetterQueue
+          ? config.deadLetterQueue()
+          : ctx.deadLetterQueue;
+        if (deadLetterQueue !== undefined) {
+          createConfirmedActionDeadLetter({
+            store: deadLetterQueue,
+            scopeId: decision.scopeId,
+            decisionId,
+            actionId: authorization.action.actionId,
+            adapterName: authorization.action.adapterName,
+            workflowName: ctx.workflow.name,
+            runId: ctx.workflow.runId,
+            stepId: config.id,
+            reason: failure.message,
+            redactedInput: toEventJsonObject(input),
+          });
+        }
         throw failure;
       }
     },

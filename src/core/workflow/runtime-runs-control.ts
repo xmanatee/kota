@@ -2,6 +2,10 @@ import type {
   IdempotencyJsonObject,
   IdempotencyReservation,
 } from "#core/daemon/idempotency-store.js";
+import {
+  buildDeadLetterEventEnvelope,
+  buildDeadLetterWorkflowTrigger,
+} from "./dead-letter-redrive.js";
 import { formatRunId } from "./run-io.js";
 import { maybeStartNext, type WorkflowRuntimeDispatchState } from "./runtime-dispatch.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
@@ -216,4 +220,121 @@ export function cancelQueuedRun(
   const isActive = (runtimeState.activeRuns ?? []).some((r) => r.runId === runId);
   if (isActive) return { ok: false, active: true };
   return { ok: false, notFound: true };
+}
+
+export function redriveDeadLetter(
+  state: WorkflowRuntimeRunsControlState,
+  id: string,
+  reason: string,
+  target: "original" | "simulation",
+): {
+  ok: boolean;
+  reason?: "not_found" | "not_redrivable" | "unknown_workflow";
+  runId?: string;
+  workflowName?: string;
+  event?: string;
+} {
+  const store = state.deadLetterQueue;
+  if (store === undefined) return { ok: false, reason: "not_found" };
+  const item = store.get(id);
+  if (item === null) return { ok: false, reason: "not_found" };
+  if (item.status !== "open") {
+    store.recordRedriveAttempt(id, {
+      target,
+      reason,
+      result: {
+        status: "failed",
+        message: `dead-letter item is ${item.status}`,
+      },
+    });
+    return { ok: false, reason: "not_redrivable" };
+  }
+  if (target === "simulation") {
+    store.recordRedriveAttempt(id, {
+      target,
+      reason,
+      result: { status: "simulated" },
+    });
+    return { ok: true };
+  }
+  if (item.redrive.kind === "workflow") {
+    const redrive = item.redrive;
+    const definition = state.definitions.find(
+      (candidate) => candidate.name === redrive.workflowName,
+    );
+    if (!definition?.enabled) {
+      store.recordRedriveAttempt(id, {
+        target,
+        reason,
+        result: {
+          status: "failed",
+          message: `workflow "${redrive.workflowName}" is not available`,
+        },
+      });
+      return { ok: false, reason: "unknown_workflow" };
+    }
+    const now = Date.now();
+    const runId = formatRunId(redrive.workflowName);
+    const resolved = buildDeadLetterWorkflowTrigger(item, redrive, {
+      runStore: state.store,
+      eventJournal: state.eventJournal,
+      runId,
+      reason,
+      nowMs: now,
+    });
+    if (!resolved.ok) {
+      store.recordRedriveAttempt(id, {
+        target,
+        reason,
+        result: { status: "failed", message: resolved.message },
+      });
+      return { ok: false, reason: "not_redrivable" };
+    }
+    state.wfQueue.appendRun({
+      runId,
+      workflowName: redrive.workflowName,
+      trigger: resolved.value,
+      enqueuedAtMs: now,
+      notBeforeMs: now,
+    });
+    store.recordRedriveAttempt(id, {
+      target,
+      reason,
+      result: {
+        status: "queued",
+        runId,
+        workflowName: redrive.workflowName,
+      },
+    });
+    maybeStartNext(state);
+    return { ok: true, runId, workflowName: redrive.workflowName };
+  }
+  if (item.redrive.kind === "event") {
+    const resolved = buildDeadLetterEventEnvelope(item, item.redrive, {
+      eventJournal: state.eventJournal,
+      reason,
+      nowMs: Date.now(),
+    });
+    if (!resolved.ok) {
+      store.recordRedriveAttempt(id, {
+        target,
+        reason,
+        result: { status: "failed", message: resolved.message },
+      });
+      return { ok: false, reason: "not_redrivable" };
+    }
+    state.pbus.emitDynamic(resolved.value.type, resolved.value.payload);
+    store.recordRedriveAttempt(id, {
+      target,
+      reason,
+      result: { status: "emitted", event: resolved.value.type },
+    });
+    return { ok: true, event: resolved.value.type };
+  }
+  store.recordRedriveAttempt(id, {
+    target,
+    reason,
+    result: { status: "failed", message: item.redrive.reason },
+  });
+  return { ok: false, reason: "not_redrivable" };
 }

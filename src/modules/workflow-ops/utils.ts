@@ -1,5 +1,6 @@
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
+import { EventJournal } from "#core/events/event-journal.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
@@ -46,4 +47,8 @@ export function listRuns(store: WorkflowRunStore, limit: number): WorkflowRunMet
     if (metadata) runs.push(metadata);
   }
   return runs;
+}
+
+export function eventJournalForProject(projectDir: string): EventJournal {
+  return new EventJournal(join(projectDir, ".kota", "events"));
 }

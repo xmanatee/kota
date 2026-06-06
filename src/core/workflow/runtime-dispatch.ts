@@ -2,7 +2,12 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
+import {
+  createWorkflowDispatchDeadLetter,
+  type DeadLetterQueueStore,
+} from "#core/daemon/dead-letter-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
+import type { EventJournal } from "#core/events/event-journal.js";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import type { AgentBackoffManager } from "./agent-backoff.js";
@@ -11,14 +16,20 @@ import { executeWorkflowRun } from "./run-executor.js";
 import { workflowUsesAgent } from "./run-executor-utils.js";
 import { formatRunId } from "./run-io.js";
 import type { WorkflowRunStore } from "./run-store.js";
-import type { WorkflowRunExecutionResult } from "./run-types.js";
+import type {
+  WorkflowRunExecutionResult,
+  WorkflowRunMetadata,
+  WorkflowStepResult,
+} from "./run-types.js";
 import type { WorkflowRuntimeConfig } from "./runtime-config.js";
 import { canDispatchDefinition } from "./runtime-dispatch-concurrency.js";
 import { loadDefinitions } from "./runtime-dispatch-definitions.js";
 import { handleDirtyCompletion } from "./runtime-dispatch-dirty-recovery.js";
 import { checkAbortSignal, checkReloadSignal, PAUSE_SIGNAL_FILE } from "./runtime-signals.js";
 import type { ScheduleTriggerManager } from "./schedule-triggers.js";
+import type { WorkflowStep } from "./step-types.js";
 import type { AgentRunLimiter } from "./steps/agent-run-limiter.js";
+import { DEFAULT_AGENT_STEP_RETRY } from "./steps/step-executor-retry.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinition } from "./types.js";
 import type { WorkflowQueueManager } from "./workflow-queue.js";
@@ -33,6 +44,8 @@ export interface WorkflowRuntimeDispatchState {
   dispatchPaused: boolean;
   config?: KotaConfig;
   store: WorkflowRunStore;
+  deadLetterQueue?: DeadLetterQueueStore;
+  eventJournal?: EventJournal;
   idempotencyStore: IdempotencyStore;
   wfQueue: WorkflowQueueManager;
   definitions: WorkflowDefinition[];
@@ -226,6 +239,9 @@ export async function runWorkflow(
       bus: state.runtimeConfig.bus,
       pbus: state.pbus,
       store: state.store,
+      ...(state.deadLetterQueue !== undefined
+        ? { deadLetterQueue: state.deadLetterQueue }
+        : {}),
       model: state.model,
       config: state.config,
       log: (message) => state.log(message),
@@ -242,6 +258,7 @@ export async function runWorkflow(
 
   try {
     const result = await promise;
+    recordFailedWorkflowDispatchDeadLetter(state, definition, trigger, result.metadata);
     handleDirtyCompletion(state, definition, result.metadata, preRunFingerprint);
     if (result.agentBackoff) {
       state.backoff.apply(result.agentBackoff);
@@ -258,4 +275,62 @@ export async function runWorkflow(
     state.activeRuns.delete(definition.name);
     maybeStartNext(state);
   }
+}
+
+function recordFailedWorkflowDispatchDeadLetter(
+  state: WorkflowRuntimeDispatchState,
+  definition: WorkflowDefinition,
+  trigger: WorkflowRunTrigger,
+  metadata: WorkflowRunMetadata,
+): void {
+  if (metadata.status !== "failed") return;
+  if (state.deadLetterQueue === undefined) return;
+  const failedStep = terminalFailedStep(metadata.steps);
+  createWorkflowDispatchDeadLetter({
+    store: state.deadLetterQueue,
+    scopeId: state.pbus.getScopeId(),
+    workflowName: definition.name,
+    trigger,
+    reason: failedStep?.error ?? `Workflow "${definition.name}" failed`,
+    errorClass: "execution",
+    failedRun: metadata,
+    retryCount: failedStep === undefined ? 1 : retryCountForStep(definition.steps, failedStep),
+    owningModule: "workflow-runtime",
+  });
+}
+
+function terminalFailedStep(
+  steps: readonly WorkflowStepResult[],
+): WorkflowStepResult | undefined {
+  return steps.find((step) => step.status === "failed" && !step.continueOnFailure);
+}
+
+function retryCountForStep(
+  steps: readonly WorkflowStep[],
+  failedStep: WorkflowStepResult,
+): number {
+  const step = findWorkflowStep(steps, failedStep.id);
+  if (step?.type === "agent") return (step.retry ?? DEFAULT_AGENT_STEP_RETRY).maxAttempts;
+  if (step?.type === "tool") return step.retry?.maxAttempts ?? 1;
+  return 1;
+}
+
+function findWorkflowStep(
+  steps: readonly WorkflowStep[],
+  id: string,
+): WorkflowStep | undefined {
+  for (const step of steps) {
+    if (step.id === id) return step;
+    if (step.type === "parallel" || step.type === "foreach") {
+      const child = findWorkflowStep(step.steps, id);
+      if (child !== undefined) return child;
+    }
+    if (step.type === "branch") {
+      const trueChild = findWorkflowStep(step.ifTrue, id);
+      if (trueChild !== undefined) return trueChild;
+      const falseChild = findWorkflowStep(step.ifFalse, id);
+      if (falseChild !== undefined) return falseChild;
+    }
+  }
+  return undefined;
 }

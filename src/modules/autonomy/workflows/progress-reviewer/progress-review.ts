@@ -9,6 +9,13 @@ import {
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { z } from "zod";
 import type { ApprovalStatus, PendingApproval } from "#core/daemon/approval-queue.js";
+import {
+  type DeadLetterItem,
+  type DeadLetterItemType,
+  type DeadLetterQueueCounts,
+  deadLetterRunArtifactIds,
+  deadLetterStoreForProject,
+} from "#core/daemon/dead-letter-queue.js";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import {
   deriveDirectoryScopeId,
@@ -50,6 +57,7 @@ export const PROGRESS_REVIEW_MAX_GIT_STATUS_LINES = 20;
 export const PROGRESS_REVIEW_MAX_GIT_COMMITS = 10;
 export const PROGRESS_REVIEW_MAX_GIT_FILES_PER_COMMIT = 12;
 export const PROGRESS_REVIEW_MAX_APPROVALS = 20;
+export const PROGRESS_REVIEW_MAX_DEAD_LETTERS = 20;
 
 export type ProgressReviewTriggerKind =
   | "manual"
@@ -75,7 +83,8 @@ export type ProgressReviewEvidenceRef = {
     | "artifact"
     | "git"
     | "owner-question"
-    | "approval";
+    | "approval"
+    | "dead-letter";
   summary: string;
   path?: string;
 };
@@ -153,6 +162,27 @@ export type ProgressReviewApprovalEvidence = ProgressReviewEvidenceRef & {
   resolutionSource?: string;
 };
 
+export type ProgressReviewDeadLetterEvidence = ProgressReviewEvidenceRef & {
+  kind: "dead-letter";
+  itemId: string;
+  itemType: DeadLetterItemType;
+  status: "open";
+  failureClass: string;
+  reason: string;
+  createdAt: string;
+  updatedAt: string;
+  affectedWorkflowNames: string[];
+  sourceEventIds: string[];
+  redriveAttemptCount: number;
+};
+
+export type ProgressReviewDeadLetterCounts = DeadLetterQueueCounts & {
+  scopeId: string;
+  path: string;
+  openItemIds: string[];
+  redriveRunIds: string[];
+};
+
 export type ProgressReviewEvidencePacket = {
   generatedAt: string;
   triggerKind: ProgressReviewTriggerKind;
@@ -177,6 +207,8 @@ export type ProgressReviewEvidencePacket = {
   git: ProgressReviewGitEvidence[];
   ownerQuestions: ProgressReviewOwnerQuestionEvidence[];
   approvals: ProgressReviewApprovalEvidence[];
+  deadLetterCounts: ProgressReviewDeadLetterCounts[];
+  deadLetters: ProgressReviewDeadLetterEvidence[];
   evidence: ProgressReviewEvidenceRef[];
   excluded: string[];
 };
@@ -1055,6 +1087,114 @@ function listScopedApprovalEvidence(
     .map((approval) => approval.evidence);
 }
 
+type ScopedDeadLetterEvidence = {
+  updatedMs: number;
+  evidence: ProgressReviewDeadLetterEvidence;
+};
+
+function deadLetterQueuePath(projectDir: string): string {
+  return join(projectDir, ".kota", "dead-letter-queue", "items.json");
+}
+
+function emptyDeadLetterCounts(source: ProgressReviewDirectorySource): ProgressReviewDeadLetterCounts {
+  return {
+    scopeId: source.scopeId,
+    path: join(".kota", "dead-letter-queue", "items.json"),
+    open: 0,
+    dismissed: 0,
+    redriven: 0,
+    openItemIds: [],
+    redriveRunIds: [],
+  };
+}
+
+function listDeadLetterCounts(
+  sources: readonly ProgressReviewDirectorySource[],
+): ProgressReviewDeadLetterCounts[] {
+  return sources.map((source) => {
+    if (!existsSync(deadLetterQueuePath(source.projectDir))) {
+      return emptyDeadLetterCounts(source);
+    }
+    const store = deadLetterStoreForProject(source.projectDir);
+    const counts = store.counts(source.scopeId);
+    const runArtifacts = deadLetterRunArtifactIds(source.projectDir);
+    return {
+      scopeId: source.scopeId,
+      path: join(".kota", "dead-letter-queue", "items.json"),
+      ...counts,
+      openItemIds: runArtifacts.itemIds,
+      redriveRunIds: runArtifacts.runIds,
+    };
+  });
+}
+
+function deadLetterActivityMs(item: DeadLetterItem): number {
+  const parsed = Date.parse(item.updatedAt);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function deadLetterSummary(item: DeadLetterItem): string {
+  const workflows =
+    item.affectedWorkflowNames.length > 0
+      ? ` for ${item.affectedWorkflowNames.join(", ")}`
+      : "";
+  return `${item.status} ${item.type}${workflows}: ${item.failure.reason}`;
+}
+
+function summarizeDeadLetter(
+  source: ProgressReviewDirectorySource,
+  item: DeadLetterItem,
+): ProgressReviewDeadLetterEvidence {
+  return {
+    id: sourceEvidenceId(source, `dead-letter:${item.id}`),
+    kind: "dead-letter",
+    itemId: item.id,
+    itemType: item.type,
+    status: "open",
+    failureClass: item.failure.lastErrorClass,
+    reason: item.failure.reason,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+    affectedWorkflowNames: item.affectedWorkflowNames,
+    sourceEventIds: item.sourceEventIds,
+    redriveAttemptCount: item.redriveAttempts.length,
+    path: join(".kota", "dead-letter-queue", "items.json"),
+    summary: sourceSummary(source, deadLetterSummary(item)),
+  };
+}
+
+function listDeadLetterEvidence(
+  source: ProgressReviewDirectorySource,
+): ScopedDeadLetterEvidence[] {
+  if (!existsSync(deadLetterQueuePath(source.projectDir))) return [];
+  const store = deadLetterStoreForProject(source.projectDir);
+  return store.list({ status: "open", scopeId: source.scopeId }).map((item) => ({
+    updatedMs: deadLetterActivityMs(item),
+    evidence: summarizeDeadLetter(source, item),
+  }));
+}
+
+function listScopedDeadLetterEvidence(
+  sources: readonly ProgressReviewDirectorySource[],
+  excluded: string[],
+): ProgressReviewDeadLetterEvidence[] {
+  const items = sources
+    .flatMap((source) => listDeadLetterEvidence(source))
+    .sort(
+      (a, b) =>
+        b.updatedMs - a.updatedMs ||
+        a.evidence.id.localeCompare(b.evidence.id),
+    );
+  if (items.length > PROGRESS_REVIEW_MAX_DEAD_LETTERS) {
+    excluded.push(
+      `dead letters: truncated ${items.length} open items to ${PROGRESS_REVIEW_MAX_DEAD_LETTERS}`,
+    );
+  }
+  return items
+    .slice(0, PROGRESS_REVIEW_MAX_DEAD_LETTERS)
+    .map((item) => item.evidence);
+}
+
 function toEvidenceRef(evidence: ProgressReviewEvidenceRef): ProgressReviewEvidenceRef {
   return {
     id: evidence.id,
@@ -1096,6 +1236,8 @@ export function collectProgressReviewEvidence(args: {
   const git = listScopedGitEvidence(target.sources, startedAtMs, excluded);
   const ownerQuestions = listScopedOwnerQuestionEvidence(target.sources, startedAtMs, excluded);
   const approvals = listScopedApprovalEvidence(target.sources, startedAtMs, excluded);
+  const deadLetterCounts = listDeadLetterCounts(target.sources);
+  const deadLetters = listScopedDeadLetterEvidence(target.sources, excluded);
   const evidence: ProgressReviewEvidenceRef[] = [
     ...runs,
     ...tasks,
@@ -1104,6 +1246,7 @@ export function collectProgressReviewEvidence(args: {
     ...git,
     ...ownerQuestions,
     ...approvals,
+    ...deadLetters,
   ].map(toEvidenceRef);
 
   return {
@@ -1124,6 +1267,8 @@ export function collectProgressReviewEvidence(args: {
     git,
     ownerQuestions,
     approvals,
+    deadLetterCounts,
+    deadLetters,
     evidence,
     excluded,
   };

@@ -12,6 +12,10 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  createWorkflowDispatchDeadLetter,
+  DeadLetterQueueStore,
+} from "#core/daemon/dead-letter-queue.js";
+import {
   deriveDirectoryScopeId,
   GLOBAL_SCOPE_ID,
   ScopeRegistry,
@@ -930,6 +934,73 @@ describe("progress-reviewer workflow", () => {
       }),
     );
     expect(evidence.runs[0].summary).toContain("eligible at 2026-06-04T11:50:00.000Z");
+  });
+
+  it("collects open dead-letter queue counts and citeable item evidence", () => {
+    const projectDir = trackProjectDir("progress-reviewer-dlq");
+    const scopeId = deriveDirectoryScopeId(projectDir);
+    const deadLetterQueue = new DeadLetterQueueStore(
+      join(projectDir, ".kota", "dead-letter-queue"),
+      () => NOW,
+    );
+    const item = createWorkflowDispatchDeadLetter({
+      store: deadLetterQueue,
+      scopeId,
+      workflowName: "telegram-ingest",
+      trigger: {
+        event: "telegram.message",
+        schemaRef: null,
+        eventId: "evtj-000000000042",
+        payload: {
+          scopeId,
+          projectId: scopeId,
+          chatId: "chat-1",
+          botToken: "secret",
+        },
+      },
+      reason: "payload validation failed",
+      errorClass: "validation",
+    });
+
+    const evidence = collectProgressReviewEvidence({
+      projectDir,
+      trigger: {
+        event: progressReviewRequested.name,
+        schemaRef: null,
+        payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+      },
+      now: NOW,
+    });
+
+    expect(evidence.deadLetterCounts).toEqual([
+      {
+        scopeId,
+        path: ".kota/dead-letter-queue/items.json",
+        open: 1,
+        dismissed: 0,
+        redriven: 0,
+        openItemIds: [item.id],
+        redriveRunIds: [],
+      },
+    ]);
+    expect(evidence.deadLetters).toEqual([
+      expect.objectContaining({
+        id: `dead-letter:${item.id}`,
+        kind: "dead-letter",
+        itemId: item.id,
+        itemType: "workflow-dispatch",
+        status: "open",
+        affectedWorkflowNames: ["telegram-ingest"],
+        sourceEventIds: ["evtj-000000000042"],
+      }),
+    ]);
+    expect(evidence.evidence).toContainEqual(
+      expect.objectContaining({
+        id: `dead-letter:${item.id}`,
+        kind: "dead-letter",
+        path: ".kota/dead-letter-queue/items.json",
+      }),
+    );
   });
 
   it("stops artifact traversal at the max artifact count", () => {

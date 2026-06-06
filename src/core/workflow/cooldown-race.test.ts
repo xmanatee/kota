@@ -253,6 +253,7 @@ describe("cooldown race condition", () => {
         workflowUsesAgent: () => false,
         isActiveRun: () => false,
         getDefinitions: () => [definition],
+        getScopeId: () => "test-project-id",
         log: () => {},
       });
 
@@ -315,6 +316,7 @@ describe("cooldown race condition", () => {
         workflowUsesAgent: () => false,
         isActiveRun: () => false,
         getDefinitions: () => [definition],
+        getScopeId: () => "test-project-id",
         log: () => {},
       });
 
@@ -372,6 +374,7 @@ describe("cooldown race condition", () => {
         workflowUsesAgent: () => false,
         isActiveRun: () => false,
         getDefinitions: () => [definition],
+        getScopeId: () => "test-project-id",
         log: () => {},
       });
 

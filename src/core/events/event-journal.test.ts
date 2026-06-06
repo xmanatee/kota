@@ -2,6 +2,10 @@ import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import {
+  createEventEnvelopeDeadLetter,
+  DeadLetterQueueStore,
+} from "#core/daemon/dead-letter-queue.js";
 import type { BusEnvelope } from "./event-bus.js";
 import { EventBus } from "./event-bus.js";
 import {
@@ -290,6 +294,95 @@ describe("EventJournal", () => {
 
     now = new Date("2026-06-05T10:00:00.011Z");
     expect(journal.query()).toHaveLength(0);
+  });
+
+  it("dead-letters module event validation failures before journal append", () => {
+    initModuleEventRegistry().register("telegram", telegramSignalReceived);
+    const store = new DeadLetterQueueStore(join(trackTempDir(), "dlq"));
+    const bus = new EventBus();
+    bus.addEmitFailureHandler((failure) => {
+      if (failure.stage !== "validation") return;
+      createEventEnvelopeDeadLetter({
+        store,
+        scopeId: "scope-a",
+        eventName: failure.event,
+        schemaRef: failure.schemaRef,
+        payload: failure.payload,
+        redriveEnvelope: failure.envelope,
+        reason: failure.error.message,
+        errorClass: "validation",
+      });
+    });
+    const badPayload = makeTelegramPayload();
+    delete (badPayload.body as { text?: string }).text;
+
+    expect(() => bus.emit(telegramSignalReceived, badPayload)).toThrow(
+      /payload failed schema/,
+    );
+
+    const item = store.list()[0]!;
+    expect(item).toMatchObject({
+      type: "event-envelope",
+      status: "open",
+      scopeId: "scope-a",
+      failure: { lastErrorClass: "validation", retryCount: 1 },
+      source: {
+        kind: "event-envelope",
+        eventName: "inbound.signal.received",
+      },
+      redrive: {
+        kind: "none",
+        reason: "event redrive requires the event journal",
+      },
+    });
+    expect(item.sourceEventIds).toEqual([]);
+    expect(item.redactedProjection.token).toBe("[redacted]");
+  });
+
+  it("dead-letters event journal middleware failures", () => {
+    const store = new DeadLetterQueueStore(join(trackTempDir(), "dlq"));
+    const bus = new EventBus();
+    const journal = new EventJournal(trackTempDir());
+    bus.addEmitFailureHandler((failure) => {
+      if (failure.stage !== "middleware") return;
+      createEventEnvelopeDeadLetter({
+        store,
+        scopeId: "scope-a",
+        eventName: failure.event,
+        schemaRef: failure.schemaRef,
+        payload: failure.payload,
+        redriveEnvelope: failure.envelope,
+        reason: failure.error.message,
+        errorClass: "execution",
+      });
+    });
+    installEventJournal(bus, journal);
+
+    expect(() =>
+      bus.emit("custom.scope-conflict", {
+        scopeId: "scope-a",
+        projectId: "scope-b",
+        token: "secret",
+      }),
+    ).toThrow(/scope conflict/);
+
+    const item = store.list()[0]!;
+    expect(item).toMatchObject({
+      type: "event-envelope",
+      status: "open",
+      scopeId: "scope-a",
+      failure: { lastErrorClass: "execution" },
+      source: {
+        kind: "event-envelope",
+        eventName: "custom.scope-conflict",
+      },
+    });
+    expect(item.redactedProjection.token).toBe("[redacted]");
+    expect(item.redrive).toEqual({
+      kind: "none",
+      reason: "event redrive requires the event journal",
+    });
+    expect(journal.query()).toEqual([]);
   });
 
   it("redacts secret-shaped keys when no event schema is registered", () => {

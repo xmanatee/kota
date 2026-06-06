@@ -17,8 +17,10 @@ import type {
   WorkflowRunDetail,
   WorkflowRunSummary,
 } from "#core/daemon/daemon-control.js";
+import { deadLetterStoreForProject } from "#core/daemon/dead-letter-queue.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
+import { buildDeadLetterWorkflowTrigger } from "#core/workflow/dead-letter-redrive.js";
 import {
   isWithinDispatchWindow,
   msUntilDispatchWindowOpens,
@@ -40,6 +42,7 @@ import { registerDepsCommand } from "./definitions/deps.js";
 import { registerValidateCommand } from "./definitions/validate.js";
 import { getValidatedWorkflowDefinitions } from "./definitions-source.js";
 import { registerControlCommands } from "./execution/control.js";
+import { registerDeadLetterCommand } from "./execution/dead-letter.js";
 import { registerExecCommand } from "./execution/exec.js";
 import { registerGcCommand } from "./execution/gc.js";
 import { registerRunCommand } from "./execution/run.js";
@@ -60,7 +63,7 @@ import { registerRunListCommands } from "./runs/run-list.js";
 import { registerRunShowCommand } from "./runs/run-show.js";
 import { registerStatsCommand } from "./runs/run-stats.js";
 import { registerStepInspectCommand } from "./runs/step-inspect.js";
-import { listRuns } from "./utils.js";
+import { eventJournalForProject, listRuns } from "./utils.js";
 
 export function buildWorkflowCommand(ctx: ModuleContext): Command {
   const wfCmd = new Command("workflow")
@@ -88,6 +91,7 @@ export function buildWorkflowCommand(ctx: ModuleContext): Command {
   registerFollowCommand(wfCmd);
   registerTriggerCommands(wfCmd, ctx);
   registerTriggersCommand(wfCmd, ctx);
+  registerDeadLetterCommand(wfCmd, ctx);
   registerExecCommand(wfCmd, ctx);
   registerValidateCommand(wfCmd, ctx);
   registerControlCommands(wfCmd, ctx);
@@ -137,6 +141,123 @@ const workflowModule: KotaModule = {
             tags: r.tags,
           })),
         };
+      },
+      async listDeadLetters(filter) {
+        const store = deadLetterStoreForProject(ctx.cwd);
+        return {
+          items: store.list({
+            status: filter?.status,
+            type: filter?.type,
+            workflowName: filter?.workflow,
+            limit: filter?.limit,
+          }),
+          counts: store.counts(),
+        };
+      },
+      async getDeadLetter(id) {
+        const item = deadLetterStoreForProject(ctx.cwd).get(id);
+        return item ? { found: true, item } : { found: false };
+      },
+      async dismissDeadLetter(id, reason) {
+        const item = deadLetterStoreForProject(ctx.cwd).dismiss(id, reason);
+        return item ? { ok: true, item } : { ok: false, reason: "not_found" };
+      },
+      async redriveDeadLetter(id, options) {
+        const dlq = deadLetterStoreForProject(ctx.cwd);
+        const item = dlq.get(id);
+        if (!item) return { ok: false, reason: "not_found" };
+        if (item.status !== "open") {
+          dlq.recordRedriveAttempt(id, {
+            target: options.target,
+            reason: options.reason,
+            result: {
+              status: "failed",
+              message: `dead-letter item is ${item.status}`,
+            },
+          });
+          return { ok: false, reason: "not_redrivable" };
+        }
+        if (options.target === "simulation") {
+          const updated = dlq.recordRedriveAttempt(id, {
+            target: options.target,
+            reason: options.reason,
+            result: { status: "simulated" },
+          });
+          return updated ? { ok: true, item: updated } : { ok: false, reason: "not_found" };
+        }
+        if (item.redrive.kind !== "workflow") {
+          dlq.recordRedriveAttempt(id, {
+            target: options.target,
+            reason: options.reason,
+            result: {
+              status: "failed",
+              message:
+                item.redrive.kind === "none"
+                  ? item.redrive.reason
+                  : "event redrive requires a running daemon",
+            },
+          });
+          return { ok: false, reason: "not_redrivable" };
+        }
+        const definitions = getValidatedWorkflowDefinitions(ctx);
+        const redrive = item.redrive;
+        const definition = definitions.find((d) => d.name === redrive.workflowName);
+        if (!definition?.enabled) {
+          dlq.recordRedriveAttempt(id, {
+            target: options.target,
+            reason: options.reason,
+            result: {
+              status: "failed",
+              message: `workflow "${redrive.workflowName}" is not available`,
+            },
+          });
+          return { ok: false, reason: "unknown_workflow" };
+        }
+        const runStore = new WorkflowRunStore(ctx.cwd);
+        const eventJournal = eventJournalForProject(ctx.cwd);
+        const state = runStore.readState();
+        const now = Date.now();
+        const runId = formatRunId(redrive.workflowName);
+        const resolved = buildDeadLetterWorkflowTrigger(item, redrive, {
+          runStore,
+          eventJournal,
+          runId,
+          reason: options.reason,
+          nowMs: now,
+        });
+        if (!resolved.ok) {
+          dlq.recordRedriveAttempt(id, {
+            target: options.target,
+            reason: options.reason,
+            result: { status: "failed", message: resolved.message },
+          });
+          return { ok: false, reason: "not_redrivable" };
+        }
+        runStore.setPendingRuns([
+          ...state.pendingRuns,
+          {
+            runId,
+            workflowName: redrive.workflowName,
+            trigger: resolved.value,
+            enqueuedAtMs: now,
+            notBeforeMs: now,
+          },
+        ]);
+        const updated = dlq.recordRedriveAttempt(id, {
+          target: options.target,
+          reason: options.reason,
+          result: {
+            status: "queued",
+            runId,
+            workflowName: redrive.workflowName,
+          },
+        });
+        return updated
+          ? { ok: true, item: updated, runId, workflowName: redrive.workflowName }
+          : { ok: false, reason: "not_found" };
+      },
+      async exportDeadLetterDiagnostics(id) {
+        return deadLetterStoreForProject(ctx.cwd).diagnostics(id);
       },
       async status() {
         const store = new WorkflowRunStore(ctx.cwd);
@@ -339,6 +460,73 @@ export function buildWorkflowDaemonHandler(
         `/workflow/runs${query}`,
       );
       return { runs: result?.runs ?? [] };
+    },
+    listDeadLetters: async (filter) => {
+      const params = new URLSearchParams();
+      if (filter?.status) params.set("status", filter.status);
+      if (filter?.type) params.set("type", filter.type);
+      if (filter?.workflow) params.set("workflow", filter.workflow);
+      if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
+      if (filter?.projectId) params.set("projectId", filter.projectId);
+      const query = params.toString() ? `?${params.toString()}` : "";
+      const result = await link.request<Awaited<ReturnType<WorkflowClient["listDeadLetters"]>>>(
+        "GET",
+        `/workflow/dead-letter${query}`,
+      );
+      return result ?? { items: [], counts: { open: 0, dismissed: 0, redriven: 0 } };
+    },
+    getDeadLetter: async (id, projectId) => {
+      const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
+      const resp = await fetchJson(
+        "GET",
+        `/workflow/dead-letter/${encodeURIComponent(id)}${query}`,
+      );
+      if (!resp || resp.status === 404) return { found: false };
+      if (!resp.ok) throw new Error(`Daemon unreachable while reading dead-letter item "${id}"`);
+      const result = (await resp.json()) as {
+        item: Awaited<ReturnType<WorkflowClient["getDeadLetter"]>> extends { item: infer T }
+          ? T
+          : never;
+      };
+      return { found: true, item: result.item };
+    },
+    dismissDeadLetter: async (id, reason, projectId) => {
+      const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
+      const resp = await fetchJson(
+        "POST",
+        `/workflow/dead-letter/${encodeURIComponent(id)}/dismiss${query}`,
+        { reason },
+      );
+      if (!resp) throw new Error(`Daemon unreachable while dismissing dead-letter item "${id}"`);
+      if (resp.status === 404) return { ok: false, reason: "not_found" };
+      if (!resp.ok) throw new Error(`Daemon unreachable while dismissing dead-letter item "${id}"`);
+      return (await resp.json()) as Awaited<ReturnType<WorkflowClient["dismissDeadLetter"]>>;
+    },
+    redriveDeadLetter: async (id, options, projectId) => {
+      const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
+      const resp = await fetchJson(
+        "POST",
+        `/workflow/dead-letter/${encodeURIComponent(id)}/redrive${query}`,
+        options,
+      );
+      if (!resp) throw new Error(`Daemon unreachable while redriving dead-letter item "${id}"`);
+      if (resp.status === 404) return { ok: false, reason: "not_found" };
+      if (resp.status === 409) {
+        const body = (await resp.json()) as { reason?: "not_redrivable" | "unknown_workflow" };
+        return { ok: false, reason: body.reason ?? "not_redrivable" };
+      }
+      if (!resp.ok) throw new Error(`Daemon unreachable while redriving dead-letter item "${id}"`);
+      return (await resp.json()) as Awaited<ReturnType<WorkflowClient["redriveDeadLetter"]>>;
+    },
+    exportDeadLetterDiagnostics: async (id, projectId) => {
+      const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
+      const resp = await fetchJson(
+        "GET",
+        `/workflow/dead-letter/${encodeURIComponent(id)}/diagnostics${query}`,
+      );
+      if (!resp || resp.status === 404) return null;
+      if (!resp.ok) throw new Error(`Daemon unreachable while exporting dead-letter item "${id}"`);
+      return (await resp.json()) as Awaited<ReturnType<WorkflowClient["exportDeadLetterDiagnostics"]>>;
     },
     status: async (filter) => {
       const params = new URLSearchParams();

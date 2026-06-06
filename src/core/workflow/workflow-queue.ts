@@ -1,3 +1,8 @@
+import {
+  createBatchDeadLetter,
+  createWorkflowDispatchDeadLetter,
+  type DeadLetterQueueStore,
+} from "#core/daemon/dead-letter-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { validatePayloadSchema } from "./payload-validator.js";
 import { getEligibleAtMs } from "./run-executor-utils.js";
@@ -7,6 +12,7 @@ import type { WorkflowQueuedRun } from "./run-types.js";
 import {
   WORKFLOW_BATCH_FLUSH_EVENT,
   type WorkflowAgentBackoffState,
+  type WorkflowBatchFlushPayload,
   type WorkflowRunTrigger,
 } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
@@ -15,6 +21,8 @@ import { workflowDispatchIdempotency } from "./workflow-idempotency.js";
 export type WorkflowQueueManagerConfig = {
   store: WorkflowRunStore;
   idempotencyStore: IdempotencyStore;
+  deadLetterQueue?: DeadLetterQueueStore;
+  getScopeId: () => string;
   getActiveBackoff: () => WorkflowAgentBackoffState | null;
   shouldSuppressBackoff: (
     definition: WorkflowDefinition,
@@ -90,6 +98,28 @@ export class WorkflowQueueManager {
         this.config.log(
           `Rejected trigger for workflow "${definition.name}": payload validation failed — ${schemaError}`,
         );
+        if (this.config.deadLetterQueue) {
+          if (trigger.event === WORKFLOW_BATCH_FLUSH_EVENT) {
+            createBatchDeadLetter({
+              store: this.config.deadLetterQueue,
+              scopeId: this.config.getScopeId(),
+              payload: trigger.payload as WorkflowBatchFlushPayload,
+              reason: schemaError,
+              errorClass: "validation",
+              trigger,
+            });
+          } else {
+            createWorkflowDispatchDeadLetter({
+              store: this.config.deadLetterQueue,
+              scopeId: this.config.getScopeId(),
+              workflowName: definition.name,
+              trigger,
+              reason: schemaError,
+              errorClass: "validation",
+              owningModule: "workflow-runtime",
+            });
+          }
+        }
         return;
       }
     }

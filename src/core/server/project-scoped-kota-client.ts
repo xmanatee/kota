@@ -45,6 +45,26 @@ export function createProjectScopedKotaClient(
       createProjectScopedKotaClient(base, nextProjectId),
     workflow: {
       ...base.workflow,
+      listDeadLetters: (filter) =>
+        scoped(selectedProjectId, () =>
+          base.workflow.listDeadLetters(withProject(filter, selectedProjectId)),
+        ),
+      getDeadLetter: (id) =>
+        scoped(selectedProjectId, () =>
+          base.workflow.getDeadLetter(id, selectedProjectId),
+        ),
+      dismissDeadLetter: (id, reason) =>
+        scoped(selectedProjectId, () =>
+          base.workflow.dismissDeadLetter(id, reason, selectedProjectId),
+        ),
+      redriveDeadLetter: (id, options) =>
+        scoped(selectedProjectId, () =>
+          base.workflow.redriveDeadLetter(id, options, selectedProjectId),
+        ),
+      exportDeadLetterDiagnostics: (id) =>
+        scoped(selectedProjectId, () =>
+          base.workflow.exportDeadLetterDiagnostics(id, selectedProjectId),
+        ),
       status: (filter) =>
         scoped(selectedProjectId, () =>
           base.workflow.status(withProject(filter, selectedProjectId)),

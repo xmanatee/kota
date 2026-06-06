@@ -1,4 +1,5 @@
 import type { TrajectoryDiagnosticsMetadata } from "#core/agent-harness/index.js";
+import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import type { ToolResult, ToolRunnerContext } from "#core/tools/index.js";
 import type { WorkflowStepProgressReporter } from "./step-idle-timeout.js";
 import type { WorkflowAgentStep, WorkflowStep } from "./step-types.js";
@@ -155,6 +156,7 @@ export type WorkflowStepContext = {
   requestRestart: (reason: string) => void;
   readPrompt: (promptPath: string) => string;
   readRuntimeState: () => WorkflowRuntimeState;
+  deadLetterQueue?: DeadLetterQueueStore;
   /**
    * Runtime-owned progress heartbeat for code steps that opt into
    * idleTimeoutMs. This is an explicit typed signal; stdout/log text never

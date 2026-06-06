@@ -1,5 +1,6 @@
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import {
   type EventBus,
   type EventSchemaReference,
@@ -88,6 +89,7 @@ export function createStepContext(
     bus: EventBus;
     pbus: ProjectScopedEventBus;
     store: WorkflowRunStore;
+    deadLetterQueue?: DeadLetterQueueStore;
     runTool?: WorkflowRunToolRunner;
     currentStepId?: string;
     triggerWorkflow?: (
@@ -147,6 +149,9 @@ export function createStepContext(
       return readFileSync(resolve(deps.projectDir, promptPath), "utf-8");
     },
     readRuntimeState: () => deps.store.readState(),
+    ...(deps.deadLetterQueue !== undefined
+      ? { deadLetterQueue: deps.deadLetterQueue }
+      : {}),
     reportProgress: () => {},
     triggerWorkflow: async (workflowName, payload, waitFor, signal) => {
       if (!deps.triggerWorkflow) {

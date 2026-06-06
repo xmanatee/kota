@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { ChannelDef, ChannelStatus } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
-import { initEventBus } from "#core/events/event-bus.js";
+import { type EventEmitFailure, initEventBus } from "#core/events/event-bus.js";
 import { EventJournal, installEventJournal } from "#core/events/event-journal.js";
 import type { ControlRouteRegistration, RouteRegistration } from "#core/modules/module-types.js";
 import type { ModuleSetupRequirementContribution } from "#core/modules/setup-requirements.js";
@@ -19,8 +19,9 @@ import {
   anyDaemonWorkflowRuntimeBusy,
   setDaemonWorkflowDispatchPaused,
 } from "./daemon-workflows.js";
+import { createEventEnvelopeDeadLetter } from "./dead-letter-queue.js";
 import { installEventIdempotency } from "./idempotency-events.js";
-import { ProjectRuntimeRegistry } from "./project-runtime.js";
+import { type ProjectRuntime, ProjectRuntimeRegistry } from "./project-runtime.js";
 import type { ScopePolicyFragment } from "./scope-policy.js";
 import {
   type ConfiguredProjectInput,
@@ -152,6 +153,7 @@ export class Daemon {
     const projectRuntimes = ProjectRuntimeRegistry.create({
       registry: projectRegistry,
       bus,
+      eventJournal,
       config: config.config,
       workflows: config.workflows,
       model: config.model ?? config.config?.model,
@@ -166,9 +168,30 @@ export class Daemon {
       resolveStore: (scopeId) => projectRuntimes.get(scopeId).idempotencyStore,
       log,
     });
+    const uninstallEventDeadLetters = bus.addEmitFailureHandler((failure) => {
+      if (failure.stage === "fanout") return;
+      const runtime = runtimeForEventFailure(
+        failure,
+        projectRuntimes,
+        defaultProject.projectId,
+        log,
+      );
+      createEventEnvelopeDeadLetter({
+        store: runtime.deadLetterQueue,
+        scopeId: runtime.project.projectId,
+        eventName: failure.event,
+        schemaRef: failure.schemaRef,
+        payload: failure.payload,
+        redriveEnvelope: failure.envelope,
+        reason: failure.error.message,
+        errorClass: failure.stage === "validation" ? "validation" : "execution",
+        owningModule: "event-runtime",
+      });
+    });
     const uninstallEventJournalMiddleware = installEventJournal(bus, eventJournal);
     const uninstallEventJournal = () => {
       uninstallEventJournalMiddleware();
+      uninstallEventDeadLetters();
       uninstallEventIdempotency();
     };
 
@@ -313,4 +336,33 @@ function scopeLineageForId(scopeId: string, registry: ScopeRegistry): readonly s
     current = parentId ? byId.get(parentId) : undefined;
   }
   return lineage.length > 0 ? lineage : [scopeId];
+}
+
+function runtimeForEventFailure(
+  failure: EventEmitFailure,
+  runtimes: ProjectRuntimeRegistry,
+  defaultProjectId: string,
+  log: (message: string) => void,
+): ProjectRuntime {
+  const scopeId = scopeIdFromPayload(failure.payload) ?? defaultProjectId;
+  try {
+    return runtimes.get(scopeId);
+  } catch (error) {
+    log(
+      `Event "${failure.event}" failed before dispatch with unknown scope "${scopeId}"; recording DLQ item under default scope ${runtimes.getDefaultProjectId()}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return runtimes.getDefault();
+  }
+}
+
+function scopeIdFromPayload(payload: EventEmitFailure["payload"]): string | undefined {
+  const scopeId =
+    typeof payload.scopeId === "string" && payload.scopeId.length > 0
+      ? payload.scopeId
+      : undefined;
+  const projectId =
+    typeof payload.projectId === "string" && payload.projectId.length > 0
+      ? payload.projectId
+      : undefined;
+  return scopeId ?? projectId;
 }

@@ -1,6 +1,7 @@
 import type { AgentCanUseTool } from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
+import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
@@ -42,6 +43,7 @@ export type RunExecutorDeps = {
    */
   pbus?: ProjectScopedEventBus;
   store: WorkflowRunStore;
+  deadLetterQueue?: DeadLetterQueueStore;
   model?: string;
   config?: KotaConfig;
   runId?: string;

@@ -7,6 +7,7 @@ import {
   resetApprovalQueue,
   setApprovalQueueInstance,
 } from "#core/daemon/approval-queue.js";
+import { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import {
   resetIdempotencyStore,
   setIdempotencyStoreInstance,
@@ -39,6 +40,7 @@ const ACTION = {
 
 type ConfirmedActionFixtureOptions = {
   includeApproval: boolean;
+  failAdapter?: boolean;
 };
 
 describe("owner decision workflow helpers", () => {
@@ -46,6 +48,7 @@ describe("owner decision workflow helpers", () => {
   let decisionDir: string;
   let questionDir: string;
   let approvalDir: string;
+  let deadLetterDir: string;
   let idempotencyDir: string;
   let bus: EventBus;
   let pbus: ProjectScopedEventBus;
@@ -53,6 +56,7 @@ describe("owner decision workflow helpers", () => {
   let decisionStore: OwnerDecisionStore;
   let questionQueue: OwnerQuestionQueue;
   let approvalQueue: ApprovalQueue;
+  let deadLetterQueue: DeadLetterQueueStore;
   let idempotencyStore: IdempotencyStore;
   const log = vi.fn();
 
@@ -61,6 +65,7 @@ describe("owner decision workflow helpers", () => {
     decisionDir = mkdtempSync(join(tmpdir(), "owner-decision-store-"));
     questionDir = mkdtempSync(join(tmpdir(), "owner-decision-question-"));
     approvalDir = mkdtempSync(join(tmpdir(), "owner-decision-approval-"));
+    deadLetterDir = mkdtempSync(join(tmpdir(), "owner-decision-dlq-"));
     idempotencyDir = mkdtempSync(join(tmpdir(), "owner-decision-idempotency-"));
     resetEventBus();
     bus = initEventBus();
@@ -69,6 +74,7 @@ describe("owner decision workflow helpers", () => {
     decisionStore = new OwnerDecisionStore(decisionDir, "scope-a", pbus);
     questionQueue = new OwnerQuestionQueue(questionDir, pbus);
     approvalQueue = new ApprovalQueue(approvalDir, pbus);
+    deadLetterQueue = new DeadLetterQueueStore(deadLetterDir);
     idempotencyStore = new IdempotencyStore(idempotencyDir, "scope-a");
     setApprovalQueueInstance(approvalQueue);
     setIdempotencyStoreInstance(idempotencyStore);
@@ -83,6 +89,7 @@ describe("owner decision workflow helpers", () => {
     rmSync(decisionDir, { recursive: true, force: true });
     rmSync(questionDir, { recursive: true, force: true });
     rmSync(approvalDir, { recursive: true, force: true });
+    rmSync(deadLetterDir, { recursive: true, force: true });
     rmSync(idempotencyDir, { recursive: true, force: true });
   });
 
@@ -162,6 +169,9 @@ describe("owner decision workflow helpers", () => {
         metadata: adapterAction,
         execute: ({ input }) => {
           calls.push(String(input.slot));
+          if (options.failAdapter) {
+            throw new Error("booking provider rejected confirmed action");
+          }
           return { ok: true, slot: String(input.slot) };
         },
       },
@@ -251,6 +261,109 @@ describe("owner decision workflow helpers", () => {
     expect(action.output).toMatchObject({ actionId: "book-court", approvalId });
     const consumed = decisionStore.list("consumed")[0];
     expect(consumed.consumption?.approvalId).toBe(approvalId);
+  });
+
+  it("dead-letters confirmed action adapter execution failures", async () => {
+    const calls: string[] = [];
+    const definition = makeConfirmedActionWorkflow(calls, ACTION, ACTION, {
+      includeApproval: true,
+      failAdapter: true,
+    });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      projectDir,
+      bus,
+      store,
+      deadLetterQueue,
+      log,
+    });
+
+    await answerPendingQuestion("yes");
+    const approvalId = await approvePendingApproval();
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("failed");
+    expect(calls).toEqual(["7pm"]);
+    const item = deadLetterQueue.list()[0]!;
+    const consumed = decisionStore.list("consumed")[0]!;
+    expect(item).toMatchObject({
+      type: "confirmed-action-dispatch",
+      status: "open",
+      scopeId: "scope-a",
+      owningModule: "sports-booking",
+      failure: {
+        lastErrorClass: "execution",
+        reason: "booking provider rejected confirmed action",
+      },
+      source: {
+        kind: "confirmed-action-dispatch",
+        decisionId: expect.any(String),
+        actionId: "book-court",
+        adapterName: "sports-booking",
+        workflowName: "owner-decision-action-fixture",
+        runId: result.metadata.id,
+        stepId: "book",
+      },
+      redrive: {
+        kind: "workflow",
+        workflowName: "owner-decision-action-fixture",
+        source: { kind: "resume-step", runId: result.metadata.id, stepId: "book" },
+      },
+    });
+    expect(item.redactedProjection).toEqual({ slot: "7pm" });
+    expect(item.source.kind === "confirmed-action-dispatch" ? item.source.decisionId : "").toBe(
+      consumed.id,
+    );
+    expect(consumed.consumption?.approvalId).toBe(approvalId);
+  });
+
+  it("redrives a failed confirmed action at the action step without consuming the decision twice", async () => {
+    const calls: string[] = [];
+    const failingDefinition = makeConfirmedActionWorkflow(calls, ACTION, ACTION, {
+      includeApproval: true,
+      failAdapter: true,
+    });
+    const firstRun = executeWorkflowRun(failingDefinition, TRIGGER, {
+      projectDir,
+      bus,
+      store,
+      deadLetterQueue,
+      log,
+    });
+
+    await answerPendingQuestion("yes");
+    await approvePendingApproval();
+    const failed = await firstRun.promise;
+    expect(failed.metadata.status).toBe("failed");
+
+    const item = deadLetterQueue.list()[0]!;
+    const fixedDefinition = makeConfirmedActionWorkflow(calls);
+    const redrive = await executeWorkflowRun(
+      fixedDefinition,
+      {
+        event: "resume",
+        schemaRef: null,
+        payload: {
+          resumedFromRunId: failed.metadata.id,
+          resumeFromStep: "book",
+          redriveOf: item.id,
+        },
+      },
+      {
+        projectDir,
+        bus,
+        store,
+        deadLetterQueue,
+        log,
+      },
+    ).promise;
+
+    expect(redrive.metadata.status).toBe("success");
+    expect(calls).toEqual(["7pm", "7pm"]);
+    expect(decisionStore.list("consumed")).toHaveLength(1);
+    expect(redrive.metadata.steps.find((step) => step.id === "book")?.output).toMatchObject({
+      idempotency: { status: "accepted" },
+      result: { ok: true, slot: "7pm" },
+    });
   });
 
   it("replays a confirmed action retry without consuming the decision twice", async () => {

@@ -1,7 +1,9 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
+import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import type { EventBus } from "#core/events/event-bus.js";
+import type { EventJournal } from "#core/events/event-journal.js";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import type { RegisteredWorkflowDefinitionInput } from "./types.js";
@@ -24,6 +26,8 @@ export type WorkflowRuntimeConfig = {
    * let the runtime construct its own from `projectDir`.
    */
   runStore?: WorkflowRunStore;
+  deadLetterQueue?: DeadLetterQueueStore;
+  eventJournal?: EventJournal;
   idempotencyStore?: IdempotencyStore;
   model?: string;
   config?: KotaConfig;

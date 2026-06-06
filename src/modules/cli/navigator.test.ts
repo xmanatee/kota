@@ -63,6 +63,14 @@ function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
       disable: stub({ ok: true } as WorkflowEnableResult),
       cancelRun: stub({ ok: true }),
       abortRun: stub({ ok: true }),
+      listDeadLetters: stub({
+        items: [],
+        counts: { open: 0, dismissed: 0, redriven: 0 },
+      }),
+      getDeadLetter: stub({ found: false }),
+      dismissDeadLetter: stub({ ok: false, reason: "not_found" }),
+      redriveDeadLetter: stub({ ok: false, reason: "not_found" }),
+      exportDeadLetterDiagnostics: stub(null),
     },
     approvals: {
       list: stub({ approvals: [] as PendingApproval[] }),

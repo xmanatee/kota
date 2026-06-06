@@ -95,6 +95,12 @@ export function buildPrometheusMetrics(
   lines.push("# TYPE kota_workflow_queued_runs gauge");
   lines.push(`kota_workflow_queued_runs ${queueLength}`);
 
+  lines.push("# HELP kota_workflow_dead_letter_items Current workflow dead-letter queue items by status");
+  lines.push("# TYPE kota_workflow_dead_letter_items gauge");
+  lines.push(`kota_workflow_dead_letter_items{status="open"} ${metricCounts.deadLetterCounts.open}`);
+  lines.push(`kota_workflow_dead_letter_items{status="dismissed"} ${metricCounts.deadLetterCounts.dismissed}`);
+  lines.push(`kota_workflow_dead_letter_items{status="redriven"} ${metricCounts.deadLetterCounts.redriven}`);
+
   for (const line of buildDurationHistogram(metricCounts.durationHistogram)) {
     lines.push(line);
   }

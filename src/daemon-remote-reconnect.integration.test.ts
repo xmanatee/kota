@@ -275,6 +275,7 @@ function makeHandle(
       runCounts: [],
       costTotals: [],
       durationHistogram: [],
+      deadLetterCounts: { open: 0, dismissed: 0, redriven: 0 },
     }),
     probeCapabilityReadiness: async () => ({
       capabilities: [],

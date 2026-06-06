@@ -83,7 +83,7 @@ function makeHandle(): DaemonControlHandle {
     subscribeToEvents: vi.fn(() => () => {}),
     listWorkflowRuns: vi.fn(() => []),
     getWorkflowRun: vi.fn(() => null),
-    getWorkflowMetricCounts: vi.fn((): WorkflowMetricCounts => ({ runCounts: [], costTotals: [], durationHistogram: [] })),
+    getWorkflowMetricCounts: vi.fn((): WorkflowMetricCounts => ({ runCounts: [], costTotals: [], durationHistogram: [], deadLetterCounts: { open: 0, dismissed: 0, redriven: 0 } })),
     registerSession: vi.fn(),
     unregisterSession: vi.fn(),
     listSessions: vi.fn(() => []),

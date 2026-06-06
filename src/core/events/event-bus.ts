@@ -42,6 +42,19 @@ import {
  */
 export type EmitMiddleware = (envelope: BusEnvelope, next: () => void) => void;
 
+export type EventEmitFailureStage = "validation" | "middleware" | "fanout";
+
+export type EventEmitFailure = {
+  event: string;
+  schemaRef: EventSchemaReference | null;
+  envelope: BusEnvelope;
+  payload: BusEnvelope["payload"];
+  error: Error;
+  stage: EventEmitFailureStage;
+};
+
+export type EventEmitFailureHandler = (failure: EventEmitFailure) => void;
+
 export function resolveEventSchemaReference(
   event: string | ModuleEventDef,
 ): EventSchemaReference | null {
@@ -68,6 +81,7 @@ export function resolveEventSchemaReference(
 export class EventBus {
   private handlers = new Map<string, Set<BusEventHandler<never>>>();
   private middlewares: EmitMiddleware[] = [];
+  private emitFailureHandlers: EventEmitFailureHandler[] = [];
 
   /** Subscribe to a typed event. Returns an unsubscribe function. */
   on<K extends keyof BusEvents>(
@@ -146,6 +160,14 @@ export class EventBus {
     };
   }
 
+  addEmitFailureHandler(handler: EventEmitFailureHandler): () => void {
+    this.emitFailureHandlers.push(handler);
+    return () => {
+      const idx = this.emitFailureHandlers.indexOf(handler);
+      if (idx >= 0) this.emitFailureHandlers.splice(idx, 1);
+    };
+  }
+
   /** Emit a typed event synchronously to all subscribers + wildcard listeners. */
   emit<K extends keyof BusEvents>(event: K, payload: BusEvents[K]): void;
   /** Emit a typed module-declared event. */
@@ -157,48 +179,75 @@ export class EventBus {
     payload: Record<string, unknown>,
   ): void {
     const schemaRef = resolveEventSchemaReference(event);
-    if (typeof event !== "string") {
-      assertModuleEventPayload(event, payload as ModuleEventPayloadObject);
-    } else {
-      const registered = getModuleEventRegistry()?.get(event);
-      if (registered) {
-        assertModuleEventPayload(
-          {
-            name: registered.name,
-            fields: registered.fields,
-            scope: registered.scope,
-            schema: {
-              currentVersion: registered.currentVersion,
-              payload: registered.payloadSchema,
-            },
-            filterablePaths: registered.filterablePaths,
-            sensitivity: registered.sensitivity,
-            compatibility: registered.compatibility,
-            examples: registered.examples,
-          },
-          payload as ModuleEventPayloadObject,
-        );
-      }
-    }
     const name = typeof event === "string" ? event : event.name;
     const envelope: BusEnvelope = { type: name, schemaRef, payload };
+    try {
+      if (typeof event !== "string") {
+        assertModuleEventPayload(event, payload as ModuleEventPayloadObject);
+      } else {
+        const registered = getModuleEventRegistry()?.get(event);
+        if (registered) {
+          assertModuleEventPayload(
+            {
+              name: registered.name,
+              fields: registered.fields,
+              scope: registered.scope,
+              schema: {
+                currentVersion: registered.currentVersion,
+                payload: registered.payloadSchema,
+              },
+              filterablePaths: registered.filterablePaths,
+              sensitivity: registered.sensitivity,
+              compatibility: registered.compatibility,
+              examples: registered.examples,
+            },
+            payload as ModuleEventPayloadObject,
+          );
+        }
+      }
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.notifyEmitFailure({ event: name, schemaRef, envelope, payload, error: err, stage: "validation" });
+      throw err;
+    }
 
     if (this.middlewares.length === 0) {
-      this.fanOut(envelope);
+      try {
+        this.fanOut(envelope);
+      } catch (error) {
+        const err = error instanceof Error ? error : new Error(String(error));
+        this.notifyEmitFailure({ event: name, schemaRef, envelope, payload, error: err, stage: "fanout" });
+        throw err;
+      }
       return;
     }
 
     const chain = this.middlewares.slice();
     let i = 0;
+    let failureStage: EventEmitFailureStage = "middleware";
     const next = (): void => {
       if (i >= chain.length) {
+        failureStage = "fanout";
         this.fanOut(envelope);
         return;
       }
+      failureStage = "middleware";
       const mw = chain[i++]!;
       mw(envelope, next);
     };
-    next();
+    try {
+      next();
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.notifyEmitFailure({ event: name, schemaRef, envelope, payload, error: err, stage: failureStage });
+      throw err;
+    }
+  }
+
+  private notifyEmitFailure(failure: EventEmitFailure): void {
+    for (const handler of this.emitFailureHandlers.slice()) {
+      handler(failure);
+    }
   }
 
   private fanOut(envelope: BusEnvelope): void {
@@ -224,6 +273,7 @@ export class EventBus {
   clear(): void {
     this.handlers.clear();
     this.middlewares = [];
+    this.emitFailureHandlers = [];
   }
 
   /** Number of listeners for a given event (or all events if omitted). */

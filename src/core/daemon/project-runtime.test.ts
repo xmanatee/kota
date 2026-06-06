@@ -76,6 +76,31 @@ describe("createProjectRuntime", () => {
     bundle.approvalQueue.enqueue("Bash", { cmd: "ls" }, "moderate", "test");
     expect(bundle.approvalQueue.list("pending")).toHaveLength(1);
 
+    bundle.deadLetterQueue.record({
+      type: "workflow-dispatch",
+      scopeId: project.projectId,
+      projectId: project.projectId,
+      owningModule: "workflow-runtime",
+      sourceEventIds: [],
+      affectedWorkflowNames: ["fixture"],
+      failure: {
+        reason: "fixture failure",
+        lastErrorClass: "execution",
+      },
+      source: {
+        kind: "workflow-dispatch",
+        workflowName: "fixture",
+        triggerEvent: "manual",
+        triggerSchemaRef: null,
+      },
+      redrive: {
+        kind: "none",
+        reason: "fixture",
+      },
+      redactedProjection: { workflow: "fixture" },
+    });
+    expect(bundle.deadLetterQueue.list()).toHaveLength(1);
+
     bundle.idempotencyStore.record({
       scopeId: project.projectId,
       operation: "workflow-dispatch",
@@ -170,6 +195,7 @@ describe("ProjectRuntimeRegistry — independence across projects", () => {
     expect(a.taskStore).not.toBe(b.taskStore);
     expect(a.scheduler).not.toBe(b.scheduler);
     expect(a.approvalQueue).not.toBe(b.approvalQueue);
+    expect(a.deadLetterQueue).not.toBe(b.deadLetterQueue);
     expect(a.idempotencyStore).not.toBe(b.idempotencyStore);
     expect(a.ownerQuestionQueue).not.toBe(b.ownerQuestionQueue);
     expect(a.moduleLogStore).not.toBe(b.moduleLogStore);
@@ -194,6 +220,49 @@ describe("ProjectRuntimeRegistry — independence across projects", () => {
     expect(existsSync(join(dirB, ".kota", "approvals"))).toBe(true);
     expect(readdirSync(join(dirA, ".kota", "approvals")).length).toBe(1);
     expect(readdirSync(join(dirB, ".kota", "approvals")).length).toBe(2);
+
+    a.deadLetterQueue.record({
+      type: "workflow-dispatch",
+      scopeId: a.project.projectId,
+      projectId: a.project.projectId,
+      owningModule: "workflow-runtime",
+      sourceEventIds: [],
+      affectedWorkflowNames: ["alpha"],
+      failure: {
+        reason: "alpha failure",
+        lastErrorClass: "execution",
+      },
+      source: {
+        kind: "workflow-dispatch",
+        workflowName: "alpha",
+        triggerEvent: "manual",
+        triggerSchemaRef: null,
+      },
+      redrive: { kind: "none", reason: "fixture" },
+      redactedProjection: { workflow: "alpha" },
+    });
+    b.deadLetterQueue.record({
+      type: "workflow-dispatch",
+      scopeId: b.project.projectId,
+      projectId: b.project.projectId,
+      owningModule: "workflow-runtime",
+      sourceEventIds: [],
+      affectedWorkflowNames: ["beta"],
+      failure: {
+        reason: "beta failure",
+        lastErrorClass: "execution",
+      },
+      source: {
+        kind: "workflow-dispatch",
+        workflowName: "beta",
+        triggerEvent: "manual",
+        triggerSchemaRef: null,
+      },
+      redrive: { kind: "none", reason: "fixture" },
+      redactedProjection: { workflow: "beta" },
+    });
+    expect(a.deadLetterQueue.list().map((item) => item.affectedWorkflowNames[0])).toEqual(["alpha"]);
+    expect(b.deadLetterQueue.list().map((item) => item.affectedWorkflowNames[0])).toEqual(["beta"]);
 
     a.idempotencyStore.record({
       scopeId: a.project.projectId,
@@ -313,6 +382,11 @@ describe("singleton-binding invariant", () => {
         pattern: /\bnew\s+ApprovalQueue\s*\(/,
         label: "new ApprovalQueue(",
         allowedFiles: [FACTORY_FILE, path.join(daemonDir, "approval-queue.ts")],
+      },
+      {
+        pattern: /\bnew\s+DeadLetterQueueStore\s*\(/,
+        label: "new DeadLetterQueueStore(",
+        allowedFiles: [FACTORY_FILE, path.join(daemonDir, "dead-letter-queue.ts")],
       },
       {
         pattern: /\bnew\s+IdempotencyStore\s*\(/,

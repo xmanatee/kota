@@ -442,7 +442,10 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       const now = Date.now();
       const cached = metricCountsCache.get(cacheKey);
       if (cached && now - cached.at < 30_000) {
-        return cached.value;
+        return {
+          ...cached.value,
+          deadLetterCounts: runtime.deadLetterQueue.counts(runtime.project.projectId),
+        };
       }
       const DURATION_BUCKETS_S = [30, 120, 300, 900, 1800, 3600] as const;
       const runs = runtime.runStore.listRuns({ limit: 100_000 });
@@ -494,10 +497,55 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
           count: entry.count,
         });
       }
-      const result: WorkflowMetricCounts = { runCounts, costTotals, durationHistogram };
+      const result: WorkflowMetricCounts = {
+        runCounts,
+        costTotals,
+        durationHistogram,
+        deadLetterCounts: runtime.deadLetterQueue.counts(runtime.project.projectId),
+      };
       metricCountsCache.set(cacheKey, { value: result, at: now });
       return result;
     },
+    listDeadLetters: (opts) => {
+      const runtime = lookupRuntime(opts?.projectId);
+      return {
+        items: runtime.deadLetterQueue.list({
+          status: opts?.status,
+          type: opts?.type,
+          workflowName: opts?.workflowName,
+          limit: opts?.limit,
+          scopeId: runtime.project.projectId,
+        }),
+        counts: runtime.deadLetterQueue.counts(runtime.project.projectId),
+      };
+    },
+    getDeadLetter: (id: string, projectId?: ProjectId) =>
+      lookupRuntime(projectId).deadLetterQueue.get(id),
+    dismissDeadLetter: (id: string, reason: string, projectId?: ProjectId) => {
+      const item = lookupRuntime(projectId).deadLetterQueue.dismiss(id, reason);
+      return item ? { ok: true, item } : { ok: false, reason: "not_found" };
+    },
+    redriveDeadLetter: (
+      id: string,
+      reason: string,
+      target,
+      projectId?: ProjectId,
+    ) => {
+      const runtime = lookupRuntime(projectId);
+      const result = runtime.workflowRuntime.redriveDeadLetter(id, reason, target);
+      const item = runtime.deadLetterQueue.get(id);
+      if (!result.ok) return { ok: false, reason: result.reason ?? "not_found" };
+      if (!item) return { ok: false, reason: "not_found" };
+      return {
+        ok: true,
+        item,
+        ...(result.runId !== undefined ? { runId: result.runId } : {}),
+        ...(result.workflowName !== undefined ? { workflowName: result.workflowName } : {}),
+        ...(result.event !== undefined ? { event: result.event } : {}),
+      };
+    },
+    exportDeadLetterDiagnostics: (id: string, projectId?: ProjectId) =>
+      lookupRuntime(projectId).deadLetterQueue.diagnostics(id),
     registerSession: (
       id: string,
       createdAt: string,

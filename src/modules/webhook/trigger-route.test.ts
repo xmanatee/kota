@@ -82,6 +82,7 @@ function makeHandle(): DaemonControlHandle {
       runCounts: [],
       costTotals: [],
       durationHistogram: [],
+      deadLetterCounts: { open: 0, dismissed: 0, redriven: 0 },
     })),
     registerSession: vi.fn(),
     unregisterSession: vi.fn(),

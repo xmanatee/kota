@@ -76,6 +76,7 @@ function makeHandle(): DaemonControlHandle {
       runCounts: [],
       costTotals: [],
       durationHistogram: [],
+      deadLetterCounts: { open: 0, dismissed: 0, redriven: 0 },
     })),
     registerSession: vi.fn(),
     unregisterSession: vi.fn(),
@@ -168,6 +169,7 @@ describe("tracing module daemon-control routes", () => {
           runCounts: [],
           costTotals: [],
           durationHistogram: [],
+          deadLetterCounts: { open: 0, dismissed: 0, redriven: 0 },
         }),
         listSessions: () => [],
         getWorkflowLiveStatus: () => ({
@@ -193,10 +195,12 @@ describe("tracing module daemon-control routes", () => {
       expect(text).toContain("# TYPE kota_dispatch_paused gauge");
       expect(text).toContain("# TYPE kota_workflow_active_runs gauge");
       expect(text).toContain("# TYPE kota_workflow_queued_runs gauge");
+      expect(text).toContain("# TYPE kota_workflow_dead_letter_items gauge");
       expect(text).toContain("kota_active_sessions_total 0");
       expect(text).toContain("kota_pending_approvals_total 0");
       expect(text).toContain("kota_dispatch_paused 0");
       expect(text).toContain("kota_workflow_queued_runs 0");
+      expect(text).toContain('kota_workflow_dead_letter_items{status="open"} 0');
     });
 
     it("renders per-workflow run counts, costs, sessions, approvals, and paused state", async () => {
@@ -209,6 +213,7 @@ describe("tracing module daemon-control routes", () => {
           ],
           costTotals: [{ workflow: "builder", costUsd: 1.5 }],
           durationHistogram: [],
+          deadLetterCounts: { open: 2, dismissed: 1, redriven: 3 },
         }),
         listSessions: () => [
           {
@@ -243,6 +248,9 @@ describe("tracing module daemon-control routes", () => {
       expect(text).toContain("kota_active_sessions_total 1");
       expect(text).toContain("kota_pending_approvals_total 1");
       expect(text).toContain("kota_dispatch_paused 1");
+      expect(text).toContain('kota_workflow_dead_letter_items{status="open"} 2');
+      expect(text).toContain('kota_workflow_dead_letter_items{status="dismissed"} 1');
+      expect(text).toContain('kota_workflow_dead_letter_items{status="redriven"} 3');
     });
 
     it("renders active-run and queue-depth gauges with non-zero values", async () => {
@@ -251,6 +259,7 @@ describe("tracing module daemon-control routes", () => {
           runCounts: [],
           costTotals: [],
           durationHistogram: [],
+          deadLetterCounts: { open: 0, dismissed: 0, redriven: 0 },
         }),
         listSessions: () => [],
         getWorkflowLiveStatus: () => ({
@@ -299,6 +308,7 @@ describe("tracing module daemon-control routes", () => {
               count: 14,
             },
           ],
+          deadLetterCounts: { open: 0, dismissed: 0, redriven: 0 },
         }),
         listSessions: () => [],
         getWorkflowLiveStatus: () => ({
@@ -339,6 +349,7 @@ describe("tracing module daemon-control routes", () => {
           ],
           costTotals: [],
           durationHistogram: [],
+          deadLetterCounts: { open: 0, dismissed: 0, redriven: 0 },
         }),
         listSessions: () => [],
         getWorkflowLiveStatus: () => ({

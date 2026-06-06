@@ -24,12 +24,14 @@ import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import type { EventBus } from "#core/events/event-bus.js";
+import type { EventJournal } from "#core/events/event-journal.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { ModuleLogStore, setModuleLogStoreInstance } from "#core/modules/module-log.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { WorkflowRuntime } from "#core/workflow/runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import { ApprovalQueue, setApprovalQueueInstance } from "./approval-queue.js";
+import { DeadLetterQueueStore } from "./dead-letter-queue.js";
 import { setIdempotencyStoreInstance } from "./idempotency-singleton.js";
 import { IdempotencyStore } from "./idempotency-store.js";
 import { NotificationGate, type QuietHoursConfig } from "./notification-gate.js";
@@ -74,6 +76,7 @@ export type ProjectRuntime = {
   readonly scheduler: Scheduler;
   readonly moduleLogStore: ModuleLogStore;
   readonly approvalQueue: ApprovalQueue;
+  readonly deadLetterQueue: DeadLetterQueueStore;
   readonly idempotencyStore: IdempotencyStore;
   readonly ownerDecisionStore: OwnerDecisionStore;
   readonly ownerQuestionQueue: OwnerQuestionQueue;
@@ -86,6 +89,7 @@ export type ProjectRuntime = {
 export type ProjectRuntimeFactoryOptions = {
   project: ConfiguredProject;
   bus: EventBus;
+  eventJournal?: EventJournal;
   config?: KotaConfig;
   workflows?: readonly RegisteredWorkflowDefinitionInput[];
   model?: string;
@@ -120,6 +124,9 @@ export function createProjectRuntime(
   const scheduler = new Scheduler(projectDir, undefined, pbus);
   const moduleLogStore = new ModuleLogStore(projectDir);
   const approvalQueue = new ApprovalQueue(join(projectDir, ".kota", "approvals"), pbus);
+  const deadLetterQueue = new DeadLetterQueueStore(
+    join(projectDir, ".kota", "dead-letter-queue"),
+  );
   const idempotencyStore = new IdempotencyStore(
     join(projectDir, ".kota", "idempotency"),
     opts.project.projectId,
@@ -140,6 +147,8 @@ export function createProjectRuntime(
     projectDir,
     runStore,
     config: opts.config,
+    deadLetterQueue,
+    eventJournal: opts.eventJournal,
     idempotencyStore,
     workflows: opts.workflows,
     model: opts.model,
@@ -174,6 +183,7 @@ export function createProjectRuntime(
     scheduler,
     moduleLogStore,
     approvalQueue,
+    deadLetterQueue,
     idempotencyStore,
     ownerDecisionStore,
     ownerQuestionQueue,
@@ -203,6 +213,7 @@ export class ProjectRuntimeRegistry {
   static create(opts: {
     registry: ScopeRegistry;
     bus: EventBus;
+    eventJournal?: EventJournal;
     config?: KotaConfig;
     workflows?: readonly RegisteredWorkflowDefinitionInput[];
     model?: string;
@@ -219,6 +230,7 @@ export class ProjectRuntimeRegistry {
       const runtime = createProjectRuntime({
         project,
         bus: opts.bus,
+        eventJournal: opts.eventJournal,
         config: opts.config,
         workflows: opts.workflows,
         model: opts.model,

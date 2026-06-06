@@ -16,6 +16,11 @@ type SetupControlHandleMethods = Pick<
   | "getScopeRegistryProjection"
   | "hasScope"
   | "getScopePolicy"
+  | "listDeadLetters"
+  | "getDeadLetter"
+  | "dismissDeadLetter"
+  | "redriveDeadLetter"
+  | "exportDeadLetterDiagnostics"
   | "listModuleSetupStatuses"
   | "submitModuleSetupForm"
   | "storeModuleSetupSecret"
@@ -89,6 +94,14 @@ export function daemonSetupControlHandleStubs(): SetupControlHandleMethods {
         decisionExamples: defaultScopePolicyDecisionExamples(policy),
       };
     },
+    listDeadLetters: () => ({
+      items: [],
+      counts: { open: 0, dismissed: 0, redriven: 0 },
+    }),
+    getDeadLetter: () => null,
+    dismissDeadLetter: () => ({ ok: false, reason: "not_found" }),
+    redriveDeadLetter: () => ({ ok: false, reason: "not_found" }),
+    exportDeadLetterDiagnostics: () => null,
     listModuleSetupStatuses: async () => EMPTY_SETUP_STATUS,
     submitModuleSetupForm: async (
       _moduleName: string,

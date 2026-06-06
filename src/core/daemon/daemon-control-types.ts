@@ -4,6 +4,7 @@ import type {
   EventSchemaReference,
   SessionGuardrailsReloadSummary,
 } from "#core/events/event-bus-types.js";
+import type { EventJsonObject } from "#core/events/event-journal.js";
 import type {
   ModuleEventCompatibilityPolicy,
   ModuleEventPayloadExample,
@@ -25,6 +26,13 @@ import type { WorkflowAgentBackoffState } from "#core/workflow/trigger-types.js"
 import type { CapabilityReadinessResponse } from "./capability-readiness.js";
 import type { ClientIdentity } from "./client-identity.js";
 import type { DaemonState } from "./daemon-state.js";
+import type {
+  DeadLetterItem,
+  DeadLetterItemStatus,
+  DeadLetterItemType,
+  DeadLetterQueueCounts,
+  DeadLetterRedriveTarget,
+} from "./dead-letter-queue.js";
 import type { ScopePolicyRouteResponse } from "./scope-policy.js";
 import type {
   ProjectId,
@@ -67,7 +75,14 @@ export type SetActiveProjectResult =
   | { ok: true; activeProjectId: ProjectId | null }
   | { ok: false; reason: "not_found"; projectId: string };
 
-export type { ChannelStatus };
+export type {
+  ChannelStatus,
+  DeadLetterItem,
+  DeadLetterItemStatus,
+  DeadLetterItemType,
+  DeadLetterQueueCounts,
+  DeadLetterRedriveTarget,
+};
 
 export type WorkflowDefinitionTriggerSummary =
   | { type: "event"; event: string; filter?: Record<string, string | string[]> }
@@ -263,7 +278,25 @@ export type WorkflowMetricCounts = {
   runCounts: WorkflowRunCountEntry[];
   costTotals: WorkflowCostEntry[];
   durationHistogram: WorkflowDurationHistogramEntry[];
+  deadLetterCounts: DeadLetterQueueCounts;
 };
+
+export type DeadLetterQueueListOptions = {
+  status?: DeadLetterItemStatus;
+  type?: DeadLetterItemType;
+  workflowName?: string;
+  limit?: number;
+  projectId?: ProjectId;
+};
+
+export type DeadLetterQueueListResult = {
+  items: DeadLetterItem[];
+  counts: DeadLetterQueueCounts;
+};
+
+export type DeadLetterQueueMutationResult =
+  | { ok: true; item: DeadLetterItem; runId?: string; workflowName?: string; event?: string }
+  | { ok: false; reason: "not_found" | "not_redrivable" | "unknown_workflow" };
 
 export type ComponentStatus = "ok" | "error";
 
@@ -371,6 +404,17 @@ export type DaemonControlHandle = {
   getWorkflowRun(id: string, projectId?: ProjectId): WorkflowRunDetail | null;
   // Metrics
   getWorkflowMetricCounts(projectId?: ProjectId): WorkflowMetricCounts;
+  // Dead-letter queue
+  listDeadLetters(opts?: DeadLetterQueueListOptions): DeadLetterQueueListResult;
+  getDeadLetter(id: string, projectId?: ProjectId): DeadLetterItem | null;
+  dismissDeadLetter(id: string, reason: string, projectId?: ProjectId): DeadLetterQueueMutationResult;
+  redriveDeadLetter(
+    id: string,
+    reason: string,
+    target: DeadLetterRedriveTarget,
+    projectId?: ProjectId,
+  ): DeadLetterQueueMutationResult;
+  exportDeadLetterDiagnostics(id: string, projectId?: ProjectId): EventJsonObject | null;
   // Capability readiness
   probeCapabilityReadiness(): Promise<CapabilityReadinessResponse>;
   // Thin-client identity (project + dashboard availability)

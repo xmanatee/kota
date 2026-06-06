@@ -2,6 +2,10 @@ import { existsSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  createWorkflowDispatchDeadLetter,
+  deadLetterStoreForProject,
+} from "#core/daemon/dead-letter-queue.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import {
@@ -276,5 +280,47 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
     expect(first.ok).toBe(true);
     const second = await handler.triggerByName("builder", { payload: {} });
     expect(second).toEqual({ ok: false, reason: "already_queued" });
+  });
+
+  it("local dead-letter client lists, exports, simulates redrive, and dismisses", async () => {
+    const dlq = deadLetterStoreForProject(projectDir);
+    const item = createWorkflowDispatchDeadLetter({
+      store: dlq,
+      scopeId: "scope-a",
+      workflowName: "telegram-ingest",
+      trigger: {
+        event: "telegram.message",
+        schemaRef: null,
+        eventId: "evtj-000000000001",
+        payload: { chatId: "chat-1", botToken: "secret" },
+      },
+      reason: "schema mismatch",
+      errorClass: "validation",
+    });
+    const handler = buildHandler(projectDir);
+
+    const listed = await handler.listDeadLetters({ workflow: "telegram-ingest" });
+    expect(listed.items.map((entry) => entry.id)).toEqual([item.id]);
+    expect(listed.counts).toEqual({ open: 1, dismissed: 0, redriven: 0 });
+
+    const shown = await handler.getDeadLetter(item.id);
+    expect(shown).toMatchObject({ found: true, item: { id: item.id } });
+    const diagnostics = await handler.exportDeadLetterDiagnostics(item.id);
+    expect(diagnostics).toMatchObject({ item: { id: item.id } });
+
+    const simulated = await handler.redriveDeadLetter(item.id, {
+      reason: "schema fixed",
+      target: "simulation",
+    });
+    expect(simulated).toMatchObject({
+      ok: true,
+      item: { id: item.id, status: "redriven" },
+    });
+
+    const dismissed = await handler.dismissDeadLetter(item.id, "operator closed");
+    expect(dismissed).toMatchObject({
+      ok: true,
+      item: { id: item.id, status: "dismissed" },
+    });
   });
 });

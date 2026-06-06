@@ -11,12 +11,18 @@
 
 import type { KotaJsonObject } from "#core/agent-harness/message-protocol.js";
 import type {
+  DeadLetterItem,
+  DeadLetterItemStatus,
+  DeadLetterItemType,
+  DeadLetterQueueCounts,
+  DeadLetterRedriveTarget,
   WorkflowDefinitionSummary,
   WorkflowLiveStatus,
   WorkflowRunDetail,
   WorkflowRunSummary,
 } from "#core/daemon/daemon-control.js";
 import type { EventSchemaReference } from "#core/events/event-bus.js";
+import type { EventJsonObject } from "#core/events/event-journal.js";
 
 /** Filters accepted by `client.workflow.listRuns`. */
 export type WorkflowRunsListFilter = {
@@ -29,6 +35,32 @@ export type WorkflowRunsListFilter = {
 
 export type WorkflowRunsListResult = {
   runs: WorkflowRunSummary[];
+};
+
+export type WorkflowDeadLetterListFilter = {
+  status?: DeadLetterItemStatus;
+  type?: DeadLetterItemType;
+  workflow?: string;
+  limit?: number;
+  projectId?: string;
+};
+
+export type WorkflowDeadLetterListResult = {
+  items: DeadLetterItem[];
+  counts: DeadLetterQueueCounts;
+};
+
+export type WorkflowDeadLetterGetResult =
+  | { found: true; item: DeadLetterItem }
+  | { found: false };
+
+export type WorkflowDeadLetterMutationResult =
+  | { ok: true; item: DeadLetterItem; runId?: string; workflowName?: string; event?: string }
+  | { ok: false; reason: "not_found" | "not_redrivable" | "unknown_workflow" };
+
+export type WorkflowDeadLetterRedriveOptions = {
+  reason: string;
+  target: DeadLetterRedriveTarget;
 };
 
 /** Project scope accepted by workflow runtime reads. */
@@ -275,6 +307,15 @@ export type WorkflowDefinitionsResult = {
  */
 export interface WorkflowClient {
   listRuns(filter?: WorkflowRunsListFilter): Promise<WorkflowRunsListResult>;
+  listDeadLetters(filter?: WorkflowDeadLetterListFilter): Promise<WorkflowDeadLetterListResult>;
+  getDeadLetter(id: string, projectId?: string): Promise<WorkflowDeadLetterGetResult>;
+  dismissDeadLetter(id: string, reason: string, projectId?: string): Promise<WorkflowDeadLetterMutationResult>;
+  redriveDeadLetter(
+    id: string,
+    options: WorkflowDeadLetterRedriveOptions,
+    projectId?: string,
+  ): Promise<WorkflowDeadLetterMutationResult>;
+  exportDeadLetterDiagnostics(id: string, projectId?: string): Promise<EventJsonObject | null>;
   status(filter?: WorkflowStatusFilter): Promise<WorkflowStatusSnapshot>;
   /**
    * Look up a single run. Daemon-up consults the daemon's in-memory tracker;

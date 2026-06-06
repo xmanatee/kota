@@ -1,8 +1,10 @@
 import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
+import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import type { EventJournal } from "#core/events/event-journal.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { AgentBackoffManager } from "./agent-backoff.js";
 import { WorkflowEventBatchManager } from "./event-batches.js";
@@ -38,6 +40,7 @@ import {
   cancelQueuedRun,
   enqueuePendingRun,
   enqueueWebhookRun,
+  redriveDeadLetter,
 } from "./runtime-runs-control.js";
 import {
   ABORT_SIGNAL_FILE,
@@ -67,6 +70,8 @@ export interface WorkflowRuntimeContext {
   readonly projectDir: string;
   readonly config?: KotaConfig;
   readonly store: WorkflowRunStore;
+  readonly deadLetterQueue?: DeadLetterQueueStore;
+  readonly eventJournal?: EventJournal;
   readonly idempotencyStore: IdempotencyStore;
   readonly wfQueue: WorkflowQueueManager;
   readonly scheduleTriggers: ScheduleTriggerManager;
@@ -151,6 +156,8 @@ export class WorkflowRuntime {
     const wfQueue = new WorkflowQueueManager({
       store,
       idempotencyStore,
+      deadLetterQueue: runtimeConfig.deadLetterQueue,
+      getScopeId: () => ctx.pbus.getScopeId(),
       getActiveBackoff: () => backoff.getActive(),
       shouldSuppressBackoff: (def) => backoff.shouldSuppress(def),
       workflowUsesAgent,
@@ -190,6 +197,8 @@ export class WorkflowRuntime {
       projectDir,
       config: runtimeConfig.config,
       store,
+      deadLetterQueue: runtimeConfig.deadLetterQueue,
+      eventJournal: runtimeConfig.eventJournal,
       idempotencyStore,
       wfQueue,
       scheduleTriggers,
@@ -291,6 +300,20 @@ export class WorkflowRuntime {
 
   cancelQueuedRun(runId: string): { ok: boolean; notFound?: boolean; active?: boolean } {
     return cancelQueuedRun(this.ctx, runId);
+  }
+
+  redriveDeadLetter(
+    id: string,
+    reason: string,
+    target: "original" | "simulation" = "original",
+  ): {
+    ok: boolean;
+    reason?: "not_found" | "not_redrivable" | "unknown_workflow";
+    runId?: string;
+    workflowName?: string;
+    event?: string;
+  } {
+    return redriveDeadLetter(this.ctx, id, reason, target);
   }
 
   getDefinitionCount(): number {

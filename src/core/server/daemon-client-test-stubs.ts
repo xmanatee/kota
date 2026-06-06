@@ -276,6 +276,14 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
       cancelRun: async () => ({ ok: false as const, reason: "not_found" as const }),
       abortRun: async () => ({ ok: false as const, reason: "not_found" as const }),
       getRun: async () => ({ found: false as const }),
+      listDeadLetters: async () => ({
+        items: [],
+        counts: { open: 0, dismissed: 0, redriven: 0 },
+      }),
+      getDeadLetter: async () => ({ found: false as const }),
+      dismissDeadLetter: async () => ({ ok: false as const, reason: "not_found" as const }),
+      redriveDeadLetter: async () => ({ ok: false as const, reason: "not_found" as const }),
+      exportDeadLetterDiagnostics: async () => null,
       listDefinitions: async () => ({
         source: "static" as const,
         definitions: [],

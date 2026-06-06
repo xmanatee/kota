@@ -18,6 +18,7 @@ import {
   type DaemonControlHandle,
   DaemonControlServer,
   type DaemonSseEvent,
+  type DeadLetterItem,
   type WorkflowLiveStatus,
   type WorkflowMetricCounts,
 } from "./daemon-control.js";
@@ -30,6 +31,48 @@ import {
 } from "./sse-event-fixtures.integration.js";
 
 const TEST_TOKEN = "test-secret-token-abc123";
+
+function deadLetterFixture(overrides: Partial<DeadLetterItem> = {}): DeadLetterItem {
+  return {
+    id: "dlq-test-1",
+    type: "workflow-dispatch",
+    status: "open",
+    scopeId: "test-project-id",
+    projectId: "test-project-id",
+    owningModule: "workflow-runtime",
+    sourceEventIds: ["evtj-000000000001"],
+    affectedWorkflowNames: ["telegram-ingest"],
+    failure: {
+      reason: "schema mismatch",
+      retryCount: 2,
+      lastErrorClass: "validation",
+      firstFailedAt: "2026-06-06T12:00:00.000Z",
+      lastFailedAt: "2026-06-06T12:00:00.000Z",
+    },
+    source: {
+      kind: "workflow-dispatch",
+      workflowName: "telegram-ingest",
+      triggerEvent: "telegram.message",
+      triggerSchemaRef: null,
+      failedRunId: "run-failed",
+    },
+    redrive: {
+      kind: "workflow",
+      workflowName: "telegram-ingest",
+      source: { kind: "run-trigger", runId: "run-failed" },
+    },
+    redactedProjection: { chatId: "chat-1", text: "hello" },
+    createdAt: "2026-06-06T12:00:00.000Z",
+    updatedAt: "2026-06-06T12:00:00.000Z",
+    redriveAttempts: [],
+    retention: {
+      kind: "expire-after-ms",
+      durationMs: 2_592_000_000,
+      expiresAt: "2026-07-06T12:00:00.000Z",
+    },
+    ...overrides,
+  };
+}
 
 function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControlHandle {
   const defaultWorkflowStatus: WorkflowLiveStatus = {
@@ -65,7 +108,7 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     subscribeToEvents: vi.fn(() => () => {}),
     listWorkflowRuns: vi.fn(() => []),
     getWorkflowRun: vi.fn(() => null),
-    getWorkflowMetricCounts: vi.fn((): WorkflowMetricCounts => ({ runCounts: [], costTotals: [], durationHistogram: [] })),
+    getWorkflowMetricCounts: vi.fn((): WorkflowMetricCounts => ({ runCounts: [], costTotals: [], durationHistogram: [], deadLetterCounts: { open: 0, dismissed: 0, redriven: 0 } })),
     registerSession: vi.fn(),
     unregisterSession: vi.fn(),
     listSessions: vi.fn(() => []),
@@ -964,6 +1007,95 @@ describe("DaemonControlServer", () => {
       const res = await fetchWithToken(port, "/workflow/status");
       const body = await res.json();
       expect(body.paused).toBe(true);
+    });
+  });
+
+  describe("workflow dead-letter routes", () => {
+    it("lists, shows, and exports dead-letter diagnostics", async () => {
+      const item = deadLetterFixture();
+      handle.listDeadLetters = vi.fn(() => ({
+        items: [item],
+        counts: { open: 1, dismissed: 0, redriven: 0 },
+      }));
+      handle.getDeadLetter = vi.fn(() => item);
+      handle.exportDeadLetterDiagnostics = vi.fn(() => ({
+        item: { id: item.id },
+        exportedAt: "2026-06-06T12:01:00.000Z",
+      }));
+
+      const list = await fetchWithToken(
+        port,
+        "/workflow/dead-letter?status=open&type=workflow-dispatch&workflow=telegram-ingest&limit=5&projectId=test-project-id",
+      );
+      expect(list.status).toBe(200);
+      expect(await list.json()).toMatchObject({
+        items: [{ id: item.id }],
+        counts: { open: 1, dismissed: 0, redriven: 0 },
+      });
+      expect(handle.listDeadLetters).toHaveBeenCalledWith({
+        status: "open",
+        type: "workflow-dispatch",
+        workflowName: "telegram-ingest",
+        limit: 5,
+        projectId: "test-project-id",
+      });
+
+      const show = await fetchWithToken(port, `/workflow/dead-letter/${item.id}`);
+      expect(show.status).toBe(200);
+      expect(await show.json()).toMatchObject({ item: { id: item.id } });
+      expect(handle.getDeadLetter).toHaveBeenCalledWith(item.id, undefined);
+
+      const diagnostics = await fetchWithToken(
+        port,
+        `/workflow/dead-letter/${item.id}/diagnostics`,
+      );
+      expect(diagnostics.status).toBe(200);
+      expect(await diagnostics.json()).toMatchObject({ item: { id: item.id } });
+      expect(handle.exportDeadLetterDiagnostics).toHaveBeenCalledWith(item.id, undefined);
+    });
+
+    it("dismisses and redrives dead-letter items through control routes", async () => {
+      const item = deadLetterFixture();
+      const dismissed = deadLetterFixture({ status: "dismissed" });
+      const redriven = deadLetterFixture({ status: "redriven" });
+      handle.dismissDeadLetter = vi.fn(() => ({ ok: true as const, item: dismissed }));
+      handle.redriveDeadLetter = vi.fn(() => ({
+        ok: true as const,
+        item: redriven,
+        runId: "run-redrive",
+        workflowName: "telegram-ingest",
+      }));
+
+      const dismiss = await fetchWithToken(port, `/workflow/dead-letter/${item.id}/dismiss`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "operator handled manually" }),
+      });
+      expect(dismiss.status).toBe(200);
+      expect(await dismiss.json()).toMatchObject({ ok: true, item: { status: "dismissed" } });
+      expect(handle.dismissDeadLetter).toHaveBeenCalledWith(
+        item.id,
+        "operator handled manually",
+        undefined,
+      );
+
+      const redrive = await fetchWithToken(port, `/workflow/dead-letter/${item.id}/redrive`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "schema fixed", target: "original" }),
+      });
+      expect(redrive.status).toBe(200);
+      expect(await redrive.json()).toMatchObject({
+        ok: true,
+        runId: "run-redrive",
+        workflowName: "telegram-ingest",
+      });
+      expect(handle.redriveDeadLetter).toHaveBeenCalledWith(
+        item.id,
+        "schema fixed",
+        "original",
+        undefined,
+      );
     });
   });
 
