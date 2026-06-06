@@ -1,13 +1,13 @@
 ---
 id: task-add-retention-redaction-and-provenance-policy
 title: Add retention redaction and provenance policy
-status: backlog
+status: ready
 priority: p1
 area: core
 summary: Add a cross-cutting policy for event/run/decision/log retention, redaction, provenance, and exported client projections so durable automation evidence stays useful without leaking secrets or sensitive content.
 depends_on: [task-add-durable-event-envelope-and-journal, task-add-module-setup-and-auth-requirement-protocol, task-add-persisted-owner-confirmed-action-protocol, task-add-scope-policy-inheritance-protocol]
 created_at: 2026-06-03T15:51:25.157Z
-updated_at: 2026-06-03T15:51:25.157Z
+updated_at: 2026-06-06T01:44:09.071Z
 ---
 
 ## Problem
