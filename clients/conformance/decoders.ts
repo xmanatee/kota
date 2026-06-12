@@ -805,6 +805,212 @@ export function parseSetupStatusResponse(raw: unknown): SetupStatusResponse {
   return { requirements, summary };
 }
 
+// MARK: - Shared UI surfaces
+
+const UI_PROTOCOL_VERSIONS = ["ui.surface.v1"] as const;
+const UI_INTENTS = ["Status", "Inbox", "Work", "Knowledge", "Setup"] as const;
+const UI_ROLES = ["neutral", "info", "success", "warn", "error", "muted"] as const;
+const UI_ACTION_EFFECTS = ["read", "write", "external"] as const;
+const UI_CONFIRMATIONS = ["none", "required"] as const;
+const UI_NODE_KINDS = [
+  "navigation",
+  "status-summary",
+  "list",
+  "detail",
+  "form",
+  "command",
+  "empty",
+  "error",
+] as const;
+const UI_FIELD_INPUTS = ["text", "secret", "number", "boolean"] as const;
+
+export type UiRole = KnownLiteral<typeof UI_ROLES>;
+export type UiAction = {
+  surfaceId: string;
+  actionId: string;
+  scopeId: string;
+  label: string;
+  effect: KnownLiteral<typeof UI_ACTION_EFFECTS>;
+  confirmation: KnownLiteral<typeof UI_CONFIRMATIONS>;
+  command: string;
+};
+
+export type UiStatusEntry = {
+  label: string;
+  value: string;
+  role: UiRole;
+};
+
+export type UiListItem = {
+  id: string;
+  title: string;
+  detail: string;
+  role: UiRole;
+  action: UiAction;
+};
+
+export type UiFormField = {
+  id: string;
+  label: string;
+  input: KnownLiteral<typeof UI_FIELD_INPUTS>;
+  required: boolean;
+};
+
+export type UiNode =
+  | { kind: "navigation"; label: string; items: Array<{ surfaceId: string; label: string }> }
+  | { kind: "status-summary"; entries: UiStatusEntry[] }
+  | { kind: "list"; title: string; items: UiListItem[] }
+  | { kind: "detail"; title: string; body: string }
+  | { kind: "form"; title: string; fields: UiFormField[]; submit: UiAction }
+  | { kind: "command"; action: UiAction }
+  | { kind: "empty"; title: string; detail: string; action: UiAction }
+  | { kind: "error"; title: string; detail: string; action: UiAction };
+
+export type UiSurface = {
+  protocolVersion: KnownLiteral<typeof UI_PROTOCOL_VERSIONS>;
+  surfaceId: string;
+  title: string;
+  intent: KnownLiteral<typeof UI_INTENTS>;
+  scopeId: string;
+  nodes: UiNode[];
+  actions: UiAction[];
+};
+
+export type UiSurfaceBundle = {
+  protocolVersion: KnownLiteral<typeof UI_PROTOCOL_VERSIONS>;
+  surfaces: UiSurface[];
+};
+
+function parseUiAction(raw: unknown, field: string): UiAction {
+  const obj = asObject(raw, field);
+  return {
+    surfaceId: asString(obj.surfaceId, `${field}.surfaceId`),
+    actionId: asString(obj.actionId, `${field}.actionId`),
+    scopeId: asString(obj.scopeId, `${field}.scopeId`),
+    label: asString(obj.label, `${field}.label`),
+    effect: asKnown(obj.effect, `${field}.effect`, UI_ACTION_EFFECTS),
+    confirmation: asKnown(obj.confirmation, `${field}.confirmation`, UI_CONFIRMATIONS),
+    command: asString(obj.command, `${field}.command`),
+  };
+}
+
+function parseUiListItem(raw: unknown, field: string): UiListItem {
+  const obj = asObject(raw, field);
+  return {
+    id: asString(obj.id, `${field}.id`),
+    title: asString(obj.title, `${field}.title`),
+    detail: asString(obj.detail, `${field}.detail`),
+    role: asKnown(obj.role, `${field}.role`, UI_ROLES),
+    action: parseUiAction(obj.action, `${field}.action`),
+  };
+}
+
+function parseUiNode(raw: unknown, field: string): UiNode {
+  const obj = asObject(raw, field);
+  const kind = asKnown(obj.kind, `${field}.kind`, UI_NODE_KINDS);
+  switch (kind) {
+    case "navigation":
+      return {
+        kind,
+        label: asString(obj.label, `${field}.label`),
+        items: asArray(obj.items, `${field}.items`).map((entry, index) => {
+          const item = asObject(entry, `${field}.items[${index}]`);
+          return {
+            surfaceId: asString(item.surfaceId, `${field}.items[${index}].surfaceId`),
+            label: asString(item.label, `${field}.items[${index}].label`),
+          };
+        }),
+      };
+    case "status-summary":
+      return {
+        kind,
+        entries: asArray(obj.entries, `${field}.entries`).map((entry, index) => {
+          const item = asObject(entry, `${field}.entries[${index}]`);
+          return {
+            label: asString(item.label, `${field}.entries[${index}].label`),
+            value: asString(item.value, `${field}.entries[${index}].value`),
+            role: asKnown(item.role, `${field}.entries[${index}].role`, UI_ROLES),
+          };
+        }),
+      };
+    case "list":
+      return {
+        kind,
+        title: asString(obj.title, `${field}.title`),
+        items: asArray(obj.items, `${field}.items`).map((entry, index) =>
+          parseUiListItem(entry, `${field}.items[${index}]`)
+        ),
+      };
+    case "detail":
+      return {
+        kind,
+        title: asString(obj.title, `${field}.title`),
+        body: asString(obj.body, `${field}.body`),
+      };
+    case "form":
+      return {
+        kind,
+        title: asString(obj.title, `${field}.title`),
+        fields: asArray(obj.fields, `${field}.fields`).map((entry, index) => {
+          const item = asObject(entry, `${field}.fields[${index}]`);
+          return {
+            id: asString(item.id, `${field}.fields[${index}].id`),
+            label: asString(item.label, `${field}.fields[${index}].label`),
+            input: asKnown(item.input, `${field}.fields[${index}].input`, UI_FIELD_INPUTS),
+            required: asBool(item.required, `${field}.fields[${index}].required`),
+          };
+        }),
+        submit: parseUiAction(obj.submit, `${field}.submit`),
+      };
+    case "command":
+      return {
+        kind,
+        action: parseUiAction(obj.action, `${field}.action`),
+      };
+    case "empty":
+      return {
+        kind,
+        title: asString(obj.title, `${field}.title`),
+        detail: asString(obj.detail, `${field}.detail`),
+        action: parseUiAction(obj.action, `${field}.action`),
+      };
+    case "error":
+      return {
+        kind,
+        title: asString(obj.title, `${field}.title`),
+        detail: asString(obj.detail, `${field}.detail`),
+        action: parseUiAction(obj.action, `${field}.action`),
+      };
+  }
+}
+
+function parseUiSurface(raw: unknown, field: string): UiSurface {
+  const obj = asObject(raw, field);
+  return {
+    protocolVersion: asKnown(obj.protocolVersion, `${field}.protocolVersion`, UI_PROTOCOL_VERSIONS),
+    surfaceId: asString(obj.surfaceId, `${field}.surfaceId`),
+    title: asString(obj.title, `${field}.title`),
+    intent: asKnown(obj.intent, `${field}.intent`, UI_INTENTS),
+    scopeId: asString(obj.scopeId, `${field}.scopeId`),
+    nodes: asArray(obj.nodes, `${field}.nodes`).map((entry, index) =>
+      parseUiNode(entry, `${field}.nodes[${index}]`)
+    ),
+    actions: asArray(obj.actions, `${field}.actions`).map((entry, index) =>
+      parseUiAction(entry, `${field}.actions[${index}]`)
+    ),
+  };
+}
+
+export function parseUiSurfaceBundle(raw: unknown): UiSurfaceBundle {
+  const obj = asObject(raw, "uiSurfaces");
+  return {
+    protocolVersion: asKnown(obj.protocolVersion, "uiSurfaces.protocolVersion", UI_PROTOCOL_VERSIONS),
+    surfaces: asArray(obj.surfaces, "uiSurfaces.surfaces").map((entry, index) =>
+      parseUiSurface(entry, `uiSurfaces.surfaces[${index}]`)
+    ),
+  };
+}
+
 // MARK: - Recall
 
 export type RecallSource =

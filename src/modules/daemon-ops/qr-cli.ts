@@ -46,7 +46,7 @@ export function buildQrCommand(): Command {
       );
 
       if (!address || typeof address.port !== "number") {
-        console.error("Daemon is not running. Start the daemon first with: kota daemon");
+        console.error("Daemon is not running. Start the daemon first with: kota daemon start");
         process.exitCode = 1;
         return;
       }

@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it } from "vitest";
-import { formatAuthError, parseIntOption } from "./cli.js";
+import { formatAuthError, parseIntOption, shouldLaunchDefaultOperatorConsole } from "./cli.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = resolve(root, "src/cli.ts");
@@ -157,6 +157,13 @@ describe("cli", () => {
     const out = run("run", "--help");
     expect(out).toContain("active preset");
     expect(out).toMatch(/--preset/);
+  });
+
+  it("routes bare TTY invocation to the operator console while preserving explicit run", () => {
+    expect(shouldLaunchDefaultOperatorConsole(["node", "kota"], true)).toBe(true);
+    expect(shouldLaunchDefaultOperatorConsole(["node", "kota"], false)).toBe(false);
+    expect(shouldLaunchDefaultOperatorConsole(["node", "kota", "run"], true)).toBe(false);
+    expect(shouldLaunchDefaultOperatorConsole(["node", "kota", "--help"], true)).toBe(false);
   });
 });
 

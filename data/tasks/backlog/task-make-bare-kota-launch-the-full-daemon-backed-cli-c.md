@@ -5,9 +5,10 @@ status: backlog
 priority: p1
 area: client
 summary: Turn the current CLI navigator into the default daemon-backed KOTA client launched by bare `kota`, with parity navigation for scopes, automations, agents, modules, setup, pending owner requests, approvals, stores, and live runs.
-depends_on: [task-add-shared-ui-contribution-protocol-across-clients]
+depends_on: [task-add-shared-ui-contribution-protocol-across-clients, task-fix-daemon-status-offline-and-stale-state-semantic, task-add-operator-inbox-projection]
 created_at: 2026-06-03T13:40:30.000Z
 updated_at: 2026-06-03T13:41:17.000Z
+task_class: Product
 ---
 
 ## Problem

@@ -38,7 +38,7 @@ Three new subcommands under `kota daemon`:
 
 ## Constraints
 
-- Subcommands live in the daemon module (`src/modules/daemon.ts`) alongside the
+- Subcommands live in the daemon module (`src/modules/daemon-ops/index.ts`) alongside the
   existing `daemon` start command.
 - Use `DaemonControlClient` for the status call; check whether a stop endpoint or
   signal mechanism exists before adding one.
@@ -54,4 +54,4 @@ Three new subcommands under `kota daemon`:
 - `kota daemon status` prints daemon health summary and exits 0 if reachable.
 - `kota daemon pid` prints the process ID of the running daemon.
 - All three commands exit non-zero with a clear message when no daemon is running.
-- `kota daemon --help` lists all three subcommands.
+- `kota daemon --help` lists `status`, `pid`, and `stop`.

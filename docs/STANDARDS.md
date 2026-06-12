@@ -49,6 +49,11 @@
 - Do not add test-only production flags, hooks, or override parameters just to make tests easier.
 - Prefer designs that are naturally testable through clear boundaries and explicit inputs and outputs.
 - Avoid optimizing healthy mechanisms for speed or cost at the expense of quality, clarity, or capability.
+- Owner-visible product quality outranks internal meta-work. When CLI, client,
+  daemon status, approvals, owner requests, setup, or blocked-work visibility
+  is materially confusing, fix that operator path before adding repair loops,
+  micro-optimizations, or test-only hardening, unless the competing work is a
+  safety issue or a runtime-stopping failure.
 - Prefer clear discoverable surfaces over injected context summaries. If an
   agent can gather context itself, do not precompute and force-feed it.
 - Validate stable invariants in code; leave judgment-heavy review to agents with
@@ -63,6 +68,10 @@
   default. If autonomy is wasteful, fix the queue, prompts, validation, repair
   flow, or operator controls before capping the workflows themselves.
 - Treat runtime, workflow, and core-loop changes as high-risk and verify them more thoroughly than routine edits.
+- Product-facing client and operator work is complete only when the real
+  operator journey is inspectable through a rendered transcript, screenshot,
+  runtime probe, or equivalent artifact. Passing unit tests alone does not
+  prove that a CLI, Mac, Web, channel, setup, or daemon-control path improved.
 
 ## AGENTS.md Files
 

@@ -247,7 +247,7 @@ describe("runtime navigator", () => {
     expect(captured.trim()).toBe(NON_TTY_HINT);
   });
 
-  it("renders the main menu, opens modules, and quits cleanly", async () => {
+  it("renders the operator intent menu, opens setup, and quits cleanly", async () => {
     const modulesEntry: ModuleListEntry = {
       name: "approval-queue",
       source: "project",
@@ -267,13 +267,16 @@ describe("runtime navigator", () => {
     const output = makeOutput();
     await runNavigator({
       client,
-      prompt: makePrompt(["2", "q"]),
+      prompt: makePrompt(["5", "q"]),
       output: output.capture,
     });
     const joined = output.frames.join("\n");
-    expect(joined).toMatch(/KOTA navigator/);
-    expect(joined).toMatch(/Automations/);
-    expect(joined).toMatch(/Modules/);
+    expect(joined).toMatch(/KOTA operator console/);
+    expect(joined).toMatch(/Status/);
+    expect(joined).toMatch(/Inbox/);
+    expect(joined).toMatch(/Work/);
+    expect(joined).toMatch(/Knowledge/);
+    expect(joined).toMatch(/Setup/);
     expect(joined).toMatch(/approval-queue/);
     expect(client.modules.list).toHaveBeenCalledTimes(1);
   });
@@ -302,7 +305,7 @@ describe("runtime navigator", () => {
     const output = makeOutput();
     await runNavigator({
       client,
-      prompt: makePrompt(["4", "ap_1 approve looks ok", "q"]),
+      prompt: makePrompt(["2", "ap_1 approve looks ok", "q"]),
       output: output.capture,
     });
     expect(approve).toHaveBeenCalledWith("ap_1", "looks ok");
@@ -330,14 +333,14 @@ describe("runtime navigator", () => {
     const output = makeOutput();
     await runNavigator({
       client,
-      prompt: makePrompt(["4", "../abcd1234 approve", "q"]),
+      prompt: makePrompt(["2", "../abcd1234 approve", "q"]),
       output: output.capture,
     });
     expect(approve).toHaveBeenCalledWith("../abcd1234", undefined);
     expect(output.frames.join("\n")).toMatch(/Invalid approval id/);
   });
 
-  it("toggles a workflow's autonomy registration via the sessions screen", async () => {
+  it("summarizes active sessions inside the Work intent", async () => {
     const session: InteractiveSession = {
       id: "sess-1",
       scopeId: "test-project",
@@ -347,31 +350,26 @@ describe("runtime navigator", () => {
       autonomyMode: "supervised",
       source: "daemon",
     };
-    const setAutonomy = vi.fn(async () => ({
-      ok: true as const,
-      autonomyMode: "autonomous" as const,
-      source: "daemon" as const,
-      serveOwned: false,
-    }));
     const client = emptyClient({
       sessions: {
         list: vi.fn(async () => ({ sessions: [session] })),
-        setAutonomyMode: setAutonomy,
+        setAutonomyMode: vi.fn(async () => ({ ok: false as const, reason: "daemon_required" as const })),
       },
     });
     const output = makeOutput();
     await runNavigator({
       client,
-      prompt: makePrompt(["1", "sess-1 autonomous", "q"]),
+      prompt: makePrompt(["3", "q"]),
       output: output.capture,
     });
-    expect(setAutonomy).toHaveBeenCalledWith("sess-1", "autonomous");
-    expect(output.frames.join("\n")).toMatch(/Updated sess-1/);
+    expect(client.sessions.list).toHaveBeenCalledTimes(1);
+    expect(output.frames.join("\n")).toMatch(/Sessions\s+1/);
   });
 
   it("never imports `.kota/` paths or module services directly", () => {
     const sources = [
       readFileSync(join(import.meta.dirname, "navigator.ts"), "utf-8"),
+      readFileSync(join(import.meta.dirname, "navigator-screens.ts"), "utf-8"),
       readFileSync(join(import.meta.dirname, "index.ts"), "utf-8"),
     ];
     for (const src of sources) {
@@ -400,7 +398,7 @@ describe("runtime navigator", () => {
     const output = makeOutput();
     await runNavigator({
       client,
-      prompt: makePrompt(["4", "q"]),
+      prompt: makePrompt(["2", "q"]),
       output: output.capture,
     });
     expect(output.frames.join("\n")).toMatch(/Daemon unreachable/);

@@ -20,6 +20,11 @@ describes scheduling and lifecycle.
   its `depends_on` list must be exactly the same task id.
 - Tasks describe what must become true and why it matters; builders own the
   implementation plan.
+- New strategic tasks may set `task_class: Product`, `Safety`, `Platform`, or
+  `Meta` in frontmatter. Product is owner-visible capability or UX; Safety is
+  security, credential, permission, policy, or destructive-action risk;
+  Platform is enabling architecture/runtime/protocol work; Meta is work on the
+  autonomous process, evaluators, repair loops, prompts, or queue machinery.
 - Preserve owner wording, runtime evidence, research source, and urgency in
   `## Source / Intent`; do not normalize away the reason the task exists.
 - `## Acceptance Evidence` names the transcript, screenshot, fixture, command,
@@ -86,6 +91,10 @@ do not change visible behavior remain exempt; pick a non-client area
   initiative it enables.
 - Owner-facing regressions, broken operator output, repeated expensive
   failures, and stale blocked owner requests are strong queue-shaping signals.
+- P1 Product and Safety work outranks Meta/repair work unless the runtime is
+  broken. A ready/doing `task_class: Meta` task must include a
+  `## Product / Safety Link` section naming the Product or Safety blocker it
+  closes; otherwise it belongs outside the actionable queue.
 - Use `pnpm kota task move <id> <state>` to move tasks between state directories.
   The move command owns lifecycle metadata and file movement.
 - Before finishing, ensure task validation would pass: unique ids, tracked task

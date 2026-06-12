@@ -82,6 +82,11 @@ export type StatusSnapshot = {
    * the daemon is unreachable so the CLI never renders a stale verdict.
    */
   dashboard?: StatusDashboard;
+  historicalWorkflow?: {
+    activeRuns: number;
+    queuedRuns: number;
+    workflowPaused: boolean;
+  };
 };
 
 /**
@@ -163,7 +168,10 @@ function describeDashboard(dashboard: StatusDashboard): {
   };
 }
 
-export function buildStatusNode(snap: StatusSnapshot): RenderNode {
+export function buildStatusNode(
+  snap: StatusSnapshot,
+  options: { explain?: boolean } = {},
+): RenderNode {
   const daemonValue = snap.daemonRunning && snap.daemonPid != null
     ? `running  (pid ${snap.daemonPid}${snap.daemonUptimeMs != null ? `, up ${formatUptime(snap.daemonUptimeMs)}` : ""})`
     : "not running  (offline mode)";
@@ -214,37 +222,82 @@ export function buildStatusNode(snap: StatusSnapshot): RenderNode {
     const dash = describeDashboard(snap.dashboard);
     entries.push({ label: "Dashboard", value: dash.value, role: dash.role });
   }
-  entries.push(
-    {
-      label: "Daemon",
-      value: daemonValue,
-      role: snap.daemonRunning
-        ? "success" as const
-        : snap.strandedDaemon
-          ? "warn" as const
-          : "muted" as const,
-    },
-    {
-      label: "Dispatch",
-      value: snap.workflowPaused
-        ? "paused  (run `kota workflow resume`)"
-        : "running",
-      role: snap.workflowPaused ? "warn" as const : "muted" as const,
-    },
-    { label: "Runs", value: `${snap.activeRuns} active, ${snap.queuedRuns} queued`, role: "muted" as const },
-    { label: "Sessions", value: `${snap.sessions} interactive`, role: "muted" as const },
-    {
-      label: "Approvals",
-      value: `${snap.pendingApprovals} pending${approvalSuffix}`,
-      role: snap.pendingApprovals > 0 ? "warn" as const : "muted" as const,
-    },
-  );
+  entries.push({
+    label: "Daemon",
+    value: daemonValue,
+    role: snap.daemonRunning
+      ? "success" as const
+      : snap.strandedDaemon
+        ? "warn" as const
+        : "muted" as const,
+  });
+
+  if (snap.daemonRunning) {
+    entries.push(
+      {
+        label: "Dispatch",
+        value: snap.workflowPaused
+          ? "paused  (run `kota workflow resume`)"
+          : "running",
+        role: snap.workflowPaused ? "warn" as const : "muted" as const,
+      },
+      { label: "Runs", value: `${snap.activeRuns} active, ${snap.queuedRuns} queued`, role: "muted" as const },
+      { label: "Sessions", value: `${snap.sessions} interactive`, role: "muted" as const },
+    );
+  } else {
+    entries.push(
+      {
+        label: "Dispatch",
+        value: "offline  (daemon control API unavailable)",
+        role: "muted" as const,
+      },
+      {
+        label: "Runs",
+        value: "offline  (live run state unavailable)",
+        role: "muted" as const,
+      },
+    );
+    if (
+      snap.historicalWorkflow &&
+      (snap.historicalWorkflow.activeRuns > 0 ||
+        snap.historicalWorkflow.queuedRuns > 0 ||
+        snap.historicalWorkflow.workflowPaused)
+    ) {
+      const paused = snap.historicalWorkflow.workflowPaused ? ", pause signal present" : "";
+      entries.push({
+        label: "Historical run store",
+        value:
+          `${snap.historicalWorkflow.activeRuns} active, ` +
+          `${snap.historicalWorkflow.queuedRuns} queued from offline files${paused}`,
+        role: "warn" as const,
+      });
+    }
+  }
+
+  entries.push({
+    label: "Approvals",
+    value: `${snap.pendingApprovals} pending${approvalSuffix}`,
+    role: snap.pendingApprovals > 0 ? "warn" as const : "muted" as const,
+  });
+
+  if (options.explain) {
+    entries.push({
+      label: "Runtime source",
+      value: snap.daemonRunning
+        ? "daemon control API; event stream expected available through the daemon"
+        : "local files only; daemon API and event stream unavailable",
+      role: snap.daemonRunning ? "success" as const : "warn" as const,
+    });
+  }
 
   return kvBlock(entries);
 }
 
-export function formatStatusOutput(snap: StatusSnapshot): string {
-  return renderToString(buildStatusNode(snap));
+export function formatStatusOutput(
+  snap: StatusSnapshot,
+  options: { explain?: boolean } = {},
+): string {
+  return renderToString(buildStatusNode(snap, options));
 }
 
 /**
@@ -361,17 +414,24 @@ export async function gatherStatus(
   const queue = getApprovalQueue(join(stateDir, "approvals"));
   const pendingApprovals = queue.count("pending");
   const strandedDaemon = detectStrandedDaemonProcess(projectDir);
+  const workflowPaused = existsSync(join(stateDir, PAUSE_SIGNAL_FILE));
+  const historicalWorkflow = {
+    activeRuns: (state.activeRuns ?? []).length,
+    queuedRuns: (state.pendingRuns ?? []).length,
+    workflowPaused,
+  };
 
   return {
     daemonRunning: false,
-    activeRuns: (state.activeRuns ?? []).length,
-    queuedRuns: (state.pendingRuns ?? []).length,
-    workflowPaused: existsSync(join(stateDir, PAUSE_SIGNAL_FILE)),
+    activeRuns: 0,
+    queuedRuns: 0,
+    workflowPaused: false,
     sessions: 0,
     pendingApprovals,
     projectDir,
     projectName,
     controlFile,
+    historicalWorkflow,
     ...(strandedDaemon.kind === "stranded" && {
       strandedDaemon: { pid: strandedDaemon.pid, command: strandedDaemon.command },
     }),
@@ -417,13 +477,17 @@ export function buildStatusCommand(_ctx: ModuleContext): Command {
       "--project <id>",
       "Scope the snapshot to one configured project (default: daemon's active project)",
     )
-    .action(async (opts: { project?: string }) => {
+    .option(
+      "--explain",
+      "Show where each runtime verdict came from, including offline/stale state",
+    )
+    .action(async (opts: { project?: string; explain?: boolean }) => {
       const projectDir = resolveProjectDir();
       const snap = await gatherStatus(
         projectDir,
         opts.project ? { projectId: opts.project } : {},
       );
-      print(buildStatusNode(snap));
+      print(buildStatusNode(snap, { explain: opts.explain === true }));
       if (snap.pendingApprovals > 0) process.exit(1);
     });
 }

@@ -54,6 +54,7 @@ import {
 import { DaemonDashboard } from "./dashboard.js";
 import { buildEventsCommand } from "./events-cli.js";
 import { abbreviateRunId, formatDuration, formatTimeAgo, formatUptime } from "./format-utils.js";
+import { buildInboxCommand } from "./operator-inbox-cli.js";
 import { buildProjectCommand } from "./projects-cli.js";
 import { projectsLocalClient } from "./projects-local.js";
 import { buildQrCommand } from "./qr-cli.js";
@@ -71,6 +72,24 @@ import { buildSessionCommand } from "./session-cli.js";
 import { sessionsLocalClient } from "./sessions-local.js";
 import { buildStatusCommand } from "./status-cli.js";
 
+export type {
+  UiAction,
+  UiActionEffect,
+  UiConfirmation,
+  UiIntent,
+  UiListItem,
+  UiNode,
+  UiRole,
+  UiStatusEntry,
+  UiSurface,
+  UiSurfaceBundle,
+} from "./operator-ui.js";
+export {
+  buildInboxUiSurface,
+  buildStatusInboxBundle,
+  buildStatusUiSurface,
+  renderUiSurface,
+} from "./operator-ui.js";
 export {
   buildLaunchdPlist,
   buildSystemdUnit,
@@ -89,6 +108,17 @@ type DaemonProjectDirOptions = {
   projectDir?: string;
 };
 
+type DaemonStartOptions = DaemonProjectDirOptions & {
+  verbose?: boolean;
+  preset?: string;
+  pollInterval?: string;
+  logFormat?: LogFormat;
+};
+
+type ResolvedDaemonStartOptions = Omit<DaemonStartOptions, "pollInterval"> & {
+  pollInterval: string;
+};
+
 function parseIntOption(value: string, name: string): number {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) {
@@ -96,6 +126,43 @@ function parseIntOption(value: string, name: string): number {
     process.exit(1);
   }
   return parsed;
+}
+
+function parseLogFormatOption(value: string): LogFormat {
+  if (value !== "text" && value !== "json") {
+    console.error(`Error: --log-format must be "text" or "json", got "${value}"`);
+    process.exit(1);
+  }
+  return value;
+}
+
+function addDaemonStartOptions(command: Command): Command {
+  return command
+    .option("-v, --verbose", "Show debug output")
+    .option(
+      "--preset <id>",
+      "Preset bundle (claude | codex | gemini | gemini-cli | antigravity-cli). Overrides KOTA_PRESET and config.defaultPreset for this daemon process",
+    )
+    .option("--poll-interval <seconds>", "Scheduler poll interval in seconds", "30")
+    .option(
+      "--project-dir <path>",
+      DAEMON_PROJECT_DIR_OPTION_DESCRIPTION,
+    )
+    .option("--log-format <format>", "Log format: text (default) or json", parseLogFormatOption);
+}
+
+function resolveDaemonStartOptions(
+  opts: DaemonStartOptions,
+  command?: Command,
+): ResolvedDaemonStartOptions {
+  const parentOpts = command?.parent?.opts<DaemonStartOptions>() ?? {};
+  return {
+    verbose: opts.verbose ?? parentOpts.verbose,
+    preset: opts.preset ?? parentOpts.preset,
+    pollInterval: opts.pollInterval ?? parentOpts.pollInterval ?? "30",
+    projectDir: opts.projectDir ?? parentOpts.projectDir,
+    logFormat: opts.logFormat ?? parentOpts.logFormat,
+  };
 }
 
 function installDaemonPresetEnv(args: {
@@ -305,103 +372,104 @@ const daemonModule: KotaModule = {
   dependencies: ["repo-tasks", "rendering"],
 
   commands: (ctx) => {
-    const cmd = new Command("daemon")
-      .description("Run KOTA as a long-running daemon with autonomous workflows")
-      .option("-v, --verbose", "Show debug output")
-      .option("--preset <id>", "Preset bundle (claude | codex | gemini | gemini-cli | antigravity-cli). Overrides KOTA_PRESET and config.defaultPreset for this daemon process")
-      .option("--poll-interval <seconds>", "Scheduler poll interval in seconds", "30")
-      .option(
-        "--project-dir <path>",
-        DAEMON_PROJECT_DIR_OPTION_DESCRIPTION,
-      )
-      .option("--log-format <format>", "Log format: text (default) or json", (v) => {
-        if (v !== "text" && v !== "json") {
-          console.error(`Error: --log-format must be "text" or "json", got "${v}"`);
-          process.exit(1);
-        }
-        return v as LogFormat;
-      })
-      .action(async (opts) => {
-        const logFormat: LogFormat | undefined =
-          opts.logFormat ??
-          (process.env.KOTA_DAEMON_LOG_FORMAT === "json" ? "json" : undefined);
+    const startDaemon = async (rawOpts: DaemonStartOptions, command?: Command): Promise<void> => {
+      const opts = resolveDaemonStartOptions(rawOpts, command);
+      const logFormat: LogFormat | undefined =
+        opts.logFormat ??
+        (process.env.KOTA_DAEMON_LOG_FORMAT === "json" ? "json" : undefined);
 
-        if (process.env[DAEMON_CHILD_ENV] !== String(process.ppid)) {
-          await runDaemonSupervisor();
-          return;
-        }
+      if (process.env[DAEMON_CHILD_ENV] !== String(process.ppid)) {
+        await runDaemonSupervisor();
+        return;
+      }
 
-        const useDashboard =
-          process.stdout.isTTY === true &&
-          !logFormat;
+      const useDashboard =
+        process.stdout.isTTY === true &&
+        !logFormat;
 
-        const projectDir = resolveProjectDir(opts.projectDir);
+      const projectDir = resolveProjectDir(opts.projectDir);
 
-        // The CLI bootstraps a `"commands"` ModuleLoader for fast
-        // subcommand registration, but the daemon is a long-lived runtime
-        // host: serving `/api/knowledge`, `/api/memory`, `/recall`,
-        // `/answer`, etc. requires every module's `onLoad` to have
-        // registered its provider-backed seam. Drive a fresh runtime-mode
-        // load here so the Daemon never reads contributions from the CLI's
-        // partial state — the loader's typed accessors enforce this too.
-        const config = loadConfig(projectDir);
-        const presetResolution = installDaemonPresetEnv({
-          flagValue: opts.preset,
-          configValue: config.defaultPreset,
-        });
-        const preset = presetResolution.preset;
-        const effectiveHarness = resolveDaemonHarness({
-          configHarness: config.defaultAgentHarness,
-          presetResolution,
-        });
-        const effectiveConfig = {
-          ...config,
-          defaultPreset: preset.id,
-          defaultAgentHarness: effectiveHarness,
-        };
-        preflightDaemonPresetAuth({
-          preset,
-          harnessName: effectiveHarness,
-        });
-        const verbose = opts.verbose || effectiveConfig.verbose || false;
-        const loader = await loadRuntimeModules({ config: effectiveConfig, cwd: projectDir, verbose });
-
-        const daemon = new Daemon({
-          projectDir,
-          verbose,
-          config: effectiveConfig,
-          idleIntervalMs: 30_000,
-          pollIntervalMs: parseIntOption(opts.pollInterval, "poll-interval") * 1000,
-          workflows: loader.getContributedWorkflows(),
-          channels: loader.getContributedChannels(),
-          controlRoutes: loader.getContributedControlRoutes(),
-          routes: loader.getRoutes(),
-          setupRequirements: loader.getContributedSetupRequirements(),
-          logFormat,
-          resolveAgentDef: (name) => loader.getAgentDef(name),
-          resolveSkillsPrompt: (names, agentName) => loader.getSkillsPromptFor(names, agentName),
-          probeModuleHealthChecks: () => loader.probeHealthChecks(),
-          moduleConfigKeys: loader.getRegisteredConfigKeys(),
-          restartExit: (code) => {
-            process.exit(code);
-          },
-        });
-
-        if (useDashboard) {
-          const dashboard = new DaemonDashboard(() => ({
-            ...daemon.getDashboardSnapshot(),
-            taskQueue: getRepoTaskQueueSnapshot(projectDir),
-          }));
-          dashboard.start();
-          try {
-            await daemon.start();
-          } finally {
-            dashboard.stop();
-          }
-        } else {
-          await daemon.start();
-        }
+      // The CLI bootstraps a `"commands"` ModuleLoader for fast
+      // subcommand registration, but the daemon is a long-lived runtime
+      // host: serving `/api/knowledge`, `/api/memory`, `/recall`,
+      // `/answer`, etc. requires every module's `onLoad` to have
+      // registered its provider-backed seam. Drive a fresh runtime-mode
+      // load here so the Daemon never reads contributions from the CLI's
+      // partial state — the loader's typed accessors enforce this too.
+      const config = loadConfig(projectDir);
+      const presetResolution = installDaemonPresetEnv({
+        flagValue: opts.preset,
+        configValue: config.defaultPreset,
       });
+      const preset = presetResolution.preset;
+      const effectiveHarness = resolveDaemonHarness({
+        configHarness: config.defaultAgentHarness,
+        presetResolution,
+      });
+      const effectiveConfig = {
+        ...config,
+        defaultPreset: preset.id,
+        defaultAgentHarness: effectiveHarness,
+      };
+      preflightDaemonPresetAuth({
+        preset,
+        harnessName: effectiveHarness,
+      });
+      const verbose = opts.verbose || effectiveConfig.verbose || false;
+      const loader = await loadRuntimeModules({ config: effectiveConfig, cwd: projectDir, verbose });
+
+      const daemon = new Daemon({
+        projectDir,
+        verbose,
+        config: effectiveConfig,
+        idleIntervalMs: 30_000,
+        pollIntervalMs: parseIntOption(opts.pollInterval, "poll-interval") * 1000,
+        workflows: loader.getContributedWorkflows(),
+        channels: loader.getContributedChannels(),
+        controlRoutes: loader.getContributedControlRoutes(),
+        routes: loader.getRoutes(),
+        setupRequirements: loader.getContributedSetupRequirements(),
+        logFormat,
+        resolveAgentDef: (name) => loader.getAgentDef(name),
+        resolveSkillsPrompt: (names, agentName) => loader.getSkillsPromptFor(names, agentName),
+        probeModuleHealthChecks: () => loader.probeHealthChecks(),
+        moduleConfigKeys: loader.getRegisteredConfigKeys(),
+        restartExit: (code) => {
+          process.exit(code);
+        },
+      });
+
+      if (useDashboard) {
+        const dashboard = new DaemonDashboard(() => ({
+          ...daemon.getDashboardSnapshot(),
+          taskQueue: getRepoTaskQueueSnapshot(projectDir),
+        }));
+        dashboard.start();
+        try {
+          await daemon.start();
+        } finally {
+          dashboard.stop();
+        }
+      } else {
+        await daemon.start();
+      }
+    };
+
+    const cmd = addDaemonStartOptions(
+      new Command("daemon")
+        .description("Run KOTA as a long-running daemon with autonomous workflows"),
+    ).action(async (opts: DaemonStartOptions) => {
+      await startDaemon(opts);
+    });
+
+    cmd.addCommand(
+      addDaemonStartOptions(
+        new Command("start")
+          .description("Start KOTA as a long-running daemon with autonomous workflows"),
+      ).action(async (opts: DaemonStartOptions, command: Command) => {
+        await startDaemon(opts, command);
+      }),
+    );
 
     cmd
       .command("status")
@@ -620,6 +688,7 @@ const daemonModule: KotaModule = {
       buildEventsCommand(ctx),
       buildSessionCommand(ctx),
       buildStatusCommand(ctx),
+      buildInboxCommand(ctx),
       buildProjectCommand(ctx),
     ];
   },

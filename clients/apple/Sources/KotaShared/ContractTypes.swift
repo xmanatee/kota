@@ -868,3 +868,204 @@ private enum JSONValue: Codable, Equatable {
 struct WorkflowDefinitionsResponse: Codable, Equatable {
     let definitions: [WorkflowDefinitionSummary]
 }
+
+// MARK: - Shared UI surfaces
+
+enum UiProtocolVersion: String, Codable, Equatable {
+    case surfaceV1 = "ui.surface.v1"
+}
+
+enum UiIntent: String, Codable, Equatable {
+    case status = "Status"
+    case inbox = "Inbox"
+    case work = "Work"
+    case knowledge = "Knowledge"
+    case setup = "Setup"
+}
+
+enum UiRole: String, Codable, Equatable {
+    case neutral
+    case info
+    case success
+    case warn
+    case error
+    case muted
+}
+
+enum UiActionEffect: String, Codable, Equatable {
+    case read
+    case write
+    case external
+}
+
+enum UiConfirmation: String, Codable, Equatable {
+    case none
+    case required
+}
+
+struct UiAction: Codable, Equatable {
+    let surfaceId: String
+    let actionId: String
+    let scopeId: String
+    let label: String
+    let effect: UiActionEffect
+    let confirmation: UiConfirmation
+    let command: String
+}
+
+struct UiStatusEntry: Codable, Equatable {
+    let label: String
+    let value: String
+    let role: UiRole
+}
+
+struct UiListItem: Codable, Equatable {
+    let id: String
+    let title: String
+    let detail: String
+    let role: UiRole
+    let action: UiAction
+}
+
+enum UiFieldInput: String, Codable, Equatable {
+    case text
+    case secret
+    case number
+    case boolean
+}
+
+struct UiFormField: Codable, Equatable {
+    let id: String
+    let label: String
+    let input: UiFieldInput
+    let required: Bool
+}
+
+enum UiNode: Codable, Equatable {
+    case navigation(label: String, items: [UiNavigationItem])
+    case statusSummary(entries: [UiStatusEntry])
+    case list(title: String, items: [UiListItem])
+    case detail(title: String, body: String)
+    case form(title: String, fields: [UiFormField], submit: UiAction)
+    case command(action: UiAction)
+    case empty(title: String, detail: String, action: UiAction)
+    case error(title: String, detail: String, action: UiAction)
+
+    private enum Kind: String, Codable {
+        case navigation
+        case statusSummary = "status-summary"
+        case list
+        case detail
+        case form
+        case command
+        case empty
+        case error
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case kind, label, items, entries, title, body, fields, submit, action, detail
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let kind = try container.decode(Kind.self, forKey: .kind)
+        switch kind {
+        case .navigation:
+            self = .navigation(
+                label: try container.decode(String.self, forKey: .label),
+                items: try container.decode([UiNavigationItem].self, forKey: .items)
+            )
+        case .statusSummary:
+            self = .statusSummary(entries: try container.decode([UiStatusEntry].self, forKey: .entries))
+        case .list:
+            self = .list(
+                title: try container.decode(String.self, forKey: .title),
+                items: try container.decode([UiListItem].self, forKey: .items)
+            )
+        case .detail:
+            self = .detail(
+                title: try container.decode(String.self, forKey: .title),
+                body: try container.decode(String.self, forKey: .body)
+            )
+        case .form:
+            self = .form(
+                title: try container.decode(String.self, forKey: .title),
+                fields: try container.decode([UiFormField].self, forKey: .fields),
+                submit: try container.decode(UiAction.self, forKey: .submit)
+            )
+        case .command:
+            self = .command(action: try container.decode(UiAction.self, forKey: .action))
+        case .empty:
+            self = .empty(
+                title: try container.decode(String.self, forKey: .title),
+                detail: try container.decode(String.self, forKey: .detail),
+                action: try container.decode(UiAction.self, forKey: .action)
+            )
+        case .error:
+            self = .error(
+                title: try container.decode(String.self, forKey: .title),
+                detail: try container.decode(String.self, forKey: .detail),
+                action: try container.decode(UiAction.self, forKey: .action)
+            )
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .navigation(let label, let items):
+            try container.encode(Kind.navigation, forKey: .kind)
+            try container.encode(label, forKey: .label)
+            try container.encode(items, forKey: .items)
+        case .statusSummary(let entries):
+            try container.encode(Kind.statusSummary, forKey: .kind)
+            try container.encode(entries, forKey: .entries)
+        case .list(let title, let items):
+            try container.encode(Kind.list, forKey: .kind)
+            try container.encode(title, forKey: .title)
+            try container.encode(items, forKey: .items)
+        case .detail(let title, let body):
+            try container.encode(Kind.detail, forKey: .kind)
+            try container.encode(title, forKey: .title)
+            try container.encode(body, forKey: .body)
+        case .form(let title, let fields, let submit):
+            try container.encode(Kind.form, forKey: .kind)
+            try container.encode(title, forKey: .title)
+            try container.encode(fields, forKey: .fields)
+            try container.encode(submit, forKey: .submit)
+        case .command(let action):
+            try container.encode(Kind.command, forKey: .kind)
+            try container.encode(action, forKey: .action)
+        case .empty(let title, let detail, let action):
+            try container.encode(Kind.empty, forKey: .kind)
+            try container.encode(title, forKey: .title)
+            try container.encode(detail, forKey: .detail)
+            try container.encode(action, forKey: .action)
+        case .error(let title, let detail, let action):
+            try container.encode(Kind.error, forKey: .kind)
+            try container.encode(title, forKey: .title)
+            try container.encode(detail, forKey: .detail)
+            try container.encode(action, forKey: .action)
+        }
+    }
+}
+
+struct UiNavigationItem: Codable, Equatable {
+    let surfaceId: String
+    let label: String
+}
+
+struct UiSurface: Codable, Equatable {
+    let protocolVersion: UiProtocolVersion
+    let surfaceId: String
+    let title: String
+    let intent: UiIntent
+    let scopeId: String
+    let nodes: [UiNode]
+    let actions: [UiAction]
+}
+
+struct UiSurfaceBundle: Codable, Equatable {
+    let protocolVersion: UiProtocolVersion
+    let surfaces: [UiSurface]
+}

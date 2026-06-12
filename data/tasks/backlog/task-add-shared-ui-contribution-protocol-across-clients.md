@@ -8,6 +8,8 @@ summary: Define a KOTA-owned typed UI contribution tree for modules and daemon s
 depends_on: [task-promote-projects-into-hierarchical-scopes, task-unify-hooks-and-workflows-under-one-automation-pro, task-add-module-setup-and-auth-requirement-protocol]
 created_at: 2026-06-03T13:40:24.598Z
 updated_at: 2026-06-03T14:08:54.000Z
+task_class: Product
+anchor: true
 ---
 
 ## Problem

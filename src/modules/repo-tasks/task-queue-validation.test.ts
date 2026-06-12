@@ -68,6 +68,7 @@ summary: ${overrides.summary ?? "Summary."}
 created_at: ${overrides.created_at ?? "2026-03-28T00:00:00Z"}
 updated_at: ${overrides.updated_at ?? "2026-03-28T00:00:00Z"}
 ${overrides.depends_on ? `depends_on: ${overrides.depends_on}\n` : ""}
+${overrides.task_class ? `task_class: ${overrides.task_class}\n` : ""}
 ---
 
 ## Problem
@@ -222,6 +223,72 @@ describe("task queue validation", () => {
 
     const result = validateTaskQueue(projectDir);
     expect(result.findings.filter((f) => f.code === "task-invalid-priority")).toHaveLength(0);
+  });
+
+  it("rejects unknown task_class values", () => {
+    writeTask(projectDir, "ready", "task-weird-class", { task_class: "Optimization" });
+    const result = validateTaskQueue(projectDir);
+    expect(result.findings.some((f) => f.code === "task-invalid-class")).toBe(true);
+  });
+
+  it("requires actionable Meta tasks to name the Product or Safety blocker they close", () => {
+    writeTask(projectDir, "ready", "task-meta-no-link", { task_class: "Meta" });
+    const result = validateTaskQueue(projectDir);
+    expect(result.findings.some((f) => f.code === "meta-task-missing-product-safety-link")).toBe(true);
+  });
+
+  it("accepts actionable Meta tasks with an explicit Product or Safety link", () => {
+    const dir = join(projectDir, REPO_TASKS_DIR, "ready");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "task-meta-with-link.md"),
+      `---
+id: task-meta-with-link
+title: Repair noisy workflow escalation
+status: ready
+priority: p2
+area: autonomy
+summary: Consolidate a noisy repair workflow so Product work is no longer blocked by repeated false repair tasks.
+created_at: 2026-06-11T00:00:00Z
+updated_at: 2026-06-11T00:00:00Z
+task_class: Meta
+---
+
+## Problem
+
+Repair workflow noise is blocking operator-facing Product work.
+
+## Desired Outcome
+
+The repair workflow opens at most one consolidated repair task for the same root cause.
+
+## Constraints
+
+Do not suppress Safety failures.
+
+## Done When
+
+- Validator and workflow tests show repeated repair tasks consolidate.
+
+## Source / Intent
+
+Owner asked KOTA to stop spending attention on micro-repair loops while user-visible gaps remain.
+
+## Initiative
+
+Operator-first recovery roadmap.
+
+## Product / Safety Link
+
+Product blocker: task-make-bare-kota-launch-the-full-daemon-backed-cli-c.
+
+## Acceptance Evidence
+
+- Test output for the queue governance fixture.
+`,
+    );
+    const result = validateTaskQueue(projectDir);
+    expect(result.findings.filter((f) => f.code === "meta-task-missing-product-safety-link")).toHaveLength(0);
   });
 
   it("accepts valid hard task dependency edges", () => {

@@ -26,6 +26,7 @@ import {
   parseSetupStatusResponse,
   parseTasksSearchResponse,
   parseUnknownProjectError,
+  parseUiSurfaceBundle,
   parseVoiceFailure,
   parseVoiceTranscribeResult,
 } from "./decoders";
@@ -192,6 +193,56 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
     name: "setupRequirements: unknown field value kind rejected",
     path: "setupRequirements.negative_unknownFieldValueKind",
     parse: parseSetupStatusResponse,
+    expectThrow: true,
+  },
+  {
+    name: "uiSurfaces: Status and Inbox operator surfaces",
+    path: "uiSurfaces.statusInbox",
+    parse: parseUiSurfaceBundle,
+    assertPositive: (decoded) => {
+      const bundle = decoded as {
+        protocolVersion: string;
+        surfaces: Array<{
+          surfaceId: string;
+          intent: string;
+          actions: Array<{
+            actionId: string;
+            command: string;
+            effect: string;
+            confirmation: string;
+          }>;
+        }>;
+      };
+      if (bundle.protocolVersion !== "ui.surface.v1") {
+        throw new Error("expected ui.surface.v1 protocol");
+      }
+      if (bundle.surfaces.map((surface) => surface.intent).join(",") !== "Status,Inbox") {
+        throw new Error("expected Status and Inbox intent surfaces");
+      }
+      const inbox = bundle.surfaces.find((surface) => surface.surfaceId === "inbox");
+      const approvalAction = inbox?.actions.find((action) => action.actionId === "approval.open");
+      if (!approvalAction) {
+        throw new Error("expected inbox approval action");
+      }
+      if (
+        approvalAction.command !== "kota approval list" ||
+        approvalAction.effect !== "read" ||
+        approvalAction.confirmation !== "none"
+      ) {
+        throw new Error("expected approval.open to be a read-only approval list action");
+      }
+    },
+  },
+  {
+    name: "uiSurfaces: unknown node kind rejected",
+    path: "uiSurfaces.negative_unknownNodeKind",
+    parse: parseUiSurfaceBundle,
+    expectThrow: true,
+  },
+  {
+    name: "uiSurfaces: unknown action effect rejected",
+    path: "uiSurfaces.negative_unknownActionEffect",
+    parse: parseUiSurfaceBundle,
     expectThrow: true,
   },
   // recall

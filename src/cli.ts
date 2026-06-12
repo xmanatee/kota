@@ -478,7 +478,16 @@ async function main() {
     program.addCommand(cmd);
   }
 
+  if (shouldLaunchDefaultOperatorConsole(process.argv, process.stdin.isTTY === true)) {
+    await program.parseAsync(["navigate"], { from: "user" });
+    return;
+  }
+
   await program.parseAsync();
+}
+
+export function shouldLaunchDefaultOperatorConsole(argv: string[], stdinIsTty: boolean): boolean {
+  return stdinIsTty && argv.length === 2;
 }
 
 function isCliEntrypoint(): boolean {

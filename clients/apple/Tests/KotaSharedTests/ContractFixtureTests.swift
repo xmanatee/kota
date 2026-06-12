@@ -268,6 +268,30 @@ final class ContractFixtureTests: XCTestCase {
         XCTAssertThrowsError(try JSONDecoder().decode(SetupStatusResponse.self, from: data))
     }
 
+    // MARK: - Shared UI surfaces
+
+    func testDecodesUiStatusInboxSurfaces() throws {
+        let data = try Self.nestedData(["uiSurfaces", "statusInbox"])
+        let bundle = try JSONDecoder().decode(UiSurfaceBundle.self, from: data)
+        XCTAssertEqual(bundle.protocolVersion, .surfaceV1)
+        XCTAssertEqual(bundle.surfaces.map(\.intent), [.status, .inbox])
+        let inbox = bundle.surfaces.first { $0.surfaceId == "inbox" }
+        let approvalAction = try XCTUnwrap(inbox?.actions.first { $0.actionId == "approval.open" })
+        XCTAssertEqual(approvalAction.command, "kota approval list")
+        XCTAssertEqual(approvalAction.effect, .read)
+        XCTAssertEqual(approvalAction.confirmation, .none)
+    }
+
+    func testUiSurfacesRejectUnknownNodeKind() throws {
+        let data = try Self.nestedData(["uiSurfaces", "negative_unknownNodeKind"])
+        XCTAssertThrowsError(try JSONDecoder().decode(UiSurfaceBundle.self, from: data))
+    }
+
+    func testUiSurfacesRejectUnknownActionEffect() throws {
+        let data = try Self.nestedData(["uiSurfaces", "negative_unknownActionEffect"])
+        XCTAssertThrowsError(try JSONDecoder().decode(UiSurfaceBundle.self, from: data))
+    }
+
     // MARK: - Workflow definitions
 
     func testDecodesWorkflowDefinitions() throws {

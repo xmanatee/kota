@@ -27,6 +27,11 @@ artifacts or `data/watchlist.yaml`.
 - **Evaluator probes outcomes, not just artifacts.** Diff-only review is
   blind to runtime behavior; reduce success to an inspectable artifact
   or carry a runtime probe (see `workflows/builder/AGENTS.md`).
+- **Product work proves the operator journey.** For `task_class: Product`
+  or owner-facing client/operator tasks, critic/reviewer judgment must inspect
+  rendered evidence (CLI transcript, screenshot, runtime probe, or equivalent)
+  that shows the actual human path improved. Passing implementation tests is
+  necessary but not sufficient.
 - **Critic input stays artifact-only.** Diff + repo state + run
   artifacts (+ optional runtime probe). No thinking traces or
   self-reports.

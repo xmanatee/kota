@@ -44,20 +44,74 @@ describe("formatStatusOutput", () => {
   });
 
   it("shows active and queued run counts", () => {
-    const out = formatStatusOutput(makeSnap({ activeRuns: 2, queuedRuns: 3 }));
+    const out = formatStatusOutput(makeSnap({
+      daemonRunning: true,
+      daemonPid: 12345,
+      activeRuns: 2,
+      queuedRuns: 3,
+      controlFile: { kind: "fresh", pid: 12345, baseURL: "http://127.0.0.1:8765" },
+    }));
     expect(out).toContain("2 active, 3 queued");
   });
 
   it("shows when workflow dispatch is paused", () => {
-    const out = formatStatusOutput(makeSnap({ workflowPaused: true, queuedRuns: 3 }));
+    const out = formatStatusOutput(makeSnap({
+      daemonRunning: true,
+      daemonPid: 12345,
+      workflowPaused: true,
+      queuedRuns: 3,
+      controlFile: { kind: "fresh", pid: 12345, baseURL: "http://127.0.0.1:8765" },
+    }));
     expect(out).toContain("Dispatch");
     expect(out).toContain("paused");
     expect(out).toContain("kota workflow resume");
   });
 
   it("shows session count", () => {
-    const out = formatStatusOutput(makeSnap({ sessions: 1 }));
+    const out = formatStatusOutput(makeSnap({
+      daemonRunning: true,
+      daemonPid: 12345,
+      sessions: 1,
+      controlFile: { kind: "fresh", pid: 12345, baseURL: "http://127.0.0.1:8765" },
+    }));
     expect(out).toContain("1 interactive");
+  });
+
+  it("does not render live dispatch or live run counts while offline", () => {
+    const out = formatStatusOutput(makeSnap({
+      activeRuns: 2,
+      queuedRuns: 3,
+      historicalWorkflow: {
+        activeRuns: 2,
+        queuedRuns: 3,
+        workflowPaused: true,
+      },
+    }));
+    expect(out).toContain("Dispatch");
+    expect(out).toContain("offline");
+    expect(out).not.toContain("Dispatch  running");
+    expect(out).toContain("Runs");
+    expect(out).toContain("live run state unavailable");
+    expect(out).toContain("Historical run store");
+    expect(out).toContain("2 active, 3 queued from offline files");
+    expect(out).toContain("pause signal present");
+  });
+
+  it("can explain whether status came from the daemon or local offline files", () => {
+    const offline = formatStatusOutput(makeSnap(), { explain: true });
+    expect(offline).toContain("Runtime source");
+    expect(offline).toContain("local files only");
+
+    const running = formatStatusOutput(
+      makeSnap({
+        daemonRunning: true,
+        daemonPid: 12345,
+        controlFile: { kind: "fresh", pid: 12345, baseURL: "http://127.0.0.1:8765" },
+      }),
+      { explain: true },
+    );
+    expect(running).toContain("Runtime source");
+    expect(running).toContain("daemon control API");
   });
 
   it("marks pending approvals with attention note", () => {
@@ -355,6 +409,11 @@ describe("kota status — rendered transcript", () => {
           projectDir: "/Users/op/Desktop/other-project",
           projectName: "other-project",
           controlFile: { kind: "missing" },
+          historicalWorkflow: {
+            activeRuns: 0,
+            queuedRuns: 0,
+            workflowPaused: false,
+          },
         },
       },
       {
@@ -369,6 +428,11 @@ describe("kota status — rendered transcript", () => {
           projectDir: "/Users/op/Desktop/mono/apps/kota",
           projectName: "kota",
           controlFile: { kind: "stale", pid: 99999, baseURL: "http://127.0.0.1:8765" },
+          historicalWorkflow: {
+            activeRuns: 1,
+            queuedRuns: 2,
+            workflowPaused: true,
+          },
         },
       },
       {

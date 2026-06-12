@@ -645,6 +645,204 @@
       }
     }
   },
+  "uiSurfaces": {
+    "statusInbox": {
+      "protocolVersion": "ui.surface.v1",
+      "surfaces": [
+        {
+          "protocolVersion": "ui.surface.v1",
+          "surfaceId": "status",
+          "title": "Status",
+          "intent": "Status",
+          "scopeId": "p-kota-fixture-default",
+          "nodes": [
+            {
+              "kind": "status-summary",
+              "entries": [
+                { "label": "Daemon", "value": "not running (offline mode)", "role": "warn" },
+                { "label": "Dispatch", "value": "offline", "role": "warn" },
+                { "label": "Runs", "value": "offline (live run state unavailable)", "role": "muted" },
+                { "label": "Approvals", "value": "1 pending", "role": "warn" }
+              ]
+            },
+            {
+              "kind": "list",
+              "title": "Warnings",
+              "items": [
+                {
+                  "id": "daemon-offline",
+                  "title": "Daemon is offline",
+                  "detail": "Dispatch, event stream, live sessions, and live run state are unavailable.",
+                  "role": "warn",
+                  "action": {
+                    "surfaceId": "status",
+                    "actionId": "daemon.start",
+                    "scopeId": "p-kota-fixture-default",
+                    "label": "Start daemon",
+                    "effect": "write",
+                    "confirmation": "none",
+                    "command": "kota daemon start"
+                  }
+                }
+              ]
+            }
+          ],
+          "actions": [
+            {
+              "surfaceId": "status",
+              "actionId": "daemon.start",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Start daemon",
+              "effect": "write",
+              "confirmation": "none",
+              "command": "kota daemon start"
+            },
+            {
+              "surfaceId": "status",
+              "actionId": "status.explain",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Explain status",
+              "effect": "read",
+              "confirmation": "none",
+              "command": "kota status --explain"
+            }
+          ]
+        },
+        {
+          "protocolVersion": "ui.surface.v1",
+          "surfaceId": "inbox",
+          "title": "Inbox",
+          "intent": "Inbox",
+          "scopeId": "p-kota-fixture-default",
+          "nodes": [
+            {
+              "kind": "status-summary",
+              "entries": [
+                { "label": "Runtime", "value": "1", "role": "warn" },
+                { "label": "Approvals", "value": "1", "role": "warn" },
+                { "label": "Owner questions", "value": "1", "role": "warn" },
+                { "label": "Blocked", "value": "1", "role": "warn" },
+                { "label": "Setup", "value": "1", "role": "warn" },
+                { "label": "Failed runs", "value": "1", "role": "error" }
+              ]
+            },
+            {
+              "kind": "list",
+              "title": "Attention items",
+              "items": [
+                {
+                  "id": "a1b2c3d4",
+                  "title": "Approval required: shell.exec",
+                  "detail": "dangerous: external write",
+                  "role": "error",
+                  "action": {
+                    "surfaceId": "inbox",
+                    "actionId": "approval.open",
+                    "scopeId": "p-kota-fixture-default",
+                    "label": "Approval required: shell.exec",
+                    "effect": "read",
+                    "confirmation": "none",
+                    "command": "kota approval list"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "empty",
+              "title": "Operator inbox is clear",
+              "detail": "/Users/operator/projects/kota",
+              "action": {
+                "surfaceId": "inbox",
+                "actionId": "inbox.refresh",
+                "scopeId": "p-kota-fixture-default",
+                "label": "Refresh inbox",
+                "effect": "read",
+                "confirmation": "none",
+                "command": "kota inbox"
+              }
+            },
+            {
+              "kind": "error",
+              "title": "Inbox unavailable",
+              "detail": "Daemon route failed.",
+              "action": {
+                "surfaceId": "inbox",
+                "actionId": "status.explain",
+                "scopeId": "p-kota-fixture-default",
+                "label": "Explain status",
+                "effect": "read",
+                "confirmation": "none",
+                "command": "kota status --explain"
+              }
+            }
+          ],
+          "actions": [
+            {
+              "surfaceId": "inbox",
+              "actionId": "inbox.refresh",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Refresh inbox",
+              "effect": "read",
+              "confirmation": "none",
+              "command": "kota inbox"
+            },
+            {
+              "surfaceId": "inbox",
+              "actionId": "approval.open",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Approval required: shell.exec",
+              "effect": "read",
+              "confirmation": "none",
+              "command": "kota approval list"
+            }
+          ]
+        }
+      ]
+    },
+    "negative_unknownNodeKind": {
+      "protocolVersion": "ui.surface.v1",
+      "surfaces": [
+        {
+          "protocolVersion": "ui.surface.v1",
+          "surfaceId": "status",
+          "title": "Status",
+          "intent": "Status",
+          "scopeId": "p-kota-fixture-default",
+          "nodes": [
+            { "kind": "chart", "title": "Future node" }
+          ],
+          "actions": []
+        }
+      ]
+    },
+    "negative_unknownActionEffect": {
+      "protocolVersion": "ui.surface.v1",
+      "surfaces": [
+        {
+          "protocolVersion": "ui.surface.v1",
+          "surfaceId": "inbox",
+          "title": "Inbox",
+          "intent": "Inbox",
+          "scopeId": "p-kota-fixture-default",
+          "nodes": [
+            {
+              "kind": "command",
+              "action": {
+                "surfaceId": "inbox",
+                "actionId": "inbox.future",
+                "scopeId": "p-kota-fixture-default",
+                "label": "Future action",
+                "effect": "teleport",
+                "confirmation": "none",
+                "command": "kota future"
+              }
+            }
+          ],
+          "actions": []
+        }
+      ]
+    }
+  },
   "workflowDefinitions": {
     "definitions": [
       {

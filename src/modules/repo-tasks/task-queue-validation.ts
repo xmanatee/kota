@@ -124,6 +124,8 @@ const STRATEGIC_REQUIRED_SECTIONS = [
   "## Initiative",
 ] as const;
 
+const TASK_CLASSES = ["Product", "Safety", "Platform", "Meta"] as const;
+const ACTIONABLE_META_STATES: ReadonlySet<RepoTaskState> = new Set(["ready", "doing"]);
 const FAN_OUT_CONSOLIDATION_TASK_PREFIX = "task-fan-out-consolidation-";
 const DEFAULT_STALE_BLOCKED_DAYS = 14;
 const BLOCKED_ACTION_COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000;
@@ -272,6 +274,18 @@ function readTaskPriority(entry: TaskFileEntry): string | null {
   const { attrs } = parseFlatFrontMatter(entry.raw);
   const priority = String(attrs.priority ?? "").trim();
   return priority.length > 0 ? priority : null;
+}
+
+function readTaskClass(attrs: Record<string, unknown>): string | null {
+  const taskClass = String(attrs.task_class ?? "").trim();
+  return taskClass.length > 0 ? taskClass : null;
+}
+
+function hasProductSafetyLink(raw: string): boolean {
+  const section = extractSection(raw, "Product / Safety Link");
+  if (!section) return false;
+  if (section.replace(/[-*\s]/g, "").length < 12) return false;
+  return /\b(?:Product|Safety|task-[a-z0-9-]+)\b/i.test(section);
 }
 
 function isStrategicPriority(priority: string | null): boolean {
@@ -696,6 +710,16 @@ export function validateTaskQueue(
       });
     }
 
+    const taskClass = readTaskClass(attrs);
+    if (taskClass !== null && !(TASK_CLASSES as readonly string[]).includes(taskClass)) {
+      findings.push({
+        code: "task-invalid-class",
+        severity: "error",
+        message: `${entry.path} has invalid task_class "${taskClass}"; must be one of ${TASK_CLASSES.join(", ")}`,
+        paths: [entry.path],
+      });
+    }
+
     const REQUIRED_SECTIONS = ["## Problem", "## Desired Outcome", "## Constraints", "## Done When"] as const;
     for (const section of REQUIRED_SECTIONS) {
       if (!entry.raw.includes(section)) {
@@ -737,6 +761,16 @@ export function validateTaskQueue(
           severity: "error",
           message: `${entry.path} needs concrete ## Acceptance Evidence bullets or artifact references. ` +
             "The task must say how completion will be demonstrated, not only what code may change.",
+          paths: [entry.path],
+        });
+      }
+
+      if (taskClass === "Meta" && ACTIONABLE_META_STATES.has(entry.state) && !hasProductSafetyLink(entry.raw)) {
+        findings.push({
+          code: "meta-task-missing-product-safety-link",
+          severity: "error",
+          message: `${entry.path} is actionable task_class=Meta work but does not explain which Product or Safety blocker it closes. ` +
+            "Add a ## Product / Safety Link section naming the blocker or keep the task out of ready/doing.",
           paths: [entry.path],
         });
       }

@@ -45,14 +45,15 @@ describe("daemonModule", () => {
     expect(daemonModule.description).toContain("daemon runtime");
   });
 
-  it("registers daemon, events, session, status, and project CLI commands", () => {
+  it("registers daemon, events, session, status, inbox, and project CLI commands", () => {
     const cmds = daemonModule.commands!(stubCtx);
-    expect(cmds).toHaveLength(5);
+    expect(cmds).toHaveLength(6);
     expect(cmds[0].name()).toBe("daemon");
     expect(cmds[1].name()).toBe("events");
     expect(cmds[2].name()).toBe("session");
     expect(cmds[3].name()).toBe("status");
-    expect(cmds[4].name()).toBe("project");
+    expect(cmds[4].name()).toBe("inbox");
+    expect(cmds[5].name()).toBe("project");
   });
 
   it("daemon command has expected options", () => {
@@ -64,12 +65,24 @@ describe("daemonModule", () => {
     expect(optNames).toContain("--log-format");
   });
 
-  it("daemon command has install and uninstall subcommands", () => {
+  it("daemon command has start, install, and uninstall subcommands", () => {
     const cmds = daemonModule.commands!(stubCtx);
     const cmd = cmds[0];
     const subNames = cmd.commands.map((c) => c.name());
+    expect(subNames).toContain("start");
     expect(subNames).toContain("install");
     expect(subNames).toContain("uninstall");
+  });
+
+  it("daemon start subcommand has the daemon launch options", () => {
+    const cmds = daemonModule.commands!(stubCtx);
+    const startCmd = cmds[0].commands.find((c) => c.name() === "start")!;
+    const optNames = startCmd.options.map((o) => o.long);
+    expect(optNames).toContain("--verbose");
+    expect(optNames).toContain("--preset");
+    expect(optNames).toContain("--poll-interval");
+    expect(optNames).toContain("--project-dir");
+    expect(optNames).toContain("--log-format");
   });
 
   it("install subcommand has --dry-run option", () => {

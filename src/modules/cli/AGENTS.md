@@ -21,16 +21,15 @@ transports.
 
 ## Behavior
 
-- Entrypoint: `kota navigate`. The bare `kota` invocation stays on the
-  prompt/REPL path; the navigator is an explicit subcommand so pipes and
-  scripted callers never hit it accidentally.
+- Entrypoint: bare `kota` on a TTY and explicit `kota navigate` both launch the
+  operator console. Agent chat and one-shot prompts live under explicit
+  `kota run`; pipes and scripted callers keep their existing non-TTY path.
 - TTY-only. When `process.stdin.isTTY` is false the navigator refuses to
   launch and prints the equivalent one-shot subcommand hint so pipes,
   cron jobs, and scripted callers fail loudly instead of hanging on a
   prompt.
-- The first slice covers sessions, modules, automations backed by workflow
-  definitions, the approval queue, secrets (list + remove only), tasks,
-  memory, knowledge, history, and owner questions. Logs/events arrive in a
-  later pass on the same pattern.
+- The first screen is organized by operator intent: Status, Inbox, Work,
+  Knowledge, and Setup. Backend nouns stay nested under those intents instead
+  of becoming top-level navigation.
 - Secrets values are never rendered. The screen lists names and sources
   only; the only mutation is removal.
