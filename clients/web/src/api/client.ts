@@ -66,10 +66,20 @@ function getAuthToken(): string {
 }
 
 let cachedToken = getAuthToken();
+const DASHBOARD_REQUEST_HEADER = "X-Kota-Dashboard-Request";
 
 function authHeaders(): Record<string, string> {
   if (!cachedToken) cachedToken = getAuthToken();
   return cachedToken ? { Authorization: `Bearer ${cachedToken}` } : {};
+}
+
+function dashboardRequestHeaders(
+  options?: RequestInit,
+): Record<string, string> {
+  const method = (options?.method ?? "GET").toUpperCase();
+  return method === "GET" || method === "HEAD"
+    ? {}
+    : { [DASHBOARD_REQUEST_HEADER]: "1" };
 }
 
 async function apiFetch(
@@ -78,7 +88,11 @@ async function apiFetch(
 ): Promise<Response> {
   return fetch(path, {
     ...options,
-    headers: { ...authHeaders(), ...options?.headers },
+    headers: {
+      ...authHeaders(),
+      ...dashboardRequestHeaders(options),
+      ...options?.headers,
+    },
   });
 }
 

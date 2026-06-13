@@ -51,6 +51,31 @@ describe("api client", () => {
     );
   });
 
+  it("marks mutating dashboard API requests for the daemon cookie guard", async () => {
+    Object.defineProperty(window, "location", {
+      value: { search: "", pathname: "/", hash: "" },
+      writable: true,
+    });
+
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ already: false }),
+    });
+
+    const { api } = await import("./client");
+    await api.pauseWorkflow("project-a");
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "/api/workflow/pause?projectId=project-a",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "X-Kota-Dashboard-Request": "1",
+        }),
+      }),
+    );
+  });
+
   describe("owner questions", () => {
     beforeEach(() => {
       Object.defineProperty(window, "location", {

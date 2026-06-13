@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-dashboard-session-cookie-is-tr
 title: Security review: The dashboard session cookie is treated as equivalent to the bearer token for every daemon-control and module route, including control-scope POST routes. Cookie-authenticated control requests have no Origin or CSRF check, so replay of the dashboard cookie can mutate daemon state without the bearer token.
-status: ready
+status: done
 priority: p2
 area: security
 summary: The dashboard session cookie is treated as equivalent to the bearer token for every daemon-control and module route, including control-scope POST routes. Cookie-authenticated control requests have no Origin or CSRF check, so replay of the dashboard cookie can mutate daemon state without the bearer token.
 created_at: 2026-06-13T03:02:03.101Z
-updated_at: 2026-06-13T03:02:03.101Z
+updated_at: 2026-06-13T03:11:06.089Z
 ---
 
 ## Problem
@@ -57,4 +57,11 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Regression tests in `src/core/daemon/daemon-control.test.ts` reject a bare dashboard session cookie on `POST /workflow/pause`, `/workflow/resume`, `/workflow/abort`, `/workflow/reload`, and `/reload`, and assert the mutating handlers are not invoked.
+- Regression test in `src/core/daemon/daemon-control.test.ts` rejects a bare dashboard session cookie on an unsafe module route.
+- Web client regression test in `clients/web/src/api/client.test.ts` proves mutating dashboard API calls include `X-Kota-Dashboard-Request: 1`.
+- Verification commands: `pnpm test src/core/daemon/daemon-control.test.ts`; `(cd clients/web && pnpm test src/api/client.test.ts)`; `pnpm run typecheck`; `pnpm run lint`; `(cd clients/web && pnpm run typecheck)`; `(cd clients/web && pnpm run lint)`.
+
+## Result
+
+Daemon-control authentication now records whether a request was authorized by bearer token, dashboard cookie, or open/no-auth mode. Cookie-authenticated non-GET requests and control-scope routes require a same-origin/header dashboard request guard before the handler runs. Bearer-token requests remain accepted on the existing control routes. The embedded web client adds the dashboard request marker through its shared API wrapper for mutating requests.

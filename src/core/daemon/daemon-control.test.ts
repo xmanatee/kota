@@ -201,6 +201,16 @@ async function fetchNoToken(port: number, path: string, options: RequestInit = {
   return globalThis.fetch(`http://127.0.0.1:${port}${path}`, options);
 }
 
+async function mintDashboardCookie(port: number): Promise<string> {
+  const res = await fetchWithToken(port, "/");
+  expect(res.status).toBe(200);
+  const cookie = res.headers.get("set-cookie");
+  if (!cookie) throw new Error("expected dashboard session cookie");
+  const cookiePair = cookie.split(";")[0];
+  if (!cookiePair) throw new Error("expected dashboard session cookie pair");
+  return cookiePair;
+}
+
 describe("DaemonControlServer", () => {
   let server: DaemonControlServer;
   let handle: DaemonControlHandle;
@@ -346,6 +356,118 @@ describe("DaemonControlServer", () => {
       for (const { path, method } of controlRoutes) {
         const res = await fetchNoToken(port, path, { method });
         expect(res.status).toBe(401);
+      }
+    });
+
+    it("rejects dashboard-cookie control posts without the dashboard request guard", async () => {
+      const guardedHandle = makeHandle();
+      const dashboardServer = new DaemonControlServer(guardedHandle, TEST_TOKEN, {
+        routes: [
+          {
+            method: "GET",
+            path: "/",
+            handler: (_req, res) => {
+              res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+              res.end("<html>dashboard</html>");
+            },
+          },
+        ],
+      });
+      const dashboardPort = await dashboardServer.start();
+      try {
+        const cookiePair = await mintDashboardCookie(dashboardPort);
+        const controlRoutes = [
+          { path: "/workflow/pause", method: "POST" },
+          { path: "/workflow/resume", method: "POST" },
+          { path: "/workflow/abort", method: "POST" },
+          { path: "/workflow/reload", method: "POST" },
+          { path: "/reload", method: "POST" },
+        ];
+
+        for (const { path, method } of controlRoutes) {
+          const res = await fetchNoToken(dashboardPort, path, {
+            method,
+            headers: { Cookie: cookiePair },
+          });
+          expect(res.status).toBe(403);
+        }
+
+        expect(guardedHandle.pauseWorkflowDispatch).not.toHaveBeenCalled();
+        expect(guardedHandle.resumeWorkflowDispatch).not.toHaveBeenCalled();
+        expect(guardedHandle.abortActiveRuns).not.toHaveBeenCalled();
+        expect(guardedHandle.reloadWorkflowDefinitions).not.toHaveBeenCalled();
+        expect(guardedHandle.reloadConfig).not.toHaveBeenCalled();
+      } finally {
+        await dashboardServer.stop();
+      }
+    });
+
+    it("allows dashboard-cookie control posts with the dashboard request guard", async () => {
+      const guardedHandle = makeHandle();
+      const dashboardServer = new DaemonControlServer(guardedHandle, TEST_TOKEN, {
+        routes: [
+          {
+            method: "GET",
+            path: "/",
+            handler: (_req, res) => {
+              res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+              res.end("<html>dashboard</html>");
+            },
+          },
+        ],
+      });
+      const dashboardPort = await dashboardServer.start();
+      try {
+        const cookiePair = await mintDashboardCookie(dashboardPort);
+        const res = await fetchNoToken(dashboardPort, "/workflow/pause", {
+          method: "POST",
+          headers: {
+            Cookie: cookiePair,
+            "X-Kota-Dashboard-Request": "1",
+          },
+        });
+
+        expect(res.status).toBe(200);
+        expect(guardedHandle.pauseWorkflowDispatch).toHaveBeenCalledOnce();
+      } finally {
+        await dashboardServer.stop();
+      }
+    });
+
+    it("rejects dashboard-cookie module posts without the dashboard request guard", async () => {
+      const handler = vi.fn((_req, res) => {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true }));
+      });
+      const dashboardServer = new DaemonControlServer(makeHandle(), TEST_TOKEN, {
+        routes: [
+          {
+            method: "GET",
+            path: "/",
+            handler: (_req, res) => {
+              res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+              res.end("<html>dashboard</html>");
+            },
+          },
+          {
+            method: "POST",
+            path: "/api/custom",
+            handler,
+          },
+        ],
+      });
+      const dashboardPort = await dashboardServer.start();
+      try {
+        const cookiePair = await mintDashboardCookie(dashboardPort);
+        const res = await fetchNoToken(dashboardPort, "/api/custom", {
+          method: "POST",
+          headers: { Cookie: cookiePair },
+        });
+
+        expect(res.status).toBe(403);
+        expect(handler).not.toHaveBeenCalled();
+      } finally {
+        await dashboardServer.stop();
       }
     });
 

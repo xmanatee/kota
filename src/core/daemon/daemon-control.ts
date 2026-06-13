@@ -23,6 +23,18 @@ import { jsonResponse } from "./daemon-control-utils.js";
 import { type BufferedEvent, EventRingBuffer } from "./event-ring-buffer.js";
 
 const DASHBOARD_SESSION_COOKIE = "kota_dashboard_session";
+const DASHBOARD_REQUEST_HEADER = "x-kota-dashboard-request";
+
+type RequestAuthResult =
+  | { kind: "open" }
+  | { kind: "bearer" }
+  | { kind: "dashboard-cookie" }
+  | { kind: "unauthorized" };
+
+type RouteAuthResult =
+  | Exclude<RequestAuthResult, { kind: "unauthorized" }>
+  | { kind: "unauthorized" }
+  | { kind: "dashboard-guard-missing" };
 
 export type {
   ClientDashboardAvailability,
@@ -246,11 +258,59 @@ export class DaemonControlServer {
     return this.chatPool?.refreshGuardrails(config) ?? { refreshed: 0, unchanged: 0 };
   }
 
-  private isAuthorized(req: IncomingMessage): boolean {
-    if (!this.token) return true;
+  private authorizeRequest(req: IncomingMessage): RequestAuthResult {
+    if (!this.token) return { kind: "open" };
     const header = req.headers.authorization ?? "";
-    if (header === `Bearer ${this.token}`) return true;
-    return this.cookieValue(req, DASHBOARD_SESSION_COOKIE) === this.dashboardSessionToken;
+    if (header === `Bearer ${this.token}`) return { kind: "bearer" };
+    if (
+      this.dashboardSessionToken &&
+      this.cookieValue(req, DASHBOARD_SESSION_COOKIE) === this.dashboardSessionToken
+    ) {
+      return { kind: "dashboard-cookie" };
+    }
+    return { kind: "unauthorized" };
+  }
+
+  private authorizeRoute(
+    req: IncomingMessage,
+    method: string,
+    route: ControlRouteRegistration | RouteRegistration,
+  ): RouteAuthResult {
+    const auth = this.authorizeRequest(req);
+    if (auth.kind !== "dashboard-cookie") return auth;
+    if (!this.requiresDashboardRequestGuard(method, route)) return auth;
+    if (this.hasDashboardRequestGuard(req)) return auth;
+    return { kind: "dashboard-guard-missing" };
+  }
+
+  private requiresDashboardRequestGuard(
+    method: string,
+    route: ControlRouteRegistration | RouteRegistration,
+  ): boolean {
+    if (method !== "GET") return true;
+    return "capabilityScope" in route && route.capabilityScope === "control";
+  }
+
+  private hasDashboardRequestGuard(req: IncomingMessage): boolean {
+    return this.headerIncludes(req, DASHBOARD_REQUEST_HEADER, "1") || this.hasSameOrigin(req);
+  }
+
+  private headerIncludes(req: IncomingMessage, name: string, expected: string): boolean {
+    const value = req.headers[name];
+    if (Array.isArray(value)) return value.includes(expected);
+    return value === expected;
+  }
+
+  private hasSameOrigin(req: IncomingMessage): boolean {
+    const origin = req.headers.origin;
+    const host = req.headers.host;
+    if (typeof origin !== "string" || typeof host !== "string") return false;
+    try {
+      const url = new URL(origin);
+      return url.host === host && (url.protocol === "http:" || url.protocol === "https:");
+    } catch {
+      return false;
+    }
   }
 
   private cookieValue(req: IncomingMessage, name: string): string | undefined {
@@ -340,12 +400,19 @@ export class DaemonControlServer {
 
     const controlMatch = findRouteMatch(this.controlRoutes, method, path);
     if (controlMatch) {
-      if (!controlMatch.route.bypassAuth && !this.isAuthorized(req)) {
-        if (this.invokeAuthFailureHandler(controlMatch.route, req, res, controlMatch.params)) {
+      if (!controlMatch.route.bypassAuth) {
+        const auth = this.authorizeRoute(req, method, controlMatch.route);
+        if (auth.kind === "unauthorized") {
+          if (this.invokeAuthFailureHandler(controlMatch.route, req, res, controlMatch.params)) {
+            return;
+          }
+          jsonResponse(res, 401, { error: "Unauthorized" });
           return;
         }
-        jsonResponse(res, 401, { error: "Unauthorized" });
-        return;
+        if (auth.kind === "dashboard-guard-missing") {
+          jsonResponse(res, 403, { error: "Dashboard request guard required" });
+          return;
+        }
       }
       this.invokeRouteHandler(controlMatch.route, req, res, controlMatch.params);
       return;
@@ -354,15 +421,21 @@ export class DaemonControlServer {
     const moduleMatch = findRouteMatch(this.moduleRoutes, method, path);
     if (moduleMatch) {
       const dashboardEntry = this.isDashboardEntry(method, path);
-      const authorized = this.isAuthorized(req);
-      if (!moduleMatch.route.bypassAuth && !authorized) {
-        if (this.invokeAuthFailureHandler(moduleMatch.route, req, res, moduleMatch.params)) {
+      const auth = this.authorizeRoute(req, method, moduleMatch.route);
+      if (!moduleMatch.route.bypassAuth) {
+        if (auth.kind === "unauthorized") {
+          if (this.invokeAuthFailureHandler(moduleMatch.route, req, res, moduleMatch.params)) {
+            return;
+          }
+          jsonResponse(res, 401, { error: "Unauthorized" });
           return;
         }
-        jsonResponse(res, 401, { error: "Unauthorized" });
-        return;
+        if (auth.kind === "dashboard-guard-missing") {
+          jsonResponse(res, 403, { error: "Dashboard request guard required" });
+          return;
+        }
       }
-      if (dashboardEntry && authorized) this.setDashboardAuthCookie(res);
+      if (dashboardEntry && auth.kind !== "unauthorized") this.setDashboardAuthCookie(res);
       this.invokeRouteHandler(moduleMatch.route, req, res, moduleMatch.params);
       return;
     }
