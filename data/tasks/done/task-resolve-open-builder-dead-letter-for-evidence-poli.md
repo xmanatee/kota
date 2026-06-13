@@ -1,12 +1,12 @@
 ---
 id: task-resolve-open-builder-dead-letter-for-evidence-poli
 title: Resolve open builder dead-letter for evidence-policy run
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Investigate and clear builder dead-letter dlq-bf7ff10b-7d24-4fb5-b01e-982b1b73a9ce from run 2026-06-13T03-21-25-728Z-builder-wa74g9. Redrive/retry the existing evidence-policy work or dismiss the dead-letter with durable rationale if superseded; avoid creating duplicate implementation scope.
 created_at: 2026-06-13T06:25:20.532Z
-updated_at: 2026-06-13T06:25:20.532Z
+updated_at: 2026-06-13T06:32:40.624Z
 ---
 
 ## Problem
@@ -27,6 +27,10 @@ Resolve the progress-review finding from run 2026-06-13T06-22-03-474Z-progress-r
 - The cited progress gap is fixed or explicitly disproven with evidence.
 - Acceptance evidence is recorded in this task or its run artifact.
 
+## Resolution
+
+Dead-letter item `dlq-bf7ff10b-7d24-4fb5-b01e-982b1b73a9ce` was dismissed through the workflow-ops DLQ command after exporting the original diagnostics and reviewing the failed builder run. The failed run timed out during the evidence-policy task and its critic artifact showed the policy work was incomplete; that implementation task remains in `ready/` as `task-add-retention-redaction-and-provenance-policy`, so redriving the timed-out run would duplicate stale context rather than clear the underlying work.
+
 ## Source / Intent
 
 Created by progress-reviewer workflow run 2026-06-13T06-22-03-474Z-progress-reviewer-8vu80n.
@@ -45,4 +49,6 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- A run artifact records the dead-letter's pre/post state, redrive or dismissal rationale, queue validation, and confirms dlq-bf7ff10b-7d24-4fb5-b01e-982b1b73a9ce is no longer open.
+- `.kota/runs/2026-06-13T06-27-55-685Z-builder-dzi55b/dead-letter-before-dismissal.json` preserves the original DLQ diagnostics with status `open`.
+- `.kota/runs/2026-06-13T06-27-55-685Z-builder-dzi55b/dead-letter-after-dismissal.json` records status `dismissed`, `dismissedAt`, and the dismissal reason.
+- `.kota/runs/2026-06-13T06-27-55-685Z-builder-dzi55b/dead-letter-resolution.md` records the pre/post state, dismissal rationale, queue validation, and confirms `dlq-bf7ff10b-7d24-4fb5-b01e-982b1b73a9ce` is no longer open.
