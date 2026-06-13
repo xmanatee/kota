@@ -4,9 +4,9 @@ title: Add peer agent product benchmark matrix
 status: backlog
 priority: p2
 area: research
-summary: Compare KOTA against DOX, Agent Zero, Space Agent, ClawPatrol, Rowboat, Open Notebook, Headroom, secure MCP tunnels, and agent-computer patterns with bounded adopt/adapt/reject decisions.
+summary: Compare KOTA against DOX, Agent Zero, Space Agent, ClawPatrol, Rowboat, Open Notebook, Headroom, secure MCP tunnels, project-shaped workflow framing, and agent-computer patterns with bounded adopt/adapt/reject decisions.
 created_at: 2026-06-11T22:24:20.132Z
-updated_at: 2026-06-11T22:24:20.132Z
+updated_at: 2026-06-13T00:16:08.543Z
 task_class: Product
 ---
 
@@ -34,7 +34,8 @@ bounded adopt/adapt/reject/later decisions mapped to existing KOTA concepts.
 ## Done When
 
 - Matrix covers DOX, Agent Zero, Space Agent, ClawPatrol, Rowboat, Open
-  Notebook, Headroom, OpenAI secure MCP tunnels, and agent-computer patterns.
+  Notebook, Headroom, OpenAI secure MCP tunnels, project-shaped workflow
+  framing, and agent-computer patterns.
 - Each row records capability, KOTA equivalent, gap, decision, and resulting
   bounded next action.
 - External pattern decisions or watchlist entries are updated only for adopted
@@ -45,6 +46,12 @@ bounded adopt/adapt/reject/later decisions mapped to existing KOTA concepts.
 Owner supplied research links on 2026-06-11 and asked to understand which
 external project capabilities matter for KOTA rather than blindly copying or
 ignoring them.
+
+The 2026-06-10 inbox research bundle already contained notes for those peer
+systems plus project-first hiring and LangChain sandbox references. Its unread
+bare-link tail is tracked separately in
+`task-review-owner-captured-automated-research-and-mimo-`; its inaccessible X
+post is tracked in `task-review-inaccessible-research-resources-when-access`.
 
 ## Initiative
 

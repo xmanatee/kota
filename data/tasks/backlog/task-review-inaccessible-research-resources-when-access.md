@@ -4,18 +4,18 @@ title: Review inaccessible research resources when access is available
 status: backlog
 priority: p3
 area: research
-summary: Grouped follow-up for 9 research URLs that were captured but never read due to auth walls or fetch failures
+summary: Grouped follow-up for research URLs that were captured but never read due to auth walls or fetch failures
 depends_on: [task-enable-autonomous-access-to-auth-walled-sources-so]
 created_at: 2026-04-14T00:29:07.947Z
-updated_at: 2026-05-18T07:10:06Z
+updated_at: 2026-06-13T00:16:08.543Z
 ---
 
 ## Problem
 
-Nine research URLs from the March-April 2026 resource batches plus a later
-inbox capture were captured but never read. Automated fetch returned HTTP 402
-(X/Twitter auth wall) or failed due to rate limits / JS rendering. These
-resources cannot be honestly dispositioned without reading them.
+Research URLs from prior resource batches and later inbox captures were
+captured but never read. Automated fetch returned HTTP 402 (X/Twitter auth
+wall) or failed due to rate limits / JS rendering. These resources cannot be
+honestly dispositioned without reading them.
 `task-enable-autonomous-access-to-auth-walled-sources-so` is the enabler
 task that aims to unblock this class of resources.
 
@@ -30,6 +30,10 @@ task that aims to unblock this class of resources.
 - https://x.com/tianle_cai/status/2042459055483207818
 - https://x.com/pedroh96/status/2046604993982009825
 
+### X/Twitter autoresearch workflow post (auth-walled, from 2026-06-10 inbox)
+
+- https://x.com/alokbishoyi97/status/2064281952631525741
+
 ### Web articles and papers
 
 All three dispositioned in Status section below (two reference-only, one
@@ -37,14 +41,14 @@ dropped as HTTP 404). No remaining blockers in this category.
 
 ## Desired Outcome
 
-Each resource is read and given an honest disposition: adopted, deferred with a
-follow-up task, reference-only with a rationale, or explicitly dropped with a
-reason based on actual content.
+Each resource in the Resources section is read and given an honest disposition:
+adopted, deferred with a follow-up task, reference-only with a rationale, or
+explicitly dropped with a reason based on actual content.
 
 ## Constraints
 
 - Waiting on X/Twitter authentication (operator-configured
-  `modules.browser.storageStatePath`) for the 6 social posts still in the
+  `modules.browser.storageStatePath`) for the social posts still in the
   Resources block.
 - Do not infer content from URL shape, author, or surrounding context.
 - Do not create one task per URL.
@@ -53,7 +57,8 @@ reason based on actual content.
 
 ## Done When
 
-- All 9 original URLs have been read and given honest dispositions.
+- Every URL in the Resources section has been read and given an honest
+  disposition.
 - The task record reflects the final disposition per URL.
 - Follow-up tasks exist for any adopted or deferred work.
 
@@ -121,3 +126,11 @@ of `blocked/`; the typed dependency edge is the scheduler-visible wait. The
 live authenticated-browser capture for the enabler is still absent, so this
 task remains dependency-waiting in `backlog/` and is not completed through
 public mirrors or alternate captures.
+
+## Status (2026-06-13 inbox sort)
+
+The Alok Bishoyi X post from the 2026-06-10 inbox research bundle was added to
+Resources. The capture only had an inaccessible direct X URL plus an
+unverified search-result snippet/title; no KOTA disposition should be made
+until the actual post text, images, links, and claims are read through an
+authenticated browser path.
