@@ -1,7 +1,14 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { Command } from "commander";
+import { probeCapabilityReadiness } from "#core/daemon/capability-readiness.js";
+import {
+  listModuleSetupStatusesFromSummaries,
+  moduleSummariesWithSetupAvailability,
+} from "#core/modules/module-setup-status.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import { getProviderRegistry } from "#core/modules/provider-registry.js";
+import type { ModuleSetupCapabilityStatus } from "#core/modules/setup-requirements.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { jsonResponse } from "#core/server/session-pool.js";
 import {
@@ -17,7 +24,7 @@ import {
   stack,
 } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
-import { inspectModule } from "./admin-operations.js";
+import { inspectModuleFromSummaries } from "./admin-operations.js";
 import type {
   ModuleInspectEntry,
   ModuleInspectResult,
@@ -29,6 +36,25 @@ import type {
 } from "./client.js";
 import { buildModuleListEntries, handleListModules } from "./routes.js";
 import { generateModuleScaffold, generatePythonScaffold } from "./scaffolds.js";
+
+async function probeSetupCapabilities(): Promise<readonly ModuleSetupCapabilityStatus[]> {
+  const registry = getProviderRegistry();
+  if (!registry) return [];
+  const response = await probeCapabilityReadiness(registry);
+  return response.capabilities;
+}
+
+async function moduleSummariesWithCurrentSetupAvailability(
+  ctx: ModuleContext,
+) {
+  const summaries = ctx.getModuleSummaries();
+  const statuses = await listModuleSetupStatusesFromSummaries({
+    projectDir: ctx.cwd,
+    getModuleSummaries: () => summaries,
+    probeCapabilities: probeSetupCapabilities,
+  });
+  return moduleSummariesWithSetupAvailability(summaries, statuses.requirements);
+}
 
 function healthRole(status: string): "success" | "warn" | "error" | "muted" {
   switch (status) {
@@ -84,6 +110,22 @@ function buildSection(label: string, items: string[]): RenderNode | null {
     plain(` ${item}`),
   ));
   return stack(blank(), header, ...rows);
+}
+
+function buildManifestCapabilityRows(
+  moduleSummary: ModuleInspectEntry,
+): string[] {
+  return moduleSummary.manifest?.capabilities.map((capability) =>
+    `${capability.id} (${capability.scope})`
+  ) ?? [];
+}
+
+function buildManifestEffectRows(
+  moduleSummary: ModuleInspectEntry,
+): string[] {
+  return moduleSummary.manifest?.effects.map((effect) =>
+    `${effect.id}: ${effect.effect.kind}/${effect.effect.scope} (${effect.risk})`
+  ) ?? [];
 }
 
 function buildModuleCommand(ctx: ModuleContext): Command {
@@ -163,6 +205,8 @@ function buildModuleCommand(ctx: ModuleContext): Command {
         ["Channels", moduleSummary.channelNames],
         ["Skills", moduleSummary.skillNames],
         ["Agents", moduleSummary.agentNames],
+        ["Capabilities", buildManifestCapabilityRows(moduleSummary)],
+        ["Effects", buildManifestEffectRows(moduleSummary)],
       ] as const) {
         const section = buildSection(label, items);
         if (section) sections.push(section);
@@ -270,7 +314,12 @@ const moduleManagerModule: KotaModule = {
   commands: (ctx: ModuleContext) => [buildModuleCommand(ctx)],
 
   routes: (ctx) => [
-    { method: "GET", path: "/api/modules", handler: (_req, res) => handleListModules(res, ctx.getModuleSummaries()) },
+    {
+      method: "GET",
+      path: "/api/modules",
+      handler: async (_req, res) =>
+        handleListModules(res, await moduleSummariesWithCurrentSetupAvailability(ctx)),
+    },
   ],
 
   controlRoutes: (ctx) => [
@@ -278,16 +327,27 @@ const moduleManagerModule: KotaModule = {
       method: "GET",
       path: "/modules",
       capabilityScope: "read",
-      handler: (_req, res) => {
-        jsonResponse(res, 200, { modules: buildModuleListEntries(ctx.getModuleSummaries()) });
+      handler: async (_req, res) => {
+        jsonResponse(res, 200, {
+          modules: buildModuleListEntries(
+            await moduleSummariesWithCurrentSetupAvailability(ctx),
+          ),
+        });
       },
     },
     {
       method: "GET",
       path: "/modules/:name",
       capabilityScope: "read",
-      handler: (_req, res, params) => {
-        jsonResponse(res, 200, inspectModule(ctx, params.name));
+      handler: async (_req, res, params) => {
+        jsonResponse(
+          res,
+          200,
+          inspectModuleFromSummaries(
+            await moduleSummariesWithCurrentSetupAvailability(ctx),
+            params.name,
+          ),
+        );
       },
     },
   ],
@@ -295,12 +355,19 @@ const moduleManagerModule: KotaModule = {
   localClient: (ctx) => {
     const modules: ModulesClient = {
       async list() {
-        return { modules: buildModuleListEntries(ctx.getModuleSummaries()) };
+        return {
+          modules: buildModuleListEntries(
+            await moduleSummariesWithCurrentSetupAvailability(ctx),
+          ),
+        };
       },
     };
     const modulesAdmin: ModulesAdminClient = {
       async inspect(name) {
-        return inspectModule(ctx, name);
+        return inspectModuleFromSummaries(
+          await moduleSummariesWithCurrentSetupAvailability(ctx),
+          name,
+        );
       },
       async reload(_name) {
         return { ok: false, reason: "daemon_required" };

@@ -63,6 +63,45 @@ const systemModule: KotaModule = {
   version: "1.0.0",
   description:
     "System tools: clipboard, view_image, env_info, sqlite, notify",
+  manifest: {
+    schemaVersion: 1,
+    capabilities: [
+      {
+        id: "system.host-inspection",
+        description: "Inspect local host images, environment metadata, and SQLite data.",
+        scope: "global",
+        scopePolicyHooks: ["retention"],
+      },
+      {
+        id: "system.operator-surface",
+        description: "Write clipboard state and send local operator notifications.",
+        scope: "global",
+        scopePolicyHooks: ["owner-confirmation", "external-effects", "writes"],
+      },
+    ],
+    dataClasses: [
+      {
+        id: "system.host-data",
+        description: "Local environment details, image metadata, clipboard state, and SQLite query results.",
+        sensitivity: "personal",
+        retention: "run-artifact",
+        redaction: "metadata-only",
+      },
+      {
+        id: "system.notification-content",
+        description: "Operator notification titles and message bodies.",
+        sensitivity: "internal",
+        retention: "operator-visible",
+        redaction: "metadata-only",
+      },
+    ],
+    simulation: {
+      support: "external-effects-blocked",
+      blockedReasons: [
+        "System tools can mutate local SQLite, clipboard, and operator-notification surfaces and are blocked unless trial mode can isolate the target.",
+      ],
+    },
+  },
   tools,
 };
 

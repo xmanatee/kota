@@ -7,7 +7,7 @@ import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type { DaemonClientHandlers, LocalClientHandlers } from "#core/server/kota-client.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import { readImportedSkillRecords } from "./imported-skills.js";
-import { type LifecycleEnv, unloadAllModules, unloadModule } from "./module-lifecycle.js";
+import { discardModuleLoadState, type LifecycleEnv, unloadAllModules, unloadModule } from "./module-lifecycle.js";
 import { type LoadAllEnv, loadAllModules, reloadModule } from "./module-loader-bootstrap.js";
 import { assembleDaemonClientHandlers as assembleDaemonClientHandlersImpl } from "./module-loader-clients.js";
 import { createLoaderModuleContext, type ToolCallDepth } from "./module-loader-context.js";
@@ -125,11 +125,16 @@ export class ModuleLoader {
 
     checkDuplicateModule(state, mod);
     checkDependencies(state, mod);
-    registerModuleConfigSlices(state, mod);
-    registerModuleEvents(mod);
+    try {
+      registerModuleConfigSlices(state, mod);
+      registerModuleEvents(mod);
 
-    const ctx = this.createContext(mod.name);
-    await runModuleLoadPhases(state, policy, mod, ctx, this.verbose);
+      const ctx = this.createContext(mod.name);
+      await runModuleLoadPhases(state, policy, mod, ctx, this.verbose);
+    } catch (err) {
+      discardModuleLoadState(mod.name, state);
+      throw err;
+    }
   }
 
   async loadAll(projectModules: KotaModule[], installedModules?: KotaModule[]): Promise<void> {

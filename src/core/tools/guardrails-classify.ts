@@ -16,6 +16,7 @@
  * effects own that information now.
  */
 
+import { findModuleManifestToolEffect } from "#core/modules/module-manifest.js";
 import {
   type McpToolAnnotations,
   mcpAnnotationsFromEffect,
@@ -88,6 +89,10 @@ export type AuthorityChangingEnvironmentOverride = {
   name: string;
   overrideClass: EnvironmentOverrideClass;
 };
+
+type ResolvedToolEffect =
+  | { source: "manifest"; risk: RiskLevel }
+  | { source: "registry"; risk: RiskLevel };
 
 const BENIGN_ENVIRONMENT_OVERRIDE_NAMES = new Set([
   "CI",
@@ -393,6 +398,30 @@ export function classifyToolCallInputEffectOverride(
 
 // ─── Classification ───────────────────────────────────────────────────
 
+function resolveToolEffect(name: string): ResolvedToolEffect | undefined {
+  const manifestEffect = findModuleManifestToolEffect(name);
+  if (manifestEffect) {
+    return {
+      source: "manifest",
+      risk: manifestEffect.risk,
+    };
+  }
+
+  const effect = getToolEffect(name);
+  if (!effect) return undefined;
+  return {
+    source: "registry",
+    risk: riskFromEffect(effect),
+  };
+}
+
+function effectReasonPrefix(
+  name: string,
+  resolvedEffect: ResolvedToolEffect,
+): string {
+  return resolvedEffect.source === "manifest" ? `${name} manifest effect` : name;
+}
+
 /**
  * Classify a tool call's risk level based on its declared effect and a small
  * set of input-pattern guards.
@@ -406,8 +435,8 @@ export function classifyRisk(
   name: string,
   input: ToolCallInput,
 ): { risk: RiskLevel; reason: string } {
-  const effect = getToolEffect(name);
-  const baseTier: RiskLevel | undefined = effect ? riskFromEffect(effect) : undefined;
+  const resolvedEffect = resolveToolEffect(name);
+  const baseTier = resolvedEffect?.risk;
 
   // Shell/process: escalate to dangerous when the command matches a
   // destructive pattern, regardless of the declared base effect.
@@ -482,10 +511,18 @@ export function classifyRisk(
   }
 
   // Tools with a declared effect: derive tier directly.
-  if (effect) {
+  if (resolvedEffect) {
     if (baseTier === "safe") return { risk: "safe", reason: "read-only tool" };
-    if (baseTier === "dangerous") return { risk: "dangerous", reason: `${name} is a high-risk operation` };
-    return { risk: "moderate", reason: `${name} modifies state` };
+    if (baseTier === "dangerous") {
+      return {
+        risk: "dangerous",
+        reason: `${effectReasonPrefix(name, resolvedEffect)} is a high-risk operation`,
+      };
+    }
+    return {
+      risk: "moderate",
+      reason: `${effectReasonPrefix(name, resolvedEffect)} modifies state`,
+    };
   }
 
   // Unknown tools default to moderate.
@@ -501,7 +538,7 @@ export function classifyRisk(
  * cannot describe an unknown tool, and MCP omits annotations in that case).
  */
 export function getToolMcpAnnotations(toolName: string): McpToolAnnotations | undefined {
-  const effect = getToolEffect(toolName);
+  const effect = findModuleManifestToolEffect(toolName)?.effect ?? getToolEffect(toolName);
   if (!effect) return undefined;
   return mcpAnnotationsFromEffect(effect);
 }

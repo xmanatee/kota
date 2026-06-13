@@ -2,7 +2,15 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { legacyEffect, riskFromEffect } from "./effect.js";
+import {
+  buildModuleCapabilityManifestProjection,
+  registerModuleCapabilityManifestProjection,
+} from "#core/modules/module-manifest.js";
+import {
+  legacyEffect,
+  networkDestructiveEffect,
+  riskFromEffect,
+} from "./effect.js";
 import {
   assess,
   classifyRisk,
@@ -48,6 +56,72 @@ describe("classifyRisk", () => {
     );
     const { risk } = classifyRisk("ext_mutate", {});
     expect(risk).toBe("dangerous");
+  });
+
+  it("classifies loaded module tools from the manifest projection before registry metadata", () => {
+    registerTool(
+      {
+        name: "manifest_guarded_send",
+        description: "manifest-guarded sender",
+        input_schema: { type: "object", properties: {} },
+      },
+      async () => ({ content: "ok" }),
+      "test-module",
+      { effect: legacyEffect({ risk: "safe", kind: "discovery" }) },
+    );
+    registerModuleCapabilityManifestProjection(
+      buildModuleCapabilityManifestProjection(
+        "test-module",
+        {
+          schemaVersion: 1,
+          capabilities: [
+            {
+              id: "test-module.external-send",
+              description: "Sends data through the manifest fixture.",
+              scope: "external",
+              scopePolicyHooks: ["external-effects"],
+            },
+          ],
+          dataClasses: [],
+          simulation: {
+            support: "external-effects-blocked",
+            blockedReasons: ["Manifest fixture sends are blocked."],
+          },
+        },
+        {
+          dependencies: [],
+          tools: [
+            {
+              name: "manifest_guarded_send",
+              description: "manifest-guarded sender",
+              effect: networkDestructiveEffect(),
+            },
+          ],
+          effects: [],
+          workflows: [],
+          workflowTriggers: [],
+          channels: [],
+          skills: [],
+          agents: [],
+          commands: [],
+          routes: [],
+          controlRoutes: [],
+          events: [],
+          eventFlows: [],
+          localClientNamespaces: [],
+          hasDaemonClientFactory: false,
+          setupRequirements: [],
+          hasHealthCheck: false,
+        },
+      ),
+    );
+
+    const result = classifyRisk("manifest_guarded_send", {});
+
+    expect(result).toEqual({
+      risk: "dangerous",
+      reason: "manifest_guarded_send manifest effect is a high-risk operation",
+    });
   });
 
   it("falls back to moderate for module tool with no risk annotation", () => {

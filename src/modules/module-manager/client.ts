@@ -16,6 +16,7 @@
  * `kota module` CLI consumes them through `ctx.client.modules` and
  * `ctx.client.modulesAdmin`.
  */
+import type { ModuleCapabilityManifestProjection } from "#core/modules/module-manifest.js";
 
 /**
  * Loaded-module summary surfaced by `modules.list`.
@@ -37,6 +38,7 @@ export type ModuleListEntry = {
   channelCount: number;
   skillCount: number;
   agentCount: number;
+  manifest?: ModuleCapabilityManifestProjection;
   loadError?: string;
 };
 
@@ -78,6 +80,7 @@ export type ModuleInspectEntry = {
   channelNames: string[];
   skillNames: string[];
   agentNames: string[];
+  manifest?: ModuleCapabilityManifestProjection;
   health?: {
     status: string;
     restartCount: number;

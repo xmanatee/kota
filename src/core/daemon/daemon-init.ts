@@ -176,6 +176,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     refreshLiveSessionGuardrails: (guardrailsConfig) =>
       ctx.controlServer.refreshChatSessionGuardrails(guardrailsConfig),
     log,
+    getModuleSummaries: () => config.getModuleSummaries?.() ?? [],
     getModuleHealthChecks: () => ctx.moduleHealthChecks,
     probeCapabilityReadiness: () => probeCapabilityReadinessWithTrigger(workflows),
     getChannelStatuses: () => ctx.channelStatuses,

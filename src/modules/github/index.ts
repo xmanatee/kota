@@ -97,6 +97,47 @@ const githubModule: KotaModule = {
   version: "1.0.0",
   description: "GitHub REST API tools for PR and issue operations",
   setupRequirements: githubSetupRequirements,
+  manifest: {
+    schemaVersion: 1,
+    capabilities: [
+      {
+        id: "github.pull-requests",
+        description: "List, inspect, create, comment on, merge, and close GitHub pull requests.",
+        scope: "external",
+        scopePolicyHooks: ["external-effects", "owner-confirmation", "setup"],
+        setupRequirementIds: ["token-config", "token"],
+      },
+      {
+        id: "github.issues",
+        description: "List, create, update, label, and comment on GitHub issues.",
+        scope: "external",
+        scopePolicyHooks: ["external-effects", "owner-confirmation", "setup"],
+        setupRequirementIds: ["token-config", "token"],
+      },
+    ],
+    dataClasses: [
+      {
+        id: "github.credentials",
+        description: "GitHub personal access token references resolved through the shared secret provider.",
+        sensitivity: "credential",
+        retention: "project-durable",
+        redaction: "mask-secret",
+      },
+      {
+        id: "github.repository-content",
+        description: "GitHub issue, pull request, comment, label, and check-run payloads.",
+        sensitivity: "provider-payload",
+        retention: "run-artifact",
+        redaction: "metadata-only",
+      },
+    ],
+    simulation: {
+      support: "external-effects-blocked",
+      blockedReasons: [
+        "GitHub write tools mutate repository state and are blocked in workflow trial mode.",
+      ],
+    },
+  },
 
   tools(ctx: ModuleContext): ToolDef[] {
     const config = ctx.getModuleConfig<GitHubConfig>();

@@ -17,7 +17,7 @@ Owns KOTA's autonomous development loop.
 - Judges inside a repair loop inherit the parent step's resolved harness, not
   a parallel fallback.
 
-## Core Autonomy Decisions
+## Core Decisions
 
 Load-bearing harness/eval/peer-runtime rules. Post summaries live in run
 artifacts or `data/watchlist.yaml`.
@@ -51,30 +51,25 @@ artifacts or `data/watchlist.yaml`.
 ## Live-Run Evaluator Calibration
 
 Fixture `pass^k` catches generator drift; per-run artifacts catch
-evaluator drift. Pass-contradiction requires later overlap with a final
+evaluator drift. Pass-contradiction requires later overlap with final
 failure (`verdict==="fail"` or failed terminal status);
-`criticFailureCount>0` alone is diagnostic review evidence. Mechanical
-repair is iteration noise. PWW escalation needs later overlap with a
-final hedging/failing verdict. Artifacts record critic prompt hash;
-aggregation counts matching hashes only, so prompt edits reset the
-window. Drift commits one path: create/
-recreate/promote `task-evaluator-calibration-drift-repair` in
-`ready/`; regression bridges to attention digest. Recreate noops when
-the prior repair commit is newer than the latest calibration artifact:
-the daemon hasn't loaded the post-fix dist, so let fresh evidence
-accrue before re-opening. Critic blocks weak rendered evidence
+`criticFailureCount>0` alone is diagnostic evidence. Mechanical repair
+is iteration noise. PWW escalation needs later overlap with final
+hedging/failing verdict. Artifacts record critic prompt hash; prompt
+edits reset the window. Drift creates/recreates/promotes
+`task-evaluator-calibration-drift-repair` in `ready/`; regression
+bridges to attention digest. Recreate noops when the prior repair
+commit is newer than the latest calibration artifact: the daemon has not
+loaded post-fix dist. Critic blocks weak rendered evidence
 (preflight-only), placeholder tests, untracked compat shims, baseline
 ratchets (hedged "if inadvertent"), required-source dishonesty,
-untracked Done-When non-fulfillment, and runtime defects masked by
-missing test coverage. Non-trivial warnings need a durable trace
-(follow-up task, task limitation, or harmless reason); otherwise
-critical.
+untracked Done-When gaps, and runtime defects masked by missing test
+coverage. Non-trivial warnings need a durable trace; otherwise critical.
 
 ## External Pattern Decisions
 
-Verdicts on peer patterns vs KOTA primitives. Per-verdict source, date,
-primitives, and revisit live in `external-pattern-decisions.ts`; the
-test enforces 1:1 match.
+Verdicts on peer patterns vs KOTA primitives live in
+`external-pattern-decisions.ts`; tests enforce 1:1 match.
 
 - **Workflow DSLs (crewAI Flows, LangGraph Pregel).** Reject.
 - **Vercel AI SDK split.** Adopt.
@@ -105,9 +100,9 @@ test enforces 1:1 match.
   `approval-queue` + autonomy mode + `injection-defense`.
 - **Opus 4.7 harness defaults at agent-step layer.** Delegate-don't-pair:
   front-load intent, constraints, and success criteria. Use `xhigh`,
-  adaptive thinking, batch-upfront, and judicious subagents
-  (builder→critic). Task contract + success-criteria files enforce this;
-  no clarification loops or fixed reasoning caps.
+  adaptive thinking, batch-upfront, and judicious subagents. Task
+  contract + success-criteria files enforce this; no clarification loops
+  or fixed reasoning caps.
 - **Tool-design hygiene.** High bar for new tools; prefer discoverable
   surfaces (read, grep, scoped `AGENTS.md`, prompt state).
 - **`ask_owner` in autonomous workflows uses `askOwnerSteps`**
@@ -133,12 +128,12 @@ must not reach autonomy agents.
 
 `fan-out-consolidator` seeds one `area: client` review task per closed
 multi-client fan-out batch (idempotent by capability key, ≤1 primary
-surface per closed task). `area: client` forces rendered-evidence
-gating. Detection + body in `fan-out-consolidation.ts`.
+surface per closed task). `area: client` forces rendered evidence.
+Detection + body in `fan-out-consolidation.ts`.
 
 ## Empty-Queue Loop Shape
 
-Deliberate workflow gating, not emergent thrash:
+Workflow gating, not emergent thrash:
 
 - **Builder gates on `autonomy.queue.available`** (ready+doing>0).
   Never fires on `runtime.idle`, never auto-consumes backlog.

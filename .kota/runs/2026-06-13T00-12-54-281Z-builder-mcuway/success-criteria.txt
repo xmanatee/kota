@@ -1,0 +1,5 @@
+1. KotaModule has a strict module capability/effect manifest contribution or derived builder with runtime validation.
+2. Module summaries and daemon APIs expose capability and effect information without exposing secrets.
+3. Guardrails, setup/readiness, simulation/trial mode, and automation explain surfaces can all consume the same manifest projection.
+4. Telegram, Google Workspace, Slack channel, browser/web access, and one model-client module provide manifest coverage.
+5. Focused validation covers missing required effect metadata, projection/redaction, readiness state, and manifest-driven side-effect blocking.

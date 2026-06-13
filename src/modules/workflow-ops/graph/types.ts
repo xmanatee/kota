@@ -21,6 +21,22 @@ export type StepSummary = {
   agentName?: string;
   model?: string;
   tool?: string;
+  manifestEffect?: {
+    moduleName: string;
+    effectId: string;
+    risk: string;
+    categories: readonly string[];
+    capabilityIds: readonly string[];
+    effect: {
+      kind: string;
+      scope: string;
+      openWorld: boolean;
+    };
+    simulation: {
+      blocked: boolean;
+      reason?: string;
+    };
+  };
   event?: string;
   targetWorkflow?: string;
   hasCondition: boolean;

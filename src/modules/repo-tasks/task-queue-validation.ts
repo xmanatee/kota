@@ -276,7 +276,7 @@ function readTaskPriority(entry: TaskFileEntry): string | null {
   return priority.length > 0 ? priority : null;
 }
 
-function readTaskClass(attrs: Record<string, unknown>): string | null {
+function readTaskClass(attrs: Record<string, string | string[]>): string | null {
   const taskClass = String(attrs.task_class ?? "").trim();
   return taskClass.length > 0 ? taskClass : null;
 }
@@ -333,8 +333,12 @@ function listDuplicateFanOutConsolidationRows(raw: string): string[] {
     .sort();
 }
 
-function blockedTaskAgeDays(updatedAt: unknown, nowMs: number): number | null {
-  const ms = Date.parse(String(updatedAt ?? ""));
+function blockedTaskAgeDays(
+  updatedAt: string | string[] | undefined,
+  nowMs: number,
+): number | null {
+  const value = Array.isArray(updatedAt) ? updatedAt.join(",") : updatedAt;
+  const ms = Date.parse(value ?? "");
   if (Number.isNaN(ms)) return null;
   return Math.floor((nowMs - ms) / (24 * 60 * 60 * 1000));
 }

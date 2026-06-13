@@ -39,6 +39,7 @@ export function collectModuleSummaries(state: LoaderState): ModuleSummary[] {
       ...(commandError ? { commandError } : {}),
       ...(routeError ? { routeError } : {}),
       health: mod.getHealth?.(),
+      manifest: state.moduleManifests.get(mod.name),
     };
   });
   const failed: ModuleSummary[] = [];

@@ -1,0 +1,1 @@
+Wire setup availability into module manifests

@@ -1,0 +1,42 @@
+{
+  "source": "workflow trial mode side-effect blocking reads the registered module manifest projection",
+  "tool": "http_request",
+  "module": "web-access",
+  "manifestEffect": {
+    "id": "tool.http_request",
+    "source": "tool",
+    "effect": {
+      "kind": "write",
+      "scope": "external-network",
+      "idempotent": false,
+      "openWorld": true
+    },
+    "risk": "moderate",
+    "categories": ["external-write"],
+    "simulation": {
+      "blocked": true,
+      "reason": "tool would produce a live external or operator-visible side effect in trial mode"
+    }
+  },
+  "trialBehavior": {
+    "executed": false,
+    "blockedExternalSideEffects": [
+      {
+        "stepId": "send-live",
+        "tool": "http_request",
+        "reason": "tool would produce a live external or operator-visible side effect in trial mode",
+        "effect": {
+          "kind": "write",
+          "scope": "external-network",
+          "openWorld": true
+        },
+        "manifest": {
+          "moduleName": "web-access",
+          "effectId": "tool.http_request",
+          "categories": ["external-write"],
+          "capabilityIds": ["web-access.http"]
+        }
+      }
+    ]
+  }
+}

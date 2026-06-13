@@ -5,6 +5,8 @@ import type {
 } from "#core/server/kota-client.js";
 import type { KotaModule, ModuleRuntimeContext } from "./module-types.js";
 
+export type LocalClientNamespace = Extract<keyof LocalClientHandlers, string>;
+
 /**
  * Per-namespace assignment helper for the local client handler map.
  *
@@ -54,9 +56,10 @@ export function collectLocalClientHandlers(
   target: Partial<LocalClientHandlers>,
   mod: KotaModule,
   ctx: ModuleRuntimeContext,
-): void {
-  if (!mod.localClient) return;
+): LocalClientNamespace[] {
+  if (!mod.localClient) return [];
   const handlers = mod.localClient(ctx) as Partial<LocalClientHandlers>;
+  const namespaces: LocalClientNamespace[] = [];
   for (const namespace of Object.keys(handlers) as (keyof LocalClientHandlers)[]) {
     const impl = handlers[namespace];
     if (!impl) continue;
@@ -67,7 +70,9 @@ export function collectLocalClientHandlers(
       );
     }
     assignLocalClientHandler(target, namespace, impl);
+    namespaces.push(namespace as LocalClientNamespace);
   }
+  return namespaces;
 }
 
 /**

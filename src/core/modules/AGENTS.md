@@ -63,6 +63,10 @@ boundary is enforced at compile time by `module-context-capabilities.test.ts`.
 - Keep protocol details strict and code-owned. Message names, config fields,
   transport variants, health states, and generated scaffold details belong in
   types, schemas, examples, and focused tests instead of docs catalogs.
+- Module capability/effect inspection goes through the module manifest
+  projection in `module-manifest.ts`; derive contribution lists from loader
+  state and add module-owned capability/data/effect declarations there instead
+  of creating a second catalog.
 - CLI-only provider loading should activate the configured provider modules and
   their declared dependencies without loading unrelated module side effects.
 - Provider registration and lookup go through typed `ProviderToken<T>` values.

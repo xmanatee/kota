@@ -4,6 +4,8 @@ import { loadConfig } from "#core/config/config.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { SessionGuardrailsReloadSummary } from "#core/events/event-bus-types.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
+import { moduleSetupRequirementsFromSummaries } from "#core/modules/module-setup-status.js";
+import type { ModuleSummary } from "#core/modules/module-types.js";
 import { ModuleSetupService } from "#core/modules/setup-requirements.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import {
@@ -63,6 +65,7 @@ export type DaemonHandleContext = {
     unchanged: number;
   };
   log: (message: string) => void;
+  getModuleSummaries: () => readonly ModuleSummary[];
   getModuleHealthChecks: () => Record<string, ModuleHealthCheckResult>;
   probeCapabilityReadiness: () => Promise<CapabilityReadinessResponse>;
   getChannelStatuses: () => readonly ChannelStatus[];
@@ -85,7 +88,7 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
   const metricCountsCache = new Map<ProjectId, { value: WorkflowMetricCounts; at: number }>();
   const setupService = new ModuleSetupService({
     projectDir,
-    getRequirements: () => config.setupRequirements ?? [],
+    getRequirements: () => moduleSetupRequirementsFromSummaries(ctx.getModuleSummaries()),
     probeCapabilities: async () => {
       const response = await ctx.probeCapabilityReadiness();
       return response.capabilities;
@@ -240,7 +243,7 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
           projectDir,
           config.verbose ?? false,
         );
-        config.setupRequirements = loader.getContributedSetupRequirements();
+        config.getModuleSummaries = () => loader.getModuleSummaries();
         const allModules = loader.getModuleSummaries().map((s) => ({
           name: s.name,
           dependencies: s.dependencies,

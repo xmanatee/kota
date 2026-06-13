@@ -19,6 +19,10 @@ function formatStepLine(step: StepSummary, indent: string): string[] {
       break;
     case "tool":
       if (step.tool) extras.push(step.tool);
+      if (step.manifestEffect) {
+        extras.push(`risk=${step.manifestEffect.risk}`);
+        if (step.manifestEffect.simulation.blocked) extras.push("trial=blocked");
+      }
       break;
     case "emit":
       if (step.event) extras.push(`→ ${step.event}`);

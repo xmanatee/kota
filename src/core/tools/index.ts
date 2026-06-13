@@ -1,4 +1,5 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import { clearModuleCapabilityManifestProjections } from "#core/modules/module-manifest.js";
 import { registration as agentStatus } from "./agent-status.js";
 import { registration as approval } from "./approval.js";
 import { registration as askOwner } from "./ask-owner.js";
@@ -271,6 +272,7 @@ export function clearCustomTools(): void {
   customToolNames.clear();
   moduleToolOwners.clear();
   moduleToolMeta.clear();
+  clearModuleCapabilityManifestProjections();
 }
 
 // Inject registry functions into custom-tool module (breaks circular dependency)

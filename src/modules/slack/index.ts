@@ -15,6 +15,7 @@
 
 import type { BusEvents } from "#core/events/event-bus.js";
 import type { KotaModule } from "#core/modules/module-types.js";
+import { operatorSurfaceEffect } from "#core/tools/effect.js";
 import { postWithRetry } from "#modules/notification/index.js";
 
 const NOTIFICATION_EVENTS = [
@@ -231,6 +232,49 @@ const slackModule: KotaModule = {
   version: "1.0.0",
   description: "Slack Incoming Webhook notification channel for KOTA workflow events",
   dependencies: ["notification"],
+  effects: [
+    {
+      id: "slack.webhook-delivery",
+      description: "Deliver workflow, approval, and owner-question notifications to Slack.",
+      source: "notification",
+      effect: operatorSurfaceEffect(),
+      capabilityIds: ["slack.notifications"],
+    },
+  ],
+  manifest: {
+    schemaVersion: 1,
+    capabilities: [
+      {
+        id: "slack.notifications",
+        description:
+          "Send KOTA workflow, approval, and owner-question notifications through a Slack Incoming Webhook.",
+        scope: "external",
+        scopePolicyHooks: ["external-effects", "owner-confirmation", "setup"],
+      },
+    ],
+    dataClasses: [
+      {
+        id: "slack.webhook-url",
+        description: "Slack Incoming Webhook URL reference used for notification delivery.",
+        sensitivity: "credential",
+        retention: "project-durable",
+        redaction: "mask-secret",
+      },
+      {
+        id: "slack.notification-content",
+        description: "Rendered Block Kit notification text for workflows, approvals, and owner questions.",
+        sensitivity: "internal",
+        retention: "operator-visible",
+        redaction: "metadata-only",
+      },
+    ],
+    simulation: {
+      support: "external-effects-blocked",
+      blockedReasons: [
+        "Slack webhook delivery is operator-visible external I/O and is blocked in workflow trial mode.",
+      ],
+    },
+  },
 
   onLoad: (ctx) => {
     const config = ctx.getModuleConfig<SlackConfig>();

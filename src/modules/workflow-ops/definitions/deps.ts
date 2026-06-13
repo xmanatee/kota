@@ -35,7 +35,10 @@ export function registerDepsCommand(
         return;
       }
 
-      const graph = assembleWorkflowGraph(definitions);
+      const moduleManifests = ctx
+        .getModuleSummaries()
+        .flatMap((summary) => summary.manifest ? [summary.manifest] : []);
+      const graph = assembleWorkflowGraph(definitions, { moduleManifests });
 
       switch (opts.format) {
         case "table":

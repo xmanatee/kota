@@ -297,6 +297,7 @@ async function startDaemonWithLiveSessionReload(
     refreshLiveSessionGuardrails: (guardrailsConfig) =>
       server.refreshChatSessionGuardrails(guardrailsConfig),
     log: () => {},
+    getModuleSummaries: () => [],
     getModuleHealthChecks: () => ({}),
     probeCapabilityReadiness: async () => ({
       capabilities: [],

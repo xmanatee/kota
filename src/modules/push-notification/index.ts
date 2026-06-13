@@ -24,6 +24,7 @@
  */
 
 import type { KotaModule } from "#core/modules/module-types.js";
+import { operatorSurfaceEffect } from "#core/tools/effect.js";
 import { pushNotificationControlRoutes } from "./routes.js";
 import { sendDigestPushNotifications, sendPushNotifications } from "./send.js";
 
@@ -34,6 +35,54 @@ const pushNotificationModule: KotaModule = {
   version: "1.0.0",
   description:
     "Expo push notification delivery for approvals and digest events with mobile-client token registration",
+  effects: [
+    {
+      id: "push-notification.expo-delivery",
+      description: "Deliver approval and digest wake-up notifications through the Expo Push API.",
+      source: "notification",
+      effect: operatorSurfaceEffect(),
+      capabilityIds: ["push-notification.delivery"],
+    },
+  ],
+  manifest: {
+    schemaVersion: 1,
+    capabilities: [
+      {
+        id: "push-notification.tokens",
+        description: "Register mobile-client Expo push tokens through the daemon-control route.",
+        scope: "project",
+        scopePolicyHooks: ["channels", "retention"],
+      },
+      {
+        id: "push-notification.delivery",
+        description: "Send approval and digest wake-up notifications to registered mobile clients.",
+        scope: "external",
+        scopePolicyHooks: ["channels", "external-effects", "owner-confirmation"],
+      },
+    ],
+    dataClasses: [
+      {
+        id: "push-notification.tokens",
+        description: "Expo push tokens and device ids persisted under the project runtime directory.",
+        sensitivity: "personal",
+        retention: "project-durable",
+        redaction: "metadata-only",
+      },
+      {
+        id: "push-notification.payloads",
+        description: "Approval ids, digest previews, and mobile deep-link screen identifiers sent in pushes.",
+        sensitivity: "internal",
+        retention: "operator-visible",
+        redaction: "metadata-only",
+      },
+    ],
+    simulation: {
+      support: "external-effects-blocked",
+      blockedReasons: [
+        "Expo push delivery is operator-visible external I/O and is blocked in workflow trial mode.",
+      ],
+    },
+  },
 
   controlRoutes: (ctx) => pushNotificationControlRoutes(ctx.cwd),
 

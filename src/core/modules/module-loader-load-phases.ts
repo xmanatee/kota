@@ -8,18 +8,28 @@ import {
 } from "#core/events/module-event.js";
 import { registerTool } from "#core/tools/index.js";
 import { registerCustomGroup } from "#core/tools/tool-groups.js";
+import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
   collectDaemonClientFactory,
   collectLocalClientHandlers,
 } from "./module-loader-clients.js";
 import type { LoaderState } from "./module-loader-state.js";
 import {
+  buildModuleCapabilityManifestProjection,
+  buildModuleManifestEventFlows,
+  buildModuleManifestSetupStatusLinks,
+  type ModuleManifestEffectDeclaration,
+  registerModuleCapabilityManifestProjection,
+} from "./module-manifest.js";
+import {
   type KotaModule,
   type ModuleRuntimeContext,
   resolveModuleAgents,
   resolveModuleChannels,
+  resolveModuleEffects,
   resolveModuleSetupRequirements,
   resolveModuleSkills,
+  resolveModuleTools,
   resolveModuleWorkflows,
   type ToolDef,
 } from "./module-types.js";
@@ -77,26 +87,45 @@ export function registerModuleEvents(mod: KotaModule): void {
   }
 }
 
-export function registerModuleTools(
-  state: LoaderState,
+export function prepareModuleTools(
   policy: LoadPhasePolicy,
   mod: KotaModule,
   ctx: ModuleRuntimeContext,
-): void {
-  if (policy.isCommandsMode) return;
-  if (!mod.tools) return;
-  const tools: ToolDef[] =
-    typeof mod.tools === "function" ? mod.tools(ctx) : mod.tools;
+): ToolDef[] {
+  if (policy.isCommandsMode) return [];
+  const tools = resolveModuleTools(mod, ctx);
   for (const def of tools) {
     if (!def.effect) {
       throw new Error(
         `Module "${mod.name}" tool "${def.tool.name}" missing required metadata: effect`,
       );
     }
+  }
+  return tools;
+}
+
+function toolSnapshots(tools: readonly ToolDef[]) {
+  return tools.map((def) => ({
+    name: def.tool.name,
+    description: def.tool.description,
+    effect: def.effect,
+  }));
+}
+
+export function commitModuleTools(
+  state: LoaderState,
+  mod: KotaModule,
+  tools: readonly ToolDef[],
+): void {
+  for (const def of tools) {
     registerTool(def.tool, def.runner, mod.name, { effect: def.effect });
     if (def.group) registerCustomGroup(def.group, [def.tool.name]);
   }
   state.moduleToolCounts.set(mod.name, tools.length);
+  state.moduleToolDefs.set(
+    mod.name,
+    toolSnapshots(tools),
+  );
 }
 
 export async function attachModuleWorkflows(
@@ -261,6 +290,83 @@ export async function attachModuleSetupRequirements(
   );
 }
 
+function workflowTriggerLabels(
+  workflows: readonly RegisteredWorkflowDefinitionInput[],
+): string[] {
+  const labels: string[] = [];
+  for (const workflow of workflows) {
+    for (const trigger of workflow.triggers) {
+      if (trigger.event) labels.push(`event:${trigger.event}`);
+      if (trigger.schedule) labels.push(`cron:${trigger.schedule}`);
+      if (trigger.intervalMs !== undefined) labels.push(`interval:${trigger.intervalMs}`);
+      if (trigger.webhook) labels.push("webhook");
+      if (trigger.watch) {
+        const patterns = Array.isArray(trigger.watch)
+          ? trigger.watch
+          : [trigger.watch];
+        labels.push(`watch:${patterns.join(",")}`);
+      }
+    }
+  }
+  return labels;
+}
+
+export function attachModuleManifest(
+  state: LoaderState,
+  mod: KotaModule,
+  ctx: ModuleRuntimeContext,
+  tools: readonly ToolDef[],
+  effects: readonly ModuleManifestEffectDeclaration[],
+): void {
+  const setupRequirements = (
+    state.moduleSetupRequirementDefs.get(mod.name) ?? []
+  ).map(({ requirement }) => ({
+    id: requirement.id,
+    kind: requirement.kind,
+    setupMode: requirement.setup.mode,
+    sensitivity: requirement.sensitivity,
+    required: requirement.required,
+    healthCapabilityIds: requirement.health?.capabilityIds ?? [],
+    statusLinks: buildModuleManifestSetupStatusLinks({
+      moduleName: mod.name,
+      requirementId: requirement.id,
+      kind: requirement.kind,
+      setupMode: requirement.setup.mode,
+    }),
+  }));
+  const workflows = state.moduleWorkflowDefs.get(mod.name) ?? [];
+  const manifestInput =
+    typeof mod.manifest === "function" ? mod.manifest(ctx) : mod.manifest;
+  const projection = buildModuleCapabilityManifestProjection(
+    mod.name,
+    manifestInput,
+    {
+      dependencies: mod.dependencies ?? [],
+      tools: toolSnapshots(tools),
+      effects,
+      workflows: workflows.map((workflow) => workflow.name),
+      workflowTriggers: workflowTriggerLabels(workflows),
+      channels: (state.moduleChannelDefs.get(mod.name) ?? []).map((channel) => channel.name),
+      skills: (state.moduleSkillDefs.get(mod.name) ?? []).map((skill) => skill.name),
+      agents: (state.moduleAgentDefs.get(mod.name) ?? []).map((agent) => agent.name),
+      commands: (state.moduleCommands.get(mod.name) ?? []).map((command) => command.name()),
+      routes: (state.moduleRoutes.get(mod.name) ?? []).map((route) => `${route.method} ${route.path}`),
+      controlRoutes: (state.moduleControlRoutes.get(mod.name) ?? []).map((route) => `${route.method} ${route.path}`),
+      events: (mod.events ?? []).map((event) => event.name),
+      eventFlows: buildModuleManifestEventFlows({
+        declaredEventNames: (mod.events ?? []).map((event) => event.name),
+        workflows,
+      }),
+      localClientNamespaces: state.moduleLocalClientNamespaces.get(mod.name) ?? [],
+      hasDaemonClientFactory: mod.daemonClient !== undefined,
+      setupRequirements,
+      hasHealthCheck: mod.healthCheck !== undefined,
+    },
+  );
+  state.moduleManifests.set(mod.name, projection);
+  registerModuleCapabilityManifestProjection(projection);
+}
+
 /**
  * Drive every load phase a single module passes through, in order. The early
  * phases (duplicate check, dependency check, config slices, module events)
@@ -274,18 +380,24 @@ export async function runModuleLoadPhases(
   ctx: ModuleRuntimeContext,
   verbose: boolean,
 ): Promise<void> {
-  registerModuleTools(state, policy, mod, ctx);
+  const tools = prepareModuleTools(policy, mod, ctx);
   await attachModuleWorkflows(state, policy, mod, ctx);
   await attachModuleChannels(state, mod, ctx);
-  collectLocalClientHandlers(state.localClientHandlers, mod, ctx);
+  state.moduleLocalClientNamespaces.set(
+    mod.name,
+    collectLocalClientHandlers(state.localClientHandlers, mod, ctx),
+  );
   collectDaemonClientFactory(state.daemonClientFactories, mod);
   attachModuleCommands(state, mod, ctx);
   attachModuleRoutes(state, mod, ctx);
   attachModuleControlRoutes(state, mod, ctx);
-  await runModuleOnLoad(policy, mod, ctx);
   await attachModuleSkills(state, policy, mod, ctx);
   await attachModuleAgents(state, mod, ctx);
   await attachModuleSetupRequirements(state, mod, ctx);
+  const effects = await resolveModuleEffects(mod, ctx);
+  attachModuleManifest(state, mod, ctx, tools, effects);
+  commitModuleTools(state, mod, tools);
+  await runModuleOnLoad(policy, mod, ctx);
 
   state.modules.push(mod);
   state.moduleRegistry.set(mod.name, mod);

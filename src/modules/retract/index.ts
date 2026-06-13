@@ -79,6 +79,45 @@ const retractModule: KotaModule = {
   description:
     "Cross-store retract seam — typed removal of one prior capture from memory, knowledge, tasks, or inbox through the same contributor pattern capture uses.",
   dependencies: ["memory", "knowledge", "repo-tasks", "rendering"],
+  manifest: {
+    schemaVersion: 1,
+    capabilities: [
+      {
+        id: "retract.cross-store",
+        description: "Remove a named prior capture from memory, knowledge, tasks, or inbox stores.",
+        scope: "project",
+        scopePolicyHooks: ["owner-confirmation", "writes", "retention"],
+      },
+      {
+        id: "retract.operator-surface",
+        description: "Expose retract through CLI, daemon-control, API, Telegram, Slack, web, mobile, and macOS clients.",
+        scope: "project",
+        scopePolicyHooks: ["owner-confirmation", "channels"],
+      },
+    ],
+    dataClasses: [
+      {
+        id: "retract.identifiers",
+        description: "Typed ids, slugs, paths, and task ids naming the record to remove.",
+        sensitivity: "internal",
+        retention: "run-artifact",
+        redaction: "metadata-only",
+      },
+      {
+        id: "retract.removed-record-metadata",
+        description: "Metadata describing the removed memory, knowledge, task, or inbox record.",
+        sensitivity: "personal",
+        retention: "run-artifact",
+        redaction: "metadata-only",
+      },
+    ],
+    simulation: {
+      support: "external-effects-blocked",
+      blockedReasons: [
+        "Retract permanently removes or drops project records and is blocked in workflow trial mode.",
+      ],
+    },
+  },
 
   onLoad(ctx: ModuleRuntimeContext) {
     const provider = new RetractProviderImpl({

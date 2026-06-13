@@ -3,9 +3,14 @@ import { getModuleEventRegistry } from "#core/events/module-event.js";
 import { removeCleanupHooks, resetCleanupHooks } from "#core/loop/cleanup-hooks.js";
 import { resetDynamicStateProviders } from "#core/loop/dynamic-state.js";
 import { removePreSendHooks, resetPreSendHooks } from "#core/loop/pre-send-hooks.js";
+import type { LocalClientHandlers } from "#core/server/kota-client.js";
 import { deregisterModuleTools } from "#core/tools/index.js";
 import { getToolMiddleware } from "#core/tools/tool-middleware.js";
 import type { LoaderState } from "./module-loader-state.js";
+import {
+  clearModuleCapabilityManifestProjections,
+  unregisterModuleCapabilityManifestProjection,
+} from "./module-manifest.js";
 import type { KotaModule } from "./module-types.js";
 import { getProviderRegistry } from "./provider-registry.js";
 
@@ -23,6 +28,84 @@ export function getModuleDependents(moduleName: string, modules: readonly KotaMo
   return modules
     .filter((m) => m.dependencies?.includes(moduleName))
     .map((m) => m.name);
+}
+
+function deleteLocalClientHandler<K extends keyof LocalClientHandlers>(
+  handlers: Partial<LocalClientHandlers>,
+  namespace: K,
+): void {
+  delete handlers[namespace];
+}
+
+export function discardModuleLoadState(
+  moduleName: string,
+  state: LoaderState,
+): void {
+  deregisterModuleTools(moduleName);
+  unregisterModuleCapabilityManifestProjection(moduleName);
+  getToolMiddleware().removeByOwner(moduleName);
+
+  const wfDefs = state.moduleWorkflowDefs.get(moduleName);
+  if (wfDefs) {
+    const wfNames = new Set(wfDefs.map((w) => w.name));
+    for (let i = state.contributedWorkflows.length - 1; i >= 0; i--) {
+      if (wfNames.has(state.contributedWorkflows[i].name)) {
+        state.contributedWorkflows.splice(i, 1);
+      }
+    }
+  }
+
+  const chDefs = state.moduleChannelDefs.get(moduleName);
+  if (chDefs) {
+    const chNames = new Set(chDefs.map((c) => c.name));
+    for (let i = state.contributedChannels.length - 1; i >= 0; i--) {
+      if (chNames.has(state.contributedChannels[i].name)) {
+        state.contributedChannels.splice(i, 1);
+      }
+    }
+  }
+
+  const skillDefs = state.moduleSkillDefs.get(moduleName);
+  if (skillDefs) {
+    for (const skill of skillDefs) {
+      state.skillContentsByName.delete(skill.name);
+      state.skillDefsByName.delete(skill.name);
+    }
+  }
+
+  for (const namespace of state.moduleLocalClientNamespaces.get(moduleName) ?? []) {
+    deleteLocalClientHandler(state.localClientHandlers, namespace);
+  }
+  for (let i = state.daemonClientFactories.length - 1; i >= 0; i--) {
+    if (state.daemonClientFactories[i].moduleName === moduleName) {
+      state.daemonClientFactories.splice(i, 1);
+    }
+  }
+
+  unregisterConfigSlicesForOwner(moduleName);
+  getModuleEventRegistry()?.unregisterModule(moduleName);
+  state.moduleStorages.delete(moduleName);
+  state.moduleToolCounts.delete(moduleName);
+  state.moduleToolDefs.delete(moduleName);
+  state.moduleWorkflowDefs.delete(moduleName);
+  state.moduleChannelDefs.delete(moduleName);
+  state.moduleSkillDefs.delete(moduleName);
+  state.moduleAgentDefs.delete(moduleName);
+  state.moduleSetupRequirementDefs.delete(moduleName);
+  state.moduleManifests.delete(moduleName);
+  state.moduleLocalClientNamespaces.delete(moduleName);
+  state.moduleRoutes.delete(moduleName);
+  state.moduleCommands.delete(moduleName);
+  state.moduleControlRoutes.delete(moduleName);
+  state.moduleRouteErrors.delete(moduleName);
+  state.moduleCommandErrors.delete(moduleName);
+  state.moduleControlRouteErrors.delete(moduleName);
+  state.moduleRegistry.delete(moduleName);
+  for (const [key, owner] of state.registeredConfigKeys) {
+    if (owner === moduleName) state.registeredConfigKeys.delete(key);
+  }
+  removeCleanupHooks(moduleName);
+  removePreSendHooks(moduleName);
 }
 
 export async function unloadModule(
@@ -51,19 +134,8 @@ export async function unloadModule(
     }
   }
 
-  deregisterModuleTools(moduleName);
-  getToolMiddleware().removeByOwner(moduleName);
-  state.moduleStorages.delete(moduleName);
-  state.moduleToolCounts.delete(moduleName);
-  state.moduleWorkflowDefs.delete(moduleName);
-  state.moduleChannelDefs.delete(moduleName);
-  state.moduleSkillDefs.delete(moduleName);
-  state.moduleAgentDefs.delete(moduleName);
   state.modules.splice(idx, 1);
-  removeCleanupHooks(moduleName);
-  removePreSendHooks(moduleName);
-
-  cleanupLoaderState(moduleName, state);
+  discardModuleLoadState(moduleName, state);
 
   if (env.verbose) console.error(`[kota] Module "${moduleName}" unloaded`);
   return true;
@@ -81,10 +153,19 @@ export async function unloadAllModules(state: LoaderState, env: LifecycleEnv): P
   state.moduleRegistry.clear();
   state.moduleStorages.clear();
   state.moduleToolCounts.clear();
+  state.moduleToolDefs.clear();
   state.moduleWorkflowDefs.clear();
   state.moduleChannelDefs.clear();
   state.moduleSkillDefs.clear();
   state.moduleAgentDefs.clear();
+  state.moduleSetupRequirementDefs.clear();
+  state.moduleManifests.clear();
+  state.moduleLocalClientNamespaces.clear();
+  for (const namespace of Object.keys(state.localClientHandlers) as (keyof LocalClientHandlers)[]) {
+    deleteLocalClientHandler(state.localClientHandlers, namespace);
+  }
+  state.daemonClientFactories.splice(0);
+  clearModuleCapabilityManifestProjections();
 
   const reg = getProviderRegistry();
   if (reg) reg.clear();
@@ -123,48 +204,6 @@ export async function unloadAllModules(state: LoaderState, env: LifecycleEnv): P
         const msg = err instanceof Error ? err.message : String(err);
         console.error(`[kota] Module "${mod.name}" unload error: ${msg}`);
       }
-    }
-  }
-}
-
-function cleanupLoaderState(moduleName: string, state: LoaderState): void {
-  for (const [key, owner] of state.registeredConfigKeys) {
-    if (owner === moduleName) state.registeredConfigKeys.delete(key);
-  }
-  unregisterConfigSlicesForOwner(moduleName);
-  getModuleEventRegistry()?.unregisterModule(moduleName);
-  state.moduleRoutes.delete(moduleName);
-  state.moduleCommands.delete(moduleName);
-  state.moduleControlRoutes.delete(moduleName);
-  state.moduleRouteErrors.delete(moduleName);
-  state.moduleCommandErrors.delete(moduleName);
-  state.moduleControlRouteErrors.delete(moduleName);
-
-  const wfDefs = state.moduleWorkflowDefs.get(moduleName);
-  if (wfDefs) {
-    const wfNames = new Set(wfDefs.map((w) => w.name));
-    for (let i = state.contributedWorkflows.length - 1; i >= 0; i--) {
-      if (wfNames.has(state.contributedWorkflows[i].name)) {
-        state.contributedWorkflows.splice(i, 1);
-      }
-    }
-  }
-
-  const chDefs = state.moduleChannelDefs.get(moduleName);
-  if (chDefs) {
-    const chNames = new Set(chDefs.map((c) => c.name));
-    for (let i = state.contributedChannels.length - 1; i >= 0; i--) {
-      if (chNames.has(state.contributedChannels[i].name)) {
-        state.contributedChannels.splice(i, 1);
-      }
-    }
-  }
-
-  const skillDefs = state.moduleSkillDefs.get(moduleName);
-  if (skillDefs) {
-    for (const skill of skillDefs) {
-      state.skillContentsByName.delete(skill.name);
-      state.skillDefsByName.delete(skill.name);
     }
   }
 }

@@ -5,10 +5,15 @@ import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredConfigSlices, type ModuleConfigSlice } from "#core/config/config-slice.js";
 import { EventBus } from "#core/events/event-bus.js";
-import { legacyEffect } from "#core/tools/effect.js";
+import {
+  legacyEffect,
+  networkWriteEffect,
+  operatorSurfaceEffect,
+} from "#core/tools/effect.js";
 import { clearCustomTools, executeTool, getAllTools } from "#core/tools/index.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "#core/tools/tool-groups.js";
 import { ModuleLoader } from "./module-loader.js";
+import { projectSetupStatusOntoManifest } from "./module-manifest.js";
 import type { KotaModule } from "./module-types.js";
 
 function fakeSlice(key: string, description = "test"): ModuleConfigSlice {
@@ -115,6 +120,463 @@ describe("ModuleLoader", () => {
 
     await loader.load(mod);
     expect(loader.getToolCount()).toBe(1);
+  });
+
+  it("projects a module capability manifest from cached contributions and tool effects", async () => {
+    const loader = new ModuleLoader({});
+    const { Command } = await import("commander");
+
+    await loader.load({ name: "base-mod" });
+    await loader.load({
+      name: "manifest-mod",
+      dependencies: ["base-mod"],
+      tools: [
+        {
+          ...makeTool("send_payload"),
+          effect: networkWriteEffect(),
+        },
+      ],
+      effects: [
+        {
+          id: "manifest-mod.notify",
+          description: "Notify the operator about a fixture payload.",
+          source: "notification",
+          effect: operatorSurfaceEffect(),
+          capabilityIds: ["manifest-mod.api"],
+        },
+      ],
+      setupRequirements: [
+        {
+          id: "api-credential",
+          kind: "secret",
+          title: "API credential",
+          required: true,
+          scope: "project",
+          owner: "manifest-mod",
+          sensitivity: "secret",
+          health: { capabilityIds: ["manifest-mod.api"] },
+          setup: {
+            mode: "url",
+            url: "https://example.invalid/settings",
+            label: "Open settings",
+          },
+          secretRefs: [{ name: "MANIFEST_MOD_TOKEN", scope: "project" }],
+        },
+      ],
+      routes: () => [{ method: "GET", path: "/api/manifest", handler: () => undefined }],
+      controlRoutes: () => [
+        {
+          method: "GET",
+          path: "/manifest",
+          capabilityScope: "read",
+          handler: () => undefined,
+        },
+      ],
+      workflows: [
+        {
+          name: "manifest-mod/workflow",
+          triggers: [{ event: "manifest.event", cooldownMs: 1000 }],
+          steps: [
+            { id: "noop", type: "code", run: () => {} },
+            { id: "emit-done", type: "emit", event: "manifest.done" },
+          ],
+        },
+      ],
+      channels: [
+        {
+          name: "manifest-mod.channel",
+          description: "test",
+          create: () => ({ status: "disabled", reason: "test fixture" }),
+        },
+      ],
+      commands: () => [new Command("manifest-command")],
+      manifest: {
+        schemaVersion: 1,
+        capabilities: [
+          {
+            id: "manifest-mod.api",
+            description: "Send payloads through the manifest fixture API.",
+            scope: "external",
+            scopePolicyHooks: ["external-effects", "setup"],
+            setupRequirementIds: ["api-credential"],
+            readinessIds: ["manifest-mod.api"],
+          },
+        ],
+        dataClasses: [
+          {
+            id: "manifest-mod.credential",
+            description: "Fixture credential reference.",
+            sensitivity: "credential",
+            retention: "project-durable",
+            redaction: "mask-secret",
+          },
+        ],
+        simulation: {
+          support: "external-effects-blocked",
+          blockedReasons: ["Fixture API sends are blocked in trial mode."],
+        },
+      },
+    });
+
+    const summary = loader
+      .getModuleSummaries()
+      .find((candidate) => candidate.name === "manifest-mod");
+    const manifest = summary?.manifest;
+    expect(manifest?.capabilities.map((capability) => capability.id)).toEqual([
+      "manifest-mod.api",
+    ]);
+    expect(manifest?.contributions).toMatchObject({
+      tools: ["send_payload"],
+      workflows: ["manifest-mod/workflow"],
+      workflowTriggers: ["event:manifest.event"],
+      channels: ["manifest-mod.channel"],
+      commands: ["manifest-command"],
+      routes: ["GET /api/manifest"],
+      controlRoutes: ["GET /manifest"],
+      eventFlows: [
+        {
+          name: "manifest.done",
+          declared: false,
+          producers: [
+            { workflow: "manifest-mod/workflow", stepId: "emit-done" },
+          ],
+          consumers: [],
+        },
+        {
+          name: "manifest.event",
+          declared: false,
+          producers: [],
+          consumers: [
+            { workflow: "manifest-mod/workflow", source: "trigger" },
+          ],
+        },
+      ],
+      setupRequirements: [
+        expect.objectContaining({
+          id: "api-credential",
+          setupMode: "url",
+          sensitivity: "secret",
+          healthCapabilityIds: ["manifest-mod.api"],
+          statusLinks: {
+            list: "/setup/requirements",
+            refresh: "/setup/requirements/manifest-mod/api-credential/refresh",
+            revoke: "/setup/requirements/manifest-mod/api-credential",
+            storeSecret: "/setup/requirements/manifest-mod/api-credential/secret",
+            start: "/setup/requirements/manifest-mod/api-credential/start",
+          },
+        }),
+      ],
+    });
+    expect(manifest?.readiness).toEqual({
+      setupRequirementIds: ["api-credential"],
+      healthCapabilityIds: ["manifest-mod.api"],
+      healthCheck: "not-declared",
+    });
+    expect(manifest?.effects).toEqual([
+      expect.objectContaining({
+        id: "tool.send_payload",
+        risk: "moderate",
+        categories: ["external-write"],
+      }),
+      expect.objectContaining({
+        id: "manifest-mod.notify",
+        categories: ["notification", "owner-visible"],
+      }),
+    ]);
+    expect(JSON.stringify(manifest)).not.toContain("secretRefs");
+    expect(JSON.stringify(manifest)).not.toContain("MANIFEST_MOD_TOKEN");
+
+    if (!manifest) throw new Error("manifest projection missing");
+    const withSetupStatus = projectSetupStatusOntoManifest(manifest, [
+      {
+        moduleName: "manifest-mod",
+        requirementId: "api-credential",
+        kind: "secret",
+        title: "API credential",
+        required: true,
+        scope: "project",
+        sensitivity: "secret",
+        setup: {
+          mode: "url",
+          url: "https://example.invalid/settings",
+          label: "Open settings",
+        },
+        state: "pending",
+        reason: "url_setup_pending",
+        message: "Setup URL action is pending",
+        pendingAction: {
+          actionId: "manifest-mod.api-credential.1",
+          moduleName: "manifest-mod",
+          requirementId: "api-credential",
+          url: "https://example.invalid/settings",
+          label: "Open settings",
+          status: "pending",
+          createdAt: "2026-06-13T00:00:00.000Z",
+          expiresAt: "2026-06-13T00:10:00.000Z",
+        },
+      },
+    ]);
+    expect(withSetupStatus.contributions.setupRequirements[0]?.availability).toMatchObject({
+      state: "pending",
+      reason: "url_setup_pending",
+      pendingAction: {
+        actionId: "manifest-mod.api-credential.1",
+        complete: "/setup/actions/manifest-mod.api-credential.1/complete",
+      },
+    });
+  });
+
+  it("rejects manifest effects that reference unknown capability ids", async () => {
+    const loader = new ModuleLoader({});
+
+    await expect(
+      loader.load({
+        name: "bad-manifest-mod",
+        manifest: {
+          schemaVersion: 1,
+          capabilities: [
+            {
+              id: "bad-manifest-mod.api",
+              description: "Fixture capability.",
+              scope: "external",
+              scopePolicyHooks: ["external-effects"],
+            },
+          ],
+          dataClasses: [],
+          additionalEffects: [
+            {
+              id: "bad-manifest-mod.send",
+              description: "Fixture external send.",
+              source: "tool",
+              effect: networkWriteEffect(),
+              capabilityIds: ["missing.capability"],
+            },
+          ],
+          simulation: {
+            support: "external-effects-blocked",
+            blockedReasons: ["Fixture sends are blocked."],
+          },
+        },
+      }),
+    ).rejects.toThrow(/references unknown capability id "missing.capability"/);
+  });
+
+  it("rejects malformed manifest enum values and effect shapes at runtime", async () => {
+    await expect(
+      new ModuleLoader({}).load({
+        name: "bad-scope-manifest",
+        manifest: {
+          schemaVersion: 1,
+          capabilities: [
+            {
+              id: "bad-scope.api",
+              description: "Fixture capability.",
+              scope: "workspace",
+              scopePolicyHooks: ["external-effects"],
+            },
+          ],
+          dataClasses: [],
+          simulation: { support: "full", blockedReasons: [] },
+        } as unknown as KotaModule["manifest"],
+      }),
+    ).rejects.toThrow(/capability "bad-scope.api" scope has unknown value "workspace"/);
+
+    await expect(
+      new ModuleLoader({}).load({
+        name: "bad-data-manifest",
+        manifest: {
+          schemaVersion: 1,
+          capabilities: [
+            {
+              id: "bad-data.api",
+              description: "Fixture capability.",
+              scope: "external",
+              scopePolicyHooks: ["external-effects"],
+            },
+          ],
+          dataClasses: [
+            {
+              id: "bad-data.payload",
+              description: "Fixture payload.",
+              sensitivity: "raw-token",
+              retention: "forever",
+              redaction: "print-secret",
+            },
+          ],
+          simulation: { support: "full", blockedReasons: [] },
+        } as unknown as KotaModule["manifest"],
+      }),
+    ).rejects.toThrow(/data class "bad-data.payload" sensitivity has unknown value "raw-token"/);
+
+    await expect(
+      new ModuleLoader({}).load({
+        name: "bad-effect-manifest",
+        manifest: {
+          schemaVersion: 1,
+          capabilities: [
+            {
+              id: "bad-effect.api",
+              description: "Fixture capability.",
+              scope: "external",
+              scopePolicyHooks: ["external-effects"],
+            },
+          ],
+          dataClasses: [],
+          additionalEffects: [
+            {
+              id: "bad-effect.send",
+              description: "Fixture send.",
+              source: "notification",
+              effect: {
+                kind: "write",
+                scope: "operator",
+                idempotent: "no",
+                openWorld: false,
+              },
+              capabilityIds: ["bad-effect.api"],
+            },
+          ],
+          simulation: {
+            support: "external-effects-blocked",
+            blockedReasons: ["Fixture sends are blocked."],
+          },
+        } as unknown as KotaModule["manifest"],
+      }),
+    ).rejects.toThrow(/effect "bad-effect.send" tool effect scope has unknown value "operator"/);
+
+    await expect(
+      new ModuleLoader({}).load({
+        name: "bad-simulation-manifest",
+        manifest: {
+          schemaVersion: 1,
+          capabilities: [
+            {
+              id: "bad-simulation.api",
+              description: "Fixture capability.",
+              scope: "external",
+              scopePolicyHooks: ["external-effects"],
+            },
+          ],
+          dataClasses: [],
+          simulation: { support: "sometimes", blockedReasons: [] },
+        } as unknown as KotaModule["manifest"],
+      }),
+    ).rejects.toThrow(/simulation support has unknown value "sometimes"/);
+  });
+
+  it("rejects external or operator-visible effects without explicit manifest coverage", async () => {
+    await expect(
+      new ModuleLoader({}).load({
+        name: "uncovered-external",
+        tools: [
+          {
+            ...makeTool("uncovered_send"),
+            effect: networkWriteEffect(),
+          },
+        ],
+      }),
+    ).rejects.toThrow(/must declare a manifest.*tool\.uncovered_send/);
+
+    const result = await executeTool("uncovered_send", {});
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("Unknown tool");
+  });
+
+  it("rejects non-tool notification effects without explicit manifest coverage", async () => {
+    await expect(
+      new ModuleLoader({}).load({
+        name: "uncovered-notifier",
+        channels: [
+          {
+            name: "uncovered-notifier.channel",
+            description: "Fixture notification channel",
+            create: () => ({ status: "disabled", reason: "test fixture" }),
+          },
+        ],
+        effects: [
+          {
+            id: "uncovered-notifier.delivery",
+            description: "Deliver a fixture notification to the operator.",
+            source: "notification",
+            effect: operatorSurfaceEffect(),
+          },
+        ],
+      }),
+    ).rejects.toThrow(/must declare a manifest.*uncovered-notifier\.delivery/);
+  });
+
+  it("does not expose skipped installed module tools after manifest validation fails", async () => {
+    const loader = new ModuleLoader({});
+
+    await loader.loadAll(
+      [{ name: "good-mod" }],
+      [
+        {
+          name: "bad-installed-manifest",
+          tools: [
+            {
+              ...makeTool("skipped_external_send"),
+              effect: networkWriteEffect(),
+            },
+          ],
+          workflows: [
+            {
+              name: "bad-installed-manifest/workflow",
+              triggers: [{ event: "runtime.idle", cooldownMs: 60_000 }],
+              steps: [{ id: "noop", type: "code", run: () => {} }],
+            },
+          ],
+        },
+      ],
+    );
+
+    expect(loader.getLoadedModules()).toEqual(["good-mod"]);
+    expect(loader.getToolCount()).toBe(0);
+    expect(loader.getContributedWorkflows()).toEqual([]);
+    const result = await executeTool("skipped_external_send", {});
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("Unknown tool");
+
+    const failedSummary = loader
+      .getModuleSummaries()
+      .find((summary) => summary.name === "bad-installed-manifest");
+    expect(failedSummary?.source).toBe("installed");
+    expect(failedSummary?.loadError).toMatch(/must declare a manifest/);
+  });
+
+  it("rejects explicit manifests that omit simulation blocking for projected effects", async () => {
+    await expect(
+      new ModuleLoader({}).load({
+        name: "bad-simulation-coverage",
+        tools: [
+          {
+            ...makeTool("send_without_blocking"),
+            effect: networkWriteEffect(),
+          },
+        ],
+        manifest: {
+          schemaVersion: 1,
+          capabilities: [
+            {
+              id: "bad-simulation-coverage.api",
+              description: "Fixture capability.",
+              scope: "external",
+              scopePolicyHooks: ["external-effects"],
+            },
+          ],
+          dataClasses: [
+            {
+              id: "bad-simulation-coverage.payload",
+              description: "Fixture payload.",
+              sensitivity: "provider-payload",
+              retention: "run-artifact",
+              redaction: "metadata-only",
+            },
+          ],
+          simulation: { support: "full", blockedReasons: [] },
+        },
+      }),
+    ).rejects.toThrow(/simulation support "full" conflicts with blocked effects: tool\.send_without_blocking/);
   });
 
   it("rejects duplicate module names", async () => {

@@ -33,6 +33,11 @@ import type { ToolRunner } from "#core/tools/index.js";
 import type { ToolMiddlewareFn } from "#core/tools/tool-middleware.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "#core/workflow/types.js";
+import type {
+  ModuleCapabilityManifestInput,
+  ModuleCapabilityManifestProjection,
+  ModuleManifestEffectDeclaration,
+} from "./module-manifest.js";
 import type { ModuleStorage } from "./module-storage.js";
 import type { ProviderToken } from "./provider-token.js";
 import type { ModuleSetupRequirement } from "./setup-requirements.js";
@@ -75,6 +80,8 @@ export type ModuleSummary = {
   health?: ModuleHealth;
   /** Result of the module's optional runtime health check. */
   healthCheck?: HealthCheckResult;
+  /** Machine-readable capability/effect manifest derived from module declarations. */
+  manifest?: ModuleCapabilityManifestProjection;
   /** Set when the module failed to load; absent for successfully loaded modules. */
   loadError?: string;
 };
@@ -531,11 +538,27 @@ export type KotaModule = {
   agents?: ModuleContribution<AgentDef>;
 
   /**
+   * Non-tool effects this module can produce through channels, routes,
+   * workflows, clients, lifecycle hooks, or notification subscribers. Tool
+   * effects stay on each ToolDef; this surface covers module-owned side
+   * effects that still need manifest projection and omission validation.
+   */
+  effects?: ModuleContribution<ModuleManifestEffectDeclaration>;
+
+  /**
    * Structured setup/auth requirements this module needs before its full
    * capability surface can operate. Core validates and exposes these through
    * the daemon setup protocol; modules still own the declarations.
    */
   setupRequirements?: ModuleContribution<ModuleSetupRequirement>;
+
+  /**
+   * Module capability/effect metadata. The loader combines this declaration
+   * with the module's already-cached tools, routes, workflows, channels,
+   * events, clients, and setup requirements so the manifest never becomes a
+   * second catalog of individual contributions.
+   */
+  manifest?: ModuleCapabilityManifestInput | ((ctx: ModuleContext) => ModuleCapabilityManifestInput);
 
   /**
    * Local-side handlers for the KotaClient namespaces this module owns.
@@ -632,6 +655,13 @@ export async function resolveModuleAgents(
   ctx: ModuleContext,
 ): Promise<readonly AgentDef[]> {
   return resolveContribution(mod.agents, ctx);
+}
+
+export async function resolveModuleEffects(
+  mod: KotaModule,
+  ctx: ModuleContext,
+): Promise<readonly ModuleManifestEffectDeclaration[]> {
+  return resolveContribution(mod.effects, ctx);
 }
 
 export async function resolveModuleSetupRequirements(

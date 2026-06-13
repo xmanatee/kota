@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { buildModuleCapabilityManifestProjection } from "#core/modules/module-manifest.js";
+import { networkWriteEffect } from "#core/tools/effect.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import { assembleWorkflowGraph } from "./assemble.js";
 import { formatCompact, formatDot, formatTable } from "./format.js";
@@ -90,6 +92,74 @@ describe("formatTable", () => {
     const graph = assembleWorkflowGraph(SAMPLE_DEFS);
     const output = formatTable(graph);
     expect(output).toContain("[agent] build (builder, claude-opus-4-7) (conditional)");
+  });
+
+  it("shows manifest effect risk for tool steps", () => {
+    const graph = assembleWorkflowGraph(
+      [
+        makeDef({
+          name: "tool-workflow",
+          steps: [
+            {
+              type: "tool",
+              id: "send",
+              tool: "http_request",
+              input: { method: "POST", url: "https://example.invalid" },
+            },
+          ],
+        }),
+      ],
+      {
+        moduleManifests: [
+          buildModuleCapabilityManifestProjection(
+            "web-access",
+            {
+              schemaVersion: 1,
+              capabilities: [
+                {
+                  id: "web-access.http",
+                  description: "HTTP access.",
+                  scope: "external",
+                  scopePolicyHooks: ["external-effects"],
+                },
+              ],
+              dataClasses: [],
+              simulation: {
+                support: "external-effects-blocked",
+                blockedReasons: ["HTTP writes are blocked in trial mode."],
+              },
+            },
+            {
+              dependencies: [],
+              tools: [
+                {
+                  name: "http_request",
+                  description: "HTTP request",
+                  effect: networkWriteEffect(),
+                },
+              ],
+              effects: [],
+              workflows: [],
+              workflowTriggers: [],
+              channels: [],
+              skills: [],
+              agents: [],
+              commands: [],
+              routes: [],
+              controlRoutes: [],
+              events: [],
+              eventFlows: [],
+              localClientNamespaces: [],
+              hasDaemonClientFactory: false,
+              setupRequirements: [],
+              hasHealthCheck: false,
+            },
+          ),
+        ],
+      },
+    );
+
+    expect(formatTable(graph)).toContain("[tool] send (http_request, risk=moderate, trial=blocked)");
   });
 
   it("shows summary counts", () => {

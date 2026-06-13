@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { buildModuleCapabilityManifestProjection } from "#core/modules/module-manifest.js";
+import { networkWriteEffect } from "#core/tools/effect.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import { assembleWorkflowGraph } from "./assemble.js";
 
@@ -245,6 +247,89 @@ describe("assembleWorkflowGraph", () => {
       id: "done",
       type: "emit",
       event: "complete",
+    });
+  });
+
+  it("annotates tool steps from module manifest effects", () => {
+    const moduleManifests = [
+      buildModuleCapabilityManifestProjection(
+        "web-access",
+        {
+          schemaVersion: 1,
+          capabilities: [
+            {
+              id: "web-access.http",
+              description: "HTTP access.",
+              scope: "external",
+              scopePolicyHooks: ["external-effects"],
+            },
+          ],
+          dataClasses: [],
+          simulation: {
+            support: "external-effects-blocked",
+            blockedReasons: ["HTTP writes are blocked in trial mode."],
+          },
+        },
+        {
+          dependencies: [],
+          tools: [
+            {
+              name: "http_request",
+              description: "HTTP request",
+              effect: networkWriteEffect(),
+            },
+          ],
+          effects: [],
+          workflows: [],
+          workflowTriggers: [],
+          channels: [],
+          skills: [],
+          agents: [],
+          commands: [],
+          routes: [],
+          controlRoutes: [],
+          events: [],
+          eventFlows: [],
+          localClientNamespaces: [],
+          hasDaemonClientFactory: false,
+          setupRequirements: [],
+          hasHealthCheck: false,
+        },
+      ),
+    ];
+
+    const graph = assembleWorkflowGraph(
+      [
+        makeDef({
+          name: "tool-workflow",
+          steps: [
+            {
+              type: "tool",
+              id: "send",
+              tool: "http_request",
+              input: { method: "POST", url: "https://example.invalid" },
+            },
+          ],
+        }),
+      ],
+      { moduleManifests },
+    );
+
+    expect(graph.workflows[0].steps[0].manifestEffect).toEqual({
+      moduleName: "web-access",
+      effectId: "tool.http_request",
+      risk: "moderate",
+      categories: ["external-write"],
+      capabilityIds: ["web-access.http"],
+      effect: {
+        kind: "write",
+        scope: "external-network",
+        openWorld: true,
+      },
+      simulation: {
+        blocked: true,
+        reason: "tool would produce a live external or operator-visible side effect in trial mode",
+      },
     });
   });
 

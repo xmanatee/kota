@@ -2,6 +2,7 @@ import { registerModelClientFactory } from "#core/model/model-client.js";
 import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { MODEL_PRICING_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import type { ModuleSetupRequirement } from "#core/modules/setup-requirements.js";
+import { networkReadEffect } from "#core/tools/effect.js";
 import { failoverConfigSlice, modelProviderConfigSlice } from "./config-slice.js";
 import {
   createModelClientImpl,
@@ -56,6 +57,63 @@ const modelClientsModule: KotaModule = {
   description: "ModelClient implementations: Anthropic SDK and OpenAI-compatible providers, with optional failover.",
   configSlices: [modelProviderConfigSlice, failoverConfigSlice],
   setupRequirements: modelClientSetupRequirements,
+  manifest: {
+    schemaVersion: 1,
+    capabilities: [
+      {
+        id: "model-clients.inference",
+        description:
+          "Register Anthropic and OpenAI-compatible model clients plus failover routing.",
+        scope: "external",
+        scopePolicyHooks: ["external-effects", "setup", "retention"],
+        setupRequirementIds: ["anthropic-api-key", "openai-api-key"],
+      },
+      {
+        id: "model-clients.pricing",
+        description: "Provide shipped model pricing metadata for cost tracking.",
+        scope: "daemon",
+        scopePolicyHooks: ["retention"],
+      },
+    ],
+    dataClasses: [
+      {
+        id: "model-clients.provider-credentials",
+        description: "Model provider API key references resolved through the shared secret provider.",
+        sensitivity: "credential",
+        retention: "project-durable",
+        redaction: "mask-secret",
+      },
+      {
+        id: "model-clients.prompt-content",
+        description: "Prompt, tool schema, and model-response payloads sent through provider APIs.",
+        sensitivity: "provider-payload",
+        retention: "run-artifact",
+        redaction: "metadata-only",
+      },
+      {
+        id: "model-clients.pricing-metadata",
+        description: "Per-model pricing rows used by CostTracker.",
+        sensitivity: "public",
+        retention: "project-durable",
+        redaction: "none",
+      },
+    ],
+    additionalEffects: [
+      {
+        id: "model-clients.provider-request",
+        description: "Send inference requests to the configured model provider.",
+        source: "lifecycle",
+        effect: networkReadEffect(),
+        capabilityIds: ["model-clients.inference"],
+      },
+    ],
+    simulation: {
+      support: "external-effects-blocked",
+      blockedReasons: [
+        "Model-provider calls transmit prompt content to an external service and are blocked or mocked in trial fixtures.",
+      ],
+    },
+  },
 
   onLoad(ctx: ModuleRuntimeContext) {
     ctx.registerProvider(MODEL_PRICING_PROVIDER_TOKEN, createShippedModelPricingProvider());

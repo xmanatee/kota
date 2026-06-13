@@ -8,6 +8,20 @@
  * daemon-side handler (`daemonClient(link)` in `index.ts`) realize this
  * contract; the `kota audit` CLI consumes it through `ctx.client.audit`.
  */
+import type {
+  ModuleManifestCapability,
+  ModuleManifestDataClass,
+  ModuleManifestEffectProjection,
+  ModuleManifestSimulation,
+} from "#core/modules/module-manifest.js";
+
+export type AuditManifestContext = {
+  moduleName: string;
+  effect: ModuleManifestEffectProjection;
+  capabilities: readonly ModuleManifestCapability[];
+  dataClasses: readonly ModuleManifestDataClass[];
+  simulation: ModuleManifestSimulation;
+};
 
 /**
  * A guardrail audit entry as the CLI surfaces it. Mirrors the in-process
@@ -22,6 +36,7 @@ export type AuditListEntry = {
   policy: string;
   reason: string;
   session?: string;
+  manifest?: AuditManifestContext;
 };
 
 /**

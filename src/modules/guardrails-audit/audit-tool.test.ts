@@ -2,7 +2,13 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+	buildModuleCapabilityManifestProjection,
+	clearModuleCapabilityManifestProjections,
+	registerModuleCapabilityManifestProjection,
+} from "#core/modules/module-manifest.js";
 import { initAuditStore, resetAuditStore } from "#core/tools/audit-store.js";
+import { networkWriteEffect } from "#core/tools/effect.js";
 import { auditTool, runAudit } from "./audit-tool.js";
 
 function makeTmpDir(): string {
@@ -22,6 +28,7 @@ describe("audit tool", () => {
 
 	afterEach(() => {
 		resetAuditStore();
+		clearModuleCapabilityManifestProjections();
 		rmSync(tmpDir, { recursive: true, force: true });
 	});
 
@@ -90,5 +97,68 @@ describe("audit tool", () => {
 		const result = await runAudit({ limit: 1 });
 		// Entry format: [timestamp] tool — risk/policy: reason
 		expect(result.content).toMatch(/\[\d{4}-\d{2}-\d{2}.*\] shell — dangerous\/deny: destructive/);
+	});
+
+	it("includes manifest capability and data context for matching tools", async () => {
+		registerModuleCapabilityManifestProjection(
+			buildModuleCapabilityManifestProjection(
+				"shell-module",
+				{
+					schemaVersion: 1,
+					capabilities: [
+						{
+							id: "shell-module.commands",
+							description: "Runs shell commands.",
+							scope: "daemon",
+							scopePolicyHooks: ["writes"],
+						},
+					],
+					dataClasses: [
+						{
+							id: "shell-module.command",
+							description: "Command text.",
+							sensitivity: "internal",
+							retention: "operator-visible",
+							redaction: "metadata-only",
+						},
+					],
+					simulation: {
+						support: "external-effects-blocked",
+						blockedReasons: ["Shell writes are blocked in trial mode."],
+					},
+				},
+				{
+					dependencies: [],
+					tools: [
+						{
+							name: "shell",
+							description: "Shell command",
+							effect: networkWriteEffect(),
+						},
+					],
+					effects: [],
+					workflows: [],
+					workflowTriggers: [],
+					channels: [],
+					skills: [],
+					agents: [],
+					commands: [],
+					routes: [],
+					controlRoutes: [],
+					events: [],
+					eventFlows: [],
+					localClientNamespaces: [],
+					hasDaemonClientFactory: false,
+					setupRequirements: [],
+					hasHealthCheck: false,
+				},
+			),
+		);
+
+		const result = await runAudit({ tool: "shell", limit: 1 });
+
+		expect(result.content).toContain("module=shell-module");
+		expect(result.content).toContain("capabilities=shell-module.commands");
+		expect(result.content).toContain("data=shell-module.command");
 	});
 });

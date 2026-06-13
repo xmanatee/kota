@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
@@ -97,6 +100,12 @@ function makeProgram(client: SetupClient): Command {
   return program;
 }
 
+function localSetupClient(ctx: Partial<ModuleContext>): SetupClient {
+  const handlers = setupModule.localClient?.(ctx as ModuleContext);
+  if (!handlers?.setup) throw new Error("setup module did not contribute a local client");
+  return handlers.setup;
+}
+
 function mockStdin(text: string): void {
   const mockStdin = {
     [Symbol.asyncIterator]: async function* () {
@@ -140,6 +149,190 @@ async function captureOutput(
 
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+describe("setup module manifest projection", () => {
+  it("resolves setup status inputs through manifest setup links", async () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "kota-setup-manifest-"));
+    try {
+      const client = localSetupClient({
+        cwd: projectDir,
+        getModuleSummaries: () => [
+          {
+            name: "demo",
+            source: "project",
+            dependencies: [],
+            toolNames: [],
+            workflowNames: [],
+            channelNames: [],
+            skillNames: [],
+            agentNames: [],
+            agents: [],
+            skills: [],
+            commandNames: [],
+            routeSummaries: [],
+            setupRequirements: [
+              {
+                id: "endpoint",
+                kind: "config",
+                title: "Endpoint",
+                required: true,
+                scope: "project",
+                sensitivity: "none",
+                setup: {
+                  mode: "form",
+                  fields: [
+                    {
+                      id: "base-url",
+                      label: "Base URL",
+                      type: "string",
+                      configPath: "modules.demo.baseUrl",
+                      required: true,
+                    },
+                  ],
+                },
+              },
+            ],
+            manifest: {
+              schemaVersion: 1,
+              moduleName: "demo",
+              dependencies: [],
+              capabilities: [
+                {
+                  id: "demo.api",
+                  description: "Demo API.",
+                  scope: "external",
+                  scopePolicyHooks: ["setup"],
+                  setupRequirementIds: ["endpoint"],
+                },
+              ],
+              dataClasses: [],
+              contributions: {
+                tools: [],
+                workflows: [],
+                workflowTriggers: [],
+                channels: [],
+                skills: [],
+                agents: [],
+                commands: [],
+                routes: [],
+                controlRoutes: [],
+                events: [],
+                eventFlows: [],
+                clients: { localNamespaces: [], daemonFactory: false },
+                setupRequirements: [
+                  {
+                    id: "endpoint",
+                    kind: "config",
+                    setupMode: "form",
+                    sensitivity: "none",
+                    required: true,
+                    healthCapabilityIds: [],
+                    statusLinks: {
+                      list: "/setup/requirements",
+                      refresh: "/setup/requirements/demo/endpoint/refresh",
+                      revoke: "/setup/requirements/demo/endpoint",
+                      submitForm: "/setup/requirements/demo/endpoint/form",
+                    },
+                  },
+                ],
+              },
+              effects: [],
+              simulation: { support: "full", blockedReasons: [] },
+              readiness: {
+                setupRequirementIds: ["endpoint"],
+                healthCapabilityIds: [],
+                healthCheck: "not-declared",
+              },
+            },
+          },
+        ],
+      });
+
+      const listed = await client.list();
+      expect(listed.requirements).toHaveLength(1);
+      expect(listed.requirements[0]).toMatchObject({
+        moduleName: "demo",
+        requirementId: "endpoint",
+        state: "missing",
+        reason: "config_missing",
+      });
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails when a manifest setup link has no source declaration", async () => {
+    const client = localSetupClient({
+      cwd: process.cwd(),
+      getModuleSummaries: () => [
+        {
+          name: "broken",
+          source: "project",
+          dependencies: [],
+          toolNames: [],
+          workflowNames: [],
+          channelNames: [],
+          skillNames: [],
+          agentNames: [],
+          agents: [],
+          skills: [],
+          commandNames: [],
+          routeSummaries: [],
+          setupRequirements: [],
+          manifest: {
+            schemaVersion: 1,
+            moduleName: "broken",
+            dependencies: [],
+            capabilities: [],
+            dataClasses: [],
+            contributions: {
+              tools: [],
+              workflows: [],
+              workflowTriggers: [],
+              channels: [],
+              skills: [],
+              agents: [],
+              commands: [],
+              routes: [],
+              controlRoutes: [],
+              events: [],
+              eventFlows: [],
+              clients: { localNamespaces: [], daemonFactory: false },
+              setupRequirements: [
+                {
+                  id: "missing",
+                  kind: "secret",
+                  setupMode: "url",
+                  sensitivity: "secret",
+                  required: true,
+                  healthCapabilityIds: [],
+                  statusLinks: {
+                    list: "/setup/requirements",
+                    refresh: "/setup/requirements/broken/missing/refresh",
+                    revoke: "/setup/requirements/broken/missing",
+                    storeSecret: "/setup/requirements/broken/missing/secret",
+                    start: "/setup/requirements/broken/missing/start",
+                  },
+                },
+              ],
+            },
+            effects: [],
+            simulation: { support: "full", blockedReasons: [] },
+            readiness: {
+              setupRequirementIds: ["missing"],
+              healthCapabilityIds: [],
+              healthCheck: "not-declared",
+            },
+          },
+        },
+      ],
+    });
+
+    await expect(client.list()).rejects.toThrow(
+      /manifest setup requirement "missing" has no setup declaration/,
+    );
+  });
 });
 
 describe("kota setup secret CLI", () => {

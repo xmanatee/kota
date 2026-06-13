@@ -13,6 +13,7 @@ import { resolveSecretReference } from "#core/config/secret-reference.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { ModuleSetupRequirement } from "#core/modules/setup-requirements.js";
 import { AUTONOMY_MODES, type AutonomyMode } from "#core/tools/autonomy-mode.js";
+import { operatorSurfaceEffect } from "#core/tools/effect.js";
 import { renderOnDemandAttention } from "#modules/autonomy/workflows/attention-digest/step.js";
 import { renderOnDemandDigest } from "#modules/autonomy/workflows/daily-digest/on-demand.js";
 import { SlackBot } from "./bot.js";
@@ -127,6 +128,65 @@ const slackChannelModule: KotaModule = {
   name: "slack-channel",
   version: "1.0.0",
   description: "Bidirectional Slack bot channel for KOTA (Socket Mode)",
+  manifest: {
+    schemaVersion: 1,
+    capabilities: [
+      {
+        id: "slack-channel.dm",
+        description:
+          "Route Slack direct messages into KOTA sessions and render one-shot command replies.",
+        scope: "external",
+        scopePolicyHooks: ["channels", "external-effects", "setup"],
+        setupRequirementIds: ["socket-mode-config", "socket-mode-credentials"],
+      },
+      {
+        id: "slack-channel.approvals",
+        description:
+          "Post approval prompts and operator notifications into Slack surfaces.",
+        scope: "external",
+        scopePolicyHooks: ["owner-confirmation", "external-effects", "setup"],
+        setupRequirementIds: ["socket-mode-config", "socket-mode-credentials"],
+      },
+    ],
+    dataClasses: [
+      {
+        id: "slack-channel.tokens",
+        description: "Slack bot and app token references used for Socket Mode.",
+        sensitivity: "credential",
+        retention: "project-durable",
+        redaction: "mask-secret",
+      },
+      {
+        id: "slack-channel.message-content",
+        description: "Slack direct-message text, command text, and rendered reply content.",
+        sensitivity: "personal",
+        retention: "run-artifact",
+        redaction: "metadata-only",
+      },
+      {
+        id: "slack-channel.approval-content",
+        description: "Approval request ids, tool names, risk reasons, and button outcomes.",
+        sensitivity: "internal",
+        retention: "operator-visible",
+        redaction: "metadata-only",
+      },
+    ],
+    additionalEffects: [
+      {
+        id: "slack-channel.message-delivery",
+        description: "Deliver command replies, approval prompts, and notifications to Slack.",
+        source: "channel",
+        effect: operatorSurfaceEffect(),
+        capabilityIds: ["slack-channel.dm", "slack-channel.approvals"],
+      },
+    ],
+    simulation: {
+      support: "external-effects-blocked",
+      blockedReasons: [
+        "Slack Socket Mode delivery is operator-visible external I/O and is blocked in workflow trial mode.",
+      ],
+    },
+  },
   setupRequirements: [
     {
       id: "socket-mode-config",

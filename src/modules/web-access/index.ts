@@ -44,6 +44,40 @@ const webAccessModule: KotaModule = {
   name: "web-access",
   version: "1.0.0",
   description: "Web access tools: web_fetch, web_search, and http_request",
+  manifest: {
+    schemaVersion: 1,
+    capabilities: [
+      {
+        id: "web-access.http",
+        description:
+          "Fetch, search, and issue operator-authorized HTTP requests against external web resources.",
+        scope: "external",
+        scopePolicyHooks: ["external-effects", "retention"],
+      },
+    ],
+    dataClasses: [
+      {
+        id: "web-access.remote-content",
+        description: "Remote page, JSON, and search-result payloads returned to the agent.",
+        sensitivity: "provider-payload",
+        retention: "run-artifact",
+        redaction: "metadata-only",
+      },
+      {
+        id: "web-access.request-metadata",
+        description: "Requested URLs, HTTP methods, and response status metadata.",
+        sensitivity: "internal",
+        retention: "run-artifact",
+        redaction: "none",
+      },
+    ],
+    simulation: {
+      support: "external-effects-blocked",
+      blockedReasons: [
+        "HTTP requests reach open-world network targets and are blocked in workflow trial mode unless represented by captured artifacts.",
+      ],
+    },
+  },
   tools,
 };
 

@@ -1,5 +1,8 @@
 import type { ServerResponse } from "node:http";
+import type { ModuleCapabilityManifestProjection } from "#core/modules/module-manifest.js";
+import { moduleSummariesWithSetupAvailability } from "#core/modules/module-setup-status.js";
 import type { ModuleHealth, ModuleSummary } from "#core/modules/module-types.js";
+import type { ModuleSetupRequirementStatus } from "#core/modules/setup-requirements.js";
 import { jsonResponse } from "#core/server/session-pool.js";
 import type { ModuleListEntry } from "./client.js";
 
@@ -13,6 +16,7 @@ export type ModuleStatusEntry = {
   workflowCount: number;
   skillCount: number;
   channelCount: number;
+  manifest?: ModuleCapabilityManifestProjection;
   health?: ModuleHealth;
   /** Error message when status is "failed"; truncated to 500 chars. */
   error?: string;
@@ -24,9 +28,13 @@ export type ModulesResponse = {
 
 export function handleListModules(
   res: ServerResponse,
-  summaries: ModuleSummary[],
+  summaries: readonly ModuleSummary[],
+  setupStatuses?: readonly ModuleSetupRequirementStatus[],
 ): void {
-  const modules: ModuleStatusEntry[] = summaries.map((s) => {
+  const projectedSummaries = setupStatuses === undefined
+    ? summaries
+    : moduleSummariesWithSetupAvailability(summaries, setupStatuses);
+  const modules: ModuleStatusEntry[] = projectedSummaries.map((s) => {
     if (s.loadError !== undefined) {
       return {
         name: s.name,
@@ -38,6 +46,7 @@ export function handleListModules(
         workflowCount: 0,
         skillCount: 0,
         channelCount: 0,
+        ...(s.manifest !== undefined && { manifest: s.manifest }),
         error: s.loadError,
       };
     }
@@ -51,6 +60,7 @@ export function handleListModules(
       workflowCount: s.workflowNames.length,
       skillCount: s.skillNames.length,
       channelCount: s.channelNames.length,
+      ...(s.manifest !== undefined && { manifest: s.manifest }),
       health: s.health,
     };
   });
@@ -64,9 +74,13 @@ export function handleListModules(
  * implementor served the call.
  */
 export function buildModuleListEntries(
-  summaries: ModuleSummary[],
+  summaries: readonly ModuleSummary[],
+  setupStatuses?: readonly ModuleSetupRequirementStatus[],
 ): ModuleListEntry[] {
-  return summaries.map((s) => {
+  const projectedSummaries = setupStatuses === undefined
+    ? summaries
+    : moduleSummariesWithSetupAvailability(summaries, setupStatuses);
+  return projectedSummaries.map((s) => {
     if (s.loadError !== undefined) {
       const entry: ModuleListEntry = {
         name: s.name,
@@ -82,6 +96,7 @@ export function buildModuleListEntries(
       };
       if (s.version !== undefined) entry.version = s.version;
       if (s.description !== undefined) entry.description = s.description;
+      if (s.manifest !== undefined) entry.manifest = s.manifest;
       return entry;
     }
     const entry: ModuleListEntry = {
@@ -97,6 +112,7 @@ export function buildModuleListEntries(
     };
     if (s.version !== undefined) entry.version = s.version;
     if (s.description !== undefined) entry.description = s.description;
+    if (s.manifest !== undefined) entry.manifest = s.manifest;
     return entry;
   });
 }

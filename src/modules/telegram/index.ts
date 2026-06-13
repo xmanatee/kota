@@ -13,6 +13,7 @@ import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { ModuleSetupRequirement } from "#core/modules/setup-requirements.js";
 import type { KotaClient } from "#core/server/kota-client.js";
 import { AUTONOMY_MODES, type AutonomyMode } from "#core/tools/autonomy-mode.js";
+import { operatorSurfaceEffect } from "#core/tools/effect.js";
 import { TelegramBot } from "./bot.js";
 import { startCallbackPoll } from "./callback-poll.js";
 import type { TelegramMessage } from "./client.js";
@@ -295,12 +296,8 @@ function resolveTelegramProjectRouting(
   ctx: ModuleContext,
   chatProjectBindings: TelegramChatProjectBinding[],
 ): TelegramProjectRouting | undefined {
-  let client: KotaClient;
-  try {
-    client = ctx.client;
-  } catch {
-    return undefined;
-  }
+  const client = tryResolveTelegramClient(ctx);
+  if (!client) return undefined;
   if (!hasProjectRoutingClient(client)) return undefined;
   const projectSource = resolveDaemonProjectSource(ctx);
   return {
@@ -312,6 +309,14 @@ function resolveTelegramProjectRouting(
       projectSource ? { projectSource } : undefined,
     ),
   };
+}
+
+function tryResolveTelegramClient(ctx: ModuleContext): KotaClient | undefined {
+  try {
+    return ctx.client;
+  } catch {
+    return undefined;
+  }
 }
 
 function makeTelegramStatusChannel(
@@ -331,6 +336,13 @@ function makeTelegramStatusChannel(
             "TELEGRAM_BOT_TOKEN and TELEGRAM_ALERT_CHAT_ID secret refs are required",
         };
       }
+      const client = tryResolveTelegramClient(moduleCtx);
+      if (!client) {
+        return {
+          status: "unavailable",
+          reason: "KotaClient is not resolved; Telegram status commands require a daemon or local client",
+        };
+      }
       const projectRouting = resolveTelegramProjectRouting(
         moduleCtx,
         chatProjectBindings,
@@ -346,14 +358,14 @@ function makeTelegramStatusChannel(
               credentials.chatId,
               ctx.projectDir,
               ctx.getWorkflowStatus,
-              moduleCtx.client.knowledge,
-              moduleCtx.client.memory,
-              moduleCtx.client.history,
-              moduleCtx.client.tasks,
-              moduleCtx.client.recall,
-              moduleCtx.client.answer,
-              moduleCtx.client.capture,
-              moduleCtx.client.retract,
+              client.knowledge,
+              client.memory,
+              client.history,
+              client.tasks,
+              client.recall,
+              client.answer,
+              client.capture,
+              client.retract,
               ctx.log,
               projectRouting,
             );
@@ -420,7 +432,7 @@ function makeTelegramInteractiveChannel(
             pending: pendingOwnerQuestionMessages,
             allowedChatIds,
             log: ctx.log,
-            client: ctx.client,
+            client: tryResolveTelegramClient(ctx),
           }),
       });
 
@@ -475,6 +487,76 @@ const telegramModule: KotaModule = {
   description: "Telegram bot frontend for KOTA",
   dependencies: ["answer", "approval-queue", "autonomy", "capture", "daemon-ops", "history", "inbound-signals", "knowledge", "memory", "recall", "repo-tasks", "retract", "secrets", "transcription"],
   setupRequirements: telegramSetupRequirements,
+  manifest: {
+    schemaVersion: 1,
+    capabilities: [
+      {
+        id: "telegram.status",
+        description:
+          "Serve operator status, recall, answer, capture, retract, digest, and attention commands in Telegram.",
+        scope: "external",
+        scopePolicyHooks: ["channels", "external-effects", "setup"],
+        setupRequirementIds: ["bot-credentials"],
+      },
+      {
+        id: "telegram.interactive",
+        description: "Route Telegram chats into KOTA sessions with explicit autonomy mode.",
+        scope: "external",
+        scopePolicyHooks: ["channels", "external-effects", "setup"],
+        setupRequirementIds: ["bot-credentials"],
+      },
+      {
+        id: "telegram.owner-escalation",
+        description:
+          "Deliver owner questions, approvals, failure alerts, and digest notifications to Telegram.",
+        scope: "external",
+        scopePolicyHooks: ["owner-confirmation", "external-effects", "setup"],
+        setupRequirementIds: ["bot-credentials"],
+      },
+    ],
+    dataClasses: [
+      {
+        id: "telegram.bot-credentials",
+        description: "Telegram bot token and alert chat id secret references.",
+        sensitivity: "credential",
+        retention: "project-durable",
+        redaction: "mask-secret",
+      },
+      {
+        id: "telegram.message-content",
+        description: "Telegram command text, chat replies, inbound signal text, and rendered responses.",
+        sensitivity: "personal",
+        retention: "run-artifact",
+        redaction: "metadata-only",
+      },
+      {
+        id: "telegram.owner-escalation-content",
+        description: "Owner question, approval, failure alert, and digest message metadata.",
+        sensitivity: "internal",
+        retention: "operator-visible",
+        redaction: "metadata-only",
+      },
+    ],
+    additionalEffects: [
+      {
+        id: "telegram.message-delivery",
+        description: "Deliver operator commands, approvals, owner questions, and notifications to Telegram.",
+        source: "channel",
+        effect: operatorSurfaceEffect(),
+        capabilityIds: [
+          "telegram.status",
+          "telegram.interactive",
+          "telegram.owner-escalation",
+        ],
+      },
+    ],
+    simulation: {
+      support: "external-effects-blocked",
+      blockedReasons: [
+        "Telegram delivery is operator-visible external I/O and is blocked in workflow trial mode.",
+      ],
+    },
+  },
   configSchema: {
     type: "object",
     additionalProperties: false,
@@ -549,7 +631,7 @@ const telegramModule: KotaModule = {
         pendingApprovalMessages,
         pendingOwnerQuestionMessages,
         ctx.log,
-        ctx.client,
+        tryResolveTelegramClient(ctx),
       );
     }
 

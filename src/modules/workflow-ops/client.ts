@@ -197,6 +197,12 @@ export type WorkflowTrialBlockedSideEffect = {
     scope: string;
     openWorld: boolean;
   };
+  manifest?: {
+    moduleName: string;
+    effectId: string;
+    categories: readonly string[];
+    capabilityIds: readonly string[];
+  };
 };
 
 export type WorkflowTrialChangedFile = {

@@ -12,12 +12,18 @@ import {
   initModuleEventRegistry,
   resetModuleEventRegistry,
 } from "#core/events/module-event.js";
+import {
+  buildModuleCapabilityManifestProjection,
+  clearModuleCapabilityManifestProjections,
+  registerModuleCapabilityManifestProjection,
+} from "#core/modules/module-manifest.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import {
   credentialInjectionEffect,
   daemonWriteEffect,
   localWriteEffect,
   networkDestructiveEffect,
+  readOnlyLocalEffect,
 } from "#core/tools/effect.js";
 import { deregisterTool, executeTool, registerTool } from "#core/tools/index.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
@@ -117,6 +123,7 @@ describe("workflow trial execution", () => {
     deregisterTool(PROCESS_ENV_TOOL);
     deregisterTool("file_write");
     deregisterTool("shell");
+    clearModuleCapabilityManifestProjections();
     delete process.env[PROCESS_ENV_KEY];
     for (const dir of cleanup.splice(0)) {
       rmSync(dir, { recursive: true, force: true });
@@ -246,6 +253,102 @@ describe("workflow trial execution", () => {
       expect.objectContaining({
         stepId: "send-live",
         tool: EXTERNAL_TOOL,
+      }),
+    ]);
+  });
+
+  it("blocks tool side effects from the module manifest projection before registry metadata", async () => {
+    const projectDir = makeProjectDir();
+    cleanup.push(projectDir);
+    const externalRunner = vi.fn(async () => ({ content: "sent" }));
+    registerTool(
+      {
+        name: EXTERNAL_TOOL,
+        description: "fixture external sender",
+        input_schema: { type: "object", properties: {} },
+      },
+      externalRunner,
+      "workflow-trial-test",
+      { effect: readOnlyLocalEffect() },
+    );
+    registerModuleCapabilityManifestProjection(
+      buildModuleCapabilityManifestProjection(
+        "workflow-trial-test",
+        {
+          schemaVersion: 1,
+          capabilities: [
+            {
+              id: "workflow-trial-test.external-send",
+              description: "Sends through the trial manifest fixture.",
+              scope: "external",
+              scopePolicyHooks: ["external-effects"],
+            },
+          ],
+          dataClasses: [],
+          simulation: {
+            support: "external-effects-blocked",
+            blockedReasons: ["Manifest fixture sends are blocked in trial mode."],
+          },
+        },
+        {
+          dependencies: [],
+          tools: [
+            {
+              name: EXTERNAL_TOOL,
+              description: "fixture external sender",
+              effect: networkDestructiveEffect(),
+            },
+          ],
+          effects: [],
+          workflows: [],
+          workflowTriggers: [],
+          channels: [],
+          skills: [],
+          agents: [],
+          commands: [],
+          routes: [],
+          controlRoutes: [],
+          events: [],
+          eventFlows: [],
+          localClientNamespaces: [],
+          hasDaemonClientFactory: false,
+          setupRequirements: [],
+          hasHealthCheck: false,
+        },
+      ),
+    );
+
+    const summary = await runWorkflowTrial({
+      sourceProjectDir: projectDir,
+      workflowName: "manifest-side-effect-fixture",
+      runtimeFactory: makeRuntimeFactory((trialProjectDir) => [
+        makeDefinition(trialProjectDir, {
+          name: "manifest-side-effect-fixture",
+          steps: [{ id: "send-live", type: "tool", tool: EXTERNAL_TOOL }],
+        }),
+      ]),
+    });
+
+    expect(summary.status).toBe("failed");
+    expect(summary.blocked).toBe(1);
+    const attempt = summary.attempts[0]!;
+    cleanup.push(attempt.trialProjectPath);
+    expect(externalRunner).not.toHaveBeenCalled();
+    expect(attempt.blockedExternalSideEffects).toEqual([
+      expect.objectContaining({
+        stepId: "send-live",
+        tool: EXTERNAL_TOOL,
+        effect: {
+          kind: "destructive",
+          scope: "external-network",
+          openWorld: true,
+        },
+        manifest: {
+          moduleName: "workflow-trial-test",
+          effectId: `tool.${EXTERNAL_TOOL}`,
+          categories: ["destructive", "external-write"],
+          capabilityIds: ["workflow-trial-test.external-send"],
+        },
       }),
     ]);
   });

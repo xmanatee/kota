@@ -4,7 +4,14 @@ import type { ChannelDef } from "#core/channels/channel.js";
 import type { LocalClientHandlers } from "#core/server/kota-client.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import type { ModuleLoadFailure } from "./module-lifecycle.js";
-import type { DaemonClientFactoryEntry } from "./module-loader-clients.js";
+import type {
+  DaemonClientFactoryEntry,
+  LocalClientNamespace,
+} from "./module-loader-clients.js";
+import type {
+  ModuleCapabilityManifestProjection,
+  ModuleManifestToolSnapshot,
+} from "./module-manifest.js";
 import type { ModuleStorage } from "./module-storage.js";
 import type {
   ControlRouteRegistration,
@@ -25,14 +32,17 @@ export interface LoaderState {
   moduleStorages: Map<string, ModuleStorage>;
   moduleRegistry: Map<string, KotaModule>;
   moduleToolCounts: Map<string, number>;
+  moduleToolDefs: Map<string, readonly ModuleManifestToolSnapshot[]>;
   moduleWorkflowDefs: Map<string, readonly RegisteredWorkflowDefinitionInput[]>;
   moduleChannelDefs: Map<string, readonly ChannelDef[]>;
   moduleSkillDefs: Map<string, readonly SkillDef[]>;
   moduleAgentDefs: Map<string, readonly AgentDef[]>;
   moduleSetupRequirementDefs: Map<string, readonly ModuleSetupRequirementContribution[]>;
+  moduleManifests: Map<string, ModuleCapabilityManifestProjection>;
   moduleRoutes: Map<string, RouteRegistration[]>;
   moduleCommands: Map<string, Command[]>;
   moduleControlRoutes: Map<string, ControlRouteRegistration[]>;
+  moduleLocalClientNamespaces: Map<string, readonly LocalClientNamespace[]>;
   moduleRouteErrors: Map<string, string>;
   moduleCommandErrors: Map<string, string>;
   moduleControlRouteErrors: Map<string, string>;
@@ -55,14 +65,17 @@ export function createLoaderState(): LoaderState {
     moduleStorages: new Map(),
     moduleRegistry: new Map(),
     moduleToolCounts: new Map(),
+    moduleToolDefs: new Map(),
     moduleWorkflowDefs: new Map(),
     moduleChannelDefs: new Map(),
     moduleSkillDefs: new Map(),
     moduleAgentDefs: new Map(),
     moduleSetupRequirementDefs: new Map(),
+    moduleManifests: new Map(),
     moduleRoutes: new Map(),
     moduleCommands: new Map(),
     moduleControlRoutes: new Map(),
+    moduleLocalClientNamespaces: new Map(),
     moduleRouteErrors: new Map(),
     moduleCommandErrors: new Map(),
     moduleControlRouteErrors: new Map(),

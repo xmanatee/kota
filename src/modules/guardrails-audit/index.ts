@@ -28,7 +28,7 @@ import type {
 	AuditListFilter,
 	AuditListResult,
 } from "./client.js";
-import { handleListAudit } from "./routes.js";
+import { makeListAuditHandler } from "./routes.js";
 
 const tools: ToolDef[] = [
 	{
@@ -79,8 +79,8 @@ const guardrailsAuditModule: KotaModule = {
 		return root.commands as Command[];
 	},
 
-	routes: () => [
-		{ method: "GET", path: "/api/audit", handler: handleListAudit },
+	routes: (ctx) => [
+		{ method: "GET", path: "/api/audit", handler: makeListAuditHandler(ctx) },
 	],
 
 	controlRoutes: (ctx) => auditControlRoutes(ctx),

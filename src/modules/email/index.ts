@@ -28,6 +28,7 @@ import { resolveSecretReference } from "#core/config/secret-reference.js";
 import type { BusEvents } from "#core/events/event-bus.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { ModuleSetupRequirement } from "#core/modules/setup-requirements.js";
+import { operatorSurfaceEffect } from "#core/tools/effect.js";
 import { formatEmail } from "./format.js";
 import { createMailer, type Mailer } from "./mailer.js";
 
@@ -130,6 +131,57 @@ const emailModule: KotaModule = {
   name: "email",
   version: "1.0.0",
   description: "Email notification channel for KOTA via SMTP",
+  effects: [
+    {
+      id: "email.smtp-delivery",
+      description: "Deliver workflow, approval, and owner-question notifications by SMTP email.",
+      source: "notification",
+      effect: operatorSurfaceEffect(),
+      capabilityIds: ["email.notifications"],
+    },
+  ],
+  manifest: {
+    schemaVersion: 1,
+    capabilities: [
+      {
+        id: "email.notifications",
+        description:
+          "Send KOTA workflow, approval, and owner-question notifications to configured email recipients.",
+        scope: "external",
+        scopePolicyHooks: ["channels", "external-effects", "setup"],
+        setupRequirementIds: ["smtp-config", "smtp-credentials"],
+      },
+    ],
+    dataClasses: [
+      {
+        id: "email.smtp-routing",
+        description: "SMTP host, sender, recipient, and event-filter routing configuration.",
+        sensitivity: "personal",
+        retention: "project-durable",
+        redaction: "metadata-only",
+      },
+      {
+        id: "email.smtp-credentials",
+        description: "SMTP username and password references resolved through the shared secret provider.",
+        sensitivity: "credential",
+        retention: "project-durable",
+        redaction: "mask-secret",
+      },
+      {
+        id: "email.notification-content",
+        description: "Rendered workflow, approval, owner-question, and digest notification bodies.",
+        sensitivity: "internal",
+        retention: "operator-visible",
+        redaction: "metadata-only",
+      },
+    ],
+    simulation: {
+      support: "external-effects-blocked",
+      blockedReasons: [
+        "SMTP delivery is operator-visible external I/O and is blocked in workflow trial mode.",
+      ],
+    },
+  },
   setupRequirements: [
     {
       id: "smtp-config",

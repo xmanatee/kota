@@ -195,6 +195,34 @@ describe("telegramModule", () => {
       if (savedToken !== undefined) process.env.TELEGRAM_BOT_TOKEN = savedToken;
     }
   });
+
+  it("telegram-status channel reports unavailable when KotaClient is unresolved", async () => {
+    const savedToken = process.env.TELEGRAM_BOT_TOKEN;
+    const savedChatId = process.env.TELEGRAM_ALERT_CHAT_ID;
+    process.env.TELEGRAM_BOT_TOKEN = "bot-token-test";
+    process.env.TELEGRAM_ALERT_CHAT_ID = "123456789";
+    try {
+      const ctx = makeStubCtx();
+      Object.defineProperty(ctx, "client", {
+        get() {
+          throw new Error("No active KotaClient resolved.");
+        },
+      });
+      const channels = await resolveModuleChannels(telegramModule, ctx);
+      const channel = channels.find((c) => c.name === "telegram-status");
+      if (!channel) throw new Error("telegram-status channel missing");
+      const result = channel.create(makeChannelStartContext());
+      expect(result.status).toBe("unavailable");
+      if (result.status === "unavailable") {
+        expect(result.reason).toContain("KotaClient");
+      }
+    } finally {
+      if (savedToken !== undefined) process.env.TELEGRAM_BOT_TOKEN = savedToken;
+      else delete process.env.TELEGRAM_BOT_TOKEN;
+      if (savedChatId !== undefined) process.env.TELEGRAM_ALERT_CHAT_ID = savedChatId;
+      else delete process.env.TELEGRAM_ALERT_CHAT_ID;
+    }
+  });
 });
 
 describe("telegramModule notifications via onLoad", () => {
@@ -506,6 +534,24 @@ describe("telegramModule notifications via onLoad", () => {
       expect.any(Object),
       expect.any(Object),
     );
+  });
+
+  it("starts callback poll without a CLI-resolved KotaClient", async () => {
+    const { startCallbackPoll } = await import("./callback-poll.js");
+    const mockStart = vi.mocked(startCallbackPoll);
+    mockStart.mockClear();
+
+    const bus = new EventBus();
+    const ctx = makeStubCtx(bus);
+    Object.defineProperty(ctx, "client", {
+      get() {
+        throw new Error("No active KotaClient resolved.");
+      },
+    });
+
+    expect(() => telegramModule.onLoad!(ctx)).not.toThrow();
+    expect(mockStart).toHaveBeenCalledOnce();
+    expect(mockStart.mock.calls[0]?.[4]).toBeUndefined();
   });
 
   it("does not start callback poll when credentials are missing", async () => {

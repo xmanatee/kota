@@ -1,7 +1,7 @@
+import { moduleSetupRequirementsFromSummaries } from "#core/modules/module-setup-status.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import {
   type ModuleSetupJsonValue,
-  type ModuleSetupRequirementContribution,
   ModuleSetupService,
   type ModuleSetupStatusResponse,
 } from "#core/modules/setup-requirements.js";
@@ -15,21 +15,10 @@ import type {
 
 type JsonObject = { [key: string]: ModuleSetupJsonValue };
 
-function setupRequirementsFromSummaries(
-  ctx: ModuleContext,
-): ModuleSetupRequirementContribution[] {
-  return ctx.getModuleSummaries().flatMap((summary) =>
-    (summary.setupRequirements ?? []).map((requirement) => ({
-      moduleName: summary.name,
-      requirement,
-    })),
-  );
-}
-
 function buildLocalSetupClient(ctx: ModuleContext): SetupClient {
   const service = new ModuleSetupService({
     projectDir: ctx.cwd,
-    getRequirements: () => setupRequirementsFromSummaries(ctx),
+    getRequirements: () => moduleSetupRequirementsFromSummaries(ctx.getModuleSummaries()),
     probeCapabilities: async () => [],
   });
   return {

@@ -1,7 +1,8 @@
 import type { ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
 import type { ModuleSummary } from "#core/modules/module-types.js";
-import { handleListModules } from "./routes.js";
+import type { ModuleSetupRequirementStatus } from "#core/modules/setup-requirements.js";
+import { buildModuleListEntries, handleListModules } from "./routes.js";
 
 function mockResponse() {
   const result = { status: 0, body: null as unknown };
@@ -31,6 +32,45 @@ function makeSummary(overrides: Partial<ModuleSummary> = {}): ModuleSummary {
     commandNames: [],
     routeSummaries: [],
     ...overrides,
+  };
+}
+
+function makeManifest(): NonNullable<ModuleSummary["manifest"]> {
+  return {
+    schemaVersion: 1,
+    moduleName: "test-module",
+    dependencies: [],
+    capabilities: [
+      {
+        id: "test-module.capability",
+        description: "Test capability.",
+        scope: "daemon",
+        scopePolicyHooks: [],
+      },
+    ],
+    dataClasses: [],
+    contributions: {
+      tools: [],
+      workflows: [],
+      workflowTriggers: [],
+      channels: [],
+      skills: [],
+      agents: [],
+      commands: [],
+      routes: [],
+      controlRoutes: [],
+      events: [],
+      eventFlows: [],
+      clients: { localNamespaces: [], daemonFactory: false },
+      setupRequirements: [],
+    },
+    effects: [],
+    simulation: { support: "full", blockedReasons: [] },
+    readiness: {
+      setupRequirementIds: [],
+      healthCapabilityIds: [],
+      healthCheck: "not-declared",
+    },
   };
 }
 
@@ -90,6 +130,122 @@ describe("handleListModules", () => {
     const body = result.body as { modules: Array<Record<string, unknown>> };
     expect(body.modules).toHaveLength(3);
     expect(body.modules.map((e) => e.name)).toEqual(["ext-a", "ext-b", "ext-c"]);
+  });
+
+  it("exposes manifest projections on daemon and client list shapes", () => {
+    const manifest = makeManifest();
+    const summary = makeSummary({ name: "manifest-module", manifest });
+    const { res, result } = mockResponse();
+
+    handleListModules(res, [summary]);
+    const body = result.body as { modules: Array<Record<string, unknown>> };
+    expect(body.modules[0].manifest).toEqual(manifest);
+
+    const entries = buildModuleListEntries([summary]);
+    expect(entries[0].manifest).toEqual(manifest);
+  });
+
+  it("projects setup availability onto manifest projections for daemon and client list shapes", () => {
+    const manifest = makeManifest();
+    const manifestWithSetup: NonNullable<ModuleSummary["manifest"]> = {
+      ...manifest,
+      capabilities: [
+        {
+          ...manifest.capabilities[0],
+          setupRequirementIds: ["api-token"],
+        },
+      ],
+      contributions: {
+        ...manifest.contributions,
+        setupRequirements: [
+          {
+            id: "api-token",
+            kind: "secret",
+            setupMode: "url",
+            sensitivity: "secret",
+            required: true,
+            healthCapabilityIds: ["test-module.capability"],
+            statusLinks: {
+              list: "/setup/requirements",
+              refresh: "/setup/requirements/test-module/api-token/refresh",
+              revoke: "/setup/requirements/test-module/api-token",
+              storeSecret: "/setup/requirements/test-module/api-token/secret",
+              start: "/setup/requirements/test-module/api-token/start",
+            },
+          },
+        ],
+      },
+      readiness: {
+        setupRequirementIds: ["api-token"],
+        healthCapabilityIds: ["test-module.capability"],
+        healthCheck: "not-declared",
+      },
+    };
+    const setup = {
+      mode: "url" as const,
+      url: "https://auth.example.test/start",
+      label: "Open auth",
+    };
+    const summary = makeSummary({
+      manifest: manifestWithSetup,
+      setupRequirements: [
+        {
+          id: "api-token",
+          kind: "secret",
+          title: "API token",
+          required: true,
+          scope: "project",
+          sensitivity: "secret",
+          health: { capabilityIds: ["test-module.capability"] },
+          setup,
+          secretRefs: [{ name: "TEST_MODULE_TOKEN", scope: "project" }],
+        },
+      ],
+    });
+    const status: ModuleSetupRequirementStatus = {
+      moduleName: "test-module",
+      requirementId: "api-token",
+      kind: "secret",
+      title: "API token",
+      required: true,
+      scope: "project",
+      sensitivity: "secret",
+      setup,
+      state: "unavailable",
+      reason: "capability_unavailable",
+      message: "Capability is unavailable",
+      capabilities: [
+        {
+          id: "test-module.capability",
+          status: "unavailable",
+          reason: "auth_missing",
+        },
+      ],
+    };
+    const { res, result } = mockResponse();
+
+    handleListModules(res, [summary], [status]);
+
+    const body = result.body as { modules: Array<{ manifest?: NonNullable<ModuleSummary["manifest"]> }> };
+    expect(body.modules[0].manifest?.contributions.setupRequirements[0]?.availability)
+      .toMatchObject({
+        state: "unavailable",
+        reason: "capability_unavailable",
+        capabilities: [
+          {
+            id: "test-module.capability",
+            status: "unavailable",
+            reason: "auth_missing",
+          },
+        ],
+      });
+
+    const entries = buildModuleListEntries([summary], [status]);
+    expect(entries[0].manifest?.contributions.setupRequirements[0]?.availability)
+      .toMatchObject({
+        state: "unavailable",
+        reason: "capability_unavailable",
+      });
   });
 
   it("returns failed module with status failed and error field", () => {

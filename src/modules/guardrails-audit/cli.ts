@@ -6,6 +6,7 @@ import {
 	plain,
 	span,
 	stack,
+	type TextSpan,
 } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
 import type { AuditListEntry, AuditListFilter } from "./client.js";
@@ -49,34 +50,75 @@ function policyRole(policy: string): "success" | "warn" | "error" | "muted" {
 	}
 }
 
+function capabilityLabel(entry: AuditListEntry): string {
+	return entry.manifest?.capabilities.map((capability) => capability.id).join(",") || "-";
+}
+
+function dataClassLabel(entry: AuditListEntry): string {
+	return entry.manifest?.dataClasses.map((dataClass) => dataClass.id).join(",") || "-";
+}
+
 export function buildAuditListLines(entries: AuditListEntry[]): LineNode[] {
+	const showManifest = entries.some((entry) => entry.manifest !== undefined);
 	const sessionWidth = Math.max(...entries.map((e) => (e.session ?? "-").length), 7);
 	const toolWidth = Math.max(...entries.map((e) => e.tool.length), 4);
 	const riskWidth = Math.max(...entries.map((e) => e.risk.length), 4);
 	const policyWidth = Math.max(...entries.map((e) => e.policy.length), 6);
+	const moduleWidth = showManifest
+		? Math.max(...entries.map((e) => (e.manifest?.moduleName ?? "-").length), 6)
+		: 0;
+	const capabilityWidth = showManifest
+		? Math.max(...entries.map((e) => capabilityLabel(e).length), 10)
+		: 0;
+	const dataWidth = showManifest
+		? Math.max(...entries.map((e) => dataClassLabel(e).length), 4)
+		: 0;
 	const tsWidth = 19;
 
-	const headerLabel = [
+	const headerParts = [
 		pad("SESSION", sessionWidth),
 		pad("TOOL", toolWidth),
 		pad("RISK", riskWidth),
 		pad("POLICY", policyWidth),
+	];
+	if (showManifest) {
+		headerParts.push(
+			pad("MODULE", moduleWidth),
+			pad("CAPABILITY", capabilityWidth),
+			pad("DATA", dataWidth),
+		);
+	}
+	const headerLabel = [
+		...headerParts,
 		"TIMESTAMP",
 	].join("  ");
 	const header = line(span(headerLabel, "muted", true));
 	const rule = line(span("-".repeat(headerLabel.length), "muted"));
 
-	const rows: LineNode[] = entries.map((e) => line(
-		span(pad(e.session ?? "-", sessionWidth), "muted"),
-		plain("  "),
-		plain(pad(e.tool, toolWidth)),
-		plain("  "),
-		span(pad(e.risk, riskWidth), riskRole(e.risk)),
-		plain("  "),
-		span(pad(e.policy, policyWidth), policyRole(e.policy)),
-		plain("  "),
-		span(pad(formatTimestamp(e.ts), tsWidth), "muted"),
-	));
+	const rows: LineNode[] = entries.map((e) => {
+		const cells: TextSpan[] = [
+			span(pad(e.session ?? "-", sessionWidth), "muted"),
+			plain("  "),
+			plain(pad(e.tool, toolWidth)),
+			plain("  "),
+			span(pad(e.risk, riskWidth), riskRole(e.risk)),
+			plain("  "),
+			span(pad(e.policy, policyWidth), policyRole(e.policy)),
+			plain("  "),
+		];
+		if (showManifest) {
+			cells.push(
+				plain(pad(e.manifest?.moduleName ?? "-", moduleWidth)),
+				plain("  "),
+				plain(pad(capabilityLabel(e), capabilityWidth)),
+				plain("  "),
+				plain(pad(dataClassLabel(e), dataWidth)),
+				plain("  "),
+			);
+		}
+		cells.push(span(pad(formatTimestamp(e.ts), tsWidth), "muted"));
+		return line(...cells);
+	});
 
 	return [header, rule, ...rows];
 }

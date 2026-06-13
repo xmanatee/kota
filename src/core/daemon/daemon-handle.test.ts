@@ -8,6 +8,7 @@ import { EventBus } from "#core/events/event-bus.js";
 import type { BusEvents } from "#core/events/event-bus-types.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
+import type { ModuleSummary } from "#core/modules/module-types.js";
 import type { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRuntime } from "#core/workflow/runtime.js";
 import { buildDaemonHandle } from "./daemon-handle.js";
@@ -37,7 +38,10 @@ type ReloadSubject = {
   };
 };
 
-function makeReloadSubject(initialConfig: KotaConfig = {}): ReloadSubject {
+function makeReloadSubject(
+  initialConfig: KotaConfig = {},
+  getModuleSummaries: () => readonly ModuleSummary[] = () => [],
+): ReloadSubject {
   const bus = new EventBus();
   const events: BusEvents["daemon.config.reload"][] = [];
   bus.on("daemon.config.reload", (payload) => {
@@ -84,6 +88,7 @@ function makeReloadSubject(initialConfig: KotaConfig = {}): ReloadSubject {
     config: { config: initialConfig, verbose: false },
     refreshLiveSessionGuardrails,
     log: () => {},
+    getModuleSummaries,
     getModuleHealthChecks: () => ({}),
     probeCapabilityReadiness: async () => ({
       capabilities: [],
@@ -110,6 +115,111 @@ function mockModuleMetadata(): void {
 describe("buildDaemonHandle reloadConfig events", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("lists setup statuses from manifest-backed module summaries", async () => {
+    vi.mocked(loadConfig).mockReturnValue({});
+    const setup = {
+      mode: "form" as const,
+      fields: [
+        {
+          id: "base-url",
+          label: "Base URL",
+          type: "string" as const,
+          configPath: "modules.demo.baseUrl",
+          required: true,
+        },
+      ],
+    };
+    const subject = makeReloadSubject({}, () => [
+      {
+        name: "demo",
+        source: "project",
+        dependencies: [],
+        toolNames: [],
+        workflowNames: [],
+        channelNames: [],
+        skillNames: [],
+        agentNames: [],
+        agents: [],
+        skills: [],
+        commandNames: [],
+        routeSummaries: [],
+        setupRequirements: [
+          {
+            id: "endpoint",
+            kind: "config",
+            title: "Endpoint",
+            required: true,
+            scope: "project",
+            sensitivity: "none",
+            setup,
+          },
+        ],
+        manifest: {
+          schemaVersion: 1,
+          moduleName: "demo",
+          dependencies: [],
+          capabilities: [
+            {
+              id: "demo.api",
+              description: "Demo API.",
+              scope: "external",
+              scopePolicyHooks: ["setup"],
+              setupRequirementIds: ["endpoint"],
+            },
+          ],
+          dataClasses: [],
+          contributions: {
+            tools: [],
+            workflows: [],
+            workflowTriggers: [],
+            channels: [],
+            skills: [],
+            agents: [],
+            commands: [],
+            routes: [],
+            controlRoutes: [],
+            events: [],
+            eventFlows: [],
+            clients: { localNamespaces: [], daemonFactory: false },
+            setupRequirements: [
+              {
+                id: "endpoint",
+                kind: "config",
+                setupMode: "form",
+                sensitivity: "none",
+                required: true,
+                healthCapabilityIds: [],
+                statusLinks: {
+                  list: "/setup/requirements",
+                  refresh: "/setup/requirements/demo/endpoint/refresh",
+                  revoke: "/setup/requirements/demo/endpoint",
+                  submitForm: "/setup/requirements/demo/endpoint/form",
+                },
+              },
+            ],
+          },
+          effects: [],
+          simulation: { support: "full", blockedReasons: [] },
+          readiness: {
+            setupRequirementIds: ["endpoint"],
+            healthCapabilityIds: [],
+            healthCheck: "not-declared",
+          },
+        },
+      },
+    ]);
+
+    const result = await subject.handle.listModuleSetupStatuses();
+
+    expect(result.requirements).toHaveLength(1);
+    expect(result.requirements[0]).toMatchObject({
+      moduleName: "demo",
+      requirementId: "endpoint",
+      state: "missing",
+      reason: "config_missing",
+    });
   });
 
   it("emits a typed successful config reload event with changed modules and workflow count", async () => {
@@ -268,6 +378,7 @@ describe("buildDaemonHandle sessions", () => {
       config: { config: {}, verbose: false },
       refreshLiveSessionGuardrails: () => ({ refreshed: 0, unchanged: 0 }),
       log: () => {},
+      getModuleSummaries: () => [],
       getModuleHealthChecks: () => ({}),
       probeCapabilityReadiness: async () => ({
         capabilities: [],

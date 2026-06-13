@@ -140,6 +140,41 @@ const browserModule: KotaModule = {
   description:
     "Headless browser automation tools powered by Playwright: navigation, interaction, screenshots, JS evaluation, and scoped content-ingest tools for auth-walled / JS-gated sources",
   setupRequirements: browserSetupRequirements,
+  manifest: {
+    schemaVersion: 1,
+    capabilities: [
+      {
+        id: "browser.automation",
+        description:
+          "Navigate, inspect, interact with, and capture rendered browser pages through Playwright.",
+        scope: "external",
+        scopePolicyHooks: ["external-effects", "retention", "setup"],
+        setupRequirementIds: ["auth-profile"],
+      },
+    ],
+    dataClasses: [
+      {
+        id: "browser.rendered-content",
+        description: "Rendered page text, screenshots, URLs, and DOM evaluation results.",
+        sensitivity: "provider-payload",
+        retention: "run-artifact",
+        redaction: "metadata-only",
+      },
+      {
+        id: "browser.storage-state",
+        description: "Optional Playwright storage-state profile used for authenticated browsing.",
+        sensitivity: "browser-profile",
+        retention: "project-durable",
+        redaction: "omit-payload",
+      },
+    ],
+    simulation: {
+      support: "external-effects-blocked",
+      blockedReasons: [
+        "Browser actions can navigate authenticated external pages and are blocked in workflow trial mode.",
+      ],
+    },
+  },
   tools: buildTools(),
   commands: (ctx: ModuleContext) => [buildBrowserCommand(ctx)],
 

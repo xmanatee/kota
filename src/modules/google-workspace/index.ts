@@ -31,6 +31,7 @@ import type {
 } from "#core/modules/module-types.js";
 import type { ModuleSetupRequirement } from "#core/modules/setup-requirements.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
+import { daemonWriteEffect } from "#core/tools/effect.js";
 import {
   type InboundSignalJsonObject,
   inboundSignalReceived,
@@ -273,6 +274,80 @@ const googleWorkspaceModule: KotaModule = {
   description: "Gmail, Calendar, and Drive tools for agents",
   dependencies: ["inbound-signals"],
   setupRequirements: googleWorkspaceSetupRequirements,
+  manifest: {
+    schemaVersion: 1,
+    capabilities: [
+      {
+        id: "google-workspace.gmail",
+        description: "Read Gmail messages and send Gmail replies through Google Workspace OAuth.",
+        scope: "external",
+        scopePolicyHooks: ["external-effects", "owner-confirmation", "setup"],
+        setupRequirementIds: ["oauth-config", "oauth-credentials"],
+        readinessIds: [GOOGLE_WORKSPACE_OAUTH_CAPABILITY_ID],
+      },
+      {
+        id: "google-workspace.calendar",
+        description: "Read calendar events and create calendar events through Google Workspace OAuth.",
+        scope: "external",
+        scopePolicyHooks: ["external-effects", "owner-confirmation", "setup"],
+        setupRequirementIds: ["oauth-config", "oauth-credentials"],
+        readinessIds: [GOOGLE_WORKSPACE_OAUTH_CAPABILITY_ID],
+      },
+      {
+        id: "google-workspace.drive",
+        description: "List and read Drive files through Google Workspace OAuth.",
+        scope: "external",
+        scopePolicyHooks: ["external-effects", "setup"],
+        setupRequirementIds: ["oauth-config", "oauth-credentials"],
+        readinessIds: [GOOGLE_WORKSPACE_OAUTH_CAPABILITY_ID],
+      },
+    ],
+    dataClasses: [
+      {
+        id: "google-workspace.oauth-credentials",
+        description: "OAuth client and refresh token references required for Workspace APIs.",
+        sensitivity: "credential",
+        retention: "project-durable",
+        redaction: "mask-secret",
+      },
+      {
+        id: "google-workspace.gmail-content",
+        description: "Gmail message metadata, snippets, and message bodies returned by Gmail tools.",
+        sensitivity: "personal",
+        retention: "run-artifact",
+        redaction: "metadata-only",
+      },
+      {
+        id: "google-workspace.calendar-content",
+        description: "Calendar event metadata and event bodies read or written by calendar tools.",
+        sensitivity: "personal",
+        retention: "run-artifact",
+        redaction: "metadata-only",
+      },
+      {
+        id: "google-workspace.drive-content",
+        description: "Drive file metadata and file text returned by Drive read tools.",
+        sensitivity: "provider-payload",
+        retention: "run-artifact",
+        redaction: "metadata-only",
+      },
+    ],
+    additionalEffects: [
+      {
+        id: "google-workspace.inbound-signal",
+        description: "Normalize configured Gmail and Calendar webhook payloads into inbound signals.",
+        source: "route",
+        effect: daemonWriteEffect(),
+        capabilityIds: ["google-workspace.gmail", "google-workspace.calendar"],
+      },
+    ],
+    simulation: {
+      support: "external-effects-blocked",
+      blockedReasons: [
+        "Workspace sends and calendar creates mutate external Google state and are blocked in workflow trial mode.",
+      ],
+    },
+  },
   configSchema: {
     type: "object",
     additionalProperties: false,

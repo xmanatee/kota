@@ -6,7 +6,7 @@
  * only the running daemon can re-read its config and re-register module
  * contributions.
  */
-import type { ModuleContext } from "#core/modules/module-types.js";
+import type { ModuleContext, ModuleSummary } from "#core/modules/module-types.js";
 import type {
   ModuleInspectEntry,
   ModuleInspectResult,
@@ -28,6 +28,7 @@ function summaryToEntry(s: ReturnType<ModuleContext["getModuleSummaries"]>[numbe
   };
   if (s.version !== undefined) entry.version = s.version;
   if (s.description !== undefined) entry.description = s.description;
+  if (s.manifest !== undefined) entry.manifest = s.manifest;
   if (s.health) {
     entry.health = {
       status: s.health.status,
@@ -42,7 +43,13 @@ function summaryToEntry(s: ReturnType<ModuleContext["getModuleSummaries"]>[numbe
 }
 
 export function inspectModule(ctx: ModuleContext, name: string): ModuleInspectResult {
-  const summaries = ctx.getModuleSummaries();
+  return inspectModuleFromSummaries(ctx.getModuleSummaries(), name);
+}
+
+export function inspectModuleFromSummaries(
+  summaries: readonly ModuleSummary[],
+  name: string,
+): ModuleInspectResult {
   const summary = summaries.find((s) => s.name === name);
   if (!summary) return { found: false };
   return { found: true, module: summaryToEntry(summary) };

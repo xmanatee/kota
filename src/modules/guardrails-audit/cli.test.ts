@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import type { KotaClient } from "#core/server/kota-client.js";
 import type { AuditEntry } from "#core/tools/audit-store.js";
+import { networkWriteEffect } from "#core/tools/effect.js";
 import { registerAuditCommands } from "./cli.js";
 import type { AuditClient, AuditListEntry } from "./client.js";
 
@@ -31,6 +32,48 @@ function makeEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
 		policy: "confirm",
 		reason: "shell execution",
 		...overrides,
+	};
+}
+
+function manifestContext(): NonNullable<AuditListEntry["manifest"]> {
+	const effect = networkWriteEffect();
+	return {
+		moduleName: "web-access",
+		effect: {
+			id: "tool.http_request",
+			description: "HTTP request",
+			source: "tool",
+			target: "http_request",
+			effect,
+			risk: "moderate",
+			categories: ["external-write"],
+			capabilityIds: ["web-access.http"],
+			simulation: {
+				blocked: true,
+				reason: "tool would produce a live external or operator-visible side effect in trial mode",
+			},
+		},
+		capabilities: [
+			{
+				id: "web-access.http",
+				description: "HTTP access.",
+				scope: "external",
+				scopePolicyHooks: ["external-effects"],
+			},
+		],
+		dataClasses: [
+			{
+				id: "web-access.payload",
+				description: "HTTP payload.",
+				sensitivity: "provider-payload",
+				retention: "run-artifact",
+				redaction: "omit-payload",
+			},
+		],
+		simulation: {
+			support: "external-effects-blocked",
+			blockedReasons: ["HTTP writes are blocked in trial mode."],
+		},
 	};
 }
 
@@ -116,6 +159,23 @@ describe("audit-cli", () => {
 			setListEntries([makeEntry()]);
 			await run(["audit", "list"]);
 			expect(captured()).toMatch(/-\s+bash/);
+		});
+
+		it("prints manifest context columns when entries include manifest data", async () => {
+			listSpy.mockResolvedValue({
+				entries: [
+					{
+						...entryToList(makeEntry({ tool: "http_request" })),
+						manifest: manifestContext(),
+					},
+				],
+			});
+			await run(["audit", "list"]);
+			const output = captured();
+			expect(output).toContain("MODULE");
+			expect(output).toContain("web-access");
+			expect(output).toContain("web-access.http");
+			expect(output).toContain("web-access.payload");
 		});
 	});
 });

@@ -34,7 +34,12 @@ export function workflowRoutes(ctx?: ModuleContext): RouteRegistration[] {
       path: "/api/workflow/graph",
       handler: (_req, res) => {
         const definitions = ctx ? getValidatedWorkflowDefinitions(ctx, ctx.cwd) : [];
-        const graph = assembleWorkflowGraph(definitions);
+        const moduleManifests = ctx
+          ? ctx.getModuleSummaries().flatMap((summary) =>
+              summary.manifest ? [summary.manifest] : []
+            )
+          : [];
+        const graph = assembleWorkflowGraph(definitions, { moduleManifests });
         jsonResponse(res, 200, graph);
       },
     },

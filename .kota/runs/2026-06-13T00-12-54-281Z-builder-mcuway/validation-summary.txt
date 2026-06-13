@@ -1,0 +1,89 @@
+Validation run:
+- pnpm test src/core/modules/module-loader.test.ts src/modules/module-manager/routes.test.ts src/module-manifest-coverage.integration.test.ts src/modules/workflow-ops/execution/trial.test.ts
+- pnpm typecheck
+- pnpm lint
+- pnpm test src/root-layout.test.ts src/strict-types-policy.integration.test.ts
+- pnpm test src/modules/repo-tasks/task-queue-validation.test.ts
+- pnpm test:workflow-critical
+- pnpm validate-tasks
+
+Result: all passed.
+
+Post-check repair validation:
+- env TELEGRAM_BOT_TOKEN=test-token TELEGRAM_ALERT_CHAT_ID=99 pnpm test src/modules/telegram/telegram.test.ts
+- env TELEGRAM_BOT_TOKEN=test-token TELEGRAM_ALERT_CHAT_ID=99 pnpm test src/module-e2e.test.ts
+- env TELEGRAM_BOT_TOKEN=test-token TELEGRAM_ALERT_CHAT_ID=99 pnpm test src/modules/composition/composition.test.ts
+- pnpm test src/core/modules/module-loader.test.ts src/module-manifest-coverage.integration.test.ts
+- pnpm typecheck
+- pnpm exec biome check src/modules/telegram/index.ts src/modules/telegram/telegram.test.ts
+
+Result: all passed.
+
+Post-check repair attempt 2 validation:
+- pnpm test src/core/modules/module-loader.test.ts src/modules/setup/index.test.ts src/modules/module-manager/routes.test.ts src/module-manifest-coverage.integration.test.ts
+- env TELEGRAM_BOT_TOKEN=test-token TELEGRAM_ALERT_CHAT_ID=99 pnpm test src/module-e2e.test.ts
+- pnpm test src/modules/workflow-ops/execution/trial.test.ts
+- pnpm typecheck
+- pnpm lint
+- pnpm test src/root-layout.test.ts src/strict-types-policy.integration.test.ts
+- pnpm validate-tasks
+- pnpm test:workflow-critical
+
+Result: all passed.
+
+Post-check repair attempt 3 validation:
+- pnpm test src/modules/execution/index.test.ts
+- pnpm exec biome check src/modules/execution/index.ts
+
+Result: all passed.
+
+Post-check repair attempt 4 validation:
+- pnpm test src/core/tools/guardrails.test.ts src/core/modules/module-loader.test.ts src/modules/workflow-ops/graph/assemble.test.ts src/modules/workflow-ops/graph/format.test.ts src/modules/workflow-ops/execution/trial.test.ts
+- pnpm typecheck
+- pnpm lint
+- pnpm validate-tasks
+- pnpm test src/root-layout.test.ts src/strict-types-policy.integration.test.ts
+
+Result: all passed.
+
+Post-check repair attempt 5 validation:
+- pnpm test src/core/modules/module-loader.test.ts
+- pnpm typecheck
+- pnpm lint
+- pnpm test src/module-manifest-coverage.integration.test.ts
+
+Result: all passed.
+
+Post-check repair attempt 6 validation:
+- pnpm test src/modules/eval-harness/replay-smoke.test.ts -t pr-reviewer-agent-call-replay --reporter verbose
+- pnpm test src/modules/eval-harness/replay-smoke.test.ts
+
+Result: all passed.
+
+Post-check repair attempt 7 validation:
+- pnpm exec biome check --write src/core/modules/module-manifest.ts src/core/modules/module-loader-load-phases.ts src/core/modules/module-loader.test.ts src/core/tools/guardrails.test.ts src/modules/guardrails-audit/audit-operations.ts src/modules/guardrails-audit/audit-tool.ts src/modules/guardrails-audit/audit-tool.test.ts src/modules/guardrails-audit/cli.ts src/modules/guardrails-audit/cli.test.ts src/modules/guardrails-audit/client.ts src/modules/guardrails-audit/index.ts src/modules/guardrails-audit/routes.ts src/modules/guardrails-audit/routes.test.ts src/modules/module-manager/routes.test.ts src/modules/setup/index.test.ts src/modules/workflow-ops/execution/trial.test.ts src/modules/workflow-ops/graph/assemble.test.ts src/modules/workflow-ops/graph/format.test.ts
+- pnpm test src/core/modules/module-loader.test.ts src/modules/guardrails-audit/routes.test.ts src/modules/guardrails-audit/cli.test.ts src/modules/guardrails-audit/audit-tool.test.ts src/core/tools/guardrails.test.ts src/modules/workflow-ops/graph/assemble.test.ts src/modules/workflow-ops/graph/format.test.ts src/modules/workflow-ops/execution/trial.test.ts src/modules/setup/index.test.ts src/modules/module-manager/routes.test.ts
+- pnpm typecheck
+- pnpm validate-tasks
+- pnpm test src/module-manifest-coverage.integration.test.ts
+- pnpm lint
+
+Result: all passed.
+
+Post-check repair attempt 8 validation:
+- pnpm test src/core/modules/module-loader.test.ts src/module-manifest-coverage.integration.test.ts
+- pnpm test src/modules/email/index.test.ts src/modules/slack/slack.test.ts src/modules/push-notification/index.test.ts src/modules/push-notification/daemon-control.test.ts
+- pnpm typecheck
+- pnpm test src/core/modules/module-loader.test.ts src/module-manifest-coverage.integration.test.ts src/modules/email/index.test.ts src/modules/slack/slack.test.ts src/modules/push-notification/index.test.ts src/modules/push-notification/daemon-control.test.ts
+- pnpm test src/core/tools/guardrails.test.ts src/modules/guardrails-audit/audit-tool.test.ts src/modules/workflow-ops/execution/trial.test.ts src/modules/workflow-ops/graph/assemble.test.ts src/modules/workflow-ops/graph/format.test.ts
+- pnpm lint
+
+Result: all passed.
+
+Post-check repair attempt 9 validation:
+- pnpm test src/core/daemon/daemon-handle.test.ts src/modules/module-manager/routes.test.ts src/modules/setup/index.test.ts src/core/modules/module-loader.test.ts
+- pnpm typecheck
+- pnpm test src/core/daemon/daemon-config-reload-live-session.integration.test.ts src/daemon-module-routes.integration.test.ts src/module-manifest-coverage.integration.test.ts
+- pnpm lint
+
+Result: all passed.

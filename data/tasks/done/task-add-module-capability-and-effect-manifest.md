@@ -1,13 +1,13 @@
 ---
 id: task-add-module-capability-and-effect-manifest
 title: Add module capability and effect manifest
-status: ready
+status: done
 priority: p1
 area: modules
 summary: Let modules declare capabilities, effects, data classes, setup requirements, event producers, routes, tools, and external side effects in one manifest that guardrails, clients, simulation, and audits can consume.
 depends_on: [task-add-module-setup-and-auth-requirement-protocol]
 created_at: 2026-06-03T15:51:01.022Z
-updated_at: 2026-06-06T01:44:09.045Z
+updated_at: 2026-06-13T00:37:28.738Z
 ---
 
 ## Problem

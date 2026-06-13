@@ -5,8 +5,7 @@ import type { ChannelDef, ChannelStatus } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { type EventEmitFailure, initEventBus } from "#core/events/event-bus.js";
 import { EventJournal, installEventJournal } from "#core/events/event-journal.js";
-import type { ControlRouteRegistration, RouteRegistration } from "#core/modules/module-types.js";
-import type { ModuleSetupRequirementContribution } from "#core/modules/setup-requirements.js";
+import type { ControlRouteRegistration, ModuleSummary, RouteRegistration } from "#core/modules/module-types.js";
 import type { LogFormat } from "#core/util/log-format.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import { buildDaemonInit, type DaemonRuntimeContext } from "./daemon-init.js";
@@ -74,8 +73,8 @@ export type DaemonConfig = {
    * a route declares `bypassAuth: true`.
    */
   routes?: readonly RouteRegistration[];
-  /** Setup/auth requirements contributed by loaded modules. */
-  setupRequirements?: readonly ModuleSetupRequirementContribution[];
+  /** Loaded module summaries used for setup/auth status and module inspection. */
+  getModuleSummaries?: () => readonly ModuleSummary[];
   /** How long a session may be idle before it is swept. Default: 5 minutes. */
   sessionIdleTtlMs?: number;
   /** How often to run the session sweep. Default: 1 minute. */

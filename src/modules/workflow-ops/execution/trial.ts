@@ -16,9 +16,15 @@ import { deriveDirectoryScopeId, loadRegistryFileFromDisk } from "#core/daemon/s
 import { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { PRESET_ENV_VAR, resolvePreset } from "#core/model/preset.js";
+import {
+  findModuleManifestToolEffect,
+  type ModuleManifestEffectLookup,
+  simulationBlockReasonFromEffect,
+} from "#core/modules/module-manifest.js";
 import type { ControlRouteRegistration, ModuleContext } from "#core/modules/module-types.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
+import type { ToolEffect } from "#core/tools/effect.js";
 import { executeTool, getToolEffect } from "#core/tools/index.js";
 import { executeWorkflowRun, type RunExecutorDeps } from "#core/workflow/run-executor.js";
 import { ensureDir, formatRunId, writeJsonFile } from "#core/workflow/run-io.js";
@@ -79,6 +85,15 @@ type TrialPathResult =
 type TrialProjectResolution =
   | { ok: true; sourceProjectDir: string; projectId: string }
   | { ok: false; projectId: string; message: string };
+type TrialResolvedToolEffect = {
+  effect: ToolEffect;
+  manifest?: {
+    moduleName: string;
+    effectId: string;
+    categories: readonly string[];
+    capabilityIds: readonly string[];
+  };
+};
 
 const TRIAL_SCOPED_LOCAL_TOOLS = new Set([
   "file_read",
@@ -194,49 +209,46 @@ function scopeTrialToolInput(
   }
 }
 
-function trialBlockedReason(
-  tool: string,
-  effect: NonNullable<ReturnType<typeof getToolEffect>>,
-  opts: { canScopeLocalFs: boolean },
-): string | undefined {
-  if (effect.kind === "destructive") {
-    return "tool would produce a destructive side effect in trial mode";
-  }
-  if (effect.scope === "external-network" || effect.scope === "operator-surface") {
-    return "tool would produce a live external or operator-visible side effect in trial mode";
-  }
-  if (effect.scope === "daemon-state" && effect.kind !== "read") {
-    return "tool would mutate daemon state outside the isolated trial project";
-  }
-  if (effect.scope === "process-env" && effect.kind !== "read") {
-    return "tool would mutate the daemon process environment in trial mode";
-  }
-  if (
-    effect.scope === "local-fs" &&
-    effect.kind !== "read" &&
-    !opts.canScopeLocalFs
-  ) {
-    return `tool "${tool}" has local filesystem side effects that trial mode cannot root in the isolated project`;
-  }
-  return undefined;
-}
-
 function buildBlockedSideEffect(
   stepId: string,
   tool: string,
   reason: string,
-  effect: NonNullable<ReturnType<typeof getToolEffect>>,
+  resolvedEffect: TrialResolvedToolEffect,
 ): WorkflowTrialBlockedSideEffect {
   return {
     stepId,
     tool,
     reason,
     effect: {
-      kind: effect.kind,
-      scope: effect.scope,
-      openWorld: effect.openWorld,
+      kind: resolvedEffect.effect.kind,
+      scope: resolvedEffect.effect.scope,
+      openWorld: resolvedEffect.effect.openWorld,
+    },
+    ...(resolvedEffect.manifest ? { manifest: resolvedEffect.manifest } : {}),
+  };
+}
+
+function resolvedManifestToolEffect(
+  manifestEffect: ModuleManifestEffectLookup,
+): TrialResolvedToolEffect {
+  return {
+    effect: manifestEffect.effect,
+    manifest: {
+      moduleName: manifestEffect.moduleName,
+      effectId: manifestEffect.id,
+      categories: manifestEffect.categories,
+      capabilityIds: manifestEffect.capabilityIds,
     },
   };
+}
+
+function resolveTrialToolEffect(tool: string): TrialResolvedToolEffect | undefined {
+  const manifestEffect = findModuleManifestToolEffect(tool);
+  if (manifestEffect) return resolvedManifestToolEffect(manifestEffect);
+
+  const effect = getToolEffect(tool);
+  if (!effect) return undefined;
+  return { effect };
 }
 
 async function runTrialTool(
@@ -248,14 +260,14 @@ async function runTrialTool(
   name: string,
   input: TrialToolInput,
 ): Promise<Awaited<ReturnType<WorkflowStepContext["runTool"]>>> {
-  const effect = getToolEffect(name);
-  if (effect) {
-    const reason = trialBlockedReason(name, effect, {
+  const resolvedEffect = resolveTrialToolEffect(name);
+  if (resolvedEffect) {
+    const reason = simulationBlockReasonFromEffect(name, resolvedEffect.effect, {
       canScopeLocalFs: TRIAL_SCOPED_LOCAL_TOOLS.has(name),
     });
     if (reason) {
       args.blockedExternalSideEffects.push(
-        buildBlockedSideEffect(args.stepId, name, reason, effect),
+        buildBlockedSideEffect(args.stepId, name, reason, resolvedEffect),
       );
       throw new Error(`Blocked in workflow trial mode: ${reason}`);
     }
@@ -263,9 +275,9 @@ async function runTrialTool(
 
   const scoped = scopeTrialToolInput(name, input, args.trialProjectDir);
   if (!scoped.ok) {
-    if (effect && effect.kind !== "read") {
+    if (resolvedEffect && resolvedEffect.effect.kind !== "read") {
       args.blockedExternalSideEffects.push(
-        buildBlockedSideEffect(args.stepId, name, scoped.message, effect),
+        buildBlockedSideEffect(args.stepId, name, scoped.message, resolvedEffect),
       );
     }
     throw new Error(`Blocked in workflow trial mode: ${scoped.message}`);
@@ -284,14 +296,14 @@ function createTrialAgentToolGuard(args: {
   blockedExternalSideEffects: WorkflowTrialBlockedSideEffect[];
 }): AgentCanUseTool {
   return async (name, input) => {
-    const effect = getToolEffect(name);
-    if (effect) {
-      const reason = trialBlockedReason(name, effect, {
+    const resolvedEffect = resolveTrialToolEffect(name);
+    if (resolvedEffect) {
+      const reason = simulationBlockReasonFromEffect(name, resolvedEffect.effect, {
         canScopeLocalFs: TRIAL_SCOPED_LOCAL_TOOLS.has(name),
       });
       if (reason) {
         args.blockedExternalSideEffects.push(
-          buildBlockedSideEffect(args.stepId, name, reason, effect),
+          buildBlockedSideEffect(args.stepId, name, reason, resolvedEffect),
         );
         return {
           behavior: "deny",
@@ -303,9 +315,9 @@ function createTrialAgentToolGuard(args: {
 
     const scoped = scopeTrialToolInput(name, input, args.trialProjectDir);
     if (!scoped.ok) {
-      if (effect && effect.kind !== "read") {
+      if (resolvedEffect && resolvedEffect.effect.kind !== "read") {
         args.blockedExternalSideEffects.push(
-          buildBlockedSideEffect(args.stepId, name, scoped.message, effect),
+          buildBlockedSideEffect(args.stepId, name, scoped.message, resolvedEffect),
         );
       }
       return {

@@ -1,0 +1,257 @@
+{
+  "source": "GET /modules via module-manager daemon-control route",
+  "redaction": "Setup credentials are exposed as requirement ids, sensitivity, and capability readiness links only; secret values and provider tokens are absent.",
+  "setupStatus": {
+    "source": "GET /setup/requirements via daemon-control route",
+    "requirements": [
+      {
+        "moduleName": "telegram",
+        "requirementId": "bot-credentials",
+        "kind": "secret",
+        "state": "pending",
+        "reason": "url_setup_pending",
+        "message": "Setup URL action is pending",
+        "pendingAction": {
+          "actionId": "telegram.bot-credentials.1781308800000",
+          "status": "pending",
+          "url": "https://t.me/BotFather",
+          "label": "Open BotFather",
+          "expiresAt": "2026-06-13T00:30:00.000Z",
+          "complete": "/setup/actions/telegram.bot-credentials.1781308800000/complete"
+        }
+      },
+      {
+        "moduleName": "google-workspace",
+        "requirementId": "oauth-config",
+        "kind": "config",
+        "state": "missing",
+        "reason": "config_missing",
+        "message": "Required configuration is missing"
+      },
+      {
+        "moduleName": "google-workspace",
+        "requirementId": "oauth-credentials",
+        "kind": "oauth",
+        "state": "expired",
+        "reason": "oauth_refresh_failed",
+        "message": "OAuth token refresh failed; reauthorization is required.",
+        "capabilities": [
+          {
+            "id": "google-workspace.oauth",
+            "status": "unavailable",
+            "reason": "oauth_refresh_failed"
+          }
+        ]
+      }
+    ]
+  },
+  "modules": [
+    {
+      "name": "telegram",
+      "manifest": {
+        "capabilities": [
+          {
+            "id": "telegram.status",
+            "scope": "external",
+            "setupRequirementIds": ["bot-credentials"]
+          },
+          {
+            "id": "telegram.interactive",
+            "scope": "external",
+            "setupRequirementIds": ["bot-credentials"]
+          },
+          {
+            "id": "telegram.owner-escalation",
+            "scope": "external",
+            "setupRequirementIds": ["bot-credentials"]
+          }
+        ],
+        "dataClasses": [
+          {
+            "id": "telegram.bot-credentials",
+            "sensitivity": "credential",
+            "redaction": "mask-secret"
+          },
+          {
+            "id": "telegram.message-content",
+            "sensitivity": "personal",
+            "redaction": "metadata-only"
+          }
+        ],
+        "contributions": {
+          "eventFlows": [],
+          "setupRequirements": [
+            {
+              "id": "bot-credentials",
+              "kind": "secret",
+              "setupMode": "url",
+              "sensitivity": "secret",
+              "required": true,
+              "healthCapabilityIds": [],
+              "statusLinks": {
+                "list": "/setup/requirements",
+                "refresh": "/setup/requirements/telegram/bot-credentials/refresh",
+                "revoke": "/setup/requirements/telegram/bot-credentials",
+                "storeSecret": "/setup/requirements/telegram/bot-credentials/secret",
+                "start": "/setup/requirements/telegram/bot-credentials/start"
+              },
+              "availability": {
+                "state": "pending",
+                "reason": "url_setup_pending",
+                "message": "Setup URL action is pending",
+                "pendingAction": {
+                  "actionId": "telegram.bot-credentials.1781308800000",
+                  "moduleName": "telegram",
+                  "requirementId": "bot-credentials",
+                  "url": "https://t.me/BotFather",
+                  "label": "Open BotFather",
+                  "status": "pending",
+                  "createdAt": "2026-06-13T00:00:00.000Z",
+                  "expiresAt": "2026-06-13T00:30:00.000Z",
+                  "complete": "/setup/actions/telegram.bot-credentials.1781308800000/complete"
+                }
+              }
+            }
+          ]
+        },
+        "effects": [
+          {
+            "id": "telegram.message-delivery",
+            "source": "channel",
+            "effect": {
+              "kind": "write",
+              "scope": "operator-surface",
+              "idempotent": false,
+              "openWorld": false
+            },
+            "categories": ["notification", "owner-visible"],
+            "simulation": {
+              "blocked": true,
+              "reason": "tool would produce a live external or operator-visible side effect in trial mode"
+            }
+          }
+        ],
+        "readiness": {
+          "setupRequirementIds": ["bot-credentials"],
+          "healthCapabilityIds": [],
+          "healthCheck": "not-declared"
+        }
+      }
+    },
+    {
+      "name": "google-workspace",
+      "manifest": {
+        "capabilities": [
+          {
+            "id": "google-workspace.gmail",
+            "scope": "external",
+            "setupRequirementIds": ["oauth-config", "oauth-credentials"],
+            "readinessIds": ["google-workspace.oauth"]
+          },
+          {
+            "id": "google-workspace.calendar",
+            "scope": "external",
+            "setupRequirementIds": ["oauth-config", "oauth-credentials"],
+            "readinessIds": ["google-workspace.oauth"]
+          },
+          {
+            "id": "google-workspace.drive",
+            "scope": "external",
+            "setupRequirementIds": ["oauth-config", "oauth-credentials"],
+            "readinessIds": ["google-workspace.oauth"]
+          }
+        ],
+        "dataClasses": [
+          {
+            "id": "google-workspace.oauth-credentials",
+            "sensitivity": "credential",
+            "redaction": "mask-secret"
+          },
+          {
+            "id": "google-workspace.gmail-content",
+            "sensitivity": "personal",
+            "redaction": "metadata-only"
+          },
+          {
+            "id": "google-workspace.calendar-content",
+            "sensitivity": "personal",
+            "redaction": "metadata-only"
+          },
+          {
+            "id": "google-workspace.drive-content",
+            "sensitivity": "provider-payload",
+            "redaction": "metadata-only"
+          }
+        ],
+        "contributions": {
+          "eventFlows": [],
+          "setupRequirements": [
+            {
+              "id": "oauth-config",
+              "kind": "config",
+              "setupMode": "form",
+              "sensitivity": "none",
+              "required": true,
+              "healthCapabilityIds": [],
+              "statusLinks": {
+                "list": "/setup/requirements",
+                "refresh": "/setup/requirements/google-workspace/oauth-config/refresh",
+                "revoke": "/setup/requirements/google-workspace/oauth-config",
+                "submitForm": "/setup/requirements/google-workspace/oauth-config/form"
+              },
+              "availability": {
+                "state": "missing",
+                "reason": "config_missing",
+                "message": "Required configuration is missing"
+              }
+            },
+            {
+              "id": "oauth-credentials",
+              "kind": "oauth",
+              "setupMode": "url",
+              "sensitivity": "oauth",
+              "required": true,
+              "healthCapabilityIds": ["google-workspace.oauth"],
+              "statusLinks": {
+                "list": "/setup/requirements",
+                "refresh": "/setup/requirements/google-workspace/oauth-credentials/refresh",
+                "revoke": "/setup/requirements/google-workspace/oauth-credentials",
+                "storeSecret": "/setup/requirements/google-workspace/oauth-credentials/secret",
+                "start": "/setup/requirements/google-workspace/oauth-credentials/start"
+              },
+              "availability": {
+                "state": "expired",
+                "reason": "oauth_refresh_failed",
+                "message": "OAuth token refresh failed; reauthorization is required.",
+                "capabilities": [
+                  {
+                    "id": "google-workspace.oauth",
+                    "status": "unavailable",
+                    "reason": "oauth_refresh_failed"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "effects": [
+          {
+            "id": "google-workspace.inbound-signal",
+            "source": "route",
+            "effect": {
+              "kind": "write",
+              "scope": "daemon-state",
+              "idempotent": false,
+              "openWorld": false
+            },
+            "categories": ["daemon-mutation"],
+            "simulation": {
+              "blocked": true,
+              "reason": "tool would mutate daemon state outside the isolated trial project"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

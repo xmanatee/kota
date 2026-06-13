@@ -42,6 +42,45 @@ async function linearFetch(
 
 const linearModule: KotaModule = {
   name: "linear",
+  manifest: {
+    schemaVersion: 1,
+    capabilities: [
+      {
+        id: "linear.issues",
+        description: "Read and update Linear issues through the configured team GraphQL API.",
+        scope: "external",
+        scopePolicyHooks: ["external-effects", "owner-confirmation"],
+      },
+      {
+        id: "linear.task-provider",
+        description: "Synchronize KOTA task provider state from a configured Linear team.",
+        scope: "external",
+        scopePolicyHooks: ["external-effects", "retention"],
+      },
+    ],
+    dataClasses: [
+      {
+        id: "linear.credentials",
+        description: "Linear API key references resolved from project config or environment variables.",
+        sensitivity: "credential",
+        retention: "project-durable",
+        redaction: "mask-secret",
+      },
+      {
+        id: "linear.issue-content",
+        description: "Linear issue titles, descriptions, labels, states, and comments returned by GraphQL.",
+        sensitivity: "provider-payload",
+        retention: "run-artifact",
+        redaction: "metadata-only",
+      },
+    ],
+    simulation: {
+      support: "external-effects-blocked",
+      blockedReasons: [
+        "Linear issue writes mutate external project-management state and are blocked in workflow trial mode.",
+      ],
+    },
+  },
 
   tools(ctx: ModuleContext): ToolDef[] {
     const config = ctx.getModuleConfig<LinearConfig>();
