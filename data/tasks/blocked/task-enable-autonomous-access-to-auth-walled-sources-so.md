@@ -176,4 +176,4 @@ auth-walled with the same retry condition. No separate X-support task is needed
 today; the remaining blocker is still this task's operator-capture
 precondition.
 
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-05-07T12:27:35.000Z -->
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-06-13T00:12:56.966Z -->

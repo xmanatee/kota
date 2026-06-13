@@ -86,7 +86,7 @@ path: .kota/runs/provider-egress-live-pass
 description: live provider-egress eval-harness artifact — operator runs a non-replay fixture such as `builder-trivial-edit` with `pnpm kota eval run --fixture builder-trivial-edit --repeats 1 --isolation container --container-executable docker --container-image kota-eval:latest --container-kota-binary-path /opt/kota/bin/kota.mjs --container-network-policy provider-egress --provider-egress-network <internal-provider-egress-network> --provider-egress-proxy http://<provider-proxy-host>:<port> --provider-egress-provider <provider>` in an environment with the selected provider auth configured and a Docker internal provider-egress network labeled with the matching allowlist. Store the full transcript, eval-resource-profile-preflight.json, eval-set-report.json, and the produced fixture-run.json under .kota/runs/provider-egress-live-pass/. The run must not use `KOTA_EVAL_HARNESS_REPLAY_ROOT`, replay-backed fixtures, or a fake container executable.
 ```
 
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-05-29T11:50:15.000Z -->
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-06-13T00:12:56.966Z -->
 
 ## Status (2026-05-29 builder repair)
 

@@ -175,3 +175,5 @@ agent prose.
   `claim-result.json`, and any objective metric values.
 - Evidence of a temporary shortcut/regression causing the fixture to fail,
   with the regression reverted before staging.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-06-13T00:12:56.966Z -->
