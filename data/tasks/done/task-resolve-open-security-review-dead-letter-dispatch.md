@@ -1,12 +1,12 @@
 ---
 id: task-resolve-open-security-review-dead-letter-dispatch
 title: Resolve open security-review dead-letter dispatch
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Investigate and clear the open security-review workflow-dispatch dead-letter for `investigate-candidates` failing with `codex_cli_error`, either by repairing/redriving the workflow or dismissing it with durable evidence.
 created_at: 2026-06-13T02:45:39.949Z
-updated_at: 2026-06-13T02:45:39.949Z
+updated_at: 2026-06-13T02:50:28.000Z
 ---
 
 ## Problem
@@ -27,6 +27,10 @@ Resolve the progress-review finding from run 2026-06-13T02-42-45-937Z-progress-r
 - The cited progress gap is fixed or explicitly disproven with evidence.
 - Acceptance evidence is recorded in this task or its run artifact.
 
+## Resolution
+
+Dead-letter item `dlq-a4a0a9ec-5027-40ed-9d1b-bafa6e498df4` was dismissed through the workflow-ops DLQ command after exporting the original diagnostics and reviewing the failed security-review run. The failed run stopped in `investigate-candidates` with `codex_cli_error` before producing investigation findings; focused DLQ/control tests covering redaction, redrive, and authenticated route mutation passed.
+
 ## Source / Intent
 
 Created by progress-reviewer workflow run 2026-06-13T02-42-45-937Z-progress-reviewer-685hd4.
@@ -44,4 +48,6 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- Dead-letter item `dlq-a4a0a9ec-5027-40ed-9d1b-bafa6e498df4` is redriven to a terminal security-review outcome or dismissed with a recorded reason, and the dead-letter queue no longer reports it as open.
+- `.kota/runs/2026-06-13T02-46-13-422Z-builder-djomd4/dead-letter-before-dismissal.json` preserves the original DLQ diagnostics.
+- `.kota/runs/2026-06-13T02-46-13-422Z-builder-djomd4/dead-letter-resolution.md` records the manual review, validation command, dismissal reason, and post-dismissal queue check.
+- `pnpm kota workflow dlq list --status open --json` with `NODE_OPTIONS=` reports no open items and counts `open=0`, `dismissed=1`, `redriven=0`.
