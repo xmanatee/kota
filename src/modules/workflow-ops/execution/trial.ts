@@ -15,6 +15,7 @@ import { type KotaConfig, loadConfig } from "#core/config/config.js";
 import { deriveDirectoryScopeId, loadRegistryFileFromDisk } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { projectEvidenceObject } from "#core/evidence/policy.js";
 import { PRESET_ENV_VAR, resolvePreset } from "#core/model/preset.js";
 import {
   findModuleManifestToolEffect,
@@ -115,6 +116,12 @@ function clonePayload(
   payload: WorkflowTrialPayload | WorkflowRuntimePayload,
 ): WorkflowTrialPayload {
   return JSON.parse(JSON.stringify(payload)) as WorkflowTrialPayload;
+}
+
+function projectTrialPayload(
+  payload: WorkflowTrialPayload | WorkflowRuntimePayload,
+): WorkflowTrialPayload {
+  return projectEvidenceObject(payload, "internal-storage") as WorkflowTrialPayload;
 }
 
 function pathIsWithinRoot(root: string, path: string): boolean {
@@ -553,7 +560,7 @@ async function runAttempt(args: {
       busEvents.push({
         type: event.type,
         schemaRef: event.schemaRef,
-        payload: clonePayload(event.payload),
+        payload: projectTrialPayload(event.payload),
       });
     });
     const pbus = new ProjectScopedEventBus(bus, deriveDirectoryScopeId(trialProjectDir));
@@ -639,7 +646,7 @@ async function runAttempt(args: {
           workflow: workflowName,
           runId: childRunId,
           waitFor,
-          payload: clonePayload(payload),
+          payload: projectTrialPayload(payload),
           status: childStatus,
         });
         return { runId: childRunId, status: childStatus };
@@ -661,7 +668,7 @@ async function runAttempt(args: {
         workflow: workflowName,
         runId: childRunId,
         waitFor,
-        payload: clonePayload(payload),
+        payload: projectTrialPayload(payload),
         status: "queued",
       });
       return { runId: childRunId, status: "queued" };
@@ -720,7 +727,7 @@ async function runAttempt(args: {
   const report: WorkflowTrialAttemptReport = {
     id: attemptId,
     workflow: args.variant.workflow,
-    payload: clonePayload(args.variant.payload),
+    payload: projectTrialPayload(args.variant.payload),
     status,
     trialProjectPath: trialProjectDir,
     ...(metadata?.id !== undefined && { workflowRunId: metadata.id }),
@@ -769,13 +776,13 @@ export async function runWorkflowTrial(
     projectId: args.options?.projectId ?? deriveDirectoryScopeId(args.sourceProjectDir),
     sourceProjectPath: args.sourceProjectDir,
     reportDir: relative(args.sourceProjectDir, reportDirPath),
-    payload: clonePayload(args.options?.payload ?? {}),
+    payload: projectTrialPayload(args.options?.payload ?? {}),
     repeat,
     attempts,
     comparison: {
       workflows: args.options?.compareWorkflows ?? [],
       payloadVariants: (args.options?.comparePayloads ?? []).map((payload) =>
-        clonePayload(payload),
+        projectTrialPayload(payload),
       ),
     },
     passed,

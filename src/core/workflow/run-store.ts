@@ -1,7 +1,18 @@
-import { existsSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
+import {
+  buildEvidencePrunedReference,
+  type EvidenceArtifactReference,
+  type EvidenceLifecycleState,
+  evidenceRetentionDurationMsFor,
+  resolveEvidenceRetention,
+} from "#core/evidence/policy.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { createActiveRunHandle } from "./active-run-handle.js";
+import {
+  projectWorkflowRunMetadataForStorage,
+  projectWorkflowRunTriggerForStorage,
+} from "./run-evidence.js";
 import {
   ensureDir,
   formatRunId,
@@ -34,6 +45,17 @@ export type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
 type RecoverableRunMetadata = Omit<WorkflowRunMetadata, "steps"> & {
   steps: unknown[];
 };
+
+const PRUNED_RUN_REFERENCES_FILE = "pruned-runs.jsonl";
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export function defaultWorkflowRunRetentionDays(): number {
+  return evidenceRetentionDurationMsFor({
+    artifactType: "workflow-run",
+    state: "terminal",
+    scope: "directory",
+  }) / DAY_MS;
+}
 
 function isRecoverableRunMetadata(value: unknown): value is RecoverableRunMetadata {
   return (
@@ -195,7 +217,9 @@ export class WorkflowRunStore {
     /** Additional run IDs to protect (e.g. from daemon live state). */
     protectedRunIds?: Set<string>;
   }): string[] {
-    const retentionDays = opts?.retentionDays ?? 7;
+    const retentionMsOverride = opts?.retentionDays !== undefined
+      ? opts.retentionDays * DAY_MS
+      : undefined;
     const minKeepPerWorkflow = opts?.minKeepPerWorkflow ?? 10;
     const dryRun = opts?.dryRun ?? false;
 
@@ -206,7 +230,14 @@ export class WorkflowRunStore {
     const protectedIds = new Set<string>(opts?.protectedRunIds);
     for (const run of state.activeRuns ?? []) protectedIds.add(run.runId);
 
-    type RunEntry = { id: string; workflow: string; startedAtMs: number };
+    type RunEntry = {
+      id: string;
+      workflow: string;
+      startedAtMs: number;
+      retainedFromMs: number;
+      lifecycleState: EvidenceLifecycleState;
+      metadata: WorkflowRunMetadata;
+    };
     const runs: RunEntry[] = [];
     for (const dir of dirs) {
       const metaPath = join(this.runsDir, dir, "metadata.json");
@@ -216,6 +247,9 @@ export class WorkflowRunStore {
           id: meta.id,
           workflow: meta.workflow,
           startedAtMs: new Date(meta.startedAt).getTime(),
+          retainedFromMs: runRetentionStartMs(meta),
+          lifecycleState: workflowRunLifecycleState(meta),
+          metadata: meta,
         });
       }
     }
@@ -226,8 +260,8 @@ export class WorkflowRunStore {
       byWorkflow[run.workflow].push(run);
     }
 
-    const cutoffMs = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
-    const toDelete: string[] = [];
+    const toDelete: RunEntry[] = [];
+    const nowMs = Date.now();
 
     for (const wfRuns of Object.values(byWorkflow)) {
       wfRuns.sort((a, b) => b.startedAtMs - a.startedAtMs);
@@ -235,18 +269,20 @@ export class WorkflowRunStore {
         const run = wfRuns[i];
         if (protectedIds.has(run.id)) continue;
         if (i < minKeepPerWorkflow) continue;
-        if (run.startedAtMs > cutoffMs) continue;
-        toDelete.push(run.id);
+        if (!isWorkflowRunPastRetention(run, nowMs, retentionMsOverride)) continue;
+        toDelete.push(run);
       }
     }
 
     if (!dryRun) {
-      for (const id of toDelete) {
-        rmSync(join(this.runsDir, id), { recursive: true, force: true });
+      const prunedAt = new Date().toISOString();
+      for (const run of toDelete) {
+        this.appendPrunedRunReference(run.metadata, prunedAt);
+        rmSync(join(this.runsDir, run.id), { recursive: true, force: true });
       }
     }
 
-    return toDelete;
+    return toDelete.map((run) => run.id);
   }
 
   listRuns(opts?: { workflow?: string; tag?: string; limit?: number; causedByRunId?: string }): WorkflowRunMetadata[] {
@@ -324,8 +360,11 @@ export class WorkflowRunStore {
     };
 
     writeJsonFile(join(runDirPath, "workflow.json"), buildWorkflowSnapshot(workflow));
-    writeJsonFile(join(runDirPath, "trigger.json"), trigger);
-    writeJsonFile(join(runDirPath, "metadata.json"), metadata);
+    writeJsonFile(join(runDirPath, "trigger.json"), projectWorkflowRunTriggerForStorage(trigger));
+    writeJsonFile(
+      join(runDirPath, "metadata.json"),
+      projectWorkflowRunMetadataForStorage(metadata),
+    );
 
     const newActiveRun: WorkflowActiveRun = {
       runId: id,
@@ -349,6 +388,45 @@ export class WorkflowRunStore {
       writeState: (s) => this.writeState(s),
     });
   }
+
+  private appendPrunedRunReference(metadata: WorkflowRunMetadata, prunedAt: string): void {
+    const sourceEventIds =
+      metadata.trigger.eventId !== undefined ? [metadata.trigger.eventId] : [];
+    const transformedFrom: EvidenceArtifactReference[] = sourceEventIds.map((id) => ({
+      artifactType: "event-envelope" as const,
+      id,
+    }));
+    if (metadata.causedBy !== undefined) {
+      transformedFrom.push({
+        artifactType: "workflow-run",
+        id: metadata.causedBy.runId,
+      });
+    }
+    const reference = buildEvidencePrunedReference({
+      artifactType: "workflow-run",
+      id: metadata.id,
+      prunedAt,
+      retained: {
+        id: metadata.id,
+        workflow: metadata.workflow,
+        status: metadata.status,
+        startedAt: metadata.startedAt,
+        ...(metadata.completedAt !== undefined ? { completedAt: metadata.completedAt } : {}),
+        ...(metadata.durationMs !== undefined ? { durationMs: metadata.durationMs } : {}),
+      },
+      provenance: {
+        workflowName: metadata.workflow,
+        runId: metadata.id,
+        sourceEventIds,
+        transformedFrom,
+      },
+    });
+    appendFileSync(
+      join(this.runsDir, PRUNED_RUN_REFERENCES_FILE),
+      `${JSON.stringify(reference)}\n`,
+      "utf-8",
+    );
+  }
 }
 
 function buildStepOrder(steps: readonly WorkflowStep[]): ReadonlyMap<string, number> {
@@ -367,4 +445,35 @@ function buildStepOrder(steps: readonly WorkflowStep[]): ReadonlyMap<string, num
 
   for (const step of steps) visit(step);
   return order;
+}
+
+function workflowRunLifecycleState(metadata: WorkflowRunMetadata): EvidenceLifecycleState {
+  return metadata.status === "running" ? "active" : "terminal";
+}
+
+function runRetentionStartMs(metadata: WorkflowRunMetadata): number {
+  const retainedFrom = metadata.status === "running"
+    ? metadata.startedAt
+    : (metadata.completedAt ?? metadata.startedAt);
+  return new Date(retainedFrom).getTime();
+}
+
+function isWorkflowRunPastRetention(
+  run: {
+    retainedFromMs: number;
+    lifecycleState: EvidenceLifecycleState;
+  },
+  nowMs: number,
+  retentionMsOverride: number | undefined,
+): boolean {
+  if (retentionMsOverride !== undefined) {
+    return run.retainedFromMs <= nowMs - retentionMsOverride;
+  }
+  const resolved = resolveEvidenceRetention({
+    artifactType: "workflow-run",
+    state: run.lifecycleState,
+    scope: "directory",
+    retainedFrom: new Date(run.retainedFromMs),
+  });
+  return resolved.kind === "expires" && Date.parse(resolved.expiresAt) <= nowMs;
 }

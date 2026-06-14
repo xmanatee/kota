@@ -1,10 +1,19 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import type { ServerResponse } from "node:http";
 import { extname, join } from "node:path";
+import {
+  type EvidenceArtifactReference,
+  type EvidenceJsonObject,
+  type EvidenceProvenance,
+  type EvidenceRedactionMarker,
+  projectEvidenceObject,
+  projectEvidenceText,
+  redactSensitiveText,
+} from "#core/evidence/policy.js";
 import { jsonResponse, SseTransport, setCors } from "#core/server/session-pool.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
-import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import type { WorkflowRunMetadata, WorkflowStepResult } from "#core/workflow/run-types.js";
 import type { BuilderRunSummary } from "#modules/autonomy/workflows/builder/run-summary.js";
 import {
   parseKotaAgentMessageLine,
@@ -22,6 +31,7 @@ type RunSummary = {
   totalCostUsd?: number;
   triggerEvent?: string;
   tags?: string[];
+  provenance: EvidenceProvenance;
 };
 
 function toSummary(meta: WorkflowRunMetadata): RunSummary {
@@ -35,7 +45,66 @@ function toSummary(meta: WorkflowRunMetadata): RunSummary {
     ...(meta.totalCostUsd !== undefined && { totalCostUsd: meta.totalCostUsd }),
     ...(meta.trigger?.event !== undefined && { triggerEvent: meta.trigger.event }),
     ...(meta.tags !== undefined && { tags: meta.tags }),
+    provenance: workflowRunProvenance(meta),
   };
+}
+
+function workflowRunProvenance(meta: WorkflowRunMetadata): EvidenceProvenance {
+  const sourceEventIds: string[] = [];
+  if (meta.trigger.eventId !== undefined) sourceEventIds.push(meta.trigger.eventId);
+  const transformedFrom: EvidenceArtifactReference[] = sourceEventIds.map((id) => ({
+    artifactType: "event-envelope" as const,
+    id,
+  }));
+  if (meta.causedBy !== undefined) {
+    transformedFrom.push({ artifactType: "workflow-run", id: meta.causedBy.runId });
+  }
+  return {
+    workflowName: meta.workflow,
+    runId: meta.id,
+    sourceEventIds,
+    transformedFrom,
+  };
+}
+
+function projectRunDetailMetadata(meta: WorkflowRunMetadata): EvidenceJsonObject {
+  const projected = projectEvidenceObject(meta, "daemon-api");
+  projected.steps = meta.steps.map((step) => {
+    const projectedStep = projectEvidenceObject(step, "daemon-api");
+    if (step.output !== undefined) {
+      projectedStep.output = projectEvidenceText(
+        JSON.stringify(step.output),
+        "daemon-api",
+        "tool-io",
+      );
+    }
+    return projectedStep;
+  });
+  projected.provenance = projectEvidenceObject(workflowRunProvenance(meta), "daemon-api");
+  return projected;
+}
+
+function projectStepCompletedPayload(step: WorkflowStepResult): EvidenceJsonObject {
+  const projected: EvidenceJsonObject = {
+    stepId: step.id,
+    status: step.status,
+    durationMs: step.durationMs,
+  };
+  if (step.output !== undefined) {
+    projected.output = projectEvidenceText(
+      JSON.stringify(step.output),
+      "daemon-api",
+      "tool-io",
+    );
+  }
+  if (step.error !== undefined) {
+    projected.error = projectEvidenceText(
+      typeof step.error === "string" ? step.error : JSON.stringify(step.error),
+      "daemon-api",
+      "tool-io",
+    );
+  }
+  return projected;
 }
 
 export function listRunMetadata(
@@ -118,7 +187,7 @@ export function handleWorkflowRunDetail(
     type: s.type,
     ...(s.type === "approval" && s.reason != null ? { reason: s.reason } : {}),
   }));
-  jsonResponse(res, 200, { ...metadata, ...(workflowSteps && { workflowSteps }) });
+  jsonResponse(res, 200, { ...projectRunDetailMetadata(metadata), ...(workflowSteps && { workflowSteps }) });
 }
 
 export function handleWorkflowRunStream(
@@ -215,13 +284,7 @@ export function handleWorkflowRunStream(
       if (!completedSteps.has(step.id)) {
         streamStepJsonl(step.id, true);
         completedSteps.add(step.id);
-        sse.send("step_completed", {
-          stepId: step.id,
-          status: step.status,
-          durationMs: step.durationMs,
-          ...(step.output !== undefined && { output: step.output }),
-          ...(step.error !== undefined && { error: step.error }),
-        });
+        sse.send("step_completed", projectStepCompletedPayload(step));
       }
     }
 
@@ -255,7 +318,7 @@ export function handleWorkflowRunStream(
 const ARTIFACT_SKIP = new Set(["metadata.json", "workflow.json", "trigger.json"]);
 
 export type RunArtifacts = {
-  runSummary: BuilderRunSummary | null;
+  runSummary: EvidenceJsonObject | null;
   commitMessage: string | null;
   textFiles: Array<{ name: string; content: string }>;
 };
@@ -275,38 +338,71 @@ export function handleWorkflowRunArtifacts(
     return;
   }
 
-  const runSummary = readOptionalJsonFile<BuilderRunSummary>(join(runDir, "run-summary.json"));
+  const rawRunSummary = readOptionalJsonFile<BuilderRunSummary>(join(runDir, "run-summary.json"));
+  const runSummary = rawRunSummary
+    ? projectEvidenceObject(rawRunSummary, "daemon-api")
+    : null;
 
   let commitMessage: string | null = null;
   const commitMsgPath = join(runDir, "commit-message.txt");
-  if (existsSync(commitMsgPath)) {
+  if (pathHasDirectoryEntry(commitMsgPath)) {
     try {
-      commitMessage = readFileSync(commitMsgPath, "utf-8").trim();
-    } catch {
-      // unreadable — leave null
+      commitMessage = redactSensitiveText(readFileSync(commitMsgPath, "utf-8").trim());
+    } catch (err) {
+      writeArtifactReadError(res, "commit-message.txt", err);
+      return;
     }
   }
 
   const textFiles: Array<{ name: string; content: string }> = [];
-  let entries: string[] = [];
+  let entries: string[];
   try {
     entries = readdirSync(runDir);
-  } catch {
-    // directory gone — return what we have
+  } catch (err) {
+    writeArtifactReadError(res, runId, err);
+    return;
   }
   for (const name of entries) {
     if (ARTIFACT_SKIP.has(name) || name === "run-summary.json" || name === "commit-message.txt") continue;
     const ext = extname(name);
     if (ext !== ".txt" && ext !== ".md") continue;
     try {
-      textFiles.push({ name, content: readFileSync(join(runDir, name), "utf-8") });
-    } catch {
-      // skip unreadable files
+      textFiles.push({
+        name,
+        content: redactSensitiveText(readFileSync(join(runDir, name), "utf-8")),
+      });
+    } catch (err) {
+      writeArtifactReadError(res, name, err);
+      return;
     }
   }
 
   const artifacts: RunArtifacts = { runSummary, commitMessage, textFiles };
   jsonResponse(res, 200, artifacts);
+}
+
+function pathHasDirectoryEntry(path: string): boolean {
+  try {
+    lstatSync(path);
+    return true;
+  } catch (err) {
+    if (err instanceof Error && "code" in err && err.code === "ENOENT") {
+      return false;
+    }
+    throw err;
+  }
+}
+
+function writeArtifactReadError(
+  res: ServerResponse,
+  artifact: string,
+  err: unknown,
+): void {
+  jsonResponse(res, 500, {
+    error: "Run artifact is unreadable",
+    artifact,
+    message: redactSensitiveText(err instanceof Error ? err.message : String(err)),
+  });
 }
 
 export function handleWorkflowRunThinking(
@@ -325,15 +421,15 @@ export function handleWorkflowRunThinking(
     return;
   }
 
-  const thinking: Record<string, string[]> = {};
+  const thinking: Record<string, Array<EvidenceRedactionMarker | string>> = {};
   for (const step of metadata.steps) {
     if (step.type !== "agent") continue;
     const eventsPath = join(runDir, "steps", `${step.id}.events.jsonl`);
     const events = readStepEvents(eventsPath);
-    const blocks: string[] = [];
+    const blocks: Array<EvidenceRedactionMarker | string> = [];
     for (const event of events) {
       if (event.type === "thinking" && event.thinking) {
-        blocks.push(event.thinking);
+        blocks.push(projectEvidenceText(event.thinking, "daemon-api", "private-reasoning"));
       }
     }
     if (blocks.length > 0) {

@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { BusEvents } from "#core/events/event-bus-types.js";
+import { redactionProfileForTarget } from "#core/evidence/policy.js";
 import type { ModuleEventProxy } from "#core/modules/module-types.js";
 import {
   measureTelemetryPayloadBytes,
@@ -128,6 +129,7 @@ function baseRecord(
     attributes: {
       "event.name": name,
       "kota.security_signal": name,
+      "evidence.redaction_profile": redactionProfileForTarget("logs-traces").target,
       ...attributes,
     },
   };

@@ -10,6 +10,7 @@ import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
 import type { ModuleSummary } from "#core/modules/module-types.js";
 import type { WorkflowRunStore } from "#core/workflow/run-store.js";
+import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { WorkflowRuntime } from "#core/workflow/runtime.js";
 import { buildDaemonHandle } from "./daemon-handle.js";
 import type { ProjectRuntime, ProjectRuntimeRegistry } from "./project-runtime.js";
@@ -110,6 +111,59 @@ function mockModuleMetadata(): void {
     getContributedSetupRequirements: () => [],
     getContributedWorkflows: () => [{ name: "builder", triggers: [], steps: [] }],
   } as unknown as Awaited<ReturnType<typeof loadModuleMetadata>>);
+}
+
+function makeWorkflowRunSubject(metadata: WorkflowRunMetadata): ReturnType<typeof buildDaemonHandle> {
+  const bus = new EventBus();
+  const runStore = {
+    getRun: vi.fn((id: string) => (id === metadata.id ? metadata : null)),
+  };
+  const runtime = {
+    project: {
+      projectId: "test-project",
+      projectDir: mkdtempSync(join(tmpdir(), "kota-daemon-run-test-")),
+    },
+    runStore,
+    workflowRuntime: {
+      getDefinitionCount: vi.fn(() => 0),
+    },
+  } as unknown as ProjectRuntime;
+  const projectRuntimes = {
+    list: vi.fn(() => [runtime]),
+    getDefault: vi.fn(() => runtime),
+    get: vi.fn(() => runtime),
+  } as unknown as ProjectRuntimeRegistry;
+  const projectRegistry = {
+    get: vi.fn(),
+    getDefaultProjectId: vi.fn(() => "test-project"),
+    toProjection: vi.fn(() => ({ defaultProjectId: "test-project", projects: [] })),
+  } as unknown as ScopeRegistry;
+
+  return buildDaemonHandle({
+    getState: () => ({
+      startedAt: "2026-01-01T00:00:00.000Z",
+      completedRuns: 0,
+      pid: 1234,
+    }),
+    isRunning: () => true,
+    workflows: runtime.workflowRuntime,
+    bus,
+    sessions: new Map(),
+    runStore: runStore as unknown as WorkflowRunStore,
+    projectDir: runtime.project.projectDir,
+    projectRegistry,
+    projectRuntimes,
+    config: { config: {}, verbose: false },
+    refreshLiveSessionGuardrails: () => ({ refreshed: 0, unchanged: 0 }),
+    log: () => {},
+    getModuleSummaries: () => [],
+    getModuleHealthChecks: () => ({}),
+    probeCapabilityReadiness: async () => ({
+      capabilities: [],
+      summary: { ready: 0, unavailable: 0, init_failed: 0 },
+    }),
+    getChannelStatuses: () => [],
+  });
 }
 
 describe("buildDaemonHandle reloadConfig events", () => {
@@ -317,6 +371,62 @@ describe("buildDaemonHandle reloadConfig events", () => {
       errorClass: "Error",
       errorMessage: "Config reload failed",
     });
+  });
+});
+
+describe("buildDaemonHandle workflow run projections", () => {
+  it("redacts trigger payload values in client-facing run detail", () => {
+    const metadata: WorkflowRunMetadata = {
+      id: "run-redaction",
+      workflow: "builder",
+      definitionPath: "workflow.ts",
+      trigger: {
+        event: "manual",
+        schemaRef: null,
+        payload: {
+          source: "test",
+          token: "raw-token",
+          authorization: "Bearer raw-auth",
+          email: "owner@example.test",
+          providerPayload: { secret: "provider-secret", visible: "provider-data" },
+          nested: {
+            password: "raw-password",
+            label: "visible",
+          },
+        },
+      },
+      startedAt: "2026-01-01T00:00:00.000Z",
+      status: "success",
+      runDir: ".kota/runs/run-redaction",
+      steps: [],
+      warnings: [{ type: "output-schema-mismatch", message: "email owner@example.test" }],
+    };
+    const handle = makeWorkflowRunSubject(metadata);
+
+    const run = handle.getWorkflowRun("run-redaction");
+
+    expect(run?.triggerPayload).toMatchObject({
+      source: "test",
+      token: "[redacted]",
+      authorization: "[redacted]",
+      email: "[redacted]",
+      providerPayload: {
+        redacted: true,
+        reason: "provider-payload",
+      },
+      nested: {
+        password: "[redacted]",
+        label: "visible",
+      },
+    });
+    expect(run?.warnings).toEqual([
+      { type: "output-schema-mismatch", message: "email [redacted]" },
+    ]);
+    expect(JSON.stringify(run)).not.toContain("raw-token");
+    expect(JSON.stringify(run)).not.toContain("Bearer raw-auth");
+    expect(JSON.stringify(run)).not.toContain("owner@example.test");
+    expect(JSON.stringify(run)).not.toContain("provider-secret");
+    expect(JSON.stringify(run)).not.toContain("raw-password");
   });
 });
 

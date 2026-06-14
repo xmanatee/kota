@@ -234,7 +234,7 @@ describe("workflow dead-letter queue integration", () => {
       workflowName: "telegram-redrive-fixture",
     });
     await waitUntil(
-      () => processed.includes("nested text:secret-token") && !fixedRuntime.isBusy(),
+      () => processed.includes("nested text:[redacted]") && !fixedRuntime.isBusy(),
       "timed out waiting for redriven workflow run",
     );
     await fixedRuntime.stop();
@@ -254,7 +254,7 @@ describe("workflow dead-letter queue integration", () => {
     ]);
   });
 
-  it("redrives a batch with original input payloads from the event journal", async () => {
+  it("redrives a batch with durable input payloads from the event journal", async () => {
     const eventJournal = new EventJournal(join(projectDir, ".kota", "events"));
     installEventJournal(bus, eventJournal);
     const failingWorkflow: RegisteredWorkflowDefinitionInput = {
@@ -353,9 +353,10 @@ describe("workflow dead-letter queue integration", () => {
       workflowName: "telegram-batch-redrive-fixture",
     });
     await waitUntil(
-      () => observedTokens.includes("secret-one") && observedTokens.includes("secret-two") && !fixedRuntime.isBusy(),
+      () => observedTokens.length === 2 && !fixedRuntime.isBusy(),
       "timed out waiting for redriven batch run",
     );
+    expect(observedTokens).toEqual(["[redacted]", "[redacted]"]);
     await fixedRuntime.stop();
   });
 
@@ -404,7 +405,7 @@ describe("workflow dead-letter queue integration", () => {
     expect(received[0]).toMatchObject({
       chatId: "chat-1",
       text: "hello",
-      botToken: "secret-token",
+      botToken: "[redacted]",
       scopeId: "scope-a",
       projectId: "scope-a",
       redriveOf: item.id,

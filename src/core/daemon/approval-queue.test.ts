@@ -4,7 +4,13 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
-import { ApprovalQueue, getApprovalQueue, isApprovalId, resetApprovalQueue } from "./approval-queue.js";
+import {
+	ApprovalQueue,
+	getApprovalQueue,
+	isApprovalId,
+	projectApprovalForClient,
+	resetApprovalQueue,
+} from "./approval-queue.js";
 
 describe("ApprovalQueue", () => {
 	let dir: string;
@@ -155,11 +161,129 @@ describe("ApprovalQueue", () => {
 		expect(queue.get(item.id)!.sessionId).toBe("session-123");
 	});
 
-	it("stores context in enqueued item when provided", () => {
-		const ctx = "User: delete temp files\nAssistant: I will remove /tmp/old";
-		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, undefined, undefined, ctx);
-		expect(item.context).toBe(ctx);
-		expect(queue.get(item.id)!.context).toBe(ctx);
+	it("stores projected input and context in durable records", () => {
+		const ctx = "User: deploy with secret=raw-token\nAssistant: I will run it";
+		const item = queue.enqueue(
+			"shell",
+			{ command: "deploy", accessToken: "raw-token" },
+			"dangerous",
+			"reason",
+			undefined,
+			undefined,
+			undefined,
+			ctx,
+		);
+		const stored = JSON.parse(readFileSync(join(dir, `${item.id}.json`), "utf-8")) as {
+			input: { redacted: true; reason: string };
+			context?: string;
+			contextRedaction?: { redacted: true; reason: string; bytes: number };
+		};
+		expect(stored.input).toMatchObject({ redacted: true, reason: "tool-io" });
+		expect(stored.context).toBeUndefined();
+		expect(stored.contextRedaction).toMatchObject({ redacted: true, reason: "tool-io" });
+		expect(JSON.stringify(stored)).not.toContain("raw-token");
+		expect(JSON.stringify(queue.get(item.id))).not.toContain("raw-token");
+	});
+
+	it("redacts sensitive non-input approval text in storage and client projections", () => {
+		const item = queue.enqueue(
+			"shell",
+			{ command: "deploy" },
+			"dangerous",
+			"reason token=reason-token for owner@example.test",
+			"source apiKey=source-key",
+		);
+		const approved = queue.approve(
+			item.id,
+			"approved because secret=note-token for approver@example.test",
+			"resolution token=resolution-token",
+		);
+		expect(approved).not.toBeNull();
+		expect(approved!.reason).toBe("reason token=[redacted] for [redacted]");
+		expect(approved!.source).toBe("source apiKey=[redacted]");
+		expect(approved!.approvalNote).toBe("approved because secret=[redacted] for [redacted]");
+		expect(approved!.resolutionSource).toBe("resolution token=[redacted]");
+
+		const stored = readFileSync(join(dir, `${item.id}.json`), "utf-8");
+		expect(stored).not.toContain("reason-token");
+		expect(stored).not.toContain("owner@example.test");
+		expect(stored).not.toContain("source-key");
+		expect(stored).not.toContain("note-token");
+		expect(stored).not.toContain("resolution-token");
+		expect(JSON.stringify(projectApprovalForClient(approved!))).not.toContain("reason-token");
+	});
+
+	it("redacts sensitive rejection text in storage and returned records", () => {
+		const item = queue.enqueue(
+			"shell",
+			{ command: "deploy" },
+			"dangerous",
+			"reason token=reason-token",
+			"source secret=source-token",
+		);
+		const rejected = queue.reject(
+			item.id,
+			"reject because token=reject-token for owner@example.test",
+			"operator secret=resolution-token",
+		);
+		expect(rejected).not.toBeNull();
+		expect(rejected!.reason).toBe("reason token=[redacted]");
+		expect(rejected!.source).toBe("source secret=[redacted]");
+		expect(rejected!.rejectionReason).toBe("reject because token=[redacted] for [redacted]");
+		expect(rejected!.resolutionSource).toBe("operator secret=[redacted]");
+
+		const stored = readFileSync(join(dir, `${item.id}.json`), "utf-8");
+		expect(stored).not.toContain("reject-token");
+		expect(stored).not.toContain("resolution-token");
+		expect(stored).not.toContain("owner@example.test");
+	});
+
+	it("approves with live execution input without persisting it", () => {
+		const item = queue.enqueue(
+			"shell",
+			{ command: "deploy", accessToken: "raw-token" },
+			"dangerous",
+			"reason",
+		);
+		const approved = queue.approve(item.id);
+		expect(approved?.input).toEqual({ command: "deploy", accessToken: "raw-token" });
+		const stored = JSON.parse(readFileSync(join(dir, `${item.id}.json`), "utf-8")) as {
+			input: { redacted: true; reason: string };
+			status: string;
+		};
+		expect(stored.status).toBe("approved");
+		expect(stored.input).toMatchObject({ redacted: true, reason: "tool-io" });
+		expect(JSON.stringify(stored)).not.toContain("raw-token");
+	});
+
+	it("refuses execution approval after restart when the raw input is unavailable", () => {
+		const item = queue.enqueue(
+			"shell",
+			{ command: "deploy", accessToken: "raw-token" },
+			"dangerous",
+			"reason",
+		);
+		const restarted = new ApprovalQueue(dir);
+
+		const result = restarted.approveForExecution(item.id);
+
+		expect(result).toMatchObject({ ok: false, reason: "input_unavailable" });
+		expect(result.ok ? undefined : result.approval?.status).toBe("pending");
+		expect(restarted.get(item.id)?.status).toBe("pending");
+		expect(JSON.stringify(result)).not.toContain("raw-token");
+	});
+
+	it("does not approve any item in approve-all execution when one input is unavailable", () => {
+		const unavailable = queue.enqueue("shell", { command: "unavailable" }, "moderate", "reason");
+		const restarted = new ApprovalQueue(dir);
+		const available = restarted.enqueue("shell", { command: "available" }, "moderate", "reason");
+
+		const result = restarted.approveAllForExecution();
+
+		expect(result).toMatchObject({ ok: false, reason: "input_unavailable" });
+		expect(result.ok ? [] : result.approvals.map((approval) => approval.id)).toEqual([unavailable.id]);
+		expect(restarted.get(available.id)?.status).toBe("pending");
+		expect(restarted.get(unavailable.id)?.status).toBe("pending");
 	});
 
 	it("does not store context when not provided", () => {
@@ -237,10 +361,12 @@ describe("ApprovalQueue", () => {
 			expect(queue.get(item.id)!.timeoutMs).toBe(500);
 		});
 
-		it("skips items with no TTL when defaultTtlMs is undefined", () => {
-			queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
+		it("uses evidence-policy pending retention when defaultTtlMs is undefined", () => {
+			const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
+			backdate(item.id, 25 * 60 * 60 * 1000);
 			const expired = queue.expireStale();
-			expect(expired).toHaveLength(0);
+			expect(expired).toHaveLength(1);
+			expect(expired[0].status).toBe("expired");
 		});
 
 		it("stores timeoutMs on enqueued item", () => {

@@ -1,12 +1,20 @@
+import {
+  EVIDENCE_REDACTED,
+  type EvidenceJsonValue,
+  projectEvidenceJsonValue,
+  redactSensitiveText,
+} from "#core/evidence/policy.js";
 import type {
   OwnerConfirmedActionMetadata,
   OwnerDecisionClientProjection,
+  OwnerDecisionEvidence,
   OwnerDecisionFormField,
   OwnerDecisionJsonObject,
   OwnerDecisionJsonValue,
   OwnerDecisionOption,
   OwnerDecisionRecord,
   OwnerDecisionRequest,
+  OwnerDecisionRequester,
   OwnerDecisionSelectedValue,
 } from "./owner-decision-types.js";
 
@@ -119,24 +127,20 @@ function validateFormSelection(
   }
 }
 
-const SENSITIVE_KEY_PATTERN = /(authorization|credential|password|secret|token|api[-_]?key)/i;
-const REDACTED_SELECTED_VALUE = "[redacted]";
-
 function isSensitiveField(field: OwnerDecisionFormField | undefined, fieldId: string): boolean {
-  return SENSITIVE_KEY_PATTERN.test(fieldId) || (field !== undefined && SENSITIVE_KEY_PATTERN.test(field.label));
+  return (
+    projectEvidenceJsonValue("value", "internal-storage", fieldId) === EVIDENCE_REDACTED ||
+    (field !== undefined &&
+      projectEvidenceJsonValue("value", "internal-storage", field.label) === EVIDENCE_REDACTED)
+  );
 }
 
 function redactJsonValue(value: OwnerDecisionJsonValue, key = ""): OwnerDecisionJsonValue {
-  if (SENSITIVE_KEY_PATTERN.test(key)) return REDACTED_SELECTED_VALUE;
-  if (Array.isArray(value)) return value.map((entry) => redactJsonValue(entry));
-  if (value !== null && typeof value === "object") {
-    const out: OwnerDecisionJsonObject = {};
-    for (const [entryKey, entryValue] of Object.entries(value)) {
-      if (entryValue !== undefined) out[entryKey] = redactJsonValue(entryValue, entryKey);
-    }
-    return out;
-  }
-  return value;
+  return projectEvidenceJsonValue(
+    value as EvidenceJsonValue,
+    "internal-storage",
+    key,
+  ) as OwnerDecisionJsonValue;
 }
 
 function redactFormSelection(
@@ -148,7 +152,7 @@ function redactFormSelection(
   for (const [fieldId, value] of Object.entries(fields)) {
     if (value === undefined) continue;
     out[fieldId] = isSensitiveField(fieldById.get(fieldId), fieldId)
-      ? REDACTED_SELECTED_VALUE
+      ? EVIDENCE_REDACTED
       : redactJsonValue(value, fieldId);
   }
   return out;
@@ -158,13 +162,86 @@ export function sanitizeOwnerDecisionSelectionForStorage(
   request: OwnerDecisionRequest,
   selectedValue: OwnerDecisionSelectedValue,
 ): OwnerDecisionSelectedValue {
-  if (request.kind === "free-text" && selectedValue.kind === "free-text" && SENSITIVE_KEY_PATTERN.test(request.prompt)) {
-    return { kind: "free-text", text: REDACTED_SELECTED_VALUE };
+  if (
+    request.kind === "free-text" &&
+    selectedValue.kind === "free-text" &&
+    isSensitiveField(undefined, request.prompt)
+  ) {
+    return { kind: "free-text", text: EVIDENCE_REDACTED };
+  }
+  if (request.kind === "free-text" && selectedValue.kind === "free-text") {
+    return { kind: "free-text", text: redactSensitiveText(selectedValue.text) };
   }
   if (request.kind === "form" && selectedValue.kind === "form") {
     return { kind: "form", fields: redactFormSelection(request, selectedValue.fields) };
   }
   return selectedValue;
+}
+
+function sanitizeOwnerDecisionOption(option: OwnerDecisionOption): OwnerDecisionOption {
+  return {
+    id: option.id,
+    label: redactSensitiveText(option.label),
+    ...(option.description !== undefined ? { description: redactSensitiveText(option.description) } : {}),
+  };
+}
+
+export function sanitizeOwnerDecisionRequestForStorage(
+  request: OwnerDecisionRequest,
+): OwnerDecisionRequest {
+  if (request.kind === "single-choice") {
+    return {
+      kind: request.kind,
+      prompt: redactSensitiveText(request.prompt),
+      options: request.options.map(sanitizeOwnerDecisionOption),
+    };
+  }
+  if (request.kind === "multi-choice") {
+    return {
+      kind: request.kind,
+      prompt: redactSensitiveText(request.prompt),
+      options: request.options.map(sanitizeOwnerDecisionOption),
+      ...(request.minSelected !== undefined ? { minSelected: request.minSelected } : {}),
+      ...(request.maxSelected !== undefined ? { maxSelected: request.maxSelected } : {}),
+    };
+  }
+  if (request.kind === "free-text") {
+    return {
+      kind: request.kind,
+      prompt: redactSensitiveText(request.prompt),
+      ...(request.multiline !== undefined ? { multiline: request.multiline } : {}),
+    };
+  }
+  return {
+    kind: request.kind,
+    prompt: redactSensitiveText(request.prompt),
+    fields: request.fields.map((field) => ({
+      id: field.id,
+      label: redactSensitiveText(field.label),
+      type: field.type,
+      required: field.required,
+      ...(field.options !== undefined ? { options: field.options.map(sanitizeOwnerDecisionOption) } : {}),
+    })),
+  };
+}
+
+export function sanitizeOwnerDecisionRequesterForStorage(
+  requester: OwnerDecisionRequester,
+): OwnerDecisionRequester {
+  if (requester.kind === "manual") {
+    return { kind: "manual", source: redactSensitiveText(requester.source) };
+  }
+  return requester;
+}
+
+export function sanitizeOwnerDecisionEvidenceForStorage(
+  evidence: OwnerDecisionEvidence[],
+): OwnerDecisionEvidence[] {
+  return evidence.map((entry) => ({
+    summary: redactSensitiveText(entry.summary),
+    ...(entry.source !== undefined ? { source: redactSensitiveText(entry.source) } : {}),
+    ...(entry.artifactPath !== undefined ? { artifactPath: redactSensitiveText(entry.artifactPath) } : {}),
+  }));
 }
 
 export function sanitizeOwnerConfirmedActionMetadataForStorage(
@@ -173,6 +250,7 @@ export function sanitizeOwnerConfirmedActionMetadataForStorage(
 ): OwnerConfirmedActionMetadata {
   return {
     ...action,
+    description: redactSensitiveText(action.description),
     authorizingSelection: sanitizeOwnerDecisionSelectionForStorage(request, action.authorizingSelection),
   };
 }
@@ -183,6 +261,31 @@ function redactSelectedValue(value: OwnerDecisionSelectedValue): OwnerDecisionSe
 }
 
 export function projectOwnerDecisionForClient(decision: OwnerDecisionRecord): OwnerDecisionClientProjection {
-  if (decision.selectedValue === undefined) return decision;
-  return { ...decision, selectedValue: redactSelectedValue(decision.selectedValue) };
+  const projected = projectOwnerDecisionRecord(decision);
+  if (projected.selectedValue === undefined) return projected;
+  return { ...projected, selectedValue: redactSelectedValue(projected.selectedValue) };
+}
+
+export function sanitizeOwnerDecisionRecordForStorage(
+  decision: OwnerDecisionRecord,
+): OwnerDecisionRecord {
+  return projectOwnerDecisionRecord(decision);
+}
+
+function projectOwnerDecisionRecord(decision: OwnerDecisionRecord): OwnerDecisionRecord {
+  const request = sanitizeOwnerDecisionRequestForStorage(decision.request);
+  return {
+    ...decision,
+    request,
+    requester: sanitizeOwnerDecisionRequesterForStorage(decision.requester),
+    evidence: sanitizeOwnerDecisionEvidenceForStorage(decision.evidence),
+    ...(decision.action !== undefined
+      ? { action: sanitizeOwnerConfirmedActionMetadataForStorage(decision.request, decision.action) }
+      : {}),
+    ...(decision.selectedValue !== undefined
+      ? { selectedValue: sanitizeOwnerDecisionSelectionForStorage(request, decision.selectedValue) }
+      : {}),
+    ...(decision.resolutionSource !== undefined ? { resolutionSource: redactSensitiveText(decision.resolutionSource) } : {}),
+    ...(decision.canceledReason !== undefined ? { canceledReason: redactSensitiveText(decision.canceledReason) } : {}),
+  };
 }

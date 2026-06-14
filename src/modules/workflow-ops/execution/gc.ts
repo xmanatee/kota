@@ -1,7 +1,10 @@
 import type { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import {
+  defaultWorkflowRunRetentionDays,
+  WorkflowRunStore,
+} from "#core/workflow/run-store.js";
 
 export function registerGcCommand(wfCmd: Command, ctx: ModuleContext): void {
   wfCmd
@@ -12,7 +15,7 @@ export function registerGcCommand(wfCmd: Command, ctx: ModuleContext): void {
       "  older than --retention-days. Active runs are never pruned.\n\n" +
       "  Policy defaults can be set in .kota/config.json under runsGc.",
     )
-    .option("--retention-days <n>", "Delete runs older than N days (default: 7)")
+    .option("--retention-days <n>", "Delete runs older than N days")
     .option("--min-keep <n>", "Always keep at least N recent runs per workflow (default: 10)")
     .option("--dry-run", "Show what would be deleted without deleting anything")
     .action(async (opts: { retentionDays?: string; minKeep?: string; dryRun?: boolean }) => {
@@ -21,7 +24,7 @@ export function registerGcCommand(wfCmd: Command, ctx: ModuleContext): void {
 
       const retentionDays = opts.retentionDays != null
         ? Number.parseInt(opts.retentionDays, 10)
-        : (gcConfig.retentionDays ?? 7);
+        : (gcConfig.retentionDays ?? defaultWorkflowRunRetentionDays());
       const minKeep = opts.minKeep != null
         ? Number.parseInt(opts.minKeep, 10)
         : (gcConfig.minKeepPerWorkflow ?? 10);

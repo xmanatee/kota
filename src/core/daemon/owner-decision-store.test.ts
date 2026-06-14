@@ -152,6 +152,58 @@ describe("OwnerDecisionStore", () => {
     ).toThrow(/unrecognized option id/);
   });
 
+  it("redacts pending request and evidence text before persistence and client projection", () => {
+    const decision = store.create({
+      request: {
+        kind: "single-choice",
+        prompt: "Approve provider action with token=raw-token for owner@example.test?",
+        options: [
+          {
+            id: "yes",
+            label: "Approve Bearer raw-token",
+            description: "Use contact owner@example.test",
+          },
+          { id: "no", label: "Skip" },
+        ],
+      },
+      requester: { kind: "manual", source: "operator token=raw-token" },
+      evidence: [
+        {
+          summary: "stdout included token=raw-token and owner@example.test",
+          source: "https://provider.example.test/callback?token=raw-token&next=/ok",
+          artifactPath: "/tmp/provider-output-token=raw-token.txt",
+        },
+      ],
+    });
+
+    expect(decision.request.kind).toBe("single-choice");
+    if (decision.request.kind !== "single-choice") throw new Error("expected single-choice decision");
+    expect(decision.request.options[0]?.id).toBe("yes");
+    expect(JSON.stringify(decision)).not.toContain("raw-token");
+    expect(JSON.stringify(decision)).not.toContain("owner@example.test");
+
+    const persisted = readFileSync(join(dir, `${decision.id}.json`), "utf-8");
+    expect(persisted).not.toContain("raw-token");
+    expect(persisted).not.toContain("owner@example.test");
+
+    const projected = projectOwnerDecisionForClient({
+      ...decision,
+      request: {
+        kind: "single-choice",
+        prompt: "Legacy prompt token=legacy-token for legacy@example.test?",
+        options: [
+          { id: "yes", label: "Use Bearer legacy-token" },
+        ],
+      },
+      evidence: [{ summary: "legacy evidence secret=legacy-token for legacy@example.test" }],
+    });
+    expect(projected.request.kind).toBe("single-choice");
+    if (projected.request.kind !== "single-choice") throw new Error("expected single-choice projection");
+    expect(projected.request.options[0]?.id).toBe("yes");
+    expect(JSON.stringify(projected)).not.toContain("legacy-token");
+    expect(JSON.stringify(projected)).not.toContain("legacy@example.test");
+  });
+
   it("redacts sensitive form fields before persistence and client projection", () => {
     const decision = store.create({
       request: {
@@ -159,6 +211,7 @@ describe("OwnerDecisionStore", () => {
         prompt: "Store provider reference.",
         fields: [
           { id: "apiToken", label: "API token", type: "text", required: true },
+          { id: "contactEmail", label: "Contact email", type: "text", required: true },
           { id: "destination", label: "Destination", type: "text", required: true },
         ],
       },
@@ -167,26 +220,34 @@ describe("OwnerDecisionStore", () => {
     });
     const answered = store.answer(
       decision.id,
-      { kind: "form", fields: { apiToken: "secret-value", destination: "calendar" } },
+      {
+        kind: "form",
+        fields: {
+          apiToken: "secret-value",
+          contactEmail: "owner@example.test",
+          destination: "calendar",
+        },
+      },
       "test",
     );
     expect(answered).not.toBeNull();
     expect(answered?.selectedValue).toEqual({
       kind: "form",
-      fields: { apiToken: "[redacted]", destination: "calendar" },
+      fields: { apiToken: "[redacted]", contactEmail: "[redacted]", destination: "calendar" },
     });
 
     const persisted = readFileSync(join(dir, `${decision.id}.json`), "utf-8");
     expect(persisted).not.toContain("secret-value");
+    expect(persisted).not.toContain("owner@example.test");
     expect(store.get(decision.id)?.selectedValue).toEqual({
       kind: "form",
-      fields: { apiToken: "[redacted]", destination: "calendar" },
+      fields: { apiToken: "[redacted]", contactEmail: "[redacted]", destination: "calendar" },
     });
 
     const projected = projectOwnerDecisionForClient(answered!);
     expect(projected.selectedValue).toEqual({
       kind: "form",
-      fields: { apiToken: "[redacted]", destination: "calendar" },
+      fields: { apiToken: "[redacted]", contactEmail: "[redacted]", destination: "calendar" },
     });
   });
 });

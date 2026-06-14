@@ -2,6 +2,10 @@ import type {
   KotaAgentMessage,
   KotaAgentMessageType,
 } from "#core/agent-harness/index.js";
+import {
+  type EvidenceRedactionMarker,
+  projectEvidenceText,
+} from "#core/evidence/policy.js";
 
 export type WorkflowRunStreamEventName =
   | "step_output"
@@ -30,14 +34,14 @@ type StreamPayloadBase<TType extends KotaAgentMessageType> = {
 export type WorkflowRunStreamEvent =
   | {
       eventName: "step_output";
-      payload: StreamPayloadBase<"text"> & { text: string };
+      payload: StreamPayloadBase<"text"> & { text: EvidenceRedactionMarker | string };
     }
   | {
       eventName: "step_tool";
       payload: StreamPayloadBase<"tool_call"> & {
         tool: string;
         toolUseId: string;
-        input: Extract<KotaAgentMessage, { type: "tool_call" }>["input"];
+        input: EvidenceRedactionMarker | string;
       };
     }
   | {
@@ -45,17 +49,17 @@ export type WorkflowRunStreamEvent =
       payload: StreamPayloadBase<"tool_result"> & {
         toolUseId: string;
         isError: boolean;
-        content: Extract<KotaAgentMessage, { type: "tool_result" }>["content"];
+        content: EvidenceRedactionMarker | string;
       };
     }
   | {
       eventName: "step_status";
       payload: StreamPayloadBase<"status"> & {
         category: string;
-        description?: string;
+        description?: EvidenceRedactionMarker | string;
         toolName?: string;
-        output?: string[];
-        text?: string;
+        output?: Array<EvidenceRedactionMarker | string>;
+        text?: EvidenceRedactionMarker | string;
       };
     }
   | {
@@ -63,7 +67,7 @@ export type WorkflowRunStreamEvent =
       payload: StreamPayloadBase<"result"> & {
         isError: boolean;
         subtype?: string;
-        text?: string;
+        text?: EvidenceRedactionMarker | string;
         numTurns?: number;
         totalCostUsd?: number;
         inputTokens?: number;
@@ -72,7 +76,7 @@ export type WorkflowRunStreamEvent =
     }
   | {
       eventName: "step_thinking";
-      payload: StreamPayloadBase<"thinking"> & { thinking: string };
+      payload: StreamPayloadBase<"thinking"> & { thinking: EvidenceRedactionMarker | string };
     };
 
 export function parseKotaAgentMessageLine(line: string): KotaAgentMessage | null {
@@ -99,7 +103,7 @@ export function projectAgentMessageToRunStreamEvents(
         payload: {
           stepId,
           messageType: "text",
-          text: message.text,
+          text: projectDaemonText(message.text, "provider-payload"),
           ...(message.sessionId !== undefined && { sessionId: message.sessionId }),
         },
       }];
@@ -110,7 +114,7 @@ export function projectAgentMessageToRunStreamEvents(
         payload: {
           stepId,
           messageType: "thinking",
-          thinking: message.thinking,
+          thinking: projectDaemonText(message.thinking, "private-reasoning"),
           ...(message.sessionId !== undefined && { sessionId: message.sessionId }),
         },
       }];
@@ -123,7 +127,7 @@ export function projectAgentMessageToRunStreamEvents(
           messageType: "tool_call",
           tool: message.toolName,
           toolUseId: message.toolUseId,
-          input: message.input,
+          input: projectDaemonText(JSON.stringify(message.input), "tool-io"),
           ...(message.sessionId !== undefined && { sessionId: message.sessionId }),
         },
       }];
@@ -136,7 +140,12 @@ export function projectAgentMessageToRunStreamEvents(
           messageType: "tool_result",
           toolUseId: message.toolUseId,
           isError: message.isError,
-          content: message.content,
+          content: projectDaemonText(
+            typeof message.content === "string"
+              ? message.content
+              : JSON.stringify(message.content),
+            "tool-io",
+          ),
           ...(message.sessionId !== undefined && { sessionId: message.sessionId }),
         },
       }];
@@ -148,10 +157,16 @@ export function projectAgentMessageToRunStreamEvents(
           stepId,
           messageType: "status",
           category: message.category,
-          ...(message.description !== undefined && { description: message.description }),
+          ...(message.description !== undefined && {
+            description: projectDaemonText(message.description, "provider-payload"),
+          }),
           ...(message.toolName !== undefined && { toolName: message.toolName }),
-          ...(message.output !== undefined && { output: message.output }),
-          ...(message.text !== undefined && { text: message.text }),
+          ...(message.output !== undefined && {
+            output: message.output.map((entry) => projectDaemonText(entry, "provider-payload")),
+          }),
+          ...(message.text !== undefined && {
+            text: projectDaemonText(message.text, "provider-payload"),
+          }),
           ...(message.sessionId !== undefined && { sessionId: message.sessionId }),
         },
       }];
@@ -163,7 +178,9 @@ export function projectAgentMessageToRunStreamEvents(
           messageType: "result",
           isError: message.isError,
           ...(message.subtype !== undefined && { subtype: message.subtype }),
-          ...(message.text !== undefined && { text: message.text }),
+          ...(message.text !== undefined && {
+            text: projectDaemonText(message.text, "provider-payload"),
+          }),
           ...(message.numTurns !== undefined && { numTurns: message.numTurns }),
           ...(message.totalCostUsd !== undefined && { totalCostUsd: message.totalCostUsd }),
           ...(message.inputTokens !== undefined && { inputTokens: message.inputTokens }),
@@ -176,4 +193,11 @@ export function projectAgentMessageToRunStreamEvents(
     default:
       return [];
   }
+}
+
+function projectDaemonText(
+  text: string,
+  dataClass: "private-reasoning" | "provider-payload" | "tool-io",
+): EvidenceRedactionMarker | string {
+  return projectEvidenceText(text, "daemon-api", dataClass);
 }

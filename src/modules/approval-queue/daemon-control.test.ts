@@ -19,7 +19,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApprovalQueue, getApprovalQueue, resetApprovalQueue } from "#core/daemon/approval-queue.js";
+import {
+  ApprovalQueue,
+  getApprovalQueue,
+  resetApprovalQueue,
+  setApprovalQueueInstance,
+} from "#core/daemon/approval-queue.js";
 import {
   type DaemonControlHandle,
   DaemonControlServer,
@@ -37,7 +42,12 @@ import {
   initProviderRegistry,
   resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
+import { executeTool } from "#core/tools/index.js";
 import { approvalControlRoutes } from "./routes.js";
+
+vi.mock("#core/tools/index.js", () => ({
+  executeTool: vi.fn(),
+}));
 
 const TEST_TOKEN = "approvals-test-token";
 
@@ -168,6 +178,7 @@ describe("approval-queue module daemon-control routes", () => {
     resetProviderRegistry();
     resetApprovalQueue();
     queue = getApprovalQueue(queueDir);
+    vi.mocked(executeTool).mockResolvedValue({ content: "ok" });
     server = new DaemonControlServer(makeHandle(), TEST_TOKEN, {
       controlRoutes: approvalControlRoutes(),
     });
@@ -178,6 +189,7 @@ describe("approval-queue module daemon-control routes", () => {
     await server.stop();
     resetApprovalQueue();
     resetProviderRegistry();
+    vi.clearAllMocks();
     rmSync(queueDir, { recursive: true, force: true });
   });
 
@@ -285,6 +297,60 @@ describe("approval-queue module daemon-control routes", () => {
       const body = (await res.json()) as { approval: { id: string; status: string } };
       expect(body.approval.id).toBe(item.id);
       expect(body.approval.status).toBe("approved");
+    });
+
+    it("executes against raw queue input while returning redacted approval and execution projections", async () => {
+      const item = queue.enqueue(
+        "shell",
+        { command: "deploy.sh", accessToken: "raw-token" },
+        "moderate",
+        "deploy",
+      );
+      vi.mocked(executeTool).mockResolvedValueOnce({ content: "deployed raw-token" });
+
+      const res = await fetchWith(port, `/approvals/${item.id}/approve`, { method: "POST" });
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        approval: { input: Record<string, unknown>; status: string };
+        execution: { status: string; output: { redacted: true; reason: string } };
+      };
+      expect(vi.mocked(executeTool)).toHaveBeenCalledWith(
+        "shell",
+        { command: "deploy.sh", accessToken: "raw-token" },
+      );
+      expect(body.approval.status).toBe("approved");
+      expect(body.approval.input).toMatchObject({ redacted: true, reason: "tool-io" });
+      expect(body.execution).toMatchObject({
+        status: "succeeded",
+        output: { redacted: true, reason: "tool-io" },
+      });
+      expect(JSON.stringify(body)).not.toContain("raw-token");
+      expect(JSON.stringify(body)).not.toContain("deployed raw-token");
+    });
+
+    it("fails closed after daemon restart when raw queue input is unavailable", async () => {
+      const item = queue.enqueue(
+        "shell",
+        { command: "deploy.sh", accessToken: "raw-token" },
+        "moderate",
+        "deploy",
+      );
+      const restarted = new ApprovalQueue(queueDir);
+      setApprovalQueueInstance(restarted);
+
+      const res = await fetchWith(port, `/approvals/${item.id}/approve`, { method: "POST" });
+
+      expect(res.status).toBe(409);
+      const body = (await res.json()) as {
+        reason: string;
+        approvals: Array<{ id: string; status: string }>;
+      };
+      expect(body.reason).toBe("approval_input_unavailable");
+      expect(body.approvals).toEqual([expect.objectContaining({ id: item.id, status: "pending" })]);
+      expect(vi.mocked(executeTool)).not.toHaveBeenCalled();
+      expect(restarted.get(item.id)?.status).toBe("pending");
+      expect(JSON.stringify(body)).not.toContain("raw-token");
     });
 
     it("attaches the note from the request body", async () => {

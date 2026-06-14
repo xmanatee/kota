@@ -5,7 +5,10 @@ import type { ModuleContext } from "#core/modules/module-types.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { getEligibleAtMs } from "#core/workflow/run-executor-utils.js";
 import { formatRunId } from "#core/workflow/run-io.js";
-import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import {
+  defaultWorkflowRunRetentionDays,
+  WorkflowRunStore,
+} from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { WorkflowGetRunResult } from "../client.js";
 import { getValidatedWorkflowDefinitions } from "../definitions-source.js";
@@ -259,11 +262,13 @@ export function registerTriggerCommands(
   wfCmd
     .command("prune")
     .description("Remove old workflow run directories")
-    .option("--days <n>", "Delete runs older than N days", "7")
+    .option("--days <n>", "Delete runs older than N days")
     .option("--min-keep <n>", "Keep at least N runs per workflow", "10")
     .option("--dry-run", "Show what would be deleted without deleting")
-    .action((opts: { days: string; minKeep: string; dryRun?: boolean }) => {
-      const retentionDays = Number.parseInt(opts.days, 10) || 7;
+    .action((opts: { days?: string; minKeep: string; dryRun?: boolean }) => {
+      const retentionDays = opts.days !== undefined
+        ? Number.parseInt(opts.days, 10)
+        : defaultWorkflowRunRetentionDays();
       const minKeepPerWorkflow = Number.parseInt(opts.minKeep, 10) || 10;
       const store = new WorkflowRunStore();
       const deleted = store.pruneRuns({ retentionDays, minKeepPerWorkflow, dryRun: opts.dryRun });

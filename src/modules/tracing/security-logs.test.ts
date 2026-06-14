@@ -111,6 +111,7 @@ describe("SecurityLogEmitter", () => {
       "tool.name": "shell",
       "tool.risk": "dangerous",
       "guardrail.policy": "queue",
+      "evidence.redaction_profile": "logs-traces",
       "guardrail.reason.omitted": true,
       "session.id": "session-1",
     });

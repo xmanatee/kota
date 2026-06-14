@@ -1,4 +1,4 @@
-import { appendFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -23,6 +23,7 @@ import {
   handleWorkflowRunDetail,
   handleWorkflowRunStream,
   handleWorkflowRuns,
+  handleWorkflowRunThinking,
   listRunMetadata,
 } from "./workflow-run-routes.js";
 
@@ -969,8 +970,20 @@ describe("workflow-routes", () => {
       expect(result.status).toBe(400);
     });
 
-    it("returns full metadata including steps", () => {
-      writeRunMetadata(runsDir, "run-detail-001", "builder", "success");
+    it("returns metadata with redacted step output and provenance", () => {
+      writeRunMetadata(runsDir, "run-detail-001", "builder", "success", {
+        steps: [
+          {
+            id: "build",
+            type: "agent",
+            status: "success",
+            startedAt: new Date(1700000000000).toISOString(),
+            completedAt: new Date(1700000001000).toISOString(),
+            durationMs: 1000,
+            output: { raw: "RAW_TOOL_OUTPUT", ok: true },
+          },
+        ],
+      });
 
       const { res, result } = mockResponse();
       handleWorkflowRunDetail(res, "run-detail-001", store);
@@ -979,6 +992,16 @@ describe("workflow-routes", () => {
       expect(body.id).toBe("run-detail-001");
       expect(body.workflow).toBe("builder");
       expect(Array.isArray(body.steps)).toBe(true);
+      expect(body.provenance).toMatchObject({
+        workflowName: "builder",
+        runId: "run-detail-001",
+      });
+      const steps = body.steps as Array<{ output: { redacted: true; reason: string } }>;
+      expect(steps[0].output).toMatchObject({
+        redacted: true,
+        reason: "tool-io",
+      });
+      expect(JSON.stringify(body)).not.toContain("RAW_TOOL_OUTPUT");
     });
 
     it("includes workflowSteps from workflow.json when present", () => {
@@ -1106,33 +1129,48 @@ describe("workflow-routes", () => {
         expect(events.find((event) => event.event === "step_output")?.data).toMatchObject({
           stepId,
           messageType: "text",
-          text: "Agent says hello",
+          text: {
+            redacted: true,
+            reason: "provider-payload",
+          },
           sessionId: "session-1",
         });
         expect(events.find((event) => event.event === "step_thinking")?.data).toMatchObject({
           stepId,
           messageType: "thinking",
-          thinking: "private reasoning",
+          thinking: {
+            redacted: true,
+            reason: "private-reasoning",
+          },
         });
         expect(events.find((event) => event.event === "step_tool")?.data).toMatchObject({
           stepId,
           messageType: "tool_call",
           tool: "Read",
           toolUseId: "tool-1",
-          input: { path: "README.md" },
+          input: {
+            redacted: true,
+            reason: "tool-io",
+          },
         });
         expect(events.find((event) => event.event === "step_tool_result")?.data).toMatchObject({
           stepId,
           messageType: "tool_result",
           toolUseId: "tool-1",
           isError: false,
-          content: "file contents",
+          content: {
+            redacted: true,
+            reason: "tool-io",
+          },
         });
         expect(events.find((event) => event.event === "step_status")?.data).toMatchObject({
           stepId,
           messageType: "status",
           category: "auth_status",
-          text: "logged in",
+          text: {
+            redacted: true,
+            reason: "provider-payload",
+          },
         });
         expect(events.find((event) => event.event === "step_result")?.data).toMatchObject({
           stepId,
@@ -1141,9 +1179,17 @@ describe("workflow-routes", () => {
           subtype: "success",
           numTurns: 2,
           totalCostUsd: 0.01,
-          text: "Done",
+          text: {
+            redacted: true,
+            reason: "provider-payload",
+          },
         });
         expect(JSON.stringify(events)).not.toContain("raw-adapter");
+        expect(JSON.stringify(events)).not.toContain("Agent says hello");
+        expect(JSON.stringify(events)).not.toContain("logged in");
+        expect(JSON.stringify(events)).not.toContain("Done");
+        expect(JSON.stringify(events)).not.toContain("private reasoning");
+        expect(JSON.stringify(events)).not.toContain("file contents");
 
         vi.advanceTimersByTime(500);
         events = parseSseEvents(sse.chunks);
@@ -1170,7 +1216,10 @@ describe("workflow-routes", () => {
           stepId,
           status: "success",
           durationMs: 1000,
-          output: { ok: true },
+          output: {
+            redacted: true,
+            reason: "tool-io",
+          },
         });
         expect(events.find((event) => event.event === "run_completed")?.data).toMatchObject({
           status: "success",
@@ -1205,16 +1254,18 @@ describe("workflow-routes", () => {
       try {
         handleWorkflowRunStream(sse.res, runId, store);
         let events = parseSseEvents(sse.chunks);
-        expect(events.filter((event) => event.event === "step_output").map((event) => event.data.text)).toEqual(["first"]);
+        expect(events.filter((event) => event.event === "step_output")).toHaveLength(1);
+        expect(JSON.stringify(events)).not.toContain("first");
 
         appendFileSync(eventsPath, `ond"}\n`, "utf-8");
         vi.advanceTimersByTime(500);
         events = parseSseEvents(sse.chunks);
-        expect(events.filter((event) => event.event === "step_output").map((event) => event.data.text)).toEqual(["first", "second"]);
+        expect(events.filter((event) => event.event === "step_output")).toHaveLength(2);
+        expect(JSON.stringify(events)).not.toContain("second");
 
         vi.advanceTimersByTime(500);
         events = parseSseEvents(sse.chunks);
-        expect(events.filter((event) => event.event === "step_output").map((event) => event.data.text)).toEqual(["first", "second"]);
+        expect(events.filter((event) => event.event === "step_output")).toHaveLength(2);
       } finally {
         sse.close();
       }
@@ -1237,6 +1288,43 @@ describe("workflow-routes", () => {
       rmSync(join(projectDir, ".kota", "runs"), { recursive: true });
       const runs = listRunMetadata(store, 10, 0);
       expect(runs).toEqual([]);
+    });
+  });
+
+  describe("handleWorkflowRunThinking", () => {
+    it("returns redaction markers instead of private reasoning text", () => {
+      const runId = "run-thinking-001";
+      writeRunMetadata(runsDir, runId, "builder", "success", {
+        steps: [
+          {
+            id: "build",
+            type: "agent",
+            status: "success",
+            startedAt: new Date(1700000000000).toISOString(),
+            completedAt: new Date(1700000001000).toISOString(),
+            durationMs: 1000,
+          },
+        ],
+      });
+      mkdirSync(join(runsDir, runId, "steps"), { recursive: true });
+      writeFileSync(
+        join(runsDir, runId, "steps", "build.events.jsonl"),
+        `${JSON.stringify({ type: "thinking", thinking: "private reasoning", sessionId: "session-1" })}\n`,
+        "utf-8",
+      );
+
+      const { res, result } = mockResponse();
+      handleWorkflowRunThinking(res, runId, store);
+
+      expect(result.status).toBe(200);
+      const body = result.body as {
+        thinking: Record<string, Array<{ redacted: true; reason: string; bytes: number }>>;
+      };
+      expect(body.thinking.build[0]).toMatchObject({
+        redacted: true,
+        reason: "private-reasoning",
+      });
+      expect(JSON.stringify(body)).not.toContain("private reasoning");
     });
   });
 
@@ -1297,9 +1385,12 @@ describe("workflow-routes", () => {
       expect(body.commitMessage).toBe("My commit\n\nDetails here");
     });
 
-    it("lists other .txt and .md artifact files", () => {
+    it("lists other .txt and .md artifact files with sanitized content", () => {
       writeRunMetadata(runsDir, "run-artifacts-004", "builder", "success");
-      writeFileSync(join(runsDir, "run-artifacts-004", "notes.md"), "# Notes\n\nSome notes");
+      writeFileSync(
+        join(runsDir, "run-artifacts-004", "notes.md"),
+        "# Notes\n\nSome notes\nsecret=raw-token",
+      );
       const { res, result } = mockResponse();
       handleWorkflowRunArtifacts(res, "run-artifacts-004", store);
       expect(result.status).toBe(200);
@@ -1308,6 +1399,42 @@ describe("workflow-routes", () => {
       expect(files).toHaveLength(1);
       expect(files[0].name).toBe("notes.md");
       expect(files[0].content).toContain("Some notes");
+      expect(files[0].content).toContain("secret=[redacted]");
+      expect(JSON.stringify(body)).not.toContain("raw-token");
+    });
+
+    it("returns an explicit error when commit-message.txt is unreadable", () => {
+      writeRunMetadata(runsDir, "run-artifacts-005", "builder", "success");
+      symlinkSync(
+        join(runsDir, "missing-commit-message.txt"),
+        join(runsDir, "run-artifacts-005", "commit-message.txt"),
+      );
+
+      const { res, result } = mockResponse();
+      handleWorkflowRunArtifacts(res, "run-artifacts-005", store);
+
+      expect(result.status).toBe(500);
+      expect(result.body).toMatchObject({
+        error: "Run artifact is unreadable",
+        artifact: "commit-message.txt",
+      });
+    });
+
+    it("returns an explicit error when a listed text artifact is unreadable", () => {
+      writeRunMetadata(runsDir, "run-artifacts-006", "builder", "success");
+      symlinkSync(
+        join(runsDir, "missing-notes.md"),
+        join(runsDir, "run-artifacts-006", "notes.md"),
+      );
+
+      const { res, result } = mockResponse();
+      handleWorkflowRunArtifacts(res, "run-artifacts-006", store);
+
+      expect(result.status).toBe(500);
+      expect(result.body).toMatchObject({
+        error: "Run artifact is unreadable",
+        artifact: "notes.md",
+      });
     });
   });
 });

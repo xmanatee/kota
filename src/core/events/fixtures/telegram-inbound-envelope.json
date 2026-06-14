@@ -48,7 +48,10 @@
     },
     "data": {
       "classification": "internal",
-      "redactionProfile": "redacted-client-projection"
+      "sensitivity": "internal",
+      "dataClasses": ["operational-metadata", "audit-provenance", "source-content"],
+      "redactionProfile": "redacted-client-projection",
+      "storageProfile": "internal-storage"
     },
     "payload": {
       "kind": "inline",
@@ -74,7 +77,7 @@
           "format": "plain",
           "text": "Book the 7pm court if available."
         },
-        "token": "telegram-secret-token",
+        "token": "[redacted]",
         "correlationId": "corr-1",
         "causationId": "owner-message-1",
         "parentEventId": "evtj-000000000000",

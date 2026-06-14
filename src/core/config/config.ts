@@ -105,12 +105,12 @@ export type CoreKotaConfig = {
    */
   defaultPreset?: string;
 
-  /** TTL for pending approval items in milliseconds. Default: 86400000 (24 hours). */
+  /** TTL override for pending approval items in milliseconds. Defaults to evidence policy. */
   approvalTtlMs?: number;
 
   /** Run artifact retention policy for `.kota/runs/`. */
   runsGc?: {
-    /** Delete runs older than this many days (default: 7). */
+    /** Delete runs older than this many days. Defaults to evidence policy. */
     retentionDays?: number;
     /** Always keep at least this many recent runs per workflow (default: 10). */
     minKeepPerWorkflow?: number;

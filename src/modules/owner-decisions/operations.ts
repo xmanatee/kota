@@ -84,6 +84,6 @@ export function cancelOwnerDecisionLocal(
 ): OwnerDecisionClientProjection | null {
   const decision = store.cancel(id, reason, source);
   if (!decision) return null;
-  resolveLinkedQuestionCancel(questionQueue, decision, reason, source);
+  resolveLinkedQuestionCancel(questionQueue, decision, decision.canceledReason ?? reason, source);
   return projectOwnerDecisionForClient(decision);
 }

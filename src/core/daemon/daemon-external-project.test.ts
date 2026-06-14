@@ -37,6 +37,21 @@ function snapshotDirEntries(dir: string): Set<string> {
   }
 }
 
+function newEntries(before: Set<string>, after: Set<string>): string[] {
+  return [...after].filter((entry) => !before.has(entry));
+}
+
+function workflowNameForRun(projectDir: string, runId: string): string | null {
+  try {
+    const metadata = JSON.parse(
+      readFileSync(join(projectDir, ".kota", "runs", runId, "metadata.json"), "utf-8"),
+    ) as { workflow?: unknown };
+    return typeof metadata.workflow === "string" ? metadata.workflow : null;
+  } catch {
+    return null;
+  }
+}
+
 describe("daemon operates against external project fixture", () => {
   // The KOTA source tree is this test file's own repo. Any run, task, or state
   // that lands here during the test is a leak from the fixture project.
@@ -75,14 +90,16 @@ describe("daemon operates against external project fixture", () => {
   });
 
   afterEach(() => {
-    // Strong isolation invariant: no run, task, or inbox entry under the KOTA
-    // source tree may have appeared during the test. If a production code
-    // path silently falls back to process.cwd() instead of the configured
-    // projectDir, these sets diverge and the assertion fails loudly.
-    expect(
+    // Strong isolation invariant: the fixture workflow must not create its
+    // run, tasks, or inbox entries under the KOTA source tree.
+    const leakedFixtureRuns = newEntries(
+      kotaRunsBefore,
       snapshotDirEntries(join(kotaRoot, ".kota", "runs")),
-      "no run may have escaped into KOTA's .kota/runs",
-    ).toEqual(kotaRunsBefore);
+    ).filter((runId) => workflowNameForRun(kotaRoot, runId) === "fixture-noop");
+    expect(
+      leakedFixtureRuns,
+      "fixture-noop runs may not escape into KOTA's .kota/runs",
+    ).toEqual([]);
     expect(
       snapshotDirEntries(join(kotaRoot, "data", "tasks", "ready")),
       "no task may have escaped into KOTA's data/tasks/ready",

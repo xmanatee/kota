@@ -1,6 +1,7 @@
 import {
   listFullRepoTasks,
   listRepoTaskDependencyWaits,
+  type RepoTaskClass,
   type RepoTaskFullRecord,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 
@@ -13,8 +14,8 @@ export const PROMOTION_BATCH_LIMIT = 2;
 
 /**
  * Areas considered strategic when ranking backlog candidates. Used as a
- * tie-breaker after priority and age so architecture/autonomy/core work
- * surfaces above narrower fan-out at the same priority and age.
+ * tie-breaker after priority and task class so architecture/autonomy/core work
+ * surfaces above narrower fan-out at the same priority/class and age.
  */
 const STRATEGIC_AREAS: ReadonlySet<string> = new Set([
   "architecture",
@@ -30,12 +31,21 @@ const PRIORITY_RANK: Record<string, number> = {
   p3: 3,
 };
 
+const TASK_CLASS_RANK: Record<RepoTaskClass, number> = {
+  Safety: 0,
+  Product: 1,
+  Platform: 2,
+  Unclassified: 3,
+  Meta: 4,
+};
+
 function priorityScore(priority: string): number {
   const rank = PRIORITY_RANK[priority];
-  // Tasks with an unrecognized priority sort below p3 so they only get
-  // promoted when nothing else is available; the validator already rejects
-  // missing/invalid priorities, but we stay defensive at this seam.
   return rank ?? 99;
+}
+
+function taskClassScore(taskClass: RepoTaskClass): number {
+  return TASK_CLASS_RANK[taskClass];
 }
 
 function isStrategic(record: RepoTaskFullRecord): boolean {
@@ -53,9 +63,10 @@ function timestamp(record: RepoTaskFullRecord): number {
  *
  * Order:
  *   1. priority (p0 < p1 < p2 < p3)
- *   2. strategic area before fan-out at the same priority
- *   3. older `updated_at` before newer (oldest waits longest, gets promoted)
- *   4. id for deterministic ordering at exact ties
+ *   2. task class (Safety, Product, Platform, Unclassified, Meta)
+ *   3. strategic area before fan-out at the same priority/class
+ *   4. older `updated_at` before newer (oldest waits longest, gets promoted)
+ *   5. id for deterministic ordering at exact ties
  */
 export function compareBacklogCandidates(
   a: RepoTaskFullRecord,
@@ -63,6 +74,9 @@ export function compareBacklogCandidates(
 ): number {
   const priorityDelta = priorityScore(a.priority) - priorityScore(b.priority);
   if (priorityDelta !== 0) return priorityDelta;
+
+  const classDelta = taskClassScore(a.taskClass) - taskClassScore(b.taskClass);
+  if (classDelta !== 0) return classDelta;
 
   const strategicDelta = Number(isStrategic(b)) - Number(isStrategic(a));
   if (strategicDelta !== 0) return strategicDelta;
@@ -78,6 +92,7 @@ export type PromotionCandidateSummary = {
   title: string;
   priority: string;
   area: string;
+  taskClass: RepoTaskClass;
   state: "backlog" | "blocked";
   strategic: boolean;
   updatedAt: string;
@@ -88,6 +103,7 @@ export type PromotionSelection = {
   title: string;
   priority: string;
   area: string;
+  taskClass: RepoTaskClass;
   reason: string;
 };
 
@@ -95,6 +111,7 @@ export type PromotionRejection = {
   id: string;
   title: string;
   priority: string;
+  taskClass: RepoTaskClass;
   state: "backlog" | "blocked";
   reason: string;
 };
@@ -121,6 +138,7 @@ function describeCandidate(record: RepoTaskFullRecord): PromotionCandidateSummar
     title: record.title,
     priority: record.priority,
     area: record.area,
+    taskClass: record.taskClass,
     state: record.state === "backlog" ? "backlog" : "blocked",
     strategic: isStrategic(record),
     updatedAt: record.updatedAt,
@@ -131,6 +149,7 @@ function describeReason(record: RepoTaskFullRecord, rank: number): string {
   const parts: string[] = [];
   parts.push(`rank ${rank + 1}`);
   parts.push(`priority ${record.priority || "unset"}`);
+  parts.push(`task_class ${record.taskClass}`);
   if (record.area) parts.push(`area ${record.area}`);
   if (isStrategic(record)) parts.push("strategic area");
   parts.push(`updated_at ${record.updatedAt}`);
@@ -173,12 +192,14 @@ export function buildPromotionRationale(
     title: record.title,
     priority: record.priority,
     area: record.area,
+    taskClass: record.taskClass,
     reason: describeReason(record, index),
   }));
   const rejectedBacklog = promotableBacklog.slice(batchLimit).map((record) => ({
     id: record.id,
     title: record.title,
     priority: record.priority,
+    taskClass: record.taskClass,
     state: "backlog" as const,
     reason: "lower-ranked backlog candidate",
   }));
@@ -186,6 +207,7 @@ export function buildPromotionRationale(
     id: record.id,
     title: record.title,
     priority: record.priority,
+    taskClass: record.taskClass,
     state: "backlog" as const,
     reason: ANCHOR_REJECTION_REASON,
   }));
@@ -193,6 +215,7 @@ export function buildPromotionRationale(
     id: record.id,
     title: record.title,
     priority: record.priority,
+    taskClass: record.taskClass,
     state: "backlog" as const,
     reason: `waiting on task dependencies: ${waitingById.get(record.id)?.join(", ") ?? ""}`,
   }));
@@ -200,6 +223,7 @@ export function buildPromotionRationale(
     id: record.id,
     title: record.title,
     priority: record.priority,
+    taskClass: record.taskClass,
     state: "blocked" as const,
     reason: waitingById.has(record.id)
       ? `blocked: waiting on task dependencies ${waitingById.get(record.id)?.join(", ")}`
@@ -217,12 +241,14 @@ export function buildPromotionRationale(
       "No backlog tasks were available to promote (the queue is empty or only blocked/anchor work remains).",
     );
   } else {
-    const ids = selected.map((s) => `${s.id} (${s.priority || "no-priority"})`).join(", ");
+    const ids = selected
+      .map((s) => `${s.id} (${s.priority || "no-priority"}, ${s.taskClass})`)
+      .join(", ");
     summaryLines.push(
       `Promoted ${selected.length} of ${promotableBacklog.length} promotable backlog task(s): ${ids}.`,
     );
     summaryLines.push(
-      "Ranked by priority then strategic area then oldest updated_at; this batch beat the remaining backlog and the higher-priority alternatives are honestly blocked.",
+      "Ranked by priority, task_class, strategic area, then oldest updated_at; this batch beat the remaining backlog and the higher-priority alternatives are honestly blocked.",
     );
   }
   if (rejectedAnchors.length > 0) {

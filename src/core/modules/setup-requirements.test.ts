@@ -51,11 +51,23 @@ function oauthRequirement(options: { withHealth?: boolean } = {}): ModuleSetupOA
     }),
     setup: {
       mode: "url",
-      url: "https://auth.example.test/start",
+      url: "https://auth.example.test/start?state=secret-state&next=/setup",
       label: "Open OAuth",
       pendingTtlMs: 1000,
     },
     secretRefs: [{ name: "DEMO_REFRESH_TOKEN", scope: "project" }],
+  };
+}
+
+function oauthRequirementWithPolicyTtl(): ModuleSetupOAuthRequirement {
+  const requirement = oauthRequirement();
+  return {
+    ...requirement,
+    setup: {
+      mode: requirement.setup.mode,
+      url: requirement.setup.url,
+      label: requirement.setup.label,
+    },
   };
 }
 
@@ -232,8 +244,14 @@ describe("module setup requirements", () => {
     const started = await sut.start("demo", "oauth");
     expect(started.ok).toBe(true);
     if (!started.ok) throw new Error(started.message);
-    expect(started.action.url).toBe("https://auth.example.test/start");
+    expect(started.action.url).toBe(
+      "https://auth.example.test/start?state=%5Bredacted%5D&next=%2Fsetup",
+    );
     expect(started.status.state).toBe("pending");
+    expect(JSON.stringify(started.status)).not.toContain("secret-state");
+    expect(readFileSync(join(projectDir, ".kota", "setup-actions.json"), "utf8")).not.toContain(
+      "secret-state",
+    );
 
     const completed = await sut.complete(started.action.actionId, {
       secretValues: { DEMO_REFRESH_TOKEN: "refresh-token-secret-123" },
@@ -398,6 +416,20 @@ describe("module setup requirements", () => {
       state: "expired",
       reason: "url_setup_expired",
     });
+  });
+
+  it("uses evidence-policy pending retention as the default URL setup expiry", async () => {
+    const sut = service([oauthRequirementWithPolicyTtl()]);
+    const started = await sut.start("demo", "oauth");
+    expect(started.ok).toBe(true);
+    if (!started.ok) throw new Error(started.message);
+    expect(started.action.expiresAt).toBe("2026-01-01T00:10:00.000Z");
+
+    now = new Date("2026-01-01T00:09:59.000Z");
+    expect((await sut.list()).requirements[0]?.state).toBe("pending");
+
+    now = new Date("2026-01-01T00:10:00.000Z");
+    expect((await sut.list()).requirements[0]?.state).toBe("expired");
   });
 
   it("reports stored OAuth credentials as expired when readiness detects refresh failure", async () => {

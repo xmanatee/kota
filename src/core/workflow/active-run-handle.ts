@@ -1,6 +1,14 @@
 import { appendFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { KotaAgentMessage } from "#core/agent-harness/types.js";
+import { redactSensitiveText } from "#core/evidence/policy.js";
+import {
+  formatProjectedEvidenceText,
+  projectKotaAgentMessageForStorage,
+  projectProviderPayloadText,
+  projectWorkflowRunMetadataForStorage,
+  projectWorkflowStepResultForStorage,
+} from "./run-evidence.js";
 import { safeJsonStringify, writeJsonFile } from "./run-io.js";
 import type {
   WorkflowRunMetadata,
@@ -41,7 +49,10 @@ export function createActiveRunHandle(opts: {
   const { id, runDirPath, metadata, workflowName, stepOrder, readState, writeState } = opts;
 
   const persistMetadata = () => {
-    writeJsonFile(join(runDirPath, "metadata.json"), metadata);
+    writeJsonFile(
+      join(runDirPath, "metadata.json"),
+      projectWorkflowRunMetadataForStorage(metadata),
+    );
   };
 
   const recordStepInDefinitionOrder = (result: WorkflowStepResult): void => {
@@ -65,7 +76,7 @@ export function createActiveRunHandle(opts: {
     appendAgentMessage: (stepId, message) => {
       appendFileSync(
         join(runDirPath, "steps", `${stepId}.events.jsonl`),
-        `${safeJsonStringify(message)}\n`,
+        `${safeJsonStringify(projectKotaAgentMessageForStorage(message))}\n`,
         "utf-8",
       );
     },
@@ -73,11 +84,13 @@ export function createActiveRunHandle(opts: {
       const parts = [
         "# System Prompt Appendix",
         "",
-        systemPromptAppend || "(none)",
+        systemPromptAppend
+          ? formatProjectedEvidenceText(projectProviderPayloadText(systemPromptAppend))
+          : "(none)",
         "",
         "# User Prompt",
         "",
-        prompt,
+        formatProjectedEvidenceText(projectProviderPayloadText(prompt)),
         "",
       ];
       writeFileSync(
@@ -88,7 +101,10 @@ export function createActiveRunHandle(opts: {
     },
     recordStep: (result) => {
       recordStepInDefinitionOrder(result);
-      writeJsonFile(join(runDirPath, "steps", `${result.id}.json`), result);
+      writeJsonFile(
+        join(runDirPath, "steps", `${result.id}.json`),
+        projectWorkflowStepResultForStorage(result),
+      );
       persistMetadata();
     },
     finish: (update) => {
@@ -110,10 +126,17 @@ export function createActiveRunHandle(opts: {
         ...(update.warnings && update.warnings.length > 0 ? { warnings: update.warnings } : {}),
       };
       if (update.error) {
-        writeFileSync(join(runDirPath, "error.txt"), update.error, "utf-8");
+        writeFileSync(
+          join(runDirPath, "error.txt"),
+          redactSensitiveText(update.error),
+          "utf-8",
+        );
       }
 
-      writeJsonFile(join(runDirPath, "metadata.json"), completed);
+      writeJsonFile(
+        join(runDirPath, "metadata.json"),
+        projectWorkflowRunMetadataForStorage(completed),
+      );
 
       // Re-read state immediately before writing to minimize the race window.
       // Merge carefully: only advance lastCompletion forward so a concurrent

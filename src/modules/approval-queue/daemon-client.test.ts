@@ -255,6 +255,18 @@ describe("approval-queue module daemonClient(link)", () => {
     ]);
   });
 
+  it("preserves daemon approval execution projections", async () => {
+    const approval = makeApproval("a-exec", "approved");
+    const execution = {
+      status: "succeeded" as const,
+      output: { redacted: true as const, reason: "tool-io" as const, bytes: 12 },
+    };
+    const { transport } = makeRecordingTransport(() => ({ approval, execution }));
+    const contributed = approvalQueueModule.daemonClient!(transport);
+    const result = await contributed.approvals!.approve("a-exec");
+    expect(result).toEqual({ ok: true, approval, execution });
+  });
+
   it("routes reject(id, reason?) through POST /approvals/:id/reject with encodeURIComponent and { reason } body", async () => {
     const approval = makeApproval(ENCODING_SENSITIVE_ID, "rejected");
     const { transport, calls } = makeRecordingTransport(() => ({ approval }));
@@ -354,6 +366,22 @@ describe("approval-queue module daemonClient(link)", () => {
     const contributed = approvalQueueModule.daemonClient!(transport);
     const result = await contributed.approvals!.approve("../abcd1234");
     expect(result).toEqual({ ok: false, reason: "invalid_id" });
+  });
+
+  it("collapses a typed 409 unavailable-input response from approve into { ok: false, reason: 'input_unavailable' }", async () => {
+    const { transport } = makeRecordingTransport(() =>
+      new Response(
+        JSON.stringify({
+          error: "Approval input is unavailable after daemon restart",
+          reason: "approval_input_unavailable",
+          approvals: [makeApproval("deadbeef")],
+        }),
+        { status: 409, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    const contributed = approvalQueueModule.daemonClient!(transport);
+    const result = await contributed.approvals!.approve("deadbeef");
+    expect(result).toEqual({ ok: false, reason: "input_unavailable" });
   });
 
   it("throws the typed unknown-project error from approve instead of returning not_found", async () => {

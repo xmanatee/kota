@@ -3,6 +3,7 @@ import type { KotaConfig } from "#core/config/config.js";
 import { loadConfig } from "#core/config/config.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { SessionGuardrailsReloadSummary } from "#core/events/event-bus-types.js";
+import { projectEvidenceObject, redactSensitiveText } from "#core/evidence/policy.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
 import { moduleSetupRequirementsFromSummaries } from "#core/modules/module-setup-status.js";
 import type { ModuleSummary } from "#core/modules/module-types.js";
@@ -405,6 +406,10 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       const runStore = lookupRuntime(projectId).runStore;
       const m = runStore.getRun(id);
       if (!m) return null;
+      const triggerPayload =
+        Object.keys(m.trigger.payload).length > 0
+          ? projectEvidenceObject(m.trigger.payload, "daemon-api")
+          : undefined;
       return {
         id: m.id,
         workflow: m.workflow,
@@ -420,8 +425,13 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
         ...(m.retryOf != null && { retryOf: m.retryOf }),
         ...(m.resumedFromRunId != null && { resumedFromRunId: m.resumedFromRunId }),
         ...(m.tags && m.tags.length > 0 && { tags: m.tags }),
-        ...(m.trigger.payload && Object.keys(m.trigger.payload).length > 0 && { triggerPayload: m.trigger.payload }),
-        ...(m.warnings && m.warnings.length > 0 && { warnings: m.warnings }),
+        ...(triggerPayload !== undefined && { triggerPayload }),
+        ...(m.warnings && m.warnings.length > 0 && {
+          warnings: m.warnings.map((warning) => ({
+            type: warning.type,
+            message: redactSensitiveText(warning.message),
+          })),
+        }),
         steps: m.steps.map((s) => {
           const agentCost = s.type === "agent" && typeof (s.output as { totalCostUsd?: unknown } | null | undefined)?.totalCostUsd === "number"
             ? (s.output as { totalCostUsd: number }).totalCostUsd

@@ -140,6 +140,10 @@ async function resolveApprovalAction(
     output.write(line(span(`Invalid approval id "${id}". Expected 8 lowercase hex characters.`, "warn")));
     return;
   }
+  if (mutation.reason === "input_unavailable") {
+    output.write(line(span(`Approval "${id}" cannot execute after daemon restart; reject it and retry the tool call.`, "warn")));
+    return;
+  }
   output.write(line(span(`Approval "${id}" not found or already resolved.`, "warn")));
 }
 

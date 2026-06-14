@@ -145,10 +145,11 @@ describe("secrets module get_secret tool gating", () => {
     expect(queued).toHaveLength(1);
     expect(queued[0]).toMatchObject({
       tool: "get_secret",
-      input: { name: SECRET_NAME },
+      input: { redacted: true, reason: "tool-io" },
       risk: "moderate",
       reason: "autonomy mode \"supervised\" gates moderate tool calls through human approval",
       status: "pending",
     });
+    expect(JSON.stringify(queued[0])).not.toContain(SECRET_NAME);
   });
 });

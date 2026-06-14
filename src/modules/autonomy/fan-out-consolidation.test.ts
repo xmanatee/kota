@@ -32,6 +32,7 @@ function mkRecord(opts: Partial<RepoTaskFullRecord> & {
     state: opts.state ?? "done",
     priority: opts.priority ?? "p2",
     area: opts.area ?? "client",
+    taskClass: opts.taskClass ?? "Unclassified",
     summary: opts.summary ?? "",
     updatedAt: opts.updatedAt,
     body: opts.body ?? "",

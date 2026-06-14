@@ -1,5 +1,12 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+  EVIDENCE_REDACTED,
+  type EvidenceDataClass,
+  type EvidenceSensitivity,
+  evidencePolicyForArtifact,
+  projectEvidenceJsonObject,
+} from "#core/evidence/policy.js";
 import type { BusEnvelope, EventBus, EventSchemaReference } from "./event-bus.js";
 import { getModuleEventRegistry } from "./module-event.js";
 import type {
@@ -90,7 +97,10 @@ export type EventEnvelopeIdempotency = {
 
 export type EventEnvelopeDataPolicy = {
   classification: ModuleEventSensitivity;
+  sensitivity: EvidenceSensitivity;
+  dataClasses: readonly EvidenceDataClass[];
   redactionProfile: "plain" | "redacted-client-projection";
+  storageProfile: "internal-storage";
 };
 
 export type EventEnvelopePayloadStorage =
@@ -162,9 +172,6 @@ export type EventJournalClientProjection = {
 };
 
 const DEFAULT_JOURNAL_FILE = "journal.jsonl";
-const REDACTED = "[redacted]";
-const SENSITIVE_PAYLOAD_KEY_PATTERN =
-  /(authorization|credential|password|secret|token|api[-_]?key|access[-_]?key|refresh[-_]?token|cookie)/i;
 
 export class EventJournal {
   private readonly filePath: string;
@@ -337,11 +344,14 @@ export function redactedPayloadForClient(
 ): EventJsonObject {
   const payload = payloadStorageToObject(envelope.payload);
   const registration = getModuleEventRegistry()?.get(envelope.event.name);
-  if (!registration) return redactObjectByKey(payload);
+  if (!registration) return projectEvidenceJsonObject(payload, "daemon-api") as EventJsonObject;
   if (registration.sensitivity === "secret" || registration.sensitivity === "sensitive") {
     return { redacted: true, reason: "event-classification" };
   }
-  return redactObjectBySchema(payload, registration.payloadSchema);
+  return projectEvidenceJsonObject(
+    redactObjectBySchema(payload, registration.payloadSchema),
+    "daemon-api",
+  ) as EventJsonObject;
 }
 
 function buildEventEnvelope(
@@ -351,7 +361,8 @@ function buildEventEnvelope(
   retention: EventJournalRetentionPolicy,
   scopeLineage: (scopeId: string) => readonly string[],
 ): EventEnvelope {
-  const payload = clonePayload(envelope.payload);
+  const rawPayload = clonePayload(envelope.payload);
+  const payload = payloadForStorage(envelope.type, rawPayload);
   const schema = resolveEnvelopeSchema(envelope);
   const sourceAndProducer = resolveSourceAndProducer(envelope.type, envelope.payload);
   const journaledAtIso = journaledAt.toISOString();
@@ -523,11 +534,30 @@ function resolveSourceAndProducer(
 
 function dataPolicyForEvent(eventName: string): EventEnvelopeDataPolicy {
   const classification = getModuleEventRegistry()?.get(eventName)?.sensitivity ?? "internal";
+  const artifactPolicy = evidencePolicyForArtifact("event-envelope");
   return {
     classification,
+    sensitivity: eventSensitivityToEvidenceSensitivity(classification),
+    dataClasses: artifactPolicy.dataClasses,
     redactionProfile:
       classification === "public" ? "plain" : "redacted-client-projection",
+    storageProfile: "internal-storage",
   };
+}
+
+function eventSensitivityToEvidenceSensitivity(
+  sensitivity: ModuleEventSensitivity,
+): EvidenceSensitivity {
+  switch (sensitivity) {
+    case "public":
+      return "public";
+    case "internal":
+      return "internal";
+    case "sensitive":
+      return "sensitive";
+    case "secret":
+      return "secret";
+  }
 }
 
 function resolveRetention(
@@ -564,6 +594,14 @@ function clonePayload(payload: BusEnvelope["payload"]): EventJsonObject {
     throw new Error("Event payload cannot be serialized to JSON");
   }
   return JSON.parse(serialized) as EventJsonObject;
+}
+
+function payloadForStorage(eventName: string, payload: EventJsonObject): EventJsonObject {
+  const registration = getModuleEventRegistry()?.get(eventName);
+  const schemaRedacted = registration
+    ? redactObjectBySchema(payload, registration.payloadSchema)
+    : payload;
+  return projectEvidenceJsonObject(schemaRedacted, "internal-storage") as EventJsonObject;
 }
 
 function readString(
@@ -627,7 +665,11 @@ function redactObjectBySchema(
   const out: EventJsonObject = {};
   for (const [key, value] of Object.entries(payload)) {
     const node = schema.properties[key];
-    out[key] = node ? redactValueByNode(value, node) : redactValueByKey(value, key);
+    out[key] = node
+      ? redactValueByNode(value, node)
+      : value === undefined
+        ? value
+        : projectEvidenceJsonObject({ [key]: value }, "daemon-api")[key] as EventJsonValue;
   }
   return out;
 }
@@ -637,7 +679,7 @@ function redactValueByNode(
   node: ModuleEventSchemaNode,
 ): EventJsonValue | undefined {
   if (node.sensitivity === "secret" || node.sensitivity === "sensitive") {
-    return REDACTED;
+    return EVIDENCE_REDACTED;
   }
   if (value === undefined || value === null) return value;
   if (node.type === "array") {
@@ -660,25 +702,6 @@ function redactValueByNode(
 
 function isEventJsonObject(value: EventJsonValue): value is EventJsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function redactObjectByKey(payload: EventJsonObject): EventJsonObject {
-  const out: EventJsonObject = {};
-  for (const [key, value] of Object.entries(payload)) {
-    out[key] = redactValueByKey(value, key);
-  }
-  return out;
-}
-
-function redactValueByKey(
-  value: EventJsonValue | undefined,
-  key = "",
-): EventJsonValue | undefined {
-  if (value === undefined) return value;
-  if (SENSITIVE_PAYLOAD_KEY_PATTERN.test(key)) return REDACTED;
-  if (Array.isArray(value)) return value.map((entry) => redactValueByKey(entry) ?? null);
-  if (!isEventJsonObject(value)) return value;
-  return redactObjectByKey(value);
 }
 
 function eventTypeMatchesGlob(eventType: string, glob: string): boolean {

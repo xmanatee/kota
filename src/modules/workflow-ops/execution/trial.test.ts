@@ -176,6 +176,63 @@ describe("workflow trial execution", () => {
     expect(existsSync(join(projectDir, summary.reportDir, "summary.json"))).toBe(true);
   });
 
+  it("projects sensitive trial report payloads, bus events, and queued workflows", async () => {
+    const projectDir = makeProjectDir();
+    cleanup.push(projectDir);
+    const secret = "trial-secret-token";
+
+    const summary = await runWorkflowTrial({
+      sourceProjectDir: projectDir,
+      workflowName: "sensitive-trial-fixture",
+      options: {
+        payload: { marker: "primary", token: secret },
+      },
+      runtimeFactory: makeRuntimeFactory((trialProjectDir) => [
+        makeDefinition(trialProjectDir, {
+          name: "sensitive-trial-fixture",
+          steps: [
+            {
+              id: "emit-and-queue",
+              type: "code",
+              run: async ({ trigger, emit, triggerWorkflow }) => {
+                emit("trial.sensitive", {
+                  token: trigger.payload.token,
+                  rawPayload: { token: trigger.payload.token },
+                });
+                await triggerWorkflow(
+                  "child-trial-fixture",
+                  { marker: "child", token: trigger.payload.token },
+                  "queued",
+                );
+                return { ok: true };
+              },
+            },
+          ],
+        }),
+      ]),
+    });
+
+    expect(summary.status).toBe("passed");
+    expect(summary.payload.token).toBe("[redacted]");
+    const attempt = summary.attempts[0]!;
+    cleanup.push(attempt.trialProjectPath);
+    expect(attempt.payload.token).toBe("[redacted]");
+    expect(attempt.busEvents.find((event) => event.type === "trial.sensitive")?.payload)
+      .toMatchObject({
+        token: "[redacted]",
+        rawPayload: {
+          redacted: true,
+          reason: "provider-payload",
+        },
+      });
+    expect(attempt.queuedWorkflows[0]?.payload).toMatchObject({
+      marker: "child",
+      token: "[redacted]",
+    });
+    const persisted = readFileSync(join(projectDir, summary.reportDir, "summary.json"), "utf-8");
+    expect(persisted).not.toContain(secret);
+  });
+
   it("roots local filesystem tool steps inside the isolated project copy", async () => {
     const projectDir = makeProjectDir();
     cleanup.push(projectDir);

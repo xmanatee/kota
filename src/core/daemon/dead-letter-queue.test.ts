@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -88,6 +88,48 @@ describe("DeadLetterQueueStore", () => {
     expect(store.list({ scopeId: "scope-a" })).toHaveLength(1);
     expect(store.list({ workflowName: "email-ingest" })).toHaveLength(1);
     expect(store.list({ type: "workflow-dispatch", status: "open" })).toHaveLength(2);
+  });
+
+  it("uses evidence policy retention for open and closed DLQ items", () => {
+    const item = createWorkflowDispatchDeadLetter({
+      store,
+      scopeId: "scope-a",
+      workflowName: "telegram-ingest",
+      trigger: { event: "telegram.message", schemaRef: null, payload: {} },
+      reason: "failed",
+      errorClass: "execution",
+    });
+    expect(item.retention).toEqual({
+      kind: "expire-after-ms",
+      durationMs: 2592000000,
+      expiresAt: "2026-07-06T12:00:00.000Z",
+    });
+
+    const dismissed = store.dismiss(item.id, "handled");
+    expect(dismissed?.retention).toEqual({
+      kind: "expire-after-ms",
+      durationMs: 1209600000,
+      expiresAt: "2026-06-20T12:00:00.000Z",
+    });
+
+    const redriveItem = createWorkflowDispatchDeadLetter({
+      store,
+      scopeId: "scope-a",
+      workflowName: "email-ingest",
+      trigger: { event: "email.message", schemaRef: null, payload: {} },
+      reason: "failed",
+      errorClass: "execution",
+    });
+    const redriven = store.recordRedriveAttempt(redriveItem.id, {
+      target: "simulation",
+      reason: "verified",
+      result: { status: "simulated" },
+    });
+    expect(redriven?.retention).toEqual({
+      kind: "expire-after-ms",
+      durationMs: 1209600000,
+      expiresAt: "2026-06-20T12:00:00.000Z",
+    });
   });
 
   it("preserves batch source metadata and source event ids", () => {
@@ -211,7 +253,13 @@ describe("DeadLetterQueueStore", () => {
       causality: {},
       trace: {},
       idempotency: {},
-      data: { classification: "public", redactionProfile: "plain" },
+      data: {
+        classification: "public",
+        sensitivity: "public",
+        dataClasses: ["operational-metadata", "audit-provenance", "source-content"],
+        redactionProfile: "plain",
+        storageProfile: "internal-storage",
+      },
       payload: {
         kind: "inline",
         payload: { chatId: "chat-1", text: "hello", accessToken: "secret" },
@@ -275,25 +323,50 @@ describe("DeadLetterQueueStore", () => {
       store,
       scopeId: "scope-a",
       workflowName: "telegram-ingest",
-      trigger: { event: "telegram.message", schemaRef: null, payload: {} },
-      reason: "failed",
+      trigger: {
+        event: "telegram.message",
+        schemaRef: null,
+        payload: { text: "token=raw-token from owner@example.test" },
+      },
+      reason: "failed because token=raw-token reached owner@example.test",
       errorClass: "execution",
     });
+    expect(item.failure.reason).not.toContain("raw-token");
+    expect(item.failure.reason).not.toContain("owner@example.test");
+
+    const failed = store.recordRedriveAttempt(item.id, {
+      target: "original",
+      reason: "retry after token=raw-token from owner@example.test",
+      result: {
+        status: "failed",
+        message: "provider returned Authorization: Bearer raw-token for owner@example.test",
+      },
+    });
+    expect(failed?.status).toBe("open");
+    expect(JSON.stringify(failed?.redriveAttempts[0])).not.toContain("raw-token");
+    expect(JSON.stringify(failed?.redriveAttempts[0])).not.toContain("owner@example.test");
 
     const redriven = store.recordRedriveAttempt(item.id, {
       target: "simulation",
-      reason: "operator verified fixed schema",
+      reason: "operator verified fixed schema with token=raw-token",
       result: { status: "simulated" },
     });
     expect(redriven?.status).toBe("redriven");
-    expect(redriven?.redriveAttempts).toHaveLength(1);
-    const dismissed = store.dismiss(item.id, "no longer needed");
+    expect(redriven?.redriveAttempts).toHaveLength(2);
+    expect(JSON.stringify(redriven?.redriveAttempts[1])).not.toContain("raw-token");
+    const dismissed = store.dismiss(item.id, "no longer needed; secret=raw-token for owner@example.test");
     expect(dismissed?.status).toBe("dismissed");
-    expect(dismissed?.dismissalReason).toBe("no longer needed");
+    expect(dismissed?.dismissalReason).toBe("no longer needed; secret=[redacted] for [redacted]");
     const diagnostics = store.diagnostics(item.id);
     expect(diagnostics).toMatchObject({
       item: { id: item.id, status: "dismissed" },
       storePath: store.getPath(),
     });
+    expect(JSON.stringify(diagnostics)).not.toContain("raw-token");
+    expect(JSON.stringify(diagnostics)).not.toContain("owner@example.test");
+
+    const persisted = readFileSync(store.getPath(), "utf-8");
+    expect(persisted).not.toContain("raw-token");
+    expect(persisted).not.toContain("owner@example.test");
   });
 });

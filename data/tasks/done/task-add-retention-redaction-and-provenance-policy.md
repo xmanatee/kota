@@ -1,13 +1,14 @@
 ---
 id: task-add-retention-redaction-and-provenance-policy
 title: Add retention redaction and provenance policy
-status: ready
+status: done
 priority: p1
+task_class: Safety
 area: core
 summary: Add a cross-cutting policy for event/run/decision/log retention, redaction, provenance, and exported client projections so durable automation evidence stays useful without leaking secrets or sensitive content.
 depends_on: [task-add-durable-event-envelope-and-journal, task-add-module-setup-and-auth-requirement-protocol, task-add-persisted-owner-confirmed-action-protocol, task-add-scope-policy-inheritance-protocol]
 created_at: 2026-06-03T15:51:25.157Z
-updated_at: 2026-06-06T01:44:09.071Z
+updated_at: 2026-06-14T12:30:00.000Z
 ---
 
 ## Problem
@@ -98,9 +99,17 @@ respecting secrets, private content, and scope-specific retention.
 
 ## Acceptance Evidence
 
-- Unit tests for redaction/projection and retention pruning across event,
-  run, DLQ, owner-decision, approval, and setup artifacts.
-- Daemon API fixture proving client-visible JSON omits secret and sensitive
-  payload values while preserving provenance ids.
-- A run artifact showing an event-to-workflow-to-owner-decision chain after
+- `pnpm test src/modules/autonomy/workflows/backlog-promoter/promotion.test.ts src/modules/workflow-ops/local-client.test.ts src/modules/workflow-ops/routes/workflow-routes.test.ts src/core/daemon/daemon-handle.test.ts src/core/daemon/approval-queue.test.ts src/modules/approval-queue/routes.test.ts src/modules/approval-queue/daemon-control.test.ts src/modules/approval-queue/daemon-client.test.ts src/modules/approval-queue/cli.test.ts`
+  passed with 266 focused tests covering approval restart safety, workflow run
+  projection redaction, explicit artifact read failures, and queue class
+  ordering.
+- `pnpm test src/modules/autonomy/workflows/explorer/workflow.test.ts src/modules/autonomy/workflows/backlog-promoter/promotion.test.ts src/modules/autonomy/fan-out-consolidation.test.ts`
+  passed with 52 autonomy workflow tests covering the new required task class
+  projection.
+- `pnpm test` passed with the full test suite: 744 test files, 10897 passed,
+  and 6 skipped.
+- `pnpm typecheck`, `pnpm lint`, and `pnpm validate-tasks` passed after the
+  recovery cleanup.
+- `.kota/runs/2026-06-13T23-53-06-491Z-builder-sqhpoh/redacted-evidence-chain.json`
+  records the runtime event-to-workflow-to-owner-decision evidence chain after
   redaction and retention policy application.

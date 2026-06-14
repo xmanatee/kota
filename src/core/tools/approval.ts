@@ -7,7 +7,7 @@
  */
 
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
-import { getApprovalQueue } from "#core/daemon/approval-queue.js";
+import { getApprovalQueue, projectApprovalForClient } from "#core/daemon/approval-queue.js";
 import { readOnlyDaemonEffect } from "./effect.js";
 import type { ToolResult } from "./index.js";
 
@@ -45,7 +45,7 @@ async function runApproval(input: Record<string, unknown>): Promise<ToolResult> 
 			if (items.length === 0) return { content: "No pending approvals." };
 			const lines = items.map(
 				(item) =>
-					`- [${item.id}] ${item.tool}(${JSON.stringify(item.input).slice(0, 80)}) — ${item.risk}: ${item.reason}`,
+					`- [${item.id}] ${item.tool}(${JSON.stringify(projectApprovalForClient(item, "agent-context").input).slice(0, 80)}) — ${item.risk}: ${item.reason}`,
 			);
 			return { content: `${items.length} pending:\n${lines.join("\n")}` };
 		}

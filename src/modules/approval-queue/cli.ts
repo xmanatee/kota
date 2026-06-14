@@ -13,6 +13,7 @@ import {
 	stack,
 } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
+import type { ApprovalExecutionProjection } from "./client.js";
 
 function formatAge(createdAt: string): string {
 	const ageMs = Date.now() - new Date(createdAt).getTime();
@@ -87,14 +88,52 @@ function safeApprovalLineText(value: string): string {
 	return stripTerminalControlSequences(value).replace(/\n+/g, " ");
 }
 
+function approvalValueHasRedaction(value: PendingApproval["input"][string]): boolean {
+	if (value === "[redacted]") return true;
+	if (Array.isArray(value)) return value.some((entry) => approvalValueHasRedaction(entry));
+	if (typeof value !== "object" || value === null) return false;
+	const record = value as { [key: string]: PendingApproval["input"][string] };
+	if (record.redacted === true) return true;
+	return Object.values(record).some((entry) => approvalValueHasRedaction(entry));
+}
+
+function approvalInputHasRedaction(input: PendingApproval["input"]): boolean {
+	return Object.values(input).some((value) => approvalValueHasRedaction(value));
+}
+
+function executionRedactionSuffix(execution: ApprovalExecutionProjection): string {
+	const bytes = execution.output.bytes !== undefined ? ` (${execution.output.bytes} bytes)` : "";
+	return ` — output redacted by daemon policy${bytes}.`;
+}
+
 function exitInvalidApprovalId(id: string): never {
 	console.error(`Error: invalid approval id "${id}". Expected 8 lowercase hex characters.`);
 	process.exit(1);
 }
 
-function exitApprovalMutationFailure(id: string, reason: "invalid_id" | "not_found"): never {
+function exitApprovalMutationFailure(id: string, reason: "invalid_id" | "not_found" | "input_unavailable"): never {
 	if (reason === "invalid_id") exitInvalidApprovalId(id);
+	if (reason === "input_unavailable") {
+		console.error(
+			`Error: approval "${id}" cannot be executed because its original input is no longer available after daemon restart. Reject it and retry the tool call.`,
+		);
+		process.exit(1);
+	}
 	console.error(`Error: approval "${id}" not found or already resolved.`);
+	process.exit(1);
+}
+
+function exitRedactedApprovalWithoutExecution(id: string, tool: string): never {
+	console.error(
+		`Error: approved ${safeApprovalLineText(tool)} [${id}], but the returned input was redacted and no daemon execution result was provided.`,
+	);
+	process.exit(1);
+}
+
+function exitDaemonExecutionFailure(id: string, tool: string, execution: ApprovalExecutionProjection): never {
+	console.error(
+		`Tool execution failed in daemon for [${id}] ${safeApprovalLineText(tool)}${executionRedactionSuffix(execution)}`,
+	);
 	process.exit(1);
 }
 
@@ -176,6 +215,22 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 				exitApprovalMutationFailure(id, mutate.reason);
 			}
 			const item = mutate.approval;
+			if (mutate.execution) {
+				if (mutate.execution.status === "failed") {
+					exitDaemonExecutionFailure(id, item.tool, mutate.execution);
+				}
+				const noteSuffix = item.approvalNote ? ` — note: ${safeApprovalLineText(item.approvalNote)}` : "";
+				print(line(
+					span("Approved and executed ", "success"),
+					plain(`${safeApprovalLineText(item.tool)} `),
+					span(`[${id}]`, "accent"),
+					plain(`${noteSuffix}${executionRedactionSuffix(mutate.execution)}`),
+				));
+				return;
+			}
+			if (approvalInputHasRedaction(item.input)) {
+				exitRedactedApprovalWithoutExecution(id, item.tool);
+			}
 			const result = await executeTool(item.tool, item.input);
 			if (result.is_error) {
 				console.error(`Tool execution failed:\n${stripTerminalControlSequences(result.content)}`);
@@ -241,7 +296,32 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 					continue;
 				}
 				const approved = mutate.approval;
-				const result = await executeTool(item.tool, item.input);
+				if (mutate.execution) {
+					if (mutate.execution.status === "failed") {
+						console.error(
+							`  Failed [${approved.id}] ${safeApprovalLineText(approved.tool)}${executionRedactionSuffix(mutate.execution)}`,
+						);
+						failed++;
+						continue;
+					}
+					const noteSuffix = approved.approvalNote ? ` — note: ${safeApprovalLineText(approved.approvalNote)}` : "";
+					print(line(
+						span("  Approved and executed ", "success"),
+						plain(`${safeApprovalLineText(approved.tool)} `),
+						span(`[${approved.id}]`, "accent"),
+						plain(`${noteSuffix}${executionRedactionSuffix(mutate.execution)}`),
+					));
+					succeeded++;
+					continue;
+				}
+				if (approvalInputHasRedaction(approved.input)) {
+					console.error(
+						`  Failed [${approved.id}] ${safeApprovalLineText(approved.tool)}: approved input was redacted and no daemon execution result was provided.`,
+					);
+					failed++;
+					continue;
+				}
+				const result = await executeTool(approved.tool, approved.input);
 				if (result.is_error) {
 					console.error(`  Failed [${item.id}] ${safeApprovalLineText(item.tool)}: ${stripTerminalControlSequences(result.content)}`);
 					failed++;

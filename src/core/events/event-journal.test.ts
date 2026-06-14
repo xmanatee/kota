@@ -233,6 +233,14 @@ describe("EventJournal", () => {
         externalProviderId: "message-1",
       },
     });
+    expect(events[0]!.payload).toMatchObject({
+      kind: "inline",
+      payload: { token: "[redacted]" },
+    });
+    expect(JSON.stringify(events[0])).not.toContain("telegram-secret-token");
+    expect(readFileSync(journal.getPath(), "utf-8")).not.toContain(
+      "telegram-secret-token",
+    );
 
     const projection = journal.toClientProjection(events[0]!);
     expect(projection.payload.token).toBe("[redacted]");
@@ -247,7 +255,7 @@ describe("EventJournal", () => {
       type: "inbound.signal.received",
       eventId: "evtj-000000000001",
       schemaRef: { name: "inbound.signal.received", version: 2 },
-      payload: { externalId: "message-1" },
+      payload: { externalId: "message-1", token: "[redacted]" },
     });
 
     now = new Date("2026-06-05T10:00:05.000Z");

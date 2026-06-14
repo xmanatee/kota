@@ -12,6 +12,10 @@ import type {
 } from "./owner-decision-types.js";
 import {
   sanitizeOwnerConfirmedActionMetadataForStorage,
+  sanitizeOwnerDecisionEvidenceForStorage,
+  sanitizeOwnerDecisionRecordForStorage,
+  sanitizeOwnerDecisionRequesterForStorage,
+  sanitizeOwnerDecisionRequestForStorage,
   sanitizeOwnerDecisionSelectionForStorage,
   validateOwnerConfirmedActionMetadata,
   validateOwnerDecisionRequest,
@@ -39,6 +43,10 @@ export type {
 export {
   projectOwnerDecisionForClient,
   sanitizeOwnerConfirmedActionMetadataForStorage,
+  sanitizeOwnerDecisionEvidenceForStorage,
+  sanitizeOwnerDecisionRecordForStorage,
+  sanitizeOwnerDecisionRequesterForStorage,
+  sanitizeOwnerDecisionRequestForStorage,
   sanitizeOwnerDecisionSelectionForStorage,
   validateOwnerConfirmedActionMetadata,
   validateOwnerDecisionRequest,
@@ -79,21 +87,22 @@ export class OwnerDecisionStore {
     validateOwnerDecisionRequest(input.request);
     if (input.action !== undefined) validateOwnerConfirmedActionMetadata(input.request, input.action);
     const now = new Date().toISOString();
-    const item: OwnerDecisionRecord = {
+    const request = sanitizeOwnerDecisionRequestForStorage(input.request);
+    const item = sanitizeOwnerDecisionRecordForStorage({
       id: randomUUID().slice(0, 8),
       seq: enqueueSeq++,
       scopeId: this.scopeId,
       status: "pending",
-      request: input.request,
-      requester: input.requester,
-      evidence: input.evidence,
+      request,
+      requester: sanitizeOwnerDecisionRequesterForStorage(input.requester),
+      evidence: sanitizeOwnerDecisionEvidenceForStorage(input.evidence),
       createdAt: now,
       updatedAt: now,
       ...(input.expiresAt !== undefined && { expiresAt: input.expiresAt }),
       ...(input.action !== undefined && {
         action: sanitizeOwnerConfirmedActionMetadataForStorage(input.request, input.action),
       }),
-    };
+    });
     this.write(item);
     this.emitChanged("owner.decision.requested", item);
     return item;
@@ -204,13 +213,14 @@ export class OwnerDecisionStore {
   }
 
   private update(item: OwnerDecisionRecord, patch: Partial<OwnerDecisionRecord>): OwnerDecisionRecord {
-    const updated = { ...item, ...patch, updatedAt: new Date().toISOString() };
+    const updated = sanitizeOwnerDecisionRecordForStorage({ ...item, ...patch, updatedAt: new Date().toISOString() });
     this.write(updated);
     return updated;
   }
 
   private write(item: OwnerDecisionRecord): void {
-    writeFileSync(ownerDecisionFilePathForItem(this.dir, item), JSON.stringify(item, null, 2));
+    const projected = sanitizeOwnerDecisionRecordForStorage(item);
+    writeFileSync(ownerDecisionFilePathForItem(this.dir, projected), JSON.stringify(projected, null, 2));
   }
 
   private emitChanged(

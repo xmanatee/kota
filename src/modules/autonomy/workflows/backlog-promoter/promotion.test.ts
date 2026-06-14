@@ -27,6 +27,7 @@ function writeTask(
     updatedAt?: string;
     anchor?: boolean;
     dependsOn?: string[];
+    taskClass?: "Product" | "Safety" | "Platform" | "Meta";
   } = {},
 ): void {
   const priority = attrs.priority ?? "p2";
@@ -44,6 +45,7 @@ function writeTask(
     `updated_at: ${updatedAt}`,
   ];
   if (attrs.anchor) lines.push("anchor: true");
+  if (attrs.taskClass) lines.push(`task_class: ${attrs.taskClass}`);
   if (attrs.dependsOn) lines.push(`depends_on: [${attrs.dependsOn.join(", ")}]`);
   lines.push("---", "");
   writeFileSync(
@@ -63,6 +65,7 @@ describe("compareBacklogCandidates", () => {
         state: "backlog" as const,
         priority: "p2",
         area: "architecture",
+        taskClass: "Unclassified" as const,
         summary: "",
         updatedAt: older,
         body: "",
@@ -75,6 +78,7 @@ describe("compareBacklogCandidates", () => {
         state: "backlog" as const,
         priority: "p1",
         area: "modules",
+        taskClass: "Unclassified" as const,
         summary: "",
         updatedAt: newer,
         body: "",
@@ -87,7 +91,7 @@ describe("compareBacklogCandidates", () => {
     expect(sorted[1].id).toBe("task-p2-architecture-old");
   });
 
-  it("uses strategic area as a tie-break within the same priority", () => {
+  it("uses task_class before strategic area within the same priority", () => {
     const updatedAt = "2026-04-01T00:00:00.000Z";
     const records = [
       {
@@ -96,6 +100,7 @@ describe("compareBacklogCandidates", () => {
         state: "backlog" as const,
         priority: "p1",
         area: "client",
+        taskClass: "Product" as const,
         summary: "",
         updatedAt,
         body: "",
@@ -108,6 +113,7 @@ describe("compareBacklogCandidates", () => {
         state: "backlog" as const,
         priority: "p1",
         area: "autonomy",
+        taskClass: "Platform" as const,
         summary: "",
         updatedAt,
         body: "",
@@ -116,7 +122,42 @@ describe("compareBacklogCandidates", () => {
       },
     ];
     const sorted = [...records].sort(compareBacklogCandidates);
-    expect(sorted[0].id).toBe("task-p1-autonomy");
+    expect(sorted[0].id).toBe("task-p1-client");
+    expect(sorted[1].id).toBe("task-p1-autonomy");
+  });
+
+  it("uses strategic area as a tie-break after task class", () => {
+    const updatedAt = "2026-04-01T00:00:00.000Z";
+    const records = [
+      {
+        id: "task-p1-client",
+        title: "client",
+        state: "backlog" as const,
+        priority: "p1",
+        area: "client",
+        taskClass: "Product" as const,
+        summary: "",
+        updatedAt,
+        body: "",
+        dependsOn: [],
+        anchor: false,
+      },
+      {
+        id: "task-p1-product-core",
+        title: "core",
+        state: "backlog" as const,
+        priority: "p1",
+        area: "core",
+        taskClass: "Product" as const,
+        summary: "",
+        updatedAt,
+        body: "",
+        dependsOn: [],
+        anchor: false,
+      },
+    ];
+    const sorted = [...records].sort(compareBacklogCandidates);
+    expect(sorted[0].id).toBe("task-p1-product-core");
     expect(sorted[1].id).toBe("task-p1-client");
   });
 
@@ -128,6 +169,7 @@ describe("compareBacklogCandidates", () => {
         state: "backlog" as const,
         priority: "p1",
         area: "autonomy",
+        taskClass: "Platform" as const,
         summary: "",
         updatedAt: "2026-04-30T00:00:00.000Z",
         body: "",
@@ -140,6 +182,7 @@ describe("compareBacklogCandidates", () => {
         state: "backlog" as const,
         priority: "p1",
         area: "autonomy",
+        taskClass: "Platform" as const,
         summary: "",
         updatedAt: "2026-03-01T00:00:00.000Z",
         body: "",
@@ -158,15 +201,18 @@ describe("buildPromotionRationale", () => {
     writeTask(projectDir, "backlog", "task-p2-fanout", {
       priority: "p2",
       area: "client",
+      taskClass: "Product",
     });
     writeTask(projectDir, "backlog", "task-p1-arch", {
       priority: "p1",
       area: "architecture",
+      taskClass: "Platform",
       updatedAt: "2026-03-01T00:00:00.000Z",
     });
     writeTask(projectDir, "backlog", "task-p1-modules-old", {
       priority: "p1",
       area: "modules",
+      taskClass: "Platform",
       updatedAt: "2026-02-01T00:00:00.000Z",
     });
     writeTask(projectDir, "backlog", "task-p3-cleanup", {
@@ -182,9 +228,10 @@ describe("buildPromotionRationale", () => {
 
     const selectedIds = rationale.selected.map((s) => s.id);
     // Both p1 strategic; task-p1-modules-old (2026-02-01) beats task-p1-arch
-    // (2026-03-01) on the age tie-break.
+    // (2026-03-01) on the age tie-break after class and area.
     expect(selectedIds).toEqual(["task-p1-modules-old", "task-p1-arch"]);
     expect(rationale.selected[0].reason).toMatch(/priority p1/);
+    expect(rationale.selected[0].reason).toMatch(/task_class Platform/);
     expect(rationale.selected[0].reason).toMatch(/strategic area/);
 
     const rejectedIds = rationale.rejected.map((r) => r.id);

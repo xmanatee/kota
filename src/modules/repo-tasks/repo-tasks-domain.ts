@@ -200,6 +200,13 @@ export type RepoTaskRecord = {
   body: string;
 };
 
+export type RepoTaskClass =
+  | "Product"
+  | "Safety"
+  | "Platform"
+  | "Meta"
+  | "Unclassified";
+
 /**
  * A full task record carrying every frontmatter field needed to render a
  * search hit, plus the raw body. Used by the `repo-tasks` provider seam to
@@ -211,6 +218,7 @@ export type RepoTaskFullRecord = {
   state: RepoTaskState;
   priority: string;
   area: string;
+  taskClass: RepoTaskClass;
   summary: string;
   updatedAt: string;
   body: string;
@@ -319,12 +327,7 @@ export function listFullRepoTasks(
     for (const name of readdirSync(dir)) {
       if (!name.endsWith(".md") || name === "AGENTS.md") continue;
       const filePath = join(dir, name);
-      let content: string;
-      try {
-        content = readFileSync(filePath, "utf-8");
-      } catch {
-        continue;
-      }
+      const content = readFileSync(filePath, "utf-8");
       const { attrs, body } = parseFlatFrontMatter(content);
       if (
         typeof attrs.id !== "string" ||
@@ -336,12 +339,16 @@ export function listFullRepoTasks(
       const priority = typeof attrs.priority === "string" ? attrs.priority : "";
       const area = typeof attrs.area === "string" ? attrs.area : "";
       const summary = typeof attrs.summary === "string" ? attrs.summary : "";
+      const taskClass = parseTaskClass(
+        typeof attrs.task_class === "string" ? attrs.task_class : undefined,
+      );
       result.push({
         id: attrs.id,
         title: attrs.title,
         state,
         priority,
         area,
+        taskClass,
         summary,
         updatedAt: attrs.updated_at,
         body,
@@ -389,6 +396,19 @@ export function getUnfinishedTaskDependencies(
  */
 function parseAnchorField(raw: string | undefined): boolean {
   return raw?.trim().toLowerCase() === "true";
+}
+
+function parseTaskClass(raw: string | undefined): RepoTaskClass {
+  switch (raw) {
+    case "Product":
+    case "Safety":
+    case "Platform":
+    case "Meta":
+      return raw;
+    case undefined:
+      return "Unclassified";
+  }
+  return "Unclassified";
 }
 
 function parseFrontmatterBlock(content: string): Record<string, string> | null {

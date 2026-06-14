@@ -20,6 +20,8 @@ into.
 - `daemon/` — daemon host, control API, scheduler persistence, and live runtime
   state.
 - `events/` — typed event catalog and event bus.
+- `evidence/` — shared retention, redaction, provenance, projection, and
+  pruned-reference policy for durable records and client-visible evidence.
 - `loop/` — `AgentSession`, turn execution, context assembly, transport,
   dynamic state, and module-contributed pre-send hooks that run once before
   the main turn loop.

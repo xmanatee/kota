@@ -37,10 +37,23 @@ export type ApprovalProjectScope = {
   projectId?: string;
 };
 
+export type ApprovalExecutionProjection = {
+  status: "succeeded" | "failed";
+  output: {
+    redacted: true;
+    reason: "tool-io";
+    bytes?: number;
+  };
+};
+
 /** Result of an approval mutation (`approve`, `reject`). */
 export type ApprovalMutateResult =
-  | { ok: true; approval: PendingApproval }
-  | { ok: false; reason: "invalid_id" | "not_found" };
+  | {
+      ok: true;
+      approval: PendingApproval;
+      execution?: ApprovalExecutionProjection;
+    }
+  | { ok: false; reason: "invalid_id" | "not_found" | "input_unavailable" };
 
 /**
  * Approval-queue operations.
@@ -48,8 +61,9 @@ export type ApprovalMutateResult =
  * `list` reads the queue (filterable by status). `approve` / `reject`
  * mutate a single pending entry; the daemon implementor talks to the
  * running daemon's queue, and the local implementor talks to the
- * in-process queue. Tool execution that follows a successful approve
- * stays in the CLI — the contract carries only the queue-state change.
+ * in-process queue. Daemon-backed approvals execute in the daemon before
+ * returning a redacted projection; local approvals return the queue-state
+ * change so the local CLI can execute the approved tool in-process.
  */
 export interface ApprovalsClient {
   list(filter?: ApprovalListFilter): Promise<ApprovalsListResult>;

@@ -6,6 +6,12 @@ import {
   initSecretStore,
   type SecretScope,
 } from "#core/config/secrets.js";
+import {
+  type EvidenceProjectionTarget,
+  type EvidenceRetentionScope,
+  evidenceRetentionDurationMsFor,
+  projectEvidenceObject,
+} from "#core/evidence/policy.js";
 
 export type ModuleSetupScope = "project" | "global";
 export type ModuleSetupSensitivity = "none" | "secret" | "oauth" | "browser-profile";
@@ -215,7 +221,6 @@ type SetupConfigObject = { [key: string]: ModuleSetupJsonValue };
 
 const ID_PATTERN = /^[a-z][a-z0-9.-]*$/;
 const SECRET_REFERENCE_PATTERN = /^\$[A-Z][A-Z0-9_]*$/;
-const DEFAULT_PENDING_TTL_MS = 10 * 60 * 1000;
 const SETUP_KINDS = [
   "config",
   "secret",
@@ -490,7 +495,9 @@ export class ModuleSetupService {
   async list(): Promise<ModuleSetupStatusResponse> {
     const capabilities = await this.#probeCapabilities();
     const statuses = this.#getRequirements().map((entry) =>
-      this.#statusFor(entry, this.#loadProjectConfig(), capabilities),
+      projectModuleSetupStatusForClient(
+        this.#statusFor(entry, this.#loadProjectConfig(), capabilities),
+      ),
     );
     return { requirements: statuses, summary: summarizeStatuses(statuses) };
   }
@@ -571,7 +578,8 @@ export class ModuleSetupService {
     }
     try {
       const now = this.#now();
-      const ttl = found.requirement.setup.pendingTtlMs ?? DEFAULT_PENDING_TTL_MS;
+      const ttl = found.requirement.setup.pendingTtlMs ??
+        defaultModuleSetupPendingTtlMs(found.requirement.scope);
       const action: ModuleSetupPendingAction = {
         actionId: `${found.moduleName}.${found.requirement.id}.${now.getTime()}`,
         moduleName: found.moduleName,
@@ -582,6 +590,10 @@ export class ModuleSetupService {
         createdAt: now.toISOString(),
         expiresAt: new Date(now.getTime() + ttl).toISOString(),
       };
+      const projectedAction = projectModuleSetupPendingActionForClient(
+        action,
+        "internal-storage",
+      );
       const file = this.#readActions();
       const filtered = file.actions.filter(
         (candidate) =>
@@ -589,8 +601,12 @@ export class ModuleSetupService {
           candidate.requirementId !== requirementId ||
           candidate.status !== "pending",
       );
-      this.#writeActions({ actions: [...filtered, action] });
-      return { ok: true, action, status: await this.#freshStatus(found) };
+      this.#writeActions({ actions: [...filtered, projectedAction] });
+      return {
+        ok: true,
+        action: projectModuleSetupPendingActionForClient(projectedAction),
+        status: await this.#freshStatus(found),
+      };
     } catch (err) {
       return storeError(err instanceof Error ? err.message : String(err));
     }
@@ -729,7 +745,9 @@ export class ModuleSetupService {
     found: ModuleSetupRequirementContribution,
   ): Promise<ModuleSetupRequirementStatus> {
     const capabilities = await this.#probeCapabilities();
-    return this.#statusFor(found, this.#loadProjectConfig(), capabilities);
+    return projectModuleSetupStatusForClient(
+      this.#statusFor(found, this.#loadProjectConfig(), capabilities),
+    );
   }
 
   #loadProjectConfig(): KotaConfig {
@@ -826,6 +844,32 @@ function baseStatus(
     ...(entry.requirement.description !== undefined && { description: entry.requirement.description }),
     ...(entry.requirement.owner !== undefined && { owner: entry.requirement.owner }),
   };
+}
+
+export function projectModuleSetupStatusForClient(
+  status: ModuleSetupRequirementStatus,
+  target: EvidenceProjectionTarget = "daemon-api",
+): ModuleSetupRequirementStatus {
+  return projectEvidenceObject(status, target) as ModuleSetupRequirementStatus;
+}
+
+export function projectModuleSetupPendingActionForClient(
+  action: ModuleSetupPendingAction,
+  target: EvidenceProjectionTarget = "daemon-api",
+): ModuleSetupPendingAction {
+  return projectEvidenceObject(action, target) as ModuleSetupPendingAction;
+}
+
+function defaultModuleSetupPendingTtlMs(scope: ModuleSetupScope): number {
+  return evidenceRetentionDurationMsFor({
+    artifactType: "setup-status",
+    state: "pending",
+    scope: setupRetentionScope(scope),
+  });
+}
+
+function setupRetentionScope(scope: ModuleSetupScope): EvidenceRetentionScope {
+  return scope === "global" ? "global" : "directory";
 }
 
 function withComputed(

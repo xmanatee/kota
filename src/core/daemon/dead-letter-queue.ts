@@ -8,9 +8,14 @@ import type {
 import type {
   EventEnvelope,
   EventJsonObject,
-  EventJsonValue,
 } from "#core/events/event-journal.js";
 import { redactedPayloadForClient } from "#core/events/event-journal.js";
+import {
+  evidenceRetentionScopeForScopeId,
+  projectEvidenceJsonObject,
+  redactSensitiveText,
+  resolveEvidenceRetention,
+} from "#core/evidence/policy.js";
 import { writeJsonFileAtomic } from "#core/util/json-file.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type {
@@ -215,9 +220,6 @@ type DeadLetterQueueSnapshot = {
 };
 
 const STORE_FILE = "items.json";
-const DEFAULT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
-const SENSITIVE_KEY_PATTERN =
-  /(authorization|credential|password|secret|token|api[-_]?key|access[-_]?key|refresh[-_]?token|cookie)/i;
 
 export class DeadLetterQueueStore {
   private readonly filePath: string;
@@ -280,19 +282,24 @@ export class DeadLetterQueueStore {
       sourceEventIds: [...input.sourceEventIds],
       affectedWorkflowNames: [...input.affectedWorkflowNames],
       failure: {
-        reason: input.failure.reason,
+        reason: redactSensitiveText(input.failure.reason),
         retryCount: input.failure.retryCount ?? 1,
         lastErrorClass: input.failure.lastErrorClass,
         firstFailedAt: now,
         lastFailedAt: now,
       },
-      source: input.source,
-      redrive: input.redrive,
-      redactedProjection: input.redactedProjection,
+      source: sanitizeDeadLetterSource(input.source),
+      redrive: sanitizeDeadLetterRedriveSource(input.redrive),
+      redactedProjection: redactJsonObject(input.redactedProjection),
       createdAt: now,
       updatedAt: now,
       redriveAttempts: [],
-      retention: resolveRetention(input.retention, new Date(now)),
+      retention: resolveDeadLetterRetention(
+        input.retention,
+        new Date(now),
+        input.scopeId,
+        "open",
+      ),
     };
     const snapshot = this.readSnapshot();
     snapshot.items.push(item);
@@ -310,8 +317,9 @@ export class DeadLetterQueueStore {
       ...item,
       status: "dismissed",
       dismissedAt: now,
-      dismissalReason: reason,
+      dismissalReason: redactSensitiveText(reason),
       updatedAt: now,
+      retention: resolveClosedDeadLetterRetention(item, new Date(now)),
     };
     snapshot.items[index] = next;
     this.writeSnapshot(snapshot);
@@ -327,17 +335,16 @@ export class DeadLetterQueueStore {
     if (index === -1) return null;
     const now = this.now().toISOString();
     const item = snapshot.items[index]!;
+    const sanitizedAttempt = sanitizeDeadLetterRedriveAttempt({ ...attempt, attemptedAt: now });
+    const nextStatus = attempt.result.status === "failed" ? item.status : "redriven";
     const next: DeadLetterItem = {
       ...item,
-      status: attempt.result.status === "failed" ? item.status : "redriven",
+      status: nextStatus,
       updatedAt: now,
-      redriveAttempts: [
-        ...item.redriveAttempts,
-        {
-          ...attempt,
-          attemptedAt: now,
-        },
-      ],
+      redriveAttempts: [...item.redriveAttempts, sanitizedAttempt],
+      retention: nextStatus === item.status
+        ? item.retention
+        : resolveClosedDeadLetterRetention(item, new Date(now)),
     };
     snapshot.items[index] = next;
     this.writeSnapshot(snapshot);
@@ -651,14 +658,14 @@ function sourceEventIdsFromBatch(payload: WorkflowBatchFlushPayload): string[] {
   );
 }
 
-function resolveRetention(
+function resolveDeadLetterRetention(
   retention: DeadLetterQueueRecordInput["retention"],
   now: Date,
+  scopeId: string,
+  state: "open" | "closed",
 ): DeadLetterRetentionPolicy {
-  const policy = retention ?? {
-    kind: "expire-after-ms" as const,
-    durationMs: DEFAULT_RETENTION_MS,
-  };
+  if (retention?.kind === "retain") return retention;
+  const policy = retention ?? resolveDeadLetterPolicyRetention(scopeId, state, now);
   if (policy.kind === "retain") return policy;
   return {
     ...policy,
@@ -666,23 +673,148 @@ function resolveRetention(
   };
 }
 
-function redactJsonObject(value: EventJsonObject): EventJsonObject {
-  const out: EventJsonObject = {};
-  for (const [key, entry] of Object.entries(value)) {
-    out[key] = redactJsonValue(entry, key);
-  }
-  return out;
+function resolveClosedDeadLetterRetention(
+  item: DeadLetterItem,
+  now: Date,
+): DeadLetterRetentionPolicy {
+  if (item.retention.kind === "retain") return item.retention;
+  return resolveDeadLetterRetention(undefined, now, item.scopeId, "closed");
 }
 
-function redactJsonValue(
-  value: EventJsonValue | undefined,
-  key = "",
-): EventJsonValue | undefined {
-  if (value === undefined) return value;
-  if (SENSITIVE_KEY_PATTERN.test(key)) return "[redacted]";
-  if (Array.isArray(value)) return value.map((entry) => redactJsonValue(entry) ?? null);
-  if (value === null || typeof value !== "object") return value;
-  return redactJsonObject(value);
+function resolveDeadLetterPolicyRetention(
+  scopeId: string,
+  state: "open" | "closed",
+  now: Date,
+): { kind: "retain" } | { kind: "expire-after-ms"; durationMs: number } {
+  const resolved = resolveEvidenceRetention({
+    artifactType: "dead-letter-item",
+    state,
+    scope: evidenceRetentionScopeForScopeId(scopeId),
+    retainedFrom: now,
+  });
+  if (resolved.kind === "retain") return { kind: "retain" };
+  return { kind: "expire-after-ms", durationMs: resolved.durationMs };
+}
+
+function redactJsonObject(value: EventJsonObject): EventJsonObject {
+  return projectEvidenceJsonObject(value, "internal-storage") as EventJsonObject;
+}
+
+function sanitizeDeadLetterSource(source: DeadLetterSource): DeadLetterSource {
+  switch (source.kind) {
+    case "workflow-dispatch":
+      return {
+        ...source,
+        ...(source.runDir !== undefined ? { runDir: redactSensitiveText(source.runDir) } : {}),
+      };
+    case "batch-envelope":
+      return {
+        ...source,
+        sourceEventName: redactSensitiveText(source.sourceEventName),
+        groupingKey: redactSensitiveText(source.groupingKey),
+      };
+    case "event-envelope":
+      return {
+        ...source,
+        eventName: redactSensitiveText(source.eventName),
+      };
+    case "confirmed-action-dispatch":
+      return source;
+  }
+}
+
+function sanitizeDeadLetterRedriveSource(redrive: DeadLetterRedriveSource): DeadLetterRedriveSource {
+  switch (redrive.kind) {
+    case "workflow":
+      return {
+        ...redrive,
+        source: sanitizeDeadLetterWorkflowRedriveSource(redrive.source),
+      };
+    case "event":
+      return redrive;
+    case "none":
+      return {
+        ...redrive,
+        reason: redactSensitiveText(redrive.reason),
+      };
+  }
+}
+
+function sanitizeDeadLetterWorkflowRedriveSource(
+  source: DeadLetterWorkflowRedriveSource,
+): DeadLetterWorkflowRedriveSource {
+  switch (source.kind) {
+    case "run-trigger":
+    case "event-journal":
+    case "resume-step":
+      return source;
+    case "batch-event-journal":
+      return {
+        ...source,
+        triggerEvent: redactSensitiveText(source.triggerEvent),
+        payload: sanitizeDeadLetterBatchRedrivePayload(source.payload),
+      };
+  }
+}
+
+function sanitizeDeadLetterBatchRedrivePayload(
+  payload: DeadLetterBatchRedrivePayload,
+): DeadLetterBatchRedrivePayload {
+  return {
+    ...payload,
+    sourceEventName: redactSensitiveText(payload.sourceEventName),
+    groupingKey: redactSensitiveText(payload.groupingKey),
+    inputEvents: payload.inputEvents.map((event) => ({
+      ...event,
+      event: redactSensitiveText(event.event),
+    })),
+  };
+}
+
+function sanitizeDeadLetterRedriveAttempt(
+  attempt: DeadLetterRedriveAttempt,
+): DeadLetterRedriveAttempt {
+  const reason = redactSensitiveText(attempt.reason);
+  switch (attempt.result.status) {
+    case "queued":
+      return {
+        target: attempt.target,
+        reason,
+        attemptedAt: attempt.attemptedAt,
+        result: {
+          status: "queued",
+          runId: attempt.result.runId,
+          workflowName: attempt.result.workflowName,
+        },
+      };
+    case "emitted":
+      return {
+        target: attempt.target,
+        reason,
+        attemptedAt: attempt.attemptedAt,
+        result: {
+          status: "emitted",
+          event: attempt.result.event,
+        },
+      };
+    case "simulated":
+      return {
+        target: attempt.target,
+        reason,
+        attemptedAt: attempt.attemptedAt,
+        result: { status: "simulated" },
+      };
+    case "failed":
+      return {
+        target: attempt.target,
+        reason,
+        attemptedAt: attempt.attemptedAt,
+        result: {
+          status: "failed",
+          message: redactSensitiveText(attempt.result.message),
+        },
+      };
+  }
 }
 
 export function deadLetterDigest(value: EventJsonObject): string {

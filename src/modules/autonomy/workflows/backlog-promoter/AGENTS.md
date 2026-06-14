@@ -13,6 +13,7 @@ Runtime contract:
 - Never acts on a dirty worktree and never promotes more than
   `PROMOTION_BATCH_LIMIT` tasks per run.
 - Ranking is deterministic in `promotion.ts`: priority (p0..p3), then
+  task class (Safety, Product, Platform, unclassified, Meta), then
   strategic-area tie-break (architecture/autonomy/core/modules), then oldest
   `updated_at`, then id. The same record set therefore picks the same batch
   every run.

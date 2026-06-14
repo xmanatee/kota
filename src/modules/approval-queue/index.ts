@@ -9,13 +9,18 @@
 import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
 import type { ApprovalQueue, PendingApproval } from "#core/daemon/approval-queue.js";
-import { getApprovalQueue, isApprovalId } from "#core/daemon/approval-queue.js";
+import {
+	defaultApprovalPendingTtlMs,
+	getApprovalQueue,
+	isApprovalId,
+} from "#core/daemon/approval-queue.js";
 import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { registerApprovalCommands } from "./cli.js";
 import type {
+	ApprovalExecutionProjection,
 	ApprovalMutateResult,
 	ApprovalProjectScope,
 	ApprovalsClient,
@@ -25,8 +30,6 @@ import { approvalControlRoutes, approvalRoutes } from "./routes.js";
 
 export type { ApprovalStatus, PendingApproval } from "#core/daemon/approval-queue.js";
 export { ApprovalQueue, getApprovalQueue, resetApprovalQueue } from "#core/daemon/approval-queue.js";
-
-const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
 
 function resolveLocalApprovalQueue(projectId?: string): ApprovalQueue {
 	const projectScope = getProviderRegistry()?.get(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE);
@@ -72,7 +75,7 @@ const approvalQueueModule: KotaModule = {
 		const handler: ApprovalsClient = {
 			async list(filter) {
 				const config = loadConfig();
-				const ttlMs = config.approvalTtlMs ?? DEFAULT_TTL_MS;
+				const ttlMs = config.approvalTtlMs ?? defaultApprovalPendingTtlMs();
 				const queue = resolveLocalApprovalQueue(filter?.projectId);
 				queue.expireStale(ttlMs);
 				const status = filter?.status;
@@ -82,8 +85,9 @@ const approvalQueueModule: KotaModule = {
 			},
 			async approve(id, note, project) {
 				if (!isApprovalId(id)) return { ok: false, reason: "invalid_id" };
-				const item = resolveLocalApprovalQueue(project?.projectId).approve(id, note);
-				return item ? { ok: true, approval: item } : { ok: false, reason: "not_found" };
+				const result = resolveLocalApprovalQueue(project?.projectId).approveForExecution(id, note);
+				if (result.ok) return { ok: true, approval: result.approval };
+				return { ok: false, reason: result.reason };
 			},
 			async reject(id, reason, project) {
 				if (!isApprovalId(id)) return { ok: false, reason: "invalid_id" };
@@ -112,7 +116,9 @@ const approvalQueueModule: KotaModule = {
  * decoded IDs are rejected by the route. A `null` (404) result collapses into
  * `{ ok: false, reason: "not_found" }` to keep `ApprovalMutateResult`
  * intact across the daemon-up branch. A 400 invalid-id response stays
- * distinct as `{ ok: false, reason: "invalid_id" }`.
+ * distinct as `{ ok: false, reason: "invalid_id" }`. A daemon approval can
+ * include redacted execution status when the daemon executed the tool before
+ * returning.
  */
 function buildApprovalsDaemonHandler(link: DaemonTransport): ApprovalsClient {
 	return {
@@ -169,12 +175,26 @@ async function mutateApproval(
 		}
 		throw new Error(errBody?.error ?? "Invalid approval request");
 	}
+	if (res.status === 409) {
+		const errBody = await readApprovalRouteError(res);
+		if (errBody?.reason === "approval_input_unavailable") {
+			return { ok: false, reason: "input_unavailable" };
+		}
+		throw new Error(errBody?.error ?? "Approval cannot be executed");
+	}
 	if (!res.ok) {
 		const errBody = await readApprovalRouteError(res);
 		throw new Error(errBody?.error ?? `HTTP ${res.status}`);
 	}
-	const data = (await res.json()) as { approval: PendingApproval };
-	return { ok: true, approval: data.approval };
+	const data = (await res.json()) as {
+		approval: PendingApproval;
+		execution?: ApprovalExecutionProjection;
+	};
+	return {
+		ok: true,
+		approval: data.approval,
+		...(data.execution !== undefined ? { execution: data.execution } : {}),
+	};
 }
 
 async function readApprovalRouteError(

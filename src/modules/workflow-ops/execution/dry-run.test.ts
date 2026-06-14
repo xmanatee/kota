@@ -437,7 +437,10 @@ describe("buildDryRunPlan with options", () => {
       idempotency: {},
       data: {
         classification: "internal",
+        sensitivity: "internal",
+        dataClasses: ["operational-metadata", "audit-provenance", "source-content"],
         redactionProfile: "redacted-client-projection",
+        storageProfile: "internal-storage",
       },
       payload: { kind: "inline", payload: { area: "workflows", taskId: "task-1" } },
       retention: { kind: "retain" },

@@ -3,31 +3,40 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApprovalQueue, resetApprovalQueue } from "#core/daemon/approval-queue.js";
+import {
+	ApprovalQueue,
+	defaultApprovalPendingTtlMs,
+	type PendingApproval,
+	resetApprovalQueue,
+} from "#core/daemon/approval-queue.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { registerApprovalCommands } from "./cli.js";
+import type { ApprovalsClient } from "./client.js";
 
-const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
-function stubCtx(): ModuleContext {
+function testApprovalsClient(): ApprovalsClient {
+	return {
+		async list(filter) {
+			testQueue.expireStale(defaultApprovalPendingTtlMs());
+			const status = filter?.status;
+			if (status === undefined) return { approvals: testQueue.list("pending") };
+			if (status === "all") return { approvals: testQueue.list() };
+			return { approvals: testQueue.list(status) };
+		},
+		async approve(id, note) {
+			const item = testQueue.approve(id, note);
+			return item ? { ok: true, approval: item } : { ok: false, reason: "not_found" };
+		},
+		async reject(id, reason) {
+			const item = testQueue.reject(id, reason);
+			return item ? { ok: true, approval: item } : { ok: false, reason: "not_found" };
+		},
+	};
+}
+
+function stubCtx(approvals: ApprovalsClient = testApprovalsClient()): ModuleContext {
 	return {
 		client: {
-			approvals: {
-				async list(filter?: { status?: string }) {
-					testQueue.expireStale(DEFAULT_TTL_MS);
-					const status = filter?.status;
-					if (status === undefined) return { approvals: testQueue.list("pending") };
-					if (status === "all") return { approvals: testQueue.list() };
-					return { approvals: testQueue.list(status as Parameters<typeof testQueue.list>[0]) };
-				},
-				async approve(id: string, note?: string) {
-					const item = testQueue.approve(id, note);
-					return item ? { ok: true, approval: item } : { ok: false, reason: "not_found" };
-				},
-				async reject(id: string, reason?: string) {
-					const item = testQueue.reject(id, reason);
-					return item ? { ok: true, approval: item } : { ok: false, reason: "not_found" };
-				},
-			},
+			approvals,
 		},
 	} as unknown as ModuleContext;
 }
@@ -60,10 +69,20 @@ const C1_OSC_TITLE = "\x9d0;approval-c1-pwned\x07";
 // biome-ignore lint/suspicious/noControlCharactersInRegex: regression checks assert raw terminal controls are absent
 const RAW_TERMINAL_CONTROL_PATTERN = /[\x00-\x09\x0b-\x1f\x7f-\x9f]/;
 
-function makeProgram(): Command {
+function withRedactedAccessToken(item: PendingApproval): PendingApproval {
+	return {
+		...item,
+		input: {
+			...item.input,
+			accessToken: "[redacted]",
+		},
+	};
+}
+
+function makeProgram(approvals?: ApprovalsClient): Command {
 	const program = new Command();
 	program.exitOverride(); // prevent process.exit in tests
-	registerApprovalCommands(program, stubCtx());
+	registerApprovalCommands(program, stubCtx(approvals));
 	return program;
 }
 
@@ -148,7 +167,7 @@ describe("approval CLI commands", () => {
 			expect(output).toContain("shell");
 			expect(output).toContain("needs review red green");
 			expect(output).toContain("queued-source");
-			expect(output).toContain("why now");
+			expect(output).not.toContain("why now");
 			expect(output).not.toMatch(RAW_TERMINAL_CONTROL_PATTERN);
 			expect(output).not.toContain(CSI_RED);
 			expect(output).not.toContain(OSC_TITLE);
@@ -328,6 +347,44 @@ describe("approval CLI commands", () => {
 			expect(vi.mocked(executeTool)).toHaveBeenCalledTimes(2);
 		});
 
+		it("uses daemon execution results for redacted approved items", async () => {
+			const item = testQueue.enqueue(
+				"shell",
+				{ command: "deploy", accessToken: "raw-token" },
+				"moderate",
+				"reason",
+			);
+			const baseClient = testApprovalsClient();
+			const daemonClient: ApprovalsClient = {
+				...baseClient,
+				async list() {
+					return { approvals: [withRedactedAccessToken(item)] };
+				},
+				async approve(id, note) {
+					const approved = testQueue.approve(id, note);
+					return approved
+						? {
+							ok: true,
+							approval: withRedactedAccessToken(approved),
+							execution: {
+								status: "succeeded",
+								output: { redacted: true, reason: "tool-io", bytes: 2 },
+							},
+						}
+						: { ok: false, reason: "not_found" };
+				},
+			};
+
+			const output = await captureOutput(() =>
+				run(makeProgram(daemonClient), "approval", "approve-all", "--yes"),
+			);
+
+			expect(output).toContain(`Approved and executed shell [${item.id}]`);
+			expect(output).toContain("output redacted by daemon policy");
+			expect(output).toContain("Done: 1 approved, 0 failed");
+			expect(vi.mocked(executeTool)).not.toHaveBeenCalled();
+		});
+
 		it("attaches --note to every approved item", async () => {
 			const item = testQueue.enqueue("glob", { pattern: "*.ts" }, "safe", "reason");
 			vi.mocked(executeTool).mockResolvedValue({ content: "result" });
@@ -446,6 +503,40 @@ describe("approval CLI commands", () => {
 			expect(output).toContain("Approved and executed glob");
 			expect(output).toContain("file1.ts");
 			expect(vi.mocked(executeTool)).toHaveBeenCalledWith("glob", { pattern: "*.ts" });
+		});
+
+		it("does not re-execute redacted approvals that the daemon already executed", async () => {
+			const item = testQueue.enqueue(
+				"shell",
+				{ command: "deploy", accessToken: "raw-token" },
+				"moderate",
+				"reason",
+			);
+			const baseClient = testApprovalsClient();
+			const daemonClient: ApprovalsClient = {
+				...baseClient,
+				async approve(id, note) {
+					const approved = testQueue.approve(id, note);
+					return approved
+						? {
+							ok: true,
+							approval: withRedactedAccessToken(approved),
+							execution: {
+								status: "succeeded",
+								output: { redacted: true, reason: "tool-io", bytes: 2 },
+							},
+						}
+						: { ok: false, reason: "not_found" };
+				},
+			};
+
+			const output = await captureOutput(() =>
+				run(makeProgram(daemonClient), "approval", "approve", item.id),
+			);
+
+			expect(output).toContain(`Approved and executed shell [${item.id}]`);
+			expect(output).toContain("output redacted by daemon policy");
+			expect(vi.mocked(executeTool)).not.toHaveBeenCalled();
 		});
 
 		it("errors on nonexistent id", async () => {

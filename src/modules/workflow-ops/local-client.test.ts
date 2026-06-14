@@ -131,7 +131,7 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
     expect(typeof handler.trial).toBe("function");
   });
 
-  it("getRun returns the artifact metadata projected onto WorkflowRunDetail", async () => {
+  it("getRun returns artifact metadata projected onto the redacted WorkflowRunDetail", async () => {
     const store = new WorkflowRunStore(projectDir);
     mkdirSync(join(store.runsDir, "2026-04-25T20-00-00-000Z-builder-aaa111"), {
       recursive: true,
@@ -140,24 +140,33 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
       id: "2026-04-25T20-00-00-000Z-builder-aaa111",
       workflow: "builder",
       definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
-      trigger: { event: "manual", payload: { source: "test" } },
+      trigger: {
+        event: "manual",
+        payload: {
+          source: "test",
+          accessToken: "raw-token",
+          nested: { authorization: "Bearer raw-auth" },
+        },
+      },
       startedAt: "2026-04-25T20:00:00.000Z",
       completedAt: "2026-04-25T20:00:01.000Z",
       durationMs: 1000,
       totalCostUsd: 0.012,
-      status: "success",
+      status: "failed",
       runDir: ".kota/runs/2026-04-25T20-00-00-000Z-builder-aaa111",
       steps: [
         {
           id: "build",
           type: "agent",
-          status: "success",
+          status: "failed",
           startedAt: "2026-04-25T20:00:00.000Z",
           completedAt: "2026-04-25T20:00:01.000Z",
           durationMs: 800,
           costUsd: 0.012,
+          error: "failed with token=step-token",
         },
       ],
+      warnings: [{ type: "output-schema-mismatch", message: "email owner@example.test" }],
     };
     writeFileSync(
       join(store.runsDir, "2026-04-25T20-00-00-000Z-builder-aaa111", "metadata.json"),
@@ -171,17 +180,29 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
     if (!result.found) throw new Error("unreachable");
     expect(result.run.id).toBe("2026-04-25T20-00-00-000Z-builder-aaa111");
     expect(result.run.workflow).toBe("builder");
-    expect(result.run.status).toBe("success");
+    expect(result.run.status).toBe("failed");
     expect(result.run.triggerEvent).toBe("manual");
-    expect(result.run.triggerPayload).toEqual({ source: "test" });
+    expect(result.run.triggerPayload).toEqual({
+      source: "test",
+      accessToken: "[redacted]",
+      nested: { authorization: "[redacted]" },
+    });
+    expect(result.run.warnings).toEqual([
+      { type: "output-schema-mismatch", message: "email [redacted]" },
+    ]);
     expect(result.run.steps).toHaveLength(1);
     expect(result.run.steps[0]).toMatchObject({
       id: "build",
       type: "agent",
-      status: "success",
+      status: "failed",
       durationMs: 800,
       costUsd: 0.012,
+      error: "failed with token=[redacted]",
     });
+    expect(JSON.stringify(result.run)).not.toContain("raw-token");
+    expect(JSON.stringify(result.run)).not.toContain("raw-auth");
+    expect(JSON.stringify(result.run)).not.toContain("step-token");
+    expect(JSON.stringify(result.run)).not.toContain("owner@example.test");
   });
 
   it("getRun returns { found: false } for an unknown run id", async () => {

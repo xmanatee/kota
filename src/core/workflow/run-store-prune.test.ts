@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -81,10 +81,40 @@ describe("WorkflowRunStore.pruneRuns", () => {
     for (const id of deleted) {
       expect(existsSync(join(runsDir, id))).toBe(false);
     }
+    const references = readFileSync(join(runsDir, "pruned-runs.jsonl"), "utf-8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as {
+        artifactType: string;
+        id: string;
+        payloadExpired: boolean;
+        retained: { workflow: string; status: string };
+        provenance: { workflowName: string; runId: string };
+      });
+    expect(references).toHaveLength(3);
+    expect(references[0]).toMatchObject({
+      artifactType: "workflow-run",
+      payloadExpired: true,
+      retained: { workflow: "builder", status: "success" },
+      provenance: { workflowName: "builder" },
+    });
     // Recent runs untouched
     for (let i = 0; i < 10; i++) {
       expect(existsSync(join(runsDir, `run-new-${i}`))).toBe(true);
     }
+  });
+
+  it("uses evidence-policy terminal run retention when retentionDays is omitted", () => {
+    const runsDir = join(projectDir, ".kota", "runs");
+    const now = Date.now();
+    writeRun(runsDir, "run-recent", "builder", now - 6 * DAY_MS);
+    writeRun(runsDir, "run-old", "builder", now - 8 * DAY_MS);
+
+    const deleted = store.pruneRuns({ minKeepPerWorkflow: 0 });
+
+    expect(deleted).toEqual(["run-old"]);
+    expect(existsSync(join(runsDir, "run-recent"))).toBe(true);
+    expect(existsSync(join(runsDir, "run-old"))).toBe(false);
   });
 
   it("respects minKeepPerWorkflow — keeps N newest even if older than retention", () => {
@@ -243,5 +273,63 @@ describe("WorkflowRunStore tags", () => {
 
     const allRuns = store.listRuns({ limit: 10 });
     expect(allRuns).toHaveLength(3);
+  });
+
+  it("projects durable run trigger, metadata, agent inputs, messages, and step artifacts", () => {
+    const secret = "storage-secret-token";
+    const trigger = {
+      event: "manual",
+      schemaRef: null,
+      payload: {
+        token: secret,
+        email: "owner@example.test",
+        triggeredAt: new Date().toISOString(),
+      },
+    };
+    const handle = store.createRun(minimalWorkflow, trigger);
+    const runDir = join(projectDir, handle.metadata.runDir);
+
+    handle.writeAgentInputs(
+      "agent",
+      `system prompt ${secret}`,
+      `user prompt ${secret}`,
+    );
+    handle.appendAgentMessage("agent", {
+      type: "thinking",
+      thinking: `private reasoning ${secret}`,
+    });
+    handle.appendAgentMessage("agent", {
+      type: "tool_result",
+      toolUseId: "tool-1",
+      isError: false,
+      content: `tool output ${secret}`,
+    });
+    handle.recordStep({
+      id: "agent",
+      type: "agent",
+      status: "success",
+      startedAt: new Date(1700000000000).toISOString(),
+      completedAt: new Date(1700000001000).toISOString(),
+      durationMs: 1000,
+      output: { toolResult: `raw output ${secret}`, totalCostUsd: 0.01 },
+    });
+    handle.finish({
+      status: "failed",
+      durationMs: 1000,
+      error: `terminal error ${secret}`,
+    });
+
+    const durableText = [
+      readFileSync(join(runDir, "trigger.json"), "utf-8"),
+      readFileSync(join(runDir, "metadata.json"), "utf-8"),
+      readFileSync(join(runDir, "steps", "agent.input.md"), "utf-8"),
+      readFileSync(join(runDir, "steps", "agent.events.jsonl"), "utf-8"),
+      readFileSync(join(runDir, "steps", "agent.json"), "utf-8"),
+      readFileSync(join(runDir, "error.txt"), "utf-8"),
+    ].join("\n");
+
+    expect(durableText).not.toContain(secret);
+    expect(durableText).not.toContain("owner@example.test");
+    expect(durableText).toContain('"redacted":true');
   });
 });

@@ -18,6 +18,7 @@ import type {
   WorkflowRunSummary,
 } from "#core/daemon/daemon-control.js";
 import { deadLetterStoreForProject } from "#core/daemon/dead-letter-queue.js";
+import { projectEvidenceObject, redactSensitiveText } from "#core/evidence/policy.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { buildDeadLetterWorkflowTrigger } from "#core/workflow/dead-letter-redrive.js";
@@ -793,10 +794,14 @@ function runDetailFromMetadata(meta: WorkflowRunMetadata): WorkflowRunDetail {
     type: step.type,
     status: step.status,
     durationMs: step.durationMs,
-    ...(step.error !== undefined && { error: step.error }),
+    ...(step.error !== undefined && { error: redactSensitiveText(step.error) }),
     ...(step.costUsd !== undefined && { costUsd: step.costUsd }),
     ...(step.skipReason !== undefined && { skipReason: step.skipReason }),
   }));
+  const triggerPayload =
+    Object.keys(meta.trigger.payload).length > 0
+      ? projectEvidenceObject(meta.trigger.payload, "cli-client")
+      : undefined;
   return {
     id: meta.id,
     workflow: meta.workflow,
@@ -812,9 +817,14 @@ function runDetailFromMetadata(meta: WorkflowRunMetadata): WorkflowRunDetail {
     ...(meta.retryOf !== undefined && { retryOf: meta.retryOf }),
     ...(meta.resumedFromRunId !== undefined && { resumedFromRunId: meta.resumedFromRunId }),
     ...(meta.tags !== undefined && { tags: meta.tags }),
-    ...(meta.trigger.payload && { triggerPayload: meta.trigger.payload }),
+    ...(triggerPayload !== undefined && { triggerPayload }),
     steps,
-    ...(meta.warnings !== undefined && { warnings: meta.warnings }),
+    ...(meta.warnings !== undefined && {
+      warnings: meta.warnings.map((warning) => ({
+        type: warning.type,
+        message: redactSensitiveText(warning.message),
+      })),
+    }),
   };
 }
 
