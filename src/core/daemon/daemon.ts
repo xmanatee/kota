@@ -94,6 +94,7 @@ export type DaemonConfig = {
   resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
   probeModuleHealthChecks?: () => Promise<Record<string, import("#core/modules/module-types.js").HealthCheckResult>>;
   moduleConfigKeys?: ReadonlySet<string>;
+  unloadModules?: () => Promise<void>;
   /**
    * Called after a restart-requested daemon has completed clean shutdown.
    * Defaults to `process.exit(code)`, which lets the supervisor restart the

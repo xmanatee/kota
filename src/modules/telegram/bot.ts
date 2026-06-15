@@ -96,6 +96,7 @@ export class TelegramBot {
   private running = false;
   private offset = 0;
   private options: TelegramBotOptions;
+  private pollController: AbortController | null = null;
 
   constructor(options: TelegramBotOptions) {
     this.token = options.token;
@@ -121,6 +122,8 @@ export class TelegramBot {
 
   stop(): void {
     this.running = false;
+    this.pollController?.abort();
+    this.pollController = null;
     for (const session of this.sessions.values()) {
       session.agent.close();
     }
@@ -143,10 +146,18 @@ export class TelegramBot {
   }
 
   private async poll(): Promise<void> {
+    const controller = new AbortController();
+    this.pollController = controller;
     const updates = await callTelegramApi<TelegramUpdate[]>(this.token, "getUpdates", {
       offset: this.offset,
       timeout: POLL_TIMEOUT_S,
       allowed_updates: ["message"],
+    }, {
+      signal: controller.signal,
+    }).finally(() => {
+      if (this.pollController === controller) {
+        this.pollController = null;
+      }
     });
 
     for (const update of updates) {

@@ -74,6 +74,7 @@ describe("startCallbackPoll", () => {
       TOKEN,
       "getUpdates",
       expect.objectContaining({ allowed_updates: ["callback_query"] }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });
 

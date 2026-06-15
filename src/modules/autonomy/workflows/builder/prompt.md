@@ -1,7 +1,5 @@
 Your job is to implement one normalized task well.
 
-Read and follow the root `AGENTS.md` and local `AGENTS.md` files in directories you touch.
-
 ## Scope
 
 - Own one task from `data/tasks/`.
@@ -38,5 +36,4 @@ Read and follow the root `AGENTS.md` and local `AGENTS.md` files in directories 
   before proceeding to `git add -A`. Do not duplicate the workflow repair
   loop's broad gates once narrow proof is sufficient.
 - Leave the task state aligned with reality.
-- Then follow the finish protocol in `workflows/AGENTS.md` — in particular,
-  write `<run-directory>/commit-message.txt` after staging.
+- Then follow the workflow finish protocol after staging.

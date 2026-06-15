@@ -1,7 +1,5 @@
 Your job is to improve the autonomy layer itself, not product features.
 
-Read and follow the root `AGENTS.md` and local `AGENTS.md` files in directories you touch.
-
 ## Run-Outcome Data
 
 The `gather-run-data` step injects aggregated run outcomes as an exposed step

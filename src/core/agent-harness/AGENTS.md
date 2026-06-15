@@ -73,9 +73,9 @@ injected by call sites.
   KOTA's tool gate must declare `canUseTool`, `allowedTools`, and
   `disallowedTools` here and surface the same entries through readiness;
   direct callers that pass those options still fail loudly.
-- `capability-snapshot.ts` centralizes capability/readiness artifacts for
-  parity runs and agent steps; both read resolved `AgentHarness` declarations
-  instead of harness-name catalogs.
+- `capability-snapshot.ts` centralizes capability/readiness artifacts from
+  resolved declarations, not harness-name catalogs. Adapter docs may explain
+  rationale, but capability facts stay in code.
 
 ## Registry and selection
 

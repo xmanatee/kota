@@ -36,9 +36,11 @@ export function startCallbackPoll(
 ): () => void {
   let running = true;
   let offset = 0;
+  let controller: AbortController | null = null;
 
   async function poll(): Promise<void> {
     if (!running) return;
+    controller = new AbortController();
     try {
       const updates = await callTelegramApi<
         Array<{ update_id: number; callback_query?: TelegramCallbackQuery }>
@@ -46,6 +48,8 @@ export function startCallbackPoll(
         offset,
         timeout: POLL_TIMEOUT_S,
         allowed_updates: ["callback_query"],
+      }, {
+        signal: controller.signal,
       });
 
       for (const update of updates) {
@@ -94,6 +98,8 @@ export function startCallbackPoll(
       if (!running) return;
       log.warn(`Telegram callback poll error: ${(err as Error).message}`);
       await sleep(ERROR_BACKOFF_MS);
+    } finally {
+      controller = null;
     }
 
     if (running) void poll();
@@ -103,6 +109,8 @@ export function startCallbackPoll(
 
   return () => {
     running = false;
+    controller?.abort();
+    controller = null;
   };
 }
 

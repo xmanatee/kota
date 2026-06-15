@@ -341,6 +341,24 @@ describe("kota doctor — offline path", () => {
     expect(results.find((r) => r.label === "Disk: stray runs/")?.status).toBe("warn");
     expect(results.find((r) => r.label === "Disk: stray kota/")?.status).toBe("warn");
   });
+
+  it("warns about stale run-insight knowledge files", async () => {
+    mkdirSync(join(projectDir, ".kota", "data"), { recursive: true });
+    writeFileSync(
+      join(projectDir, ".kota", "data", "stale.md"),
+      "---\nid: stale\ntitle: Stale\ntype: run-insight\nstatus: active\n---\n\nRun summary\n",
+    );
+    writeFileSync(
+      join(projectDir, ".kota", "data", "note.md"),
+      "---\nid: note\ntitle: Note\ntype: note\nstatus: active\n---\n\nKeep this\n",
+    );
+
+    const results = await runDoctorChecks(projectDir, { skipConnectivity: true });
+    const stale = results.find((r) => r.label === "Disk: stale run-insight data");
+    expect(stale?.status).toBe("warn");
+    expect(stale?.detail).toContain("1 file");
+    expect(stale?.detail).toContain("kota doctor --fix");
+  });
 });
 
 describe("kota doctor --fix", () => {
@@ -362,7 +380,6 @@ describe("kota doctor --fix", () => {
   });
 
   it("removes stale lock file when PID is not alive", () => {
-    // Use a PID that is guaranteed to not exist: 99999999
     const lockFile = join(projectDir, ".kota", "daemon-control.json");
     writeFileSync(lockFile, JSON.stringify({ pid: 99999999, port: 9999, token: "x", startedAt: "2020-01-01T00:00:00Z" }));
     const repairs = runDoctorFixes(projectDir);
@@ -441,6 +458,28 @@ describe("kota doctor --fix", () => {
     const repairs = runDoctorFixes(projectDir);
     expect(repairs.some((r) => r.item.includes("daemon-state.json"))).toBe(false);
     expect(existsSync(stateFile)).toBe(true);
+  });
+
+  it("removes only stale run-insight knowledge files", () => {
+    const dataDir = join(projectDir, ".kota", "data");
+    const staleFile = join(dataDir, "stale.md");
+    const noteFile = join(dataDir, "note.md");
+    mkdirSync(dataDir, { recursive: true });
+    writeFileSync(
+      staleFile,
+      "---\nid: stale\ntitle: Stale\ntype: run-insight\nstatus: active\n---\n\nRun summary\n",
+    );
+    writeFileSync(
+      noteFile,
+      "---\nid: note\ntitle: Note\ntype: note\nstatus: active\n---\n\nKeep this\n",
+    );
+
+    const repairs = runDoctorFixes(projectDir);
+    const stale = repairs.find((r) => r.item === "Stale run-insight knowledge files");
+    expect(stale?.action).toBe("repaired");
+    expect(stale?.detail).toContain("Removed 1 file");
+    expect(existsSync(staleFile)).toBe(false);
+    expect(existsSync(noteFile)).toBe(true);
   });
 
 });

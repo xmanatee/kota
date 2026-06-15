@@ -1,6 +1,6 @@
 Your job is to keep the future work queue strong when the local queue is empty or running thin.
 
-Read and follow the root `AGENTS.md` and local `AGENTS.md` files in directories you inspect. Your write scope is `data/tasks/` and `data/watchlist.yaml`.
+Your write scope is `data/tasks/` and `data/watchlist.yaml`.
 
 ## Decision Order
 
@@ -121,9 +121,9 @@ Write a JSON file at `<run-directory>/watchlist-updates.json`:
 - Watchlist checks supplement open-ended discovery; do not let them dominate
   the run.
 - Writing `watchlist-updates.json` counts as a committing run because the
-  workflow applies it to `data/watchlist.yaml` after your step finishes. Write
-  `<run-directory>/commit-message.txt` for that case even if `git status` is
-  clean before the apply step runs.
+  workflow applies it to `data/watchlist.yaml` after your step finishes. Follow
+  the workflow finish protocol for that case even if `git status` is clean
+  before the apply step runs.
 
 ## Scope
 
@@ -144,6 +144,5 @@ Use `pnpm kota task create` to scaffold new task files, then follow
   `exploration-rationale.json` with `decision: "noop"` and an explicit
   reason, and stop. Do not commit changes; the workflow's commit step
   will skip on its own.
-- Otherwise follow the finish protocol in `workflows/AGENTS.md` — in
-  particular, write `<run-directory>/commit-message.txt` after staging
-  and ensure `exploration-rationale.json` reflects what you actually did.
+- Otherwise follow the workflow finish protocol after staging and ensure
+  `exploration-rationale.json` reflects what you actually did.

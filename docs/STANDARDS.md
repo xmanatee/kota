@@ -23,6 +23,14 @@
 - Documentation should not compensate for unclear code. If behavior can be made
   obvious through names, types, layout, or tests, improve those instead of
   adding explanatory text.
+- Use Diátaxis as the documentation lens: tutorials, how-to guides, reference,
+  and explanation are different jobs and should not be blended.
+- Use FAIR, W3C Data on the Web Best Practices, and SKOS as data-organization
+  lenses: make facts findable, explicitly linked, interoperable through typed
+  schemas, and reusable without copying them into parallel prose catalogs.
+- Distill external best practices into local decisions. Do not keep external
+  link catalogs in durable docs unless the links themselves are the maintained
+  product surface.
 
 ## Prompts
 

@@ -8,6 +8,7 @@
 import {
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   rmSync,
   unlinkSync,
@@ -58,6 +59,26 @@ function readDaemonPid(statePath: string): number | null {
   } catch {
     return null;
   }
+}
+
+function isStaleRunInsightFile(path: string): boolean {
+  const raw = readFileSync(path, "utf-8");
+  if (!raw.startsWith("---\n")) return false;
+  const end = raw.indexOf("\n---", 4);
+  if (end === -1) return false;
+  return /^type:\s*run-insight\s*$/m.test(raw.slice(4, end));
+}
+
+function listStaleRunInsightFiles(projectDir: string): string[] {
+  const dataDir = join(projectDir, ".kota", "data");
+  if (!existsSync(dataDir)) return [];
+  const files: string[] = [];
+  for (const entry of readdirSync(dataDir, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
+    const path = join(dataDir, entry.name);
+    if (isStaleRunInsightFile(path)) files.push(path);
+  }
+  return files;
 }
 
 export function runDoctorFixes(projectDir: string): RepairResult[] {
@@ -134,6 +155,18 @@ export function runDoctorFixes(projectDir: string): RepairResult[] {
     }
   }
 
+  const staleRunInsightFiles = listStaleRunInsightFiles(projectDir);
+  if (staleRunInsightFiles.length > 0) {
+    for (const file of staleRunInsightFiles) {
+      unlinkSync(file);
+    }
+    results.push({
+      item: "Stale run-insight knowledge files",
+      action: "repaired",
+      detail: `Removed ${staleRunInsightFiles.length} file(s) from .kota/data/`,
+    });
+  }
+
   return results;
 }
 
@@ -203,6 +236,14 @@ function checkDisk(projectDir: string): CheckResult[] {
         ),
       );
     }
+  }
+
+  const staleRunInsightFiles = listStaleRunInsightFiles(projectDir);
+  if (staleRunInsightFiles.length > 0) {
+    results.push(warn(
+      "Disk: stale run-insight data",
+      `${staleRunInsightFiles.length} file(s) in .kota/data/ repeat git history and .kota/runs; run \`kota doctor --fix\` to remove them`,
+    ));
   }
 
   return results;

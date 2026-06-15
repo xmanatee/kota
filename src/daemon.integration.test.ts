@@ -100,8 +100,10 @@ describe("Daemon", () => {
       subtype: "success",
       isError: false,
     });
+    const unloadModules = vi.fn(async () => {});
 
     const daemon = makeDaemon({
+      unloadModules,
       workflows: [
         registerWorkflowDefinition("test/builder.ts", {
           name: "builder",
@@ -126,6 +128,7 @@ describe("Daemon", () => {
     await daemon.stop();
     await startPromise;
     expect(daemon.isRunning()).toBe(false);
+    expect(unloadModules).toHaveBeenCalledTimes(1);
   });
 
   it("records each contributed channel's startup posture", async () => {

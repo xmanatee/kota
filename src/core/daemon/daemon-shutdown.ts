@@ -52,6 +52,7 @@ export async function runDaemonShutdown(
 
   await stopDaemonWorkflowRuntimes(ctx, ...options.workflowsStopArgs);
   await ctx.controlServer.stop();
+  await ctx.config.unloadModules?.();
 
   releaseInstanceLock(ctx.stateDir);
 

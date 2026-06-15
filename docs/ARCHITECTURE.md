@@ -227,35 +227,3 @@ and the workflow run store remains the execution record.
 Use `defineAutomation` or `defineHook` only as authoring helpers. They compile
 to ordinary workflow definitions before validation, scheduling, approvals,
 run storage, and daemon/client APIs see them.
-
-## External Anchors
-
-- Claude Code hooks, settings, and sub-agents:
-  - https://docs.anthropic.com/en/docs/claude-code/hooks-guide
-  - https://docs.anthropic.com/en/docs/claude-code/settings
-  - https://docs.anthropic.com/en/docs/claude-code/sub-agents
-- OpenClaw concepts, sessions, heartbeat, and skills:
-  - https://docs.openclaw.ai/concepts
-  - https://docs.openclaw.ai/reference/session-management-compaction
-  - https://docs.openclaw.ai/automation/cron-vs-heartbeat
-  - https://docs.openclaw.ai/tools/creating-skills
-- Codex skills and background automations:
-  - https://openai.com/index/introducing-the-codex-app/
-- Temporal workflows and message passing:
-  - https://docs.temporal.io/workflows
-  - https://docs.temporal.io/develop/typescript/workflows/message-passing
-- Home Assistant automations and config flows:
-  - https://www.home-assistant.io/docs/automation/trigger/
-  - https://developers.home-assistant.io/docs/core/integration/config_flow/
-- Node-RED message design:
-  - https://nodered.org/docs/developing-flows/message-design
-- JSON Forms architecture:
-  - https://jsonforms.io/docs/architecture/
-- Backstage frontend plugins and extensions:
-  - https://backstage.io/docs/frontend-system/architecture/plugins/
-- Terminal and client UI references:
-  - https://github.com/vadimdemedes/ink
-  - https://github.com/charmbracelet/bubbletea
-  - https://textual.textualize.io/
-- MCP elicitation:
-  - https://modelcontextprotocol.io/specification/2025-11-25/client/elicitation

@@ -2,9 +2,7 @@ Your job is to re-attempt a single blocked research task whose sources were
 previously inaccessible. The target task id and its resource URLs are injected
 from the `inspect-candidates` step output above.
 
-Read and follow the root `AGENTS.md` and local `AGENTS.md` files in directories
-you touch. Your write scope is `data/tasks/`, `data/inbox/`, and
-`src/modules/autonomy/`.
+Your write scope is `data/tasks/`, `data/inbox/`, and `src/modules/autonomy/`.
 
 ## Role
 
@@ -57,6 +55,5 @@ One of the following, chosen honestly from what you actually read:
 ## Finish
 
 - Use `pnpm kota task move <id> <state>` for every task state transition.
-- Follow the finish protocol in `workflows/AGENTS.md` — in particular,
-  write `<run-directory>/commit-message.txt` after staging.
+- Follow the workflow finish protocol after staging.
 - Lightweight validations run after you finish.

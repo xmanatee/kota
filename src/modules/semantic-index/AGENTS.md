@@ -1,21 +1,20 @@
 # Semantic Index Module
 
-Shared embedding-index engine used by the provider modules that bolt semantic
-search onto KOTA's file-based stores (`memory-semantic`, `knowledge-semantic`).
+Shared embedding-index engine used by provider modules that add semantic
+search to KOTA's file-based stores.
 
-- `cosine.ts` — cosine similarity for dense vectors.
-- `embedding-provider.ts` — OpenAI-compatible HTTP embedding client plus
-  shared module-config parsing.
-- `semantic-index.ts` — sidecar `.embeddings.json` file format (version,
-  model, `fingerprint` + `embedding` per entry).
-- `semantic-index-manager.ts` — generic engine: background embed queue,
-  staleness detection via `fingerprint`, cosine ranking, bulk reindex,
-  explicit query-time error propagation.
+## Contract
 
-Consumer modules supply a `SemanticStoreAdapter` and implement the owning
-store's public provider interface around the manager. The module itself does
-not register a provider; it only ships the shared engine as a capability pack.
+- Embedding providers are OpenAI and Voyage through an OpenAI-compatible
+  `/embeddings` API.
+- The sidecar cache stores version, model, adapter fingerprint, and dense
+  embedding per indexed item.
+- `SemanticIndexManager` owns background embedding, cosine ranking, bulk
+  reindex, staleness checks, lazy fill, and query-time error propagation.
+- Store adapters own indexable text, sidecar location, and fingerprint shape.
+- Semantic providers never mutate the canonical store and never embed
+  synchronously in the write path.
 
-The `fingerprint` is an opaque string set by the adapter. Knowledge uses the
-entry's `updated` ISO timestamp; memory uses a content-plus-tags hash. The
-manager only compares equality.
+Consumer modules provide a `SemanticStoreAdapter` and implement their owning
+store's public provider interface around the manager. This module registers no
+provider; it is only the shared capability pack.

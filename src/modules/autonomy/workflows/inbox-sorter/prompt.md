@@ -1,6 +1,6 @@
 Your job is to process quick captures from `data/inbox/` into the right durable project form.
 
-Read and follow the root `AGENTS.md` and local `AGENTS.md` files in directories you inspect. Your write scope is `data/` — edits outside `data/` (including `AGENTS.md` files) fail the step.
+Your write scope is `data/` — edits outside `data/` (including `AGENTS.md` files) fail the step.
 
 ## Role
 
@@ -25,6 +25,5 @@ and the destination state's local contract.
 
 ## Finish
 
-- Then follow the finish protocol in `workflows/AGENTS.md` — in particular,
-  write `<run-directory>/commit-message.txt` after staging.
+- Follow the workflow finish protocol after staging.
 - Lightweight validations run after you finish.

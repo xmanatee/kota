@@ -70,6 +70,7 @@ export async function callTelegramApi<T>(
   token: string,
   method: string,
   body?: Record<string, unknown>,
+  options?: { signal?: AbortSignal },
 ): Promise<T> {
   const url = `${TELEGRAM_API}/bot${token}/${method}`;
   let res: Response;
@@ -78,6 +79,7 @@ export async function callTelegramApi<T>(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: body ? JSON.stringify(body) : undefined,
+      signal: options?.signal,
     });
   } catch (err) {
     throw new Error(`Telegram API ${method}: network error: ${(err as Error).message}`);

@@ -434,6 +434,7 @@ const daemonModule: KotaModule = {
         resolveSkillsPrompt: (names, agentName) => loader.getSkillsPromptFor(names, agentName),
         probeModuleHealthChecks: () => loader.probeHealthChecks(),
         moduleConfigKeys: loader.getRegisteredConfigKeys(),
+        unloadModules: () => loader.unloadAll(),
         restartExit: (code) => {
           process.exit(code);
         },
