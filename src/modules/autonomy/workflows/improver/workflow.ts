@@ -4,6 +4,7 @@ import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import { checkDocBloat } from "#modules/autonomy/doc-bloat-check.js";
+import { checkRepoHygiene } from "#modules/autonomy/hygiene-check.js";
 import { createImproverSemanticCheck } from "#modules/autonomy/improver-semantic-gate.js";
 import { onRecoveryTrigger, resetWorktreeForRecovery } from "#modules/autonomy/recovery.js";
 import type { RunOutcomeAggregation } from "#modules/autonomy/run-outcome-aggregation.js";
@@ -161,6 +162,12 @@ const improverWorkflow: WorkflowDefinitionInput = {
             type: "code" as const,
             phase: 1,
             run: (ctx) => checkDocBloat(ctx.projectDir),
+          },
+          {
+            id: "repo-hygiene",
+            type: "code" as const,
+            phase: 1,
+            run: (ctx) => checkRepoHygiene(ctx.projectDir),
           },
           {
             id: "commit-message-exists",

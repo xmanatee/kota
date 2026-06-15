@@ -1,5 +1,4 @@
-import { execFileSync } from "node:child_process";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import { parseAddedLinesByFile, readStagedDiff } from "./staged-diff.js";
 
 const DOC_PATH_RE = /(?:^|\/)(?:AGENTS\.md|CLAUDE\.md)$/;
 const DOCS_DIR_RE = /^docs\/.+\.md$/;
@@ -30,33 +29,6 @@ export type DocBloatFinding = {
   detail: string;
   examples: string[];
 };
-
-type FileDiff = {
-  file: string;
-  addedLines: string[];
-};
-
-export function parseAddedLinesByFile(diff: string): FileDiff[] {
-  const result: FileDiff[] = [];
-  let current: FileDiff | null = null;
-  for (const rawLine of diff.split("\n")) {
-    if (rawLine.startsWith("diff --git ")) {
-      const match = rawLine.match(/diff --git a\/(.+?) b\/(.+)$/);
-      const file = match ? match[2] : "";
-      current = { file, addedLines: [] };
-      result.push(current);
-      continue;
-    }
-    if (!current) continue;
-    if (rawLine.startsWith("+++") || rawLine.startsWith("---") || rawLine.startsWith("@@")) {
-      continue;
-    }
-    if (rawLine.startsWith("+") && !rawLine.startsWith("++")) {
-      current.addedLines.push(rawLine.slice(1));
-    }
-  }
-  return result;
-}
 
 function isDocFile(file: string): boolean {
   return DOC_PATH_RE.test(file) || DOCS_DIR_RE.test(file);
@@ -124,28 +96,8 @@ export function formatDocBloatMessage(findings: DocBloatFinding[]): string {
   return [header, ...blocks].join("\n\n");
 }
 
-const STAGED_DIFF_MAX_BUFFER = 50 * 1024 * 1024;
-
 function readStagedDocDiff(projectDir: string): string {
-  return execFileSync(
-    "git",
-    [
-      "diff",
-      "--cached",
-      "--unified=0",
-      "--",
-      "*AGENTS.md",
-      "*CLAUDE.md",
-      "docs/**/*.md",
-    ],
-    {
-      cwd: projectDir,
-      encoding: "utf8",
-      env: withProtectedGitBareRepositoryEnv(),
-      maxBuffer: STAGED_DIFF_MAX_BUFFER,
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
+  return readStagedDiff(projectDir, ["*AGENTS.md", "*CLAUDE.md", "docs/**/*.md"]);
 }
 
 export function checkDocBloat(projectDir: string): string {

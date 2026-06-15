@@ -111,12 +111,11 @@ operator-auditable record of why the next ready batch is the right one.
 
 ## Repair-Loop Checks
 
-Workflow repair-loop checks should use `type: "code"` with `spawnSync`, not `tool: "shell"`;
-shell is module-owned and may not be available. Code checks run inline with no tool dependency.
-
-Do not add repair checks that force exact route, event, enum, or config catalogs
-into `docs/`. Those contracts should be enforced by source types and focused
-tests; durable docs should stay high-level.
+Workflow repair-loop checks should use `type: "code"` with `spawnSync`; shell
+is module-owned and may not be available. Keep deterministic hygiene checks to
+objective patterns. Architecture, redundancy, and intent-heavy cleanup stay
+with critic/improver judgment. Do not force route/event/enum/config catalogs
+into `docs/`; enforce those contracts with source types and focused tests.
 
 ## Dirty Failure Recovery
 

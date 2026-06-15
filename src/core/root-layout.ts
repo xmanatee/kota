@@ -17,6 +17,7 @@
 
 export const ROOT_ENTRYPOINT_SOURCES: ReadonlySet<string> = new Set([
   "cli.ts",
+  "check-hygiene.ts",
   "init.ts",
   "module-api.ts",
   "validate-queue.ts",
