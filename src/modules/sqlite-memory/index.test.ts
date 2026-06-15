@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,11 +8,7 @@ import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { resolveModuleSkills } from "#core/modules/module-types.js";
 import sqliteMemoryModule from "./index.js";
 
-let hasSqlite = false;
-try {
-	execFileSync("sqlite3", ["--version"], { stdio: "pipe" });
-	hasSqlite = true;
-} catch {}
+const hasSqlite = spawnSync("sqlite3", ["--version"], { stdio: "pipe" }).status === 0;
 
 const describeIfSqlite = hasSqlite ? describe : describe.skip;
 

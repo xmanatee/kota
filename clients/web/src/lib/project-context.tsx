@@ -11,30 +11,12 @@ import {
   useState,
 } from "react";
 
-/**
- * Project-scoped routing convention for the web client.
- *
- * The web client encodes the active project in the URL hash as
- * `#p/<projectId>/...`. The leading `p/<projectId>` prefix is owned by
- * `ProjectProvider`; everything after the second `/` is the in-project
- * sub-route (run id, compare ids, etc.) that individual views own.
- *
- * The selector hides itself when the daemon hosts exactly one project so
- * KOTA-on-itself looks identical to the pre-multi-project experience.
- */
-
 type ProjectContextValue = {
-  /** The currently active projectId. Always non-empty once registry has loaded. */
   projectId: string;
-  /** The full registry projection (default + every configured project). */
   projects: ProjectRegistryProjection | undefined;
-  /** True while identity/registry has not resolved yet. */
   loading: boolean;
-  /** Switch to the given projectId, updating the URL hash and clearing in-project state. */
   setProjectId: (projectId: string) => void;
-  /** Build a hash like `#p/<projectId>/<sub>` for navigation links. */
   buildHash: (subRoute: string) => string;
-  /** Returns the in-project sub-route portion of the current hash. */
   getSubRoute: () => string;
 };
 
@@ -42,11 +24,6 @@ const ProjectContext = createContext<ProjectContextValue | null>(null);
 
 const PROJECT_HASH_PREFIX = "p/";
 
-/**
- * Parse `#p/<projectId>/<sub>` into its parts. A hash without the prefix
- * yields `{ projectId: null, subRoute: <hash> }` so legacy `#run/...` and
- * `#compare/...` hashes keep working until the active project is known.
- */
 export function parseProjectHash(rawHash: string): {
   projectId: string | null;
   subRoute: string;
@@ -99,10 +76,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!projects || !knownIds) return;
     if (projectId !== null && knownIds.has(projectId)) return;
-    const fallback = projects.defaultProjectId;
-    setProjectIdState(fallback);
+    const defaultProjectId = projects.defaultProjectId;
+    setProjectIdState(defaultProjectId);
     const { subRoute } = parseProjectHash(window.location.hash);
-    const nextHash = buildProjectHash(fallback, subRoute);
+    const nextHash = buildProjectHash(defaultProjectId, subRoute);
     if (window.location.hash !== nextHash) {
       window.location.hash = nextHash;
     }

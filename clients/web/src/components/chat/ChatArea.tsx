@@ -223,8 +223,17 @@ export function ChatArea({
                   return next;
                 });
               }
-            } catch {
-              // ignore parse errors
+            } catch (err) {
+              const message = err instanceof Error ? err.message : String(err);
+              fullText += `\n[Error: malformed response chunk: ${message}]`;
+              setMessages((prev) => {
+                const next = [...prev];
+                next[next.length - 1] = {
+                  role: "assistant",
+                  content: fullText,
+                };
+                return next;
+              });
             }
           }
         }

@@ -213,7 +213,6 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     });
   }, [state.online, state.pushNotificationsEnabled]);
 
-  // Polling fallback when SSE is not connected
   useEffect(() => {
     if (!state.online || state.sseConnected) {
       if (pollTimerRef.current !== null) {
@@ -228,7 +227,6 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     };
   }, [state.online, state.sseConnected, fetchAll]);
 
-  // SSE event handler
   const handleSseEvent = useCallback((event: SseEvent) => {
     const client = clientRef.current;
     if (!client) return;
@@ -277,7 +275,9 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     : null;
   const authHeader = clientRef.current?.authHeader ?? null;
 
-  useSSE(sseUrl, authHeader, handleSseEvent, handleSseStatus);
+  useSSE(sseUrl, authHeader, handleSseEvent, handleSseStatus, (_raw, error) => {
+    console.warn(`Malformed daemon event: ${error.message}`);
+  });
 
   const saveSettings = useCallback(async (url: string, token: string) => {
     await Promise.all([

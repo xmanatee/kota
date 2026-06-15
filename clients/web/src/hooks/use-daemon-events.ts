@@ -14,7 +14,12 @@ export function useDaemonEvents() {
 
   useEffect(() => {
     if (projectId === "") return;
-    const source = new DaemonEventSource({ onStatusChange: setStatus });
+    const source = new DaemonEventSource({
+      onStatusChange: setStatus,
+      onMalformedEvent: ({ error, event }) => {
+        console.warn(`Malformed daemon event "${event}": ${error.message}`);
+      },
+    });
     sourceRef.current = source;
 
     const invalidateWorkflows = () => {

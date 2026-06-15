@@ -2,6 +2,11 @@ import { getAuthToken } from "./client";
 import type { DaemonSseEventType } from "./types";
 
 type SseHandler = (data: Record<string, unknown>) => void;
+type MalformedSseHandler = (details: {
+  event: string;
+  raw: string;
+  error: Error;
+}) => void;
 
 export class DaemonEventSource {
   private source: EventSource | null = null;
@@ -11,13 +16,16 @@ export class DaemonEventSource {
   private onStatusChange?: (
     status: "connected" | "reconnecting" | "disconnected",
   ) => void;
+  private onMalformedEvent?: MalformedSseHandler;
 
   constructor(opts?: {
     onStatusChange?: (
       status: "connected" | "reconnecting" | "disconnected",
     ) => void;
+    onMalformedEvent?: MalformedSseHandler;
   }) {
     this.onStatusChange = opts?.onStatusChange;
+    this.onMalformedEvent = opts?.onMalformedEvent;
   }
 
   on(event: DaemonSseEventType | string, handler: SseHandler): () => void {
@@ -88,9 +96,17 @@ export class DaemonEventSource {
         if (handlers) {
           for (const handler of handlers) handler(data);
         }
-      } catch {
-        // ignore parse errors
+      } catch (err) {
+        this.onMalformedEvent?.({
+          event,
+          raw: messageEvent.data,
+          error: toError(err),
+        });
       }
     };
   }
+}
+
+function toError(err: unknown): Error {
+  return err instanceof Error ? err : new Error(String(err));
 }

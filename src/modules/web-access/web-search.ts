@@ -50,7 +50,6 @@ export async function runWebSearch(
     return { content: "Error: query is required", is_error: true };
   }
 
-  // Try Brave Search API first if configured (JSON-based, no HTML scraping)
   const braveKey = process.env.BRAVE_SEARCH_API_KEY;
   if (braveKey) {
     const braveResults = await fetchBraveSearch(query, numResults, braveKey);
@@ -60,7 +59,6 @@ export async function runWebSearch(
     if (braveResults.status === "results") {
       return { content: formatResults(braveResults.results) };
     }
-    // Brave returned no results — fall through to DDG
   }
 
   return fetchDuckDuckGo(query, numResults);

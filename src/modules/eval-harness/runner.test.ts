@@ -498,12 +498,11 @@ function writeCalibratedShellFixture(
   );
 }
 
-const strictCheckerSource = `import { readFileSync } from "node:fs";
+const strictCheckerSource = `import { existsSync, readFileSync } from "node:fs";
 
-let value = "";
-try {
-  value = readFileSync("result.txt", "utf8").trim();
-} catch {}
+const value = existsSync("result.txt")
+  ? readFileSync("result.txt", "utf8").trim()
+  : "";
 process.exit(value === "ok" ? 0 : 1);
 `;
 
@@ -513,12 +512,11 @@ const alwaysPassCheckerSource = `process.exit(0);
 const alwaysFailCheckerSource = `process.exit(1);
 `;
 
-const shortcutAcceptingCheckerSource = `import { readFileSync } from "node:fs";
+const shortcutAcceptingCheckerSource = `import { existsSync, readFileSync } from "node:fs";
 
-let value = "";
-try {
-  value = readFileSync("result.txt", "utf8").trim();
-} catch {}
+const value = existsSync("result.txt")
+  ? readFileSync("result.txt", "utf8").trim()
+  : "";
 process.exit(value === "ok" || value === "shortcut" ? 0 : 1);
 `;
 

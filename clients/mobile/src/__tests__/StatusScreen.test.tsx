@@ -96,7 +96,7 @@ describe('StatusScreen', () => {
     expect(queryByText('⏸  Pause Dispatch')).toBeNull();
   });
 
-  test('shows SSE fallback banner when online but SSE disconnected', () => {
+  test('shows polling banner when online but SSE disconnected', () => {
     mockUseDaemon.mockReturnValue({
       state: baseState({ sseConnected: false }),
       client: {},

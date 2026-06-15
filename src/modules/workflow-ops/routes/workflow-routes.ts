@@ -401,8 +401,10 @@ export async function handleWorkflowTrigger(
           ...(extraPayload && { payload: extraPayload }),
         }),
       });
-    } catch {
-      // fall through to local enqueue
+    } catch (err) {
+      console.warn(
+        `workflow trigger daemon transport failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
     if (resp) {
       if (resp.status === 409) {

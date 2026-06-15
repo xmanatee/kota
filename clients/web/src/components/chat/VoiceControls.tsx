@@ -1,18 +1,3 @@
-/**
- * Voice controls for the web chat surface.
- *
- * Microphone capture goes through `MediaRecorder` → POST /api/voice/transcribe
- * → text is handed back to the chat input via `onTranscript`.
- *
- * Speaker playback synthesizes the latest assistant text via
- * POST /api/voice/synthesize and plays it through an in-memory <audio>.
- *
- * Both surfaces forward the daemon's typed failure codes
- * (stt-unavailable, tts-unavailable, tts-format-unsupported) back to the
- * caller through `onError` so the chat shell can render a banner that
- * matches the CLI vocabulary one-to-one.
- */
-
 import { api } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { useEffect, useRef, useState } from "react";
@@ -20,17 +5,11 @@ import { useEffect, useRef, useState } from "react";
 type VoiceError = { code: string; message: string };
 
 export type VoiceControlsProps = {
-  /** Latest assistant text the speaker button should synthesize. */
   speakableText: string | null;
-  /** Called with transcribed text when a recording finishes successfully. */
   onTranscript: (text: string) => void;
-  /** Called with a typed error whenever a voice action fails. */
   onError: (err: VoiceError) => void;
-  /** Optional language hint for both directions (BCP-47). */
   languageHint?: string;
-  /** Optional override for the test seam — defaults to navigator.mediaDevices. */
   mediaDevices?: Pick<MediaDevices, "getUserMedia">;
-  /** Optional override for the test seam — defaults to window.MediaRecorder. */
   mediaRecorderCtor?: typeof MediaRecorder;
 };
 
@@ -61,11 +40,7 @@ export function VoiceControls({
   useEffect(() => {
     return () => {
       if (recording.status === "recording") {
-        try {
-          for (const track of recording.stream.getTracks()) track.stop();
-        } catch {
-          // ignore — best-effort cleanup
-        }
+        for (const track of recording.stream.getTracks()) track.stop();
       }
       if (audioRef.current) {
         audioRef.current.pause();

@@ -3,12 +3,6 @@ import type { Recording as AudioRecordingInstance } from 'expo-av/build/Audio/Re
 import * as FileSystem from 'expo-file-system';
 import { base64ToBytes } from './base64';
 
-/**
- * Thin wrapper around `expo-av`'s Audio.Recording / Audio.Sound. All vendor
- * calls live in the daemon — this wrapper only moves bytes in and out of the
- * platform audio pipeline. No TTS/STT SDKs are imported here.
- */
-
 export type CapturedAudio = {
   audio: Uint8Array;
   mimeType: string;
@@ -40,21 +34,13 @@ export class VoiceRecorder {
     const recording = this.recording;
     if (!recording) return null;
     this.recording = null;
-    try {
-      await recording.stopAndUnloadAsync();
-    } catch {
-      // Recording was already released by the platform — fall through.
-    }
+    await settleAudioLifecycle('stop recording', () => recording.stopAndUnloadAsync());
     const uri = recording.getURI();
     if (!uri) return null;
     const base64 = await FileSystem.readAsStringAsync(uri, {
       encoding: FileSystem.EncodingType.Base64,
     });
-    try {
-      await FileSystem.deleteAsync(uri, { idempotent: true });
-    } catch {
-      // Best-effort cleanup; the file lives in the app cache.
-    }
+    await deleteCacheFile(uri);
     const audio = base64ToBytes(base64);
     if (audio.length === 0) return null;
     const mimeType = uriToMimeType(uri);
@@ -66,19 +52,9 @@ export class VoiceRecorder {
     const recording = this.recording;
     this.recording = null;
     if (!recording) return;
-    try {
-      await recording.stopAndUnloadAsync();
-    } catch {
-      // Already stopped.
-    }
+    await settleAudioLifecycle('cancel recording', () => recording.stopAndUnloadAsync());
     const uri = recording.getURI();
-    if (uri) {
-      try {
-        await FileSystem.deleteAsync(uri, { idempotent: true });
-      } catch {
-        // Best-effort cleanup.
-      }
-    }
+    if (uri) await deleteCacheFile(uri);
   }
 
   async play(audio: Uint8Array, mimeType: string): Promise<void> {
@@ -103,28 +79,39 @@ export class VoiceRecorder {
       sound.playAsync().catch(reject);
     });
     await this.stopPlayback();
-    try {
-      await FileSystem.deleteAsync(uri, { idempotent: true });
-    } catch {
-      // Best-effort cleanup.
-    }
+    await deleteCacheFile(uri);
   }
 
   async stopPlayback(): Promise<void> {
     const sound = this.sound;
     this.sound = null;
     if (!sound) return;
-    try {
-      await sound.stopAsync();
-    } catch {
-      // Already stopped.
-    }
-    try {
-      await sound.unloadAsync();
-    } catch {
-      // Already unloaded.
-    }
+    await settleAudioLifecycle('stop playback', () => sound.stopAsync());
+    await settleAudioLifecycle('unload playback', () => sound.unloadAsync());
   }
+}
+
+async function settleAudioLifecycle(
+  action: string,
+  operation: () => Promise<unknown>,
+): Promise<void> {
+  try {
+    await operation();
+  } catch (err) {
+    console.warn(`${action} failed: ${errorMessage(err)}`);
+  }
+}
+
+async function deleteCacheFile(uri: string): Promise<void> {
+  try {
+    await FileSystem.deleteAsync(uri, { idempotent: true });
+  } catch (err) {
+    console.warn(`delete cache file failed: ${errorMessage(err)}`);
+  }
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 function uriToMimeType(uri: string): string {

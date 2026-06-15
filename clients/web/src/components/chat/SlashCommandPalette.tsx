@@ -1,5 +1,5 @@
 import type { SlashCommand } from "@/api/types";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Props = {
   commands: SlashCommand[];
@@ -32,13 +32,7 @@ export function SlashCommandPalette({
     [commands, query],
   );
   const [selected, setSelected] = useState(0);
-  const [trackedQuery, setTrackedQuery] = useState(query);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  if (trackedQuery !== query) {
-    setTrackedQuery(query);
-    setSelected(0);
-  }
+  const selectedIndex = Math.min(selected, Math.max(filtered.length - 1, 0));
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -50,7 +44,7 @@ export function SlashCommandPalette({
         e.preventDefault();
         setSelected((i) => (i - 1 + filtered.length) % filtered.length);
       } else if (e.key === "Enter" || e.key === "Tab") {
-        const pick = filtered[selected];
+        const pick = filtered[selectedIndex];
         if (!pick) return;
         e.preventDefault();
         onPick(pick);
@@ -61,28 +55,18 @@ export function SlashCommandPalette({
     }
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [filtered, selected, onPick, onDismiss]);
+  }, [filtered, selectedIndex, onPick, onDismiss]);
 
   if (filtered.length === 0) return null;
 
   return (
-    <div
-      ref={containerRef}
-      className="absolute bottom-full left-0 mb-2 max-h-72 w-96 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg"
-      // biome-ignore lint/a11y/useSemanticElements: native <select>/<option> cannot host the rich layout (label, source, description rows) and custom keyboard nav this command palette renders; ARIA listbox+option is the W3C combobox/listbox pattern for this case.
-      role="listbox"
-      aria-label="Slash command palette"
-      tabIndex={-1}
-    >
+    <div className="absolute bottom-full left-0 mb-2 max-h-72 w-96 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg">
       {filtered.map((cmd, i) => (
         <button
           type="button"
           key={cmd.name}
-          // biome-ignore lint/a11y/useSemanticElements: paired with the listbox above; native <option> cannot render the label/source/description rows.
-          role="option"
-          aria-selected={i === selected}
           className={`flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-sm ${
-            i === selected
+            i === selectedIndex
               ? "bg-accent text-accent-foreground"
               : "hover:bg-muted"
           }`}

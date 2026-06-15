@@ -104,7 +104,7 @@ export function formatJsonPreview(content: string, filePath: string): string {
   try {
     parsed = JSON.parse(content);
   } catch {
-    return ""; // Not valid JSON — fall through to plain text display
+    return "";
   }
 
   if (parsed === null || typeof parsed !== "object") {

@@ -236,22 +236,19 @@ export function parseBlockedPrecondition(
 const requireFromHere = createRequire(import.meta.url);
 
 function isPlaywrightAvailable(projectDir: string): boolean {
-  // Try resolving relative to the project first (the operator's installed
-  // copy), then fall back to the repo-local resolver. Either resolves the
-  // capability for the autonomy loop's purposes.
+  const projectRequire = createRequire(join(projectDir, "package.json"));
+  if (canResolvePlaywright(projectRequire)) return true;
+  return canResolvePlaywright(requireFromHere);
+}
+
+function canResolvePlaywright(resolver: NodeRequire): boolean {
+  let available = true;
   try {
-    const projectRequire = createRequire(join(projectDir, "package.json"));
-    projectRequire.resolve("playwright");
-    return true;
+    resolver.resolve("playwright");
   } catch {
-    // fall through
+    available = false;
   }
-  try {
-    requireFromHere.resolve("playwright");
-    return true;
-  } catch {
-    return false;
-  }
+  return available;
 }
 
 function fileExists(path: string): boolean {

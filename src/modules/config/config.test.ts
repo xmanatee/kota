@@ -16,9 +16,7 @@ import {
 import { buildConfigCommand } from "./index.js";
 
 const { FAKE_HOME } = vi.hoisted(() => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { join } = require("node:path") as typeof import("node:path");
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { tmpdir } = require("node:os") as typeof import("node:os");
   return { FAKE_HOME: join(tmpdir(), `kota-config-cli-home-${Date.now()}`) };
 });
@@ -427,9 +425,7 @@ describe("kota config schema", () => {
     );
     const generated = readFileSync(tmpOut, "utf-8");
     const committed = readFileSync(resolve(root, "schema/kota-config.schema.json"), "utf-8");
-    try {
-      rmSync(tmpOut);
-    } catch {}
-    expect(committed).toBe(generated);
-  });
+		rmSync(tmpOut, { force: true });
+		expect(committed).toBe(generated);
+	});
 });

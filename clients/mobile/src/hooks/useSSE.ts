@@ -2,25 +2,21 @@ import { useCallback, useEffect, useRef } from 'react';
 import type { SseEvent, SseEventType } from '../types';
 
 type EventHandler = (event: SseEvent) => void;
+type MalformedEventHandler = (raw: string, error: Error) => void;
 
-/**
- * Subscribes to the daemon SSE endpoint using XMLHttpRequest (well-supported
- * in React Native). Parses the text/event-stream format and calls onEvent for
- * each complete event. Reconnects automatically with exponential backoff.
- *
- * If SSE is unavailable (connection drops repeatedly), onFallback is called
- * so the caller can switch to polling.
- */
 export function useSSE(
   url: string | null,
   authHeader: string | null,
   onEvent: EventHandler,
   onStatusChange: (connected: boolean) => void,
+  onMalformedEvent?: MalformedEventHandler,
 ): void {
   const onEventRef = useRef(onEvent);
   const onStatusRef = useRef(onStatusChange);
+  const onMalformedEventRef = useRef(onMalformedEvent);
   onEventRef.current = onEvent;
   onStatusRef.current = onStatusChange;
+  onMalformedEventRef.current = onMalformedEvent;
 
   const retryCountRef = useRef(0);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -93,8 +89,8 @@ export function useSSE(
               payload,
               timestamp: ts,
             });
-          } catch {
-            // malformed SSE data — skip
+          } catch (err) {
+            onMalformedEventRef.current?.(currentData, toError(err));
           }
           currentEventType = '';
           currentData = '';
@@ -130,4 +126,8 @@ export function useSSE(
       xhrRef.current = null;
     };
   }, [url, authHeader, connect]);
+}
+
+function toError(err: unknown): Error {
+  return err instanceof Error ? err : new Error(String(err));
 }

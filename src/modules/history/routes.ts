@@ -139,7 +139,6 @@ export async function handleGetHistory(
       jsonResponse(res, 200, detail);
       return;
     }
-    // null may mean daemon returned 404 or is unreachable — fall through to local
   }
 
   const detail = loadHistoryLocal(res, url, conversationId, request, projectStores);
@@ -198,7 +197,10 @@ export async function handleDeleteHistory(
         `/history/${encodeURIComponent(conversationId)}${projectQuery}`,
         { method: "DELETE" },
       );
-    } catch {
+    } catch (err) {
+      console.warn(
+        `history delete daemon transport failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
       resp = null;
     }
     if (resp?.ok) {
@@ -206,7 +208,6 @@ export async function handleDeleteHistory(
       res.end();
       return;
     }
-    // 404 or daemon unreachable; fall through to local
   }
 
   const removed = removeHistoryLocal(res, url, conversationId, projectStores);

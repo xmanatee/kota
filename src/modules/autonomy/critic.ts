@@ -335,11 +335,8 @@ export async function invokeAgentJudge(
     // emitted text before deciding whether to retry — an agent that hit
     // max_turns may still have produced a valid JSON verdict before bailing.
     if (response.text.trim()) {
-      try {
-        parseVerdict(response.text);
+      if (isParseableVerdict(response.text)) {
         return response;
-      } catch {
-        // unparseable — fall through to classification
       }
     }
 
@@ -361,6 +358,16 @@ export async function invokeAgentJudge(
     needsFormatReminder = false;
   }
   throw lastError!;
+}
+
+function isParseableVerdict(text: string): boolean {
+  let parseable = true;
+  try {
+    parseVerdict(text);
+  } catch {
+    parseable = false;
+  }
+  return parseable;
 }
 
 type CriticBaseConfig = Omit<AgentJudgeConfig, "harness">;
