@@ -64,13 +64,11 @@ extend as new surfaces land.
   vocabulary, theming model, and TTY-vs-non-TTY behavior at the conventions
   level without enumerating every primitive.
 
-## Unblock Precondition
+## Promotion Evidence
 
-```
-kind: operator-capture
-path: .kota/runs/peer-cli-comparison
-description: peer-CLI side-by-side captures — operator runs `node scripts/render-scenarios.mjs <out>` for KOTA and the same scenarios pack against agy, codex, pi, opencode, then pairs outputs under .kota/runs/peer-cli-comparison/<peer>.md
-```
+The peer comparison artifact now exists under
+`.kota/runs/peer-cli-comparison/` with KOTA scenario output plus AGY, Codex,
+Pi, and OpenCode captures for the same four representative scenarios.
 
 ## Source / Intent
 
@@ -176,30 +174,13 @@ Phase 2 — migrate remaining surfaces (follow-up runs):
   bare-id output paths carry per-line `biome-ignore` comments
   explaining why they stay on `console.log`.
 
-Phase 3 — peer-CLI capture (operator-facilitated, blocks the task):
+Phase 3 — peer-CLI capture:
 
-- Run the scenarios pack through agy, codex, pi, and opencode on
-  an operator workstation and pair the outputs in
-  `.kota/runs/<run-id>/peer-cli/`. Gemini CLI may be captured as an
-  additional legacy/enterprise Google peer when available, but AGY is the
+- Run the scenarios pack through AGY, Codex, Pi, and OpenCode and pair the
+  outputs in `.kota/runs/peer-cli-comparison/`. Gemini CLI may be captured as
+  an additional legacy/enterprise Google peer when available, but AGY is the
   current consumer Google CLI target. The scenarios script lives at
   `scripts/render-scenarios.mjs` so both sides share one input set.
-- Until those peer-CLI screenshots/transcripts land, the task's
-  Done-When bullet 3 cannot be honestly verified autonomously, so the
-  task stays in `blocked`. Unblock by either capturing the comparison
-  on operator hardware or by narrowing Done-When to drop the
-  comparison requirement.
-
-## Status (2026-05-07 blocker audit)
-
-The remaining block is still real but now narrow: KOTA's own rendering module,
-migrations, and regression checks have landed; only the peer-CLI comparison
-artifact remains. The task should not receive more autonomous implementation
-work until `.kota/runs/peer-cli-comparison/` is captured or the Done-When bar is
-explicitly changed in a new task. blocked-promoter should re-instruct this
-operator capture after the 14-day cadence if the artifact remains absent.
-
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-06-04T13:05:31.912Z -->
 
 ## Status
 
@@ -214,9 +195,8 @@ operator capture after the 14-day cadence if the artifact remains absent.
   `## Acceptance Evidence` (no repeated full blocks, no blank `Work`
   section, no merged cost/defs cells, clear separation between state and
   activity) is now asserted by
-  `src/modules/daemon-ops/index.test.ts`. Phase 3's peer-CLI capture
-  remains the open precondition; the autonomous lift no longer waits on
-  it.
+  `src/modules/daemon-ops/index.test.ts`. Phase 3's peer-CLI capture is
+  now recorded under `.kota/runs/peer-cli-comparison/`.
 - 2026-05-06:
   `task-re-route-phase-2-terminal-surfaces-onto-the-elevat` landed the
   surface-migration half of the same reinforcement: `repo-tasks task
@@ -234,11 +214,6 @@ operator capture after the 14-day cadence if the artifact remains absent.
   Antigravity CLI (`agy`) for June 18, 2026. Local verification found
   `agy --version` = 1.0.8, `agy --print` returns output, and `pi` is now
   installed, so the peer set is updated to `agy`, `codex`, `pi`, and
-  `opencode`. The task remains blocked only because the comparison artifact
-  under `.kota/runs/peer-cli-comparison/` has not been captured.
-- 2026-06-15 blocked audit: the local KOTA scenario renderer now creates
-  parent output directories before writing, and the probe wrote
-  `.kota/runs/blocked-audit-2026-06-15/rendering/fresh/nested/kota.md`.
-  Installed local peer CLIs detected: `codex`, `gemini`, `opencode`, `agy`,
-  and `pi` (`0.79.4`). The contracted
-  `.kota/runs/peer-cli-comparison/` side-by-side peer artifact is still absent.
+  `opencode`.
+- 2026-06-15: `.kota/runs/peer-cli-comparison/` was captured locally with
+  KOTA output plus AGY, Codex, Pi, and OpenCode peer transcripts.

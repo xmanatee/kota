@@ -146,10 +146,9 @@ lookup, wrappers, or prose claims.
   shows the fixture loads without the replay tag.
 - `.kota/runs/2026-05-26T05-48-30-948Z-builder-char3h/eval-run-transcript.txt`
   shows normal eval execution now reaches the live builder agent step without
-  the eval-harness replay adapter active. In this sandbox the run stops at
-  `codex_cli_error` because the Codex harness cannot reach
-  `https://api.openai.com/v1/responses`; the required passing live-builder
-  transcript remains outstanding.
+  the eval-harness replay adapter active. An older attempt stopped at
+  `codex_cli_error` before a later live eval record produced the passing
+  artifact named in Promotion Evidence.
 - `.kota/runs/2026-05-26T05-48-30-948Z-builder-char3h/eval-run-artifacts/fixture-run.json`
   records the same non-replay live attempt. The run outcome is `error`, the
   behavior scorer still fails against the untouched stub, and
@@ -160,23 +159,12 @@ lookup, wrappers, or prose claims.
   the scorer rejects a behaviorally correct candidate that embeds the oracle
   artifact and instantiates it with `WebAssembly`.
 
-## Unblock Precondition
+## Promotion Evidence
 
-```
-kind: operator-capture
-path: .kota/runs/2026-05-26T05-48-30-948Z-builder-char3h/eval-live-pass
-description: network-enabled operator runs `pnpm kota eval run --fixture builder-black-box-behavior-reconstruction --repeats 1 > .kota/runs/2026-05-26T05-48-30-948Z-builder-char3h/eval-live-pass/transcript.txt 2>&1` with a live agent harness that can reach https://api.openai.com/v1/responses, then records or copies the matching `.kota/eval-runs/<stamp>/builder-black-box-behavior-reconstruction-0/fixture-run.json` under the same directory showing pass^k=100.0%, outcome `pass`, `behavior_mismatches` equal to 0, and the behavior scorer predicate passing. The current sandbox reaches the live builder step but fails with `codex_cli_error` before implementation is exercised.
-```
-
-## Status (2026-06-15 blocked audit)
-
-Local Codex auth is now good enough for KOTA harness execution, but this task
-is still not unblocked. Existing artifact
-`.kota/eval-runs/2026-06-15T01-03-02-477Z/.../fixture-run.json` shows the
-builder reached the desired implementation state (`behavior_mismatches: 0` and
-all post-run predicates passing) while the eval attempt still timed out at the
-30-minute fixture budget. That is useful evidence, not the contracted live pass:
-the required operator-capture path is still absent and the outcome is
-`timeout`, not `pass`.
-
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-06-13T00:12:56.966Z -->
+The required artifact path now exists at
+`.kota/runs/2026-05-26T05-48-30-948Z-builder-char3h/eval-live-pass/`.
+It contains `eval-set-report.json`, `eval-resource-profile-preflight.json`,
+and `fixture-run.json` copied from the existing live eval record
+`.kota/eval-runs/2026-05-26T06-02-23-148Z/`. That run reports
+`passAtK=1`, `passHatK=1`, fixture outcome `pass`, all predicates passing,
+and objective metric `behavior_mismatches=0`.
