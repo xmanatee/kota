@@ -5,8 +5,8 @@ to the installed Gemini CLI in headless structured-output mode instead of using
 `@google/genai` directly. This is now the legacy Gemini CLI surface that honors
 Gemini CLI's cached Google sign-in / Code Assist auth state.
 
-Operators select this harness via the `gemini-cli` preset,
-`KotaConfig.defaultAgentHarness: "gemini-cli"`, or a per-step `harness`.
+Route work here with the `gemini-cli` preset, default harness config, or a
+per-step `harness` value.
 
 ## Migration Posture
 
@@ -73,19 +73,3 @@ through readiness; direct callers that pass them fail before Gemini CLI starts.
 Assume the operator-installed `gemini` binary is from the stable Gemini CLI
 channel unless the operator explicitly installs preview or nightly. Readiness
 reports the exact local path and `gemini --version` output.
-
-## Rejected Options
-
-Reject unsupported neutral options loudly:
-
-- `mcpServers`
-- `allowedTools` / `disallowedTools`
-- `canUseTool`
-- `askOwner`
-- `autonomyMode === "supervised"`
-- `persistSession`
-- `resumeSessionId`
-- `harnessOverrides`
-- `enableFileCheckpointing`
-- `thinkingEnabled` / `thinkingBudget`
-- `onMessage`

@@ -42,8 +42,8 @@ A new contributor:
    into a `RetractContributor`.
 3. Registers the new contributor in this module's `onLoad`.
 
-The `RetractProvider` itself enumerates contributors at runtime through
-its `register()` API; nothing in core hard-codes the contributor set.
+Contributor discovery mirrors capture: targets register at runtime through
+the provider API, and core never hard-codes the target set.
 
 ## Routing rules
 

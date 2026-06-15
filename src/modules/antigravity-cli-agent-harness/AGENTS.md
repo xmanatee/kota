@@ -4,8 +4,8 @@ Adapter module that registers the `antigravity-cli` harness. The harness is the
 KOTA preset path for Google's Antigravity CLI (`agy`), the native terminal
 runtime replacing consumer Gemini CLI access after June 18, 2026.
 
-Operators select this harness via the `antigravity-cli` preset,
-`KotaConfig.defaultAgentHarness: "antigravity-cli"`, or a per-step `harness`.
+Select it with the `antigravity-cli` preset, default harness config, or a
+per-step `harness` override.
 
 ## Provider Routing
 
@@ -52,19 +52,3 @@ tool registry, `canUseTool`, owner-question routing, supervised approvals, or
 MCP server injection to AGY. It declares `toolControl: "native"` and rejects
 unsupported KOTA-only options before returning the unsupported execution
 result.
-
-## Rejected Options
-
-Reject unsupported neutral options loudly:
-
-- `mcpServers`
-- `allowedTools` / `disallowedTools`
-- `canUseTool`
-- `askOwner`
-- `autonomyMode === "supervised"`
-- `persistSession`
-- `resumeSessionId`
-- `harnessOverrides`
-- `enableFileCheckpointing`
-- `thinkingEnabled` / `thinkingBudget`
-- `onMessage`

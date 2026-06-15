@@ -41,7 +41,3 @@ distinguish "nothing wrong" from "command failed".
 Quiet-hours invariant: quiet hours do not gate the on-demand path. The
 operator initiated the request, so the runtime quiet-hours rule that buffers
 cadence pushes does not apply.
-
-Agent-feed invariant: like the cadence path, the on-demand body is
-operator-facing only and must not be exposed to autonomy agents in any prompt
-path (see project memory: no cost bias in autonomy).

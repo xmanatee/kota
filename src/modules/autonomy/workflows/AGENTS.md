@@ -5,8 +5,8 @@ This directory contains the autonomy workflows and their co-located prompts.
 - Each workflow should live in its own subdirectory with code plus markdown prompt assets.
 - Keep workflows cohesive and typed in code; keep long-lived guidance in markdown.
 - Keep role boundaries sharp.
-- Keep prompts short. Durable policy belongs here or in nearby docs, not repeated
-  in every `prompt.md`.
+- Keep prompts short. Durable policy belongs here or nearby docs, not repeated
+  in every `prompt.md`; operator-facing digest bodies stay out of agent prompts.
 - `workflow.ts` in each workflow directory is the source of truth for that workflow.
 - Workflow modules must default-export their workflow definition. If a workflow
   uses a named agent, export that agent from the same file.

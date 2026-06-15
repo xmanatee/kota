@@ -76,10 +76,6 @@ Other notification channels must not see an operator's mid-day `/digest`
 as a duplicate cadence digest; the requesting Telegram chat receives
 its body in-band.
 
-Agent-feed invariant: like the cadence path, the on-demand body is
-operator-facing only and must not be exposed to autonomy agents in any
-prompt path (see project memory: no cost bias in autonomy).
-
 ## Boundaries
 
 - The digest is operator-facing only. The workflow does not set

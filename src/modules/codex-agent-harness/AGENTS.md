@@ -6,8 +6,8 @@ the installed Codex CLI (`codex exec --json`) instead of calling
 honors `codex login` and ChatGPT-plan subscription access, while the OpenAI
 Agents SDK requires API-key auth.
 
-Operators select this harness via the `codex` preset,
-`KotaConfig.defaultAgentHarness: "codex"`, or a per-step `harness`.
+Use the `codex` preset, default harness config, or a per-step `harness` to
+route a run through this adapter.
 
 ## Provider Routing
 
@@ -57,18 +57,3 @@ Post-step workflow checks remain responsible for validating repo state.
 It also passes `--ignore-user-config` so operator-global Codex MCP servers,
 hooks, or config profiles cannot make daemon-launched workflow steps fail
 before the KOTA prompt runs; Codex auth still comes from `CODEX_HOME`.
-
-## Rejected Options
-
-Reject unsupported neutral options loudly:
-
-- `mcpServers`
-- `allowedTools` / `disallowedTools`
-- `canUseTool`
-- `autonomyMode === "supervised"`
-- `persistSession`
-- `resumeSessionId`
-- `harnessOverrides`
-- `enableFileCheckpointing`
-- `thinkingEnabled` / `thinkingBudget`
-- `onMessage`
