@@ -3,9 +3,9 @@
  * secrets, and env-backed secret providers.
  *
  * Supports provider/model notation `<provider>/<model>` (e.g.
- * `ollama/<model>`, `openai/<model>`, `anthropic/<model>`) and explicit
- * --provider / --base-url flags. Falls back to Anthropic when no provider is
- * specified.
+ * `ollama/<model>`, `openai/<model>`, `openrouter/<model>`) and explicit
+ * --provider / --base-url flags. Provider selection is explicit: callers must
+ * pass a provider, use provider/model notation, or configure modelProvider.type.
  */
 
 import type { KotaConfig } from "#core/config/config.js";
@@ -47,6 +47,10 @@ export const PROVIDER_PRESETS: Record<
 	together: {
 		baseUrl: "https://api.together.xyz/v1",
 		apiKeyEnv: "TOGETHER_API_KEY",
+	},
+	openrouter: {
+		baseUrl: "https://openrouter.ai/api/v1",
+		apiKeyEnv: "OPENROUTER_API_KEY",
 	},
 	lmstudio: { baseUrl: "http://localhost:1234/v1", apiKeyEnv: "" },
 };
@@ -90,13 +94,30 @@ function resolveSecretReference(
 	return lookupSecret(raw.slice(1), options);
 }
 
-function apiKeyNameForProvider(providerName: string): string {
+export function apiKeyNameForProvider(providerName: string): string {
 	if (providerName === "anthropic") return "ANTHROPIC_API_KEY";
 	const preset = PROVIDER_PRESETS[providerName];
 	if (preset?.apiKeyEnv) return preset.apiKeyEnv;
 	return providerName === "ollama" || providerName === "lmstudio"
 		? ""
 		: "OPENAI_API_KEY";
+}
+
+export function resolveModelProviderName(
+	model: string,
+	explicitProvider?: string,
+): string | undefined {
+	return explicitProvider || parseModelString(model).provider;
+}
+
+function requireModelProviderName(opts: ProviderFactoryOptions): string {
+	const providerName = resolveModelProviderName(opts.model, opts.provider);
+	if (providerName) return providerName;
+	throw new Error(
+		`Model provider is not configured for "${opts.model}". ` +
+			`Use provider/model notation (for example "openrouter/openrouter/auto" ` +
+			`or "openai/${opts.model}") or set modelProvider.type.`,
+	);
 }
 
 /** Resolve the API key for a given provider from explicit config, setup secrets, or env-backed providers. */
@@ -157,13 +178,13 @@ export function getActiveFailoverClient(): FailoverModelClient | null {
  * Resolution order:
  * 1. Explicit `provider` flag
  * 2. Provider prefix in model string ("ollama/llama3")
- * 3. Default: "anthropic"
+ * 3. Throw when provider is not configured
  */
 export function createModelClientImpl(
 	opts: ProviderFactoryOptions,
 ): ResolvedProvider {
 	const parsed = parseModelString(opts.model);
-	const providerName = opts.provider || parsed.provider || "anthropic";
+	const providerName = requireModelProviderName(opts);
 	const model = parsed.model;
 
 	const primary = createClientForProvider(
@@ -189,7 +210,7 @@ export function createModelClientWithFailover(
 	failoverConfig: NonNullable<KotaConfig["failover"]>,
 ): ResolvedProvider {
 	const parsed = parseModelString(opts.model);
-	const providerName = opts.provider || parsed.provider || "anthropic";
+	const providerName = requireModelProviderName(opts);
 	const model = parsed.model;
 
 	const primary = createClientForProvider(

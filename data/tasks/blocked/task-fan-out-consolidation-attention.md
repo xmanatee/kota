@@ -158,4 +158,10 @@ path: .kota/runs/attention-consolidation-screens-*
 description: live operator-captured screenshots/screencasts for the five visual attention surfaces — telegram (`/attention` rendered messages: quiet project NO_ATTENTION_ITEMS_TEXT reply and populated multi-item digest), slack (`/attention` rendered against a workspace covering the same two arms), mobile (`AttentionScreen` covering the quiet `nothing pending` badge, populated badge with item count, the offline banner, and the error-with-retry state), macOS (`AttentionView` covering the collapsed badge, the expanded body with monospace text, the orange-foregrounded item-count badge, the loading state, and the error/retry surface), and web (`AttentionPanel` in the embedded sidebar covering the success-with-items state, the success-with-zero-items "nothing pending" badge, the loading state, and the error-with-retry state). Operator runs each client against a daemon backed by a project that exhibits both arms (a quiet project and the live multi-blocked project), and commits the rendered artifacts under .kota/runs/attention-consolidation-screens-<stamp>/{telegram,slack,mobile,macos,web}/. The daemon-side and CLI-side artifacts are already committed under .kota/runs/2026-05-02T22-48-37-067Z-builder-4jyxov/attention-consolidation/.
 ```
 
+## Status (2026-06-15 blocked audit)
+
+No matching `.kota/runs/attention-consolidation-screens-*` artifact exists.
+The CLI and daemon evidence named above remains useful, but the live
+Telegram/Slack/mobile/macOS/web visual capture is still missing.
+
 <!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-06-04T03:18:14.605Z -->

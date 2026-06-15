@@ -56,7 +56,7 @@ const webModule: KotaModule = {
         });
         if (result.ok) return;
         if (result.reason === "missing_api_key") {
-          console.error("Error: No API key configured. Set ANTHROPIC_API_KEY or configure a provider.");
+          console.error("Error: No model provider API key configured. Set the selected provider's key or config.modelProvider.apiKey.");
           process.exit(1);
         }
         // daemon_required: a daemon is already running. Two web servers in the

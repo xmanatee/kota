@@ -18,7 +18,6 @@ WorkingDirectory=/var/lib/kota
 EnvironmentFile=/etc/kota/telegram-assistant.env
 Environment=NODE_ENV=production
 Environment=KOTA_PROJECT_DIR=/var/lib/kota
-Environment=KOTA_STATE_DIR=/var/lib/kota/.kota
 Environment=KOTA_DAEMON_LOG_FORMAT=json
 
 # The KOTA binary path is templated by install.sh based on the host.

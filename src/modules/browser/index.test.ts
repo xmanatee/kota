@@ -10,6 +10,7 @@ vi.mock("./lifecycle.js", () => ({
   getConfiguredBrowserProfile: vi.fn(() => ({
     storageStatePath: null,
     persist: false,
+    headless: true,
   })),
   persistBrowserProfile: vi.fn(async () => {}),
 }));
@@ -466,6 +467,13 @@ describe("browser tool runners", () => {
         max_replies: 2,
       });
       expect(result.is_error).toBeUndefined();
+      expect(mockPage.goto).toHaveBeenCalledWith("https://x.com/foo/status/1234567890", {
+        waitUntil: "domcontentloaded",
+        timeout: 20_000,
+      });
+      expect(mockPage.waitForSelector).toHaveBeenCalledWith('article[data-testid="tweet"]', {
+        timeout: 20_000,
+      });
       expect(result.content).toContain("The main tweet body.");
       expect(result.content).toContain("Foo User @foo");
       expect(result.content).toContain("Reply 1: First reply.");
@@ -485,6 +493,27 @@ describe("browser tool runners", () => {
       });
       expect(result.is_error).toBe(true);
       expect(result.content).toContain("did not render a tweet article");
+    });
+
+    it("falls back to article text when X omits tweetText markup", async () => {
+      mockPage.url.mockReturnValue("https://x.com/foo/status/1234567890");
+      mockPage.evaluate.mockImplementation(async (expr: string) => {
+        if (expr.includes("slice(0, 2000)")) return "Some benign body text";
+        if (expr.includes("cleanArticleText")) {
+          return {
+            body: "Foo User @foo\nThe post body rendered directly in the article.",
+            author: "Foo User @foo",
+            replies: [],
+          };
+        }
+        return { body: null, author: null, replies: [] };
+      });
+      const { runXPostRead } = await import("./tools.js");
+      const result = await runXPostRead({
+        url: "https://x.com/foo/status/1234567890",
+      });
+      expect(result.is_error).toBeUndefined();
+      expect(result.content).toContain("The post body rendered directly in the article.");
     });
 
     it("surfaces timeout errors in a typed form", async () => {
@@ -521,6 +550,19 @@ describe("browser tool runners", () => {
         url: "https://openai.com/index/the-instruction-hierarchy/",
       });
       expect(result.is_error).toBeUndefined();
+      expect(mockPage.goto).toHaveBeenCalledWith(
+        "https://openai.com/index/the-instruction-hierarchy/",
+        {
+          waitUntil: "domcontentloaded",
+          timeout: 30_000,
+        },
+      );
+      expect(mockPage.waitForSelector).toHaveBeenCalledWith(
+        'article, main, [role="main"], body',
+        {
+          timeout: 30_000,
+        },
+      );
       expect(result.content).toContain("Title: The Instruction Hierarchy");
       expect(result.content).toContain("Extracted via: article");
       expect(result.content).toContain("instruction hierarchy");
@@ -534,6 +576,18 @@ describe("browser tool runners", () => {
       const { runRenderedArticleRead } = await import("./tools.js");
       const result = await runRenderedArticleRead({
         url: "https://example.com/jschallenge",
+      });
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("JS / Cloudflare challenge");
+    });
+
+    it("flags an empty Cloudflare challenge from title and final URL", async () => {
+      mockPage.url.mockReturnValue("https://example.com/article?__cf_chl_rt_tk=token");
+      mockPage.title.mockResolvedValue("Just a moment...");
+      mockPage.evaluate.mockResolvedValue("");
+      const { runRenderedArticleRead } = await import("./tools.js");
+      const result = await runRenderedArticleRead({
+        url: "https://example.com/article",
       });
       expect(result.is_error).toBe(true);
       expect(result.content).toContain("JS / Cloudflare challenge");
@@ -578,6 +632,9 @@ describe("browser tool runners", () => {
       const result = await runRenderedArticleRead({
         url: "https://example.com/x",
         selector: "#post-body",
+      });
+      expect(mockPage.waitForSelector).toHaveBeenCalledWith("#post-body", {
+        timeout: 30_000,
       });
       expect(result.content).toContain("Extracted via: #post-body");
     });

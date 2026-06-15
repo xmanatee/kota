@@ -21,7 +21,11 @@ import { createModelClient } from "#core/model/model-client.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import type { KotaModule, ModuleContext, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
-import { resolveApiKey } from "#modules/model-clients/factory.js";
+import {
+  apiKeyNameForProvider,
+  resolveApiKey,
+  resolveModelProviderName,
+} from "#modules/model-clients/factory.js";
 import {
   RECALL_PROVIDER_TOKEN,
   type RecallProvider,
@@ -195,7 +199,15 @@ const answerModule: KotaModule = {
       createAnswerReadinessSource({
         hasModelClient: () => {
           const config = loadConfig(ctx.cwd);
-          const provider = config.modelProvider?.type ?? "anthropic";
+          const modelSpec =
+            config.model || resolveActivePresetFromConfig(config).defaultModel;
+          const provider = resolveModelProviderName(
+            modelSpec,
+            config.modelProvider?.type,
+          );
+          if (!provider) return false;
+          const requiredKeyName = apiKeyNameForProvider(provider);
+          if (!requiredKeyName) return true;
           const explicit = config.modelProvider?.apiKey;
           const key = resolveApiKey(provider, explicit, { projectDir: ctx.cwd });
           return Boolean(key);

@@ -158,6 +158,13 @@ async function executeRepairAgentIteration(
   const canUseTool = trialCanUseTool
     ? composeCanUseTools(trialCanUseTool, createWorkflowAgentGuards())
     : createWorkflowAgentGuards();
+  const modelProvider = agentConfig.config?.modelProvider === undefined
+    ? undefined
+    : {
+        provider: agentConfig.config.modelProvider.type,
+        baseUrl: agentConfig.config.modelProvider.baseUrl,
+        apiKey: agentConfig.config.modelProvider.apiKey,
+      };
 
   const runRepairHarness = async () => {
     const attemptAbortController = new AbortController();
@@ -189,6 +196,7 @@ async function executeRepairAgentIteration(
           cwd: agentConfig.projectDir,
           systemPrompt,
           modelOutputTokenLimits: agentConfig.config?.modelOutputTokenLimits,
+          ...(modelProvider !== undefined ? { modelProvider } : {}),
           maxTurns: step.maxTurns,
           effort: step.effort,
           thinkingEnabled: step.thinkingEnabled,

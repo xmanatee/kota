@@ -3,7 +3,7 @@
  *
  * Owns the top-level `modelProvider` and `failover` fields:
  *
- * - `modelProvider` — non-Anthropic provider configuration (OpenAI-compat,
+ * - `modelProvider` — provider configuration (Anthropic, OpenAI-compatible,
  *   Ollama, etc.). Consumed by the model-client factory.
  * - `failover` — secondary provider used when the primary is detected as
  *   unhealthy. Consumed by the failover client wrapper.
@@ -67,7 +67,7 @@ function sanitizeFailover(raw: unknown): FailoverConfig | undefined {
 
 export const modelProviderConfigSlice: ModuleConfigSlice<"modelProvider"> = {
   key: "modelProvider",
-  description: "Non-Anthropic model provider (OpenAI-compat, Ollama, etc.)",
+  description: "Model provider configuration (Anthropic, OpenAI-compatible, Ollama, etc.)",
   sanitize: sanitizeModelProvider,
   merge: (base, override) => ({ ...base, ...override }),
   projectConfigSafety: "authority",

@@ -113,10 +113,11 @@ them to the SDK shape at its own seam. Nothing in core imports
 `@anthropic-ai/claude-agent-sdk`. Harness-specific in-process MCP hosting
 stays inside the owning adapter.
 
-Provider-specific knobs do not appear on `AgentHarnessRunOptions`. The
+Provider SDK-specific knobs do not appear on `AgentHarnessRunOptions`. The
 neutral surface carries only KOTA concepts (autonomy posture, prompt,
-tools, effort, owner-questions, abort) plus harness-agnostic transport
-fields (cwd, model name, max turns, system prompt). Per-step
+tools, effort, owner-questions, abort), KOTA's own ModelClient provider
+selection (`modelProvider`), plus harness-agnostic transport fields (cwd,
+model name, max turns, system prompt). Per-step
 adapter-private options travel through `harnessOverrides`, validated by
 the resolved adapter's `validateStepOptions` and threaded through as an
 opaque `AgentHarnessStepOverrides` (typed as `unknown` at the protocol

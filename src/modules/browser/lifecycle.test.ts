@@ -5,12 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 type State = {
   capturedContextOptions: Array<{ storageState?: string }>;
+  capturedLaunchOptions: Array<{ headless?: boolean }>;
   lastContextStorageWrite: string | null;
 };
 
 const { state } = vi.hoisted(() => ({
   state: {
     capturedContextOptions: [] as Array<{ storageState?: string }>,
+    capturedLaunchOptions: [] as Array<{ headless?: boolean }>,
     lastContextStorageWrite: null as string | null,
   } as State,
 }));
@@ -24,7 +26,10 @@ vi.mock("./playwright-loader.js", async () => {
 function mockPlaywright() {
   return {
     chromium: {
-      launch: async () => makeBrowser(),
+      launch: async (options?: { headless?: boolean }) => {
+        state.capturedLaunchOptions.push(options ?? {});
+        return makeBrowser();
+      },
     },
   };
 }
@@ -89,6 +94,7 @@ describe("browser lifecycle — authenticated profile", () => {
   beforeEach(async () => {
     vi.resetModules();
     state.capturedContextOptions = [];
+    state.capturedLaunchOptions = [];
     state.lastContextStorageWrite = null;
     workDir = mkdtempSync(join(tmpdir(), "kota-browser-lifecycle-"));
   });
@@ -101,19 +107,20 @@ describe("browser lifecycle — authenticated profile", () => {
     const profilePath = join(workDir, "x-profile.json");
     writeFileSync(profilePath, JSON.stringify({ authCookie: "valid-session" }), "utf8");
     const lifecycle = await import("./lifecycle.js");
-    lifecycle.configureBrowserProfile({ storageStatePath: profilePath, persist: false });
+    lifecycle.configureBrowserProfile({ storageStatePath: profilePath, persist: false, headless: true });
     const page = await lifecycle.getPage();
     await page.goto("https://auth-walled.example.test/");
     const content = (await page.evaluate("document.body.innerText")) as string;
     expect(content).toBe("Authenticated content — welcome, operator.");
     expect(state.capturedContextOptions[0]?.storageState).toBe(profilePath);
+    expect(state.capturedLaunchOptions[0]?.headless).toBe(true);
     await lifecycle.closeBrowser();
   });
 
   it("falls back to ephemeral context when storageState file is absent", async () => {
     const profilePath = join(workDir, "absent.json");
     const lifecycle = await import("./lifecycle.js");
-    lifecycle.configureBrowserProfile({ storageStatePath: profilePath, persist: false });
+    lifecycle.configureBrowserProfile({ storageStatePath: profilePath, persist: false, headless: true });
     const page = await lifecycle.getPage();
     await page.goto("https://auth-walled.example.test/");
     const content = (await page.evaluate("document.body.innerText")) as string;
@@ -126,7 +133,7 @@ describe("browser lifecycle — authenticated profile", () => {
     const profilePath = join(workDir, "persisted.json");
     writeFileSync(profilePath, JSON.stringify({ authCookie: "valid-session" }), "utf8");
     const lifecycle = await import("./lifecycle.js");
-    lifecycle.configureBrowserProfile({ storageStatePath: profilePath, persist: true });
+    lifecycle.configureBrowserProfile({ storageStatePath: profilePath, persist: true, headless: true });
     await lifecycle.getPage();
     await lifecycle.closeBrowser();
     expect(state.lastContextStorageWrite).toBe(profilePath);
@@ -138,7 +145,7 @@ describe("browser lifecycle — authenticated profile", () => {
     const profilePath = join(workDir, "nopersist.json");
     writeFileSync(profilePath, JSON.stringify({ authCookie: "valid-session" }), "utf8");
     const lifecycle = await import("./lifecycle.js");
-    lifecycle.configureBrowserProfile({ storageStatePath: profilePath, persist: false });
+    lifecycle.configureBrowserProfile({ storageStatePath: profilePath, persist: false, headless: true });
     await lifecycle.getPage();
     await lifecycle.closeBrowser();
     expect(state.lastContextStorageWrite).toBeNull();
@@ -146,9 +153,17 @@ describe("browser lifecycle — authenticated profile", () => {
 
   it("treats absence of a profile as ephemeral context", async () => {
     const lifecycle = await import("./lifecycle.js");
-    lifecycle.configureBrowserProfile({ storageStatePath: null, persist: false });
+    lifecycle.configureBrowserProfile({ storageStatePath: null, persist: false, headless: true });
     await lifecycle.getPage();
     expect(state.capturedContextOptions[0]?.storageState).toBeUndefined();
+    await lifecycle.closeBrowser();
+  });
+
+  it("launches a headed browser when explicitly configured", async () => {
+    const lifecycle = await import("./lifecycle.js");
+    lifecycle.configureBrowserProfile({ storageStatePath: null, persist: false, headless: false });
+    await lifecycle.getPage();
+    expect(state.capturedLaunchOptions[0]?.headless).toBe(false);
     await lifecycle.closeBrowser();
   });
 

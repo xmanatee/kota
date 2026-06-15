@@ -72,16 +72,20 @@ export interface ModelClient {
 	};
 }
 
-/** Options for creating a model client. */
-export type ProviderFactoryOptions = {
-	/** Model string — may include provider prefix (e.g., "ollama/llama3"). */
-	model: string;
+/** Provider selection shared by ModelClient-backed callers. */
+export type ModelProviderSelection = {
 	/** Explicit provider name, overrides prefix in model string. */
 	provider?: string;
 	/** Explicit base URL, overrides preset. */
 	baseUrl?: string;
 	/** Explicit API key, overrides env var resolution. */
 	apiKey?: string;
+};
+
+/** Options for creating a model client. */
+export type ProviderFactoryOptions = ModelProviderSelection & {
+	/** Model string — may include provider prefix (e.g., "ollama/llama3"). */
+	model: string;
 	/** Project directory used to resolve setup-stored secret references. */
 	projectDir?: string;
 };

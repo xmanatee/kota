@@ -3,7 +3,8 @@ import { basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
-import { expandAlias, loadConfig } from "#core/config/config.js";
+import { expandAlias, loadConfig, type KotaConfig } from "#core/config/config.js";
+import type { ModelProviderSelection } from "#core/model/model-client.js";
 import { expandUserPromptReferences } from "#core/prompt-input/index.js";
 import { getActiveKotaClient } from "#core/server/client-holder.js";
 import { resolveKotaClient } from "#core/server/client-selector.js";
@@ -42,7 +43,12 @@ import {
   runAgentHarnessWithConversationResume,
   transcriptFromKotaMessages,
 } from "./modules/history/harness-resume.js";
-import { parseModelString, resolveApiKey } from "./modules/model-clients/factory.js";
+import {
+  apiKeyNameForProvider,
+  parseModelString,
+  resolveApiKey,
+  resolveModelProviderName,
+} from "./modules/model-clients/factory.js";
 import { runHarnessRepl } from "./modules/repl/index.js";
 
 export { formatAuthError } from "./core/model/auth-error.js";
@@ -148,19 +154,47 @@ function preflightPresetAuth(preset: Preset, harnessName: string): void {
   process.exit(1);
 }
 
-function ensureAnthropicApiKey(
+function warnMissingModelProviderKey(
   providerName: string | undefined,
   modelSpec: string,
   explicitApiKey: string | undefined,
   projectDir: string,
 ): void {
-  const effectiveProvider = providerName || parseModelString(modelSpec).provider || "anthropic";
-  if (effectiveProvider !== "anthropic") return;
-  if (resolveApiKey("anthropic", explicitApiKey, { projectDir })) return;
-  const message = formatAuthError(
-    new Error("Could not resolve authentication method. Expected apiKey to be set."),
-  ) ?? "Error: ANTHROPIC_API_KEY environment variable is not set.";
-  stderr().write(line(span("Warning: ", "warn"), span(message, "muted")));
+  const effectiveProvider = resolveModelProviderName(modelSpec, providerName);
+  if (!effectiveProvider) return;
+  const envName = apiKeyNameForProvider(effectiveProvider);
+  if (!envName) return;
+  if (resolveApiKey(effectiveProvider, explicitApiKey, { projectDir })) return;
+  stderr().write(
+    line(
+      span("Warning: ", "warn"),
+      span(
+        `No API key configured for provider "${effectiveProvider}". Set ${envName} or config.modelProvider.apiKey.`,
+        "muted",
+      ),
+    ),
+  );
+}
+
+function modelProviderSelectionFromConfig(
+  config: KotaConfig,
+): ModelProviderSelection | undefined {
+  if (!config.modelProvider) return undefined;
+  const selection: ModelProviderSelection = {};
+  if (config.modelProvider.type !== undefined) selection.provider = config.modelProvider.type;
+  if (config.modelProvider.baseUrl !== undefined) selection.baseUrl = config.modelProvider.baseUrl;
+  if (config.modelProvider.apiKey !== undefined) selection.apiKey = config.modelProvider.apiKey;
+  return Object.keys(selection).length > 0 ? selection : undefined;
+}
+
+function isModelClientHarness(harnessName: string): boolean {
+  return harnessName === "openai-tools" || harnessName === "thin";
+}
+
+function modelForHarness(modelSpec: string, harnessName: string): string {
+  return isModelClientHarness(harnessName)
+    ? modelSpec
+    : parseModelString(modelSpec).model;
 }
 
 program
@@ -172,8 +206,8 @@ program
   .command("run", { isDefault: true })
   .description("Run KOTA with a prompt")
   .argument("[prompt...]", "The task to perform")
-  .option("-m, --model <model>", "Model. Defaults to the active preset's defaultModel. Supports provider/model notation: ollama/<model>, openai/<model>, anthropic/<model>")
-  .option("--provider <name>", "Model provider: anthropic, openai, ollama, groq, together, lmstudio, agent-sdk (Claude Agent SDK)")
+  .option("-m, --model <model>", "Model. Defaults to the active preset's defaultModel. Supports provider/model notation: ollama/<model>, openai/<model>, openrouter/<model>, anthropic/<model>")
+  .option("--provider <name>", "Model provider: anthropic, openai, openrouter, ollama, groq, together, lmstudio, agent-sdk (Claude Agent SDK)")
   .option("--base-url <url>", "Base URL for OpenAI-compatible provider (overrides preset)")
   .option("--editor-model <model>", "Model for editor pass and sub-agents (defaults to --model)")
   .option("--max-tokens <n>", "Max tokens per response")
@@ -215,7 +249,6 @@ program
     if (useHarnessPath) {
       const { preset } = presetResolution;
       const modelSpec = opts.model || config.model || preset.defaultModel;
-      const { model } = parseModelString(modelSpec);
       let prompt = promptWords.join(" ");
       prompt = expandAlias(prompt, config.aliases);
       const harnessName = resolveHarnessForPreset({
@@ -223,6 +256,8 @@ program
         configHarness: config.defaultAgentHarness,
         presetResolution,
       });
+      const model = modelForHarness(modelSpec, harnessName);
+      const modelProvider = modelProviderSelectionFromConfig(config);
       announceActivePreset({
         presetId: preset.id,
         harnessOverride: harnessName !== preset.harness ? harnessName : undefined,
@@ -240,6 +275,7 @@ program
         verbose: opts.verbose || config.verbose || false,
         effort: preset.defaultEffort,
         systemPrompt,
+        ...(modelProvider !== undefined ? { modelProvider } : {}),
       };
       const conversationOptions = resumeSelection
         ? {
@@ -318,7 +354,7 @@ program
 
     const { preset: classicPreset } = presetResolution;
     const modelSpec = opts.model || config.model || classicPreset.defaultModel;
-    ensureAnthropicApiKey(
+    warnMissingModelProviderKey(
       providerName,
       modelSpec,
       config.modelProvider?.apiKey,
@@ -413,11 +449,12 @@ async function checkPipeMode() {
       const useHarnessPath = provider === undefined || provider === "agent-sdk";
       if (useHarnessPath) {
         const modelSpec = config.model || preset.defaultModel;
-        const { model } = parseModelString(modelSpec);
         const harnessName = resolveHarnessForPreset({
           configHarness: config.defaultAgentHarness,
           presetResolution,
         });
+        const model = modelForHarness(modelSpec, harnessName);
+        const modelProvider = modelProviderSelectionFromConfig(config);
         preflightPresetAuth(preset, harnessName);
         announceActivePreset({
           presetId: preset.id,
@@ -428,6 +465,7 @@ async function checkPipeMode() {
         const result = await runAgentHarness(harness, {
           prompt: expandUserPromptReferences(piped, process.cwd()).text,
           model,
+          ...(modelProvider !== undefined ? { modelProvider } : {}),
           verbose: config.verbose,
           cwd: process.cwd(),
           effort: preset.defaultEffort,

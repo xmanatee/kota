@@ -176,4 +176,11 @@ agent prose.
 - Evidence of a temporary shortcut/regression causing the fixture to fail,
   with the regression reverted before staging.
 
+## Status (2026-06-15 blocked audit)
+
+The fixture is present and listed by `pnpm kota eval list`, but the required
+`.kota/runs/scientific-claim-reproduction-live-pass/` capture is still absent.
+The latest local artifacts for this fixture stop before a complete
+`eval-set-report.json`, so there is no pass artifact to promote from.
+
 <!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-06-13T00:12:56.966Z -->

@@ -11,14 +11,23 @@ Copy `.env.example` to `.env` and populate:
 
 | Variable | Purpose |
 |----------|---------|
-| `ANTHROPIC_API_KEY` | Required. Backs the interactive session loop. |
 | `TELEGRAM_BOT_TOKEN` | Required. BotFather-issued token. |
 | `TELEGRAM_ALERT_CHAT_ID` | Required. Chat id authorized for `/status` and notification events. |
-| `OPENAI_API_KEY` | Optional. Enables a Whisper transcription provider for inbound voice notes. Without it, voice messages produce an explicit user-facing failure rather than a silent drop. |
+| `KOTA_MODEL` | Optional but recommended. Provider/model id for chat sessions, for example `openrouter/openrouter/auto`. |
+| `OPENROUTER_API_KEY` | Optional. Required when `KOTA_MODEL` starts with `openrouter/`. |
+| `KOTA_DEFAULT_AGENT_HARNESS` | Optional. Defaults to `openai-tools` for OpenAI-compatible delegated agent steps. |
+| `KOTA_TELEGRAM_DEFAULT_AUTONOMY_MODE` | Optional. Defaults to `supervised`. |
+| `KOTA_TELEGRAM_ALLOWED_CHAT_IDS` | Optional comma-separated allowlist. Empty defaults to `TELEGRAM_ALERT_CHAT_ID`. |
+| `ANTHROPIC_API_KEY` | Optional. Only needed when selecting Anthropic-backed models. |
+| `OPENAI_API_KEY` | Optional. Enables OpenAI-backed models and a Whisper transcription provider for inbound voice notes. Without it, voice messages produce an explicit user-facing failure rather than a silent drop. |
 
-Autonomy mode must be set through normal KOTA config. Leave it
-`supervised` unless you are hardened against autonomous writes from
-chat messages.
+For OpenRouter, set `KOTA_MODEL` to `openrouter/<OpenRouter model slug>` and
+set `OPENROUTER_API_KEY`. For example, OpenRouter's `openrouter/auto` router is
+`KOTA_MODEL=openrouter/openrouter/auto` in KOTA syntax: the first segment
+selects KOTA's OpenRouter provider, and the remainder is the OpenRouter model
+slug. The Docker entrypoint writes these deploy choices into
+`/var/lib/kota/.kota/config.json`; it stores only model/config values, not raw
+provider keys.
 
 ## Supervisors
 

@@ -6,6 +6,7 @@ import { AnthropicModelClient } from "./anthropic.js";
 import {
 	createModelClientImpl,
 	PROVIDER_PRESETS,
+	apiKeyNameForProvider,
 	parseModelString,
 	resolveApiKey,
 } from "./factory.js";
@@ -114,6 +115,15 @@ describe("resolveApiKey", () => {
 	});
 });
 
+describe("apiKeyNameForProvider", () => {
+	it("returns provider-specific key names without implying a default provider", () => {
+		expect(apiKeyNameForProvider("anthropic")).toBe("ANTHROPIC_API_KEY");
+		expect(apiKeyNameForProvider("openrouter")).toBe("OPENROUTER_API_KEY");
+		expect(apiKeyNameForProvider("ollama")).toBe("");
+		expect(apiKeyNameForProvider("custom-provider")).toBe("OPENAI_API_KEY");
+	});
+});
+
 describe("PROVIDER_PRESETS", () => {
 	it("has expected providers", () => {
 		expect(Object.keys(PROVIDER_PRESETS)).toEqual(
@@ -123,6 +133,7 @@ describe("PROVIDER_PRESETS", () => {
 				"ollama",
 				"groq",
 				"together",
+				"openrouter",
 				"lmstudio",
 			]),
 		);
@@ -144,6 +155,7 @@ describe("PROVIDER_PRESETS", () => {
 		expect(PROVIDER_PRESETS.ollama.effortTranslator).toBeUndefined();
 		expect(PROVIDER_PRESETS.groq.effortTranslator).toBeUndefined();
 		expect(PROVIDER_PRESETS.together.effortTranslator).toBeUndefined();
+		expect(PROVIDER_PRESETS.openrouter.effortTranslator).toBeUndefined();
 		expect(PROVIDER_PRESETS.lmstudio.effortTranslator).toBeUndefined();
 	});
 });
@@ -163,7 +175,9 @@ describe("createModelClientImpl", () => {
 	describe("anthropic provider", () => {
 		it("creates AnthropicModelClient", () => {
 			delete process.env.ANTHROPIC_API_KEY;
-			const result = createModelClientImpl({ model: "claude-sonnet-4-6" });
+			const result = createModelClientImpl({
+				model: "anthropic/claude-sonnet-4-6",
+			});
 			expect(result.providerName).toBe("anthropic");
 			expect(result.model).toBe("claude-sonnet-4-6");
 			expect(AnthropicModelClient).toHaveBeenCalledWith({
@@ -173,7 +187,9 @@ describe("createModelClientImpl", () => {
 
 		it("creates AnthropicModelClient even when ANTHROPIC_API_KEY is missing", () => {
 			delete process.env.ANTHROPIC_API_KEY;
-			const result = createModelClientImpl({ model: "claude-sonnet-4-6" });
+			const result = createModelClientImpl({
+				model: "anthropic/claude-sonnet-4-6",
+			});
 			expect(result.providerName).toBe("anthropic");
 			expect(AnthropicModelClient).toHaveBeenCalled();
 		});
@@ -181,6 +197,7 @@ describe("createModelClientImpl", () => {
 		it("passes explicit Anthropic API key from config", () => {
 			const result = createModelClientImpl({
 				model: "claude-sonnet-4-6",
+				provider: "anthropic",
 				apiKey: "sk-ant-config",
 			});
 
@@ -278,6 +295,28 @@ describe("createModelClientImpl", () => {
 			});
 			expect(call.effortTranslator).toBeUndefined();
 		});
+
+		it("parses openrouter provider models with OPENROUTER_API_KEY", () => {
+			process.env.OPENROUTER_API_KEY = "sk-or-test";
+			const result = createModelClientImpl({
+				model: "openrouter/openai/gpt-4o-mini",
+			});
+			expect(result.providerName).toBe("openrouter");
+			expect(result.model).toBe("openai/gpt-4o-mini");
+			const call = (OpenAIModelClient as unknown as { mock: { calls: unknown[][] } })
+				.mock.calls[0][0] as {
+				baseUrl: string;
+				apiKey: string;
+				presetName: string;
+				effortTranslator?: { wireSurface: string };
+			};
+			expect(call).toMatchObject({
+				baseUrl: "https://openrouter.ai/api/v1",
+				apiKey: "sk-or-test",
+				presetName: "openrouter",
+			});
+			expect(call.effortTranslator).toBeUndefined();
+		});
 	});
 
 	describe("explicit --provider flag", () => {
@@ -343,6 +382,14 @@ describe("createModelClientImpl", () => {
 	});
 
 	describe("error cases", () => {
+		it("throws when model has no provider and no explicit provider", () => {
+			expect(() =>
+				createModelClientImpl({
+					model: "claude-sonnet-4-6",
+				}),
+			).toThrow("Model provider is not configured");
+		});
+
 		it("throws for unknown provider without base-url", () => {
 			expect(() =>
 				createModelClientImpl({

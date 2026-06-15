@@ -200,4 +200,14 @@ stays green). The two on-host transcripts the task contracts for require real
 ANTHROPIC_API_KEY / GEMINI_API_KEY (or GOOGLE_API_KEY) plus an active Codex CLI
 login and must be operator-captured.
 
+## Status (2026-06-15 blocked audit)
+
+`pnpm run test:preset-parity` still passes locally (62 passed, 6 skipped).
+`kota doctor --preset codex` and `kota doctor --preset gemini-cli` report
+harness-managed auth ready. `kota doctor --preset claude` fails because
+`ANTHROPIC_API_KEY` is absent, and `kota doctor --preset antigravity-cli` fails
+because `agy` auth cannot be verified non-interactively. This confirms the
+test infrastructure works, but it does not satisfy the requested
+all-auth-present and one-auth-missing transcript pair.
+
 <!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-06-05T19:14:47.873Z -->

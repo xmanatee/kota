@@ -9,7 +9,7 @@ const DEFAULT_MAX_SCREENSHOT_HEIGHT = 720;
 export const browserNavigateTool: KotaTool = {
   name: "browser_navigate",
   description:
-    "Navigate to a URL in a headless browser. Waits for the page to reach network idle " +
+    "Navigate to a URL in the configured browser. Waits for the page to reach network idle " +
     "or for an optional CSS selector to appear. Returns the page title and URL after navigation.",
   input_schema: {
     type: "object" as const,
@@ -377,7 +377,7 @@ export const xPostReadTool: KotaTool = {
   name: "x_post_read",
   description:
     "Read an X (Twitter) post and its immediate reply thread. Navigates a " +
-    "headless browser to the post URL, waits for the tweet article to render, " +
+    "browser to the post URL, waits for DOM content and the tweet article to render, " +
     "and extracts the post body plus up to max_replies reply texts. Requires " +
     "an authenticated browser profile for posts behind the X auth wall — " +
     "operators configure the profile via modules.browser.storageStatePath. " +
@@ -420,7 +420,7 @@ export async function runXPostRead(
   const maxReplies = normalizeCount(input.max_replies, DEFAULT_X_POST_REPLY_COUNT);
   try {
     const page = await getPage();
-    await page.goto(url, { waitUntil: "networkidle", timeout });
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout });
     const finalUrl = page.url();
     const authGateReason = await detectXAuthGate(page, finalUrl);
     if (authGateReason) {
@@ -428,6 +428,24 @@ export async function runXPostRead(
         content:
           `Unable to read X post: ${authGateReason}. Configure an authenticated ` +
           "browser profile via modules.browser.storageStatePath and retry.",
+        is_error: true,
+      };
+    }
+    try {
+      await page.waitForSelector('article[data-testid="tweet"]', { timeout });
+    } catch (err) {
+      const afterWaitGateReason = await detectXAuthGate(page, page.url());
+      if (afterWaitGateReason) {
+        return {
+          content:
+            `Unable to read X post: ${afterWaitGateReason}. Configure an authenticated ` +
+            "browser profile via modules.browser.storageStatePath and retry.",
+          is_error: true,
+        };
+      }
+      const msg = err instanceof Error ? err.message : String(err);
+      return {
+        content: `x_post_read timeout after ${timeout}ms waiting for tweet article: ${msg}`,
         is_error: true,
       };
     }
@@ -489,11 +507,20 @@ async function detectXAuthGate(
 
 const X_POST_EXTRACT_SCRIPT = `
 (() => {
+  function cleanArticleText(text) {
+    return String(text || '')
+      .split('\\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .filter((line) => !/^(Subscribe|Follow|Conversation|Article|See new posts|Translate post|Show more|Home|Explore|Notifications|Messages|Bookmarks|Premium|Profile|More|Post)$/.test(line))
+      .join('\\n')
+      .trim();
+  }
   const articles = Array.from(document.querySelectorAll('article[data-testid="tweet"]'));
   if (articles.length === 0) return { body: null, author: null, replies: [] };
   const first = articles[0];
   const textEl = first.querySelector('[data-testid="tweetText"]');
-  const body = textEl ? textEl.textContent.trim() : null;
+  const body = textEl ? textEl.textContent.trim() : cleanArticleText(first.innerText);
   const userEl = first.querySelector('[data-testid="User-Name"]');
   const author = userEl ? userEl.textContent.trim() : null;
   const replies = [];
@@ -513,10 +540,10 @@ const DEFAULT_ARTICLE_MAX_LENGTH = 40_000;
 export const renderedArticleReadTool: KotaTool = {
   name: "rendered_article_read",
   description:
-    "Fetch a JS-rendered article page via the headless browser and return " +
+    "Fetch a JS-rendered article page via the configured browser and return " +
     "its readable body text. Designed for Cloudflare/JS-gated pages such as " +
     "openai.com/index/* that reject plain HTTP fetches. Navigates, waits for " +
-    "network idle, prefers a readable <article>/main-content selector, and " +
+    "DOM content plus a readable page container, prefers an <article>/main-content selector, and " +
     "falls back to document body text. Returns a typed failure when the page " +
     "is inaccessible, timed out, or still gated after JS render.",
   input_schema: {
@@ -562,10 +589,12 @@ export async function runRenderedArticleRead(
     : null;
   try {
     const page = await getPage();
-    await page.goto(url, { waitUntil: "networkidle", timeout });
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout });
     const finalUrl = page.url();
+    const readySelector = selectorHint ?? "article, main, [role=\"main\"], body";
+    await page.waitForSelector(readySelector, { timeout });
     const title = await page.title();
-    const gateReason = await detectRenderedGate(page);
+    const gateReason = await detectRenderedGate(page, finalUrl, title);
     if (gateReason) {
       return {
         content:
@@ -604,14 +633,21 @@ export async function runRenderedArticleRead(
   }
 }
 
-async function detectRenderedGate(page: {
-  evaluate(expression: string): Promise<unknown>;
-}): Promise<string | null> {
+async function detectRenderedGate(
+  page: {
+    evaluate(expression: string): Promise<unknown>;
+  },
+  finalUrl: string,
+  title: string,
+): Promise<string | null> {
+  if (/Just a moment/i.test(title) || /__cf_chl_/i.test(finalUrl)) {
+    return "page is still behind a JS / Cloudflare challenge after render";
+  }
   const probe = (await page.evaluate(
     "document.body ? document.body.innerText.slice(0, 1500) : ''",
   )) as string;
   if (/Just a moment\.\.\.|Checking your browser|Enable JavaScript/i.test(probe)) {
-    return "page is still behind a JS / Cloudflare challenge after network idle";
+    return "page is still behind a JS / Cloudflare challenge after render";
   }
   if (/Access Denied|403 Forbidden|Not Found/i.test(probe) && probe.length < 400) {
     return "page returned an access denial";

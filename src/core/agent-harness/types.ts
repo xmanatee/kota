@@ -1,3 +1,4 @@
+import type { ModelProviderSelection } from "#core/model/model-client.js";
 import type { ModelOutputTokenLimits } from "#core/model/output-token-limits.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { KotaAgentMessage } from "./agent-message.js";
@@ -160,6 +161,12 @@ export type AgentHarnessStepOverrides = unknown;
 export type AgentHarnessRunOptions = {
   prompt: string;
   model?: string;
+  /**
+   * Shared ModelClient provider selection for adapters that execute through
+   * `createModelClient`. This is KOTA's own model routing surface, not a
+   * provider-native wire shape; adapters that use native CLIs ignore it.
+   */
+  modelProvider?: ModelProviderSelection;
   /**
    * Operator-provided output-token request budgets keyed by model id. Shipped
    * preset model ids resolve through core; this map covers custom ids or

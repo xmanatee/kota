@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { SCENARIOS } from "../src/modules/rendering/scenarios.ts";
 import { render, renderContext } from "../src/modules/rendering/render.ts";
 import { ASCII_THEME, DEFAULT_THEME, NO_COLOR_THEME } from "../src/modules/rendering/theme.ts";
@@ -55,5 +56,6 @@ for (const scenario of SCENARIOS) {
   lines.push("");
 }
 
+mkdirSync(dirname(outPath), { recursive: true });
 writeFileSync(outPath, lines.join("\n"));
 console.log(`wrote ${lines.length} lines to ${outPath}`);

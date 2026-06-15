@@ -15,6 +15,13 @@ export type BrowserModuleConfig = {
    * a fresh login before pinning the file in their secrets/config surface.
    */
   persistProfile?: boolean;
+  /**
+   * Whether Playwright should launch Chromium in headless mode. Defaults to
+   * true. Operators can set this to false for source-access captures where a
+   * vendor rejects headless browser automation but allows an ordinary headed
+   * browser session.
+   */
+  headless?: boolean;
 };
 
 export type RawBrowserModuleConfig =
@@ -25,6 +32,7 @@ export type RawBrowserModuleConfig =
 export type ResolvedBrowserProfileConfig = {
   storageStatePath: string | null;
   persist: boolean;
+  headless: boolean;
 };
 
 export function resolveBrowserProfileConfig(
@@ -33,6 +41,7 @@ export function resolveBrowserProfileConfig(
   return {
     storageStatePath: readStorageStatePath(raw),
     persist: readPersistProfile(raw),
+    headless: readHeadless(raw),
   };
 }
 
@@ -45,6 +54,11 @@ function readStorageStatePath(raw: RawBrowserModuleConfig): string | null {
 function readPersistProfile(raw: RawBrowserModuleConfig): boolean {
   if (!raw || !("persistProfile" in raw)) return false;
   return raw.persistProfile === true;
+}
+
+function readHeadless(raw: RawBrowserModuleConfig): boolean {
+  if (!raw || !("headless" in raw)) return true;
+  return raw.headless !== false;
 }
 
 export function resolveStorageStatePath(

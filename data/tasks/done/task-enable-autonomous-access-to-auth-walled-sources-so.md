@@ -1,12 +1,12 @@
 ---
 id: task-enable-autonomous-access-to-auth-walled-sources-so
 title: Enable autonomous access to auth-walled sources so blocked research tasks can unblock
-status: blocked
+status: done
 priority: p2
 area: architecture
 summary: Give autonomy a reliable path to read auth-walled or JS-gated sources (X/Twitter, openai.com/index, etc.) via authenticated browser automation plus a scoped X-post capture tool, so 'inaccessible source' tasks do not stay blocked indefinitely.
 created_at: 2026-04-22T16:47:00.746Z
-updated_at: 2026-05-26T04:58:00Z
+updated_at: 2026-06-15T03:22:50.296Z
 ---
 
 ## Problem

@@ -134,4 +134,10 @@ path: .kota/runs/memory-consolidation-screens-*
 description: live operator-captured screenshots/screencasts for the three visual memory surfaces — telegram (`/memory <query>` rendered message: populated, no-match, semantic-unavailable, and empty/usage-hint cases), mobile (`MemoryScreen` showing populated, empty-query hint, no-match card, semantic-unavailable banner, and offline banner), and macOS (`AskUnifiedView` with the Memory mode populated, no-match line, and semantic-unavailable orange caption). Operator runs each client against a daemon (with and without an embedding-backed memory provider configured) and commits the rendered artifacts under .kota/runs/memory-consolidation-screens-<stamp>/{telegram,mobile,macos}/. The daemon-side and CLI-side artifacts are already committed under .kota/runs/2026-05-02T21-46-19-670Z-builder-o6sqtm/memory-consolidation/.
 ```
 
+## Status (2026-06-15 blocked audit)
+
+No matching `.kota/runs/memory-consolidation-screens-*` artifact exists. The
+CLI and daemon evidence named above remains useful, but the live
+Telegram/mobile/macOS visual capture is still missing.
+
 <!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-06-04T03:18:14.605Z -->

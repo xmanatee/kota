@@ -140,4 +140,11 @@ path: .kota/runs/2026-05-26T02-25-55-490Z-builder-z5wble/eval-live-pass
 description: network-enabled operator runs `pnpm kota eval run --fixture builder-empirical-code-optimization --repeats 1 > .kota/runs/2026-05-26T02-25-55-490Z-builder-z5wble/eval-live-pass/transcript.txt 2>&1` with a live agent harness that can reach https://api.openai.com/v1/responses, then records or copies the matching `.kota/eval-runs/<stamp>/builder-empirical-code-optimization-0/fixture-run.json` under the same directory showing pass^k=100.0% and the `forecast_mae` objective metric. The current sandbox fails the live builder call before implementation is exercised.
 ```
 
+## Status (2026-06-15 blocked audit)
+
+The blocker is still real. Recent local attempts produced eval artifacts, but
+`.kota/eval-runs/2026-06-15T02-58-57-698Z/.../fixture-run.json` still has
+`outcome: error`, no implementation changes, and `forecast_mae: 12.429`
+against the untouched predictor. The contracted live pass path is absent.
+
 <!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-06-13T00:12:56.966Z -->

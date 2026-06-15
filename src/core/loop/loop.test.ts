@@ -88,6 +88,7 @@ vi.mock("#core/modules/module-discovery.js", () => ({
 
 // --- Import after mocks ---
 
+import { createModelClient } from "#core/model/model-client.js";
 import { Context } from "./context.js";
 import { AgentSession, runAgentLoop } from "./loop.js";
 import { BufferTransport } from "./transport.js";
@@ -152,6 +153,29 @@ describe("AgentSession", () => {
     resetCleanupHooks();
     resetPreSendHooks();
     vi.restoreAllMocks();
+  });
+
+  it("passes configured model provider options into the model client factory", () => {
+    session = new AgentSession({
+      autonomyMode: "autonomous",
+      model: "openrouter/openrouter/auto",
+      config: {
+        modelProvider: {
+          type: "openrouter",
+          baseUrl: "https://openrouter.ai/api/v1",
+          apiKey: "$OPENROUTER_API_KEY",
+        },
+      },
+    });
+
+    expect(createModelClient).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: "openrouter/openrouter/auto",
+        provider: "openrouter",
+        baseUrl: "https://openrouter.ai/api/v1",
+        apiKey: "$OPENROUTER_API_KEY",
+      }),
+    );
   });
 
   describe("text-only response", () => {

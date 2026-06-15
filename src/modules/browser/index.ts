@@ -129,6 +129,13 @@ const browserSetupRequirements: ModuleSetupRequirement[] = [
           configPath: "modules.browser.persistProfile",
           required: false,
         },
+        {
+          id: "headless",
+          label: "Headless browser",
+          type: "boolean",
+          configPath: "modules.browser.headless",
+          required: false,
+        },
       ],
     },
   },
@@ -138,7 +145,7 @@ const browserModule: KotaModule = {
   name: "browser",
   version: "1.0.0",
   description:
-    "Headless browser automation tools powered by Playwright: navigation, interaction, screenshots, JS evaluation, and scoped content-ingest tools for auth-walled / JS-gated sources",
+    "Browser automation tools powered by Playwright: navigation, interaction, screenshots, JS evaluation, and scoped content-ingest tools for auth-walled / JS-gated sources",
   setupRequirements: browserSetupRequirements,
   manifest: {
     schemaVersion: 1,
@@ -190,7 +197,8 @@ const browserModule: KotaModule = {
     if (profile.storageStatePath) {
       ctx.log.info(
         `browser: authenticated profile configured at ${profile.storageStatePath}` +
-          (profile.persist ? " (persist enabled)" : ""),
+          (profile.persist ? " (persist enabled)" : "") +
+          (profile.headless ? "" : " (headed browser enabled)"),
       );
     }
     ctx.registerCleanupHook(() => void closeBrowser());

@@ -101,15 +101,22 @@ process to supervise.
 
 Required environment:
 
-- `ANTHROPIC_API_KEY` — model backend for the interactive session loop.
 - `TELEGRAM_BOT_TOKEN` — BotFather-issued token for the bot account.
 - `TELEGRAM_ALERT_CHAT_ID` — chat id that receives notification events
   and is allowed to issue `/status`.
 
-Autonomy mode is mandatory — the interactive channel refuses to start
-without one. Set it through `modules.telegram.defaultAutonomyMode` (or
-the shared `serve.defaultAutonomyMode`). Restrict interactive sessions
-via `modules.telegram.allowedChatIds`; empty or unset allows any chat.
+Model backend selection is KOTA config, not Telegram-specific. For Docker
+deploys, `deploy/telegram-assistant/entrypoint.sh` can derive that config from
+env: set `KOTA_MODEL=openrouter/<OpenRouter model slug>` plus
+`OPENROUTER_API_KEY` for OpenRouter, or choose another provider/preset
+explicitly. For example, OpenRouter's `openrouter/auto` router is
+`KOTA_MODEL=openrouter/openrouter/auto` in KOTA syntax. Anthropic keys are
+optional and only needed when the selected model/provider uses Anthropic.
+
+Autonomy mode is mandatory — the interactive channel refuses to start without
+one. Set it through `modules.telegram.defaultAutonomyMode` (or the shared
+`serve.defaultAutonomyMode`). Restrict interactive sessions via
+`modules.telegram.allowedChatIds`; empty or unset allows any chat.
 
 Owner-question escalations flow through `OwnerQuestionQueue` from
 three answer surfaces (recorded source label only differs):

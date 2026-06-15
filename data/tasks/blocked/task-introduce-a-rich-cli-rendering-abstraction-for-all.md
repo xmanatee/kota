@@ -228,3 +228,9 @@ operator capture after the 14-day cadence if the artifact remains absent.
   surface gained a `renderToString` test exercising all three themes
   (`default`, `ascii`, `no-color`). Phase 3's peer-CLI capture remains
   the open precondition.
+- 2026-06-15 blocked audit: the local KOTA scenario renderer now creates
+  parent output directories before writing, and the probe wrote
+  `.kota/runs/blocked-audit-2026-06-15/rendering/fresh/nested/kota.md`.
+  Installed local peer CLIs detected: `codex`, `gemini`, `opencode`, and
+  `agy`; `pi` is not installed. The contracted
+  `.kota/runs/peer-cli-comparison/` side-by-side peer artifact is still absent.

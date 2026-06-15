@@ -39,6 +39,9 @@ export function localMcpServerClient(): McpServerClient {
         modelClient = createModelClient({
           model:
             config.model || resolveActivePresetFromConfig(config).defaultModel,
+          provider: config.modelProvider?.type,
+          baseUrl: config.modelProvider?.baseUrl,
+          apiKey: config.modelProvider?.apiKey,
           projectDir: process.cwd(),
         }).client;
       }

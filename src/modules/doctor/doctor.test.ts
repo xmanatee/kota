@@ -8,6 +8,7 @@ import {
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
 } from "#core/agent-harness/index.js";
+import { loadConfig } from "#core/config/config.js";
 import type { StrandedDaemonInspection } from "#core/daemon/stranded-daemon.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
 import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
@@ -65,7 +66,19 @@ vi.mock("#core/model/model-client.js", () => ({
 }));
 
 vi.mock("#modules/model-clients/factory.js", () => ({
+  apiKeyNameForProvider: vi.fn((providerName: string) =>
+    providerName === "ollama" || providerName === "lmstudio"
+      ? ""
+      : providerName === "anthropic"
+        ? "ANTHROPIC_API_KEY"
+        : `${providerName.toUpperCase()}_API_KEY`,
+  ),
   resolveApiKey: vi.fn(() => "sk-ant-test-key"),
+  resolveModelProviderName: vi.fn((model: string, explicitProvider?: string) => {
+    if (explicitProvider) return explicitProvider;
+    const slash = model.indexOf("/");
+    return slash > 0 ? model.slice(0, slash) : undefined;
+  }),
 }));
 
 function makeTmpDir(): string {
@@ -150,6 +163,7 @@ function registerReadinessHarness(
 }
 
 beforeEach(() => {
+  vi.mocked(loadConfig).mockReturnValue({});
   strandedDaemonMocks.detectStrandedDaemonProcess.mockReturnValue({ kind: "none" });
   clearAgentHarnessRegistryForTest();
   registerReadinessHarness("claude-agent-sdk", "agent-sdk");
@@ -490,6 +504,9 @@ describe("kota doctor — provider connectivity check", () => {
   beforeEach(() => {
     projectDir = makeTmpDir();
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    vi.mocked(loadConfig).mockReturnValue({
+      model: "anthropic/claude-haiku-4-5-20251001",
+    });
   });
 
   afterEach(() => {
@@ -538,6 +555,9 @@ describe("kota doctor — provider connectivity check", () => {
 
   it("fails with unreachable message on network error", async () => {
     const { createModelClient } = await import("#core/model/model-client.js");
+    vi.mocked(loadConfig).mockReturnValueOnce({
+      model: "ollama/llama3",
+    });
     vi.mocked(createModelClient).mockReturnValueOnce({
       client: {
         messages: {
@@ -561,6 +581,15 @@ describe("kota doctor — provider connectivity check", () => {
     const results = await checkProviderConnectivity(projectDir);
     expect(results[0]?.status).toBe("warn");
     expect(results[0]?.detail).toContain("not set");
+  });
+
+  it("warns when no model provider is configured", async () => {
+    vi.mocked(loadConfig).mockReturnValueOnce({ model: "claude-haiku-4-5-20251001" });
+
+    const results = await checkProviderConnectivity(projectDir);
+    expect(results[0]?.status).toBe("warn");
+    expect(results[0]?.label).toBe("Provider connectivity");
+    expect(results[0]?.detail).toContain("No model provider configured");
   });
 
   it("skips probe and warns when --skip-connectivity is passed", async () => {

@@ -15,12 +15,20 @@ import { describe, expect, it } from "vitest";
 const DEPLOY_DIR = resolve(__dirname, "../../../deploy/telegram-assistant");
 
 const REQUIRED_RUNTIME_ENV = [
-  "ANTHROPIC_API_KEY",
   "TELEGRAM_BOT_TOKEN",
   "TELEGRAM_ALERT_CHAT_ID",
 ];
 
-const OPTIONAL_RUNTIME_ENV = ["OPENAI_API_KEY"];
+const OPTIONAL_RUNTIME_ENV = [
+  "ANTHROPIC_API_KEY",
+  "OPENAI_API_KEY",
+  "OPENROUTER_API_KEY",
+  "KOTA_MODEL",
+  "KOTA_DEFAULT_PRESET",
+  "KOTA_DEFAULT_AGENT_HARNESS",
+  "KOTA_TELEGRAM_DEFAULT_AUTONOMY_MODE",
+  "KOTA_TELEGRAM_ALLOWED_CHAT_IDS",
+];
 
 function read(name: string): string {
   return readFileSync(resolve(DEPLOY_DIR, name), "utf8");
@@ -31,6 +39,7 @@ describe("telegram-assistant deploy artifact", () => {
     for (const file of [
       "Dockerfile",
       "docker-compose.yml",
+      "entrypoint.sh",
       "kota-telegram.service",
       ".env.example",
       "install.sh",
@@ -60,9 +69,10 @@ describe("telegram-assistant deploy artifact", () => {
       // unset, which is the no-silent-default contract the deploy owes.
       expect(compose).toContain(`\${${name}:?`);
     }
-    // Optional vars use the `:-` default form so they can be empty.
+    // Optional vars use the `:-` default form so they can be empty or carry
+    // a non-secret deploy default.
     for (const name of OPTIONAL_RUNTIME_ENV) {
-      expect(compose).toMatch(new RegExp(`\\$\\{${name}:-\\}`));
+      expect(compose).toMatch(new RegExp(`\\$\\{${name}:-`));
     }
   });
 
@@ -84,6 +94,18 @@ describe("telegram-assistant deploy artifact", () => {
     expect(unit).toMatch(/^ProtectSystem=strict$/m);
     expect(unit).toMatch(/^ReadWritePaths=\/var\/lib\/kota$/m);
     expect(unit).toMatch(/^ExecStart=.+ daemon .+\/var\/lib\/kota$/m);
+  });
+
+  it("docker entrypoint generates deploy config without baking provider secrets", () => {
+    const dockerfile = read("Dockerfile");
+    const entrypoint = read("entrypoint.sh");
+    expect(dockerfile).toContain("entrypoint.sh");
+    expect(dockerfile).toContain('ENTRYPOINT ["/opt/kota/entrypoint.sh"]');
+    expect(entrypoint).toContain("KOTA_MODEL");
+    expect(entrypoint).toContain("KOTA_DEFAULT_AGENT_HARNESS");
+    expect(entrypoint).toContain("KOTA_TELEGRAM_DEFAULT_AUTONOMY_MODE");
+    expect(entrypoint).not.toContain("OPENROUTER_API_KEY");
+    expect(entrypoint).not.toContain("ANTHROPIC_API_KEY");
   });
 
   it("install.sh enforces every required env var before starting a supervisor", () => {

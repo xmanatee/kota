@@ -7,9 +7,11 @@
 #          then run `kota daemon` under a non-root user.
 #
 # Required runtime env (see .env.example):
-#   ANTHROPIC_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_ALERT_CHAT_ID
+#   TELEGRAM_BOT_TOKEN, TELEGRAM_ALERT_CHAT_ID
 # Optional runtime env:
-#   OPENAI_API_KEY — enables a Whisper transcription provider.
+#   KOTA_MODEL=openrouter/openrouter/auto plus OPENROUTER_API_KEY — use OpenRouter.
+#   ANTHROPIC_API_KEY / OPENAI_API_KEY — use those providers when selected.
+#   OPENAI_API_KEY also enables a Whisper transcription provider.
 #
 # The daemon hosts both telegram channels, the scheduler, and all workflows
 # in one process. There is no second supervised bot process.
@@ -32,7 +34,7 @@ RUN pnpm run build \
 FROM node:${NODE_VERSION} AS runtime
 ENV NODE_ENV=production \
     KOTA_PROJECT_DIR=/var/lib/kota \
-    KOTA_STATE_DIR=/var/lib/kota/.kota
+    KOTA_DAEMON_LOG_FORMAT=json
 WORKDIR /opt/kota
 
 RUN groupadd --system --gid 1001 kota \
@@ -44,6 +46,8 @@ COPY --from=builder /src/package.json ./package.json
 COPY --from=builder /src/bin ./bin
 COPY --from=builder /src/dist ./dist
 COPY --from=builder /src/node_modules ./node_modules
+COPY deploy/telegram-assistant/entrypoint.sh ./entrypoint.sh
+RUN chmod 0755 ./entrypoint.sh
 
 USER kota
 WORKDIR /var/lib/kota
@@ -51,5 +55,5 @@ VOLUME ["/var/lib/kota"]
 
 # The daemon owns its own supervision/restart loop (RESTART_EXIT_CODE).
 # Docker's restart policy supervises the outer process.
-ENTRYPOINT ["node", "/opt/kota/bin/kota.mjs"]
+ENTRYPOINT ["/opt/kota/entrypoint.sh"]
 CMD ["daemon", "--project-dir", "/var/lib/kota"]

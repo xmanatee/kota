@@ -29,11 +29,13 @@ let idleTimer: ReturnType<typeof setTimeout> | null = null;
 export type BrowserProfileOptions = {
   storageStatePath: string | null;
   persist: boolean;
+  headless: boolean;
 };
 
 let profile: BrowserProfileOptions = {
   storageStatePath: null,
   persist: false,
+  headless: true,
 };
 
 /**
@@ -71,7 +73,7 @@ async function ensureContext(): Promise<PlaywrightContext> {
   if (context) return context;
   const playwright = await ensurePlaywright();
   if (!browser || !browser.isConnected()) {
-    browser = await playwright.chromium.launch({ headless: true });
+    browser = await playwright.chromium.launch({ headless: profile.headless });
   }
   const storagePath = resolveStoragePath(null);
   const options: { storageState?: string } = {};

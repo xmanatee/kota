@@ -168,4 +168,15 @@ path: .kota/runs/2026-05-26T05-48-30-948Z-builder-char3h/eval-live-pass
 description: network-enabled operator runs `pnpm kota eval run --fixture builder-black-box-behavior-reconstruction --repeats 1 > .kota/runs/2026-05-26T05-48-30-948Z-builder-char3h/eval-live-pass/transcript.txt 2>&1` with a live agent harness that can reach https://api.openai.com/v1/responses, then records or copies the matching `.kota/eval-runs/<stamp>/builder-black-box-behavior-reconstruction-0/fixture-run.json` under the same directory showing pass^k=100.0%, outcome `pass`, `behavior_mismatches` equal to 0, and the behavior scorer predicate passing. The current sandbox reaches the live builder step but fails with `codex_cli_error` before implementation is exercised.
 ```
 
+## Status (2026-06-15 blocked audit)
+
+Local Codex auth is now good enough for KOTA harness execution, but this task
+is still not unblocked. Existing artifact
+`.kota/eval-runs/2026-06-15T01-03-02-477Z/.../fixture-run.json` shows the
+builder reached the desired implementation state (`behavior_mismatches: 0` and
+all post-run predicates passing) while the eval attempt still timed out at the
+30-minute fixture budget. That is useful evidence, not the contracted live pass:
+the required operator-capture path is still absent and the outcome is
+`timeout`, not `pass`.
+
 <!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-06-13T00:12:56.966Z -->

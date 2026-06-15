@@ -1,12 +1,12 @@
 ---
 id: task-add-streamable-http-transport-to-the-mcp-server
 title: Add Streamable HTTP transport to the MCP server
-status: blocked
+status: backlog
 priority: p2
 area: modules
 summary: Expose KOTA's first-party MCP server over the current Streamable HTTP transport with strict draft header validation, localhost-safe defaults, and transcript evidence while preserving the existing stdio path.
 created_at: 2026-05-21T13:26:26.757Z
-updated_at: 2026-05-21T17:42:44Z
+updated_at: 2026-06-15T01:37:50.743Z
 ---
 
 ## Problem

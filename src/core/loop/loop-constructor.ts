@@ -98,6 +98,9 @@ export function initAgentSession(
 
   state.client = options.client ?? createModelClient({
     model: state.model,
+    provider: options.config?.modelProvider?.type,
+    baseUrl: options.config?.modelProvider?.baseUrl,
+    apiKey: options.config?.modelProvider?.apiKey,
     projectDir,
   }).client;
   state.costTracker = new CostTracker();

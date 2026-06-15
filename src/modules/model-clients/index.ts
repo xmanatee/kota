@@ -15,11 +15,29 @@ registerModelClientFactory(createModelClientImpl);
 
 const modelClientSetupRequirements: ModuleSetupRequirement[] = [
   {
+    id: "openrouter-api-key",
+    kind: "secret",
+    title: "OpenRouter API key",
+    description:
+      "OpenRouter provider credential resolved through the shared secret provider.",
+    required: false,
+    scope: "global",
+    owner: "model-clients",
+    sensitivity: "secret",
+    setup: {
+      mode: "url",
+      url: "https://openrouter.ai/settings/keys",
+      label: "Open OpenRouter API keys",
+      pendingTtlMs: 30 * 60 * 1000,
+    },
+    secretRefs: [{ name: "OPENROUTER_API_KEY", scope: "global" }],
+  },
+  {
     id: "anthropic-api-key",
     kind: "secret",
     title: "Anthropic API key",
     description:
-      "Default Anthropic provider credential resolved through the shared secret provider.",
+      "Anthropic provider credential resolved through the shared secret provider.",
     required: false,
     scope: "global",
     owner: "model-clients",
@@ -66,7 +84,11 @@ const modelClientsModule: KotaModule = {
           "Register Anthropic and OpenAI-compatible model clients plus failover routing.",
         scope: "external",
         scopePolicyHooks: ["external-effects", "setup", "retention"],
-        setupRequirementIds: ["anthropic-api-key", "openai-api-key"],
+        setupRequirementIds: [
+          "openrouter-api-key",
+          "anthropic-api-key",
+          "openai-api-key",
+        ],
       },
       {
         id: "model-clients.pricing",

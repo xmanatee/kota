@@ -2,6 +2,7 @@ node_modules/
 dist/
 logs/
 .loop-state
+deploy/telegram-assistant/.env
 **/.kota/
 !/.kota/
 /.kota/*

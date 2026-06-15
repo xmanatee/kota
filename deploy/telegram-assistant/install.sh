@@ -70,7 +70,6 @@ require_env() {
   fi
 }
 
-require_env ANTHROPIC_API_KEY
 require_env TELEGRAM_BOT_TOKEN
 require_env TELEGRAM_ALERT_CHAT_ID
 

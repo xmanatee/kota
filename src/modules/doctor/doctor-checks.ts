@@ -41,7 +41,11 @@ import { loadModuleMetadata } from "#core/modules/module-metadata.js";
 import { getDaemonTransport } from "#core/server/daemon-transport.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
 import { validateWorkflowDefinitions, WorkflowDefinitionError } from "#core/workflow/validation.js";
-import { resolveApiKey } from "#modules/model-clients/factory.js";
+import {
+  apiKeyNameForProvider,
+  resolveApiKey,
+  resolveModelProviderName,
+} from "#modules/model-clients/factory.js";
 import type {
   DoctorCheckResult,
   DoctorRepairResult,
@@ -340,35 +344,46 @@ const PROBE_MODEL: Record<string, string> = {
 export async function checkProviderConnectivity(projectDir: string): Promise<CheckResult[]> {
   const config = loadConfig(projectDir);
   const mpConfig = config.modelProvider;
-  const providerType = mpConfig?.type ?? "anthropic";
+  const presetDefaultModel = resolveActivePresetFromConfig(config).defaultModel;
+  const modelSpec = config.model ?? presetDefaultModel;
+  const providerType = resolveModelProviderName(modelSpec, mpConfig?.type);
+  if (!providerType) {
+    return [
+      warn(
+        "Provider connectivity",
+        `No model provider configured for ${modelSpec} — use provider/model notation or set config.modelProvider.type`,
+      ),
+    ];
+  }
   const explicitKey = mpConfig?.apiKey;
   const baseUrl = mpConfig?.baseUrl;
+  const requiredKeyName = apiKeyNameForProvider(providerType);
   const apiKey = resolveApiKey(providerType, explicitKey, { projectDir });
-  const presetDefaultModel = resolveActivePresetFromConfig(config).defaultModel;
-  const model = PROBE_MODEL[providerType] ?? config.model ?? presetDefaultModel;
+  const model = PROBE_MODEL[providerType] ?? modelSpec;
 
   const label = `Provider connectivity: ${providerType}`;
-  const keyDisplay = apiKey ? `${apiKey.slice(0, 8)}...` : "(not set)";
+  const keyDisplay = requiredKeyName
+    ? apiKey ? `${apiKey.slice(0, 8)}...` : "(not set)"
+    : "(not required)";
 
-  if (!apiKey) {
-    const envHint = providerType === "anthropic" ? "ANTHROPIC_API_KEY" : `${providerType.toUpperCase()}_API_KEY`;
-    return [warn(label, `API key not set — export ${envHint} or add apiKey to config.modelProvider`)];
+  if (requiredKeyName && !apiKey) {
+    return [warn(label, `API key not set — export ${requiredKeyName} or add apiKey to config.modelProvider`)];
   }
 
   try {
-    const { client } = createModelClient({
+    const resolved = createModelClient({
       model,
       provider: providerType,
       baseUrl,
       apiKey,
       projectDir,
     });
-    await client.messages.create({
-      model,
+    await resolved.client.messages.create({
+      model: resolved.model,
       max_tokens: 1,
       messages: [{ role: "user", content: "hi" }],
     });
-    return [pass(label, `Reachable (model: ${model}, key: ${keyDisplay})`)];
+    return [pass(label, `Reachable (model: ${resolved.model}, key: ${keyDisplay})`)];
   } catch (err) {
     if (isAuthError(err)) {
       return [fail(label, `Authentication failed (key: ${keyDisplay})`)];

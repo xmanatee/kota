@@ -140,4 +140,15 @@ unblock action is exactly the `kota harness-parity run` capture described in
 the precondition; if it is not captured, blocked-promoter should re-instruct it
 after the 14-day operator-capture cadence rather than letting it disappear.
 
+## Status (2026-06-15 blocked audit)
+
+A bounded local probe succeeded for one small slice:
+`CODEX_HOME=/Users/xmanatee/.codex pnpm kota harness-parity run --scenario
+fix-arithmetic-bug --harness codex --max-turns 4 --out
+.kota/runs/blocked-audit-2026-06-15/harness-parity-codex/fix-arithmetic-bug`
+passed with `verification=pass`, one turn, and one changed file. That proves
+the Codex harness path is locally viable. It does not unblock this task because
+the precondition requires the operator-captured all-registered-harness artifact
+under `.kota/runs/harness-parity-*`.
+
 <!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-06-04T13:05:31.912Z -->

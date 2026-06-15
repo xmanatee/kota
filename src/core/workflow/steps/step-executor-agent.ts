@@ -242,10 +242,18 @@ export async function executeAgentStep(
     const askOwner = resolvedHarness.askOwnerToolName !== null
       ? { source: `workflow:${metadata.workflow}/${metadata.id}/${step.id}` }
       : undefined;
+    const modelProvider = agentConfig.config?.modelProvider === undefined
+      ? undefined
+      : {
+          provider: agentConfig.config.modelProvider.type,
+          baseUrl: agentConfig.config.modelProvider.baseUrl,
+          apiKey: agentConfig.config.modelProvider.apiKey,
+        };
     try {
       const harnessRunOptions = {
         prompt, model: resolvedModel, cwd: agentConfig.projectDir, systemPrompt,
         modelOutputTokenLimits: agentConfig.config?.modelOutputTokenLimits,
+        ...(modelProvider !== undefined ? { modelProvider } : {}),
         maxTurns: step.maxTurns, effort: step.effort,
         thinkingEnabled: step.thinkingEnabled, thinkingBudget: step.thinkingBudget,
         ...routeKotaToolControlOptions(resolvedHarness, {
@@ -279,6 +287,7 @@ export async function executeAgentStep(
               ...(agentConfig.config?.modelOutputTokenLimits !== undefined
                 ? { modelOutputTokenLimits: agentConfig.config.modelOutputTokenLimits }
                 : {}),
+              ...(modelProvider !== undefined ? { modelProvider } : {}),
               delegateBudget: agentConfig.delegateBudget,
               canUseTool,
               ...(askOwner !== undefined ? { askOwner } : {}),

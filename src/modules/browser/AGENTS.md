@@ -1,6 +1,6 @@
 # Browser Module
 
-This module provides headless browser automation tools via Playwright, plus
+This module provides browser automation tools via Playwright, plus
 scoped content-ingest tools for auth-walled and JS-gated sources.
 
 - Tools are in the `browser` group for progressive disclosure.
@@ -22,7 +22,8 @@ Operators configure a persistent login session via `modules.browser`:
   "modules": {
     "browser": {
       "storageStatePath": "path/to/x-profile.json",
-      "persistProfile": false
+      "persistProfile": false,
+      "headless": true
     }
   }
 }
@@ -42,23 +43,27 @@ Operators configure a persistent login session via `modules.browser`:
 - The profile is shared across `browser_navigate`, `browser_get_text`,
   `x_post_read`, `rendered_article_read`, and every other browser tool in
   this module.
+- `headless` defaults to `true`. Set `modules.browser.headless=false` only
+  for operator-run source-access captures where a vendor blocks headless
+  automation but allows a normal headed browser session. This is an explicit
+  operator capability setting, not a silent fallback.
 
 ## Content-Ingest Tools
 
 - `browser_get_text` — raw `innerText` extraction of a page or element. Use
   it for ad-hoc inspection of already-navigated pages.
-- `x_post_read` — scoped X/Twitter status reader. Navigates, waits for the
-  tweet article, and returns post body + author + up to `max_replies` reply
-  texts. Requires an authenticated profile for posts behind the X auth wall;
-  without one the tool returns a typed failure ("redirected to X login" or
-  "X displayed an auth-wall / login prompt"). X scraping outside of normal
-  reading volumes is discouraged; this tool is intentionally narrow to one
-  post per call.
+- `x_post_read` — scoped X/Twitter status reader. Navigates until DOM content
+  is available, waits for the tweet article, and returns post body + author +
+  up to `max_replies` reply texts. Requires an authenticated profile for posts
+  behind the X auth wall; without one the tool returns a typed failure
+  ("redirected to X login" or "X displayed an auth-wall / login prompt"). X
+  scraping outside of normal reading volumes is discouraged; this tool is
+  intentionally narrow to one post per call.
 - `rendered_article_read` — JS-gated article reader. Navigates, waits for
-  network idle, and extracts `<article>`/`<main>` text (or a caller-supplied
-  selector, or `document.body` fallback). Returns a typed failure for
-  Cloudflare/JS challenges that never clear. Intended for pages like
-  `openai.com/index/*` that reject plain HTTP fetches.
+  DOM content plus a readable page container, and extracts `<article>`/`<main>`
+  text (or a caller-supplied selector, or `document.body` fallback). Returns a
+  typed failure for Cloudflare/JS challenges that never clear. Intended for
+  pages like `openai.com/index/*` that reject plain HTTP fetches.
 
 All three content-ingest tools are included in
 `DEFAULT_TARGET_TOOLS` for the `injection-defense` middleware, so autonomous
