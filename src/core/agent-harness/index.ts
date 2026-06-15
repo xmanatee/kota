@@ -86,10 +86,12 @@ export type {
   NativeCliAuthProbeSpec,
   NativeCliRuntimeProbeSpec,
   NodePackageRuntimeProbeSpec,
+  NodeRuntimeProbeSpec,
   PackageVersionResolution,
 } from "./readiness.js";
 export {
   NODE_RUNTIME_PROBE_DEPS,
+  probeCurrentNodeRuntime,
   probeNativeCliAuth,
   probeNativeCliRuntime,
   probeNodePackageRuntime,

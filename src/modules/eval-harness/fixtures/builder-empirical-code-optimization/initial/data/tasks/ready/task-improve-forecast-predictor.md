@@ -29,8 +29,8 @@ scorer, not by the builder's final summary.
 ## Constraints
 
 - Only change `src/predictor.mjs` and this task's state.
-- Do not edit `scripts/score.mjs`, `data/forecast/training.csv`, package
-  scaffolding, or fixture metadata.
+- Do not edit `scripts/score.mjs`, `data/forecast/training.csv`, or fixture
+  metadata.
 - Do not commit from the agent step; the workflow commit step handles that.
 
 ## Done When
@@ -39,7 +39,8 @@ scorer, not by the builder's final summary.
 - `node scripts/score.mjs --metric-only` prints a holdout MAE at or below
   `0.25`.
 - `scripts/score.mjs` and `data/forecast/training.csv` are unchanged.
-- This task has moved from `data/tasks/ready/` to `data/tasks/done/`.
+- This task has moved from `data/tasks/ready/` to `data/tasks/done/` by
+  running exactly `pnpm run finish-task`.
 
 ## Acceptance Evidence
 

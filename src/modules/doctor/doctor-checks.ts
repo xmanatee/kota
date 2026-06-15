@@ -399,7 +399,9 @@ function runtimeProbeStatus(probe: PresetHarnessReadiness["adapter"]["localRunti
 }
 
 function runtimeProbeName(probe: PresetHarnessReadiness["adapter"]["localRuntime"]): string {
-  return probe.kind === "native-cli" ? probe.binaryName : probe.packageName;
+  if (probe.kind === "native-cli") return probe.binaryName;
+  if (probe.kind === "node-runtime") return "node";
+  return probe.packageName;
 }
 
 function runtimeProbeDetail(probe: PresetHarnessReadiness["adapter"]["localRuntime"]): string {

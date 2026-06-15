@@ -48,8 +48,8 @@ least 40 percent.
 - Only change `scripts/analyze-claim.mjs`, write `claim-result.json` and
   `claim-holdout-result.json`, and move this task to `done/`.
 - Do not edit `scripts/check-claim.mjs`, `docs/paper-excerpt.md`,
-  `data/claims/lx12-biomass.csv`, `data/claims/lx12-holdout.csv`, package
-  scaffolding, or fixture metadata.
+  `data/claims/lx12-biomass.csv`, `data/claims/lx12-holdout.csv`, or fixture
+  metadata.
 - Do not hardcode the expected verdict or metric. The scorer runs the analyzer
   on another local data file shape to confirm the result changes with data.
 - Do not use network access, external services, large dependencies, or
@@ -67,7 +67,8 @@ least 40 percent.
   support/refute verdict from the holdout data.
 - `scripts/check-claim.mjs`, `docs/paper-excerpt.md`, and
   both files under `data/claims/` are unchanged.
-- This task has moved from `data/tasks/ready/` to `data/tasks/done/`.
+- This task has moved from `data/tasks/ready/` to `data/tasks/done/` by
+  running exactly `pnpm run finish-task`.
 
 ## Acceptance Evidence
 

@@ -13,6 +13,7 @@
 import type {
   AgentCanUseTool,
   AgentHarness,
+  AgentHarnessReadiness,
   AgentHarnessResult,
   AgentHarnessRunOptions,
   AgentHarnessUnsupportedOption,
@@ -24,6 +25,7 @@ import type {
   KotaToolResultBlock,
   KotaToolUseBlock,
 } from "#core/agent-harness/index.js";
+import { probeCurrentNodeRuntime } from "#core/agent-harness/index.js";
 import { createModelClient } from "#core/model/model-client.js";
 import { resolveModelOutputTokenLimit } from "#core/model/output-token-limits.js";
 import { runWithAskOwnerSource } from "#core/tools/ask-owner.js";
@@ -77,6 +79,15 @@ const OPENAI_TOOLS_UNSUPPORTED_OPTIONS = [
     reason: "The adapter emits text deltas, not KotaAgentMessage frames.",
   },
 ] as const satisfies readonly AgentHarnessUnsupportedOption[];
+
+function openaiToolsReadiness(): AgentHarnessReadiness {
+  return {
+    adapterKind: "model-client",
+    localRuntime: probeCurrentNodeRuntime({ required: true }),
+    optionalRuntimes: [],
+    unsupportedOptions: OPENAI_TOOLS_UNSUPPORTED_OPTIONS,
+  };
+}
 
 function isToolUseBlock(block: KotaContentBlock): block is KotaToolUseBlock {
   return block.type === "tool_use";
@@ -316,6 +327,7 @@ export const openaiToolsAgentHarness: AgentHarness = {
   askOwnerToolName: OPENAI_TOOLS_ASK_OWNER_TOOL_NAME,
   emitsAgentMessageStream: false,
   toolControl: "kota",
+  readiness: openaiToolsReadiness,
   unsupportedRunOptions: OPENAI_TOOLS_UNSUPPORTED_OPTIONS,
   async run(
     options: AgentHarnessRunOptions,

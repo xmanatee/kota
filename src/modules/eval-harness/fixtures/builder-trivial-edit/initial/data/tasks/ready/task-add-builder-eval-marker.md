@@ -31,3 +31,8 @@ a terminal state.
 
 - `data/markers/builder-eval-ok.txt` exists.
 - This task file is no longer under `data/tasks/ready/`.
+
+## Acceptance Evidence
+
+- Fixture predicate artifact showing `data/markers/builder-eval-ok.txt` exists.
+- Fixture predicate artifact showing this task file is absent from `data/tasks/ready/`.

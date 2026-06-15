@@ -1,12 +1,12 @@
 ---
 id: task-add-provider-egress-policy-to-containerized-eval-h
 title: Add provider-egress policy to containerized eval-harness runs
-status: blocked
+status: done
 priority: p2
 area: modules
 summary: Let containerized eval-harness agent steps reach only configured model-provider endpoints while keeping task code offline, so live-builder fixtures can become gate-eligible without broad internet access.
 created_at: 2026-05-29T10:32:22.816Z
-updated_at: 2026-05-29T11:50:15.000Z
+updated_at: 2026-06-15T22:06:49.320Z
 ---
 
 ## Problem

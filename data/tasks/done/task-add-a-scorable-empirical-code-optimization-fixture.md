@@ -1,12 +1,12 @@
 ---
 id: task-add-a-scorable-empirical-code-optimization-fixture
 title: Add a scorable empirical-code optimization fixture to the eval harness
-status: blocked
+status: done
 priority: p2
 area: modules
 summary: Seed an eval-harness fixture where the builder improves a small empirical-code task against a deterministic objective metric, proving optimization-shaped autonomy work is measured by artifacts rather than prose.
 created_at: 2026-05-26T02:23:09.307Z
-updated_at: 2026-05-26T02:38:56.959Z
+updated_at: 2026-06-15T22:28:41.422Z
 ---
 
 ## Problem

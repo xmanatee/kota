@@ -1,9 +1,13 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   composeCanUseTools,
   createAgentCommitGuard,
   createWorkflowAgentGuards,
   isGitCommitCommand,
+  isPackageBootstrapCommand,
 } from "./guards.js";
 import type { AgentCanUseTool, AgentPermissionResult } from "./types.js";
 
@@ -53,6 +57,22 @@ describe("isGitCommitCommand", () => {
   });
 });
 
+describe("isPackageBootstrapCommand", () => {
+  it("detects package bootstrap and install commands", () => {
+    expect(isPackageBootstrapCommand("npm install -g pnpm")).toBe(true);
+    expect(isPackageBootstrapCommand("npm i")).toBe(true);
+    expect(isPackageBootstrapCommand("pnpm install")).toBe(true);
+    expect(isPackageBootstrapCommand("yarn add vitest")).toBe(true);
+    expect(isPackageBootstrapCommand("corepack enable")).toBe(true);
+  });
+
+  it("ignores package-manager commands that do not bootstrap dependencies", () => {
+    expect(isPackageBootstrapCommand("pnpm run build")).toBe(false);
+    expect(isPackageBootstrapCommand("npm test")).toBe(false);
+    expect(isPackageBootstrapCommand("node script.js")).toBe(false);
+  });
+});
+
 describe("createAgentCommitGuard", () => {
   const options = { signal: new AbortController().signal, toolUseId: "tool-1" };
 
@@ -92,6 +112,16 @@ describe("createAgentCommitGuard", () => {
       expect(result.message).toMatch(/git commit/);
       expect(result.message).toMatch(/commit-message\.txt/);
     }
+  });
+
+  it("denies KOTA-routed shell `git commit` invocations", async () => {
+    const guard = createAgentCommitGuard();
+    const result = await guard(
+      "shell",
+      { command: "git commit -m 'msg'" },
+      options,
+    );
+    expect(result.behavior).toBe("deny");
   });
 
   it("denies when `git commit` is chained with other commands", async () => {
@@ -179,6 +209,60 @@ describe("createWorkflowAgentGuards", () => {
       options,
     );
     expect(result.behavior).toBe("deny");
+  });
+
+  it("denies KOTA-routed shell package bootstrap commands when no package project exists", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "kota-no-package-"));
+    try {
+      const guard = createWorkflowAgentGuards();
+      const result = await guard(
+        "shell",
+        { command: "npm install -g pnpm", cwd: dir },
+        options,
+      );
+      expect(result.behavior).toBe("deny");
+      if (result.behavior === "deny") {
+      expect(result.message).toMatch(/allow-package-bootstrap/);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("denies package install commands inside a package project without an opt-in marker", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "kota-package-"));
+    try {
+      mkdirSync(join(dir, "fixture"));
+      writeFileSync(join(dir, "package.json"), "{}\n");
+      const guard = createWorkflowAgentGuards();
+      const result = await guard(
+        "shell",
+        { command: "npm install", cwd: join(dir, "fixture") },
+        options,
+      );
+      expect(result.behavior).toBe("deny");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("allows package install commands inside an opted-in package project", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "kota-package-install-"));
+    try {
+      mkdirSync(join(dir, ".kota"), { recursive: true });
+      mkdirSync(join(dir, "fixture"));
+      writeFileSync(join(dir, "package.json"), "{}\n");
+      writeFileSync(join(dir, ".kota/allow-package-bootstrap"), "\n");
+      const guard = createWorkflowAgentGuards();
+      const result = await guard(
+        "shell",
+        { command: "npm install", cwd: join(dir, "fixture") },
+        options,
+      );
+      expect(result.behavior).toBe("allow");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("allows benign commands", async () => {

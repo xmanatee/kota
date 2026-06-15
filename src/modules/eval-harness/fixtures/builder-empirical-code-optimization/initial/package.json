@@ -3,11 +3,14 @@
   "private": true,
   "scripts": {
     "build": "true",
+    "dev": "true",
     "typecheck": "true",
     "lint": "true",
     "lint:fix": "true",
     "test": "node scripts/score.mjs --max-holdout-mae 0.25",
     "validate-tasks": "node \"$KOTA_DIST_DIR/validate-queue.js\"",
+    "start-task": "node \"$KOTA_DIST_DIR/cli.js\" task move task-improve-forecast-predictor doing",
+    "finish-task": "node \"$KOTA_DIST_DIR/cli.js\" task move task-improve-forecast-predictor done",
     "kota": "node \"$KOTA_DIST_DIR/cli.js\""
   }
 }

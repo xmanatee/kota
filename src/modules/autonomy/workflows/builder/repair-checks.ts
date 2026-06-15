@@ -12,6 +12,13 @@ import { checkRepoHygiene } from "#modules/autonomy/hygiene-check.js";
 import { checkCommitMessageExists, checkNoScratchArtifacts, runCheck } from "#modules/autonomy/shared.js";
 import { findTaskReviewTarget } from "#modules/autonomy/task-review-target.js";
 
+const PACKAGE_PROJECT_MARKERS = [
+  "package.json",
+  "package.yaml",
+  "package.json5",
+  "pnpm-workspace.yaml",
+] as const;
+
 function countDoneWhenItems(taskContent: string): number {
   const doneWhenMatch = taskContent.match(/## Done When\n([\s\S]*?)(?=\n## |\n---|\s*$)/);
   if (!doneWhenMatch) return 0;
@@ -31,6 +38,42 @@ function countTopLevelItems(text: string): number {
 
 function countNonEmptyLines(text: string): number {
   return text.split("\n").filter((l) => l.trim().length > 0).length;
+}
+
+function taskFilesInState(projectDir: string, state: "ready" | "doing" | "done" | "blocked"): string[] {
+  const dir = join(projectDir, "data/tasks", state);
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((f) => f.endsWith(".md") && f !== "AGENTS.md")
+    .sort();
+}
+
+export function checkActionableTaskClaimed(projectDir: string): string {
+  const ready = taskFilesInState(projectDir, "ready");
+  if (ready.length === 0) return "OK: no unclaimed ready task";
+
+  const claimedCount =
+    taskFilesInState(projectDir, "doing").length +
+    taskFilesInState(projectDir, "done").length +
+    taskFilesInState(projectDir, "blocked").length;
+  if (claimedCount > 0) return `OK: task claimed (${claimedCount} active or terminal task file(s))`;
+
+  throw new Error(
+    `Builder has ${ready.length} ready task(s) but has not claimed one. ` +
+      'Move one ready task to doing with `node "$KOTA_DIST_DIR/cli.js" task move <id> doing` ' +
+      "or `pnpm kota task move <id> doing` in package projects, " +
+      "then complete it or block it according to the task's Done When section.",
+  );
+}
+
+export function checkActionableTaskResolved(projectDir: string): string {
+  const doing = taskFilesInState(projectDir, "doing");
+  if (doing.length === 0) return "OK: no in-progress task left open";
+
+  throw new Error(
+    `Builder still has ${doing.length} task(s) in doing: ${doing.join(", ")}. ` +
+      "Before completing the workflow, move finished work to done or honestly move blocked work to blocked.",
+  );
 }
 
 export function checkSuccessCriteriaDeclared(runDirPath: string, projectDir?: string): string {
@@ -195,8 +238,24 @@ function checkMacosSwiftBuild(projectDir: string): string {
   return runCheck("swift build", appleDir, 180_000);
 }
 
+function hasPackageProject(projectDir: string): boolean {
+  return PACKAGE_PROJECT_MARKERS.some((marker) => existsSync(join(projectDir, marker)));
+}
+
+function checkPackageScript(projectDir: string, command: string, timeoutMs?: number): string {
+  if (!hasPackageProject(projectDir)) {
+    return "OK: no package project present";
+  }
+  return runCheck(command, projectDir, timeoutMs);
+}
+
 export function builderRepairChecks(): WorkflowRepairCheck[] {
   return [
+    {
+      id: "actionable-task-claimed",
+      type: "code" as const,
+      run: (ctx) => checkActionableTaskClaimed(ctx.projectDir),
+    },
     {
       id: "success-criteria-declared",
       type: "code" as const,
@@ -209,39 +268,46 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       run: (ctx) => checkSuccessCriteriaVerified(ctx.workflow.runDirPath),
     },
     {
+      id: "actionable-task-resolved",
+      type: "code" as const,
+      phase: 1,
+      run: (ctx) => checkActionableTaskResolved(ctx.projectDir),
+    },
+    {
       id: "build-output",
       type: "code" as const,
-      run: (ctx) => runCheck("pnpm build", ctx.projectDir),
+      run: (ctx) => checkPackageScript(ctx.projectDir, "pnpm build"),
     },
     {
       id: "workflow-validate",
       type: "code" as const,
       phase: 1,
-      run: (ctx) => runCheck("pnpm dev workflow validate", ctx.projectDir),
+      run: (ctx) => checkPackageScript(ctx.projectDir, "pnpm dev workflow validate"),
     },
     {
       id: "task-queue-valid",
       type: "code" as const,
       phase: 1,
-      run: (ctx) => runCheck("pnpm run validate-tasks", ctx.projectDir),
+      run: (ctx) => checkPackageScript(ctx.projectDir, "pnpm run validate-tasks"),
     },
     {
       id: "typecheck",
       type: "code" as const,
       phase: 1,
-      run: (ctx) => runCheck("pnpm run typecheck", ctx.projectDir),
+      run: (ctx) => checkPackageScript(ctx.projectDir, "pnpm run typecheck"),
     },
     {
       id: "lint",
       type: "code" as const,
       phase: 1,
-      run: (ctx) => runCheck("pnpm run lint:fix && git add -u && pnpm run lint", ctx.projectDir),
+      run: (ctx) =>
+        checkPackageScript(ctx.projectDir, "pnpm run lint:fix && git add -u && pnpm run lint"),
     },
     {
       id: "test",
       type: "code" as const,
       phase: 1,
-      run: (ctx) => runCheck("pnpm test", ctx.projectDir, 300_000),
+      run: (ctx) => checkPackageScript(ctx.projectDir, "pnpm test", 300_000),
     },
     {
       id: "mobile-typecheck",

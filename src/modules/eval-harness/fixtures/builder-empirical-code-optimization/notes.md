@@ -17,7 +17,7 @@ the predictor only.
 
 Pass/fail still comes from predicates: the holdout MAE threshold must pass, the
 task must move to `done/`, and `git-changes-within` rejects edits to the scorer,
-training data, or package scaffolding. The `forecast_mae` objective metric
+training data, or fixture metadata. The `forecast_mae` objective metric
 reports the observed numeric score as evidence in the run artifact and
 aggregate output.
 

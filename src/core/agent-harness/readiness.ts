@@ -17,6 +17,13 @@ export type AgentHarnessAuthStatus = "ready" | "missing" | "error";
 
 export type AgentHarnessRuntimeProbe =
   | {
+      readonly kind: "node-runtime";
+      readonly status: "ready";
+      readonly required: boolean;
+      readonly version: string;
+      readonly summary: string;
+    }
+  | {
       readonly kind: "native-cli";
       readonly status: "ready";
       readonly required: boolean;
@@ -176,6 +183,10 @@ export type NativeCliAuthProbeSpec = {
 
 export type NodePackageRuntimeProbeSpec = {
   readonly packageName: string;
+  readonly required: boolean;
+};
+
+export type NodeRuntimeProbeSpec = {
   readonly required: boolean;
 };
 
@@ -487,5 +498,17 @@ export function probeNodePackageRuntime(
     packageName: spec.packageName,
     detail: result.detail,
     summary: `${spec.packageName} version probe failed: ${result.detail}`,
+  };
+}
+
+export function probeCurrentNodeRuntime(
+  spec: NodeRuntimeProbeSpec = { required: true },
+): AgentHarnessRuntimeProbe {
+  return {
+    kind: "node-runtime",
+    status: "ready",
+    required: spec.required,
+    version: process.versions.node,
+    summary: `Node.js ${process.versions.node}`,
   };
 }

@@ -10,6 +10,8 @@
  * option.
  */
 
+import { existsSync } from "node:fs";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import type { AgentCanUseTool, AgentPermissionResult } from "./types.js";
 
 const COMMIT_DENIAL_MESSAGE =
@@ -17,6 +19,21 @@ const COMMIT_DENIAL_MESSAGE =
 
 const DAEMON_DENIAL_MESSAGE =
   "Workflow agents must not control, stop, restart, or signal the daemon process that hosts them.";
+
+const PACKAGE_BOOTSTRAP_DENIAL_MESSAGE =
+  "Workflow agents must not install package managers or dependencies unless the project explicitly opts in with `.kota/allow-package-bootstrap`. Inspect the existing files and make the requested direct change.";
+
+const PACKAGE_PROJECT_MARKERS = [
+  "package.json",
+  "pnpm-workspace.yaml",
+  "pnpm-lock.yaml",
+  "package-lock.json",
+  "yarn.lock",
+  "bun.lock",
+  "bun.lockb",
+] as const;
+
+const PACKAGE_BOOTSTRAP_ALLOW_MARKER = ".kota/allow-package-bootstrap";
 
 const CONTROLLED_WORKFLOW_COMMANDS = new Set([
   "abort",
@@ -29,6 +46,35 @@ const CONTROLLED_WORKFLOW_COMMANDS = new Set([
 
 function normalizeCommand(command: string): string {
   return command.replace(/\\\r?\n/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function isShellCommandTool(toolName: string): boolean {
+  return toolName === "Bash" || toolName === "shell";
+}
+
+function commandWorkingDirectory(input: Record<string, unknown>): string {
+  const cwd = typeof input.cwd === "string" && input.cwd.trim() ? input.cwd.trim() : process.cwd();
+  return isAbsolute(cwd) ? cwd : resolve(process.cwd(), cwd);
+}
+
+function hasPackageProjectMarker(startDir: string): boolean {
+  let current = resolve(startDir);
+  while (true) {
+    if (PACKAGE_PROJECT_MARKERS.some((marker) => existsSync(join(current, marker)))) return true;
+    const parent = dirname(current);
+    if (parent === current) return false;
+    current = parent;
+  }
+}
+
+function hasPackageBootstrapAllowMarker(startDir: string): boolean {
+  let current = resolve(startDir);
+  while (true) {
+    if (existsSync(join(current, PACKAGE_BOOTSTRAP_ALLOW_MARKER))) return true;
+    const parent = dirname(current);
+    if (parent === current) return false;
+    current = parent;
+  }
 }
 
 // Matches a `git ... commit` subcommand as a standalone token anywhere in a
@@ -47,7 +93,7 @@ export function isGitCommitCommand(command: string): boolean {
 
 export function createAgentCommitGuard(): AgentCanUseTool {
   return async (toolName, input): Promise<AgentPermissionResult> => {
-    if (toolName !== "Bash") return { behavior: "allow", updatedInput: input };
+    if (!isShellCommandTool(toolName)) return { behavior: "allow", updatedInput: input };
     const command = typeof input.command === "string" ? input.command : "";
     if (!isGitCommitCommand(command)) {
       return { behavior: "allow", updatedInput: input };
@@ -93,7 +139,7 @@ export function isDaemonHostControlCommand(command: string, daemonPid = process.
 
 export function createDaemonHostControlGuard(daemonPid = process.pid): AgentCanUseTool {
   return async (toolName, input): Promise<AgentPermissionResult> => {
-    if (toolName !== "Bash") return { behavior: "allow", updatedInput: input };
+    if (!isShellCommandTool(toolName)) return { behavior: "allow", updatedInput: input };
     const command = typeof input.command === "string" ? input.command : "";
     if (!isDaemonHostControlCommand(command, daemonPid)) {
       return { behavior: "allow", updatedInput: input };
@@ -130,6 +176,33 @@ export function composeCanUseTools(
   };
 }
 
+export function isPackageBootstrapCommand(command: string): boolean {
+  const normalized = normalizeCommand(command);
+  if (!normalized) return false;
+  return /(?:^|[\s;&|()])(?:npm\s+(?:install|i)\b|pnpm\s+(?:install|i)\b|yarn\s+(?:install|add)\b|bun\s+install\b|corepack\s+(?:enable|prepare|use)\b)(?=$|[\s;&|()])/.test(
+    normalized,
+  );
+}
+
+export function createPackageBootstrapGuard(): AgentCanUseTool {
+  return async (toolName, input): Promise<AgentPermissionResult> => {
+    if (!isShellCommandTool(toolName)) return { behavior: "allow", updatedInput: input };
+    const command = typeof input.command === "string" ? input.command : "";
+    if (!isPackageBootstrapCommand(command)) {
+      return { behavior: "allow", updatedInput: input };
+    }
+    const cwd = commandWorkingDirectory(input);
+    if (hasPackageProjectMarker(cwd) && hasPackageBootstrapAllowMarker(cwd)) {
+      return { behavior: "allow", updatedInput: input };
+    }
+    return {
+      behavior: "deny",
+      message: PACKAGE_BOOTSTRAP_DENIAL_MESSAGE,
+      decisionAttribution: "operator-deny",
+    };
+  };
+}
+
 /**
  * Standard guard stack applied to every workflow / autonomy agent run:
  * blocks `git commit` (the workflow commit step owns that) and denies calls
@@ -139,5 +212,6 @@ export function createWorkflowAgentGuards(): AgentCanUseTool {
   return composeCanUseTools(
     createDaemonHostControlGuard(),
     createAgentCommitGuard(),
+    createPackageBootstrapGuard(),
   );
 }
