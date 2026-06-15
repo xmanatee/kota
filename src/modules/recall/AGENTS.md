@@ -24,21 +24,17 @@ corpus contributed by the answer module.
   conversation without an explicit `/recall` slash command.
 - One per-turn dynamic system-prompt contributor (entry point
   `buildRecallDynamicStateProvider` in `system-prompt.ts`, registered
-  through `ctx.registerDynamicStateProvider` during `onLoad`). The
-  contributor emits the conversational-pattern block when the session's
-  effective tool policy admits `recall`, and the empty string otherwise
-  — so a session that cannot call the tool never sees instructions that
-  reference it. Tool descriptions cover shape; this block covers the
-  conversational trigger so the agent grounds fact-shaped questions in
-  the second brain before answering.
+  through `ctx.registerDynamicStateProvider` during `onLoad`). The block
+  covers when to ground fact-shaped questions in the second brain before
+  answering.
 
 ## How a new store joins
 
 A new contributor — owned by whichever module owns the underlying store —
 follows the same registration seam every other contributor uses:
 
-1. Adds a literal to the `RecallSource` union and an arm to the `RecallHit`
-   discriminated union in `src/core/server/kota-client.ts`.
+1. Extends the recall source and hit unions in
+   `src/core/server/kota-client.ts`.
 2. Adds a matching arm to `RawRecallEntry` in `recall-types.ts`.
 3. Builds a `RecallContributor` adapter wherever the store is owned.
 4. From the owning module's `onLoad`, looks up the live `RecallProvider`

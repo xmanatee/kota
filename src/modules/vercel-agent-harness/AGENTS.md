@@ -1,8 +1,8 @@
 # Vercel Agent Harness Module
 
 Adapter module that registers the `vercel` harness: a multi-turn tool loop
-driven by the Vercel AI SDK. Operators select it through
-`KotaConfig.defaultAgentHarness`, per-step `harness`, or `--harness vercel`.
+driven by the Vercel AI SDK. Use the `vercel` preset, default harness config,
+or a per-step `harness` to route a run through this adapter.
 
 This module owns the `KotaTool` to Vercel `ToolSet` translation at the adapter
 seam.

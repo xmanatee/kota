@@ -63,6 +63,4 @@ instead of maintaining a prose table of payload constants.
 Voice goes through the daemon's `/voice/transcribe` and `/voice/synthesize`
 routes via `daemonClient.voiceTranscribe` / `voiceSynthesize`. Microphone
 capture and playback live in `src/voice/voiceRecorder.ts` (a thin wrapper
-around `expo-av`). Surface the daemon's typed failure codes
-(`stt-unavailable`, `tts-unavailable`, `tts-format-unsupported`) one-to-one
-in the chat UI. Never import a TTS or STT vendor SDK directly.
+around `expo-av`). Never import a TTS or STT vendor SDK directly.

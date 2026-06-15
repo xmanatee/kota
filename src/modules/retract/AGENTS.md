@@ -23,13 +23,9 @@ record from the right store.
   seam permanently removes user data or moves a task to dropped).
 - One per-turn dynamic system-prompt contributor (entry point
   `buildRetractDynamicStateProvider` in `system-prompt.ts`, registered
-  through `ctx.registerDynamicStateProvider` during `onLoad`). The
-  contributor emits the conversational-pattern block when the session's
-  effective tool policy admits `retract`, and the empty string otherwise
-  — so a session that cannot call the tool never sees instructions that
-  reference it. The block tells the agent to retract on an explicit
-  contradiction of a prior capture rather than appending a contradicting
-  note.
+  through `ctx.registerDynamicStateProvider` during `onLoad`). The block
+  covers when to retract an explicit contradiction of a prior capture rather
+  than append a contradicting note.
 
 ## How a new store joins
 
@@ -73,27 +69,6 @@ the provider API, and core never hard-codes the target set.
   chosen contributor threw mid-removal. The seam never silently retries
   into a different store.
 
-## Tests
-
-- Unit tests for the seam pieces sit beside the code: `tool.test.ts`,
-  `system-prompt.test.ts`, `retract-provider.test.ts`,
-  `contributors.test.ts`, `routes.test.ts`, `cli.test.ts`.
-- Cross-store HTTP pipeline integration: `src/retract-pipeline.integration.test.ts`.
-- Agent-loop integration anchors (shared with capture/recall/answer):
-  - `src/conversational-agent-tools.integration.test.ts` exercises the
-    `retract` tool end-to-end through the `openai-tools` harness against
-    the production `RetractProviderImpl`. The "retract round trip"
-    describe asserts a follow-up `recall` no longer surfaces the
-    retracted record; the "post-retract answer settles" describe
-    asserts the symmetric answer-layer claim — a follow-up `answer`
-    turn carries no citation or `recallHit` referencing the retracted
-    memory id, and a fabricated `[memory:<retractedId>]` marker still
-    trips the retry-and-reject contract.
-  - `src/conversational-prompt-priming.integration.test.ts` pins the
-    `dynamic-state` admission gate for the retract block (positive when
-    the tool is admitted, negative when it is excluded) and asserts the
-    production retract provider settles the read-side seam.
-
 ## Boundaries
 
 - No raw filesystem deletes for tasks. The tasks contributor routes
@@ -104,29 +79,6 @@ the provider API, and core never hard-codes the target set.
 - No second registry, no second public retract path. `register()` is
   the single way new stores join.
 
-## Live consumers
-
-The cross-store seam ships across these surfaces, all sharing the
-single `createRetractRouteHandler` and `renderRetractResultPlain`:
-
-- daemon: `POST /retract` (control) + `POST /api/retract` (user-facing).
-- CLI: `kota retract --target <store> --id|--slug|--path <ident>`.
-- macOS: `RetractView` (menu-bar section) via `DaemonClient.retract`,
-  hits the daemon-control `/retract` route.
-- mobile: `RetractScreen` via `retract(http, request)` against
-  `/api/retract`.
-- web: sidebar `RetractPanel` via `api.retract(request)` against
-  `/api/retract`.
-- Telegram: umbrella `/retract` (fixed help body — the seam has no
-  classifier) plus the four `/retract-{memory,knowledge,tasks,inbox}`
-  explicit-target commands.
-- Slack-channel: the four `/retract-{memory,knowledge,tasks,inbox}`
-  explicit-target commands.
-
-The cross-client conformance fixture at
-`clients/conformance/contract-fixture.json` (`retract.{successMemory,
-successKnowledge,successTasks,successInbox,noContributors,notFound,
-contributorFailed,negative_unknownTarget,negative_unknownReason}`)
-plus the matching `parseRetractResult` decoder at
-`clients/conformance/decoders.ts` pin the wire shape across web
-Vitest, mobile Jest, and macOS Swift conformance suites.
+Cross-surface retract consumers share `createRetractRouteHandler`,
+`renderRetractResultPlain`, and the conformance fixture. Keep the exact surface
+and fixture-arm lists in code and tests.

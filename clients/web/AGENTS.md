@@ -9,10 +9,7 @@ React app built with Vite, TanStack Query, Tailwind CSS, and shadcn/ui.
 - During development, `pnpm dev` starts a Vite dev server that proxies API requests to `http://127.0.0.1:3000`.
 - Voice goes through `/api/voice/transcribe` and `/api/voice/synthesize` —
   never through a vendor SDK in the browser. Microphone capture uses
-  `MediaRecorder`; playback uses `HTMLAudioElement`. Surface the daemon's
-  typed failure codes (`stt-unavailable`, `tts-unavailable`,
-  `tts-format-unsupported`) one-to-one in the UI so operators learn the same
-  vocabulary the CLI uses.
+  `MediaRecorder`; playback uses `HTMLAudioElement`.
 
 ## Directory-Scope Routes And Queries
 

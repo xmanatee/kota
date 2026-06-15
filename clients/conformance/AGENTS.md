@@ -2,12 +2,11 @@
 
 Pinned canonical artifacts for the cross-client conformance gate.
 
-The mechanism is a single shared fixture corpus plus a single shared
-TypeScript decoder catalog and case table. Every thin-client decoder
-suite — TypeScript core, web Vitest, mobile Jest, macOS Swift Codable —
-decodes the same fixture through equivalent typed decoders. Negative
-fixtures exercise the "unknown reason / source / target" rejection paths
-so strict decoding stays intentional rather than accidentally lax.
+The mechanism is a single shared fixture corpus plus a shared decoder catalog
+and case table. Every thin-client decoder suite consumes the same fixture
+through equivalent typed decoders. Negative fixtures exercise the "unknown
+reason / source / target" rejection paths so strict decoding stays intentional
+rather than accidentally lax.
 
 ## Boundary
 
@@ -33,8 +32,8 @@ so strict decoding stays intentional rather than accidentally lax.
    (`negative_unknownReason` / `negative_unknownSource` /
    `negative_unknownTarget`) to the canonical fixture.
 2. Add a typed TypeScript decoder that mirrors the daemon's wire shape
-   and throws on unknown discriminators, then register it in the case
-   table so web Vitest and mobile Jest pick it up.
+   and throws on unknown discriminators, then register it in the shared
+   case table.
 3. Mirror a Swift Codable decoder under the macOS sources and add a
    positive + negative `XCTestCase` method.
 4. Refresh the embedded mobile and macOS copies of the canonical

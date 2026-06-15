@@ -1,9 +1,8 @@
 # OpenAI Tools Agent Harness Module
 
 Adapter module that registers the `openai-tools` harness: a multi-turn
-tool-calling loop driven by any OpenAI-compatible `ModelClient`. Operators
-select it through `KotaConfig.defaultAgentHarness`, per-step `harness`, or
-`--harness openai-tools`.
+tool-calling loop driven by any OpenAI-compatible `ModelClient`. Select it with
+the `openai-tools` preset, default harness config, or a per-step `harness`.
 
 This module owns the `KotaTool` to OpenAI-tools native-loop translation at the
 adapter seam.

@@ -40,6 +40,9 @@ This directory contains the project-owned modules.
   for events whose name and payload arrive at runtime (inbound webhook
   bridges, dynamic third-party event ids); validate the payload at the
   boundary.
+- Dynamic system-prompt providers must gate on the session's effective tool
+  policy and return an empty string when their tool is unavailable. Tool
+  descriptions own input shape; dynamic prompt text owns conversational timing.
 
 ## Workflow contribution precedence
 

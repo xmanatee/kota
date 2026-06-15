@@ -107,17 +107,6 @@ the stored `query` (and synthesized text on `ok: true`). Native scores
 fall in `[0, 1]`, matching the recall module's keyword-fallback
 contract.
 
-## Tests
-
-- Unit tests sit beside the code and cover provider, history store,
-  citation parser, recall contributor, routes, CLI, tool, dynamic prompt,
-  and lifecycle behavior.
-- Integration anchors live in
-  `src/conversational-agent-tools.integration.test.ts` for tool
-  end-to-end behavior, prior-answer recall, answer chaining, and
-  post-retract settling; `src/conversational-prompt-priming.integration.test.ts`
-  pins the answer block's dynamic-state admission gate.
-
 ## Boundaries
 
 - No second retrieval path. The seam delegates to `RecallProvider` and

@@ -85,8 +85,8 @@ local equivalents.
   body renders the same line in every UI.
 - **Presentation** — show the connected project + daemon identity in an
   unobtrusive way; render `unavailable` capabilities as "disabled with
-  reason" rather than "broken with raw HTTP error"; never expose bearer
-  tokens.
+  reason" rather than "broken with raw HTTP error"; voice clients surface
+  daemon failure codes one-to-one; never expose bearer tokens.
 
 The contract conformance gate has three pieces:
 

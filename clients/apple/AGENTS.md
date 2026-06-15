@@ -25,10 +25,8 @@ and SwiftUI views are written once for both platforms:
   apps are intentionally minimal.
 - Voice goes through the daemon's `/voice/transcribe` and
   `/voice/synthesize` routes. Microphone capture uses
-  `AVAudioRecorder`; playback uses `AVAudioPlayer`. Surface the
-  daemon's typed failure codes (`stt-unavailable`, `tts-unavailable`,
-  `tts-format-unsupported`) one-to-one in the chat UI. Never import a
-  TTS or STT vendor SDK in the app.
+  `AVAudioRecorder`; playback uses `AVAudioPlayer`. Never import a TTS
+  or STT vendor SDK in the app.
 
 ## Platform Shell Boundary
 
@@ -88,12 +86,3 @@ Recall, Answer, Capture, Retract, Voice, Chat, Core.
   `xcodebuild test -scheme KotaApple-Package -destination 'platform=iOS Simulator,name=iPhone 17 Pro'`
   — this exercises the same view-model and decoder code on the iOS
   runtime.
-
-## Tests
-
-`KotaSharedTests` covers the shared decoders, view-model, and
-deterministic SwiftUI snapshot fixtures (e.g. trigger-sheet rendered
-output, recall empty-state snapshot, diagnostic header per state).
-`KotaMenuBarTests` keeps the macOS-specific menu-bar IA snapshot;
-the test imports `KotaShared` because it operates on shared types and
-does not call into the macOS shell.

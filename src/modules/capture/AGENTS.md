@@ -35,20 +35,16 @@ and are independently registered.
   slash-command surface byte-for-byte.
 - One per-turn dynamic system-prompt contributor (entry point
   `buildCaptureDynamicStateProvider` in `system-prompt.ts`, registered
-  through `ctx.registerDynamicStateProvider` during `onLoad`). The
-  contributor emits the conversational-pattern block when the session's
-  effective tool policy admits `capture`, and the empty string otherwise
-  — so a session that cannot call the tool never sees instructions that
-  reference it. Tool descriptions cover shape; this block covers the
-  conversational trigger so the agent reaches for `capture` mid-
-  conversation instead of waiting for an explicit `/capture` command.
+  through `ctx.registerDynamicStateProvider` during `onLoad`). The block
+  covers when to capture a chat-resident fact without waiting for an
+  explicit `/capture` command.
 
 ## How a new store joins
 
 A new contributor:
 
-1. Adds a literal to the `CaptureTarget` union and an arm to the
-   `CaptureRecord` discriminated union in `src/core/server/kota-client.ts`.
+1. Extends the capture target and record unions in
+   `src/core/server/kota-client.ts`.
 2. Adds an adapter in `contributors.ts` that wraps its writer into a
    `CaptureContributor`.
 3. Registers the new contributor in this module's `onLoad`.
@@ -120,17 +116,8 @@ its `register()` API; nothing in core hard-codes the contributor set.
 - No cost surfacing into autonomy-facing context. The classifier uses
   the project's configured model client; per-call cost stays in the
   cost tracker the recall and answer seams already share.
-- The cross-store capture fan-out has shipped. Live consumers of
-  `client.capture.capture` and the shared `createCaptureRouteHandler`
-  are: the daemon's own `POST /capture` and `POST /api/capture` routes,
-  the `kota capture <text>` CLI, the macOS menu-bar `CaptureView` (via
-  `DaemonClient.capture`), the mobile `CaptureScreen` (via
-  `clients/mobile/src/daemon/capture.ts`), the web sidebar
-  `CapturePanel` (via `api.capture`), the Telegram `/capture` plus
-  four `/capture-to-{memory,knowledge,tasks,inbox}` slash commands,
-  and the Slack-channel `/capture` plus the matching four
-  `/capture-to-*` commands. The wire shape is pinned by
-  `clients/conformance/contract-fixture.json` `capture.*` and exercised
-  by web Vitest, mobile Jest, and macOS Swift conformance suites.
+- Cross-surface capture consumers share `createCaptureRouteHandler`,
+  `renderCaptureResultPlain`, and the conformance fixture. Keep the exact
+  surface list in code and tests.
 - No second registry, no second public capture path. `register()` is
   the single way new stores join.

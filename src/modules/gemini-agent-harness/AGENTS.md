@@ -1,8 +1,8 @@
 # Gemini Agent Harness Module
 
 Adapter module that registers the `gemini` harness: a multi-turn tool-calling
-loop driven by the Google Gen AI SDK. Operators select it through
-`KotaConfig.defaultAgentHarness`, per-step `harness`, or `--harness gemini`.
+loop driven by the Google Gen AI SDK. Route work here with the `gemini`
+preset, default harness config, or a step-level `harness`.
 
 This module owns the `KotaTool` to Gemini `FunctionDeclaration` translation at
 the adapter seam.
