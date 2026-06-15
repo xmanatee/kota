@@ -1,12 +1,12 @@
 ---
 id: task-publish-kota-telegram-production-deploy-artifact
 title: Publish KOTA Telegram production deploy artifact
-status: blocked
+status: ready
 priority: p3
 area: ops
 summary: Publish a reproducible systemd/docker deploy artifact for KOTA-as-Telegram-personal-assistant so operators can stand one up without assembling services by hand.
 created_at: 2026-04-22T04:52:53.604Z
-updated_at: 2026-05-07T12:27:35.000Z
+updated_at: 2026-06-15T14:45:01.290Z
 ---
 
 ## Problem

@@ -1,12 +1,12 @@
 ---
 id: task-introduce-a-rich-cli-rendering-abstraction-for-all
 title: Introduce a rich CLI rendering abstraction for all terminal output
-status: blocked
+status: ready
 priority: p2
 area: modules
 summary: Replace ad-hoc console printing with a dedicated rendering layer (library or module) used by daemon mode, CLI mode, and every surface, inspired by agy / codex / pi / opencode.
 created_at: 2026-04-22T16:46:53.748Z
-updated_at: 2026-06-15T00:00:00.000Z
+updated_at: 2026-06-15T14:43:17.465Z
 ---
 
 ## Problem
