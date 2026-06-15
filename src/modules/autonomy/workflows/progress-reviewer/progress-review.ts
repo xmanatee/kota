@@ -332,6 +332,10 @@ type ExistingWorkItem = {
   path: string;
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
 function nonEmptyString(value: string | undefined): string | null {
   return value && value.trim().length > 0 ? value.trim() : null;
 }
@@ -532,6 +536,37 @@ function summarizePendingRun(
   };
 }
 
+function readScopedRunEvidence(
+  source: ProgressReviewDirectorySource,
+  runDirName: string,
+  excluded: string[],
+): ScopedRunEvidence | null {
+  const metadata = readOptionalJsonFile<WorkflowRunMetadata>(
+    join(source.projectDir, ".kota", "runs", runDirName, "metadata.json"),
+  );
+  if (!metadata) return null;
+  const runId = validatedMetadataRunId(metadata, runDirName);
+  if (!runId) {
+    excluded.push(
+      `${source.displayName} workflow run ${runDirName}: metadata id is not a safe basename matching the run directory`,
+    );
+    return null;
+  }
+  const startedMs = Date.parse(metadata.startedAt);
+  if (!Number.isFinite(startedMs)) {
+    excluded.push(
+      `${source.displayName} workflow run ${runDirName}: metadata startedAt is invalid`,
+    );
+    return null;
+  }
+  return {
+    source,
+    runId,
+    startedMs,
+    evidence: summarizeRun(source, runDirName, metadata),
+  };
+}
+
 function listRecentRuns(
   source: ProgressReviewDirectorySource,
   windowStartMs: number,
@@ -549,26 +584,10 @@ function listRecentRuns(
     .sort((a, b) => b.name.localeCompare(a.name));
   for (const entry of entries) {
     const runDirName = entry.name;
-    const metadata = readOptionalJsonFile<WorkflowRunMetadata>(
-      join(runsDir, runDirName, "metadata.json"),
-    );
-    if (!metadata) continue;
-    const runId = validatedMetadataRunId(metadata, runDirName);
-    if (!runId) {
-      excluded.push(
-        `${source.displayName} workflow run ${runDirName}: metadata id is not a safe basename matching the run directory`,
-      );
-      continue;
-    }
-    const startedMs = Date.parse(metadata.startedAt);
-    if (!Number.isFinite(startedMs)) continue;
-    if (startedMs < windowStartMs) continue;
-    runs.push({
-      source,
-      runId,
-      startedMs,
-      evidence: summarizeRun(source, runDirName, metadata),
-    });
+    const run = readScopedRunEvidence(source, runDirName, excluded);
+    if (!run) continue;
+    if (run.startedMs < windowStartMs) continue;
+    runs.push(run);
   }
   return runs;
 }
@@ -614,18 +633,77 @@ function listPendingRuns(
 function listRecentRunsForSources(
   sources: readonly ProgressReviewDirectorySource[],
   windowStartMs: number,
+  trigger: WorkflowRunTrigger,
   excluded: string[],
 ): ScopedRunEvidence[] {
-  const runs = sources
+  const recentRuns = sources
     .flatMap((source) => [
       ...listRecentRuns(source, windowStartMs, excluded),
       ...listPendingRuns(source, windowStartMs, excluded),
     ])
     .sort((a, b) => b.startedMs - a.startedMs || a.evidence.id.localeCompare(b.evidence.id));
+  const runs = mergeScopedRuns([
+    ...listBatchReferencedRunEvidence(trigger, sources, excluded),
+    ...recentRuns,
+  ]);
   if (runs.length > PROGRESS_REVIEW_MAX_RUNS) {
     excluded.push(`workflow runs: truncated after ${PROGRESS_REVIEW_MAX_RUNS} most recent runs`);
   }
   return runs.slice(0, PROGRESS_REVIEW_MAX_RUNS);
+}
+
+function mergeScopedRuns(runs: readonly ScopedRunEvidence[]): ScopedRunEvidence[] {
+  const seen = new Set<string>();
+  const merged: ScopedRunEvidence[] = [];
+  for (const run of runs) {
+    if (seen.has(run.evidence.id)) continue;
+    seen.add(run.evidence.id);
+    merged.push(run);
+  }
+  return merged;
+}
+
+function batchRunSource(
+  sources: readonly ProgressReviewDirectorySource[],
+  payload: Record<string, unknown>,
+): ProgressReviewDirectorySource | null {
+  if (sources.length === 1) return sources[0] ?? null;
+  const scopeId =
+    typeof payload.scopeId === "string"
+      ? payload.scopeId
+      : typeof payload.projectId === "string"
+        ? payload.projectId
+        : null;
+  if (!scopeId) return null;
+  return sources.find((source) => source.scopeId === scopeId) ?? null;
+}
+
+function listBatchReferencedRunEvidence(
+  trigger: WorkflowRunTrigger,
+  sources: readonly ProgressReviewDirectorySource[],
+  excluded: string[],
+): ScopedRunEvidence[] {
+  const batch = batchPayload(trigger);
+  if (!batch || batch.sourceEventName !== "workflow.completed") return [];
+
+  const runs: ScopedRunEvidence[] = [];
+  for (const event of batch.inputEvents) {
+    if (!isRecord(event.payload)) continue;
+    const runId = event.payload.runId;
+    if (typeof runId !== "string") continue;
+    if (!isSafeRunIdBasename(runId)) {
+      excluded.push(`batch event ${event.event}: skipped unsafe runId`);
+      continue;
+    }
+    const source = batchRunSource(sources, event.payload);
+    if (!source) {
+      excluded.push(`batch event ${event.event}: skipped run ${runId} with unknown scope`);
+      continue;
+    }
+    const run = readScopedRunEvidence(source, runId, excluded);
+    if (run) runs.push(run);
+  }
+  return runs;
 }
 
 function summarizeTask(
@@ -1228,7 +1306,12 @@ export function collectProgressReviewEvidence(args: {
   const startedAt = new Date(startedAtMs).toISOString();
   const excluded: string[] = [];
   const target = selectEvidenceTarget(args.projectDir, args.trigger);
-  const scopedRuns = listRecentRunsForSources(target.sources, startedAtMs, excluded);
+  const scopedRuns = listRecentRunsForSources(
+    target.sources,
+    startedAtMs,
+    args.trigger,
+    excluded,
+  );
   const runs = scopedRuns.map((run) => run.evidence);
   const tasks = listRecentTasks(target.sources, startedAtMs, excluded);
   const events = listBatchEvents(args.trigger, excluded);

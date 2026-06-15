@@ -3,9 +3,10 @@
 This directory owns the Telegram integration — interactive bot access and
 notification forwarding.
 
-- Contributes two daemon channels: `telegram-status` for operator slash
-  commands and `telegram-interactive` for chat sessions. Both are started
-  and stopped by the daemon alongside other channels.
+- Contributes two daemon channels: `telegram-status` for readiness/status
+  command declaration and `telegram-interactive` for chat sessions. The
+  interactive channel owns the single Bot API `getUpdates` stream; never add
+  a second daemon long-poll loop for the same token.
 - `/digest` and `/attention` call `renderOnDemandDigest` /
   `renderOnDemandAttention` directly. Both must not write cadence
   snapshots, must not advance counters, must not emit
@@ -136,9 +137,10 @@ registers one under service type `"transcription"`; missing providers
 produce a user-visible failure message rather than a silent drop.
 
 Start the server-side stack by running `kota daemon` with the telegram
-module loaded. The daemon brings up the `telegram-status` and
-`telegram-interactive` channels automatically when the required env vars
-are present.
+module loaded. The daemon brings up the `telegram-status` declaration and
+the `telegram-interactive` poller automatically when the required env vars
+are present. `telegram-status` must not call `getUpdates`; Telegram cancels
+older long polls when more than one consumer uses the same bot token.
 
 A reproducible deploy artifact for a production Linux host lives in
 `deploy/telegram-assistant/`. It packages both a docker-compose path

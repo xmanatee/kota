@@ -47,6 +47,7 @@ import {
   PROGRESS_REVIEW_ARTIFACT,
   PROGRESS_REVIEW_MAX_ARTIFACT_DEPTH,
   PROGRESS_REVIEW_MAX_ARTIFACTS,
+  PROGRESS_REVIEW_MAX_RUNS,
   type ProgressReviewActionResult,
   type ProgressReviewAgentOutput,
   readTaskStatus,
@@ -650,6 +651,107 @@ describe("progress-reviewer workflow", () => {
         schemaRef: null, payload: channelBatch,
       }),
     ).toBe("message-batch");
+  });
+
+  it("keeps workflow batch run ids citeable when recent runs are truncated", () => {
+    const projectDir = trackProjectDir("progress-reviewer-batch-run-evidence");
+    const scopeId = deriveDirectoryScopeId(projectDir);
+    writeRun(
+      projectDir,
+      "batched-builder-run",
+      "builder",
+      "success",
+      "2026-06-04T10:00:00.000Z",
+    );
+    for (let index = 0; index < PROGRESS_REVIEW_MAX_RUNS; index += 1) {
+      writeRun(
+        projectDir,
+        `newer-run-${String(index).padStart(2, "0")}`,
+        "workflow-failure-escalator",
+        "success",
+        `2026-06-04T11:${String(index).padStart(2, "0")}:00.000Z`,
+      );
+    }
+    const payload: WorkflowBatchFlushPayload = {
+      scopeId,
+      projectId: scopeId,
+      sourceEventName: "workflow.completed",
+      groupingKey: `projectId=${scopeId}`,
+      reason: "count",
+      count: 1,
+      window: {
+        firstEventAt: "2026-06-04T11:59:00.000Z",
+        lastEventAt: "2026-06-04T11:59:00.000Z",
+        flushedAt: NOW.toISOString(),
+      },
+      inputEvents: [
+        {
+          event: "workflow.completed",
+          schemaRef: null,
+          receivedAt: "2026-06-04T11:59:00.000Z",
+          payload: {
+            scopeId,
+            projectId: scopeId,
+            workflow: "builder",
+            runId: "batched-builder-run",
+            status: "success",
+            triggerEvent: "runtime.recovered",
+            durationMs: 1000,
+            definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+            runDir: ".kota/runs/batched-builder-run",
+            tags: ["monitored"],
+          },
+        },
+      ],
+      batch: {
+        workflow: "progress-reviewer",
+        triggerIndex: 2,
+        maxBufferSize: 20,
+        overflow: "flush-oldest",
+        droppedInputCount: 0,
+      },
+    };
+
+    const evidence = collectProgressReviewEvidence({
+      projectDir,
+      trigger: {
+        event: WORKFLOW_BATCH_FLUSH_EVENT,
+        schemaRef: null,
+        payload,
+      },
+      now: NOW,
+    });
+
+    expect(evidence.runs).toHaveLength(PROGRESS_REVIEW_MAX_RUNS);
+    expect(evidence.runs[0]).toEqual(
+      expect.objectContaining({
+        id: "run:batched-builder-run",
+        workflow: "builder",
+        triggerEvent: "autonomy.queue.available",
+      }),
+    );
+    expect(evidence.evidence.map((item) => item.id)).toContain(
+      "run:batched-builder-run",
+    );
+    expect(() =>
+      decodeProgressReviewAgentOutputForEvidence(
+        {
+          verdict: "on-track",
+          summary: "The batched workflow run is citeable.",
+          claims: [
+            {
+              id: "batch-run-citeable",
+              claim: "The workflow batch included the builder recovery run.",
+              evidenceIds: ["run:batched-builder-run"],
+              confidence: "high",
+            },
+          ],
+          followUpTasks: [],
+          ownerQuestions: [],
+        },
+        evidence,
+      ),
+    ).not.toThrow();
   });
 
   it("keeps directory scope evidence isolated to the selected project directory", () => {

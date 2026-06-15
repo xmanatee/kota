@@ -224,6 +224,31 @@ describe("telegramModule", () => {
       else delete process.env.TELEGRAM_ALERT_CHAT_ID;
     }
   });
+
+  it("telegram-status channel does not start a competing Bot API poller", async () => {
+    const savedToken = process.env.TELEGRAM_BOT_TOKEN;
+    const savedChatId = process.env.TELEGRAM_ALERT_CHAT_ID;
+    process.env.TELEGRAM_BOT_TOKEN = "bot-token-test";
+    process.env.TELEGRAM_ALERT_CHAT_ID = "123456789";
+    mockedCallTelegramApi.mockReset();
+    try {
+      const channels = await resolveModuleChannels(telegramModule, makeStubCtx());
+      const channel = channels.find((c) => c.name === "telegram-status");
+      if (!channel) throw new Error("telegram-status channel missing");
+      const result = channel.create(makeChannelStartContext());
+      expect(result.status).toBe("started");
+      if (result.status !== "started") return;
+
+      await result.adapter.start();
+      expect(mockedCallTelegramApi).not.toHaveBeenCalled();
+      await result.adapter.stop();
+    } finally {
+      if (savedToken !== undefined) process.env.TELEGRAM_BOT_TOKEN = savedToken;
+      else delete process.env.TELEGRAM_BOT_TOKEN;
+      if (savedChatId !== undefined) process.env.TELEGRAM_ALERT_CHAT_ID = savedChatId;
+      else delete process.env.TELEGRAM_ALERT_CHAT_ID;
+    }
+  });
 });
 
 describe("telegramModule notifications via onLoad", () => {
