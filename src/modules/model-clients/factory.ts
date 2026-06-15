@@ -18,6 +18,7 @@ import {
 	anthropicThinkingTranslator,
 	type EffortTranslator,
 	openaiReasoningEffortTranslator,
+	openrouterReasoningEffortTranslator,
 } from "./reasoning.js";
 
 /**
@@ -51,6 +52,7 @@ export const PROVIDER_PRESETS: Record<
 	openrouter: {
 		baseUrl: "https://openrouter.ai/api/v1",
 		apiKeyEnv: "OPENROUTER_API_KEY",
+		effortTranslator: openrouterReasoningEffortTranslator,
 	},
 	lmstudio: { baseUrl: "http://localhost:1234/v1", apiKeyEnv: "" },
 };

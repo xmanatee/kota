@@ -2,7 +2,7 @@
  * Cross-preset operator-shaped runtime parity gate.
  *
  * Boots `node dist/cli.js` under each shipped preset (`claude`, `codex`,
- * `gemini`, `gemini-cli`, `antigravity-cli`) and runs a deterministic single-turn scenario, the smallest
+ * `openrouter`, `gemini`, `gemini-cli`, `antigravity-cli`) and runs a deterministic single-turn scenario, the smallest
  * operator-visible end-to-end probe that proves the preset switch actually
  * propagates from the CLI flag through harness resolution to the model id
  * the adapter sends. Pairs with `src/preset-parity-model-sweep.test.ts`,
@@ -71,6 +71,7 @@ import "#modules/claude-agent-harness/index.js";
 import "#modules/codex-agent-harness/index.js";
 import "#modules/gemini-cli-agent-harness/index.js";
 import "#modules/gemini-agent-harness/index.js";
+import "#modules/openai-tools-agent-harness/index.js";
 
 const REPO_ROOT = resolve(fileURLToPath(import.meta.url), "..", "..");
 const CLI_PATH = join(REPO_ROOT, "dist", "cli.js");

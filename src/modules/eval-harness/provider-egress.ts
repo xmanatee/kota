@@ -1,6 +1,6 @@
 import type { Preset } from "#core/model/preset.js";
 
-export type ProviderEgressProvider = "anthropic" | "openai" | "google";
+export type ProviderEgressProvider = "anthropic" | "openai" | "openrouter" | "google";
 
 export type ProviderEgressEndpoint = {
   id: string;
@@ -120,6 +120,14 @@ const PROVIDER_ENDPOINTS: Readonly<Record<ProviderEgressProvider, readonly Provi
       port: 443,
     },
   ],
+  openrouter: [
+    {
+      id: "openrouter-api",
+      protocol: "https",
+      host: "openrouter.ai",
+      port: 443,
+    },
+  ],
   google: [
     {
       id: "google-generative-language-api",
@@ -133,6 +141,7 @@ const PROVIDER_ENDPOINTS: Readonly<Record<ProviderEgressProvider, readonly Provi
 const PROVIDER_AUTH_ENV_KEYS: Readonly<Record<ProviderEgressProvider, readonly string[]>> = {
   anthropic: ["ANTHROPIC_API_KEY"],
   openai: ["OPENAI_API_KEY"],
+  openrouter: ["OPENROUTER_API_KEY"],
   google: ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
 };
 
@@ -173,8 +182,11 @@ export function providerEgressEndpointLabelValue(
 }
 
 export function providerEgressProviderForPreset(
-  preset: Pick<Preset, "id" | "harness">,
+  preset: Pick<Preset, "id" | "harness" | "defaultModel">,
 ): ProviderEgressProvider {
+  if (preset.id === "openrouter" || preset.defaultModel.startsWith("openrouter/")) {
+    return "openrouter";
+  }
   const provider = HARNESS_PROVIDER[preset.harness];
   if (provider === undefined) {
     throw new Error(

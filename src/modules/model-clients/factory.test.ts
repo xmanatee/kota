@@ -145,9 +145,12 @@ describe("PROVIDER_PRESETS", () => {
 		);
 	});
 
-	it("openai and anthropic-oai presets declare reasoning translators; ollama does not", () => {
+	it("reasoning-capable provider presets declare reasoning translators", () => {
 		expect(PROVIDER_PRESETS.openai.effortTranslator?.wireSurface).toBe(
 			"openai-reasoning-effort",
+		);
+		expect(PROVIDER_PRESETS.openrouter.effortTranslator?.wireSurface).toBe(
+			"openrouter-reasoning-effort",
 		);
 		expect(PROVIDER_PRESETS["anthropic-oai"].effortTranslator?.wireSurface).toBe(
 			"anthropic-thinking",
@@ -155,7 +158,6 @@ describe("PROVIDER_PRESETS", () => {
 		expect(PROVIDER_PRESETS.ollama.effortTranslator).toBeUndefined();
 		expect(PROVIDER_PRESETS.groq.effortTranslator).toBeUndefined();
 		expect(PROVIDER_PRESETS.together.effortTranslator).toBeUndefined();
-		expect(PROVIDER_PRESETS.openrouter.effortTranslator).toBeUndefined();
 		expect(PROVIDER_PRESETS.lmstudio.effortTranslator).toBeUndefined();
 	});
 });
@@ -315,7 +317,9 @@ describe("createModelClientImpl", () => {
 				apiKey: "sk-or-test",
 				presetName: "openrouter",
 			});
-			expect(call.effortTranslator).toBeUndefined();
+			expect(call.effortTranslator?.wireSurface).toBe(
+				"openrouter-reasoning-effort",
+			);
 		});
 	});
 

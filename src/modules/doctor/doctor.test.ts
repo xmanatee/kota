@@ -168,6 +168,7 @@ beforeEach(() => {
   clearAgentHarnessRegistryForTest();
   registerReadinessHarness("claude-agent-sdk", "agent-sdk");
   registerReadinessHarness("codex", "native-cli", "ready");
+  registerReadinessHarness("openai-tools", "provider-sdk");
   registerReadinessHarness("gemini", "provider-sdk");
   registerReadinessHarness("gemini-cli", "native-cli", "ready");
   registerReadinessHarness("antigravity-cli", "native-cli", "ready");
@@ -632,6 +633,7 @@ describe("kota doctor --preset preflight", () => {
     clearAgentHarnessRegistryForTest();
     registerReadinessHarness("claude-agent-sdk", "agent-sdk");
     registerReadinessHarness("codex", "native-cli", "missing");
+    registerReadinessHarness("openai-tools", "provider-sdk");
     registerReadinessHarness("gemini", "provider-sdk");
     registerReadinessHarness("gemini-cli", "native-cli", "ready");
     registerReadinessHarness("antigravity-cli", "native-cli", "ready");
@@ -647,6 +649,7 @@ describe("kota doctor --preset preflight", () => {
   it.each([
     ["claude", "agent-sdk"],
     ["codex", "native-cli"],
+    ["openrouter", "provider-sdk"],
     ["gemini", "provider-sdk"],
     ["gemini-cli", "native-cli"],
     ["antigravity-cli", "native-cli"],
@@ -664,6 +667,13 @@ describe("kota doctor --preset preflight", () => {
     const presetRow = results.find((r) => r.label === "Preset: gemini");
     expect(presetRow?.status).toBe("fail");
     expect(presetRow?.detail).toMatch(/GEMINI_API_KEY.*GOOGLE_API_KEY/);
+  });
+
+  it("passes for openrouter preset when OPENROUTER_API_KEY is set", async () => {
+    process.env.OPENROUTER_API_KEY = "sk-or-test";
+    const results = await runDoctorChecks(projectDir, { preset: "openrouter", skipConnectivity: true });
+    const presetRow = results.find((r) => r.label === "Preset: openrouter");
+    expect(presetRow?.status).toBe("pass");
   });
 
   it("keeps codex preset independent of OPENAI_API_KEY when it is set", async () => {

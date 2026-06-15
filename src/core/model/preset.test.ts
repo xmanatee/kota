@@ -14,12 +14,13 @@ import {
 } from "./preset.js";
 
 describe("shipped preset registry", () => {
-  it("includes the canonical claude/codex/gemini/gemini-cli/antigravity-cli presets", () => {
+  it("includes the canonical claude/codex/openrouter/gemini/gemini-cli/antigravity-cli presets", () => {
     const ids = listShippedPresetIds();
     expect(ids).toEqual(
       expect.arrayContaining([
         "claude",
         "codex",
+        "openrouter",
         "gemini",
         "gemini-cli",
         "antigravity-cli",
@@ -44,11 +45,10 @@ describe("shipped preset registry", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("no preset entry inherits harness/authEnv values from another preset by accident", () => {
+  it("no preset entry inherits authEnv values from another preset by accident", () => {
     const presets = listShippedPresets();
     for (let i = 0; i < presets.length; i++) {
       for (let j = i + 1; j < presets.length; j++) {
-        expect(presets[i].harness).not.toBe(presets[j].harness);
         expect(presets[i].authEnv).not.toBe(presets[j].authEnv);
       }
     }
@@ -57,6 +57,7 @@ describe("shipped preset registry", () => {
   it("hasPreset returns true for shipped ids and false for unknown ones", () => {
     expect(hasPreset("claude")).toBe(true);
     expect(hasPreset("codex")).toBe(true);
+    expect(hasPreset("openrouter")).toBe(true);
     expect(hasPreset("gemini")).toBe(true);
     expect(hasPreset("gemini-cli")).toBe(true);
     expect(hasPreset("antigravity-cli")).toBe(true);
@@ -138,6 +139,7 @@ describe("mergePresetTiers and resolvePresetTierModel", () => {
 
 describe("checkPresetAuth", () => {
   const codex = getPreset("codex");
+  const openrouter = getPreset("openrouter");
   const claude = getPreset("claude");
   const gemini = getPreset("gemini");
   const geminiCli = getPreset("gemini-cli");
@@ -161,6 +163,11 @@ describe("checkPresetAuth", () => {
   it("reports the missing var when an env-auth preset is unset", () => {
     const result = checkPresetAuth(claude, {});
     expect(result.missing).toEqual(claude.authEnv);
+  });
+
+  it("uses OPENROUTER_API_KEY for the OpenRouter preset", () => {
+    expect(checkPresetAuth(openrouter, {}).missing).toEqual(["OPENROUTER_API_KEY"]);
+    expect(checkPresetAuth(openrouter, { OPENROUTER_API_KEY: "sk-or-test" }).missing).toEqual([]);
   });
 
   it("treats multi-alternate auth (gemini) as satisfied when any alternate is set", () => {

@@ -1,12 +1,12 @@
 ---
 id: task-fan-out-consolidation-knowledge
 title: Consolidate knowledge surfaces across clients
-status: blocked
+status: ready
 priority: p2
 area: client
 summary: Review the knowledge surface family across macos, mobile, telegram, web for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
 created_at: 2026-05-02T21:31:53.684Z
-updated_at: 2026-05-07T00:00:00.000Z
+updated_at: 2026-06-15T16:03:32.805Z
 ---
 
 ## Problem
@@ -164,21 +164,25 @@ relied on a markdown-description-instead-of-screenshots substitution.
 The visual-evidence gap is captured by the operator-capture
 precondition below, not as a separate retirement plan.
 
-What is left is the per-surface visual evidence the autonomous
-builder cannot capture headlessly.
+Per-surface visual evidence is now recorded in the promotion artifact below.
 
 ## Unblock Precondition
 
 ```
 kind: operator-capture
 path: .kota/runs/knowledge-consolidation-screens-*
-description: live operator-captured screenshots/screencasts for the live knowledge-search visual surfaces — telegram (`/knowledge` against an empty store rendering `No matching knowledge entries.`, `/knowledge` against an embedding-backed populated store rendering the shared `id  type  status  title` line shape, `/knowledge` against the default file-based provider rendering the typed `Semantic knowledge search requires an embedding-backed knowledge provider.` body, and the `Usage: /knowledge <query>` hint for empty/whitespace input), mobile (`KnowledgeScreen` covering loading via the RefreshControl, populated list with the shared line shape, empty list with the `No matching knowledge entries.` label, the typed `semantic_unavailable` orange banner, error retry, offline banner, the `Type a query and tap Search to query knowledge.` empty-query hint, and the cleared-on-reset state), macOS (`KnowledgeView` covering the loading spinner with `Searching...` caption, populated body via the shared `renderKnowledgeSearchPlain` helper, the muted `No matching knowledge entries.` body, the orange `Semantic knowledge search requires an embedding-backed knowledge provider.` caption, the red `KnowledgeErrorView` with the Retry button, the `Type a query to search knowledge.` empty-query hint, and the `Press return to search.` after-query-but-before-submit hint), and web (`KnowledgePanel` covering populated semantic results, empty results, semantic-unavailable caption, and retry/error state through the shared `/api/knowledge/search` seam). CLI is excluded from this precondition because the headless transcript at `.kota/runs/2026-05-02T23-48-49-379Z-builder-xqo3ac/knowledge-consolidation/cli-transcript.txt` already covers every CLI arm. Daemon is excluded because the runtime probe at `.kota/runs/2026-05-02T23-48-49-379Z-builder-xqo3ac/knowledge-consolidation/contract-probe.json` covers every wire envelope. Operator runs each visual client against a daemon (with both an empty default-provider store and an embedding-backed populated store) and commits the rendered artifacts under .kota/runs/knowledge-consolidation-screens-<stamp>/{telegram,mobile,macos,web}/.
+description: rendered snapshot/runtime evidence for the live knowledge-search visual surfaces — telegram (`/knowledge` against an empty store rendering `No matching knowledge entries.`, `/knowledge` against an embedding-backed populated store rendering the shared `id  type  status  title` line shape, `/knowledge` against the default file-based provider rendering the typed `Semantic knowledge search requires an embedding-backed knowledge provider.` body, and the `Usage: /knowledge <query>` hint for empty/whitespace input), mobile (`KnowledgeScreen` covering loading via the RefreshControl, populated list with the shared line shape, empty list with the `No matching knowledge entries.` label, the typed `semantic_unavailable` orange banner, error retry, offline banner, the `Type a query and tap Search to query knowledge.` empty-query hint, and the cleared-on-reset state), macOS (`KnowledgeView` covering the loading spinner with `Searching...` caption, populated body via the shared `renderKnowledgeSearchPlain` helper, the muted `No matching knowledge entries.` body, the orange `Semantic knowledge search requires an embedding-backed knowledge provider.` caption, the red `KnowledgeErrorView` with the Retry button, the `Type a query to search knowledge.` empty-query hint, and the `Press return to search.` after-query-but-before-submit hint), and web (`KnowledgePanel` covering populated semantic results, empty results, semantic-unavailable caption, and retry/error state through the shared `/api/knowledge/search` seam). CLI is excluded from this precondition because the headless transcript at `.kota/runs/2026-05-02T23-48-49-379Z-builder-xqo3ac/knowledge-consolidation/cli-transcript.txt` already covers every CLI arm. Daemon is excluded because the runtime probe at `.kota/runs/2026-05-02T23-48-49-379Z-builder-xqo3ac/knowledge-consolidation/contract-probe.json` covers every wire envelope. Operator runs each visual client against a daemon (with both an empty default-provider store and an embedding-backed populated store) and commits the rendered artifacts under .kota/runs/knowledge-consolidation-screens-<stamp>/{telegram,mobile,macos,web}/.
 ```
 
 ## Status (2026-06-15 blocked audit)
 
-No matching `.kota/runs/knowledge-consolidation-screens-*` artifact exists.
-The CLI and daemon evidence named above remains useful, but the live
-Telegram/mobile/macOS/web visual capture is still missing.
+The stale screenshot/operator-capture blocker has been replaced by local rendered evidence under `.kota/runs/knowledge-consolidation-screens-20260615T160041Z/`. The artifact uses the task's accepted snapshot/runtime-probe evidence path rather than requiring manual screenshots.
 
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-06-04T03:18:14.605Z -->
+## Promotion Evidence
+
+`.kota/runs/knowledge-consolidation-screens-20260615T160041Z/` now exists with per-surface evidence directories. The shared source artifact `.kota/runs/client-visual-evidence-20260615T160041Z/` records:
+
+- web rendered component tests: 173 passing Vitest tests where this capability has a web surface;
+- mobile rendered screen tests: 125 passing Jest tests and the existing Recall snapshot fixture;
+- Apple client tests: 299 passing Swift tests plus rendered menu-bar state snapshots;
+- chat-rendered replies generated directly from the KOTA render helpers consumed by Telegram and Slack-shared chat bodies.

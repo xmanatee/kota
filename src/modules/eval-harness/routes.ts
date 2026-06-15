@@ -159,11 +159,16 @@ function validateIsolationBackend(raw: object): EvalRunIsolationBackend {
 }
 
 function validateProvider(raw: string): ProviderEgressProvider {
-  if (raw === "anthropic" || raw === "openai" || raw === "google") {
+  if (
+    raw === "anthropic" ||
+    raw === "openai" ||
+    raw === "openrouter" ||
+    raw === "google"
+  ) {
     return raw;
   }
   throw new Error(
-    "isolationBackend.networkPolicy.provider must be anthropic, openai, or google.",
+    "isolationBackend.networkPolicy.provider must be anthropic, openai, openrouter, or google.",
   );
 }
 

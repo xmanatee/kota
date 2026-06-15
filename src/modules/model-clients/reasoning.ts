@@ -41,6 +41,28 @@ export const openaiReasoningEffortTranslator: EffortTranslator = {
 };
 
 /**
+ * OpenRouter supports OpenAI-compatible `reasoning.effort`, including `xhigh`.
+ * `max` is the only KOTA effort literal OpenRouter does not expose directly.
+ */
+const OPENROUTER_EFFORT_MAP: Record<
+	AgentEffort,
+	"low" | "medium" | "high" | "xhigh"
+> = {
+	low: "low",
+	medium: "medium",
+	high: "high",
+	xhigh: "xhigh",
+	max: "xhigh",
+};
+
+export const openrouterReasoningEffortTranslator: EffortTranslator = {
+	wireSurface: "openrouter-reasoning-effort",
+	apply(effort) {
+		return { reasoning: { effort: OPENROUTER_EFFORT_MAP[effort] } };
+	},
+};
+
+/**
  * Thinking-budget token counts per effort level. Chosen to mirror the
  * magnitudes a claude-agent-sdk `thinking: adaptive` run tends to allocate
  * at comparable effort settings; presets that want tighter limits attach a
@@ -84,7 +106,7 @@ export function buildMissingReasoningError(
 	return new Error(
 		`Model preset "${presetName}" has no reasoning-effort mapping; ` +
 			`effort="${effort}" cannot be honored. Pick a reasoning-capable preset ` +
-			'(the `openai` or `anthropic` presets both expose one) or run the ' +
+			'(the `openai`, `openrouter`, or `anthropic` presets expose one) or run the ' +
 			"`claude-agent-sdk` harness which hosts extended thinking natively.",
 	);
 }

@@ -702,6 +702,7 @@ function containerNetworkEnv(
       providerEgressAuthEnvKeysFor(networkPolicy.provider).join(","),
     HTTP_PROXY: networkPolicy.proxyUrl,
     HTTPS_PROXY: networkPolicy.proxyUrl,
+    NODE_USE_ENV_PROXY: "1",
     KOTA_EVAL_PROVIDER_EGRESS_ENDPOINTS: endpoints,
     KOTA_EVAL_PROVIDER_EGRESS_PROVIDER: networkPolicy.provider,
     KOTA_EVAL_PROVIDER_EGRESS_PROXY_URL: networkPolicy.proxyUrl,

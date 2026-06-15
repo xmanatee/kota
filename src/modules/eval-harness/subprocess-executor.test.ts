@@ -852,6 +852,7 @@ describe("createSubprocessExecutor", () => {
         "writeFileSync(join(process.cwd(), 'provider-env.json'), JSON.stringify({",
         "  httpProxy: process.env.HTTP_PROXY,",
         "  httpsProxy: process.env.HTTPS_PROXY,",
+        "  nodeUseEnvProxy: process.env.NODE_USE_ENV_PROXY,",
         "  apiKey: process.env.OPENAI_API_KEY,",
         "  authEnvKeys: process.env.KOTA_EVAL_PROVIDER_EGRESS_AUTH_ENV_KEYS,",
         "  provider: process.env.KOTA_EVAL_PROVIDER_EGRESS_PROVIDER,",
@@ -924,6 +925,7 @@ describe("createSubprocessExecutor", () => {
       const endpointLabel = providerEgressEndpointLabelValue(endpoints);
       expect(envCapture.httpProxy).toBe("http://provider-proxy:8080");
       expect(envCapture.httpsProxy).toBe("http://provider-proxy:8080");
+      expect(envCapture.nodeUseEnvProxy).toBe("1");
       expect(envCapture.apiKey).toBe("sk-provider-egress-test");
       expect(envCapture.authEnvKeys).toBe("OPENAI_API_KEY");
       expect(envCapture.provider).toBe("openai");
@@ -952,6 +954,7 @@ describe("createSubprocessExecutor", () => {
       expect(existsSync(log.envFiles[0]!)).toBe(false);
       expect(log.inheritedOpenAiApiKey).toBeUndefined();
       expect(log.env.HTTPS_PROXY).toBe("http://provider-proxy:8080");
+      expect(log.env.NODE_USE_ENV_PROXY).toBe("1");
       expect(log.env.OPENAI_API_KEY).toBe("sk-provider-egress-test");
       expect(log.env.KOTA_EVAL_PROVIDER_EGRESS_ACTIVE).toBe("1");
       expect(log.env.KOTA_EVAL_PROVIDER_EGRESS_AUTH_ENV_KEYS).toBe(

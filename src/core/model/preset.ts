@@ -86,6 +86,24 @@ const SHIPPED_PRESETS: readonly Preset[] = [
     defaultEffort: "xhigh",
   },
   {
+    id: "openrouter",
+    description: "OpenRouter via the OpenAI-compatible openai-tools harness.",
+    harness: "openai-tools",
+    authEnv: ["OPENROUTER_API_KEY"],
+    defaultModel: "openrouter/openai/gpt-4.1-mini",
+    tiers: {
+      fast: "openrouter/openai/gpt-4.1-mini",
+      balanced: "openrouter/openai/gpt-4.1-mini",
+      capable: "openrouter/openai/gpt-4.1-mini",
+    },
+    outputTokenLimits: {
+      fast: 8192,
+      balanced: 8192,
+      capable: 8192,
+    },
+    defaultEffort: "medium",
+  },
+  {
     id: "gemini",
     description: "Google Gemini via @google/genai tool-calling SDK.",
     harness: "gemini",

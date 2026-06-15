@@ -21,6 +21,12 @@ function validateLimit(model: string, limit: number): void {
   }
 }
 
+function providerlessModel(model: string): string | undefined {
+  const slash = model.indexOf("/");
+  if (slash <= 0 || slash === model.length - 1) return undefined;
+  return model.slice(slash + 1);
+}
+
 function buildShippedModelOutputTokenLimits(): ModelOutputTokenLimits {
   const limits: Record<string, number> = {};
   for (const preset of listShippedPresets()) {
@@ -32,13 +38,18 @@ function buildShippedModelOutputTokenLimits(): ModelOutputTokenLimits {
 
     for (const [model, limit] of entries) {
       validateLimit(model, limit);
-      const existing = limits[model];
-      if (existing !== undefined && existing !== limit) {
-        throw new Error(
-          `Conflicting shipped output-token limits for model "${model}".`,
-        );
+      const aliases = [model, providerlessModel(model)].filter(
+        (entry): entry is string => entry !== undefined,
+      );
+      for (const alias of aliases) {
+        const existing = limits[alias];
+        if (existing !== undefined && existing !== limit) {
+          throw new Error(
+            `Conflicting shipped output-token limits for model "${alias}".`,
+          );
+        }
+        limits[alias] = limit;
       }
-      limits[model] = limit;
     }
 
     if (limits[preset.defaultModel] === undefined) {
@@ -52,12 +63,6 @@ function buildShippedModelOutputTokenLimits(): ModelOutputTokenLimits {
 
 const SHIPPED_MODEL_OUTPUT_TOKEN_LIMITS: ModelOutputTokenLimits =
   buildShippedModelOutputTokenLimits();
-
-function providerlessModel(model: string): string | undefined {
-  const slash = model.indexOf("/");
-  if (slash <= 0 || slash === model.length - 1) return undefined;
-  return model.slice(slash + 1);
-}
 
 function getConfiguredLimit(
   model: string,

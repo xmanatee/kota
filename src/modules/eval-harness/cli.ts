@@ -132,12 +132,13 @@ function resolveProviderEgressProvider(
     if (
       rawProvider === "anthropic" ||
       rawProvider === "openai" ||
+      rawProvider === "openrouter" ||
       rawProvider === "google"
     ) {
       return rawProvider;
     }
     throw new Error(
-      `--provider-egress-provider must be anthropic, openai, or google, got "${rawProvider}".`,
+      `--provider-egress-provider must be anthropic, openai, openrouter, or google, got "${rawProvider}".`,
     );
   }
   return providerEgressProviderForPreset(
@@ -273,7 +274,7 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
     .option("--container-network-policy <kind>", "Container network policy: offline or provider-egress")
     .option("--provider-egress-network <name>", "Docker internal network with provider-egress allowlist labels")
     .option("--provider-egress-proxy <url>", "HTTP proxy URL reachable from the provider-egress Docker network")
-    .option("--provider-egress-provider <provider>", "Provider endpoint catalog: anthropic, openai, or google")
+    .option("--provider-egress-provider <provider>", "Provider endpoint catalog: anthropic, openai, openrouter, or google")
     .option("--keep", "Keep fixture working directories for post-mortem")
     .action(async (opts: {
       fixture: string[];

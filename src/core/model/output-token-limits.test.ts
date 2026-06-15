@@ -23,7 +23,14 @@ describe("model output-token limit resolver", () => {
   it("keeps the shipped limit table scoped to shipped preset model ids", () => {
     const presetModels = new Set(listShippedPresetModelIds());
     for (const model of Object.keys(listShippedModelOutputTokenLimits())) {
-      expect(presetModels.has(model), `orphan shipped limit for ${model}`).toBe(true);
+      const providerless = model.includes("/")
+        ? model.split("/").slice(1).join("/")
+        : model;
+      expect(
+        presetModels.has(model) ||
+          listShippedPresetModelIds().some((presetModel) => presetModel.endsWith(`/${providerless}`)),
+        `orphan shipped limit for ${model}`,
+      ).toBe(true);
     }
   });
 
@@ -32,6 +39,15 @@ describe("model output-token limit resolver", () => {
       model: "openai/gpt-5.4-mini",
       matchedModel: "gpt-5.4-mini",
       maxTokens: 4096,
+      source: "shipped-preset",
+    });
+  });
+
+  it("covers OpenRouter's resolved model id after provider parsing", () => {
+    expect(resolveModelOutputTokenLimit("openai/gpt-4.1-mini")).toEqual({
+      model: "openai/gpt-4.1-mini",
+      matchedModel: "openai/gpt-4.1-mini",
+      maxTokens: 8192,
       source: "shipped-preset",
     });
   });

@@ -3,6 +3,7 @@ import {
 	anthropicThinkingTranslator,
 	buildMissingReasoningError,
 	openaiReasoningEffortTranslator,
+	openrouterReasoningEffortTranslator,
 } from "./reasoning.js";
 
 describe("openaiReasoningEffortTranslator", () => {
@@ -30,6 +31,23 @@ describe("openaiReasoningEffortTranslator", () => {
 		});
 		expect(openaiReasoningEffortTranslator.apply("max")).toEqual({
 			reasoning: { effort: "high" },
+		});
+	});
+});
+
+describe("openrouterReasoningEffortTranslator", () => {
+	it("uses the wire surface label openrouter-reasoning-effort", () => {
+		expect(openrouterReasoningEffortTranslator.wireSurface).toBe(
+			"openrouter-reasoning-effort",
+		);
+	});
+
+	it("keeps xhigh available on OpenRouter's reasoning surface", () => {
+		expect(openrouterReasoningEffortTranslator.apply("xhigh")).toEqual({
+			reasoning: { effort: "xhigh" },
+		});
+		expect(openrouterReasoningEffortTranslator.apply("max")).toEqual({
+			reasoning: { effort: "xhigh" },
 		});
 	});
 });

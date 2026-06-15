@@ -141,7 +141,7 @@ function addDaemonStartOptions(command: Command): Command {
     .option("-v, --verbose", "Show debug output")
     .option(
       "--preset <id>",
-      "Preset bundle (claude | codex | gemini | gemini-cli | antigravity-cli). Overrides KOTA_PRESET and config.defaultPreset for this daemon process",
+      "Preset bundle (claude | codex | openrouter | gemini | gemini-cli | antigravity-cli). Overrides KOTA_PRESET and config.defaultPreset for this daemon process",
     )
     .option("--poll-interval <seconds>", "Scheduler poll interval in seconds", "30")
     .option(

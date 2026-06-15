@@ -12,7 +12,10 @@ import { loadConfig } from "#core/config/config.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
-import { resolveActivePresetFromConfig } from "#core/model/preset.js";
+import {
+  PRESET_ENV_VAR,
+  resolveActivePresetFromConfig,
+} from "#core/model/preset.js";
 import { getCriticPromptHash } from "#modules/autonomy/critic.js";
 import {
   aggregateCalibration,
@@ -114,6 +117,17 @@ function providerEgressAuthEnvForRun(
   return Object.keys(authEnv).length > 0 ? authEnv : undefined;
 }
 
+function executorExtraEnvForRun(
+  projectDir: string,
+  backend: SubprocessIsolationBackend,
+): Record<string, string> {
+  const activePreset = resolveActivePresetFromConfig(loadConfig(projectDir));
+  return {
+    [PRESET_ENV_VAR]: activePreset.id,
+    ...(providerEgressAuthEnvForRun(backend) ?? {}),
+  };
+}
+
 export function listEvalFixtures(projectDir: string): EvalListResult {
   const fixtures = loadAllFixtures(fixturesRootFor(projectDir));
   return {
@@ -188,7 +202,7 @@ export async function runEvalHarness(
   const executor = createSubprocessExecutor({
     kotaBinaryPath: kotaBinaryPathFor(projectDir),
     isolationBackend,
-    extraEnv: providerEgressAuthEnvForRun(isolationBackend),
+    extraEnv: executorExtraEnvForRun(projectDir, isolationBackend),
     providerEgressTaskBoundary: providerEgressTaskBoundaryForRun(
       projectDir,
       isolationBackend,

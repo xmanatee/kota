@@ -429,6 +429,43 @@ describe("kota eval run CLI", () => {
     });
   });
 
+  it("accepts OpenRouter as a provider-egress catalog provider", async () => {
+    const calls: EvalRunOptions[] = [];
+    vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    const cmd = buildEvalCommand(makeRunRecordingCtx(calls));
+
+    await cmd.parseAsync(
+      [
+        "run",
+        "--isolation",
+        "container",
+        "--container-executable",
+        "docker",
+        "--container-image",
+        "node:22-bookworm",
+        "--container-kota-binary-path",
+        "/opt/kota/bin/kota.mjs",
+        "--container-network-policy",
+        "provider-egress",
+        "--provider-egress-network",
+        "kota-provider-egress",
+        "--provider-egress-proxy",
+        "http://provider-proxy:8080",
+        "--provider-egress-provider",
+        "openrouter",
+      ],
+      { from: "user" },
+    );
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].isolationBackend).toMatchObject({
+      networkPolicy: {
+        kind: "provider-egress",
+        provider: "openrouter",
+      },
+    });
+  });
+
   it("prints fixture diagnostics and repeat-unstable fixture rows", async () => {
     const calls: EvalRunOptions[] = [];
     const writes: string[] = [];

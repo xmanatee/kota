@@ -39,6 +39,10 @@ ENV NODE_ENV=production \
     KOTA_DAEMON_LOG_FORMAT=json
 WORKDIR /opt/kota
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN groupadd --system --gid 1001 kota \
     && useradd --system --uid 1001 --gid kota --home-dir /var/lib/kota --shell /usr/sbin/nologin kota \
     && mkdir -p /var/lib/kota/.kota /var/lib/kota/data \
@@ -60,3 +64,7 @@ VOLUME ["/var/lib/kota"]
 # Docker's restart policy supervises the outer process.
 ENTRYPOINT ["/opt/kota/entrypoint.sh"]
 CMD ["daemon", "--project-dir", "/var/lib/kota"]
+
+FROM runtime AS eval
+ENTRYPOINT []
+CMD ["node", "/opt/kota/bin/kota.mjs"]

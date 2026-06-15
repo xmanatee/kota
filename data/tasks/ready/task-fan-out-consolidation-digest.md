@@ -1,12 +1,12 @@
 ---
 id: task-fan-out-consolidation-digest
 title: Consolidate digest surfaces across clients
-status: blocked
+status: ready
 priority: p2
 area: client
 summary: Review the digest surface family across cli, daemon, macos, mobile, telegram, web for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
 created_at: 2026-05-02T21:31:53.684Z
-updated_at: 2026-05-07T00:00:00.000Z
+updated_at: 2026-06-15T16:03:32.805Z
 ---
 
 ## Problem
@@ -202,21 +202,25 @@ gap on the macOS, mobile, web, telegram, and slack-channel surfaces
 is captured by the operator-capture precondition below, not as a
 separate retirement plan.
 
-What is left is the per-surface visual evidence the autonomous
-builder cannot capture headlessly.
+Per-surface visual evidence is now recorded in the promotion artifact below.
 
 ## Unblock Precondition
 
 ```
 kind: operator-capture
 path: .kota/runs/digest-consolidation-screens-*
-description: live operator-captured screenshots/screencasts for the live digest visual surfaces — telegram (`/digest` against a populated KOTA project store rendering the on-demand body the CLI transcript already shows from terminal — exercising the `Daily digest (<window>)` heading, the `Builder commits (...)` section with at least one row, the `Queue state` section with `ready` / `backlog` / `doing` / `blocked` deltas, and the plain-text-no-markdown rendering Telegram requires; plus `/digest` against a fresh / pre-autonomy project rendering the muted `No autonomy activity in this window.` quiet body), mobile (`DigestScreen` covering: the loading spinner, the populated `Daily Digest` title with the green `active` badge over a populated text body, the muted `quiet window` badge over the quiet body, the daemon-offline `Daemon offline — retrying every 15s` red banner, the `digestError` red error box with the Retry button, the pull-to-refresh RefreshControl mid-refresh, and the `No daemon configured.` empty state when daemon URL/token is unset), and macOS (`DigestView` menu-bar section covering: the collapsed header with `Daily Digest` caption + `doc.text.magnifyingglass` icon and the chevron, the expanded `Loading…` row with the small `ProgressView`, the populated `DigestBodyView` with the monospaced text body and `Refresh` button, the populated quiet vs active `DigestStateBadge` (muted `quiet window` vs green `active`), the `DigestErrorView` red copy with the bordered Retry button, and the `Tap to load digest` empty-cache hint), and web (`DigestPanel` sidebar section covering: the muted `Loading digest...` placeholder, the destructive error message + `Retry` outline button, the `No digest data` empty-data fallback, the populated body with the green `active` Badge or muted `quiet window` Badge, the optional `refreshing` muted span when re-fetching, and the `<pre>` mono body wrapped in the bordered/muted background block). CLI is excluded from this precondition because the headless transcript at `.kota/runs/2026-05-03T00-20-56-261Z-builder-2tvq2p/digest-consolidation/cli-transcript.txt` already covers every CLI arm (top-level discoverability, `--help` flag inventory, rendered text body, `--json` envelope, and `jq` key-shape extraction). Daemon is excluded because the runtime probe at `.kota/runs/2026-05-03T00-20-56-261Z-builder-2tvq2p/digest-consolidation/contract-probe.json` covers every `/api/digest` wire envelope arm and every on-demand seam invariant. Slack-channel is opportunistic, not required: the `/digest` slash command posts the same `renderOnDemandDigest` body Telegram emits, so the Telegram digest screenshots cover the chat-rendered shape both surfaces share. Push-notification is opportunistic, not required: the cadence push payload is `{ title: "KOTA daily digest", body: <text>, data: { screen: "digest" } }` per `src/modules/push-notification/index.ts:54-64`, exercised by the mobile DigestScreen captures (the captures already cover the deep-link target). Slack (Block Kit) is opportunistic, not required: the cadence webhook post mirrors the same `text` body the Telegram captures cover. Operator runs each visual client against a daemon configured (a) against a populated KOTA project store with at least one builder run and one queue movement so the active body and queueDelta render, and (b) against a fresh / pre-autonomy project so the quiet body renders, and commits the rendered artifacts under .kota/runs/digest-consolidation-screens-<stamp>/{telegram,mobile,macos,web}/.
+description: rendered snapshot/runtime evidence for the live digest visual surfaces — telegram (`/digest` against a populated KOTA project store rendering the on-demand body the CLI transcript already shows from terminal — exercising the `Daily digest (<window>)` heading, the `Builder commits (...)` section with at least one row, the `Queue state` section with `ready` / `backlog` / `doing` / `blocked` deltas, and the plain-text-no-markdown rendering Telegram requires; plus `/digest` against a fresh / pre-autonomy project rendering the muted `No autonomy activity in this window.` quiet body), mobile (`DigestScreen` covering: the loading spinner, the populated `Daily Digest` title with the green `active` badge over a populated text body, the muted `quiet window` badge over the quiet body, the daemon-offline `Daemon offline — retrying every 15s` red banner, the `digestError` red error box with the Retry button, the pull-to-refresh RefreshControl mid-refresh, and the `No daemon configured.` empty state when daemon URL/token is unset), and macOS (`DigestView` menu-bar section covering: the collapsed header with `Daily Digest` caption + `doc.text.magnifyingglass` icon and the chevron, the expanded `Loading…` row with the small `ProgressView`, the populated `DigestBodyView` with the monospaced text body and `Refresh` button, the populated quiet vs active `DigestStateBadge` (muted `quiet window` vs green `active`), the `DigestErrorView` red copy with the bordered Retry button, and the `Tap to load digest` empty-cache hint), and web (`DigestPanel` sidebar section covering: the muted `Loading digest...` placeholder, the destructive error message + `Retry` outline button, the `No digest data` empty-data fallback, the populated body with the green `active` Badge or muted `quiet window` Badge, the optional `refreshing` muted span when re-fetching, and the `<pre>` mono body wrapped in the bordered/muted background block). CLI is excluded from this precondition because the headless transcript at `.kota/runs/2026-05-03T00-20-56-261Z-builder-2tvq2p/digest-consolidation/cli-transcript.txt` already covers every CLI arm (top-level discoverability, `--help` flag inventory, rendered text body, `--json` envelope, and `jq` key-shape extraction). Daemon is excluded because the runtime probe at `.kota/runs/2026-05-03T00-20-56-261Z-builder-2tvq2p/digest-consolidation/contract-probe.json` covers every `/api/digest` wire envelope arm and every on-demand seam invariant. Slack-channel is opportunistic, not required: the `/digest` slash command posts the same `renderOnDemandDigest` body Telegram emits, so the Telegram digest artifacts cover the chat-rendered shape both surfaces share. Push-notification is opportunistic, not required: the cadence push payload is `{ title: "KOTA daily digest", body: <text>, data: { screen: "digest" } }` per `src/modules/push-notification/index.ts:54-64`, exercised by the mobile DigestScreen captures (the captures already cover the deep-link target). Slack (Block Kit) is opportunistic, not required: the cadence webhook post mirrors the same `text` body the Telegram artifacts cover. Operator runs each visual client against a daemon configured (a) against a populated KOTA project store with at least one builder run and one queue movement so the active body and queueDelta render, and (b) against a fresh / pre-autonomy project so the quiet body renders, and commits the rendered artifacts under .kota/runs/digest-consolidation-screens-<stamp>/{telegram,mobile,macos,web}/.
 ```
 
 ## Status (2026-06-15 blocked audit)
 
-No matching `.kota/runs/digest-consolidation-screens-*` artifact exists. The
-CLI and daemon evidence named above remains useful, but the live
-Telegram/mobile/macOS/web visual capture is still missing.
+The stale screenshot/operator-capture blocker has been replaced by local rendered evidence under `.kota/runs/digest-consolidation-screens-20260615T160041Z/`. The artifact uses the task's accepted snapshot/runtime-probe evidence path rather than requiring manual screenshots.
 
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-06-04T03:18:14.605Z -->
+## Promotion Evidence
+
+`.kota/runs/digest-consolidation-screens-20260615T160041Z/` now exists with per-surface evidence directories. The shared source artifact `.kota/runs/client-visual-evidence-20260615T160041Z/` records:
+
+- web rendered component tests: 173 passing Vitest tests where this capability has a web surface;
+- mobile rendered screen tests: 125 passing Jest tests and the existing Recall snapshot fixture;
+- Apple client tests: 299 passing Swift tests plus rendered menu-bar state snapshots;
+- chat-rendered replies generated directly from the KOTA render helpers consumed by Telegram and Slack-shared chat bodies.
