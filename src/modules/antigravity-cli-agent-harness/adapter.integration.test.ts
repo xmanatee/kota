@@ -46,19 +46,11 @@ describe("antigravity-cli agent harness integration", () => {
     );
   });
 
-  it("resolves through the registry and returns the explicit unsupported execution result", async () => {
+  it("resolves through the registry as a text-only native AGY harness", () => {
     const harness = resolveAgentHarness(ANTIGRAVITY_CLI_AGENT_HARNESS_NAME);
-    const result = await harness.run({
-      prompt: "say ok",
-      model: "gemini-3.5-flash",
-      effort: "xhigh",
-    });
 
-    expect(result).toMatchObject({
-      streamedText: "",
-      turns: 0,
-      isError: true,
-      subtype: "antigravity_cli_headless_unsupported",
-    });
+    expect(harness.description).toContain("agy --print");
+    expect(harness.toolControl).toBe("native");
+    expect(harness.emitsAgentMessageStream).toBe(false);
   });
 });

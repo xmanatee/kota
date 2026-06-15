@@ -15,7 +15,7 @@ import type { KotaClient } from "#core/server/kota-client.js";
 import { AUTONOMY_MODES, type AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { operatorSurfaceEffect } from "#core/tools/effect.js";
 import { TelegramBot } from "./bot.js";
-import { startCallbackPoll } from "./callback-poll.js";
+import { createTelegramCallbackHandler } from "./callback-poll.js";
 import type { TelegramMessage } from "./client.js";
 import { callTelegramApi } from "./client.js";
 import type { TelegramInboundSignalConfig } from "./inbound-signal.js";
@@ -27,7 +27,7 @@ import {
   type TelegramChatProjectBinding,
   TelegramProjectSelection,
 } from "./project-selection.js";
-import { startTelegramStatusPoll } from "./status-poll.js";
+import { buildStatusText } from "./status-poll.js";
 
 async function sendTelegramMessage(
   token: string,
@@ -321,12 +321,11 @@ function tryResolveTelegramClient(ctx: ModuleContext): KotaClient | undefined {
 
 function makeTelegramStatusChannel(
   moduleCtx: ModuleContext,
-  chatProjectBindings: TelegramChatProjectBinding[],
 ): ChannelDef {
   return {
     name: "telegram-status",
     description:
-      "Responds to /status, /digest, /attention, /knowledge, /memory, /history, /tasks, /recall, /answer, /answer-log, /answer-show, /capture, /capture-to-memory, /capture-to-knowledge, /capture-to-tasks, /capture-to-inbox, /retract, /retract-memory, /retract-knowledge, /retract-tasks, and /retract-inbox in Telegram",
+      "Declares Telegram status-command readiness; the interactive channel owns the single Bot API update stream.",
     create(ctx) {
       const credentials = getCredentials(moduleCtx);
       if (!credentials) {
@@ -343,36 +342,11 @@ function makeTelegramStatusChannel(
           reason: "KotaClient is not resolved; Telegram status commands require a daemon or local client",
         };
       }
-      const projectRouting = resolveTelegramProjectRouting(
-        moduleCtx,
-        chatProjectBindings,
-      );
-
-      let stop: (() => void) | null = null;
       return {
         status: "started",
         adapter: {
-          async start() {
-            stop = startTelegramStatusPoll(
-              credentials.token,
-              credentials.chatId,
-              ctx.projectDir,
-              ctx.getWorkflowStatus,
-              client.knowledge,
-              client.memory,
-              client.history,
-              client.tasks,
-              client.recall,
-              client.answer,
-              client.capture,
-              client.retract,
-              ctx.log,
-              projectRouting,
-            );
-          },
-          stop() {
-            stop?.();
-          },
+          async start() {},
+          stop() {},
         },
       };
     },
@@ -387,13 +361,14 @@ function makeTelegramInteractiveChannel(
     name: "telegram-interactive",
     description: "Hosts the interactive Telegram bot as a daemon channel (one session per chat)",
     create(channelCtx) {
-      const token = ctx.getSecret("TELEGRAM_BOT_TOKEN");
-      if (!token) {
+      const credentials = getCredentials(ctx);
+      if (!credentials) {
         return {
           status: "unavailable",
-          reason: "TELEGRAM_BOT_TOKEN secret ref is required",
+          reason: "TELEGRAM_BOT_TOKEN and TELEGRAM_ALERT_CHAT_ID secret refs are required",
         };
       }
+      const { token } = credentials;
 
       const telegramConfig = ctx.getModuleConfig<TelegramConfig>();
       const autonomyMode = resolveChannelAutonomyMode(
@@ -434,6 +409,22 @@ function makeTelegramInteractiveChannel(
             log: ctx.log,
             client: tryResolveTelegramClient(ctx),
           }),
+        onCallbackQuery: createTelegramCallbackHandler(
+          token,
+          pendingApprovalMessages,
+          pendingOwnerQuestionMessages,
+          tryResolveTelegramClient(ctx),
+        ),
+        onStatusCommand: async (chatId, text) => {
+          if (String(chatId) !== credentials.chatId) return false;
+          if (text !== "/status") return false;
+          await callTelegramApi(token, "sendMessage", {
+            chat_id: chatId,
+            text: buildStatusText(channelCtx.getWorkflowStatus()),
+            parse_mode: "Markdown",
+          });
+          return true;
+        },
       });
 
       const unsubscribeSchedule = ctx.events.subscribe("schedule.fire", (payload) => {
@@ -477,7 +468,6 @@ function makeTelegramInteractiveChannel(
 }
 
 let notificationUnsubs: (() => void)[] = [];
-let stopCallbackPoll: (() => void) | null = null;
 const pendingApprovalMessages = new Map<string, PendingMessage>();
 const pendingOwnerQuestionMessages = new Map<string, PendingMessage>();
 
@@ -614,7 +604,7 @@ const telegramModule: KotaModule = {
     const telegramConfig = ctx.getModuleConfig<TelegramConfig>();
     const chatProjectBindings = telegramConfig?.chatProjectBindings ?? [];
     return [
-      makeTelegramStatusChannel(ctx, chatProjectBindings),
+      makeTelegramStatusChannel(ctx),
       makeTelegramInteractiveChannel(ctx, chatProjectBindings),
     ];
   },
@@ -623,17 +613,6 @@ const telegramModule: KotaModule = {
     const telegramConfig = ctx.getModuleConfig<TelegramConfig>();
     const chatProjectBindings = telegramConfig?.chatProjectBindings ?? [];
     const optInEvents = new Set(telegramConfig?.events ?? []);
-
-    const creds = getCredentials(ctx);
-    if (creds) {
-      stopCallbackPoll = startCallbackPoll(
-        creds.token,
-        pendingApprovalMessages,
-        pendingOwnerQuestionMessages,
-        ctx.log,
-        tryResolveTelegramClient(ctx),
-      );
-    }
 
     notificationUnsubs = [
       ctx.events.subscribe("workflow.failure.alert", (payload) => {
@@ -793,8 +772,6 @@ const telegramModule: KotaModule = {
   },
 
   onUnload: () => {
-    stopCallbackPoll?.();
-    stopCallbackPoll = null;
     pendingApprovalMessages.clear();
     pendingOwnerQuestionMessages.clear();
     for (const unsub of notificationUnsubs) unsub();

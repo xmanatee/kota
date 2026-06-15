@@ -6,7 +6,7 @@ priority: p2
 area: architecture
 summary: Add a single test target that boots the daemon under each shipped preset and runs an operator-shaped scenario (boot, single-turn, tool-use, capture, workflow agent step, autonomy turn) so cross-preset parity is verifiable, not nominal.
 created_at: 2026-05-07T23:36:27.797Z
-updated_at: 2026-05-08T02:46:12.312Z
+updated_at: 2026-06-15T00:00:00.000Z
 ---
 
 ## Problem
@@ -209,5 +209,13 @@ harness-managed auth ready. `kota doctor --preset claude` fails because
 because `agy` auth cannot be verified non-interactively. This confirms the
 test infrastructure works, but it does not satisfy the requested
 all-auth-present and one-auth-missing transcript pair.
+
+2026-06-15 follow-up: `agy --version` reports 1.0.8 and a live
+`agy --print "Reply with exactly: ok"` smoke test returns `ok`, so AGY
+execution itself is available locally. The remaining Antigravity parity caveat
+is the doctor auth contract: AGY stores login state in the OS keyring and does
+not expose a documented headless auth-status command, so `doctor --preset
+antigravity-cli --skip-connectivity` stays conservative even though a live
+one-shot run can work.
 
 <!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-06-05T19:14:47.873Z -->

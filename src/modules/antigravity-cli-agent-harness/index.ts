@@ -10,11 +10,11 @@ registerAgentHarness(antigravityCliAgentHarness);
 const antigravityCliAgentHarnessModule: KotaModule = {
   name: "antigravity-cli-agent-harness",
   description:
-    "Registers the antigravity-cli agent harness — a readiness-first AGY CLI adapter for Google's current native terminal-agent runtime.",
+    "Registers the antigravity-cli agent harness — a text-only AGY CLI adapter for Google's current native terminal-agent runtime.",
   dependencies: [],
   onLoad(ctx) {
     ctx.log.info(
-      `Registered agent harness "${ANTIGRAVITY_CLI_AGENT_HARNESS_NAME}" (Antigravity CLI readiness).`,
+      `Registered agent harness "${ANTIGRAVITY_CLI_AGENT_HARNESS_NAME}" (Antigravity CLI text).`,
     );
   },
 };

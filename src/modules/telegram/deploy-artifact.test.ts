@@ -99,8 +99,11 @@ describe("telegram-assistant deploy artifact", () => {
   it("docker entrypoint generates deploy config without baking provider secrets", () => {
     const dockerfile = read("Dockerfile");
     const entrypoint = read("entrypoint.sh");
+    expect(dockerfile).toContain("/runtime-assets/src");
+    expect(dockerfile).toContain("COPY --from=builder /runtime-assets/src ./src");
     expect(dockerfile).toContain("entrypoint.sh");
     expect(dockerfile).toContain('ENTRYPOINT ["/opt/kota/entrypoint.sh"]');
+    expect(entrypoint).toContain("trustedProjects");
     expect(entrypoint).toContain("KOTA_MODEL");
     expect(entrypoint).toContain("KOTA_DEFAULT_AGENT_HARNESS");
     expect(entrypoint).toContain("KOTA_TELEGRAM_DEFAULT_AUTONOMY_MODE");

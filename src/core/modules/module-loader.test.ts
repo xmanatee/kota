@@ -1460,6 +1460,19 @@ describe("Module SDK — storage, config, skills", () => {
     expect(prompt).toContain("Use the helper tool for quick lookups.");
   });
 
+  it("loads packaged module skill content outside the project directory", async () => {
+    const loader = new ModuleLoader({}, false);
+    loader.setCwd(tmpDir);
+    await loader.load({
+      name: "knowledge-guidance-mod",
+      skills: [{ name: "knowledge-guidance", promptPath: "src/modules/knowledge/knowledge.md" }],
+    });
+
+    const prompt = loader.getSkillsPrompt();
+    expect(prompt).toContain("### knowledge-guidance");
+    expect(prompt).toContain("Structured knowledge entries");
+  });
+
   it("handles missing skill file gracefully", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const loader = new ModuleLoader({});

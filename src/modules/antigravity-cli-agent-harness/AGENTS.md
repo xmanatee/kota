@@ -9,11 +9,9 @@ per-step `harness` override.
 
 ## Provider Routing
 
-Antigravity CLI owns model choice through its native settings and `/model`
-surface. The shipped preset maps KOTA tiers to the documented local
-Antigravity model family so operator-facing preset output stays concrete, but
-the adapter does not pass model ids to `agy` until Google documents a stable
-headless command contract.
+Antigravity CLI owns provider routing inside its native runtime. The shipped
+preset maps KOTA tiers to the current local Antigravity model family and the
+adapter passes the selected id to `agy --model` for the one-shot run.
 
 Authentication is harness-managed. The CLI authenticates through the operating
 system secure keyring and falls back to browser sign-in. KOTA probes the local
@@ -35,14 +33,15 @@ Workspace customizations are Antigravity-owned (`.agents/skills` and
 ## Loop Shape
 
 Current public AGY CLI docs describe an interactive terminal UI, slash
-commands, settings, plugins, permissions, and migration commands. They do not
-document a stable non-interactive structured-output mode equivalent to
-`codex exec --json` or `gemini --output-format stream-json`.
+commands, settings, plugins, permissions, migration commands, and
+`agy --print` for non-interactive text output. They do not document a stable
+structured-output mode equivalent to `codex exec --json` or
+`gemini --output-format stream-json`.
 
-Until that boundary exists, `run()` returns a typed unsupported result instead
-of scraping terminal UI output. This keeps the preset selectable for readiness
-and migration checks without pretending KOTA can enforce tool-control rails
-inside AGY.
+`run()` executes one `agy --print` subprocess and returns the final text. It
+does not expose token deltas, native tool-call events, session ids, or
+`KotaAgentMessage` frames. This keeps the preset useful for text-only native
+AGY runs without pretending KOTA can supervise AGY's internal tool loop.
 
 ## Capability Boundary
 
@@ -50,5 +49,4 @@ Antigravity CLI owns plugins, skills, hooks, subagents, MCP configuration,
 browser use, sandboxing, and approvals. This adapter does not expose KOTA's
 tool registry, `canUseTool`, owner-question routing, supervised approvals, or
 MCP server injection to AGY. It declares `toolControl: "native"` and rejects
-unsupported KOTA-only options before returning the unsupported execution
-result.
+unsupported KOTA-only options before launching `agy`.

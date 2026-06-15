@@ -30,6 +30,8 @@ COPY schema ./schema
 RUN pnpm run build \
     && pnpm prune --prod \
     && pnpm store prune
+RUN mkdir -p /runtime-assets \
+    && find src -type f -name '*.md' -exec sh -c 'for file do mkdir -p "/runtime-assets/$(dirname "$file")"; cp "$file" "/runtime-assets/$file"; done' sh {} +
 
 FROM node:${NODE_VERSION} AS runtime
 ENV NODE_ENV=production \
@@ -46,6 +48,7 @@ COPY --from=builder /src/package.json ./package.json
 COPY --from=builder /src/bin ./bin
 COPY --from=builder /src/dist ./dist
 COPY --from=builder /src/node_modules ./node_modules
+COPY --from=builder /runtime-assets/src ./src
 COPY deploy/telegram-assistant/entrypoint.sh ./entrypoint.sh
 RUN chmod 0755 ./entrypoint.sh
 

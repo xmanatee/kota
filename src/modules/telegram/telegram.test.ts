@@ -15,6 +15,7 @@ vi.mock("./client.js", () => ({
 }));
 
 vi.mock("./callback-poll.js", () => ({
+  createTelegramCallbackHandler: vi.fn(() => async () => false),
   startCallbackPoll: vi.fn(() => () => {}),
 }));
 
@@ -518,7 +519,7 @@ describe("telegramModule notifications via onLoad", () => {
     expect(mockedCallTelegramApi).not.toHaveBeenCalled();
   });
 
-  it("starts unified callback poll on load when credentials are present", async () => {
+  it("does not start a competing callback poll on load when credentials are present", async () => {
     const { startCallbackPoll } = await import("./callback-poll.js");
     const mockStart = vi.mocked(startCallbackPoll);
     mockStart.mockClear();
@@ -526,17 +527,10 @@ describe("telegramModule notifications via onLoad", () => {
     const bus = new EventBus();
     telegramModule.onLoad!(makeStubCtx(bus));
 
-    expect(mockStart).toHaveBeenCalledOnce();
-    expect(mockStart).toHaveBeenCalledWith(
-      FAKE_TOKEN,
-      expect.any(Map),
-      expect.any(Map),
-      expect.any(Object),
-      expect.any(Object),
-    );
+    expect(mockStart).not.toHaveBeenCalled();
   });
 
-  it("starts callback poll without a CLI-resolved KotaClient", async () => {
+  it("loads notification subscriptions without a CLI-resolved KotaClient", async () => {
     const { startCallbackPoll } = await import("./callback-poll.js");
     const mockStart = vi.mocked(startCallbackPoll);
     mockStart.mockClear();
@@ -550,8 +544,7 @@ describe("telegramModule notifications via onLoad", () => {
     });
 
     expect(() => telegramModule.onLoad!(ctx)).not.toThrow();
-    expect(mockStart).toHaveBeenCalledOnce();
-    expect(mockStart.mock.calls[0]?.[4]).toBeUndefined();
+    expect(mockStart).not.toHaveBeenCalled();
   });
 
   it("does not start callback poll when credentials are missing", async () => {

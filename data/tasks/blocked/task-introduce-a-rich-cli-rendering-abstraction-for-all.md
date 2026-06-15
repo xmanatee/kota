@@ -4,9 +4,9 @@ title: Introduce a rich CLI rendering abstraction for all terminal output
 status: blocked
 priority: p2
 area: modules
-summary: Replace ad-hoc console printing with a dedicated rendering layer (library or module) used by daemon mode, CLI mode, and every surface, inspired by gemini-cli / codex / pi / opencode.
+summary: Replace ad-hoc console printing with a dedicated rendering layer (library or module) used by daemon mode, CLI mode, and every surface, inspired by agy / codex / pi / opencode.
 created_at: 2026-04-22T16:46:53.748Z
-updated_at: 2026-05-07T12:27:35.000Z
+updated_at: 2026-06-15T00:00:00.000Z
 ---
 
 ## Problem
@@ -14,7 +14,7 @@ updated_at: 2026-05-07T12:27:35.000Z
 KOTA's terminal output today is built from ad-hoc `console.log` and bespoke
 formatting across `src/cli.ts`, the daemon-ops output paths, interactive
 sessions, and many module-owned commands. The result feels visually simplistic
-next to gemini-cli, codex, pi, and opencode, which all render structured
+next to agy, codex, pi, and opencode, which all render structured
 blocks, dividers, role-aware colors, and theme- and width-aware layout. There
 is no shared abstraction for "this is a tool call", "this is an agent message",
 "this is a status banner", so every surface redevelops its own look, with
@@ -57,7 +57,7 @@ extend as new surfaces land.
   session output, workflow-ops readouts, module CLIs) routes through the
   module; ad-hoc `console.log` for user-facing output is removed or lint-
   blocked in migrated areas.
-- Side-by-side output matches or beats gemini-cli / codex / pi / opencode on
+- Side-by-side output matches or beats agy / codex / pi / opencode on
   representative scenarios (status banner, session turn, tool invocation, run
   summary), recorded as evidence under `.kota/runs/` or a dedicated artifact.
 - Documentation at the module's `AGENTS.md` describes the primitive
@@ -69,7 +69,7 @@ extend as new surfaces land.
 ```
 kind: operator-capture
 path: .kota/runs/peer-cli-comparison
-description: peer-CLI side-by-side captures — operator runs `node scripts/render-scenarios.mjs <out>` for KOTA and the same scenarios pack against gemini-cli, codex, pi, opencode, then pairs outputs under .kota/runs/peer-cli-comparison/<peer>.md
+description: peer-CLI side-by-side captures — operator runs `node scripts/render-scenarios.mjs <out>` for KOTA and the same scenarios pack against agy, codex, pi, opencode, then pairs outputs under .kota/runs/peer-cli-comparison/<peer>.md
 ```
 
 ## Source / Intent
@@ -178,9 +178,11 @@ Phase 2 — migrate remaining surfaces (follow-up runs):
 
 Phase 3 — peer-CLI capture (operator-facilitated, blocks the task):
 
-- Run the scenarios pack through gemini-cli, codex, pi, and opencode on
+- Run the scenarios pack through agy, codex, pi, and opencode on
   an operator workstation and pair the outputs in
-  `.kota/runs/<run-id>/peer-cli/`. The scenarios script lives at
+  `.kota/runs/<run-id>/peer-cli/`. Gemini CLI may be captured as an
+  additional legacy/enterprise Google peer when available, but AGY is the
+  current consumer Google CLI target. The scenarios script lives at
   `scripts/render-scenarios.mjs` so both sides share one input set.
 - Until those peer-CLI screenshots/transcripts land, the task's
   Done-When bullet 3 cannot be honestly verified autonomously, so the
@@ -228,9 +230,15 @@ operator capture after the 14-day cadence if the artifact remains absent.
   surface gained a `renderToString` test exercising all three themes
   (`default`, `ascii`, `no-color`). Phase 3's peer-CLI capture remains
   the open precondition.
+- 2026-06-15: Google announced the consumer Gemini CLI transition to
+  Antigravity CLI (`agy`) for June 18, 2026. Local verification found
+  `agy --version` = 1.0.8, `agy --print` returns output, and `pi` is now
+  installed, so the peer set is updated to `agy`, `codex`, `pi`, and
+  `opencode`. The task remains blocked only because the comparison artifact
+  under `.kota/runs/peer-cli-comparison/` has not been captured.
 - 2026-06-15 blocked audit: the local KOTA scenario renderer now creates
   parent output directories before writing, and the probe wrote
   `.kota/runs/blocked-audit-2026-06-15/rendering/fresh/nested/kota.md`.
-  Installed local peer CLIs detected: `codex`, `gemini`, `opencode`, and
-  `agy`; `pi` is not installed. The contracted
+  Installed local peer CLIs detected: `codex`, `gemini`, `opencode`, `agy`,
+  and `pi` (`0.79.4`). The contracted
   `.kota/runs/peer-cli-comparison/` side-by-side peer artifact is still absent.

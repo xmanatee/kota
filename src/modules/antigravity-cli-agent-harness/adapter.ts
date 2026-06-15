@@ -1,12 +1,12 @@
 /**
- * `antigravity-cli` agent harness — a readiness-first adapter around AGY CLI.
+ * `antigravity-cli` agent harness — a text-only adapter around AGY CLI.
  *
- * Google's current Antigravity CLI docs describe the `agy` terminal UI,
- * settings, plugins, permissions, and migration commands, but not a stable
- * non-interactive structured-output command. The adapter therefore registers
- * the harness and preset readiness path while refusing execution loudly.
+ * Google's current Antigravity CLI exposes `agy --print` for non-interactive
+ * text output. It does not expose a stable structured event stream equivalent
+ * to Gemini CLI's `stream-json`, so this adapter is intentionally text-only.
  */
 
+import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -17,8 +17,10 @@ import type {
   AgentHarnessResult,
   AgentHarnessRunOptions,
   AgentHarnessUnsupportedOption,
+  AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
 import { probeNativeCliRuntime } from "#core/agent-harness/index.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 
 export const ANTIGRAVITY_CLI_AGENT_HARNESS_NAME = "antigravity-cli";
 export const ANTIGRAVITY_CLI_BINARY_NAME = "agy";
@@ -218,26 +220,139 @@ function abortedResult(): AgentHarnessResult {
   };
 }
 
-function unsupportedHeadlessResult(): AgentHarnessResult {
+function buildAntigravityPrompt(options: AgentHarnessRunOptions): string {
+  const parts: string[] = [];
+  if (options.systemPrompt?.trim()) {
+    parts.push("## System instructions", options.systemPrompt.trim());
+  }
+  parts.push(
+    "## KOTA workflow rails",
+    "Do not run `git commit`; stage changes and write the requested " +
+      "commit-message artifact instead. Do not stop, restart, signal, or " +
+      "control the daemon process that launched you.",
+    "Antigravity CLI owns its native tool loop in this harness. If a task " +
+      "requires a KOTA approval, KOTA tool registry call, or KOTA file " +
+      "checkpoint that this adapter cannot provide, stop and report that boundary.",
+    "## Task",
+    options.prompt,
+  );
+  return parts.join("\n\n");
+}
+
+function formatStderr(chunks: readonly string[]): string {
+  return chunks.join("").trim();
+}
+
+async function collectTextFromAntigravityCli(args: {
+  prompt: string;
+  cwd: string;
+  model: string;
+  passive: boolean;
+  abortController?: AbortController;
+  writer?: AgentHarnessWriter;
+}): Promise<AgentHarnessResult> {
+  const cliArgs = [
+    "--print",
+    args.prompt,
+    "--model",
+    args.model,
+    "--print-timeout",
+    "5m",
+    ...(args.passive ? ["--sandbox"] : []),
+  ];
+
+  const child = spawn(ANTIGRAVITY_CLI_BINARY_NAME, cliArgs, {
+    cwd: args.cwd,
+    env: withProtectedGitBareRepositoryEnv({ ...process.env, NO_COLOR: "1" }),
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  const stdout: string[] = [];
+  const stderr: string[] = [];
+  let spawnError: string | undefined;
+
+  const abort = (): void => {
+    child.kill("SIGTERM");
+  };
+  let removeAbortListener: (() => void) | undefined;
+  if (args.abortController) {
+    if (args.abortController.signal.aborted) abort();
+    else {
+      args.abortController.signal.addEventListener("abort", abort, { once: true });
+      removeAbortListener = () =>
+        args.abortController?.signal.removeEventListener("abort", abort);
+    }
+  }
+
+  const stdoutDone = new Promise<void>((resolve) => {
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => stdout.push(chunk));
+    child.stdout.on("end", resolve);
+  });
+  const stderrDone = new Promise<void>((resolve) => {
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk: string) => stderr.push(chunk));
+    child.stderr.on("end", resolve);
+  });
+
+  const exit = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
+    child.on("error", (err) => {
+      spawnError = err.message;
+      resolve({ code: null, signal: null });
+    });
+    child.on("close", (code, signal) => resolve({ code, signal }));
+  });
+  removeAbortListener?.();
+  await Promise.all([stdoutDone, stderrDone]);
+
+  const text = stdout.join("").trim();
+  if (args.abortController?.signal.aborted) {
+    return {
+      text: "Antigravity CLI run aborted.",
+      streamedText: text,
+      turns: text ? 1 : 0,
+      isError: true,
+      subtype: "aborted",
+    };
+  }
+
+  if (spawnError !== undefined || exit.code !== 0) {
+    const detail =
+      spawnError ??
+      (formatStderr(stderr) ||
+        `Antigravity CLI exited with code ${exit.code ?? `signal ${exit.signal}`}`);
+    return {
+      text: detail,
+      streamedText: text,
+      turns: text ? 1 : 0,
+      isError: true,
+      subtype: "antigravity_cli_error",
+    };
+  }
+
+  if (!text) {
+    return {
+      text: "Antigravity CLI completed without output.",
+      streamedText: "",
+      turns: 0,
+      isError: true,
+      subtype: "antigravity_cli_empty_output",
+    };
+  }
+
+  args.writer?.write(text);
   return {
-    text:
-      'The "antigravity-cli" agent harness cannot execute KOTA agent steps yet: ' +
-      "current AGY CLI documentation describes an interactive terminal UI but no stable " +
-      "non-interactive structured-output command. Use `antigravity-cli` for doctor and " +
-      "migration readiness checks; use `gemini` for SDK/API-key Gemini runs, legacy " +
-      "`gemini-cli` only where Gemini CLI remains supported, or another KOTA-hosted " +
-      "harness for autonomous workflow execution.",
-    streamedText: "",
-    turns: 0,
-    isError: true,
-    subtype: "antigravity_cli_headless_unsupported",
+    text,
+    streamedText: text,
+    turns: 1,
+    isError: false,
   };
 }
 
 export const antigravityCliAgentHarness: AgentHarness = {
   name: ANTIGRAVITY_CLI_AGENT_HARNESS_NAME,
   description:
-    "Registers Antigravity CLI (`agy`) as a native Google CLI readiness path; execution is unsupported until AGY documents stable headless structured output.",
+    "Runs Antigravity CLI (`agy --print`) as Google's current native CLI path with text-only output.",
   supportsMultiTurn: false,
   supportedHookKinds: ["preRun", "postRun"] as const,
   askOwnerToolName: null,
@@ -245,7 +360,10 @@ export const antigravityCliAgentHarness: AgentHarness = {
   toolControl: "native",
   unsupportedRunOptions: ANTIGRAVITY_CLI_UNSUPPORTED_OPTIONS,
   readiness: antigravityCliReadiness,
-  async run(options: AgentHarnessRunOptions): Promise<AgentHarnessResult> {
+  async run(
+    options: AgentHarnessRunOptions,
+    writer?: AgentHarnessWriter,
+  ): Promise<AgentHarnessResult> {
     rejectUnsupportedOptions(options);
     if (!options.model) {
       throw new Error(
@@ -253,6 +371,13 @@ export const antigravityCliAgentHarness: AgentHarness = {
       );
     }
     if (options.abortController?.signal.aborted) return abortedResult();
-    return unsupportedHeadlessResult();
+    return collectTextFromAntigravityCli({
+      prompt: buildAntigravityPrompt(options),
+      cwd: options.cwd ?? process.cwd(),
+      model: options.model,
+      passive: options.autonomyMode === "passive",
+      abortController: options.abortController,
+      writer,
+    });
   },
 };

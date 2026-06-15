@@ -10,7 +10,7 @@
  * ownership of effort translation (codex/gemini map the neutral
  * `AgentEffort` literal to their provider's wire shape).
  *
- * Resolution priority (gemini-cli convention): CLI flag > env > project
+ * Resolution priority (preset convention): CLI flag > env > project
  * config > user config > shipped default. No silent fallback to another
  * preset when the active preset is explicitly named; resolution that returns
  * nothing throws with the consumer named.
@@ -125,7 +125,7 @@ const SHIPPED_PRESETS: readonly Preset[] = [
   {
     id: "antigravity-cli",
     description:
-      "Google Antigravity via the local AGY CLI readiness path. Execution is unsupported until AGY documents stable headless structured output.",
+      "Google Antigravity via the local AGY CLI (`agy --print`) with text-only native tool-loop output.",
     harness: "antigravity-cli",
     authEnv: [],
     defaultModel: "gemini-3.5-flash",

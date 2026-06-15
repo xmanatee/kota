@@ -1,5 +1,6 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { assertNoUnsupportedSkillToolPolicyFrontmatter } from "#core/agents/skill-tool-policy.js";
 import { registerConfigSlice } from "#core/config/config-slice.js";
 import {
@@ -34,6 +35,8 @@ import {
   type ToolDef,
 } from "./module-types.js";
 import { validateModuleSetupRequirements } from "./setup-requirements.js";
+
+const KOTA_INSTALL_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
 /**
  * Cwd + lifecycle-mode the load phases need but that does not belong on the
@@ -243,7 +246,7 @@ export async function attachModuleSkills(
   for (const skill of skills) {
     let raw: string;
     try {
-      raw = readFileSync(resolve(policy.cwd, skill.promptPath), "utf8");
+      raw = readFileSync(resolveModuleSkillPromptPath(policy, skill.promptPath), "utf8");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(
@@ -261,6 +264,16 @@ export async function attachModuleSkills(
       state.skillDefsByName.set(skill.name, skill);
     }
   }
+}
+
+function resolveModuleSkillPromptPath(policy: LoadPhasePolicy, promptPath: string): string {
+  const projectPath = resolve(policy.cwd, promptPath);
+  if (existsSync(projectPath)) return projectPath;
+  if (!promptPath.startsWith("src/")) return projectPath;
+
+  const installPath = resolve(KOTA_INSTALL_ROOT, promptPath);
+  if (existsSync(installPath)) return installPath;
+  return projectPath;
 }
 
 export async function attachModuleAgents(

@@ -28,6 +28,7 @@ import {
   POLL_TIMEOUT_S,
   splitMessage,
   type TelegramAudio,
+  type TelegramCallbackQuery,
   type TelegramMessage,
   TelegramTransport,
   type TelegramUpdate,
@@ -68,6 +69,8 @@ export type TelegramBotOptions = {
     replyToMessageId: number,
     text: string,
   ) => Promise<boolean>;
+  onCallbackQuery?: (callback: TelegramCallbackQuery) => Promise<boolean>;
+  onStatusCommand?: (chatId: number, text: string) => Promise<boolean>;
   /** Optional prefix-configured chat automation signal bridge. */
   inboundSignals?: {
     config: TelegramInboundSignalConfig;
@@ -151,7 +154,7 @@ export class TelegramBot {
     const updates = await callTelegramApi<TelegramUpdate[]>(this.token, "getUpdates", {
       offset: this.offset,
       timeout: POLL_TIMEOUT_S,
-      allowed_updates: ["message"],
+      allowed_updates: ["message", "callback_query"],
     }, {
       signal: controller.signal,
     }).finally(() => {
@@ -162,12 +165,25 @@ export class TelegramBot {
 
     for (const update of updates) {
       this.offset = update.update_id + 1;
+      if (update.callback_query && this.options.onCallbackQuery) {
+        void this.options.onCallbackQuery(update.callback_query).catch((err) => {
+          console.error(
+            "[kota-telegram] Callback handler error:",
+            (err as Error).message,
+          );
+        });
+        continue;
+      }
       const message = update.message;
       if (!message) continue;
       const text = message.text;
       if (text !== undefined) {
         const chatId = message.chat.id;
         const firstName = message.chat.first_name;
+        if (this.options.onStatusCommand) {
+          const handled = await this.options.onStatusCommand(chatId, text);
+          if (handled) continue;
+        }
         const replyToId = message.reply_to_message?.message_id;
         if (replyToId !== undefined && this.options.onChatReply) {
           void this.options

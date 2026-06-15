@@ -34,6 +34,13 @@ function readCsvIntegers(value, name) {
 
 const config = readExistingConfig();
 
+const trustedProjects = Array.isArray(config.trustedProjects)
+  ? config.trustedProjects.filter((entry) => typeof entry === "string")
+  : [];
+if (!trustedProjects.includes(projectDir)) {
+  config.trustedProjects = [...trustedProjects, projectDir];
+}
+
 if (process.env.KOTA_MODEL) {
   config.model = process.env.KOTA_MODEL;
 }

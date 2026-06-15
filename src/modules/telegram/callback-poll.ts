@@ -23,6 +23,7 @@ import {
 } from "./owner-question-reply.js";
 
 export type { PendingMessage };
+export type TelegramCallbackHandler = (callback: TelegramCallbackQuery) => Promise<boolean>;
 
 const POLL_TIMEOUT_S = 30;
 const ERROR_BACKOFF_MS = 5_000;
@@ -37,6 +38,12 @@ export function startCallbackPoll(
   let running = true;
   let offset = 0;
   let controller: AbortController | null = null;
+  const handleCallback = createTelegramCallbackHandler(
+    token,
+    pendingApprovals,
+    pendingOwnerQuestions,
+    client,
+  );
 
   async function poll(): Promise<void> {
     if (!running) return;
@@ -55,44 +62,7 @@ export function startCallbackPoll(
       for (const update of updates) {
         offset = update.update_id + 1;
         const cq = update.callback_query;
-        if (!cq?.data) continue;
-
-        const approvalMatch = /^(approve|reject):(.+)$/.exec(cq.data);
-        if (approvalMatch) {
-          await handleApprovalCallback(
-            token,
-            cq,
-            approvalMatch[1] as "approve" | "reject",
-            approvalMatch[2],
-            pendingApprovals,
-            client,
-          );
-          continue;
-        }
-
-        const answerMatch = /^answer:([^:]+):(\d+)$/.exec(cq.data);
-        if (answerMatch) {
-          await handleOwnerAnswerCallback(
-            token,
-            cq,
-            answerMatch[1],
-            Number.parseInt(answerMatch[2], 10),
-            pendingOwnerQuestions,
-            client,
-          );
-          continue;
-        }
-
-        const dismissMatch = /^dismiss:(.+)$/.exec(cq.data);
-        if (dismissMatch) {
-          await handleOwnerDismissCallback(
-            token,
-            cq,
-            dismissMatch[1],
-            pendingOwnerQuestions,
-            client,
-          );
-        }
+        if (cq) await handleCallback(cq);
       }
     } catch (err) {
       if (!running) return;
@@ -111,6 +81,57 @@ export function startCallbackPoll(
     running = false;
     controller?.abort();
     controller = null;
+  };
+}
+
+export function createTelegramCallbackHandler(
+  token: string,
+  pendingApprovals: Map<string, PendingMessage>,
+  pendingOwnerQuestions: Map<string, PendingMessage>,
+  client?: KotaClient,
+): TelegramCallbackHandler {
+  return async (cq) => {
+    if (!cq.data) return false;
+
+    const approvalMatch = /^(approve|reject):(.+)$/.exec(cq.data);
+    if (approvalMatch) {
+      await handleApprovalCallback(
+        token,
+        cq,
+        approvalMatch[1] as "approve" | "reject",
+        approvalMatch[2],
+        pendingApprovals,
+        client,
+      );
+      return true;
+    }
+
+    const answerMatch = /^answer:([^:]+):(\d+)$/.exec(cq.data);
+    if (answerMatch) {
+      await handleOwnerAnswerCallback(
+        token,
+        cq,
+        answerMatch[1],
+        Number.parseInt(answerMatch[2], 10),
+        pendingOwnerQuestions,
+        client,
+      );
+      return true;
+    }
+
+    const dismissMatch = /^dismiss:(.+)$/.exec(cq.data);
+    if (dismissMatch) {
+      await handleOwnerDismissCallback(
+        token,
+        cq,
+        dismissMatch[1],
+        pendingOwnerQuestions,
+        client,
+      );
+      return true;
+    }
+
+    return false;
   };
 }
 
