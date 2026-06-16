@@ -1,0 +1,85 @@
+{
+  "type": "RCTScrollView",
+  "props": {
+    "style": {
+      "flex": 1,
+      "backgroundColor": "#f2f2f7"
+    },
+    "contentContainerStyle": {
+      "padding": 16
+    },
+    "refreshControl": {
+      "type": "[Function]",
+      "key": null,
+      "props": {
+        "refreshing": false,
+        "onRefresh": "[Function]"
+      }
+    }
+  },
+  "children": [
+    {
+      "type": "RCTRefreshControl",
+      "props": {},
+      "children": null
+    },
+    {
+      "type": "View",
+      "props": {},
+      "children": [
+        {
+          "type": "View",
+          "props": {
+            "style": {
+              "backgroundColor": "#ff3b30",
+              "borderRadius": 10,
+              "padding": 12,
+              "marginBottom": 12
+            }
+          },
+          "children": [
+            {
+              "type": "Text",
+              "props": {
+                "style": {
+                  "color": "#fff",
+                  "fontWeight": "600",
+                  "textAlign": "center"
+                }
+              },
+              "children": [
+                "Daemon offline — retrying every 15s"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "View",
+          "props": {
+            "style": {
+              "flexDirection": "row",
+              "alignItems": "center",
+              "gap": 10,
+              "marginBottom": 12
+            }
+          },
+          "children": [
+            {
+              "type": "Text",
+              "props": {
+                "style": {
+                  "fontSize": 17,
+                  "fontWeight": "600",
+                  "color": "#1c1c1e"
+                }
+              },
+              "children": [
+                "Attention"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

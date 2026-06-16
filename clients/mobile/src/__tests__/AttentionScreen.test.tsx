@@ -1,5 +1,8 @@
 import React from 'react';
 import { render } from '@testing-library/react-native';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { ActivityIndicator } from 'react-native';
 import { AttentionScreen } from '../screens/AttentionScreen';
 import type { AttentionResponse } from '../types';
 
@@ -40,6 +43,30 @@ function baseState(overrides: Partial<ReturnType<typeof defaultState>> = {}) {
   return { ...defaultState(), ...overrides };
 }
 
+function emitMobileAttentionEvidence(fileName: string, tree: unknown): void {
+  const runDir = process.env.KOTA_RUN_DIR;
+  if (!runDir) return;
+  const dir = join(runDir, 'attention-operator-evidence', 'mobile');
+  mkdirSync(dir, { recursive: true });
+  const seen = new WeakSet<object>();
+  const serialized = JSON.stringify(
+    tree,
+    (key, value: unknown) => {
+      if (key === '_owner' || key === '_store' || key === 'ref') {
+        return undefined;
+      }
+      if (typeof value === 'function') return '[Function]';
+      if (value && typeof value === 'object') {
+        if (seen.has(value)) return '[Circular]';
+        seen.add(value);
+      }
+      return value;
+    },
+    2,
+  );
+  writeFileSync(join(dir, fileName), `${serialized}\n`, 'utf-8');
+}
+
 describe('AttentionScreen', () => {
   afterEach(() => {
     mockUseDaemon.mockReset();
@@ -50,8 +77,9 @@ describe('AttentionScreen', () => {
       state: baseState({ daemonUrl: '', token: '' }),
       refreshAttention: jest.fn(),
     });
-    const { getByText } = render(<AttentionScreen />);
+    const { getByText, toJSON } = render(<AttentionScreen />);
     expect(getByText('No daemon configured.')).toBeTruthy();
+    emitMobileAttentionEvidence('not-configured.json', toJSON());
   });
 
   test('renders the attention body and item-count badge when items are present', () => {
@@ -68,11 +96,12 @@ describe('AttentionScreen', () => {
       state: baseState({ attention }),
       refreshAttention: jest.fn(),
     });
-    const { getByText, queryByText } = render(<AttentionScreen />);
+    const { getByText, queryByText, toJSON } = render(<AttentionScreen />);
     expect(getByText('Attention')).toBeTruthy();
     expect(getByText('2 items')).toBeTruthy();
     expect(queryByText('nothing pending')).toBeNull();
     expect(getByText(/owner question pending/)).toBeTruthy();
+    emitMobileAttentionEvidence('items-present.json', toJSON());
   });
 
   test('renders the empty-state copy and "nothing pending" badge when items are empty', () => {
@@ -84,10 +113,11 @@ describe('AttentionScreen', () => {
       state: baseState({ attention }),
       refreshAttention: jest.fn(),
     });
-    const { getByText, queryByText } = render(<AttentionScreen />);
+    const { getByText, queryByText, toJSON } = render(<AttentionScreen />);
     expect(getByText('nothing pending')).toBeTruthy();
     expect(queryByText(/items?/)).toBeTruthy();
     expect(getByText(NO_ATTENTION_ITEMS_TEXT)).toBeTruthy();
+    emitMobileAttentionEvidence('quiet.json', toJSON());
   });
 
   test('surfaces the daemon HTTP error and offers retry', () => {
@@ -98,10 +128,11 @@ describe('AttentionScreen', () => {
       }),
       refreshAttention: jest.fn(),
     });
-    const { getByText, queryByText } = render(<AttentionScreen />);
+    const { getByText, queryByText, toJSON } = render(<AttentionScreen />);
     expect(getByText('503 Service Unavailable')).toBeTruthy();
     expect(getByText('Retry')).toBeTruthy();
     expect(queryByText('nothing pending')).toBeNull();
+    emitMobileAttentionEvidence('error-retry.json', toJSON());
   });
 
   test('shows offline banner when daemon is offline', () => {
@@ -109,8 +140,19 @@ describe('AttentionScreen', () => {
       state: baseState({ online: false, attention: null }),
       refreshAttention: jest.fn(),
     });
-    const { getByText } = render(<AttentionScreen />);
+    const { getByText, toJSON } = render(<AttentionScreen />);
     expect(getByText('Daemon offline — retrying every 15s')).toBeTruthy();
+    emitMobileAttentionEvidence('offline.json', toJSON());
+  });
+
+  test('renders a loading spinner while attention refresh is pending', () => {
+    mockUseDaemon.mockReturnValue({
+      state: baseState({ attentionLoading: true, attention: null }),
+      refreshAttention: jest.fn(),
+    });
+    const { UNSAFE_getByType, toJSON } = render(<AttentionScreen />);
+    expect(UNSAFE_getByType(ActivityIndicator)).toBeTruthy();
+    emitMobileAttentionEvidence('loading.json', toJSON());
   });
 
   test('triggers a refresh on mount when online and attention is empty', () => {

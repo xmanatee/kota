@@ -1,12 +1,12 @@
 ---
 id: task-fan-out-consolidation-attention
 title: Consolidate attention surfaces across clients
-status: ready
+status: done
 priority: p2
 area: client
 summary: Review the attention surface family across cli, daemon, macos, mobile, slack, telegram, web for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
 created_at: 2026-05-02T21:31:53.684Z
-updated_at: 2026-06-15T16:03:32.805Z
+updated_at: 2026-06-16T22:29:07.442Z
 ---
 
 ## Problem
@@ -169,3 +169,27 @@ The stale screenshot/operator-capture blocker has been replaced by local rendere
 - mobile rendered screen tests: 125 passing Jest tests and the existing Recall snapshot fixture;
 - Apple client tests: 299 passing Swift tests plus rendered menu-bar state snapshots;
 - chat-rendered replies generated directly from the KOTA render helpers consumed by Telegram and Slack-shared chat bodies.
+
+## Completion Evidence
+
+2026-06-16 builder verification is recorded under
+`.kota/runs/2026-06-16T22-23-46-196Z-builder-w9u4uz/`:
+
+- `attention-cli-transcript.txt` captures `kota --help`,
+  `kota attention --help`, rendered `kota attention`, and
+  `kota attention --json` against the current project.
+- `attention-consolidation-verification.md` maps the task's eight
+  Done When items to current artifacts and notes that the older
+  2026-05-02 headless-review directory is absent in this checkout.
+- `attention-operator-evidence/runtime-contract-probe.json` covers the same
+  quiet and populated request arms through daemon route handling, CLI JSON,
+  Telegram `/attention`, Slack `/attention`, web decoding, mobile decoding,
+  and macOS Swift `AttentionResponse` decoding.
+- `attention-operator-evidence/` contains rendered per-surface fixtures:
+  Telegram and Slack message JSON, web `AttentionPanel` HTML report and state
+  fragments, mobile `AttentionScreen` rendered tree JSON, and macOS
+  `AttentionView` rendered-state text snapshot.
+- Focused validation passed for attention CLI, daemon route, detector
+  seam, Telegram `/attention`, Slack `/attention`, and cross-client
+  conformance fixture coverage, plus the current runtime probe and focused
+  web/mobile rendered fixture tests.

@@ -1,0 +1,80 @@
+{
+  "type": "RCTScrollView",
+  "props": {
+    "style": {
+      "flex": 1,
+      "backgroundColor": "#f2f2f7"
+    },
+    "contentContainerStyle": {
+      "padding": 16
+    },
+    "refreshControl": {
+      "type": "[Function]",
+      "key": null,
+      "props": {
+        "refreshing": true,
+        "onRefresh": "[Function]"
+      }
+    }
+  },
+  "children": [
+    {
+      "type": "RCTRefreshControl",
+      "props": {},
+      "children": null
+    },
+    {
+      "type": "View",
+      "props": {},
+      "children": [
+        {
+          "type": "View",
+          "props": {
+            "style": {
+              "flexDirection": "row",
+              "alignItems": "center",
+              "gap": 10,
+              "marginBottom": 12
+            }
+          },
+          "children": [
+            {
+              "type": "Text",
+              "props": {
+                "style": {
+                  "fontSize": 17,
+                  "fontWeight": "600",
+                  "color": "#1c1c1e"
+                }
+              },
+              "children": [
+                "Attention"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "View",
+          "props": {
+            "style": {
+              "flex": 1,
+              "alignItems": "center",
+              "justifyContent": "center",
+              "paddingVertical": 40,
+              "gap": 12
+            }
+          },
+          "children": [
+            {
+              "type": "ActivityIndicator",
+              "props": {
+                "size": "small"
+              },
+              "children": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

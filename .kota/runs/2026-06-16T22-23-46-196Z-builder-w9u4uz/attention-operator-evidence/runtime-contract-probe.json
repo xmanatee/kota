@@ -1,0 +1,260 @@
+{
+  "generatedAt": "2026-06-16T22:45:20.693Z",
+  "requestArms": [
+    "quiet",
+    "populated"
+  ],
+  "pass": true,
+  "arms": {
+    "quiet": {
+      "fixture": {
+        "ready": 1,
+        "backlog": 1,
+        "doing": 0,
+        "blocked": 0
+      },
+      "daemon": {
+        "request": "GET /api/attention",
+        "invocation": "attentionRoutes(...).handler(req,res)",
+        "status": 200,
+        "headers": {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "data": {
+            "items": []
+          },
+          "text": "No attention items right now."
+        }
+      },
+      "cli": {
+        "command": "node bin/kota.mjs attention --json",
+        "status": 0,
+        "stdout": "{\n  \"items\": [],\n  \"text\": \"No attention items right now.\"\n}\n",
+        "stderr": "",
+        "body": {
+          "items": [],
+          "text": "No attention items right now."
+        }
+      },
+      "telegram": {
+        "command": "/attention",
+        "handled": true,
+        "sent": [
+          {
+            "url": "https://api.telegram.org/bottelegram-probe-token/sendMessage",
+            "request": {
+              "chat_id": 12345,
+              "text": "No attention items right now."
+            }
+          }
+        ]
+      },
+      "slack": {
+        "command": "/attention",
+        "handled": true,
+        "sent": [
+          {
+            "url": "https://slack.com/api/chat.postMessage",
+            "request": {
+              "channel": "CATTENTION",
+              "text": "No attention items right now."
+            }
+          }
+        ]
+      },
+      "web": {
+        "decoder": "clients/conformance/decoders.ts parseAttentionResponse",
+        "parsed": {
+          "data": {
+            "items": []
+          },
+          "text": "No attention items right now."
+        }
+      },
+      "mobile": {
+        "decoder": "clients/mobile/src/daemon/conformance/decoders.ts parseAttentionResponse",
+        "parsed": {
+          "data": {
+            "items": []
+          },
+          "text": "No attention items right now."
+        }
+      },
+      "expected": {
+        "items": [],
+        "text": "No attention items right now."
+      }
+    },
+    "populated": {
+      "fixture": {
+        "ready": 0,
+        "backlog": 0,
+        "doing": 2,
+        "blocked": 0
+      },
+      "daemon": {
+        "request": "GET /api/attention",
+        "invocation": "attentionRoutes(...).handler(req,res)",
+        "status": 200,
+        "headers": {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "data": {
+            "items": [
+              {
+                "label": "Stalled work",
+                "detail": "2 tasks stuck in doing"
+              },
+              {
+                "label": "Empty ready queue",
+                "detail": "Builder has nothing to pull."
+              },
+              {
+                "label": "Empty backlog",
+                "detail": "No reserves for explorer to promote."
+              }
+            ]
+          },
+          "text": "Attention digest (3 items):\n• *Stalled work*: 2 tasks stuck in doing\n• *Empty ready queue*: Builder has nothing to pull.\n• *Empty backlog*: No reserves for explorer to promote."
+        }
+      },
+      "cli": {
+        "command": "node bin/kota.mjs attention --json",
+        "status": 0,
+        "stdout": "{\n  \"items\": [\n    {\n      \"label\": \"Stalled work\",\n      \"detail\": \"2 tasks stuck in doing\"\n    },\n    {\n      \"label\": \"Empty ready queue\",\n      \"detail\": \"Builder has nothing to pull.\"\n    },\n    {\n      \"label\": \"Empty backlog\",\n      \"detail\": \"No reserves for explorer to promote.\"\n    }\n  ],\n  \"text\": \"Attention digest (3 items):\\n• *Stalled work*: 2 tasks stuck in doing\\n• *Empty ready queue*: Builder has nothing to pull.\\n• *Empty backlog*: No reserves for explorer to promote.\"\n}\n",
+        "stderr": "",
+        "body": {
+          "items": [
+            {
+              "label": "Stalled work",
+              "detail": "2 tasks stuck in doing"
+            },
+            {
+              "label": "Empty ready queue",
+              "detail": "Builder has nothing to pull."
+            },
+            {
+              "label": "Empty backlog",
+              "detail": "No reserves for explorer to promote."
+            }
+          ],
+          "text": "Attention digest (3 items):\n• *Stalled work*: 2 tasks stuck in doing\n• *Empty ready queue*: Builder has nothing to pull.\n• *Empty backlog*: No reserves for explorer to promote."
+        }
+      },
+      "telegram": {
+        "command": "/attention",
+        "handled": true,
+        "sent": [
+          {
+            "url": "https://api.telegram.org/bottelegram-probe-token/sendMessage",
+            "request": {
+              "chat_id": 12345,
+              "text": "Attention digest (3 items):\n• *Stalled work*: 2 tasks stuck in doing\n• *Empty ready queue*: Builder has nothing to pull.\n• *Empty backlog*: No reserves for explorer to promote."
+            }
+          }
+        ]
+      },
+      "slack": {
+        "command": "/attention",
+        "handled": true,
+        "sent": [
+          {
+            "url": "https://slack.com/api/chat.postMessage",
+            "request": {
+              "channel": "CATTENTION",
+              "text": "Attention digest (3 items):\n• *Stalled work*: 2 tasks stuck in doing\n• *Empty ready queue*: Builder has nothing to pull.\n• *Empty backlog*: No reserves for explorer to promote."
+            }
+          }
+        ]
+      },
+      "web": {
+        "decoder": "clients/conformance/decoders.ts parseAttentionResponse",
+        "parsed": {
+          "data": {
+            "items": [
+              {
+                "label": "Stalled work",
+                "detail": "2 tasks stuck in doing"
+              },
+              {
+                "label": "Empty ready queue",
+                "detail": "Builder has nothing to pull."
+              },
+              {
+                "label": "Empty backlog",
+                "detail": "No reserves for explorer to promote."
+              }
+            ]
+          },
+          "text": "Attention digest (3 items):\n• *Stalled work*: 2 tasks stuck in doing\n• *Empty ready queue*: Builder has nothing to pull.\n• *Empty backlog*: No reserves for explorer to promote."
+        }
+      },
+      "mobile": {
+        "decoder": "clients/mobile/src/daemon/conformance/decoders.ts parseAttentionResponse",
+        "parsed": {
+          "data": {
+            "items": [
+              {
+                "label": "Stalled work",
+                "detail": "2 tasks stuck in doing"
+              },
+              {
+                "label": "Empty ready queue",
+                "detail": "Builder has nothing to pull."
+              },
+              {
+                "label": "Empty backlog",
+                "detail": "No reserves for explorer to promote."
+              }
+            ]
+          },
+          "text": "Attention digest (3 items):\n• *Stalled work*: 2 tasks stuck in doing\n• *Empty ready queue*: Builder has nothing to pull.\n• *Empty backlog*: No reserves for explorer to promote."
+        }
+      },
+      "expected": {
+        "items": [
+          {
+            "label": "Stalled work",
+            "detail": "2 tasks stuck in doing"
+          },
+          {
+            "label": "Empty ready queue",
+            "detail": "Builder has nothing to pull."
+          },
+          {
+            "label": "Empty backlog",
+            "detail": "No reserves for explorer to promote."
+          }
+        ],
+        "text": "Attention digest (3 items):\n• *Stalled work*: 2 tasks stuck in doing\n• *Empty ready queue*: Builder has nothing to pull.\n• *Empty backlog*: No reserves for explorer to promote."
+      }
+    }
+  },
+  "macos": {
+    "source": "clients/apple/Sources/KotaShared/Daemon/AttentionModels.swift",
+    "result": {
+      "populated": {
+        "itemCount": 3,
+        "labels": [
+          "Stalled work",
+          "Empty ready queue",
+          "Empty backlog"
+        ],
+        "text": "Attention digest (3 items):\n• *Stalled work*: 2 tasks stuck in doing\n• *Empty ready queue*: Builder has nothing to pull.\n• *Empty backlog*: No reserves for explorer to promote."
+      },
+      "quiet": {
+        "text": "No attention items right now.",
+        "labels": [],
+        "itemCount": 0
+      }
+    }
+  }
+}

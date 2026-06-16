@@ -1,0 +1,49 @@
+{
+  "quiet": {
+    "request": "GET /api/attention",
+    "invocation": "attentionRoutes(...).handler(req,res)",
+    "status": 200,
+    "headers": {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "data": {
+        "items": []
+      },
+      "text": "No attention items right now."
+    }
+  },
+  "populated": {
+    "request": "GET /api/attention",
+    "invocation": "attentionRoutes(...).handler(req,res)",
+    "status": 200,
+    "headers": {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "data": {
+        "items": [
+          {
+            "label": "Stalled work",
+            "detail": "2 tasks stuck in doing"
+          },
+          {
+            "label": "Empty ready queue",
+            "detail": "Builder has nothing to pull."
+          },
+          {
+            "label": "Empty backlog",
+            "detail": "No reserves for explorer to promote."
+          }
+        ]
+      },
+      "text": "Attention digest (3 items):\n• *Stalled work*: 2 tasks stuck in doing\n• *Empty ready queue*: Builder has nothing to pull.\n• *Empty backlog*: No reserves for explorer to promote."
+    }
+  }
+}

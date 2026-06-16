@@ -1,0 +1,5 @@
+Complete attention fan-out consolidation evidence
+
+Move the attention consolidation task to done after adding same-request
+runtime contract evidence and rendered per-surface attention fixtures for
+CLI, daemon, Telegram, Slack, web, mobile, and macOS.

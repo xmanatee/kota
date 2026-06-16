@@ -1,0 +1,20 @@
+{
+  "quiet": [
+    {
+      "url": "https://slack.com/api/chat.postMessage",
+      "request": {
+        "channel": "CATTENTION",
+        "text": "No attention items right now."
+      }
+    }
+  ],
+  "populated": [
+    {
+      "url": "https://slack.com/api/chat.postMessage",
+      "request": {
+        "channel": "CATTENTION",
+        "text": "Attention digest (3 items):\n• *Stalled work*: 2 tasks stuck in doing\n• *Empty ready queue*: Builder has nothing to pull.\n• *Empty backlog*: No reserves for explorer to promote."
+      }
+    }
+  ]
+}

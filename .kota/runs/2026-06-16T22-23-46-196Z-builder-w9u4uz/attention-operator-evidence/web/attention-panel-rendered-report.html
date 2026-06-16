@@ -1,0 +1,68 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Web AttentionPanel Rendered Report</title>
+<style>
+  :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f7f8fa; color: #16181d; }
+  body { margin: 0; padding: 28px; }
+  main { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 6px; letter-spacing: 0; }
+  p { margin: 0 0 18px; color: #5a6270; font-size: 13px; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .state { background: white; border: 1px solid #d8dde6; border-radius: 8px; padding: 14px; box-shadow: 0 1px 2px rgba(17, 24, 39, 0.05); }
+  .state h2 { margin: 0 0 10px; font-size: 13px; font-weight: 650; color: #2d3440; }
+  .text-xs { font-size: 12px; }
+  .text-\[10px\] { font-size: 10px; }
+  .text-\[11px\] { font-size: 11px; }
+  .text-muted-foreground { color: #687384; }
+  .text-destructive { color: #b42318; }
+  .text-foreground { color: #111827; }
+  .text-yellow-600 { color: #b45309; }
+  .text-green-700 { color: #047857; }
+  .inline-flex { display: inline-flex; }
+  .items-center { align-items: center; }
+  .rounded-full { border-radius: 999px; }
+  .border { border: 1px solid #d1d5db; }
+  .border-transparent { border-color: transparent; }
+  .px-2\.5 { padding-left: 10px; padding-right: 10px; }
+  .py-0\.5 { padding-top: 2px; padding-bottom: 2px; }
+  .font-semibold { font-weight: 650; }
+  .bg-yellow-500\/10 { background: rgba(245, 158, 11, 0.14); }
+  .bg-green-500\/10 { background: rgba(34, 197, 94, 0.14); }
+  .bg-muted\/30 { background: #f3f5f8; }
+  .h-5 { min-height: 20px; }
+  .h-6 { min-height: 24px; }
+  .space-y-1 > * + * { margin-top: 4px; }
+  .space-y-1\.5 > * + * { margin-top: 6px; }
+  .flex { display: flex; }
+  .gap-1\.5 { gap: 6px; }
+  .rounded { border-radius: 6px; }
+  .p-2 { padding: 8px; }
+  .font-mono { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+  .leading-snug { line-height: 1.38; }
+  .whitespace-pre-wrap { white-space: pre-wrap; }
+  button, .button { border: 1px solid #c9d1dd; background: #fff; border-radius: 6px; padding: 4px 8px; font-size: 12px; }
+</style>
+<main>
+  <h1>Web AttentionPanel Rendered Report</h1>
+  <p>Generated from actual AttentionPanel test DOM fragments emitted under KOTA_RUN_DIR.</p>
+  <div class="grid">
+    <section class="state" id="loading">
+      <h2>Loading</h2>
+      <div class="text-xs text-muted-foreground">Loading attention...</div>
+    </section>
+<section class="state" id="items">
+      <h2>Populated</h2>
+      <div class="space-y-1.5"><div class="flex items-center gap-1.5"><div class="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors border-transparent bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 h-5 text-[10px]">2 items</div></div><pre class="whitespace-pre-wrap rounded border border-border bg-muted/30 p-2 font-mono text-[11px] leading-snug text-foreground">Attention digest (2 items):
+• *Empty ready queue*: Builder has nothing to pull.
+• *Empty backlog*: No reserves for explorer to promote.</pre></div>
+    </section>
+<section class="state" id="quiet">
+      <h2>Quiet</h2>
+      <div class="space-y-1.5"><div class="flex items-center gap-1.5"><div class="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors border-transparent bg-green-500/10 text-green-600 dark:text-green-400 h-5 text-[10px]">nothing pending</div></div><pre class="whitespace-pre-wrap rounded border border-border bg-muted/30 p-2 font-mono text-[11px] leading-snug text-foreground">No attention items right now.</pre></div>
+    </section>
+<section class="state" id="error">
+      <h2>Error + retry</h2>
+      <div class="space-y-1"><div class="text-xs text-destructive">API error 503: attention unavailable</div><button class="inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground rounded-md px-3 h-6 text-xs">Retry</button></div>
+    </section>
+  </div>
+</main>

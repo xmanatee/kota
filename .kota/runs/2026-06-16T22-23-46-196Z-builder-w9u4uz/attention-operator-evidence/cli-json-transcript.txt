@@ -1,0 +1,24 @@
+$ KOTA_PROJECT_DIR=<quiet-fixture> node bin/kota.mjs attention --json
+{
+  "items": [],
+  "text": "No attention items right now."
+}
+
+$ KOTA_PROJECT_DIR=<populated-fixture> node bin/kota.mjs attention --json
+{
+  "items": [
+    {
+      "label": "Stalled work",
+      "detail": "2 tasks stuck in doing"
+    },
+    {
+      "label": "Empty ready queue",
+      "detail": "Builder has nothing to pull."
+    },
+    {
+      "label": "Empty backlog",
+      "detail": "No reserves for explorer to promote."
+    }
+  ],
+  "text": "Attention digest (3 items):\n• *Stalled work*: 2 tasks stuck in doing\n• *Empty ready queue*: Builder has nothing to pull.\n• *Empty backlog*: No reserves for explorer to promote."
+}

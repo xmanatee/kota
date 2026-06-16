@@ -1,0 +1,8 @@
+1. Attention is discoverable from each shipped client surface's primary command, route, view, or navigation path.
+2. The attention client surfaces use the same daemon contract shape and discriminated response arms.
+3. The review names any duplicated decoder, error-rendering, or provider-readiness logic and files follow-up tasks when needed.
+4. Provider-unavailable and no-provider states degrade through the daemon's typed behavior rather than client-specific phantom arms.
+5. A rendered artifact exists for each attention surface from the operator perspective.
+6. Stale legacy attention affordances are either absent or called out with follow-up work.
+7. Scoped docs or AGENTS guidance near attention surfaces reflects the shipped reality.
+8. Accepted critic warnings from the fan-out batch are reviewed, with retirement follow-ups when needed.

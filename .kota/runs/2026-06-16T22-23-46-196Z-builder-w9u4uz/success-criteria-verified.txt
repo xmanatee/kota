@@ -1,0 +1,8 @@
+1. Verified by `attention-cli-transcript.txt` and `attention-operator-evidence/` rendered fixtures for Telegram, Slack, mobile, macOS, and web.
+2. Verified by `attention-operator-evidence/runtime-contract-probe.json`, which exercises the quiet and populated request arms through daemon route handling, CLI JSON, Telegram, Slack, web, mobile, and macOS decoding.
+3. Verified by `attention-consolidation-verification.md`; no new duplicated decoder, error-rendering, or provider-readiness follow-up is warranted.
+4. Verified by `src/modules/autonomy/workflows/attention-digest/AGENTS.md` and attention route/step tests: attention has no provider-unavailable arm and must not mint `semantic_unavailable`.
+5. Verified by `attention-operator-evidence/web/attention-panel-rendered-report.html`, `attention-operator-evidence/mobile/*.json`, `attention-operator-evidence/macos/attention-view-rendered-states.txt`, `attention-operator-evidence/telegram/attention-messages.json`, `attention-operator-evidence/slack/attention-messages.json`, and this run's CLI transcript.
+6. Verified by the macOS rendered IA migration map and the current verification review; no stale attention affordance follow-up is needed.
+7. Verified by `clients/AGENTS.md`, client-local guidance, and `src/modules/autonomy/workflows/attention-digest/AGENTS.md`.
+8. Verified by the task record and current verification artifact; no accepted warning contradiction or retirement follow-up was found.

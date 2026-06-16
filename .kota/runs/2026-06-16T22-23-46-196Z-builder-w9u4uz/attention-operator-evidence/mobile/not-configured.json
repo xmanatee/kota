@@ -1,0 +1,26 @@
+{
+  "type": "View",
+  "props": {
+    "style": {
+      "flex": 1,
+      "alignItems": "center",
+      "justifyContent": "center",
+      "paddingVertical": 40,
+      "gap": 12
+    }
+  },
+  "children": [
+    {
+      "type": "Text",
+      "props": {
+        "style": {
+          "color": "#8e8e93",
+          "fontSize": 14
+        }
+      },
+      "children": [
+        "No daemon configured."
+      ]
+    }
+  ]
+}

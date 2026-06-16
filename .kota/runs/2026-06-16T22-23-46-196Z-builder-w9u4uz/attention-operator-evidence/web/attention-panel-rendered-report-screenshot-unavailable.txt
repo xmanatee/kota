@@ -1,0 +1,5 @@
+Playwright screenshot capture unavailable in this sandbox.
+
+browserType.launch: Target page, context or browser has been closed
+
+HTML report remains available at /Users/xmanatee/Desktop/mono/apps/kota/.kota/runs/2026-06-16T22-23-46-196Z-builder-w9u4uz/attention-operator-evidence/web/attention-panel-rendered-report.html.

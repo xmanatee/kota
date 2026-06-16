@@ -7,6 +7,8 @@
  *  - failed /api/attention surfaces the daemon's error one-to-one
  */
 
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type { AttentionResponse } from "@/api/types";
 import { TestProjectProvider } from "@/lib/project-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -30,6 +32,26 @@ function makeWrapper(): {
     );
   }
   return { Wrapper, client };
+}
+
+function emitWebAttentionEvidence(fileName: string, html: string): void {
+  const runDir = process.env.KOTA_RUN_DIR;
+  if (!runDir) return;
+  const dir = join(runDir, "attention-operator-evidence", "web");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, fileName),
+    [
+      "<!doctype html>",
+      '<meta charset="utf-8">',
+      "<title>Web AttentionPanel rendered fixture</title>",
+      "<body>",
+      html,
+      "</body>",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
 }
 
 const ITEMS_PAYLOAD: AttentionResponse = {
@@ -71,6 +93,22 @@ describe("AttentionPanel", () => {
     vi.resetModules();
   });
 
+  it("renders the loading state while /api/attention is pending", () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockReturnValue(
+      new Promise(() => {}),
+    );
+
+    const { Wrapper } = makeWrapper();
+    const rendered = render(
+      <Wrapper>
+        <AttentionPanel />
+      </Wrapper>,
+    );
+
+    expect(screen.getByText("Loading attention...")).toBeInTheDocument();
+    emitWebAttentionEvidence("loading.html", rendered.container.innerHTML);
+  });
+
   it("renders the rendered body and an item count for an items-present payload", async () => {
     (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
@@ -78,7 +116,7 @@ describe("AttentionPanel", () => {
     });
 
     const { Wrapper } = makeWrapper();
-    render(
+    const rendered = render(
       <Wrapper>
         <AttentionPanel />
       </Wrapper>,
@@ -99,6 +137,10 @@ describe("AttentionPanel", () => {
         }),
       }),
     );
+    emitWebAttentionEvidence(
+      "items-present.html",
+      rendered.container.innerHTML,
+    );
   });
 
   it("labels empty payloads as 'nothing pending' and renders the no-items reply", async () => {
@@ -108,7 +150,7 @@ describe("AttentionPanel", () => {
     });
 
     const { Wrapper } = makeWrapper();
-    render(
+    const rendered = render(
       <Wrapper>
         <AttentionPanel />
       </Wrapper>,
@@ -121,6 +163,7 @@ describe("AttentionPanel", () => {
     expect(
       screen.getByText(/No attention items right now\./),
     ).toBeInTheDocument();
+    emitWebAttentionEvidence("quiet.html", rendered.container.innerHTML);
   });
 
   it("surfaces the daemon's typed error when /api/attention fails", async () => {
@@ -131,7 +174,7 @@ describe("AttentionPanel", () => {
     });
 
     const { Wrapper } = makeWrapper();
-    render(
+    const rendered = render(
       <Wrapper>
         <AttentionPanel />
       </Wrapper>,
@@ -142,5 +185,6 @@ describe("AttentionPanel", () => {
     );
     expect(screen.getByText(/API error 503/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
+    emitWebAttentionEvidence("error-retry.html", rendered.container.innerHTML);
   });
 });

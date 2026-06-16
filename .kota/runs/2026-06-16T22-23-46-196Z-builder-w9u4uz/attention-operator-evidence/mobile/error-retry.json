@@ -1,0 +1,126 @@
+{
+  "type": "RCTScrollView",
+  "props": {
+    "style": {
+      "flex": 1,
+      "backgroundColor": "#f2f2f7"
+    },
+    "contentContainerStyle": {
+      "padding": 16
+    },
+    "refreshControl": {
+      "type": "[Function]",
+      "key": null,
+      "props": {
+        "refreshing": false,
+        "onRefresh": "[Function]"
+      }
+    }
+  },
+  "children": [
+    {
+      "type": "RCTRefreshControl",
+      "props": {},
+      "children": null
+    },
+    {
+      "type": "View",
+      "props": {},
+      "children": [
+        {
+          "type": "View",
+          "props": {
+            "style": {
+              "flexDirection": "row",
+              "alignItems": "center",
+              "gap": 10,
+              "marginBottom": 12
+            }
+          },
+          "children": [
+            {
+              "type": "Text",
+              "props": {
+                "style": {
+                  "fontSize": 17,
+                  "fontWeight": "600",
+                  "color": "#1c1c1e"
+                }
+              },
+              "children": [
+                "Attention"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "View",
+          "props": {
+            "style": {
+              "backgroundColor": "rgba(255, 59, 48, 0.1)",
+              "borderRadius": 10,
+              "padding": 12,
+              "gap": 8
+            }
+          },
+          "children": [
+            {
+              "type": "Text",
+              "props": {
+                "style": {
+                  "color": "#ff3b30",
+                  "fontSize": 13
+                }
+              },
+              "children": [
+                "503 Service Unavailable"
+              ]
+            },
+            {
+              "type": "View",
+              "props": {
+                "accessible": true,
+                "accessibilityState": {
+                  "disabled": false
+                },
+                "accessibilityValue": {},
+                "style": {
+                  "alignSelf": "flex-start",
+                  "backgroundColor": "#007aff",
+                  "paddingHorizontal": 14,
+                  "paddingVertical": 8,
+                  "borderRadius": 8,
+                  "opacity": 1
+                },
+                "focusable": true,
+                "onStartShouldSetResponder": "[Function]",
+                "onResponderGrant": "[Function]",
+                "onResponderMove": "[Function]",
+                "onResponderRelease": "[Function]",
+                "onResponderTerminate": "[Function]",
+                "onResponderTerminationRequest": "[Function]",
+                "onClick": "[Function]",
+                "collapsable": false
+              },
+              "children": [
+                {
+                  "type": "Text",
+                  "props": {
+                    "style": {
+                      "color": "#fff",
+                      "fontWeight": "600",
+                      "fontSize": 13
+                    }
+                  },
+                  "children": [
+                    "Retry"
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
