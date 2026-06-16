@@ -40,6 +40,21 @@ describe("classifyAgentRuntimeFailure", () => {
     ).toEqual({ kind: "provider", retryable: true });
   });
 
+  it("classifies Codex CLI reconnect request timeouts as provider failures", () => {
+    expect(
+      classifyAgentRuntimeFailure({
+        subtype: "codex_cli_error",
+        message: "Reconnecting... 2/5 (request timed out)",
+      }),
+    ).toEqual({ kind: "provider", retryable: true });
+    expect(
+      classifyAgentRuntimeFailure({
+        message:
+          'Repair agent for step "build" failed: Reconnecting... 2/5 (request timed out)',
+      }),
+    ).toEqual({ kind: "provider", retryable: true });
+  });
+
   it("classifies Codex CLI remote compact disconnects as provider failures", () => {
     expect(
       classifyAgentRuntimeFailure({

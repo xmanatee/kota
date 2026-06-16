@@ -1,0 +1,14 @@
+node --conditions=source --import tsx .kota/runs/2026-06-16T16-34-20-705Z-builder-xr3iy4/answer-consolidation/probe-contract.mjs
+pass: wrote contract-probe.json with 9 cases
+
+node --conditions=source --import tsx .kota/runs/2026-06-16T16-34-20-705Z-builder-xr3iy4/answer-consolidation/probe-cli.mjs
+pass: wrote cli-transcript.txt with 9 commands
+
+pnpm validate-tasks
+pass
+
+pnpm test src/task-files.test.ts
+pass: 1 test file, 5 tests
+
+pnpm exec vitest run src/modules/answer/routes.test.ts src/modules/answer/cli.test.ts
+pass: 2 test files, 29 tests

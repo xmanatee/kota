@@ -1,0 +1,75 @@
+surface: macOS menu bar
+source:
+  - clients/apple/Sources/KotaShared/AnswerView.swift
+  - clients/apple/Sources/KotaShared/AnswerHistoryView.swift
+
+AskUnifiedView -> mode=answer -> AnswerBodyView
+
+empty-query:
+  Text("Type a question to ask across knowledge, memory, history, and tasks.")
+  style: .caption, .secondary
+
+loading:
+  ProgressView
+  Text("Composing…")
+
+success:
+  AnswerResultView.success
+  Text("KOTA chains cited answers from knowledge [knowledge:kota-answer] and prior answer envelopes [answer:answer-prev].")
+  AnswerCitationRow:
+    RecallSourceBadge("knowledge")
+    Text("0.993")
+    Text("Answer surface contract")
+  AnswerCitationRow:
+    RecallSourceBadge("answer")
+    Text("0.884")
+    Text("How does answer history work?")
+
+no_hits:
+  AnswerNoticeView
+  Text("No matching sources for this question.")
+  foregroundStyle: .orange
+
+semantic_unavailable:
+  AnswerNoticeView
+  Text("Answer unavailable — no recall contributors registered.")
+  foregroundStyle: .orange
+
+synthesis_failed:
+  AnswerNoticeView
+  Text("Could not compose a cited answer for this question.")
+  foregroundStyle: .orange
+
+AnswerHistoryView -> expanded list
+
+header:
+  Image(systemName: "text.book.closed")
+  Text("Answer History")
+  AnswerHistoryHeaderBadge(entryCount: 2)
+
+rows:
+  AnswerHistoryEntryRow("answer-rec-1")
+    Text("2026-06-16T16:00:00.000Z")
+    AnswerHistoryResultBadge.success("2 cites")
+    Text("How does answer history work?")
+  AnswerHistoryEntryRow("answer-rec-2")
+    Text("2026-06-16T15:59:00.000Z")
+    AnswerHistoryResultBadge.noHits("no_hits")
+    Text("What if nothing matches?")
+  Button("Load older")
+
+AnswerHistoryView -> detail found
+
+detail:
+  Button(Label("Back", systemImage: "chevron.backward"))
+  Text("answer-rec-1")
+  Text("2026-06-16T16:00:00.000Z")
+  Text("How does answer history work?")
+  AnswerResultView.success re-renders the same body and citation rows as AskUnifiedView.
+
+AnswerHistoryView -> detail not_found
+
+missing:
+  Text("No answer record with that id.")
+  foregroundStyle: .orange
+  background: Color.orange.opacity(0.12)

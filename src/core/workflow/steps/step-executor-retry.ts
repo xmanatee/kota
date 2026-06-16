@@ -155,6 +155,20 @@ function parseApiErrorStatus(text: string): number | undefined {
   return Number.isInteger(parsed) ? parsed : undefined;
 }
 
+const CODEX_RECONNECT_REQUEST_TIMEOUT =
+  /Reconnecting\.\.\. \d+\/\d+ \(request timed out\)$/;
+const WRAPPED_CODEX_RECONNECT_REQUEST_TIMEOUT =
+  /^(?:Agent step "[^"]+" failed \(codex_cli_error\)|Repair agent for step "[^"]+" failed): Reconnecting\.\.\. \d+\/\d+ \(request timed out\)$/;
+
+function isCodexReconnectRequestTimeout(
+  input: AgentFailureContext,
+): boolean {
+  if (input.subtype === "codex_cli_error") {
+    return CODEX_RECONNECT_REQUEST_TIMEOUT.test(input.message);
+  }
+  return WRAPPED_CODEX_RECONNECT_REQUEST_TIMEOUT.test(input.message);
+}
+
 /**
  * Classify an agent runtime failure against structured error signals.
  *
@@ -264,6 +278,9 @@ export function classifyAgentRuntimeFailure(
       input.message,
     )
   ) {
+    return { kind: "provider", retryable: true };
+  }
+  if (isCodexReconnectRequestTimeout(input)) {
     return { kind: "provider", retryable: true };
   }
   if (

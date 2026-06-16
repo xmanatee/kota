@@ -1,0 +1,83 @@
+{
+  "surface": "mobile-react-native",
+  "sourceFiles": [
+    "clients/mobile/src/screens/AnswerScreen.tsx",
+    "clients/mobile/src/answerRender.tsx",
+    "clients/mobile/src/screens/AnswerHistoryScreen.tsx"
+  ],
+  "states": [
+    {
+      "name": "AnswerScreen empty query",
+      "renderedText": [
+        "Answer",
+        "Ask the second brain...",
+        "Ask",
+        "Type a question and tap Ask to compose a cited answer across knowledge, memory, history, and tasks."
+      ]
+    },
+    {
+      "name": "AnswerScreen offline",
+      "renderedText": [
+        "Daemon offline — retrying every 15s",
+        "Answer",
+        "Ask the second brain...",
+        "Ask"
+      ]
+    },
+    {
+      "name": "AnswerBody success",
+      "renderedTree": {
+        "type": "View",
+        "children": [
+          "KOTA chains cited answers from knowledge [knowledge:kota-answer] and prior answer envelopes [answer:answer-prev].",
+          "knowledge",
+          "0.993",
+          "Answer surface contract",
+          "answer",
+          "0.884",
+          "How does answer history work?"
+        ]
+      }
+    },
+    {
+      "name": "AnswerBody no_hits",
+      "renderedText": ["No matching sources for this question."]
+    },
+    {
+      "name": "AnswerBody semantic_unavailable",
+      "renderedText": ["Answer unavailable — no recall contributors registered."]
+    },
+    {
+      "name": "AnswerBody synthesis_failed",
+      "renderedText": ["Could not compose a cited answer for this question."]
+    },
+    {
+      "name": "AnswerHistoryScreen log",
+      "renderedText": [
+        "Answer history",
+        "2026-06-16T16:00:00.000Z",
+        "2 cites",
+        "How does answer history work?",
+        "2026-06-16T15:59:00.000Z",
+        "no_hits",
+        "What if nothing matches?",
+        "Load older"
+      ]
+    },
+    {
+      "name": "AnswerHistoryScreen show found",
+      "renderedText": [
+        "Back",
+        "2 cites",
+        "answer-rec-1",
+        "2026-06-16T16:00:00.000Z",
+        "How does answer history work?",
+        "KOTA chains cited answers from knowledge [knowledge:kota-answer] and prior answer envelopes [answer:answer-prev]."
+      ]
+    },
+    {
+      "name": "AnswerHistoryScreen show not_found",
+      "renderedText": ["Back", "No answer record with that id."]
+    }
+  ]
+}

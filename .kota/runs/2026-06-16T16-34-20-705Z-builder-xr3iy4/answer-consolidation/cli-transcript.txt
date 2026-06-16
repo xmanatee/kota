@@ -1,0 +1,68 @@
+$ kota answer --help
+[exit 0]
+stdout:
+Usage: kota answer [options] [command]
+
+Compose, list, and re-read cited answers over the second brain.
+
+Options:
+  -h, --help             display help for command
+
+Commands:
+  log [options]          List newest-first persisted answer records.
+  show [options] <id>    Re-render a persisted answer record by id.
+  ask [options] <query>  Compose one short cited answer from the second brain.
+                         Citations resolve back to typed RecallHits.
+  help [command]         display help for command
+
+$ kota answer ask "How does recall work?"
+[exit 0]
+stdout:
+Recall ranks across stores [knowledge:k1] and prior answers [answer:a1].
+
+Citations
+knowledge  1.000  k1  Recall design
+answer     0.800  a1  [ok(1)] How does answer history work?
+
+$ kota answer ask "empty store"
+[exit 1]
+stderr:
+No matching sources across the second brain — nothing to synthesize.
+
+$ kota answer ask ""
+[exit 1]
+stderr:
+Usage: kota answer <query>
+
+$ kota answer log
+[exit 0]
+stdout:
+2026-06-16T16:00:00Z  ok(2)                 answer-rec-1  How does answer history work?
+2026-06-16T15:59:00Z  no_hits               answer-rec-2  What if nothing matches?
+
+$ kota answer log --json
+[exit 0]
+stdout:
+{"entries":[{"id":"answer-rec-1","createdAt":"2026-06-16T16:00:00.000Z","query":"How does answer history work?","result":{"ok":true,"citationCount":2}},{"id":"answer-rec-2","createdAt":"2026-06-16T15:59:00.000Z","query":"What if nothing matches?","result":{"ok":false,"reason":"no_hits"}}]}
+
+$ kota answer show answer-rec-1
+[exit 0]
+stdout:
+2026-06-16T16:00:00Z  answer-rec-1
+Query: How does answer history work?
+
+Recall ranks across stores [knowledge:k1] and prior answers [answer:a1].
+
+Citations
+knowledge  1.000  k1  Recall design
+answer     0.800  a1  [ok(1)] How does answer history work?
+
+$ kota answer show missing
+[exit 1]
+stderr:
+No answer record found for id "missing".
+
+$ kota answer show missing --json
+[exit 1]
+stdout:
+{"ok":false,"reason":"not_found"}

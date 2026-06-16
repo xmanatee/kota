@@ -1,0 +1,225 @@
+{
+  "generatedAt": "2026-06-16T17:03:01.000Z",
+  "routeSource": "src/modules/answer/routes.ts",
+  "coveredAnswerResultArms": [
+    "ok:true",
+    "ok:false/no_hits",
+    "ok:false/semantic_unavailable",
+    "ok:false/synthesis_failed"
+  ],
+  "coveredAnswerHistoryArms": [
+    "log entries",
+    "show ok:true",
+    "show not_found"
+  ],
+  "cases": [
+    {
+      "name": "empty-query-400",
+      "status": 400,
+      "body": {
+        "error": "query is required"
+      }
+    },
+    {
+      "name": "ok-success-knowledge-and-answer-citations-200",
+      "status": 200,
+      "body": {
+        "ok": true,
+        "answer": "KOTA chains cited answers from knowledge [knowledge:kota-answer] and prior answer envelopes [answer:answer-prev].",
+        "citations": [
+          {
+            "source": "knowledge",
+            "id": "kota-answer"
+          },
+          {
+            "source": "answer",
+            "id": "answer-prev"
+          }
+        ],
+        "hits": [
+          {
+            "source": "knowledge",
+            "score": 0.993,
+            "id": "kota-answer",
+            "title": "Answer surface contract",
+            "preview": "All clients render AnswerResult and AnswerHistoryShowResult.",
+            "updated": "2026-06-16"
+          },
+          {
+            "source": "answer",
+            "score": 0.884,
+            "id": "answer-prev",
+            "query": "How does answer history work?",
+            "preview": "Answer history persists every cited-answer envelope.",
+            "citationCount": 1,
+            "createdAt": "2026-06-16T16:00:00.000Z",
+            "result": {
+              "ok": true
+            }
+          }
+        ]
+      },
+      "observed": {
+        "query": "How does answer history work?",
+        "filter": {
+          "topK": 8,
+          "sources": [
+            "knowledge",
+            "answer"
+          ]
+        }
+      }
+    },
+    {
+      "name": "no-hits-200",
+      "status": 200,
+      "body": {
+        "ok": false,
+        "reason": "no_hits"
+      },
+      "observed": {
+        "query": "missing"
+      }
+    },
+    {
+      "name": "semantic-unavailable-200",
+      "status": 200,
+      "body": {
+        "ok": false,
+        "reason": "semantic_unavailable"
+      },
+      "observed": {
+        "query": "missing"
+      }
+    },
+    {
+      "name": "synthesis-failed-200",
+      "status": 200,
+      "body": {
+        "ok": false,
+        "reason": "synthesis_failed"
+      },
+      "observed": {
+        "query": "missing"
+      }
+    },
+    {
+      "name": "provider-throws-500",
+      "status": 500,
+      "body": {
+        "error": "provider boom"
+      }
+    },
+    {
+      "name": "answer-log-mixed-list-200",
+      "status": 200,
+      "body": {
+        "entries": [
+          {
+            "id": "answer-rec-1",
+            "createdAt": "2026-06-16T16:00:00.000Z",
+            "query": "How does answer history work?",
+            "result": {
+              "ok": true,
+              "citationCount": 2
+            }
+          },
+          {
+            "id": "answer-rec-2",
+            "createdAt": "2026-06-16T16:00:00.000Z",
+            "query": "No match?",
+            "result": {
+              "ok": false,
+              "reason": "no_hits"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "answer-show-found-200",
+      "status": 200,
+      "body": {
+        "ok": true,
+        "record": {
+          "id": "answer-rec-1",
+          "createdAt": "2026-06-16T16:00:00.000Z",
+          "query": "How does answer history work?",
+          "filter": {
+            "topK": 8,
+            "sources": [
+              "knowledge",
+              "answer"
+            ]
+          },
+          "recallHits": [
+            {
+              "source": "knowledge",
+              "score": 0.993,
+              "id": "kota-answer",
+              "title": "Answer surface contract",
+              "preview": "All clients render AnswerResult and AnswerHistoryShowResult.",
+              "updated": "2026-06-16"
+            },
+            {
+              "source": "answer",
+              "score": 0.884,
+              "id": "answer-prev",
+              "query": "How does answer history work?",
+              "preview": "Answer history persists every cited-answer envelope.",
+              "citationCount": 1,
+              "createdAt": "2026-06-16T16:00:00.000Z",
+              "result": {
+                "ok": true
+              }
+            }
+          ],
+          "result": {
+            "ok": true,
+            "answer": "KOTA chains cited answers from knowledge [knowledge:kota-answer] and prior answer envelopes [answer:answer-prev].",
+            "citations": [
+              {
+                "source": "knowledge",
+                "id": "kota-answer"
+              },
+              {
+                "source": "answer",
+                "id": "answer-prev"
+              }
+            ],
+            "hits": [
+              {
+                "source": "knowledge",
+                "score": 0.993,
+                "id": "kota-answer",
+                "title": "Answer surface contract",
+                "preview": "All clients render AnswerResult and AnswerHistoryShowResult.",
+                "updated": "2026-06-16"
+              },
+              {
+                "source": "answer",
+                "score": 0.884,
+                "id": "answer-prev",
+                "query": "How does answer history work?",
+                "preview": "Answer history persists every cited-answer envelope.",
+                "citationCount": 1,
+                "createdAt": "2026-06-16T16:00:00.000Z",
+                "result": {
+                  "ok": true
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "answer-show-not-found-200",
+      "status": 200,
+      "body": {
+        "ok": false,
+        "reason": "not_found"
+      }
+    }
+  ]
+}

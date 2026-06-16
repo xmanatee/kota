@@ -1,0 +1,8 @@
+1. Confirm answer information architecture is represented across the shipped macOS, mobile, Slack, Telegram, and web surfaces.
+2. Confirm all answer surfaces use the same daemon answer and answer-history contract, including discriminated result arms and error reasons.
+3. Confirm duplicated route, decoder, error-rendering, or provider-readiness gaps have named follow-up task coverage.
+4. Confirm provider-unavailable and degraded answer states render through typed failure arms instead of generic breakage.
+5. Confirm rendered evidence exists for every required answer surface.
+6. Confirm stale legacy affordances were reviewed and either absent or tracked by a follow-up.
+7. Confirm scoped documentation reflects the shipped answer surface reality.
+8. Confirm accepted critic warnings from the fan-out commits were reviewed and no untracked retirement plan remains.

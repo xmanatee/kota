@@ -1,0 +1,4 @@
+Repair answer fan-out consolidation evidence
+
+Add current answer consolidation probes and per-surface rendered fixtures, then
+align the completed task with the evidence that now exists.

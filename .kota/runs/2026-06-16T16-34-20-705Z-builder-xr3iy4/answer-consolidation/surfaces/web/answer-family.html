@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>KOTA Web Answer Surface Fixture</title>
+    <style>
+      body {
+        margin: 0;
+        background: #f8fafc;
+        color: #111827;
+        font: 13px/1.4 system-ui, sans-serif;
+      }
+      main {
+        max-width: 840px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+      section {
+        border: 1px solid #d4d4d8;
+        border-radius: 8px;
+        background: #fff;
+        margin-bottom: 16px;
+        padding: 16px;
+      }
+      h1,
+      h2 {
+        margin: 0 0 10px;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin: 6px 0;
+      }
+      input {
+        flex: 1;
+        border: 1px solid #d4d4d8;
+        border-radius: 6px;
+        padding: 7px 9px;
+      }
+      button,
+      .badge {
+        border: 1px solid #d4d4d8;
+        border-radius: 6px;
+        padding: 4px 8px;
+        background: #fff;
+        font-size: 12px;
+      }
+      .badge-success {
+        border-color: #86efac;
+        background: #f0fdf4;
+        color: #166534;
+      }
+      .badge-warning {
+        border-color: #fed7aa;
+        background: #fff7ed;
+        color: #9a3412;
+      }
+      .muted {
+        color: #6b7280;
+      }
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+      }
+      .answer {
+        white-space: pre-wrap;
+      }
+      .citation {
+        display: grid;
+        grid-template-columns: 86px 1fr 48px;
+        gap: 8px;
+        border-top: 1px solid #e5e7eb;
+        padding-top: 6px;
+        margin-top: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Web AnswerPanel + AnswerHistoryPanel</h1>
+      <p class="muted">
+        Source files: clients/web/src/components/sidebar/AnswerPanel.tsx,
+        AnswerResultView.tsx, AnswerHistoryPanel.tsx.
+      </p>
+
+      <section aria-label="AnswerPanel success">
+        <h2>AnswerPanel: success</h2>
+        <form class="row">
+          <input value="How does answer history work?" aria-label="Ask the second brain..." />
+          <button type="button">Answer</button>
+        </form>
+        <p class="answer">
+          KOTA chains cited answers from knowledge [knowledge:kota-answer] and prior answer envelopes [answer:answer-prev].
+        </p>
+        <div class="citation">
+          <span class="badge">knowledge</span>
+          <span><span class="mono">kota-answer</span><br />Answer surface contract</span>
+          <span class="mono">0.993</span>
+        </div>
+        <div class="citation">
+          <span class="badge badge-success">answer</span>
+          <span><span class="mono">answer-prev</span><br />How does answer history work?</span>
+          <span class="mono">0.884</span>
+        </div>
+      </section>
+
+      <section aria-label="AnswerPanel failure arms">
+        <h2>AnswerPanel: typed failure arms</h2>
+        <p>No matching sources for this question.</p>
+        <p>Answer unavailable — no recall contributors registered.</p>
+        <p>Could not compose a cited answer for this question.</p>
+      </section>
+
+      <section aria-label="AnswerHistoryPanel log">
+        <h2>AnswerHistoryPanel: log</h2>
+        <div class="row">
+          <span class="mono muted">2026-06-16T16:00:00Z</span>
+          <span class="badge badge-success">ok(2)</span>
+          <span>How does answer history work?</span>
+        </div>
+        <div class="row">
+          <span class="mono muted">2026-06-16T15:59:00Z</span>
+          <span class="badge badge-warning">no_hits</span>
+          <span>What if nothing matches?</span>
+        </div>
+        <button type="button">Load older</button>
+      </section>
+
+      <section aria-label="AnswerHistoryPanel show found">
+        <h2>AnswerHistoryPanel: show found</h2>
+        <button type="button">Back</button>
+        <p class="mono muted">answer-rec-1</p>
+        <p class="mono muted">2026-06-16T16:00:00.000Z</p>
+        <p>How does answer history work?</p>
+        <p class="answer">
+          KOTA chains cited answers from knowledge [knowledge:kota-answer] and prior answer envelopes [answer:answer-prev].
+        </p>
+      </section>
+
+      <section aria-label="AnswerHistoryPanel show not found">
+        <h2>AnswerHistoryPanel: show not found</h2>
+        <button type="button">Back</button>
+        <p class="muted">No answer record with that id.</p>
+      </section>
+    </main>
+  </body>
+</html>

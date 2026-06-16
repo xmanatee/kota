@@ -1,0 +1,8 @@
+1. Verified from `data/tasks/done/task-fan-out-consolidation-answer.md` and `.kota/runs/2026-06-16T16-34-20-705Z-builder-xr3iy4/answer-consolidation/verdict.md`: required surfaces are listed as Telegram, Slack, mobile, macOS, and web.
+2. Verified from `.kota/runs/2026-06-16T16-34-20-705Z-builder-xr3iy4/answer-consolidation/contract-probe.json` plus `data/tasks/done/task-extend-cross-client-conformance-and-thin-client-de.md`: answer, answer-history, answer citation, and recall answer-hit contract drift was found and closed.
+3. Verified the named follow-up `task-extend-cross-client-conformance-and-thin-client-de` is in `data/tasks/done/`.
+4. Verified rendered evidence includes answer `no_hits`, `semantic_unavailable`, and `synthesis_failed` states in Telegram, Slack, mobile, macOS, and web fixtures.
+5. Verified `.kota/runs/2026-06-16T16-34-20-705Z-builder-xr3iy4/answer-consolidation/surfaces/` contains evidence for `telegram`, `slack`, `mobile`, `macos`, and `web`.
+6. Verified the task's accepted warning review found no stale legacy affordance retirement work beyond the named conformance follow-up.
+7. Verified `src/modules/answer/AGENTS.md` describes the shipped answer route, CLI, dynamic prompt provider, history store, recall contribution, and no-fan-out boundary.
+8. Verified the task record names the closing fan-out evidence, the accepted warning review, and the completed conformance follow-up; no additional follow-up is needed for this closeout.
