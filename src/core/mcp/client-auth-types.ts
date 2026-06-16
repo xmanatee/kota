@@ -416,40 +416,118 @@ export type McpOAuthTokenBinding = {
   token: McpOAuthTokenSet;
 };
 
+const mcpAuthorizationErrorChallenges = new WeakMap<
+  McpAuthorizationError,
+  McpAuthorizationChallenge
+>();
+
+function redactChallengeMetadata(
+  metadata: McpProtectedResourceMetadata,
+  redact: McpAuthorizationChallengeMessageRedactor,
+): McpProtectedResourceMetadata {
+  return {
+    resource: redact(metadata.resource),
+    authorizationServers: metadata.authorizationServers.map(redact),
+    bearerMethodsSupported: metadata.bearerMethodsSupported.map(redact),
+    scopesSupported: metadata.scopesSupported.map(redact),
+    extensionsSupported: metadata.extensionsSupported.map(redact),
+  };
+}
+
+function redactChallengeDiscovery(
+  discovery: McpProtectedResourceMetadataDiscovery,
+  redact: McpAuthorizationChallengeMessageRedactor,
+): McpProtectedResourceMetadataDiscovery {
+  if (discovery.status === "found") {
+    return {
+      status: "found",
+      url: redact(discovery.url),
+      metadata: redactChallengeMetadata(discovery.metadata, redact),
+    };
+  }
+  return {
+    status: "unavailable",
+    attemptedUrls: discovery.attemptedUrls.map(redact),
+    error: redact(discovery.error),
+  };
+}
+
+function redactAuthorizationChallenge(
+  challenge: McpAuthorizationChallenge,
+  redact: McpAuthorizationChallengeMessageRedactor,
+): McpAuthorizationChallenge {
+  return {
+    scheme: challenge.scheme,
+    ...(challenge.resourceMetadataUrl !== undefined
+      ? { resourceMetadataUrl: redact(challenge.resourceMetadataUrl) }
+      : {}),
+    ...(challenge.metadataDiscovery !== undefined
+      ? { metadataDiscovery: redactChallengeDiscovery(challenge.metadataDiscovery, redact) }
+      : {}),
+    scopes: challenge.scopes.map(redact),
+    ...(challenge.error !== undefined ? { error: redact(challenge.error) } : {}),
+  };
+}
+
+function mcpAuthorizationErrorMessage(
+  serverName: string,
+  method: string,
+  status: 401 | 403,
+  challenge: McpAuthorizationChallenge,
+): string {
+  const details: string[] = [];
+  if (challenge.error) details.push(`error=${challenge.error}`);
+  if (challenge.resourceMetadataUrl) {
+    details.push(`resource_metadata=${challenge.resourceMetadataUrl}`);
+  }
+  if (challenge.scopes.length > 0) {
+    details.push(`scope=${challenge.scopes.join(" ")}`);
+  }
+  if (challenge.metadataDiscovery?.status === "found") {
+    const { authorizationServers } = challenge.metadataDiscovery.metadata;
+    if (authorizationServers.length > 0) {
+      details.push(`authorization_servers=${authorizationServers.join(" ")}`);
+    }
+  }
+  const reason = status === 403
+    ? "insufficient authorization scope"
+    : "authorization required";
+  return `MCP authorization failed for server "${serverName}" during ${method}: ` +
+    `HTTP ${status} ${reason}${details.length > 0 ? ` (${details.join("; ")})` : ""}`;
+}
+
 export class McpAuthorizationError extends Error {
   readonly name = "McpAuthorizationError";
+  readonly serverName: string;
+  readonly method: string;
+  readonly status: 401 | 403;
+  readonly challenge: McpAuthorizationChallenge;
 
   constructor(
-    readonly serverName: string,
-    readonly method: string,
-    readonly status: 401 | 403,
-    readonly challenge: McpAuthorizationChallenge,
+    serverName: string,
+    method: string,
+    status: 401 | 403,
+    challenge: McpAuthorizationChallenge,
     redactChallengeDetail: McpAuthorizationChallengeMessageRedactor,
   ) {
-    const details: string[] = [];
-    if (challenge.error) details.push(`error=${redactChallengeDetail(challenge.error)}`);
-    if (challenge.resourceMetadataUrl) {
-      details.push(`resource_metadata=${redactChallengeDetail(challenge.resourceMetadataUrl)}`);
-    }
-    if (challenge.scopes.length > 0) {
-      details.push(`scope=${redactChallengeDetail(challenge.scopes.join(" "))}`);
-    }
-    if (challenge.metadataDiscovery?.status === "found") {
-      const { authorizationServers } = challenge.metadataDiscovery.metadata;
-      if (authorizationServers.length > 0) {
-        details.push(
-          `authorization_servers=${redactChallengeDetail(authorizationServers.join(" "))}`,
-        );
-      }
-    }
-    const reason = status === 403
-      ? "insufficient authorization scope"
-      : "authorization required";
-    super(
-      `MCP authorization failed for server "${serverName}" during ${method}: ` +
-        `HTTP ${status} ${reason}${details.length > 0 ? ` (${details.join("; ")})` : ""}`,
-    );
+    const redactedChallenge = redactAuthorizationChallenge(challenge, redactChallengeDetail);
+    super(mcpAuthorizationErrorMessage(serverName, method, status, redactedChallenge));
+    this.serverName = serverName;
+    this.method = method;
+    this.status = status;
+    this.challenge = redactedChallenge;
+    mcpAuthorizationErrorChallenges.set(this, challenge);
   }
+}
+
+export function mcpAuthorizationChallengeForRetry(
+  error: McpAuthorizationError,
+): McpAuthorizationChallenge {
+  const challenge = mcpAuthorizationErrorChallenges.get(error);
+  if (!challenge) {
+    throw new Error("MCP authorization challenge is unavailable for retry");
+  }
+  return challenge;
 }
 
 export class McpAuthorizationFlowError extends Error {

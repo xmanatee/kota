@@ -3427,6 +3427,63 @@ describe("McpClient Streamable HTTP transport", () => {
     expect(message).toContain("error=[redacted]");
     expect(message).toContain("scope=files:read [redacted]");
     expect(message).not.toContain("configured-secret");
+    const error = thrown as McpAuthorizationError;
+    expect(error.challenge).toMatchObject({
+      error: "[redacted]",
+      scopes: ["files:read", "[redacted]"],
+    });
+    expect(JSON.stringify(error)).not.toContain("configured-secret");
+    expect(JSON.stringify(error.challenge)).not.toContain("configured-secret");
+  });
+
+  it("keeps raw authorization challenges out of serializable error surfaces", () => {
+    const { privateKeyPem } = privateKeyJwtTestKeyPair();
+    const secrets = [
+      "configured-bearer-token",
+      "oauth-client-secret",
+      privateKeyPem,
+      "private-key-jwt-assertion",
+      "acquired-access-token",
+      "acquired-refresh-token",
+    ];
+    const redact = (value: string) =>
+      secrets.reduce((redacted, secret) => redacted.replaceAll(secret, "[redacted]"), value);
+    const error = new McpAuthorizationError(
+      "auth-redaction-client",
+      "tools/call",
+      403,
+      {
+        scheme: "Bearer",
+        resourceMetadataUrl: "https://mcp.example.test/configured-bearer-token",
+        error: "invalid_token oauth-client-secret",
+        scopes: ["files:read", "private-key-jwt-assertion", privateKeyPem],
+        metadataDiscovery: {
+          status: "found",
+          url: "https://mcp.example.test/acquired-access-token",
+          metadata: {
+            resource: "https://mcp.example.test/acquired-refresh-token",
+            authorizationServers: ["https://auth.example.test/oauth-client-secret"],
+            bearerMethodsSupported: ["configured-bearer-token"],
+            scopesSupported: ["files:read", privateKeyPem],
+            extensionsSupported: ["private-key-jwt-assertion"],
+          },
+        },
+      },
+      redact,
+    );
+    const serializedError = JSON.stringify(error);
+    const serializedChallenge = JSON.stringify(error.challenge);
+    const ownPropertyDump = JSON.stringify(Object.getOwnPropertyDescriptors(error));
+
+    expect(error.message).toContain("[redacted]");
+    expect(serializedError).toContain("[redacted]");
+    expect(serializedChallenge).toContain("[redacted]");
+    for (const secret of secrets) {
+      expect(error.message).not.toContain(secret);
+      expect(serializedError).not.toContain(secret);
+      expect(serializedChallenge).not.toContain(secret);
+      expect(ownPropertyDump).not.toContain(secret);
+    }
   });
 
   it("redacts configured OAuth secrets echoed through authorization flow fields", async () => {

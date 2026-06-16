@@ -11,6 +11,7 @@ import type {
 import {
   McpAuthorizationError,
   McpAuthorizationFlowError,
+  mcpAuthorizationChallengeForRetry,
 } from "./client-auth-types.js";
 import {
   base64Url,
@@ -52,7 +53,7 @@ export abstract class McpClientAuthorizationRuntime extends McpClientOAuthTokenR
       return false;
     }
     const config = this.transport.authorization;
-    const challenge = error.challenge;
+    const challenge = mcpAuthorizationChallengeForRetry(error);
     const configuredScopes = config.scopes;
     const challengeErrorScopes = config.type === "oauth"
       ? uniqueScopes([...configuredScopes, ...challenge.scopes])

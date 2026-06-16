@@ -1,12 +1,12 @@
 ---
 id: task-security-review-mcpauthorizationerror-redacts-sens
 title: Security review: McpAuthorizationError redacts sensitive challenge details only in the error message while retaining the raw authorization challenge as an enumerable public error field. If a remote MCP server echoes a configured bearer/OAuth secret in WWW-Authenticate challenge fields, structured error serialization or object logging can expose the secret despite message redaction.
-status: ready
+status: done
 priority: p2
 area: security
 summary: McpAuthorizationError redacts sensitive challenge details only in the error message while retaining the raw authorization challenge as an enumerable public error field. If a remote MCP server echoes a configured bearer/OAuth secret in WWW-Authenticate challenge fields, structured error serialization or object logging can expose the secret despite message redaction.
 created_at: 2026-06-16T21:57:52.152Z
-updated_at: 2026-06-16T21:57:52.152Z
+updated_at: 2026-06-16T22:17:28.000Z
 ---
 
 ## Problem
@@ -57,3 +57,18 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Result
+
+Fixed the confirmed leak by keeping the raw `McpAuthorizationChallenge` in
+module-private retry state and exposing only a redacted public `challenge`
+projection on `McpAuthorizationError`. The OAuth retry path now reads the raw
+challenge through the internal accessor, so authorization behavior is preserved
+without putting raw challenge fields on serializable error objects.
+
+Verification:
+
+- `pnpm test src/core/mcp/client.test.ts`
+- `pnpm exec biome check src/core/mcp/client-auth-types.ts src/core/mcp/client-authorization-runtime.ts src/core/mcp/client.test.ts`
+- `pnpm typecheck`
+- `pnpm run validate-tasks`
