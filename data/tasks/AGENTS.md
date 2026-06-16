@@ -108,10 +108,10 @@ Precondition` using the typed vocabulary enforced by the validator:
 - `task-done` — promote when the referenced enabler task is in `done/`.
 - `capability-installed` — promote when the deterministic local capability
   probe is satisfied (`playwright` or `storageState:<path>`).
-- `owner-decision` — re-ask through blocked-promoter on the 14-day cadence and
-  promote only after the workflow writes a resolved marker.
-- `operator-capture` — promote when the named evidence path exists; until then,
-  blocked-promoter refreshes an instruction marker on the 14-day cadence.
+- `owner-decision` — re-ask through blocked-promoter on the 14-day cadence; promote only after the workflow writes a resolved marker.
+- `operator-capture` — promote when the named evidence file exists, or when its
+  directory contains operator-visible proof; preflight/smoke-only directories
+  stay blocked and refresh the 14-day marker.
 
 Do not use `blocked/` as a parking lot. If a blocked task has been reviewed,
 move/drop/rescope it or refresh the exact action marker. Queue validation emits

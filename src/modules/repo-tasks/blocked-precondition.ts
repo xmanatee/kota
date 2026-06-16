@@ -1,6 +1,6 @@
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { type Dirent, existsSync, readdirSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
-import { isAbsolute, join, resolve } from "node:path";
+import { basename, extname, isAbsolute, join, resolve } from "node:path";
 import { getRepoTaskStateDir } from "./repo-tasks-domain.js";
 
 /**
@@ -12,8 +12,8 @@ import { getRepoTaskStateDir } from "./repo-tasks-domain.js";
  * auto-promote the task back to `backlog/` (or `ready/` for p0/p1) when the
  * condition is satisfied; `owner-decision` gets re-asked through the
  * `askOwnerSteps` recipe on a 14-day cadence; `operator-capture` promotes
- * only after its named evidence path exists, and its aging is surfaced through
- * `attention-digest` while the evidence is absent.
+ * only after its named evidence path contains operator-visible proof, and its
+ * aging is surfaced through `attention-digest` while the evidence is absent.
  *
  * The vocabulary is intentionally small. The parser rejects unknown kinds and
  * malformed values at frontmatter-load time; there is no permissive coercion.
@@ -260,32 +260,133 @@ function fileExists(path: string): boolean {
   }
 }
 
-function pathMatchesGlob(projectDir: string, glob: string): boolean {
-  const star = glob.indexOf("*");
+type OperatorCapturePathEvaluation =
+  | { status: "complete"; reason: string }
+  | { status: "partial"; reason: string }
+  | { status: "missing"; reason: string };
+
+const VISUAL_PROOF_EXTENSIONS = new Set([
+  ".gif",
+  ".html",
+  ".jpeg",
+  ".jpg",
+  ".mov",
+  ".mp4",
+  ".png",
+  ".webm",
+  ".webp",
+]);
+const TEXT_PROOF_EXTENSIONS = new Set([".json", ".md", ".txt"]);
+const TEXT_PROOF_NAME_RE =
+  /(^|[-_.])(capture|chat|conversation|exchange|fixture|message|messages|proof|rendered|reply|screenshot|screencast|snapshot|slack|status|telegram|transcript)([-_.]|$)/;
+const PREFLIGHT_ONLY_TEXT_RE =
+  /^(build|install|lint|setup|smoke|smoke-test|static-test|test|tests|typecheck|unit|validation)([-_.].*)?\.(log|txt)$/;
+const MAX_OPERATOR_CAPTURE_SCAN_DEPTH = 4;
+
+function resolveOperatorCaptureCandidates(
+  projectDir: string,
+  capturePath: string,
+): string[] {
+  const star = capturePath.indexOf("*");
   if (star === -1) {
-    const absolute = isAbsolute(glob) ? glob : resolve(projectDir, glob);
-    return fileExists(absolute);
+    const absolute = isAbsolute(capturePath)
+      ? capturePath
+      : resolve(projectDir, capturePath);
+    return fileExists(absolute) ? [absolute] : [];
   }
-  const before = glob.slice(0, star);
-  const after = glob.slice(star + 1);
+  const before = capturePath.slice(0, star);
+  const after = capturePath.slice(star + 1);
   const baseSlash = before.lastIndexOf("/");
   const baseDirRel = baseSlash === -1 ? "" : before.slice(0, baseSlash);
   const prefix = baseSlash === -1 ? before : before.slice(baseSlash + 1);
   const suffix = after;
   const baseDir = isAbsolute(baseDirRel) ? baseDirRel : resolve(projectDir, baseDirRel);
-  if (!existsSync(baseDir)) return false;
+  if (!existsSync(baseDir)) return [];
   let entries: string[];
   try {
     entries = readdirSync(baseDir);
   } catch {
+    return [];
+  }
+  return entries
+    .filter((entry) => entry.startsWith(prefix) && entry.endsWith(suffix))
+    .map((entry) => join(baseDir, entry));
+}
+
+function fileLooksLikeOperatorProof(path: string): boolean {
+  let stats: ReturnType<typeof statSync>;
+  try {
+    stats = statSync(path);
+  } catch {
     return false;
   }
-  return entries.some((entry) => entry.startsWith(prefix) && entry.endsWith(suffix));
+  if (!stats.isFile() || stats.size === 0) return false;
+
+  const name = basename(path).toLowerCase();
+  if (PREFLIGHT_ONLY_TEXT_RE.test(name)) return false;
+
+  const ext = extname(name);
+  if (VISUAL_PROOF_EXTENSIONS.has(ext)) return true;
+  return TEXT_PROOF_EXTENSIONS.has(ext) && TEXT_PROOF_NAME_RE.test(name);
+}
+
+function directoryContainsOperatorProof(path: string, depth = 0): boolean {
+  if (depth > MAX_OPERATOR_CAPTURE_SCAN_DEPTH) return false;
+  let entries: Dirent[];
+  try {
+    entries = readdirSync(path, { withFileTypes: true });
+  } catch {
+    return false;
+  }
+  for (const entry of entries) {
+    const childPath = join(path, entry.name);
+    if (entry.isFile() && fileLooksLikeOperatorProof(childPath)) return true;
+    if (
+      entry.isDirectory() &&
+      directoryContainsOperatorProof(childPath, depth + 1)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function pathContainsOperatorProof(path: string): boolean {
+  let stats: ReturnType<typeof statSync>;
+  try {
+    stats = statSync(path);
+  } catch {
+    return false;
+  }
+  if (stats.isFile()) return fileLooksLikeOperatorProof(path);
+  if (stats.isDirectory()) return directoryContainsOperatorProof(path);
+  return false;
+}
+
+function evaluateOperatorCapturePath(
+  projectDir: string,
+  capturePath: string,
+): OperatorCapturePathEvaluation {
+  const candidates = resolveOperatorCaptureCandidates(projectDir, capturePath);
+  if (candidates.length === 0) {
+    return { status: "missing", reason: `operator capture missing at ${capturePath}` };
+  }
+  const complete = candidates.find(pathContainsOperatorProof);
+  if (complete) {
+    return {
+      status: "complete",
+      reason: `operator capture proof exists at ${capturePath}`,
+    };
+  }
+  return {
+    status: "partial",
+    reason: `operator capture at ${capturePath} has no operator-visible proof artifact`,
+  };
 }
 
 export type BlockedPreconditionEvaluation =
   | { satisfied: true; reason: string }
-  | { satisfied: false; reason: string };
+  | { satisfied: false; reason: string; shouldRefreshInstruction?: true };
 
 export type OwnerAskMarker = {
   slot: string;
@@ -398,7 +499,9 @@ export type EvaluationContext = {
  * probe data alone: it requires a matching
  * `<!-- blocked-promoter-resolved -->` marker in the body (written by the
  * workflow when the operator approves). `operator-capture` promotes only when
- * the named path exists.
+ * the named path contains operator-visible proof; a directory with only
+ * preflight/smoke output is treated as a partial capture and refreshes the
+ * operator instructions instead of promoting.
  */
 export function evaluateBlockedPrecondition(
   precondition: BlockedPrecondition,
@@ -452,9 +555,18 @@ export function evaluateBlockedPrecondition(
       };
     }
     case "operator-capture": {
-      return pathMatchesGlob(ctx.projectDir, precondition.path)
-        ? { satisfied: true, reason: `operator capture exists at ${precondition.path}` }
-        : { satisfied: false, reason: `operator capture missing at ${precondition.path}` };
+      const evaluation = evaluateOperatorCapturePath(ctx.projectDir, precondition.path);
+      if (evaluation.status === "complete") {
+        return { satisfied: true, reason: evaluation.reason };
+      }
+      if (evaluation.status === "partial") {
+        return {
+          satisfied: false,
+          reason: evaluation.reason,
+          shouldRefreshInstruction: true,
+        };
+      }
+      return { satisfied: false, reason: evaluation.reason };
     }
   }
 }

@@ -224,9 +224,11 @@ describe("evaluateBlockedPrecondition", () => {
 
   it("operator-capture matches a glob path", () => {
     const { projectDir } = makeBlockedTaskTree();
-    mkdirSync(join(projectDir, ".kota", "runs", "harness-parity-2026-04-25"), {
+    const proofDir = join(projectDir, ".kota", "runs", "harness-parity-2026-04-25");
+    mkdirSync(proofDir, {
       recursive: true,
     });
+    writeFileSync(join(proofDir, "transcript.txt"), "operator transcript\n");
     const matched = evaluateBlockedPrecondition(
       {
         kind: "operator-capture",
@@ -246,6 +248,41 @@ describe("evaluateBlockedPrecondition", () => {
       { projectDir, taskBody: "" },
     );
     expect(missing.satisfied).toBe(false);
+  });
+
+  it("operator-capture treats smoke-only directories as partial proof", () => {
+    const { projectDir } = makeBlockedTaskTree();
+    const captureDir = join(projectDir, ".kota", "runs", "telegram-deploy-staging");
+    mkdirSync(captureDir, { recursive: true });
+    writeFileSync(join(captureDir, "smoke.txt"), "daemon health passed\n");
+
+    const partial = evaluateBlockedPrecondition(
+      {
+        kind: "operator-capture",
+        path: ".kota/runs/telegram-deploy-staging",
+        description: "staging bot status exchange",
+      },
+      { projectDir, taskBody: "" },
+    );
+    expect(partial.satisfied).toBe(false);
+    if (!partial.satisfied) {
+      expect(partial.shouldRefreshInstruction).toBe(true);
+      expect(partial.reason).toContain("no operator-visible proof");
+    }
+
+    writeFileSync(
+      join(captureDir, "telegram-status-exchange.md"),
+      "Operator sent /status and the staging bot replied.\n",
+    );
+    const complete = evaluateBlockedPrecondition(
+      {
+        kind: "operator-capture",
+        path: ".kota/runs/telegram-deploy-staging",
+        description: "staging bot status exchange",
+      },
+      { projectDir, taskBody: "" },
+    );
+    expect(complete.satisfied).toBe(true);
   });
 
   it("owner-decision is satisfied only when a matching resolved marker exists", () => {

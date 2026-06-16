@@ -1,12 +1,12 @@
 ---
 id: task-validate-operator-capture-proof-before-blocked-pro
 title: Validate operator-capture proof before blocked-promoter promotion
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Blocked-promoter moved the Telegram deploy task from blocked to backlog because the capture directory existed, while the task body still says only smoke.txt exists and the required Telegram status exchange is missing. Tighten operator-capture promotion so partial captures keep the task blocked with refreshed instructions until the required proof is present.
 created_at: 2026-06-16T14:45:58.699Z
-updated_at: 2026-06-16T14:45:58.699Z
+updated_at: 2026-06-16T14:56:42.227Z
 ---
 
 ## Problem

@@ -211,8 +211,10 @@ describe("blocked-promoter workflow", () => {
         ].join("\n"),
       ),
     );
-    // operator-capture precondition that exists
-    mkdirSync(join(projectDir, ".kota", "runs", "harness-parity-x"), { recursive: true });
+    // operator-capture precondition with a proof artifact
+    const completeCaptureDir = join(projectDir, ".kota", "runs", "harness-parity-x");
+    mkdirSync(completeCaptureDir, { recursive: true });
+    writeFileSync(join(completeCaptureDir, "capture-proof.md"), "operator proof\n");
     writeFileSync(
       join(projectDir, "data", "tasks", "blocked", "task-needs-capture.md"),
       TASK_TEMPLATE(
@@ -278,6 +280,90 @@ describe("blocked-promoter workflow", () => {
         join(projectDir, "data", "tasks", "backlog", "task-needs-capture.md"),
       ),
     ).toBe(true);
+  });
+
+  it("keeps a partial operator-capture directory blocked and refreshes instructions", async () => {
+    await mockCleanWorktree();
+    const projectDir = makeProjectDir();
+    const captureDir = join(projectDir, ".kota", "runs", "telegram-deploy-staging");
+    mkdirSync(captureDir, { recursive: true });
+    writeFileSync(join(captureDir, "smoke.txt"), "daemon smoke test passed\n");
+    writeFileSync(
+      join(projectDir, "data", "tasks", "blocked", "task-needs-telegram-proof.md"),
+      TASK_TEMPLATE(
+        "task-needs-telegram-proof",
+        [
+          "## Unblock Precondition",
+          "",
+          "```",
+          "kind: operator-capture",
+          "path: .kota/runs/telegram-deploy-staging",
+          "description: staging bot /status message and bot reply",
+          "```",
+        ].join("\n"),
+      ),
+    );
+    commitInitial(projectDir);
+
+    const harness = new WorkflowTestHarness(blockedPromoterWorkflow, {
+      trigger: { event: "autonomy.queue.available", payload: {} },
+      projectDir,
+    });
+
+    const result = await harness.run();
+
+    expect(result.status).toBe("success");
+    const promotion = result.steps["promote-deterministic"].output as {
+      promotions: Array<{ id: string }>;
+    };
+    expect(promotion.promotions.map((p) => p.id)).not.toContain(
+      "task-needs-telegram-proof",
+    );
+    expect(
+      existsSync(
+        join(projectDir, "data", "tasks", "blocked", "task-needs-telegram-proof.md"),
+      ),
+    ).toBe(true);
+    expect(
+      existsSync(
+        join(projectDir, "data", "tasks", "backlog", "task-needs-telegram-proof.md"),
+      ),
+    ).toBe(false);
+    const instructions = (
+      result.steps["instruct-operator-capture"].output as {
+        instructions: Array<{ taskId: string; capturePath: string; reason: string }>;
+      }
+    ).instructions;
+    expect(instructions).toHaveLength(1);
+    expect(instructions[0]).toMatchObject({
+      taskId: "task-needs-telegram-proof",
+      capturePath: ".kota/runs/telegram-deploy-staging",
+    });
+    expect(instructions[0].reason).toContain("no operator-visible proof");
+    const taskBody = readFileSync(
+      join(projectDir, "data", "tasks", "blocked", "task-needs-telegram-proof.md"),
+      "utf-8",
+    );
+    expect(readOperatorCaptureInstructedMarker(taskBody)).not.toBeNull();
+    const artifactPath = (
+      result.steps["write-blocker-actions"].output as { path: string }
+    ).path;
+    const artifact = JSON.parse(readFileSync(artifactPath, "utf-8")) as {
+      actions: Array<{ kind: string; taskId: string; reason?: string }>;
+      operatorCaptureInstructionsEmitted: Array<{
+        taskId: string;
+        capturePath: string;
+      }>;
+    };
+    expect(artifact.actions[0]).toMatchObject({
+      kind: "operator-capture-due",
+      taskId: "task-needs-telegram-proof",
+    });
+    expect(artifact.actions[0].reason).toContain("no operator-visible proof");
+    expect(artifact.operatorCaptureInstructionsEmitted[0]).toMatchObject({
+      taskId: "task-needs-telegram-proof",
+      capturePath: ".kota/runs/telegram-deploy-staging",
+    });
   });
 
   it("re-asks the owner for a due owner-decision and promotes on approval", async () => {

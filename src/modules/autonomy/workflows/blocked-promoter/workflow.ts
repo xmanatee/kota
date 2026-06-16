@@ -211,7 +211,11 @@ const instructOperatorCapture = typedCodeStep<{
     ]),
   run: ({ projectDir }) => {
     const records = listBlockedTasksWithPreconditions(projectDir);
-    const candidates = listOperatorCaptureInstructCandidates(records, Date.now());
+    const candidates = listOperatorCaptureInstructCandidates(
+      records,
+      projectDir,
+      Date.now(),
+    );
     const now = new Date();
     const instructions = candidates.map((candidate) =>
       applyOperatorCaptureInstruction({ candidate, now }),

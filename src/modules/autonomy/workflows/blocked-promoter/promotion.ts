@@ -295,6 +295,8 @@ export type OperatorCaptureInstructCandidate = {
   capturePath: string;
   /** One-line description from the precondition. */
   description: string;
+  /** Why the workflow is emitting or refreshing the instruction. */
+  reason: string;
   ageDays: number;
 };
 
@@ -305,19 +307,33 @@ function ageDays(updatedAt: string, nowMs: number): number | null {
 }
 
 /**
- * Return every aged operator-capture blocker that is "due" for an
- * instruction refresh: blocked >= OPERATOR_CAPTURE_AGE_DAYS and either has
- * no instructed marker or one older than the cadence window.
+ * Return every operator-capture blocker that is "due" for an instruction
+ * refresh: either an operator has supplied a partial capture path, or the
+ * missing capture has aged past OPERATOR_CAPTURE_AGE_DAYS. A fresh instructed
+ * marker still suppresses repeated emissions within the cadence window.
  */
 export function listOperatorCaptureInstructCandidates(
   records: BlockedTaskRecord[],
+  projectDir: string,
   nowMs: number,
 ): OperatorCaptureInstructCandidate[] {
   const candidates: OperatorCaptureInstructCandidate[] = [];
   for (const record of records) {
     if (record.precondition.kind !== "operator-capture") continue;
+    const evaluation = evaluateBlockedPrecondition(record.precondition, {
+      projectDir,
+      taskBody: record.body,
+    });
+    if (evaluation.satisfied) continue;
     const age = ageDays(record.updatedAt, nowMs);
-    if (age === null || age < OPERATOR_CAPTURE_AGE_DAYS) continue;
+    const partialCaptureNeedsInstruction =
+      evaluation.shouldRefreshInstruction === true;
+    if (
+      !partialCaptureNeedsInstruction &&
+      (age === null || age < OPERATOR_CAPTURE_AGE_DAYS)
+    ) {
+      continue;
+    }
     const marker = readOperatorCaptureInstructedMarker(record.body);
     if (marker) {
       const lastMs = Date.parse(marker.lastInstructedAt);
@@ -333,7 +349,8 @@ export function listOperatorCaptureInstructCandidates(
       taskPath: record.path,
       capturePath: record.precondition.path,
       description: record.precondition.description,
-      ageDays: age,
+      reason: evaluation.reason,
+      ageDays: age ?? 0,
     });
   }
   return candidates;
@@ -344,6 +361,7 @@ export type OperatorCaptureInstruction = {
   taskPath: string;
   capturePath: string;
   description: string;
+  reason: string;
   ageDays: number;
   instructedAt: string;
 };
@@ -377,6 +395,7 @@ export function applyOperatorCaptureInstruction(args: {
     taskPath: filePath,
     capturePath: candidate.capturePath,
     description: candidate.description,
+    reason: candidate.reason,
     ageDays: candidate.ageDays,
     instructedAt: stamp,
   };
@@ -393,7 +412,7 @@ export type BlockerAction =
   | {
       kind: "auto-promotable";
       taskId: string;
-      preconditionKind: "task-done" | "owner-decision";
+      preconditionKind: "task-done" | "operator-capture" | "owner-decision";
       reason: string;
       ageDays: number | null;
     }
@@ -441,6 +460,7 @@ export type BlockerAction =
       preconditionKind: "operator-capture";
       capturePath: string;
       description: string;
+      reason: string;
       ageDays: number | null;
     }
   | {
@@ -567,6 +587,46 @@ export function classifyBlockedActions(
       }
       case "operator-capture": {
         const oc = record.precondition;
+        if (eval_.satisfied) {
+          actions.push({
+            kind: "auto-promotable",
+            taskId: record.id,
+            preconditionKind: "operator-capture",
+            reason: eval_.reason,
+            ageDays: age,
+          });
+          break;
+        }
+        if (eval_.shouldRefreshInstruction === true) {
+          const marker = readOperatorCaptureInstructedMarker(record.body);
+          if (marker) {
+            const lastMs = Date.parse(marker.lastInstructedAt);
+            if (
+              !Number.isNaN(lastMs) &&
+              nowMs - lastMs < OPERATOR_CAPTURE_INSTRUCT_INTERVAL_MS
+            ) {
+              actions.push({
+                kind: "operator-capture-recent",
+                taskId: record.id,
+                preconditionKind: "operator-capture",
+                capturePath: oc.path,
+                lastInstructedAt: marker.lastInstructedAt,
+                ageDays: age,
+              });
+              break;
+            }
+          }
+          actions.push({
+            kind: "operator-capture-due",
+            taskId: record.id,
+            preconditionKind: "operator-capture",
+            capturePath: oc.path,
+            description: oc.description,
+            reason: eval_.reason,
+            ageDays: age,
+          });
+          break;
+        }
         if (age === null || age < OPERATOR_CAPTURE_AGE_DAYS) {
           actions.push({
             kind: "operator-capture-fresh",
@@ -601,6 +661,7 @@ export function classifyBlockedActions(
           preconditionKind: "operator-capture",
           capturePath: oc.path,
           description: oc.description,
+          reason: eval_.reason,
           ageDays: age,
         });
         break;

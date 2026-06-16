@@ -289,6 +289,32 @@ describe("classifyBlockedActions", () => {
     expect(actions[0].kind).toBe("operator-capture-fresh");
   });
 
+  it("classifies a fresh partial operator-capture directory as due", () => {
+    const dir = makeProjectDir();
+    const captureDir = join(dir, ".kota", "runs", "telegram-deploy-staging");
+    mkdirSync(captureDir, { recursive: true });
+    writeFileSync(join(captureDir, "smoke.txt"), "smoke passed\n");
+    blockedTask({
+      projectDir: dir,
+      id: "task-partial-capture",
+      daysAgo: 1,
+      preconditionLines: [
+        "kind: operator-capture",
+        "path: .kota/runs/telegram-deploy-staging",
+        "description: staging bot status exchange",
+      ],
+    });
+
+    const records = listBlockedTasksWithPreconditions(dir);
+    const actions = classifyBlockedActions(records, dir, Date.now());
+
+    expect(actions).toHaveLength(1);
+    expect(actions[0].kind).toBe("operator-capture-due");
+    if (actions[0].kind === "operator-capture-due") {
+      expect(actions[0].reason).toContain("no operator-visible proof");
+    }
+  });
+
   it("classifies aged operator-capture without marker as operator-capture-due", () => {
     const dir = makeProjectDir();
     blockedTask({
@@ -348,10 +374,34 @@ describe("listOperatorCaptureInstructCandidates", () => {
       ],
     });
     const records = listBlockedTasksWithPreconditions(dir);
-    const candidates = listOperatorCaptureInstructCandidates(records, Date.now());
+    const candidates = listOperatorCaptureInstructCandidates(records, dir, Date.now());
     expect(candidates).toHaveLength(1);
     expect(candidates[0].taskId).toBe("task-aged");
     expect(candidates[0].capturePath).toBe(".kota/runs/x");
+  });
+
+  it("returns fresh partial operator-capture blockers", () => {
+    const dir = makeProjectDir();
+    const captureDir = join(dir, ".kota", "runs", "telegram-deploy-staging");
+    mkdirSync(captureDir, { recursive: true });
+    writeFileSync(join(captureDir, "smoke.txt"), "smoke passed\n");
+    blockedTask({
+      projectDir: dir,
+      id: "task-partial",
+      daysAgo: 1,
+      preconditionLines: [
+        "kind: operator-capture",
+        "path: .kota/runs/telegram-deploy-staging",
+        "description: staging bot status exchange",
+      ],
+    });
+
+    const records = listBlockedTasksWithPreconditions(dir);
+    const candidates = listOperatorCaptureInstructCandidates(records, dir, Date.now());
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0].taskId).toBe("task-partial");
+    expect(candidates[0].reason).toContain("no operator-visible proof");
   });
 
   it("skips fresh blockers (under threshold)", () => {
@@ -367,7 +417,7 @@ describe("listOperatorCaptureInstructCandidates", () => {
       ],
     });
     const records = listBlockedTasksWithPreconditions(dir);
-    const candidates = listOperatorCaptureInstructCandidates(records, Date.now());
+    const candidates = listOperatorCaptureInstructCandidates(records, dir, Date.now());
     expect(candidates).toHaveLength(0);
   });
 
@@ -388,7 +438,7 @@ describe("listOperatorCaptureInstructCandidates", () => {
       bodySuffix: recentMarker,
     });
     const records = listBlockedTasksWithPreconditions(dir);
-    const candidates = listOperatorCaptureInstructCandidates(records, Date.now());
+    const candidates = listOperatorCaptureInstructCandidates(records, dir, Date.now());
     expect(candidates).toHaveLength(0);
   });
 });
@@ -407,7 +457,7 @@ describe("applyOperatorCaptureInstruction", () => {
       ],
     });
     const records = listBlockedTasksWithPreconditions(dir);
-    const candidates = listOperatorCaptureInstructCandidates(records, Date.now());
+    const candidates = listOperatorCaptureInstructCandidates(records, dir, Date.now());
     const now = new Date("2026-05-02T16:00:00.000Z");
     const result = applyOperatorCaptureInstruction({
       candidate: candidates[0],
@@ -437,7 +487,7 @@ describe("applyOperatorCaptureInstruction", () => {
       bodySuffix: stale,
     });
     const records = listBlockedTasksWithPreconditions(dir);
-    const candidates = listOperatorCaptureInstructCandidates(records, Date.now());
+    const candidates = listOperatorCaptureInstructCandidates(records, dir, Date.now());
     const now = new Date("2026-05-02T16:00:00.000Z");
     applyOperatorCaptureInstruction({ candidate: candidates[0], now });
     const taskBody = readFileSync(candidates[0].taskPath, "utf-8");
