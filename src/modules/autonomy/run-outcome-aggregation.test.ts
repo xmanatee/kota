@@ -700,6 +700,13 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
       'Repair agent for step "build" failed: Reconnecting... 5/5 (stream disconnected before completion: failed to lookup address information: nodename nor servname provided, or not known)',
     );
     writeAgentRuntimeFailureRun(
+      "codex-provider-request-disconnect",
+      "builder",
+      "build",
+      "2026-04-21T03:50:00.000Z",
+      'Repair agent for step "build" failed: Reconnecting... 3/5 (stream disconnected before completion: An error occurred while processing your request. You can retry your request, or contact us through our help center at help.openai.com if the error persists. Please include the request ID 6f4976f7-b5bf-4269-9083-c9b468c32233 in your message.)',
+    );
+    writeAgentRuntimeFailureRun(
       "codex-response-disconnect",
       "explorer",
       "explore",

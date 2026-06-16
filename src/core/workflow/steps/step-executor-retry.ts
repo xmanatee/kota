@@ -260,6 +260,13 @@ export function classifyAgentRuntimeFailure(
     return { kind: "provider", retryable: true };
   }
   if (
+    /stream disconnected before completion:\s*An error occurred while processing your request\. You can retry your request, or contact us through our help center at help\.openai\.com if the error persists\. Please include the request ID [0-9a-f-]+ in your message\./i.test(
+      input.message,
+    )
+  ) {
+    return { kind: "provider", retryable: true };
+  }
+  if (
     /error running remote compact task:\s*stream disconnected before completion:\s*error sending request for url \(https:\/\/chatgpt\.com\/backend-api\/codex\/responses\/compact\)/i.test(
       input.message,
     )

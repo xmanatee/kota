@@ -31,6 +31,15 @@ describe("classifyAgentRuntimeFailure", () => {
     ).toEqual({ kind: "provider", retryable: true });
   });
 
+  it("classifies Codex CLI provider-request stream disconnects as provider failures", () => {
+    expect(
+      classifyAgentRuntimeFailure({
+        message:
+          'Repair agent for step "build" failed: Reconnecting... 3/5 (stream disconnected before completion: An error occurred while processing your request. You can retry your request, or contact us through our help center at help.openai.com if the error persists. Please include the request ID 6f4976f7-b5bf-4269-9083-c9b468c32233 in your message.)',
+      }),
+    ).toEqual({ kind: "provider", retryable: true });
+  });
+
   it("classifies Codex CLI remote compact disconnects as provider failures", () => {
     expect(
       classifyAgentRuntimeFailure({
