@@ -1,12 +1,12 @@
 ---
 id: task-publish-kota-telegram-production-deploy-artifact
 title: Publish KOTA Telegram production deploy artifact
-status: ready
+status: blocked
 priority: p3
 area: ops
 summary: Publish a reproducible systemd/docker deploy artifact for KOTA-as-Telegram-personal-assistant so operators can stand one up without assembling services by hand.
 created_at: 2026-04-22T04:52:53.604Z
-updated_at: 2026-06-15T14:45:01.290Z
+updated_at: 2026-06-16T01:01:37.704Z
 ---
 
 ## Problem
@@ -52,7 +52,7 @@ artifact does not ship credentials.
 ```
 kind: operator-capture
 path: .kota/runs/telegram-deploy-staging
-description: staging-bot launch artifact — operator populates deploy/telegram-assistant/.env, runs `sudo deploy/telegram-assistant/install.sh` then `deploy/telegram-assistant/smoke-test.sh > .kota/runs/telegram-deploy-staging/smoke.txt` against a real bot token
+description: staging-bot launch artifact — operator populates deploy/telegram-assistant/.env, runs `sudo deploy/telegram-assistant/install.sh` and `deploy/telegram-assistant/smoke-test.sh > .kota/runs/telegram-deploy-staging/smoke.txt`, then captures an actual Telegram `/status` message and bot reply under `.kota/runs/telegram-deploy-staging/` against the same real bot token/chat
 ```
 
 ## Source / Intent
@@ -93,12 +93,15 @@ The staging-bot proof requires a real BotFather token,
 allowed chat, host supervisor, and at least one configured model-provider API
 key for the selected KOTA backend. The deploy artifact supports OpenRouter via
 the OpenAI-compatible harness; it no longer requires Anthropic specifically.
-`smoke-test.sh` is the operator's reproducible post-install check.
+`smoke-test.sh` is the operator's reproducible daemon-health check; it does
+not consume Telegram updates because the daemon-owned interactive channel is
+the single Bot API update consumer.
 
-## Promotion Evidence
+## Blocker
 
-`.kota/runs/telegram-deploy-staging/smoke.txt` now captures the Docker install
+`.kota/runs/telegram-deploy-staging/smoke.txt` captures the Docker install
 path with the populated local `.env`, successful image build/container start,
 and a passing `deploy/telegram-assistant/smoke-test.sh docker` retry once the
-container reached healthy state. The artifact also confirms the daemon is
-reachable and the Telegram channels start in the single daemon process.
+container reached healthy state. It does not capture an actual Telegram
+`/status` exchange or another bot interaction performed through the staging
+deployment, so the task remains blocked pending the operator-capture artifact.

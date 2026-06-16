@@ -178,8 +178,8 @@ export interface ReplChrome {
 	announceHarness(harness: { name: string; description: string }, model: string): void;
 	/** Print the `/help` table of slash commands and descriptions. */
 	showHelp(commands: Record<string, string>): void;
-	/** Print the `/status` snapshot (harness, model, turn count). */
-	showStatus(harness: string, model: string, turns: number): void;
+	/** Print the `/status` snapshot (harness, model, project, turn count). */
+	showStatus(harness: string, model: string, turns: number, projectDir?: string): void;
 	/** Confirm a `/reset` or `/clear` of the transcript. */
 	showReset(): void;
 	/** Paint an error message raised during a turn. */

@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # KOTA Telegram personal assistant — post-install smoke test.
 #
-# Verifies the running daemon is reachable, accepts a /status query from
-# Telegram, and has the expected channels registered. Call after
-# install.sh completes, once you have messaged the bot at least once.
+# Verifies the running daemon is reachable. Call after install.sh completes.
+# This intentionally does not call getUpdates; the daemon-owned interactive
+# channel is the single Bot API update consumer. Capture the Telegram /status
+# exchange separately from the operator chat before treating staging proof as
+# complete.
 
 set -euo pipefail
 
@@ -34,6 +36,6 @@ case "$MODE" in
 esac
 
 echo
-echo "Daemon reachable. Next: send /status to the bot and confirm the"
-echo "reply. A reply confirms both Telegram channels are live and the"
-echo "scheduler is running inside the same process."
+echo "Daemon reachable. Next: send /status to the bot and capture the"
+echo "operator chat reply under .kota/runs/telegram-deploy-staging/."
+echo "That separate capture is the staging-bot proof for this artifact."

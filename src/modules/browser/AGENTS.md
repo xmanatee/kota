@@ -15,19 +15,8 @@ scoped content-ingest tools for auth-walled and JS-gated sources.
 
 ## Authenticated Browser Profile
 
-Operators configure a persistent login session via `modules.browser`:
-
-```jsonc
-{
-  "modules": {
-    "browser": {
-      "storageStatePath": "path/to/x-profile.json",
-      "persistProfile": false,
-      "headless": true
-    }
-  }
-}
-```
+Operators configure a persistent login session via `modules.browser`
+(`storageStatePath`, `persistProfile`, `headless`).
 
 - `storageStatePath` points at a Playwright [`storageState`](https://playwright.dev/docs/auth)
   JSON file containing cookies and localStorage for an authenticated session.
@@ -60,10 +49,9 @@ Operators configure a persistent login session via `modules.browser`:
   scraping outside of normal reading volumes is discouraged; this tool is
   intentionally narrow to one post per call.
 - `rendered_article_read` — JS-gated article reader. Navigates, waits for
-  DOM content plus a readable page container, and extracts `<article>`/`<main>`
-  text (or a caller-supplied selector, or `document.body` fallback). Returns a
-  typed failure for Cloudflare/JS challenges that never clear. Intended for
-  pages like `openai.com/index/*` that reject plain HTTP fetches.
+  DOM content plus a readable page container, and extracts article/main text
+  (or selector/body fallback). Returns a typed failure for Cloudflare/JS
+  challenges that never clear.
 
 All three content-ingest tools are included in
 `DEFAULT_TARGET_TOOLS` for the `injection-defense` middleware, so autonomous

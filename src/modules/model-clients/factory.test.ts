@@ -4,9 +4,9 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AnthropicModelClient } from "./anthropic.js";
 import {
+	apiKeyNameForProvider,
 	createModelClientImpl,
 	PROVIDER_PRESETS,
-	apiKeyNameForProvider,
 	parseModelString,
 	resolveApiKey,
 } from "./factory.js";

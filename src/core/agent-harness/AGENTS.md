@@ -114,16 +114,12 @@ them to the SDK shape at its own seam. Nothing in core imports
 stays inside the owning adapter.
 
 Provider SDK-specific knobs do not appear on `AgentHarnessRunOptions`. The
-neutral surface carries only KOTA concepts (autonomy posture, prompt,
-tools, effort, owner-questions, abort), KOTA's own ModelClient provider
-selection (`modelProvider`), plus harness-agnostic transport fields (cwd,
-model name, max turns, system prompt). Per-step
-adapter-private options travel through `harnessOverrides`, validated by
-the resolved adapter's `validateStepOptions` and threaded through as an
-opaque `AgentHarnessStepOverrides` (typed as `unknown` at the protocol
-boundary). `no-sdk-shaped-neutral-fields.test.ts` is the regression
-guard: a future contributor cannot re-introduce a banned provider-shaped
-identifier on the neutral protocol surface without turning the test red.
+neutral surface carries only KOTA concepts, KOTA's own ModelClient provider
+selection (`modelProvider`), and harness-agnostic transport fields. Per-step
+adapter-private options travel through `harnessOverrides`, validated by the
+resolved adapter and threaded through as opaque `AgentHarnessStepOverrides`.
+`no-sdk-shaped-neutral-fields.test.ts` keeps provider-shaped identifiers off
+the neutral protocol surface.
 
 The invariant is stronger than "core doesn't import the claude SDK":
 *nothing in core treats a provider's type surface as its internal

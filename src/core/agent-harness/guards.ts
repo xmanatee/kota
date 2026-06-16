@@ -14,6 +14,8 @@ import { existsSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import type { AgentCanUseTool, AgentPermissionResult } from "./types.js";
 
+type AgentToolInput = Parameters<AgentCanUseTool>[1];
+
 const COMMIT_DENIAL_MESSAGE =
   "Workflow agents must not run `git commit`. Stage changes with `git add` and write `<run-dir>/commit-message.txt`; the workflow's commit step creates the commit after validation gates pass.";
 
@@ -52,7 +54,7 @@ function isShellCommandTool(toolName: string): boolean {
   return toolName === "Bash" || toolName === "shell";
 }
 
-function commandWorkingDirectory(input: Record<string, unknown>): string {
+function commandWorkingDirectory(input: AgentToolInput): string {
   const cwd = typeof input.cwd === "string" && input.cwd.trim() ? input.cwd.trim() : process.cwd();
   return isAbsolute(cwd) ? cwd : resolve(process.cwd(), cwd);
 }

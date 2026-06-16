@@ -45,7 +45,7 @@ function createStderrChrome(): ReplChrome {
         line(span("  exit      ", "accent"), plain(" Quit interactive mode")),
       );
     },
-    showStatus(harness, model, turns): void {
+    showStatus(harness, model, turns, projectDir): void {
       chrome.write(
         line(
           span("Harness: ", "muted"),
@@ -54,6 +54,13 @@ function createStderrChrome(): ReplChrome {
           span("Model: ", "muted"),
           span(model, "info"),
           plain("  "),
+          ...(projectDir
+            ? [
+                span("Project: ", "muted"),
+                plain(projectDir),
+                plain("  "),
+              ]
+            : []),
           span("Turns: ", "muted"),
           plain(String(turns)),
         ),

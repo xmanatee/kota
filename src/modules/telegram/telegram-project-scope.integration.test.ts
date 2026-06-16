@@ -43,6 +43,7 @@ vi.mock("./client.js", async () => {
 });
 
 vi.mock("./callback-poll.js", () => ({
+  createTelegramCallbackHandler: vi.fn(() => async () => false),
   startCallbackPoll: vi.fn(() => () => {}),
 }));
 
@@ -512,7 +513,10 @@ describe("telegram project-scope integration", () => {
     let delivered = false;
     mockedCallTelegramApi.mockImplementation(async (_token, method) => {
       if (method === "getUpdates") {
-        if (delivered) return [];
+        if (delivered) {
+          await new Promise((resolve) => setTimeout(resolve, 50));
+          return [];
+        }
         delivered = true;
         return [
           makeUpdate(1, "/memory alpha"),
@@ -711,7 +715,7 @@ describe("telegram project-scope integration", () => {
     }
   });
 
-  it("starts the real status channel with a pre-daemon local client and the daemon project provider", async () => {
+  it("routes interactive slash commands with a pre-daemon local client and the daemon project provider", async () => {
     dir = mkdtempSync(join(tmpdir(), "kota-telegram-local-client-project-scope-"));
     registerDaemonProjectScopeProvider();
     process.env.TELEGRAM_BOT_TOKEN = "daemon-token";
@@ -725,8 +729,14 @@ describe("telegram project-scope integration", () => {
     });
     let delivered = false;
     mockedCallTelegramApi.mockImplementation(async (_token, method) => {
+      if (method === "getMe") {
+        return { id: 1, first_name: "Bot", username: "kota_bot" };
+      }
       if (method === "getUpdates") {
-        if (delivered) return [];
+        if (delivered) {
+          await new Promise((resolve) => setTimeout(resolve, 50));
+          return [];
+        }
         delivered = true;
         return [
           makeUpdate(1, "/project project-b"),
@@ -739,15 +749,16 @@ describe("telegram project-scope integration", () => {
     if (typeof telegramModule.channels !== "function") {
       throw new Error("expected telegramModule.channels to be a factory");
     }
-    const resolved = telegramModule.channels(
-      makeCtx(new EventBus(), localClient, storage),
-    );
+    const ctx = makeCtx(new EventBus(), localClient, storage);
+    ctx.getModuleConfig = () =>
+      ({ defaultAutonomyMode: "supervised" }) as never;
+    const resolved = telegramModule.channels(ctx);
     const channels = Array.isArray(resolved) ? resolved : await resolved;
-    const status = channels.find((c) => c.name === "telegram-status");
-    if (!status) throw new Error("telegram-status channel missing");
+    const interactive = channels.find((c) => c.name === "telegram-interactive");
+    if (!interactive) throw new Error("telegram-interactive channel missing");
     const runtimeA = makeProjectRuntime(PROJECT_A);
     const runtimeB = makeProjectRuntime(PROJECT_B);
-    const started = status.create({
+    const started = interactive.create({
       projectDir: PROJECT_A.projectDir,
       defaultProjectRuntime: runtimeA,
       getProjectRuntime: (projectId: string) => {
@@ -759,7 +770,7 @@ describe("telegram project-scope integration", () => {
       getWorkflowStatus: makeStatusInfo,
     });
     if (started.status !== "started") {
-      throw new Error(`telegram-status did not start: ${started.status}`);
+      throw new Error(`telegram-interactive did not start: ${started.status}`);
     }
 
     await started.adapter.start();

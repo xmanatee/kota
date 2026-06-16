@@ -186,22 +186,19 @@ export class TelegramBot {
         }
         const replyToId = message.reply_to_message?.message_id;
         if (replyToId !== undefined && this.options.onChatReply) {
-          void this.options
-            .onChatReply(chatId, replyToId, text)
-            .then((handled) => {
-              if (handled) return;
-              this.handleMessage(chatId, text, firstName, undefined, message);
-            })
-            .catch((err) => {
-              console.error(
-                `[kota-telegram] Chat-reply handler error in chat ${chatId}:`,
-                (err as Error).message,
-              );
-              this.handleMessage(chatId, text, firstName, undefined, message);
-            });
+          try {
+            const handled = await this.options.onChatReply(chatId, replyToId, text);
+            if (!handled) await this.handleMessage(chatId, text, firstName, undefined, message);
+          } catch (err) {
+            console.error(
+              `[kota-telegram] Chat-reply handler error in chat ${chatId}:`,
+              (err as Error).message,
+            );
+            await this.handleMessage(chatId, text, firstName, undefined, message);
+          }
           continue;
         }
-        this.handleMessage(chatId, text, firstName, undefined, message);
+        await this.handleMessage(chatId, text, firstName, undefined, message);
         continue;
       }
       if (message.voice || message.audio) {
@@ -270,112 +267,103 @@ export class TelegramBot {
     }
 
     this.sendText(chatId, `\u{1F3A4} Transcribed: ${transcript}`);
-    this.handleMessage(chatId, transcript, message.chat.first_name, resolved.target);
+    await this.handleMessage(chatId, transcript, message.chat.first_name, resolved.target);
   }
 
-  private handleMessage(
+  private async handleMessage(
     chatId: number,
     text: string,
     firstName?: string,
     resolvedTarget?: TelegramProjectTarget,
     sourceMessage?: TelegramMessage,
-  ): void {
+  ): Promise<void> {
     if (this.options.allowedChatIds?.length && !this.options.allowedChatIds.includes(chatId)) {
       this.sendText(chatId, "Sorry, I'm not authorized to chat with you.");
       return;
     }
 
     if (text === "/project" || text.startsWith("/project ")) {
-      this.handleProjectCommand(chatId, text).catch((err) => {
+      try {
+        await this.handleProjectCommand(chatId, text);
+      } catch (err) {
         console.error(`[kota-telegram] Project switch error in chat ${chatId}:`, (err as Error).message);
         this.sendText(chatId, "Project selection failed.");
-      });
+      }
       return;
     }
 
-    const targetPromise = resolvedTarget
-      ? Promise.resolve({ ok: true as const, target: resolvedTarget })
-      : this.resolveProjectTarget(chatId);
+    let resolved: TelegramProjectTargetResolution;
+    try {
+      resolved = resolvedTarget
+        ? { ok: true, target: resolvedTarget }
+        : await this.resolveProjectTarget(chatId);
+    } catch (err) {
+      console.error(`[kota-telegram] Project resolution error in chat ${chatId}:`, (err as Error).message);
+      this.sendText(chatId, "Project selection failed.");
+      return;
+    }
 
     if (text === "/start") {
-      targetPromise.then((resolved) => {
-        if (!resolved.ok) {
-          this.sendText(chatId, resolved.message);
-          return;
-        }
-        this.sendText(
-          chatId,
-          `Hi ${firstName ?? "there"}! I'm KOTA, your AI assistant. Send me any message.\n\n` +
-            `/clear — New conversation\n/status — Session info`,
-        );
-      }).catch((err) => {
-        console.error(`[kota-telegram] Project resolution error in chat ${chatId}:`, (err as Error).message);
-        this.sendText(chatId, "Project selection failed.");
-      });
-      return;
-    }
-
-    if (text === "/clear") {
-      targetPromise.then((resolved) => {
-        if (!resolved.ok) {
-          this.sendText(chatId, resolved.message);
-          return;
-        }
-        const session = this.sessions.get(resolved.target.sessionKey);
-        if (session) {
-          session.agent.close();
-          this.sessions.delete(resolved.target.sessionKey);
-        }
-        this.sendText(chatId, "Conversation cleared.");
-      }).catch((err) => {
-        console.error(`[kota-telegram] Project resolution error in chat ${chatId}:`, (err as Error).message);
-        this.sendText(chatId, "Project selection failed.");
-      });
-      return;
-    }
-
-    if (text === "/status") {
-      targetPromise.then((resolved) => {
-        if (!resolved.ok) {
-          this.sendText(chatId, resolved.message);
-          return;
-        }
-        const session = this.sessions.get(resolved.target.sessionKey);
-        const busy = this.busyChats.has(resolved.target.sessionKey);
-        const pendingCount = resolved.target.projectRuntime.scheduler.count();
-        const statusParts = [
-          session
-            ? `Active session (${busy ? "processing" : "idle"}). Cost: ${session.agent.getCostSummary()}`
-            : "No active session. Send a message to start one.",
-        ];
-        if (pendingCount > 0) {
-          statusParts.push(`${pendingCount} pending reminder(s)`);
-        }
-        this.sendText(chatId, statusParts.join("\n"));
-      }).catch((err) => {
-        console.error(`[kota-telegram] Project resolution error in chat ${chatId}:`, (err as Error).message);
-        this.sendText(chatId, "Project selection failed.");
-      });
-      return;
-    }
-
-    targetPromise.then((resolved) => {
       if (!resolved.ok) {
         this.sendText(chatId, resolved.message);
         return;
       }
-      if (this.emitInboundSignal(resolved.target, sourceMessage)) return;
-      // Skip bot commands we don't handle after configured automation prefixes
-      // have had a chance to claim them.
-      if (text.startsWith("/")) return;
-      this.processMessage(resolved.target, text, firstName).catch((err) => {
-        console.error(`[kota-telegram] Error in chat ${chatId}:`, (err as Error).message);
-        this.sendText(chatId, "Something went wrong. Try again or /clear to start over.");
-      });
-    }).catch((err) => {
-      console.error(`[kota-telegram] Project resolution error in chat ${chatId}:`, (err as Error).message);
-      this.sendText(chatId, "Project selection failed.");
-    });
+      this.sendText(
+        chatId,
+        `Hi ${firstName ?? "there"}! I'm KOTA, your AI assistant. Send me any message.\n\n` +
+          `/clear — New conversation\n/status — Session info`,
+      );
+      return;
+    }
+
+    if (text === "/clear") {
+      if (!resolved.ok) {
+        this.sendText(chatId, resolved.message);
+        return;
+      }
+      const session = this.sessions.get(resolved.target.sessionKey);
+      if (session) {
+        session.agent.close();
+        this.sessions.delete(resolved.target.sessionKey);
+      }
+      this.sendText(chatId, "Conversation cleared.");
+      return;
+    }
+
+    if (text === "/status") {
+      if (!resolved.ok) {
+        this.sendText(chatId, resolved.message);
+        return;
+      }
+      const session = this.sessions.get(resolved.target.sessionKey);
+      const busy = this.busyChats.has(resolved.target.sessionKey);
+      const pendingCount = resolved.target.projectRuntime.scheduler.count();
+      const statusParts = [
+        session
+          ? `Active session (${busy ? "processing" : "idle"}). Cost: ${session.agent.getCostSummary()}`
+          : "No active session. Send a message to start one.",
+      ];
+      if (pendingCount > 0) {
+        statusParts.push(`${pendingCount} pending reminder(s)`);
+      }
+      this.sendText(chatId, statusParts.join("\n"));
+      return;
+    }
+
+    if (!resolved.ok) {
+      this.sendText(chatId, resolved.message);
+      return;
+    }
+    if (this.emitInboundSignal(resolved.target, sourceMessage)) return;
+    // Skip bot commands we don't handle after configured automation prefixes
+    // have had a chance to claim them.
+    if (text.startsWith("/")) return;
+    try {
+      await this.processMessage(resolved.target, text, firstName);
+    } catch (err) {
+      console.error(`[kota-telegram] Error in chat ${chatId}:`, (err as Error).message);
+      this.sendText(chatId, "Something went wrong. Try again or /clear to start over.");
+    }
   }
 
   private emitInboundSignal(

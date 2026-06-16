@@ -115,6 +115,12 @@ const SHIPPED_MODEL_PRICING_STATUS: Record<string, ShippedModelPricingStatus> = 
 		rationale:
 			"Antigravity CLI exposes this as a native agent runtime model through quota/plan access, not the Gemini API pricing table KOTA uses for SDK token accounting.",
 	},
+	"openrouter/openai/gpt-4.1-mini": {
+		kind: "unpriced",
+		model: "openrouter/openai/gpt-4.1-mini",
+		rationale:
+			"OpenRouter is a provider-routed model id; KOTA does not ship a pass-through OpenRouter billing row until route-specific pricing is normalized separately from OpenAI's direct API table.",
+	},
 };
 
 class ShippedModelPricingProvider implements ModelPricingProvider {

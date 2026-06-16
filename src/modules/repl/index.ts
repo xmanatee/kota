@@ -127,6 +127,7 @@ function handleReplCommand(
   state: ReplState,
   harness: AgentHarness,
   model: string,
+  cwd: string,
 ): boolean {
   switch (command) {
     case "/help": {
@@ -134,7 +135,7 @@ function handleReplCommand(
       return true;
     }
     case "/status": {
-      chrome.showStatus(harness.name, model, state.turnsOut);
+      chrome.showStatus(harness.name, model, state.turnsOut, cwd);
       return true;
     }
     case "/reset":
@@ -200,7 +201,7 @@ export async function runHarnessRepl(options: HarnessReplOptions): Promise<void>
     if (input === "exit" || input === "quit") return "exit";
 
     if (
-      handleReplCommand(input, chrome, state, options.harness, options.model)
+      handleReplCommand(input, chrome, state, options.harness, options.model, options.cwd)
     ) {
       return "continue";
     }

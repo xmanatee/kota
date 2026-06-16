@@ -337,7 +337,7 @@
         }
       },
       "type": "object",
-      "description": "Non-Anthropic model provider (OpenAI-compat, Ollama, etc.)"
+      "description": "Model provider configuration (Anthropic, OpenAI-compatible, Ollama, etc.)"
     },
     "modelTiers": {
       "additionalProperties": false,

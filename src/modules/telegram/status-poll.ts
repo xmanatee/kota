@@ -65,7 +65,7 @@ export type TelegramStatusPollProjectRouting = {
   selection: TelegramProjectSelection;
 };
 
-type TelegramStatusScope = {
+export type TelegramStatusScope = {
   projectDir: string;
   getStatusInfo: () => StatusInfo | Promise<StatusInfo>;
   knowledge: KnowledgeClient;
@@ -81,6 +81,14 @@ type TelegramStatusScope = {
 type TelegramStatusScopeResolution =
   | { ok: true; scope: TelegramStatusScope }
   | { ok: false; message: string };
+
+export type TelegramStatusCommandOptions = {
+  token: string;
+  messageChatId: number;
+  text: string;
+  defaultScope: TelegramStatusScope;
+  projectRouting?: TelegramStatusPollProjectRouting;
+};
 
 export function buildStatusText({ runtimeState, dispatchPaused, runsDir }: StatusInfo): string {
   const activeRuns = runtimeState.activeRuns ?? [];
@@ -122,6 +130,346 @@ function truncateForTelegram(body: string): string {
   if (body.length <= TELEGRAM_MAX_MESSAGE_LENGTH) return body;
   const suffix = "\n…(truncated)";
   return `${body.slice(0, TELEGRAM_MAX_MESSAGE_LENGTH - suffix.length)}${suffix}`;
+}
+
+export async function handleTelegramStatusCommand(
+  options: TelegramStatusCommandOptions,
+): Promise<boolean> {
+  const { token, messageChatId, text, defaultScope, projectRouting } = options;
+
+  async function sendPlain(body: string): Promise<void> {
+    await callTelegramApi(token, "sendMessage", {
+      chat_id: messageChatId,
+      text: body,
+    });
+  }
+
+  async function resolveScope(): Promise<TelegramStatusScopeResolution> {
+    if (!projectRouting) return { ok: true, scope: defaultScope };
+    const resolved = await projectRouting.selection.resolveChat(messageChatId);
+    if (!resolved.ok) return resolved;
+    const scoped = projectRouting.client.forProject(resolved.project.projectId);
+    return {
+      ok: true,
+      scope: {
+        projectDir: resolved.project.projectDir,
+        getStatusInfo: async () => {
+          const status = await scoped.workflow.status();
+          return {
+            runtimeState: {
+              activeRuns: status.activeRuns,
+              completedRuns: status.completedRuns,
+              pendingRuns: status.pendingRuns,
+              workflows: status.workflows,
+            },
+            dispatchPaused: status.paused,
+            runsDir: join(resolved.project.projectDir, ".kota", "runs"),
+          };
+        },
+        knowledge: scoped.knowledge,
+        memory: scoped.memory,
+        history: scoped.history,
+        tasks: scoped.tasks,
+        recall: scoped.recall,
+        answer: scoped.answer,
+        capture: scoped.capture,
+        retract: scoped.retract,
+      },
+    };
+  }
+
+  if (text === "/project" || text.startsWith("/project ")) {
+    if (!projectRouting) return false;
+    const requested = text === "/project" ? "" : text.slice("/project ".length);
+    const result = await projectRouting.selection.switchChat(messageChatId, requested);
+    await sendPlain(result.message);
+    return true;
+  }
+
+  const isCommand =
+    text === "/status" ||
+    text === "/digest" ||
+    text === "/attention" ||
+    text === "/knowledge" ||
+    text.startsWith("/knowledge ") ||
+    text === "/memory" ||
+    text.startsWith("/memory ") ||
+    text === "/history" ||
+    text.startsWith("/history ") ||
+    text === "/tasks" ||
+    text.startsWith("/tasks ") ||
+    text === "/recall" ||
+    text.startsWith("/recall ") ||
+    text === "/answer-log" ||
+    text.startsWith("/answer-log ") ||
+    text === "/answer-show" ||
+    text.startsWith("/answer-show ") ||
+    text === "/answer" ||
+    text.startsWith("/answer ") ||
+    text === "/capture-to-memory" ||
+    text.startsWith("/capture-to-memory ") ||
+    text === "/capture-to-knowledge" ||
+    text.startsWith("/capture-to-knowledge ") ||
+    text === "/capture-to-tasks" ||
+    text.startsWith("/capture-to-tasks ") ||
+    text === "/capture-to-inbox" ||
+    text.startsWith("/capture-to-inbox ") ||
+    text === "/capture" ||
+    text.startsWith("/capture ") ||
+    text === "/retract-memory" ||
+    text.startsWith("/retract-memory ") ||
+    text === "/retract-knowledge" ||
+    text.startsWith("/retract-knowledge ") ||
+    text === "/retract-tasks" ||
+    text.startsWith("/retract-tasks ") ||
+    text === "/retract-inbox" ||
+    text.startsWith("/retract-inbox ") ||
+    text === "/retract" ||
+    text.startsWith("/retract ");
+  if (!isCommand) return false;
+
+  const resolvedScope = await resolveScope();
+  if (!resolvedScope.ok) {
+    await sendPlain(resolvedScope.message);
+    return true;
+  }
+  const { scope } = resolvedScope;
+
+  if (text === "/status") {
+    await callTelegramApi(token, "sendMessage", {
+      chat_id: messageChatId,
+      text: buildStatusText(await scope.getStatusInfo()),
+      parse_mode: "Markdown",
+    });
+    return true;
+  }
+  if (text === "/digest") {
+    const { text: body } = renderOnDemandDigest({ projectDir: scope.projectDir });
+    await sendPlain(truncateForTelegram(body));
+    return true;
+  }
+  if (text === "/attention") {
+    const runsDir = join(scope.projectDir, ".kota", "runs");
+    const { text: body } = renderOnDemandAttention({ projectDir: scope.projectDir, runsDir });
+    await sendPlain(truncateForTelegram(body));
+    return true;
+  }
+  if (text === "/knowledge" || text.startsWith("/knowledge ")) {
+    const query = text === "/knowledge" ? "" : text.slice("/knowledge ".length).trim();
+    if (!query) {
+      await sendPlain("Usage: /knowledge <query>");
+      return true;
+    }
+    const result = await scope.knowledge.search(query, { semantic: true, limit: 10 });
+    if (!result.ok) {
+      await sendPlain("Semantic knowledge search requires an embedding-backed knowledge provider.");
+      return true;
+    }
+    await sendPlain(
+      result.entries.length === 0
+        ? "No matching knowledge entries."
+        : truncateForTelegram(renderKnowledgeSearchPlain(result.entries)),
+    );
+    return true;
+  }
+  if (text === "/memory" || text.startsWith("/memory ")) {
+    const query = text === "/memory" ? "" : text.slice("/memory ".length).trim();
+    if (!query) {
+      await sendPlain("Usage: /memory <query>");
+      return true;
+    }
+    const result = await scope.memory.search(query, { semantic: true, limit: 10 });
+    if (!result.ok) {
+      await sendPlain("Semantic memory search requires an embedding-backed memory provider.");
+      return true;
+    }
+    await sendPlain(
+      result.entries.length === 0
+        ? "No matching memory entries."
+        : truncateForTelegram(renderMemorySearchPlain(result.entries)),
+    );
+    return true;
+  }
+  if (text === "/history" || text.startsWith("/history ")) {
+    const query = text === "/history" ? "" : text.slice("/history ".length).trim();
+    if (!query) {
+      await sendPlain("Usage: /history <query>");
+      return true;
+    }
+    const result = await scope.history.search(query, { semantic: true, limit: 10 });
+    if (!result.ok) {
+      await sendPlain("Semantic conversation search requires an embedding-backed history provider.");
+      return true;
+    }
+    await sendPlain(
+      result.conversations.length === 0
+        ? "No matching conversations."
+        : truncateForTelegram(renderHistorySearchPlain(result.conversations)),
+    );
+    return true;
+  }
+  if (text === "/tasks" || text.startsWith("/tasks ")) {
+    const query = text === "/tasks" ? "" : text.slice("/tasks ".length).trim();
+    if (!query) {
+      await sendPlain("Usage: /tasks <query>");
+      return true;
+    }
+    const result = await scope.tasks.search(query, { semantic: true, limit: 10 });
+    if (!result.ok) {
+      await sendPlain("Semantic task search requires an embedding-backed repo-tasks provider.");
+      return true;
+    }
+    await sendPlain(
+      result.tasks.length === 0
+        ? "No matching tasks."
+        : truncateForTelegram(renderRepoTaskSearchPlain(result.tasks)),
+    );
+    return true;
+  }
+  if (text === "/recall" || text.startsWith("/recall ")) {
+    const query = text === "/recall" ? "" : text.slice("/recall ".length).trim();
+    if (!query) {
+      await sendPlain("Usage: /recall <query>");
+      return true;
+    }
+    const result = await scope.recall.recall(query);
+    if (!result.ok) {
+      await sendPlain("Cross-store recall is not configured: no contributors are registered.");
+      return true;
+    }
+    await sendPlain(
+      result.hits.length === 0
+        ? "No matching items."
+        : truncateForTelegram(renderRecallHitsPlain(result.hits)),
+    );
+    return true;
+  }
+  if (text === "/answer-log" || text.startsWith("/answer-log ")) {
+    const arg = text === "/answer-log" ? "" : text.slice("/answer-log ".length).trim();
+    let limit = ANSWER_LOG_DEFAULT_LIMIT;
+    if (arg.length > 0) {
+      const parsed = Number.parseInt(arg, 10);
+      if (!Number.isFinite(parsed) || parsed <= 0 || String(parsed) !== arg) {
+        await sendPlain("Usage: /answer-log [N]");
+        return true;
+      }
+      limit = parsed;
+    }
+    const result = await scope.answer.log({ limit });
+    await sendPlain(
+      result.entries.length === 0
+        ? "No past answer records yet."
+        : truncateForTelegram(renderAnswerHistoryEntriesPlain(result.entries)),
+    );
+    return true;
+  }
+  if (text === "/answer-show" || text.startsWith("/answer-show ")) {
+    const id = text === "/answer-show" ? "" : text.slice("/answer-show ".length).trim();
+    if (!id) {
+      await sendPlain("Usage: /answer-show <id>");
+      return true;
+    }
+    const result = await scope.answer.show(id);
+    if (!result.ok) {
+      await sendPlain(`No answer record found for id "${id}".`);
+      return true;
+    }
+    for (const chunk of splitMessage(renderAnswerReplyPlain(result.record.result))) {
+      await sendPlain(chunk);
+    }
+    return true;
+  }
+  if (text === "/answer" || text.startsWith("/answer ")) {
+    const query = text === "/answer" ? "" : text.slice("/answer ".length).trim();
+    if (!query) {
+      await sendPlain("Usage: /answer <query>");
+      return true;
+    }
+    await sendPlain(truncateForTelegram(renderAnswerReplyPlain(await scope.answer.answer(query))));
+    return true;
+  }
+
+  const captureBody = (command: string): string =>
+    text === command ? "" : text.startsWith(`${command} `) ? text.slice(command.length + 1) : text;
+
+  async function handleCaptureCommand(command: string, target: CaptureTarget | undefined): Promise<void> {
+    const body = captureBody(command).trim();
+    if (!body) {
+      await sendPlain(renderCaptureReplyPlain({
+        ok: false,
+        reason: "ambiguous",
+        suggestions: CAPTURE_TARGET_ORDER,
+      }));
+      return;
+    }
+    const filter: CaptureFilter | undefined = target === undefined ? undefined : { target };
+    await sendPlain(truncateForTelegram(renderCaptureReplyPlain(await scope.capture.capture(body, filter))));
+  }
+
+  if (text === "/capture-to-memory" || text.startsWith("/capture-to-memory ")) {
+    await handleCaptureCommand("/capture-to-memory", "memory");
+    return true;
+  }
+  if (text === "/capture-to-knowledge" || text.startsWith("/capture-to-knowledge ")) {
+    await handleCaptureCommand("/capture-to-knowledge", "knowledge");
+    return true;
+  }
+  if (text === "/capture-to-tasks" || text.startsWith("/capture-to-tasks ")) {
+    await handleCaptureCommand("/capture-to-tasks", "tasks");
+    return true;
+  }
+  if (text === "/capture-to-inbox" || text.startsWith("/capture-to-inbox ")) {
+    await handleCaptureCommand("/capture-to-inbox", "inbox");
+    return true;
+  }
+  if (text === "/capture" || text.startsWith("/capture ")) {
+    await handleCaptureCommand("/capture", undefined);
+    return true;
+  }
+
+  async function handleRetractCommand(command: RetractSlashCommand): Promise<void> {
+    const body = captureBody(command).trim();
+    if (!body) {
+      await sendPlain(retractUsageBody(command));
+      return;
+    }
+    const result = await (() => {
+      switch (command) {
+        case "/retract-memory":
+          return scope.retract.retract({ target: "memory", id: body });
+        case "/retract-knowledge":
+          return scope.retract.retract({ target: "knowledge", slug: body });
+        case "/retract-tasks":
+          return scope.retract.retract({ target: "tasks", id: body });
+        case "/retract-inbox":
+          return scope.retract.retract({ target: "inbox", path: body });
+      }
+    })();
+    await sendPlain(truncateForTelegram(renderRetractResultPlain(result)));
+  }
+
+  if (text === "/retract-memory" || text.startsWith("/retract-memory ")) {
+    await handleRetractCommand("/retract-memory");
+    return true;
+  }
+  if (text === "/retract-knowledge" || text.startsWith("/retract-knowledge ")) {
+    await handleRetractCommand("/retract-knowledge");
+    return true;
+  }
+  if (text === "/retract-tasks" || text.startsWith("/retract-tasks ")) {
+    await handleRetractCommand("/retract-tasks");
+    return true;
+  }
+  if (text === "/retract-inbox" || text.startsWith("/retract-inbox ")) {
+    await handleRetractCommand("/retract-inbox");
+    return true;
+  }
+  if (text === "/retract" || text.startsWith("/retract ")) {
+    await sendPlain(RETRACT_UMBRELLA_HELP_BODY);
+    return true;
+  }
+
+  return false;
 }
 
 export function startTelegramStatusPoll(

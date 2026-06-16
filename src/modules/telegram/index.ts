@@ -27,7 +27,11 @@ import {
   type TelegramChatProjectBinding,
   TelegramProjectSelection,
 } from "./project-selection.js";
-import { buildStatusText } from "./status-poll.js";
+import {
+  buildStatusText,
+  handleTelegramStatusCommand,
+  type TelegramStatusScope,
+} from "./status-poll.js";
 
 async function sendTelegramMessage(
   token: string,
@@ -326,7 +330,7 @@ function makeTelegramStatusChannel(
     name: "telegram-status",
     description:
       "Declares Telegram status-command readiness; the interactive channel owns the single Bot API update stream.",
-    create(ctx) {
+    create() {
       const credentials = getCredentials(moduleCtx);
       if (!credentials) {
         return {
@@ -417,13 +421,35 @@ function makeTelegramInteractiveChannel(
         ),
         onStatusCommand: async (chatId, text) => {
           if (String(chatId) !== credentials.chatId) return false;
-          if (text !== "/status") return false;
-          await callTelegramApi(token, "sendMessage", {
-            chat_id: chatId,
-            text: buildStatusText(channelCtx.getWorkflowStatus()),
-            parse_mode: "Markdown",
+          const client = tryResolveTelegramClient(ctx);
+          if (!client) {
+            if (text !== "/status") return false;
+            await callTelegramApi(token, "sendMessage", {
+              chat_id: chatId,
+              text: buildStatusText(channelCtx.getWorkflowStatus()),
+              parse_mode: "Markdown",
+            });
+            return true;
+          }
+          const defaultScope: TelegramStatusScope = {
+            projectDir: channelCtx.projectDir,
+            getStatusInfo: channelCtx.getWorkflowStatus,
+            knowledge: client.knowledge,
+            memory: client.memory,
+            history: client.history,
+            tasks: client.tasks,
+            recall: client.recall,
+            answer: client.answer,
+            capture: client.capture,
+            retract: client.retract,
+          };
+          return handleTelegramStatusCommand({
+            token,
+            messageChatId: chatId,
+            text,
+            defaultScope,
+            projectRouting,
           });
-          return true;
         },
       });
 

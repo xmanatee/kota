@@ -1,6 +1,9 @@
 import type { Command } from "commander";
+import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
-import { loadConfig } from "#core/config/config.js";
+import { type KotaConfig, loadConfig } from "#core/config/config.js";
+import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
+import type { ModelProviderSelection } from "#core/model/model-client.js";
 import { createModelClient } from "#core/model/model-client.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import { ensureCliProvidersFor } from "#core/modules/cli-providers.js";
@@ -20,7 +23,9 @@ import {
   plain,
   span,
 } from "#modules/rendering/primitives.js";
+import { createRenderingProvider } from "#modules/rendering/rendering-provider.js";
 import { print, TerminalTransport } from "#modules/rendering/transport.js";
+import { runHarnessRepl } from "#modules/repl/index.js";
 import {
   interactiveMode,
   parseIntOption,
@@ -34,12 +39,39 @@ import type {
   HistoryDetailView,
   HistoryShowOptions,
 } from "./client.js";
+import { openHarnessResumeConversation } from "./harness-resume.js";
 import { renderHistorySearchPlain } from "./render.js";
 
 let stderrRenderer: TerminalTransport | null = null;
 function stderr(): TerminalTransport {
   if (!stderrRenderer) stderrRenderer = new TerminalTransport({ stream: process.stderr });
   return stderrRenderer;
+}
+
+function modelProviderSelectionFromConfig(
+  config: KotaConfig,
+): ModelProviderSelection | undefined {
+  if (!config.modelProvider) return undefined;
+  const selection: ModelProviderSelection = {};
+  if (config.modelProvider.type !== undefined) selection.provider = config.modelProvider.type;
+  if (config.modelProvider.baseUrl !== undefined) selection.baseUrl = config.modelProvider.baseUrl;
+  if (config.modelProvider.apiKey !== undefined) selection.apiKey = config.modelProvider.apiKey;
+  return Object.keys(selection).length > 0 ? selection : undefined;
+}
+
+function isModelClientHarness(harnessName: string): boolean {
+  return harnessName === "openai-tools" || harnessName === "thin";
+}
+
+function stripProviderPrefix(modelSpec: string): string {
+  const slash = modelSpec.indexOf("/");
+  return slash > 0 ? modelSpec.slice(slash + 1) : modelSpec;
+}
+
+function modelForHarness(modelSpec: string, harnessName: string): string {
+  return isModelClientHarness(harnessName)
+    ? modelSpec
+    : stripProviderPrefix(modelSpec);
 }
 
 /** Register the `history` subcommand and its children onto `program`. */
@@ -170,6 +202,40 @@ export function registerHistoryCommands(program: Command) {
         opts.model ||
         config.model ||
         resolveActivePresetFromConfig(config).defaultModel;
+      const providerName = config.modelProvider?.type;
+      const useHarnessPath = providerName === undefined || providerName === "agent-sdk";
+      if (useHarnessPath) {
+        const preset = resolveActivePresetFromConfig(config);
+        const harnessName = config.defaultAgentHarness ?? preset.harness;
+        const model = modelForHarness(modelSpec, harnessName);
+        const modelProvider = modelProviderSelectionFromConfig(config);
+        const resumeStore = openHarnessResumeConversation(resume.projectDir, resume.id);
+        await runHarnessRepl({
+          harness: resolveAgentHarness(harnessName),
+          model,
+          cwd: resume.projectDir,
+          run: {
+            verbose: opts.verbose || config.verbose || false,
+            effort: preset.defaultEffort,
+            systemPrompt: buildKotaSystemPrompt(
+              config,
+              undefined,
+              resume.projectDir,
+              resume.projectDir,
+            ),
+            ...(modelProvider !== undefined ? { modelProvider } : {}),
+          },
+          chrome: createRenderingProvider().createReplChrome(),
+          initialTranscript: resumeStore.transcript,
+          onUserInput: (input: string) => {
+            resumeStore.appendUserInput(input);
+          },
+          onAssistantResponse: (_turn, result) => {
+            resumeStore.appendAssistantResult(result);
+          },
+        });
+        return;
+      }
       const resolved = createModelClient({
         model: modelSpec,
         provider: config.modelProvider?.type,

@@ -11,11 +11,13 @@ import type {
   KotaToolResultBlockContent,
   KotaToolResultContentBlock,
 } from "#core/agent-harness/message-protocol.js";
-import { AgentSession, type LoopOptions } from "#core/loop/loop.js";
+import type { LoopOptions } from "#core/loop/loop.js";
 import {
   composeTranscriptPrompt,
   type ReplTurn,
 } from "#modules/repl/index.js";
+import { ConversationHistory } from "./history.js";
+import { getProjectHistoryDir } from "./history-utils.js";
 
 export type HarnessResumeRunOptions = Omit<AgentHarnessRunOptions, "prompt">;
 
@@ -26,6 +28,45 @@ export type HarnessConversationResumeOptions = {
   conversation?: LoopOptions & { resumeConversation: string };
   writer?: AgentHarnessWriter;
 };
+
+export type HarnessResumeConversationStore = {
+  transcript: ReplTurn[];
+  appendUserInput(input: string): void;
+  appendAssistantResult(result: AgentHarnessResult): void;
+};
+
+export function openHarnessResumeConversation(
+  projectDir: string,
+  conversationId: string,
+): HarnessResumeConversationStore {
+  const history = new ConversationHistory(getProjectHistoryDir(projectDir));
+  const data = history.load(conversationId);
+  if (!data) {
+    throw new Error(`Conversation "${conversationId}" not found in ${projectDir}`);
+  }
+  const messages: KotaMessage[] = [...data.messages];
+  const compactionCount = data.compactionCount;
+  let lastInputTokens = data.lastInputTokens;
+
+  function save(): void {
+    history.save(conversationId, messages, compactionCount, lastInputTokens);
+  }
+
+  return {
+    transcript: transcriptFromKotaMessages(messages),
+    appendUserInput(input: string): void {
+      messages.push({ role: "user", content: input });
+      save();
+    },
+    appendAssistantResult(result: AgentHarnessResult): void {
+      if (result.text) messages.push({ role: "assistant", content: result.text });
+      if (typeof result.inputTokens === "number") {
+        lastInputTokens = result.inputTokens;
+      }
+      save();
+    },
+  };
+}
 
 export async function runAgentHarnessWithConversationResume(
   options: HarnessConversationResumeOptions,
@@ -38,30 +79,19 @@ export async function runAgentHarnessWithConversationResume(
     );
   }
 
-  const session = new AgentSession(options.conversation);
-  let errored = false;
-  try {
-    await session.initPromise;
-    const transcript = transcriptFromKotaMessages(session.context.getMessages());
-    const composedPrompt = composeTranscriptPrompt(transcript, options.prompt);
-    session.context.addUserMessage(options.prompt);
-    const result = await runAgentHarness(
-      options.harness,
-      { ...options.run, prompt: composedPrompt },
-      options.writer,
-    );
-    if (result.text) session.context.addAssistantText(result.text);
-    if (typeof result.inputTokens === "number") {
-      session.context.setInputTokens(result.inputTokens);
-    }
-    errored = result.isError;
-    return result;
-  } catch (err) {
-    errored = true;
-    throw err;
-  } finally {
-    session.close(errored);
-  }
+  const store = openHarnessResumeConversation(
+    options.conversation.projectDir ?? process.cwd(),
+    options.conversation.resumeConversation,
+  );
+  const composedPrompt = composeTranscriptPrompt(store.transcript, options.prompt);
+  store.appendUserInput(options.prompt);
+  const result = await runAgentHarness(
+    options.harness,
+    { ...options.run, prompt: composedPrompt },
+    options.writer,
+  );
+  store.appendAssistantResult(result);
+  return result;
 }
 
 export function transcriptFromKotaMessages(messages: KotaMessage[]): ReplTurn[] {

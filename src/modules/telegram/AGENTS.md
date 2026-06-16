@@ -49,25 +49,14 @@ notification forwarding.
   the handler adds no second prompt, parser, retry, or budget.
 - `/capture` plus `/capture-to-{memory,knowledge,tasks,inbox}` and the
   four `/retract-{memory,knowledge,tasks,inbox}` are the cross-store
-  write-side and correction-side surfaces. Each family shares one
-  handler that resolves the target from the command name (twins) or
-  leaves it unset (capture umbrella only), then dispatches to
-  `ctx.client.capture.capture` / `ctx.client.retract.retract`. The
-  seam owns classification (capture only), contributor dispatch,
-  ambiguous-degradation (capture) / `not_found` (retract), and
-  contributor-failure isolation; the Telegram layer adds no second
-  classifier, parallel routing, or per-store fan-out. The reply
-  renders the discriminated `CaptureResult` / `RetractResult`
-  exhaustively (every record arm + every `ok: false` reason, no
-  `default` branch) through `renderCaptureReplyPlain` /
-  `renderRetractResultPlain`. The retract tasks arm carries the
-  seam's `previousPath -> path (dropped)` "moved to dropped"
-  wording, never "deleted". The retract seam has no classifier —
-  there is no unguided `/retract <text>` primary; the umbrella
-  `/retract` exists only to print a fixed help body. Empty /
-  whitespace-only argument short-circuits locally to the ambiguous
-  envelope (capture) or a per-target usage body (retract); neither
-  handler calls its seam with an empty body.
+  write-side and correction-side surfaces. Each family shares one handler
+  that resolves the target, dispatches to the capture/retract client seam,
+  and renders `CaptureResult` / `RetractResult` exhaustively through the
+  plain-text helpers. Telegram adds no second classifier, parallel routing,
+  or per-store fan-out. The retract tasks arm keeps the seam's
+  `previousPath -> path (dropped)` "moved to dropped" wording; the umbrella
+  `/retract` only prints help. Empty bodies short-circuit locally and never
+  call the seam.
 - Contributes notification subscriptions for workflow events.
   Optional event filters must not suppress urgent owner/approval
   escalation notifications.
@@ -107,30 +96,20 @@ Required environment:
   and is allowed to issue `/status`.
 
 Model backend selection is KOTA config, not Telegram-specific. For Docker
-deploys, `deploy/telegram-assistant/entrypoint.sh` can derive that config from
-env: set `KOTA_MODEL=openrouter/<OpenRouter model slug>` plus
-`OPENROUTER_API_KEY` for OpenRouter, or choose another provider/preset
-explicitly. For example, OpenRouter's `openrouter/auto` router is
-`KOTA_MODEL=openrouter/openrouter/auto` in KOTA syntax. Anthropic keys are
-optional and only needed when the selected model/provider uses Anthropic.
+deploys, `deploy/telegram-assistant/entrypoint.sh` can derive it from
+`KOTA_MODEL` plus the selected provider's key, or an explicit provider/preset.
+Anthropic keys are optional and only needed for Anthropic-backed selections.
 
 Autonomy mode is mandatory — the interactive channel refuses to start without
 one. Set it through `modules.telegram.defaultAutonomyMode` (or the shared
 `serve.defaultAutonomyMode`). Restrict interactive sessions via
 `modules.telegram.allowedChatIds`; empty or unset allows any chat.
 
-Owner-question escalations flow through `OwnerQuestionQueue` from
-three answer surfaces (recorded source label only differs):
-inline-keyboard buttons (`telegram-inline`) for `proposed_answers`
-plus dismissal; chat reply with `reply_to_message_id` to the
-delivered owner-question message (`telegram-reply`) for free-form
-text; and the `kota owner-question` CLI (`http`/CLI). Free-form
-replies coexist with proposed-answer buttons — the first resolution
-wins; later replies to the now-stale message fall through to the
-interactive agent session, preserving the "clarifying follow-up" use
-case. Replies that do not match a tracked owner-question message
-also fall through. The chat allowlist applies to chat replies just
-like ordinary text messages.
+Owner-question escalations flow through `OwnerQuestionQueue` from inline
+buttons (`telegram-inline`), chat replies to the delivered question
+(`telegram-reply`), and the `kota owner-question` CLI (`http`/CLI). The first
+resolution wins; stale or unrelated replies fall through to the interactive
+session. The chat allowlist applies to replies like ordinary messages.
 
 Voice input requires a transcription provider. Install a module that
 registers one under service type `"transcription"`; missing providers
@@ -142,9 +121,6 @@ the `telegram-interactive` poller automatically when the required env vars
 are present. `telegram-status` must not call `getUpdates`; Telegram cancels
 older long polls when more than one consumer uses the same bot token.
 
-A reproducible deploy artifact for a production Linux host lives in
-`deploy/telegram-assistant/`. It packages both a docker-compose path
-and a system-level systemd unit behind one `install.sh` and a matching
-`rollback.sh`. Keep `deploy-artifact.test.ts` aligned with that
-directory when required env vars, supervisor directives, or the
-install-script contract change.
+A reproducible Linux deploy artifact lives in `deploy/telegram-assistant/`.
+It packages docker-compose and systemd paths behind `install.sh` and
+`rollback.sh`; keep `deploy-artifact.test.ts` aligned with that contract.

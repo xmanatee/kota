@@ -332,10 +332,6 @@ type ExistingWorkItem = {
   path: string;
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
 function nonEmptyString(value: string | undefined): string | null {
   return value && value.trim().length > 0 ? value.trim() : null;
 }
@@ -665,7 +661,7 @@ function mergeScopedRuns(runs: readonly ScopedRunEvidence[]): ScopedRunEvidence[
 
 function batchRunSource(
   sources: readonly ProgressReviewDirectorySource[],
-  payload: Record<string, unknown>,
+  payload: WorkflowRunTrigger["payload"],
 ): ProgressReviewDirectorySource | null {
   if (sources.length === 1) return sources[0] ?? null;
   const scopeId =
@@ -688,7 +684,6 @@ function listBatchReferencedRunEvidence(
 
   const runs: ScopedRunEvidence[] = [];
   for (const event of batch.inputEvents) {
-    if (!isRecord(event.payload)) continue;
     const runId = event.payload.runId;
     if (typeof runId !== "string") continue;
     if (!isSafeRunIdBasename(runId)) {

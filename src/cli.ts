@@ -3,7 +3,7 @@ import { basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
-import { expandAlias, loadConfig, type KotaConfig } from "#core/config/config.js";
+import { expandAlias, type KotaConfig, loadConfig } from "#core/config/config.js";
 import type { ModelProviderSelection } from "#core/model/model-client.js";
 import { expandUserPromptReferences } from "#core/prompt-input/index.js";
 import { getActiveKotaClient } from "#core/server/client-holder.js";
@@ -13,7 +13,7 @@ import { blank, line, span } from "#modules/rendering/primitives.js";
 import { createRenderingProvider } from "#modules/rendering/rendering-provider.js";
 import { TerminalTransport } from "#modules/rendering/transport.js";
 import { resolveAgentHarness, runAgentHarness } from "./core/agent-harness/index.js";
-import { AgentSession, runAgentLoop } from "./core/loop/loop.js";
+import { runAgentLoop } from "./core/loop/loop.js";
 import { buildKotaSystemPrompt } from "./core/loop/system-prompt.js";
 import {
   createAskUserMcpAuthorizationResolver,
@@ -40,8 +40,8 @@ import {
   runPipeLoop,
 } from "./modules/history/cli.js";
 import {
+  openHarnessResumeConversation,
   runAgentHarnessWithConversationResume,
-  transcriptFromKotaMessages,
 } from "./modules/history/harness-resume.js";
 import {
   apiKeyNameForProvider,
@@ -297,43 +297,27 @@ program
           }
         : undefined;
       if (opts.interactive || !prompt) {
-        let resumeSession: AgentSession | undefined;
-        let resumeSessionErrored = false;
-        if (conversationOptions) {
-          resumeSession = new AgentSession(conversationOptions);
-          await resumeSession.initPromise;
-        }
-        try {
-          await runHarnessRepl({
-            harness,
-            model,
-            cwd: runProjectDir,
-            run: runOverrides,
-            chrome: createRenderingProvider().createReplChrome(),
-            ...(resumeSession
-              ? {
-                  initialTranscript: transcriptFromKotaMessages(
-                    resumeSession.context.getMessages(),
-                  ),
-                  onUserInput: (input: string) => {
-                    resumeSession?.context.addUserMessage(input);
-                  },
-                  onAssistantResponse: (_turn, result) => {
-                    if (result.text) resumeSession?.context.addAssistantText(result.text);
-                    if (typeof result.inputTokens === "number") {
-                      resumeSession?.context.setInputTokens(result.inputTokens);
-                    }
-                    resumeSessionErrored = result.isError;
-                  },
-                }
-              : {}),
-          });
-        } catch (err) {
-          resumeSessionErrored = true;
-          throw err;
-        } finally {
-          resumeSession?.close(resumeSessionErrored);
-        }
+        const resumeStore = conversationOptions
+          ? openHarnessResumeConversation(runProjectDir, conversationOptions.resumeConversation)
+          : undefined;
+        await runHarnessRepl({
+          harness,
+          model,
+          cwd: runProjectDir,
+          run: runOverrides,
+          chrome: createRenderingProvider().createReplChrome(),
+          ...(resumeStore
+            ? {
+                initialTranscript: resumeStore.transcript,
+                onUserInput: (input: string) => {
+                  resumeStore.appendUserInput(input);
+                },
+                onAssistantResponse: (_turn, result) => {
+                  resumeStore.appendAssistantResult(result);
+                },
+              }
+            : {}),
+        });
         return;
       }
       prompt = expandUserPromptReferences(prompt, runProjectDir).text;
