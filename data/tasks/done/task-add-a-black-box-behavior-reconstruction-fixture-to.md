@@ -1,12 +1,12 @@
 ---
 id: task-add-a-black-box-behavior-reconstruction-fixture-to
 title: Add a black-box behavior reconstruction fixture to the eval harness
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Seed an eval-harness fixture where the builder must infer a small CLI's behavior from an executable and docs, then implement a fresh source tree that passes deterministic behavioral tests without source lookup or network access.
 created_at: 2026-05-26T05:44:02.548Z
-updated_at: 2026-06-15T15:08:11.394Z
+updated_at: 2026-06-16T14:16:02.000Z
 ---
 
 ## Problem
