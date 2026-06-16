@@ -207,6 +207,9 @@ resources:
       fingerprint: sha256:7e83eb9fbd8f2df3df0de80d77f7e324
       summary: "Letta now foregrounds Letta Code plus skills/subagents and memory blocks; existing KOTA memory-block and skill decisions cover the nonduplicative signal."
       last_seen_at: "2026-05-27T11:36:10.460Z"
+  - url: https://mubit.ai/
+    added: "2026-06-16"
+    notes: "Execution-memory product: records run outcomes, tool calls, verifiers, and traces, then feeds lessons plus prompt/tool updates into later runs. Monitor as a vendor signal for run-artifact learning and verifier-gated self-improvement; do not import managed memory or automatic prompt mutation without evaluator evidence."
   - url: https://github.com/microsoft/autogen
     added: "2026-04-19"
     snapshot:
