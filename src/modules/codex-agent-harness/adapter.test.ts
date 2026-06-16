@@ -19,6 +19,7 @@ type MockChild = EventEmitter & {
   stdin: PassThrough;
   stdout: PassThrough;
   stderr: PassThrough;
+  exitCode: number | null;
   kill: ReturnType<typeof vi.fn>;
 };
 
@@ -26,11 +27,13 @@ function mockCodexProcess(options: {
   stdoutLines?: string[];
   stderr?: string;
   code?: number;
+  autoClose?: boolean;
 } = {}): { child: MockChild; stdinText: () => string } {
   const child = new EventEmitter() as MockChild;
   child.stdin = new PassThrough();
   child.stdout = new PassThrough();
   child.stderr = new PassThrough();
+  child.exitCode = null;
   child.kill = vi.fn();
 
   const stdinChunks: Buffer[] = [];
@@ -38,13 +41,14 @@ function mockCodexProcess(options: {
 
   spawnMock.mockReturnValue(child);
 
-  queueMicrotask(() => {
+  if (options.autoClose !== false) queueMicrotask(() => {
     for (const line of options.stdoutLines ?? []) {
       child.stdout.write(`${line}\n`);
     }
     child.stdout.end();
     if (options.stderr) child.stderr.write(options.stderr);
     child.stderr.end();
+    child.exitCode = options.code ?? 0;
     child.emit("close", options.code ?? 0, null);
   });
 
@@ -59,6 +63,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.clearAllMocks();
 });
 
@@ -169,6 +174,39 @@ describe("codexAgentHarness", () => {
       isError: true,
       subtype: "codex_cli_error",
     });
+  });
+
+  it("force-kills aborted Codex CLI runs that do not exit after SIGTERM", async () => {
+    vi.useFakeTimers();
+    const process = mockCodexProcess({ autoClose: false });
+    const abortController = new AbortController();
+
+    const run = codexAgentHarness.run({
+      prompt: "x",
+      model: "gpt-5.5",
+      effort: "xhigh",
+      abortController,
+    });
+    await vi.runAllTicks();
+
+    abortController.abort(new Error("step timeout"));
+
+    expect(process.child.kill).toHaveBeenCalledWith("SIGTERM");
+
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(process.child.kill).toHaveBeenCalledWith("SIGKILL");
+
+    process.child.stdout.end();
+    process.child.stderr.end();
+    process.child.exitCode = null;
+    process.child.emit("close", null, "SIGKILL");
+
+    await expect(run).resolves.toMatchObject({
+      isError: true,
+      subtype: "aborted",
+    });
+    vi.useRealTimers();
   });
 
   it("rejects unsupported KOTA-only surfaces loudly", async () => {

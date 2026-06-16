@@ -25,6 +25,7 @@ import {
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 
 export const CODEX_AGENT_HARNESS_NAME = "codex";
+const CODEX_ABORT_FORCE_KILL_MS = 5_000;
 
 const CODEX_UNSUPPORTED_OPTIONS = [
   {
@@ -282,8 +283,26 @@ async function collectTextFromCodexCli(args: {
   let outputTokens: number | undefined;
   let cliError: string | undefined;
 
+  let forceKillTimer: ReturnType<typeof setTimeout> | undefined;
+  const clearForceKill = (): void => {
+    if (forceKillTimer === undefined) return;
+    clearTimeout(forceKillTimer);
+    forceKillTimer = undefined;
+  };
+  const sendSignal = (signal: NodeJS.Signals): void => {
+    try {
+      child.kill(signal);
+    } catch {
+      // The process may have exited between abort scheduling and signal send.
+    }
+  };
   const abort = (): void => {
-    child.kill("SIGTERM");
+    sendSignal("SIGTERM");
+    if (forceKillTimer !== undefined) return;
+    forceKillTimer = setTimeout(() => {
+      if (child.exitCode === null) sendSignal("SIGKILL");
+    }, CODEX_ABORT_FORCE_KILL_MS);
+    forceKillTimer.unref?.();
   };
   let removeAbortListener: (() => void) | undefined;
   if (args.abortController) {
@@ -324,11 +343,20 @@ async function collectTextFromCodexCli(args: {
     }
   })();
 
+  const clearAbortHandlers = (): void => {
+    removeAbortListener?.();
+    clearForceKill();
+  };
   const exit = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve, reject) => {
-    child.on("error", reject);
-    child.on("close", (code, signal) => resolve({ code, signal }));
+    child.on("error", (error) => {
+      clearAbortHandlers();
+      reject(error);
+    });
+    child.on("close", (code, signal) => {
+      clearAbortHandlers();
+      resolve({ code, signal });
+    });
   });
-  removeAbortListener?.();
   await Promise.all([stdoutDone, stderrDone]);
 
   if (args.abortController?.signal.aborted) {
