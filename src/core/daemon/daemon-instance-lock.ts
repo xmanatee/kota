@@ -2,6 +2,7 @@ import { chmodSync, existsSync, mkdirSync, renameSync, rmSync, writeFileSync } f
 import { join } from "node:path";
 import { JsonFileError, readOptionalJsonFile } from "#core/util/json-file.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
+import { detectStrandedDaemonProcess } from "./stranded-daemon.js";
 
 export const CONTROL_FILE = "daemon-control.json";
 
@@ -18,9 +19,18 @@ export type DaemonControlFilePayload = {
  * or unreachable port), clean it up and proceed.
  */
 export async function acquireInstanceLock(
+  projectDir: string,
   stateDir: string,
   log: (message: string) => void,
 ): Promise<void> {
+  const stranded = detectStrandedDaemonProcess(projectDir);
+  if (stranded.kind === "stranded") {
+    throw new Error(
+      `A stranded daemon process is already running (pid ${stranded.pid}) but has no control API. ` +
+        "Terminate it before starting a new daemon.",
+    );
+  }
+
   const controlPath = join(stateDir, CONTROL_FILE);
   const existing = readOptionalJsonFile<{ port?: number; pid?: number; token?: string }>(controlPath);
   if (!existing || typeof existing.pid !== "number") return;

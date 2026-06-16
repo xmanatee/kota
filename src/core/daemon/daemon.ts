@@ -116,6 +116,7 @@ const DEFAULT_SHUTDOWN_GRACE_PERIOD_MS = 60_000;
 export class Daemon {
   private readonly ctx: DaemonRuntimeContext;
   private restartShutdownScheduled = false;
+  private restartHandoff: Promise<Error | null> | null = null;
 
   constructor(config: DaemonConfig) {
     const logger = new DaemonLogger(config.logFormat);
@@ -217,6 +218,7 @@ export class Daemon {
     this.ctx.restartRequested = false;
     this.ctx.restartReason = null;
     this.restartShutdownScheduled = false;
+    this.restartHandoff = null;
 
     try {
       await runDaemonStartup(this.ctx, {
@@ -233,6 +235,10 @@ export class Daemon {
         logShutdown: false,
       });
       throw err;
+    }
+    if (this.restartHandoff !== null) {
+      const restartError = await this.restartHandoff;
+      if (restartError !== null) throw restartError;
     }
   }
 
@@ -310,18 +316,23 @@ export class Daemon {
       }
       this.ctx.log(`Restarting daemon: ${reason}`);
       saveDaemonStateToDisk(this.ctx.stateDir, this.ctx.state);
-      void this.stop()
-        .then(() => {
-          const restartExit = this.ctx.config.restartExit ?? ((code: number) => {
-            process.exit(code);
-          });
-          restartExit(RESTART_EXIT_CODE);
-        })
+      this.restartHandoff = this.finishRestart()
+        .then(() => null)
         .catch((error) => {
           this.restartShutdownScheduled = false;
-          this.ctx.log(`Restart shutdown failed: ${(error as Error).message}`);
+          const restartError = error instanceof Error ? error : new Error(String(error));
+          this.ctx.log(`Restart shutdown failed: ${restartError.message}`);
+          return restartError;
         });
     });
+  }
+
+  private async finishRestart(): Promise<void> {
+    await this.stop();
+    const restartExit = this.ctx.config.restartExit ?? ((code: number) => {
+      process.exit(code);
+    });
+    restartExit(RESTART_EXIT_CODE);
   }
 }
 

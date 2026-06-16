@@ -428,6 +428,40 @@ describe("TelegramBot", () => {
     );
   });
 
+  it("treats getUpdates conflict as terminal instead of retrying forever", async () => {
+    const bot = new TelegramBot(botOptions({ token: "test-token" }));
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/getMe")) {
+        return {
+          json: () =>
+            Promise.resolve({
+              ok: true,
+              result: { id: 1, first_name: "TestBot", username: "test_bot" },
+            }),
+        };
+      }
+      if (url.endsWith("/getUpdates")) {
+        return {
+          json: () =>
+            Promise.resolve({
+              ok: false,
+              description:
+                "Conflict: terminated by other getUpdates request; make sure that only one bot instance is running",
+            }),
+        };
+      }
+      throw new Error(`unexpected URL ${url}`);
+    });
+
+    await expect(bot.start()).rejects.toThrow(
+      "another Telegram Bot API getUpdates consumer is already using this bot token",
+    );
+    const getUpdatesCalls = fetchMock.mock.calls.filter((call) =>
+      String(call[0]).endsWith("/getUpdates"),
+    );
+    expect(getUpdatesCalls).toHaveLength(1);
+  });
+
   it("broadcastToChats delivers a message to every active session", async () => {
     const bot = new TelegramBot(botOptions());
     // Drive a text message through the poll loop to create a session, then stop.

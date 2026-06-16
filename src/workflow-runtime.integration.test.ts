@@ -43,6 +43,18 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function waitUntil(
+  predicate: () => boolean,
+  timeoutMs = 1_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await wait(10);
+  }
+  throw new Error("condition was not met before timeout");
+}
+
 describe("WorkflowRuntime", () => {
   let projectDir: string;
 
@@ -1202,6 +1214,84 @@ describe("WorkflowRuntime", () => {
     const recovery = new WorkflowRunStore(projectDir).getRecovery();
     expect(recovery).toMatchObject({
       sourceWorkflow: "improver",
+      attempts: 0,
+    });
+  });
+
+  it("defers dirty-worktree attribution while another workflow is still active", async () => {
+    execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
+    execFileSync("git", ["config", "user.name", "Kota Tests"], { cwd: projectDir, stdio: "ignore" });
+    execFileSync("git", ["config", "user.email", "kota@example.com"], { cwd: projectDir, stdio: "ignore" });
+    writeFileSync(join(projectDir, ".gitignore"), ".kota/\n");
+    writeFileSync(join(projectDir, "README.md"), "clean\n");
+    execFileSync("git", ["add", ".gitignore", "README.md"], { cwd: projectDir, stdio: "ignore" });
+    execFileSync("git", ["commit", "-m", "init"], { cwd: projectDir, stdio: "ignore" });
+
+    let releaseBuilder!: () => void;
+    const builderCanFinish = new Promise<void>((resolve) => {
+      releaseBuilder = resolve;
+    });
+
+    const bus = new EventBus();
+    const completed: string[] = [];
+    const restartReasons: string[] = [];
+    bus.on("workflow.completed", (payload) => {
+      completed.push(payload.workflow);
+    });
+    bus.on("runtime.restart_requested", (payload) => {
+      restartReasons.push(payload.reason ?? "");
+    });
+
+    const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
+      bus,
+      projectDir,
+      idleIntervalMs: 10,
+      codeConcurrency: 2,
+      workflows: [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "dirty-build",
+              type: "code",
+              run: async ({ projectDir }) => {
+                writeFileSync(join(projectDir, "README.md"), "dirty\n");
+                await builderCanFinish;
+                return "dirty";
+              },
+            },
+          ],
+        }),
+        registerWorkflowDefinition("test/scope-improver.ts", {
+          name: "scope-improver",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "inspect",
+              type: "code",
+              run: () => "clean",
+            },
+          ],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await waitUntil(() => completed.includes("scope-improver"));
+
+    expect(restartReasons).not.toContain(
+      'workflow "scope-improver" completed with dirty worktree',
+    );
+    expect(new WorkflowRunStore(projectDir).getRecovery()).toBeNull();
+
+    releaseBuilder();
+    await waitUntil(() => restartReasons.includes('workflow "builder" completed with dirty worktree'));
+    await runtime.stop();
+
+    expect(new WorkflowRunStore(projectDir).getRecovery()).toMatchObject({
+      sourceWorkflow: "builder",
       attempts: 0,
     });
   });

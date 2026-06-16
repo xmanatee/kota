@@ -21,6 +21,15 @@ export function handleDirtyCompletion(
 
   const existing = state.store.getRecovery();
 
+  const otherActiveWorkflows = [...state.activeRuns.keys()]
+    .filter((workflowName) => workflowName !== definition.name);
+  if (otherActiveWorkflows.length > 0) {
+    state.log(
+      `Worktree dirty after "${definition.name}" while ${otherActiveWorkflows.join(", ")} still active - deferring attribution: ${worktree.summary}`,
+    );
+    return;
+  }
+
   if (worktree.fingerprint === preRunFingerprint) {
     if (existing) {
       state.store.setRecovery({
@@ -33,7 +42,7 @@ export function handleDirtyCompletion(
       });
     }
     state.log(
-      `Worktree still dirty after "${definition.name}" but fingerprint unchanged — not attributing: ${worktree.summary}`,
+      `Worktree still dirty after "${definition.name}" but fingerprint unchanged - not attributing: ${worktree.summary}`,
     );
     return;
   }

@@ -10,9 +10,13 @@ import type { KotaClient } from "#core/server/kota-client.js";
 import { callTelegramApi } from "./client.js";
 import telegramModule from "./index.js";
 
-vi.mock("./client.js", () => ({
-  callTelegramApi: vi.fn(),
-}));
+vi.mock("./client.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./client.js")>();
+  return {
+    ...actual,
+    callTelegramApi: vi.fn(),
+  };
+});
 
 vi.mock("./callback-poll.js", () => ({
   createTelegramCallbackHandler: vi.fn(() => async () => false),
@@ -46,6 +50,7 @@ function makeChannelStartContext() {
     defaultProjectRuntime: runtime,
     getProjectRuntime: () => runtime,
     log: () => {},
+    reportFailure: () => {},
     getWorkflowStatus: () => ({
       runtimeState: { completedRuns: 0, pendingRuns: [], workflows: {} },
       dispatchPaused: false,
@@ -81,12 +86,13 @@ function makeStubClient(
 function makeStubCtx(
   bus?: EventBus,
   client: KotaClient = makeStubClient(),
+  config: ModuleRuntimeContext["config"] = {} as ModuleRuntimeContext["config"],
 ): ModuleRuntimeContext {
   const b = bus ?? new EventBus();
   return {
     cwd: "/tmp/test",
     verbose: false,
-    config: {} as ModuleRuntimeContext["config"],
+    config,
     storage: new ModuleStorage("/tmp/test", "telegram"),
     registerGroup: () => {},
     getRoutes: () => [],
@@ -194,6 +200,69 @@ describe("telegramModule", () => {
       }
     } finally {
       if (savedToken !== undefined) process.env.TELEGRAM_BOT_TOKEN = savedToken;
+    }
+  });
+
+  it("telegram-interactive channel reports unavailable when model provider is missing", async () => {
+    const savedToken = process.env.TELEGRAM_BOT_TOKEN;
+    const savedChatId = process.env.TELEGRAM_ALERT_CHAT_ID;
+    process.env.TELEGRAM_BOT_TOKEN = "bot-token-test";
+    process.env.TELEGRAM_ALERT_CHAT_ID = "123456789";
+    try {
+      const channels = await resolveModuleChannels(
+        telegramModule,
+        makeStubCtx(
+          undefined,
+          makeStubClient(),
+          { model: "gpt-5.5" } as ModuleRuntimeContext["config"],
+        ),
+      );
+      const channel = channels.find((c) => c.name === "telegram-interactive");
+      if (!channel) throw new Error("telegram-interactive channel missing");
+      const result = channel.create(makeChannelStartContext());
+      expect(result.status).toBe("unavailable");
+      if (result.status === "unavailable") {
+        expect(result.reason).toContain("model provider");
+        expect(result.reason).toContain("gpt-5.5");
+      }
+    } finally {
+      if (savedToken !== undefined) process.env.TELEGRAM_BOT_TOKEN = savedToken;
+      else delete process.env.TELEGRAM_BOT_TOKEN;
+      if (savedChatId !== undefined) process.env.TELEGRAM_ALERT_CHAT_ID = savedChatId;
+      else delete process.env.TELEGRAM_ALERT_CHAT_ID;
+    }
+  });
+
+  it("telegram-interactive channel reports unavailable when provider API key is missing", async () => {
+    const savedToken = process.env.TELEGRAM_BOT_TOKEN;
+    const savedChatId = process.env.TELEGRAM_ALERT_CHAT_ID;
+    const savedOpenAiKey = process.env.OPENAI_API_KEY;
+    process.env.TELEGRAM_BOT_TOKEN = "bot-token-test";
+    process.env.TELEGRAM_ALERT_CHAT_ID = "123456789";
+    delete process.env.OPENAI_API_KEY;
+    try {
+      const channels = await resolveModuleChannels(
+        telegramModule,
+        makeStubCtx(
+          undefined,
+          makeStubClient(),
+          { model: "openai/gpt-5.5" } as ModuleRuntimeContext["config"],
+        ),
+      );
+      const channel = channels.find((c) => c.name === "telegram-interactive");
+      if (!channel) throw new Error("telegram-interactive channel missing");
+      const result = channel.create(makeChannelStartContext());
+      expect(result.status).toBe("unavailable");
+      if (result.status === "unavailable") {
+        expect(result.reason).toContain("OPENAI_API_KEY");
+      }
+    } finally {
+      if (savedToken !== undefined) process.env.TELEGRAM_BOT_TOKEN = savedToken;
+      else delete process.env.TELEGRAM_BOT_TOKEN;
+      if (savedChatId !== undefined) process.env.TELEGRAM_ALERT_CHAT_ID = savedChatId;
+      else delete process.env.TELEGRAM_ALERT_CHAT_ID;
+      if (savedOpenAiKey !== undefined) process.env.OPENAI_API_KEY = savedOpenAiKey;
+      else delete process.env.OPENAI_API_KEY;
     }
   });
 

@@ -416,7 +416,10 @@ describe("Telegram personal-assistant daemon integration", () => {
     const stubCtx: ModuleRuntimeContext = {
       cwd: projectDir,
       verbose: false,
-      config: { model: "claude-sonnet-4-6" } as ModuleRuntimeContext["config"],
+      config: {
+        model: "claude-sonnet-4-6",
+        modelProvider: { type: "anthropic", apiKey: "sk-test" },
+      } as ModuleRuntimeContext["config"],
       storage: new ModuleStorage(projectDir, "telegram"),
       registerGroup: () => {},
       getRoutes: () => [],

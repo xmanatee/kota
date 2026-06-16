@@ -11,9 +11,15 @@ import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-p
 import type { BusEvents } from "#core/events/event-bus.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { ModuleSetupRequirement } from "#core/modules/setup-requirements.js";
+import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import type { KotaClient } from "#core/server/kota-client.js";
 import { AUTONOMY_MODES, type AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { operatorSurfaceEffect } from "#core/tools/effect.js";
+import {
+  apiKeyNameForProvider,
+  resolveApiKey,
+  resolveModelProviderName,
+} from "#modules/model-clients/factory.js";
 import { TelegramBot } from "./bot.js";
 import { createTelegramCallbackHandler } from "./callback-poll.js";
 import type { TelegramMessage } from "./client.js";
@@ -263,6 +269,19 @@ function getCredentials(ctx: ModuleContext): { token: string; chatId: string } |
   return { token, chatId };
 }
 
+function telegramInteractiveModelError(ctx: ModuleContext): string | null {
+  const model = ctx.config.model ?? resolveActivePresetFromConfig(ctx.config).defaultModel;
+  const provider = resolveModelProviderName(model, ctx.config.modelProvider?.type);
+  if (!provider) {
+    return `Telegram interactive sessions require a model provider for "${model}". Set config.modelProvider.type or use provider/model notation.`;
+  }
+  const apiKeyEnv = apiKeyNameForProvider(provider);
+  if (apiKeyEnv && !resolveApiKey(provider, ctx.config.modelProvider?.apiKey, { projectDir: ctx.cwd })) {
+    return `Telegram interactive sessions require ${apiKeyEnv} or config.modelProvider.apiKey for provider "${provider}".`;
+  }
+  return null;
+}
+
 type TelegramProjectRouting = {
   client: KotaClient;
   selection: TelegramProjectSelection;
@@ -372,6 +391,13 @@ function makeTelegramInteractiveChannel(
           reason: "TELEGRAM_BOT_TOKEN and TELEGRAM_ALERT_CHAT_ID secret refs are required",
         };
       }
+      const modelError = telegramInteractiveModelError(ctx);
+      if (modelError) {
+        return {
+          status: "unavailable",
+          reason: modelError,
+        };
+      }
       const { token } = credentials;
 
       const telegramConfig = ctx.getModuleConfig<TelegramConfig>();
@@ -474,9 +500,9 @@ function makeTelegramInteractiveChannel(
         adapter: {
           async start() {
             startPromise = bot.start().catch((err) => {
-              ctx.log.error(
-                `telegram-interactive channel poll loop exited: ${(err as Error).message}`,
-              );
+              const message = (err as Error).message;
+              ctx.log.error(`telegram-interactive channel poll loop exited: ${message}`);
+              channelCtx.reportFailure(message);
             });
           },
           async stop() {

@@ -627,4 +627,50 @@ describe("Daemon", () => {
       process.exitCode = previousExitCode;
     }
   });
+
+  it("rejects start when restart handoff fails instead of swallowing the failed exit", async () => {
+    const previousExitCode = process.exitCode;
+    const workflows = [
+      registerWorkflowDefinition("test/builder.ts", {
+        name: "builder",
+        triggers: [
+          {
+            event: "runtime.idle",
+            cooldownMs: 30_000,
+          },
+        ],
+        steps: [
+          {
+            id: "verify",
+            type: "code",
+            run: () => "ok",
+          },
+          {
+            id: "request-restart",
+            type: "restart",
+            requires: ["verify"],
+            reason: "builder requested restart",
+          },
+        ],
+      }),
+    ];
+
+    try {
+      const restartExit = vi.fn(() => {
+        throw new Error("restart exit unavailable");
+      });
+      const daemon = makeDaemon({
+        workflows,
+        idleIntervalMs: 50,
+        restartExit,
+      });
+
+      await expect(daemon.start()).rejects.toThrow("restart exit unavailable");
+      expect(restartExit).toHaveBeenCalledWith(RESTART_EXIT_CODE);
+      expect(daemon.isRunning()).toBe(false);
+      expect(process.exitCode).toBe(previousExitCode);
+    } finally {
+      process.exitCode = previousExitCode;
+    }
+  });
 });

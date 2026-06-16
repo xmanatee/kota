@@ -447,7 +447,10 @@ function makeCtx(
   return {
     cwd: PROJECT_A.projectDir,
     verbose: false,
-    config: {} as ModuleRuntimeContext["config"],
+    config: {
+      model: "claude-sonnet-4-6",
+      modelProvider: { type: "anthropic", apiKey: "sk-test" },
+    } as ModuleRuntimeContext["config"],
     storage,
     registerGroup: () => {},
     getRoutes: () => [],
@@ -694,6 +697,8 @@ describe("telegram project-scope integration", () => {
       channels: [wrappedInteractive],
       config: {
         defaultAgentHarness: "claude-agent-sdk",
+        model: "claude-sonnet-4-6",
+        modelProvider: { type: "anthropic", apiKey: "sk-test" },
         modules: { telegram: { defaultAutonomyMode: "supervised" } },
       },
     });
@@ -767,6 +772,7 @@ describe("telegram project-scope integration", () => {
         throw new Error(`unknown project ${projectId}`);
       },
       log: () => {},
+      reportFailure: () => {},
       getWorkflowStatus: makeStatusInfo,
     });
     if (started.status !== "started") {

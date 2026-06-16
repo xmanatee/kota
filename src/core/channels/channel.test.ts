@@ -15,6 +15,7 @@ const STUB_START_CTX: ChannelStartContext = {
       project: { projectId: "test-project", projectDir: "/tmp/test", displayName: "test" },
     }) as never,
   log: () => {},
+  reportFailure: () => {},
   getWorkflowStatus: () => ({
     runtimeState: { completedRuns: 0, pendingRuns: [], workflows: {} },
     dispatchPaused: false,

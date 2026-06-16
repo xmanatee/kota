@@ -25,6 +25,7 @@ import {
   callTelegramApi,
   downloadTelegramFile,
   ERROR_BACKOFF_MS,
+  isTelegramGetUpdatesConflict,
   POLL_TIMEOUT_S,
   splitMessage,
   type TelegramAudio,
@@ -117,6 +118,12 @@ export class TelegramBot {
         await this.poll();
       } catch (err) {
         if (!this.running) break;
+        if (isTelegramGetUpdatesConflict(err)) {
+          this.running = false;
+          throw new Error(
+            "Telegram getUpdates conflict: another Telegram Bot API getUpdates consumer is already using this bot token. Stop the other KOTA or Telegram process before enabling telegram-interactive.",
+          );
+        }
         console.error("[kota-telegram] Poll error:", (err as Error).message);
         await sleep(ERROR_BACKOFF_MS);
       }

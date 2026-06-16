@@ -64,6 +64,22 @@ type TelegramApiResponse<T> = {
   description?: string;
 };
 
+export class TelegramApiError extends Error {
+  constructor(
+    readonly method: string,
+    readonly description: string,
+  ) {
+    super(`Telegram API ${method}: ${description}`);
+    this.name = "TelegramApiError";
+  }
+}
+
+export function isTelegramGetUpdatesConflict(error: unknown): boolean {
+  return error instanceof TelegramApiError &&
+    error.method === "getUpdates" &&
+    /Conflict:\s*terminated by other getUpdates request/i.test(error.description);
+}
+
 // --- Telegram API client ---
 
 export async function callTelegramApi<T>(
@@ -90,7 +106,9 @@ export async function callTelegramApi<T>(
   } catch {
     throw new Error(`Telegram API ${method}: non-JSON response (HTTP ${res.status})`);
   }
-  if (!data.ok) throw new Error(`Telegram API ${method}: ${data.description}`);
+  if (!data.ok) {
+    throw new TelegramApiError(method, data.description ?? "unknown error");
+  }
   return data.result;
 }
 

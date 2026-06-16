@@ -204,6 +204,7 @@ describe("webhookChannelModule channel adapter", () => {
           project: { projectId: "test-project", projectDir: "/tmp", displayName: "test" },
         }) as never,
       log: () => {},
+      reportFailure: () => {},
       getWorkflowStatus: () => ({
         runtimeState: { completedRuns: 0, pendingRuns: [], workflows: {} },
         dispatchPaused: false,

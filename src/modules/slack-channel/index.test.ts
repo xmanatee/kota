@@ -29,6 +29,7 @@ const STUB_CHANNEL_START_CTX = {
       project: { projectId: "test-project", projectDir: "/tmp", displayName: "test" },
     }) as never,
   log: () => {},
+  reportFailure: () => {},
   getWorkflowStatus: () => ({
     runtimeState: { completedRuns: 0, pendingRuns: [], workflows: {} },
     dispatchPaused: false,

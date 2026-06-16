@@ -113,6 +113,8 @@ export type ChannelStartContext = {
   getProjectRuntime: (projectId: string) => ProjectRuntime;
   /** Logger for channel messages. */
   log: (message: string) => void;
+  /** Report an asynchronous channel failure after startup. */
+  reportFailure: (error: string) => void;
   /** Current workflow runtime status for monitoring/alerting channels. */
   getWorkflowStatus: () => ChannelWorkflowStatus;
   /** Operator identifier for this channel instance (from config or env). */

@@ -53,7 +53,7 @@ export async function runDaemonStartup(
   process.on("SIGINT", ctx.shutdownHandler);
   process.on("SIGTERM", ctx.shutdownHandler);
 
-  await acquireInstanceLock(ctx.stateDir, ctx.log);
+  await acquireInstanceLock(ctx.projectDir, ctx.stateDir, ctx.log);
   validateDaemonWorkflowRuntimes(ctx);
 
   ctx.log("Daemon starting...");
