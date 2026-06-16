@@ -9,9 +9,9 @@ import type { ChannelDef } from "#core/channels/channel.js";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
 import type { BusEvents } from "#core/events/event-bus.js";
+import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { ModuleSetupRequirement } from "#core/modules/setup-requirements.js";
-import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import type { KotaClient } from "#core/server/kota-client.js";
 import { AUTONOMY_MODES, type AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { operatorSurfaceEffect } from "#core/tools/effect.js";
@@ -527,7 +527,7 @@ const telegramModule: KotaModule = {
   name: "telegram",
   version: "1.0.0",
   description: "Telegram bot frontend for KOTA",
-  dependencies: ["answer", "approval-queue", "autonomy", "capture", "daemon-ops", "history", "inbound-signals", "knowledge", "memory", "recall", "repo-tasks", "retract", "secrets", "transcription"],
+  dependencies: ["answer", "approval-queue", "autonomy", "capture", "daemon-ops", "history", "inbound-signals", "knowledge", "memory", "model-clients", "recall", "repo-tasks", "retract", "secrets", "transcription"],
   setupRequirements: telegramSetupRequirements,
   manifest: {
     schemaVersion: 1,

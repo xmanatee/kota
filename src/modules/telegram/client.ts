@@ -64,6 +64,16 @@ type TelegramApiResponse<T> = {
   description?: string;
 };
 
+type TelegramApiBodyValue =
+  | string
+  | number
+  | boolean
+  | null
+  | TelegramApiBodyValue[]
+  | { [key: string]: TelegramApiBodyValue | undefined };
+
+type TelegramApiBody = { [key: string]: TelegramApiBodyValue | undefined };
+
 export class TelegramApiError extends Error {
   constructor(
     readonly method: string,
@@ -85,7 +95,7 @@ export function isTelegramGetUpdatesConflict(error: unknown): boolean {
 export async function callTelegramApi<T>(
   token: string,
   method: string,
-  body?: Record<string, unknown>,
+  body?: TelegramApiBody,
   options?: { signal?: AbortSignal },
 ): Promise<T> {
   const url = `${TELEGRAM_API}/bot${token}/${method}`;

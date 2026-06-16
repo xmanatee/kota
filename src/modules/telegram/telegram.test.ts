@@ -149,6 +149,7 @@ describe("telegramModule", () => {
       "inbound-signals",
       "knowledge",
       "memory",
+      "model-clients",
       "recall",
       "repo-tasks",
       "retract",
