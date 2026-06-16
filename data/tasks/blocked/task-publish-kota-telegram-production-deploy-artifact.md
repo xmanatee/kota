@@ -105,3 +105,5 @@ and a passing `deploy/telegram-assistant/smoke-test.sh docker` retry once the
 container reached healthy state. It does not capture an actual Telegram
 `/status` exchange or another bot interaction performed through the staging
 deployment, so the task remains blocked pending the operator-capture artifact.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-06-16T15:12:28.572Z -->
