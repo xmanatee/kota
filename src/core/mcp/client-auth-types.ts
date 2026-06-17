@@ -456,6 +456,7 @@ function redactAuthorizationChallenge(
   challenge: McpAuthorizationChallenge,
   redact: McpAuthorizationChallengeMessageRedactor,
 ): McpAuthorizationChallenge {
+  const redactedScopeList = redactScopeList(challenge.scopes, redact);
   return {
     scheme: challenge.scheme,
     ...(challenge.resourceMetadataUrl !== undefined
@@ -464,8 +465,24 @@ function redactAuthorizationChallenge(
     ...(challenge.metadataDiscovery !== undefined
       ? { metadataDiscovery: redactChallengeDiscovery(challenge.metadataDiscovery, redact) }
       : {}),
-    scopes: challenge.scopes.map(redact),
+    scopes: redactedScopeList.scopes,
     ...(challenge.error !== undefined ? { error: redact(challenge.error) } : {}),
+  };
+}
+
+function redactScopeList(
+  scopes: readonly string[],
+  redact: McpAuthorizationChallengeMessageRedactor,
+): { scopes: string[]; joined: string } {
+  const redactedScopes = scopes.map(redact);
+  const joined = redactedScopes.join(" ");
+  const redactedJoined = redact(joined);
+  if (redactedJoined === joined) {
+    return { scopes: redactedScopes, joined };
+  }
+  return {
+    scopes: redactedJoined.split(/\s+/).filter((scope) => scope.length > 0),
+    joined: redactedJoined,
   };
 }
 
@@ -547,18 +564,18 @@ export class McpAuthorizationFlowError extends Error {
   ) {
     const redactedResource = redactFlowDetail(resource);
     const redactedIssuer = redactFlowDetail(issuer);
-    const redactedScopes = scopes.map(redactFlowDetail);
+    const redactedScopeList = redactScopeList(scopes, redactFlowDetail);
     const redactedReason = redactFlowDetail(reason);
     super(
       `MCP authorization flow failed for server "${serverName}" ` +
         `resource "${redactedResource}" ` +
         `issuer "${redactedIssuer}" ` +
-        `scopes="${redactedScopes.join(" ")}": ${redactedReason}`,
+        `scopes="${redactedScopeList.joined}": ${redactedReason}`,
     );
     this.serverName = serverName;
     this.resource = redactedResource;
     this.issuer = redactedIssuer;
-    this.scopes = redactedScopes;
+    this.scopes = redactedScopeList.scopes;
   }
 }
 

@@ -3653,6 +3653,138 @@ describe("McpClient Streamable HTTP transport", () => {
     expect(metadataRequests).toBe(2);
   });
 
+  it("redacts whitespace-bearing OAuth client secrets reconstructed from split authorization flow scopes", async () => {
+    const clientSecret = "alpha beta";
+    const resolverRequests: Array<{ authorizationUrl: string; state: string; scopes: string[] }> = [];
+    let tokenRequests = 0;
+    mockClientHttpFetch((request) => {
+      if (
+        request.method === "GET" &&
+        request.url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp"
+      ) {
+        return new Response(JSON.stringify({
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+          scopes_supported: ["files:read", "alpha", "beta"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (
+        request.method === "GET" &&
+        request.url === "https://auth.example.test/.well-known/oauth-authorization-server"
+      ) {
+        return new Response(JSON.stringify({
+          issuer: "https://auth.example.test",
+          authorization_endpoint: "https://auth.example.test/authorize",
+          token_endpoint: "https://auth.example.test/token",
+          code_challenge_methods_supported: ["S256"],
+          scopes_supported: ["files:read", "alpha", "beta"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "POST" && request.url === "https://auth.example.test/token") {
+        tokenRequests += 1;
+        return new Response(JSON.stringify({
+          access_token: "oauth-access-token-secret",
+          token_type: "Bearer",
+          scope: "files:read",
+          expires_in: 3600,
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (
+        request.body.method === "server/discover" &&
+        request.headers.get("authorization") === "Bearer oauth-access-token-secret"
+      ) {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: {} },
+          serverInfo: { name: "oauth-whitespace-redaction-fixture" },
+        });
+      }
+      if (
+        request.body.method === "tools/list" &&
+        request.headers.get("authorization") === "Bearer oauth-access-token-secret"
+      ) {
+        return new Response("insufficient scope", {
+          status: 403,
+          headers: {
+            "www-authenticate": 'Bearer error="insufficient_scope", resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", scope="files:read alpha beta"',
+          },
+        });
+      }
+      return new Response("missing token", {
+        status: 401,
+        headers: {
+          "www-authenticate": 'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", scope="files:read"',
+        },
+      });
+    });
+    client = new McpClient(
+      {
+        type: "http",
+        url: "https://mcp.example.test/mcp",
+        authorization: {
+          type: "oauth",
+          issuer: "https://auth.example.test",
+          redirectUri: "https://client.example.test/callback",
+          scopes: ["files:read"],
+          client: {
+            kind: "registered",
+            clientId: "kota-client",
+            clientSecret,
+          },
+        },
+      },
+      "auth-flow-whitespace-token-redaction-client",
+      {
+        authorizationResolver: async (request) => {
+          resolverRequests.push({
+            authorizationUrl: request.authorizationUrl,
+            state: request.state,
+            scopes: request.scopes,
+          });
+          return {
+            callbackUrl: mcpOAuthSecret(
+              `https://client.example.test/callback?code=code-${resolverRequests.length}&state=${request.state}`,
+            ),
+          };
+        },
+      },
+    );
+
+    await client.connect();
+    let thrown: unknown;
+    try {
+      await client.listTools();
+    } catch (err) {
+      thrown = err;
+    }
+
+    expect(thrown).toBeInstanceOf(McpAuthorizationFlowError);
+    const message = thrown instanceof Error ? thrown.message : "";
+    expect(message).toContain('scopes="files:read [redacted]"');
+    expect(message).not.toContain(clientSecret);
+    const error = thrown as McpAuthorizationFlowError;
+    expect(error.scopes).toEqual(["files:read", "[redacted]"]);
+    const serializedError = JSON.stringify(error);
+    const ownPropertyDump = JSON.stringify(Object.getOwnPropertyDescriptors(error));
+    expect(serializedError).not.toContain(clientSecret);
+    expect(ownPropertyDump).not.toContain(clientSecret);
+    expect(error.scopes.join(" ")).not.toContain(clientSecret);
+    expect(resolverRequests.map((request) => request.scopes)).toEqual([
+      ["files:read"],
+      ["files:read", "alpha", "beta"],
+    ]);
+    expect(tokenRequests).toBe(2);
+  });
+
   it("redacts acquired bearer tokens echoed through protected-resource metadata", async () => {
     let metadataRequests = 0;
     mockClientHttpFetch((request) => {
