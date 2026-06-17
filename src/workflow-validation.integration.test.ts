@@ -51,6 +51,18 @@ async function loadAutonomyWorkflowDefinitions(): Promise<RegisteredWorkflowDefi
   return [...await workflows({} as never)] as RegisteredWorkflowDefinitionInput[];
 }
 
+function captureTerminalStderr(): { output: () => string; restore: () => void } {
+  const chunks: string[] = [];
+  const spy = vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
+    chunks.push(String(chunk));
+    return true;
+  });
+  return {
+    output: () => chunks.join(""),
+    restore: () => spy.mockRestore(),
+  };
+}
+
 describe("workflow validation", () => {
   let projectDir: string;
 
@@ -1845,7 +1857,7 @@ describe("workflow validation", () => {
   });
 
   it("warns when a trigger step fires a child workflow with an outputSchema but waitFor omitted (default: queued)", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const stderr = captureTerminalStderr();
     try {
       validateWorkflowDefinitions(
         [
@@ -1868,18 +1880,17 @@ describe("workflow validation", () => {
         projectDir,
       );
 
-      const relevantWarning = warnSpy.mock.calls.find(
-        (call) => typeof call[0] === "string" && call[0].includes("outputSchema") && call[0].includes("launch"),
-      );
-      expect(relevantWarning).toBeDefined();
-      expect(relevantWarning![0]).toMatch(/waitFor.*"completed"/);
+      const output = stderr.output();
+      expect(output).toContain("outputSchema");
+      expect(output).toContain("launch");
+      expect(output).toMatch(/waitFor.*"completed"/);
     } finally {
-      warnSpy.mockRestore();
+      stderr.restore();
     }
   });
 
   it("warns when a trigger step fires a child workflow with an outputSchema but waitFor: queued", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const stderr = captureTerminalStderr();
     try {
       validateWorkflowDefinitions(
         [
@@ -1902,18 +1913,17 @@ describe("workflow validation", () => {
         projectDir,
       );
 
-      const relevantWarning = warnSpy.mock.calls.find(
-        (call) => typeof call[0] === "string" && call[0].includes("outputSchema") && call[0].includes("launch"),
-      );
-      expect(relevantWarning).toBeDefined();
-      expect(relevantWarning![0]).toMatch(/waitFor.*"completed"/);
+      const output = stderr.output();
+      expect(output).toContain("outputSchema");
+      expect(output).toContain("launch");
+      expect(output).toMatch(/waitFor.*"completed"/);
     } finally {
-      warnSpy.mockRestore();
+      stderr.restore();
     }
   });
 
   it("does not warn when a trigger step fires a child workflow with an outputSchema and waitFor: completed", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const stderr = captureTerminalStderr();
     try {
       validateWorkflowDefinitions(
         [
@@ -1935,12 +1945,9 @@ describe("workflow validation", () => {
         projectDir,
       );
 
-      const outputSchemaWarning = warnSpy.mock.calls.find(
-        (call) => typeof call[0] === "string" && call[0].includes("outputSchema"),
-      );
-      expect(outputSchemaWarning).toBeUndefined();
+      expect(stderr.output()).not.toContain("outputSchema");
     } finally {
-      warnSpy.mockRestore();
+      stderr.restore();
     }
   });
 

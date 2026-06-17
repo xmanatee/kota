@@ -4,6 +4,7 @@ import type { AgentDef } from "#core/agents/agent-types.js";
 import type { JsonSchemaObject } from "#core/util/json-schema-validator.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
+import { tryListWorkflowMutatedPaths } from "#core/workflow/steps/agent-write-scope.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import {
@@ -122,6 +123,21 @@ const securityRevalidationOutputSchema = {
     },
   },
 } satisfies JsonSchemaObject;
+
+type MutationBaseline = {
+  preExistingMutatedPaths: string[];
+};
+
+const captureMutationBaseline = typedCodeStep<MutationBaseline>({
+  id: "capture-mutation-baseline",
+  type: "code",
+  when: onNormalTrigger,
+  validate: (raw) =>
+    expectStructuredOutput<MutationBaseline>(raw, ["preExistingMutatedPaths"]),
+  run: ({ projectDir }) => ({
+    preExistingMutatedPaths: tryListWorkflowMutatedPaths(projectDir) ?? [],
+  }),
+});
 
 const scanCandidates = typedCodeStep<SecurityReviewCandidatePacket>({
   id: "scan-candidates",
@@ -333,6 +349,7 @@ const securityReviewWorkflow: WorkflowDefinitionInput = {
       run: ({ projectDir }) =>
         resetWorktreeForRecovery({ projectDir, workflowName: "security-review" }),
     },
+    captureMutationBaseline,
     scanCandidates,
     recordEmptyScan,
     {
@@ -378,8 +395,12 @@ const securityReviewWorkflow: WorkflowDefinitionInput = {
       id: "commit",
       type: "code",
       when: stepSucceeded("validate-task-queue"),
-      run: ({ projectDir, workflow }) =>
-        commitWorkflowChanges(projectDir, workflow.runDirPath),
+      run: (ctx) =>
+        commitWorkflowChanges(ctx.projectDir, ctx.workflow.runDirPath, {
+          kind: "paths-mutated-since-baseline",
+          baselineMutatedPaths:
+            captureMutationBaseline.outputRequired(ctx).preExistingMutatedPaths,
+        }),
     },
   ],
 };

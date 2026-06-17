@@ -2,7 +2,10 @@ import { execFileSync, execSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
-import { listWorkflowMutatedPaths } from "#core/workflow/steps/agent-write-scope.js";
+import {
+  diffMutatedPaths,
+  listWorkflowMutatedPaths,
+} from "#core/workflow/steps/agent-write-scope.js";
 import {
   checkNoRegisteredScratchWorktrees,
   findScratchArtifactPaths,
@@ -12,6 +15,15 @@ export type CommitResult =
   | { committed: false }
   | { committed: true; message: string; sha: string };
 
+export type WorkflowCommitPathPolicy =
+  | { kind: "all-mutated-paths" }
+  | {
+    kind: "paths-mutated-since-baseline";
+    baselineMutatedPaths: readonly string[];
+  };
+
+const ALL_MUTATED_PATHS: WorkflowCommitPathPolicy = { kind: "all-mutated-paths" };
+
 function runGit(projectDir: string, command: string): string {
   return execSync(command, {
     cwd: projectDir,
@@ -19,6 +31,18 @@ function runGit(projectDir: string, command: string): string {
     encoding: "utf-8",
     stdio: "pipe",
   }).trim();
+}
+
+function runGitCommitOnlyPaths(
+  projectDir: string,
+  msgPath: string,
+  paths: readonly string[],
+): void {
+  execFileSync("git", ["commit", "-F", msgPath, "--only", "--", ...paths], {
+    cwd: projectDir,
+    env: withProtectedGitBareRepositoryEnv(),
+    stdio: "pipe",
+  });
 }
 
 function describeError(error: unknown): string {
@@ -47,6 +71,15 @@ function checkNoScratchArtifactsInPaths(paths: readonly string[]): void {
       `Scratch artifacts must not be committed:\n${violations.map((v) => `  ${v}`).join("\n")}`,
     );
   }
+}
+
+function listCommitMutatedPaths(
+  projectDir: string,
+  policy: WorkflowCommitPathPolicy,
+): string[] {
+  const mutatedPaths = listWorkflowMutatedPaths(projectDir);
+  if (policy.kind === "all-mutated-paths") return mutatedPaths;
+  return diffMutatedPaths(policy.baselineMutatedPaths, mutatedPaths);
 }
 
 /**
@@ -83,8 +116,11 @@ function listStagedDeletions(projectDir: string): Set<string> {
  * Exported so repair-loop checks can simulate the same staging call the
  * terminal commit step will make.
  */
-export function listCommitStagePaths(projectDir: string): string[] {
-  const mutatedPaths = listWorkflowMutatedPaths(projectDir);
+export function listCommitStagePaths(
+  projectDir: string,
+  policy: WorkflowCommitPathPolicy = ALL_MUTATED_PATHS,
+): string[] {
+  const mutatedPaths = listCommitMutatedPaths(projectDir, policy);
   if (mutatedPaths.length === 0) return [];
   const alreadyStagedDeletions = listStagedDeletions(projectDir);
   return mutatedPaths.filter((p) => !alreadyStagedDeletions.has(p));
@@ -127,9 +163,10 @@ export function checkCommitStageable(projectDir: string): string {
 
 /**
  * Stages and commits exactly the set of paths `listWorkflowMutatedPaths`
- * identifies as workflow-owned mutations. That matches the path set the
- * writeScope gate evaluated earlier in the run, so an untracked file the
- * gate rejected cannot reappear at staging time.
+ * identifies as workflow-owned mutations. The commit itself is path-limited,
+ * so unrelated index entries left by an earlier workflow cannot ride along.
+ * That matches the path set the writeScope gate evaluated earlier in the run,
+ * so an untracked file the gate rejected cannot reappear at staging time.
  *
  * Requires `<runDirPath>/commit-message.txt` when there is anything to commit.
  * Returns `{ committed: false }` when the mutated path set is empty.
@@ -137,9 +174,10 @@ export function checkCommitStageable(projectDir: string): string {
 export function commitWorkflowChanges(
   projectDir: string,
   runDirPath: string,
+  policy: WorkflowCommitPathPolicy = ALL_MUTATED_PATHS,
 ): CommitResult {
   checkNoRegisteredScratchWorktrees(projectDir);
-  const mutatedPaths = listWorkflowMutatedPaths(projectDir);
+  const mutatedPaths = listCommitMutatedPaths(projectDir, policy);
 
   if (mutatedPaths.length === 0) {
     return { committed: false };
@@ -166,7 +204,7 @@ export function commitWorkflowChanges(
   }
 
   try {
-    runGit(projectDir, `git commit -F ${JSON.stringify(msgPath)}`);
+    runGitCommitOnlyPaths(projectDir, msgPath, mutatedPaths);
   } catch (error) {
     unstageAfterFailedCommit(projectDir, error);
     throw error;

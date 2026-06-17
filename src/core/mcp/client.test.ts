@@ -72,6 +72,25 @@ async function waitForAssertion(assertion: () => void, timeoutMs = 2_000): Promi
   throw lastError ?? new Error("Timed out waiting for assertion");
 }
 
+function captureTerminalStderr(): { output: () => string; restore: () => void } {
+  const chunks: string[] = [];
+  const spy = vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
+    chunks.push(String(chunk));
+    return true;
+  });
+  return {
+    output: () => chunks.join(""),
+    restore: () => spy.mockRestore(),
+  };
+}
+
+function terminalDiagnosticLines(output: string): string[] {
+  return output
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
 function expectCompletedResult(
   result: McpCallToolResult,
 ): McpCompleteCallToolResult | McpLegacyCallToolResult {
@@ -1503,58 +1522,59 @@ describe("McpClient lifecycle (fake MCP server)", () => {
   it("ignores unknown, non-monotonic, and post-cancel progress without mutating the result", async () => {
     client = new McpClient("node", ["-e", PROGRESS_MCP_SERVER], {}, "progress-negative");
     await client.connect();
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const stderr = captureTerminalStderr();
     const events: McpProgressEvent[] = [];
 
-    const result = expectCompletedResult(
-      await client.callTool("negative", {}, undefined, {
-        progress: {
-          token: "progress-negative",
-          onProgress: (event) => events.push(event),
-        },
-      }),
-    );
+    try {
+      const result = expectCompletedResult(
+        await client.callTool("negative", {}, undefined, {
+          progress: {
+            token: "progress-negative",
+            onProgress: (event) => events.push(event),
+          },
+        }),
+      );
 
-    expect(result.text).toBe("negative-complete");
-    expect(events).toEqual([
-      {
-        requestId: 2,
-        progressToken: "progress-negative",
-        progress: 1,
-        sequence: 1,
-        message: "accepted",
-      },
-    ]);
-    expect(errorSpy).toHaveBeenCalledWith(
-      expect.stringContaining("ignored progress notification for inactive token"),
-    );
-    expect(errorSpy).toHaveBeenCalledWith(
-      expect.stringContaining("ignored non-monotonic progress notification"),
-    );
-    errorSpy.mockRestore();
+      expect(result.text).toBe("negative-complete");
+      expect(events).toEqual([
+        {
+          requestId: 2,
+          progressToken: "progress-negative",
+          progress: 1,
+          sequence: 1,
+          message: "accepted",
+        },
+      ]);
+      const output = stderr.output();
+      expect(output).toContain("ignored progress notification for inactive token");
+      expect(output).toContain("ignored non-monotonic progress notification");
+    } finally {
+      stderr.restore();
+    }
   }, 10_000);
 
   it("coalesces progress floods to the per-call event limit", async () => {
     client = new McpClient("node", ["-e", PROGRESS_MCP_SERVER], {}, "progress-flood");
     await client.connect();
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const stderr = captureTerminalStderr();
     const events: McpProgressEvent[] = [];
 
-    const result = expectCompletedResult(
-      await client.callTool("flood", {}, undefined, {
-        progress: {
-          maxEvents: 2,
-          onProgress: (event) => events.push(event),
-        },
-      }),
-    );
+    try {
+      const result = expectCompletedResult(
+        await client.callTool("flood", {}, undefined, {
+          progress: {
+            maxEvents: 2,
+            onProgress: (event) => events.push(event),
+          },
+        }),
+      );
 
-    expect(result.text).toBe("flood-complete");
-    expect(events.map((event) => event.progress)).toEqual([1, 2]);
-    expect(errorSpy).toHaveBeenCalledWith(
-      expect.stringContaining("coalescing progress notifications"),
-    );
-    errorSpy.mockRestore();
+      expect(result.text).toBe("flood-complete");
+      expect(events.map((event) => event.progress)).toEqual([1, 2]);
+      expect(stderr.output()).toContain("coalescing progress notifications");
+    } finally {
+      stderr.restore();
+    }
   }, 10_000);
 
   it("sends draft request metadata without elicitation when no input bridge is configured", async () => {
@@ -2489,29 +2509,33 @@ describe("McpClient lifecycle (fake MCP server)", () => {
   }, 10_000);
 
   it("warns once per deprecated client-feature input request returned by a remote server", async () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const stderr = captureTerminalStderr();
     client = new McpClient(
       "node",
       ["-e", FAKE_MCP_SERVER],
       { MCP_TEST_MODE: "draft" },
       "deprecated-input-request-test",
     );
-    await client.connect();
+    try {
+      await client.connect();
 
-    const roots = await client.callTool("input_required_roots", {});
-    const sampling = await client.callTool("input_required_sampling", {});
-    await client.callTool("input_required_roots", {});
-    await client.callTool("input_required_sampling", {});
+      const roots = await client.callTool("input_required_roots", {});
+      const sampling = await client.callTool("input_required_sampling", {});
+      await client.callTool("input_required_roots", {});
+      await client.callTool("input_required_sampling", {});
 
-    expect(roots.resultType).toBe("input_required");
-    expect(sampling.resultType).toBe("input_required");
-    const warnings = errorSpy.mock.calls.map((call) => call.join(" "));
-    expect(warnings).toHaveLength(2);
-    expect(warnings[0]).toContain('MCP server "test-mcp-server"');
-    expect(warnings[0]).toContain('feature "roots"');
-    expect(warnings[0]).toContain(`protocol ${MCP_DRAFT_PROTOCOL_VERSION}`);
-    expect(warnings[0]).toContain("compatibility-only");
-    expect(warnings[1]).toContain('feature "sampling"');
+      expect(roots.resultType).toBe("input_required");
+      expect(sampling.resultType).toBe("input_required");
+      const warnings = terminalDiagnosticLines(stderr.output());
+      expect(warnings).toHaveLength(2);
+      expect(warnings[0]).toContain('MCP server "test-mcp-server"');
+      expect(warnings[0]).toContain('feature "roots"');
+      expect(warnings[0]).toContain(`protocol ${MCP_DRAFT_PROTOCOL_VERSION}`);
+      expect(warnings[0]).toContain("compatibility-only");
+      expect(warnings[1]).toContain('feature "sampling"');
+    } finally {
+      stderr.restore();
+    }
   }, 10_000);
 
   it("callTool rejects malformed sampling input_required payloads at the MCP boundary", async () => {
@@ -3108,7 +3132,7 @@ describe("McpClient Streamable HTTP transport", () => {
   });
 
   it("warns once when an HTTP MCP server advertises deprecated logging support", async () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const stderr = captureTerminalStderr();
     mockClientHttpFetch((request) => {
       expect(request.body.method).toBe("server/discover");
       return jsonRpcHttpResponse(request.body.id, {
@@ -3122,15 +3146,19 @@ describe("McpClient Streamable HTTP transport", () => {
       "http-before-discover",
     );
 
-    await client.connect();
+    try {
+      await client.connect();
 
-    expect(client.supportsTools()).toBe(true);
-    const warnings = errorSpy.mock.calls.map((call) => call.join(" "));
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain('MCP server "deprecated-http"');
-    expect(warnings[0]).toContain('feature "logging"');
-    expect(warnings[0]).toContain(`protocol ${MCP_DRAFT_PROTOCOL_VERSION}`);
-    expect(warnings[0]).toContain("compatibility-only");
+      expect(client.supportsTools()).toBe(true);
+      const warnings = terminalDiagnosticLines(stderr.output());
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain('MCP server "deprecated-http"');
+      expect(warnings[0]).toContain('feature "logging"');
+      expect(warnings[0]).toContain(`protocol ${MCP_DRAFT_PROTOCOL_VERSION}`);
+      expect(warnings[0]).toContain("compatibility-only");
+    } finally {
+      stderr.restore();
+    }
   });
 
   it("rejects unsupported discover protocol versions as a typed connection error", async () => {
@@ -6589,7 +6617,7 @@ describe("McpClient Streamable HTTP transport", () => {
   });
 
   it("rejects server-to-client requests that collide with HTTP subscriptions/listen ids", async () => {
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const stderr = captureTerminalStderr();
     mockClientHttpFetch((request) => {
       if (request.body.method === "server/discover") {
         return jsonRpcHttpResponse(request.body.id, {
@@ -6615,13 +6643,17 @@ describe("McpClient Streamable HTTP transport", () => {
       "http-list-changed-peer-request-client",
     );
 
-    await client.connect();
+    try {
+      await client.connect();
 
-    await waitForAssertion(() => {
-      expect(consoleError).toHaveBeenCalledWith(expect.stringMatching(
-        /failed to open subscription: .*server-to-client request "ping" with id 2 arrived on HTTP SSE response stream; HTTP SSE response stream cannot send JSON-RPC responses/,
-      ));
-    });
+      await waitForAssertion(() => {
+        expect(stderr.output()).toMatch(
+          /failed to open subscription: .*server-to-client request "ping" with id 2 arrived on HTTP SSE response stream; HTTP SSE response stream cannot send JSON-RPC responses/,
+        );
+      });
+    } finally {
+      stderr.restore();
+    }
   });
 
   it("opens an HTTP subscriptions/listen SSE stream for resource and prompt listChanged", async () => {
@@ -7379,7 +7411,7 @@ describe("McpClient x-mcp-header validation", () => {
   });
 
   it("accepts valid annotated primitive properties", async () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const stderr = captureTerminalStderr();
     client = new McpClient(
       "node",
       [
@@ -7401,22 +7433,26 @@ describe("McpClient x-mcp-header validation", () => {
       {},
       "configured-header-server",
     );
-    await client.connect();
 
-    const tools = await client.listTools();
+    try {
+      await client.connect();
 
-    expect(tools).toHaveLength(1);
-    expect(tools[0].name).toBe("headers_ok");
-    expect(tools[0].inputSchema.properties.token).toEqual({
-      type: "string",
-      "x-mcp-header": "X-Token",
-    });
-    expect(errorSpy).not.toHaveBeenCalled();
-    errorSpy.mockRestore();
+      const tools = await client.listTools();
+
+      expect(tools).toHaveLength(1);
+      expect(tools[0].name).toBe("headers_ok");
+      expect(tools[0].inputSchema.properties.token).toEqual({
+        type: "string",
+        "x-mcp-header": "X-Token",
+      });
+      expect(stderr.output()).toBe("");
+    } finally {
+      stderr.restore();
+    }
   }, 10_000);
 
   it("excludes tools with empty x-mcp-header values while preserving valid tools", async () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const stderr = captureTerminalStderr();
     client = new McpClient(
       "node",
       [
@@ -7437,21 +7473,25 @@ describe("McpClient x-mcp-header validation", () => {
       {},
       "configured-header-server",
     );
-    await client.connect();
 
-    const tools = await client.listTools();
-    const warnings = errorSpy.mock.calls.map((call) => call.join(" "));
+    try {
+      await client.connect();
 
-    expect(tools.map((tool) => tool.name)).toEqual(["kept"]);
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain('server "header-test-server"');
-    expect(warnings[0]).toContain('tool "empty_header"');
-    expect(warnings[0]).toContain("empty value");
-    errorSpy.mockRestore();
+      const tools = await client.listTools();
+      const warnings = terminalDiagnosticLines(stderr.output());
+
+      expect(tools.map((tool) => tool.name)).toEqual(["kept"]);
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain('server "header-test-server"');
+      expect(warnings[0]).toContain('tool "empty_header"');
+      expect(warnings[0]).toContain("empty value");
+    } finally {
+      stderr.restore();
+    }
   }, 10_000);
 
   it("excludes tools whose x-mcp-header contains a space or colon", async () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const stderr = captureTerminalStderr();
     client = new McpClient(
       "node",
       [
@@ -7481,22 +7521,26 @@ describe("McpClient x-mcp-header validation", () => {
       {},
       "configured-header-server",
     );
-    await client.connect();
 
-    const tools = await client.listTools();
-    const warnings = errorSpy.mock.calls.map((call) => call.join(" "));
+    try {
+      await client.connect();
 
-    expect(tools.map((tool) => tool.name)).toEqual(["kept"]);
-    expect(warnings).toHaveLength(2);
-    expect(warnings[0]).toContain('tool "space_header"');
-    expect(warnings[0]).toContain("forbidden character");
-    expect(warnings[1]).toContain('tool "colon_header"');
-    expect(warnings[1]).toContain("forbidden character");
-    errorSpy.mockRestore();
+      const tools = await client.listTools();
+      const warnings = terminalDiagnosticLines(stderr.output());
+
+      expect(tools.map((tool) => tool.name)).toEqual(["kept"]);
+      expect(warnings).toHaveLength(2);
+      expect(warnings[0]).toContain('tool "space_header"');
+      expect(warnings[0]).toContain("forbidden character");
+      expect(warnings[1]).toContain('tool "colon_header"');
+      expect(warnings[1]).toContain("forbidden character");
+    } finally {
+      stderr.restore();
+    }
   }, 10_000);
 
   it("excludes duplicate x-mcp-header values case-insensitively", async () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const stderr = captureTerminalStderr();
     client = new McpClient(
       "node",
       [
@@ -7517,21 +7561,25 @@ describe("McpClient x-mcp-header validation", () => {
       {},
       "configured-header-server",
     );
-    await client.connect();
 
-    const tools = await client.listTools();
-    const warnings = errorSpy.mock.calls.map((call) => call.join(" "));
+    try {
+      await client.connect();
 
-    expect(tools).toEqual([]);
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain('tool "duplicate_header"');
-    expect(warnings[0]).toContain("duplicates header");
-    expect(errorSpy.mock.calls[0][0]).toContain("case-insensitively");
-    errorSpy.mockRestore();
+      const tools = await client.listTools();
+      const warnings = terminalDiagnosticLines(stderr.output());
+
+      expect(tools).toEqual([]);
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain('tool "duplicate_header"');
+      expect(warnings[0]).toContain("duplicates header");
+      expect(warnings[0]).toContain("case-insensitively");
+    } finally {
+      stderr.restore();
+    }
   }, 10_000);
 
   it("excludes x-mcp-header annotations on object or array properties", async () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const stderr = captureTerminalStderr();
     client = new McpClient(
       "node",
       [
@@ -7565,18 +7613,22 @@ describe("McpClient x-mcp-header validation", () => {
       {},
       "configured-header-server",
     );
-    await client.connect();
 
-    const tools = await client.listTools();
-    const warnings = errorSpy.mock.calls.map((call) => call.join(" "));
+    try {
+      await client.connect();
 
-    expect(tools.map((tool) => tool.name)).toEqual(["kept"]);
-    expect(warnings).toHaveLength(2);
-    expect(warnings[0]).toContain('tool "object_header"');
-    expect(warnings[0]).toContain("primitive string, number, or boolean");
-    expect(warnings[1]).toContain('tool "array_header"');
-    expect(warnings[1]).toContain("primitive string, number, or boolean");
-    errorSpy.mockRestore();
+      const tools = await client.listTools();
+      const warnings = terminalDiagnosticLines(stderr.output());
+
+      expect(tools.map((tool) => tool.name)).toEqual(["kept"]);
+      expect(warnings).toHaveLength(2);
+      expect(warnings[0]).toContain('tool "object_header"');
+      expect(warnings[0]).toContain("primitive string, number, or boolean");
+      expect(warnings[1]).toContain('tool "array_header"');
+      expect(warnings[1]).toContain("primitive string, number, or boolean");
+    } finally {
+      stderr.restore();
+    }
   }, 10_000);
 });
 

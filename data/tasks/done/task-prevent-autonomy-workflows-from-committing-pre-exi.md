@@ -1,12 +1,12 @@
 ---
 id: task-prevent-autonomy-workflows-from-committing-pre-exi
 title: Prevent autonomy workflows from committing pre-existing dirty worktree changes
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Add a workflow commit hygiene guard so non-owning workflows such as security-review cannot sweep unrelated tracked dirt left by a failed builder into their own commit. The guard should detect pre-existing dirty files before action steps, stage only declared/touched paths, and fail or route to recovery when unrelated dirt is present.
 created_at: 2026-06-17T09:32:42.160Z
-updated_at: 2026-06-17T09:32:42.160Z
+updated_at: 2026-06-17T09:55:27.000Z
 ---
 
 ## Problem
@@ -48,3 +48,14 @@ Outcome-aware autonomy progress review.
 ## Acceptance Evidence
 
 - Focused workflow/runtime test where a failed builder leaves tracked dirt, security-review creates a task, and the commit step either stages only the security-review task path or refuses to commit with a recovery artifact; regression asserts unrelated dirty paths are not included in the security-review commit.
+
+## Completion Evidence
+
+- Added `WorkflowCommitPathPolicy` support in `commitWorkflowChanges`, allowing workflows to commit only paths mutated after a captured baseline.
+- Security-review now captures `capture-mutation-baseline` before candidate scanning/task creation and passes that baseline into its commit step.
+- Added `src/modules/autonomy/workflows/security-review/commit-hygiene.test.ts`, which starts with dirty tracked builder residue, runs security-review through the workflow harness, and asserts the resulting commit contains only the created security-review task while the builder residue remains uncommitted.
+- Post-check repair: updated MCP client and workflow validation warning tests to capture terminal diagnostic stderr output instead of obsolete console spies.
+- Verification: `NODE_OPTIONS="--conditions=source --import tsx" pnpm exec vitest run src/modules/autonomy/commit.test.ts src/modules/autonomy/workflows/security-review/commit-hygiene.test.ts src/modules/autonomy/workflows/security-review/workflow.test.ts` passed.
+- Verification: `NODE_OPTIONS="--conditions=source --import tsx" pnpm exec vitest run src/workflow-validation.integration.test.ts src/core/mcp/client.test.ts` passed.
+- Verification: `pnpm exec tsc --noEmit --pretty false` passed.
+- Verification: `pnpm run lint` passed.

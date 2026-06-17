@@ -187,6 +187,63 @@ describe("commitWorkflowChanges", () => {
     expect(tree).toBe("data/notes/new.md");
   });
 
+  it("commits only paths mutated after the supplied baseline", () => {
+    writeFileSync(join(projectDir, "README.md"), "pre-existing dirty work\n");
+    const baselineMutatedPaths = listCommitStagePaths(projectDir);
+    const taskPath = join(projectDir, "data", "tasks", "ready", "task-security.md");
+    mkdirSync(join(projectDir, "data", "tasks", "ready"), { recursive: true });
+    writeFileSync(taskPath, "security task\n");
+    writeFileSync(join(runDirPath, "commit-message.txt"), "security-review: create task");
+
+    const policy = {
+      kind: "paths-mutated-since-baseline" as const,
+      baselineMutatedPaths,
+    };
+    expect(listCommitStagePaths(projectDir, policy)).toEqual([
+      "data/tasks/ready/task-security.md",
+    ]);
+    const result = commitWorkflowChanges(projectDir, runDirPath, policy);
+
+    expect(result.committed).toBe(true);
+    const tree = execSync("git show --name-only --format= HEAD", {
+      cwd: projectDir,
+      encoding: "utf-8",
+    }).trim();
+    expect(tree).toBe("data/tasks/ready/task-security.md");
+    const status = execSync("git status --short -- README.md", {
+      cwd: projectDir,
+      encoding: "utf-8",
+    }).trim();
+    expect(status).toBe("M README.md");
+  });
+
+  it("does not commit pre-existing staged paths filtered out by the baseline", () => {
+    writeFileSync(join(projectDir, "README.md"), "pre-existing staged work\n");
+    execSync("git add README.md", { cwd: projectDir });
+    const baselineMutatedPaths = listCommitStagePaths(projectDir);
+    const taskPath = join(projectDir, "data", "tasks", "ready", "task-security.md");
+    mkdirSync(join(projectDir, "data", "tasks", "ready"), { recursive: true });
+    writeFileSync(taskPath, "security task\n");
+    writeFileSync(join(runDirPath, "commit-message.txt"), "security-review: create task");
+
+    const result = commitWorkflowChanges(projectDir, runDirPath, {
+      kind: "paths-mutated-since-baseline",
+      baselineMutatedPaths,
+    });
+
+    expect(result.committed).toBe(true);
+    const tree = execSync("git show --name-only --format= HEAD", {
+      cwd: projectDir,
+      encoding: "utf-8",
+    }).trim();
+    expect(tree).toBe("data/tasks/ready/task-security.md");
+    const stillStaged = execSync("git diff --cached --name-only", {
+      cwd: projectDir,
+      encoding: "utf-8",
+    }).trim();
+    expect(stillStaged).toBe("README.md");
+  });
+
   it("does not stage gitignored files even when they appear in the worktree", () => {
     writeFileSync(join(projectDir, ".gitignore"), "ignored.log\n");
     execSync("git add .gitignore && git commit -q -m 'ignore'", {
