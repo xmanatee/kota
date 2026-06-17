@@ -1,4 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  type AgentHarness,
+  type AgentHarnessResult,
+  resolveAgentHarness,
+  runAgentHarness,
+} from "#core/agent-harness/index.js";
 import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
 import { Scheduler } from "#core/daemon/scheduler.js";
 import {
@@ -21,6 +27,30 @@ import type { TelegramProjectSelection } from "./project-selection.js";
 
 const agentSendMock = vi.fn(async () => undefined);
 const agentSessionOptions: unknown[] = [];
+const harnessResult: AgentHarnessResult = {
+  text: "harness response",
+  streamedText: "harness response",
+  turns: 1,
+  inputTokens: 3,
+  outputTokens: 4,
+  isError: false,
+};
+
+function makeTestHarness(name: string): AgentHarness {
+  return {
+    name,
+    description: `${name} test harness`,
+    supportsMultiTurn: true,
+    supportedHookKinds: ["preRun", "postRun"],
+    askOwnerToolName: null,
+    emitsAgentMessageStream: false,
+    toolControl: name === "codex" ? "native" : "kota",
+    unsupportedRunOptions: [],
+    async run() {
+      return harnessResult;
+    },
+  };
+}
 
 function makeProjectRuntime(
   projectId = "project-a",
@@ -40,6 +70,7 @@ function botOptions(
   return {
     token: "tok",
     autonomyMode: "supervised",
+    config: { modelProvider: { type: "openai" } },
     defaultProjectRuntime,
     getProjectRuntime: (projectId) =>
       projectId === defaultProjectRuntime.project.projectId
@@ -48,6 +79,19 @@ function botOptions(
     ...overrides,
   };
 }
+
+vi.mock("#core/agent-harness/index.js", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("#core/agent-harness/index.js")>();
+  return {
+    ...actual,
+    resolveAgentHarness: vi.fn((name: string) => makeTestHarness(name)),
+    runAgentHarness: vi.fn(async (_harness, _options, writer) => {
+      writer?.write(harnessResult.streamedText);
+      return harnessResult;
+    }),
+  };
+});
 
 vi.mock("#core/loop/loop.js", async () => {
   const actual = await vi.importActual<typeof import("#core/loop/loop.js")>(
@@ -69,6 +113,9 @@ vi.mock("#core/loop/loop.js", async () => {
     AgentSession: FakeAgentSession as unknown as typeof actual.AgentSession,
   };
 });
+
+const mockedResolveAgentHarness = vi.mocked(resolveAgentHarness);
+const mockedRunAgentHarness = vi.mocked(runAgentHarness);
 
 // --- splitMessage ---
 
@@ -391,6 +438,15 @@ describe("TelegramBot", () => {
     fetchMock = installFetchMock();
     agentSessionOptions.length = 0;
     agentSendMock.mockClear();
+    mockedResolveAgentHarness.mockReset();
+    mockedResolveAgentHarness.mockImplementation((name: string) =>
+      makeTestHarness(name),
+    );
+    mockedRunAgentHarness.mockReset();
+    mockedRunAgentHarness.mockImplementation(async (_harness, _options, writer) => {
+      writer?.write(harnessResult.streamedText);
+      return harnessResult;
+    });
   });
 
   afterEach(() => {
@@ -794,6 +850,163 @@ describe("TelegramBot", () => {
     await startPromise;
 
     expect(agentSendMock).toHaveBeenCalledWith("ping");
+  });
+
+  it("routes bare Codex-preset messages through the configured harness instead of AgentSession", async () => {
+    agentSendMock.mockClear();
+    const bot = new TelegramBot(
+      botOptions({
+        autonomyMode: "passive",
+        config: { defaultPreset: "codex" },
+      }),
+    );
+    let delivered = false;
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/getMe")) {
+        return {
+          json: () =>
+            Promise.resolve({ ok: true, result: { id: 1, first_name: "Bot" } }),
+        };
+      }
+      if (url.endsWith("/getUpdates")) {
+        if (!delivered) {
+          delivered = true;
+          return {
+            json: () =>
+              Promise.resolve({
+                ok: true,
+                result: [
+                  {
+                    update_id: 1,
+                    message: {
+                      message_id: 1,
+                      chat: { id: 9, type: "private", first_name: "Op" },
+                      text: "ping",
+                      date: 0,
+                    },
+                  },
+                ],
+              }),
+          };
+        }
+        return {
+          json: () =>
+            new Promise((resolve) =>
+              setTimeout(() => {
+                bot.stop();
+                resolve({ ok: true, result: [] });
+              }, 100),
+            ),
+        };
+      }
+      return { json: () => Promise.resolve({ ok: true, result: true }) };
+    });
+
+    const startPromise = bot.start();
+
+    const deadline = Date.now() + 2_000;
+    while (Date.now() < deadline && mockedRunAgentHarness.mock.calls.length === 0) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+
+    await startPromise;
+
+    expect(agentSendMock).not.toHaveBeenCalled();
+    expect(mockedResolveAgentHarness).toHaveBeenCalledWith("codex");
+    expect(mockedRunAgentHarness).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "codex" }),
+      expect.objectContaining({
+        prompt: "ping",
+        model: "gpt-5.5",
+        cwd: "/tmp/project-a",
+        autonomyMode: "passive",
+      }),
+      expect.objectContaining({ write: expect.any(Function) }),
+    );
+    const sentBodies = fetchMock.mock.calls
+      .filter((call) => String(call[0]).endsWith("/sendMessage"))
+      .map(
+        (call) =>
+          JSON.parse(String((call[1] as { body: string }).body)) as {
+            text: string;
+          },
+      );
+    expect(sentBodies.some((body) => body.text === "harness response")).toBe(
+      true,
+    );
+  });
+
+  it("routes provider/model Telegram messages through AgentSession even when a default harness is configured", async () => {
+    agentSendMock.mockClear();
+    const bot = new TelegramBot(
+      botOptions({
+        autonomyMode: "supervised",
+        config: {
+          defaultAgentHarness: "openai-tools",
+          model: "openrouter/openrouter/auto",
+        },
+      }),
+    );
+    let delivered = false;
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/getMe")) {
+        return {
+          json: () =>
+            Promise.resolve({ ok: true, result: { id: 1, first_name: "Bot" } }),
+        };
+      }
+      if (url.endsWith("/getUpdates")) {
+        if (!delivered) {
+          delivered = true;
+          return {
+            json: () =>
+              Promise.resolve({
+                ok: true,
+                result: [
+                  {
+                    update_id: 1,
+                    message: {
+                      message_id: 1,
+                      chat: { id: 9, type: "private", first_name: "Op" },
+                      text: "ping",
+                      date: 0,
+                    },
+                  },
+                ],
+              }),
+          };
+        }
+        return {
+          json: () =>
+            new Promise((resolve) =>
+              setTimeout(() => {
+                bot.stop();
+                resolve({ ok: true, result: [] });
+              }, 100),
+            ),
+        };
+      }
+      return { json: () => Promise.resolve({ ok: true, result: true }) };
+    });
+
+    const startPromise = bot.start();
+
+    const deadline = Date.now() + 2_000;
+    while (Date.now() < deadline && agentSendMock.mock.calls.length === 0) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+
+    await startPromise;
+
+    expect(agentSendMock).toHaveBeenCalledWith("ping");
+    expect(mockedRunAgentHarness).not.toHaveBeenCalled();
+    expect(agentSessionOptions).toHaveLength(1);
+    expect(agentSessionOptions[0]).toEqual(
+      expect.objectContaining({
+        autonomyMode: "supervised",
+        model: "openrouter/openrouter/auto",
+      }),
+    );
   });
 
   it("emits configured automation messages as inbound signals and skips the session loop", async () => {

@@ -1,4 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  type AgentHarness,
+  resolveAgentHarness,
+} from "#core/agent-harness/index.js";
 import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
 import type { ConfiguredProject } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
@@ -23,12 +27,43 @@ vi.mock("./callback-poll.js", () => ({
   startCallbackPoll: vi.fn(() => () => {}),
 }));
 
+function makeTestHarness(name: string): AgentHarness {
+  return {
+    name,
+    description: `${name} test harness`,
+    supportsMultiTurn: true,
+    supportedHookKinds: ["preRun", "postRun"],
+    askOwnerToolName: null,
+    emitsAgentMessageStream: false,
+    toolControl: name === "codex" ? "native" : "kota",
+    unsupportedRunOptions: [],
+    async run() {
+      return {
+        text: "ok",
+        streamedText: "ok",
+        turns: 1,
+        isError: false,
+      };
+    },
+  };
+}
+
+vi.mock("#core/agent-harness/index.js", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("#core/agent-harness/index.js")>();
+  return {
+    ...actual,
+    resolveAgentHarness: vi.fn((name: string) => makeTestHarness(name)),
+  };
+});
+
 const mockOwnerQueueGet = vi.fn();
 vi.mock("#core/daemon/owner-question-queue.js", () => ({
   getOwnerQuestionQueue: () => ({ get: mockOwnerQueueGet }),
 }));
 
 const mockedCallTelegramApi = vi.mocked(callTelegramApi);
+const mockedResolveAgentHarness = vi.mocked(resolveAgentHarness);
 
 async function flushAsyncNotifications(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -123,6 +158,13 @@ function makeStubCtx(
 }
 
 describe("telegramModule", () => {
+  beforeEach(() => {
+    mockedResolveAgentHarness.mockReset();
+    mockedResolveAgentHarness.mockImplementation((name: string) =>
+      makeTestHarness(name),
+    );
+  });
+
   it("has correct metadata", () => {
     expect(telegramModule.name).toBe("telegram");
     expect(telegramModule.version).toBe("1.0.0");
@@ -204,7 +246,7 @@ describe("telegramModule", () => {
     }
   });
 
-  it("telegram-interactive channel reports unavailable when model provider is missing", async () => {
+  it("telegram-interactive channel starts with the default Codex preset without a model provider", async () => {
     const savedToken = process.env.TELEGRAM_BOT_TOKEN;
     const savedChatId = process.env.TELEGRAM_ALERT_CHAT_ID;
     process.env.TELEGRAM_BOT_TOKEN = "bot-token-test";
@@ -215,17 +257,17 @@ describe("telegramModule", () => {
         makeStubCtx(
           undefined,
           makeStubClient(),
-          { model: "gpt-5.5" } as ModuleRuntimeContext["config"],
+          {
+            model: "gpt-5.5",
+            serve: { defaultAutonomyMode: "passive" },
+          } as ModuleRuntimeContext["config"],
         ),
       );
       const channel = channels.find((c) => c.name === "telegram-interactive");
       if (!channel) throw new Error("telegram-interactive channel missing");
       const result = channel.create(makeChannelStartContext());
-      expect(result.status).toBe("unavailable");
-      if (result.status === "unavailable") {
-        expect(result.reason).toContain("model provider");
-        expect(result.reason).toContain("gpt-5.5");
-      }
+      expect(result.status).toBe("started");
+      expect(mockedResolveAgentHarness).toHaveBeenCalledWith("codex");
     } finally {
       if (savedToken !== undefined) process.env.TELEGRAM_BOT_TOKEN = savedToken;
       else delete process.env.TELEGRAM_BOT_TOKEN;
@@ -247,7 +289,11 @@ describe("telegramModule", () => {
         makeStubCtx(
           undefined,
           makeStubClient(),
-          { model: "openai/gpt-5.5" } as ModuleRuntimeContext["config"],
+          {
+            model: "gpt-5.5",
+            modelProvider: { type: "openai" },
+            serve: { defaultAutonomyMode: "passive" },
+          } as ModuleRuntimeContext["config"],
         ),
       );
       const channel = channels.find((c) => c.name === "telegram-interactive");
@@ -257,6 +303,82 @@ describe("telegramModule", () => {
       if (result.status === "unavailable") {
         expect(result.reason).toContain("OPENAI_API_KEY");
       }
+    } finally {
+      if (savedToken !== undefined) process.env.TELEGRAM_BOT_TOKEN = savedToken;
+      else delete process.env.TELEGRAM_BOT_TOKEN;
+      if (savedChatId !== undefined) process.env.TELEGRAM_ALERT_CHAT_ID = savedChatId;
+      else delete process.env.TELEGRAM_ALERT_CHAT_ID;
+      if (savedOpenAiKey !== undefined) process.env.OPENAI_API_KEY = savedOpenAiKey;
+      else delete process.env.OPENAI_API_KEY;
+    }
+  });
+
+  it("telegram-interactive channel keeps provider/model notation on the regular session path", async () => {
+    const savedToken = process.env.TELEGRAM_BOT_TOKEN;
+    const savedChatId = process.env.TELEGRAM_ALERT_CHAT_ID;
+    const savedOpenAiKey = process.env.OPENAI_API_KEY;
+    const savedOpenRouterKey = process.env.OPENROUTER_API_KEY;
+    process.env.TELEGRAM_BOT_TOKEN = "bot-token-test";
+    process.env.TELEGRAM_ALERT_CHAT_ID = "123456789";
+    delete process.env.OPENAI_API_KEY;
+    process.env.OPENROUTER_API_KEY = "sk-test";
+    try {
+      const channels = await resolveModuleChannels(
+        telegramModule,
+        makeStubCtx(
+          undefined,
+          makeStubClient(),
+          {
+            defaultAgentHarness: "openai-tools",
+            model: "openrouter/openrouter/auto",
+            serve: { defaultAutonomyMode: "supervised" },
+          } as ModuleRuntimeContext["config"],
+        ),
+      );
+      const channel = channels.find((c) => c.name === "telegram-interactive");
+      if (!channel) throw new Error("telegram-interactive channel missing");
+      const result = channel.create(makeChannelStartContext());
+      expect(result.status).toBe("started");
+      expect(mockedResolveAgentHarness).not.toHaveBeenCalled();
+    } finally {
+      if (savedToken !== undefined) process.env.TELEGRAM_BOT_TOKEN = savedToken;
+      else delete process.env.TELEGRAM_BOT_TOKEN;
+      if (savedChatId !== undefined) process.env.TELEGRAM_ALERT_CHAT_ID = savedChatId;
+      else delete process.env.TELEGRAM_ALERT_CHAT_ID;
+      if (savedOpenAiKey !== undefined) process.env.OPENAI_API_KEY = savedOpenAiKey;
+      else delete process.env.OPENAI_API_KEY;
+      if (savedOpenRouterKey !== undefined) process.env.OPENROUTER_API_KEY = savedOpenRouterKey;
+      else delete process.env.OPENROUTER_API_KEY;
+    }
+  });
+
+  it("telegram-interactive channel validates provider/model notation before starting", async () => {
+    const savedToken = process.env.TELEGRAM_BOT_TOKEN;
+    const savedChatId = process.env.TELEGRAM_ALERT_CHAT_ID;
+    const savedOpenAiKey = process.env.OPENAI_API_KEY;
+    process.env.TELEGRAM_BOT_TOKEN = "bot-token-test";
+    process.env.TELEGRAM_ALERT_CHAT_ID = "123456789";
+    delete process.env.OPENAI_API_KEY;
+    try {
+      const channels = await resolveModuleChannels(
+        telegramModule,
+        makeStubCtx(
+          undefined,
+          makeStubClient(),
+          {
+            model: "openai/gpt-5.5",
+            serve: { defaultAutonomyMode: "supervised" },
+          } as ModuleRuntimeContext["config"],
+        ),
+      );
+      const channel = channels.find((c) => c.name === "telegram-interactive");
+      if (!channel) throw new Error("telegram-interactive channel missing");
+      const result = channel.create(makeChannelStartContext());
+      expect(result.status).toBe("unavailable");
+      if (result.status === "unavailable") {
+        expect(result.reason).toContain("OPENAI_API_KEY");
+      }
+      expect(mockedResolveAgentHarness).not.toHaveBeenCalled();
     } finally {
       if (savedToken !== undefined) process.env.TELEGRAM_BOT_TOKEN = savedToken;
       else delete process.env.TELEGRAM_BOT_TOKEN;

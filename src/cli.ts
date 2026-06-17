@@ -3,8 +3,7 @@ import { basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
-import { expandAlias, type KotaConfig, loadConfig } from "#core/config/config.js";
-import type { ModelProviderSelection } from "#core/model/model-client.js";
+import { expandAlias, loadConfig } from "#core/config/config.js";
 import { expandUserPromptReferences } from "#core/prompt-input/index.js";
 import { getActiveKotaClient } from "#core/server/client-holder.js";
 import { resolveKotaClient } from "#core/server/client-selector.js";
@@ -20,7 +19,10 @@ import {
   createAskUserMcpInputResolver,
 } from "./core/mcp/operator-input.js";
 import { formatAuthError } from "./core/model/auth-error.js";
-import { createModelClient } from "./core/model/model-client.js";
+import {
+  createModelClient,
+  modelProviderSelectionFromConfig,
+} from "./core/model/model-client.js";
 import {
   checkPresetAuth,
   PRESET_ENV_VAR,
@@ -186,17 +188,6 @@ function warnMissingModelProviderKey(
       ),
     ),
   );
-}
-
-function modelProviderSelectionFromConfig(
-  config: KotaConfig,
-): ModelProviderSelection | undefined {
-  if (!config.modelProvider) return undefined;
-  const selection: ModelProviderSelection = {};
-  if (config.modelProvider.type !== undefined) selection.provider = config.modelProvider.type;
-  if (config.modelProvider.baseUrl !== undefined) selection.baseUrl = config.modelProvider.baseUrl;
-  if (config.modelProvider.apiKey !== undefined) selection.apiKey = config.modelProvider.apiKey;
-  return Object.keys(selection).length > 0 ? selection : undefined;
 }
 
 function isModelClientHarness(harnessName: string): boolean {

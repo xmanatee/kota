@@ -5,11 +5,12 @@
  * configured notification forwarding for workflow events.
  */
 
+import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import type { ChannelDef } from "#core/channels/channel.js";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
 import type { BusEvents } from "#core/events/event-bus.js";
-import { resolveActivePresetFromConfig } from "#core/model/preset.js";
+import { checkPresetAuth } from "#core/model/preset.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { ModuleSetupRequirement } from "#core/modules/setup-requirements.js";
 import type { KotaClient } from "#core/server/kota-client.js";
@@ -20,6 +21,10 @@ import {
   resolveApiKey,
   resolveModelProviderName,
 } from "#modules/model-clients/factory.js";
+import {
+  isModelClientHarness,
+  resolveTelegramInteractiveBackend,
+} from "./backend.js";
 import { TelegramBot } from "./bot.js";
 import { createTelegramCallbackHandler } from "./callback-poll.js";
 import type { TelegramMessage } from "./client.js";
@@ -269,16 +274,73 @@ function getCredentials(ctx: ModuleContext): { token: string; chatId: string } |
   return { token, chatId };
 }
 
-function telegramInteractiveModelError(ctx: ModuleContext): string | null {
-  const model = ctx.config.model ?? resolveActivePresetFromConfig(ctx.config).defaultModel;
-  const provider = resolveModelProviderName(model, ctx.config.modelProvider?.type);
+function telegramInteractiveProviderError(
+  ctx: ModuleContext,
+  model: string,
+  explicitProvider?: {
+    provider?: string;
+    apiKey?: string;
+  },
+): string | null {
+  const provider = resolveModelProviderName(model, explicitProvider?.provider);
   if (!provider) {
     return `Telegram interactive sessions require a model provider for "${model}". Set config.modelProvider.type or use provider/model notation.`;
   }
   const apiKeyEnv = apiKeyNameForProvider(provider);
-  if (apiKeyEnv && !resolveApiKey(provider, ctx.config.modelProvider?.apiKey, { projectDir: ctx.cwd })) {
+  if (apiKeyEnv && !resolveApiKey(provider, explicitProvider?.apiKey, { projectDir: ctx.cwd })) {
     return `Telegram interactive sessions require ${apiKeyEnv} or config.modelProvider.apiKey for provider "${provider}".`;
   }
+  return null;
+}
+
+function telegramInteractiveBackendError(
+  ctx: ModuleContext,
+  autonomyMode: AutonomyMode,
+): string | null {
+  const backend = resolveTelegramInteractiveBackend(ctx.config);
+  if (backend.kind === "model-client") {
+    return telegramInteractiveProviderError(
+      ctx,
+      backend.modelSpec,
+      backend.modelProvider,
+    );
+  }
+
+  let harness: ReturnType<typeof resolveAgentHarness>;
+  try {
+    harness = resolveAgentHarness(backend.harnessName);
+  } catch (err) {
+    return (err as Error).message;
+  }
+
+  if (!harness.supportsMultiTurn) {
+    return `Telegram interactive sessions require a multi-turn agent harness; "${harness.name}" does not support multi-turn conversation.`;
+  }
+
+  if (autonomyMode === "supervised") {
+    const unsupported = harness.unsupportedRunOptions?.find(
+      (entry) => entry.runOption === "autonomyMode.supervised",
+    );
+    if (unsupported) {
+      return `Telegram interactive sessions cannot use autonomyMode "supervised" with harness "${harness.name}": ${unsupported.reason}`;
+    }
+  }
+
+  if (backend.usesPresetHarness) {
+    const auth = checkPresetAuth(backend.preset);
+    if (auth.missing.length > 0) {
+      return `Telegram interactive sessions require ${auth.missing.join(" or ")} for preset "${backend.preset.id}".`;
+    }
+  }
+
+  if (isModelClientHarness(backend.harnessName)) {
+    return telegramInteractiveProviderError(
+      ctx,
+      backend.model,
+      backend.modelProvider,
+    );
+  }
+
   return null;
 }
 
@@ -391,13 +453,6 @@ function makeTelegramInteractiveChannel(
           reason: "TELEGRAM_BOT_TOKEN and TELEGRAM_ALERT_CHAT_ID secret refs are required",
         };
       }
-      const modelError = telegramInteractiveModelError(ctx);
-      if (modelError) {
-        return {
-          status: "unavailable",
-          reason: modelError,
-        };
-      }
       const { token } = credentials;
 
       const telegramConfig = ctx.getModuleConfig<TelegramConfig>();
@@ -406,6 +461,13 @@ function makeTelegramInteractiveChannel(
         ctx.config,
         "telegram",
       );
+      const backendError = telegramInteractiveBackendError(ctx, autonomyMode);
+      if (backendError) {
+        return {
+          status: "unavailable",
+          reason: backendError,
+        };
+      }
 
       const allowedChatIds = telegramConfig?.allowedChatIds;
       const projectRouting = resolveTelegramProjectRouting(

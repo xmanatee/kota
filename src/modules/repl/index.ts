@@ -15,6 +15,10 @@ import {
   type AgentHarnessWriter,
   runAgentHarness,
 } from "#core/agent-harness/index.js";
+import {
+  type AgentHarnessTranscriptTurn,
+  composeAgentHarnessTranscriptPrompt,
+} from "#core/agent-harness/transcript.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import { getRenderingProvider } from "#core/modules/provider-registry.js";
 import type { ReplChrome } from "#core/modules/provider-types.js";
@@ -65,10 +69,7 @@ export type HarnessReplOptions = {
   ) => void | Promise<void>;
 };
 
-export type ReplTurn = {
-  user: string;
-  assistant: string;
-};
+export type ReplTurn = AgentHarnessTranscriptTurn;
 
 /**
  * Compose the transcript into a single prompt string. Adapters that do not
@@ -80,24 +81,7 @@ export function composeTranscriptPrompt(
   transcript: ReplTurn[],
   userInput: string,
 ): string {
-  if (transcript.length === 0) return userInput;
-  const parts: string[] = [
-    "The following is the running transcript of an interactive REPL session. Respond only to the final user message; the earlier turns are context.",
-    "",
-  ];
-  for (const turn of transcript) {
-    parts.push("<user>");
-    parts.push(turn.user);
-    parts.push("</user>");
-    parts.push("<assistant>");
-    parts.push(turn.assistant);
-    parts.push("</assistant>");
-    parts.push("");
-  }
-  parts.push("<user>");
-  parts.push(userInput);
-  parts.push("</user>");
-  return parts.join("\n");
+  return composeAgentHarnessTranscriptPrompt(transcript, userInput);
 }
 
 function streamWriter(stream: ReplOutputStream): AgentHarnessWriter {

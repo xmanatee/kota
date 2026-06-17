@@ -1,10 +1,12 @@
 import type { Command } from "commander";
 import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
-import { type KotaConfig, loadConfig } from "#core/config/config.js";
+import { loadConfig } from "#core/config/config.js";
 import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
-import type { ModelProviderSelection } from "#core/model/model-client.js";
-import { createModelClient } from "#core/model/model-client.js";
+import {
+  createModelClient,
+  modelProviderSelectionFromConfig,
+} from "#core/model/model-client.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import { ensureCliProvidersFor } from "#core/modules/cli-providers.js";
 import type {
@@ -46,17 +48,6 @@ let stderrRenderer: TerminalTransport | null = null;
 function stderr(): TerminalTransport {
   if (!stderrRenderer) stderrRenderer = new TerminalTransport({ stream: process.stderr });
   return stderrRenderer;
-}
-
-function modelProviderSelectionFromConfig(
-  config: KotaConfig,
-): ModelProviderSelection | undefined {
-  if (!config.modelProvider) return undefined;
-  const selection: ModelProviderSelection = {};
-  if (config.modelProvider.type !== undefined) selection.provider = config.modelProvider.type;
-  if (config.modelProvider.baseUrl !== undefined) selection.baseUrl = config.modelProvider.baseUrl;
-  if (config.modelProvider.apiKey !== undefined) selection.apiKey = config.modelProvider.apiKey;
-  return Object.keys(selection).length > 0 ? selection : undefined;
 }
 
 function isModelClientHarness(harnessName: string): boolean {

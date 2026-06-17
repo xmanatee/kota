@@ -2,7 +2,8 @@
  * Telegram Bot adapter — makes KOTA accessible via Telegram messaging.
  *
  * Uses the Telegram Bot API via HTTP (no external dependencies).
- * One AgentSession per chat, ProxyTransport pattern (same as HTTP server).
+ * One session per chat, ProxyTransport pattern (same as HTTP server).
+ * Provider-backed chats use AgentSession; native presets use harness sessions.
  * Long polling for receiving messages, typing indicators while processing.
  *
  * The bot does not own a scheduler. Callers that host the bot (the telegram
@@ -10,11 +11,24 @@
  * invoke `broadcastToChats` to deliver reminders to active sessions.
  */
 
-import type { ChannelSession, ChannelUserIdentity } from "#core/channels/channel.js";
+import {
+  type AgentEffort,
+  type AgentHarness,
+  resolveAgentHarness,
+  runAgentHarness,
+} from "#core/agent-harness/index.js";
+import {
+  type AgentHarnessTranscriptTurn,
+  composeAgentHarnessTranscriptPrompt,
+} from "#core/agent-harness/transcript.js";
+import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
+import { CostTracker } from "#core/loop/cost.js";
 import { AgentSession, type LoopOptions } from "#core/loop/loop.js";
+import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
 import { NullTransport, ProxyTransport } from "#core/loop/transport.js";
+import type { ModelProviderSelection } from "#core/model/model-client.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
@@ -22,6 +36,7 @@ import {
   TranscriptionProviderUnavailableError,
   transcribeAudio,
 } from "#modules/transcription/index.js";
+import { resolveTelegramInteractiveBackend } from "./backend.js";
 import {
   callTelegramApi,
   downloadTelegramFile,
@@ -92,11 +107,124 @@ type TelegramProjectTargetResolution =
   | { ok: true; target: TelegramProjectTarget }
   | { ok: false; message: string };
 
+type TelegramSessionAgent = {
+  send(text: string): Promise<string | void>;
+  close(): void;
+  getCostSummary(): string;
+};
+
+type TelegramSession = {
+  agent: TelegramSessionAgent;
+  proxy: ProxyTransport;
+  lastActive: number;
+  identity: ChannelUserIdentity;
+};
+
+type TelegramHarnessSessionAgentOptions = {
+  harness: AgentHarness;
+  model: string;
+  modelProvider?: ModelProviderSelection;
+  modelOutputTokenLimits?: KotaConfig["modelOutputTokenLimits"];
+  effort: AgentEffort;
+  cwd: string;
+  config: KotaConfig;
+  autonomyMode: AutonomyMode;
+  verbose?: boolean;
+  proxy: ProxyTransport;
+};
+
+class TelegramHarnessSessionAgent implements TelegramSessionAgent {
+  private readonly transcript: AgentHarnessTranscriptTurn[] = [];
+  private readonly costTracker = new CostTracker();
+  private abortController: AbortController | null = null;
+
+  constructor(private readonly options: TelegramHarnessSessionAgentOptions) {}
+
+  async send(text: string): Promise<void> {
+    const abortController = new AbortController();
+    this.abortController = abortController;
+    const prompt = composeAgentHarnessTranscriptPrompt(this.transcript, text);
+    let streamedText = "";
+    const writer = {
+      write: (chunk: string): boolean => {
+        streamedText += chunk;
+        this.options.proxy.emit({ type: "text", content: chunk });
+        return true;
+      },
+    };
+
+    try {
+      const result = await runAgentHarness(
+        this.options.harness,
+        {
+          prompt,
+          model: this.options.model,
+          cwd: this.options.cwd,
+          effort: this.options.effort,
+          autonomyMode: this.options.autonomyMode,
+          verbose: this.options.verbose ?? this.options.config.verbose,
+          systemPrompt: buildKotaSystemPrompt(
+            this.options.config,
+            undefined,
+            this.options.cwd,
+            this.options.cwd,
+          ),
+          modelOutputTokenLimits: this.options.modelOutputTokenLimits,
+          abortController,
+          ...(this.options.modelProvider !== undefined
+            ? { modelProvider: this.options.modelProvider }
+            : {}),
+        },
+        writer,
+      );
+      if (!streamedText && result.text) {
+        this.options.proxy.emit({ type: "text", content: result.text });
+      }
+      this.recordCost(result);
+      this.transcript.push({
+        user: text,
+        assistant: result.text || streamedText,
+      });
+    } finally {
+      if (this.abortController === abortController) {
+        this.abortController = null;
+      }
+    }
+  }
+
+  close(): void {
+    this.abortController?.abort(new Error("Telegram harness session closed."));
+    this.abortController = null;
+  }
+
+  getCostSummary(): string {
+    return this.costTracker.getSummary();
+  }
+
+  private recordCost(result: {
+    totalCostUsd?: number;
+    inputTokens?: number;
+    outputTokens?: number;
+  }): void {
+    if (result.totalCostUsd !== undefined) {
+      this.costTracker.addRawCost(result.totalCostUsd);
+      return;
+    }
+    if (result.inputTokens === undefined && result.outputTokens === undefined) {
+      return;
+    }
+    this.costTracker.addUsage(this.options.model, {
+      input_tokens: result.inputTokens ?? 0,
+      output_tokens: result.outputTokens ?? 0,
+    });
+  }
+}
+
 // --- TelegramBot ---
 
 export class TelegramBot {
   private token: string;
-  private sessions = new Map<string, ChannelSession>();
+  private sessions = new Map<string, TelegramSession>();
   private busyChats = new Set<string>();
   private running = false;
   private offset = 0;
@@ -457,7 +585,7 @@ export class TelegramBot {
     }
   }
 
-  private getOrCreateSession(target: TelegramProjectTarget, firstName?: string): ChannelSession {
+  private getOrCreateSession(target: TelegramProjectTarget, firstName?: string): TelegramSession {
     let session = this.sessions.get(target.sessionKey);
     if (session) return session;
 
@@ -468,24 +596,51 @@ export class TelegramBot {
       meta: { projectId: target.projectId },
     };
     const proxy = new ProxyTransport();
-    const loopOpts: LoopOptions = {
-      autonomyMode: this.options.autonomyMode,
-      model: this.options.model ?? this.options.config?.model,
-      verbose: this.options.verbose ?? this.options.config?.verbose,
-      transport: proxy,
-      config: this.options.config,
-      channelIdentity: identity,
-      projectDir: target.projectDir,
-      projectRuntime: target.projectRuntime,
-    };
+    const agent = this.createSessionAgent(target, identity, proxy);
     session = {
-      agent: new AgentSession(loopOpts),
+      agent,
       proxy,
       lastActive: Date.now(),
       identity,
     };
     this.sessions.set(target.sessionKey, session);
     return session;
+  }
+
+  private createSessionAgent(
+    target: TelegramProjectTarget,
+    identity: ChannelUserIdentity,
+    proxy: ProxyTransport,
+  ): TelegramSessionAgent {
+    const config: KotaConfig = this.options.config ?? {};
+    const backend = resolveTelegramInteractiveBackend(config, this.options.model);
+    if (backend.kind === "harness") {
+      return new TelegramHarnessSessionAgent({
+        harness: resolveAgentHarness(backend.harnessName),
+        model: backend.model,
+        ...(backend.modelProvider !== undefined
+          ? { modelProvider: backend.modelProvider }
+          : {}),
+        modelOutputTokenLimits: config.modelOutputTokenLimits,
+        effort: backend.preset.defaultEffort,
+        cwd: target.projectDir,
+        config,
+        autonomyMode: this.options.autonomyMode,
+        verbose: this.options.verbose ?? config.verbose,
+        proxy,
+      });
+    }
+    const loopOpts: LoopOptions = {
+      autonomyMode: this.options.autonomyMode,
+      model: backend.modelSpec,
+      verbose: this.options.verbose ?? config.verbose,
+      transport: proxy,
+      config,
+      channelIdentity: identity,
+      projectDir: target.projectDir,
+      projectRuntime: target.projectRuntime,
+    };
+    return new AgentSession(loopOpts);
   }
 
   private async resolveProjectTarget(chatId: number): Promise<TelegramProjectTargetResolution> {

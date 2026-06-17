@@ -913,6 +913,7 @@ describe("telegram project-scope integration", () => {
     bot = new TelegramBot({
       token: "token",
       autonomyMode: "supervised",
+      config: { modelProvider: { type: "openai" } },
       defaultProjectRuntime: runtimeA,
       getProjectRuntime: (projectId) => {
         if (projectId === PROJECT_A.projectId) return runtimeA;

@@ -15,6 +15,7 @@ import type {
 	KotaTool,
 } from "#core/agent-harness/message-protocol.js";
 import type { AgentEffort } from "#core/agent-harness/types.js";
+import type { KotaConfig } from "#core/config/config.js";
 
 export type { AgentEffort };
 
@@ -81,6 +82,23 @@ export type ModelProviderSelection = {
 	/** Explicit API key, overrides env var resolution. */
 	apiKey?: string;
 };
+
+export function modelProviderSelectionFromConfig(
+	config: Pick<KotaConfig, "modelProvider">,
+): ModelProviderSelection | undefined {
+	if (!config.modelProvider) return undefined;
+	const selection: ModelProviderSelection = {};
+	if (config.modelProvider.type !== undefined) {
+		selection.provider = config.modelProvider.type;
+	}
+	if (config.modelProvider.baseUrl !== undefined) {
+		selection.baseUrl = config.modelProvider.baseUrl;
+	}
+	if (config.modelProvider.apiKey !== undefined) {
+		selection.apiKey = config.modelProvider.apiKey;
+	}
+	return Object.keys(selection).length > 0 ? selection : undefined;
+}
 
 /** Options for creating a model client. */
 export type ProviderFactoryOptions = ModelProviderSelection & {
