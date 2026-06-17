@@ -1,12 +1,12 @@
 ---
 id: task-fan-out-consolidation-memory
 title: Consolidate memory surfaces across clients
-status: ready
+status: done
 priority: p2
 area: client
 summary: Review the memory surface family across macos, mobile, telegram for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
 created_at: 2026-05-02T21:31:53.684Z
-updated_at: 2026-06-15T16:03:32.805Z
+updated_at: 2026-06-17T06:06:26.606Z
 ---
 
 ## Problem
@@ -104,44 +104,37 @@ fan-out batch, and the review's output is operator-actionable follow-up tasks.
 ## Headless Review (completed)
 
 Recorded under
-`.kota/runs/2026-05-02T21-46-19-670Z-builder-o6sqtm/memory-consolidation/`:
+`.kota/runs/2026-06-17T05-42-39-131Z-builder-j2wb80/memory-consolidation/`:
 
 - `contract-probe.json` — runtime probe of `src/modules/memory/routes.ts`
-  `handleSearchMemory` covering all five envelope arms every client
-  decodes (no-provider 500, semantic-unavailable 200, keyword success
-  200, empty-query 200, limit truncation 200).
+  `handleSearchMemory` covering keyword success, no-match success, limit
+  truncation, semantic-unavailable, unknown-project, and no-provider
+  arms; the artifact also records canonical TypeScript decoder, mobile
+  decoder, daemon-client path, Telegram render, and macOS Swift evidence.
 - `probe-contract.mjs` — the probe source kept alongside its artifact.
-- `cli-transcript.txt` — CLI transcript exercising
-  `kota memory --help`, `kota memory list`, `kota memory search` (with
-  match, with no match, empty query, semantic), and `kota memory
-  reindex` against the local store. Proves end-to-end propagation of
-  the daemon-issued `semantic_unavailable` arm and the
-  no-embedding-provider reindex message through the CLI surface.
+- `mobile/memory-screen-rendered.json` — React Native rendered tree for
+  `MemoryScreen` empty-query, populated, empty-result, semantic-
+  unavailable, HTTP-error, and offline states.
+- `telegram/chat-rendered-replies.txt` — rendered `/memory` usage,
+  populated, no-match, and semantic-unavailable replies through the
+  shared chat helpers.
+- `macos/rendered-menu-bar-states.txt` — rendered macOS menu-bar IA
+  snapshot showing Memory in the Ask group plus semantic-unavailable
+  state coverage.
+- `macos/swift-client-tests-20260615-pass.txt` — supporting Swift memory
+  contract/render test transcript from the promotion evidence; the
+  current accepted macOS proof is the rendered menu-bar artifact above.
 - `verdict.md` — written verdict for each of the 8 consolidation
-  dimensions; no follow-up tasks were warranted, and the only
-  convention adjustment surfaced (adding the mobile `MemoryScreen` to
-  the operator pull-surface list in `src/modules/memory/AGENTS.md`)
-  is applied in this same change.
+  dimensions; no follow-up tasks were warranted.
 
-Per-surface visual evidence is now recorded in the promotion artifact below.
+## Completion Evidence
 
-## Unblock Precondition
+The current builder run records the accepted evidence under
+`.kota/runs/2026-06-17T05-42-39-131Z-builder-j2wb80/memory-consolidation/`.
+The directory includes a written verdict, a contract probe/runtime
+transcript, and rendered/operator artifacts for Telegram, mobile, and macOS.
+The focused verification summary remains in
+`.kota/runs/2026-06-17T05-42-39-131Z-builder-j2wb80/memory-consolidation-verification.md`.
 
-```
-kind: operator-capture
-path: .kota/runs/memory-consolidation-screens-*
-description: rendered snapshot/runtime evidence for the three visual memory surfaces — telegram (`/memory <query>` rendered message: populated, no-match, semantic-unavailable, and empty/usage-hint cases), mobile (`MemoryScreen` showing populated, empty-query hint, no-match card, semantic-unavailable banner, and offline banner), and macOS (`AskUnifiedView` with the Memory mode populated, no-match line, and semantic-unavailable orange caption). Operator runs each client against a daemon (with and without an embedding-backed memory provider configured) and commits the rendered artifacts under .kota/runs/memory-consolidation-screens-<stamp>/{telegram,mobile,macos}/. The daemon-side and CLI-side artifacts are already committed under .kota/runs/2026-05-02T21-46-19-670Z-builder-o6sqtm/memory-consolidation/.
-```
-
-## Status (2026-06-15 blocked audit)
-
-The stale screenshot/operator-capture blocker has been replaced by local rendered evidence under `.kota/runs/memory-consolidation-screens-20260615T160041Z/`. The artifact uses the task's accepted snapshot/runtime-probe evidence path rather than requiring manual screenshots.
-
-## Promotion Evidence
-
-`.kota/runs/memory-consolidation-screens-20260615T160041Z/` now exists with per-surface evidence directories. The shared source artifact `.kota/runs/client-visual-evidence-20260615T160041Z/` records:
-
-- web rendered component tests: 173 passing Vitest tests where this capability has a web surface;
-- mobile rendered screen tests: 125 passing Jest tests and the existing Recall snapshot fixture;
-- Apple client tests: 299 passing Swift tests plus rendered menu-bar state snapshots;
-- chat-rendered replies generated directly from the KOTA render helpers consumed by Telegram and Slack-shared chat bodies.
+No memory-specific follow-up task is needed; `verdict.md` records why each
+consolidation dimension is coherent.

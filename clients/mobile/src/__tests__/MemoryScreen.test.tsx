@@ -1,5 +1,7 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { MemoryScreen } from '../screens/MemoryScreen';
 import { renderMemorySearchPlain } from '../memoryRender';
 import type { MemorySearchResponse } from '../types';
@@ -59,6 +61,36 @@ function mockDaemon(
     setMemoryQuery: fns.setMemoryQuery ?? jest.fn(),
     searchMemory: fns.searchMemory ?? jest.fn().mockResolvedValue(undefined),
   });
+}
+
+function serializeRenderedTree(tree: unknown): string {
+  const seen = new WeakSet<object>();
+  return JSON.stringify(
+    tree,
+    (key, value: unknown) => {
+      if (key === '_owner' || key === '_store' || key === 'ref') {
+        return undefined;
+      }
+      if (typeof value === 'function') return '[Function]';
+      if (value && typeof value === 'object') {
+        if (seen.has(value)) return '[Circular]';
+        seen.add(value);
+      }
+      return value;
+    },
+    2,
+  );
+}
+
+function renderMemoryState(
+  label: string,
+  overrides: Partial<ReturnType<typeof defaultState>>,
+): { label: string; tree: unknown } {
+  mockDaemon(overrides);
+  const { toJSON, unmount } = render(<MemoryScreen />);
+  const tree = toJSON();
+  unmount();
+  return { label, tree };
 }
 
 describe('MemoryScreen', () => {
@@ -187,5 +219,64 @@ describe('MemoryScreen', () => {
     const { getByText } = render(<MemoryScreen />);
     fireEvent.press(getByText('Search'));
     expect(searchMemory).toHaveBeenCalledWith('autonomy');
+  });
+
+  test('writes rendered memory states to the run directory when requested', () => {
+    const runDir = process.env.KOTA_RUN_DIR;
+    if (!runDir) return;
+
+    const populated: MemorySearchResponse = {
+      ok: true,
+      entries: [
+        {
+          id: 'm-1',
+          created: '2026-04-26T12:00:00.000Z',
+          content: 'autonomy loop notes',
+        },
+        {
+          id: 'm-22',
+          created: '2026-04-25T18:30:00.000Z',
+          content: 'old plan\nwith newline',
+        },
+      ],
+    };
+    const empty: MemorySearchResponse = { ok: true, entries: [] };
+    const semanticUnavailable: MemorySearchResponse = {
+      ok: false,
+      reason: 'semantic_unavailable',
+    };
+
+    const states = [
+      renderMemoryState('empty-query', {}),
+      renderMemoryState('populated-results', {
+        memoryQuery: 'autonomy',
+        memoryResult: populated,
+      }),
+      renderMemoryState('empty-results', {
+        memoryQuery: 'autonomy',
+        memoryResult: empty,
+      }),
+      renderMemoryState('semantic-unavailable', {
+        memoryQuery: 'autonomy',
+        memoryResult: semanticUnavailable,
+      }),
+      renderMemoryState('http-error-retry', {
+        memoryQuery: 'autonomy',
+        memoryError: '503 Service Unavailable',
+      }),
+      renderMemoryState('offline-banner', { online: false }),
+    ];
+
+    const dir = join(runDir, 'memory-consolidation', 'mobile');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, 'memory-screen-rendered.json'),
+      `${serializeRenderedTree({
+        surface: 'clients/mobile/src/screens/MemoryScreen.tsx',
+        generatedBy: 'clients/mobile/src/__tests__/MemoryScreen.test.tsx',
+        states,
+      })}\n`,
+      'utf-8',
+    );
   });
 });
