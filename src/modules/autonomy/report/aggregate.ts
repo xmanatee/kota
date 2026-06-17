@@ -11,7 +11,8 @@
  * only and must not be consumed by autonomy agents.
  */
 
-import { basename } from "node:path";
+import { existsSync, readdirSync } from "node:fs";
+import { basename, join } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
@@ -150,6 +151,33 @@ export type TrajectoryDiagnosticReport = {
   activePatterns: TrajectoryDiagnosticPatternSummary[];
 };
 
+export type HealthCountRow<TKey extends string> = {
+  [key in TKey]: string;
+} & {
+  count: number;
+};
+
+export type HealthTopGroup = {
+  dedupeKey: string;
+  labels: string[];
+  severity: string;
+  actionability: string;
+  signalCount: number;
+  source: string;
+  scope: string;
+};
+
+export type AutonomyHealthBreakdown = {
+  totalSignals: number;
+  totalGroups: number;
+  bySeverity: HealthCountRow<"severity">[];
+  byLabel: HealthCountRow<"label">[];
+  byScope: HealthCountRow<"scope">[];
+  bySource: HealthCountRow<"source">[];
+  byActionability: HealthCountRow<"actionability">[];
+  topGroups: HealthTopGroup[];
+};
+
 export type AutonomyReportData = {
   windowStartedAt: string;
   windowEndedAt: string;
@@ -159,6 +187,7 @@ export type AutonomyReportData = {
   explorer: ExplorerBalance;
   builder: BuilderBreakdown;
   trajectoryDiagnostics: TrajectoryDiagnosticReport;
+  health: AutonomyHealthBreakdown;
   blockers: BlockerClassMix;
   cost: CostBreakdown;
 };
@@ -229,6 +258,11 @@ export function aggregateAutonomyReport(
     input.windowEndMs,
     windowMs,
   );
+  const health = buildAutonomyHealthBreakdown(
+    input.runsDir,
+    windowStartMs,
+    input.windowEndMs,
+  );
   const blockers = buildBlockerMix(allTasks);
   const cost = buildCostBreakdown(runs);
 
@@ -241,6 +275,7 @@ export function aggregateAutonomyReport(
     explorer,
     builder,
     trajectoryDiagnostics,
+    health,
     blockers,
     cost,
   };
@@ -537,6 +572,158 @@ function buildTrajectoryDiagnosticReport(
         repairTaskId: pattern.taskId,
         evidenceArtifactPaths: pattern.artifactPaths,
       })),
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function readHealthReviewArtifact(path: string): Record<string, unknown> | null {
+  const raw = readOptionalJsonFile<unknown>(path);
+  return isRecord(raw) ? raw : null;
+}
+
+function stringField(value: unknown, fallback: string): string {
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : fallback;
+}
+
+function stringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is string => typeof entry === "string");
+}
+
+function nonEmptyString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : null;
+}
+
+function countMapAdd(map: Map<string, number>, key: string, count: number): void {
+  map.set(key, (map.get(key) ?? 0) + count);
+}
+
+function countRows<TKey extends string>(
+  map: Map<string, number>,
+  key: TKey,
+): HealthCountRow<TKey>[] {
+  return [...map.entries()]
+    .map(([label, count]) => ({ [key]: label, count }) as HealthCountRow<TKey>)
+    .sort((a, b) => b.count - a.count || a[key].localeCompare(b[key]));
+}
+
+function buildAutonomyHealthBreakdown(
+  runsDir: string,
+  windowStartMs: number,
+  windowEndMs: number,
+): AutonomyHealthBreakdown {
+  const bySeverity = new Map<string, number>();
+  const byLabel = new Map<string, number>();
+  const byScope = new Map<string, number>();
+  const bySource = new Map<string, number>();
+  const byActionability = new Map<string, number>();
+  const topGroups: HealthTopGroup[] = [];
+  let totalSignals = 0;
+  let totalGroups = 0;
+
+  if (!existsSync(runsDir)) {
+    return {
+      totalSignals,
+      totalGroups,
+      bySeverity: [],
+      byLabel: [],
+      byScope: [],
+      bySource: [],
+      byActionability: [],
+      topGroups: [],
+    };
+  }
+
+  for (const entry of readdirSync(runsDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const artifact = readHealthReviewArtifact(
+      join(runsDir, entry.name, "autonomy-health-review.json"),
+    );
+    if (!artifact) continue;
+    const generatedAt = stringField(artifact.generatedAt, "");
+    const generatedAtMs = Date.parse(generatedAt);
+    if (
+      Number.isNaN(generatedAtMs) ||
+      generatedAtMs < windowStartMs ||
+      generatedAtMs > windowEndMs
+    ) {
+      continue;
+    }
+    const review = isRecord(artifact.review) ? artifact.review : {};
+    const scopeObj = isRecord(review.scope) ? review.scope : {};
+    const scope = stringField(
+      scopeObj.scopeId ?? scopeObj.projectId,
+      "(unknown)",
+    );
+    const groups = Array.isArray(review.groups) ? review.groups : [];
+    for (const rawGroup of groups) {
+      const group = decodeHealthReportGroup(rawGroup, scope);
+      if (!group) continue;
+      totalSignals += group.signalCount;
+      totalGroups += 1;
+      countMapAdd(bySeverity, group.severity, group.signalCount);
+      countMapAdd(byScope, group.scope, group.signalCount);
+      countMapAdd(bySource, group.source, group.signalCount);
+      countMapAdd(byActionability, group.actionability, group.signalCount);
+      for (const label of group.labels) countMapAdd(byLabel, label, group.signalCount);
+      topGroups.push(group);
+    }
+  }
+
+  return {
+    totalSignals,
+    totalGroups,
+    bySeverity: countRows(bySeverity, "severity"),
+    byLabel: countRows(byLabel, "label"),
+    byScope: countRows(byScope, "scope"),
+    bySource: countRows(bySource, "source"),
+    byActionability: countRows(byActionability, "actionability"),
+    topGroups: topGroups
+      .sort((a, b) => b.signalCount - a.signalCount || a.dedupeKey.localeCompare(b.dedupeKey))
+      .slice(0, 10),
+  };
+}
+
+function decodeHealthReportGroup(
+  rawGroup: unknown,
+  scope: string,
+): HealthTopGroup | null {
+  if (!isRecord(rawGroup)) return null;
+  const signalCount =
+    typeof rawGroup.signalCount === "number" && rawGroup.signalCount > 0
+      ? rawGroup.signalCount
+      : null;
+  const severity = nonEmptyString(rawGroup.severity);
+  const actionability = nonEmptyString(rawGroup.actionability);
+  const dedupeKey = nonEmptyString(rawGroup.dedupeKey);
+  const sourceObj = isRecord(rawGroup.source) ? rawGroup.source : null;
+  const sourceKind = sourceObj ? nonEmptyString(sourceObj.kind) : null;
+  const sourceId = sourceObj ? nonEmptyString(sourceObj.id) : null;
+  if (
+    signalCount === null ||
+    severity === null ||
+    actionability === null ||
+    dedupeKey === null ||
+    sourceKind === null ||
+    sourceId === null
+  ) {
+    return null;
+  }
+  return {
+    dedupeKey,
+    labels: stringArray(rawGroup.labels),
+    severity,
+    actionability,
+    signalCount,
+    source: `${sourceKind}:${sourceId}`,
+    scope,
   };
 }
 

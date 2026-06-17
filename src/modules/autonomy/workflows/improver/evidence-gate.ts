@@ -1,12 +1,14 @@
 import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { JsonFileError, readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
+import type { AutonomyHealthIssueEvidence } from "#modules/autonomy/health-issue-cards.js";
 import type { RunOutcomeAggregation } from "#modules/autonomy/run-outcome-aggregation.js";
 
 const STATE_FILE = "improver-evidence-gate.json";
 
 type EvidenceGateState = {
-  latestActionableRunAt: string;
+  latestActionableRunAt: string | null;
+  latestHealthReviewAt: string | null;
   updatedAt: string;
   reason: string;
 };
@@ -15,6 +17,7 @@ export type ImproverEvidenceGateDecision = {
   shouldRun: boolean;
   reason: string;
   latestActionableRunAt?: string;
+  latestHealthReviewAt?: string;
 };
 
 function statePath(projectDir: string): string {
@@ -22,13 +25,25 @@ function statePath(projectDir: string): string {
 }
 
 function isEvidenceGateState(value: unknown): value is EvidenceGateState {
+  const candidate = value as Partial<EvidenceGateState>;
+  const latestActionableRunAt = candidate.latestActionableRunAt;
+  const latestHealthReviewAt = candidate.latestHealthReviewAt;
+  const carriesRecognizedTimestamp =
+    Object.hasOwn(candidate, "latestActionableRunAt") ||
+    Object.hasOwn(candidate, "latestHealthReviewAt");
   return (
     value !== null &&
     typeof value === "object" &&
     !Array.isArray(value) &&
-    typeof (value as EvidenceGateState).latestActionableRunAt === "string" &&
-    typeof (value as EvidenceGateState).updatedAt === "string" &&
-    typeof (value as EvidenceGateState).reason === "string"
+    carriesRecognizedTimestamp &&
+    (latestActionableRunAt === null ||
+      latestActionableRunAt === undefined ||
+      typeof latestActionableRunAt === "string") &&
+    (latestHealthReviewAt === null ||
+      latestHealthReviewAt === undefined ||
+      typeof latestHealthReviewAt === "string") &&
+    typeof candidate.updatedAt === "string" &&
+    typeof candidate.reason === "string"
   );
 }
 
@@ -60,25 +75,58 @@ export function readImproverEvidenceGateState(
 export function decideImproverEvidenceGate(
   aggregation: RunOutcomeAggregation,
   state: EvidenceGateState | null,
+  healthEvidence?: AutonomyHealthIssueEvidence,
 ): ImproverEvidenceGateDecision {
   const { latestActionableRunAt } = aggregation;
-  if (latestActionableRunAt === null) {
+  const latestHealthReviewAt =
+    healthEvidence && healthEvidence.issueCards.length > 0
+      ? healthEvidence.latestHealthReviewAt
+      : null;
+  if (latestActionableRunAt === null && latestHealthReviewAt === null) {
     return {
       shouldRun: false,
-      reason: "no recent actionable run evidence",
+      reason: healthEvidence
+        ? "no recent actionable run or health signal evidence"
+        : "no recent actionable run evidence",
     };
   }
-  if (state && latestActionableRunAt <= state.latestActionableRunAt) {
+
+  const latestStateActionableRunAt = state?.latestActionableRunAt ?? null;
+  const latestStateHealthReviewAt = state?.latestHealthReviewAt ?? null;
+  const actionableRunAdvanced =
+    latestActionableRunAt !== null &&
+    (latestStateActionableRunAt === null ||
+      latestActionableRunAt > latestStateActionableRunAt);
+  const healthReviewAdvanced =
+    latestHealthReviewAt !== null &&
+    (latestStateHealthReviewAt === null ||
+      latestHealthReviewAt > latestStateHealthReviewAt);
+
+  if (!actionableRunAdvanced && !healthReviewAdvanced) {
     return {
       shouldRun: false,
-      reason: "no new actionable run evidence since the last improver pass",
-      latestActionableRunAt,
+      reason: healthEvidence
+        ? "no new actionable run or health signal evidence since the last improver pass"
+        : "no new actionable run evidence since the last improver pass",
+      ...(latestActionableRunAt ? { latestActionableRunAt } : {}),
+      ...(latestHealthReviewAt ? { latestHealthReviewAt } : {}),
     };
   }
+
+  if (healthReviewAdvanced && !actionableRunAdvanced) {
+    return {
+      shouldRun: true,
+      reason: "new systemic health signal evidence",
+      ...(latestActionableRunAt ? { latestActionableRunAt } : {}),
+      latestHealthReviewAt,
+    };
+  }
+
   return {
     shouldRun: true,
     reason: "new actionable run evidence",
-    latestActionableRunAt,
+    ...(latestActionableRunAt ? { latestActionableRunAt } : {}),
+    ...(latestHealthReviewAt ? { latestHealthReviewAt } : {}),
   };
 }
 
@@ -86,13 +134,14 @@ export function writeImproverEvidenceGateState(
   projectDir: string,
   decision: ImproverEvidenceGateDecision,
 ): void {
-  if (!decision.latestActionableRunAt) {
+  if (!decision.latestActionableRunAt && !decision.latestHealthReviewAt) {
     throw new Error(
-      "Cannot record improver evidence gate state without a latestActionableRunAt",
+      "Cannot record improver evidence gate state without evidence timestamps",
     );
   }
   writeJsonFileAtomic(statePath(projectDir), {
-    latestActionableRunAt: decision.latestActionableRunAt,
+    latestActionableRunAt: decision.latestActionableRunAt ?? null,
+    latestHealthReviewAt: decision.latestHealthReviewAt ?? null,
     updatedAt: new Date().toISOString(),
     reason: decision.reason,
   });

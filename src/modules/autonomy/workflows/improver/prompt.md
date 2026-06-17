@@ -8,6 +8,18 @@ long-running successful runs.
 
 Use this data to prioritize improvements that address systemic patterns rather than one-off failures.
 
+## Health Issue Cards
+
+The `gather-health-issue-cards` step injects compact issue cards from recent
+`autonomy-health-reviewer` artifacts. Treat these as the strongest signal for
+autonomy protocol, prompt, validation, trigger, module-routing, and evidence
+quality improvements.
+
+Health cards are already deduped and label-scoped. Improve the autonomy layer
+only when the card points to a systemic local-code pattern or a recurring
+operator/setup/evidence gap. Do not chase isolated health signals that the
+reviewer has not batched into a stable pattern.
+
 ## Scope
 
 - Improve prompts, instructions, validation, triggering, queue-shaping, and other autonomy surfaces when they materially affect future runs.
@@ -15,6 +27,8 @@ Use this data to prioritize improvements that address systemic patterns rather t
 - Prefer small affordances, tools, and strict checks for stable invariants over
   adding advice or hardcoding agent process.
 - Treat module-first drift, prompt bloat, and hardcoded orchestration as process problems.
+- Do not use cost or throughput rankings as agent context; they are operator
+  analytics, not autonomy-improvement evidence.
 
 ## Finish
 

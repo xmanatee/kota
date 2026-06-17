@@ -108,6 +108,73 @@ describe("improver evidence gate", () => {
     expect(decision.latestActionableRunAt).toBe("2026-04-21T02:30:00.000Z");
   });
 
+  it("runs when new systemic health issue evidence appears", () => {
+    const healthEvidence = {
+      generatedAt: "2026-06-17T12:31:00.000Z",
+      latestHealthReviewAt: "2026-06-17T12:30:00.000Z",
+      issueCards: [
+        {
+          reviewedAt: "2026-06-17T12:30:00.000Z",
+          dedupeKey: "workflow:builder:runtime-warning",
+          severity: "warning" as const,
+          labels: ["runtime"],
+          actionability: "local-code" as const,
+          signalCount: 2,
+          summaries: ["Builder repeated the same local runtime failure."],
+          evidenceRefs: [],
+          createdTaskIds: ["task-health-workflow-builder-runtime-warning"],
+          ownerQuestionIds: [],
+        },
+      ],
+    };
+
+    const decision = decideImproverEvidenceGate(
+      emptyAggregation(),
+      null,
+      healthEvidence,
+    );
+
+    expect(decision.shouldRun).toBe(true);
+    expect(decision.reason).toBe("new systemic health signal evidence");
+    expect(decision.latestHealthReviewAt).toBe("2026-06-17T12:30:00.000Z");
+  });
+
+  it("skips repeated health issue evidence after the last improver pass", () => {
+    const healthEvidence = {
+      generatedAt: "2026-06-17T12:31:00.000Z",
+      latestHealthReviewAt: "2026-06-17T12:30:00.000Z",
+      issueCards: [
+        {
+          reviewedAt: "2026-06-17T12:30:00.000Z",
+          dedupeKey: "workflow:builder:runtime-warning",
+          severity: "warning" as const,
+          labels: ["runtime"],
+          actionability: "local-code" as const,
+          signalCount: 2,
+          summaries: ["Builder repeated the same local runtime failure."],
+          evidenceRefs: [],
+          createdTaskIds: ["task-health-workflow-builder-runtime-warning"],
+          ownerQuestionIds: [],
+        },
+      ],
+    };
+    writeImproverEvidenceGateState(
+      projectDir,
+      decideImproverEvidenceGate(emptyAggregation(), null, healthEvidence),
+    );
+
+    const decision = decideImproverEvidenceGate(
+      emptyAggregation(),
+      readImproverEvidenceGateState(projectDir),
+      healthEvidence,
+    );
+
+    expect(decision.shouldRun).toBe(false);
+    expect(decision.reason).toBe(
+      "no new actionable run or health signal evidence since the last improver pass",
+    );
+  });
+
   it("discards invalid persisted gate state instead of bricking the improver", () => {
     const statePath = join(projectDir, ".kota", "improver-evidence-gate.json");
     mkdirSync(join(projectDir, ".kota"), { recursive: true });

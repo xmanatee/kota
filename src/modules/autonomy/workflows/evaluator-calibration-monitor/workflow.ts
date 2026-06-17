@@ -40,6 +40,8 @@ import {
   type EvaluatorCalibrationAggregate,
   evaluateCalibrationGate,
 } from "#modules/autonomy/evaluator-calibration.js";
+import { autonomyHealthSignal } from "#modules/autonomy/health-signal.js";
+import { buildEvaluatorCalibrationDriftHealthSignal } from "#modules/autonomy/health-signal-emitters.js";
 import {
   onNormalTrigger,
   onRecoveryTrigger,
@@ -339,6 +341,24 @@ const evaluatorCalibrationMonitor: WorkflowDefinitionInput = {
           repairAction: applied ? applied.kind : "skipped",
           reason: inspection.reason,
         };
+      },
+    },
+    {
+      id: "emit-health-signal",
+      type: "emit",
+      when: (ctx) => {
+        const inspection = inspectGate.output(ctx);
+        return inspection !== undefined && inspection.status === "gated";
+      },
+      event: autonomyHealthSignal.name,
+      payload: (ctx) => {
+        const inspection = inspectGate.outputRequired(ctx);
+        return buildEvaluatorCalibrationDriftHealthSignal({
+          runDir: ctx.workflow.runDir,
+          driftKinds: inspection.driftKinds,
+          decisionReason: inspection.reason,
+          createdAt: new Date().toISOString(),
+        });
       },
     },
     {

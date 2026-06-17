@@ -150,6 +150,20 @@ function writeUnsupportedTrajectoryDiagnostics(
   );
 }
 
+function writeHealthReview(
+  runsDir: string,
+  runId: string,
+  artifact: Record<string, unknown>,
+): void {
+  const dir = join(runsDir, runId);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, "autonomy-health-review.json"),
+    JSON.stringify(artifact),
+    "utf-8",
+  );
+}
+
 describe("classifyTaskShape", () => {
   const shape = (area: string, title = "", summary = "") =>
     classifyTaskShape({ area, title, summary });
@@ -601,6 +615,51 @@ describe("aggregateAutonomyReport", () => {
     expect(JSON.stringify(report.trajectoryDiagnostics)).not.toContain(
       "trajectory-diagnostic:explorer:explore:unsupported_trajectory",
     );
+  });
+
+  it("aggregates autonomy health review counts by severity, label, scope, source, and actionability", () => {
+    writeHealthReview(runsDir, "health-review-1", {
+      generatedAt: new Date(NOW - MS_PER_DAY).toISOString(),
+      review: {
+        scope: { scopeId: "scope-a", projectId: "scope-a" },
+        groups: [
+          {
+            dedupeKey: "workflow:builder:runtime-warning",
+            source: { kind: "workflow", id: "builder" },
+            severity: "warning",
+            labels: ["runtime", "tool-friction"],
+            actionability: "local-code",
+            signalCount: 2,
+          },
+        ],
+      },
+      actions: {
+        createdTaskIds: ["task-health-workflow-builder-runtime-warning"],
+        ownerQuestionIds: [],
+      },
+    });
+
+    const report = aggregateAutonomyReport({
+      projectDir,
+      runsDir,
+      windowEndMs: NOW,
+      windowDays: 7,
+    });
+
+    expect(report.health.totalSignals).toBe(2);
+    expect(report.health.totalGroups).toBe(1);
+    expect(report.health.bySeverity).toEqual([{ severity: "warning", count: 2 }]);
+    expect(report.health.byLabel).toEqual([
+      { label: "runtime", count: 2 },
+      { label: "tool-friction", count: 2 },
+    ]);
+    expect(report.health.byScope).toEqual([{ scope: "scope-a", count: 2 }]);
+    expect(report.health.bySource).toEqual([
+      { source: "workflow:builder", count: 2 },
+    ]);
+    expect(report.health.byActionability).toEqual([
+      { actionability: "local-code", count: 2 },
+    ]);
   });
 
   it("breaks cost down by workflow over the window", () => {

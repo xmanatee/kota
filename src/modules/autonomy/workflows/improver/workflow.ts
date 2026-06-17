@@ -4,6 +4,10 @@ import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import { checkDocBloat } from "#modules/autonomy/doc-bloat-check.js";
+import {
+  type AutonomyHealthIssueEvidence,
+  collectRecentAutonomyHealthIssueCards,
+} from "#modules/autonomy/health-issue-cards.js";
 import { checkRepoHygiene } from "#modules/autonomy/hygiene-check.js";
 import { createImproverSemanticCheck } from "#modules/autonomy/improver-semantic-gate.js";
 import { onRecoveryTrigger, resetWorktreeForRecovery } from "#modules/autonomy/recovery.js";
@@ -59,6 +63,22 @@ const gatherRunDataStep = typedCodeStep<RunOutcomeAggregation>({
   },
 });
 
+const gatherHealthIssueCardsStep = typedCodeStep<AutonomyHealthIssueEvidence>({
+  id: "gather-health-issue-cards",
+  type: "code",
+  exposeOutputToAgent: true,
+  validate: (raw) =>
+    expectStructuredOutput<AutonomyHealthIssueEvidence>(raw, [
+      "generatedAt",
+      "latestHealthReviewAt",
+      "issueCards",
+    ]),
+  run: ({ projectDir }) => {
+    const store = new WorkflowRunStore(projectDir);
+    return collectRecentAutonomyHealthIssueCards(store.runsDir);
+  },
+});
+
 const gateEvidenceStep = typedCodeStep<ReturnType<typeof decideImproverEvidenceGate>>({
   id: "gate-evidence",
   type: "code",
@@ -71,6 +91,7 @@ const gateEvidenceStep = typedCodeStep<ReturnType<typeof decideImproverEvidenceG
     decideImproverEvidenceGate(
       gatherRunDataStep.outputRequired(ctx),
       readImproverEvidenceGateState(ctx.projectDir),
+      gatherHealthIssueCardsStep.outputRequired(ctx),
     ),
 });
 
@@ -103,6 +124,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
         resetWorktreeForRecovery({ projectDir, workflowName: "improver" }),
     },
     gatherRunDataStep,
+    gatherHealthIssueCardsStep,
     gateEvidenceStep,
     {
       id: "improve",

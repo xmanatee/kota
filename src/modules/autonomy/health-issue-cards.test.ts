@@ -1,0 +1,91 @@
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { collectRecentAutonomyHealthIssueCards } from "./health-issue-cards.js";
+
+describe("autonomy health issue cards", () => {
+  let runsDir: string;
+
+  beforeEach(() => {
+    runsDir = join(
+      tmpdir(),
+      `kota-health-issue-cards-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      ".kota",
+      "runs",
+    );
+    mkdirSync(join(runsDir, "review-1"), { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(runsDir, { recursive: true, force: true });
+  });
+
+  it("whitelists compact health issue cards from recent review artifacts", () => {
+    writeFileSync(
+      join(runsDir, "review-1", "autonomy-health-review.json"),
+      JSON.stringify(
+        {
+          generatedAt: "2026-06-17T12:30:00.000Z",
+          prompt: "SECRET RAW PROMPT",
+          costRanking: ["do not expose"],
+          review: {
+            groups: [
+              {
+                dedupeKey: "workflow:builder:runtime-warning",
+                labels: ["runtime"],
+                severity: "warning",
+                actionability: "local-code",
+                signalCount: 2,
+                summaries: ["Builder repeated the same local runtime failure."],
+                evidenceRefs: [
+                  {
+                    kind: "run",
+                    ref: ".kota/runs/builder-1/metadata.json",
+                    summary: "builder run builder-1",
+                  },
+                ],
+              },
+            ],
+          },
+          actions: {
+            createdTaskIds: ["task-health-workflow-builder-runtime-warning"],
+            ownerQuestionIds: [],
+            applied: [],
+          },
+        },
+        null,
+        2,
+      ),
+      "utf-8",
+    );
+
+    const evidence = collectRecentAutonomyHealthIssueCards(runsDir);
+
+    expect(evidence.latestHealthReviewAt).toBe("2026-06-17T12:30:00.000Z");
+    expect(evidence.issueCards).toEqual([
+      expect.objectContaining({
+        dedupeKey: "workflow:builder:runtime-warning",
+        labels: ["runtime"],
+        severity: "warning",
+        actionability: "local-code",
+        signalCount: 2,
+        createdTaskIds: ["task-health-workflow-builder-runtime-warning"],
+      }),
+    ]);
+    expect(JSON.stringify(evidence)).not.toContain("SECRET");
+    expect(JSON.stringify(evidence)).not.toContain("costRanking");
+  });
+
+  it("returns a stable empty evidence packet when no health reviews exist", () => {
+    rmSync(join(runsDir, "review-1", "autonomy-health-review.json"), {
+      force: true,
+    });
+
+    expect(collectRecentAutonomyHealthIssueCards(runsDir)).toEqual({
+      generatedAt: expect.any(String),
+      latestHealthReviewAt: null,
+      issueCards: [],
+    });
+  });
+});

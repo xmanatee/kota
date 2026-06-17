@@ -11,6 +11,7 @@ import {
   EVALUATOR_CALIBRATION_ARTIFACT,
   type EvaluatorCalibrationArtifact,
 } from "#modules/autonomy/evaluator-calibration.js";
+import { autonomyHealthSignal } from "#modules/autonomy/health-signal.js";
 import evaluatorCalibrationMonitor from "./workflow.js";
 
 vi.mock("#core/util/repo-worktree.js", async () => {
@@ -211,6 +212,15 @@ describe("evaluator-calibration-monitor workflow", () => {
     expect(regression).toHaveLength(1);
     expect(regression[0].payload.driftKinds).toContain("pass-contradiction");
     expect(regression[0].payload.repairAction).toBe("created");
+    const healthSignals = result.emitted.filter(
+      (e) => e.event === autonomyHealthSignal.name,
+    );
+    expect(healthSignals).toHaveLength(1);
+    expect(healthSignals[0].payload).toMatchObject({
+      severity: "warning",
+      labels: ["evaluator-drift", "quality"],
+      actionability: "informational",
+    });
 
     const readyTaskPath = join(
       projectDir,

@@ -33,6 +33,16 @@ const empty: AutonomyReportData = {
     closures: [],
   },
   trajectoryDiagnostics: { activePatterns: [] },
+  health: {
+    totalSignals: 0,
+    totalGroups: 0,
+    bySeverity: [],
+    byLabel: [],
+    byScope: [],
+    bySource: [],
+    byActionability: [],
+    topGroups: [],
+  },
   blockers: { totalBlocked: 0, byKind: [] },
   cost: {
     totalCostUsd: 0,
@@ -65,6 +75,7 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("Explorer output");
     expect(text).toContain("Builder breakdown");
     expect(text).toContain("Trajectory diagnostics");
+    expect(text).toContain("Autonomy health");
     expect(text).toContain("Blockers");
     expect(text).toContain("Cost");
   });
@@ -75,6 +86,7 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("(no explorer runs)");
     expect(text).toContain("(no builder commits)");
     expect(text).toContain("(no recurring trajectory diagnostic patterns)");
+    expect(text).toContain("(no health signals)");
     expect(text).toContain("(no blocked tasks)");
     expect(text).toContain("(no finished runs in window)");
   });
@@ -190,6 +202,26 @@ describe("renderAutonomyReport", () => {
           },
         ],
       },
+      health: {
+        totalSignals: 2,
+        totalGroups: 1,
+        bySeverity: [{ severity: "warning", count: 2 }],
+        byLabel: [{ label: "runtime", count: 2 }],
+        byScope: [{ scope: "scope-a", count: 2 }],
+        bySource: [{ source: "workflow:builder", count: 2 }],
+        byActionability: [{ actionability: "local-code", count: 2 }],
+        topGroups: [
+          {
+            dedupeKey: "workflow:builder:runtime-warning",
+            labels: ["runtime"],
+            severity: "warning",
+            actionability: "local-code",
+            signalCount: 2,
+            source: "workflow:builder",
+            scope: "scope-a",
+          },
+        ],
+      },
       blockers: {
         totalBlocked: 2,
         byKind: [
@@ -228,6 +260,8 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("$0.10");
     expect(text).toContain("missing_final_verification_after_edit");
     expect(text).toContain("task-repair-trajectory-diagnostic-pattern");
+    expect(text).toContain("workflow:builder:runtime-warning");
+    expect(text).toContain("local-code");
     expect(text).toContain("owner-decision");
     expect(text).toContain("operator-capture");
     expect(text).toContain("task-waiting");

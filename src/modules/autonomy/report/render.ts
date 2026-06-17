@@ -18,6 +18,7 @@ import {
 } from "#modules/rendering/primitives.js";
 import type {
   AreaClassification,
+  AutonomyHealthBreakdown,
   AutonomyReportData,
   BlockerClassMix,
   BuilderBreakdown,
@@ -95,6 +96,9 @@ export function renderAutonomyReport(data: AutonomyReportData): RenderNode {
     blank(),
     heading("Trajectory diagnostics", 2),
     ...renderTrajectoryDiagnostics(data.trajectoryDiagnostics),
+    blank(),
+    heading("Autonomy health", 2),
+    ...renderHealth(data.health),
     blank(),
     heading("Blockers", 2),
     ...renderBlockers(data.blockers),
@@ -259,6 +263,83 @@ function renderTrajectoryDiagnostics(
       plain(" -> "),
       span(pattern.repairTaskId, "accent"),
     ));
+  }
+  return lines;
+}
+
+function healthSeverityRole(severity: string): "error" | "warn" | "info" | "muted" {
+  switch (severity) {
+    case "critical":
+    case "error":
+      return "error";
+    case "warning":
+      return "warn";
+    case "info":
+      return "info";
+    default:
+      return "muted";
+  }
+}
+
+function renderHealth(health: AutonomyHealthBreakdown): RenderNode[] {
+  if (health.totalSignals === 0) {
+    return [line(span("(no health signals)", "muted"))];
+  }
+  const severityEntries: KVEntry[] = health.bySeverity.map((row) => ({
+    label: row.severity,
+    value: `${row.count} (${pct(row.count, health.totalSignals)})`,
+    role: healthSeverityRole(row.severity),
+  }));
+  const actionabilityEntries: KVEntry[] = health.byActionability.map((row) => ({
+    label: row.actionability,
+    value: `${row.count} (${pct(row.count, health.totalSignals)})`,
+  }));
+  const lines: RenderNode[] = [
+    line(
+      plain("Signals: "),
+      span(String(health.totalSignals), "accent"),
+      plain("   Groups: "),
+      span(String(health.totalGroups), "accent"),
+    ),
+    blank(),
+    line(span("By severity", "muted", true)),
+    kvBlock(severityEntries, 14),
+    blank(),
+    line(span("By actionability", "muted", true)),
+    kvBlock(actionabilityEntries, 18),
+    blank(),
+    line(span("Top labels", "muted", true)),
+    ...health.byLabel.slice(0, 8).map((row) =>
+      line(plain(`  ${row.label.padEnd(18)} ${String(row.count).padStart(3)} (${pct(row.count, health.totalSignals)})`)),
+    ),
+    blank(),
+    line(span("Top sources", "muted", true)),
+    ...health.bySource.slice(0, 8).map((row) =>
+      line(plain(`  ${row.source.padEnd(24)} ${String(row.count).padStart(3)} (${pct(row.count, health.totalSignals)})`)),
+    ),
+  ];
+  if (health.byScope.length > 0) {
+    lines.push(blank());
+    lines.push(line(span("By scope", "muted", true)));
+    for (const row of health.byScope.slice(0, 8)) {
+      lines.push(line(plain(`  ${row.scope.padEnd(24)} ${String(row.count).padStart(3)} (${pct(row.count, health.totalSignals)})`)));
+    }
+  }
+  if (health.topGroups.length > 0) {
+    lines.push(blank());
+    lines.push(line(span("Top patterns", "muted", true)));
+    for (const group of health.topGroups.slice(0, 6)) {
+      lines.push(line(
+        plain("  "),
+        span(`${String(group.signalCount).padStart(2)}x`, healthSeverityRole(group.severity)),
+        plain(" "),
+        plain(group.source.padEnd(22)),
+        plain(" "),
+        span(group.actionability, "info"),
+        plain(" "),
+        plain(group.dedupeKey),
+      ));
+    }
   }
   return lines;
 }
