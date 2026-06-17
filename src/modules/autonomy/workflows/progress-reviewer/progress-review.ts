@@ -58,6 +58,17 @@ export const PROGRESS_REVIEW_MAX_GIT_COMMITS = 10;
 export const PROGRESS_REVIEW_MAX_GIT_FILES_PER_COMMIT = 12;
 export const PROGRESS_REVIEW_MAX_APPROVALS = 20;
 export const PROGRESS_REVIEW_MAX_DEAD_LETTERS = 20;
+export const PROGRESS_REVIEW_AGENT_MAX_EVIDENCE = 120;
+const PROGRESS_REVIEW_AGENT_KIND_LIMITS = {
+  run: 20,
+  task: 20,
+  event: 20,
+  artifact: 16,
+  git: 16,
+  "owner-question": 10,
+  approval: 10,
+  "dead-letter": 20,
+} satisfies Record<ProgressReviewEvidenceRef["kind"], number>;
 
 export type ProgressReviewTriggerKind =
   | "manual"
@@ -213,6 +224,33 @@ export type ProgressReviewEvidencePacket = {
   excluded: string[];
 };
 
+export type ProgressReviewAgentEvidencePacket = {
+  generatedAt: string;
+  triggerKind: ProgressReviewTriggerKind;
+  triggerEvent: string;
+  scope: ProgressReviewScope;
+  window: ProgressReviewEvidencePacket["window"];
+  batch: ProgressReviewEvidencePacket["batch"];
+  counts: {
+    runs: number;
+    tasks: number;
+    events: number;
+    artifacts: number;
+    git: number;
+    ownerQuestions: number;
+    approvals: number;
+    deadLetters: number;
+    evidence: number;
+  };
+  deadLetterCounts: ProgressReviewDeadLetterCounts[];
+  evidence: ProgressReviewEvidenceRef[];
+  excluded: string[];
+};
+
+type ProgressReviewEvidenceIdPacket = {
+  evidence: ProgressReviewEvidenceRef[];
+};
+
 const reviewClaimSchema = z.object({
   id: z.string().min(1),
   claim: z.string().min(1),
@@ -287,6 +325,7 @@ export type ProgressReviewActionResult = {
 export type ProgressReviewArtifact = {
   generatedAt: string;
   evidence: ProgressReviewEvidencePacket;
+  reviewInput: ProgressReviewAgentEvidencePacket;
   review: ProgressReviewAgentOutput;
   actions: ProgressReviewActionResult;
 };
@@ -1277,6 +1316,109 @@ function toEvidenceRef(evidence: ProgressReviewEvidenceRef): ProgressReviewEvide
   };
 }
 
+function progressReviewEvidenceCounts(
+  packet: ProgressReviewEvidencePacket,
+): ProgressReviewAgentEvidencePacket["counts"] {
+  return {
+    runs: packet.runs.length,
+    tasks: packet.tasks.length,
+    events: packet.events.length,
+    artifacts: packet.artifacts.length,
+    git: packet.git.length,
+    ownerQuestions: packet.ownerQuestions.length,
+    approvals: packet.approvals.length,
+    deadLetters: packet.deadLetters.length,
+    evidence: packet.evidence.length,
+  };
+}
+
+function agentEvidenceKindOrder(kind: ProgressReviewEvidenceRef["kind"]): number {
+  switch (kind) {
+    case "run":
+      return 0;
+    case "task":
+      return 1;
+    case "event":
+      return 2;
+    case "dead-letter":
+      return 3;
+    case "approval":
+      return 4;
+    case "owner-question":
+      return 5;
+    case "artifact":
+      return 6;
+    case "git":
+      return 7;
+  }
+}
+
+function agentEvidencePriority(evidence: ProgressReviewEvidenceRef): number {
+  if (evidence.kind === "git" && evidence.id.includes(":file:")) return 1;
+  if (evidence.kind === "artifact" && evidence.id.endsWith(".input.md")) return 1;
+  return 0;
+}
+
+function compactAgentEvidence(
+  evidence: readonly ProgressReviewEvidenceRef[],
+): { evidence: ProgressReviewEvidenceRef[]; omittedCount: number } {
+  const buckets = new Map<ProgressReviewEvidenceRef["kind"], ProgressReviewEvidenceRef[]>();
+  for (const item of evidence) {
+    const bucket = buckets.get(item.kind) ?? [];
+    bucket.push(item);
+    buckets.set(item.kind, bucket);
+  }
+
+  const selected: ProgressReviewEvidenceRef[] = [];
+  let omittedCount = 0;
+  const kinds = [...buckets.keys()].sort(
+    (a, b) => agentEvidenceKindOrder(a) - agentEvidenceKindOrder(b),
+  );
+
+  for (const kind of kinds) {
+    const limit = PROGRESS_REVIEW_AGENT_KIND_LIMITS[kind];
+    const bucket = [...(buckets.get(kind) ?? [])].sort((a, b) => {
+      const byPriority = agentEvidencePriority(a) - agentEvidencePriority(b);
+      if (byPriority !== 0) return byPriority;
+      return a.id.localeCompare(b.id);
+    });
+    const remaining = PROGRESS_REVIEW_AGENT_MAX_EVIDENCE - selected.length;
+    if (remaining <= 0) {
+      omittedCount += bucket.length;
+      continue;
+    }
+    const take = Math.min(limit, remaining);
+    selected.push(...bucket.slice(0, take));
+    omittedCount += Math.max(0, bucket.length - take);
+  }
+
+  return { evidence: selected, omittedCount };
+}
+
+export function compactProgressReviewEvidenceForAgent(
+  packet: ProgressReviewEvidencePacket,
+): ProgressReviewAgentEvidencePacket {
+  const compacted = compactAgentEvidence(packet.evidence);
+  const excluded = [...packet.excluded];
+  if (compacted.omittedCount > 0) {
+    excluded.push(
+      `agent evidence packet: omitted ${compacted.omittedCount} lower-detail evidence refs from the prompt; full evidence remains in ${PROGRESS_REVIEW_ARTIFACT}`,
+    );
+  }
+  return {
+    generatedAt: packet.generatedAt,
+    triggerKind: packet.triggerKind,
+    triggerEvent: packet.triggerEvent,
+    scope: packet.scope,
+    window: packet.window,
+    batch: packet.batch,
+    counts: progressReviewEvidenceCounts(packet),
+    deadLetterCounts: packet.deadLetterCounts,
+    evidence: compacted.evidence,
+    excluded,
+  };
+}
+
 function batchSummary(trigger: WorkflowRunTrigger): ProgressReviewEvidencePacket["batch"] {
   const batch = batchPayload(trigger);
   if (!batch) return null;
@@ -1358,7 +1500,7 @@ export function decodeProgressReviewAgentOutput(
   return progressReviewAgentOutputSchema.parse(raw);
 }
 
-function evidenceIdsForPacket(packet: ProgressReviewEvidencePacket): Set<string> {
+function evidenceIdsForPacket(packet: ProgressReviewEvidenceIdPacket): Set<string> {
   const ids = new Set<string>();
   for (const evidence of packet.evidence) {
     if (ids.has(evidence.id)) {
@@ -1382,7 +1524,7 @@ function assertKnownEvidenceIds(args: {
 }
 
 export function validateProgressReviewEvidenceIds(args: {
-  evidence: ProgressReviewEvidencePacket;
+  evidence: ProgressReviewEvidenceIdPacket;
   review: ProgressReviewAgentOutput;
 }): void {
   const knownIds = evidenceIdsForPacket(args.evidence);
@@ -1411,7 +1553,7 @@ export function validateProgressReviewEvidenceIds(args: {
 
 export function decodeProgressReviewAgentOutputForEvidence(
   raw: Parameters<typeof progressReviewAgentOutputSchema.parse>[0],
-  evidence: ProgressReviewEvidencePacket,
+  evidence: ProgressReviewEvidenceIdPacket,
 ): ProgressReviewAgentOutput {
   const review = decodeProgressReviewAgentOutput(raw);
   validateProgressReviewEvidenceIds({ evidence, review });
@@ -1654,7 +1796,7 @@ function enqueueOwnerQuestion(args: {
 export function applyProgressReviewActions(args: {
   projectDir: string;
   runId: string;
-  evidence: ProgressReviewEvidencePacket;
+  evidence: ProgressReviewEvidenceIdPacket;
   review: ProgressReviewAgentOutput;
 }): ProgressReviewActionResult {
   validateProgressReviewEvidenceIds({ evidence: args.evidence, review: args.review });
@@ -1688,7 +1830,7 @@ export function writeProgressReviewArtifact(
   artifact: ProgressReviewArtifact,
 ): string {
   validateProgressReviewEvidenceIds({
-    evidence: artifact.evidence,
+    evidence: artifact.reviewInput,
     review: artifact.review,
   });
   mkdirSync(runDirPath, { recursive: true });

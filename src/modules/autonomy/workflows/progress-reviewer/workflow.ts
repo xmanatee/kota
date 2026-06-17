@@ -26,9 +26,11 @@ import { progressReviewRequested } from "./events.js";
 import {
   applyProgressReviewActions,
   collectProgressReviewEvidence,
+  compactProgressReviewEvidenceForAgent,
   decodeProgressReviewAgentOutput,
   decodeProgressReviewAgentOutputForEvidence,
   type ProgressReviewActionResult,
+  type ProgressReviewAgentEvidencePacket,
   type ProgressReviewAgentOutput,
   type ProgressReviewArtifact,
   type ProgressReviewEvidencePacket,
@@ -140,11 +142,11 @@ const collectEvidence = typedCodeStep<ProgressReviewEvidencePacket>({
   id: "collect-evidence",
   type: "code",
   when: onNormalTrigger,
-  exposeOutputToAgent: true,
   validate: (raw) =>
     expectStructuredOutput<ProgressReviewEvidencePacket>(raw, [
       "generatedAt",
       "triggerKind",
+      "triggerEvent",
       "scope",
       "window",
       "evidence",
@@ -157,6 +159,28 @@ const collectEvidence = typedCodeStep<ProgressReviewEvidencePacket>({
       trigger,
       now: new Date(),
     }),
+});
+
+const prepareReviewInput = typedCodeStep<ProgressReviewAgentEvidencePacket>({
+  id: "prepare-review-input",
+  type: "code",
+  when: stepSucceeded("collect-evidence"),
+  exposeOutputToAgent: true,
+  validate: (raw) =>
+    expectStructuredOutput<ProgressReviewAgentEvidencePacket>(raw, [
+      "generatedAt",
+      "triggerKind",
+      "triggerEvent",
+      "scope",
+      "window",
+      "batch",
+      "counts",
+      "deadLetterCounts",
+      "evidence",
+      "excluded",
+    ]),
+  run: (ctx) =>
+    compactProgressReviewEvidenceForAgent(collectEvidence.outputRequired(ctx)),
 });
 
 const applyActions = typedCodeStep<ProgressReviewActionResult>({
@@ -177,10 +201,10 @@ const applyActions = typedCodeStep<ProgressReviewActionResult>({
     applyProgressReviewActions({
       projectDir: ctx.projectDir,
       runId: ctx.workflow.runId,
-      evidence: collectEvidence.outputRequired(ctx),
+      evidence: prepareReviewInput.outputRequired(ctx),
       review: decodeProgressReviewAgentOutputForEvidence(
         ctx.stepOutputs["review-evidence"],
-        collectEvidence.outputRequired(ctx),
+        prepareReviewInput.outputRequired(ctx),
       ),
     }),
 });
@@ -204,12 +228,14 @@ const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
       "path",
     ]),
   run: (ctx) => {
+    const reviewInput = prepareReviewInput.outputRequired(ctx);
     const artifact: ProgressReviewArtifact = {
       generatedAt: new Date().toISOString(),
       evidence: collectEvidence.outputRequired(ctx),
+      reviewInput,
       review: decodeProgressReviewAgentOutputForEvidence(
         ctx.stepOutputs["review-evidence"],
-        collectEvidence.outputRequired(ctx),
+        reviewInput,
       ),
       actions: applyActions.output(ctx) ?? emptyActions(),
     };
@@ -340,6 +366,7 @@ const progressReviewerWorkflow: WorkflowDefinitionInput = {
     },
     inspectWorktree,
     collectEvidence,
+    prepareReviewInput,
     {
       id: "review-evidence",
       type: "agent",
@@ -354,7 +381,7 @@ const progressReviewerWorkflow: WorkflowDefinitionInput = {
       outputFormat: "json",
       outputSchema: progressReviewOutputSchema,
       validate: decodeProgressReviewAgentOutput,
-      when: stepSucceeded("collect-evidence"),
+      when: stepSucceeded("prepare-review-input"),
     },
     applyActions,
     writeArtifact,
