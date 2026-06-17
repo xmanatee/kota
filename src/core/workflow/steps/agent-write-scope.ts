@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
@@ -36,10 +36,11 @@ export class AgentWriteScopeViolationError extends Error {
 
 /**
  * Returns the set of repo paths a workflow run would commit via `git add -A`.
- * Covers tracked modifications, deletions, staged additions, and non-ignored
- * untracked files. This is the single path set shared by writeScope
- * enforcement and the workflow commit step, so an untracked out-of-scope
- * file fails the ownership gate instead of sneaking into the commit.
+ * Covers tracked modifications, deletions, both sides of renames, staged
+ * additions, and non-ignored untracked files. This is the single path set
+ * shared by writeScope enforcement and the workflow commit step, so an
+ * untracked out-of-scope file fails the ownership gate instead of sneaking
+ * into the commit.
  */
 export function listWorkflowMutatedPaths(projectDir: string): string[] {
   execFileSync("git", ["rev-parse", "--is-inside-work-tree"], {
@@ -48,7 +49,7 @@ export function listWorkflowMutatedPaths(projectDir: string): string[] {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
-  const tracked = execFileSync("git", ["diff", "--name-only", "HEAD"], {
+  const tracked = execFileSync("git", ["diff", "--name-only", "--no-renames", "HEAD"], {
     cwd: projectDir,
     env: withProtectedGitBareRepositoryEnv(),
     encoding: "utf8",
@@ -75,11 +76,15 @@ export function listWorkflowMutatedPaths(projectDir: string): string[] {
 export function tryListWorkflowMutatedPaths(
   projectDir: string,
 ): string[] | undefined {
-  try {
-    return listWorkflowMutatedPaths(projectDir);
-  } catch {
-    return undefined;
-  }
+  const result = spawnSync("git", ["rev-parse", "--is-inside-work-tree"], {
+    cwd: projectDir,
+    env: withProtectedGitBareRepositoryEnv(),
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  if (result.error !== undefined) throw result.error;
+  if (result.status !== 0 || result.stdout.trim() !== "true") return undefined;
+  return listWorkflowMutatedPaths(projectDir);
 }
 
 /**

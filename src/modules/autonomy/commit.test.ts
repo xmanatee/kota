@@ -331,6 +331,40 @@ describe("commitWorkflowChanges", () => {
     ]);
   });
 
+  it("commits both sides of a staged task move without leaving the source deletion staged", () => {
+    const source = join(projectDir, "data", "tasks", "ready", "task-move.md");
+    mkdirSync(join(projectDir, "data", "tasks", "ready"), { recursive: true });
+    mkdirSync(join(projectDir, "data", "tasks", "done"), { recursive: true });
+    writeFileSync(source, "task\n");
+    execSync("git add data/tasks/ready/task-move.md", { cwd: projectDir });
+    execSync('git commit -q -m "add task"', { cwd: projectDir });
+    execSync(
+      "git mv data/tasks/ready/task-move.md data/tasks/done/task-move.md",
+      { cwd: projectDir },
+    );
+    writeFileSync(join(runDirPath, "commit-message.txt"), "Builder: finish task move");
+
+    const result = commitWorkflowChanges(projectDir, runDirPath);
+    expect(result.committed).toBe(true);
+
+    const tree = execSync("git show --name-status --format= --no-renames HEAD", {
+      cwd: projectDir,
+      encoding: "utf-8",
+    })
+      .trim()
+      .split("\n")
+      .sort();
+    expect(tree).toEqual([
+      "A\tdata/tasks/done/task-move.md",
+      "D\tdata/tasks/ready/task-move.md",
+    ]);
+    const status = execSync("git status --short", {
+      cwd: projectDir,
+      encoding: "utf-8",
+    }).trim();
+    expect(status).toBe("");
+  });
+
   describe("checkCommitStageable", () => {
     it("passes when there is nothing to stage", () => {
       expect(checkCommitStageable(projectDir)).toMatch(/no mutated paths to stage/);
@@ -379,8 +413,17 @@ describe("commitWorkflowChanges", () => {
 });
 
 describe("builder workflow commit and restart gates", () => {
+  const buildStep = builderWorkflow.steps.find((s) => s.id === "build");
   const commitStep = builderWorkflow.steps.find((s) => s.id === "commit");
   const restartStep = builderWorkflow.steps.find((s) => s.id === "request-restart");
+
+  it("gives the builder agent a long hard cap plus a separate progress idle cap", () => {
+    expect(buildStep).toMatchObject({
+      type: "agent",
+      timeoutMs: 6 * 60 * 60 * 1000,
+      idleTimeoutMs: 60 * 60 * 1000,
+    });
+  });
 
   it("commit step exists in the workflow", () => {
     expect(commitStep).toBeDefined();

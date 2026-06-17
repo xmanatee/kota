@@ -72,11 +72,13 @@ describe("codexAgentHarness", () => {
     expect(codexAgentHarness.name).toBe(CODEX_AGENT_HARNESS_NAME);
     expect(codexAgentHarness.supportsMultiTurn).toBe(true);
     expect(codexAgentHarness.askOwnerToolName).toBeNull();
-    expect(codexAgentHarness.emitsAgentMessageStream).toBe(false);
+    expect(codexAgentHarness.emitsAgentMessageStream).toBe(true);
     expect(codexAgentHarness.toolControl).toBe("native");
-    expect(codexAgentHarness.unsupportedRunOptions?.map((option) => option.option)).toEqual(
+    const unsupported = codexAgentHarness.unsupportedRunOptions?.map((option) => option.option);
+    expect(unsupported).toEqual(
       expect.arrayContaining(["allowedTools", "disallowedTools", "canUseTool"]),
     );
+    expect(unsupported).not.toContain("onMessage");
   });
 
   it("runs codex exec through ChatGPT auth and parses JSONL output", async () => {
@@ -96,6 +98,7 @@ describe("codexAgentHarness", () => {
     });
 
     const writer = { write: vi.fn().mockReturnValue(true) };
+    const onMessage = vi.fn();
     const result = await codexAgentHarness.run(
       {
         prompt: "please echo",
@@ -103,6 +106,7 @@ describe("codexAgentHarness", () => {
         effort: "xhigh",
         systemPrompt: "be brief",
         cwd: "/repo",
+        onMessage,
       },
       writer,
     );
@@ -127,6 +131,33 @@ describe("codexAgentHarness", () => {
     expect(process.stdinText()).toContain("## System instructions\n\nbe brief");
     expect(process.stdinText()).toContain("## Task\n\nplease echo");
     expect(writer.write).toHaveBeenCalledWith("all done");
+    expect(onMessage.mock.calls.map(([message]) => message)).toEqual([
+      {
+        type: "status",
+        category: "codex.thread.started",
+        sessionId: "thread-1",
+        text: "Codex thread started.",
+      },
+      {
+        type: "status",
+        category: "codex.turn.started",
+        sessionId: "thread-1",
+        text: "Codex turn started.",
+      },
+      {
+        type: "text",
+        sessionId: "thread-1",
+        text: "all done",
+      },
+      {
+        type: "result",
+        sessionId: "thread-1",
+        isError: false,
+        numTurns: 1,
+        inputTokens: 18,
+        outputTokens: 7,
+      },
+    ]);
     expect(result).toMatchObject({
       text: "all done",
       streamedText: "all done",

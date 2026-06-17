@@ -17,6 +17,7 @@ import type {
   AgentHarnessRunOptions,
   AgentHarnessUnsupportedOption,
   AgentHarnessWriter,
+  KotaAgentMessage,
 } from "#core/agent-harness/index.js";
 import {
   probeNativeCliAuth,
@@ -77,11 +78,6 @@ const CODEX_UNSUPPORTED_OPTIONS = [
     runOption: "thinking",
     option: "thinkingEnabled/thinkingBudget",
     reason: "Portable effort maps to Codex CLI model_reasoning_effort instead.",
-  },
-  {
-    runOption: "onMessage",
-    option: "onMessage",
-    reason: "Codex CLI emits text deltas, not KotaAgentMessage frames.",
   },
 ] as const satisfies readonly AgentHarnessUnsupportedOption[];
 
@@ -185,12 +181,6 @@ function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
         "Drop thinkingEnabled/thinkingBudget and use effort.",
     );
   }
-  if (options.onMessage !== undefined) {
-    throw new Error(
-      'The "codex" agent harness emits text deltas only, not KotaAgentMessage frames. ' +
-        "Drop onMessage.",
-    );
-  }
 }
 
 function mapEffortToCodexReasoning(
@@ -238,6 +228,20 @@ function formatStderr(stderr: string[]): string {
   return stderr.join("").trim();
 }
 
+async function emitCodexMessage(
+  onMessage: AgentHarnessRunOptions["onMessage"] | undefined,
+  message: KotaAgentMessage,
+): Promise<void> {
+  if (onMessage !== undefined) await onMessage(message);
+}
+
+function withSession(
+  message: KotaAgentMessage,
+  sessionId: string | undefined,
+): KotaAgentMessage {
+  return sessionId === undefined ? message : { ...message, sessionId };
+}
+
 async function collectTextFromCodexCli(args: {
   prompt: string;
   cwd: string;
@@ -246,6 +250,7 @@ async function collectTextFromCodexCli(args: {
   sandbox: "read-only" | "workspace-write";
   abortController: AbortController | undefined;
   writer: AgentHarnessWriter | undefined;
+  onMessage: AgentHarnessRunOptions["onMessage"] | undefined;
 }): Promise<AgentHarnessResult> {
   const cliArgs = [
     "exec",
@@ -290,11 +295,7 @@ async function collectTextFromCodexCli(args: {
     forceKillTimer = undefined;
   };
   const sendSignal = (signal: NodeJS.Signals): void => {
-    try {
-      child.kill(signal);
-    } catch {
-      // The process may have exited between abort scheduling and signal send.
-    }
+    if (child.exitCode === null) child.kill(signal);
   };
   const abort = (): void => {
     sendSignal("SIGTERM");
@@ -329,16 +330,75 @@ async function collectTextFromCodexCli(args: {
       if (!event) continue;
       if (event.type === "thread.started" && typeof event.thread_id === "string") {
         sessionId = event.thread_id;
+        await emitCodexMessage(args.onMessage, {
+          type: "status",
+          category: "codex.thread.started",
+          sessionId,
+          text: "Codex thread started.",
+        });
+      } else if (event.type === "turn.started") {
+        await emitCodexMessage(
+          args.onMessage,
+          withSession(
+            {
+              type: "status",
+              category: "codex.turn.started",
+              text: "Codex turn started.",
+            },
+            sessionId,
+          ),
+        );
       } else if (event.type === "item.completed" && event.item?.type === "agent_message") {
         const text = event.item.text ?? "";
         streamedChunks.push(text);
         args.writer?.write(text);
+        await emitCodexMessage(
+          args.onMessage,
+          withSession({ type: "text", text }, sessionId),
+        );
       } else if (event.type === "turn.completed") {
         turns += 1;
         inputTokens = event.usage?.input_tokens;
         outputTokens = event.usage?.output_tokens;
+        await emitCodexMessage(
+          args.onMessage,
+          withSession(
+            {
+              type: "result",
+              isError: false,
+              numTurns: turns,
+              ...(inputTokens !== undefined ? { inputTokens } : {}),
+              ...(outputTokens !== undefined ? { outputTokens } : {}),
+            },
+            sessionId,
+          ),
+        );
       } else if (event.type === "error") {
         cliError = event.message ?? "Codex CLI reported an error";
+        await emitCodexMessage(
+          args.onMessage,
+          withSession(
+            {
+              type: "result",
+              isError: true,
+              subtype: "codex_cli_error",
+              text: cliError,
+            },
+            sessionId,
+          ),
+        );
+      } else if (event.type !== undefined) {
+        await emitCodexMessage(
+          args.onMessage,
+          withSession(
+            {
+              type: "status",
+              category: `codex.${event.type}`,
+              ...(typeof event.message === "string" ? { text: event.message } : {}),
+            },
+            sessionId,
+          ),
+        );
       }
     }
   })();
@@ -407,7 +467,7 @@ export const codexAgentHarness: AgentHarness = {
   supportsMultiTurn: true,
   supportedHookKinds: ["preRun", "postRun"] as const,
   askOwnerToolName: null,
-  emitsAgentMessageStream: false,
+  emitsAgentMessageStream: true,
   toolControl: "native",
   unsupportedRunOptions: CODEX_UNSUPPORTED_OPTIONS,
   readiness: codexReadiness,
@@ -429,6 +489,7 @@ export const codexAgentHarness: AgentHarness = {
       sandbox: codexSandboxMode(options),
       abortController: options.abortController,
       writer,
+      onMessage: options.onMessage,
     });
   },
 };

@@ -85,15 +85,15 @@ function listCommitMutatedPaths(
 /**
  * Returns paths already staged as deletions (present in HEAD, absent from
  * the index — the state `git rm <path>` leaves behind). Such paths appear in
- * `git diff --name-only HEAD` but `git add -A -- <path>` rejects them with
- * "pathspec did not match any files" because neither working tree nor index
- * has an entry to match. They are already correctly staged, so the commit
- * step does not need to re-add them.
+ * `git diff --name-only --no-renames HEAD` but `git add -A -- <path>`
+ * rejects them with "pathspec did not match any files" because neither
+ * working tree nor index has an entry to match. They are already correctly
+ * staged, so the commit step does not need to re-add them.
  */
 function listStagedDeletions(projectDir: string): Set<string> {
   const stdout = execFileSync(
     "git",
-    ["diff", "--cached", "--name-only", "--diff-filter=D"],
+    ["diff", "--cached", "--name-only", "--no-renames", "--diff-filter=D"],
     {
       cwd: projectDir,
       env: withProtectedGitBareRepositoryEnv(),
