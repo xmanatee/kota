@@ -3608,6 +3608,20 @@ describe("McpClient Streamable HTTP transport", () => {
     expect(message).toContain('issuer "https://auth.example.test/[redacted]"');
     expect(message).toContain('scopes="files:read [redacted]"');
     expect(message).not.toContain("configured-secret");
+    const error = thrown as McpAuthorizationFlowError;
+    expect(error.resource).toBe("https://mcp.example.test/mcp/[redacted]");
+    expect(error.issuer).toBe("https://auth.example.test/[redacted]");
+    expect(error.scopes).toEqual(["files:read", "[redacted]"]);
+    const serializedError = JSON.stringify(error);
+    const ownPropertyDump = JSON.stringify(Object.getOwnPropertyDescriptors(error));
+    for (const secret of ["configured-secret", "oauth-access-token-secret"]) {
+      expect(error.message).not.toContain(secret);
+      expect(serializedError).not.toContain(secret);
+      expect(ownPropertyDump).not.toContain(secret);
+      expect(error.resource).not.toContain(secret);
+      expect(error.issuer).not.toContain(secret);
+      expect(error.scopes.join(" ")).not.toContain(secret);
+    }
     expect(metadataRequests).toBe(2);
   });
 
@@ -3704,6 +3718,20 @@ describe("McpClient Streamable HTTP transport", () => {
     const message = thrown instanceof Error ? thrown.message : "";
     expect(message).toContain('resource "https://mcp.example.test/mcp/[redacted]"');
     expect(message).not.toContain("client-credentials-token-secret");
+    const error = thrown as McpAuthorizationFlowError;
+    expect(error.resource).toBe("https://mcp.example.test/mcp/[redacted]");
+    expect(error.issuer).toBe("https://auth.example.test");
+    expect(error.scopes).toEqual(["files:read"]);
+    const serializedError = JSON.stringify(error);
+    const ownPropertyDump = JSON.stringify(Object.getOwnPropertyDescriptors(error));
+    for (const secret of ["client-credentials-token-secret", "client-secret"]) {
+      expect(error.message).not.toContain(secret);
+      expect(serializedError).not.toContain(secret);
+      expect(ownPropertyDump).not.toContain(secret);
+      expect(error.resource).not.toContain(secret);
+      expect(error.issuer).not.toContain(secret);
+      expect(error.scopes.join(" ")).not.toContain(secret);
+    }
     expect(metadataRequests).toBe(2);
   });
 

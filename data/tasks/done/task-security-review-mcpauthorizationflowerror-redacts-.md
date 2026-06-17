@@ -1,12 +1,12 @@
 ---
 id: task-security-review-mcpauthorizationflowerror-redacts-
 title: Security review: McpAuthorizationFlowError redacts authorization-flow details only in the Error.message while retaining raw resource, issuer, and scopes as public enumerable fields. A remote MCP server that echoes configured or acquired secrets through protected-resource metadata or challenge scopes can still expose those secrets through structured error serialization or object logging.
-status: ready
+status: done
 priority: p2
 area: security
 summary: McpAuthorizationFlowError redacts authorization-flow details only in the Error.message while retaining raw resource, issuer, and scopes as public enumerable fields. A remote MCP server that echoes configured or acquired secrets through protected-resource metadata or challenge scopes can still expose those secrets through structured error serialization or object logging.
 created_at: 2026-06-17T05:20:04.754Z
-updated_at: 2026-06-17T05:20:04.754Z
+updated_at: 2026-06-17T05:33:04.000Z
 ---
 
 ## Problem
@@ -60,3 +60,21 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Completion Evidence
+
+`McpAuthorizationFlowError` no longer stores raw `resource`, `issuer`, or
+`scopes` as public constructor parameter properties. Its public fields are now
+explicit redacted projections, matching the public-boundary posture used by
+`McpAuthorizationError`.
+
+Regression coverage in `src/core/mcp/client.test.ts` now asserts configured
+secret and acquired-token flow failures keep secrets out of `error.message`,
+`JSON.stringify(error)`, `Object.getOwnPropertyDescriptors(error)`, and public
+`resource` / `issuer` / `scopes` access.
+
+Verification:
+
+- `pnpm test src/core/mcp/client.test.ts -t "authorization flow fields|acquired bearer tokens"` passed.
+- `pnpm test src/core/mcp/client.test.ts` passed: 139 tests.
+- `pnpm typecheck` passed.

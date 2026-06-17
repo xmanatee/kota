@@ -532,21 +532,33 @@ export function mcpAuthorizationChallengeForRetry(
 
 export class McpAuthorizationFlowError extends Error {
   readonly name = "McpAuthorizationFlowError";
+  readonly serverName: string;
+  readonly resource: string;
+  readonly issuer: string;
+  readonly scopes: readonly string[];
 
   constructor(
-    readonly serverName: string,
-    readonly resource: string,
-    readonly issuer: string,
-    readonly scopes: readonly string[],
+    serverName: string,
+    resource: string,
+    issuer: string,
+    scopes: readonly string[],
     reason: string,
     redactFlowDetail: (value: string) => string,
   ) {
+    const redactedResource = redactFlowDetail(resource);
+    const redactedIssuer = redactFlowDetail(issuer);
+    const redactedScopes = scopes.map(redactFlowDetail);
+    const redactedReason = redactFlowDetail(reason);
     super(
       `MCP authorization flow failed for server "${serverName}" ` +
-        `resource "${redactFlowDetail(resource)}" ` +
-        `issuer "${redactFlowDetail(issuer)}" ` +
-        `scopes="${redactFlowDetail(scopes.join(" "))}": ${redactFlowDetail(reason)}`,
+        `resource "${redactedResource}" ` +
+        `issuer "${redactedIssuer}" ` +
+        `scopes="${redactedScopes.join(" ")}": ${redactedReason}`,
     );
+    this.serverName = serverName;
+    this.resource = redactedResource;
+    this.issuer = redactedIssuer;
+    this.scopes = redactedScopes;
   }
 }
 
