@@ -107,8 +107,9 @@ describe("mcp-server commands", () => {
 		const ctx = makeStubCtx(start);
 		const cmd = mcpServerModule.commands!(ctx)[0];
 		const output: string[] = [];
-		const logSpy = vi.spyOn(console, "log").mockImplementation((line) => {
-			output.push(String(line));
+		const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation((chunk) => {
+			output.push(String(chunk));
+			return true;
 		});
 		try {
 			await cmd.parseAsync([
@@ -121,7 +122,7 @@ describe("mcp-server commands", () => {
 				"8181",
 			]);
 		} finally {
-			logSpy.mockRestore();
+			stdoutSpy.mockRestore();
 		}
 
 		expect(start).toHaveBeenCalledWith({
@@ -130,6 +131,6 @@ describe("mcp-server commands", () => {
 			host: "127.0.0.1",
 			port: 8181,
 		});
-		expect(output).toEqual(["MCP Streamable HTTP endpoint: http://127.0.0.1:8181/mcp"]);
+		expect(output.join("").trim()).toBe("MCP Streamable HTTP endpoint: http://127.0.0.1:8181/mcp");
 	});
 });

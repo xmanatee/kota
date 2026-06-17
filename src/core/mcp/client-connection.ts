@@ -2,6 +2,7 @@ import type { Buffer } from "node:buffer";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { buildRequiredInheritedSubprocessEnv } from "#core/modules/subprocess-env.js";
+import { writeTerminalStderr } from "#core/modules/terminal-renderer.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { McpAuthorizationError, McpConnectionError } from "./client-auth-types.js";
 import {
@@ -91,7 +92,7 @@ export abstract class McpClientConnection extends McpClientHttpRuntime {
     // Capture stderr for diagnostics but don't block
     this.proc.stderr?.on("data", (chunk: Buffer) => {
       const text = chunk.toString().trim();
-      if (text) console.error(`[mcp:${this.serverName}] ${text}`);
+      if (text) writeTerminalStderr(`[mcp:${this.serverName}] ${text}\n`);
     });
 
     this.rl = createInterface({ input: this.proc.stdout! });

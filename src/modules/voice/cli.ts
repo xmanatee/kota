@@ -19,6 +19,8 @@ import { tmpdir } from "node:os";
 import { basename, extname, join } from "node:path";
 import { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { line, plain, span } from "#modules/rendering/primitives.js";
+import { printToStderr, writeJson, writeStdoutLine } from "#modules/rendering/transport.js";
 import type {
   VoiceSynthesizeResult,
   VoiceTranscribeResult,
@@ -60,9 +62,7 @@ export function buildVoiceCommand(ctx: ModuleContext): Command {
       const bytes = readFileSync(file);
       const mimeType = opts.mime ?? mimeFromFilename(file);
       if (!mimeType) {
-        console.error(
-          `Could not determine MIME type from "${file}". Pass --mime explicitly.`,
-        );
+        printToStderr(line(span(`Could not determine MIME type from "${file}". Pass --mime explicitly.`, "error")));
         process.exit(1);
       }
       const result = await ctx.client.voice.transcribe({
@@ -76,12 +76,12 @@ export function buildVoiceCommand(ctx: ModuleContext): Command {
         return;
       }
       if (opts.json) {
-        console.log(JSON.stringify({
+        writeJson({
           text: result.text,
           ...(result.language !== undefined && { language: result.language }),
-        }));
+        });
       } else {
-        console.log(result.text);
+        writeStdoutLine(result.text);
       }
     });
 
@@ -109,7 +109,11 @@ export function buildVoiceCommand(ctx: ModuleContext): Command {
       }
       if (opts.output) {
         writeFileSync(opts.output, result.audio);
-        console.error(`Wrote ${result.audio.byteLength} bytes to ${opts.output}`);
+        printToStderr(line(
+          span("Wrote ", "success"),
+          plain(`${result.audio.byteLength} bytes to `),
+          span(opts.output, "accent"),
+        ));
         if (opts.play !== false) {
           playAudioFile(opts.output, result.format);
         }
@@ -117,7 +121,7 @@ export function buildVoiceCommand(ctx: ModuleContext): Command {
       }
       const tmpPath = writeTempAudio(result.audio, result.format);
       if (opts.play === false) {
-        console.log(tmpPath);
+        writeStdoutLine(tmpPath);
         return;
       }
       playAudioFile(tmpPath, result.format);
@@ -143,13 +147,14 @@ function reportFailure(
   kind: string,
 ): void {
   if (result.reason === "daemon_required") {
-    console.error("Daemon is not running. Start it with `kota daemon`.");
+    printToStderr(line(span("Daemon is not running. Start it with `kota daemon`.", "error")));
     process.exit(1);
   }
   const code = result.code ? ` [${result.code}]` : "";
-  console.error(
+  printToStderr(line(span(
     `Voice ${kind} failed (HTTP ${result.status}${code}): ${result.message || "unknown error"}`,
-  );
+    "error",
+  )));
   process.exit(1);
 }
 
@@ -171,11 +176,11 @@ function playAudioFile(path: string, format: string): void {
     if (!hasBinary(bin)) continue;
     const child = spawn(bin, [...args, path], { stdio: "ignore" });
     child.on("error", (err) => {
-      console.error(`Playback failed (${bin}): ${err.message}. File remains at ${path}`);
+      printToStderr(line(span(`Playback failed (${bin}): ${err.message}. File remains at ${path}`, "warn")));
     });
     return;
   }
-  console.error(`No audio player found. File saved to ${path}`);
+  printToStderr(line(span(`No audio player found. File saved to ${path}`, "warn")));
 }
 
 function selectPlayers(format: string): string[][] {

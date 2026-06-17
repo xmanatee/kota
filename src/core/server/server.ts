@@ -29,6 +29,29 @@ import { SessionPool } from "./session-pool.js";
 
 const LOOPBACK_HOST = "127.0.0.1";
 
+type ServerApiEndpoint = {
+  method: "DELETE" | "GET" | "POST";
+  path: string;
+  description: string;
+};
+
+const SERVER_API_ENDPOINTS: readonly ServerApiEndpoint[] = [
+  { method: "POST", path: "/api/chat", description: "Send message (SSE streaming)" },
+  { method: "POST", path: "/api/sessions", description: "Create a new session" },
+  { method: "GET", path: "/api/sessions", description: "List active sessions" },
+  { method: "DELETE", path: "/api/sessions/:id", description: "Close a session" },
+  { method: "GET", path: "/api/daemon/status", description: "Daemon health and server status" },
+  { method: "GET", path: "/api/health", description: "Health check" },
+];
+
+export type ServerListeningInfo = {
+  host: string;
+  port: number;
+  webUiUrl: string;
+  authToken?: string;
+  apiEndpoints: readonly ServerApiEndpoint[];
+};
+
 export type ServerOptions = {
   port?: number;
   model?: string;
@@ -60,6 +83,11 @@ export type ServerOptions = {
   authToken?: string;
   /** Routes registered by modules (e.g., vercel-adapter). */
   moduleRoutes?: RouteRegistration[];
+  /**
+   * Reports resolved listen details to the owning module. Core server code
+   * stays transport-only; terminal rendering belongs to the CLI/module layer.
+   */
+  onListening?: (info: ServerListeningInfo) => void;
 };
 
 export function startServer(options: ServerOptions): Server {
@@ -149,21 +177,15 @@ export function startServer(options: ServerOptions): Server {
   server.listen(port, LOOPBACK_HOST, () => {
     const address = server.address() as AddressInfo | null;
     const actualPort = address?.port ?? port;
-    console.log(`KOTA server listening on http://${LOOPBACK_HOST}:${actualPort}`);
-    if (authToken) {
-      console.log(`Auth token: ${authToken}`);
-      console.log(`Web UI:     http://${LOOPBACK_HOST}:${actualPort}/?token=${authToken}`);
-    } else {
-      console.log(`Web UI:     http://${LOOPBACK_HOST}:${actualPort}/`);
-      console.log("Warning: auth disabled (--no-auth). Do not expose this server on a shared network.");
-    }
-    console.log("API endpoints:");
-    console.log("  POST /api/chat           — Send message (SSE streaming)");
-    console.log("  POST /api/sessions       — Create a new session");
-    console.log("  GET  /api/sessions       — List active sessions");
-    console.log("  DELETE /api/sessions/:id — Close a session");
-    console.log("  GET  /api/daemon/status  — Daemon health and server status");
-    console.log("  GET  /api/health         — Health check");
+    options.onListening?.({
+      host: LOOPBACK_HOST,
+      port: actualPort,
+      webUiUrl: authToken
+        ? `http://${LOOPBACK_HOST}:${actualPort}/?token=${authToken}`
+        : `http://${LOOPBACK_HOST}:${actualPort}/`,
+      ...(authToken !== undefined && { authToken }),
+      apiEndpoints: SERVER_API_ENDPOINTS,
+    });
   });
 
   return server;

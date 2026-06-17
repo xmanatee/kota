@@ -17,6 +17,8 @@ import { registerAgentHarness } from "#core/agent-harness/index.js";
 import { EventBus } from "#core/events/event-bus.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
+import { line, span } from "#modules/rendering/primitives.js";
+import { printToStderr } from "#modules/rendering/transport.js";
 import evalHarnessCadence from "./cadence-workflow.js";
 import { buildEvalCommand } from "./cli.js";
 import type {
@@ -57,9 +59,10 @@ import { evalHarnessRoutes } from "./routes.js";
   registerAgentHarness(createReplayAgentHarness(replayRoot));
   // Parent eval-harness CLI forwards child stderr to the operator, so this
   // diagnostic surfaces in `pnpm kota eval run` output when replay is on.
-  console.error(
+  printToStderr(line(span(
     `[eval-harness] replay adapter active; claude-agent-sdk overridden from ${replayRoot}`,
-  );
+    "warn",
+  )));
 })();
 
 export type {

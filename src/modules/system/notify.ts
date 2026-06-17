@@ -3,6 +3,8 @@ import { platform } from "node:os";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { operatorSurfaceEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/index.js";
+import { blank, line, plain, span, stack } from "#modules/rendering/primitives.js";
+import { printToStderr } from "#modules/rendering/transport.js";
 
 export const notifyTool: KotaTool = {
 	name: "notify",
@@ -101,7 +103,9 @@ function sendConsoleNotification(
 	message: string,
 	title: string,
 ): NotifyResult {
-	process.stderr.write(`\n🔔 [${title}] ${message}\n`);
+	printToStderr(
+		stack(blank(), line(span(`🔔 [${title}]`, "accent"), plain(` ${message}`))),
+	);
 	return { channel: "console", delivered: true };
 }
 

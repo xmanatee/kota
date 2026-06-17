@@ -10,6 +10,7 @@ import { executeWorkflowRun } from "#core/workflow/run-executor.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
+import { printWorkflowError, printWorkflowText } from "../cli-output.js";
 
 /**
  * `kota workflow exec <name>` — synchronously execute one workflow run to
@@ -46,7 +47,7 @@ export function registerExecCommand(
           }
           extraPayload = parsed as Record<string, unknown>;
         } catch (err) {
-          console.error(`Invalid --payload JSON: ${(err as Error).message}`);
+          printWorkflowError(`Invalid --payload JSON: ${(err as Error).message}`);
           process.exit(1);
         }
       }
@@ -74,11 +75,11 @@ export function registerExecCommand(
         const definition = definitions.find((d) => d.name === name);
         if (!definition) {
           const names = definitions.map((d) => d.name).join(", ");
-          console.error(`Unknown workflow "${name}". Available: ${names}`);
+          printWorkflowError(`Unknown workflow "${name}". Available: ${names}`);
           process.exit(1);
         }
         if (!definition.enabled) {
-          console.error(`Workflow "${name}" is disabled.`);
+          printWorkflowError(`Workflow "${name}" is disabled.`);
           process.exit(1);
         }
 
@@ -99,14 +100,14 @@ export function registerExecCommand(
           pbus,
           store,
           config: runtimeConfig,
-          log: (msg) => console.error(msg),
+          log: (msg) => printWorkflowError(msg),
           resolveAgentDef: (agentName) => runtimeLoader.getAgentDef(agentName),
           resolveSkillsPrompt: (names, agentName) =>
             runtimeLoader.getSkillsPromptFor(names, agentName),
         });
 
         const result = await promise;
-        console.log(result.metadata.id);
+        printWorkflowText(result.metadata.id);
         if (
           result.metadata.status !== "success" &&
           result.metadata.status !== "completed-with-warnings"

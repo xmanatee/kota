@@ -1,12 +1,12 @@
 ---
 id: task-introduce-a-rich-cli-rendering-abstraction-for-all
 title: Introduce a rich CLI rendering abstraction for all terminal output
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Replace ad-hoc console printing with a dedicated rendering layer (library or module) used by daemon mode, CLI mode, and every surface, inspired by agy / codex / pi / opencode.
 created_at: 2026-04-22T16:46:53.748Z
-updated_at: 2026-06-15T14:43:17.465Z
+updated_at: 2026-06-17T08:41:43.000Z
 ---
 
 ## Problem
@@ -217,3 +217,22 @@ Phase 3 — peer-CLI capture:
   `opencode`.
 - 2026-06-15: `.kota/runs/peer-cli-comparison/` was captured locally with
   KOTA output plus AGY, Codex, Pi, and OpenCode peer transcripts.
+- 2026-06-17 post-check repair: migrated the remaining module command and
+  terminal diagnostic gaps called out by critic review (`secrets`,
+  `doctor`, `setup`, `config`, `voice`, `web`, `mcp-server`,
+  `agent-client-protocol`) plus adjacent module CLIs/readouts (`init`,
+  `registry`, `completion`, `answer`, `capture`, `recall`,
+  `owner-decisions`, `retract`, `browser`, autonomy report/digest,
+  workflow-ops definitions/execution/routes, filesystem diff previews,
+  system notification/image warnings, and tool-retry status). `biome.json`
+  now extends the `noConsole` guard across those migrated paths. The
+  remaining raw-output scan hits are rendering internals, fixture/scenario
+  programs, background semantic fallback hooks, chat-channel daemon logs, or
+  child-process passthroughs rather than module CLI terminal output.
+- 2026-06-17 repair attempt 6: migrated the remaining interactive core
+  prompts (`ask_user`, `confirm`) and core module startup/runtime diagnostics
+  through the rendering provider seam. `biome.json` now includes
+  `src/core/modules/**`, `src/core/tools/**`, and `src/core/loop/**` in the
+  no-console guard, and targeted raw-output scans show no direct
+  `console.error`, `process.stderr.write`, or raw ANSI in those repaired
+  areas.

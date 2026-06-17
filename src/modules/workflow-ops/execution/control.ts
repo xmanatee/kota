@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { printWorkflowError, printWorkflowText } from "../cli-output.js";
 import type { WorkflowStatusSnapshot } from "../client.js";
 import { formatDate, formatDuration, statusIcon } from "../utils.js";
 
@@ -11,23 +12,23 @@ export function registerControlCommands(wfCmd: Command, ctx: ModuleContext): voi
       const result = await ctx.client.workflow.abort();
       if (result.status === "applied") {
         if (result.count === 0) {
-          console.log("No active run to abort.");
+          printWorkflowText("No active run to abort.");
         } else {
-          console.log(`Aborted ${result.count} active run(s).`);
+          printWorkflowText(`Aborted ${result.count} active run(s).`);
         }
         return;
       }
       if (result.runs.length === 0) {
-        console.log("No active run to abort.");
+        printWorkflowText("No active run to abort.");
         return;
       }
       if (result.runs.length === 1) {
-        console.log(`Abort signal written for run ${result.runs[0].runId}`);
+        printWorkflowText(`Abort signal written for run ${result.runs[0].runId}`);
       } else {
-        console.log(`Abort signal written for ${result.runs.length} active runs:`);
-        for (const r of result.runs) console.log(`  ${r.runId} (${r.workflow})`);
+        printWorkflowText(`Abort signal written for ${result.runs.length} active runs:`);
+        for (const r of result.runs) printWorkflowText(`  ${r.runId} (${r.workflow})`);
       }
-      console.log("The daemon will abort the active run(s) on its next cycle.");
+      printWorkflowText("The daemon will abort the active run(s) on its next cycle.");
     });
 
   wfCmd
@@ -36,19 +37,19 @@ export function registerControlCommands(wfCmd: Command, ctx: ModuleContext): voi
     .action(async (runId: string) => {
       const result = await ctx.client.workflow.cancelRun(runId);
       if (result.ok) {
-        console.log(`Cancelled queued run ${runId}.`);
+        printWorkflowText(`Cancelled queued run ${runId}.`);
         return;
       }
       if (result.reason === "daemon_required") {
-        console.error("No running daemon found. Cannot cancel a queued run without a daemon.");
+        printWorkflowError("No running daemon found. Cannot cancel a queued run without a daemon.");
         process.exit(1);
       }
       if (result.reason === "not_found") {
-        console.error(`Run "${runId}" not found in the queue.`);
+        printWorkflowError(`Run "${runId}" not found in the queue.`);
         process.exit(1);
       }
       if (result.reason === "active") {
-        console.error(`Run "${runId}" is active. Use \`kota workflow abort\` to cancel active runs.`);
+        printWorkflowError(`Run "${runId}" is active. Use \`kota workflow abort\` to cancel active runs.`);
         process.exit(1);
       }
     });
@@ -59,10 +60,10 @@ export function registerControlCommands(wfCmd: Command, ctx: ModuleContext): voi
     .action(async () => {
       const result = await ctx.client.workflow.pause();
       if (result.already) {
-        console.log("Dispatch is already paused.");
+        printWorkflowText("Dispatch is already paused.");
         return;
       }
-      console.log("Dispatch paused. Run `kota workflow resume` to re-enable.");
+      printWorkflowText("Dispatch paused. Run `kota workflow resume` to re-enable.");
     });
 
   wfCmd
@@ -71,10 +72,10 @@ export function registerControlCommands(wfCmd: Command, ctx: ModuleContext): voi
     .action(async () => {
       const result = await ctx.client.workflow.resume();
       if (result.already) {
-        console.log("Dispatch is not paused.");
+        printWorkflowText("Dispatch is not paused.");
         return;
       }
-      console.log("Dispatch resumed.");
+      printWorkflowText("Dispatch resumed.");
     });
 
   wfCmd
@@ -83,10 +84,10 @@ export function registerControlCommands(wfCmd: Command, ctx: ModuleContext): voi
     .action(async () => {
       const result = await ctx.client.workflow.reload();
       if (result.status === "applied") {
-        console.log(`Workflow definitions reloaded (${result.count} definition(s)).`);
+        printWorkflowText(`Workflow definitions reloaded (${result.count} definition(s)).`);
         return;
       }
-      console.log("Reload signal written. The daemon will reload definitions on its next cycle.");
+      printWorkflowText("Reload signal written. The daemon will reload definitions on its next cycle.");
     });
 
   wfCmd
@@ -95,13 +96,13 @@ export function registerControlCommands(wfCmd: Command, ctx: ModuleContext): voi
     .action(async (name: string) => {
       const result = await ctx.client.workflow.disable(name);
       if (result.ok) {
-        console.log(`Workflow "${name}" disabled. Run \`kota workflow enable ${name}\` or \`kota workflow reload\` to re-enable.`);
+        printWorkflowText(`Workflow "${name}" disabled. Run \`kota workflow enable ${name}\` or \`kota workflow reload\` to re-enable.`);
         return;
       }
       if (result.reason === "daemon_required") {
-        console.error("No running daemon found. Cannot disable a workflow without a daemon.");
+        printWorkflowError("No running daemon found. Cannot disable a workflow without a daemon.");
       } else {
-        console.error(`Workflow "${name}" not found.`);
+        printWorkflowError(`Workflow "${name}" not found.`);
       }
       process.exit(1);
     });
@@ -112,13 +113,13 @@ export function registerControlCommands(wfCmd: Command, ctx: ModuleContext): voi
     .action(async (name: string) => {
       const result = await ctx.client.workflow.enable(name);
       if (result.ok) {
-        console.log(`Workflow "${name}" enabled.`);
+        printWorkflowText(`Workflow "${name}" enabled.`);
         return;
       }
       if (result.reason === "daemon_required") {
-        console.error("No running daemon found. Cannot enable a workflow without a daemon.");
+        printWorkflowError("No running daemon found. Cannot enable a workflow without a daemon.");
       } else {
-        console.error(`Workflow "${name}" not found.`);
+        printWorkflowError(`Workflow "${name}" not found.`);
       }
       process.exit(1);
     });
@@ -134,45 +135,45 @@ export function registerControlCommands(wfCmd: Command, ctx: ModuleContext): voi
 
 function printWorkflowStatus(status: WorkflowStatusSnapshot): void {
   if (status.paused) {
-    console.log("Dispatch: PAUSED (run `kota workflow resume` to re-enable)");
+    printWorkflowText("Dispatch: PAUSED (run `kota workflow resume` to re-enable)");
   } else if (status.dispatchWindowBlocked) {
     const opensAt = status.dispatchWindowOpensAt
       ? ` (opens ${formatWindowTime(status.dispatchWindowOpensAt)})`
       : "";
-    console.log(`Dispatch: blocked by window${opensAt}`);
+    printWorkflowText(`Dispatch: blocked by window${opensAt}`);
   }
 
   if (status.activeRuns.length === 0) {
-    console.log("Active run: (none)");
+    printWorkflowText("Active run: (none)");
   } else {
     for (const run of status.activeRuns) {
-      console.log(`Active run: ${run.runId}${status.pendingAbort ? " (abort pending)" : ""}`);
-      console.log(`Workflow:   ${run.workflow}`);
+      printWorkflowText(`Active run: ${run.runId}${status.pendingAbort ? " (abort pending)" : ""}`);
+      printWorkflowText(`Workflow:   ${run.workflow}`);
       if (run.startedAt) {
         const elapsed = Date.now() - new Date(run.startedAt).getTime();
-        console.log(`Running for: ${formatDuration(elapsed)}`);
+        printWorkflowText(`Running for: ${formatDuration(elapsed)}`);
       }
     }
   }
 
-  console.log();
+  printWorkflowText();
   if (status.pendingRuns.length === 0) {
-    console.log("Queue: empty");
+    printWorkflowText("Queue: empty");
   } else {
-    console.log(`Queue (${status.pendingRuns.length}):`);
+    printWorkflowText(`Queue (${status.pendingRuns.length}):`);
     for (const q of status.pendingRuns) {
       const notBefore = q.notBeforeMs > Date.now()
         ? ` (not before ${new Date(q.notBeforeMs).toLocaleTimeString()})`
         : "";
       const idSuffix = q.runId ? `  [${q.runId}]` : "";
-      console.log(`  • ${q.workflowName} — ${q.trigger.event}${notBefore}${idSuffix}`);
+      printWorkflowText(`  • ${q.workflowName} — ${q.trigger.event}${notBefore}${idSuffix}`);
     }
   }
 
   const wfNames = Object.keys(status.workflows);
   if (wfNames.length > 0) {
-    console.log();
-    console.log("Per-workflow last run:");
+    printWorkflowText();
+    printWorkflowText("Per-workflow last run:");
     const nameWidth = Math.max(...wfNames.map((n) => n.length), 10);
     const hasScheduled = wfNames.some((n) => status.workflows[n].nextScheduledAt);
     const schedWidth = 22;
@@ -180,8 +181,8 @@ function printWorkflowStatus(status: WorkflowStatusSnapshot): void {
       ? `  ${"Workflow".padEnd(nameWidth)} ${"Status".padEnd(12)} ${"Completed".padEnd(22)} ${"Next Run".padEnd(schedWidth)} Last Run ID`
       : `  ${"Workflow".padEnd(nameWidth)} ${"Status".padEnd(12)} ${"Completed".padEnd(22)} Last Run ID`;
     const sepLen = nameWidth + 12 + 22 + (hasScheduled ? schedWidth + 1 : 0) + 42 + 4;
-    console.log(header);
-    console.log(`  ${"-".repeat(sepLen)}`);
+    printWorkflowText(header);
+    printWorkflowText(`  ${"-".repeat(sepLen)}`);
     for (const name of wfNames) {
       const wf = status.workflows[name];
       const completion = wf.lastCompletion;
@@ -190,34 +191,34 @@ function printWorkflowStatus(status: WorkflowStatusSnapshot): void {
       const runId = completion?.runId ?? wf.lastStarted?.runId ?? "(none)";
       if (hasScheduled) {
         const nextRun = wf.nextScheduledAt ? formatDate(wf.nextScheduledAt) : "(none)";
-        console.log(
+        printWorkflowText(
           `  ${name.padEnd(nameWidth)} ${st.padEnd(12)} ${completed.padEnd(22)} ${nextRun.padEnd(schedWidth)} ${runId}`,
         );
       } else {
-        console.log(
+        printWorkflowText(
           `  ${name.padEnd(nameWidth)} ${st.padEnd(12)} ${completed.padEnd(22)} ${runId}`,
         );
       }
     }
   }
 
-  console.log();
-  console.log(`Total completed runs: ${status.completedRuns}`);
+  printWorkflowText();
+  printWorkflowText(`Total completed runs: ${status.completedRuns}`);
   if (status.totalCostUsd != null) {
-    console.log(`Total cost:           $${status.totalCostUsd.toFixed(4)}`);
+    printWorkflowText(`Total cost:           $${status.totalCostUsd.toFixed(4)}`);
   }
   if (status.agentBackoff) {
-    console.log(
+    printWorkflowText(
       `Agent backoff:        ${status.agentBackoff.kind} until ${formatDate(status.agentBackoff.until)} (attempt ${status.agentBackoff.failureCount})`,
     );
   }
   if (status.agentConcurrency != null || status.codeConcurrency != null) {
     const agentLimit = status.agentConcurrency ?? 1;
     const codeLimit = status.codeConcurrency ?? 4;
-    console.log(`Concurrency:          agent=${agentLimit}, code=${codeLimit}`);
+    printWorkflowText(`Concurrency:          agent=${agentLimit}, code=${codeLimit}`);
   }
   if (status.definitionsLoadedAt) {
-    console.log(`Definitions loaded:   ${formatDate(status.definitionsLoadedAt)}`);
+    printWorkflowText(`Definitions loaded:   ${formatDate(status.definitionsLoadedAt)}`);
   }
 }
 

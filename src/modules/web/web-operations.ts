@@ -26,8 +26,41 @@ import {
 } from "#core/config/config-warnings.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
-import { startServer } from "#core/server/server.js";
+import { type ServerListeningInfo, startServer } from "#core/server/server.js";
+import { line, span, stack } from "#modules/rendering/primitives.js";
+import { print, printToStderr } from "#modules/rendering/transport.js";
 import type { WebClient, WebStartOptions, WebStartResult } from "./client.js";
+
+function printWebWarning(message: string): void {
+  printToStderr(line(span(message, "warn")));
+}
+
+function formatEndpointLine(endpoint: ServerListeningInfo["apiEndpoints"][number]): string {
+  const route = `${endpoint.method.padEnd(4)} ${endpoint.path}`;
+  return `  ${route.padEnd(25)}— ${endpoint.description}`;
+}
+
+function renderServerListening(info: ServerListeningInfo): void {
+  print(stack(
+    line(span(`KOTA server listening on http://${info.host}:${info.port}`, "success")),
+    ...(info.authToken !== undefined
+      ? [
+        line(span(`Auth token: ${info.authToken}`, "info")),
+        line(span(`Web UI:     ${info.webUiUrl}`, "info")),
+      ]
+      : [
+        line(span(`Web UI:     ${info.webUiUrl}`, "info")),
+        line(span("Warning: auth disabled (--no-auth). Do not expose this server on a shared network.", "warn")),
+      ]),
+    line(span("API endpoints:", "muted")),
+    ...info.apiEndpoints.map((endpoint) =>
+      line(span(
+        formatEndpointLine(endpoint),
+        "muted",
+      ))
+    ),
+  ));
+}
 
 export function localWebClient(ctx: ModuleContext): WebClient {
   return {
@@ -41,15 +74,15 @@ export function localWebClient(ctx: ModuleContext): WebClient {
 
       warnUnknownConfigKeys(
         ctx.cwd,
-        (msg) => console.warn(msg),
+        printWebWarning,
         runtimeLoader.getRegisteredConfigKeys(),
       );
-      warnIgnoredUntrustedProjectConfig(ctx.cwd, (msg) => console.warn(msg));
+      warnIgnoredUntrustedProjectConfig(ctx.cwd, printWebWarning);
 
       const webUiDir = resolve(ctx.cwd, "clients/web/dist");
       const webUiBuilt = existsSync(webUiDir);
       if (!webUiBuilt) {
-        console.warn("Warning: Web UI not built. Run `pnpm --filter @kota/web build` in the web client directory.");
+        printWebWarning("Warning: Web UI not built. Run `pnpm --filter @kota/web build` in the web client directory.");
       }
 
       const moduleRoutes = runtimeLoader.getRoutes();
@@ -65,6 +98,7 @@ export function localWebClient(ctx: ModuleContext): WebClient {
         moduleRoutes,
         assembleDaemonHandlers: (transport) =>
           runtimeLoader.assembleDaemonClientHandlers(transport),
+        onListening: renderServerListening,
       });
       await waitForServerListening(server);
       return { ok: true };

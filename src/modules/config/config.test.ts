@@ -89,12 +89,17 @@ async function captureOutput(fn: () => Promise<void> | void): Promise<{ out: str
     outLines.push(String(data));
     return true;
   });
+  const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation((data) => {
+    errLines.push(String(data));
+    return true;
+  });
   try {
     await fn();
   } finally {
     logSpy.mockRestore();
     errSpy.mockRestore();
     stdoutSpy.mockRestore();
+    stderrSpy.mockRestore();
   }
   return { out: outLines.join(""), err: errLines.join("") };
 }

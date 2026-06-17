@@ -23,7 +23,7 @@ import {
   span,
   stack,
 } from "#modules/rendering/primitives.js";
-import { print } from "#modules/rendering/transport.js";
+import { print, printToStderr, writeJson } from "#modules/rendering/transport.js";
 import { inspectModuleFromSummaries } from "./admin-operations.js";
 import type {
   ModuleInspectEntry,
@@ -139,8 +139,7 @@ function buildModuleCommand(ctx: ModuleContext): Command {
     .action(async (opts: { json?: boolean }) => {
       const result = await ctx.client.modules.list();
       if (opts.json) {
-        // biome-ignore lint/suspicious/noConsole: structured JSON output path stays on console
-        console.log(JSON.stringify(result.modules, null, 2));
+        writeJson(result.modules, { pretty: true });
         return;
       }
       if (result.modules.length === 0) {
@@ -166,13 +165,12 @@ function buildModuleCommand(ctx: ModuleContext): Command {
       if (!result.found) {
         const list = await ctx.client.modules.list();
         const names = list.modules.map((s) => s.name).join(", ");
-        console.error(`Module "${name}" not found. Loaded: ${names || "(none)"}`);
+        printToStderr(line(span(`Module "${name}" not found. Loaded: ${names || "(none)"}`, "error")));
         process.exit(1);
       }
       const moduleSummary: ModuleInspectEntry = result.module;
       if (opts.json) {
-        // biome-ignore lint/suspicious/noConsole: structured JSON output path stays on console
-        console.log(JSON.stringify(moduleSummary, null, 2));
+        writeJson(moduleSummary, { pretty: true });
         return;
       }
       const entries: Array<{ label: string; value: string; role?: "accent" | "info" | "muted" | "success" | "warn" | "error" }> = [
@@ -225,12 +223,12 @@ function buildModuleCommand(ctx: ModuleContext): Command {
       const language = opts.language ?? "typescript";
 
       if (language !== "typescript" && language !== "python") {
-        console.error(`Error: unsupported language: ${language}. Supported: typescript, python`);
+        printToStderr(line(span(`Error: unsupported language: ${language}. Supported: typescript, python`, "error")));
         process.exit(1);
       }
 
       if (existsSync(targetDir)) {
-        console.error(`Error: directory already exists: ${targetDir}`);
+        printToStderr(line(span(`Error: directory already exists: ${targetDir}`, "error")));
         process.exit(1);
       }
 
@@ -277,11 +275,11 @@ function buildModuleCommand(ctx: ModuleContext): Command {
       const result = await ctx.client.modulesAdmin.reload(name);
       if (!result.ok) {
         if (result.reason === "daemon_required") {
-          console.error("Daemon is not running. Module reload requires a running daemon.");
+          printToStderr(line(span("Daemon is not running. Module reload requires a running daemon.", "error")));
         } else {
           const list = await ctx.client.modules.list();
           const names = list.modules.map((s) => s.name).join(", ");
-          console.error(`Module "${name}" not found. Loaded: ${names || "(none)"}`);
+          printToStderr(line(span(`Module "${name}" not found. Loaded: ${names || "(none)"}`, "error")));
         }
         process.exit(1);
       }

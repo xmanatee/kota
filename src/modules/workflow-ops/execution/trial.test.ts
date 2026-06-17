@@ -1029,7 +1029,11 @@ describe("workflow trial execution", () => {
   });
 
   it("CLI uses the daemon workflow client when the daemon handles trial execution", async () => {
-    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const stdout: string[] = [];
+    const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation((data) => {
+      stdout.push(String(data));
+      return true;
+    });
     const trial = vi.fn(async () => ({
       ok: true as const,
       summary: {
@@ -1052,26 +1056,27 @@ describe("workflow trial execution", () => {
       client: { workflow: { trial } },
     });
 
-    await program.parseAsync([
-      "node",
-      "workflow",
-      "trial",
-      "trial-fixture",
-      "--payload",
-      "{\"marker\":\"daemon\"}",
-    ]);
+    try {
+      await program.parseAsync([
+        "node",
+        "workflow",
+        "trial",
+        "trial-fixture",
+        "--payload",
+        "{\"marker\":\"daemon\"}",
+      ]);
+    } finally {
+      stdoutSpy.mockRestore();
+    }
 
     expect(trial).toHaveBeenCalledWith("trial-fixture", {
       payload: { marker: "daemon" },
       repeat: 1,
     });
-    expect(log).toHaveBeenCalledWith(
-      [
-        "Workflow trial trial-run: passed",
-        "Report: .kota/runs/trial-run/workflow-trial/summary.json",
-        "Attempts: 1 passed, 0 failed, 0 blocked",
-      ].join("\n"),
-    );
+    const output = stdout.join("");
+    expect(output).toContain("Workflow trial trial-run: passed");
+    expect(output).toContain("Report: .kota/runs/trial-run/workflow-trial/summary.json");
+    expect(output).toContain("Attempts: 1 passed, 0 failed, 0 blocked");
   });
 
   it("CLI falls back to the local isolated-project runner when the daemon is unavailable", async () => {
@@ -1098,7 +1103,11 @@ describe("workflow trial execution", () => {
         }],
       };
     `);
-    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const stdout: string[] = [];
+    const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation((data) => {
+      stdout.push(String(data));
+      return true;
+    });
     const trial = vi.fn(async () => ({
       ok: false as const,
       reason: "daemon_required" as const,
@@ -1109,18 +1118,22 @@ describe("workflow trial execution", () => {
       client: { workflow: { trial } },
     });
 
-    await program.parseAsync([
-      "node",
-      "workflow",
-      "trial",
-      "trial-fixture",
-      "--payload",
-      "{\"marker\":\"local\"}",
-    ]);
+    try {
+      await program.parseAsync([
+        "node",
+        "workflow",
+        "trial",
+        "trial-fixture",
+        "--payload",
+        "{\"marker\":\"local\"}",
+      ]);
+    } finally {
+      stdoutSpy.mockRestore();
+    }
 
     expect(trial).toHaveBeenCalledOnce();
     expect(existsSync(join(projectDir, "data", "trial-marker.txt"))).toBe(false);
-    const output = String(log.mock.calls[0]?.[0] ?? "");
+    const output = stdout.join("");
     expect(output).toContain("Workflow trial ");
     expect(output).toContain(": passed");
     expect(output).toContain("Attempts: 1 passed, 0 failed, 0 blocked");

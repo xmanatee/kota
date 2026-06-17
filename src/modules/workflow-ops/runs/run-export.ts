@@ -4,6 +4,8 @@ import type { Command } from "commander";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import { line, span } from "#modules/rendering/primitives.js";
+import { printToStderr, writeStdout } from "#modules/rendering/transport.js";
 
 export type RunSummary = {
   id: string;
@@ -98,12 +100,12 @@ export function registerExportCommand(wfCmd: Command): void {
       const last = opts.last ? (Number.parseInt(opts.last, 10) || undefined) : undefined;
 
       if (opts.format !== "json" && opts.format !== "csv") {
-        console.error(`Unknown format "${opts.format}". Valid values: json, csv`);
+        printToStderr(line(span(`Unknown format "${opts.format}". Valid values: json, csv`, "error")));
         process.exit(1);
       }
 
       if (opts.since && sinceMs !== undefined && Number.isNaN(sinceMs)) {
-        console.error(`Invalid --since value: "${opts.since}"`);
+        printToStderr(line(span(`Invalid --since value: "${opts.since}"`, "error")));
         process.exit(1);
       }
 
@@ -123,7 +125,7 @@ export function registerExportCommand(wfCmd: Command): void {
       if (opts.output) {
         writeFileSync(opts.output, output, "utf-8");
       } else {
-        process.stdout.write(output);
+        writeStdout(output);
       }
     });
 }

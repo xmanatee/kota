@@ -12,7 +12,7 @@ import {
 	span,
 	stack,
 } from "#modules/rendering/primitives.js";
-import { print } from "#modules/rendering/transport.js";
+import { print, printToStderr, writeStdoutLine } from "#modules/rendering/transport.js";
 import type { ApprovalExecutionProjection } from "./client.js";
 
 function formatAge(createdAt: string): string {
@@ -88,6 +88,10 @@ function safeApprovalLineText(value: string): string {
 	return stripTerminalControlSequences(value).replace(/\n+/g, " ");
 }
 
+function printApprovalError(message: string): void {
+	printToStderr(line(span(message, "error")));
+}
+
 function approvalValueHasRedaction(value: PendingApproval["input"][string]): boolean {
 	if (value === "[redacted]") return true;
 	if (Array.isArray(value)) return value.some((entry) => approvalValueHasRedaction(entry));
@@ -107,31 +111,31 @@ function executionRedactionSuffix(execution: ApprovalExecutionProjection): strin
 }
 
 function exitInvalidApprovalId(id: string): never {
-	console.error(`Error: invalid approval id "${id}". Expected 8 lowercase hex characters.`);
+	printApprovalError(`Error: invalid approval id "${id}". Expected 8 lowercase hex characters.`);
 	process.exit(1);
 }
 
 function exitApprovalMutationFailure(id: string, reason: "invalid_id" | "not_found" | "input_unavailable"): never {
 	if (reason === "invalid_id") exitInvalidApprovalId(id);
 	if (reason === "input_unavailable") {
-		console.error(
+		printApprovalError(
 			`Error: approval "${id}" cannot be executed because its original input is no longer available after daemon restart. Reject it and retry the tool call.`,
 		);
 		process.exit(1);
 	}
-	console.error(`Error: approval "${id}" not found or already resolved.`);
+	printApprovalError(`Error: approval "${id}" not found or already resolved.`);
 	process.exit(1);
 }
 
 function exitRedactedApprovalWithoutExecution(id: string, tool: string): never {
-	console.error(
+	printApprovalError(
 		`Error: approved ${safeApprovalLineText(tool)} [${id}], but the returned input was redacted and no daemon execution result was provided.`,
 	);
 	process.exit(1);
 }
 
 function exitDaemonExecutionFailure(id: string, tool: string, execution: ApprovalExecutionProjection): never {
-	console.error(
+	printApprovalError(
 		`Tool execution failed in daemon for [${id}] ${safeApprovalLineText(tool)}${executionRedactionSuffix(execution)}`,
 	);
 	process.exit(1);
@@ -233,7 +237,7 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 			}
 			const result = await executeTool(item.tool, item.input);
 			if (result.is_error) {
-				console.error(`Tool execution failed:\n${stripTerminalControlSequences(result.content)}`);
+				printApprovalError(`Tool execution failed:\n${stripTerminalControlSequences(result.content)}`);
 				process.exit(1);
 			}
 			const noteSuffix = item.approvalNote ? ` — note: ${safeApprovalLineText(item.approvalNote)}` : "";
@@ -298,7 +302,7 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 				const approved = mutate.approval;
 				if (mutate.execution) {
 					if (mutate.execution.status === "failed") {
-						console.error(
+						printApprovalError(
 							`  Failed [${approved.id}] ${safeApprovalLineText(approved.tool)}${executionRedactionSuffix(mutate.execution)}`,
 						);
 						failed++;
@@ -315,7 +319,7 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 					continue;
 				}
 				if (approvalInputHasRedaction(approved.input)) {
-					console.error(
+					printApprovalError(
 						`  Failed [${approved.id}] ${safeApprovalLineText(approved.tool)}: approved input was redacted and no daemon execution result was provided.`,
 					);
 					failed++;
@@ -323,7 +327,7 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 				}
 				const result = await executeTool(approved.tool, approved.input);
 				if (result.is_error) {
-					console.error(`  Failed [${item.id}] ${safeApprovalLineText(item.tool)}: ${stripTerminalControlSequences(result.content)}`);
+					printApprovalError(`  Failed [${item.id}] ${safeApprovalLineText(item.tool)}: ${stripTerminalControlSequences(result.content)}`);
 					failed++;
 				} else {
 					const noteSuffix = approved.approvalNote ? ` — note: ${safeApprovalLineText(approved.approvalNote)}` : "";
@@ -443,8 +447,7 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 		.description("Print the number of pending approval items")
 		.action(async () => {
 			const result = await ctx.client.approvals.list({ status: "pending" });
-			// biome-ignore lint/suspicious/noConsole: bare count output consumed by scripts
-			console.log(String(result.approvals.length));
+			writeStdoutLine(String(result.approvals.length));
 		});
 
 	approvalCmd
@@ -459,7 +462,7 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 			const statusFilter = opts.status as ApprovalStatus | undefined;
 			const validStatuses: ApprovalStatus[] = ["approved", "rejected", "expired"];
 			if (statusFilter && !validStatuses.includes(statusFilter)) {
-				console.error(`Error: invalid --status "${statusFilter}". Must be one of: ${validStatuses.join(", ")}`);
+				printApprovalError(`Error: invalid --status "${statusFilter}". Must be one of: ${validStatuses.join(", ")}`);
 				process.exit(1);
 			}
 
@@ -467,7 +470,7 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 			if (opts.since) {
 				sinceMs = parseDuration(opts.since);
 				if (sinceMs === null) {
-					console.error(`Error: invalid --since "${opts.since}". Use format like 1h, 24h, 7d.`);
+					printApprovalError(`Error: invalid --since "${opts.since}". Use format like 1h, 24h, 7d.`);
 					process.exit(1);
 				}
 			}

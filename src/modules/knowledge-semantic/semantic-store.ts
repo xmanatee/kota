@@ -13,6 +13,7 @@ import type {
 	KnowledgeProvider,
 	SearchFilters,
 } from "#core/modules/provider-types.js";
+import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import type { KnowledgeStore } from "#modules/knowledge/store.js";
 import type { EmbeddingProvider } from "#modules/semantic-index/embedding-provider.js";
 import {
@@ -25,7 +26,7 @@ export type SemanticKnowledgeStoreOptions = {
 	base: KnowledgeStore;
 	provider: EmbeddingProvider;
 	/**
-	 * Called when background embedding fails. Defaults to console.error.
+	 * Called when background embedding fails. Defaults to a terminal diagnostic.
 	 * Tests override this to assert error handling without polluting output.
 	 */
 	onBackgroundError?: (err: unknown) => void;
@@ -61,7 +62,11 @@ export class SemanticKnowledgeStore implements KnowledgeProvider {
 		const onError =
 			options.onBackgroundError ??
 			((err) =>
-				console.error("[knowledge-semantic] background embed failed:", err));
+				printTerminalDiagnostic(
+					"[knowledge-semantic] background embed failed:",
+					"error",
+					err instanceof Error ? err.message : String(err),
+				));
 		this.manager = new SemanticIndexManager({
 			adapter: buildAdapter(options.base),
 			provider: options.provider,

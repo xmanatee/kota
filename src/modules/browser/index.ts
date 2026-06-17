@@ -146,6 +146,7 @@ const browserModule: KotaModule = {
   version: "1.0.0",
   description:
     "Browser automation tools powered by Playwright: navigation, interaction, screenshots, JS evaluation, and scoped content-ingest tools for auth-walled / JS-gated sources",
+  dependencies: ["rendering"],
   setupRequirements: browserSetupRequirements,
   manifest: {
     schemaVersion: 1,

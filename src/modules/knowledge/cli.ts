@@ -13,7 +13,7 @@ import {
 	type SemanticRole,
 	span,
 } from "#modules/rendering/primitives.js";
-import { print } from "#modules/rendering/transport.js";
+import { print, printToStderr, writeJson, writeStdoutLine } from "#modules/rendering/transport.js";
 
 type RawImportEntry = { title?: unknown; body?: unknown; tags?: unknown };
 
@@ -155,7 +155,7 @@ export function registerKnowledgeCommands(
 				limit,
 			});
 			if (!result.ok) {
-				console.error("Semantic knowledge search requires an embedding-backed knowledge provider.");
+				printToStderr(line(span("Semantic knowledge search requires an embedding-backed knowledge provider.", "error")));
 				process.exit(1);
 			}
 			if (result.entries.length === 0) {
@@ -172,7 +172,7 @@ export function registerKnowledgeCommands(
 			await ensureCliProvidersFor(["knowledge"]);
 			const result = await ctx.client.knowledge.show(id);
 			if (!result.found) {
-				console.error(`Knowledge entry "${id}" not found.`);
+				printToStderr(line(span(`Knowledge entry "${id}" not found.`, "error")));
 				process.exit(1);
 			}
 			const entry = result.entry;
@@ -207,7 +207,7 @@ export function registerKnowledgeCommands(
 		.action(async (opts: { title: string; content?: string; type: string; tag: string[]; status: string; scope: string }) => {
 			await ensureCliProvidersFor(["knowledge"]);
 			if (opts.scope !== "project" && opts.scope !== "global") {
-				console.error(`Invalid scope "${opts.scope}". Use "project" or "global".`);
+				printToStderr(line(span(`Invalid scope "${opts.scope}". Use "project" or "global".`, "error")));
 				process.exit(1);
 			}
 			let content = opts.content;
@@ -224,8 +224,7 @@ export function registerKnowledgeCommands(
 				status: opts.status,
 				scope: opts.scope as "project" | "global",
 			});
-			// biome-ignore lint/suspicious/noConsole: bare id output consumed by scripts
-			console.log(result.id);
+			writeStdoutLine(result.id);
 		});
 
 	kCmd
@@ -235,7 +234,7 @@ export function registerKnowledgeCommands(
 			await ensureCliProvidersFor(["knowledge"]);
 			const result = await ctx.client.knowledge.delete(id);
 			if (!result.ok) {
-				console.error(`Knowledge entry "${id}" not found.`);
+				printToStderr(line(span(`Knowledge entry "${id}" not found.`, "error")));
 				process.exit(1);
 			}
 			print(line(
@@ -256,11 +255,11 @@ export function registerKnowledgeCommands(
 		.action(async (opts: { type?: string; status?: string; tag?: string; scope: string; format: string }) => {
 			await ensureCliProvidersFor(["knowledge"]);
 			if (opts.scope !== "project" && opts.scope !== "global" && opts.scope !== "all") {
-				console.error(`Invalid scope "${opts.scope}". Use "project", "global", or "all".`);
+				printToStderr(line(span(`Invalid scope "${opts.scope}". Use "project", "global", or "all".`, "error")));
 				process.exit(1);
 			}
 			if (opts.format !== "json" && opts.format !== "jsonl") {
-				console.error(`Invalid format "${opts.format}". Use "json" or "jsonl".`);
+				printToStderr(line(span(`Invalid format "${opts.format}". Use "json" or "jsonl".`, "error")));
 				process.exit(1);
 			}
 			const result = await ctx.client.knowledge.list({
@@ -281,12 +280,10 @@ export function registerKnowledgeCommands(
 				...(Object.keys(e.meta).length > 0 ? { meta: e.meta } : {}),
 			}));
 			if (opts.format === "json") {
-				// biome-ignore lint/suspicious/noConsole: structured JSON export stays on console
-				console.log(JSON.stringify(exported, null, 2));
+				writeJson(exported, { pretty: true });
 			} else {
 				for (const entry of exported) {
-					// biome-ignore lint/suspicious/noConsole: structured JSONL export stays on console
-					console.log(JSON.stringify(entry));
+					writeJson(entry);
 				}
 			}
 		});
@@ -327,21 +324,21 @@ export function registerKnowledgeCommands(
 		.action(async (file: string, opts: { type: string; status: string; scope: string }) => {
 			await ensureCliProvidersFor(["knowledge"]);
 			if (opts.scope !== "project" && opts.scope !== "global") {
-				console.error(`Invalid scope "${opts.scope}". Use "project" or "global".`);
+				printToStderr(line(span(`Invalid scope "${opts.scope}". Use "project" or "global".`, "error")));
 				process.exit(1);
 			}
 			let raw: string;
 			try {
 				raw = readFileSync(file, "utf-8");
 			} catch {
-				console.error(`Cannot read file: ${file}`);
+				printToStderr(line(span(`Cannot read file: ${file}`, "error")));
 				process.exit(1);
 			}
 			let entries: RawImportEntry[];
 			try {
 				entries = parseImportEntries(raw);
 			} catch (err) {
-				console.error(`Failed to parse file: ${err instanceof Error ? err.message : String(err)}`);
+				printToStderr(line(span(`Failed to parse file: ${err instanceof Error ? err.message : String(err)}`, "error")));
 				process.exit(1);
 			}
 			let imported = 0;
@@ -349,7 +346,7 @@ export function registerKnowledgeCommands(
 			for (let i = 0; i < entries.length; i++) {
 				const entry = entries[i];
 				if (typeof entry.title !== "string" || !entry.title || typeof entry.body !== "string") {
-					console.warn(`Row ${i + 1}: skipped (missing title or body)`);
+					printToStderr(line(span(`Row ${i + 1}: skipped (missing title or body)`, "warn")));
 					skipped++;
 					continue;
 				}

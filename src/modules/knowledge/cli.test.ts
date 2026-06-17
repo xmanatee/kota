@@ -105,6 +105,36 @@ function makeKnowledgeProgram(): Command {
 	return program;
 }
 
+async function captureStdout(fn: () => Promise<unknown>): Promise<string> {
+	const chunks: string[] = [];
+	const spy = vi.spyOn(process.stdout, "write").mockImplementation((data) => {
+		chunks.push(String(data));
+		return true;
+	});
+	try {
+		await fn();
+	} finally {
+		spy.mockRestore();
+	}
+	return chunks.join("");
+}
+
+async function captureStderr(fn: () => Promise<unknown>): Promise<string> {
+	const chunks: string[] = [];
+	const spy = vi.spyOn(process.stderr, "write").mockImplementation((data) => {
+		chunks.push(String(data));
+		return true;
+	});
+	try {
+		await fn();
+	} catch {
+		// Expected in tests that mock process.exit for validation failures.
+	} finally {
+		spy.mockRestore();
+	}
+	return chunks.join("");
+}
+
 describe("kota knowledge add", () => {
 	let projectDir: string;
 	let origCwd: string;
@@ -129,8 +159,7 @@ describe("kota knowledge add", () => {
 	});
 
 	it("creates an entry with --content and prints the ID", async () => {
-		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-		await makeKnowledgeProgram().parseAsync([
+		const output = await captureStdout(() => makeKnowledgeProgram().parseAsync([
 			"node",
 			"kota",
 			"knowledge",
@@ -139,42 +168,34 @@ describe("kota knowledge add", () => {
 			"My Note",
 			"--content",
 			"body text",
-		]);
-		expect(logSpy).toHaveBeenCalledTimes(1);
-		const id = logSpy.mock.calls[0][0] as string;
-		logSpy.mockRestore();
+		]));
+		const id = output.trim();
 		expect(typeof id).toBe("string");
 		expect(id.length).toBeGreaterThan(0);
 	});
 
 	it("applies --type, --tag, --status, and --scope flags", async () => {
-		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-		let id: string;
-		try {
-			await makeKnowledgeProgram().parseAsync([
-				"node",
-				"kota",
-				"knowledge",
-				"add",
-				"--title",
-				"Tagged Entry",
-				"--content",
-				"content here",
-				"--type",
-				"reference",
-				"--tag",
-				"foo",
-				"--tag",
-				"bar",
-				"--status",
-				"archived",
-				"--scope",
-				"project",
-			]);
-			id = logSpy.mock.calls[0][0] as string;
-		} finally {
-			logSpy.mockRestore();
-		}
+		const output = await captureStdout(() => makeKnowledgeProgram().parseAsync([
+			"node",
+			"kota",
+			"knowledge",
+			"add",
+			"--title",
+			"Tagged Entry",
+			"--content",
+			"content here",
+			"--type",
+			"reference",
+			"--tag",
+			"foo",
+			"--tag",
+			"bar",
+			"--status",
+			"archived",
+			"--scope",
+			"project",
+		]));
+		const id = output.trim();
 		const entry = store.read(id!);
 		expect(entry).not.toBeNull();
 		expect(entry!.type).toBe("reference");
@@ -183,16 +204,15 @@ describe("kota knowledge add", () => {
 	});
 
 	it("rejects invalid scope", async () => {
-		const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 		const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => { throw new Error("exit"); });
+		let err = "";
 		try {
-			await makeKnowledgeProgram().parseAsync([
+			err = await captureStderr(() => makeKnowledgeProgram().parseAsync([
 				"node", "kota", "knowledge", "add",
 				"--title", "X", "--content", "Y", "--scope", "badscope",
-			]);
+			]));
 		} catch { /* expected */ }
-		expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("Invalid scope"));
-		errSpy.mockRestore();
+		expect(err).toContain("Invalid scope");
 		exitSpy.mockRestore();
 	});
 
@@ -206,22 +226,16 @@ describe("kota knowledge add", () => {
 		const stdinSpy = vi.spyOn(process, "stdin", "get").mockReturnValue(
 			mockStdin as unknown as typeof process.stdin,
 		);
-		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-		let id: string;
-		try {
-			await makeKnowledgeProgram().parseAsync([
-				"node",
-				"kota",
-				"knowledge",
-				"add",
-				"--title",
-				"Piped",
-			]);
-			id = logSpy.mock.calls[0][0] as string;
-		} finally {
-			logSpy.mockRestore();
-			stdinSpy.mockRestore();
-		}
+		const output = await captureStdout(() => makeKnowledgeProgram().parseAsync([
+			"node",
+			"kota",
+			"knowledge",
+			"add",
+			"--title",
+			"Piped",
+		]));
+		const id = output.trim();
+		stdinSpy.mockRestore();
 		const entry = store.read(id!);
 		expect(entry).not.toBeNull();
 		expect(entry!.content).toBe("piped body");
@@ -260,65 +274,55 @@ describe("kota knowledge export", () => {
 
 	it("exports all entries as JSONL by default", async () => {
 		seedEntries();
-		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-		await makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export"]);
-		expect(logSpy).toHaveBeenCalledTimes(3);
-		for (const call of logSpy.mock.calls) {
-			const obj = JSON.parse(call[0] as string);
+		const output = await captureStdout(() => makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export"]));
+		const lines = output.trim().split("\n");
+		expect(lines).toHaveLength(3);
+		for (const line of lines) {
+			const obj = JSON.parse(line);
 			expect(obj).toHaveProperty("title");
 			expect(obj).toHaveProperty("body");
 			expect(obj).toHaveProperty("tags");
 		}
-		logSpy.mockRestore();
 	});
 
 	it("exports as JSON array with --format json", async () => {
 		seedEntries();
-		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-		await makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export", "--format", "json"]);
-		expect(logSpy).toHaveBeenCalledTimes(1);
-		const arr = JSON.parse(logSpy.mock.calls[0][0] as string);
+		const output = await captureStdout(() => makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export", "--format", "json"]));
+		const arr = JSON.parse(output);
 		expect(Array.isArray(arr)).toBe(true);
 		expect(arr).toHaveLength(3);
-		logSpy.mockRestore();
 	});
 
 	it("filters by --type", async () => {
 		seedEntries();
-		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-		await makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export", "--type", "reference"]);
-		expect(logSpy).toHaveBeenCalledTimes(1);
-		const obj = JSON.parse(logSpy.mock.calls[0][0] as string);
+		const output = await captureStdout(() => makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export", "--type", "reference"]));
+		const lines = output.trim().split("\n");
+		expect(lines).toHaveLength(1);
+		const obj = JSON.parse(lines[0]!);
 		expect(obj.type).toBe("reference");
-		logSpy.mockRestore();
 	});
 
 	it("filters by --status", async () => {
 		seedEntries();
-		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-		await makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export", "--status", "archived"]);
-		expect(logSpy).toHaveBeenCalledTimes(1);
-		const obj = JSON.parse(logSpy.mock.calls[0][0] as string);
+		const output = await captureStdout(() => makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export", "--status", "archived"]));
+		const lines = output.trim().split("\n");
+		expect(lines).toHaveLength(1);
+		const obj = JSON.parse(lines[0]!);
 		expect(obj.title).toBe("Beta");
-		logSpy.mockRestore();
 	});
 
 	it("filters by --tag", async () => {
 		seedEntries();
-		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-		await makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export", "--tag", "c"]);
-		expect(logSpy).toHaveBeenCalledTimes(1);
-		const obj = JSON.parse(logSpy.mock.calls[0][0] as string);
+		const output = await captureStdout(() => makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export", "--tag", "c"]));
+		const lines = output.trim().split("\n");
+		expect(lines).toHaveLength(1);
+		const obj = JSON.parse(lines[0]!);
 		expect(obj.title).toBe("Gamma");
-		logSpy.mockRestore();
 	});
 
 	it("round-trips through export then import", async () => {
 		seedEntries();
-		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-		await makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export", "--format", "json"]);
-		const exported = logSpy.mock.calls[0][0] as string;
-		logSpy.mockRestore();
+		const exported = await captureStdout(() => makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export", "--format", "json"]));
 
 		const parsed = parseImportEntries(exported);
 		expect(parsed).toHaveLength(3);
@@ -350,10 +354,7 @@ describe("kota knowledge export", () => {
 
 	it("JSONL round-trips through parseImportEntries", async () => {
 		seedEntries();
-		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-		await makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export", "--format", "jsonl"]);
-		const lines = logSpy.mock.calls.map((c) => c[0] as string).join("\n");
-		logSpy.mockRestore();
+		const lines = await captureStdout(() => makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export", "--format", "jsonl"]));
 
 		const parsed = parseImportEntries(lines);
 		expect(parsed).toHaveLength(3);
@@ -364,20 +365,17 @@ describe("kota knowledge export", () => {
 	});
 
 	it("produces empty output when no entries exist", async () => {
-		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-		await makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export"]);
-		expect(logSpy).not.toHaveBeenCalled();
-		logSpy.mockRestore();
+		const output = await captureStdout(() => makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export"]));
+		expect(output).toBe("");
 	});
 
 	it("rejects invalid format", async () => {
-		const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 		const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => { throw new Error("exit"); });
+		let err = "";
 		try {
-			await makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export", "--format", "csv"]);
+			err = await captureStderr(() => makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export", "--format", "csv"]));
 		} catch { /* expected */ }
-		expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("Invalid format"));
-		errSpy.mockRestore();
+		expect(err).toContain("Invalid format");
 		exitSpy.mockRestore();
 	});
 });
@@ -409,7 +407,7 @@ describe("kota knowledge search", () => {
 		store.create({ title: "Semantic Note", content: "hello semantic knowledge" });
 		vi.spyOn(store, "supportsSemanticSearch").mockReturnValue(true);
 		const semanticSearch = vi.spyOn(store, "semanticSearch").mockResolvedValue(store.list());
-		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
 		try {
 			await makeKnowledgeProgram().parseAsync([
 				"node", "kota", "knowledge", "search", "hello",
@@ -417,7 +415,7 @@ describe("kota knowledge search", () => {
 				"--limit", "4",
 			]);
 		} finally {
-			logSpy.mockRestore();
+			stdoutSpy.mockRestore();
 		}
 
 		expect(semanticSearch).toHaveBeenCalledWith(

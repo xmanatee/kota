@@ -24,6 +24,20 @@ import {
 } from "./eval-operations.js";
 import type { FixtureDiagnosticsReport } from "./scoring.js";
 
+async function captureStdout(fn: () => Promise<unknown>): Promise<string> {
+  const chunks: string[] = [];
+  const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation((data) => {
+    chunks.push(String(data));
+    return true;
+  });
+  try {
+    await fn();
+  } finally {
+    stdoutSpy.mockRestore();
+  }
+  return chunks.join("");
+}
+
 function makeFakeCtx(projectDir: string): ModuleContext {
   const evalHarness: EvalHarnessClient = {
     async list() {
@@ -190,10 +204,6 @@ describe("kota eval list CLI", () => {
   });
 
   it("emits fixture control decisions and aggregate coverage as JSON", async () => {
-    const logs: string[] = [];
-    vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
-      logs.push(args.map((a) => String(a)).join(" "));
-    });
     const result: EvalListResult = {
       fixtures: [
         {
@@ -225,9 +235,9 @@ describe("kota eval list CLI", () => {
     };
     const cmd = buildEvalCommand(makeListCtx(result));
 
-    await cmd.parseAsync(["list", "--json"], { from: "user" });
+    const output = await captureStdout(() => cmd.parseAsync(["list", "--json"], { from: "user" }));
 
-    const parsed = JSON.parse(logs.join("\n")) as EvalListResult;
+    const parsed = JSON.parse(output) as EvalListResult;
     expect(parsed.fixtures[0]).toMatchObject({
       id: "builder-smoke",
       controlDecisions: ["act"],
@@ -676,13 +686,8 @@ describe("kota eval calibration CLI", () => {
     seedCalibration(runsDir, "run-a", hourAgo, "pass", ["src/core/a.ts"]);
     seedCalibration(runsDir, "run-b", nowIso, "fail", ["src/core/a.ts"]);
 
-    const logs: string[] = [];
-    vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
-      logs.push(args.map((a) => String(a)).join(" "));
-    });
-
     const cmd = buildEvalCommand(makeFakeCtx(projectDir));
-    await cmd.parseAsync(
+    const output = await captureStdout(() => cmd.parseAsync(
       [
         "calibration",
         "--min-sample",
@@ -692,10 +697,10 @@ describe("kota eval calibration CLI", () => {
         "--json",
       ],
       { from: "user" },
-    );
+    ));
 
     expect(process.exitCode).toBe(2);
-    const parsed = JSON.parse(logs.join("\n")) as {
+    const parsed = JSON.parse(output) as {
       aggregate: { passContradictionCount: number };
       decision: { status: string };
     };

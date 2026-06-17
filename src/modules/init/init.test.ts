@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import initModule, { runInit } from "./index.js";
 
@@ -26,12 +26,14 @@ function makeProgram(): Command {
 
 function captureOutput(fn: () => void): { out: string; err: string } {
   const outLines: string[] = [];
-  const original = console.log;
-  console.log = (...args: unknown[]) => { outLines.push(`${args.join(" ")}\n`); };
+  const spy = vi.spyOn(process.stdout, "write").mockImplementation((data) => {
+    outLines.push(String(data));
+    return true;
+  });
   try {
     fn();
   } finally {
-    console.log = original;
+    spy.mockRestore();
   }
   return { out: outLines.join(""), err: "" };
 }
@@ -151,7 +153,7 @@ describe("kota init command", () => {
     const { out } = captureOutput(() => {
       makeProgram().parse(["node", "kota", "init"]);
     });
-    expect(out).toContain("Created:");
+    expect(out).toContain("Created");
     expect(out).toContain("kota.config.ts");
   });
 
@@ -169,7 +171,7 @@ describe("kota init command", () => {
       makeProgram().parse(["node", "kota", "init"]);
     });
     expect(out).toContain("Skipped");
-    expect(out).not.toContain("Created:");
+    expect(out).not.toContain("Created");
   });
 
   it("--force flag is accepted and overwrites config", () => {
@@ -178,7 +180,7 @@ describe("kota init command", () => {
     const { out } = captureOutput(() => {
       makeProgram().parse(["node", "kota", "init", "--force"]);
     });
-    expect(out).toContain("Created:");
+    expect(out).toContain("Created");
     expect(readFileSync(join(tmpDir, "kota.config.ts"), "utf-8")).not.toBe("// custom");
   });
 });

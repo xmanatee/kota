@@ -5,6 +5,7 @@ import { PRESET_ENV_VAR, type Preset, resolvePreset } from "#core/model/preset.j
 import type { ModuleContext } from "#core/modules/module-types.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import { validateWorkflowDefinitions, WorkflowDefinitionError } from "#core/workflow/validation.js";
+import { printWorkflowError, printWorkflowText } from "../cli-output.js";
 import { getWorkflowDefinitions } from "../definitions-source.js";
 
 type ValidationResult = {
@@ -115,12 +116,12 @@ export function registerValidateCommand(
           resolveAgentDef: ctx.resolveAgentDef,
         });
       } catch (err) {
-        console.error(String(err instanceof Error ? err.message : err));
+        printWorkflowError(String(err instanceof Error ? err.message : err));
         process.exit(1);
       }
 
       if (opts.json) {
-        console.log(JSON.stringify(results, null, 2));
+        printWorkflowText(JSON.stringify(results, null, 2));
         const allValid = results.every((r) => r.valid);
         if (!allValid) process.exit(1);
         return;
@@ -128,9 +129,9 @@ export function registerValidateCommand(
 
       for (const r of results) {
         if (r.valid) {
-          console.log(`PASS  ${r.name}`);
+          printWorkflowText(`PASS  ${r.name}`);
         } else {
-          console.log(`FAIL  ${r.name}: ${r.error}`);
+          printWorkflowText(`FAIL  ${r.name}: ${r.error}`);
         }
       }
 
@@ -138,12 +139,12 @@ export function registerValidateCommand(
       const definitionFailures = definitionResults.filter((r) => !r.valid).length;
       const globalFailures = results.filter((r) => r.scope === "global" && !r.valid).length;
       if (definitionResults.length > 1) {
-        console.log(
+        printWorkflowText(
           `\n${definitionResults.length - definitionFailures}/${definitionResults.length} definitions valid.`,
         );
       }
       if (globalFailures > 0) {
-        console.log(`${globalFailures} global validation issue(s).`);
+        printWorkflowText(`${globalFailures} global validation issue(s).`);
       }
 
       if (results.some((r) => !r.valid)) process.exit(1);

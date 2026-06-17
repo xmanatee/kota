@@ -74,7 +74,7 @@ const voiceModule: KotaModule = {
   name: "voice",
   version: "1.0.0",
   description: "Voice I/O boundary: STT input and TTS output for every KOTA client",
-  dependencies: ["transcription"],
+  dependencies: ["transcription", "rendering"],
   commands: (ctx) => [buildVoiceCommand(ctx)],
   routes: () => voiceRoutes(),
   controlRoutes: () => voiceControlRoutes(),

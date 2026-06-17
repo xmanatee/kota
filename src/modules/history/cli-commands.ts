@@ -24,7 +24,7 @@ import {
   span,
 } from "#modules/rendering/primitives.js";
 import { createRenderingProvider } from "#modules/rendering/rendering-provider.js";
-import { print, TerminalTransport } from "#modules/rendering/transport.js";
+import { print, TerminalTransport, writeJson } from "#modules/rendering/transport.js";
 import { runHarnessRepl } from "#modules/repl/index.js";
 import {
   interactiveMode,
@@ -136,7 +136,7 @@ export function registerHistoryCommands(program: Command) {
       });
 
       if (opts.json) {
-        process.stdout.write(`${JSON.stringify(result)}\n`);
+        writeJson(result);
         return;
       }
 

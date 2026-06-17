@@ -5,6 +5,7 @@ import type {
   KotaJsonValue,
   KotaTool,
 } from "#core/agent-harness/message-protocol.js";
+import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import type { McpToolAnnotations } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/index.js";
 import { validateToolStructuredOutput } from "#core/tools/output-schema.js";
@@ -1219,7 +1220,11 @@ export class McpManager {
       const raw = readFileSync(configPath, "utf-8");
       return JSON.parse(raw) as McpConfig;
     } catch (err) {
-      console.error(`[kota] Warning: failed to parse ${configPath}: ${(err as Error).message}`);
+      printTerminalDiagnostic(
+        `[kota] Warning: failed to parse ${configPath}:`,
+        "warn",
+        (err as Error).message,
+      );
       return null;
     }
   }
@@ -1268,14 +1273,16 @@ export class McpManager {
           const unsubscribeResource = client.onResourceListChanged(() => {
             this.invalidateListCache(name, ["resources/list", "resources/templates/list"]);
             this.invalidateRemoteSkillCatalogCache(name);
-            console.error(
+            printTerminalDiagnostic(
               `[kota] MCP server "${name}" resource catalog changed — explicit resource and skill operations will read fresh data on their next call`,
+              "warn",
             );
           });
           const unsubscribePrompt = client.onPromptListChanged(() => {
             this.invalidateListCache(name, ["prompts/list"]);
-            console.error(
+            printTerminalDiagnostic(
               `[kota] MCP server "${name}" prompt catalog changed — explicit prompt operations will read fresh data on their next call`,
+              "warn",
             );
           });
           this.toolListUnsubscribers.set(name, () => {
@@ -1291,8 +1298,9 @@ export class McpManager {
           }
           return { name, tools };
         } catch (err) {
-          console.error(
+          printTerminalDiagnostic(
             `[kota] MCP server "${name}" failed to connect: ${(err as Error).message}`,
+            "error",
           );
           this.initializingServers.delete(name);
           this.pendingServerRefreshes.delete(name);
@@ -1312,7 +1320,7 @@ export class McpManager {
       if (result.status !== "fulfilled" || !result.value) continue;
       const { name, tools } = result.value;
 
-      console.error(
+      printTerminalDiagnostic(
         `[kota] MCP server "${name}" connected — ${tools.length} tool${tools.length !== 1 ? "s" : ""}`,
       );
     }
@@ -1597,7 +1605,7 @@ export class McpManager {
     for (const handle of await this.remoteTaskStore.list()) {
       const result = await this.resumePersistedRemoteTask(handle);
       this.remoteTaskResumeResults.push(result);
-      console.error(formatRemoteTaskResumeResult(result));
+      printTerminalDiagnostic(formatRemoteTaskResumeResult(result), "warn");
     }
   }
 
@@ -2506,8 +2514,9 @@ export class McpManager {
     const client = this.clients.get(serverName);
     if (!client) return;
     if (!client.isConnected()) {
-      console.error(
+      printTerminalDiagnostic(
         `[kota] Warning: MCP server "${serverName}" tool refresh skipped: server is disconnected`,
+        "warn",
       );
       return;
     }
@@ -2515,8 +2524,9 @@ export class McpManager {
     try {
       tools = await client.listTools();
     } catch (err) {
-      console.error(
+      printTerminalDiagnostic(
         `[kota] Warning: MCP server "${serverName}" tool refresh failed; keeping previous registry: ${(err as Error).message}`,
+        "warn",
       );
       return;
     }
@@ -2524,7 +2534,7 @@ export class McpManager {
       return;
     }
     this.replaceServerTools(serverName, client, tools);
-    console.error(
+    printTerminalDiagnostic(
       `[kota] MCP server "${serverName}" tool registry refreshed — ${tools.length} tool${tools.length !== 1 ? "s" : ""}`,
     );
   }

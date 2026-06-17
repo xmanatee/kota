@@ -35,6 +35,7 @@ import {
   type ToolDef,
 } from "./module-types.js";
 import { validateModuleSetupRequirements } from "./setup-requirements.js";
+import { printTerminalDiagnostic } from "./terminal-renderer.js";
 
 const KOTA_INSTALL_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
@@ -185,8 +186,9 @@ export function attachModuleCommands(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     state.moduleCommandErrors.set(mod.name, msg);
-    console.error(
+    printTerminalDiagnostic(
       `[kota] Module "${mod.name}" command registration failed: ${msg}`,
+      "error",
     );
   }
 }
@@ -202,8 +204,9 @@ export function attachModuleRoutes(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     state.moduleRouteErrors.set(mod.name, msg);
-    console.error(
+    printTerminalDiagnostic(
       `[kota] Module "${mod.name}" route registration failed: ${msg}`,
+      "error",
     );
   }
 }
@@ -219,8 +222,9 @@ export function attachModuleControlRoutes(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     state.moduleControlRouteErrors.set(mod.name, msg);
-    console.error(
+    printTerminalDiagnostic(
       `[kota] Module "${mod.name}" control-route registration failed: ${msg}`,
+      "error",
     );
   }
 }
@@ -249,8 +253,9 @@ export async function attachModuleSkills(
       raw = readFileSync(resolveModuleSkillPromptPath(policy, skill.promptPath), "utf8");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(
+      printTerminalDiagnostic(
         `[kota] Module "${mod.name}" skill "${skill.name}" failed to load: ${msg}`,
+        "error",
       );
       continue;
     }
@@ -416,6 +421,6 @@ export async function runModuleLoadPhases(
   state.moduleRegistry.set(mod.name, mod);
   if (verbose) {
     const tc = state.moduleToolCounts.get(mod.name) ?? 0;
-    console.error(`[kota] Module "${mod.name}" loaded (${tc} tools)`);
+    printTerminalDiagnostic(`[kota] Module "${mod.name}" loaded (${tc} tools)`);
   }
 }

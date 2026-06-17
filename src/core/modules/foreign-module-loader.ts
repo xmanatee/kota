@@ -23,6 +23,7 @@ import type {
 import { HttpTransport } from "./foreign-module-http.js";
 import { StdioTransport } from "./foreign-module-stdio.js";
 import type { HealthCheckResult, KotaModule, ModuleHealth, ToolDef } from "./module-types.js";
+import { printTerminalDiagnostic } from "./terminal-renderer.js";
 
 // How long to wait for the manifest after sending init.
 const MANIFEST_TIMEOUT_MS = 10_000;
@@ -76,7 +77,7 @@ class ForeignModuleSession {
     for await (const msg of this.transport.receive()) {
       if (msg.type === "log") {
         const prefix = `${this.label}[${msg.level}]`;
-        process.stderr.write(`${prefix} ${msg.message}\n`);
+        printTerminalDiagnostic(`${prefix} ${msg.message}`, msg.level);
         continue;
       }
       if (msg.id) {
@@ -138,7 +139,7 @@ class ForeignModuleSession {
       await this.transport.send({ id: "shutdown", type: "shutdown" });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      process.stderr.write(`${this.label}[warn] Failed to send shutdown: ${msg}\n`);
+      printTerminalDiagnostic(`${this.label}[warn] Failed to send shutdown: ${msg}`, "warn");
     }
     await this.transport.close();
     await this.receiveLoop;
@@ -252,7 +253,10 @@ async function startResilientStdioModule(
       await session.close();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      process.stderr.write(`[foreign:${config.command}] Failed to close stale session before restart: ${msg}\n`);
+      printTerminalDiagnostic(
+        `[foreign:${config.command}] Failed to close stale session before restart: ${msg}`,
+        "warn",
+      );
     }
 
     while (restarts < maxRestarts) {
@@ -261,7 +265,10 @@ async function startResilientStdioModule(
       lastRestartAt = new Date().toISOString();
       tryEmit("module.restarted", { name: raw.name, reason, totalRestarts });
       const backoffMs = backoffBase * 2 ** (restarts - 1);
-      process.stderr.write(`[foreign:${config.command}] Restart ${restarts}/${maxRestarts} in ${backoffMs}ms (${reason}).\n`);
+      printTerminalDiagnostic(
+        `[foreign:${config.command}] Restart ${restarts}/${maxRestarts} in ${backoffMs}ms (${reason}).`,
+        "warn",
+      );
       await new Promise<void>((r) => setTimeout(r, backoffMs));
       if (stopped) { restarting = false; return; }
 
@@ -275,18 +282,24 @@ async function startResilientStdioModule(
         session = fresh.session;
         restarts = 0;
         healthStatus = "ok";
-        process.stderr.write(`[foreign:${config.command}] Restarted successfully.\n`);
+        printTerminalDiagnostic(`[foreign:${config.command}] Restarted successfully.`, "info");
         watchDeath();
         startPing();
         restarting = false;
         return;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        process.stderr.write(`[foreign:${config.command}] Restart attempt ${restarts} failed: ${msg}\n`);
+        printTerminalDiagnostic(
+          `[foreign:${config.command}] Restart attempt ${restarts} failed: ${msg}`,
+          "warn",
+        );
       }
     }
 
-    process.stderr.write(`[foreign:${config.command}] All ${maxRestarts} restart(s) exhausted. Module failed.\n`);
+    printTerminalDiagnostic(
+      `[foreign:${config.command}] All ${maxRestarts} restart(s) exhausted. Module failed.`,
+      "error",
+    );
     healthStatus = "dead";
     tryEmit("module.failed", { name: raw.name, reason });
     restarting = false;
@@ -296,7 +309,10 @@ async function startResilientStdioModule(
     const watched = session;
     watched.died.then(() => {
       if (!stopped && session === watched) {
-        process.stderr.write(`[foreign:${config.command}] Subprocess exited unexpectedly.\n`);
+        printTerminalDiagnostic(
+          `[foreign:${config.command}] Subprocess exited unexpectedly.`,
+          "warn",
+        );
         doRestart("subprocess exited unexpectedly");
       }
     });
@@ -309,7 +325,7 @@ async function startResilientStdioModule(
       try {
         await current.ping(pingTimeoutMs);
       } catch {
-        process.stderr.write(`[foreign:${config.command}] Ping timed out.\n`);
+        printTerminalDiagnostic(`[foreign:${config.command}] Ping timed out.`, "warn");
         doRestart("ping timeout");
       }
     }, pingIntervalMs);
@@ -391,7 +407,7 @@ export async function loadForeignModules(
       results.push(module);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[kota] Foreign module "${label}" failed to start: ${msg}`);
+      printTerminalDiagnostic(`[kota] Foreign module "${label}" failed to start: ${msg}`, "error");
     }
   }
   return results;

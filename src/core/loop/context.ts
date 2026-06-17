@@ -6,6 +6,7 @@ import type {
   KotaToolResultBlockContent,
 } from "#core/agent-harness/message-protocol.js";
 import type { ModelClient } from "#core/model/model-client.js";
+import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import type { ToolResultBlock } from "#core/tools/index.js";
 import { getTodoState } from "#core/tools/index.js";
 import { compactMessages } from "./compaction.js";
@@ -225,7 +226,7 @@ export class Context {
       writeFileSync(path, JSON.stringify(data), "utf-8");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[kota] Failed to save session context to ${path}: ${msg}`);
+      printTerminalDiagnostic(`[kota] Failed to save session context to ${path}: ${msg}`, "error");
     }
   }
 
@@ -235,7 +236,7 @@ export class Context {
       raw = readFileSync(path, "utf-8");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[kota] Failed to read session context from ${path}: ${msg}`);
+      printTerminalDiagnostic(`[kota] Failed to read session context from ${path}: ${msg}`, "error");
       return new Context(systemPrompt);
     }
     let data: SessionData;
@@ -243,7 +244,7 @@ export class Context {
       data = JSON.parse(raw);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[kota] Failed to parse session context from ${path}: ${msg}`);
+      printTerminalDiagnostic(`[kota] Failed to parse session context from ${path}: ${msg}`, "error");
       return new Context(systemPrompt);
     }
     const ctx = new Context(systemPrompt);

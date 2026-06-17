@@ -8,12 +8,13 @@ import { clearCustomTools, executeTool, getAllTools } from "./core/tools/index.j
 import { enableGroup, filterTools, resetGroups } from "./core/tools/tool-groups.js";
 import { FailureTracker } from "./core/tools/tool-runner.js";
 import filesystemModule from "./modules/filesystem/index.js";
+import renderingModule from "./modules/rendering/index.js";
 
 let testDir: string;
 
 beforeAll(async () => {
   const loader = new ModuleLoader({});
-  await loader.loadAll([filesystemModule]);
+  await loader.loadAll([renderingModule, filesystemModule]);
 });
 
 afterAll(() => {

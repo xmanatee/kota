@@ -2,6 +2,7 @@ import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { getEventBus } from "#core/events/event-bus.js";
+import { printTerminalPrompt } from "#core/modules/terminal-renderer.js";
 import { operatorSurfaceEffect } from "./effect.js";
 import type { ToolResult } from "./index.js";
 
@@ -111,26 +112,16 @@ function promptApproval(input: ConfirmInput): Promise<ConfirmResult> {
 
 		const rl = createInterface({
 			input: ttyStream,
-			output: process.stderr,
 			terminal: false,
 		});
 
-		const dim = process.stderr.isTTY ? "\x1b[2m" : "";
-		const bold = process.stderr.isTTY ? "\x1b[1m" : "";
-		const yellow = process.stderr.isTTY ? "\x1b[33m" : "";
-		const reset = process.stderr.isTTY ? "\x1b[0m" : "";
-
-		const riskLabel = `[${input.risk?.toUpperCase() ?? "MEDIUM"} risk]`;
-		const detailLine = input.details ? `\n${dim}Details: ${input.details}${reset}` : "";
-
-		process.stderr.write(
-			`\n${dim}─────────────────────────────────────${reset}\n` +
-				`${bold}${yellow}[kota] Approval requested ${riskLabel}:${reset}\n` +
-				`${input.action}${detailLine}\n` +
-				`${dim}Timeout: ${input.timeout}s — auto-rejects on expiry${reset}\n` +
-				`${dim}─────────────────────────────────────${reset}\n` +
-				`Approve? [y/N] `,
-		);
+		printTerminalPrompt({
+			kind: "confirmation",
+			action: input.action,
+			risk: input.risk === "high" ? "high" : input.risk === "low" ? "low" : "medium",
+			details: input.details,
+			timeoutSeconds: input.timeout ?? 300,
+		});
 
 		const timer = setTimeout(() => {
 			cleanup();

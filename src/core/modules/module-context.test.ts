@@ -11,14 +11,47 @@ import {
   defineDaemonWideModuleEvent,
   resetModuleEventRegistry,
 } from "#core/events/module-event.js";
+import { NullTransport } from "#core/loop/transport.js";
 import { legacyEffect } from "#core/tools/effect.js";
 import { clearCustomTools, executeTool, registerTool } from "#core/tools/index.js";
 import { clearCustomGroups, resetGroups } from "#core/tools/tool-groups.js";
 import { ModuleLoader } from "./module-loader.js";
 import type { KotaModule, ModuleContext, ToolDef } from "./module-types.js";
 import { resolveModuleTools } from "./module-types.js";
+import {
+  initProviderRegistry,
+  RENDERING_PROVIDER_TOKEN,
+  resetProviderRegistry,
+} from "./provider-registry.js";
+import type { RenderingProvider, ReplChrome } from "./provider-types.js";
 
 const TEXT_LOG_CONFIG = { log: { format: "text" as const } };
+
+const noopChrome: ReplChrome = {
+  announceHarness: () => {},
+  showHelp: () => {},
+  showStatus: () => {},
+  showReset: () => {},
+  showError: () => {},
+  showGoodbye: () => {},
+};
+
+function installRenderingCapture(chunks: string[]): void {
+  const provider: RenderingProvider = {
+    createAgentTransport: () => new NullTransport(),
+    createReplChrome: () => noopChrome,
+    printDiagnostic: (diagnostic) => {
+      chunks.push(diagnostic.detail ? `${diagnostic.message}\n${diagnostic.detail}` : diagnostic.message);
+    },
+    printPrompt: (prompt) => {
+      chunks.push(prompt.kind);
+    },
+    writeStderr: (text) => {
+      chunks.push(text);
+    },
+  };
+  initProviderRegistry().register(RENDERING_PROVIDER_TOKEN, "test", provider);
+}
 
 beforeEach(() => {
   clearCustomTools();
@@ -27,6 +60,7 @@ beforeEach(() => {
   resetSecretStore();
   resetEventBus();
   resetModuleEventRegistry();
+  resetProviderRegistry();
   vi.restoreAllMocks();
 });
 
@@ -37,6 +71,7 @@ afterEach(() => {
   resetSecretStore();
   resetEventBus();
   resetModuleEventRegistry();
+  resetProviderRegistry();
 });
 
 // ── ctx.log ──────────────────────────────────────────────────────────────
@@ -55,26 +90,26 @@ describe("ModuleContext.log", () => {
   });
 
   it("prefixes messages with [module:<name>]", async () => {
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const chunks: string[] = [];
+    installRenderingCapture(chunks);
     const onLoad = vi.fn();
     const loader = new ModuleLoader(TEXT_LOG_CONFIG);
     await loader.load({ name: "my-mod", onLoad });
 
     const ctx: ModuleContext = onLoad.mock.calls[0][0];
     ctx.log.info("hello world");
-    expect(errSpy).toHaveBeenCalledWith("[module:my-mod] hello world");
+    expect(chunks).toContain("[module:my-mod] hello world");
 
     ctx.log.warn("watch out");
-    expect(errSpy).toHaveBeenCalledWith("[module:my-mod] WARN: watch out");
+    expect(chunks).toContain("[module:my-mod] WARN: watch out");
 
     ctx.log.error("something broke");
-    expect(errSpy).toHaveBeenCalledWith("[module:my-mod] ERROR: something broke");
-
-    errSpy.mockRestore();
+    expect(chunks).toContain("[module:my-mod] ERROR: something broke");
   });
 
   it("debug only logs in verbose mode", async () => {
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const chunks: string[] = [];
+    installRenderingCapture(chunks);
 
     // Non-verbose — debug is silent
     const onLoadQuiet = vi.fn();
@@ -82,7 +117,7 @@ describe("ModuleContext.log", () => {
     await loaderQuiet.load({ name: "quiet-mod", onLoad: onLoadQuiet });
     const ctxQuiet: ModuleContext = onLoadQuiet.mock.calls[0][0];
     ctxQuiet.log.debug("hidden");
-    expect(errSpy).not.toHaveBeenCalled();
+    expect(chunks).not.toContain("[module:quiet-mod] DEBUG: hidden");
 
     // Verbose — debug logs
     const onLoadVerbose = vi.fn();
@@ -91,13 +126,9 @@ describe("ModuleContext.log", () => {
     const ctxVerbose: ModuleContext = onLoadVerbose.mock.calls[0][0];
     ctxVerbose.log.debug("visible");
     // The verbose loader also logs "Module loaded" — find the debug message
-    const debugCall = errSpy.mock.calls.find(
-      (call) => typeof call[0] === "string" && call[0].includes("DEBUG:"),
-    );
+    const debugCall = chunks.find((chunk) => chunk.includes("DEBUG:"));
     expect(debugCall).toBeTruthy();
-    expect(debugCall![0]).toContain("[module:verbose-mod] DEBUG: visible");
-
-    errSpy.mockRestore();
+    expect(debugCall).toContain("[module:verbose-mod] DEBUG: visible");
   });
 });
 
@@ -227,7 +258,8 @@ describe("tools as factory function", () => {
   });
 
   it("tool runner can access ctx.log via closure", async () => {
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const chunks: string[] = [];
+    installRenderingCapture(chunks);
     const loader = new ModuleLoader(TEXT_LOG_CONFIG, true);
 
     const mod: KotaModule = {
@@ -250,13 +282,9 @@ describe("tools as factory function", () => {
     const result = await executeTool("log_tool", {});
     expect(result.content).toBe("done");
 
-    const logCall = errSpy.mock.calls.find(
-      (call) => typeof call[0] === "string" && call[0].includes("tool executed"),
-    );
+    const logCall = chunks.find((chunk) => chunk.includes("tool executed"));
     expect(logCall).toBeTruthy();
-    expect(logCall![0]).toContain("[module:logging-factory]");
-
-    errSpy.mockRestore();
+    expect(logCall).toContain("[module:logging-factory]");
   });
 
   it("mixes static and factory tools across modules", async () => {

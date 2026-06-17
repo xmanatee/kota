@@ -5,6 +5,7 @@ import { ModuleLoader } from "./core/modules/module-loader.js";
 import { clearCustomTools } from "./core/tools/index.js";
 import { executeToolCalls } from "./core/tools/tool-runner.js";
 import filesystemModule from "./modules/filesystem/index.js";
+import renderingModule from "./modules/rendering/index.js";
 
 /**
  * Cross-module integration: grep output modes × tool-runner × truncateToolResult.
@@ -16,7 +17,7 @@ const TEST_DIR = join(process.cwd(), ".test-grep-pipeline");
 
 beforeAll(async () => {
   const loader = new ModuleLoader({});
-  await loader.loadAll([filesystemModule]);
+  await loader.loadAll([renderingModule, filesystemModule]);
   mkdirSync(TEST_DIR, { recursive: true });
   // Create enough files to produce a multi-line result
   for (let i = 0; i < 15; i++) {

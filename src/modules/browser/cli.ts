@@ -3,6 +3,7 @@ import { loadConfig } from "#core/config/config.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import { executeTool } from "#core/tools/index.js";
+import { writeStdout } from "#modules/rendering/transport.js";
 import { isPlaywrightAvailable } from "./lifecycle.js";
 import {
   defaultSourceAccessReportOptions,
@@ -59,7 +60,7 @@ export function buildBrowserCommand(ctx: ModuleContext): Command {
               now: () => new Date(),
             },
           );
-          process.stdout.write(result.transcript);
+          writeStdout(result.transcript);
         } finally {
           await runtimeLoader.unloadAll();
         }

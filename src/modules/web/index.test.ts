@@ -69,7 +69,7 @@ describe("webModule", () => {
     expect(summaries.some((s) => s.startsWith("GET /assets"))).toBe(true);
   });
 
-  it("has no dependencies", () => {
-    expect(webModule.dependencies).toBeUndefined();
+  it("declares its rendering dependency", () => {
+    expect(webModule.dependencies).toEqual(["rendering"]);
   });
 });

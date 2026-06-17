@@ -11,6 +11,7 @@ import { createInterface } from "node:readline";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { KempInbound, KempOutbound, KempTransport, StdioForeignModuleConfig } from "./foreign-module.js";
 import { buildFilteredInheritedSubprocessEnv } from "./subprocess-env.js";
+import { printTerminalDiagnostic, writeTerminalStderr } from "./terminal-renderer.js";
 
 function buildStdioSubprocessEnv(
   configEnv: StdioForeignModuleConfig["env"],
@@ -42,7 +43,7 @@ export class StdioTransport implements KempTransport {
 
     // Forward stderr for debugging
     this.proc.stderr?.on("data", (chunk: Buffer) => {
-      process.stderr.write(`${this.label} ${chunk}`);
+      writeTerminalStderr(`${this.label} ${chunk}`);
     });
 
     // Parse stdout as NDJSON
@@ -59,7 +60,7 @@ export class StdioTransport implements KempTransport {
           this.msgQueue.push(msg);
         }
       } catch {
-        process.stderr.write(`${this.label} Malformed message: ${trimmed}\n`);
+        printTerminalDiagnostic(`${this.label} Malformed message: ${trimmed}`, "warn");
       }
     });
 
@@ -71,7 +72,7 @@ export class StdioTransport implements KempTransport {
     });
 
     this.proc.on("error", (err) => {
-      process.stderr.write(`${this.label} Process error: ${err.message}\n`);
+      printTerminalDiagnostic(`${this.label} Process error: ${err.message}`, "error");
       this.closed = true;
       for (const waiter of this.waiters) waiter(null);
       this.waiters = [];

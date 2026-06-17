@@ -13,6 +13,12 @@ import {
 import type { ModuleContext } from "#core/modules/module-types.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
+import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
+import {
+  setTerminalTransport,
+  TerminalTransport,
+  type TransportStream,
+} from "#modules/rendering/transport.js";
 import { buildDryRunPlan, formatDryRunPlan, formatDryRunResult } from "./dry-run.js";
 import { registerRunCommand } from "./run.js";
 
@@ -47,11 +53,29 @@ function makeRunCliProgram(ctx: ModuleContext): Command {
   return program;
 }
 
+function captureStdout(): { output: () => string; restore: () => void } {
+  const chunks: string[] = [];
+  const stream: TransportStream = {
+    write(chunk: string): boolean {
+      chunks.push(chunk);
+      return true;
+    },
+    isTTY: false,
+    columns: 100,
+  };
+  setTerminalTransport(new TerminalTransport({ stream, theme: NO_COLOR_THEME, width: 100 }));
+  return {
+    output: () => chunks.join(""),
+    restore: () => setTerminalTransport(null),
+  };
+}
+
 describe("workflow run --dry-run", () => {
   const cleanup: string[] = [];
 
   afterEach(() => {
     vi.restoreAllMocks();
+    setTerminalTransport(null);
     process.exitCode = undefined;
     for (const dir of cleanup.splice(0)) {
       rmSync(dir, { recursive: true, force: true });
@@ -88,7 +112,7 @@ describe("workflow run --dry-run", () => {
         },
       },
     } as unknown as ModuleContext;
-    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const stdout = captureStdout();
     const eventSpy = vi.spyOn(EventBus.prototype, "emit");
     const program = makeRunCliProgram(ctx);
 
@@ -100,11 +124,12 @@ describe("workflow run --dry-run", () => {
       "--dry-run",
     ]);
 
-    expect(String(log.mock.calls[0]?.[0] ?? "")).toContain("Result: PASS");
+    expect(stdout.output()).toContain("Result: PASS");
     expect(stepExecuted).toBe(false);
     expect(existsSync(join(projectDir, "executed.txt"))).toBe(false);
     expect(existsSync(join(projectDir, ".kota", "runs"))).toBe(false);
     expect(eventSpy).not.toHaveBeenCalled();
+    stdout.restore();
   });
 });
 

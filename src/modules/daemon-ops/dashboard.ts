@@ -1,4 +1,3 @@
-import { clearScreenDown, cursorTo } from "node:readline";
 import type { WorkflowQueuedRun, WorkflowRunStatus } from "#core/workflow/run-types.js";
 import type { WorkflowAgentBackoffState } from "#core/workflow/trigger-types.js";
 import {
@@ -14,7 +13,7 @@ import {
 	type TextSpan,
 } from "#modules/rendering/primitives.js";
 import { type RenderContext, render } from "#modules/rendering/render.js";
-import { renderToString } from "#modules/rendering/transport.js";
+import { renderToString, TerminalScreenSession } from "#modules/rendering/transport.js";
 import { abbreviateRunId, formatDuration, formatTimeAgo, formatUptime } from "./format-utils.js";
 
 export type DashboardTaskQueue = {
@@ -58,16 +57,6 @@ const LOG_BUFFER_MAX = 200;
 const REFRESH_INTERVAL_MS = 1_000;
 const COLUMN_GAP = 2;
 const STATS_INDENT = "  ";
-
-// Alternate-screen buffer + cursor-hide sequences keep the live dashboard
-// from polluting terminal scrollback. Without these, every 1s refresh writes
-// another full status block; over a daemon-long session the scrollback
-// collects hundreds of duplicated frames. On exit the original buffer is
-// restored so the operator's shell prompt is intact.
-const ALT_SCREEN_ENTER = "\x1b[?1049h";
-const ALT_SCREEN_EXIT = "\x1b[?1049l";
-const CURSOR_HIDE = "\x1b[?25l";
-const CURSOR_SHOW = "\x1b[?25h";
 
 type StatusTextRole = { text: string; role: SemanticRole };
 
@@ -370,15 +359,12 @@ export class DaemonDashboard {
 	private logBuffer: string[] = [];
 	private refreshTimer: ReturnType<typeof setInterval> | null = null;
 	private originalStderrWrite: typeof process.stderr.write | null = null;
-	private altScreenActive = false;
+	private readonly screen = new TerminalScreenSession();
 
 	constructor(private readonly getSnapshot: () => DashboardSnapshot) {}
 
 	start(): void {
-		if (process.stdout.isTTY) {
-			process.stdout.write(`${ALT_SCREEN_ENTER}${CURSOR_HIDE}`);
-			this.altScreenActive = true;
-		}
+		this.screen.start();
 
 		this.originalStderrWrite = process.stderr.write;
 		process.stderr.write = ((chunk: string | Uint8Array): boolean => {
@@ -407,19 +393,14 @@ export class DaemonDashboard {
 			process.stderr.write = this.originalStderrWrite;
 			this.originalStderrWrite = null;
 		}
-		if (this.altScreenActive) {
-			process.stdout.write(`${CURSOR_SHOW}${ALT_SCREEN_EXIT}`);
-			this.altScreenActive = false;
-		}
+		this.screen.stop();
 	}
 
 	private render(): void {
 		try {
 			const snapshot = this.getSnapshot();
 			const output = renderDashboard(snapshot, this.logBuffer);
-			cursorTo(process.stdout, 0, 0);
-			clearScreenDown(process.stdout);
-			process.stdout.write(`${output}\n`);
+			this.screen.writeFrame(output);
 		} catch (error) {
 			this.originalStderrWrite?.call(
 				process.stderr,

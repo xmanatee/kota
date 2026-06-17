@@ -1,6 +1,7 @@
 import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import { printTerminalPrompt } from "#core/modules/terminal-renderer.js";
 import { operatorSurfaceEffect } from "./effect.js";
 import type { ToolResult } from "./index.js";
 
@@ -67,19 +68,10 @@ function promptFromTerminal(question: string): Promise<string> {
 
     const rl = createInterface({
       input: ttyStream,
-      output: process.stderr,
       terminal: false,
     });
 
-    const dim = process.stderr.isTTY ? "\x1b[2m" : "";
-    const bold = process.stderr.isTTY ? "\x1b[1m" : "";
-    const reset = process.stderr.isTTY ? "\x1b[0m" : "";
-
-    process.stderr.write(
-      `\n${dim}─────────────────────────────────────${reset}\n` +
-        `${bold}[kota] Question:${reset} ${question}\n` +
-        `${dim}─────────────────────────────────────${reset}\n> `,
-    );
+    printTerminalPrompt({ kind: "question", question });
 
     rl.once("line", (answer) => {
       rl.close();

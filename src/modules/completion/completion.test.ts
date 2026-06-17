@@ -33,6 +33,20 @@ function captureStdout(fn: () => void): string {
   return chunks.join("");
 }
 
+function captureStderr(fn: () => void): string {
+  const chunks: string[] = [];
+  const spy = vi.spyOn(process.stderr, "write").mockImplementation((data) => {
+    chunks.push(String(data));
+    return true;
+  });
+  try {
+    fn();
+  } finally {
+    spy.mockRestore();
+  }
+  return chunks.join("");
+}
+
 describe("kota completion", () => {
   it("generates zsh completion script with top-level commands", () => {
     const program = makeProgram();
@@ -87,10 +101,10 @@ describe("kota completion", () => {
   });
 
   it("exits with error for unknown shell", () => {
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const program = makeProgram();
-    expect(() => program.parse(["node", "kota", "completion", "fish"])).toThrow();
-    expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("Unknown shell"));
-    errSpy.mockRestore();
+    const err = captureStderr(() => {
+      expect(() => program.parse(["node", "kota", "completion", "fish"])).toThrow();
+    });
+    expect(err).toContain("Unknown shell");
   });
 });

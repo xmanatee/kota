@@ -9,6 +9,8 @@ import type {
 import { getRepoTasksProvider } from "#core/modules/provider-registry.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import { line, span } from "#modules/rendering/primitives.js";
+import { printToStderr } from "#modules/rendering/transport.js";
 import type {
   RepoTaskState as ContractRepoTaskState,
   RepoTaskCreateOptions,
@@ -81,7 +83,7 @@ function isMissingPathError(error: unknown): boolean {
 
 function logGitStageFailure(action: string, error: unknown): void {
   const message = error instanceof Error ? error.message : String(error);
-  console.error(`[kota] Task route ${action} failed to stage changes: ${message}`);
+  printToStderr(line(span(`[kota] Task route ${action} failed to stage changes: ${message}`, "error")));
 }
 
 function listTaskFiles(tasksDir: string, state: string): string[] {

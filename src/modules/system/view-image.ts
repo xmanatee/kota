@@ -5,6 +5,8 @@ import { extname, join, resolve } from "node:path";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { readOnlyLocalEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
+import { line, span } from "#modules/rendering/primitives.js";
+import { printToStderr } from "#modules/rendering/transport.js";
 
 const IMAGE_DETAIL_VALUES = ["resized", "original"] as const;
 type ImageDetail = (typeof IMAGE_DETAIL_VALUES)[number];
@@ -30,6 +32,10 @@ type ValidatedViewImageInput = {
 type ViewImageInputValidation =
 	| { ok: true; value: ValidatedViewImageInput }
 	| { ok: false; result: ToolResult };
+
+function warnViewImage(message: string): void {
+	printToStderr(line(span(message, "warn")));
+}
 
 export const viewImageTool: KotaTool = {
 	name: "view_image",
@@ -182,7 +188,7 @@ export async function runViewImage(
 					unlinkSync(readPath.path);
 				} catch (err) {
 					const msg = err instanceof Error ? err.message : String(err);
-					console.warn(
+					warnViewImage(
 						`[view_image] Failed to remove temp file ${readPath.path}: ${msg}`,
 					);
 				}
@@ -251,7 +257,7 @@ function tryResize(srcPath: string, ext: string): ResizeReadPath {
 		return { path: tmpPath, createdTemp: true };
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : String(err);
-		console.warn(`[view_image] Resize skipped for ${srcPath}: ${msg}`);
+		warnViewImage(`[view_image] Resize skipped for ${srcPath}: ${msg}`);
 		return { path: srcPath, createdTemp: false };
 	}
 }

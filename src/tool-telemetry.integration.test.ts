@@ -7,6 +7,7 @@ import {
   ToolTelemetry,
 } from "#core/tools/tool-telemetry.js";
 import filesystemModule from "#modules/filesystem/index.js";
+import renderingModule from "#modules/rendering/index.js";
 
 describe("ToolTelemetry", () => {
   it("records a successful tool call", () => {
@@ -161,7 +162,7 @@ describe("ToolTelemetry", () => {
 describe("Integration: telemetry populated via executeToolCalls", () => {
   beforeAll(async () => {
     const loader = new ModuleLoader({});
-    await loader.loadAll([filesystemModule]);
+    await loader.loadAll([renderingModule, filesystemModule]);
   });
 
   afterAll(() => {

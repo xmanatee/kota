@@ -12,7 +12,7 @@
 import { Command } from "commander";
 import { resolveProjectDir } from "#core/config/project-dir.js";
 import { plain, text } from "#modules/rendering/primitives.js";
-import { print } from "#modules/rendering/transport.js";
+import { print, writeJson } from "#modules/rendering/transport.js";
 import { renderOnDemandDigest } from "./on-demand.js";
 
 export function buildDigestCommand(): Command {
@@ -28,7 +28,7 @@ export function buildDigestCommand(): Command {
       const projectDir = resolveProjectDir();
       const result = renderOnDemandDigest({ projectDir });
       if (opts.json) {
-        process.stdout.write(`${JSON.stringify(result.data, null, 2)}\n`);
+        writeJson(result.data, { pretty: true });
         return;
       }
       print(text(plain(result.text)));

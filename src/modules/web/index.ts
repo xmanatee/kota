@@ -13,6 +13,8 @@ import { Command } from "commander";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
+import { line, span } from "#modules/rendering/primitives.js";
+import { printToStderr } from "#modules/rendering/transport.js";
 import { createWebReadinessSource } from "./capability-readiness.js";
 import type { WebClient } from "./client.js";
 import { staticWebUiRoutes } from "./static-routes.js";
@@ -21,7 +23,7 @@ import { localWebClient } from "./web-operations.js";
 function parseIntOption(value: string, name: string): number {
   const n = Number.parseInt(value, 10);
   if (!Number.isFinite(n) || n <= 0) {
-    console.error(`Error: --${name} must be a positive integer, got "${value}"`);
+    printToStderr(line(span(`Error: --${name} must be a positive integer, got "${value}"`, "error")));
     process.exit(1);
   }
   return n;
@@ -31,6 +33,7 @@ const webModule: KotaModule = {
   name: "web",
   version: "1.0.0",
   description: "HTTP API server with SSE streaming and embedded web UI",
+  dependencies: ["rendering"],
 
   onLoad(ctx) {
     ctx.registerProvider(
@@ -56,15 +59,19 @@ const webModule: KotaModule = {
         });
         if (result.ok) return;
         if (result.reason === "missing_api_key") {
-          console.error("Error: No model provider API key configured. Set the selected provider's key or config.modelProvider.apiKey.");
+          printToStderr(line(span(
+            "Error: No model provider API key configured. Set the selected provider's key or config.modelProvider.apiKey.",
+            "error",
+          )));
           process.exit(1);
         }
         // daemon_required: a daemon is already running. Two web servers in the
         // same project would conflict on autonomy state and likely on the port,
         // so the contract refuses uniformly and points the operator at the fix.
-        console.error(
+        printToStderr(line(span(
           "Cannot start `kota serve` while a daemon is running. Stop the daemon first (`kota daemon stop`) or run `kota serve` against a separate project directory.",
-        );
+          "error",
+        )));
         process.exit(1);
       });
 

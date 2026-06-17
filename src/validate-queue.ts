@@ -1,3 +1,4 @@
+import { writeStderr, writeStdoutLine } from "./modules/rendering/transport.js";
 import {
   assertTaskQueueValid,
   formatTaskQueueValidationSummary,
@@ -66,7 +67,7 @@ function parseArgs(args: string[]): ValidateQueueCliArgs {
 try {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
-    console.log(usage());
+    writeStdoutLine(usage());
     process.exit(0);
   }
 
@@ -74,9 +75,9 @@ try {
     args.minReady !== undefined ? { minReady: args.minReady } : {};
   const result = assertTaskQueueValid(process.cwd(), options);
   if (args.summary) {
-    console.log(formatTaskQueueValidationSummary(result));
+    writeStdoutLine(formatTaskQueueValidationSummary(result));
   }
 } catch (error) {
-  console.error(error instanceof Error ? error.message : String(error));
+  writeStderr(`${error instanceof Error ? error.message : String(error)}\n`);
   process.exit(1);
 }

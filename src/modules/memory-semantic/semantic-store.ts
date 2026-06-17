@@ -10,6 +10,7 @@
 
 import { createHash } from "node:crypto";
 import type { Memory, MemoryProvider } from "#core/modules/provider-types.js";
+import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import type { MemoryStore } from "#modules/memory/store.js";
 import type { EmbeddingProvider } from "#modules/semantic-index/embedding-provider.js";
 import {
@@ -22,7 +23,7 @@ export type SemanticMemoryStoreOptions = {
 	base: MemoryStore;
 	provider: EmbeddingProvider;
 	/**
-	 * Called when background embedding fails. Defaults to console.error.
+	 * Called when background embedding fails. Defaults to a terminal diagnostic.
 	 * Tests override this to assert error handling without polluting output.
 	 */
 	onBackgroundError?: (err: unknown) => void;
@@ -60,7 +61,12 @@ export class SemanticMemoryStore implements MemoryProvider {
 		this.base = options.base;
 		const onError =
 			options.onBackgroundError ??
-			((err) => console.error("[memory-semantic] background embed failed:", err));
+			((err) =>
+				printTerminalDiagnostic(
+					"[memory-semantic] background embed failed:",
+					"error",
+					err instanceof Error ? err.message : String(err),
+				));
 		this.manager = new SemanticIndexManager({
 			adapter: buildAdapter(options.base),
 			provider: options.provider,

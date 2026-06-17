@@ -7,6 +7,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   realpathSync,
   writeFileSync,
 } from "node:fs";
@@ -164,6 +165,11 @@ describe("cli", () => {
     expect(shouldLaunchDefaultOperatorConsole(["node", "kota"], false)).toBe(false);
     expect(shouldLaunchDefaultOperatorConsole(["node", "kota", "run"], true)).toBe(false);
     expect(shouldLaunchDefaultOperatorConsole(["node", "kota", "--help"], true)).toBe(false);
+  });
+
+  it("routes raw stdout writes through the rendering transport", () => {
+    const source = readFileSync(CLI, "utf-8");
+    expect(source).not.toMatch(/\bprocess\.stdout\.write\b/);
   });
 });
 

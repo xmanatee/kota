@@ -14,7 +14,7 @@ import {
   span,
   stack,
 } from "#modules/rendering/primitives.js";
-import { print } from "#modules/rendering/transport.js";
+import { print, printToStderr, writeStdoutLine } from "#modules/rendering/transport.js";
 
 const VALID_STATUSES: OwnerQuestionStatus[] = ["pending", "answered", "dismissed", "expired"];
 
@@ -35,6 +35,10 @@ function parseDuration(s: string): number | null {
   if (m[2] === "h") return n * 3_600_000;
   if (m[2] === "m") return n * 60_000;
   return n * 86_400_000;
+}
+
+function printOwnerQuestionError(message: string): void {
+  printToStderr(line(span(message, "error")));
 }
 
 function statusRole(status: OwnerQuestionStatus): "success" | "warn" | "muted" | "accent" {
@@ -247,7 +251,7 @@ export function registerOwnerQuestionCommands(program: Command, ctx: ModuleConte
     .action(async (id: string) => {
       const item = await loadOwnerQuestionById(ctx, id);
       if (!item) {
-        console.error(`Error: owner question "${id}" not found.`);
+        printOwnerQuestionError(`Error: owner question "${id}" not found.`);
         process.exit(1);
       }
       print(renderDetail(item));
@@ -259,12 +263,12 @@ export function registerOwnerQuestionCommands(program: Command, ctx: ModuleConte
     .action(async (id: string, answerWords: string[]) => {
       const answer = answerWords.join(" ").trim();
       if (!answer) {
-        console.error("Error: answer text is required.");
+        printOwnerQuestionError("Error: answer text is required.");
         process.exit(1);
       }
       const mutate = await ctx.client.ownerQuestions.answer(id, answer);
       if (!mutate.ok) {
-        console.error(`Error: owner question "${id}" not found or already resolved.`);
+        printOwnerQuestionError(`Error: owner question "${id}" not found or already resolved.`);
         process.exit(1);
       }
       print(line(
@@ -281,7 +285,7 @@ export function registerOwnerQuestionCommands(program: Command, ctx: ModuleConte
     .action(async (id: string, opts: { reason?: string }) => {
       const mutate = await ctx.client.ownerQuestions.dismiss(id, opts.reason);
       if (!mutate.ok) {
-        console.error(`Error: owner question "${id}" not found or already resolved.`);
+        printOwnerQuestionError(`Error: owner question "${id}" not found or already resolved.`);
         process.exit(1);
       }
       const suffix = opts.reason ? ` — ${opts.reason}` : "";
@@ -297,8 +301,7 @@ export function registerOwnerQuestionCommands(program: Command, ctx: ModuleConte
     .description("Print the number of pending owner questions")
     .action(async () => {
       const result = await ctx.client.ownerQuestions.list();
-      // biome-ignore lint/suspicious/noConsole: bare count output consumed by scripts
-      console.log(String(result.questions.length));
+      writeStdoutLine(String(result.questions.length));
     });
 
   cmd
@@ -311,7 +314,7 @@ export function registerOwnerQuestionCommands(program: Command, ctx: ModuleConte
       const limit = Math.max(1, parseInt(opts.n, 10) || 20);
       const statusFilter = opts.status as OwnerQuestionStatus | undefined;
       if (statusFilter && !VALID_STATUSES.includes(statusFilter)) {
-        console.error(`Error: invalid --status "${statusFilter}". Must be one of: ${VALID_STATUSES.join(", ")}`);
+        printOwnerQuestionError(`Error: invalid --status "${statusFilter}". Must be one of: ${VALID_STATUSES.join(", ")}`);
         process.exit(1);
       }
 
@@ -319,7 +322,7 @@ export function registerOwnerQuestionCommands(program: Command, ctx: ModuleConte
       if (opts.since) {
         sinceMs = parseDuration(opts.since);
         if (sinceMs === null) {
-          console.error(`Error: invalid --since "${opts.since}". Use format like 1h, 24h, 7d.`);
+          printOwnerQuestionError(`Error: invalid --since "${opts.since}". Use format like 1h, 24h, 7d.`);
           process.exit(1);
         }
       }

@@ -13,7 +13,7 @@ import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import type { RecallHit, RecallSource } from "#modules/recall/client.js";
 import { blank, line, plain, span } from "#modules/rendering/primitives.js";
-import { print, TerminalTransport } from "#modules/rendering/transport.js";
+import { print, TerminalTransport, writeStdoutLine } from "#modules/rendering/transport.js";
 import type {
   AnswerCitation,
   AnswerFilter,
@@ -42,9 +42,7 @@ function stderrTransport(): TerminalTransport {
 
 function collectSources(value: string, previous: RecallSource[]): RecallSource[] {
   if (!(ALLOWED_SOURCES as readonly string[]).includes(value)) {
-    console.error(
-      `Unknown source "${value}". Valid: ${ALLOWED_SOURCES.join(", ")}`,
-    );
+    stderrTransport().write(line(span(`Unknown source "${value}". Valid: ${ALLOWED_SOURCES.join(", ")}`, "error")));
     process.exit(1);
   }
   return [...previous, value as RecallSource];
@@ -103,7 +101,7 @@ export function registerAnswerCommand(
         if (opts.before !== undefined) filter.beforeId = opts.before;
         const result = await ctx.client.answer.log(filter);
         if (opts.json) {
-          process.stdout.write(`${JSON.stringify(result)}\n`);
+          writeStdoutLine(JSON.stringify(result));
           return;
         }
         if (result.entries.length === 0) {
@@ -123,7 +121,7 @@ export function registerAnswerCommand(
     .action(async (id: string, opts: { json?: boolean }) => {
       const result = await ctx.client.answer.show(id);
       if (opts.json) {
-        process.stdout.write(`${JSON.stringify(result)}\n`);
+        writeStdoutLine(JSON.stringify(result));
         if (!result.ok) process.exit(1);
         return;
       }
@@ -200,7 +198,7 @@ export function registerAnswerCommand(
         const result = await ctx.client.answer.answer(trimmed, filter);
 
         if (opts.json) {
-          process.stdout.write(`${JSON.stringify(result)}\n`);
+          writeStdoutLine(JSON.stringify(result));
           if (!result.ok) process.exit(1);
           return;
         }

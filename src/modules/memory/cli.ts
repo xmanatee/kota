@@ -8,7 +8,7 @@ import {
 	plain,
 	span,
 } from "#modules/rendering/primitives.js";
-import { print } from "#modules/rendering/transport.js";
+import { print, printToStderr, writeStdoutLine } from "#modules/rendering/transport.js";
 
 type MemoryRow = { id: string; created: string; content: string };
 
@@ -70,7 +70,7 @@ export function registerMemoryCommands(program: Command, ctx: ModuleContext): vo
 				limit,
 			});
 			if (!result.ok) {
-				console.error("Semantic memory search requires an embedding-backed memory provider.");
+				printToStderr(line(span("Semantic memory search requires an embedding-backed memory provider.", "error")));
 				process.exit(1);
 			}
 			if (result.entries.length === 0) {
@@ -99,12 +99,11 @@ export function registerMemoryCommands(program: Command, ctx: ModuleContext): vo
 				content = Buffer.concat(chunks).toString("utf-8").trimEnd();
 			}
 			if (!content) {
-				console.error("Content is required (use --content or pipe via stdin).");
+				printToStderr(line(span("Content is required (use --content or pipe via stdin).", "error")));
 				process.exit(1);
 			}
 			const result = await ctx.client.memory.add(content, opts.tag);
-			// biome-ignore lint/suspicious/noConsole: bare id output consumed by scripts
-			console.log(result.id);
+			writeStdoutLine(result.id);
 		});
 
 	memCmd
@@ -114,7 +113,7 @@ export function registerMemoryCommands(program: Command, ctx: ModuleContext): vo
 			await ensureCliProvidersFor(["memory"]);
 			const result = await ctx.client.memory.delete(id);
 			if (!result.ok) {
-				console.error(`Memory "${id}" not found.`);
+				printToStderr(line(span(`Memory "${id}" not found.`, "error")));
 				process.exit(1);
 			}
 			print(line(

@@ -122,6 +122,22 @@ async function captureNoColorOutput(fn: () => Promise<void>): Promise<string> {
 	}
 }
 
+async function captureStderr(fn: () => Promise<void>): Promise<string> {
+	const lines: string[] = [];
+	const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation((data) => {
+		lines.push(String(data));
+		return true;
+	});
+	try {
+		await fn();
+	} catch {
+		// Expected in tests that mock process.exit for validation failures.
+	} finally {
+		stderrSpy.mockRestore();
+	}
+	return lines.join("");
+}
+
 describe("approval CLI commands", () => {
 	let dir: string;
 
@@ -207,21 +223,17 @@ describe("approval CLI commands", () => {
 
 		it("errors on nonexistent id", async () => {
 			const program = makeProgram();
-			const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 			const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => { throw new Error("exit"); });
-			await expect(run(program, "approval", "reject", "deadbeef")).rejects.toThrow("exit");
-			expect(errSpy.mock.calls.flat().join("")).toContain("not found");
-			errSpy.mockRestore();
+			const err = await captureStderr(() => run(program, "approval", "reject", "deadbeef"));
+			expect(err).toContain("not found");
 			exitSpy.mockRestore();
 		});
 
 		it("errors on malformed ids", async () => {
 			const program = makeProgram();
-			const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 			const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => { throw new Error("exit"); });
-			await expect(run(program, "approval", "reject", "../abcd1234")).rejects.toThrow("exit");
-			expect(errSpy.mock.calls.flat().join("")).toContain("invalid approval id");
-			errSpy.mockRestore();
+			const err = await captureStderr(() => run(program, "approval", "reject", "../abcd1234"));
+			expect(err).toContain("invalid approval id");
 			exitSpy.mockRestore();
 		});
 	});
@@ -295,11 +307,9 @@ describe("approval CLI commands", () => {
 
 		it("errors on invalid --status", async () => {
 			const program = makeProgram();
-			const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 			const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => { throw new Error("exit"); });
-			await expect(run(program, "approval", "history", "--status", "bogus")).rejects.toThrow("exit");
-			expect(errSpy.mock.calls.flat().join("")).toContain("invalid --status");
-			errSpy.mockRestore();
+			const err = await captureStderr(() => run(program, "approval", "history", "--status", "bogus"));
+			expect(err).toContain("invalid --status");
 			exitSpy.mockRestore();
 		});
 
@@ -541,21 +551,17 @@ describe("approval CLI commands", () => {
 
 		it("errors on nonexistent id", async () => {
 			const program = makeProgram();
-			const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 			const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => { throw new Error("exit"); });
-			await expect(run(program, "approval", "approve", "deadbeef")).rejects.toThrow("exit");
-			expect(errSpy.mock.calls.flat().join("")).toContain("not found");
-			errSpy.mockRestore();
+			const err = await captureStderr(() => run(program, "approval", "approve", "deadbeef"));
+			expect(err).toContain("not found");
 			exitSpy.mockRestore();
 		});
 
 		it("errors on malformed ids", async () => {
 			const program = makeProgram();
-			const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 			const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => { throw new Error("exit"); });
-			await expect(run(program, "approval", "approve", "../abcd1234")).rejects.toThrow("exit");
-			expect(errSpy.mock.calls.flat().join("")).toContain("invalid approval id");
-			errSpy.mockRestore();
+			const err = await captureStderr(() => run(program, "approval", "approve", "../abcd1234"));
+			expect(err).toContain("invalid approval id");
 			exitSpy.mockRestore();
 		});
 	});

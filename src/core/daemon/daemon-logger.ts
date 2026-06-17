@@ -11,6 +11,7 @@
  *   { "ts": "<ISO8601>", "level": "info|warn|error", "msg": "...", ...fields }
  */
 
+import { writeTerminalStderr } from "#core/modules/terminal-renderer.js";
 import type { LogFormat } from "#core/util/log-format.js";
 
 export type DaemonLogFields = {
@@ -76,6 +77,6 @@ export class DaemonLogger {
       this.format === "json"
         ? formatJson(level, msg, fields)
         : formatText(level, msg);
-    process.stderr.write(`${line}\n`);
+    writeTerminalStderr(`${line}\n`);
   }
 }

@@ -4,6 +4,8 @@ import type { ModuleContext } from "#core/modules/module-types.js";
 import { getDaemonTransport } from "#core/server/daemon-transport.js";
 import { type AutonomyMode, isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowActiveRun } from "#core/workflow/run-types.js";
+import { columns, kvBlock, line, plain, span, stack } from "#modules/rendering/primitives.js";
+import { print, printToStderr, writeJson } from "#modules/rendering/transport.js";
 
 type SessionAutonomyResponse = {
   autonomy_mode?: string;
@@ -49,6 +51,10 @@ function buildStatusPath(projectId: string | undefined): string {
   return projectId ? `/status?projectId=${encodeURIComponent(projectId)}` : "/status";
 }
 
+function printSessionError(message: string): void {
+  printToStderr(line(span(message, "error")));
+}
+
 export function buildSessionCommand(_ctx: ModuleContext): Command {
   const sessionCmd = new Command("session")
     .description("Inspect active sessions tracked by the daemon");
@@ -65,9 +71,9 @@ export function buildSessionCommand(_ctx: ModuleContext): Command {
       const link = getDaemonTransport();
       if (!link) {
         if (opts.json) {
-          console.log(JSON.stringify({ sessions: [], offline: true }));
+          writeJson({ sessions: [], offline: true });
         } else {
-          console.log("Daemon is offline. No active sessions.");
+          print(line(plain("Daemon is offline. No active sessions.")));
         }
         return;
       }
@@ -78,9 +84,9 @@ export function buildSessionCommand(_ctx: ModuleContext): Command {
       );
       if (!status) {
         if (opts.json) {
-          console.log(JSON.stringify({ sessions: [], offline: true }));
+          writeJson({ sessions: [], offline: true });
         } else {
-          console.log("Daemon is offline. No active sessions.");
+          print(line(plain("Daemon is offline. No active sessions.")));
         }
         return;
       }
@@ -91,29 +97,37 @@ export function buildSessionCommand(_ctx: ModuleContext): Command {
       );
 
       if (opts.json) {
-        console.log(JSON.stringify({ sessions }));
+        writeJson({ sessions });
         return;
       }
 
       if (sessions.length === 0) {
-        console.log("No active sessions.");
+        print(line(plain("No active sessions.")));
         return;
       }
 
-      const idWidth = Math.max(...sessions.map((s) => s.id.length), 2);
-      const typeWidth = 11; // "interactive".length
-      const modeWidth = 10; // "supervised".length
-      console.log(
-        `${"ID".padEnd(idWidth)}  ${"Type".padEnd(typeWidth)}  ${"Mode".padEnd(modeWidth)}  ${"Agent/Workflow".padEnd(20)}  Started`,
-      );
-      console.log("-".repeat(idWidth + typeWidth + modeWidth + 44));
-      for (const s of sessions) {
-        const agent = s.kind === "workflow" ? s.workflow : "(interactive)";
-        const mode = s.kind === "interactive" ? s.autonomyMode : "-";
-        console.log(
-          `${s.id.padEnd(idWidth)}  ${s.kind.padEnd(typeWidth)}  ${mode.padEnd(modeWidth)}  ${agent.padEnd(20)}  ${s.startedAt}`,
-        );
-      }
+      print(columns(
+        [
+          { header: "ID", role: "accent", maxWidth: 28 },
+          { header: "Type", minWidth: 11 },
+          { header: "Mode", minWidth: 10 },
+          { header: "Agent/Workflow", maxWidth: 24 },
+          { header: "Started", role: "muted", maxWidth: 30 },
+        ],
+        sessions.map((s) => {
+          const agent = s.kind === "workflow" ? s.workflow : "(interactive)";
+          const mode = s.kind === "interactive" ? s.autonomyMode : "-";
+          return {
+            cells: [
+              { spans: [span(s.id, "accent")] },
+              { spans: [plain(s.kind)] },
+              { spans: [span(mode, s.kind === "interactive" ? "info" : "muted")] },
+              { spans: [span(agent, s.kind === "workflow" ? "tool" : "muted")] },
+              { spans: [span(s.startedAt, "muted")] },
+            ],
+          };
+        }),
+      ));
     });
 
   sessionCmd
@@ -127,7 +141,7 @@ export function buildSessionCommand(_ctx: ModuleContext): Command {
     .action(async (id: string, opts: { json?: boolean; project?: string }) => {
       const link = getDaemonTransport();
       if (!link) {
-        console.error("Daemon is offline.");
+        printSessionError("Daemon is offline.");
         process.exit(1);
       }
 
@@ -136,7 +150,7 @@ export function buildSessionCommand(_ctx: ModuleContext): Command {
         buildStatusPath(opts.project),
       );
       if (!status) {
-        console.error("Daemon is offline.");
+        printSessionError("Daemon is offline.");
         process.exit(1);
       }
 
@@ -151,14 +165,16 @@ export function buildSessionCommand(_ctx: ModuleContext): Command {
           guardrailsSnapshot: interactive.guardrailsSnapshot ?? null,
         };
         if (opts.json) {
-          console.log(JSON.stringify(detail));
+          writeJson(detail);
         } else {
-          console.log(`id:            ${detail.id}`);
-          console.log(`type:          interactive`);
-          console.log(`autonomy mode: ${detail.autonomyMode}`);
-          console.log(`guardrails:    ${detail.guardrailsSnapshot?.id ?? "(not refreshable)"}`);
-          console.log(`started:       ${detail.startedAt}`);
-          console.log(`last active:   ${detail.lastActive}`);
+          print(kvBlock([
+            { label: "ID", value: detail.id, role: "accent" },
+            { label: "Type", value: "interactive", role: "info" },
+            { label: "Autonomy mode", value: detail.autonomyMode, role: "info" },
+            { label: "Guardrails", value: detail.guardrailsSnapshot?.id ?? "(not refreshable)", role: "muted" },
+            { label: "Started", value: detail.startedAt, role: "muted" },
+            { label: "Last active", value: detail.lastActive, role: "muted" },
+          ]));
         }
         return;
       }
@@ -172,17 +188,19 @@ export function buildSessionCommand(_ctx: ModuleContext): Command {
           startedAt: run.startedAt,
         };
         if (opts.json) {
-          console.log(JSON.stringify(detail));
+          writeJson(detail);
         } else {
-          console.log(`id:       ${detail.id}`);
-          console.log(`type:     workflow`);
-          console.log(`workflow: ${detail.workflow}`);
-          console.log(`started:  ${detail.startedAt}`);
+          print(kvBlock([
+            { label: "ID", value: detail.id, role: "accent" },
+            { label: "Type", value: "workflow", role: "tool" },
+            { label: "Workflow", value: detail.workflow, role: "tool" },
+            { label: "Started", value: detail.startedAt, role: "muted" },
+          ]));
         }
         return;
       }
 
-      console.error(`Session "${id}" not found.`);
+      printSessionError(`Session "${id}" not found.`);
       process.exit(1);
     });
 
@@ -192,12 +210,12 @@ export function buildSessionCommand(_ctx: ModuleContext): Command {
     .option("--json", "Output as JSON")
     .action(async (id: string, mode: string, opts: { json?: boolean }) => {
       if (!isAutonomyMode(mode)) {
-        console.error(`Invalid mode "${mode}". Expected one of: passive, supervised, autonomous.`);
+        printSessionError(`Invalid mode "${mode}". Expected one of: passive, supervised, autonomous.`);
         process.exit(1);
       }
       const link = getDaemonTransport();
       if (!link) {
-        console.error("Daemon is offline.");
+        printSessionError("Daemon is offline.");
         process.exit(1);
       }
       let res: Response;
@@ -208,34 +226,37 @@ export function buildSessionCommand(_ctx: ModuleContext): Command {
           body: JSON.stringify({ autonomy_mode: mode }),
         });
       } catch {
-        console.error("Failed to reach the daemon.");
+        printSessionError("Failed to reach the daemon.");
         process.exit(1);
       }
       if (res.status === 404) {
-        console.error(`Session "${id}" not found.`);
+        printSessionError(`Session "${id}" not found.`);
         process.exit(1);
       }
       if (!res.ok) {
-        console.error("Failed to reach the daemon.");
+        printSessionError("Failed to reach the daemon.");
         process.exit(1);
       }
       const body = (await res.json()) as SessionAutonomyResponse;
       const autonomyMode = (body.autonomy_mode ?? mode) as AutonomyMode;
       if (opts.json) {
-        console.log(
-          JSON.stringify({
-            ok: true,
-            autonomyMode,
-            ...(body.source !== undefined && { source: body.source }),
-            ...(body.serveOwned !== undefined && { serveOwned: body.serveOwned }),
-          }),
-        );
+        writeJson({
+          ok: true,
+          autonomyMode,
+          ...(body.source !== undefined && { source: body.source }),
+          ...(body.serveOwned !== undefined && { serveOwned: body.serveOwned }),
+        });
         return;
       }
-      console.log(`Session ${id} autonomy mode → ${autonomyMode}`);
-      if (body.source) console.log(`source: ${body.source}`);
+      print(line(
+        plain("Session "),
+        span(id, "accent"),
+        plain(" autonomy mode → "),
+        span(autonomyMode, "success"),
+      ));
+      if (body.source) print(line(plain("source: "), span(body.source, "muted")));
       if (body.serveOwned) {
-        console.log("note: session is owned by a kota serve process; daemon updated registration metadata only");
+        print(stack(line(span("note: session is owned by a kota serve process; daemon updated registration metadata only", "muted"))));
       }
     });
 

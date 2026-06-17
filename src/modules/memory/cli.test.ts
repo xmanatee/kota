@@ -105,6 +105,18 @@ function makeMemoryProgram(): Command {
 	return program;
 }
 
+function captureStdout() {
+	const chunks: string[] = [];
+	const spy = vi.spyOn(process.stdout, "write").mockImplementation((data) => {
+		chunks.push(String(data));
+		return true;
+	});
+	return {
+		text: () => chunks.join(""),
+		restore: () => spy.mockRestore(),
+	};
+}
+
 describe("kota memory add", () => {
 	let storeDir: string;
 
@@ -123,11 +135,10 @@ describe("kota memory add", () => {
 	});
 
 	it("creates an entry with --content and prints the ID", async () => {
-		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		const stdout = captureStdout();
 		await makeMemoryProgram().parseAsync(["node", "kota", "memory", "add", "--content", "hello world"]);
-		expect(logSpy).toHaveBeenCalledTimes(1);
-		const id = logSpy.mock.calls[0][0] as string;
-		logSpy.mockRestore();
+		const id = stdout.text().trim();
+		stdout.restore();
 		expect(typeof id).toBe("string");
 		expect(id.length).toBeGreaterThan(0);
 		const entry = getMemoryStore(storeDir).list().find((m) => m.id === id);
@@ -136,15 +147,15 @@ describe("kota memory add", () => {
 	});
 
 	it("applies --tag flags", async () => {
-		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		const stdout = captureStdout();
 		await makeMemoryProgram().parseAsync([
 			"node", "kota", "memory", "add",
 			"--content", "tagged note",
 			"--tag", "alpha",
 			"--tag", "beta",
 		]);
-		const id = logSpy.mock.calls[0][0] as string;
-		logSpy.mockRestore();
+		const id = stdout.text().trim();
+		stdout.restore();
 		const entry = getMemoryStore(storeDir).list().find((m) => m.id === id);
 		expect(entry).toBeDefined();
 		expect(entry!.tags).toEqual(["alpha", "beta"]);
@@ -160,10 +171,10 @@ describe("kota memory add", () => {
 		const stdinSpy = vi.spyOn(process, "stdin", "get").mockReturnValue(
 			mockStdin as unknown as typeof process.stdin,
 		);
-		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		const stdout = captureStdout();
 		await makeMemoryProgram().parseAsync(["node", "kota", "memory", "add"]);
-		const id = logSpy.mock.calls[0][0] as string;
-		logSpy.mockRestore();
+		const id = stdout.text().trim();
+		stdout.restore();
 		stdinSpy.mockRestore();
 		const entry = getMemoryStore(storeDir).list().find((m) => m.id === id);
 		expect(entry).toBeDefined();
@@ -190,7 +201,7 @@ describe("kota memory search", () => {
 		store.save("hello semantic memory");
 		vi.spyOn(store, "supportsSemanticSearch").mockReturnValue(true);
 		const semanticSearch = vi.spyOn(store, "semanticSearch").mockResolvedValue(store.list());
-		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		const stdout = captureStdout();
 		try {
 			await makeMemoryProgram().parseAsync([
 				"node", "kota", "memory", "search", "hello",
@@ -198,7 +209,7 @@ describe("kota memory search", () => {
 				"--limit", "3",
 			]);
 		} finally {
-			logSpy.mockRestore();
+			stdout.restore();
 		}
 
 		expect(semanticSearch).toHaveBeenCalledWith(

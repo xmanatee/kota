@@ -31,6 +31,7 @@ import { ModuleStorage } from "./module-storage.js";
 import type { ControlRouteRegistration, CreateSessionOptions, HealthCheckResult, ModuleEventProxy, ModuleRuntimeContext, ModuleSession, ModuleSummary, RouteRegistration } from "./module-types.js";
 import { getProviderRegistry, initProviderRegistry } from "./provider-registry.js";
 import type { ProviderToken } from "./provider-token.js";
+import { printTerminalDiagnostic } from "./terminal-renderer.js";
 
 export interface ModuleContextParams {
   cwd: string;
@@ -137,19 +138,19 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
   const formatLine = resolveLogFormatter(config.log?.format);
   const log = {
     info: (msg: string, data?: unknown) => {
-      console.error(formatLine("info", prefix, msg, data));
+      printTerminalDiagnostic(formatLine("info", prefix, msg, data));
       getModuleLogStore()?.append(moduleName ?? "_default", "info", msg, data);
     },
     warn: (msg: string, data?: unknown) => {
-      console.error(formatLine("warn", prefix, msg, data));
+      printTerminalDiagnostic(formatLine("warn", prefix, msg, data), "warn");
       getModuleLogStore()?.append(moduleName ?? "_default", "warn", msg, data);
     },
     error: (msg: string, data?: unknown) => {
-      console.error(formatLine("error", prefix, msg, data));
+      printTerminalDiagnostic(formatLine("error", prefix, msg, data), "error");
       getModuleLogStore()?.append(moduleName ?? "_default", "error", msg, data);
     },
     debug: (msg: string, data?: unknown) => {
-      if (verbose) console.error(formatLine("debug", prefix, msg, data));
+      if (verbose) printTerminalDiagnostic(formatLine("debug", prefix, msg, data), "debug");
       getModuleLogStore()?.append(moduleName ?? "_default", "debug", msg, data);
     },
   };
@@ -203,7 +204,7 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
       getToolMiddleware().add(name, fn, { priority, owner: moduleName });
     },
     registerDynamicStateProvider: (name, fn) => {
-      registerDynamicStateProvider(name, fn);
+      registerDynamicStateProvider(name, fn, moduleName ?? "_default");
     },
     registerCleanupHook: (fn) => {
       registerCleanupHook(moduleName ?? "_default", fn);

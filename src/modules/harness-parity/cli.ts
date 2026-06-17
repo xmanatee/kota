@@ -16,7 +16,7 @@ import {
   span,
   stack,
 } from "#modules/rendering/primitives.js";
-import { print } from "#modules/rendering/transport.js";
+import { print, printToStderr } from "#modules/rendering/transport.js";
 import type { HarnessParityArtifactSummary } from "./client.js";
 
 export type BuildHarnessParityCommandDeps = {
@@ -105,7 +105,7 @@ export function buildHarnessParityCommand(
         });
 
         if (!result.ok) {
-          console.error(`harness-parity run failed (${result.reason}): ${result.message}`);
+          printToStderr(line(span(`harness-parity run failed (${result.reason}): ${result.message}`, "error")));
           process.exitCode = 1;
           return;
         }

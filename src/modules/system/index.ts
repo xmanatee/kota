@@ -63,6 +63,7 @@ const systemModule: KotaModule = {
   version: "1.0.0",
   description:
     "System tools: clipboard, view_image, env_info, sqlite, notify",
+  dependencies: ["rendering"],
   manifest: {
     schemaVersion: 1,
     capabilities: [

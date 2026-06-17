@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import type { WorkflowStepInput } from "#core/workflow/step-input-types.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
+import { printWorkflowError, printWorkflowText } from "../cli-output.js";
 import { getValidatedWorkflowDefinitions } from "../definitions-source.js";
 import { formatDuration } from "../utils.js";
 
@@ -67,7 +68,7 @@ export function registerDefinitionsCommand(
       try {
         definitions = getValidatedWorkflowDefinitions(ctx);
       } catch (err) {
-        console.error(String(err instanceof Error ? err.message : err));
+        printWorkflowError(String(err instanceof Error ? err.message : err));
         process.exit(1);
       }
 
@@ -75,21 +76,21 @@ export function registerDefinitionsCommand(
         const def = definitions.find((d) => d.name === opts.name);
         if (!def) {
           const names = definitions.map((d) => d.name).join(", ");
-          console.error(`Unknown workflow "${opts.name}". Known: ${names}`);
+          printWorkflowError(`Unknown workflow "${opts.name}". Known: ${names}`);
           process.exit(1);
         }
         if (opts.json) {
-          console.log(JSON.stringify(def, null, 2));
+          printWorkflowText(JSON.stringify(def, null, 2));
           return;
         }
-        console.log(`Name:        ${def.name}`);
-        console.log(`Enabled:     ${def.enabled !== false ? "yes" : "no"}`);
-        if (def.description) console.log(`Description: ${def.description}`);
-        console.log(`Source:      ${def.definitionPath}`);
-        if (def.runTimeoutMs != null) console.log(`Run timeout:  ${formatDuration(def.runTimeoutMs)}`);
+        printWorkflowText(`Name:        ${def.name}`);
+        printWorkflowText(`Enabled:     ${def.enabled !== false ? "yes" : "no"}`);
+        if (def.description) printWorkflowText(`Description: ${def.description}`);
+        printWorkflowText(`Source:      ${def.definitionPath}`);
+        if (def.runTimeoutMs != null) printWorkflowText(`Run timeout:  ${formatDuration(def.runTimeoutMs)}`);
         if (def.inputSchema) {
           const fields = describeInputSchema(def.inputSchema);
-          console.log(`\nInputs:`);
+          printWorkflowText(`\nInputs:`);
           if (fields) {
             const props = (def.inputSchema.properties as Record<string, Record<string, unknown>>) ?? {};
             const required = new Set(((def.inputSchema.required as string[] | undefined) ?? []));
@@ -97,75 +98,75 @@ export function registerDefinitionsCommand(
               const type = typeof propSchema.type === "string" ? propSchema.type : "any";
               const req = required.has(key) ? " (required)" : " (optional)";
               const desc = typeof propSchema.description === "string" ? ` — ${propSchema.description}` : "";
-              console.log(`  ${key}: ${type}${req}${desc}`);
+              printWorkflowText(`  ${key}: ${type}${req}${desc}`);
             }
           } else {
-            console.log(`  (no properties defined)`);
+            printWorkflowText(`  (no properties defined)`);
           }
         }
-        if (def.concurrencyGroup) console.log(`Concurrency: ${def.concurrencyGroup}`);
-        console.log(`\nTriggers (${def.triggers.length}):`);
+        if (def.concurrencyGroup) printWorkflowText(`Concurrency: ${def.concurrencyGroup}`);
+        printWorkflowText(`\nTriggers (${def.triggers.length}):`);
         for (const t of def.triggers) {
           const cooldown = t.cooldownMs ? ` cooldown=${formatDuration(t.cooldownMs)}` : "";
           if (t.watch) {
             const patterns = Array.isArray(t.watch) ? t.watch.join(", ") : t.watch;
             const debounce = t.debounceMs ? ` debounce=${formatDuration(t.debounceMs)}` : "";
-            console.log(`  watch: ${patterns}${debounce}`);
+            printWorkflowText(`  watch: ${patterns}${debounce}`);
           } else if (t.schedule) {
-            console.log(`  cron: ${t.schedule}${cooldown}`);
+            printWorkflowText(`  cron: ${t.schedule}${cooldown}`);
           } else if (t.intervalMs) {
-            console.log(`  interval: ${formatDuration(t.intervalMs)}${cooldown}`);
+            printWorkflowText(`  interval: ${formatDuration(t.intervalMs)}${cooldown}`);
           } else {
             const filter = t.filter
               ? `\n    filter: ${JSON.stringify(t.filter)}`
               : "";
-            console.log(`  event: ${t.event ?? "?"}${cooldown}${filter}`);
+            printWorkflowText(`  event: ${t.event ?? "?"}${cooldown}${filter}`);
           }
         }
-        console.log(`\nSteps (${def.steps.length}):`);
+        printWorkflowText(`\nSteps (${def.steps.length}):`);
         for (const step of def.steps) {
-          console.log(`  ${describeStep(step)}`);
+          printWorkflowText(`  ${describeStep(step)}`);
           if (step.type === "parallel") {
-            for (const s of step.steps) console.log(`    ║ ${describeStep(s)}`);
+            for (const s of step.steps) printWorkflowText(`    ║ ${describeStep(s)}`);
           }
         }
         return;
       }
 
       if (opts.json) {
-        console.log(JSON.stringify(definitions, null, 2));
+        printWorkflowText(JSON.stringify(definitions, null, 2));
         return;
       }
 
       const nameWidth = Math.max(...definitions.map((d) => d.name.length), 8);
       const enWidth = 7;
       const stepsWidth = 5;
-      console.log(
+      printWorkflowText(
         `${"Name".padEnd(nameWidth)}  ${"Enabled".padEnd(enWidth)}  ${"Steps".padEnd(stepsWidth)}  Triggers`,
       );
-      console.log("-".repeat(nameWidth + enWidth + stepsWidth + 20));
+      printWorkflowText("-".repeat(nameWidth + enWidth + stepsWidth + 20));
       for (const def of definitions) {
         const name = def.name.padEnd(nameWidth);
         const enabled = (def.enabled !== false ? "yes" : "no").padEnd(enWidth);
         const steps = String(def.steps.length).padEnd(stepsWidth);
         const triggers = describeTrigger(def);
-        console.log(`${name}  ${enabled}  ${steps}  ${triggers}`);
+        printWorkflowText(`${name}  ${enabled}  ${steps}  ${triggers}`);
       }
-      console.log(`\n${definitions.length} definition(s) loaded.`);
+      printWorkflowText(`\n${definitions.length} definition(s) loaded.`);
       if (definitions.some((d) => d.runTimeoutMs != null)) {
-        console.log("\nConfig:");
+        printWorkflowText("\nConfig:");
         for (const def of definitions) {
           if (def.runTimeoutMs != null) {
-            console.log(`  ${def.name}: timeout=${formatDuration(def.runTimeoutMs)}`);
+            printWorkflowText(`  ${def.name}: timeout=${formatDuration(def.runTimeoutMs)}`);
           }
         }
       }
       if (definitions.some((d) => d.inputSchema != null)) {
-        console.log("\nInputs:");
+        printWorkflowText("\nInputs:");
         for (const def of definitions) {
           if (def.inputSchema != null) {
             const fields = describeInputSchema(def.inputSchema);
-            console.log(`  ${def.name}: ${fields ?? "(no properties defined)"}`);
+            printWorkflowText(`  ${def.name}: ${fields ?? "(no properties defined)"}`);
           }
         }
       }

@@ -71,6 +71,22 @@ async function captureOutput(fn: () => Promise<void>): Promise<string> {
   return lines.join("");
 }
 
+async function captureStderr(fn: () => Promise<void>): Promise<string> {
+  const lines: string[] = [];
+  const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation((data) => {
+    lines.push(String(data));
+    return true;
+  });
+  try {
+    await fn();
+  } catch {
+    // Expected in tests that mock process.exit for validation failures.
+  } finally {
+    stderrSpy.mockRestore();
+  }
+  return lines.join("");
+}
+
 function seed(
   queue: OwnerQuestionQueue,
   overrides: Partial<OwnerQuestionEnqueueInput> = {},
@@ -219,13 +235,11 @@ describe("owner-question CLI", () => {
   });
 
   it("answer errors on nonexistent id", async () => {
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => {
       throw new Error("exit");
     });
-    await expect(run(makeProgram(), "owner-question", "answer", "nonexistent", "yes")).rejects.toThrow("exit");
-    expect(errSpy.mock.calls.flat().join("")).toContain("not found");
-    errSpy.mockRestore();
+    const err = await captureStderr(() => run(makeProgram(), "owner-question", "answer", "nonexistent", "yes"));
+    expect(err).toContain("not found");
     exitSpy.mockRestore();
   });
 

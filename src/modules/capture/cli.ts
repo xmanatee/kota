@@ -11,7 +11,7 @@ import type { Command } from "commander";
 import { ensureCliProvidersFor } from "#core/modules/cli-providers.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { line, plain, span } from "#modules/rendering/primitives.js";
-import { print, TerminalTransport } from "#modules/rendering/transport.js";
+import { print, TerminalTransport, writeStdoutLine } from "#modules/rendering/transport.js";
 import { CAPTURE_TARGET_ORDER } from "./capture-types.js";
 import type { CaptureFilter, CaptureTarget } from "./client.js";
 import { renderCaptureResultPlain } from "./render.js";
@@ -26,9 +26,7 @@ function stderrTransport(): TerminalTransport {
 
 function parseTarget(value: string): CaptureTarget {
   if (!(CAPTURE_TARGET_ORDER as readonly string[]).includes(value)) {
-    console.error(
-      `Unknown target "${value}". Valid: ${CAPTURE_TARGET_ORDER.join(", ")}`,
-    );
+    stderrTransport().write(line(span(`Unknown target "${value}". Valid: ${CAPTURE_TARGET_ORDER.join(", ")}`, "error")));
     process.exit(1);
   }
   return value as CaptureTarget;
@@ -75,7 +73,7 @@ export function registerCaptureCommand(
         );
 
         if (opts.json) {
-          process.stdout.write(`${JSON.stringify(result)}\n`);
+          writeStdoutLine(JSON.stringify(result));
           if (!result.ok) process.exit(1);
           return;
         }

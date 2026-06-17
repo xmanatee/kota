@@ -6,6 +6,16 @@ import type {
   ModuleSetupJsonValue,
   ModuleSetupStatusResponse,
 } from "#core/modules/setup-requirements.js";
+import {
+  group,
+  line,
+  plain,
+  type RenderNode,
+  type SemanticRole,
+  span,
+  stack,
+} from "#modules/rendering/primitives.js";
+import { print, printToStderr, writeJson, writeStdoutLine } from "#modules/rendering/transport.js";
 import type {
   ModuleSetupMutationResult,
   ModuleSetupStartResult,
@@ -84,64 +94,92 @@ function redactSubmittedSecretValues(
   return redacted;
 }
 
+function setupStateRole(state: string): SemanticRole {
+  if (state === "ready" || state === "complete" || state === "satisfied") return "success";
+  if (state === "action_required" || state === "missing" || state === "pending") return "warn";
+  if (state === "failed" || state === "error") return "error";
+  return "muted";
+}
+
+function printSetupError(message: string): void {
+  printToStderr(line(span(message, "error")));
+}
+
 function printResult(
   result: ModuleSetupMutationResult | ModuleSetupStartResult,
   json: boolean,
   secretValues?: Record<string, string>,
 ): void {
   if (json) {
-    console.log(redactSubmittedSecretValues(JSON.stringify(result, null, 2), secretValues));
+    writeStdoutLine(redactSubmittedSecretValues(JSON.stringify(result, null, 2), secretValues));
     return;
   }
   if (!result.ok) {
-    console.error(redactSubmittedSecretValues(`Setup failed: ${result.message}`, secretValues));
+    printSetupError(redactSubmittedSecretValues(`Setup failed: ${result.message}`, secretValues));
     process.exit(1);
   }
+  const statusLine = line(
+    span(`${result.status.moduleName}/${result.status.requirementId}`, "accent"),
+    plain(": "),
+    span(result.status.state, setupStateRole(result.status.state)),
+  );
   if ("action" in result) {
-    console.log(
-      redactSubmittedSecretValues(
-        `${result.status.moduleName}/${result.status.requirementId}: ${result.status.state}`,
-        secretValues,
-      ),
-    );
-    console.log(redactSubmittedSecretValues(`Action: ${result.action.actionId}`, secretValues));
-    console.log(redactSubmittedSecretValues(`URL: ${result.action.url}`, secretValues));
+    print(stack(
+      statusLine,
+      line(plain("Action: "), span(redactSubmittedSecretValues(result.action.actionId, secretValues), "accent")),
+      line(plain("URL: "), span(redactSubmittedSecretValues(result.action.url, secretValues), "info")),
+    ));
     return;
   }
-  console.log(
-    redactSubmittedSecretValues(
-      `${result.status.moduleName}/${result.status.requirementId}: ${result.status.state}`,
-      secretValues,
-    ),
-  );
+  print(statusLine);
 }
 
 function printList(result: ModuleSetupStatusResponse, json: boolean): void {
   if (json) {
-    console.log(JSON.stringify(result, null, 2));
+    writeJson(result, { pretty: true });
     return;
   }
   if (result.requirements.length === 0) {
-    console.log("No setup requirements declared.");
+    print(line(plain("No setup requirements declared.")));
     return;
   }
+  const nodes: RenderNode[] = [];
   for (const req of result.requirements) {
-    console.log(`${req.moduleName}/${req.requirementId}  ${req.state}  ${req.title}`);
-    console.log(`  ${req.message}`);
+    const details: RenderNode[] = [
+      line(span(req.state, setupStateRole(req.state)), plain("  "), plain(req.title)),
+      line(span(req.message, "muted")),
+    ];
     if (req.secretRefs) {
       for (const ref of req.secretRefs) {
-        console.log(`  secret ${ref.name}: ${ref.present ? "present" : "missing"}`);
+        details.push(line(
+          plain("secret "),
+          span(ref.name, "accent"),
+          plain(": "),
+          span(ref.present ? "present" : "missing", ref.present ? "success" : "warn"),
+        ));
       }
     }
     if (req.configFields) {
       for (const field of req.configFields) {
-        console.log(`  config ${field.configPath}: ${field.present ? "present" : "missing"}`);
+        details.push(line(
+          plain("config "),
+          span(field.configPath, "accent"),
+          plain(": "),
+          span(field.present ? "present" : "missing", field.present ? "success" : "warn"),
+        ));
       }
     }
     if (req.pendingAction) {
-      console.log(`  action ${req.pendingAction.actionId}: ${req.pendingAction.status}`);
+      details.push(line(
+        plain("action "),
+        span(req.pendingAction.actionId, "accent"),
+        plain(": "),
+        span(req.pendingAction.status, setupStateRole(req.pendingAction.status)),
+      ));
     }
+    nodes.push(group(`${req.moduleName}/${req.requirementId}`, stack(...details)));
   }
+  print(stack(...nodes));
 }
 
 export function buildSetupCommand(ctx: ModuleContext): Command {

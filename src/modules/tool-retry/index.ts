@@ -17,6 +17,7 @@ const toolRetryModule: KotaModule = {
 	name: "tool-retry",
 	version: "1.0.0",
 	description: "Retries transient tool failures with exponential backoff",
+	dependencies: ["rendering"],
 
 	onLoad: (ctx) => {
 		const mw = createRetryMiddleware();

@@ -18,6 +18,7 @@ import type {
 	RepoTasksProvider,
 	RepoTasksSearchOptions,
 } from "#core/modules/provider-types.js";
+import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import {
 	buildIndexableTaskText,
 	listFullRepoTasks,
@@ -36,7 +37,7 @@ export type SemanticTasksStoreOptions = {
 	projectDir: string;
 	provider: EmbeddingProvider;
 	/**
-	 * Called when background embedding fails. Defaults to console.error.
+	 * Called when background embedding fails. Defaults to a terminal diagnostic.
 	 * Tests override this to assert error handling without polluting output.
 	 */
 	onBackgroundError?: (err: unknown) => void;
@@ -74,12 +75,16 @@ export class SemanticTasksStore implements RepoTasksProvider {
 	constructor(options: SemanticTasksStoreOptions) {
 		this.projectDir = options.projectDir;
 		this.sidecarDir = tasksSidecarDir(options.projectDir);
-		mkdirSync(this.sidecarDir, { recursive: true });
-		const onError =
-			options.onBackgroundError ??
-			((err) =>
-				console.error("[tasks-semantic] background embed failed:", err));
-		this.manager = new SemanticIndexManager({
+			mkdirSync(this.sidecarDir, { recursive: true });
+			const onError =
+				options.onBackgroundError ??
+				((err) =>
+					printTerminalDiagnostic(
+						"[tasks-semantic] background embed failed:",
+						"error",
+						err instanceof Error ? err.message : String(err),
+					));
+			this.manager = new SemanticIndexManager({
 			adapter: buildAdapter(this.projectDir, this.sidecarDir),
 			provider: options.provider,
 			onError,

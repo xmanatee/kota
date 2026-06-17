@@ -16,8 +16,9 @@ import {
   kvBlock,
   line,
   plain,
+  span,
 } from "#modules/rendering/primitives.js";
-import { print } from "#modules/rendering/transport.js";
+import { print, printToStderr, writeJson } from "#modules/rendering/transport.js";
 import { inspectAgent, listAgents } from "./agent-ops-operations.js";
 import type {
   AgentInspectResult,
@@ -37,8 +38,7 @@ function buildAgentCommand(ctx: ModuleContext): Command {
     .action(async (opts: { json?: boolean }) => {
       const result = await ctx.client.agents.list();
       if (opts.json) {
-        // biome-ignore lint/suspicious/noConsole: structured JSON output path stays on console
-        console.log(JSON.stringify(result.agents, null, 2));
+        writeJson(result.agents, { pretty: true });
         return;
       }
       if (result.agents.length === 0) {
@@ -57,12 +57,11 @@ function buildAgentCommand(ctx: ModuleContext): Command {
       if (!result.found) {
         const all = await ctx.client.agents.list();
         const names = all.agents.map((entry) => entry.name).join(", ");
-        console.error(`Agent "${name}" not found. Registered: ${names || "(none)"}`);
+        printToStderr(line(span(`Agent "${name}" not found. Registered: ${names || "(none)"}`, "error")));
         process.exit(1);
       }
       if (opts.json) {
-        // biome-ignore lint/suspicious/noConsole: structured JSON output path stays on console
-        console.log(JSON.stringify(result.agent, null, 2));
+        writeJson(result.agent, { pretty: true });
         return;
       }
       print(kvBlock(buildAgentInspectEntries(result.agent)));

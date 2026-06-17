@@ -12,6 +12,8 @@
 import { Command, InvalidArgumentError } from "commander";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
+import { line, plain, span } from "#modules/rendering/primitives.js";
+import { print, printToStderr } from "#modules/rendering/transport.js";
 import type { McpServerClient } from "./client.js";
 import { mcpConfigSlice } from "./config-slice.js";
 import { localMcpServerClient } from "./mcp-server-operations.js";
@@ -20,7 +22,7 @@ const mcpServerModule: KotaModule = {
 	name: "mcp-server",
 	version: "1.0.0",
 	description: "Expose KOTA tools via the Model Context Protocol",
-	dependencies: ["prompt-templates", "repo-tasks"],
+	dependencies: ["prompt-templates", "repo-tasks", "rendering"],
 	configSlices: [mcpConfigSlice],
 
 	commands: (ctx: ModuleContext) => {
@@ -51,13 +53,14 @@ const mcpServerModule: KotaModule = {
 				});
 				if (result.ok) {
 					if ("transport" in result && result.transport === "http") {
-						console.log(`MCP Streamable HTTP endpoint: ${result.url}`);
+						print(line(plain("MCP Streamable HTTP endpoint: "), span(result.url, "accent")));
 					}
 					return;
 				}
-				console.error(
+				printToStderr(line(span(
 					"Cannot start `kota mcp-server` while a daemon is running. Stop the daemon first (`kota daemon stop`) before exposing the local MCP surface.",
-				);
+					"error",
+				)));
 				process.exit(1);
 			});
 

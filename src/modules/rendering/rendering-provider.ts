@@ -12,10 +12,20 @@ import type { Transport } from "#core/loop/transport.js";
 import type {
   RenderingProvider,
   ReplChrome,
+  TerminalDiagnostic,
+  TerminalDiagnosticLevel,
+  TerminalPrompt,
 } from "#core/modules/provider-types.js";
 import { CliTransport } from "./cli-transport.js";
-import { blank, line, plain, span } from "./primitives.js";
+import { blank, kvBlock, line, plain, prose, sectionRule, span, stack } from "./primitives.js";
 import { TerminalTransport } from "./transport.js";
+
+function roleForDiagnostic(level: TerminalDiagnosticLevel) {
+  if (level === "error") return "error";
+  if (level === "warn") return "warn";
+  if (level === "debug") return "muted";
+  return "info";
+}
 
 function createStderrChrome(): ReplChrome {
   const chrome = new TerminalTransport({ stream: process.stderr });
@@ -80,12 +90,69 @@ function createStderrChrome(): ReplChrome {
 }
 
 export function createRenderingProvider(): RenderingProvider {
+  const stderr = new TerminalTransport({ stream: process.stderr });
+
   return {
     createAgentTransport(options): Transport {
       return new CliTransport(options.verbose, options.showCost);
     },
     createReplChrome(): ReplChrome {
       return createStderrChrome();
+    },
+    printDiagnostic(diagnostic: TerminalDiagnostic): void {
+      const role = roleForDiagnostic(diagnostic.level);
+      stderr.write(
+        diagnostic.detail
+          ? stack(
+              line(span(diagnostic.message, role)),
+              line(span(diagnostic.detail, "muted")),
+            )
+          : line(span(diagnostic.message, role)),
+      );
+    },
+    printPrompt(prompt: TerminalPrompt): void {
+      if (prompt.kind === "question") {
+        stderr.write(
+          stack(
+            blank(),
+            sectionRule("Question"),
+            line(span("[kota] Question", "accent", true)),
+            prose(prompt.question),
+            sectionRule(""),
+          ),
+        );
+        stderr.writeRaw("> ");
+        return;
+      }
+
+      const risk = prompt.risk.toUpperCase();
+      const riskRole =
+        prompt.risk === "high" ? "error" : prompt.risk === "medium" ? "warn" : "info";
+      const details = prompt.details
+        ? [kvBlock([{ label: "Details", value: prompt.details, role: "muted" }], 8)]
+        : [];
+      stderr.write(
+        stack(
+          blank(),
+          sectionRule("Approval"),
+          line(
+            span("[kota] Approval requested ", "accent", true),
+            span(`[${risk} risk]`, riskRole, true),
+          ),
+          prose(prompt.action),
+          ...details,
+          line(
+            span("Timeout: ", "muted"),
+            plain(`${prompt.timeoutSeconds}s`),
+            span(" auto-rejects on expiry", "muted"),
+          ),
+          sectionRule(""),
+        ),
+      );
+      stderr.writeRaw("Approve? [y/N] ");
+    },
+    writeStderr(text): void {
+      stderr.writeRaw(text);
     },
   };
 }

@@ -10,9 +10,16 @@ import { execFileSync, type SpawnSyncReturns } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { NullTransport } from "./core/loop/transport.js";
 import { ModuleLoader } from "./core/modules/module-loader.js";
 import type { KotaModule } from "./core/modules/module-types.js";
 import { discoverProjectModules } from "./core/modules/project-discovery.js";
+import {
+  initProviderRegistry,
+  RENDERING_PROVIDER_TOKEN,
+  resetProviderRegistry,
+} from "./core/modules/provider-registry.js";
+import type { RenderingProvider, ReplChrome } from "./core/modules/provider-types.js";
 import { clearCustomTools, executeTool, getAllTools } from "./core/tools/index.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, } from "./core/tools/tool-groups.js";
 
@@ -39,6 +46,41 @@ function runCli(...args: string[]): { stdout: string; stderr: string; exitCode: 
 }
 
 let projectModules: KotaModule[];
+
+const noopChrome: ReplChrome = {
+  announceHarness: () => {},
+  showHelp: () => {},
+  showStatus: () => {},
+  showReset: () => {},
+  showError: () => {},
+  showGoodbye: () => {},
+};
+
+function installRenderingCapture(chunks: string[]): void {
+  const provider: RenderingProvider = {
+    createAgentTransport: () => new NullTransport(),
+    createReplChrome: () => noopChrome,
+    printDiagnostic: (diagnostic) => {
+      chunks.push(diagnostic.detail ? `${diagnostic.message}\n${diagnostic.detail}` : diagnostic.message);
+    },
+    printPrompt: (prompt) => {
+      chunks.push(prompt.kind);
+    },
+    writeStderr: (text) => {
+      chunks.push(text);
+    },
+  };
+  initProviderRegistry().register(RENDERING_PROVIDER_TOKEN, "test", provider);
+}
+
+beforeEach(() => {
+  resetProviderRegistry();
+});
+
+afterEach(() => {
+  resetProviderRegistry();
+  vi.restoreAllMocks();
+});
 
 describe("module → CLI pipeline (full lifecycle)", () => {
   beforeEach(async () => {
@@ -229,7 +271,8 @@ describe("module error resilience", () => {
 
   it("broken module commands() does not prevent other module commands", async () => {
     const loader = new ModuleLoader({});
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const chunks: string[] = [];
+    installRenderingCapture(chunks);
 
     const brokenCommandModule: KotaModule = {
       name: "broken-cmd",
@@ -249,17 +292,19 @@ describe("module error resilience", () => {
     expect(commandNames).toContain("tools");
 
     // Error should have been logged
-    expect(errSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Module "broken-cmd" command registration failed'),
+    expect(chunks).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Module "broken-cmd" command registration failed'),
+      ]),
     );
 
-    errSpy.mockRestore();
     await loader.unloadAll();
   });
 
   it("broken module routes() does not prevent other module routes", async () => {
     const loader = new ModuleLoader({});
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const chunks: string[] = [];
+    installRenderingCapture(chunks);
 
     const brokenRouteModule: KotaModule = {
       name: "broken-route",
@@ -272,11 +317,12 @@ describe("module error resilience", () => {
     // vercel-adapter routes should still work
     expect(routes.some((r) => r.path === "/api/chat/vercel")).toBe(true);
 
-    expect(errSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Module "broken-route" route registration failed'),
+    expect(chunks).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Module "broken-route" route registration failed'),
+      ]),
     );
 
-    errSpy.mockRestore();
     await loader.unloadAll();
   });
 });

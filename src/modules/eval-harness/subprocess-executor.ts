@@ -29,6 +29,7 @@ import { availableParallelism, tmpdir, totalmem } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { PRESET_ENV_VAR } from "#core/model/preset.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import { writeStderr } from "#modules/rendering/transport.js";
 import type {
   ExecutionProfilePreflightResult,
   ExecutionProfileVerification,
@@ -999,7 +1000,7 @@ export function createSubprocessExecutor(
         // logs include the same information the daemon would; piping through
         // here keeps fixture failures debuggable without reading tmp dirs.
         child.stderr.on("data", (chunk) => {
-          process.stderr.write(chunk);
+          writeStderr(String(chunk));
         });
 
         let timedOut = false;

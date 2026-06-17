@@ -18,6 +18,7 @@ import { getToolMcpAnnotations } from "#core/tools/guardrails-classify.js";
 import { clearCustomTools, registerTool } from "#core/tools/index.js";
 import executionModule from "#modules/execution/index.js";
 import filesystemModule from "#modules/filesystem/index.js";
+import renderingModule from "#modules/rendering/index.js";
 import {
 	KOTA_STATUS_UI_RESOURCE_URI,
 	MCP_UI_EXTENSION_ID,
@@ -38,10 +39,41 @@ import { McpTaskStore } from "./mcp-task-store.js";
 import { MCP_SKILLS_EXTENSION_ID, SKILL_INDEX_RESOURCE_URI } from "./resources.js";
 import { kotaToolToMcp, McpServer, type McpServerOptions, toolResultToMcp } from "./server.js";
 
-vi.mock("#core/modules/provider-registry.js", () => ({
-	getMemoryProvider: vi.fn(() => ({ list: () => [] })),
-	getKnowledgeProvider: vi.fn(() => ({ list: () => [] })),
-}));
+vi.mock("#core/modules/provider-registry.js", () => {
+	const renderingToken = "rendering";
+	const providers = new Map<string, unknown>();
+	const active = new Map<string, string>();
+	const keyFor = (token: string, name: string) => `${token}:${name}`;
+	const registry = {
+		register: vi.fn((token: string, name: string, provider: unknown) => {
+			providers.set(keyFor(token, name), provider);
+			if (!active.has(token)) active.set(token, name);
+		}),
+		get: vi.fn((token: string) => {
+			const activeName = active.get(token);
+			return activeName ? (providers.get(keyFor(token, activeName)) ?? null) : null;
+		}),
+		setActiveById: vi.fn((id: string, name: string) => {
+			if (!providers.has(keyFor(id, name))) return false;
+			active.set(id, name);
+			return true;
+		}),
+		introspect: vi.fn((id: string) => ({
+			active: active.get(id) ?? null,
+			names: [...providers.keys()]
+				.filter((key) => key.startsWith(`${id}:`))
+				.map((key) => key.slice(id.length + 1)),
+		})),
+	};
+	return {
+		RENDERING_PROVIDER_TOKEN: renderingToken,
+		getProviderRegistry: vi.fn(() => registry),
+		initProviderRegistry: vi.fn(() => registry),
+		getRenderingProvider: vi.fn(() => registry.get(renderingToken)),
+		getMemoryProvider: vi.fn(() => ({ list: () => [] })),
+		getKnowledgeProvider: vi.fn(() => ({ list: () => [] })),
+	};
+});
 
 vi.mock("#core/modules/module-metadata.js", () => ({
 	loadModuleMetadata: vi.fn(async () => ({
@@ -85,7 +117,7 @@ function mockDefaultProviders(): void {
 
 beforeAll(async () => {
 	const loader = new ModuleLoader({});
-	await loader.loadAll([filesystemModule, executionModule]);
+	await loader.loadAll([renderingModule, filesystemModule, executionModule]);
 
 	// Register stubs for tools whose owning modules need real credentials at
 	// load time but whose effect declarations the MCP annotation tests want

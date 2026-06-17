@@ -8,7 +8,7 @@ import {
   span,
   stack,
 } from "#modules/rendering/primitives.js";
-import { print } from "#modules/rendering/transport.js";
+import { print, printToStderr } from "#modules/rendering/transport.js";
 
 export function registerWebhookCommands(webhookCmd: Command, ctx: ModuleContext): void {
   webhookCmd
@@ -53,9 +53,7 @@ export function registerWebhookCommands(webhookCmd: Command, ctx: ModuleContext)
     .action(async (workflow: string) => {
       const result = await ctx.client.webhook.secretGenerate(workflow);
       if (result.overwrote) {
-        console.warn(
-          `Warning: a secret already existed for "${workflow}". It has been overwritten.`,
-        );
+        printToStderr(line(span(`Warning: a secret already existed for "${workflow}". It has been overwritten.`, "warn")));
       }
 
       print(stack(

@@ -3,8 +3,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  listHarnessHooks,
+  resetHarnessHooks,
+} from "#core/agent-harness/hooks.js";
 import { clearRegisteredConfigSlices, type ModuleConfigSlice } from "#core/config/config-slice.js";
 import { EventBus } from "#core/events/event-bus.js";
+import {
+  collectDynamicState,
+  resetDynamicStateProviders,
+} from "#core/loop/dynamic-state.js";
+import { NullTransport } from "#core/loop/transport.js";
 import {
   legacyEffect,
   networkWriteEffect,
@@ -15,6 +24,12 @@ import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS }
 import { ModuleLoader } from "./module-loader.js";
 import { projectSetupStatusOntoManifest } from "./module-manifest.js";
 import type { KotaModule } from "./module-types.js";
+import {
+  initProviderRegistry,
+  RENDERING_PROVIDER_TOKEN,
+  resetProviderRegistry,
+} from "./provider-registry.js";
+import type { RenderingProvider, ReplChrome } from "./provider-types.js";
 
 function fakeSlice(key: string, description = "test"): ModuleConfigSlice {
   return {
@@ -53,17 +68,49 @@ function makeToolWithoutMeta(name: string) {
   };
 }
 
+const noopChrome: ReplChrome = {
+  announceHarness: () => {},
+  showHelp: () => {},
+  showStatus: () => {},
+  showReset: () => {},
+  showError: () => {},
+  showGoodbye: () => {},
+};
+
+function installRenderingCapture(chunks: string[]): void {
+  const provider: RenderingProvider = {
+    createAgentTransport: () => new NullTransport(),
+    createReplChrome: () => noopChrome,
+    printDiagnostic: (diagnostic) => {
+      chunks.push(diagnostic.detail ? `${diagnostic.message}\n${diagnostic.detail}` : diagnostic.message);
+    },
+    printPrompt: (prompt) => {
+      chunks.push(prompt.kind);
+    },
+    writeStderr: (text) => {
+      chunks.push(text);
+    },
+  };
+  initProviderRegistry().register(RENDERING_PROVIDER_TOKEN, "test", provider);
+}
+
 describe("ModuleLoader", () => {
   beforeEach(() => {
     clearCustomTools();
     clearCustomGroups();
     resetGroups();
+    resetProviderRegistry();
+    resetDynamicStateProviders();
+    resetHarnessHooks();
   });
 
   afterEach(() => {
     clearCustomTools();
     clearCustomGroups();
     resetGroups();
+    resetProviderRegistry();
+    resetDynamicStateProviders();
+    resetHarnessHooks();
   });
 
   it("loads a module with tools", async () => {
@@ -782,7 +829,8 @@ describe("ModuleLoader", () => {
 
   it("project module load failure throws from loadAll", async () => {
     const loader = new ModuleLoader({});
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const chunks: string[] = [];
+    installRenderingCapture(chunks);
 
     await expect(
       loader.loadAll([
@@ -796,15 +844,17 @@ describe("ModuleLoader", () => {
 
     // Good module still loaded despite the throw
     expect(loader.getLoadedModules()).toEqual(["good-mod"]);
-    expect(errSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Module "bad-mod" failed to load: boom'),
+    expect(chunks).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Module "bad-mod" failed to load: boom'),
+      ]),
     );
-    errSpy.mockRestore();
   });
 
   it("installed module load failure is non-fatal in loadAll", async () => {
     const loader = new ModuleLoader({});
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const chunks: string[] = [];
+    installRenderingCapture(chunks);
 
     await loader.loadAll(
       [{ name: "good-mod" }],
@@ -815,15 +865,15 @@ describe("ModuleLoader", () => {
     );
 
     expect(loader.getLoadedModules()).toEqual(["good-mod"]);
-    expect(errSpy).not.toHaveBeenCalledWith(
-      expect.stringContaining("bad-installed"),
+    expect(chunks).not.toEqual(
+      expect.arrayContaining([expect.stringContaining("bad-installed")]),
     );
-    errSpy.mockRestore();
   });
 
   it("installed module load failure logs in verbose mode", async () => {
     const loader = new ModuleLoader({}, true);
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const chunks: string[] = [];
+    installRenderingCapture(chunks);
 
     await loader.loadAll(
       [{ name: "good-mod" }],
@@ -834,10 +884,11 @@ describe("ModuleLoader", () => {
     );
 
     expect(loader.getLoadedModules()).toEqual(["good-mod"]);
-    expect(errSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Optional module "bad-installed" skipped'),
+    expect(chunks).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Optional module "bad-installed" skipped'),
+      ]),
     );
-    errSpy.mockRestore();
   });
 
   it("records load failures with source in getModuleSummaries", async () => {
@@ -968,7 +1019,8 @@ describe("ModuleLoader", () => {
 
   it("handles onUnload errors gracefully", async () => {
     const loader = new ModuleLoader({});
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const chunks: string[] = [];
+    installRenderingCapture(chunks);
 
     await loader.load({
       name: "bad-unload",
@@ -976,10 +1028,11 @@ describe("ModuleLoader", () => {
     });
 
     await loader.unloadAll();
-    expect(errSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Module "bad-unload" unload error: cleanup failed'),
+    expect(chunks).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Module "bad-unload" unload error: cleanup failed'),
+      ]),
     );
-    errSpy.mockRestore();
   });
 
   it("unloads a single module and deregisters its tools", async () => {
@@ -1004,6 +1057,50 @@ describe("ModuleLoader", () => {
     expect(r2.is_error).toBe(true);
     const r3 = await executeTool("tool_b", {});
     expect(r3.content).toBe("result from tool_b");
+  });
+
+  it("unloads a single module and removes its loop and harness registrations", async () => {
+    const loader = new ModuleLoader({});
+    await loader.load({
+      name: "mod-a",
+      onLoad: (ctx) => {
+        ctx.registerDynamicStateProvider("mod-a-state", () => "A");
+        ctx.registerHarnessHook({
+          kind: "preRun",
+          name: "mod-a-hook",
+          handler: () => {},
+        });
+      },
+    });
+    await loader.load({
+      name: "mod-b",
+      onLoad: (ctx) => {
+        ctx.registerDynamicStateProvider("mod-b-state", () => "B");
+        ctx.registerHarnessHook({
+          kind: "preRun",
+          name: "mod-b-hook",
+          handler: () => {},
+        });
+      },
+    });
+
+    expect(collectDynamicState({ activeTools: new Set() })).toBe("AB");
+    expect(listHarnessHooks("preRun").map((hook) => hook.name)).toEqual([
+      "mod-a-hook",
+      "mod-b-hook",
+    ]);
+
+    await loader.unload("mod-a");
+
+    expect(collectDynamicState({ activeTools: new Set() })).toBe("B");
+    expect(listHarnessHooks("preRun").map((hook) => hook.name)).toEqual([
+      "mod-b-hook",
+    ]);
+
+    await loader.unloadAll();
+
+    expect(collectDynamicState({ activeTools: new Set() })).toBe("");
+    expect(listHarnessHooks("preRun")).toEqual([]);
   });
 
   it("removes grouped tools from TOOL_GROUPS on unload", async () => {
@@ -1474,7 +1571,8 @@ describe("Module SDK — storage, config, skills", () => {
   });
 
   it("handles missing skill file gracefully", async () => {
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const chunks: string[] = [];
+    installRenderingCapture(chunks);
     const loader = new ModuleLoader({});
     await loader.load({
       name: "broken-mod",
@@ -1482,10 +1580,11 @@ describe("Module SDK — storage, config, skills", () => {
     });
 
     expect(loader.getSkillsPrompt()).toBe("");
-    expect(errSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Module "broken-mod" skill "missing" failed to load'),
+    expect(chunks).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Module "broken-mod" skill "missing" failed to load'),
+      ]),
     );
-    errSpy.mockRestore();
   });
 
   it("rejects module skill frontmatter tool-policy declarations", async () => {

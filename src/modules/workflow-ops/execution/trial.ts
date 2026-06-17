@@ -34,6 +34,7 @@ import type { WorkflowRunMetadata, WorkflowStepContext } from "#core/workflow/ru
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 import { validateWorkflowDefinitions, WorkflowDefinitionError } from "#core/workflow/validation.js";
+import { printWorkflowError, printWorkflowText } from "../cli-output.js";
 import type {
   WorkflowTrialAttemptReport,
   WorkflowTrialBlockedSideEffect,
@@ -1042,7 +1043,7 @@ export function registerTrialCommand(wfCmd: Command, ctx: ModuleContext): void {
       try {
         options = parseTrialCliOptions(opts);
       } catch (err) {
-        console.error(err instanceof Error ? err.message : String(err));
+        printWorkflowError(err instanceof Error ? err.message : String(err));
         process.exit(1);
       }
 
@@ -1056,10 +1057,10 @@ export function registerTrialCommand(wfCmd: Command, ctx: ModuleContext): void {
         result = await runLocalWorkflowTrial(ctx, name, options);
       }
       if (!result.ok) {
-        console.error(result.message);
+        printWorkflowError(result.message);
         process.exit(1);
       }
-      console.log(formatWorkflowTrialSummary(result.summary));
+      printWorkflowText(formatWorkflowTrialSummary(result.summary));
       if (result.summary.status !== "passed") {
         process.exitCode = 1;
       }

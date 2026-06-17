@@ -12,6 +12,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import type { KotaModule } from "#core/modules/module-types.js";
+import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import { manifestToModule } from "./execution.js";
 import type { ModuleManifest } from "./types.js";
 import { validateManifest } from "./validation.js";
@@ -77,20 +78,22 @@ export function discoverManifestModules(cwd?: string): KotaModule[] {
 		if (!existsSync(manifestPath)) continue;
 		try {
 			const raw = readFileSync(manifestPath, "utf-8");
-			const manifest = JSON.parse(raw) as ModuleManifest;
-			const errors = validateManifest(manifest);
-			if (errors.length > 0) {
-				console.error(
-					`[kota] Manifest module "${entry}" has validation errors, skipping`,
+				const manifest = JSON.parse(raw) as ModuleManifest;
+				const errors = validateManifest(manifest);
+				if (errors.length > 0) {
+					printTerminalDiagnostic(
+						`[kota] Manifest module "${entry}" has validation errors, skipping`,
+						"error",
+					);
+					continue;
+				}
+				modules.push(manifestToModule(manifest));
+			} catch {
+				printTerminalDiagnostic(
+					`[kota] Failed to load manifest module "${entry}", skipping`,
+					"error",
 				);
-				continue;
 			}
-			modules.push(manifestToModule(manifest));
-		} catch {
-			console.error(
-				`[kota] Failed to load manifest module "${entry}", skipping`,
-			);
-		}
 	}
 	return modules;
 }

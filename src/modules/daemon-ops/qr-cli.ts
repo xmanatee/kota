@@ -5,6 +5,8 @@ import { Command } from "commander";
 import { resolveProjectDir } from "#core/config/project-dir.js";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control-types.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { blank, line, plain, span, stack } from "#modules/rendering/primitives.js";
+import { print, printToStderr, writeStdout } from "#modules/rendering/transport.js";
 
 const require = createRequire(import.meta.url);
 
@@ -46,14 +48,14 @@ export function buildQrCommand(): Command {
       );
 
       if (!address || typeof address.port !== "number") {
-        console.error("Daemon is not running. Start the daemon first with: kota daemon start");
+        printToStderr(line(span("Daemon is not running. Start the daemon first with: kota daemon start", "error")));
         process.exitCode = 1;
         return;
       }
 
       const ip = getLocalNetworkIp();
       if (!ip) {
-        console.error("Could not detect local network IP address.");
+        printToStderr(line(span("Could not detect local network IP address.", "error")));
         process.exitCode = 1;
         return;
       }
@@ -63,9 +65,16 @@ export function buildQrCommand(): Command {
       const payload = JSON.stringify({ url, token });
 
       const qr = await generateQr(payload);
-      console.log("\nScan this QR code with the KOTA mobile app to configure the connection:\n");
-      console.log(qr);
-      console.log(`  URL:   ${url}`);
-      console.log(`  Token: ${token ? `${token.slice(0, 8)}...` : "(none)"}\n`);
+      print(stack(
+        blank(),
+        line(plain("Scan this QR code with the KOTA mobile app to configure the connection:")),
+        blank(),
+      ));
+      writeStdout(`${qr}\n`);
+      print(stack(
+        line(plain("  URL:   "), span(url, "accent")),
+        line(plain("  Token: "), span(token ? `${token.slice(0, 8)}...` : "(none)", token ? "warn" : "muted")),
+        blank(),
+      ));
     });
 }

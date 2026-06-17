@@ -188,6 +188,27 @@ export interface ReplChrome {
 	showGoodbye(): void;
 }
 
+/** Severity level for operator-facing terminal diagnostics. */
+export type TerminalDiagnosticLevel = "info" | "warn" | "error" | "debug";
+
+/** A human-facing diagnostic line emitted by core through the rendering seam. */
+export type TerminalDiagnostic = {
+	level: TerminalDiagnosticLevel;
+	message: string;
+	detail?: string;
+};
+
+/** Interactive prompts that core tools ask the rendering module to paint. */
+export type TerminalPrompt =
+	| { kind: "question"; question: string }
+	| {
+			kind: "confirmation";
+			action: string;
+			risk: "low" | "medium" | "high";
+			details?: string;
+			timeoutSeconds: number;
+		};
+
 /**
  * Rendering service — the module-owned seam core uses to paint
  * operator-facing surfaces without importing `#modules/rendering/*`.
@@ -201,6 +222,12 @@ export interface RenderingProvider {
 	createAgentTransport(options: { verbose: boolean; showCost: boolean }): Transport;
 	/** Build the REPL chrome surface used for banners, help, and errors. */
 	createReplChrome(): ReplChrome;
+	/** Print a core/runtime diagnostic to stderr through the rendering module. */
+	printDiagnostic(diagnostic: TerminalDiagnostic): void;
+	/** Print an interactive prompt to stderr through the rendering module. */
+	printPrompt(prompt: TerminalPrompt): void;
+	/** Forward raw stderr chunks through the rendering transport for passthrough streams. */
+	writeStderr(text: string): void;
 }
 
 /**

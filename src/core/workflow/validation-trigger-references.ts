@@ -1,3 +1,4 @@
+import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import type { WorkflowStep, WorkflowTriggerStep } from "./step-types.js";
 import type { RegisteredWorkflowDefinitionInput } from "./types.js";
 import { WorkflowDefinitionError } from "./validation-primitives.js";
@@ -32,19 +33,21 @@ export function validateTriggerStepReferences(
   const definitionsByName = new Map(definitions.map((d) => [d.name, d]));
   for (const step of steps) {
     if (step.type === "trigger") {
-      const triggerStep = step as WorkflowTriggerStep;
-      if (!knownWorkflowNames.has(triggerStep.workflow)) {
-        console.warn(
-          `[workflow "${name}"] trigger step "${step.id}" references unknown workflow "${triggerStep.workflow}" — it may be registered by a module loaded later`,
-        );
-      } else if (triggerStep.waitFor === "queued") {
-        const childDef = definitionsByName.get(triggerStep.workflow);
-        if (childDef?.outputSchema != null) {
-          console.warn(
-            `[workflow "${name}"] trigger step "${step.id}" fires "${triggerStep.workflow}" with waitFor: "queued" but "${triggerStep.workflow}" declares an outputSchema — use waitFor: "completed" to access the child workflow's output`,
-          );
-        }
-      }
+			const triggerStep = step as WorkflowTriggerStep;
+			if (!knownWorkflowNames.has(triggerStep.workflow)) {
+				printTerminalDiagnostic(
+					`[workflow "${name}"] trigger step "${step.id}" references unknown workflow "${triggerStep.workflow}" — it may be registered by a module loaded later`,
+					"warn",
+				);
+			} else if (triggerStep.waitFor === "queued") {
+				const childDef = definitionsByName.get(triggerStep.workflow);
+				if (childDef?.outputSchema != null) {
+					printTerminalDiagnostic(
+						`[workflow "${name}"] trigger step "${step.id}" fires "${triggerStep.workflow}" with waitFor: "queued" but "${triggerStep.workflow}" declares an outputSchema — use waitFor: "completed" to access the child workflow's output`,
+						"warn",
+					);
+				}
+			}
     }
   }
 }

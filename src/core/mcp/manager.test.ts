@@ -149,6 +149,18 @@ async function waitFor(assertion: () => void, timeoutMs = 2_000): Promise<void> 
   throw lastError ?? new Error("Timed out waiting for assertion");
 }
 
+function captureTerminalStderr(): { output: () => string; restore: () => void } {
+  const chunks: string[] = [];
+  const spy = vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
+    chunks.push(String(chunk));
+    return true;
+  });
+  return {
+    output: () => chunks.join(""),
+    restore: () => spy.mockRestore(),
+  };
+}
+
 async function waitForResult<T>(
   read: () => Promise<T>,
   assertion: (value: T) => void,
@@ -1280,7 +1292,7 @@ describe("McpManager", () => {
       },
     }));
     const manager = new McpManager();
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const stderr = captureTerminalStderr();
 
     try {
       await manager.initialize({
@@ -1294,13 +1306,13 @@ describe("McpManager", () => {
       });
 
       expect(manager.getServerCount()).toBe(0);
-      const output = errorSpy.mock.calls.map((call) => call.join(" ")).join("\n");
+      const output = stderr.output();
       expect(output).toContain('MCP server "remote" failed to connect');
       expect(output).toContain("authorization required");
       expect(output).toContain("mcp:tools");
       expect(output).not.toContain("configured-token");
     } finally {
-      errorSpy.mockRestore();
+      stderr.restore();
       fetchSpy.mockRestore();
     }
   });
@@ -1675,7 +1687,7 @@ describe("McpManager", () => {
       });
     });
     const manager = new McpManager();
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const stderr = captureTerminalStderr();
 
     try {
       await manager.initialize({
@@ -1699,12 +1711,12 @@ describe("McpManager", () => {
       });
 
       expect(manager.getServerCount()).toBe(0);
-      const output = errorSpy.mock.calls.map((call) => call.join(" ")).join("\n");
+      const output = stderr.output();
       expect(output).toContain('MCP server "remote" failed to connect');
       expect(output).toContain("upstream echoed [redacted]");
       expect(output).not.toContain("access-token-secret");
     } finally {
-      errorSpy.mockRestore();
+      stderr.restore();
       fetchSpy.mockRestore();
     }
   });
@@ -1744,7 +1756,7 @@ describe("McpManager", () => {
       });
     });
     const manager = new McpManager();
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const stderr = captureTerminalStderr();
 
     try {
       await manager.initialize({
@@ -1768,13 +1780,13 @@ describe("McpManager", () => {
       });
 
       expect(manager.getServerCount()).toBe(0);
-      const output = errorSpy.mock.calls.map((call) => call.join(" ")).join("\n");
+      const output = stderr.output();
       expect(output).toContain('MCP server "remote" failed to connect');
       expect(output).toContain("token endpoint returned malformed JSON");
       expect(output).not.toMatch(/client-secret|client-sec|Basic a290|a290YS1jb/);
     } finally {
       await manager.close();
-      errorSpy.mockRestore();
+      stderr.restore();
       fetchSpy.mockRestore();
     }
   });
@@ -2622,7 +2634,7 @@ describe("McpManager", () => {
 
   it("reports ambiguous MCP server config without coercing it into stdio", async () => {
     const manager = new McpManager();
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const stderr = captureTerminalStderr();
 
     try {
       await manager.initialize({
@@ -2636,14 +2648,14 @@ describe("McpManager", () => {
       });
 
       expect(manager.getServerCount()).toBe(0);
-      expect(errorSpy.mock.calls.map((call) => call.join(" ")).join("\n")).toContain(
+      expect(stderr.output()).toContain(
         'MCP server "ambiguous" failed to connect',
       );
-      expect(errorSpy.mock.calls.map((call) => call.join(" ")).join("\n")).toContain(
+      expect(stderr.output()).toContain(
         "http transport cannot also define stdio fields",
       );
     } finally {
-      errorSpy.mockRestore();
+      stderr.restore();
     }
   });
 
@@ -3069,7 +3081,7 @@ describe("McpManager", () => {
 
     for (const { serverName, config, expected } of cases) {
       const manager = new McpManager();
-      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const stderr = captureTerminalStderr();
 
       try {
         await manager.initialize({
@@ -3077,11 +3089,11 @@ describe("McpManager", () => {
         });
 
         expect(manager.getServerCount()).toBe(0);
-        const errorOutput = errorSpy.mock.calls.map((call) => call.join(" ")).join("\n");
+        const errorOutput = stderr.output();
         expect(errorOutput).toContain(`MCP server "${serverName}" failed to connect`);
         expect(errorOutput).toContain(expected);
       } finally {
-        errorSpy.mockRestore();
+        stderr.restore();
       }
     }
   });
@@ -3158,7 +3170,7 @@ describe("McpManager", () => {
 
   it("initialize skips invalid x-mcp-header tools while registering valid tools", async () => {
     const manager = new McpManager();
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const stderr = captureTerminalStderr();
     const server = `
       const rl = require("readline").createInterface({ input: process.stdin });
       rl.on("line", (line) => {
@@ -3204,9 +3216,7 @@ describe("McpManager", () => {
       mcpServers: { configured: { command: "node", args: ["-e", server] } },
     });
 
-    const warning = errorSpy.mock.calls
-      .map((call) => call.join(" "))
-      .find((line) => line.includes("rejected MCP tool"));
+    const warning = stderr.output();
     expect(manager.getServerCount()).toBe(1);
     expect(manager.getToolCount()).toBe(1);
     expect(manager.isMcpTool("mcp__configured__kept")).toBe(true);
@@ -3225,7 +3235,7 @@ describe("McpManager", () => {
     expect(result.is_error).toBeUndefined();
 
     await manager.close();
-    errorSpy.mockRestore();
+    stderr.restore();
   }, 10_000);
 
   it("initialize registers tools from every tools/list page", async () => {
@@ -3421,7 +3431,7 @@ describe("McpManager", () => {
 
   it("keeps the previous server registry and warns when a refreshed tools/list is malformed", async () => {
     const manager = new McpManager();
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const stderr = captureTerminalStderr();
     const server = `
       const rl = require("readline").createInterface({ input: process.stdin });
       let subscriptionId = null;
@@ -3480,7 +3490,7 @@ describe("McpManager", () => {
     ]);
 
     await waitFor(() => {
-      const warnings = errorSpy.mock.calls.map((call) => call.join(" ")).join("\n");
+      const warnings = stderr.output();
       expect(warnings).toContain(
         'MCP server "badRefresh" tool refresh failed; keeping previous registry',
       );
@@ -3498,7 +3508,7 @@ describe("McpManager", () => {
     expect(result.is_error).toBeUndefined();
 
     await manager.close();
-    errorSpy.mockRestore();
+    stderr.restore();
   }, 10_000);
 
   it("exposes remote output schemas and accepts matching structuredContent", async () => {
@@ -3941,7 +3951,7 @@ describe("McpManager", () => {
     });
 
     expect(manager.getToolCount()).toBe(1);
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const stderr = captureTerminalStderr();
     const result = await manager.executeTool("mcp__remote__agentic", {});
 
     expect(manager.getToolCount()).toBe(1);
@@ -3974,13 +3984,12 @@ describe("McpManager", () => {
         requestState: "sampling-state",
       },
     });
-    const warnings = errorSpy.mock.calls.map((call) => call.join(" "));
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain('MCP server "remote"');
-    expect(warnings[0]).toContain('feature "sampling"');
-    expect(warnings[0]).toContain(`protocol ${MCP_DRAFT_PROTOCOL_VERSION}`);
-    expect(warnings[0]).toContain("compatibility-only");
-    errorSpy.mockRestore();
+    const warnings = stderr.output();
+    expect(warnings).toContain('MCP server "remote"');
+    expect(warnings).toContain('feature "sampling"');
+    expect(warnings).toContain(`protocol ${MCP_DRAFT_PROTOCOL_VERSION}`);
+    expect(warnings).toContain("compatibility-only");
+    stderr.restore();
 
     await manager.close();
   }, 10_000);

@@ -9,6 +9,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { KotaTool, KotaToolInputSchema } from "#core/agent-harness/message-protocol.js";
+import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import { buildRunner, handleCreate, handleList, handleRemove, type ToolResult } from "./custom-tool-handlers.js";
 import {
   type CustomToolDef,
@@ -141,7 +142,10 @@ export function loadSavedTools(): number {
       loaded++;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[kota] Invalid custom tool file "${file}" skipped: ${msg}`);
+      printTerminalDiagnostic(
+        `[kota] Invalid custom tool file "${file}" skipped: ${msg}`,
+        "warn",
+      );
     }
   }
   return loaded;

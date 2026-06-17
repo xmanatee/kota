@@ -10,6 +10,7 @@
  */
 
 import type { HttpForeignModuleConfig, KempInbound, KempOutbound, KempTransport } from "./foreign-module.js";
+import { printTerminalDiagnostic } from "./terminal-renderer.js";
 
 function resolveToken(bearerToken: string | { env: string } | undefined): string | undefined {
   if (bearerToken === undefined) return undefined;
@@ -43,7 +44,7 @@ export class HttpTransport implements KempTransport {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      process.stderr.write(`${this.label} HTTP request failed: ${message}\n`);
+      printTerminalDiagnostic(`${this.label} HTTP request failed: ${message}`, "error");
       this.closed = true;
       for (const waiter of this.waiters) waiter(null);
       this.waiters = [];
@@ -61,7 +62,7 @@ export class HttpTransport implements KempTransport {
     try {
       inbound = JSON.parse(text) as KempInbound;
     } catch {
-      process.stderr.write(`${this.label} Malformed response: ${text}\n`);
+      printTerminalDiagnostic(`${this.label} Malformed response: ${text}`, "warn");
       return;
     }
 

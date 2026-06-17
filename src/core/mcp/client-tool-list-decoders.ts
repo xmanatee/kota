@@ -1,5 +1,6 @@
 import { Buffer } from "node:buffer";
 import type { KotaJsonObject, KotaJsonValue, KotaToolInputSchema } from "#core/agent-harness/message-protocol.js";
+import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import type { McpToolAnnotations } from "#core/tools/effect.js";
 import {
   decodeCacheHints,
@@ -281,8 +282,9 @@ export function warnRejectedTool(serverName: string, rejected: McpRejectedToolDe
   const toolLabel = rejected.toolName
     ? `tool "${rejected.toolName}"`
     : "tool definition";
-  console.error(
+  printTerminalDiagnostic(
     `[kota] Warning: rejected MCP ${toolLabel} from server "${serverName}": ${rejected.reason}`,
+    "warn",
   );
 }
 

@@ -1,4 +1,6 @@
 import type { ToolMiddlewareFn } from "#core/tools/tool-middleware.js";
+import { line, span } from "#modules/rendering/primitives.js";
+import { printToStderr } from "#modules/rendering/transport.js";
 
 /** Max timeout we'll auto-retry a shell command with (5 minutes). */
 const SHELL_MAX_RETRY_TIMEOUT = 300_000;
@@ -108,7 +110,7 @@ export function createRetryMiddleware(
       reason = `timeout → ${Math.round((call.input.timeout_ms as number) / 1000)}s`;
     }
 
-    console.error(`[kota] Auto-retrying ${call.name} (${reason})...`);
+    printToStderr(line(span(`[kota] Auto-retrying ${call.name} (${reason})...`, "warn")));
     _stats.totalRetries++;
 
     const retryResult = await next();

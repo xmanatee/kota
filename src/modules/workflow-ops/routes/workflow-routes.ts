@@ -6,6 +6,8 @@ import { formatRunId } from "#core/workflow/run-io.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowQueuedRun } from "#core/workflow/run-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
+import { line, span } from "#modules/rendering/primitives.js";
+import { printToStderr } from "#modules/rendering/transport.js";
 import { buildDryRunPlan, type DryRunResult } from "../execution/dry-run.js";
 
 const EMPTY_WORKFLOW_STATUS: WorkflowLiveStatus = {
@@ -402,8 +404,13 @@ export async function handleWorkflowTrigger(
         }),
       });
     } catch (err) {
-      console.warn(
-        `workflow trigger daemon transport failed: ${err instanceof Error ? err.message : String(err)}`,
+      printToStderr(
+        line(
+          span(
+            `workflow trigger daemon transport failed: ${err instanceof Error ? err.message : String(err)}`,
+            "warn",
+          ),
+        ),
       );
     }
     if (resp) {

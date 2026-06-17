@@ -63,7 +63,7 @@ describe("registryModule", () => {
     expect(registryModule.routes).toBeUndefined();
   });
 
-  it("has no dependencies", () => {
-    expect(registryModule.dependencies).toBeUndefined();
+  it("declares its rendering dependency", () => {
+    expect(registryModule.dependencies).toEqual(["rendering"]);
   });
 });

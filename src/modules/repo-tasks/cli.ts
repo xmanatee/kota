@@ -14,7 +14,7 @@ import {
 	span,
 	stack,
 } from "#modules/rendering/primitives.js";
-import { print, TerminalTransport } from "#modules/rendering/transport.js";
+import { print, printToStderr, writeJson, writeStdout } from "#modules/rendering/transport.js";
 import type {
 	RepoTaskState as ContractRepoTaskState,
 	RepoTaskPriority,
@@ -35,15 +35,9 @@ function isRepoTaskPriority(value: string): value is RepoTaskPriority {
 	return (ALLOWED_PRIORITIES as readonly string[]).includes(value);
 }
 
-let stderrRenderer: TerminalTransport | null = null;
-function stderrTransport(): TerminalTransport {
-	if (!stderrRenderer) stderrRenderer = new TerminalTransport({ stream: process.stderr });
-	return stderrRenderer;
-}
-
 function collectStates(value: string, previous: RepoTaskState[]): RepoTaskState[] {
 	if (!REPO_TASK_STATES.includes(value as RepoTaskState)) {
-		console.error(`Unknown state "${value}". Valid: ${REPO_TASK_STATES.join(", ")}`);
+		printToStderr(line(span(`Unknown state "${value}". Valid: ${REPO_TASK_STATES.join(", ")}`, "error")));
 		process.exit(1);
 	}
 	return [...previous, value as RepoTaskState];
@@ -119,7 +113,7 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 			let states: RepoTaskState[];
 			if (opts.state) {
 				if (!REPO_TASK_STATES.includes(opts.state as RepoTaskState)) {
-					console.error(`Unknown state "${opts.state}". Valid: ${REPO_TASK_STATES.join(", ")}`);
+					printToStderr(line(span(`Unknown state "${opts.state}". Valid: ${REPO_TASK_STATES.join(", ")}`, "error")));
 					process.exit(1);
 				}
 				states = [opts.state as RepoTaskState];
@@ -142,11 +136,11 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 		.action(async (id: string) => {
 			const result = await ctx.client.tasks.show(id);
 			if (!result.found) {
-				console.error(`Task "${id}" not found.`);
+				printToStderr(line(span(`Task "${id}" not found.`, "error")));
 				process.exit(1);
 			}
-			process.stdout.write(result.content);
-			if (!result.content.endsWith("\n")) process.stdout.write("\n");
+			writeStdout(result.content);
+			if (!result.content.endsWith("\n")) writeStdout("\n");
 		});
 
 	taskCmd
@@ -154,7 +148,7 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 		.description("Move a normalized task to the target state, updating status frontmatter")
 		.action(async (id: string, targetState: string) => {
 			if (!REPO_TASK_STATES.includes(targetState as RepoTaskState)) {
-				console.error(`Unknown state "${targetState}". Valid: ${REPO_TASK_STATES.join(", ")}`);
+				printToStderr(line(span(`Unknown state "${targetState}". Valid: ${REPO_TASK_STATES.join(", ")}`, "error")));
 				process.exit(1);
 			}
 			const result = await ctx.client.tasks.move(id, targetState as RepoTaskState);
@@ -172,7 +166,7 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 				print(line(plain(`Task "${id}" is already in "${targetState}".`)));
 				return;
 			}
-			console.error(`Task "${id}" not found in any state directory`);
+			printToStderr(line(span(`Task "${id}" not found in any state directory`, "error")));
 			process.exit(1);
 		});
 
@@ -189,7 +183,7 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 		.action(async (opts: { days?: string; delete?: boolean; dryRun?: boolean }) => {
 			const days = opts.days != null ? Number.parseInt(opts.days, 10) : 30;
 			if (Number.isNaN(days) || days <= 0) {
-				console.error("--days must be a positive number");
+				printToStderr(line(span("--days must be a positive number", "error")));
 				process.exit(1);
 			}
 			const result = await ctx.client.tasks.gc({
@@ -224,11 +218,11 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 		.option("--summary <summary>", "One-line summary")
 		.action(async (title: string, opts: { priority: string; area: string; state: string; summary?: string }) => {
 			if (!isRepoTaskPriority(opts.priority)) {
-				console.error(`Invalid priority "${opts.priority}". Must be p0, p1, p2, or p3.`);
+				printToStderr(line(span(`Invalid priority "${opts.priority}". Must be p0, p1, p2, or p3.`, "error")));
 				process.exit(1);
 			}
 			if (!REPO_TASK_STATES.includes(opts.state as RepoTaskState)) {
-				console.error(`Unknown state "${opts.state}". Valid: ${REPO_TASK_STATES.join(", ")}`);
+				printToStderr(line(span(`Unknown state "${opts.state}". Valid: ${REPO_TASK_STATES.join(", ")}`, "error")));
 				process.exit(1);
 			}
 			const result = await ctx.client.tasks.create({
@@ -239,7 +233,7 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 				...(opts.summary !== undefined && { summary: opts.summary }),
 			});
 			if (!result.ok) {
-				console.error(result.message ?? `Failed to create task: ${result.reason}`);
+				printToStderr(line(span(result.message ?? `Failed to create task: ${result.reason}`, "error")));
 				process.exit(1);
 			}
 			print(stack(
@@ -280,14 +274,12 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 			) => {
 				const trimmed = query.trim();
 				if (!trimmed) {
-					stderrTransport().write(line(span("Usage: kota task search <query>", "warn")));
+					printToStderr(line(span("Usage: kota task search <query>", "warn")));
 					process.exit(1);
 				}
 				const limit = Number.parseInt(opts.limit, 10);
 				if (!Number.isFinite(limit) || limit <= 0) {
-					stderrTransport().write(
-						line(span(`Error: --limit must be a positive integer, got "${opts.limit}"`, "error")),
-					);
+					printToStderr(line(span(`Error: --limit must be a positive integer, got "${opts.limit}"`, "error")));
 					process.exit(1);
 				}
 				const semantic = !(opts.keyword === true || opts.semantic === false);
@@ -296,13 +288,13 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 				const result = await ctx.client.tasks.search(trimmed, filter);
 
 				if (opts.json) {
-					process.stdout.write(`${JSON.stringify(result)}\n`);
+					writeJson(result);
 					if (!result.ok) process.exit(1);
 					return;
 				}
 
 				if (!result.ok) {
-					stderrTransport().write(line(span(
+					printToStderr(line(span(
 						"Semantic task search requires an embedding-backed repo-tasks provider. " +
 							"Configure `providers.repo-tasks` to `tasks-semantic` or pass --keyword.",
 						"error",
@@ -351,7 +343,7 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 		.action(async (title: string) => {
 			const result = await ctx.client.tasks.capture(title);
 			if (!result.ok) {
-				console.error(result.message ?? `Failed to capture: ${result.reason}`);
+				printToStderr(line(span(result.message ?? `Failed to capture: ${result.reason}`, "error")));
 				process.exit(1);
 			}
 			print(line(

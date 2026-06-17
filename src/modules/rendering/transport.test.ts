@@ -3,11 +3,18 @@ import { line, plain, span } from "./primitives.js";
 import { ASCII_THEME, DEFAULT_THEME, NO_COLOR_THEME } from "./theme.js";
 import {
   getTerminalTransport,
+  printToStderr,
   renderToString,
+  setStderrTransport,
   setTerminalTransport,
   startSpinner,
+  TerminalScreenSession,
   TerminalTransport,
   type TransportStream,
+  writeJson,
+  writeStderr,
+  writeStdout,
+  writeStdoutLine,
 } from "./transport.js";
 
 function bufferStream(opts: { isTTY: boolean; columns?: number }): TransportStream & { chunks: string[] } {
@@ -39,6 +46,7 @@ describe("TerminalTransport", () => {
     if (originalRendererTheme === undefined) delete process.env.KOTA_RENDERER_THEME;
     else process.env.KOTA_RENDERER_THEME = originalRendererTheme;
     setTerminalTransport(null);
+    setStderrTransport(null);
   });
 
   test("picks the default theme and declared columns on a real tty", () => {
@@ -102,6 +110,29 @@ describe("TerminalTransport", () => {
     const rendered = renderToString(line(span("ok", "success")));
     expect(rendered).toBe("ok");
   });
+
+  test("raw machine-output helpers write through the shared stdout transport", () => {
+    const stream = bufferStream({ isTTY: false });
+    setTerminalTransport(new TerminalTransport({ stream }));
+    writeStdout("raw");
+    writeStdoutLine("line");
+    writeJson({ ok: true });
+    expect(stream.chunks.join("")).toBe('rawline\n{"ok":true}\n');
+  });
+
+  test("printToStderr writes through the shared stderr transport", () => {
+    const stream = bufferStream({ isTTY: false });
+    setStderrTransport(new TerminalTransport({ stream }));
+    printToStderr(line(span("bad", "error")));
+    expect(stream.chunks.join("")).toBe("bad\n");
+  });
+
+  test("writeStderr forwards raw chunks through the shared stderr transport", () => {
+    const stream = bufferStream({ isTTY: false });
+    setStderrTransport(new TerminalTransport({ stream }));
+    writeStderr("raw err");
+    expect(stream.chunks.join("")).toBe("raw err");
+  });
 });
 
 describe("startSpinner", () => {
@@ -140,13 +171,48 @@ describe("startSpinner", () => {
     const transport = new TerminalTransport({ stream });
     const handle = startSpinner("loading", { transport, intervalMs: 25 });
     expect(stream.chunks.length).toBe(1);
-    expect(stream.chunks[0]).toContain("\r");
+    expect(stream.chunks[0].startsWith("\r\x1b[2K")).toBe(true);
     expect(stream.chunks[0]).toContain("loading");
     vi.advanceTimersByTime(75);
     expect(stream.chunks.length).toBeGreaterThan(2);
     handle.succeed("done");
     const last = stream.chunks.at(-1)!;
+    expect(last.startsWith("\r\x1b[2K")).toBe(true);
     expect(last).toContain("done");
     expect(last.endsWith("\n")).toBe(true);
+  });
+
+  test("clears the current spinner line when stopped on an interactive tty", () => {
+    vi.useFakeTimers();
+    const stream = bufferStream({ isTTY: true, columns: 80 });
+    const transport = new TerminalTransport({ stream });
+    const handle = startSpinner("loading", { transport, intervalMs: 25 });
+    handle.stop();
+    expect(stream.chunks.at(-1)).toBe("\r\x1b[2K");
+  });
+});
+
+describe("TerminalScreenSession", () => {
+  test("owns alternate-screen control for interactive streams", () => {
+    const stream = bufferStream({ isTTY: true, columns: 80 });
+    const screen = new TerminalScreenSession({ stream });
+    screen.start();
+    screen.writeFrame("hello");
+    screen.stop();
+    const output = stream.chunks.join("");
+    expect(output).toContain("\x1b[?1049h");
+    expect(output).toContain("\x1b[?25l");
+    expect(output).toContain("hello\n");
+    expect(output).toContain("\x1b[?25h");
+    expect(output).toContain("\x1b[?1049l");
+  });
+
+  test("skips alternate-screen control for non-tty streams", () => {
+    const stream = bufferStream({ isTTY: false });
+    const screen = new TerminalScreenSession({ stream });
+    screen.start();
+    screen.writeFrame("hello");
+    screen.stop();
+    expect(stream.chunks.join("")).toBe("hello\n");
   });
 });

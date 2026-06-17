@@ -16,6 +16,7 @@
  */
 
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
+import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import { legacyEffect } from "./effect.js";
 import {
   detectExportFormat,
@@ -238,11 +239,14 @@ function adaptToolArray(
       } else if (isVercelAIFormat(item)) {
         tools.push(fromVercelAI(item, fallbackName));
       } else {
-        console.error(`[kota] ${fileName}: skipping tool at index ${i} (unrecognized format)`);
+        printTerminalDiagnostic(
+          `[kota] ${fileName}: skipping tool at index ${i} (unrecognized format)`,
+          "warn",
+        );
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[kota] ${fileName}: skipping tool at index ${i}: ${msg}`);
+      printTerminalDiagnostic(`[kota] ${fileName}: skipping tool at index ${i}: ${msg}`, "warn");
     }
   }
   if (tools.length === 0) {

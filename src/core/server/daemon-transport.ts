@@ -21,6 +21,7 @@ import type {
   DaemonControlAddress,
   DaemonSseStreamEvent,
 } from "#core/daemon/daemon-control.js";
+import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import { readLiveDaemonControlAddress } from "./daemon-control-address.js";
 
 const DEFAULT_FETCH_TIMEOUT_MS = 2_000;
@@ -179,8 +180,9 @@ class HttpDaemonTransport implements DaemonTransport {
                 payload: JSON.parse(data),
               } as DaemonSseStreamEvent;
             } catch (err) {
-              console.warn(
+              printTerminalDiagnostic(
                 "[kota-daemon-transport] Failed to parse daemon SSE event:",
+                "warn",
                 err instanceof Error ? err.message : String(err),
               );
             }
@@ -191,8 +193,9 @@ class HttpDaemonTransport implements DaemonTransport {
       try {
         await reader.cancel();
       } catch (err) {
-        console.warn(
+        printTerminalDiagnostic(
           "[kota-daemon-transport] Failed to cancel daemon SSE reader:",
+          "warn",
           err instanceof Error ? err.message : String(err),
         );
       }

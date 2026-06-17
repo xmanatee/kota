@@ -38,10 +38,21 @@ async function runCommand(
     writeOut: (s) => captured.stdout.push(s),
     writeErr: (s) => captured.stderr.push(s),
   });
+  const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation((data) => {
+    captured.stdout.push(String(data));
+    return true;
+  });
+  const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation((data) => {
+    captured.stderr.push(String(data));
+    return true;
+  });
   try {
     await cmd.parseAsync(args, { from: "user" });
   } catch {
     // commander throws on exitOverride; captured.exit holds the code
+  } finally {
+    stdoutSpy.mockRestore();
+    stderrSpy.mockRestore();
   }
 }
 
@@ -82,13 +93,8 @@ describe("voice CLI (ctx.client.voice contract)", () => {
     const audioPath = join(stateDir, "clip.wav");
     writeFileSync(audioPath, Buffer.from([1, 2, 3, 4, 5]));
     const captured: Captured = { exit: null, stdout: [], stderr: [] };
-    const logs: string[] = [];
-    const spy = vi.spyOn(console, "log").mockImplementation((...args) => {
-      logs.push(args.map(String).join(" "));
-    });
     await runCommand(cmd, ["transcribe", audioPath], captured);
-    spy.mockRestore();
-    expect(logs.join("\n")).toMatch(/len=5/);
+    expect(captured.stdout.join("")).toMatch(/len=5/);
   });
 
   it("surfaces daemon_required as the daemon-not-running hint", async () => {
@@ -97,13 +103,8 @@ describe("voice CLI (ctx.client.voice contract)", () => {
     const audioPath = join(stateDir, "clip.wav");
     writeFileSync(audioPath, Buffer.from([1]));
     const captured: Captured = { exit: null, stdout: [], stderr: [] };
-    const errorLogs: string[] = [];
-    const errSpy = vi.spyOn(console, "error").mockImplementation((...args) => {
-      errorLogs.push(args.map(String).join(" "));
-    });
     await runCommand(cmd, ["transcribe", audioPath], captured);
-    errSpy.mockRestore();
-    expect(errorLogs.join("\n")).toMatch(/Daemon is not running/);
+    expect(captured.stderr.join("")).toMatch(/Daemon is not running/);
   });
 
   it("surfaces a non-ok daemon response as a CLI failure with code", async () => {
@@ -125,13 +126,8 @@ describe("voice CLI (ctx.client.voice contract)", () => {
     const audioPath = join(stateDir, "clip.wav");
     writeFileSync(audioPath, Buffer.from([1]));
     const captured: Captured = { exit: null, stdout: [], stderr: [] };
-    const errorLogs: string[] = [];
-    const errSpy = vi.spyOn(console, "error").mockImplementation((...args) => {
-      errorLogs.push(args.map(String).join(" "));
-    });
     await runCommand(cmd, ["transcribe", audioPath], captured);
-    errSpy.mockRestore();
-    expect(errorLogs.join("\n")).toMatch(/stt-unavailable/);
+    expect(captured.stderr.join("")).toMatch(/stt-unavailable/);
   });
 
   it("writes synthesized audio to the --output path", async () => {
@@ -152,13 +148,11 @@ describe("voice CLI (ctx.client.voice contract)", () => {
     const cmd = buildVoiceCommand(stubCtx(voice));
     const outPath = join(stateDir, "out.mp3");
     const captured: Captured = { exit: null, stdout: [], stderr: [] };
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     await runCommand(
       cmd,
       ["speak", "hello world", "--output", outPath, "--no-play"],
       captured,
     );
-    errSpy.mockRestore();
     const written = readFileSync(outPath);
     expect(Array.from(written)).toEqual([9, 8, 7, 6]);
   });
@@ -167,12 +161,7 @@ describe("voice CLI (ctx.client.voice contract)", () => {
     const voice = localVoiceClient();
     const cmd = buildVoiceCommand(stubCtx(voice));
     const captured: Captured = { exit: null, stdout: [], stderr: [] };
-    const errorLogs: string[] = [];
-    const errSpy = vi.spyOn(console, "error").mockImplementation((...args) => {
-      errorLogs.push(args.map(String).join(" "));
-    });
     await runCommand(cmd, ["speak", "hi", "--no-play"], captured);
-    errSpy.mockRestore();
-    expect(errorLogs.join("\n")).toMatch(/Daemon is not running/);
+    expect(captured.stderr.join("")).toMatch(/Daemon is not running/);
   });
 });

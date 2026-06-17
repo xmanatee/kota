@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import { printWorkflowError, printWorkflowText } from "../cli-output.js";
 import { getWorkflowDefinitions } from "../definitions-source.js";
 
 function runGit(args: string, cwd: string): string {
@@ -44,14 +45,14 @@ export function registerDefinitionLogCommand(
       const def = definitions.find((d) => d.name === workflowName);
       if (!def) {
         const names = definitions.map((d) => d.name).join(", ");
-        console.error(`Unknown workflow "${workflowName}". Known: ${names}`);
+        printWorkflowError(`Unknown workflow "${workflowName}". Known: ${names}`);
         process.exit(1);
       }
 
       const projectDir = process.cwd();
       const gitRoot = getGitRoot(projectDir);
       if (!gitRoot) {
-        console.log("Not a git repository. Cannot show definition history.");
+        printWorkflowText("Not a git repository. Cannot show definition history.");
         return;
       }
 
@@ -59,7 +60,7 @@ export function registerDefinitionLogCommand(
 
       const checkOutput = runGit(`ls-files -- "${defPath}"`, gitRoot);
       if (!checkOutput.trim()) {
-        console.log(
+        printWorkflowText(
           `Definition file "${def.definitionPath}" is not tracked by git. No history available.`,
         );
         return;
@@ -71,21 +72,21 @@ export function registerDefinitionLogCommand(
           gitRoot,
         );
         if (!output.trim()) {
-          console.log(`No commits found for "${def.definitionPath}".`);
+          printWorkflowText(`No commits found for "${def.definitionPath}".`);
           return;
         }
-        console.log(output);
+        printWorkflowText(output);
       } else {
         const output = runGit(
           `log --pretty=format:"%h %ad %s" --date=short -- "${defPath}"`,
           gitRoot,
         );
         if (!output.trim()) {
-          console.log(`No commits found for "${def.definitionPath}".`);
+          printWorkflowText(`No commits found for "${def.definitionPath}".`);
           return;
         }
-        console.log(`Definition history for workflow "${def.name}" (${def.definitionPath}):\n`);
-        console.log(output);
+        printWorkflowText(`Definition history for workflow "${def.name}" (${def.definitionPath}):\n`);
+        printWorkflowText(output);
       }
     });
 }

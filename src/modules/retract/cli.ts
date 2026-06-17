@@ -20,7 +20,7 @@ import type { Command } from "commander";
 import { ensureCliProvidersFor } from "#core/modules/cli-providers.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { line, plain, span } from "#modules/rendering/primitives.js";
-import { print, TerminalTransport } from "#modules/rendering/transport.js";
+import { print, TerminalTransport, writeJson } from "#modules/rendering/transport.js";
 import type { RetractRequest, RetractTarget } from "./client.js";
 import { renderRetractResultPlain } from "./render.js";
 import { RETRACT_TARGET_ORDER } from "./retract-types.js";
@@ -130,7 +130,7 @@ export function registerRetractCommand(
         const result = await ctx.client.retract.retract(request);
 
         if (opts.json) {
-          process.stdout.write(`${JSON.stringify(result)}\n`);
+          writeJson(result);
           if (!result.ok) process.exit(1);
           return;
         }

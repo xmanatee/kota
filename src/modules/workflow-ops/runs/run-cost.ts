@@ -11,7 +11,7 @@ import {
   type SemanticRole,
   stack,
 } from "#modules/rendering/primitives.js";
-import { print } from "#modules/rendering/transport.js";
+import { print, writeJson } from "#modules/rendering/transport.js";
 import { formatDate } from "../utils.js";
 
 type RunCostEntry = {
@@ -147,12 +147,10 @@ export function registerCostCommand(wfCmd: Command, ctx: ModuleContext): void {
       const grandTotal = finished.reduce((s, r) => s + (r.totalCostUsd ?? 0), 0);
 
       if (opts.json) {
-        // biome-ignore lint/suspicious/noConsole: structured JSON output path stays on console
-        console.log(JSON.stringify(
+        writeJson(
           { days, totalCostUsd: grandTotal, runCount: finished.length, workflows: rows },
-          null,
-          2,
-        ));
+          { pretty: true },
+        );
         return;
       }
 

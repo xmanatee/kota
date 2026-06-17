@@ -22,6 +22,7 @@ import { manifestToModule, validateManifest } from "#core/manifest/index.js";
 import { adaptExport } from "#core/tools/tool-adapters.js";
 import { registerModuleConfigSlices } from "./module-config-slices.js";
 import type { KotaModule } from "./module-types.js";
+import { printTerminalDiagnostic } from "./terminal-renderer.js";
 
 const MODULES_DIR = ".kota/modules";
 
@@ -52,13 +53,13 @@ export async function discoverModules(cwd?: string, verbose = false): Promise<Ko
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[kota] Module "${name}" failed to load: ${msg}`);
+      printTerminalDiagnostic(`[kota] Module "${name}" failed to load: ${msg}`, "error");
     }
   }
 
   if (modules.length > 0 && verbose) {
     const toolCount = modules.reduce((n, module) => n + (module.tools?.length ?? 0), 0);
-    console.error(`[kota] Discovered ${modules.length} module(s) with ${toolCount} tool(s)`);
+    printTerminalDiagnostic(`[kota] Discovered ${modules.length} module(s) with ${toolCount} tool(s)`);
   }
 
   return modules;
@@ -78,12 +79,18 @@ async function loadModuleDirectory(dir: string, name: string): Promise<KotaModul
       const manifest = JSON.parse(raw) as ModuleManifest;
       const errors = validateManifest(manifest);
       if (errors.length > 0) {
-        console.error(`[kota] Manifest module "${name}" has validation errors, skipping`);
+        printTerminalDiagnostic(
+          `[kota] Manifest module "${name}" has validation errors, skipping`,
+          "warn",
+        );
         return null;
       }
       return manifestToModule(manifest);
     } catch {
-      console.error(`[kota] Failed to parse manifest for module "${name}", skipping`);
+      printTerminalDiagnostic(
+        `[kota] Failed to parse manifest for module "${name}", skipping`,
+        "warn",
+      );
       return null;
     }
   }

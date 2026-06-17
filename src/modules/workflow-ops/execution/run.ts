@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { WorkflowDefinitionError } from "#core/workflow/validation.js";
+import { printWorkflowError, printWorkflowText } from "../cli-output.js";
 import { getValidatedWorkflowDefinitions } from "../definitions-source.js";
 import { buildDryRunPlan, formatDryRunResult } from "./dry-run.js";
 
@@ -15,20 +16,20 @@ export function registerRunCommand(wfCmd: Command, ctx: ModuleContext): void {
     .action(async (runId: string) => {
       const result = await ctx.client.workflow.abortRun(runId);
       if (result.ok) {
-        console.log(`Aborted run ${runId}.`);
+        printWorkflowText(`Aborted run ${runId}.`);
         return;
       }
       if (result.reason === "daemon_required") {
-        console.error("No running daemon found. Cannot abort a run without a daemon.");
+        printWorkflowError("No running daemon found. Cannot abort a run without a daemon.");
         process.exit(1);
       }
       if (result.reason === "queued") {
-        console.error(
+        printWorkflowError(
           `Run "${runId}" is queued, not active. Use \`kota workflow cancel ${runId}\` to cancel it.`,
         );
         process.exit(1);
       }
-      console.error(`Run "${runId}" not found or not active.`);
+      printWorkflowError(`Run "${runId}" not found or not active.`);
       process.exit(1);
     });
 
@@ -39,7 +40,7 @@ export function registerRunCommand(wfCmd: Command, ctx: ModuleContext): void {
     .option("--payload <json>", "JSON payload to test trigger resolution against")
     .action(async (name: string, opts: { dryRun?: boolean; payload?: string }) => {
       if (!opts.dryRun) {
-        console.error(
+        printWorkflowError(
           "kota workflow run requires --dry-run.\n" +
             "To enqueue a workflow for execution, use: kota workflow trigger <name>",
         );
@@ -51,7 +52,7 @@ export function registerRunCommand(wfCmd: Command, ctx: ModuleContext): void {
         try {
           payload = JSON.parse(opts.payload) as Record<string, unknown>;
         } catch {
-          console.error("--payload must be valid JSON");
+          printWorkflowError("--payload must be valid JSON");
           process.exit(1);
         }
       }
@@ -61,7 +62,7 @@ export function registerRunCommand(wfCmd: Command, ctx: ModuleContext): void {
         definitions = getValidatedWorkflowDefinitions(ctx);
       } catch (err) {
         if (err instanceof WorkflowDefinitionError) {
-          console.error(`Definition error: ${err.message}`);
+          printWorkflowError(`Definition error: ${err.message}`);
           process.exit(1);
         }
         throw err;
@@ -70,7 +71,7 @@ export function registerRunCommand(wfCmd: Command, ctx: ModuleContext): void {
       const definition = definitions.find((d) => d.name === name);
       if (!definition) {
         const names = definitions.map((d) => d.name).join(", ");
-        console.error(`Unknown workflow "${name}". Available: ${names}`);
+        printWorkflowError(`Unknown workflow "${name}". Available: ${names}`);
         process.exit(1);
       }
 
@@ -81,7 +82,7 @@ export function registerRunCommand(wfCmd: Command, ctx: ModuleContext): void {
         availableToolNames,
       });
 
-      console.log(formatDryRunResult(result));
+      printWorkflowText(formatDryRunResult(result));
 
       if (!result.pass) {
         process.exit(1);

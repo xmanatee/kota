@@ -115,13 +115,15 @@ describe("web local handler cold-start", () => {
         guardrails: { toolOverrides: { process: "allow" } },
       }),
     );
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     let warnings = "";
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
+      warnings += String(chunk);
+      return true;
+    });
     try {
       await localWebClient(stubCtx(cwd, {})).start({ port: 0, noAuth: true });
-      warnings = warnSpy.mock.calls.map((call) => call.join(" ")).join("\n");
     } finally {
-      warnSpy.mockRestore();
+      stderrSpy.mockRestore();
     }
     expect(warnings).toContain("ignored untrusted project config");
     expect(warnings).toContain(join(cwd, ".kota", "config.json"));

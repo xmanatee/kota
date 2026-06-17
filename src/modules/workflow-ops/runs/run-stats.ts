@@ -9,7 +9,7 @@ import {
   type SemanticRole,
   stack,
 } from "#modules/rendering/primitives.js";
-import { print } from "#modules/rendering/transport.js";
+import { print, writeJson } from "#modules/rendering/transport.js";
 import { formatDuration } from "../utils.js";
 import { computeHistoryStats, loadRunsInWindow } from "./workflow-history.js";
 
@@ -96,8 +96,7 @@ export function registerStatsCommand(wfCmd: Command): void {
       const rows = computeStatsRows(store.runsDir, cutoffMs, opts.workflow);
 
       if (opts.json) {
-        // biome-ignore lint/suspicious/noConsole: structured JSON output path stays on console
-        console.log(JSON.stringify(rows, null, 2));
+        writeJson(rows, { pretty: true });
         return;
       }
 

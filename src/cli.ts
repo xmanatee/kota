@@ -11,7 +11,7 @@ import { resolveKotaClient } from "#core/server/client-selector.js";
 import { setSkipConfirmations } from "#core/util/confirm.js";
 import { blank, line, span } from "#modules/rendering/primitives.js";
 import { createRenderingProvider } from "#modules/rendering/rendering-provider.js";
-import { TerminalTransport } from "#modules/rendering/transport.js";
+import { TerminalTransport, writeStdout } from "#modules/rendering/transport.js";
 import { resolveAgentHarness, runAgentHarness } from "./core/agent-harness/index.js";
 import { runAgentLoop } from "./core/loop/loop.js";
 import { buildKotaSystemPrompt } from "./core/loop/system-prompt.js";
@@ -31,6 +31,11 @@ import {
 import { discoverModules } from "./core/modules/module-discovery.js";
 import { ModuleLoader } from "./core/modules/module-loader.js";
 import { discoverProjectModules } from "./core/modules/project-discovery.js";
+import {
+  getProviderRegistry,
+  initProviderRegistry,
+  RENDERING_PROVIDER_TOKEN,
+} from "./core/modules/provider-registry.js";
 import {
   interactiveMode,
   parseIntOption,
@@ -67,6 +72,13 @@ function stdout(): TerminalTransport {
 }
 
 const program = new Command();
+
+function ensureCliRenderingProvider(): void {
+  const registry = getProviderRegistry() ?? initProviderRegistry();
+  if (!registry.get(RENDERING_PROVIDER_TOKEN)) {
+    registry.register(RENDERING_PROVIDER_TOKEN, "rendering", createRenderingProvider());
+  }
+}
 
 /**
  * Announce the active preset/harness on the stderr banner before the first
@@ -331,7 +343,7 @@ program
         },
         conversation: conversationOptions,
       });
-      if (!result.streamedText && result.text) process.stdout.write(result.text);
+      if (!result.streamedText && result.text) writeStdout(result.text);
       stdout().write(blank());
       return;
     }
@@ -460,7 +472,7 @@ async function checkPipeMode() {
             process.cwd(),
           ),
         });
-        if (!result.streamedText && result.text) process.stdout.write(result.text);
+        if (!result.streamedText && result.text) writeStdout(result.text);
         stdout().write(blank());
         return true;
       }
@@ -473,6 +485,7 @@ async function checkPipeMode() {
 }
 
 async function main() {
+  ensureCliRenderingProvider();
   // Discover project modules first so their registration side effects (model
   // clients, agent harness adapters, etc.) run before any pipe path or action
   // handler resolves something from a core registry.

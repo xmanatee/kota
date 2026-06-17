@@ -1,6 +1,8 @@
 import type { Command, Option } from "commander";
 import { Command as CommandClass } from "commander";
 import type { KotaModule } from "#core/modules/module-types.js";
+import { line, span } from "#modules/rendering/primitives.js";
+import { printToStderr, writeStdout } from "#modules/rendering/transport.js";
 
 /** Walk a command tree and collect name + description pairs for each level. */
 function getSubcommands(cmd: Command): Array<{ name: string; description: string }> {
@@ -198,6 +200,7 @@ const completionModule: KotaModule = {
   name: "completion",
   version: "1.0.0",
   description: "Shell completion script generator for bash and zsh",
+  dependencies: ["rendering"],
 
   commands: () => {
     const cmd = new CommandClass("completion")
@@ -207,13 +210,14 @@ const completionModule: KotaModule = {
         const program = getRoot(this);
         const detected = shell ?? detectShell();
         if (detected === "zsh") {
-          process.stdout.write(generateZsh(program));
+          writeStdout(generateZsh(program));
         } else if (detected === "bash") {
-          process.stdout.write(generateBash(program));
+          writeStdout(generateBash(program));
         } else {
-          console.error(
+          printToStderr(line(span(
             `Unknown shell: ${detected ?? "(none detected)"}\nSupported: bash, zsh\n\nUsage: kota completion bash  OR  kota completion zsh`,
-          );
+            "error",
+          )));
           process.exit(1);
         }
       });

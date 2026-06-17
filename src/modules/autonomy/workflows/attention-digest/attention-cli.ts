@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { Command } from "commander";
 import { resolveProjectDir } from "#core/config/project-dir.js";
 import { plain, text } from "#modules/rendering/primitives.js";
-import { print } from "#modules/rendering/transport.js";
+import { print, writeJson } from "#modules/rendering/transport.js";
 import { renderOnDemandAttention } from "./step.js";
 
 export function buildAttentionCommand(): Command {
@@ -31,9 +31,7 @@ export function buildAttentionCommand(): Command {
       const runsDir = join(projectDir, ".kota", "runs");
       const result = renderOnDemandAttention({ projectDir, runsDir });
       if (opts.json) {
-        process.stdout.write(
-          `${JSON.stringify({ items: result.items, text: result.text }, null, 2)}\n`,
-        );
+        writeJson({ items: result.items, text: result.text }, { pretty: true });
         return;
       }
       print(text(plain(result.text)));

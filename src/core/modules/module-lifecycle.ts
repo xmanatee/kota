@@ -1,7 +1,14 @@
+import {
+  removeHarnessHooks,
+  resetHarnessHooks,
+} from "#core/agent-harness/hooks.js";
 import { unregisterConfigSlicesForOwner } from "#core/config/config-slice.js";
 import { getModuleEventRegistry } from "#core/events/module-event.js";
 import { removeCleanupHooks, resetCleanupHooks } from "#core/loop/cleanup-hooks.js";
-import { resetDynamicStateProviders } from "#core/loop/dynamic-state.js";
+import {
+  removeDynamicStateProviders,
+  resetDynamicStateProviders,
+} from "#core/loop/dynamic-state.js";
 import { removePreSendHooks, resetPreSendHooks } from "#core/loop/pre-send-hooks.js";
 import type { LocalClientHandlers } from "#core/server/kota-client.js";
 import { deregisterModuleTools } from "#core/tools/index.js";
@@ -12,7 +19,8 @@ import {
   unregisterModuleCapabilityManifestProjection,
 } from "./module-manifest.js";
 import type { KotaModule } from "./module-types.js";
-import { getProviderRegistry } from "./provider-registry.js";
+import { getProviderRegistry, getRenderingProvider } from "./provider-registry.js";
+import { printTerminalDiagnostic } from "./terminal-renderer.js";
 
 export interface ModuleLoadFailure {
   message: string;
@@ -105,7 +113,9 @@ export function discardModuleLoadState(
     if (owner === moduleName) state.registeredConfigKeys.delete(key);
   }
   removeCleanupHooks(moduleName);
+  removeDynamicStateProviders(moduleName);
   removePreSendHooks(moduleName);
+  removeHarnessHooks(moduleName);
 }
 
 export async function unloadModule(
@@ -130,14 +140,14 @@ export async function unloadModule(
       await mod.onUnload();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[kota] Module "${moduleName}" unload error: ${msg}`);
+      printTerminalDiagnostic(`[kota] Module "${moduleName}" unload error: ${msg}`, "error");
     }
   }
 
   state.modules.splice(idx, 1);
   discardModuleLoadState(moduleName, state);
 
-  if (env.verbose) console.error(`[kota] Module "${moduleName}" unloaded`);
+  if (env.verbose) printTerminalDiagnostic(`[kota] Module "${moduleName}" unloaded`);
   return true;
 }
 
@@ -145,6 +155,7 @@ export async function unloadAllModules(state: LoaderState, env: LifecycleEnv): P
   const owners = [...new Set(state.registeredConfigKeys.values())];
   const loadedModules = [...state.modules];
   const eventOwners = loadedModules.map((m) => m.name);
+  const renderingProvider = getRenderingProvider();
 
   // AgentSession.close() is synchronous, so this cleanup must happen before
   // any async onUnload hook can yield and race the next session's module load.
@@ -173,6 +184,7 @@ export async function unloadAllModules(state: LoaderState, env: LifecycleEnv): P
   resetCleanupHooks();
   resetDynamicStateProviders();
   resetPreSendHooks();
+  resetHarnessHooks();
 
   for (const owner of owners) unregisterConfigSlicesForOwner(owner);
   const registry = getModuleEventRegistry();
@@ -202,7 +214,12 @@ export async function unloadAllModules(state: LoaderState, env: LifecycleEnv): P
         await mod.onUnload();
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[kota] Module "${mod.name}" unload error: ${msg}`);
+        const message = `[kota] Module "${mod.name}" unload error: ${msg}`;
+        if (renderingProvider) {
+          renderingProvider.printDiagnostic({ level: "error", message });
+        } else {
+          printTerminalDiagnostic(message, "error");
+        }
       }
     }
   }

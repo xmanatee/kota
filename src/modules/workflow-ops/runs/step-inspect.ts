@@ -5,7 +5,7 @@ import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { type LineNode, line, plain, span, stack } from "#modules/rendering/primitives.js";
-import { print } from "#modules/rendering/transport.js";
+import { print, writeJson } from "#modules/rendering/transport.js";
 import { formatDuration, statusIcon } from "../utils.js";
 
 type StepRecord = WorkflowRunMetadata["steps"][number];
@@ -119,8 +119,7 @@ export function registerStepInspectCommand(wfCmd: Command): void {
       if (options.format === "summary") {
         printSummary(step);
       } else {
-        // biome-ignore lint/suspicious/noConsole: structured JSON output path stays on console
-        console.log(JSON.stringify(step, null, 2));
+        writeJson(step, { pretty: true });
       }
     });
 }

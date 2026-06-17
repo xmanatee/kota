@@ -88,6 +88,7 @@ const filesystemModule: KotaModule = {
   version: "1.0.0",
   description:
     "Filesystem tools: file_read, file_write, file_edit, multi_edit, find_replace, glob, grep, file_watch, files_overview, repo_map",
+  dependencies: ["rendering"],
   tools,
 };
 

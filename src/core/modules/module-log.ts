@@ -15,6 +15,7 @@ import {
 	writeFileSync
 } from "node:fs";
 import { join } from "node:path";
+import { printTerminalDiagnostic } from "./terminal-renderer.js";
 
 export type LogLevel = "info" | "warn" | "error" | "debug";
 
@@ -129,7 +130,7 @@ export class ModuleLogStore {
 				.filter((e): e is LogEntry => e !== null);
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
-			console.error(`[kota] Failed to read module log ${path}: ${msg}`);
+			printTerminalDiagnostic(`[kota] Failed to read module log ${path}: ${msg}`, "error");
 			return [];
 		}
 	}
@@ -144,7 +145,7 @@ export class ModuleLogStore {
 			}
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
-			console.error(`[kota] Failed to prune module log ${path}: ${msg}`);
+			printTerminalDiagnostic(`[kota] Failed to prune module log ${path}: ${msg}`, "error");
 		}
 	}
 }

@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import { print } from "#modules/rendering/transport.js";
+import { print, writeJson } from "#modules/rendering/transport.js";
 import { buildOperatorInboxSnapshot } from "./operator-inbox.js";
 import { buildOperatorInboxNode } from "./operator-inbox-render.js";
 
@@ -27,7 +27,7 @@ export function buildInboxCommand(ctx: ModuleContext): Command {
         limit: parseLimit(opts.limit),
       });
       if (opts.json === true) {
-        process.stdout.write(`${JSON.stringify(snapshot, null, 2)}\n`);
+        writeJson(snapshot, { pretty: true });
         return;
       }
       print(buildOperatorInboxNode(snapshot));

@@ -9,6 +9,8 @@
 import { Command } from "commander";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
+import { blank, json, line, plain, span, stack } from "#modules/rendering/primitives.js";
+import { print, printToStderr, writeJson, writeStdoutLine } from "#modules/rendering/transport.js";
 import type {
   ConfigClient,
   ConfigGetResult,
@@ -25,6 +27,14 @@ import {
 } from "./config-operations.js";
 import { handleGetConfig } from "./routes.js";
 
+function writeConfigValueJson(value: Extract<ConfigGetResult, { found: true }>["value"]): void {
+  const serialized = JSON.stringify(value, null, 2);
+  if (serialized === undefined) {
+    throw new TypeError("Cannot write undefined config value as JSON output");
+  }
+  writeStdoutLine(serialized);
+}
+
 export function buildConfigCommand(ctx: ModuleContext): Command {
   const cmd = new Command("config").description("Inspect and validate KOTA configuration");
 
@@ -36,29 +46,28 @@ export function buildConfigCommand(ctx: ModuleContext): Command {
       const result = await ctx.client.config.validate();
 
       if (opts.json) {
-        process.stdout.write(`${JSON.stringify(result.resolved, null, 2)}\n`);
+        writeJson(result.resolved, { pretty: true });
         return;
       }
 
       if (result.sources.length === 0) {
-        console.log("Config sources: (none found — using defaults)");
+        print(line(plain("Config sources: "), span("(none found — using defaults)", "muted")));
       } else {
-        console.log("Config sources:");
-        for (const { label, path } of result.sources) {
-          console.log(`  ${label.padEnd(7)} ${path}`);
-        }
+        print(stack(
+          line(span("Config sources:", "info", true)),
+          ...result.sources.map(({ label, path }) =>
+            line(span(label, "muted"), plain("  "), span(path, "accent"))
+          ),
+        ));
       }
-      console.log();
 
       if (result.warnings.length > 0) {
         for (const w of result.warnings) {
-          console.error(`Warning: ${w}`);
+          printToStderr(line(span(`Warning: ${w}`, "warn")));
         }
-        console.log();
       }
 
-      console.log("Resolved config:");
-      console.log(JSON.stringify(result.resolved, null, 2));
+      print(stack(blank(), line(span("Resolved config:", "info", true)), json(result.resolved)));
     });
 
   cmd
@@ -67,13 +76,13 @@ export function buildConfigCommand(ctx: ModuleContext): Command {
     .action(async (key: string) => {
       const result = await ctx.client.config.get(key);
       if (!result.found) {
-        console.error(`Error: key "${key}" not found in resolved config`);
+        printToStderr(line(span(`Error: key "${key}" not found in resolved config`, "error")));
         process.exit(1);
       }
       if (typeof result.value === "string") {
-        process.stdout.write(`${result.value}\n`);
+        writeStdoutLine(result.value);
       } else {
-        process.stdout.write(`${JSON.stringify(result.value, null, 2)}\n`);
+        writeConfigValueJson(result.value);
       }
     });
 
@@ -83,7 +92,7 @@ export function buildConfigCommand(ctx: ModuleContext): Command {
     .action(async (key: string, value: string) => {
       const result = await ctx.client.config.set(key, value);
       if (result.unknownKey) {
-        console.error(`Warning: "${result.topKey}" is not a recognised config key`);
+        printToStderr(line(span(`Warning: "${result.topKey}" is not a recognised config key`, "warn")));
       }
     });
 
@@ -94,10 +103,10 @@ export function buildConfigCommand(ctx: ModuleContext): Command {
     .action(async (opts: { print?: boolean }) => {
       if (opts.print) {
         const result = await ctx.client.config.schemaContent();
-        process.stdout.write(`${result.content}\n`);
+        writeStdoutLine(result.content);
       } else {
         const result = await ctx.client.config.schemaPath();
-        process.stdout.write(`${result.path}\n`);
+        writeStdoutLine(result.path);
       }
     });
 
@@ -108,6 +117,7 @@ const configModule: KotaModule = {
   name: "config",
   version: "1.0.0",
   description: "Config CLI surface — kota config get/set/validate/schema",
+  dependencies: ["rendering"],
   commands: (ctx) => [buildConfigCommand(ctx)],
   routes: (ctx) => [
     { method: "GET", path: "/api/config", handler: (_req, res) => handleGetConfig(res, ctx.config) },

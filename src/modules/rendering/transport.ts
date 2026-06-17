@@ -1,3 +1,4 @@
+import { clearScreenDown, cursorTo } from "node:readline";
 import type { WriteStream } from "node:tty";
 import { spinner } from "./primitive-ctors.js";
 import type { RenderNode, StatusKind } from "./primitives.js";
@@ -79,14 +80,26 @@ export class TerminalTransport {
  * without forcing every call site to pass a transport through.
  */
 let defaultTransport: TerminalTransport | null = null;
+let stderrTransport: TerminalTransport | null = null;
 
 export function getTerminalTransport(): TerminalTransport {
   if (!defaultTransport) defaultTransport = new TerminalTransport();
   return defaultTransport;
 }
 
+export function getStderrTransport(): TerminalTransport {
+  if (!stderrTransport) {
+    stderrTransport = new TerminalTransport({ stream: asTransportStream(process.stderr) });
+  }
+  return stderrTransport;
+}
+
 export function setTerminalTransport(transport: TerminalTransport | null): void {
   defaultTransport = transport;
+}
+
+export function setStderrTransport(transport: TerminalTransport | null): void {
+  stderrTransport = transport;
 }
 
 /**
@@ -96,6 +109,33 @@ export function setTerminalTransport(transport: TerminalTransport | null): void 
  */
 export function print(node: RenderNode): void {
   getTerminalTransport().write(node);
+}
+
+export function printToStderr(node: RenderNode): void {
+  getStderrTransport().write(node);
+}
+
+export function writeStdout(text: string): void {
+  getTerminalTransport().writeRaw(text);
+}
+
+export function writeStderr(text: string): void {
+  getStderrTransport().writeRaw(text);
+}
+
+export function writeStdoutLine(text: string): void {
+  writeStdout(`${text}\n`);
+}
+
+export function writeJson(
+  value: object | string | number | boolean | null,
+  opts: { pretty?: boolean } = {},
+): void {
+  const serialized = JSON.stringify(value, null, opts.pretty ? 2 : undefined);
+  if (serialized === undefined) {
+    throw new TypeError("Cannot write undefined as JSON output");
+  }
+  writeStdoutLine(serialized);
 }
 
 /**
@@ -176,7 +216,7 @@ export function startSpinner(
   const writeFrame = () => {
     const node = spinner(currentLabel, { tick });
     const rendered = render(node, ctx);
-    stream.write(`\r[2K${rendered}`);
+    stream.write(`\r\x1b[2K${rendered}`);
     tick += 1;
   };
   writeFrame();
@@ -188,7 +228,7 @@ export function startSpinner(
     clearInterval(handle);
     const node = spinner(currentLabel, { status });
     const rendered = render(node, ctx);
-    stream.write(`\r[2K${rendered}\n`);
+    stream.write(`\r\x1b[2K${rendered}\n`);
   };
 
   return {
@@ -211,7 +251,41 @@ export function startSpinner(
       if (stopped) return;
       stopped = true;
       clearInterval(handle);
-      stream.write(`\r[2K`);
+      stream.write(`\r\x1b[2K`);
     },
   };
+}
+
+const ALT_SCREEN_ENTER = "\x1b[?1049h";
+const ALT_SCREEN_EXIT = "\x1b[?1049l";
+const CURSOR_HIDE = "\x1b[?25l";
+const CURSOR_SHOW = "\x1b[?25h";
+
+export class TerminalScreenSession {
+  private readonly stream: TransportStream;
+  private active = false;
+
+  constructor(opts: { stream?: TransportStream } = {}) {
+    this.stream = opts.stream ?? asTransportStream(process.stdout);
+  }
+
+  start(): void {
+    if (this.active || this.stream.isTTY !== true) return;
+    this.stream.write(`${ALT_SCREEN_ENTER}${CURSOR_HIDE}`);
+    this.active = true;
+  }
+
+  stop(): void {
+    if (!this.active) return;
+    this.stream.write(`${CURSOR_SHOW}${ALT_SCREEN_EXIT}`);
+    this.active = false;
+  }
+
+  writeFrame(output: string): void {
+    if (this.active) {
+      cursorTo(this.stream as WriteStream, 0, 0);
+      clearScreenDown(this.stream as WriteStream);
+    }
+    this.stream.write(`${output}\n`);
+  }
 }

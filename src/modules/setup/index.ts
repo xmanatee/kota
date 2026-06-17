@@ -98,6 +98,7 @@ const setupModule: KotaModule = {
   name: "setup",
   version: "1.0.0",
   description: "Module setup/auth requirement client namespace and CLI",
+  dependencies: ["rendering"],
   commands: (ctx) => [buildSetupCommand(ctx)],
   localClient: (ctx) => ({ setup: buildLocalSetupClient(ctx) }),
   daemonClient: (link) => ({ setup: buildDaemonSetupClient(link) }),

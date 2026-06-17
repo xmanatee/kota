@@ -1,6 +1,8 @@
 import { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { getDaemonTransport } from "#core/server/daemon-transport.js";
+import { line, plain, span } from "#modules/rendering/primitives.js";
+import { print, printToStderr, writeJson } from "#modules/rendering/transport.js";
 
 function formatEventSummary(type: string, payload: Record<string, unknown>): string {
   if (type.startsWith("workflow.")) {
@@ -101,13 +103,13 @@ export function buildEventsCommand(ctx: ModuleContext): Command {
     .action(async (opts: { json?: boolean; filter?: string; project?: string; allProjects?: boolean }) => {
       const link = getDaemonTransport();
       if (!link) {
-        console.error("Daemon is not running. Start the daemon with `kota daemon start`.");
+        printToStderr(line(span("Daemon is not running. Start the daemon with `kota daemon start`.", "error")));
         process.exit(1);
       }
 
       const filter = await resolveEventsProjectFilter(ctx, opts);
       if (!filter.ok) {
-        console.error(filter.message);
+        printToStderr(line(span(filter.message, "error")));
         process.exit(1);
       }
 
@@ -122,16 +124,16 @@ export function buildEventsCommand(ctx: ModuleContext): Command {
         if (!eventMatchesProject(event.payload, filter.projectId)) continue;
 
         if (opts.json) {
-          process.stdout.write(`${JSON.stringify({ type: event.type, payload: event.payload })}\n`);
+          writeJson({ type: event.type, payload: event.payload });
         } else {
           const ts = new Date().toISOString().replace("T", " ").replace("Z", "");
           const summary = formatEventSummary(event.type, event.payload);
-          console.log(`${ts}  ${event.type.padEnd(32)}  ${summary}`);
+          print(line(span(ts, "muted"), plain("  "), span(event.type, "tool"), plain("  "), plain(summary)));
         }
       }
 
       if (!done) {
-        console.error("Daemon disconnected.");
+        printToStderr(line(span("Daemon disconnected.", "error")));
         process.exit(1);
       }
     });
@@ -154,14 +156,14 @@ export function buildEventsCommand(ctx: ModuleContext): Command {
     .action(async (opts: { type?: string; since?: string; limit: string; json?: boolean; project?: string; allProjects?: boolean }) => {
       const link = getDaemonTransport();
       if (!link) {
-        console.error("Daemon is not running. Start the daemon with `kota daemon start`.");
+        printToStderr(line(span("Daemon is not running. Start the daemon with `kota daemon start`.", "error")));
         process.exitCode = 1;
         return;
       }
 
       const filter = await resolveEventsProjectFilter(ctx, opts);
       if (!filter.ok) {
-        console.error(filter.message);
+        printToStderr(line(span(filter.message, "error")));
         process.exitCode = 1;
         return;
       }
@@ -170,7 +172,7 @@ export function buildEventsCommand(ctx: ModuleContext): Command {
       if (opts.since) {
         const ms = parseDuration(opts.since);
         if (ms == null) {
-          console.error(`Invalid duration: ${opts.since}. Use e.g. 5m, 1h, 30s.`);
+          printToStderr(line(span(`Invalid duration: ${opts.since}. Use e.g. 5m, 1h, 30s.`, "error")));
           process.exitCode = 1;
           return;
         }
@@ -187,24 +189,24 @@ export function buildEventsCommand(ctx: ModuleContext): Command {
       }>("GET", `/api/events?${params.toString()}`);
 
       if (!result) {
-        console.error("Failed to query events from daemon.");
+        printToStderr(line(span("Failed to query events from daemon.", "error")));
         process.exitCode = 1;
         return;
       }
 
       const filtered = result.events.filter((ev) => eventMatchesProject(ev.payload, filter.projectId));
       if (filtered.length === 0) {
-        if (!opts.json) console.log("No matching events.");
+        if (!opts.json) print(line(plain("No matching events.")));
         return;
       }
 
       for (const ev of filtered) {
         if (opts.json) {
-          process.stdout.write(`${JSON.stringify(ev)}\n`);
+          writeJson(ev);
         } else {
           const ts = ev.timestamp.replace("T", " ").replace("Z", "");
           const summary = formatEventSummary(ev.type, ev.payload);
-          console.log(`${ts}  ${ev.type.padEnd(32)}  ${summary}`);
+          print(line(span(ts, "muted"), plain("  "), span(ev.type, "tool"), plain("  "), plain(summary)));
         }
       }
     });

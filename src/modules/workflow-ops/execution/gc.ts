@@ -5,6 +5,7 @@ import {
   defaultWorkflowRunRetentionDays,
   WorkflowRunStore,
 } from "#core/workflow/run-store.js";
+import { printWorkflowError, printWorkflowText } from "../cli-output.js";
 
 export function registerGcCommand(wfCmd: Command, ctx: ModuleContext): void {
   wfCmd
@@ -31,11 +32,11 @@ export function registerGcCommand(wfCmd: Command, ctx: ModuleContext): void {
       const dryRun = opts.dryRun ?? false;
 
       if (Number.isNaN(retentionDays) || retentionDays <= 0) {
-        console.error("--retention-days must be a positive number");
+        printWorkflowError("--retention-days must be a positive number");
         process.exit(1);
       }
       if (Number.isNaN(minKeep) || minKeep < 0) {
-        console.error("--min-keep must be a non-negative number");
+        printWorkflowError("--min-keep must be a non-negative number");
         process.exit(1);
       }
 
@@ -56,18 +57,18 @@ export function registerGcCommand(wfCmd: Command, ctx: ModuleContext): void {
       });
 
       if (pruned.length === 0) {
-        console.log("Nothing to prune.");
+        printWorkflowText("Nothing to prune.");
         return;
       }
 
       const verb = dryRun ? "Would prune" : "Pruned";
-      console.log(`${verb} ${pruned.length} run artifact director${pruned.length === 1 ? "y" : "ies"}:`);
+      printWorkflowText(`${verb} ${pruned.length} run artifact director${pruned.length === 1 ? "y" : "ies"}:`);
       for (const id of pruned) {
-        console.log(`  ${id}`);
+        printWorkflowText(`  ${id}`);
       }
 
       if (dryRun) {
-        console.log("\n(dry run — nothing was deleted)");
+        printWorkflowText("\n(dry run — nothing was deleted)");
       }
     });
 }

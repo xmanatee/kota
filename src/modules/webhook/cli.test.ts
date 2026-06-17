@@ -103,15 +103,16 @@ async function captureOutput(
     outLines.push(String(data));
     return true;
   });
-  const warnSpy = vi.spyOn(console, "warn").mockImplementation((...args) => {
-    errLines.push(`${args.join(" ")}\n`);
+  const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation((data) => {
+    errLines.push(String(data));
+    return true;
   });
   try {
     await fn();
   } finally {
     logSpy.mockRestore();
     stdoutSpy.mockRestore();
-    warnSpy.mockRestore();
+    stderrSpy.mockRestore();
   }
   return { out: outLines.join(""), err: errLines.join("") };
 }

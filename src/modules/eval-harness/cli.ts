@@ -26,7 +26,7 @@ import {
   span,
   stack,
 } from "#modules/rendering/primitives.js";
-import { print } from "#modules/rendering/transport.js";
+import { print, printToStderr, writeJson } from "#modules/rendering/transport.js";
 import type {
   EvalCalibrationOptions,
   EvalRunOptions,
@@ -217,8 +217,7 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
     .action(async (opts: { json?: boolean }) => {
       const result = await ctx.client.evalHarness.list();
       if (opts.json) {
-        // biome-ignore lint/suspicious/noConsole: structured JSON output path stays on console
-        console.log(JSON.stringify(result, null, 2));
+        writeJson(result, { pretty: true });
         return;
       }
       const coverage = result.controlDecisionCoverage;
@@ -318,11 +317,11 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
       const result = await ctx.client.evalHarness.run(runOptions);
       if (!result.ok) {
         if (result.reason === "fixture_provenance") {
-          console.error(`eval-harness fixture provenance error: ${result.message}`);
+          printToStderr(line(span(`eval-harness fixture provenance error: ${result.message}`, "error")));
         } else if (result.reason === "objective_metric_validation") {
-          console.error(`eval-harness objective metric error: ${result.message}`);
+          printToStderr(line(span(`eval-harness objective metric error: ${result.message}`, "error")));
         } else {
-          console.error(result.message);
+          printToStderr(line(span(result.message, "error")));
         }
         process.exitCode = 1;
         return;
@@ -597,8 +596,7 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
       const { aggregate, decision } = await ctx.client.evalHarness.calibration(calibrationOptions);
 
       if (opts.json) {
-        // biome-ignore lint/suspicious/noConsole: structured JSON output path stays on console
-        console.log(JSON.stringify({ aggregate, decision }, null, 2));
+        writeJson({ aggregate, decision }, { pretty: true });
       } else {
         const pct = (n: number) => `${(n * 100).toFixed(1)}%`;
         const a = aggregate as {

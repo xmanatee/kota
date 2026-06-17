@@ -11,11 +11,18 @@
 import { Command } from "commander";
 import type { KotaModule } from "#core/modules/module-types.js";
 import { installTool, listTools, removeTool, updateTool } from "#core/modules/registry.js";
+import { columns, line, plain, span } from "#modules/rendering/primitives.js";
+import { print, printToStderr } from "#modules/rendering/transport.js";
+
+function printRegistryError(message: string): void {
+  printToStderr(line(span(message, "error")));
+}
 
 const registryModule: KotaModule = {
   name: "registry",
   version: "1.0.0",
   description: "Install, remove, update, and list external tool packages",
+  dependencies: ["rendering"],
 
   commands: () => {
     const toolsCmd = new Command("tools").description(
@@ -29,13 +36,14 @@ const registryModule: KotaModule = {
       )
       .action(async (source: string) => {
         try {
-          console.error(`[kota] Installing from ${source}...`);
+          printToStderr(line(span(`[kota] Installing from ${source}...`, "muted")));
           const result = await installTool(source);
-          console.log(
-            `Installed "${result.name}" (${result.source}) — ${result.files.length} file(s)`,
-          );
+          print(line(
+            span(`Installed "${result.name}"`, "success"),
+            plain(` (${result.source}) — ${result.files.length} file(s)`),
+          ));
         } catch (err) {
-          console.error(`Error: ${(err as Error).message}`);
+          printRegistryError(`Error: ${(err as Error).message}`);
           process.exit(1);
         }
       });
@@ -46,21 +54,26 @@ const registryModule: KotaModule = {
       .action(() => {
         const tools = listTools();
         if (tools.length === 0) {
-          console.log(
-            "No tools installed. Use `kota tools install <source>` to add one.",
-          );
+          print(line(plain("No tools installed. Use `kota tools install <source>` to add one.")));
           return;
         }
 
-        console.log(
-          `${"Name".padEnd(20)} ${"Source".padEnd(8)} ${"Version".padEnd(12)} URI`,
-        );
-        console.log("-".repeat(72));
-        for (const t of tools) {
-          console.log(
-            `${t.name.padEnd(20)} ${t.source.padEnd(8)} ${t.version.padEnd(12)} ${t.uri}`,
-          );
-        }
+        print(columns(
+          [
+            { header: "Name", role: "accent", maxWidth: 30 },
+            { header: "Source", minWidth: 8 },
+            { header: "Version", minWidth: 8, maxWidth: 16 },
+            { header: "URI", role: "muted", maxWidth: 80 },
+          ],
+          tools.map((t) => ({
+            cells: [
+              { spans: [{ text: t.name, role: "accent" }] },
+              { spans: [{ text: t.source }] },
+              { spans: [{ text: t.version }] },
+              { spans: [{ text: t.uri, role: "muted" }] },
+            ],
+          })),
+        ));
       });
 
     toolsCmd
@@ -68,9 +81,9 @@ const registryModule: KotaModule = {
       .description("Remove an installed tool")
       .action((name: string) => {
         if (removeTool(name)) {
-          console.log(`Removed "${name}".`);
+          print(line(span(`Removed "${name}".`, "success")));
         } else {
-          console.error(`Tool "${name}" is not installed.`);
+          printRegistryError(`Tool "${name}" is not installed.`);
           process.exit(1);
         }
       });
@@ -80,11 +93,11 @@ const registryModule: KotaModule = {
       .description("Update an installed tool to the latest version")
       .action(async (name: string) => {
         try {
-          console.error(`[kota] Updating "${name}"...`);
+          printToStderr(line(span(`[kota] Updating "${name}"...`, "muted")));
           const result = await updateTool(name);
-          console.log(`Updated "${result.name}" (${result.source})`);
+          print(line(span(`Updated "${result.name}" (${result.source})`, "success")));
         } catch (err) {
-          console.error(`Error: ${(err as Error).message}`);
+          printRegistryError(`Error: ${(err as Error).message}`);
           process.exit(1);
         }
       });

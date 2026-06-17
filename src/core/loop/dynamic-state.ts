@@ -30,6 +30,7 @@ type StateProvider = (ctx: DynamicStateContext) => string;
 type ProviderEntry = {
 	name: string;
 	fn: StateProvider;
+	owner?: string;
 };
 
 const providers: ProviderEntry[] = [];
@@ -40,11 +41,17 @@ const providers: ProviderEntry[] = [];
  * tool set for the turn. Throws if a provider with the same name is already
  * registered.
  */
-export function registerDynamicStateProvider(name: string, fn: StateProvider): void {
+export function registerDynamicStateProvider(
+	name: string,
+	fn: StateProvider,
+	owner?: string,
+): void {
 	if (providers.some((p) => p.name === name)) {
 		throw new Error(`Dynamic state provider already registered: "${name}"`);
 	}
-	providers.push({ name, fn });
+	const entry: ProviderEntry = { name, fn };
+	if (owner !== undefined) entry.owner = owner;
+	providers.push(entry);
 }
 
 /**
@@ -53,6 +60,15 @@ export function registerDynamicStateProvider(name: string, fn: StateProvider): v
  */
 export function collectDynamicState(ctx: DynamicStateContext): string {
 	return providers.map((p) => p.fn(ctx)).join("");
+}
+
+/** Remove all providers registered by a specific owner. */
+export function removeDynamicStateProviders(owner: string): void {
+	let index = providers.length - 1;
+	while (index >= 0) {
+		if (providers[index]?.owner === owner) providers.splice(index, 1);
+		index -= 1;
+	}
 }
 
 /** Reset all registered providers — for testing. */

@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { printWorkflowError, printWorkflowText } from "../cli-output.js";
 import { getValidatedWorkflowDefinitions } from "../definitions-source.js";
 import {
   assembleWorkflowGraph,
@@ -27,11 +28,11 @@ export function registerDepsCommand(
       try {
         definitions = getValidatedWorkflowDefinitions(ctx);
       } catch (err) {
-        console.error(String(err instanceof Error ? err.message : err));
+        printWorkflowError(String(err instanceof Error ? err.message : err));
         process.exit(1);
       }
       if (definitions.length === 0) {
-        console.log("No workflow definitions loaded.");
+        printWorkflowText("No workflow definitions loaded.");
         return;
       }
 
@@ -42,19 +43,19 @@ export function registerDepsCommand(
 
       switch (opts.format) {
         case "table":
-          console.log(formatTable(graph));
+          printWorkflowText(formatTable(graph));
           break;
         case "compact":
-          console.log(formatCompact(graph));
+          printWorkflowText(formatCompact(graph));
           break;
         case "dot":
-          console.log(formatDot(graph));
+          printWorkflowText(formatDot(graph));
           break;
         case "json":
-          console.log(JSON.stringify(graph, null, 2));
+          printWorkflowText(JSON.stringify(graph, null, 2));
           break;
         default:
-          console.error(
+          printWorkflowError(
             `Unknown format "${opts.format}". Use "table", "compact", "dot", or "json".`,
           );
           process.exit(1);

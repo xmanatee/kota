@@ -9,7 +9,7 @@
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { line, plain, span } from "#modules/rendering/primitives.js";
-import { print, TerminalTransport } from "#modules/rendering/transport.js";
+import { print, TerminalTransport, writeStdoutLine } from "#modules/rendering/transport.js";
 import type { RecallFilter, RecallSource } from "./client.js";
 import { renderRecallHitsPlain } from "./render.js";
 
@@ -31,9 +31,7 @@ function stderrTransport(): TerminalTransport {
 
 function collectSources(value: string, previous: RecallSource[]): RecallSource[] {
   if (!(ALLOWED_SOURCES as readonly string[]).includes(value)) {
-    console.error(
-      `Unknown source "${value}". Valid: ${ALLOWED_SOURCES.join(", ")}`,
-    );
+    stderrTransport().write(line(span(`Unknown source "${value}". Valid: ${ALLOWED_SOURCES.join(", ")}`, "error")));
     process.exit(1);
   }
   return [...previous, value as RecallSource];
@@ -107,7 +105,7 @@ export function registerRecallCommand(
         const result = await ctx.client.recall.recall(trimmed, filter);
 
         if (opts.json) {
-          process.stdout.write(`${JSON.stringify(result)}\n`);
+          writeStdoutLine(JSON.stringify(result));
           if (!result.ok) process.exit(1);
           return;
         }

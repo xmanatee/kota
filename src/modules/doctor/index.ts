@@ -17,6 +17,19 @@
 import { Command } from "commander";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
+import {
+  blank,
+  type ColumnRow,
+  columns,
+  heading,
+  line,
+  plain,
+  type RenderNode,
+  type SemanticRole,
+  span,
+  stack,
+} from "#modules/rendering/primitives.js";
+import { print, writeJson } from "#modules/rendering/transport.js";
 import type {
   DoctorCheckResult,
   DoctorClient,
@@ -42,36 +55,51 @@ export {
   runDoctorReport,
 } from "./doctor-checks.js";
 
-function statusIcon(status: DoctorCheckResult["status"]): string {
-  if (status === "pass") return "✓";
-  if (status === "warn") return "!";
-  return "✗";
+function statusRole(status: DoctorCheckResult["status"]): SemanticRole {
+  if (status === "pass") return "success";
+  if (status === "warn") return "warn";
+  return "error";
 }
 
-function printResults(results: DoctorCheckResult[]): void {
-  const labelWidth = Math.max(...results.map((r) => r.label.length), 10);
-  for (const r of results) {
-    const icon = statusIcon(r.status);
-    const label = r.label.padEnd(labelWidth);
-    const detail = r.detail ? `  ${r.detail}` : "";
-    console.log(`  [${icon}] ${label}${detail}`);
-  }
+function buildResultsNode(results: DoctorCheckResult[]): RenderNode {
+  const rows: ColumnRow[] = results.map((r) => ({
+    cells: [
+      { spans: [{ text: r.status, role: statusRole(r.status) }] },
+      { spans: [{ text: r.label }] },
+      { spans: [{ text: r.detail ?? "", role: "muted" }] },
+    ],
+  }));
+  return columns(
+    [
+      { header: "Status", minWidth: 6 },
+      { header: "Check", maxWidth: 36 },
+      { header: "Detail", role: "muted", maxWidth: 80 },
+    ],
+    rows,
+  );
 }
 
-function repairIcon(action: DoctorRepairResult["action"]): string {
-  if (action === "repaired") return "+";
-  if (action === "skipped") return "·";
-  return "!";
+function repairRole(action: DoctorRepairResult["action"]): SemanticRole {
+  if (action === "repaired") return "success";
+  if (action === "skipped") return "muted";
+  return "warn";
 }
 
-function printRepairs(repairs: DoctorRepairResult[]): void {
-  const labelWidth = Math.max(...repairs.map((r) => r.item.length), 10);
-  for (const r of repairs) {
-    const icon = repairIcon(r.action);
-    const label = r.item.padEnd(labelWidth);
-    const detail = r.detail ? `  ${r.detail}` : "";
-    console.log(`  [${icon}] ${label}${detail}`);
-  }
+function buildRepairsNode(repairs: DoctorRepairResult[]): RenderNode {
+  return columns(
+    [
+      { header: "Action", minWidth: 8 },
+      { header: "Item", maxWidth: 36 },
+      { header: "Detail", role: "muted", maxWidth: 80 },
+    ],
+    repairs.map((r) => ({
+      cells: [
+        { spans: [{ text: r.action, role: repairRole(r.action) }] },
+        { spans: [{ text: r.item }] },
+        { spans: [{ text: r.detail ?? "", role: "muted" }] },
+      ],
+    })),
+  );
 }
 
 function buildDoctorCommand(ctx: ModuleContext): Command {
@@ -90,25 +118,49 @@ function buildDoctorCommand(ctx: ModuleContext): Command {
       const repairs = opts.fix ? (await ctx.client.doctor.fix()).repairs : [];
 
       if (opts.json) {
-        console.log(JSON.stringify(opts.fix ? { ...runResult, repairs } : runResult, null, 2));
+        writeJson(opts.fix ? { ...runResult, repairs } : runResult, { pretty: true });
       } else {
-        console.log("\nKOTA Health Check\n");
-        printResults(results);
         const failCount = results.filter((r) => r.status === "fail").length;
         const warnCount = results.filter((r) => r.status === "warn").length;
-        console.log(
-          `\n${results.length} check(s): ${results.length - failCount - warnCount} passed, ${warnCount} warned, ${failCount} failed`,
-        );
+        const nodes: RenderNode[] = [
+          heading("KOTA Health Check", 1),
+          blank(),
+          buildResultsNode(results),
+          blank(),
+          line(
+            span(String(results.length), "accent"),
+            plain(" check(s): "),
+            span(String(results.length - failCount - warnCount), "success"),
+            plain(" passed, "),
+            span(String(warnCount), warnCount > 0 ? "warn" : "muted"),
+            plain(" warned, "),
+            span(String(failCount), failCount > 0 ? "error" : "muted"),
+            plain(" failed"),
+          ),
+        ];
 
         if (opts.fix) {
           const repairedCount = repairs.filter((r) => r.action === "repaired").length;
           const manualCount = repairs.filter((r) => r.action === "manual").length;
-          console.log("\nAuto-Repair\n");
-          printRepairs(repairs);
-          console.log(
-            `\n${repairs.length} repair(s): ${repairedCount} repaired, ${repairs.length - repairedCount - manualCount} skipped, ${manualCount} require manual action`,
+          nodes.push(
+            blank(),
+            heading("Auto-Repair", 2),
+            blank(),
+            buildRepairsNode(repairs),
+            blank(),
+            line(
+              span(String(repairs.length), "accent"),
+              plain(" repair(s): "),
+              span(String(repairedCount), repairedCount > 0 ? "success" : "muted"),
+              plain(" repaired, "),
+              span(String(repairs.length - repairedCount - manualCount), "muted"),
+              plain(" skipped, "),
+              span(String(manualCount), manualCount > 0 ? "warn" : "muted"),
+              plain(" require manual action"),
+            ),
           );
         }
+        print(stack(...nodes));
       }
 
       const anyFail = results.some((r) => r.status === "fail");
@@ -143,7 +195,7 @@ const doctorModule: KotaModule = {
   name: "doctor",
   version: "1.0.0",
   description: "Runtime health checks — daemon, config, modules, providers, workflows, and disk",
-  dependencies: ["model-clients"],
+  dependencies: ["model-clients", "rendering"],
   commands: (ctx: ModuleContext) => [buildDoctorCommand(ctx)],
   controlRoutes: (ctx) => doctorControlRoutes(ctx),
   localClient: (ctx) => {

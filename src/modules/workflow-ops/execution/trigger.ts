@@ -10,6 +10,7 @@ import {
   WorkflowRunStore,
 } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import { printWorkflowError, printWorkflowText } from "../cli-output.js";
 import type { WorkflowGetRunResult } from "../client.js";
 import { getValidatedWorkflowDefinitions } from "../definitions-source.js";
 
@@ -25,12 +26,12 @@ function resolveRunIdOrExit(store: WorkflowRunStore, runId: string): string {
     const dirs = readdirSync(store.runsDir).sort().reverse();
     const match = dirs.find((d) => d.startsWith(runId));
     if (!match) {
-      console.error(`Run "${runId}" not found.`);
+      printWorkflowError(`Run "${runId}" not found.`);
       process.exit(1);
     }
     return match;
   } catch {
-    console.error(`Run "${runId}" not found.`);
+    printWorkflowError(`Run "${runId}" not found.`);
     process.exit(1);
   }
 }
@@ -55,7 +56,7 @@ export function registerTriggerCommands(
           }
           extraPayload = parsed as Record<string, unknown>;
         } catch (err) {
-          console.error(`Invalid --payload JSON: ${(err as Error).message}`);
+          printWorkflowError(`Invalid --payload JSON: ${(err as Error).message}`);
           process.exit(1);
         }
       }
@@ -64,12 +65,12 @@ export function registerTriggerCommands(
       const definition = definitions.find((d) => d.name === name);
       if (!definition) {
         const names = definitions.map((d) => d.name).join(", ");
-        console.error(`Unknown workflow "${name}". Available: ${names}`);
+        printWorkflowError(`Unknown workflow "${name}". Available: ${names}`);
         process.exit(1);
       }
 
       if (!definition.enabled) {
-        console.error(`Workflow "${name}" is disabled.`);
+        printWorkflowError(`Workflow "${name}" is disabled.`);
         process.exit(1);
       }
 
@@ -79,7 +80,7 @@ export function registerTriggerCommands(
       const now = Date.now();
       if (eligibleAtMs > now && !opts.force) {
         const remaining = Math.ceil((eligibleAtMs - now) / 1000);
-        console.error(
+        printWorkflowError(
           `Workflow "${name}" is in cooldown (${remaining}s remaining). Use --force to override.`,
         );
         process.exit(1);
@@ -93,15 +94,15 @@ export function registerTriggerCommands(
         notBeforeMs: opts.force ? now : eligibleAtMs,
       });
       if (!result.ok) {
-        console.error(`Workflow "${name}" is already queued.`);
+        printWorkflowError(`Workflow "${name}" is already queued.`);
         process.exit(1);
       }
       const notBefore = !opts.force && eligibleAtMs > now
         ? ` (eligible at ${new Date(eligibleAtMs).toLocaleTimeString()})`
         : "";
-      console.log(`Queued workflow "${name}"${notBefore}.`);
+      printWorkflowText(`Queued workflow "${name}"${notBefore}.`);
       if (result.path === "queue" && status.activeRuns.length > 0) {
-        console.log("Daemon is busy — run will start after current run finishes.");
+        printWorkflowText("Daemon is busy — run will start after current run finishes.");
       }
     });
 
@@ -115,19 +116,19 @@ export function registerTriggerCommands(
       const original = await loadRunOrExit(ctx, store, resolvedId);
 
       if (original.status === "running") {
-        console.error(`Run "${resolvedId}" is still running. Cannot retry an active run.`);
+        printWorkflowError(`Run "${resolvedId}" is still running. Cannot retry an active run.`);
         process.exit(1);
       }
 
       if (original.status === "success" || original.status === "completed-with-warnings") {
-        console.error(`Run "${resolvedId}" completed successfully. Nothing to retry.`);
+        printWorkflowError(`Run "${resolvedId}" completed successfully. Nothing to retry.`);
         process.exit(1);
       }
 
       const definitions = getValidatedWorkflowDefinitions(ctx);
       const definition = definitions.find((d) => d.name === original.workflow);
       if (!definition) {
-        console.error(`Workflow "${original.workflow}" is no longer defined.`);
+        printWorkflowError(`Workflow "${original.workflow}" is no longer defined.`);
         process.exit(1);
       }
 
@@ -136,10 +137,10 @@ export function registerTriggerCommands(
         payload: { retryOf: resolvedId },
       });
       if (!result.ok) {
-        console.error(`Workflow "${original.workflow}" is already queued.`);
+        printWorkflowError(`Workflow "${original.workflow}" is already queued.`);
         process.exit(1);
       }
-      console.log(`Queued retry of "${original.workflow}" (original run: ${resolvedId}).`);
+      printWorkflowText(`Queued retry of "${original.workflow}" (original run: ${resolvedId}).`);
     });
 
   wfCmd
@@ -152,18 +153,18 @@ export function registerTriggerCommands(
       const original = await loadRunOrExit(ctx, store, resolvedId);
 
       if (original.status === "running") {
-        console.error(`Run "${resolvedId}" is still running. Cannot replay an active run.`);
+        printWorkflowError(`Run "${resolvedId}" is still running. Cannot replay an active run.`);
         process.exit(1);
       }
 
       const definitions = getValidatedWorkflowDefinitions(ctx);
       const definition = definitions.find((d) => d.name === original.workflow);
       if (!definition) {
-        console.error(`Workflow "${original.workflow}" is no longer defined.`);
+        printWorkflowError(`Workflow "${original.workflow}" is no longer defined.`);
         process.exit(1);
       }
       if (!definition.enabled) {
-        console.error(`Workflow "${original.workflow}" is disabled.`);
+        printWorkflowError(`Workflow "${original.workflow}" is disabled.`);
         process.exit(1);
       }
 
@@ -183,12 +184,12 @@ export function registerTriggerCommands(
         },
       });
       if (!result.ok) {
-        console.error(`Workflow "${original.workflow}" is already queued.`);
+        printWorkflowError(`Workflow "${original.workflow}" is already queued.`);
         process.exit(1);
       }
-      console.log(`Replaying "${original.workflow}" (original: ${resolvedId}).`);
+      printWorkflowText(`Replaying "${original.workflow}" (original: ${resolvedId}).`);
       const reportedId = result.runId ?? newRunId;
-      if (reportedId !== original.workflow) console.log(`New run ID: ${reportedId}`);
+      if (reportedId !== original.workflow) printWorkflowText(`New run ID: ${reportedId}`);
     });
 
   wfCmd
@@ -201,31 +202,31 @@ export function registerTriggerCommands(
 
       const original = store.getRun(resolvedId);
       if (!original) {
-        console.error(`Run "${resolvedId}" not found.`);
+        printWorkflowError(`Run "${resolvedId}" not found.`);
         process.exit(1);
       }
 
       if (original.status === "running") {
-        console.error(`Run "${resolvedId}" is still active. Cannot resume a running run.`);
+        printWorkflowError(`Run "${resolvedId}" is still active. Cannot resume a running run.`);
         process.exit(1);
       }
 
       if (original.status === "success") {
-        console.error(`Run "${resolvedId}" completed successfully. Use "replay" to re-execute from the beginning.`);
+        printWorkflowError(`Run "${resolvedId}" completed successfully. Use "replay" to re-execute from the beginning.`);
         process.exit(1);
       }
 
       const definitions = getValidatedWorkflowDefinitions(ctx);
       const definition = definitions.find((d) => d.name === original.workflow);
       if (!definition) {
-        console.error(`Workflow "${original.workflow}" is no longer defined.`);
+        printWorkflowError(`Workflow "${original.workflow}" is no longer defined.`);
         process.exit(1);
       }
 
       const stepIdx = definition.steps.findIndex((s) => s.id === opts.fromStep);
       if (stepIdx === -1) {
         const stepIds = definition.steps.map((s) => s.id).join(", ");
-        console.error(`Step "${opts.fromStep}" not found in workflow "${original.workflow}". Available steps: ${stepIds}`);
+        printWorkflowError(`Step "${opts.fromStep}" not found in workflow "${original.workflow}". Available steps: ${stepIds}`);
         process.exit(1);
       }
 
@@ -233,7 +234,7 @@ export function registerTriggerCommands(
         const defStep = definition.steps[i]!;
         const result = original.steps.find((s) => s.id === defStep.id);
         if (!result || result.status !== "success") {
-          console.error(
+          printWorkflowError(
             `Cannot resume from step "${opts.fromStep}": prerequisite step "${defStep.id}" did not complete successfully in run "${resolvedId}".`,
           );
           process.exit(1);
@@ -251,12 +252,12 @@ export function registerTriggerCommands(
         },
       });
       if (!result.ok) {
-        console.error(`Workflow "${original.workflow}" is already queued.`);
+        printWorkflowError(`Workflow "${original.workflow}" is already queued.`);
         process.exit(1);
       }
-      console.log(`Resuming "${original.workflow}" from step "${opts.fromStep}" (source: ${resolvedId}).`);
+      printWorkflowText(`Resuming "${original.workflow}" from step "${opts.fromStep}" (source: ${resolvedId}).`);
       const reportedId = result.runId ?? newRunId;
-      if (reportedId !== original.workflow) console.log(`New run ID: ${reportedId}`);
+      if (reportedId !== original.workflow) printWorkflowText(`New run ID: ${reportedId}`);
     });
 
   wfCmd
@@ -273,12 +274,12 @@ export function registerTriggerCommands(
       const store = new WorkflowRunStore();
       const deleted = store.pruneRuns({ retentionDays, minKeepPerWorkflow, dryRun: opts.dryRun });
       if (deleted.length === 0) {
-        console.log(opts.dryRun ? "Nothing to prune." : "Nothing pruned.");
+        printWorkflowText(opts.dryRun ? "Nothing to prune." : "Nothing pruned.");
       } else if (opts.dryRun) {
-        console.log(`Would delete ${deleted.length} run director${deleted.length === 1 ? "y" : "ies"}:`);
-        for (const id of deleted) console.log(`  ${id}`);
+        printWorkflowText(`Would delete ${deleted.length} run director${deleted.length === 1 ? "y" : "ies"}:`);
+        for (const id of deleted) printWorkflowText(`  ${id}`);
       } else {
-        console.log(`Pruned ${deleted.length} run director${deleted.length === 1 ? "y" : "ies"}.`);
+        printWorkflowText(`Pruned ${deleted.length} run director${deleted.length === 1 ? "y" : "ies"}.`);
       }
     });
 }
@@ -310,7 +311,7 @@ async function loadRunOrExit(
   const metadataPath = join(store.runsDir, resolvedId, "metadata.json");
   const metadata = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
   if (!metadata) {
-    console.error(`Run "${resolvedId}" not found.`);
+    printWorkflowError(`Run "${resolvedId}" not found.`);
     process.exit(1);
   }
   return {

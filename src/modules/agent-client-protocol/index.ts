@@ -12,6 +12,7 @@ const agentClientProtocolModule: KotaModule = {
   name: "agent-client-protocol",
   version: "1.0.0",
   description: "Agent Client Protocol stdio adapter backed by daemon sessions",
+  dependencies: ["rendering"],
   commands: () => [buildAgentClientProtocolCommand()],
 };
 

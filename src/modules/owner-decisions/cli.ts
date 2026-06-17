@@ -15,7 +15,7 @@ import {
   span,
   stack,
 } from "#modules/rendering/primitives.js";
-import { print } from "#modules/rendering/transport.js";
+import { print, printToStderr } from "#modules/rendering/transport.js";
 
 const VALID_STATUSES: OwnerDecisionStatus[] = ["pending", "answered", "canceled", "expired", "consumed"];
 
@@ -56,6 +56,10 @@ function selectedValueText(value: OwnerDecisionSelectedValue | undefined): strin
   if (value.kind === "multi-choice") return value.optionIds.join(", ");
   if (value.kind === "free-text") return value.text;
   return JSON.stringify(value.fields);
+}
+
+function printOwnerDecisionError(message: string): void {
+  printToStderr(line(span(message, "error")));
 }
 
 function renderSummary(item: OwnerDecisionClientProjection): RenderNode {
@@ -153,7 +157,7 @@ export function registerOwnerDecisionCommands(program: Command, ctx: ModuleConte
     .action(async (opts: { status?: string }) => {
       const status = opts.status as OwnerDecisionStatus | "all" | undefined;
       if (status && status !== "all" && !VALID_STATUSES.includes(status)) {
-        console.error(`Error: invalid status "${status}".`);
+        printOwnerDecisionError(`Error: invalid status "${status}".`);
         process.exit(1);
       }
       const result = await ctx.client.ownerDecisions.list({ status });
@@ -174,7 +178,7 @@ export function registerOwnerDecisionCommands(program: Command, ctx: ModuleConte
     .action(async (id: string) => {
       const decision = await loadDecisionById(ctx, id);
       if (!decision) {
-        console.error(`Error: owner decision "${id}" not found.`);
+        printOwnerDecisionError(`Error: owner decision "${id}" not found.`);
         process.exit(1);
       }
       print(renderDetail(decision));
@@ -192,12 +196,12 @@ export function registerOwnerDecisionCommands(program: Command, ctx: ModuleConte
       try {
         selectedValue = parseSelectedValue(opts);
       } catch (err) {
-        console.error(`Error: ${err instanceof Error ? err.message : "invalid answer"}`);
+        printOwnerDecisionError(`Error: ${err instanceof Error ? err.message : "invalid answer"}`);
         process.exit(1);
       }
       const result = await ctx.client.ownerDecisions.answer(id, selectedValue);
       if (!result.ok) {
-        console.error(`Error: owner decision "${id}" not found or already resolved.`);
+        printOwnerDecisionError(`Error: owner decision "${id}" not found or already resolved.`);
         process.exit(1);
       }
       print(line(span("Answered ", "success"), span(`[${id}]`, "accent")));
@@ -210,7 +214,7 @@ export function registerOwnerDecisionCommands(program: Command, ctx: ModuleConte
     .action(async (id: string, opts: { reason: string }) => {
       const result = await ctx.client.ownerDecisions.cancel(id, opts.reason);
       if (!result.ok) {
-        console.error(`Error: owner decision "${id}" not found or already resolved.`);
+        printOwnerDecisionError(`Error: owner decision "${id}" not found or already resolved.`);
         process.exit(1);
       }
       print(line(span("Canceled ", "muted"), span(`[${id}]`, "accent")));

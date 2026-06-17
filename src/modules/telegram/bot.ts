@@ -16,6 +16,7 @@ import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
 import { AgentSession, type LoopOptions } from "#core/loop/loop.js";
 import { NullTransport, ProxyTransport } from "#core/loop/transport.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import {
   TranscriptionProviderUnavailableError,
@@ -110,8 +111,8 @@ export class TelegramBot {
   async start(): Promise<void> {
     this.running = true;
     const me = await callTelegramApi<TelegramUser>(this.token, "getMe");
-    console.log(`[kota-telegram] Bot: @${me.username ?? me.first_name}`);
-    console.log("[kota-telegram] Listening for messages...");
+    printTerminalDiagnostic(`[kota-telegram] Bot: @${me.username ?? me.first_name}`);
+    printTerminalDiagnostic("[kota-telegram] Listening for messages...");
 
     while (this.running) {
       try {
@@ -124,7 +125,11 @@ export class TelegramBot {
             "Telegram getUpdates conflict: another Telegram Bot API getUpdates consumer is already using this bot token. Stop the other KOTA or Telegram process before enabling telegram-interactive.",
           );
         }
-        console.error("[kota-telegram] Poll error:", (err as Error).message);
+        printTerminalDiagnostic(
+          "[kota-telegram] Poll error:",
+          "error",
+          (err as Error).message,
+        );
         await sleep(ERROR_BACKOFF_MS);
       }
     }
@@ -174,8 +179,9 @@ export class TelegramBot {
       this.offset = update.update_id + 1;
       if (update.callback_query && this.options.onCallbackQuery) {
         void this.options.onCallbackQuery(update.callback_query).catch((err) => {
-          console.error(
+          printTerminalDiagnostic(
             "[kota-telegram] Callback handler error:",
+            "error",
             (err as Error).message,
           );
         });
@@ -197,8 +203,9 @@ export class TelegramBot {
             const handled = await this.options.onChatReply(chatId, replyToId, text);
             if (!handled) await this.handleMessage(chatId, text, firstName, undefined, message);
           } catch (err) {
-            console.error(
+            printTerminalDiagnostic(
               `[kota-telegram] Chat-reply handler error in chat ${chatId}:`,
+              "error",
               (err as Error).message,
             );
             await this.handleMessage(chatId, text, firstName, undefined, message);
@@ -210,8 +217,9 @@ export class TelegramBot {
       }
       if (message.voice || message.audio) {
         void this.handleVoiceMessage(message).catch((err) => {
-          console.error(
+          printTerminalDiagnostic(
             `[kota-telegram] Voice handling error in chat ${message.chat.id}:`,
+            "error",
             (err as Error).message,
           );
         });
@@ -293,7 +301,11 @@ export class TelegramBot {
       try {
         await this.handleProjectCommand(chatId, text);
       } catch (err) {
-        console.error(`[kota-telegram] Project switch error in chat ${chatId}:`, (err as Error).message);
+        printTerminalDiagnostic(
+          `[kota-telegram] Project switch error in chat ${chatId}:`,
+          "error",
+          (err as Error).message,
+        );
         this.sendText(chatId, "Project selection failed.");
       }
       return;
@@ -305,7 +317,11 @@ export class TelegramBot {
         ? { ok: true, target: resolvedTarget }
         : await this.resolveProjectTarget(chatId);
     } catch (err) {
-      console.error(`[kota-telegram] Project resolution error in chat ${chatId}:`, (err as Error).message);
+      printTerminalDiagnostic(
+        `[kota-telegram] Project resolution error in chat ${chatId}:`,
+        "error",
+        (err as Error).message,
+      );
       this.sendText(chatId, "Project selection failed.");
       return;
     }
@@ -368,7 +384,11 @@ export class TelegramBot {
     try {
       await this.processMessage(resolved.target, text, firstName);
     } catch (err) {
-      console.error(`[kota-telegram] Error in chat ${chatId}:`, (err as Error).message);
+      printTerminalDiagnostic(
+        `[kota-telegram] Error in chat ${chatId}:`,
+        "error",
+        (err as Error).message,
+      );
       this.sendText(chatId, "Something went wrong. Try again or /clear to start over.");
     }
   }
@@ -422,7 +442,11 @@ export class TelegramBot {
       try {
         await transport.flush();
       } catch (flushErr) {
-        console.error("[kota-telegram] Failed to flush partial output after error:", (flushErr as Error).message);
+        printTerminalDiagnostic(
+          "[kota-telegram] Failed to flush partial output after error:",
+          "error",
+          (flushErr as Error).message,
+        );
       }
       throw err;
     } finally {
@@ -526,7 +550,11 @@ export class TelegramBot {
       chat_id: chatId,
       text,
     }).catch((err) => {
-      console.error(`[kota-telegram] Failed to send to ${chatId}:`, (err as Error).message);
+      printTerminalDiagnostic(
+        `[kota-telegram] Failed to send to ${chatId}:`,
+        "error",
+        (err as Error).message,
+      );
     });
   }
 }

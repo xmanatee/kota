@@ -5,6 +5,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { ModuleLoader } from "#core/modules/module-loader.js";
 import { clearCustomTools } from "#core/tools/index.js";
 import filesystemModule from "#modules/filesystem/index.js";
+import renderingModule from "#modules/rendering/index.js";
 import { runMap } from "./map.js";
 
 function makeTempDir(suffix: string): string {
@@ -15,7 +16,7 @@ function makeTempDir(suffix: string): string {
 
 beforeAll(async () => {
 	const loader = new ModuleLoader({});
-	await loader.loadAll([filesystemModule]);
+	await loader.loadAll([renderingModule, filesystemModule]);
 });
 
 afterAll(() => {

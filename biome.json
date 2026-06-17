@@ -68,34 +68,84 @@
     },
     {
       "includes": [
+        "src/check-hygiene.ts",
         "src/cli.ts",
+        "src/core/daemon/**",
+        "src/core/loop/**",
+        "src/core/mcp/**",
+        "src/core/modules/**",
+        "src/core/server/**",
+        "src/core/tools/**",
         "src/core/loop/transport.ts",
+        "src/validate-queue.ts",
+        "src/modules/agent-client-protocol/**",
         "src/modules/agent-ops/**",
         "src/modules/approval-queue/**",
+        "src/modules/answer/**",
+        "src/modules/autonomy/report/**",
+        "src/modules/autonomy/workflows/attention-digest/attention-cli.ts",
+        "src/modules/autonomy/workflows/daily-digest/digest-cli.ts",
+        "src/modules/browser/cli.ts",
+        "src/modules/capture/**",
+        "src/modules/completion/**",
+        "src/modules/config/**",
+        "src/modules/daemon-ops/**",
+        "src/modules/doctor/**",
         "src/modules/eval-harness/**",
+        "src/modules/execution/**",
+        "src/modules/filesystem/**",
         "src/modules/guardrails-audit/**",
         "src/modules/harness-parity/**",
         "src/modules/history/cli.ts",
         "src/modules/history/cli-commands.ts",
         "src/modules/knowledge/**",
         "src/modules/memory/**",
+        "src/modules/mcp-server/**",
         "src/modules/module-manager/**",
+        "src/modules/init/**",
+        "src/modules/owner-decisions/**",
         "src/modules/owner-questions/**",
+        "src/modules/recall/cli.ts",
+        "src/modules/registry/**",
+        "src/modules/retract/**",
         "src/modules/rendering/**",
         "src/modules/repo-tasks/**",
+        "src/modules/secrets/**",
+        "src/modules/setup/**",
         "src/modules/skill-ops/**",
+        "src/modules/system/**",
+        "src/modules/slack-channel/**",
+        "src/modules/telegram/**",
+        "src/modules/tool-retry/**",
+        "src/modules/voice/**",
+        "src/modules/web/**",
         "src/modules/webhook/**",
+        "src/modules/workflow-ops/definitions/**",
+        "src/modules/workflow-ops/execution/**",
         "src/modules/workflow-ops/runs/**"
       ],
       "linter": {
         "rules": {
           "suspicious": {
-            "noConsole": {
-              "level": "error",
-              "options": {
-                "allow": ["warn", "error"]
-              }
-            }
+            "noConsole": "error"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "src/**/*.test.ts",
+        "src/**/*.integration.ts",
+        "src/**/*.integration.test.ts",
+        "src/**/testing/**",
+        "src/**/test-utils/**",
+        "src/**/__tests__/**",
+        "src/**/__test-utils__/**"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
           }
         }
       }

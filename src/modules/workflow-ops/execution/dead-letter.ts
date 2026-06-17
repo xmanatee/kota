@@ -2,6 +2,7 @@ import { writeFileSync } from "node:fs";
 import type { Command } from "commander";
 import type { DeadLetterItem } from "#core/daemon/dead-letter-queue.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { printWorkflowError, printWorkflowText } from "../cli-output.js";
 
 type ListOptions = {
   status?: string;
@@ -46,7 +47,7 @@ function parseStatus(value: string | undefined): (typeof STATUSES)[number] | und
   if ((STATUSES as readonly string[]).includes(value)) {
     return value as (typeof STATUSES)[number];
   }
-  console.error(`Unknown DLQ status "${value}". Valid: ${STATUSES.join(", ")}`);
+  printWorkflowError(`Unknown DLQ status "${value}". Valid: ${STATUSES.join(", ")}`);
   process.exit(1);
 }
 
@@ -55,7 +56,7 @@ function parseType(value: string | undefined): (typeof TYPES)[number] | undefine
   if ((TYPES as readonly string[]).includes(value)) {
     return value as (typeof TYPES)[number];
   }
-  console.error(`Unknown DLQ type "${value}". Valid: ${TYPES.join(", ")}`);
+  printWorkflowError(`Unknown DLQ type "${value}". Valid: ${TYPES.join(", ")}`);
   process.exit(1);
 }
 
@@ -66,30 +67,30 @@ function workflowLabel(item: DeadLetterItem): string {
 }
 
 function printItemSummary(item: DeadLetterItem): void {
-  console.log(`${item.id}`);
-  console.log(`  type:      ${item.type}`);
-  console.log(`  status:    ${item.status}`);
-  console.log(`  scope:     ${item.scopeId}`);
-  console.log(`  workflow:  ${workflowLabel(item)}`);
-  console.log(`  reason:    ${item.failure.reason}`);
-  console.log(`  error:     ${item.failure.lastErrorClass}`);
-  console.log(`  failed:    ${item.failure.firstFailedAt}`);
-  console.log(`  source:    ${item.source.kind}`);
+  printWorkflowText(`${item.id}`);
+  printWorkflowText(`  type:      ${item.type}`);
+  printWorkflowText(`  status:    ${item.status}`);
+  printWorkflowText(`  scope:     ${item.scopeId}`);
+  printWorkflowText(`  workflow:  ${workflowLabel(item)}`);
+  printWorkflowText(`  reason:    ${item.failure.reason}`);
+  printWorkflowText(`  error:     ${item.failure.lastErrorClass}`);
+  printWorkflowText(`  failed:    ${item.failure.firstFailedAt}`);
+  printWorkflowText(`  source:    ${item.source.kind}`);
   if (item.sourceEventIds.length > 0) {
-    console.log(`  events:    ${item.sourceEventIds.join(",")}`);
+    printWorkflowText(`  events:    ${item.sourceEventIds.join(",")}`);
   }
 }
 
 function printItemDetail(item: DeadLetterItem): void {
   printItemSummary(item);
-  console.log("  projection:");
+  printWorkflowText("  projection:");
   for (const [key, value] of Object.entries(item.redactedProjection)) {
-    console.log(`    ${key}: ${JSON.stringify(value)}`);
+    printWorkflowText(`    ${key}: ${JSON.stringify(value)}`);
   }
   if (item.redriveAttempts.length > 0) {
-    console.log("  redrive attempts:");
+    printWorkflowText("  redrive attempts:");
     for (const attempt of item.redriveAttempts) {
-      console.log(
+      printWorkflowText(
         `    ${attempt.attemptedAt} ${attempt.target} ${attempt.result.status}`,
       );
     }
@@ -118,18 +119,18 @@ export function registerDeadLetterCommand(wfCmd: Command, ctx: ModuleContext): v
         limit: parseLimit(opts.limit),
       });
       if (opts.json) {
-        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+        printWorkflowText(JSON.stringify(result, null, 2));
         return;
       }
-      console.log(
+      printWorkflowText(
         `Dead letters: open=${result.counts.open} dismissed=${result.counts.dismissed} redriven=${result.counts.redriven}`,
       );
       if (result.items.length === 0) {
-        console.log("No dead-letter items found.");
+        printWorkflowText("No dead-letter items found.");
         return;
       }
       for (const item of result.items) {
-        console.log(
+        printWorkflowText(
           `${item.id}  ${item.status.padEnd(9)} ${item.type.padEnd(27)} ${workflowLabel(item).padEnd(24)} ${item.failure.lastErrorClass}  ${item.failure.reason}`,
         );
       }
@@ -142,11 +143,11 @@ export function registerDeadLetterCommand(wfCmd: Command, ctx: ModuleContext): v
     .action(async (id: string, opts: JsonOption) => {
       const result = await ctx.client.workflow.getDeadLetter(id);
       if (!result.found) {
-        console.error(`Dead-letter item "${id}" not found.`);
+        printWorkflowError(`Dead-letter item "${id}" not found.`);
         process.exit(1);
       }
       if (opts.json) {
-        process.stdout.write(`${JSON.stringify(result.item, null, 2)}\n`);
+        printWorkflowText(JSON.stringify(result.item, null, 2));
         return;
       }
       printItemDetail(result.item);
@@ -159,10 +160,10 @@ export function registerDeadLetterCommand(wfCmd: Command, ctx: ModuleContext): v
     .action(async (id: string, opts: ReasonOption) => {
       const result = await ctx.client.workflow.dismissDeadLetter(id, opts.reason);
       if (!result.ok) {
-        console.error(`Dead-letter item "${id}" not found.`);
+        printWorkflowError(`Dead-letter item "${id}" not found.`);
         process.exit(1);
       }
-      console.log(`Dismissed dead-letter item ${id}.`);
+      printWorkflowText(`Dismissed dead-letter item ${id}.`);
     });
 
   dlq
@@ -183,21 +184,21 @@ export function registerDeadLetterCommand(wfCmd: Command, ctx: ModuleContext): v
             : result.reason === "not_redrivable"
               ? "item is not redrivable"
               : "item was not found";
-        console.error(`Cannot redrive ${id}: ${message}.`);
+        printWorkflowError(`Cannot redrive ${id}: ${message}.`);
         process.exit(1);
       }
       if (opts.json) {
-        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+        printWorkflowText(JSON.stringify(result, null, 2));
         return;
       }
       if (result.runId !== undefined) {
-        console.log(
+        printWorkflowText(
           `Redriven dead-letter item ${id}; queued ${result.workflowName} as ${result.runId}.`,
         );
       } else if (result.event !== undefined) {
-        console.log(`Redriven dead-letter item ${id}; emitted ${result.event}.`);
+        printWorkflowText(`Redriven dead-letter item ${id}; emitted ${result.event}.`);
       } else {
-        console.log(`Simulated redrive for dead-letter item ${id}.`);
+        printWorkflowText(`Simulated redrive for dead-letter item ${id}.`);
       }
     });
 
@@ -208,15 +209,15 @@ export function registerDeadLetterCommand(wfCmd: Command, ctx: ModuleContext): v
     .action(async (id: string, opts: ExportOptions) => {
       const diagnostics = await ctx.client.workflow.exportDeadLetterDiagnostics(id);
       if (diagnostics === null) {
-        console.error(`Dead-letter item "${id}" not found.`);
+        printWorkflowError(`Dead-letter item "${id}" not found.`);
         process.exit(1);
       }
       const serialized = `${JSON.stringify(diagnostics, null, 2)}\n`;
       if (opts.out !== undefined) {
         writeFileSync(opts.out, serialized, "utf-8");
-        console.log(`Exported dead-letter diagnostics to ${opts.out}.`);
+        printWorkflowText(`Exported dead-letter diagnostics to ${opts.out}.`);
         return;
       }
-      process.stdout.write(serialized);
+      printWorkflowText(serialized.trimEnd());
     });
 }

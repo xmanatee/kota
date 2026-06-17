@@ -17,7 +17,7 @@ import {
   span,
   stack,
 } from "#modules/rendering/primitives.js";
-import { print } from "#modules/rendering/transport.js";
+import { print, printToStderr, writeJson } from "#modules/rendering/transport.js";
 import type {
   SkillImportOptions,
   SkillImportResult,
@@ -38,8 +38,7 @@ function buildSkillCommand(ctx: ModuleContext): Command {
     .action(async (opts: { json?: boolean }) => {
       const result = await ctx.client.skills.list();
       if (opts.json) {
-        // biome-ignore lint/suspicious/noConsole: structured JSON output path stays on console
-        console.log(JSON.stringify(result.skills, null, 2));
+        writeJson(result.skills, { pretty: true });
         return;
       }
       if (result.skills.length === 0) {
@@ -65,7 +64,7 @@ function buildSkillCommand(ctx: ModuleContext): Command {
         },
       );
       if (!result.ok) {
-        console.error(`Error: ${result.message}`);
+        printToStderr(line(span(`Error: ${result.message}`, "error")));
         process.exit(1);
       }
       if (result.skills.length === 1) {

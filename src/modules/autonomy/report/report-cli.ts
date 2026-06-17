@@ -12,7 +12,7 @@ import { join } from "node:path";
 import { Command } from "commander";
 import { resolveProjectDir } from "#core/config/project-dir.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
-import { print } from "#modules/rendering/transport.js";
+import { print, writeJson } from "#modules/rendering/transport.js";
 import {
   type AutonomyReportData,
   aggregateAutonomyReport,
@@ -118,7 +118,7 @@ export function collectAddedFilesBySha(
 
 export function emitReport(data: AutonomyReportData, asJson: boolean): void {
   if (asJson) {
-    process.stdout.write(`${JSON.stringify(data, null, 2)}\n`);
+    writeJson(data, { pretty: true });
     return;
   }
   print(renderAutonomyReport(data));

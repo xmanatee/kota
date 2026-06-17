@@ -3,6 +3,8 @@ import { existsSync } from "node:fs";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
+import { line, span } from "#modules/rendering/primitives.js";
+import { printToStderr, writeStderr } from "#modules/rendering/transport.js";
 import { enrichWithSourceContext } from "./error-context.js";
 import { buildExecutionEnv } from "./execution-env.js";
 import { smartErrorTruncate } from "./shell-diagnostics.js";
@@ -77,11 +79,8 @@ export async function runShell(
     let killedReason: "timeout" | "abort" | null = null;
     let forceKillTimer: ReturnType<typeof setTimeout> | null = null;
 
-    // Show the command being run (dimmed)
-    const dim = process.stderr.isTTY ? "\x1b[2m" : "";
-    const reset = process.stderr.isTTY ? "\x1b[0m" : "";
     if (streamOutput) {
-      process.stderr.write(`${dim}$ ${command}${reset}\n`);
+      printToStderr(line(span(`$ ${command}`, "muted")));
     }
 
     const proc = spawn("sh", ["-c", command], {
@@ -107,13 +106,13 @@ export async function runShell(
     proc.stdout.on("data", (chunk: Buffer) => {
       const text = chunk.toString();
       chunks.push(text);
-      if (streamOutput) process.stderr.write(text);
+      if (streamOutput) writeStderr(text);
     });
 
     proc.stderr.on("data", (chunk: Buffer) => {
       const text = chunk.toString();
       chunks.push(text);
-      if (streamOutput) process.stderr.write(text);
+      if (streamOutput) writeStderr(text);
     });
 
     proc.on("close", (code) => {

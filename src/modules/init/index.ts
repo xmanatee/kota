@@ -2,6 +2,8 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Command } from "commander";
 import type { KotaModule } from "#core/modules/module-types.js";
+import { blank, group, line, plain, type RenderNode, span, stack } from "#modules/rendering/primitives.js";
+import { print } from "#modules/rendering/transport.js";
 import {
   REPO_INBOX_DIR,
   REPO_TASK_STATES,
@@ -99,7 +101,7 @@ const initModule: KotaModule = {
   name: "init",
   version: "1.0.0",
   description: "Scaffolds a new KOTA project",
-  dependencies: ["repo-tasks"],
+  dependencies: ["repo-tasks", "rendering"],
 
   commands: () => {
     const cmd = new Command("init")
@@ -108,25 +110,31 @@ const initModule: KotaModule = {
       .action((opts: { force?: boolean }) => {
         const projectDir = process.cwd();
         const { created, skipped } = runInit(projectDir, opts.force ?? false);
+        const sections: RenderNode[] = [];
 
         if (created.length > 0) {
-          console.log("Created:");
-          for (const f of created) {
-            console.log(`  ${f}`);
-          }
+          sections.push(group(
+            "Created",
+            stack(...created.map((f) => line(span(f, "accent")))),
+            "success",
+          ));
         }
 
         if (skipped.length > 0) {
-          console.log("Skipped (already exist):");
-          for (const f of skipped) {
-            console.log(`  ${f}`);
-          }
+          sections.push(group(
+            "Skipped (already exist)",
+            stack(...skipped.map((f) => line(span(f, "muted")))),
+            "muted",
+          ));
         }
 
-        console.log();
-        console.log("Project scaffolded. Next steps:");
-        console.log("  1. Review kota.config.ts and uncomment any modules you need.");
-        console.log("  2. Run `kota doctor` to verify your setup.");
+        print(stack(
+          ...sections,
+          ...(sections.length > 0 ? [blank()] : []),
+          line(span("Project scaffolded.", "success"), plain(" Next steps:")),
+          line(plain("1. Review kota.config.ts and uncomment any modules you need.")),
+          line(plain("2. Run `kota doctor` to verify your setup.")),
+        ));
       });
     return [cmd];
   },

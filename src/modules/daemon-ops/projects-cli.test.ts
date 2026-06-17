@@ -32,11 +32,13 @@ describe("kota project CLI", () => {
   beforeEach(() => {
     logs = [];
     errs = [];
-    logSpy = vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
-      logs.push(args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" "));
+    logSpy = vi.spyOn(process.stdout, "write").mockImplementation((data) => {
+      logs.push(String(data));
+      return true;
     });
-    errSpy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
-      errs.push(args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" "));
+    errSpy = vi.spyOn(process.stderr, "write").mockImplementation((data) => {
+      errs.push(String(data));
+      return true;
     });
     process.exitCode = undefined;
   });

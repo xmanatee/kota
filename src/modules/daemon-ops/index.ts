@@ -32,9 +32,10 @@ import {
   plain,
   type RenderNode,
   span,
+  stack,
   statusBanner,
 } from "#modules/rendering/primitives.js";
-import { renderToString } from "#modules/rendering/transport.js";
+import { print, printToStderr, renderToString, writeJson, writeStdout, writeStdoutLine } from "#modules/rendering/transport.js";
 import { getRepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type {
   DaemonOpsClient,
@@ -104,6 +105,15 @@ const DAEMON_CHILD_ENV = "KOTA_DAEMON_CHILD";
 const DAEMON_PROJECT_DIR_OPTION_DESCRIPTION =
   "Project directory the daemon operates on (overrides KOTA_PROJECT_DIR env and cwd)";
 
+function printDaemonError(message: string): void {
+  printToStderr(line(span(message, "error")));
+}
+
+function writeRawBlock(text: string): void {
+  writeStdout(text);
+  if (!text.endsWith("\n")) writeStdout("\n");
+}
+
 type DaemonProjectDirOptions = {
   projectDir?: string;
 };
@@ -122,7 +132,7 @@ type ResolvedDaemonStartOptions = Omit<DaemonStartOptions, "pollInterval"> & {
 function parseIntOption(value: string, name: string): number {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    console.error(`Error: --${name} must be a positive integer, got "${value}"`);
+    printDaemonError(`Error: --${name} must be a positive integer, got "${value}"`);
     process.exit(1);
   }
   return parsed;
@@ -130,7 +140,7 @@ function parseIntOption(value: string, name: string): number {
 
 function parseLogFormatOption(value: string): LogFormat {
   if (value !== "text" && value !== "json") {
-    console.error(`Error: --log-format must be "text" or "json", got "${value}"`);
+    printDaemonError(`Error: --log-format must be "text" or "json", got "${value}"`);
     process.exit(1);
   }
   return value;
@@ -178,7 +188,7 @@ function installDaemonPresetEnv(args: {
     process.env[PRESET_ENV_VAR] = resolution.preset.id;
     return resolution;
   } catch (err) {
-    console.error(err instanceof Error ? err.message : String(err));
+    printDaemonError(err instanceof Error ? err.message : String(err));
     process.exit(1);
   }
 }
@@ -190,7 +200,7 @@ function preflightDaemonPresetAuth(args: {
   if (args.harnessName !== args.preset.harness) return;
   const { missing } = checkPresetAuth(args.preset);
   if (missing.length === 0) return;
-  console.error(
+  printDaemonError(
     `Error: preset "${args.preset.id}" requires ${missing.join(" or ")}. ` +
       `Run \`kota doctor --preset ${args.preset.id}\` to diagnose before starting the daemon.`,
   );
@@ -483,26 +493,26 @@ const daemonModule: KotaModule = {
         const result = await client.status();
         if (result.state === "running") {
           if (opts.json) {
-            console.log(JSON.stringify({ ...result.status, managed: result.managed }));
+            writeJson({ ...result.status, managed: result.managed });
             return;
           }
-          console.log(formatDaemonStatus(result.status, result.managed));
+          print(buildDaemonStatusNode(result.status, result.managed));
           return;
         }
 
         if (opts.json) {
           if (result.state === "stale") {
-            console.log(JSON.stringify({ running: false, managed: result.managed, staleControlFile: true }));
+            writeJson({ running: false, managed: result.managed, staleControlFile: true });
           } else {
-            console.log(JSON.stringify({ running: false, managed: result.managed }));
+            writeJson({ running: false, managed: result.managed });
           }
         } else {
           if (result.state === "stale") {
-            console.error(`Stale control file (pid ${result.pid} is not alive). Run 'kota doctor --fix' to clean up.`);
+            printDaemonError(`Stale control file (pid ${result.pid} is not alive). Run 'kota doctor --fix' to clean up.`);
           } else {
-            console.error("Daemon is not running.");
+            printDaemonError("Daemon is not running.");
           }
-          if (result.managed) console.log("managed:  yes (OS service installed)");
+          if (result.managed) print(line(plain("managed:  yes (OS service installed)")));
         }
         process.exitCode = 1;
       });
@@ -516,13 +526,13 @@ const daemonModule: KotaModule = {
         const client = await daemonOpsClientForProject(projectDir, buildDaemonOpsDaemonHandler);
         const result = await client.pid();
         if (result.state === "running") {
-          console.log(String(result.pid));
+          writeStdoutLine(String(result.pid));
           return;
         }
         if (result.state === "stale") {
-          console.error(`Stale control file (pid ${result.pid} is not alive). Run 'kota doctor --fix' to clean up.`);
+          printDaemonError(`Stale control file (pid ${result.pid} is not alive). Run 'kota doctor --fix' to clean up.`);
         } else {
-          console.error("Daemon is not running.");
+          printDaemonError("Daemon is not running.");
         }
         process.exitCode = 1;
       });
@@ -537,15 +547,15 @@ const daemonModule: KotaModule = {
         const projectDir = resolveDaemonCommandProjectDir(opts, command);
         const result = await localDaemonStop({ timeoutSec, projectDir });
         if (result.ok) {
-          console.log("Daemon stopped.");
+          print(line(span("Daemon stopped.", "success")));
           return;
         }
         if (result.reason === "not_running") {
-          console.error("Daemon is not running.");
+          printDaemonError("Daemon is not running.");
         } else if (result.reason === "stale") {
-          console.error("Daemon process is not running (stale control file).");
+          printDaemonError("Daemon process is not running (stale control file).");
         } else if (result.reason === "timeout") {
-          console.error(`Daemon did not stop within ${timeoutSec}s.`);
+          printDaemonError(`Daemon did not stop within ${timeoutSec}s.`);
         }
         process.exitCode = 1;
       });
@@ -560,27 +570,34 @@ const daemonModule: KotaModule = {
         const result = await client.reload();
         if (!result.ok) {
           if (result.reason === "not_running") {
-            console.error("Daemon is not running.");
+            printDaemonError("Daemon is not running.");
           } else {
-            console.error("Daemon reload failed or daemon is not reachable.");
+            printDaemonError("Daemon reload failed or daemon is not reachable.");
           }
           process.exitCode = 1;
           return;
         }
-        console.log(`Reloaded. ${result.workflows} workflow definition(s) active.`);
+        const lines: RenderNode[] = [
+          line(
+            span("Reloaded. ", "success"),
+            plain(`${result.workflows} workflow definition(s) active.`),
+          ),
+        ];
         if (result.changedModules.length === 0) {
-          console.log("  No module config changes detected.");
+          lines.push(line(span("  No module config changes detected.", "muted")));
         } else {
-          console.log(`  Reloaded module(s): ${result.changedModules.join(", ")}`);
+          lines.push(line(plain("  Reloaded module(s): "), span(result.changedModules.join(", "), "accent")));
         }
         const guardrails = result.sessionGuardrails;
-        console.log(
-          `  Session guardrails: ${guardrails.refreshed} refreshed, ` +
-            `${guardrails.unchanged} unchanged, ${guardrails.nonRefreshable.length} not refreshable.`,
-        );
+        lines.push(line(
+          plain(`  Session guardrails: ${guardrails.refreshed} refreshed, `),
+          plain(`${guardrails.unchanged} unchanged, `),
+          span(`${guardrails.nonRefreshable.length} not refreshable.`, guardrails.nonRefreshable.length > 0 ? "warn" : "muted"),
+        ));
         for (const session of guardrails.nonRefreshable) {
-          console.log(`    ${session.id}: ${session.reason}`);
+          lines.push(line(span(`    ${session.id}: ${session.reason}`, "muted")));
         }
+        print(stack(...lines));
       });
 
     cmd
@@ -595,57 +612,61 @@ const daemonModule: KotaModule = {
           const plistPath = getLaunchdPlistPath();
           const content = buildLaunchdPlist(projectDir);
           if (opts.dryRun) {
-            console.log(`# Would write: ${plistPath}`);
-            console.log(content);
+            print(line(plain("# Would write: "), span(plistPath, "accent")));
+            writeRawBlock(content);
             return;
           }
           const writeErr = writeServiceFile(plistPath, content);
           if (writeErr) {
-            console.error(writeErr);
+            printDaemonError(String(writeErr));
             process.exitCode = 1;
             return;
           }
           const result = spawnSync("launchctl", ["load", plistPath], { encoding: "utf8" });
           if (result.status !== 0) {
-            console.error(`launchctl load failed:\n${result.stderr || result.stdout}`);
+            printDaemonError(`launchctl load failed:\n${result.stderr || result.stdout}`);
             process.exitCode = 1;
             return;
           }
-          console.log(`Daemon service installed and started.`);
-          console.log(`  plist: ${plistPath}`);
-          console.log(`  label: ${SERVICE_LABEL_LAUNCHD}`);
-          console.log(`To stop: launchctl unload ${plistPath}`);
+          print(stack(
+            line(span("Daemon service installed and started.", "success")),
+            line(plain("  plist: "), span(plistPath, "accent")),
+            line(plain("  label: "), span(SERVICE_LABEL_LAUNCHD, "muted")),
+            line(plain("To stop: "), span(`launchctl unload ${plistPath}`, "muted")),
+          ));
         } else if (process.platform === "linux") {
           const servicePath = getSystemdServicePath();
           const content = buildSystemdUnit(projectDir);
           if (opts.dryRun) {
-            console.log(`# Would write: ${servicePath}`);
-            console.log(content);
+            print(line(plain("# Would write: "), span(servicePath, "accent")));
+            writeRawBlock(content);
             return;
           }
           const writeErr = writeServiceFile(servicePath, content);
           if (writeErr) {
-            console.error(writeErr);
+            printDaemonError(String(writeErr));
             process.exitCode = 1;
             return;
           }
           const daemon = spawnSync("systemctl", ["--user", "daemon-reload"], { encoding: "utf8" });
           if (daemon.status !== 0) {
-            console.error(`systemctl daemon-reload failed:\n${daemon.stderr || daemon.stdout}`);
+            printDaemonError(`systemctl daemon-reload failed:\n${daemon.stderr || daemon.stdout}`);
             process.exitCode = 1;
             return;
           }
           const enable = spawnSync("systemctl", ["--user", "enable", "--now", SERVICE_NAME_SYSTEMD], { encoding: "utf8" });
           if (enable.status !== 0) {
-            console.error(`systemctl enable failed:\n${enable.stderr || enable.stdout}`);
+            printDaemonError(`systemctl enable failed:\n${enable.stderr || enable.stdout}`);
             process.exitCode = 1;
             return;
           }
-          console.log(`Daemon service installed and started.`);
-          console.log(`  service: ${servicePath}`);
-          console.log(`To stop: systemctl --user stop ${SERVICE_NAME_SYSTEMD}`);
+          print(stack(
+            line(span("Daemon service installed and started.", "success")),
+            line(plain("  service: "), span(servicePath, "accent")),
+            line(plain("To stop: "), span(`systemctl --user stop ${SERVICE_NAME_SYSTEMD}`, "muted")),
+          ));
         } else {
-          console.error(`Unsupported platform: ${process.platform}. Only macOS and Linux are supported.`);
+          printDaemonError(`Unsupported platform: ${process.platform}. Only macOS and Linux are supported.`);
           process.exitCode = 1;
         }
       });
@@ -659,26 +680,30 @@ const daemonModule: KotaModule = {
           spawnSync("launchctl", ["unload", plistPath], { encoding: "utf8" });
           const removeErr = removeServiceFile(plistPath);
           if (removeErr) {
-            console.error(removeErr);
+            printDaemonError(String(removeErr));
             process.exitCode = 1;
             return;
           }
-          console.log(`Daemon service removed.`);
-          console.log(`  removed: ${plistPath}`);
+          print(stack(
+            line(span("Daemon service removed.", "success")),
+            line(plain("  removed: "), span(plistPath, "accent")),
+          ));
         } else if (process.platform === "linux") {
           const servicePath = getSystemdServicePath();
           spawnSync("systemctl", ["--user", "disable", "--now", SERVICE_NAME_SYSTEMD], { encoding: "utf8" });
           const removeErr = removeServiceFile(servicePath);
           if (removeErr) {
-            console.error(removeErr);
+            printDaemonError(String(removeErr));
             process.exitCode = 1;
             return;
           }
           spawnSync("systemctl", ["--user", "daemon-reload"], { encoding: "utf8" });
-          console.log(`Daemon service removed.`);
-          console.log(`  removed: ${servicePath}`);
+          print(stack(
+            line(span("Daemon service removed.", "success")),
+            line(plain("  removed: "), span(servicePath, "accent")),
+          ));
         } else {
-          console.error(`Unsupported platform: ${process.platform}. Only macOS and Linux are supported.`);
+          printDaemonError(`Unsupported platform: ${process.platform}. Only macOS and Linux are supported.`);
           process.exitCode = 1;
         }
       });

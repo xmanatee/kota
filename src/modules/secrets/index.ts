@@ -20,6 +20,8 @@ import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { credentialInjectionEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/index.js";
+import { columns, line, plain, span, stack } from "#modules/rendering/primitives.js";
+import { print, printToStderr, writeStdout } from "#modules/rendering/transport.js";
 import type {
   SecretGetResult,
   SecretListResult,
@@ -224,10 +226,15 @@ function parseScope(opts: { global?: boolean; project?: boolean }): SecretScope 
   return "project";
 }
 
+function printSecretError(message: string): void {
+  printToStderr(line(span(message, "error")));
+}
+
 const secretsModule: KotaModule = {
   name: "secrets",
   version: "1.0.0",
   description: "Secure credential management with output masking",
+  dependencies: ["rendering"],
 
   // Tools as factory function — runner captures ctx via closure
   tools: (ctx) => [
@@ -255,19 +262,19 @@ const secretsModule: KotaModule = {
         try {
           value = await promptSecretValue(name);
         } catch {
-          console.error("Error: failed to read secret value.");
+          printSecretError("Error: failed to read secret value.");
           process.exit(1);
         }
         if (!value) {
-          console.error("Error: empty value, nothing stored.");
+          printSecretError("Error: empty value, nothing stored.");
           process.exit(1);
         }
         const result = await ctx.client.secrets.set(name, value, scope);
         if (!result.ok) {
-          console.error(`Error: failed to store secret "${name}"${result.message ? `: ${result.message}` : "."}`);
+          printSecretError(`Error: failed to store secret "${name}"${result.message ? `: ${result.message}` : "."}`);
           process.exit(1);
         }
-        console.log(`Secret "${name}" stored (${scope} scope).`);
+        print(line(span(`Secret "${name}" stored`, "success"), plain(` (${scope} scope).`)));
       });
 
     cmd
@@ -276,12 +283,12 @@ const secretsModule: KotaModule = {
       .action(async (name: string) => {
         const result = await ctx.client.secrets.get(name);
         if (!result.found) {
-          console.error(`Secret "${name}" not found.`);
+          printSecretError(`Secret "${name}" not found.`);
           process.exit(1);
         }
         // Print to stdout (for piping), trailing newline only on TTY
-        process.stdout.write(result.value);
-        if (process.stdout.isTTY) process.stdout.write("\n");
+        writeStdout(result.value);
+        if (process.stdout.isTTY) writeStdout("\n");
       });
 
     cmd
@@ -290,15 +297,24 @@ const secretsModule: KotaModule = {
       .action(async () => {
         const result = await ctx.client.secrets.list();
         if (result.secrets.length === 0) {
-          console.log("No secrets configured.");
-          console.log("Use 'kota secrets set <name>' to add one.");
+          print(stack(
+            line(plain("No secrets configured.")),
+            line(plain("Use 'kota secrets set <name>' to add one.")),
+          ));
           return;
         }
-        console.log(`${"Name".padEnd(30)} Source`);
-        console.log("-".repeat(50));
-        for (const s of result.secrets) {
-          console.log(`${s.name.padEnd(30)} ${s.source}`);
-        }
+        print(columns(
+          [
+            { header: "Name", role: "accent", maxWidth: 50 },
+            { header: "Source", role: "muted", minWidth: 7 },
+          ],
+          result.secrets.map((s) => ({
+            cells: [
+              { spans: [{ text: s.name, role: "accent" }] },
+              { spans: [{ text: s.source, role: "muted" }] },
+            ],
+          })),
+        ));
       });
 
     cmd
@@ -310,13 +326,13 @@ const secretsModule: KotaModule = {
         const scope = parseScope(opts);
         const result = await ctx.client.secrets.remove(name, scope);
         if (result.ok) {
-          console.log(`Secret "${name}" removed (${scope} scope).`);
+          print(line(span(`Secret "${name}" removed`, "success"), plain(` (${scope} scope).`)));
           return;
         }
         if (result.reason === "not_found") {
-          console.error(`Secret "${name}" not found in ${scope} scope.`);
+          printSecretError(`Secret "${name}" not found in ${scope} scope.`);
         } else {
-          console.error(`Error: failed to remove secret "${name}"${result.message ? `: ${result.message}` : "."}`);
+          printSecretError(`Error: failed to remove secret "${name}"${result.message ? `: ${result.message}` : "."}`);
         }
         process.exit(1);
       });

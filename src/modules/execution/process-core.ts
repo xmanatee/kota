@@ -1,6 +1,8 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import type { ToolRunnerContext } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
+import { line, span } from "#modules/rendering/primitives.js";
+import { printToStderr } from "#modules/rendering/transport.js";
 import { buildExecutionEnv } from "./execution-env.js";
 
 const MAX_BUFFER_LINES = 500;
@@ -152,9 +154,7 @@ export async function startProcess(
   proc.stdin?.end();
   processes.set(id, mp);
 
-  const dim = process.stderr.isTTY ? "\x1b[2m" : "";
-  const reset = process.stderr.isTTY ? "\x1b[0m" : "";
-  process.stderr.write(`${dim}[bg] $ ${command} → ${id}${reset}\n`);
+  printToStderr(line(span(`[bg] $ ${command} → ${id}`, "muted")));
 
   await new Promise((resolve) => setTimeout(resolve, INITIAL_OUTPUT_WAIT_MS));
 

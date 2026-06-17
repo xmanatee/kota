@@ -1,6 +1,8 @@
 import { Command } from "commander";
 import { getDaemonTransport } from "#core/server/daemon-transport.js";
 import { type AutonomyMode, isAutonomyMode } from "#core/tools/autonomy-mode.js";
+import { line, span } from "#modules/rendering/primitives.js";
+import { printToStderr } from "#modules/rendering/transport.js";
 import { HttpAcpDaemonClient } from "./daemon-adapter.js";
 import { runAgentClientProtocolStdio } from "./stdio.js";
 
@@ -14,7 +16,7 @@ export function buildAgentClientProtocolCommand(): Command {
     )
     .action(async (opts: { autonomyMode: string }) => {
       if (!isAutonomyMode(opts.autonomyMode)) {
-        console.error("Error: --autonomy-mode must be one of: passive, supervised, autonomous");
+        printToStderr(line(span("Error: --autonomy-mode must be one of: passive, supervised, autonomous", "error")));
         process.exitCode = 1;
         return;
       }

@@ -18,6 +18,7 @@ import type {
 	HistorySemanticOptions,
 	ReindexResult,
 } from "#core/modules/provider-types.js";
+import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import type { ConversationHistory } from "#modules/history/history.js";
 import type { EmbeddingProvider } from "#modules/semantic-index/embedding-provider.js";
 import {
@@ -29,7 +30,7 @@ export type SemanticHistoryStoreOptions = {
 	base: ConversationHistory;
 	provider: EmbeddingProvider;
 	/**
-	 * Called when background embedding fails. Defaults to console.error.
+	 * Called when background embedding fails. Defaults to a terminal diagnostic.
 	 * Tests override this to assert error handling without polluting output.
 	 */
 	onBackgroundError?: (err: unknown) => void;
@@ -91,7 +92,12 @@ export class SemanticHistoryStore implements HistoryProvider {
 		this.base = options.base;
 		const onError =
 			options.onBackgroundError ??
-			((err) => console.error("[history-semantic] background embed failed:", err));
+			((err) =>
+				printTerminalDiagnostic(
+					"[history-semantic] background embed failed:",
+					"error",
+					err instanceof Error ? err.message : String(err),
+				));
 		this.manager = new SemanticIndexManager({
 			adapter: buildAdapter(options.base),
 			provider: options.provider,

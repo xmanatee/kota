@@ -14,7 +14,7 @@
 import { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { columns, line, plain, type RenderNode, span } from "#modules/rendering/primitives.js";
-import { print } from "#modules/rendering/transport.js";
+import { print, printToStderr, writeJson } from "#modules/rendering/transport.js";
 import type { ProjectsListResult } from "./client.js";
 
 function buildProjectsListNode(result: Extract<ProjectsListResult, { ok: true }>): RenderNode {
@@ -61,21 +61,19 @@ export function buildProjectCommand(ctx: ModuleContext): Command {
       const result = await ctx.client.projects.list();
       if (!result.ok) {
         if (opts.json) {
-          console.log(JSON.stringify(result));
+          writeJson(result);
         } else {
-          console.error("Daemon is not running. `kota project` requires a live daemon.");
+          printToStderr(line(span("Daemon is not running. `kota project` requires a live daemon.", "error")));
         }
         process.exitCode = 1;
         return;
       }
       if (opts.json) {
-        console.log(
-          JSON.stringify({
-            projects: result.projects,
-            defaultProjectId: result.defaultProjectId,
-            activeProjectId: result.activeProjectId,
-          }),
-        );
+        writeJson({
+          projects: result.projects,
+          defaultProjectId: result.defaultProjectId,
+          activeProjectId: result.activeProjectId,
+        });
         return;
       }
       print(buildProjectsListNode(result));
@@ -93,12 +91,12 @@ export function buildProjectCommand(ctx: ModuleContext): Command {
       opts: { clear?: boolean; json?: boolean },
     ) => {
       if (opts.clear && projectId) {
-        console.error("Cannot pass both <projectId> and --clear.");
+        printToStderr(line(span("Cannot pass both <projectId> and --clear.", "error")));
         process.exitCode = 1;
         return;
       }
       if (!opts.clear && !projectId) {
-        console.error("Pass <projectId> to switch, or --clear to reset.");
+        printToStderr(line(span("Pass <projectId> to switch, or --clear to reset.", "error")));
         process.exitCode = 1;
         return;
       }
@@ -106,23 +104,23 @@ export function buildProjectCommand(ctx: ModuleContext): Command {
       const result = await ctx.client.projects.use(target);
       if (!result.ok) {
         if (opts.json) {
-          console.log(JSON.stringify(result));
+          writeJson(result);
         } else if (result.reason === "not_found") {
-          console.error(`Unknown project: "${result.projectId}".`);
+          printToStderr(line(span(`Unknown project: "${result.projectId}".`, "error")));
         } else {
-          console.error("Daemon is not running. `kota project use` requires a live daemon.");
+          printToStderr(line(span("Daemon is not running. `kota project use` requires a live daemon.", "error")));
         }
         process.exitCode = 1;
         return;
       }
       if (opts.json) {
-        console.log(JSON.stringify(result));
+        writeJson(result);
         return;
       }
       if (result.activeProjectId === null) {
-        console.log("Active selection cleared. Routes fall back to the registry default.");
+        print(line(plain("Active selection cleared. Routes fall back to the registry default.")));
       } else {
-        console.log(`Active project → ${result.activeProjectId}`);
+        print(line(plain("Active project → "), span(result.activeProjectId, "accent")));
       }
     });
 

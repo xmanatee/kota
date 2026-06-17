@@ -1,22 +1,13 @@
 /**
  * Minimal diff display for file edits.
- * Prints colored unified-diff-style output to stderr so the user
- * can see what the agent changed without reading the tool result.
+ * Prints rendered unified-diff-style output to stderr so the user can see what
+ * the agent changed without reading the tool result.
  */
+import { diff, line, span } from "#modules/rendering/primitives.js";
+import { printToStderr } from "#modules/rendering/transport.js";
 
 const CONTEXT_LINES = 2;
 const MAX_DIFF_LINES = 40;
-
-function color(isTTY: boolean) {
-  if (!isTTY) return { red: "", green: "", cyan: "", dim: "", reset: "" };
-  return {
-    red: "\x1b[31m",
-    green: "\x1b[32m",
-    cyan: "\x1b[36m",
-    dim: "\x1b[2m",
-    reset: "\x1b[0m",
-  };
-}
 
 /** Find the 1-based line number where `substring` first appears in `content`. */
 export function findLineNumber(content: string, substring: string): number {
@@ -41,15 +32,17 @@ export function printEditDiff(
   // For large diffs, show a one-line summary instead of flooding the terminal
   if (oldLines.length + newLines.length > MAX_DIFF_LINES) {
     const lineNum = findLineNumber(content, oldStr);
-    const c = color(process.stderr.isTTY ?? false);
-    process.stderr.write(
-      `${c.dim}${path}:${lineNum} — replaced ${oldLines.length} lines with ${newLines.length} lines${c.reset}\n`,
+    printToStderr(
+      line(
+        span(
+          `${path}:${lineNum} — replaced ${oldLines.length} lines with ${newLines.length} lines`,
+          "muted",
+        ),
+      ),
     );
     return;
   }
 
-  const isTTY = process.stderr.isTTY ?? false;
-  const c = color(isTTY);
   const lines = content.split("\n");
   const lineNum = findLineNumber(content, oldStr);
 
@@ -60,17 +53,15 @@ export function printEditDiff(
   const contextAfter = lines.slice(lineNum - 1 + oldLines.length, ctxEnd);
 
   const parts: string[] = [];
-  parts.push(`${c.dim}--- a/${path}`);
-  parts.push(`+++ b/${path}${c.reset}`);
-  parts.push(
-    `${c.cyan}@@ -${lineNum},${oldLines.length} +${lineNum},${newLines.length} @@${c.reset}`,
-  );
+  parts.push(`--- a/${path}`);
+  parts.push(`+++ b/${path}`);
+  parts.push(`@@ -${lineNum},${oldLines.length} +${lineNum},${newLines.length} @@`);
   for (const l of contextBefore) parts.push(` ${l}`);
-  for (const l of oldLines) parts.push(`${c.red}-${l}${c.reset}`);
-  for (const l of newLines) parts.push(`${c.green}+${l}${c.reset}`);
+  for (const l of oldLines) parts.push(`-${l}`);
+  for (const l of newLines) parts.push(`+${l}`);
   for (const l of contextAfter) parts.push(` ${l}`);
 
-  process.stderr.write(`${parts.join("\n")}\n`);
+  printToStderr(diff(parts.join("\n")));
 }
 
 /**
@@ -81,8 +72,5 @@ export function printWriteSummary(
   oldLineCount: number,
   newLineCount: number,
 ): void {
-  const c = color(process.stderr.isTTY ?? false);
-  process.stderr.write(
-    `${c.dim}${path}: ${oldLineCount} → ${newLineCount} lines${c.reset}\n`,
-  );
+  printToStderr(line(span(`${path}: ${oldLineCount} → ${newLineCount} lines`, "muted")));
 }

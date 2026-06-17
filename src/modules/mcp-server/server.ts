@@ -14,6 +14,8 @@ import type { EventBus } from "#core/events/event-bus.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import type { ToolDef } from "#core/modules/module-types.js";
+import { line, span } from "#modules/rendering/primitives.js";
+import { printToStderr } from "#modules/rendering/transport.js";
 import {
 	DeprecatedMcpCapabilityWarnings,
 	hasDeprecatedClientCapability,
@@ -368,7 +370,7 @@ export class McpServer {
 	constructor(options: McpServerOptions = {}) {
 		this.input = options.input ?? process.stdin;
 		this.output = options.output ?? process.stdout;
-		this.log = options.log ?? ((msg) => process.stderr.write(`[mcp-server] ${msg}\n`));
+		this.log = options.log ?? ((msg) => printToStderr(line(span(`[mcp-server] ${msg}`, "muted"))));
 		this.deprecatedWarnings = new DeprecatedMcpCapabilityWarnings((message) =>
 			this.log(message),
 		);

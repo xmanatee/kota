@@ -4,6 +4,8 @@ import type {
   HistorySemanticOptions,
   ReindexResult,
 } from "#core/modules/provider-types.js";
+import { line, span } from "#modules/rendering/primitives.js";
+import { printToStderr } from "#modules/rendering/transport.js";
 import {
   type ConversationData,
   type ConversationRecord,
@@ -264,12 +266,18 @@ export class ConversationHistory {
             unlinkSync(join(this.dir, f));
             cleaned++;
           } catch (err) {
-            console.warn(`[kota-history] Failed to remove orphaned conversation file ${f}:`, err instanceof Error ? err.message : String(err));
+            printToStderr(line(span(
+              `[kota-history] Failed to remove orphaned conversation file ${f}: ${err instanceof Error ? err.message : String(err)}`,
+              "warn",
+            )));
           }
         }
       }
     } catch (err) {
-      console.warn("[kota-history] Failed to scan history directory for orphaned files:", err instanceof Error ? err.message : String(err));
+      printToStderr(line(span(
+        `[kota-history] Failed to scan history directory for orphaned files: ${err instanceof Error ? err.message : String(err)}`,
+        "warn",
+      )));
     }
 
     return cleaned;

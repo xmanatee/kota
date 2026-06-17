@@ -67,6 +67,7 @@ const executionModule: KotaModule = {
   version: "1.0.0",
   description:
     "Execution tools: shell, process, code_exec, computer_use, screenshot",
+  dependencies: ["rendering"],
   manifest: {
     schemaVersion: 1,
     capabilities: [

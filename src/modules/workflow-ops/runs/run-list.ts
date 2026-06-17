@@ -9,9 +9,10 @@ import {
   plain,
   type RenderNode,
   type SemanticRole,
+  span,
   stack,
 } from "#modules/rendering/primitives.js";
-import { print } from "#modules/rendering/transport.js";
+import { print, printToStderr } from "#modules/rendering/transport.js";
 import { formatDate, formatDuration, statusIcon } from "../utils.js";
 import type { HistoryStats } from "./workflow-history.js";
 import { computeHistoryStats, loadRunsInWindow } from "./workflow-history.js";
@@ -41,7 +42,7 @@ export function registerRunListCommands(wfCmd: Command, ctx: ModuleContext): voi
     .action(async (opts) => {
       const validStatuses = ["success", "failed", "interrupted", "completed-with-warnings", "running"];
       if (opts.status && !validStatuses.includes(opts.status)) {
-        console.error(`Unknown status "${opts.status}". Valid values: ${validStatuses.join(", ")}`);
+        printToStderr(line(span(`Unknown status "${opts.status}". Valid values: ${validStatuses.join(", ")}`, "error")));
         process.exit(1);
       }
       const limit = Number.parseInt(opts.limit, 10) || 20;

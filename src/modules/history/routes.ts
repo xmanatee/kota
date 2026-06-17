@@ -13,6 +13,8 @@ import {
   getDaemonTransport,
 } from "#core/server/daemon-transport.js";
 import { jsonResponse } from "#core/server/session-pool.js";
+import { line, span } from "#modules/rendering/primitives.js";
+import { printToStderr } from "#modules/rendering/transport.js";
 import type { HistoryDetail } from "./client.js";
 import {
   buildHistoryDetailQuery,
@@ -198,9 +200,10 @@ export async function handleDeleteHistory(
         { method: "DELETE" },
       );
     } catch (err) {
-      console.warn(
+      printToStderr(line(span(
         `history delete daemon transport failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
+        "warn",
+      )));
       resp = null;
     }
     if (resp?.ok) {

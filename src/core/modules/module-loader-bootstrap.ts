@@ -6,6 +6,7 @@ import type { LoaderState } from "./module-loader-state.js";
 import type { KotaModule, ModuleSource } from "./module-types.js";
 import { reimportProjectModule } from "./project-discovery.js";
 import { getProviderRegistry } from "./provider-registry.js";
+import { printTerminalDiagnostic } from "./terminal-renderer.js";
 
 export interface LoadAllEnv {
   config: KotaConfig;
@@ -43,9 +44,9 @@ export async function loadAllModules(
       const msg = err instanceof Error ? err.message : String(err);
       const isProject = projectNames.has(mod.name);
       if (isProject) {
-        console.error(`[kota] Module "${mod.name}" failed to load: ${msg}`);
+        printTerminalDiagnostic(`[kota] Module "${mod.name}" failed to load: ${msg}`, "error");
       } else if (env.verbose) {
-        console.error(`[kota] Optional module "${mod.name}" skipped: ${msg}`);
+        printTerminalDiagnostic(`[kota] Optional module "${mod.name}" skipped: ${msg}`, "warn");
       }
       state.loadFailures.set(mod.name, { message: msg, timestamp: new Date().toISOString() });
     }
@@ -63,7 +64,10 @@ export async function loadAllModules(
         await load(mod);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[kota] Foreign module "${mod.name}" failed to register: ${msg}`);
+        printTerminalDiagnostic(
+          `[kota] Foreign module "${mod.name}" failed to register: ${msg}`,
+          "error",
+        );
       }
     }
   }
@@ -80,7 +84,9 @@ export async function loadAllModules(
   }
 
   if (state.modules.length > 0 && env.verbose) {
-    console.error(`[kota] Modules: ${state.modules.length} loaded, ${getToolCount()} tool(s)`);
+    printTerminalDiagnostic(
+      `[kota] Modules: ${state.modules.length} loaded, ${getToolCount()} tool(s)`,
+    );
   }
 }
 
@@ -93,11 +99,12 @@ export function activateConfiguredProviders(config: KotaConfig, verbose: boolean
   for (const [type, name] of Object.entries(providers)) {
     if (!reg.setActiveById(type, name)) {
       const available = reg.introspect(type).names.join(", ") || "(none)";
-      console.error(
+      printTerminalDiagnostic(
         `[kota] Provider "${name}" for "${type}" not found. Available: ${available}`,
+        "warn",
       );
     } else if (verbose) {
-      console.error(`[kota] Provider for "${type}" set to "${name}"`);
+      printTerminalDiagnostic(`[kota] Provider for "${type}" set to "${name}"`);
     }
   }
 }
@@ -113,7 +120,7 @@ export async function reimportModule(
     return null;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[kota] Failed to reimport module "${name}": ${msg}`);
+    printTerminalDiagnostic(`[kota] Failed to reimport module "${name}": ${msg}`, "error");
     return null;
   }
 }
@@ -147,7 +154,7 @@ export async function reloadModule(
 
   if (env.verbose) {
     const how = freshMod ? "from disk" : "from registry";
-    console.error(`[kota] Module "${moduleName}" reloaded (${how})`);
+    printTerminalDiagnostic(`[kota] Module "${moduleName}" reloaded (${how})`);
   }
   return true;
 }

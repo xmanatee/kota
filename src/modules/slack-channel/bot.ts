@@ -12,6 +12,7 @@ import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import { AgentSession, type LoopOptions } from "#core/loop/loop.js";
 import { NullTransport, ProxyTransport } from "#core/loop/transport.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { AnswerClient } from "#modules/answer/client.js";
 import type { CaptureClient } from "#modules/capture/client.js";
@@ -152,7 +153,11 @@ export class SlackBot {
         await this.runWebSocket(url);
       } catch (err) {
         if (!this.running) break;
-        console.error("[kota-slack] Connection error:", (err as Error).message);
+        printTerminalDiagnostic(
+          "[kota-slack] Connection error:",
+          "error",
+          (err as Error).message,
+        );
       }
       if (this.running) {
         await sleep(RECONNECT_DELAY_MS);
@@ -166,7 +171,7 @@ export class SlackBot {
       this.ws = ws;
 
       ws.addEventListener("open", () => {
-        console.log("[kota-slack] Socket Mode connected");
+        printTerminalDiagnostic("[kota-slack] Socket Mode connected");
       });
 
       ws.addEventListener("message", (event) => {
@@ -174,7 +179,11 @@ export class SlackBot {
           const raw = JSON.parse(event.data as string) as SocketPayload;
           this.handleSocketPayload(ws, raw);
         } catch (err) {
-          console.error("[kota-slack] Failed to parse message:", (err as Error).message);
+          printTerminalDiagnostic(
+            "[kota-slack] Failed to parse message:",
+            "error",
+            (err as Error).message,
+          );
         }
       });
 
@@ -183,7 +192,9 @@ export class SlackBot {
         if (!this.running) {
           resolve();
         } else {
-          console.log(`[kota-slack] Disconnected (code ${event.code}), reconnecting...`);
+          printTerminalDiagnostic(
+            `[kota-slack] Disconnected (code ${event.code}), reconnecting...`,
+          );
           resolve(); // outer loop handles reconnect
         }
       });
@@ -198,7 +209,11 @@ export class SlackBot {
   private handleSocketPayload(ws: WebSocket, payload: SocketPayload): void {
     if (payload.type === "hello") return;
     if (payload.type === "disconnect") {
-      console.log("[kota-slack] Server requested disconnect:", payload.reason);
+      printTerminalDiagnostic(
+        "[kota-slack] Server requested disconnect:",
+        "warn",
+        payload.reason,
+      );
       ws.close();
       return;
     }
@@ -214,7 +229,11 @@ export class SlackBot {
         const msg = event as SlackMessageEvent;
         if (!msg.subtype && !msg.bot_id && msg.text && msg.user && msg.channel) {
           this.handleMessage(msg.user, msg.channel, msg.text, msg, payload.payload).catch((err) => {
-            console.error("[kota-slack] Message error:", (err as Error).message);
+            printTerminalDiagnostic(
+              "[kota-slack] Message error:",
+              "error",
+              (err as Error).message,
+            );
           });
         }
       }
@@ -225,7 +244,11 @@ export class SlackBot {
           : payload.payload;
       if (interactive.type === "block_actions") {
         this.handleBlockAction(interactive).catch((err) => {
-          console.error("[kota-slack] Action error:", (err as Error).message);
+          printTerminalDiagnostic(
+            "[kota-slack] Action error:",
+            "error",
+            (err as Error).message,
+          );
         });
       }
     }
@@ -273,7 +296,11 @@ export class SlackBot {
         channel: channelId,
         text: "Something went wrong processing your message.",
       });
-      console.error(`[kota-slack] Error for user ${userId}:`, (err as Error).message);
+      printTerminalDiagnostic(
+        `[kota-slack] Error for user ${userId}:`,
+        "error",
+        (err as Error).message,
+      );
     } finally {
       const session = this.sessions.get(userId);
       if (session) session.proxy.target = new NullTransport();
@@ -329,8 +356,9 @@ export class SlackBot {
       });
     } catch (err) {
       const message = (err as Error).message;
-      console.error(
+      printTerminalDiagnostic(
         `[kota-slack] Slash command error for user ${userId} (${parsed.command}): ${message}`,
+        "error",
       );
       await callSlackApi(this.options.botToken, "chat.postMessage", {
         channel: channelId,
@@ -364,7 +392,11 @@ export class SlackBot {
         text: resultText,
         blocks: [{ type: "section", text: { type: "mrkdwn", text: resultText } }],
       }).catch((err) => {
-        console.error("[kota-slack] Failed to update approval message:", (err as Error).message);
+        printTerminalDiagnostic(
+          "[kota-slack] Failed to update approval message:",
+          "error",
+          (err as Error).message,
+        );
       });
     }
   }

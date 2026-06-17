@@ -8,7 +8,7 @@ import {
 	stack,
 	type TextSpan,
 } from "#modules/rendering/primitives.js";
-import { print } from "#modules/rendering/transport.js";
+import { print, printToStderr } from "#modules/rendering/transport.js";
 import type { AuditListEntry, AuditListFilter } from "./client.js";
 
 const DEFAULT_LIMIT = 50;
@@ -148,7 +148,7 @@ export function registerAuditCommands(program: Command, ctx: ModuleContext): voi
 				}
 				print(stack(...buildAuditListLines(result.entries)));
 			} catch (err) {
-				console.error(`Error reading audit store: ${(err as Error).message}`);
+				printToStderr(line(span(`Error reading audit store: ${(err as Error).message}`, "error")));
 				process.exit(1);
 			}
 		});

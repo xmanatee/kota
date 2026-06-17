@@ -7,16 +7,16 @@ to a stream.
 ## Inverted Seam
 
 Core does not import `#modules/rendering/*`. The module registers a
-`RenderingProvider` during `onLoad` that supplies the default
-`CliTransport` and `ReplChrome`. Core callers (loop constructor, REPL
-host) resolve them through `getRenderingProvider()` in
-`#core/modules/provider-registry.js`; protocol types
-(`RenderingProvider`, `ReplChrome`) live in
+`RenderingProvider` during `onLoad` for `CliTransport`, `ReplChrome`,
+terminal prompts, diagnostics, and stderr passthrough. Core callers
+(loop constructor, REPL host, core tools, and module-runtime diagnostics)
+resolve it through `getRenderingProvider()` in
+`#core/modules/provider-registry.js`; protocol types live in
 `#core/modules/provider-types.js`. Deployments that omit this module
-degrade to `NullTransport` for the agent stream; the interactive REPL
-refuses to start without a chrome. The repo-wide import guard
-`src/core/agent-harness/no-module-imports-in-core.test.ts` enforces the
-boundary for every `#modules/*` subpath.
+degrade to `NullTransport` for the agent stream; interactive REPL and
+prompt tools refuse to start without a renderer. The repo-wide import
+guard `src/core/agent-harness/no-module-imports-in-core.test.ts`
+enforces the boundary for every `#modules/*` subpath.
 
 ## Vocabulary
 

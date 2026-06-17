@@ -18,11 +18,17 @@ import { loadConfig } from "#core/config/config.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
+import { line, span } from "#modules/rendering/primitives.js";
+import { printToStderr } from "#modules/rendering/transport.js";
 import type {
   McpServerClient,
   McpServerStartOptions,
   McpServerStartResult,
 } from "./client.js";
+
+function printMcpServerLog(message: string): void {
+  printToStderr(line(span(`[mcp-server] ${message}`, "muted")));
+}
 
 export function localMcpServerClient(): McpServerClient {
   return {
@@ -62,7 +68,7 @@ export function localMcpServerClient(): McpServerClient {
           host: options.host ?? "127.0.0.1",
           port: options.port ?? 0,
           endpointPath: options.endpointPath ?? "/mcp",
-          log: (message) => process.stderr.write(`[mcp-server] ${message}\n`),
+          log: printMcpServerLog,
         });
         process.on("SIGINT", () => {
           handle.close().finally(() => process.exit(0));
