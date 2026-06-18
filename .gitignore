@@ -86,6 +86,14 @@ deploy/telegram-assistant/.env
 !/.kota/runs/2026-06-16T22-23-46-196Z-builder-w9u4uz/commit-message.txt
 !/.kota/runs/2026-06-16T22-23-46-196Z-builder-w9u4uz/success-criteria-verified.txt
 !/.kota/runs/2026-06-16T22-23-46-196Z-builder-w9u4uz/success-criteria.txt
+!/.kota/runs/2026-06-18T12-21-26-420Z-builder-11pptd/
+/.kota/runs/2026-06-18T12-21-26-420Z-builder-11pptd/*
+!/.kota/runs/2026-06-18T12-21-26-420Z-builder-11pptd/commit-message.txt
+!/.kota/runs/2026-06-18T12-21-26-420Z-builder-11pptd/dead-letter-before-dismissal-dlq-0695fc11.json
+!/.kota/runs/2026-06-18T12-21-26-420Z-builder-11pptd/dead-letter-before-dismissal-dlq-1b47a1a4.json
+!/.kota/runs/2026-06-18T12-21-26-420Z-builder-11pptd/dead-letter-resolution.md
+!/.kota/runs/2026-06-18T12-21-26-420Z-builder-11pptd/success-criteria-verified.txt
+!/.kota/runs/2026-06-18T12-21-26-420Z-builder-11pptd/success-criteria.txt
 # Eval-harness fixtures legitimately seed prior run state; the runner copies
 # `initial/` verbatim into an isolated tmpdir at fixture-run time.
 !src/modules/eval-harness/fixtures/**/initial/.kota/

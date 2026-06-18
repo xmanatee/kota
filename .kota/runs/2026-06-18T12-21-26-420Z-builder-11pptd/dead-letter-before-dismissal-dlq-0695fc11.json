@@ -1,0 +1,149 @@
+{
+  "item": {
+    "id": "dlq-0695fc11-5adf-4eac-be45-115e07361762",
+    "type": "workflow-dispatch",
+    "status": "open",
+    "scopeId": "8nrg1m",
+    "projectId": "8nrg1m",
+    "owningModule": "workflow-runtime",
+    "sourceEventIds": [
+      "evtj-000000013604"
+    ],
+    "affectedWorkflowNames": [
+      "security-review"
+    ],
+    "failure": {
+      "reason": "Step \"investigate-candidates\" timed out after 2700000ms",
+      "retryCount": 2,
+      "lastErrorClass": "execution",
+      "firstFailedAt": "2026-06-16T18:58:52.495Z",
+      "lastFailedAt": "2026-06-16T18:58:52.495Z"
+    },
+    "source": {
+      "kind": "workflow-dispatch",
+      "workflowName": "security-review",
+      "triggerEvent": "autonomy.security-review.due",
+      "triggerSchemaRef": null,
+      "failedRunId": "2026-06-16T16-34-21-073Z-security-review-bvle3d",
+      "runDir": ".kota/runs/2026-06-16T16-34-21-073Z-security-review-bvle3d"
+    },
+    "redrive": {
+      "kind": "workflow",
+      "workflowName": "security-review",
+      "source": {
+        "kind": "run-trigger",
+        "runId": "2026-06-16T16-34-21-073Z-security-review-bvle3d"
+      }
+    },
+    "redactedProjection": {
+      "workflowName": "security-review",
+      "triggerEvent": "autonomy.security-review.due",
+      "triggerSchemaRef": null,
+      "triggerPayload": {
+        "due": true,
+        "reason": "high-risk-security-sensitive-change",
+        "currentHead": {
+          "kind": "commit",
+          "sha": "a4e3e630aa963d72b53c7c0a6b0d3fd4b31e9ef0"
+        },
+        "lastReview": {
+          "kind": "found",
+          "runId": "2026-06-16T14-12-26-236Z-security-review-1vnh2w",
+          "runDir": ".kota/runs/2026-06-16T14-12-26-236Z-security-review-1vnh2w",
+          "workflow": "security-review",
+          "outcome": "no-investigation-findings",
+          "completedAt": {
+            "kind": "timestamp",
+            "value": "2026-06-16T14:41:55.199Z",
+            "epochMs": 1781620915199
+          },
+          "head": {
+            "kind": "unavailable",
+            "reason": "review-commit-unavailable"
+          }
+        },
+        "comparison": {
+          "kind": "since-time",
+          "since": "2026-06-16T14:41:55.199Z"
+        },
+        "changedSurfaces": [
+          {
+            "surface": "auth-approval-boundary",
+            "paths": [
+              "data/tasks/AGENTS.md",
+              "src/modules/autonomy/workflows/blocked-promoter/promotion.ts",
+              "src/modules/autonomy/workflows/blocked-promoter/workflow.test.ts",
+              "src/modules/autonomy/workflows/blocked-promoter/workflow.ts",
+              "src/modules/repo-tasks/blocked-precondition.ts"
+            ]
+          },
+          {
+            "surface": "external-fetch",
+            "paths": [
+              "src/core/workflow/steps/step-executor-retry.test.ts",
+              "src/modules/autonomy/run-outcome-aggregation.test.ts"
+            ]
+          },
+          {
+            "surface": "[redacted]",
+            "paths": [
+              "data/tasks/AGENTS.md",
+              "data/tasks/blocked/task-publish-kota-telegram-production-deploy-artifact.md"
+            ]
+          },
+          {
+            "surface": "task-workflow-mutation",
+            "paths": [
+              "data/tasks/AGENTS.md",
+              "data/tasks/blocked/task-publish-kota-telegram-production-deploy-artifact.md",
+              "data/tasks/done/task-validate-operator-capture-proof-before-blocked-pro.md",
+              "src/core/workflow/steps/step-executor-retry.test.ts",
+              "src/core/workflow/steps/step-executor-retry.ts",
+              "src/modules/autonomy/run-outcome-aggregation.test.ts",
+              "src/modules/autonomy/workflows/blocked-promoter/promotion.test.ts",
+              "src/modules/autonomy/workflows/blocked-promoter/promotion.ts",
+              "src/modules/autonomy/workflows/blocked-promoter/workflow.test.ts",
+              "src/modules/autonomy/workflows/blocked-promoter/workflow.ts",
+              "src/modules/repo-tasks/blocked-precondition.test.ts",
+              "src/modules/repo-tasks/blocked-precondition.ts"
+            ]
+          },
+          {
+            "surface": "tool-execution",
+            "paths": [
+              "src/core/workflow/steps/step-executor-retry.test.ts",
+              "src/core/workflow/steps/step-executor-retry.ts",
+              "src/modules/autonomy/workflows/blocked-promoter/promotion.test.ts",
+              "src/modules/autonomy/workflows/blocked-promoter/workflow.test.ts"
+            ]
+          }
+        ],
+        "changedPathCount": 13,
+        "highRiskChangedPaths": [
+          "src/core/workflow/steps/step-executor-retry.ts",
+          "src/modules/autonomy/workflows/blocked-promoter/promotion.ts",
+          "src/modules/autonomy/workflows/blocked-promoter/workflow.ts",
+          "src/modules/repo-tasks/blocked-precondition.ts"
+        ],
+        "openSecurityTasks": [],
+        "cooldownMs": 3600000,
+        "cooldown": {
+          "elapsedMs": 6745389,
+          "remainingMs": 0
+        },
+        "scopeId": "8nrg1m",
+        "projectId": "8nrg1m"
+      }
+    },
+    "createdAt": "2026-06-16T18:58:52.495Z",
+    "updatedAt": "2026-06-16T18:58:52.495Z",
+    "redriveAttempts": [],
+    "retention": {
+      "kind": "expire-after-ms",
+      "durationMs": 2592000000,
+      "expiresAt": "2026-07-16T18:58:52.495Z"
+    }
+  },
+  "exportedAt": "2026-06-18T12:24:39.086Z",
+  "storePath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/dead-letter-queue/items.json"
+}

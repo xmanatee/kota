@@ -1,0 +1,176 @@
+{
+  "item": {
+    "id": "dlq-1b47a1a4-ce1a-4a7c-9b9e-b6a0e576dc65",
+    "type": "workflow-dispatch",
+    "status": "open",
+    "scopeId": "8nrg1m",
+    "projectId": "8nrg1m",
+    "owningModule": "workflow-runtime",
+    "sourceEventIds": [
+      "evtj-000000008741"
+    ],
+    "affectedWorkflowNames": [
+      "security-review"
+    ],
+    "failure": {
+      "reason": "Step \"investigate-candidates\" timed out after 2700000ms",
+      "retryCount": 2,
+      "lastErrorClass": "execution",
+      "firstFailedAt": "2026-06-13T11:47:16.108Z",
+      "lastFailedAt": "2026-06-13T11:47:16.108Z"
+    },
+    "source": {
+      "kind": "workflow-dispatch",
+      "workflowName": "security-review",
+      "triggerEvent": "autonomy.security-review.due",
+      "triggerSchemaRef": null,
+      "failedRunId": "2026-06-13T09-59-48-734Z-security-review-u7lsk4",
+      "runDir": ".kota/runs/2026-06-13T09-59-48-734Z-security-review-u7lsk4"
+    },
+    "redrive": {
+      "kind": "workflow",
+      "workflowName": "security-review",
+      "source": {
+        "kind": "run-trigger",
+        "runId": "2026-06-13T09-59-48-734Z-security-review-u7lsk4"
+      }
+    },
+    "evidence": {
+      "artifactType": "dead-letter",
+      "dataClass": "provider-payload",
+      "sensitivity": "internal",
+      "retention": {
+        "kind": "expire-after-ms",
+        "durationMs": 2592000000
+      },
+      "redactionProfile": "redacted-client-projection",
+      "projectionTargets": [
+        "daemon-api",
+        "cli-client",
+        "web-client",
+        "exported-report"
+      ],
+      "mutation": "status-transition",
+      "provenance": {
+        "producerModule": "workflow-runtime",
+        "sourceEventIds": [
+          "evtj-000000008741"
+        ],
+        "workflowName": "security-review",
+        "runId": "2026-06-13T09-59-48-734Z-security-review-u7lsk4",
+        "transformedFrom": [
+          "autonomy.security-review.due"
+        ]
+      }
+    },
+    "redactedProjection": {
+      "workflowName": "security-review",
+      "triggerEvent": "autonomy.security-review.due",
+      "triggerSchemaRef": null,
+      "triggerPayload": {
+        "due": true,
+        "reason": "high-risk-security-sensitive-change",
+        "currentHead": {
+          "kind": "commit",
+          "sha": "8f20dd545b10fde561c5a6d1af27e35dc1022158"
+        },
+        "lastReview": {
+          "kind": "found",
+          "runId": "2026-06-13T02-46-13-638Z-security-review-007t2p",
+          "runDir": ".kota/runs/2026-06-13T02-46-13-638Z-security-review-007t2p",
+          "workflow": "security-review",
+          "outcome": "confirmed-findings",
+          "completedAt": {
+            "kind": "timestamp",
+            "value": "2026-06-13T03:02:03.508Z",
+            "epochMs": 1781319723508
+          },
+          "head": {
+            "kind": "commit",
+            "sha": "980f7b2c7be4ea55ac110aed3420c6b857ee2872"
+          }
+        },
+        "comparison": {
+          "kind": "commit-range",
+          "baseSha": "980f7b2c7be4ea55ac110aed3420c6b857ee2872",
+          "headSha": "8f20dd545b10fde561c5a6d1af27e35dc1022158"
+        },
+        "changedSurfaces": [
+          {
+            "surface": "auth-approval-boundary",
+            "paths": [
+              "clients/web/src/api/client.test.ts",
+              "clients/web/src/api/client.ts",
+              "data/tasks/done/task-security-review-the-dashboard-session-cookie-is-tr.md",
+              "src/core/daemon/daemon-control.test.ts",
+              "src/core/daemon/daemon-control.ts"
+            ]
+          },
+          {
+            "surface": "daemon-control-route",
+            "paths": [
+              "clients/web/src/api/client.test.ts",
+              "clients/web/src/api/client.ts",
+              "data/tasks/done/task-security-review-the-dashboard-session-cookie-is-tr.md",
+              "src/core/daemon/daemon-control.test.ts",
+              "src/core/daemon/daemon-control.ts"
+            ]
+          },
+          {
+            "surface": "external-fetch",
+            "paths": [
+              "clients/web/src/api/client.ts",
+              "src/core/daemon/daemon-control.test.ts",
+              "src/core/daemon/daemon-control.ts"
+            ]
+          },
+          {
+            "surface": "mcp-transport",
+            "paths": [
+              "src/core/daemon/daemon-control.test.ts",
+              "src/core/daemon/daemon-control.ts"
+            ]
+          },
+          {
+            "surface": "secret-handling",
+            "paths": [
+              "data/tasks/done/task-security-review-the-dashboard-session-cookie-is-tr.md",
+              "src/core/daemon/daemon-control.test.ts"
+            ]
+          },
+          {
+            "surface": "task-workflow-mutation",
+            "paths": [
+              "data/tasks/done/task-resolve-open-builder-dead-letter-for-evidence-poli.md",
+              "data/tasks/done/task-security-review-the-dashboard-session-cookie-is-tr.md",
+              "src/core/daemon/daemon-control.test.ts"
+            ]
+          }
+        ],
+        "changedPathCount": 7,
+        "highRiskChangedPaths": [
+          "clients/web/src/api/client.ts",
+          "src/core/daemon/daemon-control.ts"
+        ],
+        "openSecurityTasks": [],
+        "cooldownMs": 3600000,
+        "cooldown": {
+          "elapsedMs": 25921030,
+          "remainingMs": 0
+        },
+        "scopeId": "8nrg1m",
+        "projectId": "8nrg1m"
+      }
+    },
+    "createdAt": "2026-06-13T11:47:16.108Z",
+    "updatedAt": "2026-06-13T11:47:16.108Z",
+    "redriveAttempts": [],
+    "retention": {
+      "kind": "expire-after-ms",
+      "durationMs": 2592000000,
+      "expiresAt": "2026-07-13T11:47:16.108Z"
+    }
+  },
+  "exportedAt": "2026-06-18T12:24:39.042Z",
+  "storePath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/dead-letter-queue/items.json"
+}

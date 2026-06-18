@@ -1,0 +1,5 @@
+Resolve security-review timeout DLQs
+
+- dismiss cited security-review investigate-candidates timeout items
+- record diagnostics and resolution evidence
+- mark the progress-review follow-up task done
