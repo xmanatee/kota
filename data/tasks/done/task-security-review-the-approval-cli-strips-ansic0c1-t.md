@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-approval-cli-strips-ansic0c1-t
 title: Security review: The approval CLI strips ANSI/C0/C1 terminal controls but leaves Unicode bidirectional formatting controls intact in queued approval text. A queued tool call can include those controls in model-supplied input/context and visually spoof the terminal approval display before an operator approves it.
-status: ready
+status: done
 priority: p2
 area: security
 summary: The approval CLI strips ANSI/C0/C1 terminal controls but leaves Unicode bidirectional formatting controls intact in queued approval text. A queued tool call can include those controls in model-supplied input/context and visually spoof the terminal approval display before an operator approves it.
 created_at: 2026-06-18T23:00:24.412Z
-updated_at: 2026-06-18T23:00:24.412Z
+updated_at: 2026-06-18T23:07:22.314Z
 ---
 
 ## Problem
@@ -56,3 +56,10 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm test src/modules/approval-queue/cli.test.ts`
+- `pnpm exec biome check src/modules/approval-queue/cli.ts src/modules/approval-queue/cli.test.ts`
+- `pnpm typecheck`
+- `pnpm validate-tasks`

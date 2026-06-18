@@ -66,8 +66,15 @@ const CSI_RESET = "\x1b[0m";
 const OSC_TITLE = "\x1b]0;approval-pwned\x07";
 const C1_CSI_GREEN = "\x9b32m";
 const C1_OSC_TITLE = "\x9d0;approval-c1-pwned\x07";
+const ARABIC_LETTER_MARK = "\u061c";
+const RIGHT_TO_LEFT_MARK = "\u200f";
+const LEFT_TO_RIGHT_OVERRIDE = "\u202d";
+const RIGHT_TO_LEFT_OVERRIDE = "\u202e";
+const LEFT_TO_RIGHT_ISOLATE = "\u2066";
+const POP_DIRECTIONAL_ISOLATE = "\u2069";
 // biome-ignore lint/suspicious/noControlCharactersInRegex: regression checks assert raw terminal controls are absent
 const RAW_TERMINAL_CONTROL_PATTERN = /[\x00-\x09\x0b-\x1f\x7f-\x9f]/;
+const UNICODE_BIDI_CONTROL_PATTERN = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/u;
 
 function withRedactedAccessToken(item: PendingApproval): PendingApproval {
 	return {
@@ -189,6 +196,39 @@ describe("approval CLI commands", () => {
 			expect(output).not.toContain(OSC_TITLE);
 			expect(output).not.toContain(C1_OSC_TITLE);
 		});
+
+		it("strips Unicode bidi controls from untrusted pending queue text", async () => {
+			const item: PendingApproval = {
+				id: "1234abcd",
+				tool: `shell${RIGHT_TO_LEFT_OVERRIDE}`,
+				input: {
+					command: `safe${RIGHT_TO_LEFT_OVERRIDE} --approve all`,
+					label: `${LEFT_TO_RIGHT_ISOLATE}visible${POP_DIRECTIONAL_ISOLATE}`,
+				},
+				risk: "dangerous",
+				reason: `needs review ${RIGHT_TO_LEFT_MARK}spoof`,
+				source: `${ARABIC_LETTER_MARK}queued-source`,
+				context: `assistant: earlier line\nuser: ${LEFT_TO_RIGHT_OVERRIDE}why now`,
+				createdAt: new Date().toISOString(),
+				status: "pending",
+			};
+			const client: ApprovalsClient = {
+				...testApprovalsClient(),
+				async list() {
+					return { approvals: [item] };
+				},
+			};
+
+			const output = await captureNoColorOutput(() => run(makeProgram(client), "approval", "list"));
+
+			expect(output).toContain("shell");
+			expect(output).toContain("safe --approve all");
+			expect(output).toContain("visible");
+			expect(output).toContain("needs review spoof");
+			expect(output).toContain("queued-source");
+			expect(output).toContain("why now");
+			expect(output).not.toMatch(UNICODE_BIDI_CONTROL_PATTERN);
+		});
 	});
 
 	describe("approval count", () => {
@@ -280,6 +320,35 @@ describe("approval CLI commands", () => {
 			expect(output).not.toContain(CSI_RED);
 			expect(output).not.toContain(OSC_TITLE);
 			expect(output).not.toContain(C1_OSC_TITLE);
+		});
+
+		it("strips Unicode bidi controls from resolved queue text", async () => {
+			const approved = testQueue.enqueue(
+				`shell${RIGHT_TO_LEFT_OVERRIDE}`,
+				{ command: "ls" },
+				"moderate",
+				"reason",
+				`${LEFT_TO_RIGHT_ISOLATE}approved-source${POP_DIRECTIONAL_ISOLATE}`,
+			);
+			testQueue.approve(approved.id, `operator ${RIGHT_TO_LEFT_MARK}note`);
+			const rejected = testQueue.enqueue(
+				`git${LEFT_TO_RIGHT_OVERRIDE}`,
+				{ command: "push" },
+				"dangerous",
+				"reason",
+				`${ARABIC_LETTER_MARK}rejected-source`,
+			);
+			testQueue.reject(rejected.id, `reject ${RIGHT_TO_LEFT_OVERRIDE}reason`);
+
+			const output = await captureNoColorOutput(() => run(makeProgram(), "approval", "history"));
+
+			expect(output).toContain("operator note");
+			expect(output).toContain("reject reason");
+			expect(output).toContain("approved-source");
+			expect(output).toContain("rejected-source");
+			expect(output).toContain("shell");
+			expect(output).toContain("git");
+			expect(output).not.toMatch(UNICODE_BIDI_CONTROL_PATTERN);
 		});
 
 		it("filters by --status", async () => {

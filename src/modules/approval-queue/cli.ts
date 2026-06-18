@@ -77,15 +77,18 @@ const TERMINAL_ESCAPE_SEQUENCE_PATTERN =
 	// biome-ignore lint/suspicious/noControlCharactersInRegex: approval queue text can contain raw terminal controls
 	/(?:\x1b\][\s\S]*?(?:\x07|\x1b\\|\x9c))|(?:\x9d[\s\S]*?(?:\x07|\x1b\\|\x9c))|(?:\x1b\[[0-?]*[ -/]*[@-~])|(?:\x9b[0-?]*[ -/]*[@-~])|(?:\x1b[@-_])/g;
 
-function stripTerminalControlSequences(value: string): string {
+const UNICODE_BIDI_FORMAT_CONTROL_PATTERN = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/g;
+
+function stripApprovalTextControls(value: string): string {
 	return value
 		.replace(TERMINAL_ESCAPE_SEQUENCE_PATTERN, "")
+		.replace(UNICODE_BIDI_FORMAT_CONTROL_PATTERN, "")
 		// biome-ignore lint/suspicious/noControlCharactersInRegex: queue text is untrusted terminal output
 		.replace(/[\x00-\x09\x0b-\x1f\x7f-\x9f]/g, "");
 }
 
 function safeApprovalLineText(value: string): string {
-	return stripTerminalControlSequences(value).replace(/\n+/g, " ");
+	return stripApprovalTextControls(value).replace(/\n+/g, " ");
 }
 
 function printApprovalError(message: string): void {
@@ -157,7 +160,7 @@ function renderPendingItem(item: PendingApproval, opts?: { includeWhy?: boolean 
 	];
 	if (item.source) rows.push(line(span("    Source: ", "muted"), plain(safeApprovalLineText(item.source))));
 	if (opts?.includeWhy && item.context) {
-		const safeContext = stripTerminalControlSequences(item.context);
+		const safeContext = stripApprovalTextControls(item.context);
 		const lastLine = safeContext.split("\n").filter(Boolean).at(-1) ?? "";
 		rows.push(line(span("    Why:    ", "muted"), plain(safeApprovalLineText(lastLine).slice(0, 120))));
 	}
@@ -237,7 +240,7 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 			}
 			const result = await executeTool(item.tool, item.input);
 			if (result.is_error) {
-				printApprovalError(`Tool execution failed:\n${stripTerminalControlSequences(result.content)}`);
+				printApprovalError(`Tool execution failed:\n${stripApprovalTextControls(result.content)}`);
 				process.exit(1);
 			}
 			const noteSuffix = item.approvalNote ? ` — note: ${safeApprovalLineText(item.approvalNote)}` : "";
@@ -246,7 +249,7 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 					span("Approved and executed ", "success"),
 					plain(`${safeApprovalLineText(item.tool)}:`),
 				),
-				line(plain(`${stripTerminalControlSequences(result.content)}${noteSuffix}`)),
+				line(plain(`${stripApprovalTextControls(result.content)}${noteSuffix}`)),
 			));
 		});
 
@@ -327,7 +330,7 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 				}
 				const result = await executeTool(approved.tool, approved.input);
 				if (result.is_error) {
-					printApprovalError(`  Failed [${item.id}] ${safeApprovalLineText(item.tool)}: ${stripTerminalControlSequences(result.content)}`);
+					printApprovalError(`  Failed [${item.id}] ${safeApprovalLineText(item.tool)}: ${stripApprovalTextControls(result.content)}`);
 					failed++;
 				} else {
 					const noteSuffix = approved.approvalNote ? ` — note: ${safeApprovalLineText(approved.approvalNote)}` : "";
