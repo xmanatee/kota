@@ -1,12 +1,12 @@
 ---
 id: task-resolve-stale-builder-and-inbox-sorter-dlqs
 title: Resolve stale builder and inbox-sorter DLQs
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Clean up the 11 open workflow-dispatch dead letters for builder and inbox-sorter from June 13-17. Preserve diagnostics, redrive only where the trigger is still meaningful, otherwise dismiss with recorded rationale, and classify the pattern as local-code, external-provider, or operator/setup so it does not keep surfacing as unresolved progress evidence.
 created_at: 2026-06-18T12:32:27.727Z
-updated_at: 2026-06-18T12:32:27.727Z
+updated_at: 2026-06-18T12:43:00.000Z
 ---
 
 ## Problem
@@ -26,6 +26,29 @@ Resolve the progress-review finding from run 2026-06-18T12-21-28-788Z-progress-r
 
 - The cited progress gap is fixed or explicitly disproven with evidence.
 - Acceptance evidence is recorded in this task or its run artifact.
+
+## Resolution
+
+All 11 cited workflow-dispatch dead letters were exported before dismissal,
+classified, and dismissed through the workflow-ops DLQ command. Redrive was not
+used because every cited trigger points at stale queue context that has since
+been resolved or superseded:
+
+- June 13 builder timeouts/provider disconnects targeted the evidence-policy
+  queue context; `task-add-retention-redaction-and-provenance-policy` is now
+  in `done/`.
+- The memory-consolidation builder repair failure is superseded by
+  `task-fan-out-consolidation-memory` in `done/` with current rendered evidence.
+- The answer-consolidation repair timeout is superseded by the recorded repair
+  artifacts and follow-up state.
+- The June 17 rendering timeout is superseded by
+  `task-introduce-a-rich-cli-rendering-abstraction-for-all` in `done/`.
+- The inbox-sorter transport failure is superseded by the current empty inbox
+  and the Mubit watchlist entry in `data/watchlist.yaml`.
+
+The failure pattern is therefore a mix of external-provider transport failures
+and superseded local-code task contexts. No operator/setup blocker remains for
+these cited ids.
 
 ## Source / Intent
 
@@ -54,4 +77,9 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- A run artifact records before/after state and rationale for all 11 cited DLQ ids; builder and inbox-sorter open-DLQ listings no longer include those stale items, or any intentionally retained item has an explicit dated rationale; validation confirms the task queue remains valid.
+- `.kota/runs/2026-06-18T12-33-02-781Z-builder-k7rfn5/dlq-resolution/` contains before/after diagnostics for all 11 cited DLQ ids.
+- `.kota/runs/2026-06-18T12-33-02-781Z-builder-k7rfn5/dlq-resolution.md` records the classification, dismissal rationale, and verification commands.
+- `node --conditions=source --import tsx src/cli.ts workflow dlq list --status open --workflow builder --json` returned `items: []` and `open: 0`.
+- `node --conditions=source --import tsx src/cli.ts workflow dlq list --status open --workflow inbox-sorter --json` returned `items: []` and `open: 0`.
+- `node --conditions=source --import tsx src/cli.ts workflow dlq list --status open --json` returned `items: []` and `open: 0`.
+- `pnpm validate-tasks` passed.
