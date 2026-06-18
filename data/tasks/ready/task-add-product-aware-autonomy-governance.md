@@ -1,12 +1,12 @@
 ---
 id: task-add-product-aware-autonomy-governance
 title: Add product aware autonomy governance
-status: backlog
+status: ready
 priority: p1
 area: autonomy
 summary: Teach builder, improver, decomposer, progress-reviewer, critic, and repair escalation to prefer Product/Safety outcomes and require Meta tasks to close visible blockers.
 created_at: 2026-06-11T22:24:13.509Z
-updated_at: 2026-06-11T22:24:13.509Z
+updated_at: 2026-06-18T19:36:00.238Z
 task_class: Platform
 ---
 

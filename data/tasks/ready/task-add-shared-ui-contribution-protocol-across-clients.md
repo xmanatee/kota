@@ -1,13 +1,13 @@
 ---
 id: task-add-shared-ui-contribution-protocol-across-clients
 title: Add shared UI contribution and action protocol across clients
-status: backlog
+status: ready
 priority: p1
 area: client
 summary: Define a KOTA-owned typed UI contribution and action protocol for modules and daemon surfaces, then extend conformance so web, macOS/iOS, mobile, and CLI render and execute the same capabilities, controls, forms, actions, and pending requests.
 depends_on: [task-promote-projects-into-hierarchical-scopes, task-unify-hooks-and-workflows-under-one-automation-pro, task-add-module-setup-and-auth-requirement-protocol]
 created_at: 2026-06-03T13:40:24.598Z
-updated_at: 2026-06-18T19:35:00.000Z
+updated_at: 2026-06-18T19:36:00.212Z
 task_class: Product
 ---
 
