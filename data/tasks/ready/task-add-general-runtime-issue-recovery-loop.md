@@ -1,12 +1,12 @@
 ---
 id: task-add-general-runtime-issue-recovery-loop
 title: Add general runtime issue recovery loop
-status: backlog
+status: ready
 priority: p1
 area: autonomy
 summary: Add a bounded runtime health auditor that consolidates logs, DLQ, interrupted runs, shutdown failures, and operator-visible runtime warnings into one evidenced repair or owner-action path.
 created_at: 2026-06-16T00:18:54.552Z
-updated_at: 2026-06-16T00:18:54.552Z
+updated_at: 2026-06-18T23:18:26.595Z
 task_class: Platform
 ---
 
