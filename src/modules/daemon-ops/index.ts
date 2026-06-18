@@ -9,16 +9,19 @@ import type {
   ProjectId,
   ProjectRegistryProjection,
 } from "#core/daemon/scope-registry.js";
+import { buildUiSurfaceBundle } from "#core/daemon/ui-surface.js";
 import type { SessionGuardrailsReloadSummary } from "#core/events/event-bus-types.js";
 import {
   checkPresetAuth,
   PRESET_ENV_VAR,
   resolvePreset,
 } from "#core/model/preset.js";
-import type { KotaModule } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import { daemonManagedHttp } from "#core/server/daemon-client.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
+import type { KotaClient } from "#core/server/kota-client.js";
+import { jsonResponse } from "#core/server/session-pool.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { LogFormat } from "#core/util/log-format.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
@@ -43,6 +46,8 @@ import type {
   ProjectsUseResult,
   SessionsClient,
   SessionsSetAutonomyModeResult,
+  UiActionExecuteInput,
+  UiClient,
 } from "./client.js";
 import {
   daemonOpsClientForProject,
@@ -55,7 +60,23 @@ import {
 import { DaemonDashboard } from "./dashboard.js";
 import { buildEventsCommand } from "./events-cli.js";
 import { abbreviateRunId, formatDuration, formatTimeAgo, formatUptime } from "./format-utils.js";
+import { buildOperatorInboxSnapshot, type OperatorInboxSnapshot } from "./operator-inbox.js";
 import { buildInboxCommand } from "./operator-inbox-cli.js";
+import type {
+  UiActionExecutionResult,
+  UiClientNamespaceExecutor,
+  UiJsonValue,
+  UiRouteExecutor,
+  UiSurfaceBundle,
+} from "./operator-ui.js";
+import {
+  buildInboxUiSurface,
+  buildStatusUiSurface,
+  executeUiAction,
+  findUiAction,
+} from "./operator-ui.js";
+import { buildOperatorControlUiSurface } from "./operator-ui-builders.js";
+import { buildUiCommand } from "./operator-ui-cli.js";
 import { buildProjectCommand } from "./projects-cli.js";
 import { projectsLocalClient } from "./projects-local.js";
 import { buildQrCommand } from "./qr-cli.js";
@@ -71,24 +92,29 @@ import {
 } from "./service-install.js";
 import { buildSessionCommand } from "./session-cli.js";
 import { sessionsLocalClient } from "./sessions-local.js";
-import { buildStatusCommand } from "./status-cli.js";
+import { buildStatusCommand, gatherStatus } from "./status-cli.js";
 
 export type {
   UiAction,
   UiActionEffect,
+  UiActionExecutionResult,
+  UiClientNamespaceExecutor,
   UiConfirmation,
   UiIntent,
   UiListItem,
   UiNode,
   UiRole,
+  UiRouteExecutor,
   UiStatusEntry,
   UiSurface,
   UiSurfaceBundle,
 } from "./operator-ui.js";
 export {
   buildInboxUiSurface,
+  buildOperatorControlUiSurface,
   buildStatusInboxBundle,
   buildStatusUiSurface,
+  executeUiAction,
   renderUiSurface,
 } from "./operator-ui.js";
 export {
@@ -375,11 +401,207 @@ export function formatDaemonStatus(status: DaemonLiveStatus, managed: boolean): 
   return renderToString(buildDaemonStatusNode(status, managed));
 }
 
+const EMPTY_INBOX_COUNTS: OperatorInboxSnapshot["counts"] = {
+  runtime: 0,
+  approval: 0,
+  "owner-question": 0,
+  "blocked-task": 0,
+  setup: 0,
+  "failed-run": 0,
+};
+
+function emptyInboxSnapshot(projectDir: string): OperatorInboxSnapshot {
+  return {
+    projectDir,
+    generatedAt: new Date().toISOString(),
+    items: [],
+    counts: { ...EMPTY_INBOX_COUNTS },
+  };
+}
+
+async function buildSharedUiSurfaceBundle(ctx: ModuleContext): Promise<UiSurfaceBundle> {
+  const status = await gatherStatus(ctx.cwd);
+  let inbox = emptyInboxSnapshot(ctx.cwd);
+  try {
+    inbox = await buildOperatorInboxSnapshot({
+      client: ctx.client,
+      projectDir: ctx.cwd,
+      status,
+    });
+  } catch (error) {
+    if (!(error instanceof Error && error.message.startsWith("No active KotaClient resolved."))) {
+      throw error;
+    }
+    // Daemon control-route handlers do not run inside CLI startup and may not
+    // have an active KotaClient. The shared Inbox surface still belongs in the
+    // daemon UI graph, even when its live item projection is unavailable.
+  }
+  return buildUiSurfaceBundle([
+    buildStatusUiSurface(status, { explain: true }),
+    buildInboxUiSurface(inbox),
+    ...ctx.getContributedUiSurfaces(),
+  ]);
+}
+
+function missingUiAction(input: UiActionExecuteInput): UiActionExecutionResult {
+  return {
+    ok: false,
+    reason: "not_found",
+    message: `No UI action ${input.surfaceId}/${input.actionId} exists in the shared surface bundle.`,
+  };
+}
+
+function requestDetachedDaemonStart(projectDir: string): UiActionExecutionResult {
+  const current = localDaemonStatus({ projectDir });
+  if (current.state === "running") {
+    return { ok: true, message: `Daemon already running pid ${current.status.pid}.` };
+  }
+  const cliEntrypoint = process.argv[1];
+  if (!cliEntrypoint) {
+    return {
+      ok: false,
+      reason: "unavailable",
+      message: "Unable to resolve the KOTA CLI entrypoint for daemon startup.",
+    };
+  }
+  const env = withProtectedGitBareRepositoryEnv({ ...process.env });
+  delete env[DAEMON_CHILD_ENV];
+  try {
+    const child = spawn(
+      process.execPath,
+      [...process.execArgv, cliEntrypoint, "daemon", "start", "--project-dir", projectDir],
+      {
+        cwd: projectDir,
+        detached: true,
+        env,
+        stdio: "ignore",
+      },
+    );
+    child.unref();
+    return { ok: true, message: "Daemon start requested." };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: "unavailable",
+      message: `Unable to start daemon: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+function localUiNamespaceExecutor(ctx: ModuleContext): UiClientNamespaceExecutor {
+  return async (operation) => {
+    if (operation.namespace === "daemonOps" && operation.method === "start") {
+      return requestDetachedDaemonStart(ctx.cwd);
+    }
+    return null;
+  };
+}
+
+function daemonUiNamespaceExecutor(): UiClientNamespaceExecutor {
+  return async (operation) => {
+    if (operation.namespace === "daemonOps" && operation.method === "start") {
+      return { ok: true, message: "Daemon already running." };
+    }
+    return null;
+  };
+}
+
+async function executeActionFromBundle(args: {
+  bundle: UiSurfaceBundle;
+  input: UiActionExecuteInput;
+  client?: KotaClient;
+  clientNamespaceExecutor?: UiClientNamespaceExecutor;
+  routeExecutor: UiRouteExecutor;
+}): Promise<UiActionExecutionResult> {
+  const action = findUiAction(args.bundle, args.input.surfaceId, args.input.actionId);
+  if (!action) return missingUiAction(args.input);
+  return executeUiAction({
+    action,
+    client: args.client,
+    clientNamespaceExecutor: args.clientNamespaceExecutor,
+    parameters: args.input.parameters,
+    routeExecutor: args.routeExecutor,
+  });
+}
+
+function buildLocalUiClient(ctx: ModuleContext): UiClient {
+  const listSurfaces = () => buildSharedUiSurfaceBundle(ctx);
+  return {
+    listSurfaces,
+    executeAction: async (input) => {
+      const bundle = await listSurfaces();
+      return executeActionFromBundle({
+        bundle,
+        input,
+        client: ctx.client,
+        clientNamespaceExecutor: localUiNamespaceExecutor(ctx),
+        routeExecutor: async (operation) => {
+          if (operation.method === "GET" && operation.path === "/ui/surfaces") {
+            await listSurfaces();
+            return { ok: true, message: "Shared UI surfaces refreshed." };
+          }
+          return {
+            ok: false,
+            reason: "daemon_required",
+            message: `${operation.method} ${operation.path} requires a running daemon.`,
+          };
+        },
+      });
+    },
+  };
+}
+
+function buildUiDaemonHandler(link: DaemonTransport): UiClient {
+  const listSurfaces = () => link.requestStrict<UiSurfaceBundle>("GET", "/ui/surfaces");
+  return {
+    listSurfaces,
+    executeAction: async (input) => {
+      const bundle = await listSurfaces();
+      const action = findUiAction(bundle, input.surfaceId, input.actionId);
+      if (!action) return missingUiAction(input);
+      return executeUiAction({
+        action,
+        clientNamespaceExecutor: daemonUiNamespaceExecutor(),
+        parameters: input.parameters,
+        routeExecutor: async (operation, parameters) => {
+          const result = await link.request<UiJsonValue>(
+            operation.method,
+            operation.path,
+            parameters,
+            { timeoutMs: 10_000 },
+          );
+          if (result === null) {
+            return {
+              ok: false,
+              reason: action.result.errors[0]?.reason ?? "unavailable",
+              message: action.result.errors[0]?.message ?? "The daemon action is currently unavailable.",
+            };
+          }
+          return { ok: true, message: action.result.success.message };
+        },
+      });
+    },
+  };
+}
+
 const daemonModule: KotaModule = {
   name: "daemon-ops",
   version: "1.0.0",
   description: "Operator CLI and supervisor surface for the KOTA daemon runtime",
   dependencies: ["repo-tasks", "rendering"],
+
+  uiSurfaces: () => [buildOperatorControlUiSurface()],
+
+  controlRoutes: (ctx) => [
+    {
+      method: "GET",
+      path: "/ui/surfaces",
+      capabilityScope: "read",
+      handler: async (_req, res) => {
+        jsonResponse(res, 200, await buildSharedUiSurfaceBundle(ctx));
+      },
+    },
+  ],
 
   commands: (ctx) => {
     const startDaemon = async (rawOpts: DaemonStartOptions, command?: Command): Promise<void> => {
@@ -715,6 +937,7 @@ const daemonModule: KotaModule = {
       buildSessionCommand(ctx),
       buildStatusCommand(ctx),
       buildInboxCommand(ctx),
+      buildUiCommand(ctx),
       buildProjectCommand(ctx),
     ];
   },
@@ -728,7 +951,7 @@ const daemonModule: KotaModule = {
    * to distinguish "not running" from "stale control file" without re-doing
    * that filesystem logic in the operator CLI handlers.
    */
-  localClient: () => {
+  localClient: (ctx) => {
     const daemonOps: DaemonOpsClient = {
       async status() {
         return localDaemonStatus();
@@ -747,12 +970,14 @@ const daemonModule: KotaModule = {
       sessions: sessionsLocalClient(),
       daemonOps,
       projects: projectsLocalClient(),
+      ui: buildLocalUiClient(ctx),
     };
   },
   daemonClient: (link) => ({
     sessions: buildSessionsDaemonHandler(link),
     daemonOps: buildDaemonOpsDaemonHandler(link),
     projects: buildProjectsDaemonHandler(link),
+    ui: buildUiDaemonHandler(link),
   }),
 };
 

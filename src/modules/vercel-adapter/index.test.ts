@@ -16,6 +16,7 @@ function makeContext(config: KotaConfig = { model: "test-model" } as KotaConfig)
     getRoutes: () => [],
     getContributedWorkflows: () => [],
     getContributedChannels: () => [],
+      getContributedUiSurfaces: () => [],
     getContributedControlRoutes: () => [],
     getModuleSummaries: () => [],
     getModuleConfig: () => undefined,

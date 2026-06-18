@@ -52,6 +52,7 @@ const STUB_OMITTED_NAMESPACES: ReadonlySet<string> = new Set<string>([
   "sessions",
   "daemonOps",
   "projects",
+  "ui",
   "config",
   "tasks",
   "workflow",
@@ -325,6 +326,13 @@ function makeStubProjects(): DaemonClientHandlers["projects"] {
   };
 }
 
+function makeStubUi(): DaemonClientHandlers["ui"] {
+  return {
+    listSurfaces: async () => ({ protocolVersion: "ui.surface.v1", surfaces: [] }),
+    executeAction: async () => ({ ok: false, reason: "not_found", message: "stub" }),
+  };
+}
+
 function makeStubConfig(): DaemonClientHandlers["config"] {
   return {
     validate: async () => ({ sources: [], warnings: [], resolved: {} }),
@@ -435,6 +443,7 @@ describe("assembleDaemonClientHandlers", () => {
       sessions: makeStubSessions(),
       daemonOps: makeStubDaemonOps(),
       projects: makeStubProjects(),
+      ui: makeStubUi(),
       config: makeStubConfig(),
       tasks: makeStubTasks(),
       workflow: makeStubWorkflow(),
@@ -474,6 +483,7 @@ describe("assembleDaemonClientHandlers", () => {
       sessions: makeStubSessions(),
       daemonOps: makeStubDaemonOps(),
       projects: makeStubProjects(),
+      ui: makeStubUi(),
       config: makeStubConfig(),
       tasks: makeStubTasks(),
       workflow: customWorkflow,
@@ -489,7 +499,7 @@ describe("assembleDaemonClientHandlers", () => {
 
   it("throws naming each migrated namespace when no module contributes it", () => {
     expect(() => assembleDaemonClientHandlers(transport)).toThrow(
-      /missing daemon handler\(s\) for: workflow, approvals, secrets, tasks, memory, ownerDecisions, ownerQuestions, history, knowledge, sessions, modules, agents, skills, harnessParity, webhook, voice, web, mcpServer, audit, config, modulesAdmin, daemonOps, projects, doctor, evalHarness, recall, answer, capture, retract, setup/,
+      /missing daemon handler\(s\) for: workflow, approvals, secrets, tasks, memory, ownerDecisions, ownerQuestions, history, knowledge, sessions, modules, agents, skills, harnessParity, webhook, voice, web, mcpServer, audit, config, modulesAdmin, daemonOps, projects, ui, doctor, evalHarness, recall, answer, capture, retract, setup/,
     );
   });
 });

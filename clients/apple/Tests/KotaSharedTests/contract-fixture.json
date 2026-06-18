@@ -94,7 +94,11 @@
     "resolved": {
       "policy": {
         "scopeId": "p-kota-fixture-feature",
-        "lineage": ["global", "p-kota-fixture-default", "p-kota-fixture-feature"],
+        "lineage": [
+          "global",
+          "p-kota-fixture-default",
+          "p-kota-fixture-feature"
+        ],
         "directoryRoot": "/Users/operator/projects/kota/feature",
         "autonomy": {
           "defaultMode": "supervised",
@@ -113,9 +117,15 @@
         },
         "channels": {
           "mode": "allow-list",
-          "allowedChannels": ["telegram"],
-          "blockedSources": ["fixture-blocked-chat"],
-          "ignoredSources": ["fixture-muted-chat"],
+          "allowedChannels": [
+            "telegram"
+          ],
+          "blockedSources": [
+            "fixture-blocked-chat"
+          ],
+          "ignoredSources": [
+            "fixture-muted-chat"
+          ],
           "source": {
             "scopeId": "p-kota-fixture-feature",
             "reason": "Only trusted Telegram sources route into this nested feature scope."
@@ -248,7 +258,11 @@
     "negative_unknownOutcome": {
       "policy": {
         "scopeId": "p-kota-fixture-feature",
-        "lineage": ["global", "p-kota-fixture-default", "p-kota-fixture-feature"],
+        "lineage": [
+          "global",
+          "p-kota-fixture-default",
+          "p-kota-fixture-feature"
+        ],
         "directoryRoot": "/Users/operator/projects/kota/feature",
         "autonomy": {
           "defaultMode": "supervised",
@@ -267,9 +281,15 @@
         },
         "channels": {
           "mode": "allow-list",
-          "allowedChannels": ["telegram"],
-          "blockedSources": ["fixture-blocked-chat"],
-          "ignoredSources": ["fixture-muted-chat"],
+          "allowedChannels": [
+            "telegram"
+          ],
+          "blockedSources": [
+            "fixture-blocked-chat"
+          ],
+          "ignoredSources": [
+            "fixture-muted-chat"
+          ],
           "source": {
             "scopeId": "p-kota-fixture-feature",
             "reason": "Only trusted Telegram sources route into this nested feature scope."
@@ -352,7 +372,9 @@
         "moduleName": "web",
         "status": "ready",
         "message": "Embedded web dashboard is built and ready to serve.",
-        "meta": { "distDir": "/Users/operator/projects/kota/clients/web/dist" }
+        "meta": {
+          "distDir": "/Users/operator/projects/kota/clients/web/dist"
+        }
       },
       {
         "id": "knowledge.search",
@@ -371,10 +393,17 @@
         "moduleName": "core",
         "status": "ready",
         "message": "8 of 12 workflow definition(s) currently enabled.",
-        "meta": { "enabled": 8, "total": 12 }
+        "meta": {
+          "enabled": 8,
+          "total": 12
+        }
       }
     ],
-    "summary": { "ready": 3, "unavailable": 1, "init_failed": 0 }
+    "summary": {
+      "ready": 3,
+      "unavailable": 1,
+      "init_failed": 0
+    }
   },
   "setupRequirements": {
     "status": {
@@ -534,7 +563,9 @@
           "required": true,
           "scope": "project",
           "sensitivity": "none",
-          "setup": { "mode": "none" },
+          "setup": {
+            "mode": "none"
+          },
           "state": "installing",
           "reason": "bad_state",
           "message": "Bad state"
@@ -590,7 +621,9 @@
           "required": true,
           "scope": "project",
           "sensitivity": "none",
-          "setup": { "mode": "qr" },
+          "setup": {
+            "mode": "qr"
+          },
           "state": "unknown",
           "reason": "bad_mode",
           "message": "Bad mode"
@@ -652,17 +685,54 @@
         {
           "protocolVersion": "ui.surface.v1",
           "surfaceId": "status",
+          "extensionId": "core.status",
           "title": "Status",
           "intent": "Status",
           "scopeId": "p-kota-fixture-default",
+          "attachmentPoint": {
+            "kind": "root"
+          },
+          "order": 10,
+          "permissions": [
+            {
+              "kind": "capability-scope",
+              "scope": "read"
+            }
+          ],
           "nodes": [
             {
               "kind": "status-summary",
               "entries": [
-                { "label": "Daemon", "value": "not running (offline mode)", "role": "warn" },
-                { "label": "Dispatch", "value": "offline", "role": "warn" },
-                { "label": "Runs", "value": "offline (live run state unavailable)", "role": "muted" },
-                { "label": "Approvals", "value": "1 pending", "role": "warn" }
+                {
+                  "label": "Daemon",
+                  "value": "not running (offline mode)",
+                  "role": "warn"
+                },
+                {
+                  "label": "Dispatch",
+                  "value": "offline",
+                  "role": "warn"
+                },
+                {
+                  "label": "Runs",
+                  "value": "offline (live run state unavailable)",
+                  "role": "muted"
+                },
+                {
+                  "label": "Approvals",
+                  "value": "1 pending",
+                  "role": "warn"
+                },
+                {
+                  "label": "Historical run store",
+                  "value": "0 active, 1 queued from offline files",
+                  "role": "warn"
+                },
+                {
+                  "label": "Runtime source",
+                  "value": "local files only; daemon API and event stream unavailable",
+                  "role": "warn"
+                }
               ]
             },
             {
@@ -680,8 +750,91 @@
                     "scopeId": "p-kota-fixture-default",
                     "label": "Start daemon",
                     "effect": "write",
-                    "confirmation": "none",
-                    "command": "kota daemon start"
+                    "operation": {
+                      "kind": "client-namespace",
+                      "namespace": "daemonOps",
+                      "method": "start"
+                    },
+                    "confirmation": {
+                      "mode": "none"
+                    },
+                    "readiness": {
+                      "state": "ready"
+                    },
+                    "result": {
+                      "success": {
+                        "message": "Daemon start requested."
+                      },
+                      "errors": [
+                        {
+                          "reason": "unavailable",
+                          "message": "The daemon action is currently unavailable."
+                        },
+                        {
+                          "reason": "invalid-input",
+                          "message": "The action parameters did not match the declared schema."
+                        }
+                      ]
+                    },
+                    "permissions": [
+                      {
+                        "kind": "effect",
+                        "effect": "write"
+                      },
+                      {
+                        "kind": "capability-scope",
+                        "scope": "control"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "pending-approvals",
+                  "title": "Approvals require attention",
+                  "detail": "1 approval(s) are waiting for operator review.",
+                  "role": "warn",
+                  "action": {
+                    "surfaceId": "status",
+                    "actionId": "inbox.open",
+                    "scopeId": "p-kota-fixture-default",
+                    "label": "Open inbox",
+                    "effect": "read",
+                    "operation": {
+                      "kind": "daemon-route",
+                      "method": "GET",
+                      "path": "/attention"
+                    },
+                    "confirmation": {
+                      "mode": "none"
+                    },
+                    "readiness": {
+                      "state": "ready"
+                    },
+                    "result": {
+                      "success": {
+                        "message": "Open inbox completed."
+                      },
+                      "errors": [
+                        {
+                          "reason": "unavailable",
+                          "message": "The daemon action is currently unavailable."
+                        },
+                        {
+                          "reason": "invalid-input",
+                          "message": "The action parameters did not match the declared schema."
+                        }
+                      ]
+                    },
+                    "permissions": [
+                      {
+                        "kind": "effect",
+                        "effect": "read"
+                      },
+                      {
+                        "kind": "capability-scope",
+                        "scope": "read"
+                      }
+                    ]
                   }
                 }
               ]
@@ -694,8 +847,42 @@
               "scopeId": "p-kota-fixture-default",
               "label": "Start daemon",
               "effect": "write",
-              "confirmation": "none",
-              "command": "kota daemon start"
+              "operation": {
+                "kind": "client-namespace",
+                "namespace": "daemonOps",
+                "method": "start"
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Daemon start requested."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "write"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "control"
+                }
+              ]
             },
             {
               "surfaceId": "status",
@@ -703,27 +890,96 @@
               "scopeId": "p-kota-fixture-default",
               "label": "Explain status",
               "effect": "read",
-              "confirmation": "none",
-              "command": "kota status --explain"
+              "operation": {
+                "kind": "daemon-route",
+                "method": "GET",
+                "path": "/status"
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Daemon status loaded."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "read"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "read"
+                }
+              ]
             }
           ]
         },
         {
           "protocolVersion": "ui.surface.v1",
           "surfaceId": "inbox",
+          "extensionId": "core.inbox",
           "title": "Inbox",
           "intent": "Inbox",
-          "scopeId": "p-kota-fixture-default",
+          "scopeId": "dir:/Users/operator/projects/kota",
+          "attachmentPoint": {
+            "kind": "root"
+          },
+          "order": 20,
+          "permissions": [
+            {
+              "kind": "capability-scope",
+              "scope": "read"
+            }
+          ],
           "nodes": [
             {
               "kind": "status-summary",
               "entries": [
-                { "label": "Runtime", "value": "1", "role": "warn" },
-                { "label": "Approvals", "value": "1", "role": "warn" },
-                { "label": "Owner questions", "value": "1", "role": "warn" },
-                { "label": "Blocked", "value": "1", "role": "warn" },
-                { "label": "Setup", "value": "1", "role": "warn" },
-                { "label": "Failed runs", "value": "1", "role": "error" }
+                {
+                  "label": "Runtime",
+                  "value": "1",
+                  "role": "warn"
+                },
+                {
+                  "label": "Approvals",
+                  "value": "1",
+                  "role": "warn"
+                },
+                {
+                  "label": "Owner questions",
+                  "value": "1",
+                  "role": "warn"
+                },
+                {
+                  "label": "Blocked",
+                  "value": "1",
+                  "role": "warn"
+                },
+                {
+                  "label": "Setup",
+                  "value": "1",
+                  "role": "warn"
+                },
+                {
+                  "label": "Failed runs",
+                  "value": "1",
+                  "role": "error"
+                }
               ]
             },
             {
@@ -738,62 +994,2596 @@
                   "action": {
                     "surfaceId": "inbox",
                     "actionId": "approval.open",
-                    "scopeId": "p-kota-fixture-default",
+                    "scopeId": "dir:/Users/operator/projects/kota",
                     "label": "Approval required: shell.exec",
                     "effect": "read",
-                    "confirmation": "none",
-                    "command": "kota approval list"
+                    "operation": {
+                      "kind": "daemon-route",
+                      "method": "GET",
+                      "path": "/approvals?status=pending"
+                    },
+                    "confirmation": {
+                      "mode": "none"
+                    },
+                    "readiness": {
+                      "state": "ready"
+                    },
+                    "result": {
+                      "success": {
+                        "message": "Approval required: shell.exec completed."
+                      },
+                      "errors": [
+                        {
+                          "reason": "unavailable",
+                          "message": "The daemon action is currently unavailable."
+                        },
+                        {
+                          "reason": "invalid-input",
+                          "message": "The action parameters did not match the declared schema."
+                        }
+                      ]
+                    },
+                    "permissions": [
+                      {
+                        "kind": "effect",
+                        "effect": "read"
+                      },
+                      {
+                        "kind": "capability-scope",
+                        "scope": "read"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "q1",
+                  "title": "Select calendar provider",
+                  "detail": "Workflow launch needs an owner decision.",
+                  "role": "warn",
+                  "action": {
+                    "surfaceId": "inbox",
+                    "actionId": "owner-question.open",
+                    "scopeId": "dir:/Users/operator/projects/kota",
+                    "label": "Select calendar provider",
+                    "effect": "read",
+                    "operation": {
+                      "kind": "daemon-route",
+                      "method": "GET",
+                      "path": "/owner-questions?status=pending"
+                    },
+                    "confirmation": {
+                      "mode": "none"
+                    },
+                    "readiness": {
+                      "state": "ready"
+                    },
+                    "result": {
+                      "success": {
+                        "message": "Select calendar provider completed."
+                      },
+                      "errors": [
+                        {
+                          "reason": "unavailable",
+                          "message": "The daemon action is currently unavailable."
+                        },
+                        {
+                          "reason": "invalid-input",
+                          "message": "The action parameters did not match the declared schema."
+                        }
+                      ]
+                    },
+                    "permissions": [
+                      {
+                        "kind": "effect",
+                        "effect": "read"
+                      },
+                      {
+                        "kind": "capability-scope",
+                        "scope": "read"
+                      }
+                    ]
                   }
                 }
               ]
-            },
-            {
-              "kind": "empty",
-              "title": "Operator inbox is clear",
-              "detail": "/Users/operator/projects/kota",
-              "action": {
-                "surfaceId": "inbox",
-                "actionId": "inbox.refresh",
-                "scopeId": "p-kota-fixture-default",
-                "label": "Refresh inbox",
-                "effect": "read",
-                "confirmation": "none",
-                "command": "kota inbox"
-              }
-            },
-            {
-              "kind": "error",
-              "title": "Inbox unavailable",
-              "detail": "Daemon route failed.",
-              "action": {
-                "surfaceId": "inbox",
-                "actionId": "status.explain",
-                "scopeId": "p-kota-fixture-default",
-                "label": "Explain status",
-                "effect": "read",
-                "confirmation": "none",
-                "command": "kota status --explain"
-              }
             }
           ],
           "actions": [
             {
               "surfaceId": "inbox",
               "actionId": "inbox.refresh",
-              "scopeId": "p-kota-fixture-default",
+              "scopeId": "dir:/Users/operator/projects/kota",
               "label": "Refresh inbox",
               "effect": "read",
-              "confirmation": "none",
-              "command": "kota inbox"
+              "operation": {
+                "kind": "daemon-route",
+                "method": "GET",
+                "path": "/attention"
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Inbox refreshed."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "read"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "read"
+                }
+              ]
             },
             {
               "surfaceId": "inbox",
               "actionId": "approval.open",
-              "scopeId": "p-kota-fixture-default",
+              "scopeId": "dir:/Users/operator/projects/kota",
               "label": "Approval required: shell.exec",
               "effect": "read",
-              "confirmation": "none",
-              "command": "kota approval list"
+              "operation": {
+                "kind": "daemon-route",
+                "method": "GET",
+                "path": "/approvals?status=pending"
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Approval required: shell.exec completed."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "read"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "read"
+                }
+              ]
+            },
+            {
+              "surfaceId": "inbox",
+              "actionId": "owner-question.open",
+              "scopeId": "dir:/Users/operator/projects/kota",
+              "label": "Select calendar provider",
+              "effect": "read",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "GET",
+                "path": "/owner-questions?status=pending"
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Select calendar provider completed."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "read"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "read"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "protocolVersion": "ui.surface.v1",
+          "surfaceId": "operator-control",
+          "extensionId": "demo.operator-control",
+          "title": "Operator Control",
+          "intent": "Work",
+          "scopeId": "p-kota-fixture-default",
+          "attachmentPoint": {
+            "kind": "intent",
+            "intent": "Work"
+          },
+          "order": 30,
+          "permissions": [
+            {
+              "kind": "capability-scope",
+              "scope": "read"
+            }
+          ],
+          "conditions": [
+            {
+              "kind": "capability",
+              "capabilityId": "workflow.trigger",
+              "status": "ready"
+            }
+          ],
+          "nodes": [
+            {
+              "kind": "metrics",
+              "title": "Capability overview",
+              "metrics": [
+                {
+                  "label": "Modules",
+                  "value": "42",
+                  "role": "info"
+                },
+                {
+                  "label": "Capabilities ready",
+                  "value": "37",
+                  "role": "success"
+                },
+                {
+                  "label": "Setup gaps",
+                  "value": "2",
+                  "role": "warn"
+                },
+                {
+                  "label": "Pending requests",
+                  "value": "3",
+                  "role": "warn"
+                }
+              ]
+            },
+            {
+              "kind": "text",
+              "title": "Shared contribution graph",
+              "body": "Modules declare these operator controls once. CLI, web, Apple, and mobile render the same semantic nodes.",
+              "role": "info"
+            },
+            {
+              "kind": "link",
+              "label": "Open shared UI surface route",
+              "target": {
+                "kind": "daemon-route",
+                "path": "/ui/surfaces"
+              },
+              "role": "info"
+            },
+            {
+              "kind": "tabs",
+              "title": "Operator workspaces",
+              "activeTabId": "requests",
+              "tabs": [
+                {
+                  "id": "requests",
+                  "label": "Requests",
+                  "nodes": [
+                    {
+                      "kind": "detail",
+                      "title": "Requests",
+                      "body": "Approvals, owner questions, setup requirements, and blocked work share one inbox projection."
+                    }
+                  ]
+                },
+                {
+                  "id": "runs",
+                  "label": "Runs",
+                  "nodes": [
+                    {
+                      "kind": "detail",
+                      "title": "Runs",
+                      "body": "Workflow launch controls and live run summaries stay in the same typed surface graph."
+                    }
+                  ]
+                },
+                {
+                  "id": "setup",
+                  "label": "Setup",
+                  "nodes": [
+                    {
+                      "kind": "detail",
+                      "title": "Setup",
+                      "body": "Setup/auth controls carry readiness and effect metadata before clients render or execute them."
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "table",
+              "title": "Pending requests",
+              "columns": [
+                {
+                  "id": "name",
+                  "label": "Name"
+                },
+                {
+                  "id": "type",
+                  "label": "Type"
+                },
+                {
+                  "id": "state",
+                  "label": "State"
+                }
+              ],
+              "rows": [
+                {
+                  "id": "approval-a1b2c3d4",
+                  "cells": [
+                    {
+                      "columnId": "name",
+                      "value": "shell.exec"
+                    },
+                    {
+                      "columnId": "type",
+                      "value": "approval"
+                    },
+                    {
+                      "columnId": "state",
+                      "value": "pending",
+                      "role": "warn"
+                    }
+                  ],
+                  "action": {
+                    "surfaceId": "operator-control",
+                    "actionId": "approval.resolve",
+                    "scopeId": "p-kota-fixture-default",
+                    "label": "Resolve approval",
+                    "effect": "external",
+                    "operation": {
+                      "kind": "daemon-route",
+                      "method": "PATCH",
+                      "path": "/approvals/a1b2c3d4"
+                    },
+                    "confirmation": {
+                      "mode": "required",
+                      "title": "Resolve external approval",
+                      "detail": "Approving an external-write tool call may affect a third-party service.",
+                      "confirmLabel": "Resolve approval",
+                      "risk": "high"
+                    },
+                    "readiness": {
+                      "state": "ready"
+                    },
+                    "result": {
+                      "success": {
+                        "message": "Approval resolved."
+                      },
+                      "errors": [
+                        {
+                          "reason": "unavailable",
+                          "message": "The daemon action is currently unavailable."
+                        },
+                        {
+                          "reason": "invalid-input",
+                          "message": "The action parameters did not match the declared schema."
+                        }
+                      ]
+                    },
+                    "permissions": [
+                      {
+                        "kind": "effect",
+                        "effect": "external"
+                      },
+                      {
+                        "kind": "capability-scope",
+                        "scope": "control"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "owner-question-q1",
+                  "cells": [
+                    {
+                      "columnId": "name",
+                      "value": "Select calendar provider"
+                    },
+                    {
+                      "columnId": "type",
+                      "value": "owner-question"
+                    },
+                    {
+                      "columnId": "state",
+                      "value": "pending",
+                      "role": "warn"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "table",
+              "title": "Workflow definitions",
+              "columns": [
+                {
+                  "id": "workflow",
+                  "label": "Workflow"
+                },
+                {
+                  "id": "trigger",
+                  "label": "Trigger"
+                },
+                {
+                  "id": "state",
+                  "label": "State"
+                }
+              ],
+              "rows": [
+                {
+                  "id": "builder",
+                  "cells": [
+                    {
+                      "columnId": "workflow",
+                      "value": "builder"
+                    },
+                    {
+                      "columnId": "trigger",
+                      "value": "autonomy.queue.available"
+                    },
+                    {
+                      "columnId": "state",
+                      "value": "enabled",
+                      "role": "success"
+                    }
+                  ]
+                },
+                {
+                  "id": "decomposer",
+                  "cells": [
+                    {
+                      "columnId": "workflow",
+                      "value": "decomposer"
+                    },
+                    {
+                      "columnId": "trigger",
+                      "value": "task.created"
+                    },
+                    {
+                      "columnId": "state",
+                      "value": "enabled",
+                      "role": "success"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "progress",
+              "label": "Run queue saturation",
+              "value": 2,
+              "max": 10,
+              "role": "info"
+            },
+            {
+              "kind": "log",
+              "title": "Recent run log",
+              "entries": [
+                {
+                  "timestamp": "2026-06-18T19:36:34.590Z",
+                  "level": "info",
+                  "source": "workflow.builder",
+                  "message": "Builder picked up shared UI contribution protocol work."
+                },
+                {
+                  "timestamp": "2026-06-18T20:31:53.000Z",
+                  "level": "warn",
+                  "source": "approval.queue",
+                  "message": "One external approval is waiting for operator review."
+                },
+                {
+                  "timestamp": "2026-06-18T21:08:12.000Z",
+                  "level": "info",
+                  "source": "daemon.events",
+                  "message": "UI surface fixture rendered for client conformance."
+                }
+              ]
+            },
+            {
+              "kind": "log-stream",
+              "title": "Live daemon events",
+              "streamId": "daemon-events",
+              "source": {
+                "kind": "sse",
+                "path": "/events",
+                "eventTypes": [
+                  "workflow.run.completed",
+                  "approval.created"
+                ]
+              },
+              "entries": [
+                {
+                  "timestamp": "2026-06-18T19:36:34.590Z",
+                  "level": "info",
+                  "source": "workflow.builder",
+                  "message": "Builder picked up shared UI contribution protocol work."
+                },
+                {
+                  "timestamp": "2026-06-18T20:31:53.000Z",
+                  "level": "warn",
+                  "source": "approval.queue",
+                  "message": "One external approval is waiting for operator review."
+                }
+              ]
+            },
+            {
+              "kind": "form",
+              "title": "Launch workflow run",
+              "fields": [
+                {
+                  "id": "name",
+                  "label": "Workflow",
+                  "input": "select",
+                  "required": true,
+                  "options": [
+                    {
+                      "label": "Builder",
+                      "value": "builder"
+                    },
+                    {
+                      "label": "Decomposer",
+                      "value": "decomposer"
+                    }
+                  ]
+                },
+                {
+                  "id": "tags",
+                  "label": "Run tags JSON",
+                  "input": "text",
+                  "required": false,
+                  "schema": {
+                    "type": "array",
+                    "description": "Optional workflow run tags sent as a JSON string array.",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                {
+                  "id": "payload",
+                  "label": "Payload JSON",
+                  "input": "text",
+                  "required": false,
+                  "schema": {
+                    "type": "object",
+                    "description": "Optional workflow payload object.",
+                    "properties": {},
+                    "additionalProperties": true
+                  }
+                }
+              ],
+              "submit": {
+                "surfaceId": "operator-control",
+                "actionId": "workflow.launch",
+                "scopeId": "p-kota-fixture-default",
+                "label": "Launch workflow run",
+                "effect": "write",
+                "operation": {
+                  "kind": "daemon-route",
+                  "method": "POST",
+                  "path": "/workflow/trigger"
+                },
+                "parameters": {
+                  "fields": [
+                    {
+                      "id": "name",
+                      "label": "Workflow",
+                      "input": "select",
+                      "required": true,
+                      "options": [
+                        {
+                          "label": "Builder",
+                          "value": "builder"
+                        },
+                        {
+                          "label": "Decomposer",
+                          "value": "decomposer"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "tags",
+                      "label": "Run tags JSON",
+                      "input": "text",
+                      "required": false,
+                      "schema": {
+                        "type": "array",
+                        "description": "Optional workflow run tags sent as a JSON string array.",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "id": "payload",
+                      "label": "Payload JSON",
+                      "input": "text",
+                      "required": false,
+                      "schema": {
+                        "type": "object",
+                        "description": "Optional workflow payload object.",
+                        "properties": {},
+                        "additionalProperties": true
+                      }
+                    }
+                  ],
+                  "schema": {
+                    "type": "object",
+                    "required": [
+                      "name"
+                    ],
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "enum": [
+                          "builder",
+                          "decomposer"
+                        ],
+                        "default": "builder"
+                      },
+                      "tags": {
+                        "type": "array",
+                        "description": "Optional workflow run tags.",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "payload": {
+                        "type": "object",
+                        "description": "Optional workflow trigger payload.",
+                        "properties": {},
+                        "additionalProperties": true
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "confirmation": {
+                  "mode": "required",
+                  "title": "Launch workflow",
+                  "detail": "This can start a new autonomous run in the selected scope.",
+                  "confirmLabel": "Launch run",
+                  "risk": "medium"
+                },
+                "readiness": {
+                  "state": "ready"
+                },
+                "result": {
+                  "success": {
+                    "message": "Workflow queued.",
+                    "schema": {
+                      "type": "object",
+                      "required": [
+                        "runId"
+                      ],
+                      "properties": {
+                        "runId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "errors": [
+                    {
+                      "reason": "workflow-disabled",
+                      "message": "The selected workflow is not enabled."
+                    },
+                    {
+                      "reason": "invalid-input",
+                      "message": "The launch parameters were invalid."
+                    }
+                  ]
+                },
+                "permissions": [
+                  {
+                    "kind": "effect",
+                    "effect": "write"
+                  },
+                  {
+                    "kind": "capability-scope",
+                    "scope": "control"
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "form",
+              "title": "Start session",
+              "fields": [
+                {
+                  "id": "autonomy_mode",
+                  "label": "Autonomy mode",
+                  "input": "select",
+                  "required": true,
+                  "options": [
+                    {
+                      "label": "Passive",
+                      "value": "passive"
+                    },
+                    {
+                      "label": "Supervised",
+                      "value": "supervised"
+                    },
+                    {
+                      "label": "Autonomous",
+                      "value": "autonomous"
+                    }
+                  ]
+                },
+                {
+                  "id": "session_id",
+                  "label": "Resume session id",
+                  "input": "text",
+                  "required": false
+                },
+                {
+                  "id": "conversation_id",
+                  "label": "Resume conversation id",
+                  "input": "text",
+                  "required": false
+                }
+              ],
+              "submit": {
+                "surfaceId": "operator-control",
+                "actionId": "session.launch",
+                "scopeId": "p-kota-fixture-default",
+                "label": "Start session",
+                "effect": "write",
+                "operation": {
+                  "kind": "daemon-route",
+                  "method": "POST",
+                  "path": "/sessions"
+                },
+                "parameters": {
+                  "fields": [
+                    {
+                      "id": "autonomy_mode",
+                      "label": "Autonomy mode",
+                      "input": "select",
+                      "required": true,
+                      "options": [
+                        {
+                          "label": "Passive",
+                          "value": "passive"
+                        },
+                        {
+                          "label": "Supervised",
+                          "value": "supervised"
+                        },
+                        {
+                          "label": "Autonomous",
+                          "value": "autonomous"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "session_id",
+                      "label": "Resume session id",
+                      "input": "text",
+                      "required": false
+                    },
+                    {
+                      "id": "conversation_id",
+                      "label": "Resume conversation id",
+                      "input": "text",
+                      "required": false
+                    }
+                  ],
+                  "schema": {
+                    "type": "object",
+                    "required": [
+                      "autonomy_mode"
+                    ],
+                    "properties": {
+                      "autonomy_mode": {
+                        "type": "string",
+                        "enum": [
+                          "passive",
+                          "supervised",
+                          "autonomous"
+                        ],
+                        "default": "supervised"
+                      },
+                      "session_id": {
+                        "type": "string"
+                      },
+                      "conversation_id": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "confirmation": {
+                  "mode": "none"
+                },
+                "readiness": {
+                  "state": "ready"
+                },
+                "result": {
+                  "success": {
+                    "message": "Session started."
+                  },
+                  "errors": [
+                    {
+                      "reason": "unavailable",
+                      "message": "The daemon action is currently unavailable."
+                    },
+                    {
+                      "reason": "invalid-input",
+                      "message": "The action parameters did not match the declared schema."
+                    }
+                  ]
+                },
+                "permissions": [
+                  {
+                    "kind": "effect",
+                    "effect": "write"
+                  },
+                  {
+                    "kind": "capability-scope",
+                    "scope": "control"
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "form",
+              "title": "Launch defaults",
+              "fields": [
+                {
+                  "id": "preset",
+                  "label": "Launch preset",
+                  "input": "select",
+                  "required": true,
+                  "options": [
+                    {
+                      "label": "claude",
+                      "value": "claude"
+                    },
+                    {
+                      "label": "codex",
+                      "value": "codex"
+                    },
+                    {
+                      "label": "openrouter",
+                      "value": "openrouter"
+                    },
+                    {
+                      "label": "gemini",
+                      "value": "gemini"
+                    },
+                    {
+                      "label": "gemini-cli",
+                      "value": "gemini-cli"
+                    },
+                    {
+                      "label": "antigravity-cli",
+                      "value": "antigravity-cli"
+                    }
+                  ]
+                },
+                {
+                  "id": "model",
+                  "label": "Default model",
+                  "input": "select",
+                  "required": true,
+                  "options": [
+                    {
+                      "label": "claude-sonnet-4-6",
+                      "value": "claude-sonnet-4-6"
+                    },
+                    {
+                      "label": "claude-haiku-4-5-20251001",
+                      "value": "claude-haiku-4-5-20251001"
+                    },
+                    {
+                      "label": "claude-opus-4-7",
+                      "value": "claude-opus-4-7"
+                    },
+                    {
+                      "label": "gpt-5.5",
+                      "value": "gpt-5.5"
+                    },
+                    {
+                      "label": "gpt-5.4-mini",
+                      "value": "gpt-5.4-mini"
+                    },
+                    {
+                      "label": "gpt-5.4",
+                      "value": "gpt-5.4"
+                    },
+                    {
+                      "label": "openrouter/openai/gpt-4.1-mini",
+                      "value": "openrouter/openai/gpt-4.1-mini"
+                    },
+                    {
+                      "label": "gemini-2.5-pro",
+                      "value": "gemini-2.5-pro"
+                    },
+                    {
+                      "label": "gemini-2.5-flash-lite",
+                      "value": "gemini-2.5-flash-lite"
+                    },
+                    {
+                      "label": "gemini-2.5-flash",
+                      "value": "gemini-2.5-flash"
+                    },
+                    {
+                      "label": "gemini-3.5-flash",
+                      "value": "gemini-3.5-flash"
+                    }
+                  ]
+                },
+                {
+                  "id": "effort",
+                  "label": "Default effort",
+                  "input": "select",
+                  "required": true,
+                  "options": [
+                    {
+                      "label": "Low",
+                      "value": "low"
+                    },
+                    {
+                      "label": "Medium",
+                      "value": "medium"
+                    },
+                    {
+                      "label": "High",
+                      "value": "high"
+                    },
+                    {
+                      "label": "XHigh",
+                      "value": "xhigh"
+                    },
+                    {
+                      "label": "Max",
+                      "value": "max"
+                    }
+                  ]
+                },
+                {
+                  "id": "use_shipped_defaults",
+                  "label": "Use shipped defaults",
+                  "input": "boolean",
+                  "required": false
+                }
+              ],
+              "submit": {
+                "surfaceId": "operator-control",
+                "actionId": "launch.defaults.configure",
+                "scopeId": "p-kota-fixture-default",
+                "label": "Configure launch defaults",
+                "effect": "write",
+                "operation": {
+                  "kind": "client-namespace",
+                  "namespace": "config",
+                  "method": "set"
+                },
+                "parameters": {
+                  "fields": [
+                    {
+                      "id": "preset",
+                      "label": "Launch preset",
+                      "input": "select",
+                      "required": true,
+                      "options": [
+                        {
+                          "label": "claude",
+                          "value": "claude"
+                        },
+                        {
+                          "label": "codex",
+                          "value": "codex"
+                        },
+                        {
+                          "label": "openrouter",
+                          "value": "openrouter"
+                        },
+                        {
+                          "label": "gemini",
+                          "value": "gemini"
+                        },
+                        {
+                          "label": "gemini-cli",
+                          "value": "gemini-cli"
+                        },
+                        {
+                          "label": "antigravity-cli",
+                          "value": "antigravity-cli"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "model",
+                      "label": "Default model",
+                      "input": "select",
+                      "required": true,
+                      "options": [
+                        {
+                          "label": "claude-sonnet-4-6",
+                          "value": "claude-sonnet-4-6"
+                        },
+                        {
+                          "label": "claude-haiku-4-5-20251001",
+                          "value": "claude-haiku-4-5-20251001"
+                        },
+                        {
+                          "label": "claude-opus-4-7",
+                          "value": "claude-opus-4-7"
+                        },
+                        {
+                          "label": "gpt-5.5",
+                          "value": "gpt-5.5"
+                        },
+                        {
+                          "label": "gpt-5.4-mini",
+                          "value": "gpt-5.4-mini"
+                        },
+                        {
+                          "label": "gpt-5.4",
+                          "value": "gpt-5.4"
+                        },
+                        {
+                          "label": "openrouter/openai/gpt-4.1-mini",
+                          "value": "openrouter/openai/gpt-4.1-mini"
+                        },
+                        {
+                          "label": "gemini-2.5-pro",
+                          "value": "gemini-2.5-pro"
+                        },
+                        {
+                          "label": "gemini-2.5-flash-lite",
+                          "value": "gemini-2.5-flash-lite"
+                        },
+                        {
+                          "label": "gemini-2.5-flash",
+                          "value": "gemini-2.5-flash"
+                        },
+                        {
+                          "label": "gemini-3.5-flash",
+                          "value": "gemini-3.5-flash"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "effort",
+                      "label": "Default effort",
+                      "input": "select",
+                      "required": true,
+                      "options": [
+                        {
+                          "label": "Low",
+                          "value": "low"
+                        },
+                        {
+                          "label": "Medium",
+                          "value": "medium"
+                        },
+                        {
+                          "label": "High",
+                          "value": "high"
+                        },
+                        {
+                          "label": "XHigh",
+                          "value": "xhigh"
+                        },
+                        {
+                          "label": "Max",
+                          "value": "max"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "use_shipped_defaults",
+                      "label": "Use shipped defaults",
+                      "input": "boolean",
+                      "required": false
+                    }
+                  ],
+                  "schema": {
+                    "type": "object",
+                    "required": [
+                      "preset",
+                      "model",
+                      "effort"
+                    ],
+                    "properties": {
+                      "preset": {
+                        "type": "string",
+                        "enum": [
+                          "claude",
+                          "codex",
+                          "openrouter",
+                          "gemini",
+                          "gemini-cli",
+                          "antigravity-cli"
+                        ],
+                        "default": "codex"
+                      },
+                      "model": {
+                        "type": "string",
+                        "enum": [
+                          "claude-sonnet-4-6",
+                          "claude-haiku-4-5-20251001",
+                          "claude-opus-4-7",
+                          "gpt-5.5",
+                          "gpt-5.4-mini",
+                          "gpt-5.4",
+                          "openrouter/openai/gpt-4.1-mini",
+                          "gemini-2.5-pro",
+                          "gemini-2.5-flash-lite",
+                          "gemini-2.5-flash",
+                          "gemini-3.5-flash"
+                        ],
+                        "default": "gpt-5.5"
+                      },
+                      "effort": {
+                        "type": "string",
+                        "enum": [
+                          "low",
+                          "medium",
+                          "high",
+                          "xhigh",
+                          "max"
+                        ],
+                        "default": "xhigh"
+                      },
+                      "use_shipped_defaults": {
+                        "type": "boolean",
+                        "default": true
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "confirmation": {
+                  "mode": "none"
+                },
+                "readiness": {
+                  "state": "disabled",
+                  "reason": "controller-unavailable",
+                  "message": "Preset, model, and effort defaults are configured through config/default preset selection; this shared surface records the controls until a multi-key config controller is contributed."
+                },
+                "result": {
+                  "success": {
+                    "message": "Launch defaults updated."
+                  },
+                  "errors": [
+                    {
+                      "reason": "unavailable",
+                      "message": "The daemon action is currently unavailable."
+                    },
+                    {
+                      "reason": "invalid-input",
+                      "message": "The action parameters did not match the declared schema."
+                    }
+                  ]
+                },
+                "permissions": [
+                  {
+                    "kind": "effect",
+                    "effect": "write"
+                  },
+                  {
+                    "kind": "capability-scope",
+                    "scope": "control"
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "table",
+              "title": "Setup requirements",
+              "columns": [
+                {
+                  "id": "name",
+                  "label": "Name"
+                },
+                {
+                  "id": "type",
+                  "label": "Type"
+                },
+                {
+                  "id": "state",
+                  "label": "State"
+                }
+              ],
+              "rows": [
+                {
+                  "id": "google-oauth",
+                  "cells": [
+                    {
+                      "columnId": "name",
+                      "value": "google-workspace/oauth-credentials"
+                    },
+                    {
+                      "columnId": "type",
+                      "value": "oauth"
+                    },
+                    {
+                      "columnId": "state",
+                      "value": "missing",
+                      "role": "warn"
+                    }
+                  ],
+                  "action": {
+                    "surfaceId": "operator-control",
+                    "actionId": "setup.oauth.start",
+                    "scopeId": "p-kota-fixture-default",
+                    "label": "Start OAuth setup",
+                    "effect": "external",
+                    "operation": {
+                      "kind": "daemon-route",
+                      "method": "POST",
+                      "path": "/setup/requirements/google-workspace/oauth-credentials/start"
+                    },
+                    "confirmation": {
+                      "mode": "none"
+                    },
+                    "readiness": {
+                      "state": "needs-setup",
+                      "moduleName": "google-workspace",
+                      "requirementId": "oauth-credentials",
+                      "message": "OAuth credentials are not complete."
+                    },
+                    "result": {
+                      "success": {
+                        "message": "OAuth setup started."
+                      },
+                      "errors": [
+                        {
+                          "reason": "unavailable",
+                          "message": "The daemon action is currently unavailable."
+                        },
+                        {
+                          "reason": "invalid-input",
+                          "message": "The action parameters did not match the declared schema."
+                        }
+                      ]
+                    },
+                    "permissions": [
+                      {
+                        "kind": "effect",
+                        "effect": "external"
+                      },
+                      {
+                        "kind": "capability-scope",
+                        "scope": "control"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "telegram-secret",
+                  "cells": [
+                    {
+                      "columnId": "name",
+                      "value": "telegram/bot-credentials"
+                    },
+                    {
+                      "columnId": "type",
+                      "value": "secret"
+                    },
+                    {
+                      "columnId": "state",
+                      "value": "ready",
+                      "role": "success"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "table",
+              "title": "Module capability status",
+              "columns": [
+                {
+                  "id": "capability",
+                  "label": "Capability"
+                },
+                {
+                  "id": "module",
+                  "label": "Module"
+                },
+                {
+                  "id": "state",
+                  "label": "State"
+                }
+              ],
+              "rows": [
+                {
+                  "id": "dashboard",
+                  "cells": [
+                    {
+                      "columnId": "capability",
+                      "value": "dashboard"
+                    },
+                    {
+                      "columnId": "module",
+                      "value": "web"
+                    },
+                    {
+                      "columnId": "state",
+                      "value": "ready",
+                      "role": "success"
+                    }
+                  ]
+                },
+                {
+                  "id": "workflow.trigger",
+                  "cells": [
+                    {
+                      "columnId": "capability",
+                      "value": "workflow.trigger"
+                    },
+                    {
+                      "columnId": "module",
+                      "value": "daemon"
+                    },
+                    {
+                      "columnId": "state",
+                      "value": "ready",
+                      "role": "success"
+                    }
+                  ]
+                },
+                {
+                  "id": "knowledge.semantic_search",
+                  "cells": [
+                    {
+                      "columnId": "capability",
+                      "value": "knowledge.semantic_search"
+                    },
+                    {
+                      "columnId": "module",
+                      "value": "knowledge-semantic"
+                    },
+                    {
+                      "columnId": "state",
+                      "value": "unavailable",
+                      "role": "warn"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "action-list",
+              "title": "Typed daemon actions",
+              "actions": [
+                {
+                  "surfaceId": "operator-control",
+                  "actionId": "ui.refresh",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Refresh shared UI",
+                  "effect": "read",
+                  "operation": {
+                    "kind": "daemon-route",
+                    "method": "GET",
+                    "path": "/ui/surfaces"
+                  },
+                  "confirmation": {
+                    "mode": "none"
+                  },
+                  "readiness": {
+                    "state": "ready"
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Shared UI surfaces refreshed."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "read"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "read"
+                    }
+                  ]
+                },
+                {
+                  "surfaceId": "operator-control",
+                  "actionId": "workflow.launch",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Launch workflow run",
+                  "effect": "write",
+                  "operation": {
+                    "kind": "daemon-route",
+                    "method": "POST",
+                    "path": "/workflow/trigger"
+                  },
+                  "parameters": {
+                    "fields": [
+                      {
+                        "id": "name",
+                        "label": "Workflow",
+                        "input": "select",
+                        "required": true,
+                        "options": [
+                          {
+                            "label": "Builder",
+                            "value": "builder"
+                          },
+                          {
+                            "label": "Decomposer",
+                            "value": "decomposer"
+                          }
+                        ]
+                      },
+                      {
+                        "id": "tags",
+                        "label": "Run tags JSON",
+                        "input": "text",
+                        "required": false,
+                        "schema": {
+                          "type": "array",
+                          "description": "Optional workflow run tags sent as a JSON string array.",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      {
+                        "id": "payload",
+                        "label": "Payload JSON",
+                        "input": "text",
+                        "required": false,
+                        "schema": {
+                          "type": "object",
+                          "description": "Optional workflow payload object.",
+                          "properties": {},
+                          "additionalProperties": true
+                        }
+                      }
+                    ],
+                    "schema": {
+                      "type": "object",
+                      "required": [
+                        "name"
+                      ],
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "enum": [
+                            "builder",
+                            "decomposer"
+                          ],
+                          "default": "builder"
+                        },
+                        "tags": {
+                          "type": "array",
+                          "description": "Optional workflow run tags.",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "payload": {
+                          "type": "object",
+                          "description": "Optional workflow trigger payload.",
+                          "properties": {},
+                          "additionalProperties": true
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "confirmation": {
+                    "mode": "required",
+                    "title": "Launch workflow",
+                    "detail": "This can start a new autonomous run in the selected scope.",
+                    "confirmLabel": "Launch run",
+                    "risk": "medium"
+                  },
+                  "readiness": {
+                    "state": "ready"
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Workflow queued.",
+                      "schema": {
+                        "type": "object",
+                        "required": [
+                          "runId"
+                        ],
+                        "properties": {
+                          "runId": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "errors": [
+                      {
+                        "reason": "workflow-disabled",
+                        "message": "The selected workflow is not enabled."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The launch parameters were invalid."
+                      }
+                    ]
+                  },
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "write"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "control"
+                    }
+                  ]
+                },
+                {
+                  "surfaceId": "operator-control",
+                  "actionId": "session.launch",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Start session",
+                  "effect": "write",
+                  "operation": {
+                    "kind": "daemon-route",
+                    "method": "POST",
+                    "path": "/sessions"
+                  },
+                  "parameters": {
+                    "fields": [
+                      {
+                        "id": "autonomy_mode",
+                        "label": "Autonomy mode",
+                        "input": "select",
+                        "required": true,
+                        "options": [
+                          {
+                            "label": "Passive",
+                            "value": "passive"
+                          },
+                          {
+                            "label": "Supervised",
+                            "value": "supervised"
+                          },
+                          {
+                            "label": "Autonomous",
+                            "value": "autonomous"
+                          }
+                        ]
+                      },
+                      {
+                        "id": "session_id",
+                        "label": "Resume session id",
+                        "input": "text",
+                        "required": false
+                      },
+                      {
+                        "id": "conversation_id",
+                        "label": "Resume conversation id",
+                        "input": "text",
+                        "required": false
+                      }
+                    ],
+                    "schema": {
+                      "type": "object",
+                      "required": [
+                        "autonomy_mode"
+                      ],
+                      "properties": {
+                        "autonomy_mode": {
+                          "type": "string",
+                          "enum": [
+                            "passive",
+                            "supervised",
+                            "autonomous"
+                          ],
+                          "default": "supervised"
+                        },
+                        "session_id": {
+                          "type": "string"
+                        },
+                        "conversation_id": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "confirmation": {
+                    "mode": "none"
+                  },
+                  "readiness": {
+                    "state": "ready"
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Session started."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "write"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "control"
+                    }
+                  ]
+                },
+                {
+                  "surfaceId": "operator-control",
+                  "actionId": "launch.defaults.configure",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Configure launch defaults",
+                  "effect": "write",
+                  "operation": {
+                    "kind": "client-namespace",
+                    "namespace": "config",
+                    "method": "set"
+                  },
+                  "parameters": {
+                    "fields": [
+                      {
+                        "id": "preset",
+                        "label": "Launch preset",
+                        "input": "select",
+                        "required": true,
+                        "options": [
+                          {
+                            "label": "claude",
+                            "value": "claude"
+                          },
+                          {
+                            "label": "codex",
+                            "value": "codex"
+                          },
+                          {
+                            "label": "openrouter",
+                            "value": "openrouter"
+                          },
+                          {
+                            "label": "gemini",
+                            "value": "gemini"
+                          },
+                          {
+                            "label": "gemini-cli",
+                            "value": "gemini-cli"
+                          },
+                          {
+                            "label": "antigravity-cli",
+                            "value": "antigravity-cli"
+                          }
+                        ]
+                      },
+                      {
+                        "id": "model",
+                        "label": "Default model",
+                        "input": "select",
+                        "required": true,
+                        "options": [
+                          {
+                            "label": "claude-sonnet-4-6",
+                            "value": "claude-sonnet-4-6"
+                          },
+                          {
+                            "label": "claude-haiku-4-5-20251001",
+                            "value": "claude-haiku-4-5-20251001"
+                          },
+                          {
+                            "label": "claude-opus-4-7",
+                            "value": "claude-opus-4-7"
+                          },
+                          {
+                            "label": "gpt-5.5",
+                            "value": "gpt-5.5"
+                          },
+                          {
+                            "label": "gpt-5.4-mini",
+                            "value": "gpt-5.4-mini"
+                          },
+                          {
+                            "label": "gpt-5.4",
+                            "value": "gpt-5.4"
+                          },
+                          {
+                            "label": "openrouter/openai/gpt-4.1-mini",
+                            "value": "openrouter/openai/gpt-4.1-mini"
+                          },
+                          {
+                            "label": "gemini-2.5-pro",
+                            "value": "gemini-2.5-pro"
+                          },
+                          {
+                            "label": "gemini-2.5-flash-lite",
+                            "value": "gemini-2.5-flash-lite"
+                          },
+                          {
+                            "label": "gemini-2.5-flash",
+                            "value": "gemini-2.5-flash"
+                          },
+                          {
+                            "label": "gemini-3.5-flash",
+                            "value": "gemini-3.5-flash"
+                          }
+                        ]
+                      },
+                      {
+                        "id": "effort",
+                        "label": "Default effort",
+                        "input": "select",
+                        "required": true,
+                        "options": [
+                          {
+                            "label": "Low",
+                            "value": "low"
+                          },
+                          {
+                            "label": "Medium",
+                            "value": "medium"
+                          },
+                          {
+                            "label": "High",
+                            "value": "high"
+                          },
+                          {
+                            "label": "XHigh",
+                            "value": "xhigh"
+                          },
+                          {
+                            "label": "Max",
+                            "value": "max"
+                          }
+                        ]
+                      },
+                      {
+                        "id": "use_shipped_defaults",
+                        "label": "Use shipped defaults",
+                        "input": "boolean",
+                        "required": false
+                      }
+                    ],
+                    "schema": {
+                      "type": "object",
+                      "required": [
+                        "preset",
+                        "model",
+                        "effort"
+                      ],
+                      "properties": {
+                        "preset": {
+                          "type": "string",
+                          "enum": [
+                            "claude",
+                            "codex",
+                            "openrouter",
+                            "gemini",
+                            "gemini-cli",
+                            "antigravity-cli"
+                          ],
+                          "default": "codex"
+                        },
+                        "model": {
+                          "type": "string",
+                          "enum": [
+                            "claude-sonnet-4-6",
+                            "claude-haiku-4-5-20251001",
+                            "claude-opus-4-7",
+                            "gpt-5.5",
+                            "gpt-5.4-mini",
+                            "gpt-5.4",
+                            "openrouter/openai/gpt-4.1-mini",
+                            "gemini-2.5-pro",
+                            "gemini-2.5-flash-lite",
+                            "gemini-2.5-flash",
+                            "gemini-3.5-flash"
+                          ],
+                          "default": "gpt-5.5"
+                        },
+                        "effort": {
+                          "type": "string",
+                          "enum": [
+                            "low",
+                            "medium",
+                            "high",
+                            "xhigh",
+                            "max"
+                          ],
+                          "default": "xhigh"
+                        },
+                        "use_shipped_defaults": {
+                          "type": "boolean",
+                          "default": true
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "confirmation": {
+                    "mode": "none"
+                  },
+                  "readiness": {
+                    "state": "disabled",
+                    "reason": "controller-unavailable",
+                    "message": "Preset, model, and effort defaults are configured through config/default preset selection; this shared surface records the controls until a multi-key config controller is contributed."
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Launch defaults updated."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "write"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "control"
+                    }
+                  ]
+                },
+                {
+                  "surfaceId": "operator-control",
+                  "actionId": "setup.oauth.start",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Start OAuth setup",
+                  "effect": "external",
+                  "operation": {
+                    "kind": "daemon-route",
+                    "method": "POST",
+                    "path": "/setup/requirements/google-workspace/oauth-credentials/start"
+                  },
+                  "confirmation": {
+                    "mode": "none"
+                  },
+                  "readiness": {
+                    "state": "needs-setup",
+                    "moduleName": "google-workspace",
+                    "requirementId": "oauth-credentials",
+                    "message": "OAuth credentials are not complete."
+                  },
+                  "result": {
+                    "success": {
+                      "message": "OAuth setup started."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "external"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "control"
+                    }
+                  ]
+                },
+                {
+                  "surfaceId": "operator-control",
+                  "actionId": "approval.resolve",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Resolve approval",
+                  "effect": "external",
+                  "operation": {
+                    "kind": "daemon-route",
+                    "method": "PATCH",
+                    "path": "/approvals/a1b2c3d4"
+                  },
+                  "confirmation": {
+                    "mode": "required",
+                    "title": "Resolve external approval",
+                    "detail": "Approving an external-write tool call may affect a third-party service.",
+                    "confirmLabel": "Resolve approval",
+                    "risk": "high"
+                  },
+                  "readiness": {
+                    "state": "ready"
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Approval resolved."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "external"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "control"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "actions": [
+            {
+              "surfaceId": "operator-control",
+              "actionId": "ui.refresh",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Refresh shared UI",
+              "effect": "read",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "GET",
+                "path": "/ui/surfaces"
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Shared UI surfaces refreshed."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "read"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "read"
+                }
+              ]
+            },
+            {
+              "surfaceId": "operator-control",
+              "actionId": "workflow.launch",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Launch workflow run",
+              "effect": "write",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "POST",
+                "path": "/workflow/trigger"
+              },
+              "parameters": {
+                "fields": [
+                  {
+                    "id": "name",
+                    "label": "Workflow",
+                    "input": "select",
+                    "required": true,
+                    "options": [
+                      {
+                        "label": "Builder",
+                        "value": "builder"
+                      },
+                      {
+                        "label": "Decomposer",
+                        "value": "decomposer"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "tags",
+                    "label": "Run tags JSON",
+                    "input": "text",
+                    "required": false,
+                    "schema": {
+                      "type": "array",
+                      "description": "Optional workflow run tags sent as a JSON string array.",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "id": "payload",
+                    "label": "Payload JSON",
+                    "input": "text",
+                    "required": false,
+                    "schema": {
+                      "type": "object",
+                      "description": "Optional workflow payload object.",
+                      "properties": {},
+                      "additionalProperties": true
+                    }
+                  }
+                ],
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "name"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "enum": [
+                        "builder",
+                        "decomposer"
+                      ],
+                      "default": "builder"
+                    },
+                    "tags": {
+                      "type": "array",
+                      "description": "Optional workflow run tags.",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "payload": {
+                      "type": "object",
+                      "description": "Optional workflow trigger payload.",
+                      "properties": {},
+                      "additionalProperties": true
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "confirmation": {
+                "mode": "required",
+                "title": "Launch workflow",
+                "detail": "This can start a new autonomous run in the selected scope.",
+                "confirmLabel": "Launch run",
+                "risk": "medium"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Workflow queued.",
+                  "schema": {
+                    "type": "object",
+                    "required": [
+                      "runId"
+                    ],
+                    "properties": {
+                      "runId": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "errors": [
+                  {
+                    "reason": "workflow-disabled",
+                    "message": "The selected workflow is not enabled."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The launch parameters were invalid."
+                  }
+                ]
+              },
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "write"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "control"
+                }
+              ]
+            },
+            {
+              "surfaceId": "operator-control",
+              "actionId": "session.launch",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Start session",
+              "effect": "write",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "POST",
+                "path": "/sessions"
+              },
+              "parameters": {
+                "fields": [
+                  {
+                    "id": "autonomy_mode",
+                    "label": "Autonomy mode",
+                    "input": "select",
+                    "required": true,
+                    "options": [
+                      {
+                        "label": "Passive",
+                        "value": "passive"
+                      },
+                      {
+                        "label": "Supervised",
+                        "value": "supervised"
+                      },
+                      {
+                        "label": "Autonomous",
+                        "value": "autonomous"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "session_id",
+                    "label": "Resume session id",
+                    "input": "text",
+                    "required": false
+                  },
+                  {
+                    "id": "conversation_id",
+                    "label": "Resume conversation id",
+                    "input": "text",
+                    "required": false
+                  }
+                ],
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "autonomy_mode"
+                  ],
+                  "properties": {
+                    "autonomy_mode": {
+                      "type": "string",
+                      "enum": [
+                        "passive",
+                        "supervised",
+                        "autonomous"
+                      ],
+                      "default": "supervised"
+                    },
+                    "session_id": {
+                      "type": "string"
+                    },
+                    "conversation_id": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Session started."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "write"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "control"
+                }
+              ]
+            },
+            {
+              "surfaceId": "operator-control",
+              "actionId": "launch.defaults.configure",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Configure launch defaults",
+              "effect": "write",
+              "operation": {
+                "kind": "client-namespace",
+                "namespace": "config",
+                "method": "set"
+              },
+              "parameters": {
+                "fields": [
+                  {
+                    "id": "preset",
+                    "label": "Launch preset",
+                    "input": "select",
+                    "required": true,
+                    "options": [
+                      {
+                        "label": "claude",
+                        "value": "claude"
+                      },
+                      {
+                        "label": "codex",
+                        "value": "codex"
+                      },
+                      {
+                        "label": "openrouter",
+                        "value": "openrouter"
+                      },
+                      {
+                        "label": "gemini",
+                        "value": "gemini"
+                      },
+                      {
+                        "label": "gemini-cli",
+                        "value": "gemini-cli"
+                      },
+                      {
+                        "label": "antigravity-cli",
+                        "value": "antigravity-cli"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "model",
+                    "label": "Default model",
+                    "input": "select",
+                    "required": true,
+                    "options": [
+                      {
+                        "label": "claude-sonnet-4-6",
+                        "value": "claude-sonnet-4-6"
+                      },
+                      {
+                        "label": "claude-haiku-4-5-20251001",
+                        "value": "claude-haiku-4-5-20251001"
+                      },
+                      {
+                        "label": "claude-opus-4-7",
+                        "value": "claude-opus-4-7"
+                      },
+                      {
+                        "label": "gpt-5.5",
+                        "value": "gpt-5.5"
+                      },
+                      {
+                        "label": "gpt-5.4-mini",
+                        "value": "gpt-5.4-mini"
+                      },
+                      {
+                        "label": "gpt-5.4",
+                        "value": "gpt-5.4"
+                      },
+                      {
+                        "label": "openrouter/openai/gpt-4.1-mini",
+                        "value": "openrouter/openai/gpt-4.1-mini"
+                      },
+                      {
+                        "label": "gemini-2.5-pro",
+                        "value": "gemini-2.5-pro"
+                      },
+                      {
+                        "label": "gemini-2.5-flash-lite",
+                        "value": "gemini-2.5-flash-lite"
+                      },
+                      {
+                        "label": "gemini-2.5-flash",
+                        "value": "gemini-2.5-flash"
+                      },
+                      {
+                        "label": "gemini-3.5-flash",
+                        "value": "gemini-3.5-flash"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "effort",
+                    "label": "Default effort",
+                    "input": "select",
+                    "required": true,
+                    "options": [
+                      {
+                        "label": "Low",
+                        "value": "low"
+                      },
+                      {
+                        "label": "Medium",
+                        "value": "medium"
+                      },
+                      {
+                        "label": "High",
+                        "value": "high"
+                      },
+                      {
+                        "label": "XHigh",
+                        "value": "xhigh"
+                      },
+                      {
+                        "label": "Max",
+                        "value": "max"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "use_shipped_defaults",
+                    "label": "Use shipped defaults",
+                    "input": "boolean",
+                    "required": false
+                  }
+                ],
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "preset",
+                    "model",
+                    "effort"
+                  ],
+                  "properties": {
+                    "preset": {
+                      "type": "string",
+                      "enum": [
+                        "claude",
+                        "codex",
+                        "openrouter",
+                        "gemini",
+                        "gemini-cli",
+                        "antigravity-cli"
+                      ],
+                      "default": "codex"
+                    },
+                    "model": {
+                      "type": "string",
+                      "enum": [
+                        "claude-sonnet-4-6",
+                        "claude-haiku-4-5-20251001",
+                        "claude-opus-4-7",
+                        "gpt-5.5",
+                        "gpt-5.4-mini",
+                        "gpt-5.4",
+                        "openrouter/openai/gpt-4.1-mini",
+                        "gemini-2.5-pro",
+                        "gemini-2.5-flash-lite",
+                        "gemini-2.5-flash",
+                        "gemini-3.5-flash"
+                      ],
+                      "default": "gpt-5.5"
+                    },
+                    "effort": {
+                      "type": "string",
+                      "enum": [
+                        "low",
+                        "medium",
+                        "high",
+                        "xhigh",
+                        "max"
+                      ],
+                      "default": "xhigh"
+                    },
+                    "use_shipped_defaults": {
+                      "type": "boolean",
+                      "default": true
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "disabled",
+                "reason": "controller-unavailable",
+                "message": "Preset, model, and effort defaults are configured through config/default preset selection; this shared surface records the controls until a multi-key config controller is contributed."
+              },
+              "result": {
+                "success": {
+                  "message": "Launch defaults updated."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "write"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "control"
+                }
+              ]
+            },
+            {
+              "surfaceId": "operator-control",
+              "actionId": "setup.oauth.start",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Start OAuth setup",
+              "effect": "external",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "POST",
+                "path": "/setup/requirements/google-workspace/oauth-credentials/start"
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "needs-setup",
+                "moduleName": "google-workspace",
+                "requirementId": "oauth-credentials",
+                "message": "OAuth credentials are not complete."
+              },
+              "result": {
+                "success": {
+                  "message": "OAuth setup started."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "external"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "control"
+                }
+              ]
+            },
+            {
+              "surfaceId": "operator-control",
+              "actionId": "approval.resolve",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Resolve approval",
+              "effect": "external",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "PATCH",
+                "path": "/approvals/a1b2c3d4"
+              },
+              "confirmation": {
+                "mode": "required",
+                "title": "Resolve external approval",
+                "detail": "Approving an external-write tool call may affect a third-party service.",
+                "confirmLabel": "Resolve approval",
+                "risk": "high"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Approval resolved."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "external"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "control"
+                }
+              ]
             }
           ]
         }
@@ -804,12 +3594,34 @@
       "surfaces": [
         {
           "protocolVersion": "ui.surface.v1",
-          "surfaceId": "status",
-          "title": "Status",
-          "intent": "Status",
+          "surfaceId": "negative-surface",
+          "extensionId": "negative.surface",
+          "title": "Negative",
+          "intent": "Work",
           "scopeId": "p-kota-fixture-default",
+          "attachmentPoint": {
+            "kind": "intent",
+            "intent": "Work"
+          },
+          "order": 30,
+          "permissions": [
+            {
+              "kind": "capability-scope",
+              "scope": "read"
+            }
+          ],
+          "conditions": [
+            {
+              "kind": "capability",
+              "capabilityId": "workflow.trigger",
+              "status": "ready"
+            }
+          ],
           "nodes": [
-            { "kind": "chart", "title": "Future node" }
+            {
+              "kind": "chart",
+              "title": "Future node"
+            }
           ],
           "actions": []
         }
@@ -820,22 +3632,357 @@
       "surfaces": [
         {
           "protocolVersion": "ui.surface.v1",
-          "surfaceId": "inbox",
-          "title": "Inbox",
-          "intent": "Inbox",
+          "surfaceId": "negative-surface",
+          "extensionId": "negative.surface",
+          "title": "Negative",
+          "intent": "Work",
           "scopeId": "p-kota-fixture-default",
+          "attachmentPoint": {
+            "kind": "intent",
+            "intent": "Work"
+          },
+          "order": 30,
+          "permissions": [
+            {
+              "kind": "capability-scope",
+              "scope": "read"
+            }
+          ],
+          "conditions": [
+            {
+              "kind": "capability",
+              "capabilityId": "workflow.trigger",
+              "status": "ready"
+            }
+          ],
           "nodes": [
             {
               "kind": "command",
               "action": {
-                "surfaceId": "inbox",
-                "actionId": "inbox.future",
+                "surfaceId": "negative-surface",
+                "actionId": "negative.action",
                 "scopeId": "p-kota-fixture-default",
-                "label": "Future action",
+                "label": "Refresh shared UI",
                 "effect": "teleport",
-                "confirmation": "none",
-                "command": "kota future"
+                "operation": {
+                  "kind": "daemon-route",
+                  "method": "GET",
+                  "path": "/ui/surfaces"
+                },
+                "confirmation": {
+                  "mode": "none"
+                },
+                "readiness": {
+                  "state": "ready"
+                },
+                "result": {
+                  "success": {
+                    "message": "Shared UI surfaces refreshed."
+                  },
+                  "errors": [
+                    {
+                      "reason": "unavailable",
+                      "message": "The daemon action is currently unavailable."
+                    },
+                    {
+                      "reason": "invalid-input",
+                      "message": "The action parameters did not match the declared schema."
+                    }
+                  ]
+                },
+                "permissions": [
+                  {
+                    "kind": "effect",
+                    "effect": "read"
+                  },
+                  {
+                    "kind": "capability-scope",
+                    "scope": "read"
+                  }
+                ]
               }
+            }
+          ],
+          "actions": []
+        }
+      ]
+    },
+    "negative_unknownOperationKind": {
+      "protocolVersion": "ui.surface.v1",
+      "surfaces": [
+        {
+          "protocolVersion": "ui.surface.v1",
+          "surfaceId": "negative-surface",
+          "extensionId": "negative.surface",
+          "title": "Negative",
+          "intent": "Work",
+          "scopeId": "p-kota-fixture-default",
+          "attachmentPoint": {
+            "kind": "intent",
+            "intent": "Work"
+          },
+          "order": 30,
+          "permissions": [
+            {
+              "kind": "capability-scope",
+              "scope": "read"
+            }
+          ],
+          "conditions": [
+            {
+              "kind": "capability",
+              "capabilityId": "workflow.trigger",
+              "status": "ready"
+            }
+          ],
+          "nodes": [
+            {
+              "kind": "command",
+              "action": {
+                "surfaceId": "negative-surface",
+                "actionId": "negative.action",
+                "scopeId": "p-kota-fixture-default",
+                "label": "Refresh shared UI",
+                "effect": "read",
+                "operation": {
+                  "kind": "mcp-tool",
+                  "name": "future"
+                },
+                "confirmation": {
+                  "mode": "none"
+                },
+                "readiness": {
+                  "state": "ready"
+                },
+                "result": {
+                  "success": {
+                    "message": "Shared UI surfaces refreshed."
+                  },
+                  "errors": [
+                    {
+                      "reason": "unavailable",
+                      "message": "The daemon action is currently unavailable."
+                    },
+                    {
+                      "reason": "invalid-input",
+                      "message": "The action parameters did not match the declared schema."
+                    }
+                  ]
+                },
+                "permissions": [
+                  {
+                    "kind": "effect",
+                    "effect": "read"
+                  },
+                  {
+                    "kind": "capability-scope",
+                    "scope": "read"
+                  }
+                ]
+              }
+            }
+          ],
+          "actions": []
+        }
+      ]
+    },
+    "negative_unknownReadinessState": {
+      "protocolVersion": "ui.surface.v1",
+      "surfaces": [
+        {
+          "protocolVersion": "ui.surface.v1",
+          "surfaceId": "negative-surface",
+          "extensionId": "negative.surface",
+          "title": "Negative",
+          "intent": "Work",
+          "scopeId": "p-kota-fixture-default",
+          "attachmentPoint": {
+            "kind": "intent",
+            "intent": "Work"
+          },
+          "order": 30,
+          "permissions": [
+            {
+              "kind": "capability-scope",
+              "scope": "read"
+            }
+          ],
+          "conditions": [
+            {
+              "kind": "capability",
+              "capabilityId": "workflow.trigger",
+              "status": "ready"
+            }
+          ],
+          "nodes": [
+            {
+              "kind": "command",
+              "action": {
+                "surfaceId": "negative-surface",
+                "actionId": "negative.action",
+                "scopeId": "p-kota-fixture-default",
+                "label": "Refresh shared UI",
+                "effect": "read",
+                "operation": {
+                  "kind": "daemon-route",
+                  "method": "GET",
+                  "path": "/ui/surfaces"
+                },
+                "confirmation": {
+                  "mode": "none"
+                },
+                "readiness": {
+                  "state": "warming",
+                  "message": "Future readiness"
+                },
+                "result": {
+                  "success": {
+                    "message": "Shared UI surfaces refreshed."
+                  },
+                  "errors": [
+                    {
+                      "reason": "unavailable",
+                      "message": "The daemon action is currently unavailable."
+                    },
+                    {
+                      "reason": "invalid-input",
+                      "message": "The action parameters did not match the declared schema."
+                    }
+                  ]
+                },
+                "permissions": [
+                  {
+                    "kind": "effect",
+                    "effect": "read"
+                  },
+                  {
+                    "kind": "capability-scope",
+                    "scope": "read"
+                  }
+                ]
+              }
+            }
+          ],
+          "actions": []
+        }
+      ]
+    },
+    "negative_unknownAttachmentKind": {
+      "protocolVersion": "ui.surface.v1",
+      "surfaces": [
+        {
+          "protocolVersion": "ui.surface.v1",
+          "surfaceId": "negative-surface",
+          "extensionId": "negative.surface",
+          "title": "Negative",
+          "intent": "Work",
+          "scopeId": "p-kota-fixture-default",
+          "attachmentPoint": {
+            "kind": "panel",
+            "panelId": "future"
+          },
+          "order": 30,
+          "permissions": [
+            {
+              "kind": "capability-scope",
+              "scope": "read"
+            }
+          ],
+          "conditions": [
+            {
+              "kind": "capability",
+              "capabilityId": "workflow.trigger",
+              "status": "ready"
+            }
+          ],
+          "nodes": [],
+          "actions": []
+        }
+      ]
+    },
+    "negative_unknownLinkTargetKind": {
+      "protocolVersion": "ui.surface.v1",
+      "surfaces": [
+        {
+          "protocolVersion": "ui.surface.v1",
+          "surfaceId": "negative-surface",
+          "extensionId": "negative.surface",
+          "title": "Negative",
+          "intent": "Work",
+          "scopeId": "p-kota-fixture-default",
+          "attachmentPoint": {
+            "kind": "intent",
+            "intent": "Work"
+          },
+          "order": 30,
+          "permissions": [
+            {
+              "kind": "capability-scope",
+              "scope": "read"
+            }
+          ],
+          "conditions": [
+            {
+              "kind": "capability",
+              "capabilityId": "workflow.trigger",
+              "status": "ready"
+            }
+          ],
+          "nodes": [
+            {
+              "kind": "link",
+              "label": "Future target",
+              "target": {
+                "kind": "teleport",
+                "path": "/future"
+              }
+            }
+          ],
+          "actions": []
+        }
+      ]
+    },
+    "negative_unknownLogStreamSourceKind": {
+      "protocolVersion": "ui.surface.v1",
+      "surfaces": [
+        {
+          "protocolVersion": "ui.surface.v1",
+          "surfaceId": "negative-surface",
+          "extensionId": "negative.surface",
+          "title": "Negative",
+          "intent": "Work",
+          "scopeId": "p-kota-fixture-default",
+          "attachmentPoint": {
+            "kind": "intent",
+            "intent": "Work"
+          },
+          "order": 30,
+          "permissions": [
+            {
+              "kind": "capability-scope",
+              "scope": "read"
+            }
+          ],
+          "conditions": [
+            {
+              "kind": "capability",
+              "capabilityId": "workflow.trigger",
+              "status": "ready"
+            }
+          ],
+          "nodes": [
+            {
+              "kind": "log-stream",
+              "title": "Future stream",
+              "streamId": "future-stream",
+              "source": {
+                "kind": "websocket",
+                "path": "/events",
+                "eventTypes": [
+                  "workflow.run.completed"
+                ]
+              },
+              "entries": []
             }
           ],
           "actions": []
@@ -849,17 +3996,29 @@
         "name": "builder",
         "enabled": true,
         "stepCount": 4,
-        "triggers": [{ "type": "event", "event": "autonomy.queue.available" }]
+        "triggers": [
+          {
+            "type": "event",
+            "event": "autonomy.queue.available"
+          }
+        ]
       },
       {
         "name": "decomposer",
         "enabled": true,
         "stepCount": 3,
-        "triggers": [{ "type": "event", "event": "autonomy.queue.available" }],
+        "triggers": [
+          {
+            "type": "event",
+            "event": "autonomy.queue.available"
+          }
+        ],
         "inputSchema": {
           "type": "object",
           "properties": {
-            "taskId": { "type": "string" }
+            "taskId": {
+              "type": "string"
+            }
           }
         }
       }
@@ -925,7 +4084,9 @@
           "preview": "The harness boundary is a typed protocol; see kn-42.",
           "citationCount": 1,
           "createdAt": "2026-05-01T12:00:00.000Z",
-          "result": { "ok": true }
+          "result": {
+            "ok": true
+          }
         }
       ]
     },
@@ -944,7 +4105,10 @@
           "preview": "Recall returned no hits for this question.",
           "citationCount": 0,
           "createdAt": "2026-05-01T12:05:00.000Z",
-          "result": { "ok": false, "reason": "no_hits" }
+          "result": {
+            "ok": false,
+            "reason": "no_hits"
+          }
         }
       ]
     },
@@ -970,7 +4134,10 @@
           "preview": "Should fail strict decoders — future_reason is not in the closed set.",
           "citationCount": 0,
           "createdAt": "2026-05-01T12:10:00.000Z",
-          "result": { "ok": false, "reason": "future_reason" }
+          "result": {
+            "ok": false,
+            "reason": "future_reason"
+          }
         }
       ]
     },
@@ -984,9 +4151,18 @@
       "ok": true,
       "answer": "Typed protocols are the boundary [knowledge:kn-42]; an earlier synthesis covered the same ground [answer:ans-1].",
       "citations": [
-        { "source": "knowledge", "id": "kn-42" },
-        { "source": "memory", "id": "mem-7" },
-        { "source": "answer", "id": "ans-1" }
+        {
+          "source": "knowledge",
+          "id": "kn-42"
+        },
+        {
+          "source": "memory",
+          "id": "mem-7"
+        },
+        {
+          "source": "answer",
+          "id": "ans-1"
+        }
       ],
       "hits": [
         {
@@ -1012,19 +4188,36 @@
           "preview": "The harness boundary is a typed protocol; see kn-42.",
           "citationCount": 1,
           "createdAt": "2026-05-01T12:00:00.000Z",
-          "result": { "ok": true }
+          "result": {
+            "ok": true
+          }
         }
       ]
     },
-    "noHits": { "ok": false, "reason": "no_hits" },
-    "semanticUnavailable": { "ok": false, "reason": "semantic_unavailable" },
-    "synthesisFailed": { "ok": false, "reason": "synthesis_failed" },
-    "negative_unknownReason": { "ok": false, "reason": "future_reason" },
+    "noHits": {
+      "ok": false,
+      "reason": "no_hits"
+    },
+    "semanticUnavailable": {
+      "ok": false,
+      "reason": "semantic_unavailable"
+    },
+    "synthesisFailed": {
+      "ok": false,
+      "reason": "synthesis_failed"
+    },
+    "negative_unknownReason": {
+      "ok": false,
+      "reason": "future_reason"
+    },
     "negative_unknownCitationSource": {
       "ok": true,
       "answer": "Drift case — citation source not in the closed five-source set.",
       "citations": [
-        { "source": "future_source", "id": "fut-1" }
+        {
+          "source": "future_source",
+          "id": "fut-1"
+        }
       ],
       "hits": [
         {
@@ -1045,13 +4238,19 @@
           "id": "ans-1",
           "createdAt": "2026-05-01T12:00:00.000Z",
           "query": "How does the harness boundary work?",
-          "result": { "ok": true, "citationCount": 2 }
+          "result": {
+            "ok": true,
+            "citationCount": 2
+          }
         },
         {
           "id": "ans-2",
           "createdAt": "2026-05-01T12:05:00.000Z",
           "query": "What is the latest deploy status?",
-          "result": { "ok": false, "reason": "no_hits" }
+          "result": {
+            "ok": false,
+            "reason": "no_hits"
+          }
         }
       ]
     },
@@ -1061,7 +4260,13 @@
         "id": "ans-1",
         "createdAt": "2026-05-01T12:00:00.000Z",
         "query": "How does the harness boundary work?",
-        "filter": { "topK": 5, "sources": ["knowledge", "memory"] },
+        "filter": {
+          "topK": 5,
+          "sources": [
+            "knowledge",
+            "memory"
+          ]
+        },
         "recallHits": [
           {
             "source": "knowledge",
@@ -1075,7 +4280,12 @@
         "result": {
           "ok": true,
           "answer": "The harness boundary is a typed protocol; see kn-42.",
-          "citations": [{ "source": "knowledge", "id": "kn-42" }],
+          "citations": [
+            {
+              "source": "knowledge",
+              "id": "kn-42"
+            }
+          ],
           "hits": [
             {
               "source": "knowledge",
@@ -1089,17 +4299,29 @@
         }
       }
     },
-    "showNotFound": { "ok": false, "reason": "not_found" },
-    "negative_unknownReason": { "ok": false, "reason": "future_reason" }
+    "showNotFound": {
+      "ok": false,
+      "reason": "not_found"
+    },
+    "negative_unknownReason": {
+      "ok": false,
+      "reason": "future_reason"
+    }
   },
   "capture": {
     "successMemory": {
       "ok": true,
-      "record": { "target": "memory", "recordId": "mem-100" }
+      "record": {
+        "target": "memory",
+        "recordId": "mem-100"
+      }
     },
     "successKnowledge": {
       "ok": true,
-      "record": { "target": "knowledge", "recordId": "kn-100" }
+      "record": {
+        "target": "knowledge",
+        "recordId": "kn-100"
+      }
     },
     "successTasks": {
       "ok": true,
@@ -1120,9 +4342,15 @@
     "ambiguous": {
       "ok": false,
       "reason": "ambiguous",
-      "suggestions": ["memory", "knowledge"]
+      "suggestions": [
+        "memory",
+        "knowledge"
+      ]
     },
-    "noContributors": { "ok": false, "reason": "no_contributors" },
+    "noContributors": {
+      "ok": false,
+      "reason": "no_contributors"
+    },
     "contributorFailed": {
       "ok": false,
       "reason": "contributor_failed",
@@ -1131,7 +4359,10 @@
     },
     "negative_unknownTarget": {
       "ok": true,
-      "record": { "target": "vault", "recordId": "v-1" }
+      "record": {
+        "target": "vault",
+        "recordId": "v-1"
+      }
     },
     "negative_unknownReason": {
       "ok": false,
@@ -1141,11 +4372,17 @@
   "retract": {
     "successMemory": {
       "ok": true,
-      "record": { "target": "memory", "recordId": "mem-100" }
+      "record": {
+        "target": "memory",
+        "recordId": "mem-100"
+      }
     },
     "successKnowledge": {
       "ok": true,
-      "record": { "target": "knowledge", "recordId": "kn-100" }
+      "record": {
+        "target": "knowledge",
+        "recordId": "kn-100"
+      }
     },
     "successTasks": {
       "ok": true,
@@ -1165,7 +4402,10 @@
         "path": "data/inbox/2026-05-02-foo.md"
       }
     },
-    "noContributors": { "ok": false, "reason": "no_contributors" },
+    "noContributors": {
+      "ok": false,
+      "reason": "no_contributors"
+    },
     "notFound": {
       "ok": false,
       "reason": "not_found",
@@ -1180,7 +4420,10 @@
     },
     "negative_unknownTarget": {
       "ok": true,
-      "record": { "target": "vault", "recordId": "v-1" }
+      "record": {
+        "target": "vault",
+        "recordId": "v-1"
+      }
     },
     "negative_unknownReason": {
       "ok": false,
@@ -1205,8 +4448,14 @@
         }
       ]
     },
-    "semanticUnavailable": { "ok": false, "reason": "semantic_unavailable" },
-    "negative_unknownReason": { "ok": false, "reason": "future_reason" }
+    "semanticUnavailable": {
+      "ok": false,
+      "reason": "semantic_unavailable"
+    },
+    "negative_unknownReason": {
+      "ok": false,
+      "reason": "future_reason"
+    }
   },
   "memorySearch": {
     "success": {
@@ -1219,8 +4468,14 @@
         }
       ]
     },
-    "semanticUnavailable": { "ok": false, "reason": "semantic_unavailable" },
-    "negative_unknownReason": { "ok": false, "reason": "future_reason" }
+    "semanticUnavailable": {
+      "ok": false,
+      "reason": "semantic_unavailable"
+    },
+    "negative_unknownReason": {
+      "ok": false,
+      "reason": "future_reason"
+    }
   },
   "historySearch": {
     "success": {
@@ -1238,8 +4493,14 @@
         }
       ]
     },
-    "semanticUnavailable": { "ok": false, "reason": "semantic_unavailable" },
-    "negative_unknownReason": { "ok": false, "reason": "future_reason" },
+    "semanticUnavailable": {
+      "ok": false,
+      "reason": "semantic_unavailable"
+    },
+    "negative_unknownReason": {
+      "ok": false,
+      "reason": "future_reason"
+    },
     "negative_unknownSource": {
       "ok": true,
       "conversations": [
@@ -1272,8 +4533,14 @@
         }
       ]
     },
-    "semanticUnavailable": { "ok": false, "reason": "semantic_unavailable" },
-    "negative_unknownReason": { "ok": false, "reason": "future_reason" }
+    "semanticUnavailable": {
+      "ok": false,
+      "reason": "semantic_unavailable"
+    },
+    "negative_unknownReason": {
+      "ok": false,
+      "reason": "future_reason"
+    }
   },
   "attention": {
     "data": {
@@ -1320,8 +4587,12 @@
       "blockedPromoterMoves": [
         {
           "runId": "2026-05-01T13-00-00-000Z-blocked-promoter-dddd",
-          "promotedTaskIds": ["task-x"],
-          "toReady": ["task-x"],
+          "promotedTaskIds": [
+            "task-x"
+          ],
+          "toReady": [
+            "task-x"
+          ],
           "toBacklog": []
         }
       ],
@@ -1349,9 +4620,24 @@
         }
       ],
       "queueDelta": {
-        "current": { "backlog": 10, "ready": 2, "doing": 1, "blocked": 8 },
-        "previous": { "backlog": 12, "ready": 1, "doing": 0, "blocked": 8 },
-        "delta": { "backlog": -2, "ready": 1, "doing": 1, "blocked": 0 }
+        "current": {
+          "backlog": 10,
+          "ready": 2,
+          "doing": 1,
+          "blocked": 8
+        },
+        "previous": {
+          "backlog": 12,
+          "ready": 1,
+          "doing": 0,
+          "blocked": 8
+        },
+        "delta": {
+          "backlog": -2,
+          "ready": 1,
+          "doing": 1,
+          "blocked": 0
+        }
       },
       "quiet": false
     },
@@ -1386,7 +4672,10 @@
       "status": 400,
       "error": "TTS format unsupported",
       "code": "tts-format-unsupported",
-      "supported": ["mp3", "wav"]
+      "supported": [
+        "mp3",
+        "wav"
+      ]
     },
     "negative_unknownCode": {
       "ok": false,

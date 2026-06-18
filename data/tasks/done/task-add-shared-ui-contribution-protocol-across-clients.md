@@ -1,13 +1,13 @@
 ---
 id: task-add-shared-ui-contribution-protocol-across-clients
 title: Add shared UI contribution and action protocol across clients
-status: ready
+status: done
 priority: p1
 area: client
 summary: Define a KOTA-owned typed UI contribution and action protocol for modules and daemon surfaces, then extend conformance so web, macOS/iOS, mobile, and CLI render and execute the same capabilities, controls, forms, actions, and pending requests.
 depends_on: [task-promote-projects-into-hierarchical-scopes, task-unify-hooks-and-workflows-under-one-automation-pro, task-add-module-setup-and-auth-requirement-protocol]
 created_at: 2026-06-03T13:40:24.598Z
-updated_at: 2026-06-18T19:36:00.212Z
+updated_at: 2026-06-18T20:31:53.000Z
 task_class: Product
 ---
 
@@ -24,14 +24,12 @@ The owner wants the CLI to be "just another supported UI" and wants new
 functionality to declare what it exposes to the UI so all clients can render it
 consistently. Ad hoc per-client screens will keep creating parity gaps.
 
-Current audit update on 2026-06-18: KOTA now has a narrow `ui.surface.v1`
-seed for Status and Inbox surfaces, plus setup/auth requirements and module
-capability/effect manifests. That is useful groundwork, but it is not the
-requested module UI protocol yet. The current surface model is too small,
-mostly renders static operator projections, and still treats executable
-actions too much like command strings instead of stable typed daemon actions
-with parameter schemas, readiness, effects, confirmation, and result/error
-semantics.
+Completion update on 2026-06-18: KOTA now exposes a validated `ui.surface.v1`
+graph for Status, Inbox, and module-contributed surfaces through the daemon
+route, `KotaClient.ui`, conformance fixtures, and CLI/web/Apple/mobile client
+decoders or renderers. Typed actions use stable ids, parameter schemas,
+readiness, effects, confirmation metadata, and result/error contracts instead
+of shell-like command strings.
 
 ## Desired Outcome
 

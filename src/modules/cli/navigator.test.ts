@@ -185,6 +185,10 @@ function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
       list: stub({ ok: false, reason: "daemon_required" }),
       use: stub({ ok: false, reason: "daemon_required" }),
     },
+    ui: {
+      listSurfaces: stub({ protocolVersion: "ui.surface.v1", surfaces: [] }),
+      executeAction: stub({ ok: false, reason: "not_found", message: "stub" }),
+    },
     doctor: {
       run: stub({ checks: [] }),
       fix: stub({ repairs: [] }),

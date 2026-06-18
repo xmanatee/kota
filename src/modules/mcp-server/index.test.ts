@@ -24,6 +24,7 @@ function makeStubCtx(start: McpServerStart = vi.fn(async () => ({ ok: true as co
 		getRoutes: () => [],
 		getContributedWorkflows: () => [],
 		getContributedChannels: () => [],
+      getContributedUiSurfaces: () => [],
 		getContributedControlRoutes: () => [],
 		getModuleSummaries: () => [],
 		getModuleConfig: () => undefined as never,

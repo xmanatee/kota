@@ -811,28 +811,110 @@ const UI_PROTOCOL_VERSIONS = ["ui.surface.v1"] as const;
 const UI_INTENTS = ["Status", "Inbox", "Work", "Knowledge", "Setup"] as const;
 const UI_ROLES = ["neutral", "info", "success", "warn", "error", "muted"] as const;
 const UI_ACTION_EFFECTS = ["read", "write", "external"] as const;
-const UI_CONFIRMATIONS = ["none", "required"] as const;
+const UI_ACTION_METHODS = ["GET", "POST", "PATCH", "DELETE"] as const;
+const UI_OPERATION_KINDS = ["daemon-route", "client-namespace"] as const;
+const UI_CONFIRMATION_MODES = ["none", "required"] as const;
+const UI_CONFIRMATION_RISKS = ["low", "medium", "high"] as const;
+const UI_READINESS_STATES = ["ready", "disabled", "needs-setup"] as const;
+const UI_ATTACHMENT_KINDS = ["root", "intent", "surface"] as const;
+const UI_CONDITION_KINDS = ["capability", "setup", "scope"] as const;
+const UI_CONDITION_STATUSES = ["ready", "unavailable", "init_failed"] as const;
+const UI_PERMISSION_KINDS = ["capability-scope", "effect"] as const;
+const UI_CAPABILITY_SCOPES = ["read", "control"] as const;
+const UI_LINK_TARGET_KINDS = ["surface", "daemon-route", "external-url"] as const;
+const UI_LOG_LEVELS = ["debug", "info", "warn", "error"] as const;
+const UI_LOG_STREAM_SOURCE_KINDS = ["sse"] as const;
 const UI_NODE_KINDS = [
   "navigation",
   "status-summary",
+  "metrics",
+  "text",
+  "link",
+  "tabs",
   "list",
+  "table",
   "detail",
+  "progress",
+  "log",
+  "log-stream",
   "form",
+  "action-list",
   "command",
   "empty",
   "error",
 ] as const;
-const UI_FIELD_INPUTS = ["text", "secret", "number", "boolean"] as const;
+const UI_FIELD_INPUTS = ["text", "secret", "number", "boolean", "select", "path", "url"] as const;
+const UI_SCHEMA_TYPES = ["string", "number", "integer", "boolean", "array", "object"] as const;
+const UI_SCHEMA_FORMATS = ["secret-reference", "path", "url"] as const;
 
 export type UiRole = KnownLiteral<typeof UI_ROLES>;
+export type UiJsonSchema = {
+  type: KnownLiteral<typeof UI_SCHEMA_TYPES>;
+  title?: string;
+  description?: string;
+  enum?: string[];
+  default?: string | number | boolean;
+  format?: KnownLiteral<typeof UI_SCHEMA_FORMATS>;
+  minimum?: number;
+  maximum?: number;
+  items?: UiJsonSchema;
+  properties?: Record<string, UiJsonSchema>;
+  required?: string[];
+  additionalProperties?: boolean;
+};
+
+export type UiAttachmentPoint =
+  | { kind: "root" }
+  | { kind: "intent"; intent: KnownLiteral<typeof UI_INTENTS> }
+  | { kind: "surface"; surfaceId: string };
+
+export type UiCondition =
+  | { kind: "capability"; capabilityId: string; status: KnownLiteral<typeof UI_CONDITION_STATUSES> }
+  | { kind: "setup"; moduleName: string; requirementId: string; state: SetupState }
+  | { kind: "scope"; scopeId: string };
+
+export type UiPermission =
+  | { kind: "capability-scope"; scope: KnownLiteral<typeof UI_CAPABILITY_SCOPES> }
+  | { kind: "effect"; effect: KnownLiteral<typeof UI_ACTION_EFFECTS> };
+
+export type UiActionOperation =
+  | { kind: "daemon-route"; method: KnownLiteral<typeof UI_ACTION_METHODS>; path: string }
+  | { kind: "client-namespace"; namespace: string; method: string };
+
+export type UiConfirmation =
+  | { mode: "none" }
+  | {
+      mode: "required";
+      title: string;
+      detail: string;
+      confirmLabel: string;
+      risk: KnownLiteral<typeof UI_CONFIRMATION_RISKS>;
+    };
+
+export type UiActionReadiness =
+  | { state: "ready"; message?: string }
+  | { state: "disabled"; reason: string; message: string }
+  | { state: "needs-setup"; moduleName: string; requirementId: string; message: string };
+
 export type UiAction = {
   surfaceId: string;
   actionId: string;
   scopeId: string;
   label: string;
   effect: KnownLiteral<typeof UI_ACTION_EFFECTS>;
-  confirmation: KnownLiteral<typeof UI_CONFIRMATIONS>;
-  command: string;
+  operation: UiActionOperation;
+  parameters?: {
+    schema: UiJsonSchema & { type: "object" };
+    fields: UiFormField[];
+  };
+  confirmation: UiConfirmation;
+  readiness: UiActionReadiness;
+  result: {
+    success: { message: string; schema?: UiJsonSchema };
+    errors: Array<{ reason: string; message: string; schema?: UiJsonSchema }>;
+  };
+  conditions?: UiCondition[];
+  permissions?: UiPermission[];
 };
 
 export type UiStatusEntry = {
@@ -841,12 +923,31 @@ export type UiStatusEntry = {
   role: UiRole;
 };
 
+export type UiMetric = {
+  label: string;
+  value: string;
+  unit?: string;
+  role: UiRole;
+};
+
 export type UiListItem = {
   id: string;
   title: string;
   detail: string;
   role: UiRole;
-  action: UiAction;
+  action?: UiAction;
+};
+
+export type UiTableColumn = {
+  id: string;
+  label: string;
+  role?: UiRole;
+};
+
+export type UiTableRow = {
+  id: string;
+  cells: Array<{ columnId: string; value: string; role?: UiRole }>;
+  action?: UiAction;
 };
 
 export type UiFormField = {
@@ -854,14 +955,49 @@ export type UiFormField = {
   label: string;
   input: KnownLiteral<typeof UI_FIELD_INPUTS>;
   required: boolean;
+  options?: Array<{ label: string; value: string }>;
+  schema?: UiJsonSchema;
+};
+
+export type UiLinkTarget =
+  | { kind: "surface"; surfaceId: string }
+  | { kind: "daemon-route"; path: string }
+  | { kind: "external-url"; url: string };
+
+export type UiTab = {
+  id: string;
+  label: string;
+  nodes: UiNode[];
+};
+
+export type UiLogEntry = {
+  timestamp: string;
+  level: KnownLiteral<typeof UI_LOG_LEVELS>;
+  message: string;
+  source?: string;
+};
+
+export type UiLogStreamSource = {
+  kind: KnownLiteral<typeof UI_LOG_STREAM_SOURCE_KINDS>;
+  path: string;
+  eventTypes: string[];
 };
 
 export type UiNode =
   | { kind: "navigation"; label: string; items: Array<{ surfaceId: string; label: string }> }
   | { kind: "status-summary"; entries: UiStatusEntry[] }
+  | { kind: "metrics"; title: string; metrics: UiMetric[] }
+  | { kind: "text"; title: string; body: string; role?: UiRole }
+  | { kind: "link"; label: string; target: UiLinkTarget; role?: UiRole }
+  | { kind: "tabs"; title: string; activeTabId: string; tabs: UiTab[] }
   | { kind: "list"; title: string; items: UiListItem[] }
+  | { kind: "table"; title: string; columns: UiTableColumn[]; rows: UiTableRow[] }
   | { kind: "detail"; title: string; body: string }
+  | { kind: "progress"; label: string; value: number; max: number; role: UiRole }
+  | { kind: "log"; title: string; entries: UiLogEntry[] }
+  | { kind: "log-stream"; title: string; streamId: string; source: UiLogStreamSource; entries: UiLogEntry[] }
   | { kind: "form"; title: string; fields: UiFormField[]; submit: UiAction }
+  | { kind: "action-list"; title: string; actions: UiAction[] }
   | { kind: "command"; action: UiAction }
   | { kind: "empty"; title: string; detail: string; action: UiAction }
   | { kind: "error"; title: string; detail: string; action: UiAction };
@@ -869,9 +1005,14 @@ export type UiNode =
 export type UiSurface = {
   protocolVersion: KnownLiteral<typeof UI_PROTOCOL_VERSIONS>;
   surfaceId: string;
+  extensionId: string;
   title: string;
   intent: KnownLiteral<typeof UI_INTENTS>;
   scopeId: string;
+  attachmentPoint: UiAttachmentPoint;
+  order: number;
+  conditions?: UiCondition[];
+  permissions?: UiPermission[];
   nodes: UiNode[];
   actions: UiAction[];
 };
@@ -881,6 +1022,222 @@ export type UiSurfaceBundle = {
   surfaces: UiSurface[];
 };
 
+function parseUiJsonSchema(raw: unknown, field: string): UiJsonSchema {
+  const obj = asObject(raw, field);
+  const type = asKnown(obj.type, `${field}.type`, UI_SCHEMA_TYPES);
+  const base = {
+    type,
+    title: asOptionalString(obj.title, `${field}.title`),
+    description: asOptionalString(obj.description, `${field}.description`),
+  };
+  if (type === "string") {
+    return {
+      ...base,
+      enum: obj.enum === undefined
+        ? undefined
+        : asArray(obj.enum, `${field}.enum`).map((entry, index) =>
+            asString(entry, `${field}.enum[${index}]`)
+          ),
+      default: obj.default === undefined ? undefined : asString(obj.default, `${field}.default`),
+      format: obj.format === undefined
+        ? undefined
+        : asKnown(obj.format, `${field}.format`, UI_SCHEMA_FORMATS),
+    };
+  }
+  if (type === "number" || type === "integer") {
+    return {
+      ...base,
+      default: obj.default === undefined ? undefined : asNumber(obj.default, `${field}.default`),
+      minimum: asOptionalNumber(obj.minimum, `${field}.minimum`),
+      maximum: asOptionalNumber(obj.maximum, `${field}.maximum`),
+    };
+  }
+  if (type === "boolean") {
+    return {
+      ...base,
+      default: obj.default === undefined ? undefined : asBool(obj.default, `${field}.default`),
+    };
+  }
+  if (type === "array") {
+    return {
+      ...base,
+      items: parseUiJsonSchema(obj.items, `${field}.items`),
+    };
+  }
+  const props = asObject(obj.properties, `${field}.properties`);
+  const properties: Record<string, UiJsonSchema> = {};
+  for (const [key, value] of Object.entries(props)) {
+    properties[key] = parseUiJsonSchema(value, `${field}.properties.${key}`);
+  }
+  return {
+    ...base,
+    properties,
+    required: obj.required === undefined
+      ? undefined
+      : asArray(obj.required, `${field}.required`).map((entry, index) =>
+          asString(entry, `${field}.required[${index}]`)
+        ),
+    additionalProperties: obj.additionalProperties === undefined
+      ? undefined
+      : asBool(obj.additionalProperties, `${field}.additionalProperties`),
+  };
+}
+
+function parseUiAttachmentPoint(raw: unknown, field: string): UiAttachmentPoint {
+  const obj = asObject(raw, field);
+  const kind = asKnown(obj.kind, `${field}.kind`, UI_ATTACHMENT_KINDS);
+  if (kind === "root") return { kind };
+  if (kind === "intent") {
+    return { kind, intent: asKnown(obj.intent, `${field}.intent`, UI_INTENTS) };
+  }
+  return { kind, surfaceId: asString(obj.surfaceId, `${field}.surfaceId`) };
+}
+
+function parseUiCondition(raw: unknown, field: string): UiCondition {
+  const obj = asObject(raw, field);
+  const kind = asKnown(obj.kind, `${field}.kind`, UI_CONDITION_KINDS);
+  if (kind === "capability") {
+    return {
+      kind,
+      capabilityId: asString(obj.capabilityId, `${field}.capabilityId`),
+      status: asKnown(obj.status, `${field}.status`, UI_CONDITION_STATUSES),
+    };
+  }
+  if (kind === "setup") {
+    return {
+      kind,
+      moduleName: asString(obj.moduleName, `${field}.moduleName`),
+      requirementId: asString(obj.requirementId, `${field}.requirementId`),
+      state: asKnown(obj.state, `${field}.state`, SETUP_STATES),
+    };
+  }
+  return { kind, scopeId: asString(obj.scopeId, `${field}.scopeId`) };
+}
+
+function parseUiPermission(raw: unknown, field: string): UiPermission {
+  const obj = asObject(raw, field);
+  const kind = asKnown(obj.kind, `${field}.kind`, UI_PERMISSION_KINDS);
+  if (kind === "capability-scope") {
+    return { kind, scope: asKnown(obj.scope, `${field}.scope`, UI_CAPABILITY_SCOPES) };
+  }
+  return { kind, effect: asKnown(obj.effect, `${field}.effect`, UI_ACTION_EFFECTS) };
+}
+
+function parseOptionalUiConditions(value: unknown, field: string): UiCondition[] | undefined {
+  if (value === undefined) return undefined;
+  return asArray(value, field).map((entry, index) => parseUiCondition(entry, `${field}[${index}]`));
+}
+
+function parseOptionalUiPermissions(value: unknown, field: string): UiPermission[] | undefined {
+  if (value === undefined) return undefined;
+  return asArray(value, field).map((entry, index) => parseUiPermission(entry, `${field}[${index}]`));
+}
+
+function parseUiOperation(raw: unknown, field: string): UiActionOperation {
+  const obj = asObject(raw, field);
+  const kind = asKnown(obj.kind, `${field}.kind`, UI_OPERATION_KINDS);
+  if (kind === "daemon-route") {
+    return {
+      kind,
+      method: asKnown(obj.method, `${field}.method`, UI_ACTION_METHODS),
+      path: asString(obj.path, `${field}.path`),
+    };
+  }
+  return {
+    kind,
+    namespace: asString(obj.namespace, `${field}.namespace`),
+    method: asString(obj.method, `${field}.method`),
+  };
+}
+
+function parseUiConfirmation(raw: unknown, field: string): UiConfirmation {
+  const obj = asObject(raw, field);
+  const mode = asKnown(obj.mode, `${field}.mode`, UI_CONFIRMATION_MODES);
+  if (mode === "none") return { mode };
+  return {
+    mode,
+    title: asString(obj.title, `${field}.title`),
+    detail: asString(obj.detail, `${field}.detail`),
+    confirmLabel: asString(obj.confirmLabel, `${field}.confirmLabel`),
+    risk: asKnown(obj.risk, `${field}.risk`, UI_CONFIRMATION_RISKS),
+  };
+}
+
+function parseUiReadiness(raw: unknown, field: string): UiActionReadiness {
+  const obj = asObject(raw, field);
+  const state = asKnown(obj.state, `${field}.state`, UI_READINESS_STATES);
+  if (state === "ready") {
+    return { state, message: asOptionalString(obj.message, `${field}.message`) };
+  }
+  if (state === "disabled") {
+    return {
+      state,
+      reason: asString(obj.reason, `${field}.reason`),
+      message: asString(obj.message, `${field}.message`),
+    };
+  }
+  return {
+    state,
+    moduleName: asString(obj.moduleName, `${field}.moduleName`),
+    requirementId: asString(obj.requirementId, `${field}.requirementId`),
+    message: asString(obj.message, `${field}.message`),
+  };
+}
+
+function parseUiFormField(raw: unknown, field: string): UiFormField {
+  const item = asObject(raw, field);
+  return {
+    id: asString(item.id, `${field}.id`),
+    label: asString(item.label, `${field}.label`),
+    input: asKnown(item.input, `${field}.input`, UI_FIELD_INPUTS),
+    required: asBool(item.required, `${field}.required`),
+    options: item.options === undefined
+      ? undefined
+      : asArray(item.options, `${field}.options`).map((entry, index) => {
+          const option = asObject(entry, `${field}.options[${index}]`);
+          return {
+            label: asString(option.label, `${field}.options[${index}].label`),
+            value: asString(option.value, `${field}.options[${index}].value`),
+          };
+        }),
+    schema: item.schema === undefined ? undefined : parseUiJsonSchema(item.schema, `${field}.schema`),
+  };
+}
+
+function parseUiParameters(raw: unknown, field: string): UiAction["parameters"] {
+  if (raw === undefined) return undefined;
+  const obj = asObject(raw, field);
+  const schema = parseUiJsonSchema(obj.schema, `${field}.schema`);
+  if (schema.type !== "object") fail(`${field}.schema must be an object schema`);
+  return {
+    schema: schema as UiJsonSchema & { type: "object" },
+    fields: asArray(obj.fields, `${field}.fields`).map((entry, index) =>
+      parseUiFormField(entry, `${field}.fields[${index}]`)
+    ),
+  };
+}
+
+function parseUiResult(raw: unknown, field: string): UiAction["result"] {
+  const obj = asObject(raw, field);
+  const success = asObject(obj.success, `${field}.success`);
+  return {
+    success: {
+      message: asString(success.message, `${field}.success.message`),
+      schema: success.schema === undefined ? undefined : parseUiJsonSchema(success.schema, `${field}.success.schema`),
+    },
+    errors: asArray(obj.errors, `${field}.errors`).map((entry, index) => {
+      const item = asObject(entry, `${field}.errors[${index}]`);
+      return {
+        reason: asString(item.reason, `${field}.errors[${index}].reason`),
+        message: asString(item.message, `${field}.errors[${index}].message`),
+        schema: item.schema === undefined
+          ? undefined
+          : parseUiJsonSchema(item.schema, `${field}.errors[${index}].schema`),
+      };
+    }),
+  };
+}
+
 function parseUiAction(raw: unknown, field: string): UiAction {
   const obj = asObject(raw, field);
   return {
@@ -889,8 +1246,13 @@ function parseUiAction(raw: unknown, field: string): UiAction {
     scopeId: asString(obj.scopeId, `${field}.scopeId`),
     label: asString(obj.label, `${field}.label`),
     effect: asKnown(obj.effect, `${field}.effect`, UI_ACTION_EFFECTS),
-    confirmation: asKnown(obj.confirmation, `${field}.confirmation`, UI_CONFIRMATIONS),
-    command: asString(obj.command, `${field}.command`),
+    operation: parseUiOperation(obj.operation, `${field}.operation`),
+    parameters: parseUiParameters(obj.parameters, `${field}.parameters`),
+    confirmation: parseUiConfirmation(obj.confirmation, `${field}.confirmation`),
+    readiness: parseUiReadiness(obj.readiness, `${field}.readiness`),
+    result: parseUiResult(obj.result, `${field}.result`),
+    conditions: parseOptionalUiConditions(obj.conditions, `${field}.conditions`),
+    permissions: parseOptionalUiPermissions(obj.permissions, `${field}.permissions`),
   };
 }
 
@@ -901,7 +1263,51 @@ function parseUiListItem(raw: unknown, field: string): UiListItem {
     title: asString(obj.title, `${field}.title`),
     detail: asString(obj.detail, `${field}.detail`),
     role: asKnown(obj.role, `${field}.role`, UI_ROLES),
-    action: parseUiAction(obj.action, `${field}.action`),
+    action: obj.action === undefined ? undefined : parseUiAction(obj.action, `${field}.action`),
+  };
+}
+
+function parseUiLinkTarget(raw: unknown, field: string): UiLinkTarget {
+  const obj = asObject(raw, field);
+  const kind = asKnown(obj.kind, `${field}.kind`, UI_LINK_TARGET_KINDS);
+  if (kind === "surface") {
+    return { kind, surfaceId: asString(obj.surfaceId, `${field}.surfaceId`) };
+  }
+  if (kind === "daemon-route") {
+    return { kind, path: asString(obj.path, `${field}.path`) };
+  }
+  return { kind, url: asString(obj.url, `${field}.url`) };
+}
+
+function parseUiTab(raw: unknown, field: string): UiTab {
+  const obj = asObject(raw, field);
+  return {
+    id: asString(obj.id, `${field}.id`),
+    label: asString(obj.label, `${field}.label`),
+    nodes: asArray(obj.nodes, `${field}.nodes`).map((entry, index) =>
+      parseUiNode(entry, `${field}.nodes[${index}]`)
+    ),
+  };
+}
+
+function parseUiLogEntry(raw: unknown, field: string): UiLogEntry {
+  const obj = asObject(raw, field);
+  return {
+    timestamp: asString(obj.timestamp, `${field}.timestamp`),
+    level: asKnown(obj.level, `${field}.level`, UI_LOG_LEVELS),
+    message: asString(obj.message, `${field}.message`),
+    source: asOptionalString(obj.source, `${field}.source`),
+  };
+}
+
+function parseUiLogStreamSource(raw: unknown, field: string): UiLogStreamSource {
+  const obj = asObject(raw, field);
+  return {
+    kind: asKnown(obj.kind, `${field}.kind`, UI_LOG_STREAM_SOURCE_KINDS),
+    path: asString(obj.path, `${field}.path`),
+    eventTypes: asArray(obj.eventTypes, `${field}.eventTypes`).map((entry, index) =>
+      asString(entry, `${field}.eventTypes[${index}]`)
+    ),
   };
 }
 
@@ -933,6 +1339,43 @@ function parseUiNode(raw: unknown, field: string): UiNode {
           };
         }),
       };
+    case "metrics":
+      return {
+        kind,
+        title: asString(obj.title, `${field}.title`),
+        metrics: asArray(obj.metrics, `${field}.metrics`).map((entry, index) => {
+          const item = asObject(entry, `${field}.metrics[${index}]`);
+          return {
+            label: asString(item.label, `${field}.metrics[${index}].label`),
+            value: asString(item.value, `${field}.metrics[${index}].value`),
+            unit: asOptionalString(item.unit, `${field}.metrics[${index}].unit`),
+            role: asKnown(item.role, `${field}.metrics[${index}].role`, UI_ROLES),
+          };
+        }),
+      };
+    case "text":
+      return {
+        kind,
+        title: asString(obj.title, `${field}.title`),
+        body: asString(obj.body, `${field}.body`),
+        role: obj.role === undefined ? undefined : asKnown(obj.role, `${field}.role`, UI_ROLES),
+      };
+    case "link":
+      return {
+        kind,
+        label: asString(obj.label, `${field}.label`),
+        target: parseUiLinkTarget(obj.target, `${field}.target`),
+        role: obj.role === undefined ? undefined : asKnown(obj.role, `${field}.role`, UI_ROLES),
+      };
+    case "tabs":
+      return {
+        kind,
+        title: asString(obj.title, `${field}.title`),
+        activeTabId: asString(obj.activeTabId, `${field}.activeTabId`),
+        tabs: asArray(obj.tabs, `${field}.tabs`).map((entry, index) =>
+          parseUiTab(entry, `${field}.tabs[${index}]`)
+        ),
+      };
     case "list":
       return {
         kind,
@@ -941,26 +1384,84 @@ function parseUiNode(raw: unknown, field: string): UiNode {
           parseUiListItem(entry, `${field}.items[${index}]`)
         ),
       };
+    case "table":
+      return {
+        kind,
+        title: asString(obj.title, `${field}.title`),
+        columns: asArray(obj.columns, `${field}.columns`).map((entry, index) => {
+          const item = asObject(entry, `${field}.columns[${index}]`);
+          return {
+            id: asString(item.id, `${field}.columns[${index}].id`),
+            label: asString(item.label, `${field}.columns[${index}].label`),
+            role: item.role === undefined ? undefined : asKnown(item.role, `${field}.columns[${index}].role`, UI_ROLES),
+          };
+        }),
+        rows: asArray(obj.rows, `${field}.rows`).map((entry, index) => {
+          const row = asObject(entry, `${field}.rows[${index}]`);
+          return {
+            id: asString(row.id, `${field}.rows[${index}].id`),
+            cells: asArray(row.cells, `${field}.rows[${index}].cells`).map((cellEntry, cellIndex) => {
+              const cell = asObject(cellEntry, `${field}.rows[${index}].cells[${cellIndex}]`);
+              return {
+                columnId: asString(cell.columnId, `${field}.rows[${index}].cells[${cellIndex}].columnId`),
+                value: asString(cell.value, `${field}.rows[${index}].cells[${cellIndex}].value`),
+                role: cell.role === undefined
+                  ? undefined
+                  : asKnown(cell.role, `${field}.rows[${index}].cells[${cellIndex}].role`, UI_ROLES),
+              };
+            }),
+            action: row.action === undefined ? undefined : parseUiAction(row.action, `${field}.rows[${index}].action`),
+          };
+        }),
+      };
     case "detail":
       return {
         kind,
         title: asString(obj.title, `${field}.title`),
         body: asString(obj.body, `${field}.body`),
       };
+    case "progress":
+      return {
+        kind,
+        label: asString(obj.label, `${field}.label`),
+        value: asNumber(obj.value, `${field}.value`),
+        max: asNumber(obj.max, `${field}.max`),
+        role: asKnown(obj.role, `${field}.role`, UI_ROLES),
+      };
+    case "log":
+      return {
+        kind,
+        title: asString(obj.title, `${field}.title`),
+        entries: asArray(obj.entries, `${field}.entries`).map((entry, index) =>
+          parseUiLogEntry(entry, `${field}.entries[${index}]`)
+        ),
+      };
+    case "log-stream":
+      return {
+        kind,
+        title: asString(obj.title, `${field}.title`),
+        streamId: asString(obj.streamId, `${field}.streamId`),
+        source: parseUiLogStreamSource(obj.source, `${field}.source`),
+        entries: asArray(obj.entries, `${field}.entries`).map((entry, index) =>
+          parseUiLogEntry(entry, `${field}.entries[${index}]`)
+        ),
+      };
     case "form":
       return {
         kind,
         title: asString(obj.title, `${field}.title`),
-        fields: asArray(obj.fields, `${field}.fields`).map((entry, index) => {
-          const item = asObject(entry, `${field}.fields[${index}]`);
-          return {
-            id: asString(item.id, `${field}.fields[${index}].id`),
-            label: asString(item.label, `${field}.fields[${index}].label`),
-            input: asKnown(item.input, `${field}.fields[${index}].input`, UI_FIELD_INPUTS),
-            required: asBool(item.required, `${field}.fields[${index}].required`),
-          };
-        }),
+        fields: asArray(obj.fields, `${field}.fields`).map((entry, index) =>
+          parseUiFormField(entry, `${field}.fields[${index}]`)
+        ),
         submit: parseUiAction(obj.submit, `${field}.submit`),
+      };
+    case "action-list":
+      return {
+        kind,
+        title: asString(obj.title, `${field}.title`),
+        actions: asArray(obj.actions, `${field}.actions`).map((entry, index) =>
+          parseUiAction(entry, `${field}.actions[${index}]`)
+        ),
       };
     case "command":
       return {
@@ -989,9 +1490,14 @@ function parseUiSurface(raw: unknown, field: string): UiSurface {
   return {
     protocolVersion: asKnown(obj.protocolVersion, `${field}.protocolVersion`, UI_PROTOCOL_VERSIONS),
     surfaceId: asString(obj.surfaceId, `${field}.surfaceId`),
+    extensionId: asString(obj.extensionId, `${field}.extensionId`),
     title: asString(obj.title, `${field}.title`),
     intent: asKnown(obj.intent, `${field}.intent`, UI_INTENTS),
     scopeId: asString(obj.scopeId, `${field}.scopeId`),
+    attachmentPoint: parseUiAttachmentPoint(obj.attachmentPoint, `${field}.attachmentPoint`),
+    order: asNumber(obj.order, `${field}.order`),
+    conditions: parseOptionalUiConditions(obj.conditions, `${field}.conditions`),
+    permissions: parseOptionalUiPermissions(obj.permissions, `${field}.permissions`),
     nodes: asArray(obj.nodes, `${field}.nodes`).map((entry, index) =>
       parseUiNode(entry, `${field}.nodes[${index}]`)
     ),

@@ -1,8 +1,13 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DaemonLiveStatus } from "#core/daemon/daemon-control.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
+import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import daemonModule, {
+  buildOperatorControlUiSurface,
   formatDaemonStatus,
 } from "./index.js";
 
@@ -15,6 +20,7 @@ const stubCtx: ModuleRuntimeContext = {
   getRoutes: () => [],
   getContributedWorkflows: () => [],
   getContributedChannels: () => [],
+  getContributedUiSurfaces: () => [],
   getContributedControlRoutes: () => [],
   getModuleSummaries: () => [],
   getModuleConfig: () => undefined,
@@ -45,15 +51,16 @@ describe("daemonModule", () => {
     expect(daemonModule.description).toContain("daemon runtime");
   });
 
-  it("registers daemon, events, session, status, inbox, and project CLI commands", () => {
+  it("registers daemon, events, session, status, inbox, ui, and project CLI commands", () => {
     const cmds = daemonModule.commands!(stubCtx);
-    expect(cmds).toHaveLength(6);
+    expect(cmds).toHaveLength(7);
     expect(cmds[0].name()).toBe("daemon");
     expect(cmds[1].name()).toBe("events");
     expect(cmds[2].name()).toBe("session");
     expect(cmds[3].name()).toBe("status");
     expect(cmds[4].name()).toBe("inbox");
-    expect(cmds[5].name()).toBe("project");
+    expect(cmds[5].name()).toBe("ui");
+    expect(cmds[6].name()).toBe("project");
   });
 
   it("daemon command has expected options", () => {
@@ -100,6 +107,45 @@ describe("daemonModule", () => {
   it("declares module dependencies", () => {
     expect(daemonModule.dependencies).toContain("repo-tasks");
     expect(daemonModule.dependencies).toContain("rendering");
+  });
+
+  it("serves Status, Inbox, and contributed module surfaces from /ui/surfaces", async () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "kota-ui-route-"));
+    try {
+      const ctx: ModuleRuntimeContext = {
+        ...stubCtx,
+        cwd: projectDir,
+        client: buildMigratedNamespaceTestStubs() as ModuleRuntimeContext["client"],
+        storage: new ModuleStorage(projectDir, "daemon"),
+        getContributedUiSurfaces: () => [buildOperatorControlUiSurface()],
+      };
+      const route = daemonModule.controlRoutes!(ctx).find((candidate) =>
+        candidate.method === "GET" && candidate.path === "/ui/surfaces"
+      );
+      if (!route) throw new Error("missing /ui/surfaces route");
+
+      let statusCode = 0;
+      let body = "";
+      const res = {
+        setHeader: () => {},
+        writeHead: (code: number) => {
+          statusCode = code;
+        },
+        end: (chunk: string) => {
+          body = chunk;
+        },
+      };
+      await route.handler({} as never, res as never, {});
+      expect(statusCode).toBe(200);
+      const parsed = JSON.parse(body) as { surfaces: Array<{ surfaceId: string }> };
+      expect(parsed.surfaces.map((surface) => surface.surfaceId)).toEqual([
+        "status",
+        "inbox",
+        "operator-control",
+      ]);
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
   });
 });
 

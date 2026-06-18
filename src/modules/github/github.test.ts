@@ -25,6 +25,7 @@ function makeCtx(token = "ghp_test123", repo = "owner/testrepo"): ModuleContext 
     getRoutes: vi.fn(() => []),
     getContributedWorkflows: vi.fn(() => []),
     getContributedChannels: vi.fn(() => []),
+      getContributedUiSurfaces: () => [],
     getModuleConfig: vi.fn(() => ({ token, repo })),
     log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     getSecret: vi.fn(() => null),

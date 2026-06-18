@@ -446,6 +446,7 @@ describe("GitHubTaskProvider — onLoad integration in github module", () => {
       getRoutes: vi.fn(() => []),
       getContributedWorkflows: vi.fn(() => []),
       getContributedChannels: vi.fn(() => []),
+      getContributedUiSurfaces: () => [],
       getModuleConfig: vi.fn(() => ({
         token: "ghp_test",
         repo: "owner/repo",

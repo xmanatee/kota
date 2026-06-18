@@ -33,6 +33,7 @@ import type {
   DaemonOpsClient,
   ProjectsClient,
   SessionsClient,
+  UiClient,
 } from "#modules/daemon-ops/client.js";
 import type { DoctorClient } from "#modules/doctor/client.js";
 import type { EvalHarnessClient } from "#modules/eval-harness/client.js";
@@ -92,6 +93,7 @@ export interface KotaClient {
   readonly modulesAdmin: ModulesAdminClient;
   readonly daemonOps: DaemonOpsClient;
   readonly projects: ProjectsClient;
+  readonly ui: UiClient;
   readonly doctor: DoctorClient;
   readonly evalHarness: EvalHarnessClient;
   readonly recall: RecallClient;
@@ -130,6 +132,7 @@ export const KOTA_CLIENT_NAMESPACES = [
   "modulesAdmin",
   "daemonOps",
   "projects",
+  "ui",
   "doctor",
   "evalHarness",
   "recall",

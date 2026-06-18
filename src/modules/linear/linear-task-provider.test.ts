@@ -460,6 +460,7 @@ describe("LinearTaskProvider — onLoad integration in linear module", () => {
       getRoutes: vi.fn(() => []),
       getContributedWorkflows: vi.fn(() => []),
       getContributedChannels: vi.fn(() => []),
+      getContributedUiSurfaces: () => [],
       getModuleConfig: vi.fn(() => ({
         apiKey: "lin_api_test_key",
         taskProvider: { enabled: true, teamKey: "ENG", labelFilter: "kota-task" },

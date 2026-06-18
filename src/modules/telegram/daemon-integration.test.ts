@@ -425,6 +425,7 @@ describe("Telegram personal-assistant daemon integration", () => {
       getRoutes: () => [],
       getContributedWorkflows: () => [],
       getContributedChannels: () => [],
+      getContributedUiSurfaces: () => [],
       getContributedControlRoutes: () => [],
       getModuleSummaries: () => [],
       getModuleConfig: () =>

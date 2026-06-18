@@ -22,6 +22,7 @@ function makeStubCtx(storageDir: string): ModuleRuntimeContext {
 		getRoutes: () => [],
 		getContributedWorkflows: () => [],
 		getContributedChannels: () => [],
+      getContributedUiSurfaces: () => [],
 		getContributedControlRoutes: () => [],
 		getModuleSummaries: () => [],
 		getModuleConfig: () => undefined,

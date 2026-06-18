@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertNoUnsupportedSkillToolPolicyFrontmatter } from "#core/agents/skill-tool-policy.js";
 import { registerConfigSlice } from "#core/config/config-slice.js";
+import { buildUiSurfaceBundle } from "#core/daemon/ui-surface.js";
 import {
   getModuleEventRegistry,
   initModuleEventRegistry,
@@ -31,6 +32,7 @@ import {
   resolveModuleSetupRequirements,
   resolveModuleSkills,
   resolveModuleTools,
+  resolveModuleUiSurfaces,
   resolveModuleWorkflows,
   type ToolDef,
 } from "./module-types.js";
@@ -172,6 +174,20 @@ export async function attachModuleChannels(
   state.moduleChannelDefs.set(mod.name, channels);
   for (const def of channels) {
     state.contributedChannels.push(def);
+  }
+}
+
+export async function attachModuleUiSurfaces(
+  state: LoaderState,
+  mod: KotaModule,
+  ctx: ModuleRuntimeContext,
+): Promise<void> {
+  const surfaces = await resolveModuleUiSurfaces(mod, ctx);
+  if (surfaces.length === 0) return;
+  buildUiSurfaceBundle([...state.contributedUiSurfaces, ...surfaces]);
+  state.moduleUiSurfaceDefs.set(mod.name, surfaces);
+  for (const surface of surfaces) {
+    state.contributedUiSurfaces.push(surface);
   }
 }
 
@@ -401,6 +417,7 @@ export async function runModuleLoadPhases(
   const tools = prepareModuleTools(policy, mod, ctx);
   await attachModuleWorkflows(state, policy, mod, ctx);
   await attachModuleChannels(state, mod, ctx);
+  await attachModuleUiSurfaces(state, mod, ctx);
   state.moduleLocalClientNamespaces.set(
     mod.name,
     collectLocalClientHandlers(state.localClientHandlers, mod, ctx),

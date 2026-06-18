@@ -7,6 +7,7 @@ import type { AgentDef } from "#core/agents/agent-types.js";
 import type { ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { getSecretStore, initSecretStore } from "#core/config/secrets.js";
+import type { UiSurface } from "#core/daemon/ui-surface.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { BusEnvelope, BusEvents } from "#core/events/event-bus-types.js";
 import {
@@ -43,6 +44,7 @@ export interface ModuleContextParams {
   getContributedControlRoutes: () => ControlRouteRegistration[];
   getContributedWorkflows: () => RegisteredWorkflowDefinitionInput[];
   getContributedChannels: () => ChannelDef[];
+  getContributedUiSurfaces: () => UiSurface[];
   getModuleSummaries: () => ModuleSummary[];
   resolveAgentDef: (name: string) => AgentDef | undefined;
   resolveSkillsPrompt: (skillNames: string[] | "all", agentName?: string) => string;
@@ -130,7 +132,7 @@ function createEventProxy(getBus: () => EventBus | null): ModuleEventProxy {
 }
 
 export function createModuleContext(params: ModuleContextParams, moduleName?: string): ModuleRuntimeContext {
-  const { cwd, verbose, config, moduleStorages, getBus, getRoutes, getContributedControlRoutes, getContributedWorkflows, getContributedChannels, getModuleSummaries, resolveAgentDef, resolveSkillsPrompt, sessionFactory, callTool, probeHealthChecks, getRegisteredConfigKeys } = params;
+  const { cwd, verbose, config, moduleStorages, getBus, getRoutes, getContributedControlRoutes, getContributedWorkflows, getContributedChannels, getContributedUiSurfaces, getModuleSummaries, resolveAgentDef, resolveSkillsPrompt, sessionFactory, callTool, probeHealthChecks, getRegisteredConfigKeys } = params;
   const storage = moduleName
     ? getOrCreateStorage(moduleName, cwd, moduleStorages)
     : new ModuleStorage(cwd, "_default");
@@ -166,6 +168,7 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
     getContributedControlRoutes,
     getContributedWorkflows,
     getContributedChannels,
+    getContributedUiSurfaces,
     getModuleSummaries,
     getModuleConfig: <T = Record<string, unknown>>(): T | undefined => {
       if (!moduleName) return undefined;

@@ -232,6 +232,14 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
       list: async () => ({ ok: false as const, reason: "daemon_required" as const }),
       use: async () => ({ ok: false as const, reason: "daemon_required" as const }),
     },
+    ui: {
+      listSurfaces: async () => ({ protocolVersion: "ui.surface.v1", surfaces: [] }),
+      executeAction: async () => ({
+        ok: false as const,
+        reason: "not_found",
+        message: "stub",
+      }),
+    },
     config: {
       validate: async () => ({ sources: [], warnings: [], resolved: {} }),
       get: async () => ({ found: false as const, reason: "not_found" as const }),

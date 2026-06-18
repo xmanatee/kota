@@ -829,7 +829,7 @@ struct WorkflowInputSchema: Codable, Equatable {
 /// Permissive JSON value used only to round-trip arbitrary JSON Schema
 /// blobs through `WorkflowInputSchema`. Not exposed elsewhere — every
 /// other contract type is strict.
-private enum JSONValue: Codable, Equatable {
+enum JSONValue: Codable, Equatable {
     case string(String)
     case number(Double)
     case bool(Bool)
@@ -898,9 +898,172 @@ enum UiActionEffect: String, Codable, Equatable {
     case external
 }
 
-enum UiConfirmation: String, Codable, Equatable {
+enum UiActionMethod: String, Codable, Equatable {
+    case get = "GET"
+    case post = "POST"
+    case patch = "PATCH"
+    case delete = "DELETE"
+}
+
+enum UiOperationKind: String, Codable, Equatable {
+    case daemonRoute = "daemon-route"
+    case clientNamespace = "client-namespace"
+}
+
+struct UiActionOperation: Codable, Equatable {
+    let kind: UiOperationKind
+    let method: String
+    let path: String?
+    let namespace: String?
+}
+
+enum UiConfirmationMode: String, Codable, Equatable {
     case none
     case required
+}
+
+enum UiConfirmationRisk: String, Codable, Equatable {
+    case low
+    case medium
+    case high
+}
+
+struct UiConfirmation: Codable, Equatable {
+    let mode: UiConfirmationMode
+    let title: String?
+    let detail: String?
+    let confirmLabel: String?
+    let risk: UiConfirmationRisk?
+}
+
+enum UiReadinessState: String, Codable, Equatable {
+    case ready
+    case disabled
+    case needsSetup = "needs-setup"
+}
+
+struct UiActionReadiness: Codable, Equatable {
+    let state: UiReadinessState
+    let message: String?
+    let reason: String?
+    let moduleName: String?
+    let requirementId: String?
+}
+
+enum UiAttachmentKind: String, Codable, Equatable {
+    case root
+    case intent
+    case surface
+}
+
+struct UiAttachmentPoint: Codable, Equatable {
+    let kind: UiAttachmentKind
+    let intent: UiIntent?
+    let surfaceId: String?
+}
+
+enum UiConditionKind: String, Codable, Equatable {
+    case capability
+    case setup
+    case scope
+}
+
+enum UiConditionStatus: String, Codable, Equatable {
+    case ready
+    case unavailable
+    case initFailed = "init_failed"
+}
+
+struct UiCondition: Codable, Equatable {
+    let kind: UiConditionKind
+    let capabilityId: String?
+    let status: UiConditionStatus?
+    let moduleName: String?
+    let requirementId: String?
+    let state: SetupRequirementState?
+    let scopeId: String?
+}
+
+enum UiPermissionKind: String, Codable, Equatable {
+    case capabilityScope = "capability-scope"
+    case effect
+}
+
+enum UiCapabilityScope: String, Codable, Equatable {
+    case read
+    case control
+}
+
+struct UiPermission: Codable, Equatable {
+    let kind: UiPermissionKind
+    let scope: UiCapabilityScope?
+    let effect: UiActionEffect?
+}
+
+enum UiSchemaType: String, Codable, Equatable {
+    case string
+    case number
+    case integer
+    case boolean
+    case array
+    case object
+}
+
+enum UiSchemaFormat: String, Codable, Equatable {
+    case secretReference = "secret-reference"
+    case path
+    case url
+}
+
+final class UiJsonSchema: Codable, Equatable {
+    let type: UiSchemaType
+    let title: String?
+    let description: String?
+    let `enum`: [String]?
+    let `default`: JSONValue?
+    let format: UiSchemaFormat?
+    let minimum: Double?
+    let maximum: Double?
+    let items: UiJsonSchema?
+    let properties: [String: UiJsonSchema]?
+    let required: [String]?
+    let additionalProperties: Bool?
+
+    static func == (lhs: UiJsonSchema, rhs: UiJsonSchema) -> Bool {
+        lhs.type == rhs.type &&
+            lhs.title == rhs.title &&
+            lhs.description == rhs.description &&
+            lhs.enum == rhs.enum &&
+            lhs.default == rhs.default &&
+            lhs.format == rhs.format &&
+            lhs.minimum == rhs.minimum &&
+            lhs.maximum == rhs.maximum &&
+            lhs.items == rhs.items &&
+            lhs.properties == rhs.properties &&
+            lhs.required == rhs.required &&
+            lhs.additionalProperties == rhs.additionalProperties
+    }
+}
+
+struct UiActionResultSpec: Codable, Equatable {
+    struct Success: Codable, Equatable {
+        let message: String
+        let schema: UiJsonSchema?
+    }
+
+    struct Failure: Codable, Equatable {
+        let reason: String
+        let message: String
+        let schema: UiJsonSchema?
+    }
+
+    let success: Success
+    let errors: [Failure]
+}
+
+struct UiActionParameterSpec: Codable, Equatable {
+    let schema: UiJsonSchema
+    let fields: [UiFormField]
 }
 
 struct UiAction: Codable, Equatable {
@@ -909,8 +1072,13 @@ struct UiAction: Codable, Equatable {
     let scopeId: String
     let label: String
     let effect: UiActionEffect
+    let operation: UiActionOperation
+    let parameters: UiActionParameterSpec?
     let confirmation: UiConfirmation
-    let command: String
+    let readiness: UiActionReadiness
+    let result: UiActionResultSpec
+    let conditions: [UiCondition]?
+    let permissions: [UiPermission]?
 }
 
 struct UiStatusEntry: Codable, Equatable {
@@ -924,7 +1092,32 @@ struct UiListItem: Codable, Equatable {
     let title: String
     let detail: String
     let role: UiRole
-    let action: UiAction
+    let action: UiAction?
+}
+
+struct UiMetric: Codable, Equatable {
+    let label: String
+    let value: String
+    let unit: String?
+    let role: UiRole
+}
+
+struct UiTableColumn: Codable, Equatable {
+    let id: String
+    let label: String
+    let role: UiRole?
+}
+
+struct UiTableRowCell: Codable, Equatable {
+    let columnId: String
+    let value: String
+    let role: UiRole?
+}
+
+struct UiTableRow: Codable, Equatable {
+    let id: String
+    let cells: [UiTableRowCell]
+    let action: UiAction?
 }
 
 enum UiFieldInput: String, Codable, Equatable {
@@ -932,6 +1125,14 @@ enum UiFieldInput: String, Codable, Equatable {
     case secret
     case number
     case boolean
+    case select
+    case path
+    case url
+}
+
+struct UiFieldOption: Codable, Equatable {
+    let label: String
+    let value: String
 }
 
 struct UiFormField: Codable, Equatable {
@@ -939,14 +1140,123 @@ struct UiFormField: Codable, Equatable {
     let label: String
     let input: UiFieldInput
     let required: Bool
+    let options: [UiFieldOption]?
+    let schema: UiJsonSchema?
+}
+
+enum UiLinkTarget: Codable, Equatable {
+    case surface(surfaceId: String)
+    case daemonRoute(path: String)
+    case externalUrl(url: String)
+
+    private enum Kind: String, Codable {
+        case surface
+        case daemonRoute = "daemon-route"
+        case externalUrl = "external-url"
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case kind, surfaceId, path, url
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let kind = try container.decode(Kind.self, forKey: .kind)
+        switch kind {
+        case .surface:
+            self = .surface(surfaceId: try container.decode(String.self, forKey: .surfaceId))
+        case .daemonRoute:
+            self = .daemonRoute(path: try container.decode(String.self, forKey: .path))
+        case .externalUrl:
+            self = .externalUrl(url: try container.decode(String.self, forKey: .url))
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .surface(let surfaceId):
+            try container.encode(Kind.surface, forKey: .kind)
+            try container.encode(surfaceId, forKey: .surfaceId)
+        case .daemonRoute(let path):
+            try container.encode(Kind.daemonRoute, forKey: .kind)
+            try container.encode(path, forKey: .path)
+        case .externalUrl(let url):
+            try container.encode(Kind.externalUrl, forKey: .kind)
+            try container.encode(url, forKey: .url)
+        }
+    }
+}
+
+struct UiTab: Codable, Equatable {
+    let id: String
+    let label: String
+    let nodes: [UiNode]
+}
+
+enum UiLogLevel: String, Codable, Equatable {
+    case debug
+    case info
+    case warn
+    case error
+}
+
+struct UiLogEntry: Codable, Equatable {
+    let timestamp: String
+    let level: UiLogLevel
+    let message: String
+    let source: String?
+}
+
+enum UiLogStreamSource: Codable, Equatable {
+    case sse(path: String, eventTypes: [String])
+
+    private enum Kind: String, Codable {
+        case sse
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case kind, path, eventTypes
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let kind = try container.decode(Kind.self, forKey: .kind)
+        switch kind {
+        case .sse:
+            self = .sse(
+                path: try container.decode(String.self, forKey: .path),
+                eventTypes: try container.decode([String].self, forKey: .eventTypes)
+            )
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .sse(let path, let eventTypes):
+            try container.encode(Kind.sse, forKey: .kind)
+            try container.encode(path, forKey: .path)
+            try container.encode(eventTypes, forKey: .eventTypes)
+        }
+    }
 }
 
 enum UiNode: Codable, Equatable {
     case navigation(label: String, items: [UiNavigationItem])
     case statusSummary(entries: [UiStatusEntry])
+    case metrics(title: String, metrics: [UiMetric])
+    case text(title: String, body: String, role: UiRole?)
+    case link(label: String, target: UiLinkTarget, role: UiRole?)
+    case tabs(title: String, activeTabId: String, tabs: [UiTab])
     case list(title: String, items: [UiListItem])
+    case table(title: String, columns: [UiTableColumn], rows: [UiTableRow])
     case detail(title: String, body: String)
+    case progress(label: String, value: Double, max: Double, role: UiRole)
+    case log(title: String, entries: [UiLogEntry])
+    case logStream(title: String, streamId: String, source: UiLogStreamSource, entries: [UiLogEntry])
     case form(title: String, fields: [UiFormField], submit: UiAction)
+    case actionList(title: String, actions: [UiAction])
     case command(action: UiAction)
     case empty(title: String, detail: String, action: UiAction)
     case error(title: String, detail: String, action: UiAction)
@@ -954,16 +1264,25 @@ enum UiNode: Codable, Equatable {
     private enum Kind: String, Codable {
         case navigation
         case statusSummary = "status-summary"
+        case metrics
+        case text
+        case link
+        case tabs
         case list
+        case table
         case detail
+        case progress
+        case log
+        case logStream = "log-stream"
         case form
+        case actionList = "action-list"
         case command
         case empty
         case error
     }
 
     private enum CodingKeys: String, CodingKey {
-        case kind, label, items, entries, title, body, fields, submit, action, detail
+        case kind, label, items, entries, metrics, title, body, role, target, activeTabId, tabs, columns, rows, fields, submit, action, actions, detail, value, max, streamId, source
     }
 
     init(from decoder: Decoder) throws {
@@ -977,21 +1296,74 @@ enum UiNode: Codable, Equatable {
             )
         case .statusSummary:
             self = .statusSummary(entries: try container.decode([UiStatusEntry].self, forKey: .entries))
+        case .metrics:
+            self = .metrics(
+                title: try container.decode(String.self, forKey: .title),
+                metrics: try container.decode([UiMetric].self, forKey: .metrics)
+            )
+        case .text:
+            self = .text(
+                title: try container.decode(String.self, forKey: .title),
+                body: try container.decode(String.self, forKey: .body),
+                role: try container.decodeIfPresent(UiRole.self, forKey: .role)
+            )
+        case .link:
+            self = .link(
+                label: try container.decode(String.self, forKey: .label),
+                target: try container.decode(UiLinkTarget.self, forKey: .target),
+                role: try container.decodeIfPresent(UiRole.self, forKey: .role)
+            )
+        case .tabs:
+            self = .tabs(
+                title: try container.decode(String.self, forKey: .title),
+                activeTabId: try container.decode(String.self, forKey: .activeTabId),
+                tabs: try container.decode([UiTab].self, forKey: .tabs)
+            )
         case .list:
             self = .list(
                 title: try container.decode(String.self, forKey: .title),
                 items: try container.decode([UiListItem].self, forKey: .items)
+            )
+        case .table:
+            self = .table(
+                title: try container.decode(String.self, forKey: .title),
+                columns: try container.decode([UiTableColumn].self, forKey: .columns),
+                rows: try container.decode([UiTableRow].self, forKey: .rows)
             )
         case .detail:
             self = .detail(
                 title: try container.decode(String.self, forKey: .title),
                 body: try container.decode(String.self, forKey: .body)
             )
+        case .progress:
+            self = .progress(
+                label: try container.decode(String.self, forKey: .label),
+                value: try container.decode(Double.self, forKey: .value),
+                max: try container.decode(Double.self, forKey: .max),
+                role: try container.decode(UiRole.self, forKey: .role)
+            )
+        case .log:
+            self = .log(
+                title: try container.decode(String.self, forKey: .title),
+                entries: try container.decode([UiLogEntry].self, forKey: .entries)
+            )
+        case .logStream:
+            self = .logStream(
+                title: try container.decode(String.self, forKey: .title),
+                streamId: try container.decode(String.self, forKey: .streamId),
+                source: try container.decode(UiLogStreamSource.self, forKey: .source),
+                entries: try container.decode([UiLogEntry].self, forKey: .entries)
+            )
         case .form:
             self = .form(
                 title: try container.decode(String.self, forKey: .title),
                 fields: try container.decode([UiFormField].self, forKey: .fields),
                 submit: try container.decode(UiAction.self, forKey: .submit)
+            )
+        case .actionList:
+            self = .actionList(
+                title: try container.decode(String.self, forKey: .title),
+                actions: try container.decode([UiAction].self, forKey: .actions)
             )
         case .command:
             self = .command(action: try container.decode(UiAction.self, forKey: .action))
@@ -1020,19 +1392,63 @@ enum UiNode: Codable, Equatable {
         case .statusSummary(let entries):
             try container.encode(Kind.statusSummary, forKey: .kind)
             try container.encode(entries, forKey: .entries)
+        case .metrics(let title, let metrics):
+            try container.encode(Kind.metrics, forKey: .kind)
+            try container.encode(title, forKey: .title)
+            try container.encode(metrics, forKey: .metrics)
+        case .text(let title, let body, let role):
+            try container.encode(Kind.text, forKey: .kind)
+            try container.encode(title, forKey: .title)
+            try container.encode(body, forKey: .body)
+            try container.encodeIfPresent(role, forKey: .role)
+        case .link(let label, let target, let role):
+            try container.encode(Kind.link, forKey: .kind)
+            try container.encode(label, forKey: .label)
+            try container.encode(target, forKey: .target)
+            try container.encodeIfPresent(role, forKey: .role)
+        case .tabs(let title, let activeTabId, let tabs):
+            try container.encode(Kind.tabs, forKey: .kind)
+            try container.encode(title, forKey: .title)
+            try container.encode(activeTabId, forKey: .activeTabId)
+            try container.encode(tabs, forKey: .tabs)
         case .list(let title, let items):
             try container.encode(Kind.list, forKey: .kind)
             try container.encode(title, forKey: .title)
             try container.encode(items, forKey: .items)
+        case .table(let title, let columns, let rows):
+            try container.encode(Kind.table, forKey: .kind)
+            try container.encode(title, forKey: .title)
+            try container.encode(columns, forKey: .columns)
+            try container.encode(rows, forKey: .rows)
         case .detail(let title, let body):
             try container.encode(Kind.detail, forKey: .kind)
             try container.encode(title, forKey: .title)
             try container.encode(body, forKey: .body)
+        case .progress(let label, let value, let max, let role):
+            try container.encode(Kind.progress, forKey: .kind)
+            try container.encode(label, forKey: .label)
+            try container.encode(value, forKey: .value)
+            try container.encode(max, forKey: .max)
+            try container.encode(role, forKey: .role)
+        case .log(let title, let entries):
+            try container.encode(Kind.log, forKey: .kind)
+            try container.encode(title, forKey: .title)
+            try container.encode(entries, forKey: .entries)
+        case .logStream(let title, let streamId, let source, let entries):
+            try container.encode(Kind.logStream, forKey: .kind)
+            try container.encode(title, forKey: .title)
+            try container.encode(streamId, forKey: .streamId)
+            try container.encode(source, forKey: .source)
+            try container.encode(entries, forKey: .entries)
         case .form(let title, let fields, let submit):
             try container.encode(Kind.form, forKey: .kind)
             try container.encode(title, forKey: .title)
             try container.encode(fields, forKey: .fields)
             try container.encode(submit, forKey: .submit)
+        case .actionList(let title, let actions):
+            try container.encode(Kind.actionList, forKey: .kind)
+            try container.encode(title, forKey: .title)
+            try container.encode(actions, forKey: .actions)
         case .command(let action):
             try container.encode(Kind.command, forKey: .kind)
             try container.encode(action, forKey: .action)
@@ -1058,9 +1474,14 @@ struct UiNavigationItem: Codable, Equatable {
 struct UiSurface: Codable, Equatable {
     let protocolVersion: UiProtocolVersion
     let surfaceId: String
+    let extensionId: String
     let title: String
     let intent: UiIntent
     let scopeId: String
+    let attachmentPoint: UiAttachmentPoint
+    let order: Int
+    let conditions: [UiCondition]?
+    let permissions: [UiPermission]?
     let nodes: [UiNode]
     let actions: [UiAction]
 }

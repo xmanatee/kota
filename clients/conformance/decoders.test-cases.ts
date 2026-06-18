@@ -205,19 +205,46 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
         surfaces: Array<{
           surfaceId: string;
           intent: string;
+          nodes: Array<{
+            kind: string;
+            target?: { kind: string; path?: string; url?: string; surfaceId?: string };
+            tabs?: Array<{ id: string; nodes: Array<{ kind: string }> }>;
+            streamId?: string;
+            source?: { kind: string; path: string; eventTypes: string[] };
+          }>;
           actions: Array<{
             actionId: string;
-            command: string;
+            operation: { kind: string; method?: string; path?: string; namespace?: string };
             effect: string;
-            confirmation: string;
+            confirmation: { mode: string };
+            readiness: { state: string; reason?: string; moduleName?: string; requirementId?: string };
+            parameters?: {
+              schema: {
+                required?: string[];
+                properties: {
+                  name?: unknown;
+                  tags?: unknown;
+                  payload?: unknown;
+                  workflow?: unknown;
+                  autonomy_mode?: unknown;
+                  autonomyMode?: unknown;
+                  session_id?: unknown;
+                  conversation_id?: unknown;
+                  preset?: unknown;
+                  model?: unknown;
+                  effort?: unknown;
+                };
+              };
+            };
+            result: { errors: Array<{ reason: string }> };
           }>;
         }>;
       };
       if (bundle.protocolVersion !== "ui.surface.v1") {
         throw new Error("expected ui.surface.v1 protocol");
       }
-      if (bundle.surfaces.map((surface) => surface.intent).join(",") !== "Status,Inbox") {
-        throw new Error("expected Status and Inbox intent surfaces");
+      if (bundle.surfaces.map((surface) => surface.intent).join(",") !== "Status,Inbox,Work") {
+        throw new Error("expected Status, Inbox, and Work intent surfaces");
       }
       const inbox = bundle.surfaces.find((surface) => surface.surfaceId === "inbox");
       const approvalAction = inbox?.actions.find((action) => action.actionId === "approval.open");
@@ -225,11 +252,91 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
         throw new Error("expected inbox approval action");
       }
       if (
-        approvalAction.command !== "kota approval list" ||
+        approvalAction.operation.kind !== "daemon-route" ||
+        approvalAction.operation.path !== "/approvals?status=pending" ||
         approvalAction.effect !== "read" ||
-        approvalAction.confirmation !== "none"
+        approvalAction.confirmation.mode !== "none"
       ) {
-        throw new Error("expected approval.open to be a read-only approval list action");
+        throw new Error("expected approval.open to be a typed read-only approval route action");
+      }
+      const demo = bundle.surfaces.find((surface) => surface.surfaceId === "operator-control");
+      if (!demo) {
+        throw new Error("expected operator-control demo surface");
+      }
+      const expectedKinds = ["metrics", "text", "link", "tabs", "table", "table", "progress", "log", "log-stream", "form", "form", "form", "table", "table", "action-list"];
+      if (demo.nodes.map((node) => node.kind).join(",") !== expectedKinds.join(",")) {
+        throw new Error("expected operator-control to exercise shared semantic node kinds");
+      }
+      const link = demo.nodes.find((node) => node.kind === "link");
+      if (link?.target?.kind !== "daemon-route" || link.target.path !== "/ui/surfaces") {
+        throw new Error("expected link node to target the shared UI daemon route");
+      }
+      const tabs = demo.nodes.find((node) => node.kind === "tabs");
+      if (tabs?.tabs?.map((tab) => tab.id).join(",") !== "requests,runs,setup") {
+        throw new Error("expected tabs node to expose request, run, and setup panes");
+      }
+      const logStream = demo.nodes.find((node) => node.kind === "log-stream");
+      if (
+        logStream?.streamId !== "daemon-events" ||
+        logStream.source?.kind !== "sse" ||
+        logStream.source.path !== "/events" ||
+        !logStream.source.eventTypes.includes("workflow.run.completed")
+      ) {
+        throw new Error("expected log-stream node to declare its SSE source");
+      }
+      const launch = demo.actions.find((action) => action.actionId === "workflow.launch");
+      if (!launch || launch.operation.path !== "/workflow/trigger") {
+        throw new Error("expected workflow.launch daemon route action");
+      }
+      if (launch.confirmation.mode !== "required" || launch.readiness.state !== "ready") {
+        throw new Error("expected workflow.launch confirmation and readiness metadata");
+      }
+      if (launch.parameters?.schema.required?.join(",") !== "name") {
+        throw new Error("expected workflow.launch typed parameter schema");
+      }
+      if (
+        !launch.parameters?.schema.properties.name ||
+        !launch.parameters.schema.properties.tags ||
+        !launch.parameters.schema.properties.payload ||
+        launch.parameters.schema.properties.workflow
+      ) {
+        throw new Error("expected workflow.launch to use daemon trigger parameters");
+      }
+      if (!launch.result.errors.some((entry) => entry.reason === "workflow-disabled")) {
+        throw new Error("expected workflow.launch typed error outcomes");
+      }
+      const session = demo.actions.find((action) => action.actionId === "session.launch");
+      if (session?.parameters?.schema.required?.join(",") !== "autonomy_mode") {
+        throw new Error("expected session.launch typed parameter schema");
+      }
+      if (
+        !session.parameters?.schema.properties.autonomy_mode ||
+        !session.parameters.schema.properties.session_id ||
+        !session.parameters.schema.properties.conversation_id ||
+        session.parameters.schema.properties.autonomyMode
+      ) {
+        throw new Error("expected session.launch to use daemon session parameters");
+      }
+      const defaults = demo.actions.find((action) => action.actionId === "launch.defaults.configure");
+      if (!defaults || !defaults.parameters || defaults.parameters.schema.required?.join(",") !== "preset,model,effort") {
+        throw new Error("expected launch defaults typed parameter schema");
+      }
+      if (
+        !defaults.parameters.schema.properties.preset ||
+        !defaults.parameters.schema.properties.model ||
+        !defaults.parameters.schema.properties.effort ||
+        defaults.readiness.state !== "disabled" ||
+        defaults.readiness.reason !== "controller-unavailable"
+      ) {
+        throw new Error("expected launch defaults to expose preset/model/effort controls with recorded limitation");
+      }
+      const setup = demo.actions.find((action) => action.actionId === "setup.oauth.start");
+      if (
+        setup?.readiness.state !== "needs-setup" ||
+        setup.readiness.moduleName !== "google-workspace" ||
+        setup.readiness.requirementId !== "oauth-credentials"
+      ) {
+        throw new Error("expected setup OAuth action to carry needs-setup readiness metadata");
       }
     },
   },
@@ -242,6 +349,36 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
   {
     name: "uiSurfaces: unknown action effect rejected",
     path: "uiSurfaces.negative_unknownActionEffect",
+    parse: parseUiSurfaceBundle,
+    expectThrow: true,
+  },
+  {
+    name: "uiSurfaces: unknown operation kind rejected",
+    path: "uiSurfaces.negative_unknownOperationKind",
+    parse: parseUiSurfaceBundle,
+    expectThrow: true,
+  },
+  {
+    name: "uiSurfaces: unknown readiness state rejected",
+    path: "uiSurfaces.negative_unknownReadinessState",
+    parse: parseUiSurfaceBundle,
+    expectThrow: true,
+  },
+  {
+    name: "uiSurfaces: unknown attachment point rejected",
+    path: "uiSurfaces.negative_unknownAttachmentKind",
+    parse: parseUiSurfaceBundle,
+    expectThrow: true,
+  },
+  {
+    name: "uiSurfaces: unknown link target rejected",
+    path: "uiSurfaces.negative_unknownLinkTargetKind",
+    parse: parseUiSurfaceBundle,
+    expectThrow: true,
+  },
+  {
+    name: "uiSurfaces: unknown log stream source rejected",
+    path: "uiSurfaces.negative_unknownLogStreamSourceKind",
     parse: parseUiSurfaceBundle,
     expectThrow: true,
   },

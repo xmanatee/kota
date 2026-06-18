@@ -156,11 +156,11 @@ Local source links point to representative contracts, not exhaustive catalogs.
 | Session | Core session runtime plus daemon session control routes. | Every interactive run and autonomous step runs in a session. Channels may own session pools; clients only observe or control sessions through the daemon API. |
 | Automation, hook, schedule, workflow | `defineAutomation`, `defineHook`, workflow triggers, and workflow steps in `src/core/workflow/`. | Hook is an authoring view. Workflow is the compiled/runtime mechanism for event, schedule, interval, watch, webhook, and batch triggers. Do not add parallel trigger engines. |
 | Channel | `ChannelDef` in `src/core/channels/channel.ts`. | Channels translate external I/O into sessions or typed inbound events. They are daemon-owned module contributions, not clients. |
-| Client | Thin apps under `clients/` consuming `KotaClient`, HTTP+JSON, and SSE. | Clients render daemon contracts and never parse `.kota/` files or start a second runtime. The shared UI contribution protocol is the intended renderer contract; until it lands, conformance fixtures keep wire shapes aligned. |
+| Client | Thin apps under `clients/` consuming `KotaClient`, HTTP+JSON, SSE, and the shared UI surface graph. | Clients render daemon contracts and never parse `.kota/` files or start a second runtime. The shared UI contribution protocol is the renderer contract for operator-facing controls that should appear consistently across clients. |
 | Setup, auth, and secrets | Module setup requirements in `src/core/modules/setup-requirements.ts` plus the secrets module. | Setup prompts collect prerequisites and secret references. Raw credentials stay in secret stores or provider auth flows, not decision records, prompts, screenshots, or client fixtures. |
 | Owner question, approval, owner decision | `OwnerQuestionQueue`, `ApprovalQueue`, `OwnerDecisionStore`, `ownerDecisionSteps`, `confirmedOwnerActionStep`, and the owner-decisions module client/CLI/API. | Owner questions ask for judgment; approvals gate dangerous effects; owner decisions persist reusable choices and authorize at most the intended later action. |
 | Store and evidence | Module-owned history, memory, knowledge, working memory, task, and run-artifact stores. | Git history and `.kota/runs/` are the review record. Do not create parallel changelogs, lesson stores, or ad hoc audit files. |
-| UI contribution | A narrow `ui.surface.v1` Status/Inbox seed exists; the broader typed UI contribution/action protocol is still planned for CLI, web, Apple, and mobile clients. | Operator-facing forms, actions, status, setup, approvals, owner requests, runs, launch controls, and module capabilities should be declared once and rendered natively by each client. |
+| UI contribution | `ui.surface.v1` exposes validated Status, Inbox, and module-contributed surfaces through `/ui/surfaces`, `KotaClient.ui`, shared conformance fixtures, and native client decoders/renderers. | Operator-facing forms, actions, status, setup, approvals, owner requests, runs, launch controls, and module capabilities are declared once and rendered natively by each client. Typed actions carry parameter schemas, readiness, effects, confirmation metadata, and result/error contracts. |
 
 ## Scenario Matrix
 
@@ -169,7 +169,7 @@ architecture fit without becoming a second queue.
 
 | Scenario | Expression Today | Gap | Normalized Task |
 | --- | --- | --- | --- |
-| Multi-scope continuous improvement | Directory-backed scopes, scoped events/stores, the `scope-improver` automation, and resolved scope policies can observe scope-local instructions, tasks, run artifacts, changes, and inherited autonomy/write rules. | Policy resolution now has a daemon contract; cross-client rendering still waits on the shared UI contribution protocol. | `data/tasks/done/task-add-continuous-scope-improvement-automation.md`; `data/tasks/done/task-add-scope-policy-inheritance-protocol.md`; `data/tasks/backlog/task-add-shared-ui-contribution-protocol-across-clients.md`. |
+| Multi-scope continuous improvement | Directory-backed scopes, scoped events/stores, the `scope-improver` automation, resolved scope policies, and shared UI surfaces can expose scope-local instructions, tasks, run artifacts, changes, and inherited autonomy/write rules to clients. | Remaining gaps are scenario-specific render coverage and retention policy consumers, not the shared UI contribution contract itself. | `data/tasks/done/task-add-continuous-scope-improvement-automation.md`; `data/tasks/done/task-add-scope-policy-inheritance-protocol.md`; `data/tasks/done/task-add-shared-ui-contribution-protocol-across-clients.md`. |
 | Weekly meta-review | Workflow schedules, generic batching, and the durable event journal can trigger or replay progress-review windows over scoped run, task, message, and artifact history. | Review consumers still need to choose journal-backed windows where live buffers are insufficient. | `data/tasks/done/task-add-scope-progress-reviewer-automation.md`; `data/tasks/done/task-add-durable-event-envelope-and-journal.md`. |
 | Telegram blocked or archived source handling | Telegram and other adapters can emit normalized inbound signals and owner/approval messages through module events. | Routing, source trust/status, and blocked-source no-op behavior are still adapter-specific, and Telegram intake is text-first. | `data/tasks/backlog/task-add-declarative-inbound-signal-routing-for-channel.md`; `data/tasks/backlog/task-expand-telegram-signals-beyond-text-messages.md`. |
 | Telegram sports availability with schedule matching | Inbound signals, generic event batches, setup/auth requirements, owner questions, owner decisions, and provider tools are composable workflow pieces. | A reference workflow still needs routing rules, calendar availability lookup, and provider-specific booking/reply/reaction actions. | `data/tasks/backlog/task-add-channel-opportunity-matching-reference-workflo.md`; `data/tasks/done/task-add-persisted-owner-confirmed-action-protocol.md`. |
@@ -179,13 +179,14 @@ architecture fit without becoming a second queue.
 
 Known current gaps that affect the scenarios are: project terminology remains
 as compatibility language on some routes and client code; durable event replay,
-generic idempotency/dedupe, DLQ handling, and module capability/effect
-manifests now exist, while retention policy consumers and scenario-specific
-adapters still need their follow-up slices; Telegram signal intake is still
-text-heavy; some less central credentials still flow through env/config before
-every module has setup declarations; bare `kota` now opens a shallow operator
-console shared with `kota navigate`, but the full shared-protocol CLI/TUI
-client still needs to land.
+generic idempotency/dedupe, DLQ handling, module capability/effect manifests,
+and the shared UI contribution protocol now exist, while retention policy
+consumers and scenario-specific adapters still need their follow-up slices;
+Telegram signal intake is still text-heavy; some less central credentials still
+flow through env/config before every module has setup declarations; bare `kota`
+now opens a shallow operator console shared with `kota navigate`, while
+`kota ui` renders and executes the shared surface graph through the same
+client contract.
 
 ## Context Gathering
 

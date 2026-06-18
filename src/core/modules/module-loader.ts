@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
+import type { UiSurface } from "#core/daemon/ui-surface.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type { DaemonClientHandlers, LocalClientHandlers } from "#core/server/kota-client.js";
@@ -107,6 +108,7 @@ export class ModuleLoader {
         getContributedControlRoutes: () => this.getContributedControlRoutes(),
         getContributedWorkflows: () => this.getContributedWorkflows(),
         getContributedChannels: () => this.getContributedChannels(),
+        getContributedUiSurfaces: () => this.getContributedUiSurfaces(),
         getModuleSummaries: () => this.getModuleSummaries(),
         resolveAgentDef: (name) => this.getAgentDef(name),
         resolveSkillsPrompt: (names, agentName) => this.getSkillsPromptFor(names, agentName),
@@ -202,6 +204,7 @@ export class ModuleLoader {
 
   getContributedWorkflows(): RegisteredWorkflowDefinitionInput[] { return this.state.contributedWorkflows; }
   getContributedChannels(): ChannelDef[] { return this.state.contributedChannels; }
+  getContributedUiSurfaces(): UiSurface[] { return this.state.contributedUiSurfaces; }
 
   getSkillsPrompt(): string { return this.getSkillsPromptFor("all"); }
 

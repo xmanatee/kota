@@ -780,6 +780,7 @@ function makeContext(): ModuleContext {
     getContributedControlRoutes: () => [],
     getContributedWorkflows: () => [],
     getContributedChannels: () => [],
+      getContributedUiSurfaces: () => [],
     getModuleSummaries: () => [
       {
         name: "example",

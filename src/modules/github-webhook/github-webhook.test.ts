@@ -27,6 +27,7 @@ function makeStubCtx(
     getRoutes: () => [],
     getContributedWorkflows: () => [],
     getContributedChannels: () => [],
+      getContributedUiSurfaces: () => [],
     getContributedControlRoutes: () => [],
     getModuleSummaries: () => [],
     getModuleConfig: () => config as never,

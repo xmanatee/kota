@@ -279,6 +279,7 @@ export class ModuleTestHarness {
       getContributedControlRoutes: () => [...this.#controlRoutes],
       getContributedWorkflows: () => [],
       getContributedChannels: () => [],
+      getContributedUiSurfaces: () => [],
       getModuleSummaries: () => [],
       probeHealthChecks: async () => ({}),
       getModuleConfig: () => undefined,

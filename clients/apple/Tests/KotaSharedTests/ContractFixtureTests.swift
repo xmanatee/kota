@@ -274,12 +274,68 @@ final class ContractFixtureTests: XCTestCase {
         let data = try Self.nestedData(["uiSurfaces", "statusInbox"])
         let bundle = try JSONDecoder().decode(UiSurfaceBundle.self, from: data)
         XCTAssertEqual(bundle.protocolVersion, .surfaceV1)
-        XCTAssertEqual(bundle.surfaces.map(\.intent), [.status, .inbox])
+        XCTAssertEqual(bundle.surfaces.map(\.intent), [.status, .inbox, .work])
         let inbox = bundle.surfaces.first { $0.surfaceId == "inbox" }
         let approvalAction = try XCTUnwrap(inbox?.actions.first { $0.actionId == "approval.open" })
-        XCTAssertEqual(approvalAction.command, "kota approval list")
+        XCTAssertEqual(approvalAction.operation.kind, .daemonRoute)
+        XCTAssertEqual(approvalAction.operation.path, "/approvals?status=pending")
         XCTAssertEqual(approvalAction.effect, .read)
-        XCTAssertEqual(approvalAction.confirmation, .none)
+        XCTAssertEqual(approvalAction.confirmation.mode, .none)
+
+        let demo = try XCTUnwrap(bundle.surfaces.first { $0.surfaceId == "operator-control" })
+        XCTAssertEqual(demo.extensionId, "demo.operator-control")
+        XCTAssertEqual(demo.attachmentPoint.kind, .intent)
+        XCTAssertTrue(demo.nodes.contains {
+            if case .link(label: _, target: .daemonRoute(path: let path), role: _) = $0 {
+                return path == "/ui/surfaces"
+            }
+            return false
+        })
+        XCTAssertTrue(demo.nodes.contains {
+            if case .tabs(title: _, activeTabId: let activeTabId, tabs: let tabs) = $0 {
+                return activeTabId == "requests" && tabs.map(\.id) == ["requests", "runs", "setup"]
+            }
+            return false
+        })
+        XCTAssertTrue(demo.nodes.contains {
+            if case .logStream(title: _, streamId: let streamId, source: .sse(path: let path, eventTypes: let eventTypes), entries: _) = $0 {
+                return streamId == "daemon-events" &&
+                    path == "/events" &&
+                    eventTypes.contains("workflow.run.completed")
+            }
+            return false
+        })
+        let launch = try XCTUnwrap(demo.actions.first { $0.actionId == "workflow.launch" })
+        XCTAssertEqual(launch.operation.path, "/workflow/trigger")
+        XCTAssertEqual(launch.confirmation.mode, .required)
+        XCTAssertEqual(launch.readiness.state, .ready)
+        XCTAssertEqual(launch.parameters?.schema.required, ["name"])
+        XCTAssertNotNil(launch.parameters?.schema.properties?["name"])
+        XCTAssertNotNil(launch.parameters?.schema.properties?["tags"])
+        XCTAssertNotNil(launch.parameters?.schema.properties?["payload"])
+        XCTAssertNil(launch.parameters?.schema.properties?["workflow"])
+        XCTAssertTrue(launch.result.errors.contains { $0.reason == "workflow-disabled" })
+        let session = try XCTUnwrap(demo.actions.first { $0.actionId == "session.launch" })
+        XCTAssertEqual(session.operation.path, "/sessions")
+        XCTAssertEqual(session.parameters?.schema.required, ["autonomy_mode"])
+        XCTAssertNotNil(session.parameters?.schema.properties?["autonomy_mode"])
+        XCTAssertNotNil(session.parameters?.schema.properties?["session_id"])
+        XCTAssertNotNil(session.parameters?.schema.properties?["conversation_id"])
+        XCTAssertNil(session.parameters?.schema.properties?["autonomyMode"])
+        let defaults = try XCTUnwrap(demo.actions.first { $0.actionId == "launch.defaults.configure" })
+        XCTAssertEqual(defaults.operation.kind, .clientNamespace)
+        XCTAssertEqual(defaults.operation.namespace, "config")
+        XCTAssertEqual(defaults.operation.method, "set")
+        XCTAssertEqual(defaults.parameters?.schema.required, ["preset", "model", "effort"])
+        XCTAssertNotNil(defaults.parameters?.schema.properties?["preset"])
+        XCTAssertNotNil(defaults.parameters?.schema.properties?["model"])
+        XCTAssertNotNil(defaults.parameters?.schema.properties?["effort"])
+        XCTAssertEqual(defaults.readiness.state, .disabled)
+        XCTAssertEqual(defaults.readiness.reason, "controller-unavailable")
+        let setup = try XCTUnwrap(demo.actions.first { $0.actionId == "setup.oauth.start" })
+        XCTAssertEqual(setup.readiness.state, .needsSetup)
+        XCTAssertEqual(setup.readiness.moduleName, "google-workspace")
+        XCTAssertEqual(setup.readiness.requirementId, "oauth-credentials")
     }
 
     func testUiSurfacesRejectUnknownNodeKind() throws {
@@ -289,6 +345,31 @@ final class ContractFixtureTests: XCTestCase {
 
     func testUiSurfacesRejectUnknownActionEffect() throws {
         let data = try Self.nestedData(["uiSurfaces", "negative_unknownActionEffect"])
+        XCTAssertThrowsError(try JSONDecoder().decode(UiSurfaceBundle.self, from: data))
+    }
+
+    func testUiSurfacesRejectUnknownOperationKind() throws {
+        let data = try Self.nestedData(["uiSurfaces", "negative_unknownOperationKind"])
+        XCTAssertThrowsError(try JSONDecoder().decode(UiSurfaceBundle.self, from: data))
+    }
+
+    func testUiSurfacesRejectUnknownReadinessState() throws {
+        let data = try Self.nestedData(["uiSurfaces", "negative_unknownReadinessState"])
+        XCTAssertThrowsError(try JSONDecoder().decode(UiSurfaceBundle.self, from: data))
+    }
+
+    func testUiSurfacesRejectUnknownAttachmentKind() throws {
+        let data = try Self.nestedData(["uiSurfaces", "negative_unknownAttachmentKind"])
+        XCTAssertThrowsError(try JSONDecoder().decode(UiSurfaceBundle.self, from: data))
+    }
+
+    func testUiSurfacesRejectUnknownLinkTargetKind() throws {
+        let data = try Self.nestedData(["uiSurfaces", "negative_unknownLinkTargetKind"])
+        XCTAssertThrowsError(try JSONDecoder().decode(UiSurfaceBundle.self, from: data))
+    }
+
+    func testUiSurfacesRejectUnknownLogStreamSourceKind() throws {
+        let data = try Self.nestedData(["uiSurfaces", "negative_unknownLogStreamSourceKind"])
         XCTAssertThrowsError(try JSONDecoder().decode(UiSurfaceBundle.self, from: data))
     }
 

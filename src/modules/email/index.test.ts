@@ -21,6 +21,7 @@ function makeCtx(config: Record<string, unknown>): ModuleContext {
     getRoutes: vi.fn(() => []),
     getContributedWorkflows: vi.fn(() => []),
     getContributedChannels: vi.fn(() => []),
+      getContributedUiSurfaces: () => [],
     getModuleConfig: vi.fn(() => config),
     log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     getSecret: vi.fn(() => null),

@@ -22,6 +22,7 @@ function makeCtx(
     getContributedControlRoutes: vi.fn().mockReturnValue([]),
     getContributedWorkflows: vi.fn().mockReturnValue([]),
     getContributedChannels: vi.fn().mockReturnValue([]),
+      getContributedUiSurfaces: () => [],
     getModuleConfig: vi.fn().mockReturnValue(config),
     log: {
       info: vi.fn(),

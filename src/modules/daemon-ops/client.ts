@@ -29,6 +29,26 @@ import type {
 } from "#core/daemon/scope-registry.js";
 import type { SessionGuardrailsReloadSummary } from "#core/events/event-bus-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import type { UiActionExecutionResult } from "./operator-ui-actions.js";
+import type { UiJsonValue, UiSurfaceBundle } from "./operator-ui-types.js";
+
+export type UiActionExecuteInput = {
+  surfaceId: string;
+  actionId: string;
+  parameters?: UiJsonValue;
+};
+
+/**
+ * Shared operator UI surface operations.
+ *
+ * `listSurfaces` returns the daemon/client-neutral UI contribution graph.
+ * `executeAction` resolves a stable action id from that graph and dispatches
+ * the typed operation declared by the contributing surface.
+ */
+export interface UiClient {
+  listSurfaces(): Promise<UiSurfaceBundle>;
+  executeAction(input: UiActionExecuteInput): Promise<UiActionExecutionResult>;
+}
 
 export type SessionsListResult = {
   sessions: InteractiveSession[];

@@ -26,6 +26,7 @@ function makeContext(moduleConfig?: WhisperModuleConfig): ModuleRuntimeContext {
     getRoutes: () => [],
     getContributedWorkflows: () => [],
     getContributedChannels: () => [],
+      getContributedUiSurfaces: () => [],
     getContributedControlRoutes: () => [],
     getModuleSummaries: () => [],
     probeHealthChecks: async () => ({}),

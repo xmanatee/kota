@@ -1,6 +1,7 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
+import type { UiSurface } from "#core/daemon/ui-surface.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import { executeTool } from "#core/tools/index.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
@@ -28,6 +29,7 @@ export interface LoaderContextDeps {
   getContributedControlRoutes: () => ControlRouteRegistration[];
   getContributedWorkflows: () => RegisteredWorkflowDefinitionInput[];
   getContributedChannels: () => ChannelDef[];
+  getContributedUiSurfaces: () => UiSurface[];
   getModuleSummaries: () => ModuleSummary[];
   resolveAgentDef: (name: string) => AgentDef | undefined;
   resolveSkillsPrompt: (skillNames: string[] | "all", agentName?: string) => string;
@@ -62,6 +64,7 @@ export function createLoaderModuleContext(
     getContributedControlRoutes: deps.getContributedControlRoutes,
     getContributedWorkflows: deps.getContributedWorkflows,
     getContributedChannels: deps.getContributedChannels,
+    getContributedUiSurfaces: deps.getContributedUiSurfaces,
     getModuleSummaries: deps.getModuleSummaries,
     resolveAgentDef: deps.resolveAgentDef,
     resolveSkillsPrompt: deps.resolveSkillsPrompt,

@@ -19,6 +19,7 @@ function makeStubCtx(bus?: EventBus, webhookConfig?: unknown): ModuleRuntimeCont
     getRoutes: () => [],
     getContributedWorkflows: () => [],
     getContributedChannels: () => [],
+      getContributedUiSurfaces: () => [],
     getContributedControlRoutes: () => [],
   getModuleSummaries: () => [],
     getModuleConfig: () => webhookConfig as never,

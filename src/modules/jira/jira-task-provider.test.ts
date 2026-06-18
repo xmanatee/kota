@@ -421,6 +421,7 @@ describe("JiraTaskProvider — onLoad integration in jira module", () => {
       getRoutes: vi.fn(() => []),
       getContributedWorkflows: vi.fn(() => []),
       getContributedChannels: vi.fn(() => []),
+      getContributedUiSurfaces: () => [],
       getModuleConfig: vi.fn(() => ({
         apiToken: "jira_token",
         userEmail: "user@example.com",

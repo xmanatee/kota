@@ -15,6 +15,7 @@ import type { ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import type { ModuleConfigSlice } from "#core/config/config-slice.js";
 import type { CapabilityScope } from "#core/daemon/daemon-control-types.js";
+import type { UiSurface } from "#core/daemon/ui-surface.js";
 import type { BusEnvelope, BusEvents } from "#core/events/event-bus-types.js";
 import type {
   ModuleEventDef,
@@ -289,6 +290,8 @@ export type ModuleInspectionContext = {
   getContributedWorkflows: () => RegisteredWorkflowDefinitionInput[];
   /** Get channel definitions contributed by loaded modules. */
   getContributedChannels: () => ChannelDef[];
+  /** Get UI surfaces contributed by loaded modules. */
+  getContributedUiSurfaces: () => UiSurface[];
   /** Get summaries of all loaded modules (name, version, contribution counts). */
   getModuleSummaries: () => ModuleSummary[];
   /** Look up a registered agent definition by name. */
@@ -526,6 +529,13 @@ export type KotaModule = {
   channels?: ModuleContribution<ChannelDef>;
 
   /**
+   * Client-neutral UI surfaces this module contributes. The daemon validates
+   * the descriptors and exposes them through the shared UI protocol; clients
+   * render them natively and invoke typed daemon actions.
+   */
+  uiSurfaces?: ModuleContribution<UiSurface>;
+
+  /**
    * Skills this module contributes — named, file-backed guidance blocks.
    * Skills are the one way to teach the agent about module capabilities.
    */
@@ -641,6 +651,13 @@ export async function resolveModuleChannels(
   ctx: ModuleContext,
 ): Promise<readonly ChannelDef[]> {
   return resolveContribution(mod.channels, ctx);
+}
+
+export async function resolveModuleUiSurfaces(
+  mod: KotaModule,
+  ctx: ModuleContext,
+): Promise<readonly UiSurface[]> {
+  return resolveContribution(mod.uiSurfaces, ctx);
 }
 
 export async function resolveModuleSkills(

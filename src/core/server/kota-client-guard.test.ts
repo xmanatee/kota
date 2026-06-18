@@ -45,6 +45,7 @@ const NAMESPACE_OWNERS: Record<(typeof KOTA_CLIENT_NAMESPACES)[number], string> 
   modulesAdmin: "module-manager",
   daemonOps: "daemon-ops",
   projects: "daemon-ops",
+  ui: "daemon-ops",
   doctor: "doctor",
   evalHarness: "eval-harness",
   recall: "recall",
