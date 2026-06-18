@@ -1,0 +1,4 @@
+1. Exported .kota/runs/2026-06-18T15-35-51-930Z-builder-g8xnid/dead-letter-before-dismissal.json with status "open"; the failure reason preserves the three cited hidden artifact ids.
+2. Dismissed the DLQ through `env -u NODE_OPTIONS pnpm kota workflow dlq dismiss ...` with the superseded-by-fix rationale, exported .kota/runs/2026-06-18T15-35-51-930Z-builder-g8xnid/dead-letter-after-dismissal.json with status "dismissed", and verified `workflow dlq list --status open --workflow progress-reviewer --json` returned `items: []` and `counts.open: 0`.
+3. Verified .kota/runs/2026-06-18T15-25-02-822Z-progress-reviewer-zo0j48/steps/apply-actions.json and steps/write-artifact.json both have status "success"; that run is after 8073cf388d68.
+4. Updated the task record with the DLQ before/after evidence, no-open-DLQ verification, same-shape run citation, and final done state.

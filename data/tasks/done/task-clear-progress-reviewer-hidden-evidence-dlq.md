@@ -1,12 +1,12 @@
 ---
 id: task-clear-progress-reviewer-hidden-evidence-dlq
 title: Clear progress-reviewer hidden evidence DLQ
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Resolve open DLQ dlq-66e3e96d-8c51-440a-8340-5d77c037c888 from the progress-reviewer apply-actions hidden-evidence validation failure. Commit 8073cf388d68 appears to address the root cause, so redrive if the trigger is still meaningful or dismiss with durable rationale after same-shape verification.
 created_at: 2026-06-18T15:35:48.192Z
-updated_at: 2026-06-18T15:35:48.192Z
+updated_at: 2026-06-18T15:40:45.000Z
 ---
 
 ## Problem
@@ -27,6 +27,12 @@ Resolve the progress-review finding from run 2026-06-18T15-25-02-822Z-progress-r
 - The cited progress gap is fixed or explicitly disproven with evidence.
 - Acceptance evidence is recorded in this task or its run artifact.
 
+## Resolution
+
+Dead-letter item `dlq-66e3e96d-8c51-440a-8340-5d77c037c888` was exported before dismissal, then dismissed through the workflow-ops DLQ command with a superseded-by-fix rationale. Redrive was not used because the failed batch predates evidence validation commit `8073cf388d68`, and the later same-shape progress-reviewer run `2026-06-18T15-25-02-822Z-progress-reviewer-zo0j48` reached `apply-actions` and `write-artifact` successfully.
+
+The current DLQ store now reports no open progress-reviewer items.
+
 ## Source / Intent
 
 Created by progress-reviewer workflow run 2026-06-18T15-25-02-822Z-progress-reviewer-zo0j48.
@@ -46,4 +52,8 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- A run artifact or task note captures before/after state for dlq-66e3e96d-8c51-440a-8340-5d77c037c888, records redrive-to-terminal success or dismissal rationale, verifies no open progress-reviewer DLQs remain, and cites a same-shape progress-reviewer run after 8073cf388d68 that reaches apply-actions/write-artifact successfully.
+- `.kota/runs/2026-06-18T15-35-51-930Z-builder-g8xnid/dead-letter-before-dismissal.json` preserves the DLQ before state with `status: "open"` and the three cited hidden artifact ids.
+- `.kota/runs/2026-06-18T15-35-51-930Z-builder-g8xnid/dead-letter-after-dismissal.json` records `status: "dismissed"`, `dismissedAt: "2026-06-18T15:40:13.748Z"`, and the dismissal rationale.
+- `.kota/runs/2026-06-18T15-35-51-930Z-builder-g8xnid/dead-letter-resolution.md` records the before/after summary, command rationale, same-shape run citation, and no-open-DLQ verification.
+- `env -u NODE_OPTIONS pnpm kota workflow dlq list --status open --workflow progress-reviewer --json` returned `items: []` and `counts.open: 0`.
+- `.kota/runs/2026-06-18T15-25-02-822Z-progress-reviewer-zo0j48/steps/apply-actions.json` and `steps/write-artifact.json` both have `status: "success"` after commit `8073cf388d68`.

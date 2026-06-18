@@ -1,0 +1,4 @@
+1. Export before state for dead-letter item dlq-66e3e96d-8c51-440a-8340-5d77c037c888 while preserving the cited hidden evidence ids.
+2. Resolve the cited DLQ by redriving to terminal success or dismissing it with durable rationale, then verify no open progress-reviewer DLQs remain.
+3. Cite a same-shape progress-reviewer run after commit 8073cf388d68 that reached apply-actions and write-artifact successfully.
+4. Move task-clear-progress-reviewer-hidden-evidence-dlq to done with concrete acceptance evidence.

@@ -1,0 +1,181 @@
+{
+  "item": {
+    "id": "dlq-66e3e96d-8c51-440a-8340-5d77c037c888",
+    "type": "workflow-dispatch",
+    "status": "open",
+    "scopeId": "8nrg1m",
+    "projectId": "8nrg1m",
+    "owningModule": "workflow-runtime",
+    "sourceEventIds": [
+      "evtj-000000027971",
+      "evtj-000000028076",
+      "evtj-000000028467",
+      "evtj-000000028482",
+      "evtj-000000028486"
+    ],
+    "affectedWorkflowNames": [
+      "progress-reviewer"
+    ],
+    "failure": {
+      "reason": "progress-review claim claim-digest-closeout-has-current-evidence cites unknown evidence id(s): artifact:2026-06-18T14-07-07-823Z-builder-s04an8:critic-review.json, artifact:2026-06-18T14-07-07-823Z-builder-s04an8:digest-consolidation/cli-transcript.txt, artifact:2026-06-18T14-07-07-823Z-builder-s04an8:digest-consolidation/contract-probe.json",
+      "retryCount": 1,
+      "lastErrorClass": "execution",
+      "firstFailedAt": "2026-06-18T15:11:02.254Z",
+      "lastFailedAt": "2026-06-18T15:11:02.254Z"
+    },
+    "source": {
+      "kind": "workflow-dispatch",
+      "workflowName": "progress-reviewer",
+      "triggerEvent": "workflow.batch.flushed",
+      "triggerSchemaRef": null,
+      "failedRunId": "2026-06-18T14-56-49-339Z-progress-reviewer-y2lj49",
+      "runDir": ".kota/runs/2026-06-18T14-56-49-339Z-progress-reviewer-y2lj49"
+    },
+    "redrive": {
+      "kind": "workflow",
+      "workflowName": "progress-reviewer",
+      "source": {
+        "kind": "run-trigger",
+        "runId": "2026-06-18T14-56-49-339Z-progress-reviewer-y2lj49"
+      }
+    },
+    "redactedProjection": {
+      "workflowName": "progress-reviewer",
+      "triggerEvent": "workflow.batch.flushed",
+      "triggerSchemaRef": null,
+      "triggerPayload": {
+        "scopeId": "8nrg1m",
+        "projectId": "8nrg1m",
+        "sourceEventName": "workflow.completed",
+        "groupingKey": "projectId=8nrg1m",
+        "reason": "count",
+        "count": 5,
+        "window": {
+          "firstEventAt": "2026-06-18T14:04:10.757Z",
+          "lastEventAt": "2026-06-18T14:56:49.339Z",
+          "flushedAt": "2026-06-18T14:56:49.339Z"
+        },
+        "inputEvents": [
+          {
+            "event": "workflow.completed",
+            "schemaRef": null,
+            "eventId": "evtj-000000027971",
+            "receivedAt": "2026-06-18T14:04:10.757Z",
+            "payload": {
+              "workflow": "fan-out-consolidator",
+              "runId": "2026-06-18T14-04-03-565Z-fan-out-consolidator-13mroj",
+              "status": "success",
+              "triggerEvent": "workflow.build.committed",
+              "durationMs": 1892,
+              "definitionPath": "src/modules/autonomy/workflows/fan-out-consolidator/workflow.ts",
+              "runDir": ".kota/runs/2026-06-18T14-04-03-565Z-fan-out-consolidator-13mroj",
+              "tags": [
+                "monitored"
+              ],
+              "scopeId": "8nrg1m",
+              "projectId": "8nrg1m"
+            }
+          },
+          {
+            "event": "workflow.completed",
+            "schemaRef": null,
+            "eventId": "evtj-000000028076",
+            "receivedAt": "2026-06-18T14:07:09.017Z",
+            "payload": {
+              "workflow": "blocked-promoter",
+              "runId": "2026-06-18T14-07-07-790Z-blocked-promoter-zt2d4x",
+              "status": "success",
+              "triggerEvent": "autonomy.queue.available",
+              "durationMs": 1083,
+              "definitionPath": "src/modules/autonomy/workflows/blocked-promoter/workflow.ts",
+              "runDir": ".kota/runs/2026-06-18T14-07-07-790Z-blocked-promoter-zt2d4x",
+              "tags": [
+                "monitored"
+              ],
+              "scopeId": "8nrg1m",
+              "projectId": "8nrg1m"
+            }
+          },
+          {
+            "event": "workflow.completed",
+            "schemaRef": null,
+            "eventId": "evtj-000000028467",
+            "receivedAt": "2026-06-18T14:56:48.852Z",
+            "payload": {
+              "workflow": "builder",
+              "runId": "2026-06-18T14-07-07-823Z-builder-s04an8",
+              "status": "success",
+              "triggerEvent": "autonomy.queue.available",
+              "durationMs": 2980841,
+              "definitionPath": "src/modules/autonomy/workflows/builder/workflow.ts",
+              "runDir": ".kota/runs/2026-06-18T14-07-07-823Z-builder-s04an8",
+              "tags": [
+                "monitored"
+              ],
+              "autonomyMode": "autonomous",
+              "scopeId": "8nrg1m",
+              "projectId": "8nrg1m"
+            }
+          },
+          {
+            "event": "workflow.completed",
+            "schemaRef": null,
+            "eventId": "evtj-000000028482",
+            "receivedAt": "2026-06-18T14:56:49.146Z",
+            "payload": {
+              "workflow": "fan-out-consolidator",
+              "runId": "2026-06-18T14-56-47-332Z-fan-out-consolidator-q13qjy",
+              "status": "success",
+              "triggerEvent": "workflow.build.committed",
+              "durationMs": 1369,
+              "definitionPath": "src/modules/autonomy/workflows/fan-out-consolidator/workflow.ts",
+              "runDir": ".kota/runs/2026-06-18T14-56-47-332Z-fan-out-consolidator-q13qjy",
+              "tags": [
+                "monitored"
+              ],
+              "scopeId": "8nrg1m",
+              "projectId": "8nrg1m"
+            }
+          },
+          {
+            "event": "workflow.completed",
+            "schemaRef": null,
+            "eventId": "evtj-000000028486",
+            "receivedAt": "2026-06-18T14:56:49.339Z",
+            "payload": {
+              "workflow": "evaluator-calibration-monitor",
+              "runId": "2026-06-18T14-56-47-302Z-evaluator-calibration-monitor-os47jx",
+              "status": "success",
+              "triggerEvent": "workflow.build.committed",
+              "durationMs": 1816,
+              "definitionPath": "src/modules/autonomy/workflows/evaluator-calibration-monitor/workflow.ts",
+              "runDir": ".kota/runs/2026-06-18T14-56-47-302Z-evaluator-calibration-monitor-os47jx",
+              "tags": [
+                "monitored"
+              ],
+              "scopeId": "8nrg1m",
+              "projectId": "8nrg1m"
+            }
+          }
+        ],
+        "batch": {
+          "workflow": "progress-reviewer",
+          "triggerIndex": 2,
+          "maxBufferSize": 20,
+          "overflow": "flush-oldest",
+          "droppedInputCount": 0
+        }
+      }
+    },
+    "createdAt": "2026-06-18T15:11:02.254Z",
+    "updatedAt": "2026-06-18T15:11:02.254Z",
+    "redriveAttempts": [],
+    "retention": {
+      "kind": "expire-after-ms",
+      "durationMs": 2592000000,
+      "expiresAt": "2026-07-18T15:11:02.254Z"
+    }
+  },
+  "exportedAt": "2026-06-18T15:40:06.281Z",
+  "storePath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/dead-letter-queue/items.json"
+}
