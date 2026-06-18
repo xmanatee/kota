@@ -1830,7 +1830,7 @@ export function writeProgressReviewArtifact(
   artifact: ProgressReviewArtifact,
 ): string {
   validateProgressReviewEvidenceIds({
-    evidence: artifact.reviewInput,
+    evidence: artifact.evidence,
     review: artifact.review,
   });
   mkdirSync(runDirPath, { recursive: true });

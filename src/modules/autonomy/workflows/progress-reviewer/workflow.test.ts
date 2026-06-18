@@ -1090,6 +1090,8 @@ describe("progress-reviewer workflow", () => {
         JSON.stringify({ index, body: "x".repeat(256) }),
       );
     }
+    const hiddenArtifactId =
+      `artifact:${runId}:artifact-${String(PROGRESS_REVIEW_MAX_ARTIFACTS - 1).padStart(2, "0")}.json`;
     for (let index = 0; index < 24; index += 1) {
       writeTask(projectDir, "done", `task-large-packet-${String(index).padStart(2, "0")}`, {
         updatedAt: `2026-06-04T10:${String(index).padStart(2, "0")}:00.000Z`,
@@ -1116,17 +1118,19 @@ describe("progress-reviewer workflow", () => {
     registerProgressReviewHarness(async (options) => {
       harnessCalls.push(options);
       const reviewInput = parseReviewInputFromAgentPrompt(options);
+      const exposedIds = reviewInput.evidence.map((item) => item.id);
       expect(reviewInput.triggerKind).toBe("run-count");
       expect(reviewInput.counts.artifacts).toBe(PROGRESS_REVIEW_MAX_ARTIFACTS);
       expect(reviewInput.evidence.length).toBeLessThanOrEqual(
         PROGRESS_REVIEW_AGENT_MAX_EVIDENCE,
       );
-      expect(reviewInput.evidence.map((item) => item.id)).toEqual(
+      expect(exposedIds).toEqual(
         expect.arrayContaining([
           `dead-letter:${deadLetter.id}`,
           `run:${runId}`,
         ]),
       );
+      expect(exposedIds).not.toContain(hiddenArtifactId);
       const output = {
         verdict: "on-track",
         summary: "The bounded run-count packet returned schema-valid JSON.",
@@ -1134,8 +1138,12 @@ describe("progress-reviewer workflow", () => {
           {
             id: "large-run-count-step-returned-json",
             claim:
-              "The review-evidence agent step completed against the compact run-count evidence packet.",
-            evidenceIds: [`run:${runId}`, `dead-letter:${deadLetter.id}`],
+              "The review-evidence agent step completed against the bounded run-count evidence packet and cited a collected artifact id that was omitted from the compact prompt packet.",
+            evidenceIds: [
+              `run:${runId}`,
+              `dead-letter:${deadLetter.id}`,
+              hiddenArtifactId,
+            ],
             confidence: "high",
           },
         ],
@@ -1212,6 +1220,7 @@ describe("progress-reviewer workflow", () => {
     expect(artifact.review.claims[0]?.evidenceIds).toEqual([
       `run:${runId}`,
       `dead-letter:${deadLetter.id}`,
+      hiddenArtifactId,
     ]);
   });
 

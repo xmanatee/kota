@@ -201,10 +201,10 @@ const applyActions = typedCodeStep<ProgressReviewActionResult>({
     applyProgressReviewActions({
       projectDir: ctx.projectDir,
       runId: ctx.workflow.runId,
-      evidence: prepareReviewInput.outputRequired(ctx),
+      evidence: collectEvidence.outputRequired(ctx),
       review: decodeProgressReviewAgentOutputForEvidence(
         ctx.stepOutputs["review-evidence"],
-        prepareReviewInput.outputRequired(ctx),
+        collectEvidence.outputRequired(ctx),
       ),
     }),
 });
@@ -235,7 +235,7 @@ const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
       reviewInput,
       review: decodeProgressReviewAgentOutputForEvidence(
         ctx.stepOutputs["review-evidence"],
-        reviewInput,
+        collectEvidence.outputRequired(ctx),
       ),
       actions: applyActions.output(ctx) ?? emptyActions(),
     };
