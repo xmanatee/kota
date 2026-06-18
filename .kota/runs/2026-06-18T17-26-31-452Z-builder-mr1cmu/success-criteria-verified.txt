@@ -1,0 +1,8 @@
+1. Verified. Retract remains discoverable through the web sidebar, macOS compose section, mobile retract screen, and target-specific chat command path captured in the rendered evidence artifacts.
+2. Verified. The route handler, conformance fixture, web `parseRetractResult` boundary, mobile parser, and Swift decoder cover the same retract request and result arms.
+3. Verified. The only named duplicate/drift issue was web runtime decoding; `task-fold-conformance-decoders-into-web-client-runtime-` is done and `api.retract` now runs the shared decoder.
+4. Verified. `no_contributors`, `not_found`, `contributor_failed`, route/network error states, and strict decoder failures are covered by focused web, mobile, Apple, route, and conformance tests.
+5. Verified. `.kota/runs/2026-06-18T17-26-31-452Z-builder-mr1cmu/retract-consolidation/rendered-evidence/` contains committed rendered/chat evidence for web, mobile, macOS, Telegram, and Slack: web uses a rendered HTML snapshot fixture from `RetractPanel`, mobile uses React Native rendered tree fixtures from `RetractScreen`, and `contract-validation-results.txt` records this run's focused contract validation.
+6. Verified. No stale parallel retract affordance was found during close-out; retract remains mounted behind the correction/destructive surface grouping rather than a competing top-level path.
+7. Verified. `src/modules/retract/AGENTS.md` reflects shipped cross-surface consumers and no longer preserves future-fan-out wording.
+8. Verified. The accepted web runtime-decoder warning has been retired by the completed follow-up, and the visual-evidence blocker is satisfied by the committed run artifact.

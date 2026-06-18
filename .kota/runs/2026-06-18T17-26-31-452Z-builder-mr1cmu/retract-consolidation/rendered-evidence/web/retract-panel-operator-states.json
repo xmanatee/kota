@@ -1,0 +1,45 @@
+{
+  "generatedBy": "temporary Vitest evidence generator importing clients/web/src/components/sidebar/RetractPanel.tsx",
+  "surface": "clients/web/src/components/sidebar/RetractPanel.tsx",
+  "html": "retract-panel-operator-states.html",
+  "artifactKind": "rendered HTML snapshot fixture",
+  "route": "/api/retract",
+  "scenarios": [
+    {
+      "id": "tasks-success",
+      "request": {
+        "target": "tasks",
+        "id": "task-old-cleanup"
+      },
+      "responseArm": "ok.tasks",
+      "proves": "success arm renders dropped-state task path move"
+    },
+    {
+      "id": "no-contributors",
+      "request": {
+        "target": "memory",
+        "id": "mem-7"
+      },
+      "responseArm": "no_contributors",
+      "proves": "provider unavailable state renders operator-facing explanation"
+    },
+    {
+      "id": "not-found",
+      "request": {
+        "target": "knowledge",
+        "slug": "missing-slug"
+      },
+      "responseArm": "not_found",
+      "proves": "typed target and identifier render verbatim"
+    },
+    {
+      "id": "contributor-failed",
+      "request": {
+        "target": "inbox",
+        "path": "data/inbox/note-foo.md"
+      },
+      "responseArm": "contributor_failed",
+      "proves": "provider failure message renders verbatim with target badge"
+    }
+  ]
+}

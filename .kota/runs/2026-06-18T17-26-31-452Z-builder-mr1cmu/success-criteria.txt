@@ -1,0 +1,8 @@
+1. Confirm retract is discoverable from each shipped operator surface's primary navigation or command path without adding a competing affordance.
+2. Confirm the shipped surfaces share the same retract daemon contract: request shape, discriminated result arms, error envelopes, and unavailable-state codes.
+3. Name any duplicate decoder, error renderer, or provider-readiness logic across clients and ensure any remaining duplication has a follow-up task.
+4. Confirm each surface degrades gracefully when retract is unavailable or the provider returns a typed failure arm.
+5. Confirm rendered operator evidence exists for the visual/chat surfaces and contract evidence exists for the daemon/CLI path.
+6. Confirm stale legacy retract affordances were removed or have explicit follow-up coverage.
+7. Confirm scoped AGENTS guidance near the retract/client surfaces reflects the shipped reality and does not preserve stale future-fan-out language.
+8. Review accepted critic-warning risks from the fan-out and confirm each is retired, already covered by a completed follow-up, or does not require new work.

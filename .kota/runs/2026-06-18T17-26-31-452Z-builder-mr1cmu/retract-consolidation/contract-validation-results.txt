@@ -1,0 +1,29 @@
+Validation for task-fan-out-consolidation-retract
+
+Passed:
+- env -u NODE_OPTIONS pnpm kota task list --state doing
+  Result: task-fan-out-consolidation-retract listed in doing.
+- pnpm exec vitest run src/modules/retract/routes.test.ts src/modules/retract/cli.test.ts src/modules/retract/daemon-client.test.ts src/modules/retract/retract-provider.test.ts src/modules/retract/contributors.test.ts src/modules/retract/tool.test.ts src/modules/retract/system-prompt.test.ts src/contract-fixture-cross-client.integration.test.ts
+  Result: 8 test files passed, 64 tests passed.
+- pnpm --dir clients/web test -- src/components/sidebar/RetractPanel.test.tsx src/api/decoder-boundary.test.ts src/api/contractFixture.test.ts
+  Result: 19 test files passed, 177 tests passed.
+- pnpm --dir clients/mobile exec jest --runInBand src/__tests__/RetractScreen.test.tsx src/__tests__/contractFixture.test.ts
+  Result: 2 test suites passed, 89 tests passed.
+- swift test --filter RetractViewTests
+  Result: 18 tests passed.
+- swift test --filter ContractFixtureTests
+  Result: 63 tests passed.
+- pnpm build
+  Result: dist build completed.
+- grep -c numbered criteria in success-criteria.txt and success-criteria-verified.txt
+  Result: both files contain 8 numbered criteria.
+- git add -A
+  Result: staged the task rename and run artifacts.
+- pnpm validate-tasks
+  Result: passed after staging.
+
+Non-blocking command notes:
+- env -u NODE_OPTIONS pnpm kota task move task-fan-out-consolidation-retract doing reached the task move but failed to create .git/index.lock because the agent sandbox cannot write .git. The working-tree task move was applied manually to match moveTaskById's status and updated_at behavior.
+- pnpm --filter @kota/web test -- ... failed with "No projects matched the filters"; the same web tests were rerun successfully with pnpm --dir clients/web.
+- pnpm test -- ... accidentally invoked the full root suite. It failed only src/modules/repo-tasks/task-queue-validation.test.ts because the manual task move was not staged. The intended focused root Vitest command above passed.
+- An earlier pnpm validate-tasks run failed with task-untracked/task-deleted-unstaged before the rename was staged. The final staged validation passed.

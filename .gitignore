@@ -156,6 +156,15 @@ deploy/telegram-assistant/.env
 !/.kota/runs/2026-06-18T16-37-10-512Z-builder-qsbzam/recall-consolidation/**
 !/.kota/runs/2026-06-18T16-37-10-512Z-builder-qsbzam/success-criteria-verified.txt
 !/.kota/runs/2026-06-18T16-37-10-512Z-builder-qsbzam/success-criteria.txt
+!/.kota/runs/2026-06-18T17-26-31-452Z-builder-mr1cmu/
+/.kota/runs/2026-06-18T17-26-31-452Z-builder-mr1cmu/*
+!/.kota/runs/2026-06-18T17-26-31-452Z-builder-mr1cmu/commit-message.txt
+!/.kota/runs/2026-06-18T17-26-31-452Z-builder-mr1cmu/retract-consolidation-completion-review.md
+!/.kota/runs/2026-06-18T17-26-31-452Z-builder-mr1cmu/retract-consolidation/
+!/.kota/runs/2026-06-18T17-26-31-452Z-builder-mr1cmu/retract-consolidation/**
+!/.kota/runs/2026-06-18T17-26-31-452Z-builder-mr1cmu/success-criteria-verified.txt
+!/.kota/runs/2026-06-18T17-26-31-452Z-builder-mr1cmu/success-criteria.txt
+!/.kota/runs/2026-06-18T17-26-31-452Z-builder-mr1cmu/validation-results.txt
 !/.kota/runs/recall-consolidation-screens-20260615T160041Z/
 !/.kota/runs/recall-consolidation-screens-20260615T160041Z/**
 # Eval-harness fixtures legitimately seed prior run state; the runner copies

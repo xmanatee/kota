@@ -1,0 +1,49 @@
+{
+  "generatedBy": "temporary Jest evidence generator importing clients/mobile/src/screens/RetractScreen.tsx",
+  "artifactKind": "React Native rendered tree snapshot fixtures",
+  "surface": "clients/mobile/src/screens/RetractScreen.tsx",
+  "mount": "<RetractScreen /> with mocked DaemonContext state",
+  "requestPath": "clients/mobile/src/daemon/retract.ts daemonRequest('/api/retract') + parseRetractResult",
+  "cases": [
+    {
+      "id": "confirmation-gate",
+      "artifact": "retract-screen-confirmation-gate.json",
+      "proves": "RetractScreen renders the destructive confirmation gate before calling the daemon.",
+      "bytes": 13887
+    },
+    {
+      "id": "tasks-success",
+      "artifact": "retract-screen-tasks-success.json",
+      "responseArm": "ok.tasks",
+      "proves": "RetractScreen renders the typed tasks success arm with dropped-state path move.",
+      "bytes": 15888
+    },
+    {
+      "id": "no-contributors",
+      "artifact": "retract-screen-no-contributors.json",
+      "responseArm": "no_contributors",
+      "proves": "RetractScreen renders provider-unavailable state from the no_contributors arm.",
+      "bytes": 12700
+    },
+    {
+      "id": "not-found",
+      "artifact": "retract-screen-not-found.json",
+      "responseArm": "not_found",
+      "proves": "RetractScreen renders the typed target and identifier for not_found.",
+      "bytes": 13951
+    },
+    {
+      "id": "contributor-failed",
+      "artifact": "retract-screen-contributor-failed.json",
+      "responseArm": "contributor_failed",
+      "proves": "RetractScreen renders the contributor failure message verbatim with target context.",
+      "bytes": 13974
+    },
+    {
+      "id": "offline",
+      "artifact": "retract-screen-offline.json",
+      "proves": "RetractScreen renders the daemon-offline banner and disables the submit path.",
+      "bytes": 11597
+    }
+  ]
+}

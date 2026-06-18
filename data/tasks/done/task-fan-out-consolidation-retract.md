@@ -1,12 +1,12 @@
 ---
 id: task-fan-out-consolidation-retract
 title: Consolidate retract surfaces across clients
-status: ready
+status: done
 priority: p2
 area: client
 summary: Review the retract surface family across macos, mobile, slack, telegram, web for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
 created_at: 2026-05-02T21:31:53.684Z
-updated_at: 2026-06-15T16:03:32.805Z
+updated_at: 2026-06-18T17:33:40.700Z
 ---
 
 ## Problem
@@ -150,28 +150,17 @@ the `parseRetractResult` decoder at
 `clients/conformance/decoders.ts:445-548`), exercised by web Vitest,
 mobile Jest, and macOS Swift conformance suites.
 
-The one drift surfaced by this review is the web client's runtime
-posture (same shape the capture / digest reviews surfaced):
-`clients/web/src/api/client.ts:326-331` calls `apiJson<RetractResult>`
-(a TypeScript type assertion, not a runtime decoder), while
-`clients/mobile/src/daemon/retract.ts:138-143` runs
-`parseRetractResult` and
-`clients/apple/Sources/KotaShared/Daemon/RetractRoutes.swift:25`
-strict-decodes via Swift `Codable`. The existing follow-up
-`task-fold-conformance-decoders-into-web-client-runtime-` (already
-in `backlog/`, `area: client`, `priority: p3`) explicitly lists
-`api.retract` as a covered surface (Done When item 1: "`api.retract`
-runs `parseRetractResult`"), so retract is already in scope of the
-existing task. No new follow-up is required.
+The one drift surfaced by this review was the web client's runtime
+posture. That follow-up,
+`task-fold-conformance-decoders-into-web-client-runtime-`, is now
+done; `clients/web/src/api/client.ts` calls
+`apiDecoded("/api/retract", parseRetractResult, ...)`, matching the
+strict mobile parser and Swift `Codable` route decoder.
 
-The `src/modules/retract/AGENTS.md` "Boundaries" section is updated
-in this change. The stale "No fan-out from this module. Telegram,
-web, macOS, and mobile adoption land later as their own honest
-single-task follow-ups..." sentence is removed (the fan-out has
-shipped). A new "Live consumers" section enumerates the seven shipped
-surfaces and their daemon-route choice (macOS hits `/retract` not
-`/api/retract`), and points readers at the conformance fixture for
-the wire shape.
+The `src/modules/retract/AGENTS.md` "Boundaries" section now reflects
+the shipped cross-surface consumers and points durable wire-shape detail
+back to code and conformance tests instead of preserving future-fan-out
+language.
 
 The closing fan-out commits for retract were spot-checked for accepted
 critic warnings; none rely on a markdown-description-instead-of-
@@ -181,25 +170,33 @@ macOS and mobile task `## Acceptance Evidence` lines accepted
 visual-evidence gap is captured by the operator-capture precondition
 below, not as a separate retirement plan task.
 
-Per-surface visual evidence is now recorded in the promotion artifact below.
-
-## Unblock Precondition
-
-```
-kind: operator-capture
-path: .kota/runs/retract-consolidation-screens-*
-description: rendered snapshot/runtime evidence for the live retract visual surfaces — telegram (`/retract` umbrella help body rendering plain text against an allowed chat, plus `/retract-memory <existing-id>` rendering the `Retracted: memory  <recordId>` success body, `/retract-knowledge <existing-slug>` rendering the `Retracted: knowledge  <recordId>` success body, `/retract-tasks <existing-task-id>` rendering the tasks success body with the `previousPath -> path (dropped)` "moved to dropped" wording, `/retract-inbox <existing-path>` rendering the `Retracted: inbox  <recordId>  <path>` success body, plus at least one `/retract-<target> <missing-id>` rendering the `Retract <target>: no record with identifier "<id>".` not_found body — all in plain text with no Markdown escaping, since the seam emits unescaped Markdown-active characters in identifiers and contributor errors), mobile (`RetractScreen` covering: the loading spinner, the populated success body with the green `retracted from <target>` header badge over the monospaced rendered body and per-target tinted success badge, the populated tasks success arm with the `dropped` toState badge and `previousPath → path` detail row, the populated `not_found` body with the orange `<target> not found` header badge over the muted body, the populated `contributor_failed` body with the red header badge over the destructive red body, the daemon-offline `Daemon offline — retrying every 15s` red banner, the per-target identifier-input chip selector showing `memory`/`knowledge`/`tasks`/`inbox` with the active chip highlighted, the destructive-styled `Confirm retract` two-step gate with the orange Confirm body and Cancel button, the `No daemon configured.` empty state when daemon URL/token is unset), and macOS (`RetractView` menu-bar section covering: the picker showing all four targets, the per-target identifier-label hint changing as the picker target changes, the `RetractControlsRow` two-submit gate showing the bordered `Retract` button on first submit and the destructive red `Confirm retract` + bordered `Cancel` on second submit, the populated `RetractResultView .success` row with target-tinted badge and monospaced `renderRetractResultPlain` body, the populated `.notFound` orange-tinted `RetractTargetedRow`, the populated `.contributorFailed` red-tinted `RetractTargetedRow`, the populated `.noContributors` orange caption, the `RetractErrorView` red copy with the bordered Retry button, and the `Retracting…` `ProgressView` mid-call), and web (`RetractPanel` sidebar section covering: the target Select listing the four targets in `RETRACT_TARGET_ORDER`, the per-target identifier Input with target-aware placeholder, the two-submit confirm gate with the destructive `Confirm retract` button and outline `Cancel`, the populated `RetractSuccessRow` with per-target Badge variant + monospaced recordId + per-target detail line (no detail for memory/knowledge, `dropped` Badge plus `previousPath → path` for tasks, `path` for inbox), the populated `not_found` row with target Badge plus muted "no record found" line, the populated `contributor_failed` row with target Badge plus destructive message line, and the `no_contributors` muted `Retract unavailable...` line, plus the React Query `retract.isError` destructive line when the network call itself throws). CLI is excluded from this precondition because the headless transcript at `.kota/runs/2026-05-03T00-37-54-559Z-builder-4u496g/retract-consolidation/cli-transcript.txt` already covers every CLI arm (top-level discoverability, `--help` flag inventory, every validation rejection, `not_found` for all four targets, `--json` envelope, and the `success-inbox` round-trip). Daemon is excluded because the runtime probe at `.kota/runs/2026-05-03T00-37-54-559Z-builder-4u496g/retract-consolidation/contract-probe.json` covers every wire envelope arm (request validation, success arms, failure arms, cross-target fallback invariant, route-level unhandled-throw). Slack-channel is opportunistic, not required: the `/retract-<target>` slash commands post the same `renderRetractResultPlain` body Telegram emits, so the Telegram retract artifacts cover the chat-rendered shape both surfaces share. Operator runs each visual client against a daemon configured against a populated KOTA project store with at least one live memory/knowledge/tasks/inbox record per target so the success arms render against real data, and at least one missing identifier per target so the `not_found` arm renders, and commits the rendered artifacts under .kota/runs/retract-consolidation-screens-<stamp>/{telegram,mobile,macos,web}/.
-```
+Per-surface visual evidence is recorded in the committed completion artifact below.
 
 ## Status (2026-06-15 blocked audit)
 
-The stale screenshot/operator-capture blocker has been replaced by local rendered evidence under `.kota/runs/retract-consolidation-screens-20260615T160041Z/`. The artifact uses the task's accepted snapshot/runtime-probe evidence path rather than requiring manual screenshots.
+The stale screenshot/operator-capture blocker was replaced by local rendered evidence during the 2026-06-15 audit. That local artifact was ignored by the repository run rules, so the close-out copied the relevant evidence into the committed current-run artifact below.
 
 ## Promotion Evidence
 
-`.kota/runs/retract-consolidation-screens-20260615T160041Z/` now exists with per-surface evidence directories. The shared source artifact `.kota/runs/client-visual-evidence-20260615T160041Z/` records:
+Committed evidence now lives under
+`.kota/runs/2026-06-18T17-26-31-452Z-builder-mr1cmu/retract-consolidation/`:
 
-- web rendered component tests: 173 passing Vitest tests where this capability has a web surface;
-- mobile rendered screen tests: 125 passing Jest tests and the existing Recall snapshot fixture;
-- Apple client tests: 299 passing Swift tests plus rendered menu-bar state snapshots;
-- chat-rendered replies generated directly from the KOTA render helpers consumed by Telegram and Slack-shared chat bodies.
+- `rendered-evidence/web/retract-panel-operator-states.html` and `rendered-evidence/web/retract-panel-operator-states.json` — rendered HTML snapshot fixture from the real web `RetractPanel` after its confirmation flow, covering success, `no_contributors`, `not_found`, and `contributor_failed` result arms;
+- `rendered-evidence/mobile/retract-screen-rendered-tree-manifest.json` plus the per-state `rendered-evidence/mobile/retract-screen-*.json` fixtures — React Native rendered tree snapshot fixtures from the real mobile `RetractScreen`, covering confirmation, success, unavailable, not-found, contributor-failed, and offline states;
+- `rendered-evidence/macos/rendered-menu-bar-states.txt` and `rendered-evidence/macos/swift-client-tests.txt` — macOS menu-bar snapshot state and Swift retract validation;
+- `rendered-evidence/telegram/chat-rendered-replies.txt` — Telegram command-body rendering from the shared chat helper;
+- `rendered-evidence/slack/chat-rendered-replies.txt` — Slack command-body rendering from the same shared chat helper;
+- `contract-validation-results.txt` — focused route, CLI, cross-client fixture, web, mobile, and Apple contract validation from this run.
+
+## Completion Review (2026-06-18)
+
+The close-out review is recorded at
+`.kota/runs/2026-06-18T17-26-31-452Z-builder-mr1cmu/retract-consolidation-completion-review.md`.
+No new follow-up task is needed. Fresh focused validation covered the retract
+module route/CLI/client/tool tests, the cross-client contract fixture guard,
+the web retract panel and decoder boundary, the mobile retract screen and
+fixture suite, and the Apple retract view and fixture suites. The same run now
+commits the rendered/operator evidence needed for Done When 5 and the
+Acceptance Evidence section. Chromium and Quick Look screenshot capture were
+blocked by the local macOS sandbox during the repair, so the web close-out uses
+the committed rendered HTML snapshot fixture instead of claiming a PNG.
