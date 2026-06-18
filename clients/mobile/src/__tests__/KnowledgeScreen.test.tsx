@@ -1,5 +1,7 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { KnowledgeScreen } from '../screens/KnowledgeScreen';
 import { renderKnowledgeSearchPlain } from '../knowledgeRender';
 import type { KnowledgeSearchResponse } from '../types';
@@ -55,6 +57,36 @@ function mockDaemon(
     setKnowledgeQuery: fns.setKnowledgeQuery ?? jest.fn(),
     searchKnowledge: fns.searchKnowledge ?? jest.fn().mockResolvedValue(undefined),
   });
+}
+
+function serializeRenderedTree(tree: unknown): string {
+  const seen = new WeakSet<object>();
+  return JSON.stringify(
+    tree,
+    (key, value: unknown) => {
+      if (key === '_owner' || key === '_store' || key === 'ref') {
+        return undefined;
+      }
+      if (typeof value === 'function') return '[Function]';
+      if (value && typeof value === 'object') {
+        if (seen.has(value)) return '[Circular]';
+        seen.add(value);
+      }
+      return value;
+    },
+    2,
+  );
+}
+
+function renderKnowledgeState(
+  label: string,
+  overrides: Partial<ReturnType<typeof defaultState>>,
+): { label: string; tree: unknown } {
+  mockDaemon(overrides);
+  const { toJSON, unmount } = render(<KnowledgeScreen />);
+  const tree = toJSON();
+  unmount();
+  return { label, tree };
 }
 
 describe('KnowledgeScreen', () => {
@@ -171,5 +203,66 @@ describe('KnowledgeScreen', () => {
     const { getByText } = render(<KnowledgeScreen />);
     fireEvent.press(getByText('Search'));
     expect(searchKnowledge).toHaveBeenCalledWith('autonomy');
+  });
+
+  test('writes rendered knowledge states to the run directory when requested', () => {
+    const runDir = process.env.KOTA_RUN_DIR;
+    if (!runDir) return;
+
+    const populated: KnowledgeSearchResponse = {
+      ok: true,
+      entries: [
+        {
+          id: 'kn-1',
+          type: 'note',
+          status: 'active',
+          title: 'Knowledge fan-out',
+        },
+        {
+          id: 'kn-2',
+          type: 'reference',
+          status: 'draft',
+          title: 'Daemon control protocol',
+        },
+      ],
+    };
+    const empty: KnowledgeSearchResponse = { ok: true, entries: [] };
+    const semanticUnavailable: KnowledgeSearchResponse = {
+      ok: false,
+      reason: 'semantic_unavailable',
+    };
+
+    const states = [
+      renderKnowledgeState('empty-query', {}),
+      renderKnowledgeState('populated-results', {
+        knowledgeQuery: 'fan-out',
+        knowledgeResult: populated,
+      }),
+      renderKnowledgeState('empty-results', {
+        knowledgeQuery: 'fan-out',
+        knowledgeResult: empty,
+      }),
+      renderKnowledgeState('semantic-unavailable', {
+        knowledgeQuery: 'fan-out',
+        knowledgeResult: semanticUnavailable,
+      }),
+      renderKnowledgeState('http-error-retry', {
+        knowledgeQuery: 'fan-out',
+        knowledgeError: '503 Service Unavailable',
+      }),
+      renderKnowledgeState('offline-banner', { online: false }),
+    ];
+
+    const dir = join(runDir, 'knowledge-consolidation', 'surfaces', 'mobile');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, 'knowledge-screen-rendered.json'),
+      `${serializeRenderedTree({
+        surface: 'clients/mobile/src/screens/KnowledgeScreen.tsx',
+        generatedBy: 'clients/mobile/src/__tests__/KnowledgeScreen.test.tsx',
+        states,
+      })}\n`,
+      'utf-8',
+    );
   });
 });

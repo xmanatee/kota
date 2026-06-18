@@ -1,0 +1,8 @@
+1. Verify the knowledge capability is discoverable from each shipped operator surface without overloading other entries.
+2. Verify all knowledge client surfaces speak the same daemon search contract and closed response arms.
+3. Verify any duplicate or stale decoder/rendering gaps have a closed or named follow-up task.
+4. Verify provider-unavailable behavior surfaces the typed `semantic_unavailable` arm consistently.
+5. Verify rendered/operator evidence exists for Telegram, mobile, macOS, and web, with a fresh daemon/CLI proof in this run.
+6. Verify stale legacy knowledge affordances are removed or tracked by follow-up tasks.
+7. Verify scoped AGENTS guidance reflects the shipped knowledge surfaces.
+8. Verify accepted critic warnings have no remaining untracked retirement work.

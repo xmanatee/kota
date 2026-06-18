@@ -1,0 +1,189 @@
+$ node --conditions=source --import tsx src/cli.ts --help
+Usage: kota [options] [command]
+
+KOTA — Keep Only The Awesome. A general-purpose AI agent.
+
+Options:
+  -V, --version                output the version number
+  -h, --help                   display help for command
+
+Commands:
+  run [options] [prompt...]    Run KOTA with a prompt
+  history                      Manage conversation history
+  acp [options]                Run KOTA as an Agent Client Protocol agent over
+                               stdio
+  agent                        Inspect available agents
+  knowledge                    Inspect and manage the project knowledge store
+  memory                       Inspect and manage the agent memory store
+  task                         Inspect and manage the repo task queue
+  recall [options] <query>     Search every registered store at once and return
+                               ranked, source-tagged hits.
+  answer                       Compose, list, and re-read cited answers over the
+                               second brain.
+  approval                     Manage the tool-call approval queue
+  workflow|wf                  Inspect automation workflow runs and control the daemon.
+
+    Control commands (status, pause, resume, abort, reload) use the daemon
+    control API when a daemon is running, and fall back to signal files when
+    no daemon is reachable.
+
+    Inspection commands (list, show, definitions, logs, follow) read artifacts
+    or static definitions directly.
+  digest [options]             Print the on-demand operator digest for the
+                               current project (24h rollup)
+  attention [options]          Print the on-demand attention items for the
+                               current project (no cadence side effects)
+  report [options]             Print the operator autonomy balance/quality
+                               report for the current project (default window 7
+                               days)
+  browser                      Inspect and exercise browser-module capabilities.
+  capture [options] <text...>  Capture one natural-language note and route it to
+                               memory, knowledge, tasks, or inbox.
+  daemon [options]             Run KOTA as a long-running daemon with autonomous
+                               workflows
+  events                       Inspect the daemon event bus
+  session                      Inspect active sessions tracked by the daemon
+  status [options]             Show a concise operational snapshot: daemon,
+                               active runs, approvals, and cost
+  inbox [options]              Show one operator inbox for approvals, owner
+                               questions, blocked tasks, setup gaps, failed
+                               runs, and runtime warnings
+  project                      Inspect and select the daemon's active project
+  module                       Inspect loaded modules and their contributions
+  navigate                     Open the interactive runtime navigator (TTY only)
+  completion [shell]           Print shell completion script (bash or zsh).
+                               Source it to enable tab completion.
+  config                       Inspect and validate KOTA configuration
+  doctor [options]             Run runtime health checks and print a
+                               pass/warn/fail summary
+  eval                         Run the autonomy eval harness against a fixture
+                               or fixture set.
+  audit                        Query the guardrail audit trail
+  harness-parity               Run coding-task scenarios across every registered
+                               harness and capture paired artifacts.
+  init [options]               Scaffold a new KOTA project in the current
+                               directory
+  mcp-registry                 Import external MCP server config from an MCP
+                               Registry-compatible endpoint
+  mcp-server [options]         Start an MCP server exposing KOTA tools
+  owner-decision               Manage persisted owner decisions
+  owner-question               Manage the owner question queue for agent
+                               escalations
+  tools                        Manage installed tool packages
+  retract [options]            Remove or supersede one prior cross-store record
+                               (memory, knowledge, tasks, inbox). Tasks route
+                               through the state machine into
+                               data/tasks/dropped/ — the file is not deleted.
+  secrets                      Manage secrets and credentials
+  setup                        Inspect and satisfy module setup requirements
+  skill                        Manage and inspect registered skills
+  voice                        Talk to the daemon's voice surface (STT input,
+                               TTS output)
+  serve [options]              Start KOTA as an HTTP API server with SSE
+                               streaming
+  webhook                      Manage inbound webhook secrets for workflow
+                               triggers
+  help [command]               display help for command
+[exit 0]
+
+$ node --conditions=source --import tsx src/cli.ts knowledge --help
+Usage: kota knowledge [options] [command]
+
+Inspect and manage the project knowledge store
+
+Options:
+  -h, --help                display help for command
+
+Commands:
+  list [options]            List knowledge entries
+  search [options] <query>  Search knowledge entries
+  show <id>                 Print a single knowledge entry
+  add [options]             Create a new knowledge entry
+  delete <id>               Delete a knowledge entry by ID
+  export [options]          Export knowledge entries to stdout in JSON or JSONL
+                            format
+  reindex                   Rebuild the semantic search index for all knowledge
+                            entries. No-op when no embedding provider is
+                            configured.
+  import [options] <file>   Bulk import knowledge entries from a JSON or JSONL
+                            file
+  help [command]            display help for command
+[exit 0]
+
+$ node --conditions=source --import tsx src/cli.ts knowledge list --help
+Usage: kota knowledge list [options]
+
+List knowledge entries
+
+Options:
+  --tag <tag>        Filter by tag
+  --type <type>      Filter by type
+  --status <status>  Filter by status
+  -n, --limit <n>    Maximum entries to show (default: "20")
+  -h, --help         display help for command
+[exit 0]
+
+$ node --conditions=source --import tsx src/cli.ts knowledge search --help
+Usage: kota knowledge search [options] <query>
+
+Search knowledge entries
+
+Options:
+  --tag <tag>        Filter by tag
+  --type <type>      Filter by type
+  --status <status>  Filter by status
+  --semantic         Use embedding-backed semantic ranking when configured
+  -n, --limit <n>    Maximum entries to show (default: "20")
+  -h, --help         display help for command
+[exit 0]
+
+$ node --conditions=source --import tsx src/cli.ts knowledge add --title "Knowledge consolidation CLI probe 1781787768250" --content "transcript deterministic knowledge fan-out proof for the current builder run" --type note --tag fan-out
+de81bcb5
+[module:rendering] Registered as provider for "rendering"
+[module:knowledge] Registered as provider for "knowledge"
+[module:knowledge] Registered as provider for "capability-readiness"
+[exit 0]
+
+$ node --conditions=source --import tsx src/cli.ts knowledge search "transcript deterministic knowledge fan-out"
+ID                           Type                    Title
+de81bcb5                     note                    Knowledge consolidation CLI probe 1781787768250
+[module:rendering] Registered as provider for "rendering"
+[module:knowledge] Registered as provider for "knowledge"
+[module:knowledge] Registered as provider for "capability-readiness"
+[exit 0]
+
+$ node --conditions=source --import tsx src/cli.ts knowledge search "transcript deterministic knowledge fan-out" --semantic
+[module:rendering] Registered as provider for "rendering"
+[module:knowledge] Registered as provider for "knowledge"
+[module:knowledge] Registered as provider for "capability-readiness"
+Semantic knowledge search requires an embedding-backed knowledge provider.
+[exit 1]
+
+$ node --conditions=source --import tsx src/cli.ts knowledge show de81bcb5
+ID:      de81bcb5
+Title:   Knowledge consolidation CLI probe 1781787768250
+Type:    note
+Status:  active
+Tags:    fan-out
+Created: 2026-06-18T13:02:51.204Z
+Updated: 2026-06-18T13:02:51.204Z
+
+transcript deterministic knowledge fan-out proof for the current builder run
+[module:rendering] Registered as provider for "rendering"
+[module:knowledge] Registered as provider for "knowledge"
+[module:knowledge] Registered as provider for "capability-readiness"
+[exit 0]
+
+$ node --conditions=source --import tsx src/cli.ts knowledge delete de81bcb5
+Deleted knowledge entry de81bcb5.
+[module:rendering] Registered as provider for "rendering"
+[module:knowledge] Registered as provider for "knowledge"
+[module:knowledge] Registered as provider for "capability-readiness"
+[exit 0]
+
+$ node --conditions=source --import tsx src/cli.ts knowledge search "transcript deterministic knowledge fan-out"
+No matching knowledge entries.
+[module:rendering] Registered as provider for "rendering"
+[module:knowledge] Registered as provider for "knowledge"
+[module:knowledge] Registered as provider for "capability-readiness"
+[exit 0]

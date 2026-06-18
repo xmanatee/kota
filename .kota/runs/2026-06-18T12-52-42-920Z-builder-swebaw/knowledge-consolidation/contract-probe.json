@@ -1,0 +1,170 @@
+{
+  "generatedAt": "2026-06-18T13:02:48.324Z",
+  "cases": [
+    {
+      "label": "keyword-success-200",
+      "request": "/api/knowledge/search?q=knowledge%20fan-out&limit=10",
+      "status": 200,
+      "body": {
+        "ok": true,
+        "entries": [
+          {
+            "id": "kn-1",
+            "title": "Knowledge fan-out",
+            "type": "note",
+            "tags": [
+              "knowledge",
+              "fan-out"
+            ],
+            "status": "active",
+            "created": "2026-06-18T12:52:00.000Z",
+            "updated": "2026-06-18T12:53:00.000Z",
+            "content": "Knowledge fan-out consolidation route contract.",
+            "meta": {}
+          }
+        ]
+      },
+      "observed": [
+        {
+          "method": "search",
+          "query": "knowledge fan-out",
+          "filters": {}
+        }
+      ]
+    },
+    {
+      "label": "keyword-empty-200",
+      "request": "/api/knowledge/search?q=no-such-entry&limit=10",
+      "status": 200,
+      "body": {
+        "ok": true,
+        "entries": []
+      },
+      "observed": [
+        {
+          "method": "search",
+          "query": "no-such-entry",
+          "filters": {}
+        }
+      ]
+    },
+    {
+      "label": "semantic-success-filter-forwarding-200",
+      "request": "/api/knowledge/search?q=archived&semantic=true&limit=5&tag=routing&type=reference&status=archived&scope=project",
+      "status": 200,
+      "body": {
+        "ok": true,
+        "entries": [
+          {
+            "id": "kn-2",
+            "title": "Archived routing note",
+            "type": "reference",
+            "tags": [
+              "routing"
+            ],
+            "status": "archived",
+            "created": "2026-06-18T12:54:00.000Z",
+            "updated": "2026-06-18T12:55:00.000Z",
+            "content": "Archived item for filter forwarding.",
+            "meta": {}
+          }
+        ]
+      },
+      "observed": [
+        {
+          "method": "semanticSearch",
+          "query": "archived",
+          "topK": 5,
+          "filters": {
+            "tag": "routing",
+            "type": "reference",
+            "status": "archived",
+            "scope": "project"
+          }
+        }
+      ]
+    },
+    {
+      "label": "semantic-unavailable-200",
+      "request": "/api/knowledge/search?q=knowledge&semantic=true&limit=10",
+      "status": 200,
+      "body": {
+        "ok": false,
+        "reason": "semantic_unavailable"
+      },
+      "observed": []
+    },
+    {
+      "label": "unknown-project-404",
+      "request": "/api/knowledge/search?q=knowledge&projectId=missing-project",
+      "status": 404,
+      "body": {
+        "error": "Unknown project",
+        "reason": "unknown_project",
+        "projectId": "missing-project"
+      }
+    },
+    {
+      "label": "provider-throws-500",
+      "request": "/api/knowledge/search?q=knowledge&limit=10",
+      "status": 500,
+      "body": {
+        "error": "knowledge provider boom"
+      },
+      "observed": []
+    }
+  ],
+  "decoderResults": [
+    {
+      "label": "keyword-success-200",
+      "daemonArm": "ok:true entries:1",
+      "canonicalTypescriptDecoder": {
+        "ok": true,
+        "entries": [
+          {
+            "id": "kn-1",
+            "type": "note",
+            "status": "active",
+            "title": "Knowledge fan-out"
+          }
+        ]
+      }
+    },
+    {
+      "label": "keyword-empty-200",
+      "daemonArm": "ok:true entries:0",
+      "canonicalTypescriptDecoder": {
+        "ok": true,
+        "entries": []
+      }
+    },
+    {
+      "label": "semantic-success-filter-forwarding-200",
+      "daemonArm": "ok:true entries:1",
+      "canonicalTypescriptDecoder": {
+        "ok": true,
+        "entries": [
+          {
+            "id": "kn-2",
+            "type": "reference",
+            "status": "archived",
+            "title": "Archived routing note"
+          }
+        ]
+      }
+    },
+    {
+      "label": "semantic-unavailable-200",
+      "daemonArm": "ok:false reason:semantic_unavailable",
+      "canonicalTypescriptDecoder": {
+        "ok": false,
+        "reason": "semantic_unavailable"
+      }
+    }
+  ],
+  "renderSamples": {
+    "success": "kn-1  note  active  Knowledge fan-out",
+    "empty": "No matching knowledge entries.",
+    "semanticUnavailable": "Semantic knowledge search requires an embedding-backed knowledge provider."
+  }
+}

@@ -1,3 +1,5 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ConfiguredProject } from "#core/daemon/scope-registry.js";
 import type { KotaClient } from "#core/server/kota-client.js";
@@ -52,6 +54,33 @@ const mockedCallTelegramApi = vi.mocked(callTelegramApi);
 const FAKE_TOKEN = "bot-token-123";
 const FAKE_CHAT_ID = "987654321";
 const FAKE_PROJECT_DIR = "/fake/project";
+
+function emitTelegramKnowledgeEvidence(
+  fileName: string,
+  input: string,
+  text: string,
+): void {
+  const runDir = process.env.KOTA_RUN_DIR;
+  if (!runDir) return;
+  const dir = join(runDir, "knowledge-consolidation", "surfaces", "telegram");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, fileName),
+    [
+      "# Telegram /knowledge Rendered Message",
+      "",
+      `Input: \`${input}\``,
+      "",
+      "Rendered reply:",
+      "",
+      "```text",
+      text,
+      "```",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+}
 
 function makeKnowledgeStub(
   search: KnowledgeClient["search"] = vi.fn(),
@@ -471,6 +500,11 @@ describe("startTelegramStatusPoll", () => {
     expect(payload.text).toContain("active");
     expect(payload.text).toContain("draft");
     expect(payload.text.split("\n")).toHaveLength(2);
+    emitTelegramKnowledgeEvidence(
+      "populated-results.md",
+      "/knowledge architecture",
+      payload.text,
+    );
   });
 
   it("replies 'No matching knowledge entries.' when /knowledge returns no results", async () => {
@@ -503,6 +537,11 @@ describe("startTelegramStatusPoll", () => {
       chat_id: FAKE_CHAT_ID,
       text: "No matching knowledge entries.",
     });
+    emitTelegramKnowledgeEvidence(
+      "empty-results.md",
+      "/knowledge nothing",
+      "No matching knowledge entries.",
+    );
   });
 
   it("replies with a usage hint for empty or whitespace-only /knowledge queries", async () => {
@@ -539,6 +578,11 @@ describe("startTelegramStatusPoll", () => {
         text: "Usage: /knowledge <query>",
       });
     }
+    emitTelegramKnowledgeEvidence(
+      "usage.md",
+      "/knowledge",
+      "Usage: /knowledge <query>",
+    );
   });
 
   it("explicitly explains when /knowledge has no embedding-backed provider", async () => {
@@ -574,6 +618,11 @@ describe("startTelegramStatusPoll", () => {
       chat_id: FAKE_CHAT_ID,
       text: "Semantic knowledge search requires an embedding-backed knowledge provider.",
     });
+    emitTelegramKnowledgeEvidence(
+      "semantic-unavailable.md",
+      "/knowledge anything",
+      "Semantic knowledge search requires an embedding-backed knowledge provider.",
+    );
   });
 
   it("ignores /knowledge from chats outside the allowlist", async () => {

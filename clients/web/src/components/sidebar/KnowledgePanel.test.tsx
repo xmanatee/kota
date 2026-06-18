@@ -12,6 +12,8 @@
  * non-empty queries.
  */
 
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
@@ -41,6 +43,26 @@ const SUCCESS_PAYLOAD = fixture.knowledgeSearch.success;
 const SEMANTIC_UNAVAILABLE_PAYLOAD =
   fixture.knowledgeSearch.semanticUnavailable;
 const EMPTY_PAYLOAD = { ok: true, entries: [] };
+
+function emitWebKnowledgeEvidence(fileName: string, html: string): void {
+  const runDir = process.env.KOTA_RUN_DIR;
+  if (!runDir) return;
+  const dir = join(runDir, "knowledge-consolidation", "surfaces", "web");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, fileName),
+    [
+      "<!doctype html>",
+      '<meta charset="utf-8">',
+      "<title>Web KnowledgePanel rendered fixture</title>",
+      "<body>",
+      html,
+      "</body>",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+}
 
 function submitQuery(query: string): void {
   const input = screen.getByPlaceholderText(/Search knowledge/);
@@ -73,7 +95,7 @@ describe("KnowledgePanel", () => {
     });
 
     const { Wrapper } = makeWrapper();
-    render(
+    const rendered = render(
       <Wrapper>
         <KnowledgePanel />
       </Wrapper>,
@@ -102,6 +124,10 @@ describe("KnowledgePanel", () => {
         }),
       }),
     );
+    emitWebKnowledgeEvidence(
+      "populated-results.html",
+      rendered.container.innerHTML,
+    );
   });
 
   it("renders 'No matching knowledge entries.' on an empty ok payload", async () => {
@@ -111,7 +137,7 @@ describe("KnowledgePanel", () => {
     });
 
     const { Wrapper } = makeWrapper();
-    render(
+    const rendered = render(
       <Wrapper>
         <KnowledgePanel />
       </Wrapper>,
@@ -123,6 +149,10 @@ describe("KnowledgePanel", () => {
         screen.getByText("No matching knowledge entries."),
       ).toBeInTheDocument(),
     );
+    emitWebKnowledgeEvidence(
+      "empty-results.html",
+      rendered.container.innerHTML,
+    );
   });
 
   it("renders the semantic-unavailable caption from the conformance fixture", async () => {
@@ -132,7 +162,7 @@ describe("KnowledgePanel", () => {
     });
 
     const { Wrapper } = makeWrapper();
-    render(
+    const rendered = render(
       <Wrapper>
         <KnowledgePanel />
       </Wrapper>,
@@ -145,6 +175,10 @@ describe("KnowledgePanel", () => {
           "Semantic knowledge search requires an embedding-backed knowledge provider.",
         ),
       ).toBeInTheDocument(),
+    );
+    emitWebKnowledgeEvidence(
+      "semantic-unavailable.html",
+      rendered.container.innerHTML,
     );
   });
 

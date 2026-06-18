@@ -1,0 +1,5 @@
+Add knowledge consolidation rendered evidence
+
+Repair the knowledge consolidation review by adding current-run rendered
+Telegram, mobile, macOS, and web evidence artifacts and updating the task and
+run notes to cite those committed files.

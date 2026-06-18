@@ -1,0 +1,58 @@
+{
+  "generatedAt": "2026-06-18T13:02:48.250Z",
+  "createdTitle": "Knowledge consolidation CLI probe 1781787768250",
+  "createdId": "de81bcb5",
+  "commands": [
+    {
+      "command": "node --conditions=source --import tsx src/cli.ts --help",
+      "status": 0,
+      "expectedStatus": 0
+    },
+    {
+      "command": "node --conditions=source --import tsx src/cli.ts knowledge --help",
+      "status": 0,
+      "expectedStatus": 0
+    },
+    {
+      "command": "node --conditions=source --import tsx src/cli.ts knowledge list --help",
+      "status": 0,
+      "expectedStatus": 0
+    },
+    {
+      "command": "node --conditions=source --import tsx src/cli.ts knowledge search --help",
+      "status": 0,
+      "expectedStatus": 0
+    },
+    {
+      "command": "node --conditions=source --import tsx src/cli.ts knowledge add --title \"Knowledge consolidation CLI probe 1781787768250\" --content \"transcript deterministic knowledge fan-out proof for the current builder run\" --type note --tag fan-out",
+      "status": 0,
+      "expectedStatus": 0
+    },
+    {
+      "command": "node --conditions=source --import tsx src/cli.ts knowledge search \"transcript deterministic knowledge fan-out\"",
+      "status": 0,
+      "expectedStatus": 0
+    },
+    {
+      "command": "node --conditions=source --import tsx src/cli.ts knowledge search \"transcript deterministic knowledge fan-out\" --semantic",
+      "status": 1,
+      "expectedStatus": 1
+    },
+    {
+      "command": "node --conditions=source --import tsx src/cli.ts knowledge show de81bcb5",
+      "status": 0,
+      "expectedStatus": 0
+    },
+    {
+      "command": "node --conditions=source --import tsx src/cli.ts knowledge delete de81bcb5",
+      "status": 0,
+      "expectedStatus": 0
+    },
+    {
+      "command": "node --conditions=source --import tsx src/cli.ts knowledge search \"transcript deterministic knowledge fan-out\"",
+      "status": 0,
+      "expectedStatus": 0
+    }
+  ],
+  "cleanup": "deleted-created-entry"
+}

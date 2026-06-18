@@ -1,0 +1,8 @@
+1. Verified via `src/modules/knowledge/AGENTS.md`, CLI help, and rendered Telegram/mobile/macOS/web evidence.
+2. Verified by `knowledge-consolidation/contract-probe.json` and shared conformance decoder output for the success and `semantic_unavailable` arms.
+3. Verified the prior web stale-shape and conformance drift follow-ups are in `done/`; no new duplicate fold-up was found.
+4. Verified by the contract probe, CLI transcript, and rendered chat/client evidence showing the typed unavailable wording.
+5. Verified by current-run rendered artifacts under `knowledge-consolidation/surfaces/`: Telegram rendered message fixtures, mobile React Native rendered tree, macOS Swift snapshot, and web rendered HTML fixtures.
+6. Verified the stale web affordance follow-up is done and no other stale knowledge affordance remains in the reviewed artifacts.
+7. Verified `src/modules/knowledge/AGENTS.md` names the shipped consumers and shared route/line-shape contract.
+8. Verified the task record and current verdict leave no open critic-warning retirement plan.

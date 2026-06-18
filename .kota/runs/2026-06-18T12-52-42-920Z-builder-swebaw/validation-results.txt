@@ -1,0 +1,13 @@
+Validation run after closing `task-fan-out-consolidation-knowledge`:
+
+- `node --conditions=source --import tsx .kota/runs/2026-06-18T12-52-42-920Z-builder-swebaw/knowledge-consolidation/probe-contract.mjs` passed.
+- `node .kota/runs/2026-06-18T12-52-42-920Z-builder-swebaw/knowledge-consolidation/probe-cli.mjs` passed; `cli-summary.json` records cleanup as `deleted-created-entry`.
+- `pnpm test src/modules/knowledge/routes.test.ts src/modules/knowledge/cli.test.ts src/modules/knowledge/daemon-client.test.ts src/contract-fixture-cross-client.integration.test.ts` passed: 4 files, 61 tests.
+- `pnpm validate-tasks` passed.
+
+Post-critic rendered evidence repair:
+
+- `KOTA_RUN_DIR=/Users/xmanatee/Desktop/mono/apps/kota/.kota/runs/2026-06-18T12-52-42-920Z-builder-swebaw pnpm --dir clients/mobile exec jest --runInBand src/__tests__/KnowledgeScreen.test.tsx` passed: 1 suite, 12 tests, and wrote `knowledge-consolidation/surfaces/mobile/knowledge-screen-rendered.json`.
+- `KOTA_RUN_DIR=/Users/xmanatee/Desktop/mono/apps/kota/.kota/runs/2026-06-18T12-52-42-920Z-builder-swebaw pnpm --dir clients/web exec vitest run src/components/sidebar/KnowledgePanel.test.tsx` passed: 1 file, 4 tests, and wrote rendered `knowledge-consolidation/surfaces/web/*.html` fixtures.
+- `KOTA_RUN_DIR=/Users/xmanatee/Desktop/mono/apps/kota/.kota/runs/2026-06-18T12-52-42-920Z-builder-swebaw NODE_OPTIONS=--conditions=source pnpm exec vitest run src/modules/telegram/status-poll.test.ts` passed: 1 file, 82 tests, and wrote rendered `knowledge-consolidation/surfaces/telegram/*.md` message fixtures.
+- `HOME=/private/tmp/kota-swift-home CLANG_MODULE_CACHE_PATH=/private/tmp/kota-clang-module-cache KOTA_RUN_DIR=/Users/xmanatee/Desktop/mono/apps/kota/.kota/runs/2026-06-18T12-52-42-920Z-builder-swebaw/knowledge-consolidation/surfaces/macos swift test --disable-sandbox --filter MenuBarRenderedTests` passed: 1 XCTest, and wrote `knowledge-consolidation/surfaces/macos/rendered-menu-bar-states.txt`. `--disable-sandbox` was required because SwiftPM's nested `sandbox-exec` is not available inside this managed shell sandbox.
