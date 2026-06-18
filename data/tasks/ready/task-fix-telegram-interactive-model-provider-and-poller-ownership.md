@@ -1,12 +1,12 @@
 ---
 id: task-fix-telegram-interactive-model-provider-and-poller-ownership
 title: Fix Telegram interactive model provider and poller ownership
-status: backlog
+status: ready
 priority: p1
 area: channel
 summary: Make Telegram interactive chat fail clearly or route through a valid harness/provider when the active preset is Codex-only, and add deterministic single-poller diagnostics for Bot API getUpdates conflicts.
 created_at: 2026-06-16T00:25:21.300Z
-updated_at: 2026-06-16T00:25:21.300Z
+updated_at: 2026-06-18T18:16:16.868Z
 task_class: Product
 ---
 

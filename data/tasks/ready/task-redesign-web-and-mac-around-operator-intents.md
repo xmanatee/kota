@@ -1,12 +1,12 @@
 ---
 id: task-redesign-web-and-mac-around-operator-intents
 title: Redesign Web and Mac around operator intents
-status: backlog
+status: ready
 priority: p1
 area: client
 summary: Rebuild Web and Mac first screens around Status, Inbox, Work, Knowledge, and Setup instead of backend-seam navigation.
 created_at: 2026-06-11T22:24:05.455Z
-updated_at: 2026-06-11T22:24:05.455Z
+updated_at: 2026-06-18T18:16:16.847Z
 task_class: Product
 ---
 
