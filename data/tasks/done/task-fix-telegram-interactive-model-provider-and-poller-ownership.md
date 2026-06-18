@@ -1,12 +1,12 @@
 ---
 id: task-fix-telegram-interactive-model-provider-and-poller-ownership
 title: Fix Telegram interactive model provider and poller ownership
-status: ready
+status: done
 priority: p1
 area: channel
 summary: Make Telegram interactive chat fail clearly or route through a valid harness/provider when the active preset is Codex-only, and add deterministic single-poller diagnostics for Bot API getUpdates conflicts.
 created_at: 2026-06-16T00:25:21.300Z
-updated_at: 2026-06-18T18:16:16.868Z
+updated_at: 2026-06-18T19:30:21.000Z
 task_class: Product
 ---
 
@@ -147,3 +147,19 @@ are not satisfied.
   messages produce exactly one deduped operator-visible warning or setup item.
 - Redacted Telegram rendered-message fixture or daemon transcript proving the
   operator sees an actionable setup message instead of a terminal-only failure.
+
+## Completion
+
+- Added separate Telegram interactive backend setup readiness through capability
+  status while preserving bot credential setup as its own requirement.
+- Kept bare Codex Telegram chat on the harness path and provider/model
+  notation on the ModelClient path.
+- Added per-token Telegram polling ownership across the interactive bot and
+  legacy status/callback poll helpers.
+- Converted Bot API `getUpdates` conflicts into one deduped
+  `autonomy.health.signal` warning with owner-safe evidence and next action.
+- Verified with `pnpm exec vitest run src/modules/telegram`,
+  `pnpm exec vitest run src/core/modules/module-manifest.test.ts
+  src/core/modules/setup-requirements.test.ts
+  src/modules/module-manager/routes.test.ts`, `pnpm exec tsc --noEmit
+  --pretty false`, and Biome on the touched Telegram files.

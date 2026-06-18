@@ -23,6 +23,7 @@ import {
   type TelegramBotOptions,
   TelegramTransport,
 } from "./bot.js";
+import { resetTelegramPollingOwnersForTests } from "./polling-ownership.js";
 import type { TelegramProjectSelection } from "./project-selection.js";
 
 const agentSendMock = vi.fn(async () => undefined);
@@ -345,6 +346,7 @@ describe("callTelegramApi", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
+    resetTelegramPollingOwnersForTests();
     fetchMock = installFetchMock();
     agentSessionOptions.length = 0;
   });
@@ -451,6 +453,7 @@ describe("TelegramBot", () => {
 
   afterEach(() => {
     restoreFetch();
+    resetTelegramPollingOwnersForTests();
   });
 
   it("constructs with options", () => {
@@ -516,6 +519,47 @@ describe("TelegramBot", () => {
       String(call[0]).endsWith("/getUpdates"),
     );
     expect(getUpdatesCalls).toHaveLength(1);
+  });
+
+  it("rejects a duplicate TelegramBot getUpdates owner for the same token", async () => {
+    const first = new TelegramBot(botOptions({ token: "shared-token" }));
+    const second = new TelegramBot(botOptions({ token: "shared-token" }));
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/getMe")) {
+        return {
+          json: () =>
+            Promise.resolve({
+              ok: true,
+              result: { id: 1, first_name: "TestBot", username: "test_bot" },
+            }),
+        };
+      }
+      if (url.endsWith("/getUpdates")) {
+        return new Promise((resolve) => {
+          init?.signal?.addEventListener("abort", () => {
+            resolve({
+              json: () => Promise.resolve({ ok: true, result: [] }),
+            });
+          });
+        });
+      }
+      throw new Error(`unexpected URL ${url}`);
+    });
+
+    const firstStart = first.start();
+    const deadline = Date.now() + 1_500;
+    while (
+      Date.now() < deadline &&
+      !fetchMock.mock.calls.some((call) => String(call[0]).endsWith("/getUpdates"))
+    ) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+
+    await expect(second.start()).rejects.toThrow(
+      'cannot start because "telegram-interactive" (TelegramBot.start) already owns this bot token',
+    );
+    first.stop();
+    await firstStart;
   });
 
   it("broadcastToChats delivers a message to every active session", async () => {
@@ -1100,11 +1144,13 @@ describe("TelegramBot voice messages", () => {
 
   beforeEach(() => {
     fetchMock = installFetchMock();
+    resetTelegramPollingOwnersForTests();
     resetProviderRegistry();
   });
 
   afterEach(() => {
     restoreFetch();
+    resetTelegramPollingOwnersForTests();
     resetProviderRegistry();
   });
 

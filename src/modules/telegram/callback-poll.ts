@@ -21,6 +21,7 @@ import {
   editResolvedOwnerQuestionMessage,
   type PendingMessage,
 } from "./owner-question-reply.js";
+import { acquireTelegramPollingOwner } from "./polling-ownership.js";
 
 export type { PendingMessage };
 export type TelegramCallbackHandler = (callback: TelegramCallbackQuery) => Promise<boolean>;
@@ -35,6 +36,10 @@ export function startCallbackPoll(
   log: ModuleContext["log"],
   client?: KotaClient,
 ): () => void {
+  const releasePollingOwner = acquireTelegramPollingOwner(token, {
+    owner: "telegram-callback",
+    source: "legacy callback poll helper",
+  });
   let running = true;
   let offset = 0;
   let controller: AbortController | null = null;
@@ -79,6 +84,7 @@ export function startCallbackPoll(
 
   return () => {
     running = false;
+    releasePollingOwner();
     controller?.abort();
     controller = null;
   };

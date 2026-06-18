@@ -33,6 +33,7 @@ import {
   retractUsageBody,
 } from "#modules/retract/render.js";
 import { callTelegramApi, splitMessage } from "./client.js";
+import { acquireTelegramPollingOwner } from "./polling-ownership.js";
 import type { TelegramProjectSelection } from "./project-selection.js";
 
 const POLL_INTERVAL_MS = 30_000;
@@ -488,6 +489,10 @@ export function startTelegramStatusPoll(
   log?: (message: string) => void,
   projectRouting?: TelegramStatusPollProjectRouting,
 ): () => void {
+  const releasePollingOwner = acquireTelegramPollingOwner(token, {
+    owner: "telegram-status",
+    source: "legacy status poll helper",
+  });
   let running = true;
   let offset = 0;
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -1105,6 +1110,7 @@ export function startTelegramStatusPoll(
 
   return () => {
     running = false;
+    releasePollingOwner();
     if (timer) {
       clearTimeout(timer);
       timer = null;

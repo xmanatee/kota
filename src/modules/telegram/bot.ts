@@ -56,6 +56,10 @@ import {
   emitTelegramTextInboundSignal,
   type TelegramInboundSignalConfig,
 } from "./inbound-signal.js";
+import {
+  acquireTelegramPollingOwner,
+  type TelegramPollingOwner,
+} from "./polling-ownership.js";
 import type { TelegramProjectSelection } from "./project-selection.js";
 
 export { callTelegramApi, splitMessage, TelegramTransport };
@@ -93,7 +97,17 @@ export type TelegramBotOptions = {
     config: TelegramInboundSignalConfig;
     events: Pick<ModuleContext["events"], "emit">;
   };
+  pollOwner?: TelegramPollingOwner;
 };
+
+export class TelegramGetUpdatesConflictError extends Error {
+  constructor() {
+    super(
+      "Telegram getUpdates conflict: another Telegram Bot API getUpdates consumer is already using this bot token. Stop the other KOTA or Telegram process before enabling telegram-interactive.",
+    );
+    this.name = "TelegramGetUpdatesConflictError";
+  }
+}
 
 type TelegramProjectTarget = {
   chatId: number;
@@ -230,6 +244,7 @@ export class TelegramBot {
   private offset = 0;
   private options: TelegramBotOptions;
   private pollController: AbortController | null = null;
+  private releasePollingOwner: (() => void) | null = null;
 
   constructor(options: TelegramBotOptions) {
     this.token = options.token;
@@ -237,29 +252,42 @@ export class TelegramBot {
   }
 
   async start(): Promise<void> {
+    const releasePollingOwner = acquireTelegramPollingOwner(
+      this.token,
+      this.options.pollOwner ?? {
+        owner: "telegram-interactive",
+        source: "TelegramBot.start",
+      },
+    );
+    this.releasePollingOwner = releasePollingOwner;
     this.running = true;
-    const me = await callTelegramApi<TelegramUser>(this.token, "getMe");
-    printTerminalDiagnostic(`[kota-telegram] Bot: @${me.username ?? me.first_name}`);
-    printTerminalDiagnostic("[kota-telegram] Listening for messages...");
+    try {
+      const me = await callTelegramApi<TelegramUser>(this.token, "getMe");
+      printTerminalDiagnostic(`[kota-telegram] Bot: @${me.username ?? me.first_name}`);
+      printTerminalDiagnostic("[kota-telegram] Listening for messages...");
 
-    while (this.running) {
-      try {
-        await this.poll();
-      } catch (err) {
-        if (!this.running) break;
-        if (isTelegramGetUpdatesConflict(err)) {
-          this.running = false;
-          throw new Error(
-            "Telegram getUpdates conflict: another Telegram Bot API getUpdates consumer is already using this bot token. Stop the other KOTA or Telegram process before enabling telegram-interactive.",
+      while (this.running) {
+        try {
+          await this.poll();
+        } catch (err) {
+          if (!this.running) break;
+          if (isTelegramGetUpdatesConflict(err)) {
+            this.running = false;
+            throw new TelegramGetUpdatesConflictError();
+          }
+          printTerminalDiagnostic(
+            "[kota-telegram] Poll error:",
+            "error",
+            (err as Error).message,
           );
+          await sleep(ERROR_BACKOFF_MS);
         }
-        printTerminalDiagnostic(
-          "[kota-telegram] Poll error:",
-          "error",
-          (err as Error).message,
-        );
-        await sleep(ERROR_BACKOFF_MS);
       }
+    } finally {
+      if (this.releasePollingOwner === releasePollingOwner) {
+        this.releasePollingOwner = null;
+      }
+      releasePollingOwner();
     }
   }
 

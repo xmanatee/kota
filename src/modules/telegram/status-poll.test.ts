@@ -20,6 +20,10 @@ import type {
   RetractResult,
 } from "#modules/retract/client.js";
 import { callTelegramApi } from "./client.js";
+import {
+  acquireTelegramPollingOwner,
+  resetTelegramPollingOwnersForTests,
+} from "./polling-ownership.js";
 import type { TelegramProjectSelection } from "./project-selection.js";
 import {
   buildStatusText,
@@ -248,6 +252,7 @@ describe("startTelegramStatusPoll", () => {
   let stop: () => void;
 
   beforeEach(() => {
+    resetTelegramPollingOwnersForTests();
     mockedCallTelegramApi.mockReset();
     mockedRenderOnDemandDigest.mockReset();
     mockedRenderOnDemandAttention.mockReset();
@@ -255,6 +260,36 @@ describe("startTelegramStatusPoll", () => {
 
   afterEach(() => {
     stop?.();
+    resetTelegramPollingOwnersForTests();
+  });
+
+  it("refuses to compete with the interactive Telegram poll owner", () => {
+    const release = acquireTelegramPollingOwner(FAKE_TOKEN, {
+      owner: "telegram-interactive",
+      source: "daemon channel",
+    });
+    try {
+      expect(() =>
+        startTelegramStatusPoll(
+          FAKE_TOKEN,
+          FAKE_CHAT_ID,
+          FAKE_PROJECT_DIR,
+          makeStatusInfo,
+          makeKnowledgeStub(),
+          makeMemoryStub(),
+          makeHistoryStub(),
+          makeTasksStub(),
+          makeRecallStub(),
+          makeAnswerStub(),
+          makeCaptureStub(),
+          makeRetractStub(),
+        ),
+      ).toThrow(
+        'cannot start because "telegram-interactive" (daemon channel) already owns this bot token',
+      );
+    } finally {
+      release();
+    }
   });
 
   it("polls getUpdates on start", async () => {

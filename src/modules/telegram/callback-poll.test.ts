@@ -1,6 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type PendingMessage, startCallbackPoll } from "./callback-poll.js";
 import { callTelegramApi } from "./client.js";
+import {
+  acquireTelegramPollingOwner,
+  resetTelegramPollingOwnersForTests,
+} from "./polling-ownership.js";
 
 vi.mock("./client.js", () => ({
   callTelegramApi: vi.fn(),
@@ -53,6 +57,7 @@ function makeCallbackUpdate(
 
 describe("startCallbackPoll", () => {
   beforeEach(() => {
+    resetTelegramPollingOwnersForTests();
     mockedCallTelegramApi.mockReset();
     mockApprove.mockReset();
     mockReject.mockReset();
@@ -60,6 +65,26 @@ describe("startCallbackPoll", () => {
     mockOwnerAnswer.mockReset();
     mockOwnerDismiss.mockReset();
     stubLog.warn.mockReset();
+  });
+
+  afterEach(() => {
+    resetTelegramPollingOwnersForTests();
+  });
+
+  it("refuses to compete with the interactive Telegram poll owner", () => {
+    const release = acquireTelegramPollingOwner(TOKEN, {
+      owner: "telegram-interactive",
+      source: "daemon channel",
+    });
+    try {
+      expect(() =>
+        startCallbackPoll(TOKEN, new Map(), new Map(), stubLog),
+      ).toThrow(
+        'cannot start because "telegram-interactive" (daemon channel) already owns this bot token',
+      );
+    } finally {
+      release();
+    }
   });
 
   it("polls getUpdates with callback_query allowed_updates", async () => {

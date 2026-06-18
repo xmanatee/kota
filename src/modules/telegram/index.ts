@@ -8,6 +8,11 @@
 import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import type { ChannelDef } from "#core/channels/channel.js";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
+import {
+  CAPABILITY_READINESS_PROVIDER_TYPE,
+  type CapabilityReadiness,
+  type CapabilityReadinessSource,
+} from "#core/daemon/capability-readiness.js";
 import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
 import type { BusEvents } from "#core/events/event-bus.js";
 import { checkPresetAuth } from "#core/model/preset.js";
@@ -17,6 +22,10 @@ import type { KotaClient } from "#core/server/kota-client.js";
 import { AUTONOMY_MODES, type AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { operatorSurfaceEffect } from "#core/tools/effect.js";
 import {
+  autonomyHealthSignal,
+  normalizeHealthSignal,
+} from "#modules/autonomy/health-signal.js";
+import {
   apiKeyNameForProvider,
   resolveApiKey,
   resolveModelProviderName,
@@ -25,7 +34,7 @@ import {
   isModelClientHarness,
   resolveTelegramInteractiveBackend,
 } from "./backend.js";
-import { TelegramBot } from "./bot.js";
+import { TelegramBot, TelegramGetUpdatesConflictError } from "./bot.js";
 import { createTelegramCallbackHandler } from "./callback-poll.js";
 import type { TelegramMessage } from "./client.js";
 import { callTelegramApi } from "./client.js";
@@ -243,6 +252,9 @@ type TelegramConfig = {
   inboundSignals?: TelegramInboundSignalConfig;
 };
 
+export const TELEGRAM_INTERACTIVE_BACKEND_CAPABILITY_ID =
+  "telegram.interactive.backend";
+
 const telegramSetupRequirements: ModuleSetupRequirement[] = [
   {
     id: "bot-credentials",
@@ -265,7 +277,22 @@ const telegramSetupRequirements: ModuleSetupRequirement[] = [
       { name: "TELEGRAM_ALERT_CHAT_ID", scope: "project" },
     ],
   },
+  {
+    id: "interactive-model-backend",
+    kind: "capability",
+    title: "Telegram interactive model backend",
+    description:
+      "Model or harness backend used by Telegram chat sessions after bot credentials are present.",
+    required: true,
+    scope: "project",
+    owner: "telegram",
+    sensitivity: "none",
+    setup: { mode: "none" },
+    capabilityIds: [TELEGRAM_INTERACTIVE_BACKEND_CAPABILITY_ID],
+  },
 ];
+
+const reportedTelegramPollConflicts = new Set<string>();
 
 function getCredentials(ctx: ModuleContext): { token: string; chatId: string } | null {
   const token = ctx.getSecret("TELEGRAM_BOT_TOKEN");
@@ -284,13 +311,122 @@ function telegramInteractiveProviderError(
 ): string | null {
   const provider = resolveModelProviderName(model, explicitProvider?.provider);
   if (!provider) {
-    return `Telegram interactive sessions require a model provider for "${model}". Set config.modelProvider.type or use provider/model notation.`;
+    return `Telegram interactive sessions require a model provider for "${model}". Set config.modelProvider.type, use provider/model notation, or select a multi-turn harness preset that does not require ModelClient.`;
   }
   const apiKeyEnv = apiKeyNameForProvider(provider);
   if (apiKeyEnv && !resolveApiKey(provider, explicitProvider?.apiKey, { projectDir: ctx.cwd })) {
     return `Telegram interactive sessions require ${apiKeyEnv} or config.modelProvider.apiKey for provider "${provider}".`;
   }
   return null;
+}
+
+function telegramInteractiveBackendReadiness(
+  ctx: ModuleContext,
+): CapabilityReadiness {
+  const telegramConfig = ctx.getModuleConfig<TelegramConfig>();
+  let autonomyMode: AutonomyMode;
+  try {
+    autonomyMode = resolveChannelAutonomyMode(
+      telegramConfig?.defaultAutonomyMode,
+      ctx.config,
+      "telegram",
+    );
+  } catch (err) {
+    return {
+      id: TELEGRAM_INTERACTIVE_BACKEND_CAPABILITY_ID,
+      moduleName: "telegram",
+      status: "unavailable",
+      reason: "autonomy_mode_missing",
+      message: (err as Error).message,
+    };
+  }
+
+  const backendError = telegramInteractiveBackendError(ctx, autonomyMode);
+  if (backendError) {
+    return {
+      id: TELEGRAM_INTERACTIVE_BACKEND_CAPABILITY_ID,
+      moduleName: "telegram",
+      status: "unavailable",
+      reason: "interactive_backend_unavailable",
+      message: backendError,
+    };
+  }
+
+  const backend = resolveTelegramInteractiveBackend(ctx.config);
+  if (backend.kind === "harness") {
+    return {
+      id: TELEGRAM_INTERACTIVE_BACKEND_CAPABILITY_ID,
+      moduleName: "telegram",
+      status: "ready",
+      reason: "harness_ready",
+      message: `Telegram interactive chat is ready through the "${backend.harnessName}" harness.`,
+      meta: {
+        backend: "harness",
+        harness: backend.harnessName,
+        model: backend.model,
+      },
+    };
+  }
+
+  return {
+    id: TELEGRAM_INTERACTIVE_BACKEND_CAPABILITY_ID,
+    moduleName: "telegram",
+    status: "ready",
+    reason: "model_client_ready",
+    message: "Telegram interactive chat is ready through the configured ModelClient provider.",
+    meta: {
+      backend: "model-client",
+      model: backend.modelSpec,
+    },
+  };
+}
+
+function createTelegramReadinessSource(ctx: ModuleContext): CapabilityReadinessSource {
+  return {
+    moduleName: "telegram",
+    probe: () => [telegramInteractiveBackendReadiness(ctx)],
+  };
+}
+
+function emitTelegramPollConflictHealthSignal(
+  ctx: ModuleContext,
+  projectId: string,
+): void {
+  const dedupeKey = "module:telegram:getupdates-conflict";
+  const reportKey = `${projectId}:${dedupeKey}`;
+  if (reportedTelegramPollConflicts.has(reportKey)) return;
+  reportedTelegramPollConflicts.add(reportKey);
+
+  const signal = normalizeHealthSignal({
+    source: { kind: "module", id: "telegram-interactive", module: "telegram" },
+    severity: "warning",
+    labels: ["external-service", "polling", "telegram"],
+    summary:
+      "Telegram Bot API reported a getUpdates conflict for telegram-interactive. Another process or poller is using the same bot token; stop the duplicate consumer before enabling Telegram chat.",
+    evidenceRefs: [
+      {
+        kind: "module-log",
+        ref: "telegram-interactive:getUpdates",
+        summary:
+          "Bot API getUpdates returned a conflict while the interactive Telegram channel was running.",
+      },
+    ],
+    actionability: "external-service",
+    dedupeKey,
+    createdAt: new Date().toISOString(),
+  });
+
+  try {
+    ctx.events.emit(autonomyHealthSignal, {
+      scopeId: projectId,
+      projectId,
+      ...signal,
+    });
+  } catch (err) {
+    ctx.log.warn(
+      `Telegram getUpdates conflict health signal failed: ${(err as Error).message}`,
+    );
+  }
 }
 
 function telegramInteractiveBackendError(
@@ -480,6 +616,10 @@ function makeTelegramInteractiveChannel(
         verbose: ctx.verbose || ctx.config.verbose,
         config: ctx.config,
         autonomyMode,
+        pollOwner: {
+          owner: "telegram-interactive",
+          source: "daemon channel",
+        },
         defaultProjectRuntime: channelCtx.defaultProjectRuntime,
         getProjectRuntime: channelCtx.getProjectRuntime,
         allowedChatIds,
@@ -563,6 +703,12 @@ function makeTelegramInteractiveChannel(
           async start() {
             startPromise = bot.start().catch((err) => {
               const message = (err as Error).message;
+              if (err instanceof TelegramGetUpdatesConflictError) {
+                emitTelegramPollConflictHealthSignal(
+                  ctx,
+                  channelCtx.defaultProjectRuntime.project.projectId,
+                );
+              }
               ctx.log.error(`telegram-interactive channel poll loop exited: ${message}`);
               channelCtx.reportFailure(message);
             });
@@ -607,7 +753,7 @@ const telegramModule: KotaModule = {
         description: "Route Telegram chats into KOTA sessions with explicit autonomy mode.",
         scope: "external",
         scopePolicyHooks: ["channels", "external-effects", "setup"],
-        setupRequirementIds: ["bot-credentials"],
+        setupRequirementIds: ["bot-credentials", "interactive-model-backend"],
       },
       {
         id: "telegram.owner-escalation",
@@ -724,6 +870,10 @@ const telegramModule: KotaModule = {
   },
 
   onLoad: (ctx) => {
+    ctx.registerProvider(
+      CAPABILITY_READINESS_PROVIDER_TYPE,
+      createTelegramReadinessSource(ctx),
+    );
     const telegramConfig = ctx.getModuleConfig<TelegramConfig>();
     const chatProjectBindings = telegramConfig?.chatProjectBindings ?? [];
     const optInEvents = new Set(telegramConfig?.events ?? []);
@@ -886,6 +1036,7 @@ const telegramModule: KotaModule = {
   },
 
   onUnload: () => {
+    reportedTelegramPollConflicts.clear();
     pendingApprovalMessages.clear();
     pendingOwnerQuestionMessages.clear();
     for (const unsub of notificationUnsubs) unsub();

@@ -3,6 +3,7 @@ import {
   type AgentHarness,
   resolveAgentHarness,
 } from "#core/agent-harness/index.js";
+import type { CapabilityReadinessSource } from "#core/daemon/capability-readiness.js";
 import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
 import type { ConfiguredProject } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
@@ -11,8 +12,10 @@ import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { resolveModuleChannels } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
 import type { KotaClient } from "#core/server/kota-client.js";
-import { callTelegramApi } from "./client.js";
-import telegramModule from "./index.js";
+import { callTelegramApi, TelegramApiError } from "./client.js";
+import telegramModule, {
+  TELEGRAM_INTERACTIVE_BACKEND_CAPABILITY_ID,
+} from "./index.js";
 
 vi.mock("./client.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./client.js")>();
@@ -75,7 +78,9 @@ const TEST_PROJECT: ConfiguredProject = {
   displayName: "KOTA",
 };
 
-function makeChannelStartContext() {
+function makeChannelStartContext(
+  overrides: { reportFailure?: (message: string) => void } = {},
+) {
   const runtime = {
     project: TEST_PROJECT,
     scheduler: { count: () => 0 },
@@ -85,7 +90,7 @@ function makeChannelStartContext() {
     defaultProjectRuntime: runtime,
     getProjectRuntime: () => runtime,
     log: () => {},
-    reportFailure: () => {},
+    reportFailure: overrides.reportFailure ?? (() => {}),
     getWorkflowStatus: () => ({
       runtimeState: { completedRuns: 0, pendingRuns: [], workflows: {} },
       dispatchPaused: false,
@@ -198,6 +203,104 @@ describe("telegramModule", () => {
       "secrets",
       "transcription",
     ]);
+  });
+
+  it("declares separate setup for bot credentials and interactive backend readiness", () => {
+    const setupRequirements = telegramModule.setupRequirements;
+    if (!setupRequirements || typeof setupRequirements === "function") {
+      throw new Error("telegram setup requirements must be static");
+    }
+
+    const credentialRequirement = setupRequirements.find((req) =>
+      req.id === "bot-credentials"
+    );
+    const backendRequirement = setupRequirements.find((req) =>
+      req.id === "interactive-model-backend"
+    );
+    expect(credentialRequirement?.kind).toBe("secret");
+    expect(backendRequirement).toMatchObject({
+      kind: "capability",
+      capabilityIds: [TELEGRAM_INTERACTIVE_BACKEND_CAPABILITY_ID],
+    });
+    const manifest = telegramModule.manifest;
+    if (!manifest || typeof manifest === "function") {
+      throw new Error("telegram manifest must be static");
+    }
+    const interactiveCapability = manifest.capabilities.find(
+      (capability) => capability.id === "telegram.interactive",
+    );
+    expect(interactiveCapability?.setupRequirementIds).toEqual([
+      "bot-credentials",
+      "interactive-model-backend",
+    ]);
+  });
+
+  it("reports the default Codex backend as ready through setup capability readiness", async () => {
+    const readiness = { source: null as CapabilityReadinessSource | null };
+    const ctx = makeStubCtx(
+      undefined,
+      makeStubClient(),
+      {
+        model: "gpt-5.5",
+        serve: { defaultAutonomyMode: "passive" },
+      } as ModuleRuntimeContext["config"],
+    );
+    ctx.registerProvider = <T,>(_token: unknown, provider: T): void => {
+      readiness.source = provider as unknown as CapabilityReadinessSource;
+    };
+
+    telegramModule.onLoad!(ctx);
+    try {
+      const source = readiness.source;
+      if (!source) throw new Error("readiness source not registered");
+      const reports = await source.probe();
+      expect(reports).toEqual([
+        expect.objectContaining({
+          id: TELEGRAM_INTERACTIVE_BACKEND_CAPABILITY_ID,
+          status: "ready",
+          reason: "harness_ready",
+          message: expect.stringContaining("codex"),
+        }),
+      ]);
+    } finally {
+      await telegramModule.onUnload?.();
+    }
+  });
+
+  it("reports provider-backed backend setup as unavailable when its API key is missing", async () => {
+    const savedOpenAiKey = process.env.OPENAI_API_KEY;
+    delete process.env.OPENAI_API_KEY;
+    const readiness = { source: null as CapabilityReadinessSource | null };
+    const ctx = makeStubCtx(
+      undefined,
+      makeStubClient(),
+      {
+        model: "openai/gpt-5.5",
+        serve: { defaultAutonomyMode: "supervised" },
+      } as ModuleRuntimeContext["config"],
+    );
+    ctx.registerProvider = <T,>(_token: unknown, provider: T): void => {
+      readiness.source = provider as unknown as CapabilityReadinessSource;
+    };
+
+    try {
+      telegramModule.onLoad!(ctx);
+      const source = readiness.source;
+      if (!source) throw new Error("readiness source not registered");
+      const reports = await source.probe();
+      expect(reports).toEqual([
+        expect.objectContaining({
+          id: TELEGRAM_INTERACTIVE_BACKEND_CAPABILITY_ID,
+          status: "unavailable",
+          reason: "interactive_backend_unavailable",
+          message: expect.stringContaining("OPENAI_API_KEY"),
+        }),
+      ]);
+    } finally {
+      await telegramModule.onUnload?.();
+      if (savedOpenAiKey !== undefined) process.env.OPENAI_API_KEY = savedOpenAiKey;
+      else delete process.env.OPENAI_API_KEY;
+    }
   });
 
   it("contributes telegram-status and telegram-interactive channels", async () => {
@@ -439,6 +542,85 @@ describe("telegramModule", () => {
       else delete process.env.TELEGRAM_BOT_TOKEN;
       if (savedChatId !== undefined) process.env.TELEGRAM_ALERT_CHAT_ID = savedChatId;
       else delete process.env.TELEGRAM_ALERT_CHAT_ID;
+    }
+  });
+
+  it("emits one deduped health signal when Telegram reports getUpdates conflicts", async () => {
+    const savedToken = process.env.TELEGRAM_BOT_TOKEN;
+    const savedChatId = process.env.TELEGRAM_ALERT_CHAT_ID;
+    process.env.TELEGRAM_BOT_TOKEN = "bot-token-test";
+    process.env.TELEGRAM_ALERT_CHAT_ID = "123456789";
+    mockedCallTelegramApi.mockReset();
+    mockedCallTelegramApi.mockImplementation(async (_token, method) => {
+      if (method === "getMe") {
+        return { id: 1, first_name: "TestBot", username: "test_bot" } as never;
+      }
+      if (method === "getUpdates") {
+        throw new TelegramApiError(
+          "getUpdates",
+          "Conflict: terminated by other getUpdates request; make sure that only one bot instance is running",
+        );
+      }
+      return {} as never;
+    });
+
+    const bus = new EventBus();
+    const envelopes: Array<{ type: string; payload: Record<string, unknown> }> = [];
+    bus.on("*", (envelope) => {
+      envelopes.push({
+        type: envelope.type,
+        payload: envelope.payload,
+      });
+    });
+    const failures: string[] = [];
+
+    try {
+      const channels = await resolveModuleChannels(
+        telegramModule,
+        makeStubCtx(
+          bus,
+          makeStubClient(),
+          {
+            serve: { defaultAutonomyMode: "passive" },
+          } as ModuleRuntimeContext["config"],
+        ),
+      );
+      const channel = channels.find((c) => c.name === "telegram-interactive");
+      if (!channel) throw new Error("telegram-interactive channel missing");
+      const startContext = makeChannelStartContext({
+        reportFailure: (message: string) => {
+          failures.push(message);
+        },
+      });
+      const result = channel.create(startContext);
+      expect(result.status).toBe("started");
+      if (result.status !== "started") return;
+
+      await result.adapter.start();
+      await flushAsyncNotifications();
+      await result.adapter.start();
+      await flushAsyncNotifications();
+      await result.adapter.stop();
+
+      expect(failures).toHaveLength(2);
+      expect(failures[0]).toContain("getUpdates conflict");
+      const healthSignals = envelopes.filter((entry) =>
+        entry.type === "autonomy.health.signal"
+      );
+      expect(healthSignals).toHaveLength(1);
+      expect(healthSignals[0]?.payload).toMatchObject({
+        projectId: TEST_PROJECT.projectId,
+        scopeId: TEST_PROJECT.projectId,
+        severity: "warning",
+        actionability: "external-service",
+        dedupeKey: "module:telegram:getupdates-conflict",
+      });
+    } finally {
+      if (savedToken !== undefined) process.env.TELEGRAM_BOT_TOKEN = savedToken;
+      else delete process.env.TELEGRAM_BOT_TOKEN;
+      if (savedChatId !== undefined) process.env.TELEGRAM_ALERT_CHAT_ID = savedChatId;
+      else delete process.env.TELEGRAM_ALERT_CHAT_ID;
+      await telegramModule.onUnload?.();
     }
   });
 });
