@@ -1,0 +1,1228 @@
+{
+  "surface": "clients/mobile/src/screens/HistoryScreen.tsx",
+  "generatedBy": "clients/mobile/src/__tests__/HistoryScreen.test.tsx",
+  "states": [
+    {
+      "label": "settings-loading",
+      "tree": {
+        "type": "View",
+        "props": {
+          "style": {
+            "flex": 1,
+            "alignItems": "center",
+            "justifyContent": "center",
+            "paddingVertical": 40,
+            "gap": 12
+          }
+        },
+        "children": [
+          {
+            "type": "ActivityIndicator",
+            "props": {
+              "size": "large"
+            },
+            "children": null
+          }
+        ]
+      }
+    },
+    {
+      "label": "no-daemon-configured",
+      "tree": {
+        "type": "View",
+        "props": {
+          "style": "[Circular]"
+        },
+        "children": [
+          {
+            "type": "Text",
+            "props": {
+              "style": {
+                "color": "#8e8e93",
+                "fontSize": 14
+              }
+            },
+            "children": [
+              "No daemon configured."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "label": "empty-query",
+      "tree": {
+        "type": "RCTScrollView",
+        "props": {
+          "style": {
+            "flex": 1,
+            "backgroundColor": "#f2f2f7"
+          },
+          "contentContainerStyle": {
+            "padding": 16
+          },
+          "refreshControl": {
+            "type": "[Function]",
+            "key": null,
+            "props": {
+              "refreshing": false,
+              "onRefresh": "[Function]"
+            }
+          }
+        },
+        "children": [
+          {
+            "type": "RCTRefreshControl",
+            "props": {},
+            "children": null
+          },
+          {
+            "type": "View",
+            "props": {},
+            "children": [
+              {
+                "type": "View",
+                "props": {
+                  "style": {
+                    "flexDirection": "row",
+                    "alignItems": "center",
+                    "gap": 10,
+                    "marginBottom": 12
+                  }
+                },
+                "children": [
+                  {
+                    "type": "Text",
+                    "props": {
+                      "style": {
+                        "fontSize": 17,
+                        "fontWeight": "600",
+                        "color": "#1c1c1e"
+                      }
+                    },
+                    "children": [
+                      "History"
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "View",
+                "props": {
+                  "style": {
+                    "flexDirection": "row",
+                    "gap": 8,
+                    "marginBottom": 12
+                  }
+                },
+                "children": [
+                  {
+                    "type": "TextInput",
+                    "props": {
+                      "style": {
+                        "flex": 1,
+                        "backgroundColor": "#fff",
+                        "borderRadius": 10,
+                        "paddingHorizontal": 12,
+                        "paddingVertical": 10,
+                        "fontSize": 14,
+                        "color": "#1c1c1e"
+                      },
+                      "placeholder": "Search history…",
+                      "autoCapitalize": "none",
+                      "autoCorrect": false,
+                      "value": "",
+                      "onChangeText": "[Function]",
+                      "onSubmitEditing": "[Function]",
+                      "returnKeyType": "search"
+                    },
+                    "children": null
+                  },
+                  {
+                    "type": "View",
+                    "props": {
+                      "accessible": true,
+                      "accessibilityState": {
+                        "disabled": true
+                      },
+                      "accessibilityValue": {},
+                      "style": {
+                        "backgroundColor": "#a8a8ad",
+                        "borderRadius": 10,
+                        "paddingHorizontal": 16,
+                        "justifyContent": "center",
+                        "opacity": 1
+                      },
+                      "focusable": false,
+                      "onStartShouldSetResponder": "[Function]",
+                      "onResponderGrant": "[Function]",
+                      "onResponderMove": "[Function]",
+                      "onResponderRelease": "[Function]",
+                      "onResponderTerminate": "[Function]",
+                      "onResponderTerminationRequest": "[Function]",
+                      "onClick": "[Function]",
+                      "collapsable": false
+                    },
+                    "children": [
+                      {
+                        "type": "Text",
+                        "props": {
+                          "style": {
+                            "color": "#fff",
+                            "fontWeight": "600",
+                            "fontSize": 14
+                          }
+                        },
+                        "children": [
+                          "Search"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "Text",
+                "props": {
+                  "style": {
+                    "color": "#8e8e93",
+                    "fontSize": 13
+                  }
+                },
+                "children": [
+                  "Type a query and tap Search to query history."
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "label": "loading-refresh-control",
+      "tree": {
+        "type": "RCTScrollView",
+        "props": {
+          "style": "[Circular]",
+          "contentContainerStyle": "[Circular]",
+          "refreshControl": {
+            "type": "[Function]",
+            "key": null,
+            "props": {
+              "refreshing": true,
+              "onRefresh": "[Function]"
+            }
+          }
+        },
+        "children": [
+          {
+            "type": "RCTRefreshControl",
+            "props": {},
+            "children": null
+          },
+          {
+            "type": "View",
+            "props": {},
+            "children": [
+              {
+                "type": "View",
+                "props": {
+                  "style": "[Circular]"
+                },
+                "children": [
+                  {
+                    "type": "Text",
+                    "props": {
+                      "style": "[Circular]"
+                    },
+                    "children": [
+                      "History"
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "View",
+                "props": {
+                  "style": "[Circular]"
+                },
+                "children": [
+                  {
+                    "type": "TextInput",
+                    "props": {
+                      "style": "[Circular]",
+                      "placeholder": "Search history…",
+                      "autoCapitalize": "none",
+                      "autoCorrect": false,
+                      "value": "fan-out",
+                      "onChangeText": "[Function]",
+                      "onSubmitEditing": "[Function]",
+                      "returnKeyType": "search"
+                    },
+                    "children": null
+                  },
+                  {
+                    "type": "View",
+                    "props": {
+                      "accessible": true,
+                      "accessibilityState": {
+                        "disabled": true
+                      },
+                      "accessibilityValue": {},
+                      "style": {
+                        "backgroundColor": "#a8a8ad",
+                        "borderRadius": 10,
+                        "paddingHorizontal": 16,
+                        "justifyContent": "center",
+                        "opacity": 1
+                      },
+                      "focusable": false,
+                      "onStartShouldSetResponder": "[Function]",
+                      "onResponderGrant": "[Function]",
+                      "onResponderMove": "[Function]",
+                      "onResponderRelease": "[Function]",
+                      "onResponderTerminate": "[Function]",
+                      "onResponderTerminationRequest": "[Function]",
+                      "onClick": "[Function]",
+                      "collapsable": false
+                    },
+                    "children": [
+                      {
+                        "type": "Text",
+                        "props": {
+                          "style": "[Circular]"
+                        },
+                        "children": [
+                          "Search"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "View",
+                "props": {
+                  "style": "[Circular]"
+                },
+                "children": [
+                  {
+                    "type": "ActivityIndicator",
+                    "props": {
+                      "size": "small"
+                    },
+                    "children": null
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "label": "populated-results",
+      "tree": {
+        "type": "RCTScrollView",
+        "props": {
+          "style": "[Circular]",
+          "contentContainerStyle": "[Circular]",
+          "refreshControl": {
+            "type": "[Function]",
+            "key": null,
+            "props": {
+              "refreshing": false,
+              "onRefresh": "[Function]"
+            }
+          }
+        },
+        "children": [
+          {
+            "type": "RCTRefreshControl",
+            "props": {},
+            "children": null
+          },
+          {
+            "type": "View",
+            "props": {},
+            "children": [
+              {
+                "type": "View",
+                "props": {
+                  "style": "[Circular]"
+                },
+                "children": [
+                  {
+                    "type": "Text",
+                    "props": {
+                      "style": "[Circular]"
+                    },
+                    "children": [
+                      "History"
+                    ]
+                  },
+                  {
+                    "type": "View",
+                    "props": {
+                      "style": [
+                        {
+                          "paddingHorizontal": 8,
+                          "paddingVertical": 2,
+                          "borderRadius": 4
+                        },
+                        {
+                          "backgroundColor": "rgba(0, 122, 255, 0.15)"
+                        }
+                      ]
+                    },
+                    "children": [
+                      {
+                        "type": "Text",
+                        "props": {
+                          "style": {
+                            "color": "#0a5fc2",
+                            "fontSize": 11,
+                            "fontWeight": "600"
+                          }
+                        },
+                        "children": [
+                          "2 conversations"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "View",
+                "props": {
+                  "style": "[Circular]"
+                },
+                "children": [
+                  {
+                    "type": "TextInput",
+                    "props": {
+                      "style": "[Circular]",
+                      "placeholder": "Search history…",
+                      "autoCapitalize": "none",
+                      "autoCorrect": false,
+                      "value": "fan-out",
+                      "onChangeText": "[Function]",
+                      "onSubmitEditing": "[Function]",
+                      "returnKeyType": "search"
+                    },
+                    "children": null
+                  },
+                  {
+                    "type": "View",
+                    "props": {
+                      "accessible": true,
+                      "accessibilityState": {
+                        "disabled": false
+                      },
+                      "accessibilityValue": {},
+                      "style": {
+                        "backgroundColor": "#007aff",
+                        "borderRadius": 10,
+                        "paddingHorizontal": 16,
+                        "justifyContent": "center",
+                        "opacity": 1
+                      },
+                      "focusable": true,
+                      "onStartShouldSetResponder": "[Function]",
+                      "onResponderGrant": "[Function]",
+                      "onResponderMove": "[Function]",
+                      "onResponderRelease": "[Function]",
+                      "onResponderTerminate": "[Function]",
+                      "onResponderTerminationRequest": "[Function]",
+                      "onClick": "[Function]",
+                      "collapsable": false
+                    },
+                    "children": [
+                      {
+                        "type": "Text",
+                        "props": {
+                          "style": "[Circular]"
+                        },
+                        "children": [
+                          "Search"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "View",
+                "props": {
+                  "style": {
+                    "backgroundColor": "#fff",
+                    "borderRadius": 12,
+                    "padding": 14,
+                    "shadowColor": "#000",
+                    "shadowOpacity": 0.04,
+                    "shadowRadius": 4,
+                    "shadowOffset": {
+                      "width": 0,
+                      "height": 2
+                    }
+                  }
+                },
+                "children": [
+                  {
+                    "type": "Text",
+                    "props": {
+                      "style": {
+                        "fontFamily": "Courier",
+                        "fontSize": 12,
+                        "color": "#1c1c1e",
+                        "lineHeight": 18
+                      }
+                    },
+                    "children": [
+                      "hist-1   2026-06-15 09:20     3 msgs  Release planning\nhist-22  2026-06-15 10:45    11 msgs  Operator review"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "label": "empty-results",
+      "tree": {
+        "type": "RCTScrollView",
+        "props": {
+          "style": "[Circular]",
+          "contentContainerStyle": "[Circular]",
+          "refreshControl": {
+            "type": "[Function]",
+            "key": null,
+            "props": {
+              "refreshing": false,
+              "onRefresh": "[Function]"
+            }
+          }
+        },
+        "children": [
+          {
+            "type": "RCTRefreshControl",
+            "props": {},
+            "children": null
+          },
+          {
+            "type": "View",
+            "props": {},
+            "children": [
+              {
+                "type": "View",
+                "props": {
+                  "style": "[Circular]"
+                },
+                "children": [
+                  {
+                    "type": "Text",
+                    "props": {
+                      "style": "[Circular]"
+                    },
+                    "children": [
+                      "History"
+                    ]
+                  },
+                  {
+                    "type": "View",
+                    "props": {
+                      "style": [
+                        "[Circular]",
+                        {
+                          "backgroundColor": "rgba(142, 142, 147, 0.15)"
+                        }
+                      ]
+                    },
+                    "children": [
+                      {
+                        "type": "Text",
+                        "props": {
+                          "style": {
+                            "color": "#6c6c70",
+                            "fontSize": 11,
+                            "fontWeight": "600"
+                          }
+                        },
+                        "children": [
+                          "no matches"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "View",
+                "props": {
+                  "style": "[Circular]"
+                },
+                "children": [
+                  {
+                    "type": "TextInput",
+                    "props": {
+                      "style": "[Circular]",
+                      "placeholder": "Search history…",
+                      "autoCapitalize": "none",
+                      "autoCorrect": false,
+                      "value": "fan-out",
+                      "onChangeText": "[Function]",
+                      "onSubmitEditing": "[Function]",
+                      "returnKeyType": "search"
+                    },
+                    "children": null
+                  },
+                  {
+                    "type": "View",
+                    "props": {
+                      "accessible": true,
+                      "accessibilityState": {
+                        "disabled": false
+                      },
+                      "accessibilityValue": {},
+                      "style": {
+                        "backgroundColor": "#007aff",
+                        "borderRadius": 10,
+                        "paddingHorizontal": 16,
+                        "justifyContent": "center",
+                        "opacity": 1
+                      },
+                      "focusable": true,
+                      "onStartShouldSetResponder": "[Function]",
+                      "onResponderGrant": "[Function]",
+                      "onResponderMove": "[Function]",
+                      "onResponderRelease": "[Function]",
+                      "onResponderTerminate": "[Function]",
+                      "onResponderTerminationRequest": "[Function]",
+                      "onClick": "[Function]",
+                      "collapsable": false
+                    },
+                    "children": [
+                      {
+                        "type": "Text",
+                        "props": {
+                          "style": "[Circular]"
+                        },
+                        "children": [
+                          "Search"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "View",
+                "props": {
+                  "style": "[Circular]"
+                },
+                "children": [
+                  {
+                    "type": "Text",
+                    "props": {
+                      "style": "[Circular]"
+                    },
+                    "children": [
+                      "No matching conversations."
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "label": "semantic-unavailable",
+      "tree": {
+        "type": "RCTScrollView",
+        "props": {
+          "style": "[Circular]",
+          "contentContainerStyle": "[Circular]",
+          "refreshControl": {
+            "type": "[Function]",
+            "key": null,
+            "props": {
+              "refreshing": false,
+              "onRefresh": "[Function]"
+            }
+          }
+        },
+        "children": [
+          {
+            "type": "RCTRefreshControl",
+            "props": {},
+            "children": null
+          },
+          {
+            "type": "View",
+            "props": {},
+            "children": [
+              {
+                "type": "View",
+                "props": {
+                  "style": "[Circular]"
+                },
+                "children": [
+                  {
+                    "type": "Text",
+                    "props": {
+                      "style": "[Circular]"
+                    },
+                    "children": [
+                      "History"
+                    ]
+                  },
+                  {
+                    "type": "View",
+                    "props": {
+                      "style": [
+                        "[Circular]",
+                        "[Circular]"
+                      ]
+                    },
+                    "children": [
+                      {
+                        "type": "Text",
+                        "props": {
+                          "style": "[Circular]"
+                        },
+                        "children": [
+                          "semantic unavailable"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "View",
+                "props": {
+                  "style": "[Circular]"
+                },
+                "children": [
+                  {
+                    "type": "TextInput",
+                    "props": {
+                      "style": "[Circular]",
+                      "placeholder": "Search history…",
+                      "autoCapitalize": "none",
+                      "autoCorrect": false,
+                      "value": "fan-out",
+                      "onChangeText": "[Function]",
+                      "onSubmitEditing": "[Function]",
+                      "returnKeyType": "search"
+                    },
+                    "children": null
+                  },
+                  {
+                    "type": "View",
+                    "props": {
+                      "accessible": true,
+                      "accessibilityState": {
+                        "disabled": false
+                      },
+                      "accessibilityValue": {},
+                      "style": {
+                        "backgroundColor": "#007aff",
+                        "borderRadius": 10,
+                        "paddingHorizontal": 16,
+                        "justifyContent": "center",
+                        "opacity": 1
+                      },
+                      "focusable": true,
+                      "onStartShouldSetResponder": "[Function]",
+                      "onResponderGrant": "[Function]",
+                      "onResponderMove": "[Function]",
+                      "onResponderRelease": "[Function]",
+                      "onResponderTerminate": "[Function]",
+                      "onResponderTerminationRequest": "[Function]",
+                      "onClick": "[Function]",
+                      "collapsable": false
+                    },
+                    "children": [
+                      {
+                        "type": "Text",
+                        "props": {
+                          "style": "[Circular]"
+                        },
+                        "children": [
+                          "Search"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "View",
+                "props": {
+                  "style": {
+                    "backgroundColor": "rgba(255, 149, 0, 0.12)",
+                    "borderRadius": 10,
+                    "padding": 12
+                  }
+                },
+                "children": [
+                  {
+                    "type": "Text",
+                    "props": {
+                      "style": {
+                        "color": "#c25e00",
+                        "fontSize": 13
+                      }
+                    },
+                    "children": [
+                      "Semantic history search requires an embedding-backed history provider."
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "label": "http-error-retry",
+      "tree": {
+        "type": "RCTScrollView",
+        "props": {
+          "style": "[Circular]",
+          "contentContainerStyle": "[Circular]",
+          "refreshControl": {
+            "type": "[Function]",
+            "key": null,
+            "props": {
+              "refreshing": false,
+              "onRefresh": "[Function]"
+            }
+          }
+        },
+        "children": [
+          {
+            "type": "RCTRefreshControl",
+            "props": {},
+            "children": null
+          },
+          {
+            "type": "View",
+            "props": {},
+            "children": [
+              {
+                "type": "View",
+                "props": {
+                  "style": "[Circular]"
+                },
+                "children": [
+                  {
+                    "type": "Text",
+                    "props": {
+                      "style": "[Circular]"
+                    },
+                    "children": [
+                      "History"
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "View",
+                "props": {
+                  "style": "[Circular]"
+                },
+                "children": [
+                  {
+                    "type": "TextInput",
+                    "props": {
+                      "style": "[Circular]",
+                      "placeholder": "Search history…",
+                      "autoCapitalize": "none",
+                      "autoCorrect": false,
+                      "value": "fan-out",
+                      "onChangeText": "[Function]",
+                      "onSubmitEditing": "[Function]",
+                      "returnKeyType": "search"
+                    },
+                    "children": null
+                  },
+                  {
+                    "type": "View",
+                    "props": {
+                      "accessible": true,
+                      "accessibilityState": {
+                        "disabled": false
+                      },
+                      "accessibilityValue": {},
+                      "style": {
+                        "backgroundColor": "#007aff",
+                        "borderRadius": 10,
+                        "paddingHorizontal": 16,
+                        "justifyContent": "center",
+                        "opacity": 1
+                      },
+                      "focusable": true,
+                      "onStartShouldSetResponder": "[Function]",
+                      "onResponderGrant": "[Function]",
+                      "onResponderMove": "[Function]",
+                      "onResponderRelease": "[Function]",
+                      "onResponderTerminate": "[Function]",
+                      "onResponderTerminationRequest": "[Function]",
+                      "onClick": "[Function]",
+                      "collapsable": false
+                    },
+                    "children": [
+                      {
+                        "type": "Text",
+                        "props": {
+                          "style": "[Circular]"
+                        },
+                        "children": [
+                          "Search"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "View",
+                "props": {
+                  "style": {
+                    "backgroundColor": "rgba(255, 59, 48, 0.1)",
+                    "borderRadius": 10,
+                    "padding": 12,
+                    "gap": 8,
+                    "marginBottom": 12
+                  }
+                },
+                "children": [
+                  {
+                    "type": "Text",
+                    "props": {
+                      "style": {
+                        "color": "#ff3b30",
+                        "fontSize": 13
+                      }
+                    },
+                    "children": [
+                      "503 Service Unavailable"
+                    ]
+                  },
+                  {
+                    "type": "View",
+                    "props": {
+                      "accessible": true,
+                      "accessibilityState": {
+                        "disabled": false
+                      },
+                      "accessibilityValue": {},
+                      "style": {
+                        "alignSelf": "flex-start",
+                        "backgroundColor": "#007aff",
+                        "paddingHorizontal": 14,
+                        "paddingVertical": 8,
+                        "borderRadius": 8,
+                        "opacity": 1
+                      },
+                      "focusable": true,
+                      "onStartShouldSetResponder": "[Function]",
+                      "onResponderGrant": "[Function]",
+                      "onResponderMove": "[Function]",
+                      "onResponderRelease": "[Function]",
+                      "onResponderTerminate": "[Function]",
+                      "onResponderTerminationRequest": "[Function]",
+                      "onClick": "[Function]",
+                      "collapsable": false
+                    },
+                    "children": [
+                      {
+                        "type": "Text",
+                        "props": {
+                          "style": {
+                            "color": "#fff",
+                            "fontWeight": "600",
+                            "fontSize": 13
+                          }
+                        },
+                        "children": [
+                          "Retry"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "label": "offline-banner",
+      "tree": {
+        "type": "RCTScrollView",
+        "props": {
+          "style": "[Circular]",
+          "contentContainerStyle": "[Circular]",
+          "refreshControl": {
+            "type": "[Function]",
+            "key": null,
+            "props": {
+              "refreshing": false,
+              "onRefresh": "[Function]"
+            }
+          }
+        },
+        "children": [
+          {
+            "type": "RCTRefreshControl",
+            "props": {},
+            "children": null
+          },
+          {
+            "type": "View",
+            "props": {},
+            "children": [
+              {
+                "type": "View",
+                "props": {
+                  "style": {
+                    "backgroundColor": "#ff3b30",
+                    "borderRadius": 10,
+                    "padding": 12,
+                    "marginBottom": 12
+                  }
+                },
+                "children": [
+                  {
+                    "type": "Text",
+                    "props": {
+                      "style": {
+                        "color": "#fff",
+                        "fontWeight": "600",
+                        "textAlign": "center"
+                      }
+                    },
+                    "children": [
+                      "Daemon offline — retrying every 15s"
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "View",
+                "props": {
+                  "style": "[Circular]"
+                },
+                "children": [
+                  {
+                    "type": "Text",
+                    "props": {
+                      "style": "[Circular]"
+                    },
+                    "children": [
+                      "History"
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "View",
+                "props": {
+                  "style": "[Circular]"
+                },
+                "children": [
+                  {
+                    "type": "TextInput",
+                    "props": {
+                      "style": "[Circular]",
+                      "placeholder": "Search history…",
+                      "autoCapitalize": "none",
+                      "autoCorrect": false,
+                      "value": "",
+                      "onChangeText": "[Function]",
+                      "onSubmitEditing": "[Function]",
+                      "returnKeyType": "search"
+                    },
+                    "children": null
+                  },
+                  {
+                    "type": "View",
+                    "props": {
+                      "accessible": true,
+                      "accessibilityState": {
+                        "disabled": true
+                      },
+                      "accessibilityValue": {},
+                      "style": {
+                        "backgroundColor": "#a8a8ad",
+                        "borderRadius": 10,
+                        "paddingHorizontal": 16,
+                        "justifyContent": "center",
+                        "opacity": 1
+                      },
+                      "focusable": false,
+                      "onStartShouldSetResponder": "[Function]",
+                      "onResponderGrant": "[Function]",
+                      "onResponderMove": "[Function]",
+                      "onResponderRelease": "[Function]",
+                      "onResponderTerminate": "[Function]",
+                      "onResponderTerminationRequest": "[Function]",
+                      "onClick": "[Function]",
+                      "collapsable": false
+                    },
+                    "children": [
+                      {
+                        "type": "Text",
+                        "props": {
+                          "style": "[Circular]"
+                        },
+                        "children": [
+                          "Search"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "Text",
+                "props": {
+                  "style": "[Circular]"
+                },
+                "children": [
+                  "Type a query and tap Search to query history."
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "label": "cleared-on-reset",
+      "tree": {
+        "type": "RCTScrollView",
+        "props": {
+          "style": "[Circular]",
+          "contentContainerStyle": "[Circular]",
+          "refreshControl": {
+            "type": "[Function]",
+            "key": null,
+            "props": {
+              "refreshing": false,
+              "onRefresh": "[Function]"
+            }
+          }
+        },
+        "children": [
+          {
+            "type": "RCTRefreshControl",
+            "props": {},
+            "children": null
+          },
+          {
+            "type": "View",
+            "props": {},
+            "children": [
+              {
+                "type": "View",
+                "props": {
+                  "style": "[Circular]"
+                },
+                "children": [
+                  {
+                    "type": "Text",
+                    "props": {
+                      "style": "[Circular]"
+                    },
+                    "children": [
+                      "History"
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "View",
+                "props": {
+                  "style": "[Circular]"
+                },
+                "children": [
+                  {
+                    "type": "TextInput",
+                    "props": {
+                      "style": "[Circular]",
+                      "placeholder": "Search history…",
+                      "autoCapitalize": "none",
+                      "autoCorrect": false,
+                      "value": "",
+                      "onChangeText": "[Function]",
+                      "onSubmitEditing": "[Function]",
+                      "returnKeyType": "search"
+                    },
+                    "children": null
+                  },
+                  {
+                    "type": "View",
+                    "props": {
+                      "accessible": true,
+                      "accessibilityState": {
+                        "disabled": true
+                      },
+                      "accessibilityValue": {},
+                      "style": {
+                        "backgroundColor": "#a8a8ad",
+                        "borderRadius": 10,
+                        "paddingHorizontal": 16,
+                        "justifyContent": "center",
+                        "opacity": 1
+                      },
+                      "focusable": false,
+                      "onStartShouldSetResponder": "[Function]",
+                      "onResponderGrant": "[Function]",
+                      "onResponderMove": "[Function]",
+                      "onResponderRelease": "[Function]",
+                      "onResponderTerminate": "[Function]",
+                      "onResponderTerminationRequest": "[Function]",
+                      "onClick": "[Function]",
+                      "collapsable": false
+                    },
+                    "children": [
+                      {
+                        "type": "Text",
+                        "props": {
+                          "style": "[Circular]"
+                        },
+                        "children": [
+                          "Search"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "Text",
+                "props": {
+                  "style": "[Circular]"
+                },
+                "children": [
+                  "Type a query and tap Search to query history."
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

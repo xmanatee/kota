@@ -1,0 +1,121 @@
+{
+  "ok": true,
+  "cases": [
+    {
+      "name": "semantic-true-unsupported",
+      "status": 200,
+      "body": {
+        "ok": false,
+        "reason": "semantic_unavailable"
+      },
+      "calls": []
+    },
+    {
+      "name": "semantic-true-supported",
+      "status": 200,
+      "body": {
+        "ok": true,
+        "conversations": [
+          {
+            "id": "hist-1",
+            "title": "Release planning",
+            "createdAt": "2026-06-15T09:10:00.000Z",
+            "updatedAt": "2026-06-15T09:20:00.000Z",
+            "model": "test-model",
+            "messageCount": 3,
+            "cwd": "/tmp/project",
+            "source": "user"
+          }
+        ]
+      },
+      "calls": [
+        {
+          "method": "semanticSearch",
+          "query": "harness",
+          "topK": 20,
+          "filters": {}
+        }
+      ]
+    },
+    {
+      "name": "semantic-true-empty",
+      "status": 200,
+      "body": {
+        "ok": true,
+        "conversations": []
+      },
+      "calls": [
+        {
+          "method": "semanticSearch",
+          "query": "missing",
+          "topK": 20,
+          "filters": {}
+        }
+      ]
+    },
+    {
+      "name": "semantic-true-filter-forwarding",
+      "status": 200,
+      "body": {
+        "ok": true,
+        "conversations": [
+          {
+            "id": "hist-1",
+            "title": "Release planning",
+            "createdAt": "2026-06-15T09:10:00.000Z",
+            "updatedAt": "2026-06-15T09:20:00.000Z",
+            "model": "test-model",
+            "messageCount": 3,
+            "cwd": "/tmp/project",
+            "source": "user"
+          }
+        ]
+      },
+      "calls": [
+        {
+          "method": "semanticSearch",
+          "query": "deploy",
+          "topK": 7,
+          "filters": {
+            "cwd": "/tmp/project",
+            "source": "user"
+          }
+        }
+      ]
+    },
+    {
+      "name": "keyword-fallback",
+      "status": 200,
+      "body": {
+        "ok": true,
+        "conversations": []
+      },
+      "calls": [
+        {
+          "method": "list",
+          "input": {
+            "search": "harness",
+            "limit": 3,
+            "cwd": "/tmp/project",
+            "source": "action"
+          }
+        }
+      ]
+    },
+    {
+      "name": "provider-throws",
+      "status": 500,
+      "body": {
+        "error": "provider exploded"
+      },
+      "calls": [
+        {
+          "method": "semanticSearch",
+          "query": "harness",
+          "topK": 20,
+          "filters": {}
+        }
+      ]
+    }
+  ]
+}

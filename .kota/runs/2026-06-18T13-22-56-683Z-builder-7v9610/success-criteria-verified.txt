@@ -1,0 +1,8 @@
+1. Verified: top-level and history CLI help in cli-transcript.txt expose the history command family, and the visual evidence README plus macOS rendered IA snapshot represent the operator surfaces.
+2. Verified: contract-probe.json covers the shared /api/history/search envelopes; cli-transcript.txt exercises the same semantic_unavailable and empty-success arms from the CLI.
+3. Verified: the task names the macOS ConversationRecord.source decoder follow-up and the broader daemon wire-contract conformance task.
+4. Verified: contract-probe.json includes semantic-true-unsupported, and cli-transcript.txt plus surfaces/telegram/messages.md show the operator-facing semantic-unavailable text.
+5. Verified: current-run contract-probe.json and cli-transcript.txt exist; current-run surfaces/telegram/messages.md, surfaces/mobile/history-screen-rendered.json, and surfaces/macos/history-view-rendered-states.txt plus its PNG directory prove the visual client states.
+6. Verified: the task records the macOS screenshot-substitution warning and replaces it with rendered evidence; no separate stale affordance was found.
+7. Verified: src/modules/history/AGENTS.md enumerates Telegram /history, terminal history search, macOS HistoryView, and mobile HistoryScreen.
+8. Verified: the task body records the accepted critic-warning review and the explicit retirement path through operator/rendered evidence.

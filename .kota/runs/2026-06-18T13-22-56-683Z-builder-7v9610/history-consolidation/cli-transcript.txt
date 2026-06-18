@@ -1,0 +1,228 @@
+# history consolidation CLI transcript
+# cwd: /Users/xmanatee/Desktop/mono/apps/kota
+
+$ node --conditions=source --import tsx src/cli.ts --help
+exit: 0
+stdout:
+Usage: kota [options] [command]
+
+KOTA — Keep Only The Awesome. A general-purpose AI agent.
+
+Options:
+  -V, --version                output the version number
+  -h, --help                   display help for command
+
+Commands:
+  run [options] [prompt...]    Run KOTA with a prompt
+  history                      Manage conversation history
+  acp [options]                Run KOTA as an Agent Client Protocol agent over
+                               stdio
+  agent                        Inspect available agents
+  knowledge                    Inspect and manage the project knowledge store
+  memory                       Inspect and manage the agent memory store
+  task                         Inspect and manage the repo task queue
+  recall [options] <query>     Search every registered store at once and return
+                               ranked, source-tagged hits.
+  answer                       Compose, list, and re-read cited answers over the
+                               second brain.
+  approval                     Manage the tool-call approval queue
+  workflow|wf                  Inspect automation workflow runs and control the daemon.
+
+    Control commands (status, pause, resume, abort, reload) use the daemon
+    control API when a daemon is running, and fall back to signal files when
+    no daemon is reachable.
+
+    Inspection commands (list, show, definitions, logs, follow) read artifacts
+    or static definitions directly.
+  digest [options]             Print the on-demand operator digest for the
+                               current project (24h rollup)
+  attention [options]          Print the on-demand attention items for the
+                               current project (no cadence side effects)
+  report [options]             Print the operator autonomy balance/quality
+                               report for the current project (default window 7
+                               days)
+  browser                      Inspect and exercise browser-module capabilities.
+  capture [options] <text...>  Capture one natural-language note and route it to
+                               memory, knowledge, tasks, or inbox.
+  daemon [options]             Run KOTA as a long-running daemon with autonomous
+                               workflows
+  events                       Inspect the daemon event bus
+  session                      Inspect active sessions tracked by the daemon
+  status [options]             Show a concise operational snapshot: daemon,
+                               active runs, approvals, and cost
+  inbox [options]              Show one operator inbox for approvals, owner
+                               questions, blocked tasks, setup gaps, failed
+                               runs, and runtime warnings
+  project                      Inspect and select the daemon's active project
+  module                       Inspect loaded modules and their contributions
+  navigate                     Open the interactive runtime navigator (TTY only)
+  completion [shell]           Print shell completion script (bash or zsh).
+                               Source it to enable tab completion.
+  config                       Inspect and validate KOTA configuration
+  doctor [options]             Run runtime health checks and print a
+                               pass/warn/fail summary
+  eval                         Run the autonomy eval harness against a fixture
+                               or fixture set.
+  audit                        Query the guardrail audit trail
+  harness-parity               Run coding-task scenarios across every registered
+                               harness and capture paired artifacts.
+  init [options]               Scaffold a new KOTA project in the current
+                               directory
+  mcp-registry                 Import external MCP server config from an MCP
+                               Registry-compatible endpoint
+  mcp-server [options]         Start an MCP server exposing KOTA tools
+  owner-decision               Manage persisted owner decisions
+  owner-question               Manage the owner question queue for agent
+                               escalations
+  tools                        Manage installed tool packages
+  retract [options]            Remove or supersede one prior cross-store record
+                               (memory, knowledge, tasks, inbox). Tasks route
+                               through the state machine into
+                               data/tasks/dropped/ — the file is not deleted.
+  secrets                      Manage secrets and credentials
+  setup                        Inspect and satisfy module setup requirements
+  skill                        Manage and inspect registered skills
+  voice                        Talk to the daemon's voice surface (STT input,
+                               TTS output)
+  serve [options]              Start KOTA as an HTTP API server with SSE
+                               streaming
+  webhook                      Manage inbound webhook secrets for workflow
+                               triggers
+  help [command]               display help for command
+
+$ node --conditions=source --import tsx src/cli.ts history --help
+exit: 0
+stdout:
+Usage: kota history [options] [command]
+
+Manage conversation history
+
+Options:
+  -h, --help                display help for command
+
+Commands:
+  list [options]            List recent conversations
+  search [options] <query>  Search conversations (semantic by default)
+  show [options] <id>       Show conversation details
+  resume [options] <id>     Resume a previous conversation
+  delete <id>               Delete a conversation
+  reindex                   Rebuild the semantic search index for all
+                            conversations. No-op when no embedding provider is
+                            configured.
+  clear [options]           Delete all conversations for the current directory
+  help [command]            display help for command
+
+$ node --conditions=source --import tsx src/cli.ts history list --help
+exit: 0
+stdout:
+Usage: kota history list [options]
+
+List recent conversations
+
+Options:
+  -n, --limit <n>       Number of conversations to show (default: "10")
+  -s, --search <query>  Filter by search term
+  --all                 Show conversations from all directories
+  -h, --help            display help for command
+
+$ node --conditions=source --import tsx src/cli.ts history search --help
+exit: 0
+stdout:
+Usage: kota history search [options] <query>
+
+Search conversations (semantic by default)
+
+Options:
+  -n, --limit <n>  Max conversations to show (default: "20")
+  --all            Search across all directories
+  --keyword        Use keyword search instead of semantic ranking
+  --no-semantic    Alias for --keyword
+  --json           Emit the structured { ok, conversations | reason } payload as
+                   JSON
+  -h, --help       display help for command
+
+$ node --conditions=source --import tsx src/cli.ts history show --help
+exit: 0
+stdout:
+Usage: kota history show [options] <id>
+
+Show conversation details
+
+Options:
+  --view <view>        Detail view: metadata, window, full
+  --offset <n>         First message offset for view=window
+  --limit <n>          Number of messages for view=window
+  --content-limit <n>  Characters per message for view=window
+  -h, --help           display help for command
+
+$ node --conditions=source --import tsx src/cli.ts history list -n 1
+exit: 0
+stdout:
+No conversations found.
+stderr:
+[module:rendering] Registered as provider for "rendering"
+[module:history] Registered as provider for "history"
+[module:history] Registered as provider for "history-project"
+[module:history] Registered as provider for "capability-readiness"
+
+$ node --conditions=source --import tsx src/cli.ts history search ''
+exit: 1
+stderr:
+Usage: kota history search <query>
+
+$ node --conditions=source --import tsx src/cli.ts history search harness
+exit: 1
+stderr:
+[module:rendering] Registered as provider for "rendering"
+[module:history] Registered as provider for "history"
+[module:history] Registered as provider for "history-project"
+[module:history] Registered as provider for "capability-readiness"
+Semantic conversation search requires an embedding-backed history provider.
+
+$ node --conditions=source --import tsx src/cli.ts history search harness --json
+exit: 0
+stdout:
+{"ok":false,"reason":"semantic_unavailable"}
+stderr:
+[module:rendering] Registered as provider for "rendering"
+[module:history] Registered as provider for "history"
+[module:history] Registered as provider for "history-project"
+[module:history] Registered as provider for "capability-readiness"
+
+$ node --conditions=source --import tsx src/cli.ts history search zz-kota-history-consolidation-no-match-20260618 --keyword
+exit: 0
+stdout:
+No matching conversations.
+stderr:
+[module:rendering] Registered as provider for "rendering"
+[module:history] Registered as provider for "history"
+[module:history] Registered as provider for "history-project"
+[module:history] Registered as provider for "capability-readiness"
+
+$ node --conditions=source --import tsx src/cli.ts history search zz-kota-history-consolidation-no-match-20260618 --keyword --json
+exit: 0
+stdout:
+{"ok":true,"conversations":[]}
+stderr:
+[module:rendering] Registered as provider for "rendering"
+[module:history] Registered as provider for "history"
+[module:history] Registered as provider for "history-project"
+[module:history] Registered as provider for "capability-readiness"
+
+$ node --conditions=source --import tsx src/cli.ts history show missing-id
+exit: 1
+stderr:
+[module:rendering] Registered as provider for "rendering"
+[module:history] Registered as provider for "history"
+[module:history] Registered as provider for "history-project"
+[module:history] Registered as provider for "capability-readiness"
+Conversation "missing-id" not found.
+
+$ node --conditions=source --import tsx src/cli.ts history search q --limit not-a-number
+exit: 1
+stderr:
+[module:rendering] Registered as provider for "rendering"
+[module:history] Registered as provider for "history"
+[module:history] Registered as provider for "history-project"
+[module:history] Registered as provider for "capability-readiness"
+Error: --limit must be a positive integer, got "not-a-number"

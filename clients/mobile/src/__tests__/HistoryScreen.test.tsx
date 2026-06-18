@@ -1,5 +1,7 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { HistoryScreen } from '../screens/HistoryScreen';
 import { renderHistorySearchPlain } from '../historyRender';
 import type { HistorySearchResponse } from '../types';
@@ -63,6 +65,36 @@ function mockDaemon(
     setHistoryQuery: fns.setHistoryQuery ?? jest.fn(),
     searchHistory: fns.searchHistory ?? jest.fn().mockResolvedValue(undefined),
   });
+}
+
+function serializeRenderedTree(tree: unknown): string {
+  const seen = new WeakSet<object>();
+  return JSON.stringify(
+    tree,
+    (key, value: unknown) => {
+      if (key === '_owner' || key === '_store' || key === 'ref') {
+        return undefined;
+      }
+      if (typeof value === 'function') return '[Function]';
+      if (value && typeof value === 'object') {
+        if (seen.has(value)) return '[Circular]';
+        seen.add(value);
+      }
+      return value;
+    },
+    2,
+  );
+}
+
+function renderHistoryState(
+  label: string,
+  overrides: Partial<ReturnType<typeof defaultState>>,
+): { label: string; tree: unknown } {
+  mockDaemon(overrides);
+  const { toJSON, unmount } = render(<HistoryScreen />);
+  const tree = toJSON();
+  unmount();
+  return { label, tree };
 }
 
 describe('HistoryScreen', () => {
@@ -204,5 +236,89 @@ describe('HistoryScreen', () => {
     const { getByText } = render(<HistoryScreen />);
     fireEvent.press(getByText('Search'));
     expect(searchHistory).toHaveBeenCalledWith('autonomy');
+  });
+
+  test('writes rendered history states to the run directory when requested', () => {
+    const runDir = process.env.KOTA_RUN_DIR;
+    if (!runDir) return;
+
+    const populated: HistorySearchResponse = {
+      ok: true,
+      conversations: [
+        {
+          id: 'hist-1',
+          title: 'Release planning',
+          createdAt: '2026-06-15T09:10:00.000Z',
+          updatedAt: '2026-06-15T09:20:00.000Z',
+          model: 'test-model',
+          messageCount: 3,
+          cwd: '/tmp/project',
+          source: 'user',
+        },
+        {
+          id: 'hist-22',
+          title: 'Operator review',
+          createdAt: '2026-06-15T10:00:00.000Z',
+          updatedAt: '2026-06-15T10:45:00.000Z',
+          model: 'test-model',
+          messageCount: 11,
+          cwd: '/tmp/project',
+          source: 'action',
+        },
+      ],
+    };
+    const empty: HistorySearchResponse = { ok: true, conversations: [] };
+    const semanticUnavailable: HistorySearchResponse = {
+      ok: false,
+      reason: 'semantic_unavailable',
+    };
+
+    const states = [
+      renderHistoryState('settings-loading', { settingsLoaded: false }),
+      renderHistoryState('no-daemon-configured', {
+        daemonUrl: '',
+        token: '',
+      }),
+      renderHistoryState('empty-query', {}),
+      renderHistoryState('loading-refresh-control', {
+        historyQuery: 'fan-out',
+        historyLoading: true,
+      }),
+      renderHistoryState('populated-results', {
+        historyQuery: 'fan-out',
+        historyResult: populated,
+      }),
+      renderHistoryState('empty-results', {
+        historyQuery: 'fan-out',
+        historyResult: empty,
+      }),
+      renderHistoryState('semantic-unavailable', {
+        historyQuery: 'fan-out',
+        historyResult: semanticUnavailable,
+      }),
+      renderHistoryState('http-error-retry', {
+        historyQuery: 'fan-out',
+        historyError: '503 Service Unavailable',
+      }),
+      renderHistoryState('offline-banner', { online: false }),
+      renderHistoryState('cleared-on-reset', {
+        historyQuery: '',
+        historyResult: null,
+        historyLoading: false,
+        historyError: null,
+      }),
+    ];
+
+    const dir = join(runDir, 'history-consolidation', 'surfaces', 'mobile');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, 'history-screen-rendered.json'),
+      `${serializeRenderedTree({
+        surface: 'clients/mobile/src/screens/HistoryScreen.tsx',
+        generatedBy: 'clients/mobile/src/__tests__/HistoryScreen.test.tsx',
+        states,
+      })}\n`,
+      'utf-8',
+    );
   });
 });

@@ -1,0 +1,1 @@
+Render macOS history evidence from mounted view

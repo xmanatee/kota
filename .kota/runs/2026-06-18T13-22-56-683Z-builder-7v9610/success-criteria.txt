@@ -1,0 +1,8 @@
+1. History is discoverable from each shipped operator surface.
+2. The daemon, CLI, Telegram, macOS, and mobile surfaces share the same history search contract.
+3. Any duplicated decoder, renderer, or provider-readiness gap found by the review has a follow-up task named.
+4. Provider-unavailable behavior surfaces the typed semantic_unavailable result across the family.
+5. Runtime, transcript, and rendered evidence exists for daemon, CLI, Telegram, mobile, and macOS history surfaces.
+6. Stale legacy affordances are either absent or covered by a named follow-up.
+7. Scoped AGENTS documentation reflects the shipped history pull surfaces.
+8. Accepted critic warnings from the fan-out commits are reviewed, with a retirement plan where needed.
