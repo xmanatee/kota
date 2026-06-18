@@ -412,6 +412,7 @@ describe("builder workflow", () => {
     expect(promptContent).not.toMatch(/data\/tasks\/doing\//);
     expect(promptContent).not.toMatch(/data\/tasks\/ready\//);
     expect(promptContent).not.toMatch(/data\/tasks\/blocked\//);
+    expect(promptContent).toMatch(/prefer P1 Product or\s+Safety work over Meta/);
     expect(taskAgentsContent).toMatch(/State directories define their own lifecycle/i);
   });
 

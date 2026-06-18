@@ -72,6 +72,23 @@ function classificationRole(
   }
 }
 
+function taskClassRole(
+  taskClass: QueueBalance["byTaskClass"][number]["taskClass"],
+): "error" | "success" | "warn" | "info" | "muted" {
+  switch (taskClass) {
+    case "Safety":
+      return "error";
+    case "Product":
+      return "success";
+    case "Platform":
+      return "info";
+    case "Meta":
+      return "warn";
+    case "Unclassified":
+      return "muted";
+  }
+}
+
 export function renderAutonomyReport(data: AutonomyReportData): RenderNode {
   return stack(
     line(
@@ -121,6 +138,11 @@ function renderQueueBalance(balance: QueueBalance): RenderNode[] {
     label: s.state,
     value: `${s.count}`,
   }));
+  const taskClassEntries: KVEntry[] = balance.byTaskClass.map((row) => ({
+    label: row.taskClass,
+    value: `${row.count} (${pct(row.count, balance.total)})`,
+    role: taskClassRole(row.taskClass),
+  }));
   const areaLines = balance.byArea.map((a) =>
     line(plain(`  ${a.area.padEnd(16)} ${String(a.count).padStart(3)} (${pct(a.count, balance.total)})`)),
   );
@@ -132,6 +154,9 @@ function renderQueueBalance(balance: QueueBalance): RenderNode[] {
     blank(),
     line(span("By priority", "muted", true)),
     kvBlock(priorityEntries, 12),
+    blank(),
+    line(span("By task_class", "muted", true)),
+    kvBlock(taskClassEntries, 14),
     blank(),
     line(span("By area", "muted", true)),
     ...areaLines,

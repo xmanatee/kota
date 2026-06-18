@@ -15,6 +15,7 @@ function writeTask(
   attrs: {
     priority: string;
     area: string;
+    taskClass?: "Product" | "Safety" | "Platform" | "Meta";
     title?: string;
     updatedAt?: string;
     body?: string;
@@ -32,6 +33,7 @@ function writeTask(
   const content =
     `---\nid: ${id}\ntitle: ${title}\nstatus: ${state}\npriority: ${attrs.priority}\n` +
     `area: ${attrs.area}\nsummary: t\ncreated_at: ${updatedAt}\nupdated_at: ${updatedAt}\n` +
+    `${attrs.taskClass ? `task_class: ${attrs.taskClass}\n` : ""}` +
     `${dependencyLine}---\n\n${body}`;
   writeFileSync(join(dir, `${id}.md`), content, "utf-8");
 }
@@ -233,12 +235,25 @@ describe("aggregateAutonomyReport", () => {
 
   it("aggregates open queue priority and area mix", () => {
     writeTask(projectDir, "backlog", "task-arch-1", { priority: "p1", area: "architecture" });
-    writeTask(projectDir, "backlog", "task-client-1", { priority: "p2", area: "client" });
-    writeTask(projectDir, "ready", "task-modules-1", { priority: "p1", area: "modules" });
-    writeTask(projectDir, "doing", "task-doing-1", { priority: "p2", area: "client" });
+    writeTask(projectDir, "backlog", "task-client-1", {
+      priority: "p2",
+      area: "client",
+      taskClass: "Product",
+    });
+    writeTask(projectDir, "ready", "task-modules-1", {
+      priority: "p1",
+      area: "modules",
+      taskClass: "Platform",
+    });
+    writeTask(projectDir, "doing", "task-doing-1", {
+      priority: "p2",
+      area: "client",
+      taskClass: "Safety",
+    });
     writeTask(projectDir, "blocked", "task-blocked-1", {
       priority: "p1",
       area: "architecture",
+      taskClass: "Meta",
       body: "## Unblock Precondition\n\nkind: owner-decision\nslot: a\nquestion: Q?\n",
     });
     writeTask(projectDir, "done", "task-done-old", {
@@ -263,6 +278,13 @@ describe("aggregateAutonomyReport", () => {
       report.openQueue.byArea.map((r) => [r.area, r.count]),
     );
     expect(byArea).toEqual({ architecture: 2, client: 2, modules: 1 });
+    expect(report.openQueue.byTaskClass).toEqual([
+      { taskClass: "Safety", count: 1 },
+      { taskClass: "Product", count: 1 },
+      { taskClass: "Platform", count: 1 },
+      { taskClass: "Meta", count: 1 },
+      { taskClass: "Unclassified", count: 1 },
+    ]);
     expect(report.doneInWindow.total).toBe(0);
   });
 

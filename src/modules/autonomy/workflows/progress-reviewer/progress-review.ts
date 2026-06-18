@@ -35,11 +35,13 @@ import {
   type WorkflowBatchFlushPayload,
   type WorkflowRunTrigger,
 } from "#core/workflow/trigger-types.js";
+import { mentionsOperatorEvidence } from "#modules/autonomy/product-evidence.js";
 import {
   getRepoInboxDir,
   getRepoTaskStateDir,
   listFullRepoTasks,
   REPO_TASK_STATES,
+  type RepoTaskClass,
   type RepoTaskFullRecord,
   type RepoTaskState,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
@@ -118,6 +120,21 @@ export type ProgressReviewTaskEvidence = ProgressReviewEvidenceRef & {
   updatedAt: string;
   priority: string;
   area: string;
+  taskClass: RepoTaskClass;
+  operatorEvidenceMentioned: boolean;
+};
+
+export type ProgressReviewTaskClassCount = {
+  taskClass: RepoTaskClass;
+  count: number;
+};
+
+export type ProgressReviewOperatorJourneyRisk = {
+  taskId: string;
+  title: string;
+  state: RepoTaskState;
+  evidenceId: string;
+  reason: string;
 };
 
 export type ProgressReviewEventEvidence = ProgressReviewEvidenceRef & {
@@ -220,6 +237,8 @@ export type ProgressReviewEvidencePacket = {
   approvals: ProgressReviewApprovalEvidence[];
   deadLetterCounts: ProgressReviewDeadLetterCounts[];
   deadLetters: ProgressReviewDeadLetterEvidence[];
+  taskClassDistribution: ProgressReviewTaskClassCount[];
+  operatorJourneyRisks: ProgressReviewOperatorJourneyRisk[];
   evidence: ProgressReviewEvidenceRef[];
   excluded: string[];
 };
@@ -241,8 +260,10 @@ export type ProgressReviewAgentEvidencePacket = {
     approvals: number;
     deadLetters: number;
     evidence: number;
+    taskClasses: ProgressReviewTaskClassCount[];
   };
   deadLetterCounts: ProgressReviewDeadLetterCounts[];
+  operatorJourneyRisks: ProgressReviewOperatorJourneyRisk[];
   evidence: ProgressReviewEvidenceRef[];
   excluded: string[];
 };
@@ -753,9 +774,17 @@ function summarizeTask(
     updatedAt: record.updatedAt,
     priority: record.priority,
     area: record.area,
+    taskClass: record.taskClass,
+    operatorEvidenceMentioned: taskMentionsOperatorEvidence(record),
     path: join("data", "tasks", record.state, `${record.id}.md`),
     summary: sourceSummary(source, `${record.id} ${record.state}: ${record.title}`),
   };
+}
+
+function taskMentionsOperatorEvidence(record: RepoTaskFullRecord): boolean {
+  return mentionsOperatorEvidence(
+    [record.title, record.summary, record.body].join("\n"),
+  );
 }
 
 function listRecentTasks(
@@ -785,6 +814,50 @@ function listRecentTasks(
   return records
     .slice(0, PROGRESS_REVIEW_MAX_TASKS)
     .map(({ source, record }) => summarizeTask(source, record));
+}
+
+function taskClassDistribution(
+  tasks: readonly ProgressReviewTaskEvidence[],
+): ProgressReviewTaskClassCount[] {
+  const counts = new Map<RepoTaskClass, number>();
+  for (const task of tasks) {
+    counts.set(task.taskClass, (counts.get(task.taskClass) ?? 0) + 1);
+  }
+  const order = new Map<RepoTaskClass, number>([
+    ["Safety", 0],
+    ["Product", 1],
+    ["Platform", 2],
+    ["Meta", 3],
+    ["Unclassified", 4],
+  ]);
+  return [...counts.entries()]
+    .map(([taskClass, count]) => ({ taskClass, count }))
+    .sort(
+      (a, b) =>
+        (order.get(a.taskClass) ?? 9) - (order.get(b.taskClass) ?? 9) ||
+        a.taskClass.localeCompare(b.taskClass),
+    );
+}
+
+function operatorJourneyRisks(
+  tasks: readonly ProgressReviewTaskEvidence[],
+): ProgressReviewOperatorJourneyRisk[] {
+  return tasks
+    .filter(
+      (task) =>
+        task.taskClass === "Product" &&
+        task.state === "done" &&
+        !task.operatorEvidenceMentioned,
+    )
+    .map((task) => ({
+      taskId: task.taskId,
+      title: task.title,
+      state: task.state,
+      evidenceId: task.id,
+      reason:
+        "Product task moved to done without transcript, screenshot, runtime probe, rendered fixture, trace, snapshot, demo, or equivalent evidence in the task record.",
+    }))
+    .sort((a, b) => a.taskId.localeCompare(b.taskId));
 }
 
 function summarizePayload(value: object): string {
@@ -1329,6 +1402,7 @@ function progressReviewEvidenceCounts(
     approvals: packet.approvals.length,
     deadLetters: packet.deadLetters.length,
     evidence: packet.evidence.length,
+    taskClasses: packet.taskClassDistribution,
   };
 }
 
@@ -1414,6 +1488,7 @@ export function compactProgressReviewEvidenceForAgent(
     batch: packet.batch,
     counts: progressReviewEvidenceCounts(packet),
     deadLetterCounts: packet.deadLetterCounts,
+    operatorJourneyRisks: packet.operatorJourneyRisks,
     evidence: compacted.evidence,
     excluded,
   };
@@ -1451,6 +1526,8 @@ export function collectProgressReviewEvidence(args: {
   );
   const runs = scopedRuns.map((run) => run.evidence);
   const tasks = listRecentTasks(target.sources, startedAtMs, excluded);
+  const classDistribution = taskClassDistribution(tasks);
+  const journeyRisks = operatorJourneyRisks(tasks);
   const events = listBatchEvents(args.trigger, excluded);
   const artifacts = listArtifactEvidence(scopedRuns, excluded);
   const git = listScopedGitEvidence(target.sources, startedAtMs, excluded);
@@ -1489,6 +1566,8 @@ export function collectProgressReviewEvidence(args: {
     approvals,
     deadLetterCounts,
     deadLetters,
+    taskClassDistribution: classDistribution,
+    operatorJourneyRisks: journeyRisks,
     evidence,
     excluded,
   };

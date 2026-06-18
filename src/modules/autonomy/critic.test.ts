@@ -433,6 +433,90 @@ describe("createCriticCheck", () => {
     expect(artifact.critical_issues).toHaveLength(1);
   });
 
+  it("rejects a Product task with passing checks but no operator journey evidence", async () => {
+    const dir = makeTmpDir();
+    const doingDir = join(dir, "data/tasks/doing");
+    mkdirSync(doingDir, { recursive: true });
+    writeFileSync(
+      join(doingDir, "task-product-no-evidence.md"),
+      [
+        "---",
+        "id: task-product-no-evidence",
+        "title: Ship product surface",
+        "status: doing",
+        "priority: p1",
+        "area: client",
+        "summary: Improve the operator path.",
+        "task_class: Product",
+        "---",
+        "",
+        "## Done When",
+        "",
+        "- Tests pass.",
+      ].join("\n"),
+    );
+    const runDir = join(dir, ".kota/runs/test-run");
+    mkdirSync(runDir, { recursive: true });
+    setApiResponse({
+      verdict: "pass",
+      critical_issues: [],
+      warnings: [],
+      summary: "Mock judge would pass, but should not be reached.",
+    });
+
+    const check = createCriticCheck({ runDirPath: runDir });
+    await expect(
+      (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP),
+    ).rejects.toThrow(/operator journey evidence/);
+
+    expect(mockRunAgentHarness).not.toHaveBeenCalled();
+    const artifact = JSON.parse(readFileSync(join(runDir, "critic-review.json"), "utf8"));
+    expect(artifact.verdict).toBe("fail");
+    expect(artifact.summary).toContain("operator journey evidence is absent");
+  });
+
+  it("passes Product tasks with a rendered transcript artifact through to the critic", async () => {
+    const dir = makeTmpDir();
+    const doingDir = join(dir, "data/tasks/doing");
+    mkdirSync(doingDir, { recursive: true });
+    writeFileSync(
+      join(doingDir, "task-product-transcript.md"),
+      [
+        "---",
+        "id: task-product-transcript",
+        "title: Ship product surface",
+        "status: doing",
+        "priority: p1",
+        "area: client",
+        "summary: Improve the operator path.",
+        "task_class: Product",
+        "---",
+        "",
+        "## Done When",
+        "",
+        "- Transcript shows the operator path.",
+      ].join("\n"),
+    );
+    const runDir = join(dir, ".kota/runs/test-run");
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, "transcript.txt"), "kota report\nProduct: 1\n");
+    setApiResponse({
+      verdict: "pass",
+      critical_issues: [],
+      warnings: [],
+      summary: "Transcript proves the journey.",
+    });
+
+    const check = createCriticCheck({ runDirPath: runDir });
+    const result = await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
+
+    expect(result).toMatch(/pass/);
+    expect(mockRunAgentHarness).toHaveBeenCalledOnce();
+    const userMessage = getPromptArg(mockRunAgentHarness.mock.calls[0]);
+    expect(userMessage).toContain("Product operator evidence refs detected");
+    expect(userMessage).toContain("run:transcript.txt");
+  });
+
   it("retries up to 3 times on transient provider errors before throwing", async () => {
     vi.useFakeTimers();
     const dir = makeTmpDir();

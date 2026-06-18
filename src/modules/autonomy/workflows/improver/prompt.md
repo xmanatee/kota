@@ -20,6 +20,14 @@ only when the card points to a systemic local-code pattern or a recurring
 operator/setup/evidence gap. Do not chase isolated health signals that the
 reviewer has not batched into a stable pattern.
 
+## Task Governance
+
+The `gather-task-governance` step injects open queue balance by `task_class`,
+actionable Meta tasks without a Product/Safety link, and done Product tasks
+that mention no operator-journey evidence. Use it to prioritize autonomy
+changes that unblock Product/Safety outcomes or strengthen rendered-evidence
+governance; do not optimize Meta process for its own sake.
+
 ## Scope
 
 - Improve prompts, instructions, validation, triggering, queue-shaping, and other autonomy surfaces when they materially affect future runs.

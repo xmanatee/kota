@@ -152,6 +152,8 @@ const collectEvidence = typedCodeStep<ProgressReviewEvidencePacket>({
       "evidence",
       "approvals",
       "excluded",
+      "taskClassDistribution",
+      "operatorJourneyRisks",
     ]),
   run: ({ projectDir, trigger }) =>
     collectProgressReviewEvidence({
@@ -176,6 +178,7 @@ const prepareReviewInput = typedCodeStep<ProgressReviewAgentEvidencePacket>({
       "batch",
       "counts",
       "deadLetterCounts",
+      "operatorJourneyRisks",
       "evidence",
       "excluded",
     ]),

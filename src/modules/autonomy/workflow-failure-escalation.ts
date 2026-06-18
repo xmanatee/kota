@@ -48,6 +48,7 @@ export type WorkflowFailurePattern = {
   signalId: string;
   signalLabel: string;
   fingerprint: string;
+  rootCauseFingerprint: string;
   evidenceFingerprint: string;
   taskId: string;
   runIds: string[];
@@ -297,6 +298,26 @@ function patternFingerprint(
   return `workflow-failure:${kind}:${workflow}:${signalKind}:${shortHash(signalId)}`;
 }
 
+function rootCauseSignalKey(signalKind: PatternSignalKind, signalId: string): string {
+  switch (signalKind) {
+    case "repair-check":
+    case "repair-warning":
+      return `repair-check:${signalId}`;
+    case "step-error":
+      return `step-error:${signalId}`;
+    case "workflow-status":
+      return `workflow-status:${signalId}`;
+  }
+}
+
+function rootCauseFingerprint(
+  workflow: string,
+  signalKind: PatternSignalKind,
+  signalId: string,
+): string {
+  return `workflow-failure-root:${workflow}:${shortHash(rootCauseSignalKey(signalKind, signalId))}`;
+}
+
 function buildPattern(opts: {
   kind: WorkflowFailurePatternKind;
   workflow: string;
@@ -319,9 +340,15 @@ function buildPattern(opts: {
     opts.signalKind,
     opts.signalId,
   );
+  const rootFingerprint = rootCauseFingerprint(
+    opts.workflow,
+    opts.signalKind,
+    opts.signalId,
+  );
   const evidenceFingerprint = stableHash(
     [
       fingerprint,
+      rootFingerprint,
       ...runIds,
       opts.reason,
       ...opts.evidence,
@@ -334,8 +361,9 @@ function buildPattern(opts: {
     signalId: opts.signalId,
     signalLabel: opts.signalLabel,
     fingerprint,
+    rootCauseFingerprint: rootFingerprint,
     evidenceFingerprint,
-    taskId: `${TASK_ID_PREFIX}${shortHash(fingerprint)}`,
+    taskId: `${TASK_ID_PREFIX}${shortHash(rootFingerprint)}`,
     runIds,
     runCount: runIds.length,
     windowStart,
@@ -539,12 +567,31 @@ export function detectPersistentWorkflowFailurePatternsFromRuns(
     );
   }
 
-  return patterns.sort(
+  const sorted = patterns.sort(
     (a, b) =>
       a.workflow.localeCompare(b.workflow) ||
+      patternKindRank(a.kind) - patternKindRank(b.kind) ||
       a.kind.localeCompare(b.kind) ||
       a.signalId.localeCompare(b.signalId),
   );
+  const byRootCause = new Map<string, WorkflowFailurePattern>();
+  for (const pattern of sorted) {
+    if (!byRootCause.has(pattern.rootCauseFingerprint)) {
+      byRootCause.set(pattern.rootCauseFingerprint, pattern);
+    }
+  }
+  return [...byRootCause.values()];
+}
+
+function patternKindRank(kind: WorkflowFailurePatternKind): number {
+  switch (kind) {
+    case "consecutive-failures":
+      return 0;
+    case "terminal-failure-rate":
+      return 1;
+    case "repeated-warning":
+      return 2;
+  }
 }
 
 export function detectPersistentWorkflowFailurePatterns(
@@ -656,6 +703,7 @@ function buildWorkflowFailureTaskFile(
       `${describePatternKind(pattern.kind)} signal (${pattern.signalLabel}).`,
     created_at: timestamps.createdAt,
     updated_at: timestamps.updatedAt,
+    task_class: "Meta",
   };
   return serializeFlatFrontMatter(attrs, buildWorkflowFailureTaskBody(pattern));
 }
@@ -683,6 +731,7 @@ function buildWorkflowFailureTaskBody(pattern: WorkflowFailurePattern): string {
     "signal is considered local and code-actionable.",
     "",
     `Pattern fingerprint: \`${pattern.fingerprint}\``,
+    `Root-cause fingerprint: \`${pattern.rootCauseFingerprint}\``,
     `Evidence fingerprint: \`${pattern.evidenceFingerprint}\``,
     "",
     "## Failure Evidence",
@@ -710,9 +759,16 @@ function buildWorkflowFailureTaskBody(pattern: WorkflowFailurePattern): string {
     "- Use existing `.kota/runs/` metadata and run artifacts as evidence.",
     "- Keep cost and throughput data out of autonomy-agent context.",
     "- Do not create one task per run; keep this task anchored to the stable",
-    "  pattern fingerprint above.",
+    "  root-cause fingerprint above.",
     "- Preserve provider/auth/rate-limit/timeout exclusions unless the local",
     "  runtime handling is the defect being repaired.",
+    "",
+    "## Product / Safety Link",
+    "",
+    "Persistent monitored workflow failures are a runtime posture blocker:",
+    "autonomy cannot reliably ship or review Product/Safety work while this",
+    "root cause keeps recurring. This Meta repair is actionable only because",
+    "the detector crossed the local-code threshold on concrete run artifacts.",
     "",
     "## Done When",
     "",

@@ -21,6 +21,9 @@ exist.
 - Use `pnpm kota task create` to scaffold each subtask, then follow
   `data/tasks/AGENTS.md` and the destination state's local contract.
 - Make subtasks sequenceable and independently completable when possible.
+- Preserve the original task's Product/Safety urgency in the resulting
+  sequence; create Meta repair subtasks only when they close a visible Product,
+  Safety, or runtime blocker.
 - Do not split only to reduce diff size. Keep a cohesive change together when
   that produces a cleaner result.
 

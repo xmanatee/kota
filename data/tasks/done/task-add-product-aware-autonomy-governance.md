@@ -1,12 +1,12 @@
 ---
 id: task-add-product-aware-autonomy-governance
 title: Add product aware autonomy governance
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Teach builder, improver, decomposer, progress-reviewer, critic, and repair escalation to prefer Product/Safety outcomes and require Meta tasks to close visible blockers.
 created_at: 2026-06-11T22:24:13.509Z
-updated_at: 2026-06-18T19:36:00.238Z
+updated_at: 2026-06-18T22:44:22.000Z
 task_class: Platform
 ---
 
@@ -54,9 +54,30 @@ KOTA product-aware autonomy governance.
 
 ## Acceptance Evidence
 
-- Queue governance tests show Product/Safety outranks actionable Meta work.
-- Critic fixture shows a Product task with passing tests but no rendered
-  evidence fails review.
-- Workflow-failure-escalator fixture shows repeated same-root-cause failures
-  create one consolidated repair task.
-- `kota report` transcript includes Product/Safety/Platform/Meta distribution.
+- Queue governance test coverage in
+  `src/modules/autonomy/workflows/backlog-promoter/promotion.test.ts` shows
+  same-priority Safety/Product work outranking ordinary Meta work, and
+  generated runtime-posture repair work outranking same-priority
+  Safety/Product work.
+- Improver governance test coverage in
+  `src/modules/autonomy/workflows/improver/task-governance.test.ts` and
+  `src/modules/autonomy/workflows/improver/workflow.test.ts` shows the
+  workflow receives task-class balance, actionable Meta link gaps, and done
+  Product tasks without operator-journey evidence.
+- Critic test coverage in `src/modules/autonomy/critic.test.ts` rejects a
+  `task_class: Product` task when mocked implementation checks would pass but
+  no operator-journey artifact exists.
+- Workflow-failure escalation tests in
+  `src/modules/autonomy/workflow-failure-escalation.test.ts` show repeated
+  repair warnings and failures with the same root cause sharing one repair
+  task id.
+- `.kota/runs/2026-06-18T22-10-55-014Z-builder-gglikl/kota-report-transcript.txt`
+  captures `kota report` output with `By task_class` distribution for open and
+  done tasks.
+
+## Result
+
+Product-aware governance now has deterministic queue ranking with a
+runtime-posture repair exception, improver task-governance evidence, critic
+evidence gating, progress-review/report task-class distribution, and
+root-cause keyed failure repair consolidation.

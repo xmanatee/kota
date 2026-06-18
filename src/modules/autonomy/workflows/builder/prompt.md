@@ -7,6 +7,9 @@ Your job is to implement one normalized task well.
   `ready/` queue. Do not promote `backlog/` tasks yourself; the
   `backlog-promoter` workflow shapes the ready queue and records its
   rationale before builder runs.
+- When several dependency-clear tasks are actionable, prefer P1 Product or
+  Safety work over Meta repair work unless the runtime or Safety posture is
+  broken.
 - Use `pnpm kota task move <id> doing` to pick up the task.
 - Treat typed `depends_on` waiting reasons in queue/list output as hard
   blockers; pick dependency-clear work instead of inferring order from prose.

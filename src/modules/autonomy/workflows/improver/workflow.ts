@@ -32,6 +32,10 @@ import {
   shouldRunImproverFromGate,
   writeImproverEvidenceGateState,
 } from "./evidence-gate.js";
+import {
+  collectImproverTaskGovernance,
+  type ImproverTaskGovernanceEvidence,
+} from "./task-governance.js";
 
 export const agent: AgentDef = {
   name: "improver",
@@ -77,6 +81,20 @@ const gatherHealthIssueCardsStep = typedCodeStep<AutonomyHealthIssueEvidence>({
     const store = new WorkflowRunStore(projectDir);
     return collectRecentAutonomyHealthIssueCards(store.runsDir);
   },
+});
+
+const gatherTaskGovernanceStep = typedCodeStep<ImproverTaskGovernanceEvidence>({
+  id: "gather-task-governance",
+  type: "code",
+  exposeOutputToAgent: true,
+  validate: (raw) =>
+    expectStructuredOutput<ImproverTaskGovernanceEvidence>(raw, [
+      "generatedAt",
+      "openByTaskClass",
+      "actionableMetaWithoutProductSafetyLink",
+      "productDoneWithoutOperatorEvidence",
+    ]),
+  run: ({ projectDir }) => collectImproverTaskGovernance(projectDir),
 });
 
 const gateEvidenceStep = typedCodeStep<ReturnType<typeof decideImproverEvidenceGate>>({
@@ -125,6 +143,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
     },
     gatherRunDataStep,
     gatherHealthIssueCardsStep,
+    gatherTaskGovernanceStep,
     gateEvidenceStep,
     {
       id: "improve",

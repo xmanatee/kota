@@ -60,10 +60,70 @@ describe("improver workflow", () => {
     );
   }
 
+  function writeTask(
+    state: string,
+    id: string,
+    options: { taskClass?: "Product" | "Safety" | "Platform" | "Meta"; body?: string } = {},
+  ): void {
+    const taskDir = join(projectDir, "data", "tasks", state);
+    mkdirSync(taskDir, { recursive: true });
+    const lines = [
+      "---",
+      `id: ${id}`,
+      `title: ${id}`,
+      `status: ${state}`,
+      "priority: p1",
+      "area: autonomy",
+      `summary: ${id} summary`,
+      "created_at: 2026-06-01T00:00:00.000Z",
+      "updated_at: 2026-06-01T00:00:00.000Z",
+    ];
+    if (options.taskClass) lines.push(`task_class: ${options.taskClass}`);
+    lines.push("---", "", options.body ?? "## Problem\n\nTask body.\n");
+    writeFileSync(join(taskDir, `${id}.md`), `${lines.join("\n")}\n`);
+  }
+
   it("uses evidence gating rather than trigger cooldowns for pacing", () => {
     for (const trigger of improverWorkflow.triggers) {
       expect(trigger.cooldownMs, `${trigger.event} should not delay evidence checks`).toBeUndefined();
     }
+  });
+
+  it("exposes task-class and operator-evidence governance to the agent", async () => {
+    writeTask("ready", "task-meta-missing-link", { taskClass: "Meta" });
+    writeTask("done", "task-product-without-evidence", {
+      taskClass: "Product",
+      body: "## Acceptance Evidence\n\n- Unit tests passed.\n",
+    });
+
+    const step = improverWorkflow.steps.find(
+      (candidate) => candidate.id === "gather-task-governance",
+    );
+    expect(step).toEqual(expect.objectContaining({ exposeOutputToAgent: true }));
+
+    const harness = new WorkflowTestHarness(improverWorkflow, {
+      projectDir,
+      trigger: {
+        event: "workflow.completed",
+        payload: { workflow: "builder", status: "success" },
+      },
+      stepMocks: {
+        improve: { turns: [], totalCostUsd: 0.1 },
+      },
+    });
+
+    const result = await harness.run();
+
+    expect(result.steps["gather-task-governance"].status).toBe("success");
+    expect(result.steps["gather-task-governance"].output).toMatchObject({
+      openByTaskClass: [{ taskClass: "Meta", count: 1 }],
+      actionableMetaWithoutProductSafetyLink: [
+        expect.objectContaining({ taskId: "task-meta-missing-link" }),
+      ],
+      productDoneWithoutOperatorEvidence: [
+        expect.objectContaining({ taskId: "task-product-without-evidence" }),
+      ],
+    });
   });
 
   it("skips commit and request-restart when improve fails", async () => {

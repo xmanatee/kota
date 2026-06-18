@@ -379,9 +379,12 @@ describe("workflow failure escalation tasks", () => {
     expect(existsSync(taskPath)).toBe(true);
     const content = readFileSync(taskPath, "utf-8");
     expect(content).toContain("status: ready");
+    expect(content).toContain("task_class: Meta");
     expect(content).toContain("fs-a, fs-b, fs-c");
     expect(content).toContain(patterns[0].fingerprint);
+    expect(content).toContain(patterns[0].rootCauseFingerprint);
     expect(content).toContain(patterns[0].evidenceFingerprint);
+    expect(content).toContain("## Product / Safety Link");
     expect(assertTaskQueueValid(projectDir, { minReady: 1 }).errorCount).toBe(0);
   });
 
@@ -424,6 +427,86 @@ describe("workflow failure escalation tasks", () => {
     });
     expect(second.kind).toBe("noop");
     expect(readFileSync(taskPath, "utf-8")).toBe(before);
+  });
+
+  it("consolidates repeated same-root-cause repair warnings and failures into one task", () => {
+    const failurePattern = detectPersistentWorkflowFailurePatternsFromRuns(
+      [
+        makeRun({
+          id: "fail-a",
+          workflow: "builder",
+          hoursAgo: 3,
+          status: "failed",
+          repairCheckId: "critic-review",
+        }),
+        makeRun({
+          id: "fail-b",
+          workflow: "builder",
+          hoursAgo: 2,
+          status: "failed",
+          repairCheckId: "critic-review",
+        }),
+        makeRun({
+          id: "fail-c",
+          workflow: "builder",
+          hoursAgo: 1,
+          status: "failed",
+          repairCheckId: "critic-review",
+        }),
+      ],
+      { nowMs: NOW },
+    )[0];
+    const warningPattern = detectPersistentWorkflowFailurePatternsFromRuns(
+      [
+        makeRun({
+          id: "warn-a",
+          workflow: "builder",
+          hoursAgo: 3,
+          status: "completed-with-warnings",
+          warnings: [{ type: "critic-review", message: "critic unavailable" }],
+        }),
+        makeRun({
+          id: "warn-b",
+          workflow: "builder",
+          hoursAgo: 2,
+          status: "completed-with-warnings",
+          warnings: [{ type: "critic-review", message: "critic unavailable" }],
+        }),
+        makeRun({
+          id: "warn-c",
+          workflow: "builder",
+          hoursAgo: 1,
+          status: "completed-with-warnings",
+          warnings: [{ type: "critic-review", message: "critic unavailable" }],
+        }),
+      ],
+      { nowMs: NOW },
+    )[0];
+
+    expect(failurePattern.taskId).toBe(warningPattern.taskId);
+    expect(failurePattern.rootCauseFingerprint).toBe(
+      warningPattern.rootCauseFingerprint,
+    );
+
+    const first = applyFirstPattern(projectDir, failurePattern);
+    expect(first.kind).toBe("created");
+    const proposal = proposeWorkflowFailureEscalation(projectDir, warningPattern);
+    expect(proposal.action).toBe("refresh");
+    const second = applyWorkflowFailureEscalation(proposal, {
+      projectDir,
+      nowIso: "2026-05-29T13:00:00.000Z",
+    });
+    expect(second.kind).toBe("refreshed");
+
+    const readyTaskPath = join(
+      projectDir,
+      "data",
+      "tasks",
+      "ready",
+      `${failurePattern.taskId}.md`,
+    );
+    expect(existsSync(readyTaskPath)).toBe(true);
+    expect(readFileSync(readyTaskPath, "utf-8")).toContain("warn-a, warn-b, warn-c");
   });
 
   it("formats operator attention without cost fields", () => {

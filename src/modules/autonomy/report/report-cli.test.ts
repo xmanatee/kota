@@ -35,7 +35,13 @@ function writeTask(
   projectDir: string,
   state: string,
   id: string,
-  attrs: { priority: string; area: string; updatedAt?: string; body?: string },
+  attrs: {
+    priority: string;
+    area: string;
+    taskClass?: "Product" | "Safety" | "Platform" | "Meta";
+    updatedAt?: string;
+    body?: string;
+  },
 ): void {
   const dir = join(projectDir, "data", "tasks", state);
   mkdirSync(dir, { recursive: true });
@@ -43,7 +49,9 @@ function writeTask(
   const body = attrs.body ?? "## Problem\n\nTest body.\n";
   const content =
     `---\nid: ${id}\ntitle: ${id}\nstatus: ${state}\npriority: ${attrs.priority}\n` +
-    `area: ${attrs.area}\nsummary: t\ncreated_at: ${updatedAt}\nupdated_at: ${updatedAt}\n---\n\n${body}`;
+    `area: ${attrs.area}\nsummary: t\ncreated_at: ${updatedAt}\nupdated_at: ${updatedAt}\n` +
+    `${attrs.taskClass ? `task_class: ${attrs.taskClass}\n` : ""}` +
+    `---\n\n${body}`;
   writeFileSync(join(dir, `${id}.md`), content, "utf-8");
 }
 
@@ -108,6 +116,7 @@ describe("kota report CLI", () => {
     writeTask(projectDir, "backlog", "task-client-1", {
       priority: "p2",
       area: "client",
+      taskClass: "Product",
     });
 
     const out = await captureStdout(async () => {
@@ -119,6 +128,9 @@ describe("kota report CLI", () => {
     expect(out).toContain("Total: 2");
     expect(out).toContain("architecture");
     expect(out).toContain("client");
+    expect(out).toContain("By task_class");
+    expect(out).toContain("Product");
+    expect(out).toContain("Unclassified");
     expect(out).toContain("Cost");
   });
 
@@ -134,6 +146,9 @@ describe("kota report CLI", () => {
 
     const parsed = JSON.parse(out.trim());
     expect(parsed.openQueue.total).toBe(1);
+    expect(parsed.openQueue.byTaskClass).toEqual([
+      { taskClass: "Unclassified", count: 1 },
+    ]);
     expect(parsed.windowDays).toBe(7);
     expect(Array.isArray(parsed.cost.byWorkflow)).toBe(true);
     expect(parsed.explorer.byClassification).toHaveLength(3);

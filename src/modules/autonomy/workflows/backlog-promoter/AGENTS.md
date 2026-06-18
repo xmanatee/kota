@@ -12,8 +12,9 @@ Runtime contract:
 - Recovery-capable: stashes any tracked dirt before doing anything else.
 - Never acts on a dirty worktree and never promotes more than
   `PROMOTION_BATCH_LIMIT` tasks per run.
-- Ranking is deterministic in `promotion.ts`: priority (p0..p3), then
-  task class (Safety, Product, Platform, unclassified, Meta), then
+- Ranking is deterministic in `promotion.ts`: priority (p0..p3), then a
+  narrow runtime-posture repair exception for generated workflow-failure Meta
+  tasks, then task class (Safety, Product, Platform, unclassified, Meta), then
   strategic-area tie-break (architecture/autonomy/core/modules), then oldest
   `updated_at`, then id. The same record set therefore picks the same batch
   every run.

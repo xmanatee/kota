@@ -11,6 +11,7 @@ import {
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
 import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-retry.js";
+import { checkProductOperatorEvidence } from "./product-evidence.js";
 import { AUTONOMY_AGENT_DEFAULTS, AUTONOMY_DISALLOWED_TOOLS, sleep } from "./shared.js";
 import {
   extractTaskProbe,
@@ -50,6 +51,7 @@ const CRITIC_SYSTEM_PROMPT = `You are a calibrated code review critic. Your job 
 - If the work is substantially complete but has a minor omission that doesn't affect correctness, use a warning, not a critical issue.
 - If required evidence is absent, fail rather than inferring completion from plausible-looking changes.
 - An empty diff with a moved task file is suspicious — the agent may not have done real work.
+- For \`task_class: Product\`, inspect operator journey evidence: CLI transcript, screenshot, runtime probe, rendered fixture, trace, snapshot, demo, or equivalent. Green tests alone are not enough; a Product task with passing implementation checks but no operator-visible evidence is a critical issue.
 - For research or URL-dependent tasks, verify that required sources were actually processed — not just referenced or dismissed. If the task depends on reading a URL and the source was inaccessible (auth-walled, 401/402/403, paywall, fetch failure), the task must not be marked done unless it records a blocker, creates a follow-up/enabler task, or documents why the source is no longer needed. Treat an unread required source marked as processed or dismissed without honest handling as a critical issue. Use the run trace when the diff alone is not enough.
 - For client/channel tasks (\`area: client\` or \`area: channel\`), if the task declares a screenshot, screencast, rendered artifact/fixture, transcript, runtime probe, or visual evidence in its Desired Outcome, Done When, or Acceptance Evidence, the run directory must contain that artifact. A prose description of what an operator would see does not satisfy a declared rendered-evidence requirement. If the artifact is missing without an explicit operator-capture precondition or blocked-task escalation, fail with a critical issue.
 
@@ -60,6 +62,7 @@ The autonomy contract requires the loop to turn quality drift into corrective ac
 Treat these as **critical issues** that block the run:
 
 - **Weak rendered evidence on a task that declared a visible artifact.** A text description, mocked screenshot, or unchecked-in fixture does not satisfy a Done-When that asks for a real screenshot, screencast, transcript, or runtime probe. An artifact that exists but does not actually demonstrate the declared behavior (e.g. a transcript whose only output is an auth/config preflight failure with no observable per-feature behavior) does not satisfy the requirement either.
+- **Product work with green tests but unchanged operator UX.** A \`task_class: Product\` completion that has implementation tests but no operator journey evidence must fail; the absence of a transcript, screenshot, runtime probe, rendered fixture, trace, snapshot, demo, or equivalent means the actual human path was not proven.
 - **Placeholder or no-value tests.** Tests that assert on the input the agent just wrote, that always pass without exercising the code under change, or that are scoped so narrowly they cannot regress.
 - **Untracked compatibility shims.** A new \`legacyEffect()\`, \`*Old\`, \`*Legacy\`, or alias re-export added without a tracked removal task is debt the contract forbids.
 - **Baseline-only strictness ratchets.** Adding new entries to a strict-types or any-other baseline file in the same direction the baseline is supposed to shrink, without a tracked removal task or rationale. A baseline addition for a file outside the task's stated scope ("unrelated entry", "if this is inadvertent regeneration") is itself the regression — flag it as critical, do not hedge with "if".
@@ -438,6 +441,25 @@ export function createCriticCheck(options?: {
       const runDir = options?.runDirPath ?? ctx.workflow.runDirPath;
 
       const probeResult = runProbeIfDeclared(taskContent, ctx.projectDir, runDir);
+      const productEvidence = checkProductOperatorEvidence({
+        taskContent,
+        taskState: target.state,
+        runDirPath: runDir,
+        changedFiles,
+        hasRuntimeProbeResult: probeResult !== null,
+      });
+      if (productEvidence.required && !productEvidence.satisfied) {
+        return handleVerdict(
+          {
+            verdict: "fail",
+            critical_issues: [productEvidence.reason ?? "Missing Product evidence."],
+            warnings: [],
+            summary:
+              "Product task review failed before agent judgment because operator journey evidence is absent.",
+          },
+          runDir,
+        );
+      }
 
       const userMessage = [
         "## Task (what was asked)",
@@ -455,6 +477,9 @@ export function createCriticCheck(options?: {
         "Start from the task, final task state, changed files, and diff below.",
         "If completeness is uncertain, inspect run artifacts yourself: metadata.json, steps/*.json (structured step outputs), steps/*.input.md, steps/*.tool-telemetry.json, and related repo files.",
         "Do not require a specific evidence artifact. Use judgment, but do not accept claims that are unsupported by the task, diff, repo state, or run trace.",
+        productEvidence.required
+          ? `Product operator evidence refs detected: ${productEvidence.refs.join(", ")}`
+          : "Product operator evidence requirement: not applicable.",
         "You have a 20-turn budget. Budget it for judgment, not exploration: the diff, task, and step JSON outputs are almost always enough. Do not open `steps/*.events.jsonl` — it is a raw per-tool event stream, routinely 1–3 MB, and burns the budget without adding signal. Reach for it only if nothing else explains a concrete gap you already suspect.",
         "",
         "## Useful run artifact globs",

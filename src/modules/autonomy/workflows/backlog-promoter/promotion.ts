@@ -1,4 +1,5 @@
 import {
+  extractTaskSections,
   listFullRepoTasks,
   listRepoTaskDependencyWaits,
   type RepoTaskClass,
@@ -39,6 +40,9 @@ const TASK_CLASS_RANK: Record<RepoTaskClass, number> = {
   Meta: 4,
 };
 
+const WORKFLOW_FAILURE_REPAIR_TASK_ID_PREFIX =
+  "task-repair-workflow-failure-pattern-";
+
 function priorityScore(priority: string): number {
   const rank = PRIORITY_RANK[priority];
   return rank ?? 99;
@@ -52,6 +56,17 @@ function isStrategic(record: RepoTaskFullRecord): boolean {
   return STRATEGIC_AREAS.has(record.area);
 }
 
+function isRuntimePostureRepair(record: RepoTaskFullRecord): boolean {
+  if (record.taskClass !== "Meta") return false;
+  if (!record.id.startsWith(WORKFLOW_FAILURE_REPAIR_TASK_ID_PREFIX)) return false;
+  if (!record.body.includes("workflow-failure-pattern-fingerprint")) return false;
+  const link = extractTaskSections(record.body, ["Product / Safety Link"])[
+    "Product / Safety Link"
+  ];
+  return /\bruntime posture blocker\b/i.test(link ?? "") &&
+    /\bProduct\/Safety\b/i.test(link ?? "");
+}
+
 function timestamp(record: RepoTaskFullRecord): number {
   const ms = Date.parse(record.updatedAt);
   return Number.isNaN(ms) ? Number.POSITIVE_INFINITY : ms;
@@ -63,10 +78,11 @@ function timestamp(record: RepoTaskFullRecord): number {
  *
  * Order:
  *   1. priority (p0 < p1 < p2 < p3)
- *   2. task class (Safety, Product, Platform, Unclassified, Meta)
- *   3. strategic area before fan-out at the same priority/class
- *   4. older `updated_at` before newer (oldest waits longest, gets promoted)
- *   5. id for deterministic ordering at exact ties
+ *   2. generated runtime-posture repair before ordinary work
+ *   3. task class (Safety, Product, Platform, Unclassified, Meta)
+ *   4. strategic area before fan-out at the same priority/class
+ *   5. older `updated_at` before newer (oldest waits longest, gets promoted)
+ *   6. id for deterministic ordering at exact ties
  */
 export function compareBacklogCandidates(
   a: RepoTaskFullRecord,
@@ -74,6 +90,10 @@ export function compareBacklogCandidates(
 ): number {
   const priorityDelta = priorityScore(a.priority) - priorityScore(b.priority);
   if (priorityDelta !== 0) return priorityDelta;
+
+  const runtimeRepairDelta =
+    Number(isRuntimePostureRepair(b)) - Number(isRuntimePostureRepair(a));
+  if (runtimeRepairDelta !== 0) return runtimeRepairDelta;
 
   const classDelta = taskClassScore(a.taskClass) - taskClassScore(b.taskClass);
   if (classDelta !== 0) return classDelta;
@@ -149,6 +169,7 @@ function describeReason(record: RepoTaskFullRecord, rank: number): string {
   const parts: string[] = [];
   parts.push(`rank ${rank + 1}`);
   parts.push(`priority ${record.priority || "unset"}`);
+  if (isRuntimePostureRepair(record)) parts.push("runtime posture repair");
   parts.push(`task_class ${record.taskClass}`);
   if (record.area) parts.push(`area ${record.area}`);
   if (isStrategic(record)) parts.push("strategic area");
@@ -248,7 +269,7 @@ export function buildPromotionRationale(
       `Promoted ${selected.length} of ${promotableBacklog.length} promotable backlog task(s): ${ids}.`,
     );
     summaryLines.push(
-      "Ranked by priority, task_class, strategic area, then oldest updated_at; this batch beat the remaining backlog and the higher-priority alternatives are honestly blocked.",
+      "Ranked by priority, runtime-posture repair exception, task_class, strategic area, then oldest updated_at; this batch beat the remaining backlog and the higher-priority alternatives are honestly blocked.",
     );
   }
   if (rejectedAnchors.length > 0) {

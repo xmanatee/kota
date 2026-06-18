@@ -121,7 +121,13 @@ function writeTask(
   projectDir: string,
   state: string,
   id: string,
-  options: { title?: string; updatedAt?: string; area?: string } = {},
+  options: {
+    title?: string;
+    updatedAt?: string;
+    area?: string;
+    taskClass?: "Product" | "Safety" | "Platform" | "Meta";
+    acceptanceEvidence?: string;
+  } = {},
 ): void {
   const title = options.title ?? id;
   const updatedAt = options.updatedAt ?? NOW.toISOString();
@@ -136,6 +142,7 @@ function writeTask(
     `summary: ${title} summary`,
     `created_at: ${updatedAt}`,
     `updated_at: ${updatedAt}`,
+    ...(options.taskClass ? [`task_class: ${options.taskClass}`] : []),
     "---",
     "",
     "## Problem",
@@ -164,7 +171,7 @@ function writeTask(
     "",
     "## Acceptance Evidence",
     "",
-    "- Test fixture.",
+    options.acceptanceEvidence ?? "- Test fixture.",
     "",
   ].join("\n");
   writeFileSync(join(projectDir, "data", "tasks", state, `${id}.md`), content);
@@ -1058,6 +1065,58 @@ describe("progress-reviewer workflow", () => {
         reviewInput,
       ),
     ).toThrow(/unknown evidence id/);
+  });
+
+  it("reports task_class distribution and Product operator-journey risks", () => {
+    const projectDir = trackProjectDir("progress-reviewer-task-class-risk");
+    writeTask(projectDir, "done", "task-product-tests-only", {
+      title: "Improve dashboard empty state",
+      area: "client",
+      taskClass: "Product",
+      acceptanceEvidence: "- Unit tests pass.",
+    });
+    writeTask(projectDir, "done", "task-safety-check", {
+      title: "Tighten approval guard",
+      area: "modules",
+      taskClass: "Safety",
+    });
+    writeTask(projectDir, "done", "task-platform-api", {
+      title: "Add setup contract field",
+      area: "modules",
+      taskClass: "Platform",
+    });
+    writeTask(projectDir, "done", "task-meta-with-link", {
+      title: "Improve evaluator calibration",
+      area: "autonomy",
+      taskClass: "Meta",
+    });
+
+    const evidence = collectProgressReviewEvidence({
+      projectDir,
+      trigger: {
+        event: progressReviewRequested.name,
+        schemaRef: null,
+        payload: { windowMs: 3_600_000 },
+      },
+      now: NOW,
+    });
+    const reviewInput = compactProgressReviewEvidenceForAgent(evidence);
+
+    expect(reviewInput.counts.taskClasses).toEqual([
+      { taskClass: "Safety", count: 1 },
+      { taskClass: "Product", count: 1 },
+      { taskClass: "Platform", count: 1 },
+      { taskClass: "Meta", count: 1 },
+    ]);
+    expect(reviewInput.operatorJourneyRisks).toEqual([
+      expect.objectContaining({
+        taskId: "task-product-tests-only",
+        evidenceId: "task:task-product-tests-only",
+      }),
+    ]);
+    expect(reviewInput.operatorJourneyRisks[0]?.reason).toContain(
+      "Product task moved to done without transcript",
+    );
   });
 
   it("runs review-evidence with schema-valid JSON for a large run-count packet before the step timeout", async () => {

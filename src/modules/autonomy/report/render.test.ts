@@ -11,8 +11,22 @@ const baseWindow = {
 
 const empty: AutonomyReportData = {
   ...baseWindow,
-  openQueue: { total: 0, byPriority: [], byArea: [], byState: [], waitingOnTasks: [] },
-  doneInWindow: { total: 0, byPriority: [], byArea: [], byState: [], waitingOnTasks: [] },
+  openQueue: {
+    total: 0,
+    byPriority: [],
+    byArea: [],
+    byState: [],
+    byTaskClass: [],
+    waitingOnTasks: [],
+  },
+  doneInWindow: {
+    total: 0,
+    byPriority: [],
+    byArea: [],
+    byState: [],
+    byTaskClass: [],
+    waitingOnTasks: [],
+  },
   explorer: {
     totalRuns: 0,
     totalTaskAdditions: 0,
@@ -132,6 +146,11 @@ describe("renderAutonomyReport", () => {
         byState: [
           { state: "backlog", count: 2 },
           { state: "ready", count: 1 },
+        ],
+        byTaskClass: [
+          { taskClass: "Product", count: 1 },
+          { taskClass: "Platform", count: 1 },
+          { taskClass: "Meta", count: 1 },
         ],
         waitingOnTasks: [
           {
@@ -256,6 +275,10 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("client");
     expect(text).toContain("Strategic refactor");
     expect(text).toContain("Client surface");
+    expect(text).toContain("By task_class");
+    expect(text).toContain("Product");
+    expect(text).toContain("Platform");
+    expect(text).toContain("Meta");
     expect(text).toContain("$0.40");
     expect(text).toContain("$0.10");
     expect(text).toContain("missing_final_verification_after_edit");

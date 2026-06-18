@@ -28,6 +28,7 @@ function writeTask(
     anchor?: boolean;
     dependsOn?: string[];
     taskClass?: "Product" | "Safety" | "Platform" | "Meta";
+    body?: string;
   } = {},
 ): void {
   const priority = attrs.priority ?? "p2";
@@ -48,6 +49,7 @@ function writeTask(
   if (attrs.taskClass) lines.push(`task_class: ${attrs.taskClass}`);
   if (attrs.dependsOn) lines.push(`depends_on: [${attrs.dependsOn.join(", ")}]`);
   lines.push("---", "");
+  if (attrs.body) lines.push(attrs.body);
   writeFileSync(
     join(projectDir, "data", "tasks", state, `${id}.md`),
     `${lines.join("\n")}\n`,
@@ -124,6 +126,118 @@ describe("compareBacklogCandidates", () => {
     const sorted = [...records].sort(compareBacklogCandidates);
     expect(sorted[0].id).toBe("task-p1-client");
     expect(sorted[1].id).toBe("task-p1-autonomy");
+  });
+
+  it("prefers actionable Product and Safety work over same-priority Meta repair work", () => {
+    const updatedAt = "2026-04-01T00:00:00.000Z";
+    const records = [
+      {
+        id: "task-p1-meta-old",
+        title: "meta",
+        state: "backlog" as const,
+        priority: "p1",
+        area: "autonomy",
+        taskClass: "Meta" as const,
+        summary: "",
+        updatedAt: "2026-02-01T00:00:00.000Z",
+        body: "",
+        dependsOn: [],
+        anchor: false,
+      },
+      {
+        id: "task-p1-product-new",
+        title: "product",
+        state: "backlog" as const,
+        priority: "p1",
+        area: "client",
+        taskClass: "Product" as const,
+        summary: "",
+        updatedAt,
+        body: "",
+        dependsOn: [],
+        anchor: false,
+      },
+      {
+        id: "task-p1-safety-new",
+        title: "safety",
+        state: "backlog" as const,
+        priority: "p1",
+        area: "modules",
+        taskClass: "Safety" as const,
+        summary: "",
+        updatedAt,
+        body: "",
+        dependsOn: [],
+        anchor: false,
+      },
+    ];
+    const sorted = [...records].sort(compareBacklogCandidates);
+    expect(sorted.map((record) => record.id)).toEqual([
+      "task-p1-safety-new",
+      "task-p1-product-new",
+      "task-p1-meta-old",
+    ]);
+  });
+
+  it("lets generated runtime-posture repair outrank same-priority Product and Safety work", () => {
+    const updatedAt = "2026-04-01T00:00:00.000Z";
+    const runtimeRepairBody = [
+      "## Product / Safety Link",
+      "",
+      "Persistent monitored workflow failures are a runtime posture blocker:",
+      "autonomy cannot reliably ship or review Product/Safety work while this root cause keeps recurring.",
+      "",
+      "<!-- workflow-failure-pattern-fingerprint: workflow-failure:consecutive-failures:builder:repair-check:abc123 -->",
+    ].join("\n");
+    const records = [
+      {
+        id: "task-p1-product-new",
+        title: "product",
+        state: "backlog" as const,
+        priority: "p1",
+        area: "client",
+        taskClass: "Product" as const,
+        summary: "",
+        updatedAt,
+        body: "",
+        dependsOn: [],
+        anchor: false,
+      },
+      {
+        id: "task-p1-safety-new",
+        title: "safety",
+        state: "backlog" as const,
+        priority: "p1",
+        area: "modules",
+        taskClass: "Safety" as const,
+        summary: "",
+        updatedAt,
+        body: "",
+        dependsOn: [],
+        anchor: false,
+      },
+      {
+        id: "task-repair-workflow-failure-pattern-runtime",
+        title: "runtime repair",
+        state: "backlog" as const,
+        priority: "p1",
+        area: "autonomy",
+        taskClass: "Meta" as const,
+        summary: "",
+        updatedAt,
+        body: runtimeRepairBody,
+        dependsOn: [],
+        anchor: false,
+      },
+    ];
+
+    const sorted = [...records].sort(compareBacklogCandidates);
+
+    expect(sorted.map((record) => record.id)).toEqual([
+      "task-repair-workflow-failure-pattern-runtime",
+      "task-p1-safety-new",
+      "task-p1-product-new",
+    ]);
   });
 
   it("uses strategic area as a tie-break after task class", () => {
@@ -270,6 +384,41 @@ describe("buildPromotionRationale", () => {
 
     expect(rationale.selected).toHaveLength(1);
     expect(rationale.rejected.filter((r) => r.state === "backlog")).toHaveLength(2);
+  });
+
+  it("selects generated runtime-posture repair before same-priority Product and Safety work", () => {
+    const projectDir = makeProjectDir();
+    const runtimeRepairBody = [
+      "## Product / Safety Link",
+      "",
+      "Persistent monitored workflow failures are a runtime posture blocker:",
+      "autonomy cannot reliably ship or review Product/Safety work while this root cause keeps recurring.",
+      "",
+      "<!-- workflow-failure-pattern-fingerprint: workflow-failure:consecutive-failures:builder:repair-check:abc123 -->",
+    ].join("\n");
+    writeTask(projectDir, "backlog", "task-p1-safety", {
+      priority: "p1",
+      taskClass: "Safety",
+    });
+    writeTask(projectDir, "backlog", "task-p1-product", {
+      priority: "p1",
+      taskClass: "Product",
+    });
+    writeTask(projectDir, "backlog", "task-repair-workflow-failure-pattern-runtime", {
+      priority: "p1",
+      taskClass: "Meta",
+      area: "autonomy",
+      body: runtimeRepairBody,
+    });
+
+    const rationale = buildPromotionRationale(projectDir, { batchLimit: 1 });
+
+    expect(rationale.selected).toHaveLength(1);
+    expect(rationale.selected[0].id).toBe(
+      "task-repair-workflow-failure-pattern-runtime",
+    );
+    expect(rationale.selected[0].reason).toContain("runtime posture repair");
+    expect(rationale.summary).toContain("runtime-posture repair exception");
   });
 
   it("rejects backlog candidates with unfinished hard dependencies", () => {

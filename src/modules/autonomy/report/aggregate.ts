@@ -33,6 +33,7 @@ import {
 import {
   listFullRepoTasks,
   listRepoTaskDependencyWaits,
+  type RepoTaskClass,
   type RepoTaskFullRecord,
   type RepoTaskState,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
@@ -61,6 +62,7 @@ function normalizePriority(raw: string): ReportPriority {
 export type PriorityCount = { priority: ReportPriority; count: number };
 export type AreaCount = { area: string; count: number };
 export type StateCount = { state: RepoTaskState; count: number };
+export type TaskClassCount = { taskClass: RepoTaskClass; count: number };
 export type QueueDependencyWait = {
   taskId: string;
   title: string;
@@ -73,6 +75,7 @@ export type QueueBalance = {
   byPriority: PriorityCount[];
   byArea: AreaCount[];
   byState: StateCount[];
+  byTaskClass: TaskClassCount[];
   waitingOnTasks: QueueDependencyWait[];
 };
 
@@ -298,12 +301,14 @@ function buildQueueBalance(
   const priorityCounts = new Map<ReportPriority, number>();
   const areaCounts = new Map<string, number>();
   const stateCounts = new Map<RepoTaskState, number>();
+  const taskClassCounts = new Map<RepoTaskClass, number>();
   for (const t of records) {
     const priority = normalizePriority(t.priority);
     priorityCounts.set(priority, (priorityCounts.get(priority) ?? 0) + 1);
     const area = t.area || "(unset)";
     areaCounts.set(area, (areaCounts.get(area) ?? 0) + 1);
     stateCounts.set(t.state, (stateCounts.get(t.state) ?? 0) + 1);
+    taskClassCounts.set(t.taskClass, (taskClassCounts.get(t.taskClass) ?? 0) + 1);
   }
   return {
     total: records.length,
@@ -316,6 +321,12 @@ function buildQueueBalance(
     byState: [...stateCounts.entries()]
       .map(([state, count]) => ({ state, count }))
       .sort((a, b) => a.state.localeCompare(b.state)),
+    byTaskClass: sortTaskClassCounts(
+      [...taskClassCounts.entries()].map(([taskClass, count]) => ({
+        taskClass,
+        count,
+      })),
+    ),
     waitingOnTasks: waitingOnTasks.map((wait) => ({
       taskId: wait.id,
       title: wait.title,
@@ -323,6 +334,21 @@ function buildQueueBalance(
       waitingOn: wait.waitingOn,
     })),
   };
+}
+
+function sortTaskClassCounts(rows: TaskClassCount[]): TaskClassCount[] {
+  const order = new Map<RepoTaskClass, number>([
+    ["Safety", 0],
+    ["Product", 1],
+    ["Platform", 2],
+    ["Meta", 3],
+    ["Unclassified", 4],
+  ]);
+  return [...rows].sort(
+    (a, b) =>
+      (order.get(a.taskClass) ?? 9) - (order.get(b.taskClass) ?? 9) ||
+      a.taskClass.localeCompare(b.taskClass),
+  );
 }
 
 function sortByPriority(rows: PriorityCount[]): PriorityCount[] {
