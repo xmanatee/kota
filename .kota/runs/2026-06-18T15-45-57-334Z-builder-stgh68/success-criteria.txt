@@ -1,0 +1,8 @@
+1. Confirm capture is discoverable from each shipped client surface's primary command, menu, or navigation path.
+2. Confirm every shipped capture surface uses the same daemon capture contract shape and failure arms.
+3. Name any duplicated decoder, error rendering, or readiness-probe drift and tie it to a follow-up task.
+4. Confirm provider-unavailable and no-contributor states degrade through typed capture failures rather than vague UI copy.
+5. Verify rendered operator evidence exists for the capture visual surfaces, with daemon and CLI covered by probe or transcript evidence.
+6. Check for stale capture affordances superseded by the fan-out and confirm they are either absent or filed as follow-up work.
+7. Confirm scoped AGENTS.md guidance near capture reflects the shipped surfaces and no stale fan-out language remains.
+8. Review accepted critic-warning debt for the capture fan-out and confirm each warning is either retired or represented by a follow-up task.

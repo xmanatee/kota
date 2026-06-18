@@ -1,5 +1,7 @@
 import React from 'react';
-import { fireEvent, render } from '@testing-library/react-native';
+import { mkdirSync, statSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { cleanup, fireEvent, render } from '@testing-library/react-native';
 import { CaptureScreen } from '../screens/CaptureScreen';
 import { renderCaptureResultPlain } from '../captureRender';
 import type { CaptureResult } from '../types';
@@ -87,9 +89,85 @@ function mockDaemon(
   });
 }
 
+function evidenceDirectory(): string | null {
+  const runDir = process.env.KOTA_RUN_DIR;
+  if (!runDir) return null;
+  return join(
+    runDir,
+    'capture-consolidation',
+    'surface-runtime-evidence',
+    'mobile',
+  );
+}
+
+function writeEvidenceFile(fileName: string, body: string): void {
+  const dir = evidenceDirectory();
+  if (!dir) return;
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, fileName), body, 'utf-8');
+}
+
+function serializeRenderedTree(value: unknown): unknown {
+  const seen = new WeakSet<object>();
+
+  function visit(node: unknown): unknown {
+    if (
+      node === null ||
+      typeof node === 'string' ||
+      typeof node === 'number' ||
+      typeof node === 'boolean'
+    ) {
+      return node;
+    }
+    if (typeof node === 'function') {
+      return '[Function]';
+    }
+    if (Array.isArray(node)) {
+      return node.map((child) => visit(child));
+    }
+    if (typeof node !== 'object') {
+      return String(node);
+    }
+    if (seen.has(node)) {
+      return '[Circular]';
+    }
+    seen.add(node);
+
+    const record = node as {
+      type?: unknown;
+      props?: Record<string, unknown>;
+      children?: unknown;
+    };
+    if ('type' in record || 'props' in record || 'children' in record) {
+      const props: Record<string, unknown> = {};
+      for (const [key, prop] of Object.entries(record.props ?? {})) {
+        if (key === 'refreshControl') {
+          props[key] = '[ReactElement RefreshControl]';
+        } else {
+          props[key] = visit(prop);
+        }
+      }
+      return {
+        type: visit(record.type),
+        props,
+        children: visit(record.children),
+      };
+    }
+
+    const out: Record<string, unknown> = {};
+    for (const [key, prop] of Object.entries(record)) {
+      out[key] = visit(prop);
+    }
+    return out;
+  }
+
+  return visit(value);
+}
+
 describe('CaptureScreen', () => {
   afterEach(() => {
     mockUseDaemon.mockReset();
+    cleanup();
   });
 
   test('renders "No daemon configured." when settings are loaded but URL/token missing', () => {
@@ -273,5 +351,213 @@ describe('CaptureScreen', () => {
     fireEvent.press(getByLabelText('Capture target tasks'));
     expect(setCaptureTarget).toHaveBeenCalledWith('tasks');
     expect(capture).not.toHaveBeenCalled();
+  });
+
+  test('writes mounted React Native evidence when KOTA_RUN_DIR is set', () => {
+    const dir = evidenceDirectory();
+    if (!dir) return;
+
+    const successMemory: CaptureResult = {
+      ok: true,
+      record: { target: 'memory', recordId: 'mem-7' },
+    };
+    const successKnowledge: CaptureResult = {
+      ok: true,
+      record: { target: 'knowledge', recordId: 'kn-capture-mobile' },
+    };
+    const successTasks: CaptureResult = {
+      ok: true,
+      record: {
+        target: 'tasks',
+        recordId: 'task-buy-milk',
+        path: 'data/tasks/ready/task-buy-milk.md',
+      },
+    };
+    const successInbox: CaptureResult = {
+      ok: true,
+      record: {
+        target: 'inbox',
+        recordId: 'inbox-capture-mobile',
+        path: 'data/inbox/capture-mobile.md',
+      },
+    };
+    const ambiguous: CaptureResult = {
+      ok: false,
+      reason: 'ambiguous',
+      suggestions: ['memory', 'knowledge', 'tasks', 'inbox'],
+    };
+    const noContributors: CaptureResult = {
+      ok: false,
+      reason: 'no_contributors',
+    };
+    const contributorFailed: CaptureResult = {
+      ok: false,
+      reason: 'contributor_failed',
+      target: 'inbox',
+      message: 'inbox writer cannot reach project root',
+    };
+
+    const cases: Array<{
+      id: string;
+      state: ReturnType<typeof defaultState>;
+      expectedText?: RegExp | string;
+      proves: string;
+    }> = [
+      {
+        id: 'empty',
+        state: baseState({ captureText: '' }),
+        expectedText:
+          'Type a note and tap Capture to route it across memory, knowledge, tasks, or inbox.',
+        proves:
+          'CaptureScreen mounted the empty form, target chips, optional hint field, and usage hint before any request.',
+      },
+      {
+        id: 'loading',
+        state: baseState({ captureText: 'capture me', captureLoading: true }),
+        proves:
+          'CaptureScreen rendered the loading state and disabled submit while a capture is pending.',
+      },
+      {
+        id: 'success-memory',
+        state: baseState({ captureText: 'note', captureResult: successMemory }),
+        expectedText: 'Captured: memory  mem-7',
+        proves:
+          'CaptureScreen rendered the memory success arm and canonical shared body line.',
+      },
+      {
+        id: 'success-knowledge',
+        state: baseState({
+          captureText: 'note',
+          captureResult: successKnowledge,
+        }),
+        expectedText: 'Captured: knowledge  kn-capture-mobile',
+        proves:
+          'CaptureScreen rendered the knowledge success arm and canonical shared body line.',
+      },
+      {
+        id: 'success-tasks',
+        state: baseState({ captureText: 'note', captureResult: successTasks }),
+        expectedText:
+          'Captured: tasks  task-buy-milk  data/tasks/ready/task-buy-milk.md',
+        proves:
+          'CaptureScreen rendered the tasks success arm with filesystem path metadata.',
+      },
+      {
+        id: 'success-inbox',
+        state: baseState({ captureText: 'note', captureResult: successInbox }),
+        expectedText:
+          'Captured: inbox  inbox-capture-mobile  data/inbox/capture-mobile.md',
+        proves:
+          'CaptureScreen rendered the inbox success arm with filesystem path metadata.',
+      },
+      {
+        id: 'ambiguous',
+        state: baseState({ captureText: 'note', captureResult: ambiguous }),
+        expectedText:
+          'Ambiguous capture. Re-run with --target <one of: memory, knowledge, tasks, inbox>.',
+        proves:
+          'CaptureScreen rendered the ambiguous arm with all four suggestion chips.',
+      },
+      {
+        id: 'no-contributors',
+        state: baseState({
+          captureText: 'anything',
+          captureResult: noContributors,
+        }),
+        expectedText: 'Cross-store capture has no registered contributors.',
+        proves:
+          'CaptureScreen rendered the typed no_contributors unavailable state.',
+      },
+      {
+        id: 'contributor-failed',
+        state: baseState({
+          captureText: 'forced to inbox',
+          captureResult: contributorFailed,
+        }),
+        expectedText:
+          'Capture into inbox failed: inbox writer cannot reach project root',
+        proves:
+          'CaptureScreen rendered contributor_failed with target badge and verbatim daemon message.',
+      },
+      {
+        id: 'http-error-retry',
+        state: baseState({
+          captureText: 'note',
+          captureError: '503 Service Unavailable',
+          captureResult: null,
+        }),
+        expectedText: 'Retry',
+        proves:
+          'CaptureScreen surfaced the daemon HTTP error with a retry affordance instead of degrading silently.',
+      },
+      {
+        id: 'offline',
+        state: baseState({ online: false }),
+        expectedText: 'Daemon offline — retrying every 15s',
+        proves:
+          'CaptureScreen rendered the daemon-offline banner and disabled request path.',
+      },
+      {
+        id: 'no-daemon',
+        state: baseState({ daemonUrl: '', token: '' }),
+        expectedText: 'No daemon configured.',
+        proves:
+          'CaptureScreen rendered the missing-daemon setup state.',
+      },
+    ];
+
+    const manifest: Array<{
+      id: string;
+      artifact: string;
+      proves: string;
+      bytes: number;
+    }> = [];
+
+    for (const entry of cases) {
+      mockDaemon(entry.state);
+      const rendered = render(<CaptureScreen />);
+      if (entry.expectedText) {
+        expect(rendered.getByText(entry.expectedText)).toBeTruthy();
+      }
+      const artifact = `capture-screen-${entry.id}.json`;
+      writeEvidenceFile(
+        artifact,
+        `${JSON.stringify(
+          {
+            generatedBy: 'clients/mobile/src/__tests__/CaptureScreen.test.tsx',
+            surface: 'clients/mobile/src/screens/CaptureScreen.tsx',
+            mount: '<CaptureScreen /> with mocked DaemonContext state',
+            state: entry.id,
+            tree: serializeRenderedTree(rendered.toJSON()),
+          },
+          null,
+          2,
+        )}\n`,
+      );
+      manifest.push({
+        id: entry.id,
+        artifact,
+        proves: entry.proves,
+        bytes: statSync(join(dir, artifact)).size,
+      });
+      rendered.unmount();
+      mockUseDaemon.mockReset();
+    }
+
+    writeEvidenceFile(
+      'capture-screen-mounted-tree-manifest.json',
+      `${JSON.stringify(
+        {
+          generatedBy: 'clients/mobile/src/__tests__/CaptureScreen.test.tsx',
+          surface: 'clients/mobile/src/screens/CaptureScreen.tsx',
+          mount: '<CaptureScreen /> with mocked DaemonContext state',
+          requestPath:
+            "clients/mobile/src/daemon/capture.ts daemonRequest('/api/capture') + parseCaptureResult",
+          cases: manifest,
+        },
+        null,
+        2,
+      )}\n`,
+    );
   });
 });

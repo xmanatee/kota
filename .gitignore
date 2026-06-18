@@ -136,6 +136,19 @@ deploy/telegram-assistant/.env
 !/.kota/runs/2026-06-18T15-35-51-930Z-builder-g8xnid/dead-letter-resolution.md
 !/.kota/runs/2026-06-18T15-35-51-930Z-builder-g8xnid/success-criteria-verified.txt
 !/.kota/runs/2026-06-18T15-35-51-930Z-builder-g8xnid/success-criteria.txt
+!/.kota/runs/2026-06-18T15-45-57-334Z-builder-stgh68/
+/.kota/runs/2026-06-18T15-45-57-334Z-builder-stgh68/*
+!/.kota/runs/2026-06-18T15-45-57-334Z-builder-stgh68/apple-capture-tests.txt
+!/.kota/runs/2026-06-18T15-45-57-334Z-builder-stgh68/capture-consolidation/
+!/.kota/runs/2026-06-18T15-45-57-334Z-builder-stgh68/capture-consolidation/**
+!/.kota/runs/2026-06-18T15-45-57-334Z-builder-stgh68/capture-consolidation-completion-review.md
+!/.kota/runs/2026-06-18T15-45-57-334Z-builder-stgh68/capture-module-tests.txt
+!/.kota/runs/2026-06-18T15-45-57-334Z-builder-stgh68/commit-message.txt
+!/.kota/runs/2026-06-18T15-45-57-334Z-builder-stgh68/mobile-capture-tests.txt
+!/.kota/runs/2026-06-18T15-45-57-334Z-builder-stgh68/success-criteria-verified.txt
+!/.kota/runs/2026-06-18T15-45-57-334Z-builder-stgh68/success-criteria.txt
+!/.kota/runs/2026-06-18T15-45-57-334Z-builder-stgh68/validate-tasks.txt
+!/.kota/runs/2026-06-18T15-45-57-334Z-builder-stgh68/web-capture-tests.txt
 # Eval-harness fixtures legitimately seed prior run state; the runner copies
 # `initial/` verbatim into an isolated tmpdir at fixture-run time.
 !src/modules/eval-harness/fixtures/**/initial/.kota/

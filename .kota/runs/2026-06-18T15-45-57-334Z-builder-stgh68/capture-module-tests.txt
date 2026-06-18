@@ -1,0 +1,12 @@
+
+> kota@0.1.0 test /Users/xmanatee/Desktop/mono/apps/kota
+> NODE_OPTIONS=--conditions=source vitest run src/modules/capture/capture-provider.test.ts src/modules/capture/routes.test.ts src/modules/capture/cli.test.ts src/modules/capture/daemon-client.test.ts src/modules/capture/tool.test.ts src/modules/capture/system-prompt.test.ts
+
+
+ RUN  v4.1.0 /Users/xmanatee/Desktop/mono/apps/kota
+
+
+ Test Files  6 passed (6)
+      Tests  53 passed (53)
+   Start at  16:51:04
+   Duration  430ms (transform 558ms, setup 195ms, import 565ms, tests 20ms, environment 0ms)

@@ -116,8 +116,14 @@ its `register()` API; nothing in core hard-codes the contributor set.
 - No cost surfacing into autonomy-facing context. The classifier uses
   the project's configured model client; per-call cost stays in the
   cost tracker the recall and answer seams already share.
-- Cross-surface capture consumers share `createCaptureRouteHandler`,
-  `renderCaptureResultPlain`, and the conformance fixture. Keep the exact
-  surface list in code and tests.
+- Live operator consumers are the daemon `POST /capture` route, the
+  web-facing `POST /api/capture` route, `kota capture <text>`, web
+  `CapturePanel`, mobile `CaptureScreen`, macOS `CaptureExpandedContent`
+  via `DaemonClient.capture`, Telegram `/capture` plus the four
+  `/capture-to-{memory,knowledge,tasks,inbox}` commands, and
+  Slack-channel `/capture` plus the same four explicit-target commands.
+  These surfaces share `createCaptureRouteHandler`,
+  `renderCaptureResultPlain`, `renderCaptureReplyPlain`, and the
+  conformance fixture instead of maintaining independent wire contracts.
 - No second registry, no second public capture path. `register()` is
   the single way new stores join.

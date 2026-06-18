@@ -1,0 +1,106 @@
+{
+  "generatedBy": "clients/web/src/components/sidebar/CapturePanel.test.tsx",
+  "surface": "clients/web/src/components/sidebar/CapturePanel.tsx",
+  "mount": "<CapturePanel /> inside QueryClientProvider",
+  "requestPath": "/api/capture",
+  "decoder": "clients/web/src/api/client.ts apiDecoded('/api/capture', parseCaptureResult)",
+  "cases": [
+    {
+      "id": "empty",
+      "artifact": "capture-panel-empty.html",
+      "fetchUrl": null,
+      "body": null,
+      "proves": "CapturePanel mounted its empty form, textarea, auto target, explicit memory/knowledge/tasks/inbox options, and disabled submit state.",
+      "bytes": 1982
+    },
+    {
+      "id": "success-memory",
+      "artifact": "capture-panel-success-memory.html",
+      "fetchUrl": "/api/capture",
+      "body": {
+        "text": "remember to reload the daemon after switching modules"
+      },
+      "proves": "CapturePanel called /api/capture with no explicit target and rendered the memory success arm.",
+      "bytes": 2546
+    },
+    {
+      "id": "success-knowledge",
+      "artifact": "capture-panel-success-knowledge.html",
+      "fetchUrl": "/api/capture",
+      "body": {
+        "text": "capture the architecture decision",
+        "filter": {
+          "target": "knowledge"
+        }
+      },
+      "proves": "CapturePanel called /api/capture with target=knowledge and rendered the knowledge success arm.",
+      "bytes": 2544
+    },
+    {
+      "id": "success-tasks",
+      "artifact": "capture-panel-success-tasks.html",
+      "fetchUrl": "/api/capture",
+      "body": {
+        "text": "split capture rendering across stores",
+        "filter": {
+          "target": "tasks"
+        }
+      },
+      "proves": "CapturePanel called /api/capture with target=tasks and rendered path metadata.",
+      "bytes": 2710
+    },
+    {
+      "id": "success-inbox",
+      "artifact": "capture-panel-success-inbox.html",
+      "fetchUrl": "/api/capture",
+      "body": {
+        "text": "raw operator thought",
+        "filter": {
+          "target": "inbox"
+        }
+      },
+      "proves": "CapturePanel called /api/capture with target=inbox and rendered inbox path metadata.",
+      "bytes": 2677
+    },
+    {
+      "id": "ambiguous",
+      "artifact": "capture-panel-ambiguous.html",
+      "fetchUrl": "/api/capture",
+      "body": {
+        "text": "something vague"
+      },
+      "proves": "CapturePanel rendered the ambiguous arm with all four suggestion buttons.",
+      "bytes": 3973
+    },
+    {
+      "id": "no-contributors",
+      "artifact": "capture-panel-no-contributors.html",
+      "fetchUrl": "/api/capture",
+      "body": {
+        "text": "anything"
+      },
+      "proves": "CapturePanel rendered the typed no_contributors unavailable state without guessing a store.",
+      "bytes": 2132
+    },
+    {
+      "id": "contributor-failed",
+      "artifact": "capture-panel-contributor-failed.html",
+      "fetchUrl": "/api/capture",
+      "body": {
+        "text": "forced to inbox"
+      },
+      "proves": "CapturePanel rendered contributor_failed with the target badge and verbatim daemon message.",
+      "bytes": 2459
+    },
+    {
+      "id": "decode-error",
+      "artifact": "capture-panel-decode-error.html",
+      "fetchUrl": "/api/capture",
+      "body": {
+        "text": "anything"
+      },
+      "proves": "CapturePanel surfaced strict decoder failure for an unknown result arm in the destructive error style.",
+      "bytes": 2118
+    }
+  ]
+}

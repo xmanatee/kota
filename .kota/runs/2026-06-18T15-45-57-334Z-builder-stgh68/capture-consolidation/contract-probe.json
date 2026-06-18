@@ -1,0 +1,166 @@
+{
+  "generatedAt": "2026-06-18T16:24:49.119Z",
+  "project": "capture-consolidation",
+  "routes": [
+    "POST /capture",
+    "POST /api/capture"
+  ],
+  "handler": "createCaptureRouteHandler",
+  "passed": true,
+  "arms": [
+    {
+      "name": "malformed-body-rejected",
+      "passed": true,
+      "status": 400,
+      "body": {
+        "error": "Invalid request body"
+      }
+    },
+    {
+      "name": "empty-text-rejected",
+      "passed": true,
+      "status": 400,
+      "body": {
+        "error": "text is required"
+      }
+    },
+    {
+      "name": "success-explicit-target",
+      "passed": true,
+      "status": 200,
+      "body": {
+        "ok": true,
+        "record": {
+          "target": "memory",
+          "recordId": "mem-1"
+        }
+      }
+    },
+    {
+      "name": "success-tasks-with-path",
+      "passed": true,
+      "status": 200,
+      "body": {
+        "ok": true,
+        "record": {
+          "target": "tasks",
+          "recordId": "task-x",
+          "path": "data/tasks/ready/task-x.md"
+        }
+      }
+    },
+    {
+      "name": "ambiguous-no-classifier",
+      "passed": true,
+      "status": 200,
+      "body": {
+        "ok": false,
+        "reason": "ambiguous",
+        "suggestions": [
+          "memory",
+          "knowledge",
+          "tasks",
+          "inbox"
+        ]
+      }
+    },
+    {
+      "name": "classifier-throws-surfaces-500",
+      "passed": true,
+      "status": 500,
+      "body": {
+        "error": "classifier boom"
+      }
+    },
+    {
+      "name": "ambiguous-classifier-says-ambiguous",
+      "passed": true,
+      "status": 200,
+      "body": {
+        "ok": false,
+        "reason": "ambiguous",
+        "suggestions": [
+          "memory",
+          "knowledge",
+          "tasks",
+          "inbox"
+        ]
+      }
+    },
+    {
+      "name": "unregistered-explicit-target",
+      "passed": true,
+      "status": 200,
+      "body": {
+        "ok": false,
+        "reason": "no_contributors"
+      }
+    },
+    {
+      "name": "no-contributors-zero",
+      "passed": true,
+      "status": 200,
+      "body": {
+        "ok": false,
+        "reason": "no_contributors"
+      }
+    },
+    {
+      "name": "contributor-throws",
+      "passed": true,
+      "status": 200,
+      "body": {
+        "ok": false,
+        "reason": "contributor_failed",
+        "target": "inbox",
+        "message": "disk full"
+      }
+    },
+    {
+      "name": "classifier-confident-pick",
+      "passed": true,
+      "status": 200,
+      "body": {
+        "ok": true,
+        "record": {
+          "target": "tasks",
+          "recordId": "task-x",
+          "path": "data/tasks/ready/task-x.md"
+        }
+      }
+    },
+    {
+      "name": "classifier-receives-trimmed-text-and-hint",
+      "passed": true,
+      "status": 200,
+      "body": {
+        "ok": true,
+        "record": {
+          "target": "memory",
+          "recordId": "mem-1"
+        }
+      },
+      "observed": {
+        "classifier": {
+          "text": "trim me",
+          "hint": "preference",
+          "available": [
+            "memory"
+          ]
+        },
+        "contributor": {
+          "text": "trim me",
+          "hint": "preference"
+        }
+      }
+    },
+    {
+      "name": "provider-throws-unhandled",
+      "passed": true,
+      "status": 500,
+      "body": {
+        "error": "provider unavailable"
+      }
+    }
+  ]
+}

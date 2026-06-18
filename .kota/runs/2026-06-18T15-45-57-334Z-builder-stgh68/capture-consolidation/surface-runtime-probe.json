@@ -1,0 +1,282 @@
+{
+  "generatedBy": "capture-consolidation/probe-surface-runtime-evidence.mjs",
+  "evidenceRoot": "capture-consolidation/surface-runtime-evidence",
+  "passed": true,
+  "checks": [
+    {
+      "id": "web-mounted-capture-panel",
+      "passed": true,
+      "detail": "web manifest names CapturePanel and the strict capture decoder"
+    },
+    {
+      "id": "web-case-empty",
+      "passed": true,
+      "detail": "web mounted DOM artifact exists for empty"
+    },
+    {
+      "id": "web-case-success-memory",
+      "passed": true,
+      "detail": "web mounted DOM artifact exists for success-memory"
+    },
+    {
+      "id": "web-case-success-knowledge",
+      "passed": true,
+      "detail": "web mounted DOM artifact exists for success-knowledge"
+    },
+    {
+      "id": "web-case-success-tasks",
+      "passed": true,
+      "detail": "web mounted DOM artifact exists for success-tasks"
+    },
+    {
+      "id": "web-case-success-inbox",
+      "passed": true,
+      "detail": "web mounted DOM artifact exists for success-inbox"
+    },
+    {
+      "id": "web-case-ambiguous",
+      "passed": true,
+      "detail": "web mounted DOM artifact exists for ambiguous"
+    },
+    {
+      "id": "web-case-no-contributors",
+      "passed": true,
+      "detail": "web mounted DOM artifact exists for no-contributors"
+    },
+    {
+      "id": "web-case-contributor-failed",
+      "passed": true,
+      "detail": "web mounted DOM artifact exists for contributor-failed"
+    },
+    {
+      "id": "web-case-decode-error",
+      "passed": true,
+      "detail": "web mounted DOM artifact exists for decode-error"
+    },
+    {
+      "id": "mobile-mounted-capture-screen",
+      "passed": true,
+      "detail": "mobile manifest names CaptureScreen and the strict capture decoder"
+    },
+    {
+      "id": "mobile-case-empty",
+      "passed": true,
+      "detail": "mobile mounted tree artifact exists for empty"
+    },
+    {
+      "id": "mobile-case-loading",
+      "passed": true,
+      "detail": "mobile mounted tree artifact exists for loading"
+    },
+    {
+      "id": "mobile-case-success-memory",
+      "passed": true,
+      "detail": "mobile mounted tree artifact exists for success-memory"
+    },
+    {
+      "id": "mobile-case-success-knowledge",
+      "passed": true,
+      "detail": "mobile mounted tree artifact exists for success-knowledge"
+    },
+    {
+      "id": "mobile-case-success-tasks",
+      "passed": true,
+      "detail": "mobile mounted tree artifact exists for success-tasks"
+    },
+    {
+      "id": "mobile-case-success-inbox",
+      "passed": true,
+      "detail": "mobile mounted tree artifact exists for success-inbox"
+    },
+    {
+      "id": "mobile-case-ambiguous",
+      "passed": true,
+      "detail": "mobile mounted tree artifact exists for ambiguous"
+    },
+    {
+      "id": "mobile-case-no-contributors",
+      "passed": true,
+      "detail": "mobile mounted tree artifact exists for no-contributors"
+    },
+    {
+      "id": "mobile-case-contributor-failed",
+      "passed": true,
+      "detail": "mobile mounted tree artifact exists for contributor-failed"
+    },
+    {
+      "id": "mobile-case-http-error-retry",
+      "passed": true,
+      "detail": "mobile mounted tree artifact exists for http-error-retry"
+    },
+    {
+      "id": "mobile-case-offline",
+      "passed": true,
+      "detail": "mobile mounted tree artifact exists for offline"
+    },
+    {
+      "id": "mobile-case-no-daemon",
+      "passed": true,
+      "detail": "mobile mounted tree artifact exists for no-daemon"
+    },
+    {
+      "id": "telegram-runtime-path",
+      "passed": true,
+      "detail": "telegram evidence comes from the command dispatcher and shared chat renderer"
+    },
+    {
+      "id": "telegram-command-/capture remember to call alice",
+      "passed": true,
+      "detail": "telegram evidence includes /capture remember to call alice"
+    },
+    {
+      "id": "telegram-command-/capture-to-knowledge architecture decision",
+      "passed": true,
+      "detail": "telegram evidence includes /capture-to-knowledge architecture decision"
+    },
+    {
+      "id": "telegram-command-/capture-to-tasks fix the login redirect",
+      "passed": true,
+      "detail": "telegram evidence includes /capture-to-tasks fix the login redirect"
+    },
+    {
+      "id": "telegram-command-/capture-to-inbox raw morning thought",
+      "passed": true,
+      "detail": "telegram evidence includes /capture-to-inbox raw morning thought"
+    },
+    {
+      "id": "telegram-command-/capture something vague",
+      "passed": true,
+      "detail": "telegram evidence includes /capture something vague"
+    },
+    {
+      "id": "telegram-command-/capture-to-memory anything",
+      "passed": true,
+      "detail": "telegram evidence includes /capture-to-memory anything"
+    },
+    {
+      "id": "telegram-command-/capture-to-tasks file the bug",
+      "passed": true,
+      "detail": "telegram evidence includes /capture-to-tasks file the bug"
+    },
+    {
+      "id": "telegram-command-/capture",
+      "passed": true,
+      "detail": "telegram evidence includes /capture"
+    },
+    {
+      "id": "telegram-ambiguous-reply",
+      "passed": true,
+      "detail": "telegram evidence includes the full ambiguous reply"
+    },
+    {
+      "id": "slack-runtime-path",
+      "passed": true,
+      "detail": "slack evidence comes from the command dispatcher and shared chat renderer"
+    },
+    {
+      "id": "slack-command-/capture remember to call alice",
+      "passed": true,
+      "detail": "slack evidence includes /capture remember to call alice"
+    },
+    {
+      "id": "slack-command-/capture-to-knowledge architecture decision",
+      "passed": true,
+      "detail": "slack evidence includes /capture-to-knowledge architecture decision"
+    },
+    {
+      "id": "slack-command-/capture-to-tasks fix the login redirect",
+      "passed": true,
+      "detail": "slack evidence includes /capture-to-tasks fix the login redirect"
+    },
+    {
+      "id": "slack-command-/capture-to-inbox raw morning thought",
+      "passed": true,
+      "detail": "slack evidence includes /capture-to-inbox raw morning thought"
+    },
+    {
+      "id": "slack-command-/capture something vague",
+      "passed": true,
+      "detail": "slack evidence includes /capture something vague"
+    },
+    {
+      "id": "slack-command-/capture-to-memory anything",
+      "passed": true,
+      "detail": "slack evidence includes /capture-to-memory anything"
+    },
+    {
+      "id": "slack-command-/capture-to-inbox raw thought",
+      "passed": true,
+      "detail": "slack evidence includes /capture-to-inbox raw thought"
+    },
+    {
+      "id": "slack-command-/capture   ",
+      "passed": true,
+      "detail": "slack evidence includes /capture   "
+    },
+    {
+      "id": "slack-ambiguous-reply",
+      "passed": true,
+      "detail": "slack evidence includes the full ambiguous reply"
+    },
+    {
+      "id": "macos-renderer-manifest",
+      "passed": true,
+      "detail": "macOS manifest names CaptureView.swift and ImageRenderer PNG output"
+    },
+    {
+      "id": "macos-png-expanded-empty-draft",
+      "passed": true,
+      "detail": "macOS rendered PNG exists for expanded-empty-draft"
+    },
+    {
+      "id": "macos-png-expanded-ready-before-submit",
+      "passed": true,
+      "detail": "macOS rendered PNG exists for expanded-ready-before-submit"
+    },
+    {
+      "id": "macos-png-expanded-loading",
+      "passed": true,
+      "detail": "macOS rendered PNG exists for expanded-loading"
+    },
+    {
+      "id": "macos-png-success-memory",
+      "passed": true,
+      "detail": "macOS rendered PNG exists for success-memory"
+    },
+    {
+      "id": "macos-png-success-knowledge",
+      "passed": true,
+      "detail": "macOS rendered PNG exists for success-knowledge"
+    },
+    {
+      "id": "macos-png-success-tasks",
+      "passed": true,
+      "detail": "macOS rendered PNG exists for success-tasks"
+    },
+    {
+      "id": "macos-png-success-inbox",
+      "passed": true,
+      "detail": "macOS rendered PNG exists for success-inbox"
+    },
+    {
+      "id": "macos-png-ambiguous",
+      "passed": true,
+      "detail": "macOS rendered PNG exists for ambiguous"
+    },
+    {
+      "id": "macos-png-no-contributors",
+      "passed": true,
+      "detail": "macOS rendered PNG exists for no-contributors"
+    },
+    {
+      "id": "macos-png-contributor-failed",
+      "passed": true,
+      "detail": "macOS rendered PNG exists for contributor-failed"
+    },
+    {
+      "id": "macos-png-http-error-retry",
+      "passed": true,
+      "detail": "macOS rendered PNG exists for http-error-retry"
+    }
+  ]
+}

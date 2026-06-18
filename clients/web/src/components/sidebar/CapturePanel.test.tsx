@@ -15,9 +15,18 @@
  * must not fire `/api/capture`.
  */
 
+import { mkdirSync, statSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type { CaptureResult } from "@/api/types";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  prettyDOM,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CapturePanel } from "./CapturePanel";
@@ -40,9 +49,32 @@ function makeWrapper(): {
   return { Wrapper, client };
 }
 
+function evidenceDirectory(): string | null {
+  const runDir = process.env.KOTA_RUN_DIR;
+  if (!runDir) return null;
+  return join(
+    runDir,
+    "capture-consolidation",
+    "surface-runtime-evidence",
+    "web",
+  );
+}
+
+function writeEvidenceFile(fileName: string, body: string): void {
+  const dir = evidenceDirectory();
+  if (!dir) return;
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, fileName), body, "utf-8");
+}
+
 const MEMORY_OK: CaptureResult = {
   ok: true,
   record: { target: "memory", recordId: "mem-7" },
+};
+
+const KNOWLEDGE_OK: CaptureResult = {
+  ok: true,
+  record: { target: "knowledge", recordId: "knowledge-capture-web" },
 };
 
 const TASKS_OK: CaptureResult = {
@@ -54,10 +86,25 @@ const TASKS_OK: CaptureResult = {
   },
 };
 
+const INBOX_OK: CaptureResult = {
+  ok: true,
+  record: {
+    target: "inbox",
+    recordId: "inbox-capture-from-web",
+    path: "data/inbox/capture-from-web.md",
+  },
+};
+
 const AMBIGUOUS: CaptureResult = {
   ok: false,
   reason: "ambiguous",
   suggestions: ["memory", "knowledge"],
+};
+
+const AMBIGUOUS_ALL: CaptureResult = {
+  ok: false,
+  reason: "ambiguous",
+  suggestions: ["memory", "knowledge", "tasks", "inbox"],
 };
 
 const NO_CONTRIBUTORS: CaptureResult = {
@@ -339,5 +386,185 @@ describe("CapturePanel", () => {
     expect(button).toBeDisabled();
     fireEvent.submit(textarea.closest("form") as HTMLFormElement);
     expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("writes mounted DOM evidence when KOTA_RUN_DIR is set", async () => {
+    const dir = evidenceDirectory();
+    if (!dir) return;
+
+    const cases: Array<{
+      id: string;
+      response?: CaptureResult | { ok: false; reason: "future_unknown_reason" };
+      draft?: string;
+      target?: "auto" | "memory" | "knowledge" | "tasks" | "inbox";
+      waitForText: RegExp | string;
+      proves: string;
+    }> = [
+      {
+        id: "empty",
+        waitForText: "auto",
+        proves:
+          "CapturePanel mounted its empty form, textarea, auto target, explicit memory/knowledge/tasks/inbox options, and disabled submit state.",
+      },
+      {
+        id: "success-memory",
+        response: MEMORY_OK,
+        draft: "remember to reload the daemon after switching modules",
+        waitForText: "mem-7",
+        proves:
+          "CapturePanel called /api/capture with no explicit target and rendered the memory success arm.",
+      },
+      {
+        id: "success-knowledge",
+        response: KNOWLEDGE_OK,
+        draft: "capture the architecture decision",
+        target: "knowledge",
+        waitForText: "knowledge-capture-web",
+        proves:
+          "CapturePanel called /api/capture with target=knowledge and rendered the knowledge success arm.",
+      },
+      {
+        id: "success-tasks",
+        response: TASKS_OK,
+        draft: "split capture rendering across stores",
+        target: "tasks",
+        waitForText: "data/tasks/inbox/task-capture-from-web.md",
+        proves:
+          "CapturePanel called /api/capture with target=tasks and rendered path metadata.",
+      },
+      {
+        id: "success-inbox",
+        response: INBOX_OK,
+        draft: "raw operator thought",
+        target: "inbox",
+        waitForText: "data/inbox/capture-from-web.md",
+        proves:
+          "CapturePanel called /api/capture with target=inbox and rendered inbox path metadata.",
+      },
+      {
+        id: "ambiguous",
+        response: AMBIGUOUS_ALL,
+        draft: "something vague",
+        waitForText: /Capture target is ambiguous/,
+        proves:
+          "CapturePanel rendered the ambiguous arm with all four suggestion buttons.",
+      },
+      {
+        id: "no-contributors",
+        response: NO_CONTRIBUTORS,
+        draft: "anything",
+        waitForText: "Capture unavailable — no contributors registered.",
+        proves:
+          "CapturePanel rendered the typed no_contributors unavailable state without guessing a store.",
+      },
+      {
+        id: "contributor-failed",
+        response: CONTRIBUTOR_FAILED,
+        draft: "forced to inbox",
+        waitForText: "Inbox writer cannot reach project root",
+        proves:
+          "CapturePanel rendered contributor_failed with the target badge and verbatim daemon message.",
+      },
+      {
+        id: "decode-error",
+        response: { ok: false, reason: "future_unknown_reason" },
+        draft: "anything",
+        waitForText: /unknown capture reason/i,
+        proves:
+          "CapturePanel surfaced strict decoder failure for an unknown result arm in the destructive error style.",
+      },
+    ];
+
+    const manifest: Array<{
+      id: string;
+      artifact: string;
+      fetchUrl: string | null;
+      body: unknown;
+      proves: string;
+      bytes: number;
+    }> = [];
+
+    for (const entry of cases) {
+      cleanup();
+      vi.mocked(globalThis.fetch as ReturnType<typeof vi.fn>).mockReset();
+      if (entry.response) {
+        (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+          ok: true,
+          json: () => Promise.resolve(entry.response),
+        });
+      }
+
+      const { Wrapper } = makeWrapper();
+      const rendered = render(
+        <Wrapper>
+          <CapturePanel />
+        </Wrapper>,
+      );
+
+      if (entry.draft) {
+        typeDraft(entry.draft);
+        if (entry.target && entry.target !== "auto") {
+          fireEvent.change(screen.getByLabelText(/Capture target/i), {
+            target: { value: entry.target },
+          });
+        }
+        submit();
+      }
+
+      await waitFor(() =>
+        expect(screen.getByText(entry.waitForText)).toBeInTheDocument(),
+      );
+
+      const html = prettyDOM(rendered.container, undefined, {
+        highlight: false,
+      });
+      const artifact = `capture-panel-${entry.id}.html`;
+      writeEvidenceFile(
+        artifact,
+        [
+          "<!doctype html>",
+          '<html lang="en">',
+          "<head>",
+          '  <meta charset="utf-8">',
+          `  <title>CapturePanel ${entry.id} mounted DOM evidence</title>`,
+          "</head>",
+          "<body>",
+          "<!-- Generated by CapturePanel.test.tsx from mounted <CapturePanel />. -->",
+          html ?? "",
+          "</body>",
+          "</html>",
+          "",
+        ].join("\n"),
+      );
+
+      const firstCall = vi.mocked(
+        globalThis.fetch as ReturnType<typeof vi.fn>,
+      ).mock.calls[0];
+      manifest.push({
+        id: entry.id,
+        artifact,
+        fetchUrl: firstCall ? String(firstCall[0]) : null,
+        body: firstCall?.[1]?.body ? JSON.parse(String(firstCall[1].body)) : null,
+        proves: entry.proves,
+        bytes: statSync(join(dir, artifact)).size,
+      });
+    }
+
+    writeEvidenceFile(
+      "capture-panel-mounted-dom-manifest.json",
+      `${JSON.stringify(
+        {
+          generatedBy: "clients/web/src/components/sidebar/CapturePanel.test.tsx",
+          surface: "clients/web/src/components/sidebar/CapturePanel.tsx",
+          mount: "<CapturePanel /> inside QueryClientProvider",
+          requestPath: "/api/capture",
+          decoder:
+            "clients/web/src/api/client.ts apiDecoded('/api/capture', parseCaptureResult)",
+          cases: manifest,
+        },
+        null,
+        2,
+      )}\n`,
+    );
   });
 });

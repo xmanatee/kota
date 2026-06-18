@@ -1,0 +1,173 @@
+warning: /Users/xmanatee/Library/org.swift.swiftpm/configuration is not accessible or not writable, disabling user-level cache features.
+warning: /Users/xmanatee/Library/org.swift.swiftpm/security is not accessible or not writable, disabling user-level cache features.
+warning: /Users/xmanatee/Library/Caches/org.swift.swiftpm is not accessible or not writable, disabling user-level cache features.
+warning: 'apple': failed storing manifest for 'apple' in cache: attempt to write a readonly database
+[0/1] Planning build
+Building for debugging...
+[0/6] Write swift-version--58304C5D6DBC2206.txt
+[2/7] Emitting module KotaShared
+Build complete! (0.97s)
+Test Suite 'Selected tests' started at 2026-06-18 16:52:02.883.
+Test Suite 'KotaApplePackageTests.xctest' started at 2026-06-18 16:52:02.884.
+Test Suite 'CaptureViewTests' started at 2026-06-18 16:52:02.884.
+Test Case '-[KotaSharedTests.CaptureViewTests testCaptureResultDecodesAmbiguousPreservingOrder]' started.
+Test Case '-[KotaSharedTests.CaptureViewTests testCaptureResultDecodesAmbiguousPreservingOrder]' passed (0.001 seconds).
+Test Case '-[KotaSharedTests.CaptureViewTests testCaptureResultDecodesContributorFailedWithTargetAndMessage]' started.
+Test Case '-[KotaSharedTests.CaptureViewTests testCaptureResultDecodesContributorFailedWithTargetAndMessage]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.CaptureViewTests testCaptureResultDecodesInboxSuccessWithPath]' started.
+Test Case '-[KotaSharedTests.CaptureViewTests testCaptureResultDecodesInboxSuccessWithPath]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.CaptureViewTests testCaptureResultDecodesKnowledgeSuccess]' started.
+Test Case '-[KotaSharedTests.CaptureViewTests testCaptureResultDecodesKnowledgeSuccess]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.CaptureViewTests testCaptureResultDecodesMemorySuccess]' started.
+Test Case '-[KotaSharedTests.CaptureViewTests testCaptureResultDecodesMemorySuccess]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.CaptureViewTests testCaptureResultDecodesNoContributorsWithoutThrowing]' started.
+Test Case '-[KotaSharedTests.CaptureViewTests testCaptureResultDecodesNoContributorsWithoutThrowing]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.CaptureViewTests testCaptureResultDecodesTasksSuccessWithPath]' started.
+Test Case '-[KotaSharedTests.CaptureViewTests testCaptureResultDecodesTasksSuccessWithPath]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.CaptureViewTests testCaptureResultRejectsUnknownReason]' started.
+Test Case '-[KotaSharedTests.CaptureViewTests testCaptureResultRejectsUnknownReason]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.CaptureViewTests testCaptureTargetChoiceCollapsesToWireTarget]' started.
+Test Case '-[KotaSharedTests.CaptureViewTests testCaptureTargetChoiceCollapsesToWireTarget]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.CaptureViewTests testEmptyDraftPredicateMatchesViewAndLoader]' started.
+Test Case '-[KotaSharedTests.CaptureViewTests testEmptyDraftPredicateMatchesViewAndLoader]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.CaptureViewTests testRenderCaptureResultPlainCoversEveryArm]' started.
+Test Case '-[KotaSharedTests.CaptureViewTests testRenderCaptureResultPlainCoversEveryArm]' passed (0.000 seconds).
+Test Suite 'CaptureViewTests' passed at 2026-06-18 16:52:02.887.
+	 Executed 11 tests, with 0 failures (0 unexpected) in 0.002 (0.003) seconds
+Test Suite 'ContractFixtureTests' started at 2026-06-18 16:52:02.887.
+Test Case '-[KotaSharedTests.ContractFixtureTests testAnswerHistoryNegativeUnknownReasonFails]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testAnswerHistoryNegativeUnknownReasonFails]' passed (0.001 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testAnswerNegativeUnknownCitationSourceFails]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testAnswerNegativeUnknownCitationSourceFails]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testAnswerNegativeUnknownReasonFails]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testAnswerNegativeUnknownReasonFails]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testCaptureNegativeUnknownReasonFails]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testCaptureNegativeUnknownReasonFails]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testCaptureNegativeUnknownTargetFails]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testCaptureNegativeUnknownTargetFails]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesAnswerHistoryList]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesAnswerHistoryList]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesAnswerHistoryShowFound]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesAnswerHistoryShowFound]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesAnswerHistoryShowNotFound]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesAnswerHistoryShowNotFound]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesAnswerNoHits]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesAnswerNoHits]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesAnswerSemanticUnavailable]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesAnswerSemanticUnavailable]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesAnswerSuccess]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesAnswerSuccess]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesAnswerSynthesisFailed]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesAnswerSynthesisFailed]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesAttentionResponse]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesAttentionResponse]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesCapabilityReadinessResponse]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesCapabilityReadinessResponse]' passed (0.001 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesCaptureAmbiguous]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesCaptureAmbiguous]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesCaptureContributorFailed]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesCaptureContributorFailed]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesCaptureSuccessMemory]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesCaptureSuccessMemory]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesCaptureSuccessTasks]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesCaptureSuccessTasks]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesDashboardAvailableIdentity]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesDashboardAvailableIdentity]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesDashboardUnavailableIdentity]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesDashboardUnavailableIdentity]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesDigestResponse]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesDigestResponse]' passed (0.001 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesErrorBodyJson]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesErrorBodyJson]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesHistorySearchSuccess]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesHistorySearchSuccess]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesKnowledgeSearchSemanticUnavailable]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesKnowledgeSearchSemanticUnavailable]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesKnowledgeSearchSuccess]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesKnowledgeSearchSuccess]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesMemorySearchSuccess]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesMemorySearchSuccess]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesProjectRegistryProjection]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesProjectRegistryProjection]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesRecallSemanticUnavailable]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesRecallSemanticUnavailable]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesRecallSuccessAnswerHitFailureArm]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesRecallSuccessAnswerHitFailureArm]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesRecallSuccessMixedSources]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesRecallSuccessMixedSources]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesRetractNotFound]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesRetractNotFound]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesRetractSuccessTasksMovedToDropped]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesRetractSuccessTasksMovedToDropped]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesScopePolicyRouteResponse]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesScopePolicyRouteResponse]' passed (0.001 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesScopeRegistryProjection]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesScopeRegistryProjection]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesSetupRequirementsStatus]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesSetupRequirementsStatus]' passed (0.001 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesTasksSearchSuccess]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesTasksSearchSuccess]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesUiStatusInboxSurfaces]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesUiStatusInboxSurfaces]' passed (0.001 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesUnknownProjectError]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesUnknownProjectError]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesVoiceSynthesizeFailureFormatUnsupported]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesVoiceSynthesizeFailureFormatUnsupported]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesVoiceTranscribeFailureSttUnavailable]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesVoiceTranscribeFailureSttUnavailable]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesWorkflowDefinitions]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testDecodesWorkflowDefinitions]' passed (0.001 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testHistorySearchNegativeUnknownReasonFails]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testHistorySearchNegativeUnknownReasonFails]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testHistorySearchNegativeUnknownSourceFails]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testHistorySearchNegativeUnknownSourceFails]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testKnowledgeSearchNegativeUnknownReasonFails]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testKnowledgeSearchNegativeUnknownReasonFails]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testMemorySearchNegativeUnknownReasonFails]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testMemorySearchNegativeUnknownReasonFails]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testProjectRegistryProjectionRejectsEmptyProjects]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testProjectRegistryProjectionRejectsEmptyProjects]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testProjectRegistryProjectionRejectsUnknownDefault]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testProjectRegistryProjectionRejectsUnknownDefault]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testRecallNegativeUnknownAnswerResultReasonFails]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testRecallNegativeUnknownAnswerResultReasonFails]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testRecallNegativeUnknownReasonFails]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testRecallNegativeUnknownReasonFails]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testRecallNegativeUnknownSourceFails]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testRecallNegativeUnknownSourceFails]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testRetractNegativeUnknownReasonFails]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testRetractNegativeUnknownReasonFails]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testRetractNegativeUnknownTargetFails]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testRetractNegativeUnknownTargetFails]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testScopePolicyRouteResponseRejectsUnknownOutcome]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testScopePolicyRouteResponseRejectsUnknownOutcome]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testScopeRegistryProjectionRejectsEmptyScopes]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testScopeRegistryProjectionRejectsEmptyScopes]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testScopeRegistryProjectionRejectsUnknownDefault]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testScopeRegistryProjectionRejectsUnknownDefault]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testSetupRequirementsRejectUnknownFieldValueKind]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testSetupRequirementsRejectUnknownFieldValueKind]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testSetupRequirementsRejectUnknownKind]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testSetupRequirementsRejectUnknownKind]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testSetupRequirementsRejectUnknownMode]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testSetupRequirementsRejectUnknownMode]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testSetupRequirementsRejectUnknownState]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testSetupRequirementsRejectUnknownState]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testTasksSearchNegativeUnknownReasonFails]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testTasksSearchNegativeUnknownReasonFails]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testUiSurfacesRejectUnknownActionEffect]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testUiSurfacesRejectUnknownActionEffect]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testUiSurfacesRejectUnknownNodeKind]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testUiSurfacesRejectUnknownNodeKind]' passed (0.000 seconds).
+Test Case '-[KotaSharedTests.ContractFixtureTests testUnknownProjectErrorRejectsAlienReason]' started.
+Test Case '-[KotaSharedTests.ContractFixtureTests testUnknownProjectErrorRejectsAlienReason]' passed (0.000 seconds).
+Test Suite 'ContractFixtureTests' passed at 2026-06-18 16:52:02.912.
+	 Executed 63 tests, with 0 failures (0 unexpected) in 0.022 (0.026) seconds
+Test Suite 'KotaApplePackageTests.xctest' passed at 2026-06-18 16:52:02.912.
+	 Executed 74 tests, with 0 failures (0 unexpected) in 0.024 (0.028) seconds
+Test Suite 'Selected tests' passed at 2026-06-18 16:52:02.912.
+	 Executed 74 tests, with 0 failures (0 unexpected) in 0.024 (0.029) seconds
+◇ Test run started.
+↳ Testing Library Version: 1085
+↳ Target Platform: arm64e-apple-macos14.0
+✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.

@@ -1,0 +1,22 @@
+Post-check repair validation, 2026-06-18:
+
+- PASS: NODE_OPTIONS=--conditions=source pnpm exec vitest run src/modules/capture/*.test.ts src/modules/telegram/status-poll-capture-runtime.test.ts src/modules/slack-channel/commands-capture-runtime.test.ts
+  Result: 9 test files, 65 tests passed.
+
+- PASS: clients/web: pnpm exec vitest run src/components/sidebar/CapturePanel.test.tsx
+  Result: 1 test file, 9 tests passed.
+
+- PASS: clients/mobile: pnpm exec jest src/__tests__/CaptureScreen.test.tsx --runInBand
+  Result: 1 test suite, 15 tests passed.
+
+- PASS: clients/apple: HOME=/private/tmp/kota-swift-home CLANG_MODULE_CACHE_PATH=/private/tmp/kota-clang-cache KOTA_RUN_DIR=<run> swift test --disable-sandbox --filter CaptureViewRenderedTests
+  Result: 1 XCTest passed. SwiftPM still warned that user-level caches under /Users/xmanatee were not writable, so the command used writable tmp cache paths.
+
+- PASS: NODE_OPTIONS='--conditions=source --import tsx' node capture-consolidation/probe-contract.mjs
+  Result: contract-probe.json passed.
+
+- PASS: node capture-consolidation/probe-surface-runtime-evidence.mjs
+  Result: surface-runtime-probe.json passed.
+
+- PASS: pnpm validate-tasks
+  Result: task queue validation completed successfully.

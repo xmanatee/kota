@@ -1,0 +1,80 @@
+{
+  "generatedBy": "clients/mobile/src/__tests__/CaptureScreen.test.tsx",
+  "surface": "clients/mobile/src/screens/CaptureScreen.tsx",
+  "mount": "<CaptureScreen /> with mocked DaemonContext state",
+  "requestPath": "clients/mobile/src/daemon/capture.ts daemonRequest('/api/capture') + parseCaptureResult",
+  "cases": [
+    {
+      "id": "empty",
+      "artifact": "capture-screen-empty.json",
+      "proves": "CaptureScreen mounted the empty form, target chips, optional hint field, and usage hint before any request.",
+      "bytes": 14279
+    },
+    {
+      "id": "loading",
+      "artifact": "capture-screen-loading.json",
+      "proves": "CaptureScreen rendered the loading state and disabled submit while a capture is pending.",
+      "bytes": 14496
+    },
+    {
+      "id": "success-memory",
+      "artifact": "capture-screen-success-memory.json",
+      "proves": "CaptureScreen rendered the memory success arm and canonical shared body line.",
+      "bytes": 17173
+    },
+    {
+      "id": "success-knowledge",
+      "artifact": "capture-screen-success-knowledge.json",
+      "proves": "CaptureScreen rendered the knowledge success arm and canonical shared body line.",
+      "bytes": 17196
+    },
+    {
+      "id": "success-tasks",
+      "artifact": "capture-screen-success-tasks.json",
+      "proves": "CaptureScreen rendered the tasks success arm with filesystem path metadata.",
+      "bytes": 17211
+    },
+    {
+      "id": "success-inbox",
+      "artifact": "capture-screen-success-inbox.json",
+      "proves": "CaptureScreen rendered the inbox success arm with filesystem path metadata.",
+      "bytes": 17213
+    },
+    {
+      "id": "ambiguous",
+      "artifact": "capture-screen-ambiguous.json",
+      "proves": "CaptureScreen rendered the ambiguous arm with all four suggestion chips.",
+      "bytes": 28889
+    },
+    {
+      "id": "no-contributors",
+      "artifact": "capture-screen-no-contributors.json",
+      "proves": "CaptureScreen rendered the typed no_contributors unavailable state.",
+      "bytes": 15972
+    },
+    {
+      "id": "contributor-failed",
+      "artifact": "capture-screen-contributor-failed.json",
+      "proves": "CaptureScreen rendered contributor_failed with target badge and verbatim daemon message.",
+      "bytes": 17248
+    },
+    {
+      "id": "http-error-retry",
+      "artifact": "capture-screen-http-error-retry.json",
+      "proves": "CaptureScreen surfaced the daemon HTTP error with a retry affordance instead of degrading silently.",
+      "bytes": 16465
+    },
+    {
+      "id": "offline",
+      "artifact": "capture-screen-offline.json",
+      "proves": "CaptureScreen rendered the daemon-offline banner and disabled request path.",
+      "bytes": 14950
+    },
+    {
+      "id": "no-daemon",
+      "artifact": "capture-screen-no-daemon.json",
+      "proves": "CaptureScreen rendered the missing-daemon setup state.",
+      "bytes": 696
+    }
+  ]
+}

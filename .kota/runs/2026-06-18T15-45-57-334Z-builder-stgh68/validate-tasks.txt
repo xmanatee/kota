@@ -1,0 +1,7 @@
+
+> kota@0.1.0 validate-tasks /Users/xmanatee/Desktop/mono/apps/kota
+> node --conditions=source --import tsx src/validate-queue.ts
+
+- [task-untracked] Task files must be tracked before a run finishes: data/tasks/done/task-fan-out-consolidation-capture.md. Fix: run `git add data/tasks/done/task-fan-out-consolidation-capture.md`
+- [task-deleted-unstaged] Task file deletions must be staged: data/tasks/ready/task-fan-out-consolidation-capture.md. Fix: run `git add data/tasks/ready/task-fan-out-consolidation-capture.md`
+ ELIFECYCLE  Command failed with exit code 1.

@@ -1,0 +1,8 @@
+1. Satisfied. Current code and tests show capture entry points in CLI, Telegram, Slack, web, mobile, and macOS; `capture-consolidation/cli-transcript.txt` and `capture-consolidation/surface-runtime-evidence/` cover discoverability from the operator surfaces.
+2. Satisfied. `capture-consolidation/contract-probe.json`, `capture-module-tests.txt`, `web-capture-tests.txt`, `mobile-capture-tests.txt`, and `apple-capture-tests.txt` cover the shared capture contract and conformance fixture arms.
+3. Satisfied. The only named drift, web runtime decoder reuse, is closed by `data/tasks/done/task-fold-conformance-decoders-into-web-client-runtime-.md`; no new duplicate decoder/error-renderer drift was found.
+4. Satisfied. The validation set covers `ambiguous`, `no_contributors`, and `contributor_failed`, and the June 15 rendered evidence includes the same typed states for visual/chat surfaces.
+5. Satisfied. `capture-consolidation/surface-runtime-evidence/` contains explicit web, mobile, macOS, Telegram, and Slack artifacts, and `capture-consolidation/surface-runtime-probe.json` verifies the expected arms.
+6. Satisfied. The current grep/read pass found no stale capture affordance or "fan-out lands later" capture guidance; no removal task is needed.
+7. Satisfied. `src/modules/capture/AGENTS.md` now names the shared route/render/conformance boundaries and the live cross-surface consumer rule.
+8. Satisfied. Accepted critic-warning debt is accounted for by the completed web decoder follow-up; no additional warning retirement task is needed.

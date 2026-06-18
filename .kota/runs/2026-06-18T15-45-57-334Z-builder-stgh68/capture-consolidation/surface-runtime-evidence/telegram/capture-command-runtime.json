@@ -1,0 +1,124 @@
+{
+  "generatedBy": "src/modules/telegram/status-poll-capture-runtime.test.ts",
+  "surface": "src/modules/telegram/status-poll.ts",
+  "path": "handleTelegramStatusCommand -> scope.capture.capture -> renderCaptureReplyPlain -> callTelegramApi(sendMessage)",
+  "cases": [
+    {
+      "command": "/capture remember to call alice",
+      "handled": true,
+      "reply": {
+        "chat_id": 987654321,
+        "text": "Captured to memory: mem-001"
+      },
+      "captureCalls": [
+        [
+          "remember to call alice",
+          null
+        ]
+      ]
+    },
+    {
+      "command": "/capture-to-knowledge architecture decision",
+      "handled": true,
+      "reply": {
+        "chat_id": 987654321,
+        "text": "Captured to knowledge: kn-arch-001"
+      },
+      "captureCalls": [
+        [
+          "architecture decision",
+          {
+            "target": "knowledge"
+          }
+        ]
+      ]
+    },
+    {
+      "command": "/capture-to-tasks fix the login redirect",
+      "handled": true,
+      "reply": {
+        "chat_id": 987654321,
+        "text": "Captured to tasks: task-fix-login (data/tasks/inbox/task-fix-login.md)"
+      },
+      "captureCalls": [
+        [
+          "fix the login redirect",
+          {
+            "target": "tasks"
+          }
+        ]
+      ]
+    },
+    {
+      "command": "/capture-to-inbox raw morning thought",
+      "handled": true,
+      "reply": {
+        "chat_id": 987654321,
+        "text": "Captured to inbox: thoughts-2026-04-28 (data/inbox/thoughts-2026-04-28.md)"
+      },
+      "captureCalls": [
+        [
+          "raw morning thought",
+          {
+            "target": "inbox"
+          }
+        ]
+      ]
+    },
+    {
+      "command": "/capture something vague",
+      "handled": true,
+      "reply": {
+        "chat_id": 987654321,
+        "text": "Capture target ambiguous. Suggestions: memory, knowledge, tasks, inbox. Re-run with one of: /capture-to-memory, /capture-to-knowledge, /capture-to-tasks, /capture-to-inbox."
+      },
+      "captureCalls": [
+        [
+          "something vague",
+          null
+        ]
+      ]
+    },
+    {
+      "command": "/capture-to-memory anything",
+      "handled": true,
+      "reply": {
+        "chat_id": 987654321,
+        "text": "Cross-store capture has no registered contributors."
+      },
+      "captureCalls": [
+        [
+          "anything",
+          {
+            "target": "memory"
+          }
+        ]
+      ]
+    },
+    {
+      "command": "/capture-to-tasks file the bug",
+      "handled": true,
+      "reply": {
+        "chat_id": 987654321,
+        "text": "Capture into tasks failed: ENOENT: data/tasks/inbox missing"
+      },
+      "captureCalls": [
+        [
+          "file the bug",
+          {
+            "target": "tasks"
+          }
+        ]
+      ]
+    },
+    {
+      "command": "/capture",
+      "handled": true,
+      "reply": {
+        "chat_id": 987654321,
+        "text": "Capture target ambiguous. Suggestions: memory, knowledge, tasks, inbox. Re-run with one of: /capture-to-memory, /capture-to-knowledge, /capture-to-tasks, /capture-to-inbox."
+      },
+      "captureCalls": []
+    }
+  ]
+}

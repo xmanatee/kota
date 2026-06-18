@@ -1,0 +1,15 @@
+
+> @kota/web@0.1.0 test /Users/xmanatee/Desktop/mono/apps/kota/clients/web
+> vitest run src/api/contractFixture.test.ts src/api/decoder-boundary.test.ts src/components/sidebar/CapturePanel.test.tsx
+
+
+ RUN  v3.2.4 /Users/xmanatee/Desktop/mono/apps/kota/clients/web
+
+ ✓ src/api/contractFixture.test.ts (69 tests) 5ms
+ ✓ src/api/decoder-boundary.test.ts (9 tests) 40ms
+ ✓ src/components/sidebar/CapturePanel.test.tsx (8 tests) 97ms
+
+ Test Files  3 passed (3)
+      Tests  86 passed (86)
+   Start at  16:51:11
+   Duration  835ms (transform 95ms, setup 455ms, collect 137ms, tests 142ms, environment 753ms, prepare 467ms)
