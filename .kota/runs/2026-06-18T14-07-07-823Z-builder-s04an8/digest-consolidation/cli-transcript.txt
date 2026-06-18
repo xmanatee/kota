@@ -1,0 +1,229 @@
+$ NODE_OPTIONS= pnpm kota --help
+
+> kota@0.1.0 kota /Users/xmanatee/Desktop/mono/apps/kota
+> node bin/kota.mjs --help
+
+Usage: kota [options] [command]
+
+KOTA - Keep Only The Awesome. A general-purpose AI agent.
+
+Options:
+  -V, --version                output the version number
+  -h, --help                   display help for command
+
+Commands:
+  run [options] [prompt...]    Run KOTA with a prompt
+  history                      Manage conversation history
+  acp [options]                Run KOTA as an Agent Client Protocol agent over
+                               stdio
+  agent                        Inspect available agents
+  knowledge                    Inspect and manage the project knowledge store
+  memory                       Inspect and manage the agent memory store
+  task                         Inspect and manage the repo task queue
+  recall [options] <query>     Search every registered store at once and return
+                               ranked, source-tagged hits.
+  answer                       Compose, list, and re-read cited answers over the
+                               second brain.
+  approval                     Manage the tool-call approval queue
+  workflow|wf                  Inspect automation workflow runs and control the daemon.
+  digest [options]             Print the on-demand operator digest for the
+                               current project (24h rollup)
+  attention [options]          Print the on-demand attention items for the
+                               current project (no cadence side effects)
+  report [options]             Print the operator autonomy balance/quality
+                               report for the current project (default window 7
+                               days)
+  browser                      Inspect and exercise browser-module capabilities.
+  capture [options] <text...>  Capture one natural-language note and route it to
+                               memory, knowledge, tasks, or inbox.
+  daemon [options]             Run KOTA as a long-running daemon with autonomous
+                               workflows
+  events                       Inspect the daemon event bus
+  session                      Inspect active sessions tracked by the daemon
+  status [options]             Show a concise operational snapshot: daemon,
+                               active runs, approvals, and cost
+  inbox [options]              Show one operator inbox for approvals, owner
+                               questions, blocked tasks, setup gaps, failed
+                               runs, and runtime warnings
+  project                      Inspect and select the daemon's active project
+  module                       Inspect loaded modules and their contributions
+  navigate                     Open the interactive runtime navigator (TTY only)
+  completion [shell]           Print shell completion script (bash or zsh).
+                               Source it to enable tab completion.
+  config                       Inspect and validate KOTA configuration
+  doctor [options]             Run runtime health checks and print a
+                               pass/warn/fail summary
+  eval                         Run the autonomy eval harness against a fixture
+                               or fixture set.
+  audit                        Query the guardrail audit trail
+  harness-parity               Run coding-task scenarios across every registered
+                               harness and capture paired artifacts.
+  init [options]               Scaffold a new KOTA project in the current
+                               directory
+  mcp-registry                 Import external MCP server config from an MCP
+                               Registry-compatible endpoint
+  mcp-server [options]         Start an MCP server exposing KOTA tools
+  owner-decision               Manage persisted owner decisions
+  owner-question               Manage the owner question queue for agent
+                               escalations
+  tools                        Manage installed tool packages
+  retract [options]            Remove or supersede one prior cross-store record
+                               (memory, knowledge, tasks, inbox). Tasks route
+                               through the state machine into
+                               data/tasks/dropped/ - the file is not deleted.
+  secrets                      Manage secrets and credentials
+  setup                        Inspect and satisfy module setup requirements
+  skill                        Manage and inspect registered skills
+  voice                        Talk to the daemon's voice surface (STT input,
+                               TTS output)
+  serve [options]              Start KOTA as an HTTP API server with SSE
+                               streaming
+  webhook                      Manage inbound webhook secrets for workflow
+                               triggers
+  help [command]               display help for command
+
+$ NODE_OPTIONS= pnpm kota digest --help
+
+> kota@0.1.0 kota /Users/xmanatee/Desktop/mono/apps/kota
+> node bin/kota.mjs digest --help
+
+Usage: kota digest [options]
+
+Print the on-demand operator digest for the current project (24h rollup)
+
+Options:
+  --json      Emit the structured DailyDigestData payload as JSON instead of the
+              rendered text body
+  -h, --help  display help for command
+
+$ NODE_OPTIONS= pnpm kota digest
+
+> kota@0.1.0 kota /Users/xmanatee/Desktop/mono/apps/kota
+> node bin/kota.mjs digest
+
+Daily digest (2026-06-17 14:11Z -> 2026-06-18 14:11Z)
+----------------------------------------
+
+Builder commits (5, 1h41m total) -----------------------------------------------
+- task-fan-out-consolidation-history: Render macOS history evidence from mounted view
+- task-fan-out-consolidation-knowledge: Add knowledge consolidation rendered evidence
+- task-resolve-stale-builder-and-inbox-sorter-dlqs: Resolve stale builder and inbox-sorter DLQs
+- task-resolve-security-review-investigate-candidates-tim: Resolve security-review timeout DLQs
+- task-stabilize-live-progress-reviewer-review-evidence-f: Resolve progress-reviewer DLQ review evidence task
+
+Failed/interrupted monitored runs (2) - see attention-digest -------------------
+- improver: interrupted (2026-06-17T16-52-55-429Z-improver-5iw3fe)
+- improver: interrupted (2026-06-17T16-38-24-085Z-improver-u95tpd)
+
+Aging operator-capture preconditions (2) ---------------------------------------
+- task-capture-an-end-to-end-coding-task-parity-artifact- (42d, awaits .kota/runs/harness-parity-*)
+- task-add-a-scientific-claim-reproduction-fixture-to-the (22d, awaits .kota/runs/scientific-claim-reproduction-live-pass)
+
+Queue state --------------------------------------------------------------------
+- ready: 3 (-3)
+- backlog: 19 (=)
+- doing: 1 (+1)
+- blocked: 4 (=)
+
+$ NODE_OPTIONS= pnpm kota digest --json
+
+> kota@0.1.0 kota /Users/xmanatee/Desktop/mono/apps/kota
+> node bin/kota.mjs digest --json
+
+{
+  "windowStartedAt": "2026-06-17T14:11:08.630Z",
+  "windowEndedAt": "2026-06-18T14:11:08.630Z",
+  "builderCommits": [
+    {
+      "runId": "2026-06-18T13-22-56-683Z-builder-7v9610",
+      "taskId": "task-fan-out-consolidation-history",
+      "taskTitle": "Consolidate history surfaces across clients",
+      "commitSubject": "Render macOS history evidence from mounted view",
+      "durationMs": 2465630
+    },
+    {
+      "runId": "2026-06-18T12-52-42-920Z-builder-swebaw",
+      "taskId": "task-fan-out-consolidation-knowledge",
+      "taskTitle": "Consolidate knowledge surfaces across clients",
+      "commitSubject": "Add knowledge consolidation rendered evidence",
+      "durationMs": 1627324
+    },
+    {
+      "runId": "2026-06-18T12-33-02-781Z-builder-k7rfn5",
+      "taskId": "task-resolve-stale-builder-and-inbox-sorter-dlqs",
+      "taskTitle": "Resolve stale builder and inbox-sorter DLQs",
+      "commitSubject": "Resolve stale builder and inbox-sorter DLQs",
+      "durationMs": 663688
+    },
+    {
+      "runId": "2026-06-18T12-21-26-420Z-builder-11pptd",
+      "taskId": "task-resolve-security-review-investigate-candidates-tim",
+      "taskTitle": "Resolve security-review investigate-candidates timeout DLQs",
+      "commitSubject": "Resolve security-review timeout DLQs",
+      "durationMs": 495815
+    },
+    {
+      "runId": "2026-06-18T12-07-51-539Z-builder-8o0dai",
+      "taskId": "task-stabilize-live-progress-reviewer-review-evidence-f",
+      "taskTitle": "Stabilize live progress-reviewer review-evidence failures",
+      "commitSubject": "Resolve progress-reviewer DLQ review evidence task",
+      "durationMs": 808444
+    }
+  ],
+  "explorerAdditions": [],
+  "decomposerSplits": [],
+  "blockedPromoterMoves": [],
+  "failedMonitoredRuns": [
+    {
+      "runId": "2026-06-17T16-52-55-429Z-improver-5iw3fe",
+      "workflow": "improver",
+      "status": "interrupted",
+      "startedAt": "2026-06-17T16:52:59.769Z"
+    },
+    {
+      "runId": "2026-06-17T16-38-24-085Z-improver-u95tpd",
+      "workflow": "improver",
+      "status": "interrupted",
+      "startedAt": "2026-06-17T16:38:32.184Z"
+    }
+  ],
+  "pendingOwnerQuestions": [],
+  "agingOperatorCaptures": [
+    {
+      "taskId": "task-capture-an-end-to-end-coding-task-parity-artifact-",
+      "ageDays": 42,
+      "path": ".kota/runs/harness-parity-*"
+    },
+    {
+      "taskId": "task-add-a-scientific-claim-reproduction-fixture-to-the",
+      "ageDays": 22,
+      "path": ".kota/runs/scientific-claim-reproduction-live-pass"
+    }
+  ],
+  "queueDelta": {
+    "current": {
+      "backlog": 19,
+      "ready": 3,
+      "doing": 1,
+      "blocked": 4
+    },
+    "previous": {
+      "backlog": 19,
+      "ready": 6,
+      "doing": 0,
+      "blocked": 4
+    },
+    "delta": {
+      "backlog": 0,
+      "ready": -3,
+      "doing": 1,
+      "blocked": 0
+    }
+  },
+  "quiet": false
+}
+
+Observed JSON top-level keys:
+blockedPromoterMoves, agingOperatorCaptures, builderCommits, decomposerSplits,
+explorerAdditions, failedMonitoredRuns, pendingOwnerQuestions, queueDelta,
+quiet, windowEndedAt, windowStartedAt.

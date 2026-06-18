@@ -1,0 +1,121 @@
+{
+  "generatedBy": "clients/mobile/src/__tests__/DigestScreen.test.tsx",
+  "surface": "clients/mobile/src/screens/DigestScreen.tsx",
+  "mount": "<DigestScreen /> with mocked DaemonContext state",
+  "state": "active",
+  "tree": {
+    "type": "RCTScrollView",
+    "props": {
+      "style": {
+        "flex": 1,
+        "backgroundColor": "#f2f2f7"
+      },
+      "contentContainerStyle": {
+        "padding": 16
+      },
+      "refreshControl": "[ReactElement RefreshControl]"
+    },
+    "children": [
+      {
+        "type": "RCTRefreshControl",
+        "props": {},
+        "children": null
+      },
+      {
+        "type": "View",
+        "props": {},
+        "children": [
+          {
+            "type": "View",
+            "props": {
+              "style": {
+                "flexDirection": "row",
+                "alignItems": "center",
+                "gap": 10,
+                "marginBottom": 12
+              }
+            },
+            "children": [
+              {
+                "type": "Text",
+                "props": {
+                  "style": {
+                    "fontSize": 17,
+                    "fontWeight": "600",
+                    "color": "#1c1c1e"
+                  }
+                },
+                "children": [
+                  "Daily Digest"
+                ]
+              },
+              {
+                "type": "View",
+                "props": {
+                  "style": [
+                    {
+                      "paddingHorizontal": 8,
+                      "paddingVertical": 2,
+                      "borderRadius": 4
+                    },
+                    {
+                      "backgroundColor": "rgba(48, 209, 88, 0.15)"
+                    }
+                  ]
+                },
+                "children": [
+                  {
+                    "type": "Text",
+                    "props": {
+                      "style": {
+                        "color": "#1f8a3a",
+                        "fontSize": 11,
+                        "fontWeight": "600"
+                      }
+                    },
+                    "children": [
+                      "active"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "View",
+            "props": {
+              "style": {
+                "backgroundColor": "#fff",
+                "borderRadius": 12,
+                "padding": 14,
+                "shadowColor": "#000",
+                "shadowOpacity": 0.04,
+                "shadowRadius": 4,
+                "shadowOffset": {
+                  "width": 0,
+                  "height": 2
+                }
+              }
+            },
+            "children": [
+              {
+                "type": "Text",
+                "props": {
+                  "style": {
+                    "fontFamily": "Courier",
+                    "fontSize": 12,
+                    "color": "#1c1c1e",
+                    "lineHeight": 18
+                  }
+                },
+                "children": [
+                  "Daily digest 2026-04-26\n- builder committed: Add foo"
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

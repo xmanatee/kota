@@ -1,0 +1,33 @@
+{
+  "generatedBy": "clients/web/src/components/sidebar/DigestPanel.test.tsx",
+  "surface": "clients/web/src/components/sidebar/DigestPanel.tsx",
+  "mount": "<DigestPanel /> inside QueryClientProvider + TestProjectProvider",
+  "requestPath": "/api/digest",
+  "decoder": "clients/web/src/api/client.ts apiDecoded('/api/digest', parseDigestResponse)",
+  "cases": [
+    {
+      "id": "active",
+      "artifact": "digest-panel-active.html",
+      "fetchUrl": "/api/digest",
+      "authorizationHeader": "Bearer test-token",
+      "proves": "DigestPanel mounted against /api/digest, decoded an active DigestResponse, rendered the active badge and daemon text body.",
+      "bytes": 804
+    },
+    {
+      "id": "quiet",
+      "artifact": "digest-panel-quiet.html",
+      "fetchUrl": "/api/digest",
+      "authorizationHeader": "Bearer test-token",
+      "proves": "DigestPanel mounted against /api/digest, decoded data.quiet=true, and rendered the quiet-window badge.",
+      "bytes": 805
+    },
+    {
+      "id": "error",
+      "artifact": "digest-panel-error.html",
+      "fetchUrl": "/api/digest",
+      "authorizationHeader": "Bearer test-token",
+      "proves": "DigestPanel mounted against /api/digest and surfaced the daemon error with the Retry control.",
+      "bytes": 769
+    }
+  ]
+}

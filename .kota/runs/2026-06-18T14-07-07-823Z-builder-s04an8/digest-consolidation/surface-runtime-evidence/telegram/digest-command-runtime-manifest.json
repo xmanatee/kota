@@ -1,0 +1,13 @@
+{
+  "generatedBy": "src/modules/telegram/status-poll-digest-runtime.test.ts",
+  "artifacts": [
+    {
+      "path": "digest-command-runtime.json",
+      "bytes": 1140
+    },
+    {
+      "path": "digest-command-runtime.md",
+      "bytes": 990
+    }
+  ]
+}

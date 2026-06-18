@@ -1,0 +1,5 @@
+1. The digest consolidation task is the active task in `doing/` before review work proceeds.
+2. The recorded headless review artifacts cover the digest contract, CLI/operator transcript, and written verdict for every consolidation dimension.
+3. The current run records digest-specific rendered/runtime artifacts from the required visual surfaces, with CLI and daemon covered by their transcript/probe artifacts.
+4. Any contract drift, duplicated decoder/runtime logic, stale docs, or accepted warning surfaced by the review has a named follow-up task or an explicit no-follow-up note.
+5. The digest task is moved to `done/` only after the above evidence is rechecked and task validation passes or any validation blocker is recorded honestly.

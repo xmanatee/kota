@@ -110,6 +110,24 @@ deploy/telegram-assistant/.env
 !/.kota/runs/2026-06-18T13-22-56-683Z-builder-7v9610/history-consolidation/**
 !/.kota/runs/2026-06-18T13-22-56-683Z-builder-7v9610/success-criteria-verified.txt
 !/.kota/runs/2026-06-18T13-22-56-683Z-builder-7v9610/success-criteria.txt
+!/.kota/runs/2026-06-18T14-07-07-823Z-builder-s04an8/
+/.kota/runs/2026-06-18T14-07-07-823Z-builder-s04an8/*
+!/.kota/runs/2026-06-18T14-07-07-823Z-builder-s04an8/commit-message.txt
+!/.kota/runs/2026-06-18T14-07-07-823Z-builder-s04an8/digest-consolidation/
+/.kota/runs/2026-06-18T14-07-07-823Z-builder-s04an8/digest-consolidation/*
+!/.kota/runs/2026-06-18T14-07-07-823Z-builder-s04an8/digest-consolidation/cli-transcript.txt
+!/.kota/runs/2026-06-18T14-07-07-823Z-builder-s04an8/digest-consolidation/contract-probe.json
+!/.kota/runs/2026-06-18T14-07-07-823Z-builder-s04an8/digest-consolidation/probe-contract.mjs
+!/.kota/runs/2026-06-18T14-07-07-823Z-builder-s04an8/digest-consolidation/probe-surface-runtime-evidence.mjs
+!/.kota/runs/2026-06-18T14-07-07-823Z-builder-s04an8/digest-consolidation/rendered-evidence/
+/.kota/runs/2026-06-18T14-07-07-823Z-builder-s04an8/digest-consolidation/rendered-evidence/*
+!/.kota/runs/2026-06-18T14-07-07-823Z-builder-s04an8/digest-consolidation/rendered-evidence/README.md
+!/.kota/runs/2026-06-18T14-07-07-823Z-builder-s04an8/digest-consolidation/surface-runtime-evidence/
+!/.kota/runs/2026-06-18T14-07-07-823Z-builder-s04an8/digest-consolidation/surface-runtime-evidence/**
+!/.kota/runs/2026-06-18T14-07-07-823Z-builder-s04an8/digest-consolidation/surface-runtime-probe.json
+!/.kota/runs/2026-06-18T14-07-07-823Z-builder-s04an8/digest-consolidation/verdict.md
+!/.kota/runs/2026-06-18T14-07-07-823Z-builder-s04an8/success-criteria-verified.txt
+!/.kota/runs/2026-06-18T14-07-07-823Z-builder-s04an8/success-criteria.txt
 # Eval-harness fixtures legitimately seed prior run state; the runner copies
 # `initial/` verbatim into an isolated tmpdir at fixture-run time.
 !src/modules/eval-harness/fixtures/**/initial/.kota/

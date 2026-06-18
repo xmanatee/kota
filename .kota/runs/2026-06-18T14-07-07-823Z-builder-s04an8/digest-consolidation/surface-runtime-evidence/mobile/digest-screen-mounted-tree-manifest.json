@@ -1,0 +1,45 @@
+{
+  "generatedBy": "clients/mobile/src/__tests__/DigestScreen.test.tsx",
+  "surface": "clients/mobile/src/screens/DigestScreen.tsx",
+  "mount": "<DigestScreen />",
+  "dataSource": "clients/mobile/src/context/DaemonContext.tsx dispatches getDigest() results into DigestScreen state",
+  "decoder": "clients/mobile/src/daemon/digest.ts daemonRequest(\"/api/digest\") -> parseDigestResponse",
+  "cases": [
+    {
+      "id": "active",
+      "artifact": "digest-screen-active.json",
+      "proves": "DigestScreen mounted with a decoded active DigestResponse and rendered the active badge plus daemon text body.",
+      "bytes": 3216
+    },
+    {
+      "id": "quiet",
+      "artifact": "digest-screen-quiet.json",
+      "proves": "DigestScreen mounted with data.quiet=true and rendered the quiet-window badge.",
+      "bytes": 3231
+    },
+    {
+      "id": "error-retry",
+      "artifact": "digest-screen-error-retry.json",
+      "proves": "DigestScreen mounted the daemon error branch with the Retry affordance.",
+      "bytes": 3888
+    },
+    {
+      "id": "offline",
+      "artifact": "digest-screen-offline.json",
+      "proves": "DigestScreen mounted the offline banner and did not preserve stale digest content.",
+      "bytes": 2080
+    },
+    {
+      "id": "loading",
+      "artifact": "digest-screen-loading.json",
+      "proves": "DigestScreen mounted the loading branch before the first digest payload arrives.",
+      "bytes": 1913
+    },
+    {
+      "id": "no-daemon",
+      "artifact": "digest-screen-no-daemon.json",
+      "proves": "DigestScreen mounted the no-daemon configured empty state.",
+      "bytes": 693
+    }
+  ]
+}

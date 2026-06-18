@@ -1,0 +1,69 @@
+{
+  "generatedAt": "2026-06-18T14:12:36.879Z",
+  "project": "digest-consolidation",
+  "route": "GET /api/digest",
+  "passed": true,
+  "arms": [
+    {
+      "name": "success-explicit-windowEndMs",
+      "passed": true,
+      "status": 200,
+      "textMatchesOnDemandSeam": true,
+      "dataMatchesOnDemandSeam": true,
+      "quiet": true,
+      "topLevelKeys": [
+        "data",
+        "text"
+      ],
+      "dataKeys": [
+        "agingOperatorCaptures",
+        "blockedPromoterMoves",
+        "builderCommits",
+        "decomposerSplits",
+        "explorerAdditions",
+        "failedMonitoredRuns",
+        "pendingOwnerQuestions",
+        "queueDelta",
+        "quiet",
+        "windowEndedAt",
+        "windowStartedAt"
+      ]
+    },
+    {
+      "name": "success-default-windowEndMs",
+      "passed": true,
+      "status": 200,
+      "windowEndedAt": "2026-06-18T14:12:36.878Z",
+      "quiet": true,
+      "queueDeltaKeys": [
+        "current",
+        "delta",
+        "previous"
+      ]
+    },
+    {
+      "name": "malformed-windowEndMs-rejected",
+      "passed": true,
+      "status": 400,
+      "body": {
+        "error": "windowEndMs must be a finite number"
+      }
+    },
+    {
+      "name": "unauthenticated-rejected",
+      "passed": true,
+      "status": 401,
+      "bodyPreview": "{\"error\":\"Unauthorized\"}"
+    },
+    {
+      "name": "no-cadence-state-file-written",
+      "passed": true,
+      "statePathExists": false
+    },
+    {
+      "name": "no-workflow-daily-digest-emitted",
+      "passed": true,
+      "observedEventCount": 0
+    }
+  ]
+}

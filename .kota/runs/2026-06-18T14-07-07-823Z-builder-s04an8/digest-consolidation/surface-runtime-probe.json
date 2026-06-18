@@ -1,0 +1,122 @@
+{
+  "generatedBy": "digest-consolidation/probe-surface-runtime-evidence.mjs",
+  "evidenceRoot": "digest-consolidation/surface-runtime-evidence",
+  "passed": true,
+  "checks": [
+    {
+      "id": "web-mounted-digest-panel",
+      "passed": true,
+      "detail": "web manifest names the actual DigestPanel mount and strict digest decoder"
+    },
+    {
+      "id": "web-active-request",
+      "passed": true,
+      "detail": "web active case called /api/digest and wrote mounted DOM"
+    },
+    {
+      "id": "web-quiet-request",
+      "passed": true,
+      "detail": "web quiet case called /api/digest and wrote mounted DOM"
+    },
+    {
+      "id": "web-error-request",
+      "passed": true,
+      "detail": "web error case called /api/digest and wrote mounted DOM"
+    },
+    {
+      "id": "web-rendered-arms",
+      "passed": true,
+      "detail": "web mounted DOM covers active, quiet, and error retry arms"
+    },
+    {
+      "id": "mobile-mounted-digest-screen",
+      "passed": true,
+      "detail": "mobile manifest names DigestScreen, DaemonContext, and strict digest decoder"
+    },
+    {
+      "id": "mobile-active-tree",
+      "passed": true,
+      "detail": "mobile active case wrote a rendered React Native tree"
+    },
+    {
+      "id": "mobile-quiet-tree",
+      "passed": true,
+      "detail": "mobile quiet case wrote a rendered React Native tree"
+    },
+    {
+      "id": "mobile-error-retry-tree",
+      "passed": true,
+      "detail": "mobile error-retry case wrote a rendered React Native tree"
+    },
+    {
+      "id": "mobile-offline-tree",
+      "passed": true,
+      "detail": "mobile offline case wrote a rendered React Native tree"
+    },
+    {
+      "id": "mobile-loading-tree",
+      "passed": true,
+      "detail": "mobile loading case wrote a rendered React Native tree"
+    },
+    {
+      "id": "mobile-no-daemon-tree",
+      "passed": true,
+      "detail": "mobile no-daemon case wrote a rendered React Native tree"
+    },
+    {
+      "id": "mobile-rendered-arms",
+      "passed": true,
+      "detail": "mobile rendered trees cover active, quiet, retry, offline, and no-daemon arms"
+    },
+    {
+      "id": "telegram-real-command-path",
+      "passed": true,
+      "detail": "telegram /digest evidence comes from the command handler and real on-demand renderer, with plain-text sendMessage bodies"
+    },
+    {
+      "id": "macos-image-renderer-manifest",
+      "passed": true,
+      "detail": "macOS manifest names DigestView.swift, ImageRenderer, and eight rendered states"
+    },
+    {
+      "id": "macos-png-collapsed-active-header.png",
+      "passed": true,
+      "detail": "macOS collapsed-active-header.png is a non-empty PNG render"
+    },
+    {
+      "id": "macos-png-collapsed-quiet-header.png",
+      "passed": true,
+      "detail": "macOS collapsed-quiet-header.png is a non-empty PNG render"
+    },
+    {
+      "id": "macos-png-expanded-active-body.png",
+      "passed": true,
+      "detail": "macOS expanded-active-body.png is a non-empty PNG render"
+    },
+    {
+      "id": "macos-png-expanded-empty-cache.png",
+      "passed": true,
+      "detail": "macOS expanded-empty-cache.png is a non-empty PNG render"
+    },
+    {
+      "id": "macos-png-expanded-error-retry.png",
+      "passed": true,
+      "detail": "macOS expanded-error-retry.png is a non-empty PNG render"
+    },
+    {
+      "id": "macos-png-expanded-loading.png",
+      "passed": true,
+      "detail": "macOS expanded-loading.png is a non-empty PNG render"
+    },
+    {
+      "id": "macos-png-expanded-quiet-body.png",
+      "passed": true,
+      "detail": "macOS expanded-quiet-body.png is a non-empty PNG render"
+    },
+    {
+      "id": "macos-png-expanded-refreshing.png",
+      "passed": true,
+      "detail": "macOS expanded-refreshing.png is a non-empty PNG render"
+    }
+  ]
+}
