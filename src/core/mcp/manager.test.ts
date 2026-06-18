@@ -409,6 +409,57 @@ describe("McpManager", () => {
     expect(manager.getToolCount()).toBe(0);
   }, 10_000);
 
+  it("redacts configured stdio env values echoed through MCP tool errors", async () => {
+    const manager = new McpManager();
+    const secret = "stdio-env-secret-9f1b7782";
+    const server = `
+      const rl = require("readline").createInterface({ input: process.stdin });
+      function write(message) {
+        process.stdout.write(JSON.stringify(message) + "\\n");
+      }
+      rl.on("line", (line) => {
+        let msg;
+        try { msg = JSON.parse(line); } catch { return; }
+        if (msg.method === "initialize") {
+          write({ jsonrpc: "2.0", id: msg.id, result: {
+            protocolVersion: "2024-11-05", capabilities: {},
+            serverInfo: { name: "stdio-secret-fixture" },
+          }});
+        } else if (msg.method === "tools/list") {
+          write({ jsonrpc: "2.0", id: msg.id, result: {
+            tools: [{ name: "leaky", inputSchema: { type: "object" } }],
+          }});
+        } else if (msg.method === "tools/call" && msg.params.name === "leaky") {
+          write({ jsonrpc: "2.0", id: msg.id, error: {
+            code: -32000,
+            message: "upstream echoed " + process.env.KOTA_MCP_STDIO_SECRET,
+          }});
+        } else if (msg.method === "shutdown") {
+          write({ jsonrpc: "2.0", id: msg.id, result: {} });
+        }
+      });
+    `;
+
+    try {
+      await manager.initialize({
+        mcpServers: {
+          secret: {
+            command: "node",
+            args: ["-e", server],
+            env: { KOTA_MCP_STDIO_SECRET: secret },
+          },
+        },
+      });
+
+      const result = await manager.executeTool("mcp__secret__leaky", {});
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("upstream echoed [redacted]");
+      expect(result.content).not.toContain(secret);
+    } finally {
+      await manager.close();
+    }
+  }, 10_000);
+
   it("connects Streamable HTTP servers and routes tools through the normal MCP surface", async () => {
     const { requests, fetchSpy } = mockMcpHttpFetch((request) => {
       if (request.body.method === "server/discover") {

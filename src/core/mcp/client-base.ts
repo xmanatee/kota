@@ -386,6 +386,9 @@ export abstract class McpClientBase {
     const add = (value: string | undefined) => {
       if (value && value.length > 0) values.push(value);
     };
+    if (this.transport.type === "stdio") {
+      for (const value of Object.values(this.transport.env ?? {})) add(value);
+    }
     if (this.transport.type === "http") {
       for (const [key, value] of Object.entries(this.transport.headers ?? {})) {
         if (key.toLowerCase() !== "authorization") continue;

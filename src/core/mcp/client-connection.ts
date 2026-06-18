@@ -281,7 +281,11 @@ export abstract class McpClientConnection extends McpClientHttpRuntime {
     if (this.transport.type === "http") {
       return this.httpRequest(method, params, timeout, progress);
     }
-    return this.stdioRequest(method, params, timeout, progress);
+    return this.stdioRequest(method, params, timeout, progress).catch((err) => {
+      if (method === "initialize") throw err;
+      const message = err instanceof Error ? err.message : String(err);
+      throw this.requestErrorForMethod(method, message);
+    });
   }
 
   protected stdioRequest(
