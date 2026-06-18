@@ -1,0 +1,9 @@
+$ pnpm vitest run src/modules/recall/routes.test.ts src/modules/recall/cli.test.ts src/modules/recall/tool.test.ts
+
+ RUN  v4.1.0 /Users/xmanatee/Desktop/mono/apps/kota
+
+
+ Test Files  3 passed (3)
+      Tests  20 passed (20)
+   Start at  17:42:23
+   Duration  240ms (transform 125ms, setup 95ms, import 119ms, tests 14ms, environment 0ms)

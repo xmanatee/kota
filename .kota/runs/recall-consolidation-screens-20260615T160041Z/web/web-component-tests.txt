@@ -1,0 +1,34 @@
+
+> @kota/web@0.1.0 test /Users/xmanatee/Desktop/mono/apps/kota/clients/web
+> vitest run -- --run src/components/sidebar/KnowledgePanel.test.tsx src/components/sidebar/RecallPanel.test.tsx src/components/sidebar/AnswerPanel.test.tsx src/components/sidebar/AnswerHistoryPanel.test.tsx src/components/sidebar/AttentionPanel.test.tsx src/components/sidebar/CapturePanel.test.tsx src/components/sidebar/DigestPanel.test.tsx src/components/sidebar/RetractPanel.test.tsx
+
+
+ RUN  v3.2.4 /Users/xmanatee/Desktop/mono/apps/kota/clients/web
+
+ ✓ src/api/voice.test.ts (4 tests) 90ms
+ ✓ src/api/client.test.ts (9 tests) 121ms
+ ✓ src/api/decoder-boundary.test.ts (9 tests) 122ms
+ ✓ src/components/chat/VoiceControls.test.tsx (3 tests) 147ms
+ ✓ src/components/sidebar/AttentionPanel.test.tsx (3 tests) 166ms
+ ✓ src/components/sidebar/AnswerHistoryPanel.test.tsx (7 tests) 204ms
+ ✓ src/components/sidebar/DigestPanel.test.tsx (3 tests) 205ms
+ ✓ src/components/sidebar/RecallPanel.test.tsx (4 tests) 284ms
+ ✓ src/components/sidebar/KnowledgePanel.test.tsx (4 tests) 281ms
+ ✓ src/components/sidebar/AnswerPanel.test.tsx (5 tests) 406ms
+ ✓ src/components/sidebar/CapturePanel.test.tsx (8 tests) 722ms
+ ✓ src/components/sidebar/RetractPanel.test.tsx (7 tests) 750ms
+ ✓ src/components/run-detail/RunCompare.test.tsx (5 tests) 744ms
+   ✓ WorkflowPanel — compare selection > enables Compare for two same-workflow runs and hands the pair to the host  479ms
+ ✓ src/lib/project-context.test.tsx (3 tests) 519ms
+   ✓ project selector + project-scoped routing > renders the selector, scopes fetches to the active project, and switches without leaking rows  491ms
+ ✓ src/components/sidebar/WorkflowPanel.test.tsx (5 tests) 830ms
+   ✓ WorkflowPanel — trigger surface > triggers a zero-input workflow immediately on first click with no payload  424ms
+ ✓ src/lib/workflow-trigger-schema.test.ts (9 tests) 7ms
+ ✓ src/lib/run-diff.test.ts (4 tests) 5ms
+ ✓ src/api/contractFixture.test.ts (69 tests) 18ms
+ ✓ src/lib/utils.test.ts (12 tests) 7ms
+
+ Test Files  19 passed (19)
+      Tests  173 passed (173)
+   Start at  17:00:41
+   Duration  3.24s (transform 1.33s, setup 6.93s, collect 3.31s, tests 5.63s, environment 13.83s, prepare 2.11s)

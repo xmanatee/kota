@@ -1,0 +1,4 @@
+$ pnpm validate-tasks
+
+> kota@0.1.0 validate-tasks /Users/xmanatee/Desktop/mono/apps/kota
+> node --conditions=source --import tsx src/validate-queue.ts

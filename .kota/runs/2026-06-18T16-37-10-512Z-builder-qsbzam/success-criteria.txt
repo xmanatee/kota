@@ -1,0 +1,8 @@
+1. Recall is discoverable from each shipped surface's primary operator navigation or command path.
+2. Recall clients are verified against the same daemon request/result contract and discriminated result arms.
+3. Duplicate decoder, route, error, or rendering logic findings are either already covered by existing follow-up tasks or explicitly marked as not needing new work.
+4. Provider-unavailable and no-contributor states are evidenced for the shipped surfaces with typed failure codes or rendered unavailable states.
+5. Per-surface rendered evidence exists for the recall surface family under the accepted run artifact path.
+6. Stale legacy affordances superseded by the recall fan-out are removed, filed, or explicitly found absent.
+7. Scoped AGENTS documentation near the recall capability reflects the shipped cross-client reality.
+8. Accepted critic warnings for the fan-out are reviewed, with follow-up task ids named where retirement work remains.

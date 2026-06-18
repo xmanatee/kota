@@ -2,11 +2,11 @@
  * Recall module — owns the unified cross-store recall seam.
  *
  * - Builds a `RecallProviderImpl` and registers it as the `recall` provider.
- * - Wires the four raw first-party stores (knowledge, memory, history,
- *   repo-tasks) as typed contributors. Other modules contribute their own
- *   sources from their own `onLoad` through the public `RecallProvider`
- *   `register` API — the `answer` module registers an `answer`-source
- *   contributor over the answer-history store this way.
+ * - Wires the raw first-party stores (knowledge, memory, history, repo-tasks)
+ *   as typed contributors. Other modules contribute their own sources from
+ *   their own `onLoad` through the public `RecallProvider` `register` API —
+ *   the `answer` module registers an `answer`-source contributor over the
+ *   answer-history store this way.
  * - Exposes the seam through one daemon-control route (`POST /recall`),
  *   one `KotaClient.recall` namespace, and one `kota recall` CLI command.
  */
@@ -80,7 +80,7 @@ const recallModule: KotaModule = {
   name: "recall",
   version: "1.0.0",
   description:
-    "Cross-store recall seam — one query returns ranked, source-tagged hits across knowledge, memory, history, and the repo task queue.",
+    "Cross-store recall seam — one query returns ranked, source-tagged hits across registered contributors, including knowledge, memory, history, repo tasks, and answer history.",
   dependencies: ["knowledge", "memory", "history", "repo-tasks", "rendering"],
 
   onLoad(ctx: ModuleRuntimeContext) {

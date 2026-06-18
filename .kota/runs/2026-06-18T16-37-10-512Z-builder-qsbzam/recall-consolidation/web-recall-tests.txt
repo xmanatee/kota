@@ -1,0 +1,32 @@
+$ pnpm --dir clients/web test -- src/api/contractFixture.test.ts src/components/sidebar/RecallPanel.test.tsx
+
+> @kota/web@0.1.0 test /Users/xmanatee/Desktop/mono/apps/kota/clients/web
+> vitest run -- src/api/contractFixture.test.ts src/components/sidebar/RecallPanel.test.tsx
+
+
+ RUN  v3.2.4 /Users/xmanatee/Desktop/mono/apps/kota/clients/web
+
+ ✓ src/api/voice.test.ts (4 tests) 22ms
+ ✓ src/api/decoder-boundary.test.ts (9 tests) 64ms
+ ✓ src/api/client.test.ts (9 tests) 111ms
+ ✓ src/components/chat/VoiceControls.test.tsx (3 tests) 100ms
+ ✓ src/components/sidebar/AttentionPanel.test.tsx (4 tests) 125ms
+ ✓ src/components/sidebar/AnswerHistoryPanel.test.tsx (7 tests) 135ms
+ ✓ src/components/sidebar/RecallPanel.test.tsx (5 tests) 173ms
+ ✓ src/components/sidebar/AnswerPanel.test.tsx (5 tests) 175ms
+ ✓ src/components/sidebar/DigestPanel.test.tsx (4 tests) 190ms
+ ✓ src/components/sidebar/KnowledgePanel.test.tsx (4 tests) 171ms
+ ✓ src/components/sidebar/RetractPanel.test.tsx (7 tests) 222ms
+ ✓ src/lib/project-context.test.tsx (3 tests) 98ms
+ ✓ src/components/run-detail/RunCompare.test.tsx (5 tests) 198ms
+ ✓ src/components/sidebar/WorkflowPanel.test.tsx (5 tests) 284ms
+ ✓ src/components/sidebar/CapturePanel.test.tsx (9 tests) 292ms
+ ✓ src/api/contractFixture.test.ts (69 tests) 5ms
+ ✓ src/lib/utils.test.ts (12 tests) 2ms
+ ✓ src/lib/workflow-trigger-schema.test.ts (9 tests) 2ms
+ ✓ src/lib/run-diff.test.ts (4 tests) 2ms
+
+ Test Files  19 passed (19)
+      Tests  177 passed (177)
+   Start at  17:58:58
+   Duration  1.44s (transform 628ms, setup 3.59s, collect 1.58s, tests 2.37s, environment 7.12s, prepare 1.82s)

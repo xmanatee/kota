@@ -1,0 +1,13 @@
+$ pnpm --dir clients/mobile test -- --runInBand src/__tests__/contractFixture.test.ts src/__tests__/RecallScreen.test.tsx
+
+> kota-mobile@1.0.0 test /Users/xmanatee/Desktop/mono/apps/kota/clients/mobile
+> jest -- --runInBand src/__tests__/contractFixture.test.ts src/__tests__/RecallScreen.test.tsx
+
+PASS src/__tests__/contractFixture.test.ts
+PASS src/__tests__/RecallScreen.test.tsx
+
+Test Suites: 2 passed, 2 total
+Tests:       82 passed, 82 total
+Snapshots:   1 passed, 1 total
+Time:        0.591 s, estimated 2 s
+Ran all test suites matching /--runInBand|src\/__tests__\/contractFixture.test.ts|src\/__tests__\/RecallScreen.test.tsx/i.

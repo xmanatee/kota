@@ -1,0 +1,13 @@
+{
+  "generatedBy": "src/modules/telegram/status-poll-recall-runtime.test.ts",
+  "artifacts": [
+    {
+      "path": "recall-command-runtime.json",
+      "bytes": 2647
+    },
+    {
+      "path": "recall-command-runtime.md",
+      "bytes": 1890
+    }
+  ]
+}

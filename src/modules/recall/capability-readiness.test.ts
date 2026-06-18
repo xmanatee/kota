@@ -13,7 +13,9 @@ function stubProvider(sources: ReadonlyArray<RecallSource>): RecallProvider {
 
 describe("createRecallReadinessSource", () => {
   it("reports ready when contributors are registered", async () => {
-    const source = createRecallReadinessSource(stubProvider(["knowledge", "memory"]));
+    const source = createRecallReadinessSource(
+      stubProvider(["knowledge", "memory"]),
+    );
     const reports = await source.probe();
     expect(reports).toHaveLength(1);
     expect(reports[0]).toMatchObject({
@@ -30,6 +32,8 @@ describe("createRecallReadinessSource", () => {
       id: "recall",
       status: "unavailable",
       reason: "no_contributors",
+      message:
+        "Recall has no registered contributors — load contributor modules such as knowledge, memory, history, repo-tasks, or answer.",
     });
   });
 });

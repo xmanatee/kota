@@ -21,7 +21,7 @@ export function createRecallReadinessSource(
             status: "unavailable",
             reason: "no_contributors",
             message:
-              "Recall has no registered contributors — load knowledge, memory, history, or repo-tasks.",
+              "Recall has no registered contributors — load contributor modules such as knowledge, memory, history, repo-tasks, or answer.",
           },
         ];
       }

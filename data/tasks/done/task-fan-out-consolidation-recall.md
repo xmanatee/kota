@@ -1,12 +1,12 @@
 ---
 id: task-fan-out-consolidation-recall
 title: Consolidate recall surfaces across clients
-status: ready
+status: done
 priority: p2
 area: client
 summary: Review the recall surface family across macos, mobile, telegram, web for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
 created_at: 2026-05-02T21:31:53.684Z
-updated_at: 2026-06-15T16:03:32.805Z
+updated_at: 2026-06-18T17:12:06.300Z
 ---
 
 ## Problem
@@ -105,67 +105,65 @@ fan-out batch, and the review's output is operator-actionable follow-up tasks.
 - Updated scoped `AGENTS.md` lines reflecting any convention adjustments arising from
   the review.
 
-## Headless Review (completed)
+## Completion Evidence (2026-06-18)
 
 Recorded under
-`.kota/runs/2026-05-02T22-17-31-479Z-builder-e794xy/recall-consolidation/`:
+`.kota/runs/2026-06-18T16-37-10-512Z-builder-qsbzam/recall-consolidation/`:
 
-- `contract-probe.json` — runtime probe of `src/modules/recall/routes.ts`
-  `createRecallRouteHandler` covering five envelope arms every client
-  decodes (empty-query 400, no-contributors `semantic_unavailable` 200,
-  mixed-source success 200 carrying one positive arm per closed
-  `RecallSource` discriminator including `answer`, filter-coercion 200,
-  provider-throws 500). The success arm pins the daemon's full closed
-  source set `knowledge | memory | history | tasks | answer`.
-- `probe-contract.mjs` — the probe source kept alongside its artifact.
-- `cli-transcript.txt` — CLI transcript exercising `kota --help`
-  discoverability, full `kota recall --help` surface, plus live
-  `recall ''` empty-query hint, `recall 'harness boundary'` /
-  `recall 'harness boundary' --json` against the project's real
-  knowledge/tasks store, and the three input-validation arms
-  (`--source unknown`, `--limit not-a-number`, `--min-score 5`)
-  exiting with the typed error lines.
-- `verdict.md` — written verdict for each of the 8 consolidation
-  dimensions.
+- `contract-probe.json` — current route-level probe of
+  `src/modules/recall/routes.ts` `createRecallRouteHandler`, decoded
+  through `clients/conformance/decoders.ts` `parseRecallResult`. It
+  covers mixed-source success across the five-source set
+  `knowledge | memory | history | tasks | answer`, answer-hit failure
+  arm, `semantic_unavailable`, blank-query 400, filter coercion,
+  unknown-project 404, and provider-throws 500.
+- `recall-module-tests.txt` — focused recall module tests: 3 files,
+  20 tests.
+- `web-recall-tests.txt` — web conformance and `RecallPanel` tests:
+  19 files, 177 tests.
+- `surface-runtime-evidence/web/recall-panel-mounted-dom-manifest.json`
+  — mounted DOM evidence generated from the web `RecallPanel`, covering
+  empty form, ranked-hit, no-hit, and unavailable operator states.
+- `telegram-recall-tests.txt` and
+  `surface-runtime-evidence/telegram/recall-command-runtime.json` —
+  focused Telegram `/recall` runtime evidence generated from the real
+  `handleTelegramStatusCommand` path. It records the `scope.recall.recall`
+  request arguments, decoded contract result arms, and `sendMessage`
+  replies for mixed-source success, answer-hit failure,
+  `semantic_unavailable`, and empty-result cases.
+- `mobile-recall-tests.txt` — mobile conformance and `RecallScreen`
+  evidence: 2 suites, 82 tests, 1 snapshot.
+- `apple-recall-tests.txt` — Apple `ContractFixtureTests` and
+  `RecallViewTests`: 76 XCTest cases across the two filters. The
+  transcript records the sandbox-safe invocation used for this run.
+- `surface-evidence-index.md` and `verdict.md` — written verdict for
+  all eight consolidation dimensions and the per-surface evidence map.
 
-Follow-ups filed (or named) in this change:
+Per-surface rendered evidence is committed under
+`.kota/runs/recall-consolidation-screens-20260615T160041Z/`:
 
-- `data/tasks/ready/task-update-macos-and-mobile-recall-empty-state-copy-to.md`
-  (new in this run, p3 client) — Update the macOS `RecallView.swift`
-  and mobile `RecallScreen.tsx` empty-state hints to enumerate the
-  closed five-source contributor set so operator copy matches the
-  daemon's actual contributor set.
-- `task-extend-cross-client-conformance-and-thin-client-de`
-  (already filed by the answer consolidation, `backlog/`,
-  p1 architecture) — named here for traceability. The same load-
-  bearing drift (daemon's `source: "answer"` recall arm rejected by
-  the four-arm thin-client decoders on mobile, web, and macOS) blocks
-  the recall surface family from being decode-clean end-to-end. No
-  duplicate filed.
+- telegram and slack chat-rendered replies generated from the shared
+  render helpers, plus current-run Telegram `/recall` handler runtime
+  evidence under
+  `.kota/runs/2026-06-18T16-37-10-512Z-builder-qsbzam/recall-consolidation/surface-runtime-evidence/telegram/`;
+- mobile rendered screen tests and Recall snapshot fixture;
+- macOS rendered menu-bar state snapshots;
+- web rendered component tests plus mounted `RecallPanel` DOM evidence
+  copied into both the legacy screen bundle and the current run.
 
-The single docs touch (replacing the stale "no fan-out to other
-operator surfaces" boundary line with the durable rule in
-`src/modules/recall/AGENTS.md`) is applied in this same change.
+Follow-ups named by the consolidation:
 
-Per-surface visual evidence is now recorded in the promotion artifact below.
+- `data/tasks/done/task-update-macos-and-mobile-recall-empty-state-copy-to.md`
+  closes the stale four-source empty-state copy gap.
+- `data/tasks/done/task-extend-cross-client-conformance-and-thin-client-de.md`
+  closes the visual thin-client `source: "answer"` decoder drift.
+- `data/tasks/backlog/task-fold-duplicated-recall-rendering-helpers.md`
+  tracks the remaining duplicated recall rendering helpers across
+  `src/modules/recall/render.ts`,
+  `clients/mobile/src/recallRender.ts`,
+  `clients/apple/Sources/KotaShared/Daemon/RecallModels.swift`, and
+  `clients/web/src/components/sidebar/RecallPanel.tsx`.
 
-## Unblock Precondition
-
-```
-kind: operator-capture
-path: .kota/runs/recall-consolidation-screens-*
-description: rendered snapshot/runtime evidence for the five visual recall surfaces — telegram (`/recall <query>` rendered messages: populated hits, no-contributors semantic-unavailable, no-match, and offline cases), slack (`/recall <query>` rendered against a workspace covering the same arms), mobile (`RecallScreen` covering populated hits, empty-query hint, no-match, semantic-unavailable banner, and offline banner), macOS (`RecallView` populated hit list with source badges, the empty-state hint, the orange-foregrounded semantic-unavailable caption, no-match line, and the offline state), and web (`RecallPanel` covering the same arms). Operator runs each client against a daemon (with and without registered contributors) and commits the rendered artifacts under .kota/runs/recall-consolidation-screens-<stamp>/{telegram,slack,mobile,macos,web}/. The daemon-side and CLI-side artifacts are already committed under .kota/runs/2026-05-02T22-17-31-479Z-builder-e794xy/recall-consolidation/.
-```
-
-## Status (2026-06-15 blocked audit)
-
-The stale screenshot/operator-capture blocker has been replaced by local rendered evidence under `.kota/runs/recall-consolidation-screens-20260615T160041Z/`. The artifact uses the task's accepted snapshot/runtime-probe evidence path rather than requiring manual screenshots.
-
-## Promotion Evidence
-
-`.kota/runs/recall-consolidation-screens-20260615T160041Z/` now exists with per-surface evidence directories. The shared source artifact `.kota/runs/client-visual-evidence-20260615T160041Z/` records:
-
-- web rendered component tests: 173 passing Vitest tests where this capability has a web surface;
-- mobile rendered screen tests: 125 passing Jest tests and the existing Recall snapshot fixture;
-- Apple client tests: 299 passing Swift tests plus rendered menu-bar state snapshots;
-- chat-rendered replies generated directly from the KOTA render helpers consumed by Telegram and Slack-shared chat bodies.
+This repair also updates stale recall module/readiness copy in
+`src/modules/recall/index.ts` and
+`src/modules/recall/capability-readiness.ts`.

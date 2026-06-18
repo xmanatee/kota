@@ -1,0 +1,9 @@
+$ KOTA_RUN_DIR=/Users/xmanatee/Desktop/mono/apps/kota/.kota/runs/2026-06-18T16-37-10-512Z-builder-qsbzam NODE_OPTIONS=--conditions=source pnpm exec vitest run src/modules/telegram/status-poll-recall-runtime.test.ts
+
+ RUN  v4.1.0 /Users/xmanatee/Desktop/mono/apps/kota
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  18:13:12
+   Duration  205ms (transform 106ms, setup 35ms, import 108ms, tests 3ms, environment 0ms)

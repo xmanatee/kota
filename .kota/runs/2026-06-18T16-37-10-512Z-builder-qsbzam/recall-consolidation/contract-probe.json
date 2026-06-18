@@ -1,0 +1,60 @@
+{
+  "ok": true,
+  "generatedAt": "2026-06-18T16:41:59.581Z",
+  "decoder": "clients/conformance/decoders.ts parseRecallResult",
+  "cases": [
+    {
+      "name": "mixed-source-success",
+      "status": 200,
+      "decodedSources": [
+        "knowledge",
+        "memory",
+        "history",
+        "tasks",
+        "answer"
+      ]
+    },
+    {
+      "name": "answer-hit-failure-arm",
+      "status": 200,
+      "decodedReason": "no_hits"
+    },
+    {
+      "name": "semantic-unavailable",
+      "status": 200,
+      "decodedReason": "semantic_unavailable"
+    },
+    {
+      "name": "blank-query",
+      "status": 400,
+      "error": "query is required"
+    },
+    {
+      "name": "filter-coercion",
+      "status": 200,
+      "capturedFilter": {
+        "topK": 5,
+        "minScore": 0.4,
+        "sources": [
+          "knowledge",
+          "answer"
+        ],
+        "projectId": "project-1"
+      }
+    },
+    {
+      "name": "unknown-project",
+      "status": 404,
+      "body": {
+        "error": "Unknown project",
+        "reason": "unknown_project",
+        "projectId": "missing-project"
+      }
+    },
+    {
+      "name": "provider-throws",
+      "status": 500,
+      "error": "provider boom"
+    }
+  ]
+}
