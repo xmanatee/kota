@@ -4,14 +4,14 @@ import XCTest
 /// Coverage for the operator-first IA's view-model surface — the bits
 /// SwiftUI bodies and tests both consume:
 ///
-/// - `AttentionInboxSummary` derives the `Respond` group's badge,
+/// - `AttentionInboxSummary` derives the `Inbox` group's badge,
 ///   tint, and "non-empty" predicate from a typed `(approvals,
-///   ownerQuestions, failedRuns)` tuple. The popover's auto-expand and
-///   header tint must follow the priority "approvals/owner questions
-///   are blocking → red; failed runs alone are concerning → orange;
-///   empty queue → muted secondary".
+///   ownerQuestions, blockedTasks, failedRuns)` tuple. The popover's
+///   auto-expand and header tint must follow the priority "approvals/
+///   owner questions are blocking → red; blocked work / failed runs
+///   alone are concerning → orange; empty queue → muted secondary".
 ///
-/// - `AskMode` enumerates the six search arms the unified Ask surface
+/// - `AskMode` enumerates the six search arms the unified Knowledge surface
 ///   covers. The picker order, label vocabulary, and per-mode
 ///   placeholder need to match the previous per-store sections so the
 ///   operator does not relearn vocabulary.
@@ -28,7 +28,7 @@ final class OperatorSectionsTests: XCTestCase {
         let summary = attentionInboxSummary(approvals: 0, ownerQuestions: 0, failedRuns: 0)
         XCTAssertTrue(summary.isEmpty)
         XCTAssertEqual(summary.total, 0)
-        XCTAssertEqual(summary.badge, "")
+        XCTAssertEqual(summary.badge, "Inbox clear")
     }
 
     func testAttentionInboxSummaryDropsZeroBuckets() {
@@ -43,6 +43,18 @@ final class OperatorSectionsTests: XCTestCase {
         XCTAssertEqual(one.badge, "1 approval · 1 question · 1 failed run")
         let many = attentionInboxSummary(approvals: 3, ownerQuestions: 4, failedRuns: 5)
         XCTAssertEqual(many.badge, "3 approvals · 4 questions · 5 failed runs")
+    }
+
+    func testAttentionInboxSummaryIncludesBlockedWork() {
+        let summary = attentionInboxSummary(
+            approvals: 0,
+            ownerQuestions: 0,
+            blockedTasks: 2,
+            failedRuns: 0
+        )
+        XCTAssertEqual(summary.total, 2)
+        XCTAssertEqual(summary.badge, "2 blocked tasks")
+        XCTAssertEqual(summary.tint, .orange)
     }
 
     /// Approvals or owner questions push the header tint to red because
@@ -90,7 +102,7 @@ final class OperatorSectionsTests: XCTestCase {
     /// synthesis) by default, then `recall` (cross-store ranked hits),
     /// then the four per-store search arms. Pinning this here keeps the
     /// SwiftUI picker's `ForEach(AskMode.allCases)` lockstep with the
-    /// IA the task contract describes.
+    /// Knowledge IA the task contract describes.
     func testAskModeAllCasesOrdered() {
         XCTAssertEqual(
             AskMode.allCases,

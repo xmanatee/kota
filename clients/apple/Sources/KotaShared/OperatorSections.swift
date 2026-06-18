@@ -5,20 +5,15 @@ import SwiftUI
 // The menu-bar popover groups daemon surfaces by operator intent rather
 // than by backend seam. Each intent group lives in this file:
 //
-//   - MONITOR    : status header + active runs (declared inline in
-//                   `MenuBarView`)
-//   - RESPOND    : `AttentionInboxView` (approvals + owner questions +
-//                   recent failed runs in one expandable group)
-//   - ASK        : `AskUnifiedView` (one search/ask surface backed by a
-//                   mode picker over the existing per-store seams)
-//   - CAPTURE    : `ComposeSection` (capture by default, retract behind a
-//                   segmented control to keep the destructive surface
-//                   visually subordinate)
-//   - BROWSE     : `BrowseSection` (collapsed by default — tasks queue,
-//                   sessions, recent runs, daily digest, attention rollup)
-//   - CONFIGURE  : `FooterActionsView` (trigger workflow, dashboard when
-//                   advertised, set project, settings, notifications,
-//                   quit)
+//   - STATUS    : status header + active runs (declared inline in
+//                  `MenuBarView`)
+//   - INBOX     : `AttentionInboxView` (approvals + owner questions +
+//                  blocked work + recent failed runs in one expandable group)
+//   - WORK      : `WorkSection` (collapsed by default — tasks queue,
+//                  sessions, recent runs, workflow status, attention rollup)
+//   - KNOWLEDGE : `KnowledgeSection` (unified search/ask plus capture/retract)
+//   - SETUP     : `FooterActionsView` (trigger workflow, dashboard when
+//                  advertised, settings, notifications, quit)
 //
 // The per-store views in `KnowledgeView.swift`, `MemoryView.swift`, etc.
 // are reused by `AskUnifiedView` instead of being mounted as siblings at
@@ -51,8 +46,8 @@ struct OperatorSectionHeader: View {
 // MARK: Attention inbox
 
 /// Pure summary of the attention queue used by `AttentionInboxView` and
-/// its tests. Counts pending approvals, pending owner questions, and the
-/// recent failed runs the operator has not yet seen. The split is
+/// its tests. Counts pending approvals, pending owner questions, blocked
+/// tasks, and recent failed runs the operator has not yet seen. The split is
 /// intentional: the SwiftUI body computes the same numbers from
 /// `AppState`, but the helper lets us pin the badge text and the
 /// "expanded by default" rule against fixtures without instantiating
@@ -60,9 +55,10 @@ struct OperatorSectionHeader: View {
 struct AttentionInboxSummary: Equatable {
     let approvals: Int
     let ownerQuestions: Int
+    let blockedTasks: Int
     let failedRuns: Int
 
-    var total: Int { approvals + ownerQuestions + failedRuns }
+    var total: Int { approvals + ownerQuestions + blockedTasks + failedRuns }
     var isEmpty: Bool { total == 0 }
 
     /// Compact badge text rendered inside the expandable header. Drops
@@ -75,10 +71,13 @@ struct AttentionInboxSummary: Equatable {
         if ownerQuestions > 0 {
             parts.append(ownerQuestions == 1 ? "1 question" : "\(ownerQuestions) questions")
         }
+        if blockedTasks > 0 {
+            parts.append(blockedTasks == 1 ? "1 blocked task" : "\(blockedTasks) blocked tasks")
+        }
         if failedRuns > 0 {
             parts.append(failedRuns == 1 ? "1 failed run" : "\(failedRuns) failed runs")
         }
-        return parts.joined(separator: " · ")
+        return parts.isEmpty ? "Inbox clear" : parts.joined(separator: " · ")
     }
 
     /// Header tint. Approvals / owner questions are blocking — they
@@ -87,7 +86,7 @@ struct AttentionInboxSummary: Equatable {
     /// stays orange. An empty queue stays muted.
     var tint: Color {
         if approvals > 0 || ownerQuestions > 0 { return .red }
-        if failedRuns > 0 { return .orange }
+        if blockedTasks > 0 || failedRuns > 0 { return .orange }
         return .secondary
     }
 }
@@ -95,17 +94,19 @@ struct AttentionInboxSummary: Equatable {
 func attentionInboxSummary(
     approvals: Int,
     ownerQuestions: Int,
+    blockedTasks: Int = 0,
     failedRuns: Int
 ) -> AttentionInboxSummary {
     AttentionInboxSummary(
         approvals: approvals,
         ownerQuestions: ownerQuestions,
+        blockedTasks: blockedTasks,
         failedRuns: failedRuns
     )
 }
 
-/// Consolidates pending approvals, pending owner questions, and the
-/// recent failed runs into one Respond group. The operator no longer
+/// Consolidates pending approvals, pending owner questions, blocked work,
+/// and recent failed runs into one Inbox group. The operator no longer
 /// loses the "approvals" affordance below a wall of provider errors —
 /// the count is visible in the header even when collapsed.
 struct AttentionInboxView: View {
@@ -121,51 +122,51 @@ struct AttentionInboxView: View {
         attentionInboxSummary(
             approvals: appState.pendingApprovals.count,
             ownerQuestions: appState.pendingOwnerQuestions.count,
+            blockedTasks: appState.taskQueue?.counts.blocked ?? 0,
             failedRuns: failedRuns.count
         )
     }
 
     var body: some View {
-        if summary.isEmpty {
-            EmptyView()
-        } else {
-            VStack(alignment: .leading, spacing: 0) {
-                Divider()
-                OperatorSectionHeader(title: "Respond")
-                Button(action: { isExpanded.toggle() }) {
-                    HStack {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .imageScale(.small)
-                            .foregroundStyle(summary.tint)
-                        Text(summary.badge)
-                            .font(.caption)
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                        Spacer()
-                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .imageScale(.small)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .contentShape(Rectangle())
+        VStack(alignment: .leading, spacing: 0) {
+            Divider()
+            OperatorSectionHeader(title: "Inbox")
+            Button(action: { isExpanded.toggle() }) {
+                HStack {
+                    Image(systemName: summary.isEmpty ? "tray" : "exclamationmark.triangle.fill")
+                        .imageScale(.small)
+                        .foregroundStyle(summary.tint)
+                    Text(summary.badge)
+                        .font(.caption)
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Spacer()
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .imageScale(.small)
+                        .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("attention-inbox-toggle")
-                .onAppear {
-                    // Auto-expand once per session when the queue is
-                    // non-empty so the operator does not have to discover
-                    // an unread approval. Re-collapsing is sticky.
-                    if !hasAutoExpanded && !summary.isEmpty {
-                        isExpanded = true
-                        hasAutoExpanded = true
-                    }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("attention-inbox-toggle")
+            .onAppear {
+                // Auto-expand once per session when the queue is
+                // non-empty so the operator does not have to discover
+                // an unread approval. Re-collapsing is sticky.
+                if !hasAutoExpanded && !summary.isEmpty {
+                    isExpanded = true
+                    hasAutoExpanded = true
                 }
+            }
 
-                if isExpanded {
-                    AttentionInboxBody(failedRuns: failedRuns)
-                }
+            if isExpanded && !summary.isEmpty {
+                AttentionInboxBody(
+                    blockedTasks: appState.taskQueue?.counts.blocked ?? 0,
+                    failedRuns: failedRuns
+                )
             }
         }
     }
@@ -173,6 +174,7 @@ struct AttentionInboxView: View {
 
 private struct AttentionInboxBody: View {
     @EnvironmentObject var appState: AppState
+    let blockedTasks: Int
     let failedRuns: [RunSummary]
 
     var body: some View {
@@ -183,10 +185,34 @@ private struct AttentionInboxBody: View {
             ForEach(appState.pendingOwnerQuestions) { question in
                 OwnerQuestionRow(question: question)
             }
+            if blockedTasks > 0 {
+                BlockedWorkInboxRow(count: blockedTasks)
+            }
             ForEach(failedRuns) { run in
                 AttentionFailedRunRow(run: run)
             }
         }
+    }
+}
+
+private struct BlockedWorkInboxRow: View {
+    let count: Int
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "lock.trianglebadge.exclamationmark")
+                .imageScale(.small)
+                .foregroundStyle(.orange)
+            Text(count == 1 ? "1 blocked task" : "\(count) blocked tasks")
+                .font(.caption)
+                .fontWeight(.medium)
+            Spacer()
+            Text("Work")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
     }
 }
 
@@ -316,11 +342,18 @@ enum AskMode: String, CaseIterable, Identifiable, Hashable {
 struct AskUnifiedView: View {
     @EnvironmentObject var appState: AppState
     @State private var mode: AskMode = .ask
+    let showHeader: Bool
+
+    init(showHeader: Bool = true) {
+        self.showHeader = showHeader
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Divider()
-            OperatorSectionHeader(title: "Ask")
+            if showHeader {
+                Divider()
+                OperatorSectionHeader(title: "Knowledge")
+            }
             VStack(alignment: .leading, spacing: 6) {
                 AskModePicker(mode: $mode)
                 AskQueryField(mode: mode)
@@ -444,11 +477,18 @@ enum ComposeMode: String, CaseIterable, Hashable {
 struct ComposeSection: View {
     @EnvironmentObject var appState: AppState
     @State private var mode: ComposeMode = .capture
+    let showHeader: Bool
+
+    init(showHeader: Bool = true) {
+        self.showHeader = showHeader
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Divider()
-            OperatorSectionHeader(title: "Capture")
+            if showHeader {
+                Divider()
+                OperatorSectionHeader(title: "Knowledge")
+            }
             ComposeModePicker(mode: $mode)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 4)
@@ -477,14 +517,14 @@ private struct ComposeModePicker: View {
     }
 }
 
-// MARK: Browse section (collapsed)
+// MARK: Work section (collapsed)
 
 /// Secondary surfaces — passive status the operator inspects rather
 /// than acts on. Collapsed by default so the popover's first viewport
-/// stays compact. Each child re-uses the existing collapsible view; the
-/// top-level Browse disclosure is the new affordance, not the per-child
-/// expansion.
-struct BrowseSection: View {
+/// stays focused on Status and Inbox. Each child re-uses the existing
+/// collapsible view; the top-level Work disclosure is the new
+/// affordance, not the per-child expansion.
+struct WorkSection: View {
     @EnvironmentObject var appState: AppState
     @State private var isExpanded: Bool = false
 
@@ -503,10 +543,10 @@ struct BrowseSection: View {
                 Divider()
                 Button(action: { isExpanded.toggle() }) {
                     HStack {
-                        Image(systemName: "rectangle.stack")
+                        Image(systemName: "briefcase")
                             .imageScale(.small)
                             .foregroundStyle(.secondary)
-                        Text("Browse")
+                        Text("Work")
                             .font(.caption2)
                             .fontWeight(.semibold)
                             .tracking(0.6)
@@ -521,7 +561,7 @@ struct BrowseSection: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityIdentifier("browse-section-toggle")
+                .accessibilityIdentifier("work-section-toggle")
 
                 if isExpanded {
                     VStack(alignment: .leading, spacing: 0) {
@@ -538,9 +578,51 @@ struct BrowseSection: View {
     }
 }
 
+// MARK: Knowledge section (collapsed)
+
+/// Knowledge/search/capture surfaces. Collapsed by default so the
+/// popover's first screen remains Status + Inbox; expanding this group
+/// reveals the unified search/answer surface and capture/retract controls without
+/// restoring one backend section per store.
+struct KnowledgeSection: View {
+    @State private var isExpanded: Bool = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Divider()
+            Button(action: { isExpanded.toggle() }) {
+                HStack {
+                    Image(systemName: "books.vertical")
+                        .imageScale(.small)
+                        .foregroundStyle(.secondary)
+                    Text("Knowledge")
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .tracking(0.6)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .imageScale(.small)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("knowledge-section-toggle")
+
+            if isExpanded {
+                AskUnifiedView(showHeader: false)
+                ComposeSection(showHeader: false)
+            }
+        }
+    }
+}
+
 // MARK: Footer actions
 
-/// Configure / control row at the bottom of the popover. Each affordance
+/// Setup / control row at the bottom of the popover. Each affordance
 /// has a clear contract:
 ///
 ///   - `Trigger Workflow…` opens the typed definitions picker.
@@ -559,6 +641,7 @@ struct FooterActionsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Divider()
+            OperatorSectionHeader(title: "Setup")
 
             MenuActionButton(label: "Trigger Workflow…", icon: "play.circle") {
                 showTriggerSheet = true

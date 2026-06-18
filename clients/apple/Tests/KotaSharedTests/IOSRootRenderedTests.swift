@@ -16,10 +16,11 @@ import XCTest
 final class IOSRootRenderedTests: XCTestCase {
 
     private let tabs: [(String, String, String)] = [
-        ("Status",   "circle.fill",            "StatusHeaderView (dispatch control) + ActiveRunRow×N + AttentionInboxView"),
-        ("Ask",      "magnifyingglass",        "AskUnifiedView (mode picker: ask/recall/knowledge/memory/history/tasks)"),
-        ("Capture",  "tray.and.arrow.down",    "ComposeSection (segmented: capture / retract)"),
-        ("Settings", "gearshape",              "SettingsView (project chooser / remote daemon / Web UI port)"),
+        ("Status",    "circle.fill",       "StatusHeaderView (dispatch control) + ActiveRunRow×N"),
+        ("Inbox",     "tray.full",         "AttentionInboxView (approvals + owner questions + blocked work + failed runs)"),
+        ("Work",      "briefcase",         "WorkSection (tasks queue, sessions, recent runs, digest, attention, answer history)"),
+        ("Knowledge", "books.vertical",    "AskUnifiedView + ComposeSection"),
+        ("Setup",     "gearshape",         "SettingsView (project chooser / remote daemon / Web UI port)"),
     ]
 
     /// Per-shell platform contract diff. Pins the exact divergence the
@@ -30,7 +31,7 @@ final class IOSRootRenderedTests: XCTestCase {
         ("--",                        "--",                                               "--"),
         ("openURL",                   "NSWorkspace.shared.open(_:)",                      "UIApplication.shared.open(_:)"),
         ("pickProjectDirectory",      "NSOpenPanel (folder, runModal())",                 "nil — operator types path in Settings"),
-        ("openAppSettings",           "NSApp.sendAction(showSettingsWindow:)",            "no-op (Settings tab already mounted)"),
+        ("openAppSettings",           "NSApp.sendAction(showSettingsWindow:)",            "no-op (Setup tab already mounted)"),
         ("supportsQuit",              "true",                                             "false (Apple HIG)"),
         ("supportsNativeProjectPicker","true",                                            "false"),
         ("quitApp",                   "NSApplication.shared.terminate(nil)",              "no-op"),
@@ -58,10 +59,11 @@ final class IOSRootRenderedTests: XCTestCase {
         lines.append("fork of these surfaces.")
         lines.append("")
         lines.append("  - StatusHeaderView   — diagnostic header and dispatch control (also mounted in macOS popover)")
-        lines.append("  - AttentionInboxView — RESPOND group (also mounted in macOS popover)")
-        lines.append("  - AskUnifiedView     — ASK group (also mounted in macOS popover)")
-        lines.append("  - ComposeSection     — CAPTURE group (also mounted in macOS popover)")
-        lines.append("  - SettingsView       — CONFIGURE group (also mounted in macOS Settings scene)")
+        lines.append("  - AttentionInboxView — Inbox group (also mounted in macOS popover)")
+        lines.append("  - WorkSection        — Work group (also mounted in macOS popover)")
+        lines.append("  - AskUnifiedView     — Knowledge group (also mounted in macOS popover)")
+        lines.append("  - ComposeSection     — Knowledge group (also mounted in macOS popover)")
+        lines.append("  - SettingsView       — Setup group (also mounted in macOS Settings scene)")
 
         lines.append("")
         lines.append("## Platform-affordance contract diff")

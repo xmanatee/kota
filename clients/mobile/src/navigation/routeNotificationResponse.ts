@@ -5,9 +5,9 @@
  * tab navigator.
  *
  * Recognized payloads:
- * - `{ screen: "approvals", approvalId? }` → ApprovalsTab/ApprovalDetail
- * - `{ screen: "digest" }` → DigestTab
- * - `{ screen: "attention" }` → AttentionTab
+ * - `{ screen: "approvals", approvalId? }` → Inbox/ApprovalList or ApprovalDetail
+ * - `{ screen: "digest" }` → Work/Digest
+ * - `{ screen: "attention" }` → Inbox/Attention
  *
  * Anything else is a no-op (older notifications without a `screen` field, or
  * payloads from a future version the mobile app has not learned yet).

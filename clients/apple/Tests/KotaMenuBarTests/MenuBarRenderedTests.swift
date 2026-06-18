@@ -14,7 +14,7 @@ import XCTest
 /// independent of the live state container (which is now covered
 /// separately by `AppStateTests`):
 ///
-///   - `attentionInboxSummary` for the Respond group's badge and tint
+///   - `attentionInboxSummary` for the Inbox group's badge and tint
 ///   - `AskMode` for the unified search/answer arms
 ///   - `ComposeMode` for the capture/retract segmented control
 ///   - `DaemonConnectionDiagnostic` for the status header
@@ -27,6 +27,7 @@ final class MenuBarRenderedTests: XCTestCase {
         let activeRunCount: Int
         let approvals: Int
         let ownerQuestions: Int
+        let blockedTasks: Int
         let failedRuns: Int
         let dashboardAvailable: Bool
         let semanticState: String
@@ -90,6 +91,7 @@ final class MenuBarRenderedTests: XCTestCase {
                 activeRunCount: 1,
                 approvals: 2,
                 ownerQuestions: 1,
+                blockedTasks: 1,
                 failedRuns: 0,
                 dashboardAvailable: true,
                 semanticState: "ready",
@@ -109,6 +111,7 @@ final class MenuBarRenderedTests: XCTestCase {
                 activeRunCount: 0,
                 approvals: 0,
                 ownerQuestions: 0,
+                blockedTasks: 0,
                 failedRuns: 3,
                 dashboardAvailable: false,
                 semanticState: "ready",
@@ -116,7 +119,7 @@ final class MenuBarRenderedTests: XCTestCase {
             ),
             // UNAVAILABLE PROVIDER — connected, but the configured
             // knowledge/memory/history providers do not support semantic
-            // search. The Ask surface still mounts; the per-mode body
+            // search. The Knowledge surface still mounts; the per-mode body
             // renders the `semanticUnavailable` notice.
             MenuBarScenario(
                 id: "connected-semantic-unavailable",
@@ -125,6 +128,7 @@ final class MenuBarRenderedTests: XCTestCase {
                 activeRunCount: 0,
                 approvals: 0,
                 ownerQuestions: 0,
+                blockedTasks: 0,
                 failedRuns: 0,
                 dashboardAvailable: true,
                 semanticState: "semantic_unavailable",
@@ -141,6 +145,7 @@ final class MenuBarRenderedTests: XCTestCase {
                 activeRunCount: 0,
                 approvals: 0,
                 ownerQuestions: 0,
+                blockedTasks: 0,
                 failedRuns: 0,
                 dashboardAvailable: false,
                 semanticState: "n/a",
@@ -154,12 +159,11 @@ final class MenuBarRenderedTests: XCTestCase {
     /// (a new top-level section sneaking in, or an existing group being
     /// dropped) shows up as a diff in the rendered fixture.
     private let intentGroups: [(String, String)] = [
-        ("MONITOR", "StatusHeaderView (dispatch control) + ActiveRunRow×N (only when active runs > 0)"),
-        ("RESPOND", "AttentionInboxView (approvals + owner questions + failed runs)"),
-        ("ASK",     "AskUnifiedView (mode picker: ask/recall/knowledge/memory/history/tasks)"),
-        ("CAPTURE", "ComposeSection (segmented: capture / retract)"),
-        ("BROWSE",  "BrowseSection (collapsed: tasks queue, sessions, recent runs, digest, attention, answer history)"),
-        ("CONFIGURE", "FooterActionsView (trigger workflow, dashboard?, settings, refresh, notifications, quit)"),
+        ("STATUS", "StatusHeaderView (dispatch control) + ActiveRunRow×N (only when active runs > 0)"),
+        ("INBOX", "AttentionInboxView (approvals + owner questions + blocked work + failed runs)"),
+        ("WORK", "WorkSection (collapsed: tasks queue, sessions, recent runs, digest, attention, answer history)"),
+        ("KNOWLEDGE", "KnowledgeSection (collapsed: AskUnifiedView + ComposeSection)"),
+        ("SETUP", "FooterActionsView (trigger workflow, dashboard?, settings, refresh, notifications, quit)"),
     ]
 
     /// Old-IA → new-IA mapping, pinned so reviewers can confirm that no
@@ -167,29 +171,29 @@ final class MenuBarRenderedTests: XCTestCase {
     private let iaMigrationRows: [(String, String, String)] = [
         ("section",                          "old top-level row",                         "new operator group"),
         ("--",                               "--",                                        "--"),
-        ("Daily Digest",                     "DigestView (own collapsible)",              "BROWSE → DigestView"),
-        ("Attention rollup",                 "AttentionView (own collapsible)",           "BROWSE → AttentionView"),
-        ("Knowledge search",                 "KnowledgeView (own collapsible)",           "ASK → mode=knowledge"),
-        ("Memory search",                    "MemoryView (own collapsible)",              "ASK → mode=memory"),
-        ("History search",                   "HistoryView (own collapsible)",             "ASK → mode=history"),
-        ("Repo task search",                 "TaskSearchView (own collapsible)",          "ASK → mode=tasks"),
-        ("Cross-store recall",               "RecallView (own collapsible)",              "ASK → mode=recall"),
-        ("Cited answer",                     "AnswerView (own collapsible)",              "ASK → mode=ask (default)"),
-        ("Answer history",                   "(macOS surface absent)",                    "BROWSE → AnswerHistoryView"),
-        ("Cross-store capture",              "CaptureView (own collapsible)",             "CAPTURE → mode=capture (default)"),
-        ("Cross-store retract",              "RetractView (own collapsible)",             "CAPTURE → mode=retract"),
-        ("Task queue",                       "TaskQueueView (own collapsible)",           "BROWSE → TaskQueueView"),
-        ("Active sessions",                  "SessionsView (own collapsible)",            "BROWSE → SessionsView"),
-        ("Pending approvals",                "ApprovalsView (own collapsible)",           "RESPOND → AttentionInboxView"),
-        ("Owner questions",                  "OwnerQuestionsView (own collapsible)",      "RESPOND → AttentionInboxView"),
-        ("Recent run history",               "RecentRunsView (own collapsible)",          "BROWSE → RecentRunsView"),
-        ("Active runs",                      "Active Runs row (always when N > 0)",       "MONITOR → ActiveRunRow×N"),
-        ("Open Dashboard",                   "Footer button (gated)",                     "CONFIGURE → only when capability=ready"),
-        ("Trigger Workflow",                 "Footer button (free-text dialog)",          "CONFIGURE → typed definitions picker"),
-        ("Set Project Directory",            "Footer button (NSOpenPanel)",               "CONFIGURE → Settings… (Settings scene)"),
-        ("Notifications toggle",             "Footer toggle",                             "CONFIGURE → NotificationToggleRow"),
-        ("Refresh",                          "Footer button",                             "CONFIGURE → Refresh button"),
-        ("Quit KOTA Menu Bar",               "Footer button",                             "CONFIGURE → Quit button"),
+        ("Daily Digest",                     "DigestView (own collapsible)",              "WORK → DigestView"),
+        ("Attention rollup",                 "AttentionView (own collapsible)",           "WORK → AttentionView"),
+        ("Knowledge search",                 "KnowledgeView (own collapsible)",           "KNOWLEDGE → mode=knowledge"),
+        ("Memory search",                    "MemoryView (own collapsible)",              "KNOWLEDGE → mode=memory"),
+        ("History search",                   "HistoryView (own collapsible)",             "KNOWLEDGE → mode=history"),
+        ("Repo task search",                 "TaskSearchView (own collapsible)",          "KNOWLEDGE → mode=tasks"),
+        ("Cross-store recall",               "RecallView (own collapsible)",              "KNOWLEDGE → mode=recall"),
+        ("Cited answer",                     "AnswerView (own collapsible)",              "KNOWLEDGE → mode=ask (default)"),
+        ("Answer history",                   "(macOS surface absent)",                    "WORK → AnswerHistoryView"),
+        ("Cross-store capture",              "CaptureView (own collapsible)",             "KNOWLEDGE → mode=capture (default)"),
+        ("Cross-store retract",              "RetractView (own collapsible)",             "KNOWLEDGE → mode=retract"),
+        ("Task queue",                       "TaskQueueView (own collapsible)",           "WORK → TaskQueueView"),
+        ("Active sessions",                  "SessionsView (own collapsible)",            "WORK → SessionsView"),
+        ("Pending approvals",                "ApprovalsView (own collapsible)",           "INBOX → AttentionInboxView"),
+        ("Owner questions",                  "OwnerQuestionsView (own collapsible)",      "INBOX → AttentionInboxView"),
+        ("Recent run history",               "RecentRunsView (own collapsible)",          "WORK → RecentRunsView"),
+        ("Active runs",                      "Active Runs row (always when N > 0)",       "STATUS → ActiveRunRow×N"),
+        ("Open Dashboard",                   "Footer button (gated)",                     "SETUP → only when capability=ready"),
+        ("Trigger Workflow",                 "Footer button (free-text dialog)",          "SETUP → typed definitions picker"),
+        ("Set Project Directory",            "Footer button (NSOpenPanel)",               "SETUP → Settings… (Settings scene)"),
+        ("Notifications toggle",             "Footer toggle",                             "SETUP → NotificationToggleRow"),
+        ("Refresh",                          "Footer button",                             "SETUP → Refresh button"),
+        ("Quit KOTA Menu Bar",               "Footer button",                             "SETUP → Quit button"),
     ]
 
     func testWritesMenuBarRenderedSnapshot() throws {
@@ -217,26 +221,25 @@ final class MenuBarRenderedTests: XCTestCase {
                 lines.append("    detail:      \(d)")
             }
             lines.append("    connected:   \(scenario.diagnostic.isConnected)")
-            lines.append("  monitor:")
+            lines.append("  status:")
             lines.append("    activeRuns:  \(scenario.activeRunCount)")
-            lines.append("  respond:")
+            lines.append("  inbox:")
             let summary = attentionInboxSummary(
                 approvals: scenario.approvals,
                 ownerQuestions: scenario.ownerQuestions,
+                blockedTasks: scenario.blockedTasks,
                 failedRuns: scenario.failedRuns
             )
-            if summary.isEmpty {
-                lines.append("    rendered:    (group hidden — empty queue)")
-            } else {
-                lines.append("    badge:       \(summary.badge)")
-                lines.append("    tint:        \(summary.tint)")
-            }
-            lines.append("  ask:")
+            lines.append("    badge:       \(summary.badge)")
+            lines.append("    tint:        \(summary.tint)")
+            lines.append("    default:     \(summary.isEmpty ? "collapsed" : "expanded")")
+            lines.append("  work:")
+            lines.append("    default:     collapsed")
+            lines.append("  knowledge:")
             lines.append("    modes:       \(AskMode.allCases.map { $0.label }.joined(separator: ", "))")
             lines.append("    semantic:    \(scenario.semanticState)")
-            lines.append("  capture:")
-            lines.append("    modes:       \(ComposeMode.allCases.map { $0.label }.joined(separator: ", "))")
-            lines.append("  configure:")
+            lines.append("    capture:     \(ComposeMode.allCases.map { $0.label }.joined(separator: ", "))")
+            lines.append("  setup:")
             lines.append("    dashboard:   \(scenario.dashboardAvailable ? "shown" : "hidden")")
             lines.append("    workflows:   \(scenario.workflowDefinitionsCount) definitions")
             lines.append("")

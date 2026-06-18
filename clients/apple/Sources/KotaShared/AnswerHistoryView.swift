@@ -7,7 +7,7 @@ import SwiftUI
 /// log` — by consuming the same `GET /answers` and `GET /answers/:id`
 /// daemon-control routes through `DaemonClient.answerLog` and
 /// `DaemonClient.answerShow`. Lives inside the existing operator
-/// `BrowseSection` group, alongside DigestView and AttentionView, so
+/// `WorkSection` group, alongside DigestView and AttentionView, so
 /// it follows the same collapsed-by-default browse IA the popover
 /// already uses for passive read surfaces.
 struct AnswerHistoryView: View {

@@ -7,11 +7,11 @@ import SwiftUI
 /// because iOS has no MenuBarExtra.
 ///
 /// Tabs:
-///   1. Status   — diagnostic header + active runs + attention inbox
-///   2. Ask      — unified search/ask over knowledge, memory,
-///                 history, tasks, recall, and cited synthesis
-///   3. Capture  — capture/retract surface
-///   4. Settings — project + remote daemon configuration
+///   1. Status    — diagnostic header + active runs
+///   2. Inbox     — approvals, owner questions, blocked work, failed runs
+///   3. Work      — tasks, sessions, runs, digest, attention rollup
+///   4. Knowledge — search/ask plus capture/retract
+///   5. Setup     — project + remote daemon configuration
 ///
 /// Lives in `KotaShared` because the iOS shell stays a thin scene
 /// hosting layer (just `@main` + platform glue). Wrapped in
@@ -31,12 +31,11 @@ public struct IOSRootView: View {
                         ProjectSelectorView()
                         if !appState.activeRuns.isEmpty {
                             Divider()
-                            OperatorSectionHeader(title: "Monitor")
+                            OperatorSectionHeader(title: "Status")
                             ForEach(appState.activeRuns) { run in
                                 ActiveRunRow(run: run)
                             }
                         }
-                        AttentionInboxView()
                     }
                     .padding(.vertical, 8)
                 }
@@ -45,22 +44,34 @@ public struct IOSRootView: View {
             .tabItem { Label("Status", systemImage: "circle.fill") }
 
             NavigationStack {
-                ScrollView { AskUnifiedView() }
-                    .navigationTitle("Ask")
+                ScrollView { AttentionInboxView() }
+                    .navigationTitle("Inbox")
             }
-            .tabItem { Label("Ask", systemImage: "magnifyingglass") }
+            .tabItem { Label("Inbox", systemImage: "tray.full") }
 
             NavigationStack {
-                ScrollView { ComposeSection() }
-                    .navigationTitle("Capture")
+                ScrollView { WorkSection() }
+                    .navigationTitle("Work")
             }
-            .tabItem { Label("Capture", systemImage: "tray.and.arrow.down") }
+            .tabItem { Label("Work", systemImage: "briefcase") }
+
+            NavigationStack {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        AskUnifiedView(showHeader: false)
+                        ComposeSection(showHeader: false)
+                    }
+                    .padding(.vertical, 8)
+                }
+                .navigationTitle("Knowledge")
+            }
+            .tabItem { Label("Knowledge", systemImage: "books.vertical") }
 
             NavigationStack {
                 SettingsView()
-                    .navigationTitle("Settings")
+                    .navigationTitle("Setup")
             }
-            .tabItem { Label("Settings", systemImage: "gearshape") }
+            .tabItem { Label("Setup", systemImage: "gearshape") }
         }
         .accessibilityIdentifier("ios-root-tab-view")
     }

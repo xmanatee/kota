@@ -16,7 +16,7 @@ describe('routeNotificationResponse', () => {
     };
   }
 
-  test('routes screen=approvals with approvalId to ApprovalDetail', () => {
+  test('routes screen=approvals with approvalId to Inbox/ApprovalDetail', () => {
     const router = makeRouter();
     routeNotificationResponse(
       { screen: 'approvals', approvalId: 'approval-42' },
@@ -27,13 +27,13 @@ describe('routeNotificationResponse', () => {
     expect(router.toAttention).not.toHaveBeenCalled();
   });
 
-  test('routes screen=approvals without approvalId to ApprovalList', () => {
+  test('routes screen=approvals without approvalId to Inbox/ApprovalList', () => {
     const router = makeRouter();
     routeNotificationResponse({ screen: 'approvals' }, router);
     expect(router.toApproval).toHaveBeenCalledWith(undefined);
   });
 
-  test('routes screen=digest to the DigestScreen tab', () => {
+  test('routes screen=digest to Work/Digest', () => {
     const router = makeRouter();
     routeNotificationResponse({ screen: 'digest' }, router);
     expect(router.toDigest).toHaveBeenCalledTimes(1);
@@ -41,7 +41,7 @@ describe('routeNotificationResponse', () => {
     expect(router.toAttention).not.toHaveBeenCalled();
   });
 
-  test('routes screen=attention to the AttentionScreen tab', () => {
+  test('routes screen=attention to Inbox/Attention', () => {
     const router = makeRouter();
     routeNotificationResponse({ screen: 'attention' }, router);
     expect(router.toAttention).toHaveBeenCalledTimes(1);

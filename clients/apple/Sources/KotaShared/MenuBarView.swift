@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Operator-first command center. The popover groups daemon surfaces
-/// by intent (monitor / respond / ask / capture / browse / configure)
-/// rather than mounting one collapsible section per backend seam. See
+/// by intent (Status / Inbox / Work / Knowledge / Setup) rather than
+/// mounting one collapsible section per backend seam. See
 /// `OperatorSections.swift` for the per-intent group implementations.
 public struct MenuBarView: View {
     @EnvironmentObject var appState: AppState
@@ -13,35 +13,28 @@ public struct MenuBarView: View {
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                // MONITOR: status + active runs
+                // STATUS: daemon health + active runs
                 StatusHeaderView()
                 ProjectSelectorView()
 
                 if !appState.activeRuns.isEmpty {
                     Divider()
-                    OperatorSectionHeader(title: "Monitor")
+                    OperatorSectionHeader(title: "Status")
                     ForEach(appState.activeRuns) { run in
                         ActiveRunRow(run: run)
                     }
                 }
 
-                // RESPOND: approvals + owner questions + failed runs
+                // INBOX: approvals + owner questions + blocked work + failed runs
                 AttentionInboxView()
 
-                // ASK: unified search/answer over knowledge, memory,
-                // history, tasks, recall, and cited synthesis.
-                AskUnifiedView()
+                // WORK: tasks, sessions, runs, and workflow operations.
+                WorkSection()
 
-                // CAPTURE: capture by default, retract behind a
-                // segmented control to keep the destructive surface
-                // visually subordinate.
-                ComposeSection()
+                // KNOWLEDGE: unified search/answer plus capture/retract.
+                KnowledgeSection()
 
-                // BROWSE: tasks queue, sessions, recent runs, daily
-                // digest, attention rollup. Collapsed by default.
-                BrowseSection()
-
-                // CONFIGURE: trigger, dashboard (when advertised),
+                // SETUP: trigger, dashboard (when advertised),
                 // settings, refresh, notifications, quit.
                 FooterActionsView(showTriggerSheet: $showTriggerSheet)
             }

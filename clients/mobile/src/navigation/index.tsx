@@ -19,6 +19,11 @@ import { ChatDetailScreen } from '../screens/ChatDetailScreen';
 import { ChatListScreen } from '../screens/ChatListScreen';
 import { DigestScreen } from '../screens/DigestScreen';
 import { HistoryScreen } from '../screens/HistoryScreen';
+import {
+  InboxHomeScreen,
+  KnowledgeHomeScreen,
+  WorkHomeScreen,
+} from '../screens/IntentHomeScreens';
 import { KnowledgeScreen } from '../screens/KnowledgeScreen';
 import { MemoryScreen } from '../screens/MemoryScreen';
 import { OwnerQuestionListScreen } from '../screens/OwnerQuestionListScreen';
@@ -30,6 +35,7 @@ import { SettingsScreen } from '../screens/SettingsScreen';
 import { StatusScreen } from '../screens/StatusScreen';
 import { TaskQueueScreen } from '../screens/TaskQueueScreen';
 import { TaskSearchScreen } from '../screens/TaskSearchScreen';
+import { PRIMARY_OPERATOR_TABS } from './operatorIntents';
 import { routeNotificationResponse } from './routeNotificationResponse';
 
 export type StatusStackParams = {
@@ -38,45 +44,55 @@ export type StatusStackParams = {
   Settings: undefined;
 };
 
-export type RunsStackParams = {
-  RunList: undefined;
-  RunDetail: { runId: string };
-};
-
-export type ApprovalsStackParams = {
+export type InboxStackParams = {
+  InboxHome: undefined;
   ApprovalList: undefined;
   ApprovalDetail: { approvalId: string };
+  OwnerQuestions: undefined;
+  BlockedWork: undefined;
+  Attention: undefined;
 };
 
-export type ChatStackParams = {
+export type WorkStackParams = {
+  WorkHome: undefined;
+  RunList: undefined;
+  RunDetail: { runId: string };
+  Tasks: undefined;
+  TaskSearch: undefined;
+  Digest: undefined;
+  AnswerHistory: undefined;
   ChatList: undefined;
   ChatDetail: { sessionId: string };
 };
 
-export type TabParams = {
-  Status: undefined;
-  Runs: undefined;
-  Approvals: NavigatorScreenParams<ApprovalsStackParams> | undefined;
-  Questions: undefined;
-  Tasks: undefined;
-  TaskSearch: undefined;
-  Attention: undefined;
-  Digest: undefined;
-  Knowledge: undefined;
+export type KnowledgeStackParams = {
+  KnowledgeHome: undefined;
+  Answer: undefined;
+  Recall: undefined;
+  KnowledgeSearch: undefined;
   Memory: undefined;
   History: undefined;
-  Recall: undefined;
-  Answer: undefined;
-  AnswerHistory: undefined;
   Capture: undefined;
   Retract: undefined;
-  Chat: NavigatorScreenParams<ChatStackParams> | undefined;
+};
+
+export type SetupStackParams = {
+  Settings: undefined;
+};
+
+export type TabParams = {
+  Status: undefined;
+  Inbox: NavigatorScreenParams<InboxStackParams> | undefined;
+  Work: NavigatorScreenParams<WorkStackParams> | undefined;
+  Knowledge: NavigatorScreenParams<KnowledgeStackParams> | undefined;
+  Setup: undefined;
 };
 
 const StatusStack = createNativeStackNavigator<StatusStackParams>();
-const RunsStack = createNativeStackNavigator<RunsStackParams>();
-const ApprovalsStack = createNativeStackNavigator<ApprovalsStackParams>();
-const ChatStack = createNativeStackNavigator<ChatStackParams>();
+const InboxStack = createNativeStackNavigator<InboxStackParams>();
+const WorkStack = createNativeStackNavigator<WorkStackParams>();
+const KnowledgeStack = createNativeStackNavigator<KnowledgeStackParams>();
+const SetupStack = createNativeStackNavigator<SetupStackParams>();
 const Tab = createBottomTabNavigator<TabParams>();
 
 // Navigation ref for use outside of React tree (e.g. notification response handler).
@@ -85,23 +101,23 @@ const navigationRef = createNavigationContainerRef<TabParams>();
 function navigateToApproval(approvalId?: string) {
   if (!navigationRef.isReady()) return;
   if (approvalId) {
-    navigationRef.navigate('Approvals', {
+    navigationRef.navigate('Inbox', {
       screen: 'ApprovalDetail',
       params: { approvalId },
     });
   } else {
-    navigationRef.navigate('Approvals');
+    navigationRef.navigate('Inbox', { screen: 'ApprovalList' });
   }
 }
 
 function navigateToDigest() {
   if (!navigationRef.isReady()) return;
-  navigationRef.navigate('Digest');
+  navigationRef.navigate('Work', { screen: 'Digest' });
 }
 
 function navigateToAttention() {
   if (!navigationRef.isReady()) return;
-  navigationRef.navigate('Attention');
+  navigationRef.navigate('Inbox', { screen: 'Attention' });
 }
 
 // Configure how notifications are presented while the app is in the foreground.
@@ -142,62 +158,147 @@ function StatusNavigator() {
   );
 }
 
-function RunsNavigator() {
+function InboxNavigator() {
   return (
-    <RunsStack.Navigator>
-      <RunsStack.Screen name="RunList" options={{ title: 'Runs' }}>
+    <InboxStack.Navigator>
+      <InboxStack.Screen name="InboxHome" options={{ title: 'Inbox' }}>
         {({ navigation }) => (
-          <RunListScreen onRunPress={(id) => navigation.navigate('RunDetail', { runId: id })} />
+          <InboxHomeScreen
+            onApprovalsPress={() => navigation.navigate('ApprovalList')}
+            onQuestionsPress={() => navigation.navigate('OwnerQuestions')}
+            onBlockedWorkPress={() => navigation.navigate('BlockedWork')}
+            onAttentionPress={() => navigation.navigate('Attention')}
+          />
         )}
-      </RunsStack.Screen>
-      <RunsStack.Screen name="RunDetail" options={{ title: 'Run Detail' }}>
-        {({ route }) => <RunDetailScreen runId={route.params.runId} />}
-      </RunsStack.Screen>
-    </RunsStack.Navigator>
-  );
-}
-
-function ApprovalsNavigator() {
-  return (
-    <ApprovalsStack.Navigator>
-      <ApprovalsStack.Screen name="ApprovalList" options={{ title: 'Approvals' }}>
+      </InboxStack.Screen>
+      <InboxStack.Screen name="ApprovalList" options={{ title: 'Approvals' }}>
         {({ navigation }) => (
           <ApprovalListScreen
             onApprovalPress={(id) => navigation.navigate('ApprovalDetail', { approvalId: id })}
           />
         )}
-      </ApprovalsStack.Screen>
-      <ApprovalsStack.Screen name="ApprovalDetail" options={{ title: 'Approval Detail' }}>
+      </InboxStack.Screen>
+      <InboxStack.Screen name="ApprovalDetail" options={{ title: 'Approval Detail' }}>
         {({ route, navigation }) => (
           <ApprovalDetailScreen
             approvalId={route.params.approvalId}
             onDone={() => navigation.goBack()}
           />
         )}
-      </ApprovalsStack.Screen>
-    </ApprovalsStack.Navigator>
+      </InboxStack.Screen>
+      <InboxStack.Screen
+        name="OwnerQuestions"
+        component={OwnerQuestionListScreen}
+        options={{ title: 'Owner questions' }}
+      />
+      <InboxStack.Screen
+        name="BlockedWork"
+        component={TaskQueueScreen}
+        options={{ title: 'Blocked work' }}
+      />
+      <InboxStack.Screen
+        name="Attention"
+        component={AttentionScreen}
+        options={{ title: 'Attention' }}
+      />
+    </InboxStack.Navigator>
   );
 }
 
-function ChatNavigator() {
+function WorkNavigator() {
   return (
-    <ChatStack.Navigator>
-      <ChatStack.Screen name="ChatList" options={{ title: 'Chat' }}>
+    <WorkStack.Navigator>
+      <WorkStack.Screen name="WorkHome" options={{ title: 'Work' }}>
+        {({ navigation }) => (
+          <WorkHomeScreen
+            onRunsPress={() => navigation.navigate('RunList')}
+            onTasksPress={() => navigation.navigate('Tasks')}
+            onTaskSearchPress={() => navigation.navigate('TaskSearch')}
+            onDigestPress={() => navigation.navigate('Digest')}
+            onAnswerHistoryPress={() => navigation.navigate('AnswerHistory')}
+            onChatPress={() => navigation.navigate('ChatList')}
+          />
+        )}
+      </WorkStack.Screen>
+      <WorkStack.Screen name="RunList" options={{ title: 'Runs' }}>
+        {({ navigation }) => (
+          <RunListScreen onRunPress={(id) => navigation.navigate('RunDetail', { runId: id })} />
+        )}
+      </WorkStack.Screen>
+      <WorkStack.Screen name="RunDetail" options={{ title: 'Run Detail' }}>
+        {({ route }) => <RunDetailScreen runId={route.params.runId} />}
+      </WorkStack.Screen>
+      <WorkStack.Screen name="Tasks" component={TaskQueueScreen} />
+      <WorkStack.Screen
+        name="TaskSearch"
+        component={TaskSearchScreen}
+        options={{ title: 'Task search' }}
+      />
+      <WorkStack.Screen name="Digest" component={DigestScreen} />
+      <WorkStack.Screen
+        name="AnswerHistory"
+        component={AnswerHistoryScreen}
+        options={{ title: 'Answer history' }}
+      />
+      <WorkStack.Screen name="ChatList" options={{ title: 'Chat' }}>
         {({ navigation }) => (
           <ChatListScreen
             onSessionPress={(sessionId) => navigation.navigate('ChatDetail', { sessionId })}
           />
         )}
-      </ChatStack.Screen>
-      <ChatStack.Screen name="ChatDetail" options={{ title: 'Session' }}>
+      </WorkStack.Screen>
+      <WorkStack.Screen name="ChatDetail" options={{ title: 'Session' }}>
         {({ route, navigation }) => (
           <ChatDetailScreen
             sessionId={route.params.sessionId}
             onClose={() => navigation.goBack()}
           />
         )}
-      </ChatStack.Screen>
-    </ChatStack.Navigator>
+      </WorkStack.Screen>
+    </WorkStack.Navigator>
+  );
+}
+
+function KnowledgeNavigator() {
+  return (
+    <KnowledgeStack.Navigator>
+      <KnowledgeStack.Screen name="KnowledgeHome" options={{ title: 'Knowledge' }}>
+        {({ navigation }) => (
+          <KnowledgeHomeScreen
+            onAnswerPress={() => navigation.navigate('Answer')}
+            onRecallPress={() => navigation.navigate('Recall')}
+            onKnowledgePress={() => navigation.navigate('KnowledgeSearch')}
+            onMemoryPress={() => navigation.navigate('Memory')}
+            onHistoryPress={() => navigation.navigate('History')}
+            onCapturePress={() => navigation.navigate('Capture')}
+            onRetractPress={() => navigation.navigate('Retract')}
+          />
+        )}
+      </KnowledgeStack.Screen>
+      <KnowledgeStack.Screen name="Answer" component={AnswerScreen} />
+      <KnowledgeStack.Screen name="Recall" component={RecallScreen} />
+      <KnowledgeStack.Screen
+        name="KnowledgeSearch"
+        component={KnowledgeScreen}
+        options={{ title: 'Knowledge' }}
+      />
+      <KnowledgeStack.Screen name="Memory" component={MemoryScreen} />
+      <KnowledgeStack.Screen name="History" component={HistoryScreen} />
+      <KnowledgeStack.Screen name="Capture" component={CaptureScreen} />
+      <KnowledgeStack.Screen name="Retract" component={RetractScreen} />
+    </KnowledgeStack.Navigator>
+  );
+}
+
+function SetupNavigator() {
+  return (
+    <SetupStack.Navigator>
+      <SetupStack.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{ title: 'Setup' }}
+      />
+    </SetupStack.Navigator>
   );
 }
 
@@ -205,6 +306,8 @@ export function AppNavigator() {
   const { state } = useDaemon();
   const pendingCount = state.pendingApprovalCount;
   const pendingQuestionCount = state.pendingOwnerQuestionCount;
+  const blockedCount = state.tasks?.counts.blocked ?? state.tasks?.tasks.blocked?.length ?? 0;
+  const inboxCount = pendingCount + pendingQuestionCount + blockedCount;
 
   // Handle notification taps. Navigate based on the `screen` field in the payload.
   // Old notifications without `screen` open the app home as-is (no navigation).
@@ -221,108 +324,37 @@ export function AppNavigator() {
 
   return (
     <NavigationContainer ref={navigationRef}>
-      <Tab.Navigator
-        screenOptions={{ headerShown: false }}
-      >
+      <Tab.Navigator screenOptions={{ headerShown: false }}>
         <Tab.Screen
-          name="Status"
+          name={PRIMARY_OPERATOR_TABS[0]}
           component={StatusNavigator}
           options={{ tabBarIcon: () => <Text>📡</Text> }}
         />
         <Tab.Screen
-          name="Runs"
-          component={RunsNavigator}
-          options={{ tabBarIcon: () => <Text>📋</Text> }}
-        />
-        <Tab.Screen
-          name="Approvals"
-          component={ApprovalsNavigator}
+          name={PRIMARY_OPERATOR_TABS[1]}
+          component={InboxNavigator}
           options={{
-            tabBarIcon: () => <Text>✅</Text>,
-            tabBarBadge: pendingCount > 0 ? pendingCount : undefined,
+            tabBarIcon: () => <Text>☑</Text>,
+            tabBarBadge: inboxCount > 0 ? inboxCount : undefined,
           }}
         />
         <Tab.Screen
-          name="Questions"
-          component={OwnerQuestionListScreen}
+          name={PRIMARY_OPERATOR_TABS[2]}
+          component={WorkNavigator}
           options={{
-            tabBarIcon: () => <Text>❓</Text>,
-            tabBarBadge: pendingQuestionCount > 0 ? pendingQuestionCount : undefined,
-            headerShown: true,
-            title: 'Questions',
-          }}
-        />
-        <Tab.Screen
-          name="Tasks"
-          component={TaskQueueScreen}
-          options={{ tabBarIcon: () => <Text>📌</Text>, headerShown: true, title: 'Tasks' }}
-        />
-        <Tab.Screen
-          name="TaskSearch"
-          component={TaskSearchScreen}
-          options={{ tabBarIcon: () => <Text>🔎</Text>, headerShown: true, title: 'Task Search' }}
-        />
-        <Tab.Screen
-          name="Attention"
-          component={AttentionScreen}
-          options={{ tabBarIcon: () => <Text>🔔</Text>, headerShown: true, title: 'Attention' }}
-        />
-        <Tab.Screen
-          name="Digest"
-          component={DigestScreen}
-          options={{ tabBarIcon: () => <Text>📰</Text>, headerShown: true, title: 'Digest' }}
-        />
-        <Tab.Screen
-          name="Knowledge"
-          component={KnowledgeScreen}
-          options={{ tabBarIcon: () => <Text>📚</Text>, headerShown: true, title: 'Knowledge' }}
-        />
-        <Tab.Screen
-          name="Memory"
-          component={MemoryScreen}
-          options={{ tabBarIcon: () => <Text>🧠</Text>, headerShown: true, title: 'Memory' }}
-        />
-        <Tab.Screen
-          name="History"
-          component={HistoryScreen}
-          options={{ tabBarIcon: () => <Text>🕘</Text>, headerShown: true, title: 'History' }}
-        />
-        <Tab.Screen
-          name="Recall"
-          component={RecallScreen}
-          options={{ tabBarIcon: () => <Text>✨</Text>, headerShown: true, title: 'Recall' }}
-        />
-        <Tab.Screen
-          name="Answer"
-          component={AnswerScreen}
-          options={{ tabBarIcon: () => <Text>💡</Text>, headerShown: true, title: 'Answer' }}
-        />
-        <Tab.Screen
-          name="AnswerHistory"
-          component={AnswerHistoryScreen}
-          options={{
-            tabBarIcon: () => <Text>📜</Text>,
-            headerShown: true,
-            title: 'Answer history',
-          }}
-        />
-        <Tab.Screen
-          name="Capture"
-          component={CaptureScreen}
-          options={{ tabBarIcon: () => <Text>📝</Text>, headerShown: true, title: 'Capture' }}
-        />
-        <Tab.Screen
-          name="Retract"
-          component={RetractScreen}
-          options={{ tabBarIcon: () => <Text>🗑️</Text>, headerShown: true, title: 'Retract' }}
-        />
-        <Tab.Screen
-          name="Chat"
-          component={ChatNavigator}
-          options={{
-            tabBarIcon: () => <Text>💬</Text>,
+            tabBarIcon: () => <Text>◼</Text>,
             tabBarActiveTintColor: state.online ? undefined : '#8e8e93',
           }}
+        />
+        <Tab.Screen
+          name={PRIMARY_OPERATOR_TABS[3]}
+          component={KnowledgeNavigator}
+          options={{ tabBarIcon: () => <Text>◇</Text> }}
+        />
+        <Tab.Screen
+          name={PRIMARY_OPERATOR_TABS[4]}
+          component={SetupNavigator}
+          options={{ tabBarIcon: () => <Text>⚙</Text> }}
         />
       </Tab.Navigator>
     </NavigationContainer>

@@ -1,12 +1,26 @@
 import { Button } from "@/components/ui/button";
 import type { ConnectionStatus } from "@/hooks/use-daemon-events";
 import { cn } from "@/lib/utils";
+import {
+  Activity,
+  BookOpen,
+  BriefcaseBusiness,
+  ChevronRight,
+  Inbox,
+  Moon,
+  PanelLeftClose,
+  Plus,
+  Settings,
+  Sun,
+} from "lucide-react";
+import { type ReactNode, useState } from "react";
 import { ActiveSessionsPanel } from "./ActiveSessionsPanel";
 import { AnswerHistoryPanel } from "./AnswerHistoryPanel";
 import { AnswerPanel } from "./AnswerPanel";
 import { ApprovalList } from "./ApprovalList";
 import { AttentionPanel } from "./AttentionPanel";
 import { AuditPanel } from "./AuditPanel";
+import { BlockedWorkPanel } from "./BlockedWorkPanel";
 import { CapturePanel } from "./CapturePanel";
 import { ConfigPanel } from "./ConfigPanel";
 import { CostPanel } from "./CostPanel";
@@ -26,6 +40,14 @@ import { SidebarSection } from "./SidebarSection";
 import { TaskPanel } from "./TaskPanel";
 import { WorkflowDefinitionsPanel } from "./WorkflowDefinitionsPanel";
 import { WorkflowPanel } from "./WorkflowPanel";
+
+const INTENT_GROUPS = [
+  "Status",
+  "Inbox",
+  "Work",
+  "Knowledge",
+  "Setup",
+] as const;
 
 export function Sidebar({
   collapsed,
@@ -76,111 +98,124 @@ export function Sidebar({
             onClick={onNewChat}
             title="New chat"
           >
-            +
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            <span className="sr-only">New chat</span>
           </Button>
         </div>
 
         <ProjectSelector />
 
-        <div className="flex-1 overflow-y-auto">
-          <SidebarSection title="Overview">
+        <nav className="flex-1 overflow-y-auto" aria-label="Primary navigation">
+          <IntentGroup title="Status" icon={Activity} defaultOpen>
             <OverviewPanel />
-          </SidebarSection>
+          </IntentGroup>
 
-          <SidebarSection title="Sessions">
-            <SessionList
-              activeSessionId={activeSessionId}
-              onSelect={onSessionSelect}
-            />
-          </SidebarSection>
+          <IntentGroup title="Inbox" icon={Inbox} defaultOpen>
+            <IntentSubsection title="Approvals">
+              <ApprovalList />
+            </IntentSubsection>
 
-          <SidebarSection title="History" defaultOpen={false}>
-            <HistoryList onSelect={onHistorySelect} />
-          </SidebarSection>
+            <IntentSubsection title="Owner questions">
+              <OwnerQuestionsPanel />
+            </IntentSubsection>
 
-          <SidebarSection title="Approvals">
-            <ApprovalList />
-          </SidebarSection>
+            <IntentSubsection title="Blocked work">
+              <BlockedWorkPanel />
+            </IntentSubsection>
 
-          <SidebarSection title="Owner Questions">
-            <OwnerQuestionsPanel />
-          </SidebarSection>
+            <IntentSubsection title="Attention">
+              <AttentionPanel />
+            </IntentSubsection>
+          </IntentGroup>
 
-          <SidebarSection title="Tasks">
-            <TaskPanel />
-          </SidebarSection>
+          <IntentGroup title="Work" icon={BriefcaseBusiness}>
+            <SidebarSection title="Tasks">
+              <TaskPanel />
+            </SidebarSection>
 
-          <SidebarSection title="Digest" defaultOpen={false}>
-            <DigestPanel />
-          </SidebarSection>
+            <SidebarSection title="Sessions">
+              <SessionList
+                activeSessionId={activeSessionId}
+                onSelect={onSessionSelect}
+              />
+            </SidebarSection>
 
-          <SidebarSection title="Attention" defaultOpen={false}>
-            <AttentionPanel />
-          </SidebarSection>
+            <SidebarSection title="Workflows">
+              <WorkflowPanel
+                onRunSelect={onRunSelect}
+                onCompareRuns={onCompareRuns}
+              />
+            </SidebarSection>
 
-          <SidebarSection title="Workflows">
-            <WorkflowPanel
-              onRunSelect={onRunSelect}
-              onCompareRuns={onCompareRuns}
-            />
-          </SidebarSection>
+            <SidebarSection title="Active sessions" defaultOpen={false}>
+              <ActiveSessionsPanel />
+            </SidebarSection>
 
-          <SidebarSection title="Active Sessions" defaultOpen={false}>
-            <ActiveSessionsPanel />
-          </SidebarSection>
+            <SidebarSection title="Workflow definitions" defaultOpen={false}>
+              <WorkflowDefinitionsPanel />
+            </SidebarSection>
 
-          <SidebarSection title="Workflow Definitions" defaultOpen={false}>
-            <WorkflowDefinitionsPanel />
-          </SidebarSection>
+            <SidebarSection title="Schedules" defaultOpen={false}>
+              <SchedulesPanel />
+            </SidebarSection>
 
-          <SidebarSection title="Schedules" defaultOpen={false}>
-            <SchedulesPanel />
-          </SidebarSection>
+            <SidebarSection title="Analytics" defaultOpen={false}>
+              <CostPanel />
+            </SidebarSection>
+          </IntentGroup>
 
-          <SidebarSection title="Analytics" defaultOpen={false}>
-            <CostPanel />
-          </SidebarSection>
+          <IntentGroup title="Knowledge" icon={BookOpen}>
+            <SidebarSection title="Recall">
+              <RecallPanel />
+            </SidebarSection>
 
-          <SidebarSection title="Recall" defaultOpen={false}>
-            <RecallPanel />
-          </SidebarSection>
+            <SidebarSection title="Answer" defaultOpen={false}>
+              <AnswerPanel />
+            </SidebarSection>
 
-          <SidebarSection title="Answer" defaultOpen={false}>
-            <AnswerPanel />
-          </SidebarSection>
+            <SidebarSection title="Answer history" defaultOpen={false}>
+              <AnswerHistoryPanel />
+            </SidebarSection>
 
-          <SidebarSection title="Answer History" defaultOpen={false}>
-            <AnswerHistoryPanel />
-          </SidebarSection>
+            <SidebarSection title="Capture" defaultOpen={false}>
+              <CapturePanel />
+            </SidebarSection>
 
-          <SidebarSection title="Capture" defaultOpen={false}>
-            <CapturePanel />
-          </SidebarSection>
+            <SidebarSection title="Retract" defaultOpen={false}>
+              <RetractPanel />
+            </SidebarSection>
 
-          <SidebarSection title="Retract" defaultOpen={false}>
-            <RetractPanel />
-          </SidebarSection>
+            <SidebarSection title="Knowledge" defaultOpen={false}>
+              <KnowledgePanel />
+            </SidebarSection>
 
-          <SidebarSection title="Knowledge" defaultOpen={false}>
-            <KnowledgePanel />
-          </SidebarSection>
+            <SidebarSection title="Memory" defaultOpen={false}>
+              <MemoryPanel />
+            </SidebarSection>
 
-          <SidebarSection title="Memory" defaultOpen={false}>
-            <MemoryPanel />
-          </SidebarSection>
+            <SidebarSection title="History" defaultOpen={false}>
+              <HistoryList onSelect={onHistorySelect} />
+            </SidebarSection>
 
-          <SidebarSection title="Guardrail Audit" defaultOpen={false}>
-            <AuditPanel />
-          </SidebarSection>
+            <SidebarSection title="Digest" defaultOpen={false}>
+              <DigestPanel />
+            </SidebarSection>
+          </IntentGroup>
 
-          <SidebarSection title="Modules" defaultOpen={false}>
-            <ModulesPanel />
-          </SidebarSection>
+          <IntentGroup title="Setup" icon={Settings}>
+            <SidebarSection title="Modules">
+              <ModulesPanel />
+            </SidebarSection>
 
-          <SidebarSection title="Config" defaultOpen={false}>
-            <ConfigPanel />
-          </SidebarSection>
-        </div>
+            <SidebarSection title="Config" defaultOpen={false}>
+              <ConfigPanel />
+            </SidebarSection>
+
+            <SidebarSection title="Guardrail audit" defaultOpen={false}>
+              <AuditPanel />
+            </SidebarSection>
+          </IntentGroup>
+        </nav>
 
         <div className="flex items-center gap-2 border-t border-border px-3 py-2">
           <span
@@ -201,7 +236,12 @@ export function Sidebar({
             onClick={onToggleTheme}
             title="Toggle theme"
           >
-            {darkMode ? "\u2600" : "\u263E"}
+            {darkMode ? (
+              <Sun className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <Moon className="h-4 w-4" aria-hidden="true" />
+            )}
+            <span className="sr-only">Toggle theme</span>
           </Button>
           <Button
             variant="ghost"
@@ -210,10 +250,64 @@ export function Sidebar({
             onClick={onToggle}
             title="Toggle sidebar"
           >
-            \u2630
+            <PanelLeftClose className="h-4 w-4" aria-hidden="true" />
+            <span className="sr-only">Toggle sidebar</span>
           </Button>
         </div>
       </aside>
     </>
+  );
+}
+
+function IntentGroup({
+  title,
+  icon: Icon,
+  children,
+  defaultOpen = false,
+}: {
+  title: (typeof INTENT_GROUPS)[number];
+  icon: typeof Activity;
+  children: ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <section className="border-b border-border" data-intent={title}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-sm font-semibold hover:bg-accent/60"
+        aria-expanded={open}
+      >
+        <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+        <span>{title}</span>
+        <ChevronRight
+          className={cn(
+            "ml-auto h-4 w-4 text-muted-foreground transition-transform",
+            open && "rotate-90",
+          )}
+          aria-hidden="true"
+        />
+      </button>
+      {open && <div className="space-y-2 px-3 pb-3">{children}</div>}
+    </section>
+  );
+}
+
+function IntentSubsection({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {title}
+      </div>
+      {children}
+    </div>
   );
 }

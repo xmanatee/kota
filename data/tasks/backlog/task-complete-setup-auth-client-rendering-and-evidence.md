@@ -7,7 +7,7 @@ area: client
 summary: Close the setup/auth rollout gap by rendering the same requirement states and safe collection actions through shared client surfaces with transcript/screenshot evidence.
 depends_on: [task-add-shared-ui-contribution-protocol-across-clients]
 created_at: 2026-06-04T13:06:53.015Z
-updated_at: 2026-06-04T13:06:53.015Z
+updated_at: 2026-06-18T19:35:00.000Z
 ---
 
 ## Problem
@@ -22,6 +22,13 @@ evidence calls for client-rendered proof:
 Current client changes primarily add typed fixtures/decoders. They do not yet
 prove that setup/auth requirements are rendered and satisfied consistently
 across the shared UI surfaces the owner asked for.
+
+Current audit update on 2026-06-18: `kota inbox`, the shallow bare-`kota`
+operator console, and `kota setup` now expose useful setup/auth information
+and actions. That does not close this task because the flow is still not
+proven through the shared UI contribution/action protocol across clients, and
+safe setup actions are not yet demonstrated as typed daemon actions rendered
+from one client-neutral surface.
 
 ## Desired Outcome
 
@@ -48,8 +55,9 @@ protocol unless the renderer reveals a protocol defect.
 
 - Shared UI contribution fixtures include setup/auth requirement states and
   actions.
-- CLI renders the setup/auth surface and captures a transcript showing
-  non-sensitive setup plus redacted sensitive setup.
+- CLI renders the setup/auth surface through the shared UI/action protocol and
+  captures a transcript showing non-sensitive setup plus redacted sensitive
+  setup.
 - At least one visual client renders the same setup/auth states with screenshot
   or snapshot evidence.
 - Swift/mobile/web decoders accept the same fixture and reject malformed setup
@@ -69,7 +77,7 @@ One daemon UI protocol, many renderers.
 ## Acceptance Evidence
 
 - CLI transcript under `.kota/runs/<run-id>/transcript.txt` showing redacted
-  sensitive setup output.
+  sensitive setup output and typed setup action execution.
 - Web screenshot, native snapshot, or mobile rendered fixture showing the same
   setup/auth states.
 - Cross-client conformance output proving all clients consume the same setup UI
