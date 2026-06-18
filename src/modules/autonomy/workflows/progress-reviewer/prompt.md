@@ -16,4 +16,4 @@ task proposals only for concrete, non-duplicate work with acceptance evidence.
 Ask owner questions only when the evidence shows a steering decision that the
 repo cannot infer safely.
 
-Return exactly one structured JSON object matching the requested schema.
+Return only a fenced JSON block matching the requested schema.

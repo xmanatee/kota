@@ -4,7 +4,10 @@ import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
-import { autonomyHealthSignal } from "#modules/autonomy/health-signal.js";
+import {
+  type AutonomyHealthJsonObject,
+  autonomyHealthSignal,
+} from "#modules/autonomy/health-signal.js";
 import {
   onNormalTrigger,
   onRecoveryTrigger,
@@ -55,7 +58,7 @@ const buildReview = typedCodeStep<ReviewOutput>({
   validate: (raw) => expectStructuredOutput<ReviewOutput>(raw, ["review"]),
   run: (ctx) => ({
     review: buildAutonomyHealthReview({
-      triggerPayload: ctx.trigger.payload,
+      triggerPayload: ctx.trigger.payload as AutonomyHealthJsonObject,
       generatedAt: new Date().toISOString(),
     }),
   }),

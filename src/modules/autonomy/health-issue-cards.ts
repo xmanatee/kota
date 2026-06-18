@@ -4,8 +4,10 @@ import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type {
   AutonomyHealthActionability,
   AutonomyHealthEvidenceRef,
+  AutonomyHealthJsonValue,
   AutonomyHealthSeverity,
 } from "./health-signal.js";
+import { isAutonomyHealthJsonObject } from "./health-signal.js";
 import { AUTONOMY_HEALTH_REVIEW_ARTIFACT } from "./workflows/autonomy-health-reviewer/health-review.js";
 
 export type AutonomyHealthIssueCard = {
@@ -28,25 +30,18 @@ export type AutonomyHealthIssueEvidence = {
 };
 
 type RawReviewArtifact = {
-  generatedAt?: unknown;
-  review?: {
-    groups?: unknown;
-  };
-  actions?: {
-    createdTaskIds?: unknown;
-    ownerQuestionIds?: unknown;
-  };
+  generatedAt?: AutonomyHealthJsonValue;
+  review?: AutonomyHealthJsonValue;
+  actions?: AutonomyHealthJsonValue;
 };
 
 const DEFAULT_CARD_LIMIT = 12;
 const MAX_SUMMARIES_PER_CARD = 3;
 const MAX_EVIDENCE_REFS_PER_CARD = 5;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function isSeverity(value: unknown): value is AutonomyHealthSeverity {
+function isSeverity(
+  value: AutonomyHealthJsonValue | undefined,
+): value is AutonomyHealthSeverity {
   return (
     value === "info" ||
     value === "warning" ||
@@ -55,7 +50,9 @@ function isSeverity(value: unknown): value is AutonomyHealthSeverity {
   );
 }
 
-function isActionability(value: unknown): value is AutonomyHealthActionability {
+function isActionability(
+  value: AutonomyHealthJsonValue | undefined,
+): value is AutonomyHealthActionability {
   return (
     value === "local-code" ||
     value === "owner-action" ||
@@ -64,16 +61,18 @@ function isActionability(value: unknown): value is AutonomyHealthActionability {
   );
 }
 
-function stringArray(value: unknown): string[] {
+function stringArray(value: AutonomyHealthJsonValue | undefined): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((entry): entry is string => typeof entry === "string");
 }
 
-function evidenceRefs(value: unknown): AutonomyHealthEvidenceRef[] {
+function evidenceRefs(
+  value: AutonomyHealthJsonValue | undefined,
+): AutonomyHealthEvidenceRef[] {
   if (!Array.isArray(value)) return [];
   const refs: AutonomyHealthEvidenceRef[] = [];
   for (const entry of value) {
-    if (!isRecord(entry)) continue;
+    if (!isAutonomyHealthJsonObject(entry)) continue;
     const { kind, ref, summary } = entry;
     if (
       kind !== "run" &&
@@ -99,17 +98,17 @@ function evidenceRefs(value: unknown): AutonomyHealthEvidenceRef[] {
 }
 
 function readJson(path: string): RawReviewArtifact | null {
-  const raw = readOptionalJsonFile<unknown>(path);
-  return isRecord(raw) ? (raw as RawReviewArtifact) : null;
+  const raw = readOptionalJsonFile<AutonomyHealthJsonValue>(path);
+  return isAutonomyHealthJsonObject(raw) ? raw : null;
 }
 
 function cardFromGroup(args: {
-  group: unknown;
+  group: AutonomyHealthJsonValue | undefined;
   reviewedAt: string;
   createdTaskIds: string[];
   ownerQuestionIds: string[];
 }): AutonomyHealthIssueCard | null {
-  if (!isRecord(args.group)) return null;
+  if (!isAutonomyHealthJsonObject(args.group)) return null;
   const dedupeKey = args.group.dedupeKey;
   const severity = args.group.severity;
   const actionability = args.group.actionability;
@@ -160,11 +159,17 @@ export function collectRecentAutonomyHealthIssueCards(
     if (!existsSync(artifactPath)) continue;
     const artifact = readJson(artifactPath);
     if (!artifact || typeof artifact.generatedAt !== "string") continue;
-    const groups = artifact.review?.groups;
+    const review = isAutonomyHealthJsonObject(artifact.review)
+      ? artifact.review
+      : undefined;
+    const groups = review?.groups;
     if (!Array.isArray(groups)) continue;
     reviewTimes.push(artifact.generatedAt);
-    const createdTaskIds = stringArray(artifact.actions?.createdTaskIds);
-    const ownerQuestionIds = stringArray(artifact.actions?.ownerQuestionIds);
+    const actions = isAutonomyHealthJsonObject(artifact.actions)
+      ? artifact.actions
+      : undefined;
+    const createdTaskIds = stringArray(actions?.createdTaskIds);
+    const ownerQuestionIds = stringArray(actions?.ownerQuestionIds);
     for (const group of groups) {
       const card = cardFromGroup({
         group,

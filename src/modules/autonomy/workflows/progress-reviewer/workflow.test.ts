@@ -486,6 +486,19 @@ async function mockCleanWorktree() {
   });
 }
 
+async function mockDirtyWorktree() {
+  const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
+  vi.mocked(getRepoWorktreeStatus).mockReturnValue({
+    available: true,
+    dirty: true,
+    trackedDirty: true,
+    entries: ["M src/active-builder-change.ts"],
+    fingerprint: "src/active-builder-change.ts:M",
+    summary: "M src/active-builder-change.ts",
+    headSha: "abc1234",
+  });
+}
+
 describe("progress-reviewer workflow", () => {
   const projectDirs: string[] = [];
 
@@ -509,6 +522,50 @@ describe("progress-reviewer workflow", () => {
     projectDirs.push(dir);
     return dir;
   }
+
+  it("keeps the prompt aligned with fenced JSON output extraction", () => {
+    const prompt = readFileSync(new URL("./prompt.md", import.meta.url), "utf-8");
+    const definition = compileProgressReviewerWorkflow();
+    const reviewStep = definition.steps.find((step) => step.id === "review-evidence");
+
+    expect(reviewStep).toEqual(
+      expect.objectContaining({
+        type: "agent",
+        outputFormat: "json",
+      }),
+    );
+    expect(prompt).toContain("fenced JSON");
+    expect(prompt).not.toContain("Return exactly one structured JSON object");
+  });
+
+  it("skips review-evidence while tracked worktree changes are present", async () => {
+    await mockDirtyWorktree();
+    const projectDir = trackProjectDir("progress-reviewer-dirty");
+    const scopeId = deriveDirectoryScopeId(projectDir);
+    writeRun(
+      projectDir,
+      "builder-success",
+      "builder",
+      "success",
+      "2026-06-04T11:20:00.000Z",
+    );
+
+    const harness = new WorkflowTestHarness(progressReviewerWorkflow, {
+      projectDir,
+      trigger: {
+        event: progressReviewRequested.name,
+        schemaRef: null,
+        payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+      },
+    });
+
+    const result = await harness.run();
+
+    expect(result.status).toBe("success");
+    expect(result.steps["inspect-worktree"].output).toEqual({ dirty: true });
+    expect(result.steps["review-evidence"].status).toBe("skipped");
+    expect(result.steps["write-artifact"].status).toBe("skipped");
+  });
 
   it("declares schedule, manual, run-count, task-count, and channel batch triggers without a completion self-loop", () => {
     const moduleEvents = initModuleEventRegistry();

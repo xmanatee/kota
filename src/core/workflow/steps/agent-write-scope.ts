@@ -34,6 +34,26 @@ export class AgentWriteScopeViolationError extends Error {
   }
 }
 
+function gitOutput(projectDir: string, args: readonly string[]): string {
+  return execFileSync("git", [...args], {
+    cwd: projectDir,
+    env: withProtectedGitBareRepositoryEnv(),
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+}
+
+function hasHead(projectDir: string): boolean {
+  const result = spawnSync("git", ["rev-parse", "--verify", "HEAD"], {
+    cwd: projectDir,
+    env: withProtectedGitBareRepositoryEnv(),
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  if (result.error !== undefined) throw result.error;
+  return result.status === 0;
+}
+
 /**
  * Returns the set of repo paths a workflow run would commit via `git add -A`.
  * Covers tracked modifications, deletions, both sides of renames, staged
@@ -43,30 +63,20 @@ export class AgentWriteScopeViolationError extends Error {
  * into the commit.
  */
 export function listWorkflowMutatedPaths(projectDir: string): string[] {
-  execFileSync("git", ["rev-parse", "--is-inside-work-tree"], {
-    cwd: projectDir,
-    env: withProtectedGitBareRepositoryEnv(),
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  const tracked = execFileSync("git", ["diff", "--name-only", "--no-renames", "HEAD"], {
-    cwd: projectDir,
-    env: withProtectedGitBareRepositoryEnv(),
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  const untracked = execFileSync(
-    "git",
-    ["ls-files", "--others", "--exclude-standard"],
-    {
-      cwd: projectDir,
-      env: withProtectedGitBareRepositoryEnv(),
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
+  gitOutput(projectDir, ["rev-parse", "--is-inside-work-tree"]);
+  const tracked = hasHead(projectDir)
+    ? [gitOutput(projectDir, ["diff", "--name-only", "--no-renames", "HEAD"])]
+    : [
+        gitOutput(projectDir, ["diff", "--cached", "--name-only", "--no-renames"]),
+        gitOutput(projectDir, ["diff", "--name-only", "--no-renames"]),
+      ];
+  const untracked = gitOutput(projectDir, [
+    "ls-files",
+    "--others",
+    "--exclude-standard",
+  ]);
   const paths = new Set<string>();
-  for (const line of [...tracked.split("\n"), ...untracked.split("\n")]) {
+  for (const line of [...tracked.flatMap((out) => out.split("\n")), ...untracked.split("\n")]) {
     const trimmed = line.trim();
     if (trimmed.length > 0) paths.add(trimmed);
   }

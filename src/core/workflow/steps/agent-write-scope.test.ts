@@ -16,6 +16,7 @@ import {
   findWriteScopeViolations,
   listWorkflowMutatedPaths,
   pathInScope,
+  tryListWorkflowMutatedPaths,
   writeWriteScopeViolationArtifact,
 } from "./agent-write-scope.js";
 
@@ -160,6 +161,31 @@ describe("listWorkflowMutatedPaths", () => {
       "scratch.txt",
       "seed.txt",
     ]);
+  });
+
+  it("lists staged and untracked paths in an unborn git repository", () => {
+    const unbornDir = join(
+      tmpdir(),
+      `kota-write-scope-unborn-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    try {
+      mkdirSync(unbornDir, { recursive: true });
+      execFileSync("git", ["init", "-q", "-b", "main"], { cwd: unbornDir });
+      writeFileSync(join(unbornDir, "staged.txt"), "staged\n");
+      execFileSync("git", ["add", "staged.txt"], { cwd: unbornDir });
+      writeFileSync(join(unbornDir, "untracked.txt"), "untracked\n");
+
+      expect(listWorkflowMutatedPaths(unbornDir)).toEqual([
+        "staged.txt",
+        "untracked.txt",
+      ]);
+      expect(tryListWorkflowMutatedPaths(unbornDir)).toEqual([
+        "staged.txt",
+        "untracked.txt",
+      ]);
+    } finally {
+      rmSync(unbornDir, { recursive: true, force: true });
+    }
   });
 });
 

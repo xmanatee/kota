@@ -381,7 +381,9 @@ const progressReviewerWorkflow: WorkflowDefinitionInput = {
       outputFormat: "json",
       outputSchema: progressReviewOutputSchema,
       validate: decodeProgressReviewAgentOutput,
-      when: stepSucceeded("prepare-review-input"),
+      when: (ctx) =>
+        stepSucceeded("prepare-review-input")(ctx) &&
+        inspectWorktree.output(ctx)?.dirty === false,
     },
     applyActions,
     writeArtifact,

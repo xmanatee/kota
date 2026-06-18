@@ -15,6 +15,11 @@ import { existsSync, readdirSync } from "node:fs";
 import { basename, join } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import {
+  type AutonomyHealthJsonObject,
+  type AutonomyHealthJsonValue,
+  isAutonomyHealthJsonObject,
+} from "#modules/autonomy/health-signal.js";
 import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
 import {
   DEFAULT_TRAJECTORY_DIAGNOSTIC_REPORT_LIMIT,
@@ -87,6 +92,11 @@ export type ExplorerBalance = {
   unresolvedTaskAdditions: number;
   byClassification: { classification: AreaClassification; tasks: number }[];
   taskAdditions: ExplorerTaskAddition[];
+};
+
+type ExplorerCommitOutput = {
+  addedTaskFiles?: readonly string[];
+  sha?: string;
 };
 
 export type BuilderClosure = {
@@ -342,9 +352,7 @@ function buildExplorerBalance(
     totalRuns += 1;
     const commit = run.steps.find((s) => s.id === "commit");
     if (!commit || commit.status !== "success") continue;
-    const output = commit.output as
-      | { addedTaskFiles?: unknown; sha?: unknown }
-      | undefined;
+    const output = commit.output as ExplorerCommitOutput | undefined;
     const addedTaskFiles = resolveAddedTaskFiles(output, addedFilesBySha);
     if (addedTaskFiles.length === 0) continue;
     for (const filePath of addedTaskFiles) {
@@ -383,7 +391,7 @@ function buildExplorerBalance(
 }
 
 function resolveAddedTaskFiles(
-  output: { addedTaskFiles?: unknown; sha?: unknown } | undefined,
+  output: ExplorerCommitOutput | undefined,
   addedFilesBySha: Map<string, readonly string[]> | undefined,
 ): string[] {
   if (Array.isArray(output?.addedTaskFiles)) {
@@ -575,27 +583,26 @@ function buildTrajectoryDiagnosticReport(
   };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
+function readHealthReviewArtifact(path: string): AutonomyHealthJsonObject | null {
+  const raw = readOptionalJsonFile<AutonomyHealthJsonValue>(path);
+  return isAutonomyHealthJsonObject(raw) ? raw : null;
 }
 
-function readHealthReviewArtifact(path: string): Record<string, unknown> | null {
-  const raw = readOptionalJsonFile<unknown>(path);
-  return isRecord(raw) ? raw : null;
-}
-
-function stringField(value: unknown, fallback: string): string {
+function stringField(
+  value: AutonomyHealthJsonValue | undefined,
+  fallback: string,
+): string {
   return typeof value === "string" && value.trim().length > 0
     ? value.trim()
     : fallback;
 }
 
-function stringArray(value: unknown): string[] {
+function stringArray(value: AutonomyHealthJsonValue | undefined): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((entry): entry is string => typeof entry === "string");
 }
 
-function nonEmptyString(value: unknown): string | null {
+function nonEmptyString(value: AutonomyHealthJsonValue | undefined): string | null {
   return typeof value === "string" && value.trim().length > 0
     ? value.trim()
     : null;
@@ -656,13 +663,17 @@ function buildAutonomyHealthBreakdown(
     ) {
       continue;
     }
-    const review = isRecord(artifact.review) ? artifact.review : {};
-    const scopeObj = isRecord(review.scope) ? review.scope : {};
+    const review = isAutonomyHealthJsonObject(artifact.review)
+      ? artifact.review
+      : undefined;
+    const scopeObj = isAutonomyHealthJsonObject(review?.scope)
+      ? review.scope
+      : undefined;
     const scope = stringField(
-      scopeObj.scopeId ?? scopeObj.projectId,
+      scopeObj?.scopeId ?? scopeObj?.projectId,
       "(unknown)",
     );
-    const groups = Array.isArray(review.groups) ? review.groups : [];
+    const groups = Array.isArray(review?.groups) ? review.groups : [];
     for (const rawGroup of groups) {
       const group = decodeHealthReportGroup(rawGroup, scope);
       if (!group) continue;
@@ -692,10 +703,10 @@ function buildAutonomyHealthBreakdown(
 }
 
 function decodeHealthReportGroup(
-  rawGroup: unknown,
+  rawGroup: AutonomyHealthJsonValue | undefined,
   scope: string,
 ): HealthTopGroup | null {
-  if (!isRecord(rawGroup)) return null;
+  if (!isAutonomyHealthJsonObject(rawGroup)) return null;
   const signalCount =
     typeof rawGroup.signalCount === "number" && rawGroup.signalCount > 0
       ? rawGroup.signalCount
@@ -703,7 +714,9 @@ function decodeHealthReportGroup(
   const severity = nonEmptyString(rawGroup.severity);
   const actionability = nonEmptyString(rawGroup.actionability);
   const dedupeKey = nonEmptyString(rawGroup.dedupeKey);
-  const sourceObj = isRecord(rawGroup.source) ? rawGroup.source : null;
+  const sourceObj = isAutonomyHealthJsonObject(rawGroup.source)
+    ? rawGroup.source
+    : null;
   const sourceKind = sourceObj ? nonEmptyString(sourceObj.kind) : null;
   const sourceId = sourceObj ? nonEmptyString(sourceObj.id) : null;
   if (

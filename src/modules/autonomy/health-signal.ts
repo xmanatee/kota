@@ -77,18 +77,34 @@ const LABEL_RE = /^[a-z0-9][a-z0-9._/-]*$/;
 const DEDUPE_KEY_RE = /^[a-z0-9][a-z0-9:._/-]*$/;
 const SOURCE_TOKEN_RE = /^[a-z0-9][a-z0-9:._/-]*$/i;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export type AutonomyHealthJsonPrimitive = string | number | boolean | null;
+export type AutonomyHealthJsonObject = {
+  [key: string]: AutonomyHealthJsonValue | undefined;
+};
+export type AutonomyHealthJsonValue =
+  | AutonomyHealthJsonPrimitive
+  | AutonomyHealthJsonObject
+  | readonly AutonomyHealthJsonValue[];
+
+export function isAutonomyHealthJsonObject(
+  value: AutonomyHealthJsonValue | undefined,
+): value is AutonomyHealthJsonObject {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function assertNonEmptyString(value: unknown, field: string): string {
+function assertNonEmptyString(
+  value: AutonomyHealthJsonValue | undefined,
+  field: string,
+): string {
   if (typeof value !== "string" || value.trim().length === 0) {
     throw new Error(`${field} must be a non-empty string`);
   }
   return value.trim();
 }
 
-function assertSeverity(value: unknown): AutonomyHealthSeverity {
+function assertSeverity(
+  value: AutonomyHealthJsonValue | undefined,
+): AutonomyHealthSeverity {
   if (
     typeof value !== "string" ||
     !AUTONOMY_HEALTH_SEVERITIES.includes(value as AutonomyHealthSeverity)
@@ -100,7 +116,9 @@ function assertSeverity(value: unknown): AutonomyHealthSeverity {
   return value as AutonomyHealthSeverity;
 }
 
-function assertActionability(value: unknown): AutonomyHealthActionability {
+function assertActionability(
+  value: AutonomyHealthJsonValue | undefined,
+): AutonomyHealthActionability {
   if (
     typeof value !== "string" ||
     !AUTONOMY_HEALTH_ACTIONABILITIES.includes(
@@ -114,7 +132,9 @@ function assertActionability(value: unknown): AutonomyHealthActionability {
   return value as AutonomyHealthActionability;
 }
 
-function assertEvidenceKind(value: unknown): AutonomyHealthEvidenceKind {
+function assertEvidenceKind(
+  value: AutonomyHealthJsonValue | undefined,
+): AutonomyHealthEvidenceKind {
   if (
     typeof value !== "string" ||
     !AUTONOMY_HEALTH_EVIDENCE_KINDS.includes(value as AutonomyHealthEvidenceKind)
@@ -126,8 +146,10 @@ function assertEvidenceKind(value: unknown): AutonomyHealthEvidenceKind {
   return value as AutonomyHealthEvidenceKind;
 }
 
-function normalizeSource(value: unknown): AutonomyHealthSignalSource {
-  if (!isRecord(value)) throw new Error("source must be an object");
+function normalizeSource(
+  value: AutonomyHealthJsonValue | undefined,
+): AutonomyHealthSignalSource {
+  if (!isAutonomyHealthJsonObject(value)) throw new Error("source must be an object");
   const kind = assertNonEmptyString(value.kind, "source.kind");
   const id = assertNonEmptyString(value.id, "source.id");
   if (!SOURCE_TOKEN_RE.test(kind)) {
@@ -157,7 +179,7 @@ function normalizeSource(value: unknown): AutonomyHealthSignalSource {
   };
 }
 
-function normalizeLabels(value: unknown): string[] {
+function normalizeLabels(value: AutonomyHealthJsonValue | undefined): string[] {
   if (!Array.isArray(value)) throw new Error("labels must be an array");
   const labels = value.map((entry, index) => {
     const label = assertNonEmptyString(entry, `labels[${index}]`).toLowerCase();
@@ -172,13 +194,17 @@ function normalizeLabels(value: unknown): string[] {
   return [...new Set(labels)].sort((a, b) => a.localeCompare(b));
 }
 
-function normalizeEvidenceRefs(value: unknown): AutonomyHealthEvidenceRef[] {
+function normalizeEvidenceRefs(
+  value: AutonomyHealthJsonValue | undefined,
+): AutonomyHealthEvidenceRef[] {
   if (!Array.isArray(value)) throw new Error("evidenceRefs must be an array");
   if (value.length === 0) {
     throw new Error("health signal must carry at least one evidence ref");
   }
   return value.map((entry, index) => {
-    if (!isRecord(entry)) throw new Error(`evidenceRefs[${index}] must be an object`);
+    if (!isAutonomyHealthJsonObject(entry)) {
+      throw new Error(`evidenceRefs[${index}] must be an object`);
+    }
     const kind = assertEvidenceKind(entry.kind);
     const ref = assertNonEmptyString(entry.ref, `evidenceRefs[${index}].ref`);
     const summary =
@@ -193,7 +219,10 @@ function normalizeEvidenceRefs(value: unknown): AutonomyHealthEvidenceRef[] {
   });
 }
 
-function assertIsoDate(value: unknown, field: string): string {
+function assertIsoDate(
+  value: AutonomyHealthJsonValue | undefined,
+  field: string,
+): string {
   const normalized = assertNonEmptyString(value, field);
   if (Number.isNaN(Date.parse(normalized))) {
     throw new Error(`${field} must be an ISO date-time string`);
@@ -201,11 +230,11 @@ function assertIsoDate(value: unknown, field: string): string {
   return normalized;
 }
 
-function stableJson(value: unknown): string {
+function stableJson(value: AutonomyHealthJsonValue | undefined): string {
   if (Array.isArray(value)) {
     return `[${value.map((entry) => stableJson(entry)).join(",")}]`;
   }
-  if (isRecord(value)) {
+  if (isAutonomyHealthJsonObject(value)) {
     return `{${Object.keys(value)
       .sort()
       .map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`)
@@ -222,11 +251,13 @@ function normalizeWithoutSignalId(input: AutonomyHealthSignalInput): Omit<
   AutonomyHealthSignal,
   "signalId"
 > {
-  const source = normalizeSource(input.source);
+  const source = normalizeSource(input.source as AutonomyHealthJsonObject);
   const severity = assertSeverity(input.severity);
   const labels = normalizeLabels(input.labels);
   const summary = assertNonEmptyString(input.summary, "summary");
-  const evidenceRefs = normalizeEvidenceRefs(input.evidenceRefs);
+  const evidenceRefs = normalizeEvidenceRefs(
+    input.evidenceRefs as readonly AutonomyHealthJsonValue[],
+  );
   const actionability = assertActionability(input.actionability);
   const dedupeKey = assertNonEmptyString(input.dedupeKey, "dedupeKey").toLowerCase();
   if (!DEDUPE_KEY_RE.test(dedupeKey)) {
@@ -248,7 +279,7 @@ function normalizeWithoutSignalId(input: AutonomyHealthSignalInput): Omit<
 
 export function stableHealthSignalId(input: AutonomyHealthSignalInput): string {
   const normalized = normalizeWithoutSignalId(input);
-  return `health-${hash(stableJson(normalized))}`;
+  return `health-${hash(stableJson(normalized as AutonomyHealthJsonObject))}`;
 }
 
 export function normalizeHealthSignal(

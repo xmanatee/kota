@@ -12,17 +12,20 @@ import type { WorkflowBatchFlushPayload } from "#core/workflow/trigger-types.js"
 import {
   type AutonomyHealthActionability,
   type AutonomyHealthEvidenceRef,
+  type AutonomyHealthJsonObject,
+  type AutonomyHealthJsonValue,
   type AutonomyHealthSeverity,
   type AutonomyHealthSignal,
   type AutonomyHealthSignalInput,
   autonomyHealthSignal,
+  isAutonomyHealthJsonObject,
   normalizeHealthSignal,
 } from "#modules/autonomy/health-signal.js";
 import { REPO_TASK_STATES, type RepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
 
 export const AUTONOMY_HEALTH_REVIEW_ARTIFACT = "autonomy-health-review.json";
 
-type TriggerPayload = WorkflowBatchFlushPayload | Record<string, unknown>;
+type TriggerPayload = WorkflowBatchFlushPayload | AutonomyHealthJsonObject;
 
 export type AutonomyHealthReviewGroup = {
   dedupeKey: string;
@@ -121,28 +124,30 @@ const SEVERITY_RANK: Record<AutonomyHealthSeverity, number> = {
   critical: 3,
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
 function isBatchPayload(payload: TriggerPayload): payload is WorkflowBatchFlushPayload {
   return (
-    isRecord(payload) &&
+    isAutonomyHealthJsonObject(payload as AutonomyHealthJsonValue) &&
     payload.sourceEventName === autonomyHealthSignal.name &&
     Array.isArray(payload.inputEvents)
   );
 }
 
-function signalFromUnknown(payload: unknown): AutonomyHealthSignal {
-  if (!isRecord(payload)) throw new Error("health signal payload must be an object");
+function signalFromJson(
+  payload: AutonomyHealthJsonValue | undefined,
+): AutonomyHealthSignal {
+  if (!isAutonomyHealthJsonObject(payload)) {
+    throw new Error("health signal payload must be an object");
+  }
   return normalizeHealthSignal(payload as AutonomyHealthSignalInput);
 }
 
 function extractSignals(payload: TriggerPayload): AutonomyHealthSignal[] {
   if (isBatchPayload(payload)) {
-    return payload.inputEvents.map((entry) => signalFromUnknown(entry.payload));
+    return payload.inputEvents.map((entry) =>
+      signalFromJson(entry.payload as AutonomyHealthJsonObject)
+    );
   }
-  return [signalFromUnknown(payload)];
+  return [signalFromJson(payload)];
 }
 
 function countBy<T extends string>(
@@ -190,9 +195,9 @@ function primaryActionability(
   return "informational";
 }
 
-function stableJson(value: unknown): string {
+function stableJson(value: AutonomyHealthJsonValue | undefined): string {
   if (Array.isArray(value)) return `[${value.map((entry) => stableJson(entry)).join(",")}]`;
-  if (isRecord(value)) {
+  if (isAutonomyHealthJsonObject(value)) {
     return `{${Object.keys(value)
       .sort()
       .map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`)
@@ -206,7 +211,7 @@ function evidenceFingerprint(
   refs: readonly AutonomyHealthEvidenceRef[],
 ): string {
   return createHash("sha256")
-    .update(stableJson({ dedupeKey, refs }))
+    .update(stableJson({ dedupeKey, refs } as AutonomyHealthJsonObject))
     .digest("hex")
     .slice(0, 16);
 }
