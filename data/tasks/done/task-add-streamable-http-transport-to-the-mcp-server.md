@@ -1,12 +1,12 @@
 ---
 id: task-add-streamable-http-transport-to-the-mcp-server
 title: Add Streamable HTTP transport to the MCP server
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Expose KOTA's first-party MCP server over the current Streamable HTTP transport with strict draft header validation, localhost-safe defaults, and transcript evidence while preserving the existing stdio path.
 created_at: 2026-05-21T13:26:26.757Z
-updated_at: 2026-06-19T10:17:07.954Z
+updated_at: 2026-06-19T10:25:31.938Z
 ---
 
 ## Problem
@@ -75,14 +75,6 @@ advertised.
   HTTP until a later slice owns it.
 - Existing stdio MCP server tests and the built CLI stdio smoke remain green.
 
-## Unblock Precondition
-
-```
-kind: operator-capture
-path: .kota/runs/2026-05-21T16-38-28-976Z-builder-3qw64n/operator-http-transcript.txt
-description: live endpoint transcript captured on a host that allows local listen(); run `kota mcp-server --http --host 127.0.0.1 --port 0`, record the printed endpoint URL, call `server/discover`, `tools/list`, and one state-changing `tools/call` through that endpoint with valid Streamable HTTP draft headers, then record at least one mismatched-header rejection. The existing `http-transcript.txt` in this run records the sandbox `listen EPERM` blocker plus adapter-only checks, so it intentionally does not satisfy this precondition.
-```
-
 ## Source / Intent
 
 Explorer run `2026-05-21T13-21-54-749Z-explorer-v1tezq` reviewed a thin queue
@@ -141,7 +133,7 @@ turning MCP into a second capability registry.
   calling `server/discover`, `tools/list`, and one `tools/call` with valid
   headers, then at least one rejected mismatched-header request.
 
-Implementation progress in run `2026-05-21T16-38-28-976Z-builder-3qw64n`:
+Completion evidence:
 
 - `pnpm exec biome check src/modules/mcp-server`
 - `pnpm typecheck`
@@ -149,10 +141,13 @@ Implementation progress in run `2026-05-21T16-38-28-976Z-builder-3qw64n`:
 - `pnpm build`
 - `pnpm test src/built-cli-mcp-server.integration.test.ts`
 - `.kota/runs/2026-05-21T16-38-28-976Z-builder-3qw64n/http-transcript.txt`
-  records the sandbox `listen EPERM` blocker and adapter-level request
-  exercise. It does not satisfy the unblock precondition; the
-  operator-captured live endpoint transcript must be written to
-  `.kota/runs/2026-05-21T16-38-28-976Z-builder-3qw64n/operator-http-transcript.txt`
-  before this task can return to `done/`.
-
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-06-04T19:03:36.512Z -->
+  records the sandbox `listen EPERM` blocker and adapter-level request exercise.
+- `.kota/runs/2026-05-21T16-38-28-976Z-builder-3qw64n/operator-http-transcript.txt`
+  is the operator-captured live endpoint transcript. It records `kota
+  mcp-server --http --host 127.0.0.1 --port 0`, the printed endpoint URL,
+  `server/discover`, `tools/list`, a reversible `working_memory` write/remove
+  `tools/call`, and a mismatched-header rejection.
+- `.kota/runs/2026-06-19T10-21-12-164Z-builder-is8taz/operator-http-transcript.txt`
+  carries that operator capture for the completing builder run.
+- `.kota/runs/2026-06-19T10-21-12-164Z-builder-is8taz/http-sandbox-attempt.txt`
+  records that this sandbox still cannot bind the local listener directly.
