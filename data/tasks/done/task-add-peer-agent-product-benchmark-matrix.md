@@ -1,12 +1,12 @@
 ---
 id: task-add-peer-agent-product-benchmark-matrix
 title: Add peer agent product benchmark matrix
-status: ready
+status: done
 priority: p2
 area: research
 summary: Compare KOTA against DOX, Agent Zero, Space Agent, ClawPatrol, Rowboat, Open Notebook, Headroom, secure MCP tunnels, project-shaped workflow framing, and agent-computer patterns with bounded adopt/adapt/reject decisions.
 created_at: 2026-06-11T22:24:20.132Z
-updated_at: 2026-06-19T03:53:10.709Z
+updated_at: 2026-06-19T05:55:14.888Z
 task_class: Product
 ---
 
@@ -63,3 +63,18 @@ KOTA external product benchmarking.
   decisions.
 - `pnpm validate-tasks` passes after any resulting tasks are created.
 - No more than three new KOTA tasks are opened from the benchmark cycle.
+
+## Outcome (2026-06-19)
+
+Benchmark artifact:
+`.kota/runs/2026-06-19T05-46-54-721Z-builder-047rt8/peer-agent-product-benchmark-matrix.md`.
+
+Durable changes from the cycle:
+
+- Added watchlist entries for Agent Zero, Space Agent, Rowboat, Open Notebook,
+  and OpenAI Secure MCP Tunnel as recurring product signals.
+- Opened one follow-up task,
+  `task-add-private-mcp-tunnel-connector-support`, for the adopted private MCP
+  tunnel gap.
+- Left ClawPatrol and Headroom as later/no-action rows because current public
+  source access did not provide enough primary content for honest adoption.

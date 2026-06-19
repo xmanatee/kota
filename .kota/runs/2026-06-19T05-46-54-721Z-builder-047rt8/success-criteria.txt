@@ -1,0 +1,3 @@
+1. Benchmark matrix covers DOX, Agent Zero, Space Agent, ClawPatrol, Rowboat, Open Notebook, Headroom, OpenAI secure MCP tunnels, project-shaped workflow framing, and agent-computer patterns.
+2. Each benchmark row records the capability, KOTA equivalent, gap, adopt/adapt/reject/later decision, and bounded next action.
+3. Durable decision surfaces, watchlist entries, or task queue changes are updated only for adopted or revisit-worthy ideas, with no more than three new tasks from this review cycle.

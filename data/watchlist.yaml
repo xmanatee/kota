@@ -634,3 +634,18 @@ resources:
       fingerprint: sha256:2323052bb481c38e2ba1ff17ed8e17dd
       summary: "Agentic CLEAR is accessible and now maps to KOTA's completed recurring trajectory-diagnostic escalation path; no duplicate task is needed because task-escalate-recurring-trajectory-diagnostic-patterns- already covered the nonduplicative local gap and the current ready queue contains a generated repair from that mechanism."
       last_seen_at: "2026-05-29T06:50:42.687Z"
+  - url: https://github.com/agent0ai/agent-zero
+    added: "2026-06-19"
+    notes: "Agent Zero is a direct peer workbench with a full Linux desktop, browser DOM annotation, plugin hub, project isolation, skills, MCP/A2A/custom tools, subagents, host connector, and time-travel workspace recovery. Monitor as a product/client signal for operator-visible agent workspaces and recoverable artifacts; map ideas to KOTA clients, modules, skills, workflows, and run artifacts rather than copying its all-in-one workbench."
+  - url: https://github.com/agent0ai/space-agent
+    added: "2026-06-19"
+    notes: "Space Agent is Agent Zero's browser-first workspace where the agent can reshape the running interface and uses a DOX AGENTS.md hierarchy. Monitor as a client/workspace and scoped-instruction signal for KOTA's shared client surfaces and AGENTS hierarchy; do not add a second docs system beside scoped AGENTS.md."
+  - url: https://github.com/rowboatlabs/rowboat
+    added: "2026-06-19"
+    notes: "Rowboat is a local-first AI coworker that turns email, meetings, and notes into an inspectable Markdown knowledge graph with background agents. Monitor as a knowledge/memory/client signal for editable operator-owned context and recurring brief generation; map to KOTA stores, clients, workflows, and channels rather than adding a parallel memory product."
+  - url: https://github.com/lfnovo/open-notebook
+    added: "2026-06-19"
+    notes: "Open Notebook is a self-hosted, multi-model NotebookLM-style research surface with source ingestion, vector/full-text search, citations, content transformations, API access, and podcast generation. Monitor as a read-document/knowledge/rendering signal for source-backed research artifacts; do not import a notebook subsystem."
+  - url: https://developers.openai.com/api/docs/guides/secure-mcp-tunnels
+    added: "2026-06-19"
+    notes: "OpenAI Secure MCP Tunnel exposes private MCP servers to supported OpenAI products through an outbound tunnel-client while keeping the server inside the customer's network. Monitor as a private MCP connectivity signal for KOTA's mcp-server, mcp-registry, setup, and secret surfaces; this review opened task-add-private-mcp-tunnel-connector-support for the nonduplicative local gap."

@@ -1,0 +1,5 @@
+Validation run on 2026-06-19:
+
+- `pnpm run validate-tasks -- --min-ready 0` passed while the benchmark task was in `doing`.
+- `pnpm run validate-tasks` passed after moving the benchmark task to `done`.
+- `pnpm run validate-tasks` passed after adding `operator-journey-transcript.txt`.
