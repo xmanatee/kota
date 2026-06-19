@@ -109,6 +109,7 @@ describe("security-review commit hygiene", () => {
       const result = await harness.run();
 
       expect(result.status).toBe("success");
+      expect(result.steps["validate-before-commit"].status).toBe("success");
       const created = result.steps["create-follow-up-tasks"].output as {
         createdTaskIds: string[];
       };
@@ -127,6 +128,23 @@ describe("security-review commit hygiene", () => {
         .split("\n")
         .filter(Boolean);
       expect(committedPaths).toEqual([taskPath]);
+      const preflight = JSON.parse(
+        readFileSync(join(projectDir, ".kota/runs/harness/security-review-preflight.json"), "utf-8"),
+      ) as {
+        ok: boolean;
+        checks: Array<{ rail: string; status: string; message: string }>;
+      };
+      expect(preflight.ok).toBe(true);
+      expect(preflight.checks.map((check) => check.rail)).toEqual([
+        "task-validation",
+        "scratch-artifacts",
+        "commit-stageable",
+        "commit-message",
+      ]);
+      expect(preflight.checks.find((check) => check.rail === "commit-stageable")).toMatchObject({
+        status: "passed",
+        message: "OK: 1 mutated path(s) stageable",
+      });
 
       const leftoverStatus = execFileSync(
         "git",

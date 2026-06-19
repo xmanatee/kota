@@ -162,8 +162,11 @@ export function listCommitStagePaths(
  * what the repo-root rules un-ignored) wastes the whole agent run. This
  * dry-runs the exact call so the agent can repair it before commit.
  */
-export function checkCommitStageable(projectDir: string): string {
-  const pathsToStage = listCommitStagePaths(projectDir);
+export function checkCommitStageable(
+  projectDir: string,
+  policy: WorkflowCommitPathPolicy = ALL_MUTATED_PATHS,
+): string {
+  const pathsToStage = listCommitStagePaths(projectDir, policy);
   if (pathsToStage.length === 0) return "OK: no mutated paths to stage";
   const result = spawnSync(
     "git",

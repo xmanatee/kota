@@ -6,7 +6,11 @@ import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import { tryListWorkflowMutatedPaths } from "#core/workflow/steps/agent-write-scope.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
+import {
+  checkCommitStageable,
+  commitWorkflowChanges,
+  type WorkflowCommitPathPolicy,
+} from "#modules/autonomy/commit.js";
 import {
   onNormalTrigger,
   onRecoveryTrigger,
@@ -17,6 +21,8 @@ import {
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
   AUTONOMY_AGENT_HARNESS,
   AUTONOMY_DISALLOWED_TOOLS,
+  checkCommitMessageExists,
+  checkNoScratchArtifacts,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
 import { assertTaskQueueValid } from "#modules/repo-tasks/task-queue-validation.js";
@@ -128,6 +134,24 @@ type MutationBaseline = {
   preExistingMutatedPaths: string[];
 };
 
+type SecurityReviewPreflightRail =
+  | "task-validation"
+  | "scratch-artifacts"
+  | "commit-stageable"
+  | "commit-message";
+
+type SecurityReviewPreflightCheck = {
+  rail: SecurityReviewPreflightRail;
+  status: "passed" | "failed";
+  message: string;
+};
+
+type SecurityReviewPreflightArtifact = {
+  ok: boolean;
+  checks: SecurityReviewPreflightCheck[];
+  blockedBy?: SecurityReviewPreflightRail;
+};
+
 const captureMutationBaseline = typedCodeStep<MutationBaseline>({
   id: "capture-mutation-baseline",
   type: "code",
@@ -138,6 +162,16 @@ const captureMutationBaseline = typedCodeStep<MutationBaseline>({
     preExistingMutatedPaths: tryListWorkflowMutatedPaths(projectDir) ?? [],
   }),
 });
+
+function securityReviewCommitPolicy(
+  ctx: WorkflowStepContext,
+): WorkflowCommitPathPolicy {
+  return {
+    kind: "paths-mutated-since-baseline",
+    baselineMutatedPaths:
+      captureMutationBaseline.outputRequired(ctx).preExistingMutatedPaths,
+  };
+}
 
 const scanCandidates = typedCodeStep<SecurityReviewCandidatePacket>({
   id: "scan-candidates",
@@ -310,14 +344,76 @@ const writeCommitMessage = typedCodeStep<{ written: boolean }>({
   },
 });
 
-const validateTaskQueue = typedCodeStep<{ ok: true }>({
-  id: "validate-task-queue",
+function writePreflightArtifact(
+  runDirPath: string,
+  checks: SecurityReviewPreflightCheck[],
+): string {
+  const failed = checks.find((check) => check.status === "failed");
+  const artifact: SecurityReviewPreflightArtifact = {
+    ok: failed === undefined,
+    checks,
+    ...(failed ? { blockedBy: failed.rail } : {}),
+  };
+  return writeJsonArtifact(runDirPath, "security-review-preflight.json", artifact);
+}
+
+function runPreflightRail(
+  checks: SecurityReviewPreflightCheck[],
+  rail: SecurityReviewPreflightRail,
+  run: () => string,
+): void {
+  try {
+    checks.push({ rail, status: "passed", message: run() });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    checks.push({
+      rail,
+      status: "failed",
+      message,
+    });
+    throw error;
+  }
+}
+
+const validateBeforeCommit = typedCodeStep<{ ok: true; artifactPath: string }>({
+  id: "validate-before-commit",
   type: "code",
   when: (ctx) => writeCommitMessage.output(ctx)?.written === true,
-  validate: (raw) => expectStructuredOutput<{ ok: true }>(raw, ["ok"]),
-  run: ({ projectDir }) => {
-    assertTaskQueueValid(projectDir, { minReady: 0 });
-    return { ok: true } as const;
+  validate: (raw) => {
+    const obj = expectStructuredOutput<{ ok: true; artifactPath: string }>(raw, [
+      "ok",
+      "artifactPath",
+    ]);
+    if (obj.ok !== true) throw new Error(`expected ok: true, got ${String(obj.ok)}`);
+    return obj;
+  },
+  run: (ctx) => {
+    const checks: SecurityReviewPreflightCheck[] = [];
+    try {
+      runPreflightRail(checks, "task-validation", () => {
+        assertTaskQueueValid(ctx.projectDir, { minReady: 0 });
+        return "OK: task queue valid";
+      });
+      runPreflightRail(checks, "scratch-artifacts", () =>
+        checkNoScratchArtifacts(ctx.projectDir),
+      );
+      runPreflightRail(checks, "commit-stageable", () =>
+        checkCommitStageable(ctx.projectDir, securityReviewCommitPolicy(ctx)),
+      );
+      runPreflightRail(checks, "commit-message", () =>
+        checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir),
+      );
+      return {
+        ok: true,
+        artifactPath: writePreflightArtifact(ctx.workflow.runDirPath, checks),
+      } as const;
+    } catch (error) {
+      const artifactPath = writePreflightArtifact(ctx.workflow.runDirPath, checks);
+      throw new Error(
+        `security-review preflight failed; diagnostics written to ${artifactPath}`,
+        { cause: error },
+      );
+    }
   },
 });
 
@@ -390,17 +486,17 @@ const securityReviewWorkflow: WorkflowDefinitionInput = {
     recordRevalidation,
     createFollowUpTasks,
     writeCommitMessage,
-    validateTaskQueue,
+    validateBeforeCommit,
     {
       id: "commit",
       type: "code",
-      when: stepSucceeded("validate-task-queue"),
+      when: stepSucceeded("validate-before-commit"),
       run: (ctx) =>
-        commitWorkflowChanges(ctx.projectDir, ctx.workflow.runDirPath, {
-          kind: "paths-mutated-since-baseline",
-          baselineMutatedPaths:
-            captureMutationBaseline.outputRequired(ctx).preExistingMutatedPaths,
-        }),
+        commitWorkflowChanges(
+          ctx.projectDir,
+          ctx.workflow.runDirPath,
+          securityReviewCommitPolicy(ctx),
+        ),
     },
   ],
 };

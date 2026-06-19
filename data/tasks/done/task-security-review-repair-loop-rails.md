@@ -1,13 +1,13 @@
 ---
 id: task-security-review-repair-loop-rails
 title: security-review repair-loop rails
-status: ready
+status: done
 priority: p1
 area: autonomy
 task_class: Safety
 summary: Make security-review run repairable pre-commit rails before committing.
 created_at: 2026-06-19T16:16:08.359Z
-updated_at: 2026-06-19T16:16:08.359Z
+updated_at: 2026-06-19T23:33:20.578Z
 ---
 
 ## Problem

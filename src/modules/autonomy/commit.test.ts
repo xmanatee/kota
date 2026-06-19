@@ -228,6 +228,7 @@ describe("commitWorkflowChanges", () => {
     expect(listCommitStagePaths(projectDir, policy)).toEqual([
       "data/tasks/ready/task-security.md",
     ]);
+    expect(checkCommitStageable(projectDir, policy)).toMatch(/1 mutated path\(s\) stageable/);
     const result = commitWorkflowChanges(projectDir, runDirPath, policy);
 
     expect(result.committed).toBe(true);
