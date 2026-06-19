@@ -1,13 +1,13 @@
 ---
 id: task-add-event-automation-simulation-harness
 title: Add event automation simulation harness
-status: backlog
+status: ready
 priority: p2
 area: modules
 summary: Add a simulation harness that feeds synthetic or journaled events through routing, batching, policy, idempotency, and workflow explain/dry-run paths to preview automations without live side effects.
 depends_on: [task-add-durable-event-envelope-and-journal, task-add-generic-event-batching-to-workflow-triggers, task-add-compiled-automation-graph-explain-api, task-add-module-capability-and-effect-manifest]
 created_at: 2026-06-03T15:51:10.814Z
-updated_at: 2026-06-03T15:51:10.814Z
+updated_at: 2026-06-19T08:06:45.041Z
 ---
 
 ## Problem

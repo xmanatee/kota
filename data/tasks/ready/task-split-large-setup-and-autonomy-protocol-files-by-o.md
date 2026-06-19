@@ -1,12 +1,12 @@
 ---
 id: task-split-large-setup-and-autonomy-protocol-files-by-o
 title: Split large setup and autonomy protocol files by ownership
-status: backlog
+status: ready
 priority: p2
 area: architecture
 summary: Refactor oversized setup, batching, and autonomy workflow files into smaller ownership-aligned modules before more features depend on them.
 created_at: 2026-06-04T13:06:44.528Z
-updated_at: 2026-06-04T13:06:44.528Z
+updated_at: 2026-06-19T08:06:45.065Z
 ---
 
 ## Problem
