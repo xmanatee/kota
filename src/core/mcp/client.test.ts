@@ -24,6 +24,10 @@ import {
   type McpToolSchema,
   mcpOAuthSecret,
 } from "./client.js";
+import {
+  MCP_HTTP_RESPONSE_BODY_MAX_BYTES,
+  MCP_HTTP_SSE_MESSAGE_MAX_BYTES,
+} from "./client-response-body-limit.js";
 
 type RecordedClientHttpRequest = {
   url: string;
@@ -2818,6 +2822,90 @@ describe("McpClient Streamable HTTP transport", () => {
     expect(tools.map((tool) => tool.name)).toEqual(["from_sse"]);
   });
 
+  it("rejects oversized Streamable HTTP JSON responses by Content-Length before reading body", async () => {
+    mockClientHttpFetch((request) => {
+      expect(request.body.method).toBe("server/discover");
+      return new Response(JSON.stringify({
+        jsonrpc: "2.0",
+        id: request.body.id,
+        result: {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: {} },
+        },
+      }), {
+        status: 200,
+        headers: {
+          "content-type": "application/json",
+          "content-length": String(MCP_HTTP_RESPONSE_BODY_MAX_BYTES + 1),
+        },
+      });
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "oversized-json-client",
+    );
+
+    await expect(client.connect()).rejects.toThrow(
+      /MCP HTTP JSON response exceeded .*Content-Length/,
+    );
+  });
+
+  it("rejects oversized Streamable HTTP error bodies while streaming", async () => {
+    mockClientHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: {} },
+        });
+      }
+      return new Response("x".repeat(MCP_HTTP_RESPONSE_BODY_MAX_BYTES + 1), {
+        status: 500,
+        headers: { "content-type": "text/plain" },
+      });
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "oversized-error-client",
+    );
+
+    await client.connect();
+    await expect(client.listTools()).rejects.toThrow(
+      /MCP HTTP error response exceeded .*while streaming response/,
+    );
+  });
+
+  it("rejects oversized Streamable HTTP SSE event data before parsing JSON-RPC", async () => {
+    mockClientHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: {} },
+        });
+      }
+      const message = {
+        jsonrpc: "2.0",
+        id: request.body.id,
+        result: {
+          tools: [],
+          padding: "x".repeat(MCP_HTTP_SSE_MESSAGE_MAX_BYTES + 1),
+        },
+      };
+      return new Response(sseMessage(message), {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+      });
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "oversized-sse-client",
+    );
+
+    await client.connect();
+    await expect(client.listTools()).rejects.toThrow(
+      /MCP HTTP SSE event data exceeded/,
+    );
+  });
+
   it("negotiates current stable over Streamable HTTP and keeps structured tool results", async () => {
     mockClientHttpFetch((request) => {
       if (request.body.method === "server/discover") {
@@ -4013,6 +4101,134 @@ describe("McpClient Streamable HTTP transport", () => {
       "POST https://mcp.example.test/mcp",
       "POST https://mcp.example.test/mcp",
     ]);
+  });
+
+  it("rejects oversized protected-resource metadata by Content-Length before parsing", async () => {
+    mockClientHttpFetch((request) => {
+      if (
+        request.method === "GET" &&
+        request.url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp"
+      ) {
+        return new Response(JSON.stringify({
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+          scopes_supported: ["files:read"],
+        }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+            "content-length": String(MCP_HTTP_RESPONSE_BODY_MAX_BYTES + 1),
+          },
+        });
+      }
+      return new Response("missing bearer", {
+        status: 401,
+        headers: {
+          "www-authenticate": 'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", scope="files:read"',
+        },
+      });
+    });
+    client = new McpClient(
+      {
+        type: "http",
+        url: "https://mcp.example.test/mcp",
+        authorization: {
+          type: "oauth",
+          issuer: "https://auth.example.test",
+          redirectUri: "https://client.example.test/callback",
+          scopes: ["files:read"],
+          client: { kind: "registered", clientId: "kota-client" },
+        },
+      },
+      "oversized-protected-resource-client",
+    );
+
+    await expect(client.connect()).rejects.toThrow(
+      /protected-resource metadata unavailable: .*MCP protected-resource metadata response exceeded .*Content-Length/,
+    );
+  });
+
+  it("rejects oversized OAuth token JSON by Content-Length before parsing", async () => {
+    let resolverCalled = false;
+    mockClientHttpFetch((request) => {
+      if (
+        request.method === "GET" &&
+        request.url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp"
+      ) {
+        return new Response(JSON.stringify({
+          resource: "https://mcp.example.test/mcp",
+          authorization_servers: ["https://auth.example.test"],
+          scopes_supported: ["files:read"],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (
+        request.method === "GET" &&
+        request.url === "https://auth.example.test/.well-known/oauth-authorization-server"
+      ) {
+        return new Response(JSON.stringify({
+          issuer: "https://auth.example.test",
+          authorization_endpoint: "https://auth.example.test/authorize",
+          token_endpoint: "https://auth.example.test/token",
+          code_challenge_methods_supported: ["S256"],
+          scopes_supported: ["files:read"],
+          authorization_response_iss_parameter_supported: true,
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "POST" && request.url === "https://auth.example.test/token") {
+        return new Response(JSON.stringify({
+          access_token: "access-token-secret",
+          token_type: "Bearer",
+          scope: "files:read",
+        }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+            "content-length": String(MCP_HTTP_RESPONSE_BODY_MAX_BYTES + 1),
+          },
+        });
+      }
+      return new Response("missing bearer", {
+        status: 401,
+        headers: {
+          "www-authenticate": 'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", scope="files:read"',
+        },
+      });
+    });
+    client = new McpClient(
+      {
+        type: "http",
+        url: "https://mcp.example.test/mcp",
+        authorization: {
+          type: "oauth",
+          issuer: "https://auth.example.test",
+          redirectUri: "https://client.example.test/callback",
+          scopes: ["files:read"],
+          client: { kind: "registered", clientId: "kota-client" },
+        },
+      },
+      "oversized-oauth-token-client",
+      {
+        authorizationResolver: async (request) => {
+          resolverCalled = true;
+          return {
+            callbackUrl: mcpOAuthSecret(
+              `https://client.example.test/callback?code=code-1&state=${request.state}&iss=https%3A%2F%2Fauth.example.test`,
+            ),
+          };
+        },
+      },
+    );
+
+    await expect(client.connect()).rejects.toThrow(
+      /token endpoint failed: MCP OAuth JSON response exceeded .*Content-Length/,
+    );
+    expect(resolverCalled).toBe(true);
   });
 
   it("redacts OAuth callback URLs when resolver results are stringified for logs or artifacts", () => {
@@ -6782,6 +6998,47 @@ describe("McpClient Streamable HTTP transport", () => {
         expect(stderr.output()).toMatch(
           /failed to open subscription: .*server-to-client request "ping" with id 2 arrived on HTTP SSE response stream; HTTP SSE response stream cannot send JSON-RPC responses/,
         );
+      });
+    } finally {
+      stderr.restore();
+    }
+  });
+
+  it("rejects oversized HTTP subscriptions/listen SSE event data", async () => {
+    const stderr = captureTerminalStderr();
+    mockClientHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: { listChanged: true } },
+          serverInfo: { name: "http-list-changed-oversized-fixture" },
+        });
+      }
+      if (request.body.method === "subscriptions/listen") {
+        return new Response(sseMessage({
+          jsonrpc: "2.0",
+          method: "notifications/message",
+          params: {
+            level: "info",
+            data: "x".repeat(MCP_HTTP_SSE_MESSAGE_MAX_BYTES + 1),
+          },
+        }), {
+          status: 200,
+          headers: { "content-type": "text/event-stream" },
+        });
+      }
+      return jsonRpcHttpResponse(request.body.id, {});
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "http-list-changed-oversized-client",
+    );
+
+    try {
+      await client.connect();
+
+      await waitForAssertion(() => {
+        expect(stderr.output()).toMatch(/MCP HTTP SSE event data exceeded/);
       });
     } finally {
       stderr.restore();

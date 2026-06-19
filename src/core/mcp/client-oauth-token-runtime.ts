@@ -37,6 +37,11 @@ import {
 import { McpClientProtectedResourceRuntime } from "./client-protected-resource-runtime.js";
 import type { JsonRpcResult } from "./client-protocol.js";
 import { CONNECT_TIMEOUT } from "./client-protocol.js";
+import {
+  MCP_HTTP_RESPONSE_BODY_MAX_BYTES,
+  McpResponseBodyLimitError,
+  readMcpResponseTextWithLimit,
+} from "./client-response-body-limit.js";
 
 export abstract class McpClientOAuthTokenRuntime extends McpClientProtectedResourceRuntime {
   protected abstract authorizationFlowError(
@@ -849,38 +854,56 @@ export abstract class McpClientOAuthTokenRuntime extends McpClientProtectedResou
   ): Promise<JsonRpcResult> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), CONNECT_TIMEOUT);
-    let response: Response;
     try {
-      response = await fetch(url, { ...init, signal: controller.signal });
-    } catch (err) {
-      const message = err instanceof Error && err.name === "AbortError"
-        ? `request timed out after ${CONNECT_TIMEOUT}ms`
-        : err instanceof Error ? err.message : String(err);
-      throw this.authorizationFlowError(resource, issuer, scopes, `${label} failed: ${message}`);
+      let response: Response;
+      try {
+        response = await fetch(url, { ...init, signal: controller.signal });
+      } catch (err) {
+        const message = err instanceof Error && err.name === "AbortError"
+          ? `request timed out after ${CONNECT_TIMEOUT}ms`
+          : err instanceof Error ? err.message : String(err);
+        throw this.authorizationFlowError(resource, issuer, scopes, `${label} failed: ${message}`);
+      }
+      if (!response.ok) {
+        throw this.authorizationFlowError(
+          resource,
+          issuer,
+          scopes,
+          `${label} failed: HTTP ${response.status}`,
+        );
+      }
+      const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+      if (!contentType.includes("application/json")) {
+        throw this.authorizationFlowError(
+          resource,
+          issuer,
+          scopes,
+          `${label} failed: unsupported response content-type "${contentType || "(missing)"}"`,
+        );
+      }
+      try {
+        const text = await readMcpResponseTextWithLimit(
+          response,
+          MCP_HTTP_RESPONSE_BODY_MAX_BYTES,
+          "MCP OAuth JSON response",
+        );
+        return JSON.parse(text) as JsonRpcResult;
+      } catch (err) {
+        if (err instanceof McpResponseBodyLimitError) {
+          throw this.authorizationFlowError(resource, issuer, scopes, `${label} failed: ${err.message}`);
+        }
+        if (err instanceof Error && err.name === "AbortError") {
+          throw this.authorizationFlowError(
+            resource,
+            issuer,
+            scopes,
+            `${label} failed: request timed out after ${CONNECT_TIMEOUT}ms`,
+          );
+        }
+        throw this.authorizationFlowError(resource, issuer, scopes, `${label} returned malformed JSON`);
+      }
     } finally {
       clearTimeout(timer);
-    }
-    if (!response.ok) {
-      throw this.authorizationFlowError(
-        resource,
-        issuer,
-        scopes,
-        `${label} failed: HTTP ${response.status}`,
-      );
-    }
-    const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-    if (!contentType.includes("application/json")) {
-      throw this.authorizationFlowError(
-        resource,
-        issuer,
-        scopes,
-        `${label} failed: unsupported response content-type "${contentType || "(missing)"}"`,
-      );
-    }
-    try {
-      return JSON.parse(await response.text()) as JsonRpcResult;
-    } catch {
-      throw this.authorizationFlowError(resource, issuer, scopes, `${label} returned malformed JSON`);
     }
   }
 }

@@ -1,12 +1,12 @@
 ---
 id: task-security-review-http-mcp-transport-and-its-oauthpr
 title: Security review: HTTP MCP transport and its OAuth/protected-resource discovery paths read untrusted remote JSON/SSE/error responses without a byte cap, so a malicious or compromised MCP/OAuth endpoint can exhaust daemon memory before the request timeout fires.
-status: ready
+status: done
 priority: p2
 area: security
 summary: HTTP MCP transport and its OAuth/protected-resource discovery paths read untrusted remote JSON/SSE/error responses without a byte cap, so a malicious or compromised MCP/OAuth endpoint can exhaust daemon memory before the request timeout fires.
 created_at: 2026-06-19T13:59:43.575Z
-updated_at: 2026-06-19T13:59:43.575Z
+updated_at: 2026-06-19T14:23:10.012Z
 ---
 
 ## Problem
@@ -56,3 +56,5 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Verification: `env -u NODE_OPTIONS pnpm test src/core/mcp/client.test.ts` passed (146 tests) after adding oversized JSON, error-body, one-shot SSE event-data, subscription SSE event-data, OAuth token, and protected-resource metadata regression cases.
+- Verification: `env -u NODE_OPTIONS pnpm typecheck` passed.

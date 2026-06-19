@@ -16,6 +16,17 @@ import {
   CONNECT_TIMEOUT,
   MCP_CURRENT_PROTOCOL_VERSION,
 } from "./client-protocol.js";
+import {
+  assertMcpResponseContentLength,
+  assertMcpTextWithinByteLimit,
+  formatMcpBytes,
+  MCP_HTTP_RESPONSE_BODY_MAX_BYTES,
+  MCP_HTTP_SSE_MESSAGE_MAX_BYTES,
+  MCP_HTTP_SSE_RESPONSE_BODY_MAX_BYTES,
+  McpResponseBodyLimitError,
+  mcpUtf8ByteLength,
+  readMcpResponseTextWithLimit,
+} from "./client-response-body-limit.js";
 
 export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime {
   protected async httpRequest(
@@ -152,7 +163,9 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
 
     const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
     if (!contentType.includes("application/json") && !contentType.includes("text/event-stream")) {
-      const text = await response.text();
+      const text = !response.ok
+        ? await this.readMcpHttpResponseText(response, method, "MCP HTTP error response")
+        : "";
       if (!response.ok) {
         throw this.requestErrorForMethod(
           method,
@@ -167,7 +180,14 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
     let responseText: string | null = null;
     const message = contentType.includes("text/event-stream")
       ? await this.decodeHttpSseResponse(response, method, requestId)
-      : this.parseJsonRpcHttpMessage((responseText = await response.text()), method);
+      : this.parseJsonRpcHttpMessage(
+          (responseText = await this.readMcpHttpResponseText(
+            response,
+            method,
+            "MCP HTTP JSON response",
+          )),
+          method,
+        );
     if (this.isServerRequestMessage(message)) {
       throw this.unsupportedHttpServerRequestError(method, message, "HTTP response");
     }
@@ -203,6 +223,12 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
     method: string,
     requestId: number,
   ): Promise<JsonRpcIncomingMessage> {
+    this.assertMcpHttpResponseContentLength(
+      response,
+      method,
+      "MCP HTTP SSE response",
+      MCP_HTTP_SSE_RESPONSE_BODY_MAX_BYTES,
+    );
     let finalMessage: JsonRpcIncomingMessage | null = null;
     await this.consumeSseJsonRpcMessageStream(response, method, (message) => {
       if (this.isServerRequestMessage(message)) {
@@ -246,6 +272,38 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
       );
     }
     return finalMessage;
+  }
+
+  protected async readMcpHttpResponseText(
+    response: Response,
+    method: string,
+    label: string,
+    maxBytes = MCP_HTTP_RESPONSE_BODY_MAX_BYTES,
+  ): Promise<string> {
+    try {
+      return await readMcpResponseTextWithLimit(response, maxBytes, label);
+    } catch (err) {
+      if (err instanceof McpResponseBodyLimitError) {
+        throw this.requestErrorForMethod(method, err.message);
+      }
+      throw err;
+    }
+  }
+
+  protected assertMcpHttpResponseContentLength(
+    response: Response,
+    method: string,
+    label: string,
+    maxBytes: number,
+  ): void {
+    try {
+      assertMcpResponseContentLength(response, maxBytes, label);
+    } catch (err) {
+      if (err instanceof McpResponseBodyLimitError) {
+        throw this.requestErrorForMethod(method, err.message);
+      }
+      throw err;
+    }
   }
 
 
@@ -316,10 +374,12 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
   protected parseSseDataMessages(text: string): string[] {
     const messages: string[] = [];
     let dataLines: string[] = [];
+    let dataBytes = 0;
     const flush = () => {
       if (dataLines.length === 0) return;
       messages.push(dataLines.join("\n"));
       dataLines = [];
+      dataBytes = 0;
     };
     for (const line of text.split(/\r?\n/)) {
       if (line.length === 0) {
@@ -327,7 +387,16 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
         continue;
       }
       if (line.startsWith("data:")) {
-        dataLines.push(line.slice(5).trimStart());
+        const data = line.slice(5).trimStart();
+        const nextDataBytes =
+          dataBytes + (dataLines.length === 0 ? 0 : 1) + mcpUtf8ByteLength(data);
+        if (nextDataBytes > MCP_HTTP_SSE_MESSAGE_MAX_BYTES) {
+          throw new McpResponseBodyLimitError(
+            `MCP HTTP SSE event data exceeded ${formatMcpBytes(MCP_HTTP_SSE_MESSAGE_MAX_BYTES)}.`,
+          );
+        }
+        dataLines.push(data);
+        dataBytes = nextDataBytes;
       }
     }
     flush();
@@ -401,12 +470,22 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
       );
     }
     if (!response.ok) {
-      const text = await response.text();
+      const text = await this.readMcpHttpResponseText(
+        response,
+        "subscriptions/listen",
+        "MCP HTTP subscription error response",
+      );
       throw this.requestErrorForMethod(
         "subscriptions/listen",
         `HTTP ${response.status}: ${text || response.statusText || "empty response"}`,
       );
     }
+    this.assertMcpHttpResponseContentLength(
+      response,
+      "subscriptions/listen",
+      "MCP HTTP subscription SSE response",
+      MCP_HTTP_SSE_RESPONSE_BODY_MAX_BYTES,
+    );
     await this.consumeSseJsonRpcMessageStream(
       response,
       "subscriptions/listen",
@@ -432,7 +511,7 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
           this.handleNotification(message);
         }
       },
-      { ignoreAbort: true },
+      { ignoreAbort: true, maxTotalBytes: null },
     );
     if (this.httpListSubscriptionAbort === controller) {
       this.httpListSubscriptionAbort = null;
@@ -455,24 +534,54 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
     response: Response,
     method: string,
     onMessage: (message: JsonRpcIncomingMessage) => boolean | void,
-    options: { ignoreAbort?: boolean } = {},
+    options: { ignoreAbort?: boolean; maxTotalBytes?: number | null } = {},
   ): Promise<void> {
     if (!response.body) {
-      for (const data of this.parseSseDataMessages(await response.text())) {
-        if (onMessage(this.parseJsonRpcHttpMessage(data, method)) === true) return;
+      try {
+        const text = await this.readMcpHttpResponseText(
+          response,
+          method,
+          "MCP HTTP SSE response",
+          MCP_HTTP_SSE_RESPONSE_BODY_MAX_BYTES,
+        );
+        for (const data of this.parseSseDataMessages(text)) {
+          if (onMessage(this.parseJsonRpcHttpMessage(data, method)) === true) return;
+        }
+      } catch (err) {
+        if (err instanceof McpResponseBodyLimitError) {
+          throw this.requestErrorForMethod(method, err.message);
+        }
+        throw err;
       }
       return;
     }
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
+    const maxTotalBytes = options.maxTotalBytes === undefined
+      ? MCP_HTTP_SSE_RESPONSE_BODY_MAX_BYTES
+      : options.maxTotalBytes;
     let buffer = "";
     let dataLines: string[] = [];
+    let totalBytes = 0;
+    let dataBytes = 0;
     let shouldStop = false;
     const flush = () => {
       if (dataLines.length === 0) return;
       shouldStop =
         onMessage(this.parseJsonRpcHttpMessage(dataLines.join("\n"), method)) === true;
       dataLines = [];
+      dataBytes = 0;
+    };
+    const appendDataLine = (data: string) => {
+      const nextDataBytes =
+        dataBytes + (dataLines.length === 0 ? 0 : 1) + mcpUtf8ByteLength(data);
+      if (nextDataBytes > MCP_HTTP_SSE_MESSAGE_MAX_BYTES) {
+        throw new McpResponseBodyLimitError(
+          `MCP HTTP SSE event data exceeded ${formatMcpBytes(MCP_HTTP_SSE_MESSAGE_MAX_BYTES)}.`,
+        );
+      }
+      dataLines.push(data);
+      dataBytes = nextDataBytes;
     };
     const consumeLine = (line: string) => {
       if (line.length === 0) {
@@ -480,7 +589,7 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
         return;
       }
       if (line.startsWith("data:")) {
-        dataLines.push(line.slice(5).trimStart());
+        appendDataLine(line.slice(5).trimStart());
       }
     };
     try {
@@ -488,6 +597,14 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
         if (shouldStop) break;
         const { done, value } = await reader.read();
         if (done) break;
+        const nextTotalBytes = totalBytes + value.byteLength;
+        if (maxTotalBytes !== null && nextTotalBytes > maxTotalBytes) {
+          await reader.cancel().catch(() => undefined);
+          throw new McpResponseBodyLimitError(
+            `MCP HTTP SSE response exceeded ${formatMcpBytes(maxTotalBytes)} while streaming response.`,
+          );
+        }
+        totalBytes = nextTotalBytes;
         buffer += decoder.decode(value, { stream: true });
         let newlineIndex = buffer.search(/\r?\n/);
         while (newlineIndex !== -1 && !shouldStop) {
@@ -497,17 +614,35 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
           consumeLine(line);
           newlineIndex = buffer.search(/\r?\n/);
         }
+        if (!shouldStop) {
+          assertMcpTextWithinByteLimit(
+            buffer,
+            MCP_HTTP_SSE_MESSAGE_MAX_BYTES,
+            "MCP HTTP SSE line buffer",
+          );
+        }
       }
       if (shouldStop) {
         await reader.cancel();
       } else {
         const tail = decoder.decode();
         if (tail) buffer += tail;
-        if (buffer.length > 0) consumeLine(buffer);
+        if (buffer.length > 0) {
+          assertMcpTextWithinByteLimit(
+            buffer,
+            MCP_HTTP_SSE_MESSAGE_MAX_BYTES,
+            "MCP HTTP SSE line buffer",
+          );
+          consumeLine(buffer);
+        }
         flush();
       }
     } catch (err) {
       if (options.ignoreAbort && err instanceof Error && err.name === "AbortError") return;
+      if (err instanceof McpResponseBodyLimitError) {
+        await reader.cancel().catch(() => undefined);
+        throw this.requestErrorForMethod(method, err.message);
+      }
       throw err;
     } finally {
       reader.releaseLock();

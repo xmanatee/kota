@@ -9,6 +9,11 @@ import {
 import { McpClientNotifications } from "./client-notifications.js";
 import type { JsonRpcResult } from "./client-protocol.js";
 import { CONNECT_TIMEOUT } from "./client-protocol.js";
+import {
+  MCP_HTTP_RESPONSE_BODY_MAX_BYTES,
+  McpResponseBodyLimitError,
+  readMcpResponseTextWithLimit,
+} from "./client-response-body-limit.js";
 
 export abstract class McpClientProtectedResourceRuntime extends McpClientNotifications {
   protected async challengeWithProtectedResourceMetadata(
@@ -81,59 +86,80 @@ export abstract class McpClientProtectedResourceRuntime extends McpClientNotific
   ): Promise<McpProtectedResourceMetadataDiscovery> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), CONNECT_TIMEOUT);
-    let response: Response;
     try {
-      response = await fetch(url, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-        signal: controller.signal,
-      });
-    } catch (err) {
-      const message = err instanceof Error && err.name === "AbortError"
-        ? `request timed out after ${CONNECT_TIMEOUT}ms`
-        : err instanceof Error ? err.message : String(err);
-      return {
-        status: "unavailable",
-        attemptedUrls: [url],
-        error: `${url}: ${message}`,
-      };
+      let response: Response;
+      try {
+        response = await fetch(url, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          signal: controller.signal,
+        });
+      } catch (err) {
+        const message = err instanceof Error && err.name === "AbortError"
+          ? `request timed out after ${CONNECT_TIMEOUT}ms`
+          : err instanceof Error ? err.message : String(err);
+        return {
+          status: "unavailable",
+          attemptedUrls: [url],
+          error: `${url}: ${message}`,
+        };
+      }
+
+      if (!response.ok) {
+        return {
+          status: "unavailable",
+          attemptedUrls: [url],
+          error: `${url}: HTTP ${response.status}`,
+        };
+      }
+
+      const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+      if (!contentType.includes("application/json")) {
+        return {
+          status: "unavailable",
+          attemptedUrls: [url],
+          error: `${url}: unsupported response content-type "${contentType || "(missing)"}"`,
+        };
+      }
+
+      let parsed: JsonRpcResult;
+      try {
+        const text = await readMcpResponseTextWithLimit(
+          response,
+          MCP_HTTP_RESPONSE_BODY_MAX_BYTES,
+          "MCP protected-resource metadata response",
+        );
+        parsed = JSON.parse(text) as JsonRpcResult;
+        return {
+          status: "found",
+          url,
+          metadata: decodeProtectedResourceMetadata(parsed),
+        };
+      } catch (err) {
+        if (err instanceof McpResponseBodyLimitError) {
+          return {
+            status: "unavailable",
+            attemptedUrls: [url],
+            error: `${url}: ${err.message}`,
+          };
+        }
+        if (err instanceof Error && err.name === "AbortError") {
+          return {
+            status: "unavailable",
+            attemptedUrls: [url],
+            error: `${url}: request timed out after ${CONNECT_TIMEOUT}ms`,
+          };
+        }
+        return {
+          status: "unavailable",
+          attemptedUrls: [url],
+          error: `${url}: malformed protected-resource metadata: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        };
+      }
     } finally {
       clearTimeout(timer);
-    }
-
-    if (!response.ok) {
-      return {
-        status: "unavailable",
-        attemptedUrls: [url],
-        error: `${url}: HTTP ${response.status}`,
-      };
-    }
-
-    const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-    if (!contentType.includes("application/json")) {
-      return {
-        status: "unavailable",
-        attemptedUrls: [url],
-        error: `${url}: unsupported response content-type "${contentType || "(missing)"}"`,
-      };
-    }
-
-    let parsed: JsonRpcResult;
-    try {
-      parsed = JSON.parse(await response.text()) as JsonRpcResult;
-      return {
-        status: "found",
-        url,
-        metadata: decodeProtectedResourceMetadata(parsed),
-      };
-    } catch (err) {
-      return {
-        status: "unavailable",
-        attemptedUrls: [url],
-        error: `${url}: malformed protected-resource metadata: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      };
     }
   }
 }
