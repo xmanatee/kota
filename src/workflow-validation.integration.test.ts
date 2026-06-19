@@ -318,6 +318,69 @@ describe("workflow validation", () => {
     });
   });
 
+  it("accepts default-scope placement only on schedule triggers", () => {
+    const definitions = validateWorkflowDefinitions(
+      [
+        registerWorkflowDefinition("test/default-scope-schedule.ts", {
+          name: "default-scope-schedule",
+          triggers: [
+            {
+              event: "automation.default-scope.scheduled",
+              schedule: "0 9 * * *",
+              runOn: "default-scope",
+              payload: { scopeId: "global" },
+            },
+          ],
+          steps: [{ id: "mark", type: "code", run: () => ({ ok: true }) }],
+        }),
+      ],
+      projectDir,
+    );
+
+    expect(definitions[0]?.triggers[0]).toMatchObject({
+      event: "automation.default-scope.scheduled",
+      schedule: "0 9 * * *",
+      runOn: "default-scope",
+      payload: { scopeId: "global" },
+    });
+
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/bad-run-on.ts", {
+            name: "bad-run-on",
+            triggers: [
+              {
+                event: "automation.event",
+                runOn: "default-scope",
+              },
+            ],
+            steps: [{ id: "mark", type: "code", run: () => ({ ok: true }) }],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow(/runOn is only valid on schedule or interval triggers/);
+
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/bad-schedule-payload.ts", {
+            name: "bad-schedule-payload",
+            triggers: [
+              {
+                event: "automation.event",
+                payload: { scopeId: "global" },
+              },
+            ],
+            steps: [{ id: "mark", type: "code", run: () => ({ ok: true }) }],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow(/payload is only valid on schedule or interval triggers/);
+  });
+
   it("rejects trigger filters that reference undeclared module-event fields", () => {
     resetModuleEventRegistry();
     const moduleEvents = initModuleEventRegistry();

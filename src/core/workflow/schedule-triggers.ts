@@ -20,6 +20,7 @@ export class ScheduleTriggerManager {
     ) => void,
     private readonly maybeStartNext: () => void,
     private readonly getDispatchWindow: () => DispatchWindow | undefined = () => undefined,
+    private readonly isDefaultScopeRuntime: () => boolean = () => true,
   ) {}
 
   clearAll(): void {
@@ -36,6 +37,7 @@ export class ScheduleTriggerManager {
       for (let i = 0; i < definition.triggers.length; i++) {
         const trigger = definition.triggers[i];
         if (!trigger.schedule && trigger.intervalMs == null) continue;
+        if (!this.shouldRunInThisRuntime(trigger)) continue;
 
         const key = `${definition.name}:${i}`;
         let nextFireMs: number;
@@ -81,9 +83,12 @@ export class ScheduleTriggerManager {
       }
 
       this.enqueueRun(definition, trigger, {
-        event: "schedule",
+        event: trigger.event,
         schemaRef: null,
-        payload: { scheduledAt: new Date(now).toISOString() },
+        payload: {
+          ...trigger.payload,
+          scheduledAt: new Date(now).toISOString(),
+        },
       });
       this.maybeStartNext();
 
@@ -113,6 +118,7 @@ export class ScheduleTriggerManager {
       for (let i = 0; i < definition.triggers.length; i++) {
         const trigger = definition.triggers[i];
         if (!trigger.schedule && trigger.intervalMs == null) continue;
+        if (!this.shouldRunInThisRuntime(trigger)) continue;
         newKeys.add(`${definition.name}:${i}`);
       }
     }
@@ -130,6 +136,7 @@ export class ScheduleTriggerManager {
       for (let i = 0; i < definition.triggers.length; i++) {
         const trigger = definition.triggers[i];
         if (!trigger.schedule && trigger.intervalMs == null) continue;
+        if (!this.shouldRunInThisRuntime(trigger)) continue;
         const key = `${definition.name}:${i}`;
         if (this.timers.has(key)) continue;
 
@@ -150,5 +157,9 @@ export class ScheduleTriggerManager {
         this.scheduleNextFire(key, definition, trigger, nextFireMs);
       }
     }
+  }
+
+  private shouldRunInThisRuntime(trigger: WorkflowTrigger): boolean {
+    return trigger.runOn !== "default-scope" || this.isDefaultScopeRuntime();
   }
 }

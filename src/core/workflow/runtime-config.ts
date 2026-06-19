@@ -43,6 +43,11 @@ export type WorkflowRuntimeConfig = {
    * workflows and each other up to this cap. Defaults to 4.
    */
   codeConcurrency?: number;
+  /**
+   * True for the daemon's default directory-scope runtime. Standalone tests and
+   * single-scope callers omit this and behave as the default runtime.
+   */
+  isDefaultScopeRuntime?: boolean;
   onLog?: (message: string) => void;
   workflows?: readonly RegisteredWorkflowDefinitionInput[];
   resolveAgentDef?: (name: string) => AgentDef | undefined;

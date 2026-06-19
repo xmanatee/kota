@@ -61,6 +61,7 @@ export const PROGRESS_REVIEW_MAX_GIT_FILES_PER_COMMIT = 12;
 export const PROGRESS_REVIEW_MAX_APPROVALS = 20;
 export const PROGRESS_REVIEW_MAX_DEAD_LETTERS = 20;
 export const PROGRESS_REVIEW_AGENT_MAX_EVIDENCE = 120;
+export const PROGRESS_REVIEW_SCHEDULE_EVENT = "autonomy.progress-review.scheduled";
 const PROGRESS_REVIEW_AGENT_KIND_LIMITS = {
   run: 20,
   task: 20,
@@ -211,23 +212,15 @@ export type ProgressReviewDeadLetterCounts = DeadLetterQueueCounts & {
   redriveRunIds: string[];
 };
 
-export type ProgressReviewEvidencePacket = {
-  generatedAt: string;
-  triggerKind: ProgressReviewTriggerKind;
-  triggerEvent: string;
+export type ProgressReviewEvidenceWindow = {
+  startedAt: string;
+  endedAt: string;
+  maxAgeMs: number;
+};
+
+export type ProgressReviewScopeEvidence = {
   scope: ProgressReviewScope;
-  window: {
-    startedAt: string;
-    endedAt: string;
-    maxAgeMs: number;
-  };
-  batch: {
-    sourceEventName: string;
-    reason: string;
-    count: number;
-    groupingKey: string;
-    droppedInputCount: number;
-  } | null;
+  window: ProgressReviewEvidenceWindow;
   runs: ProgressReviewRunEvidence[];
   tasks: ProgressReviewTaskEvidence[];
   events: ProgressReviewEventEvidence[];
@@ -243,6 +236,55 @@ export type ProgressReviewEvidencePacket = {
   excluded: string[];
 };
 
+export type ProgressReviewEvidencePacket = {
+  generatedAt: string;
+  triggerKind: ProgressReviewTriggerKind;
+  triggerEvent: string;
+  scope: ProgressReviewScope;
+  window: ProgressReviewEvidenceWindow;
+  batch: {
+    sourceEventName: string;
+    reason: string;
+    count: number;
+    groupingKey: string;
+    droppedInputCount: number;
+  } | null;
+  scopes: ProgressReviewScopeEvidence[];
+  runs: ProgressReviewRunEvidence[];
+  tasks: ProgressReviewTaskEvidence[];
+  events: ProgressReviewEventEvidence[];
+  artifacts: ProgressReviewArtifactEvidence[];
+  git: ProgressReviewGitEvidence[];
+  ownerQuestions: ProgressReviewOwnerQuestionEvidence[];
+  approvals: ProgressReviewApprovalEvidence[];
+  deadLetterCounts: ProgressReviewDeadLetterCounts[];
+  deadLetters: ProgressReviewDeadLetterEvidence[];
+  taskClassDistribution: ProgressReviewTaskClassCount[];
+  operatorJourneyRisks: ProgressReviewOperatorJourneyRisk[];
+  evidence: ProgressReviewEvidenceRef[];
+  excluded: string[];
+};
+
+export type ProgressReviewEvidenceCounts = {
+  runs: number;
+  tasks: number;
+  events: number;
+  artifacts: number;
+  git: number;
+  ownerQuestions: number;
+  approvals: number;
+  deadLetters: number;
+  evidence: number;
+  taskClasses: ProgressReviewTaskClassCount[];
+};
+
+export type ProgressReviewAgentScopeSummary = {
+  scope: ProgressReviewScope;
+  window: ProgressReviewEvidenceWindow;
+  counts: ProgressReviewEvidenceCounts;
+  excluded: string[];
+};
+
 export type ProgressReviewAgentEvidencePacket = {
   generatedAt: string;
   triggerKind: ProgressReviewTriggerKind;
@@ -250,25 +292,21 @@ export type ProgressReviewAgentEvidencePacket = {
   scope: ProgressReviewScope;
   window: ProgressReviewEvidencePacket["window"];
   batch: ProgressReviewEvidencePacket["batch"];
-  counts: {
-    runs: number;
-    tasks: number;
-    events: number;
-    artifacts: number;
-    git: number;
-    ownerQuestions: number;
-    approvals: number;
-    deadLetters: number;
-    evidence: number;
-    taskClasses: ProgressReviewTaskClassCount[];
-  };
+  scopes: ProgressReviewAgentScopeSummary[];
+  counts: ProgressReviewEvidenceCounts;
   deadLetterCounts: ProgressReviewDeadLetterCounts[];
   operatorJourneyRisks: ProgressReviewOperatorJourneyRisk[];
   evidence: ProgressReviewEvidenceRef[];
   excluded: string[];
 };
 
+type ProgressReviewEvidenceScopeRef = {
+  scope: ProgressReviewScope;
+};
+
 type ProgressReviewEvidenceIdPacket = {
+  scope?: ProgressReviewScope;
+  scopes?: readonly ProgressReviewEvidenceScopeRef[];
   evidence: ProgressReviewEvidenceRef[];
 };
 
@@ -295,6 +333,11 @@ const reviewOwnerQuestionSchema = z.object({
   proposedAnswers: z.array(z.string().min(1)).min(1).optional(),
 }).strict();
 
+const reviewFindingGroupSchema = z.object({
+  claims: z.array(reviewClaimSchema),
+  followUpTasks: z.array(reviewFollowUpTaskSchema),
+}).strict();
+
 const progressReviewAgentOutputSchema = z.object({
   verdict: z.enum([
     "on-track",
@@ -303,12 +346,19 @@ const progressReviewAgentOutputSchema = z.object({
     "insufficient-evidence",
   ]),
   summary: z.string().min(1),
-  claims: z.array(reviewClaimSchema),
-  followUpTasks: z.array(reviewFollowUpTaskSchema),
+  findings: z.object({
+    crossScope: reviewFindingGroupSchema,
+    localScope: reviewFindingGroupSchema,
+  }).strict(),
   ownerQuestions: z.array(reviewOwnerQuestionSchema),
 }).strict();
 
 export type ProgressReviewAgentOutput = z.infer<typeof progressReviewAgentOutputSchema>;
+type ProgressReviewFindingGroup = ProgressReviewAgentOutput["findings"]["crossScope"];
+type ProgressReviewFollowUpTaskOutput =
+  ProgressReviewFindingGroup["followUpTasks"][number];
+type ProgressReviewOwnerQuestionOutput =
+  ProgressReviewAgentOutput["ownerQuestions"][number];
 
 export type ProgressReviewAppliedAction =
   | {
@@ -324,6 +374,7 @@ export type ProgressReviewAppliedAction =
       existingTaskId?: string;
       existingState?: RepoTaskState | "inbox";
       existingPath?: string;
+      existingScopeId?: string;
     }
   | {
       kind: "owner-question";
@@ -368,6 +419,10 @@ type ProgressReviewDirectorySource = {
   idPrefix: string;
 };
 
+type ProgressReviewConfiguredDirectorySources = {
+  sources: ProgressReviewDirectorySource[];
+};
+
 type ProgressReviewEvidenceTarget = {
   scope: ProgressReviewScope;
   sources: ProgressReviewDirectorySource[];
@@ -390,6 +445,7 @@ type ExistingWorkItem = {
   id: string;
   state: RepoTaskState | "inbox";
   path: string;
+  scopeId: string;
 };
 
 function nonEmptyString(value: string | undefined): string | null {
@@ -417,15 +473,19 @@ function currentDirectorySource(projectDir: string): ProgressReviewDirectorySour
   };
 }
 
-function loadConfiguredDirectorySources(projectDir: string): ProgressReviewDirectorySource[] | null {
+function loadConfiguredDirectorySources(
+  projectDir: string,
+): ProgressReviewConfiguredDirectorySources | null {
   const registry = loadRegistryFileFromDisk(join(projectDir, ".kota"));
   if (!registry) return null;
-  return registry.projects.map((project) => ({
-    scopeId: project.projectId,
-    displayName: project.displayName,
-    projectDir: project.projectDir,
-    idPrefix: "",
-  }));
+  return {
+    sources: registry.projects.map((project) => ({
+      scopeId: project.projectId,
+      displayName: project.displayName,
+      projectDir: project.projectDir,
+      idPrefix: "",
+    })),
+  };
 }
 
 function prefixGlobalSourceIds(
@@ -444,9 +504,9 @@ function selectEvidenceTarget(
   const payload = requestPayload(trigger);
   const selected = nonEmptyString(payload.scopeId) ?? nonEmptyString(payload.projectId);
   const currentSource = currentDirectorySource(projectDir);
+  const configured = loadConfiguredDirectorySources(projectDir);
   const scopeId = selected ?? currentSource.scopeId;
   if (scopeId === GLOBAL_SCOPE_ID) {
-    const configured = loadConfiguredDirectorySources(projectDir);
     if (!configured) {
       throw new Error(
         "progress-review global scope requires .kota/project-registry.json",
@@ -458,11 +518,11 @@ function selectEvidenceTarget(
         scopeId,
         displayName: "Global",
       },
-      sources: configured.map(prefixGlobalSourceIds),
+      sources: configured.sources.map(prefixGlobalSourceIds),
     };
   }
 
-  const sources = loadConfiguredDirectorySources(projectDir) ?? [currentSource];
+  const sources = configured?.sources ?? [currentSource];
   const source = sources.find((entry) => entry.scopeId === scopeId);
   if (!source) {
     throw new Error(`progress-review scopeId ${scopeId} is not configured`);
@@ -507,7 +567,7 @@ export function classifyProgressReviewTrigger(
 ): ProgressReviewTriggerKind {
   if (trigger.event === "autonomy.progress-review.requested") return "manual";
   if (trigger.event === "schedule") return "schedule";
-  if (trigger.event === "autonomy.progress-review.scheduled") return "schedule";
+  if (trigger.event === PROGRESS_REVIEW_SCHEDULE_EVENT) return "schedule";
 
   const batch = batchPayload(trigger);
   if (!batch) return "event-batch";
@@ -723,15 +783,15 @@ function batchRunSource(
   sources: readonly ProgressReviewDirectorySource[],
   payload: WorkflowRunTrigger["payload"],
 ): ProgressReviewDirectorySource | null {
-  if (sources.length === 1) return sources[0] ?? null;
   const scopeId =
     typeof payload.scopeId === "string"
       ? payload.scopeId
       : typeof payload.projectId === "string"
         ? payload.projectId
         : null;
-  if (!scopeId) return null;
-  return sources.find((source) => source.scopeId === scopeId) ?? null;
+  if (scopeId) return sources.find((source) => source.scopeId === scopeId) ?? null;
+  if (sources.length === 1) return sources[0] ?? null;
+  return null;
 }
 
 function listBatchReferencedRunEvidence(
@@ -748,6 +808,10 @@ function listBatchReferencedRunEvidence(
     if (typeof runId !== "string") continue;
     if (!isSafeRunIdBasename(runId)) {
       excluded.push(`batch event ${event.event}: skipped unsafe runId`);
+      continue;
+    }
+    if (sources.length === 1 && sources[0]?.idPrefix && !eventScopeId(event.payload)) {
+      excluded.push(`batch event ${event.event}: skipped run ${runId} with unknown scope`);
       continue;
     }
     const source = batchRunSource(sources, event.payload);
@@ -866,18 +930,46 @@ function summarizePayload(value: object): string {
   return `${text.slice(0, 237)}...`;
 }
 
-function listBatchEvents(trigger: WorkflowRunTrigger, excluded: string[]): ProgressReviewEventEvidence[] {
+function eventScopeId(payload: WorkflowRunTrigger["payload"]): string | null {
+  if (typeof payload.scopeId === "string") return payload.scopeId;
+  if (typeof payload.projectId === "string") return payload.projectId;
+  return null;
+}
+
+function listBatchEvents(
+  source: ProgressReviewDirectorySource,
+  trigger: WorkflowRunTrigger,
+  excluded: string[],
+): ProgressReviewEventEvidence[] {
   const batch = batchPayload(trigger);
   if (!batch) return [];
-  if (batch.inputEvents.length > PROGRESS_REVIEW_MAX_EVENTS) {
-    excluded.push(`batch events: truncated ${batch.inputEvents.length} input events to ${PROGRESS_REVIEW_MAX_EVENTS}`);
+  const events = batch.inputEvents
+    .map((event, index) => ({ event, index }))
+    .filter(({ event, index }) => {
+      const scopeId = eventScopeId(event.payload);
+      if (scopeId === source.scopeId) return true;
+      if (!scopeId && !source.idPrefix) return true;
+      if (!scopeId) {
+        excluded.push(
+          `batch event ${index + 1} ${event.event}: skipped event with unknown scope for global review`,
+        );
+      }
+      return false;
+    });
+  if (events.length > PROGRESS_REVIEW_MAX_EVENTS) {
+    excluded.push(
+      `batch events: truncated ${events.length} input events to ${PROGRESS_REVIEW_MAX_EVENTS}`,
+    );
   }
-  return batch.inputEvents.slice(0, PROGRESS_REVIEW_MAX_EVENTS).map((event, index) => ({
-    id: `event:${index + 1}`,
+  return events.slice(0, PROGRESS_REVIEW_MAX_EVENTS).map(({ event, index }) => ({
+    id: sourceEvidenceId(source, `event:${index + 1}`),
     kind: "event",
     event: event.event,
     receivedAt: event.receivedAt,
-    summary: `${event.event} at ${event.receivedAt}: ${summarizePayload(event.payload)}`,
+    summary: sourceSummary(
+      source,
+      `${event.event} at ${event.receivedAt}: ${summarizePayload(event.payload)}`,
+    ),
   }));
 }
 
@@ -1390,8 +1482,20 @@ function toEvidenceRef(evidence: ProgressReviewEvidenceRef): ProgressReviewEvide
 }
 
 function progressReviewEvidenceCounts(
-  packet: ProgressReviewEvidencePacket,
-): ProgressReviewAgentEvidencePacket["counts"] {
+  packet: Pick<
+    ProgressReviewEvidencePacket | ProgressReviewScopeEvidence,
+    | "runs"
+    | "tasks"
+    | "events"
+    | "artifacts"
+    | "git"
+    | "ownerQuestions"
+    | "approvals"
+    | "deadLetters"
+    | "evidence"
+    | "taskClassDistribution"
+  >,
+): ProgressReviewEvidenceCounts {
   return {
     runs: packet.runs.length,
     tasks: packet.tasks.length,
@@ -1486,6 +1590,12 @@ export function compactProgressReviewEvidenceForAgent(
     scope: packet.scope,
     window: packet.window,
     batch: packet.batch,
+    scopes: packet.scopes.map((scope) => ({
+      scope: scope.scope,
+      window: scope.window,
+      counts: progressReviewEvidenceCounts(scope),
+      excluded: scope.excluded,
+    })),
     counts: progressReviewEvidenceCounts(packet),
     deadLetterCounts: packet.deadLetterCounts,
     operatorJourneyRisks: packet.operatorJourneyRisks,
@@ -1506,6 +1616,130 @@ function batchSummary(trigger: WorkflowRunTrigger): ProgressReviewEvidencePacket
   };
 }
 
+function directoryScopeForSource(
+  source: ProgressReviewDirectorySource,
+): ProgressReviewScope {
+  return {
+    kind: "directory",
+    scopeId: source.scopeId,
+    displayName: source.displayName,
+    directoryRoot: source.projectDir,
+  };
+}
+
+function evidenceRefs(args: {
+  runs: readonly ProgressReviewRunEvidence[];
+  tasks: readonly ProgressReviewTaskEvidence[];
+  events: readonly ProgressReviewEventEvidence[];
+  artifacts: readonly ProgressReviewArtifactEvidence[];
+  git: readonly ProgressReviewGitEvidence[];
+  ownerQuestions: readonly ProgressReviewOwnerQuestionEvidence[];
+  approvals: readonly ProgressReviewApprovalEvidence[];
+  deadLetters: readonly ProgressReviewDeadLetterEvidence[];
+}): ProgressReviewEvidenceRef[] {
+  return [
+    ...args.runs,
+    ...args.tasks,
+    ...args.events,
+    ...args.artifacts,
+    ...args.git,
+    ...args.ownerQuestions,
+    ...args.approvals,
+    ...args.deadLetters,
+  ].map(toEvidenceRef);
+}
+
+function cloneEvidenceItem<T extends ProgressReviewEvidenceRef>(item: T): T {
+  return { ...item };
+}
+
+function cloneDeadLetterCounts(
+  counts: ProgressReviewDeadLetterCounts,
+): ProgressReviewDeadLetterCounts {
+  return {
+    ...counts,
+    openItemIds: [...counts.openItemIds],
+    redriveRunIds: [...counts.redriveRunIds],
+  };
+}
+
+function cloneDeadLetterEvidence(
+  item: ProgressReviewDeadLetterEvidence,
+): ProgressReviewDeadLetterEvidence {
+  return {
+    ...item,
+    affectedWorkflowNames: [...item.affectedWorkflowNames],
+    sourceEventIds: [...item.sourceEventIds],
+  };
+}
+
+function collectProgressReviewEvidenceForSource(args: {
+  source: ProgressReviewDirectorySource;
+  trigger: WorkflowRunTrigger;
+  window: ProgressReviewEvidenceWindow;
+  windowStartMs: number;
+}): ProgressReviewScopeEvidence {
+  const excluded: string[] = [];
+  const scopedRuns = listRecentRunsForSources(
+    [args.source],
+    args.windowStartMs,
+    args.trigger,
+    excluded,
+  );
+  const runs = scopedRuns.map((run) => run.evidence);
+  const tasks = listRecentTasks([args.source], args.windowStartMs, excluded);
+  const events = listBatchEvents(args.source, args.trigger, excluded);
+  const artifacts = listArtifactEvidence(scopedRuns, excluded);
+  const git = listScopedGitEvidence([args.source], args.windowStartMs, excluded);
+  const ownerQuestions = listScopedOwnerQuestionEvidence(
+    [args.source],
+    args.windowStartMs,
+    excluded,
+  );
+  const approvals = listScopedApprovalEvidence([args.source], args.windowStartMs, excluded);
+  const deadLetterCounts = listDeadLetterCounts([args.source]);
+  const deadLetters = listScopedDeadLetterEvidence([args.source], excluded);
+  const taskClassCounts = taskClassDistribution(tasks);
+  const journeyRisks = operatorJourneyRisks(tasks);
+  const evidence = evidenceRefs({
+    runs,
+    tasks,
+    events,
+    artifacts,
+    git,
+    ownerQuestions,
+    approvals,
+    deadLetters,
+  });
+
+  return {
+    scope: directoryScopeForSource(args.source),
+    window: { ...args.window },
+    runs,
+    tasks,
+    events,
+    artifacts,
+    git,
+    ownerQuestions,
+    approvals,
+    deadLetterCounts,
+    deadLetters,
+    taskClassDistribution: taskClassCounts,
+    operatorJourneyRisks: journeyRisks,
+    evidence,
+    excluded,
+  };
+}
+
+function aggregateExcluded(
+  scopes: readonly ProgressReviewScopeEvidence[],
+): string[] {
+  if (scopes.length === 1) return [...(scopes[0]?.excluded ?? [])];
+  return scopes.flatMap((scope) =>
+    scope.excluded.map((item) => `${scope.scope.displayName}: ${item}`),
+  );
+}
+
 export function collectProgressReviewEvidence(args: {
   projectDir: string;
   trigger: WorkflowRunTrigger;
@@ -1516,47 +1750,56 @@ export function collectProgressReviewEvidence(args: {
   const endedAt = args.now.toISOString();
   const startedAtMs = args.now.getTime() - windowMs;
   const startedAt = new Date(startedAtMs).toISOString();
-  const excluded: string[] = [];
   const target = selectEvidenceTarget(args.projectDir, args.trigger);
-  const scopedRuns = listRecentRunsForSources(
-    target.sources,
-    startedAtMs,
-    args.trigger,
-    excluded,
+  const window = {
+    startedAt,
+    endedAt,
+    maxAgeMs: windowMs,
+  };
+  const scopes = target.sources.map((source) =>
+    collectProgressReviewEvidenceForSource({
+      source,
+      trigger: args.trigger,
+      window,
+      windowStartMs: startedAtMs,
+    }),
   );
-  const runs = scopedRuns.map((run) => run.evidence);
-  const tasks = listRecentTasks(target.sources, startedAtMs, excluded);
+  const runs = scopes.flatMap((scope) => scope.runs.map(cloneEvidenceItem));
+  const tasks = scopes.flatMap((scope) => scope.tasks.map(cloneEvidenceItem));
   const classDistribution = taskClassDistribution(tasks);
   const journeyRisks = operatorJourneyRisks(tasks);
-  const events = listBatchEvents(args.trigger, excluded);
-  const artifacts = listArtifactEvidence(scopedRuns, excluded);
-  const git = listScopedGitEvidence(target.sources, startedAtMs, excluded);
-  const ownerQuestions = listScopedOwnerQuestionEvidence(target.sources, startedAtMs, excluded);
-  const approvals = listScopedApprovalEvidence(target.sources, startedAtMs, excluded);
-  const deadLetterCounts = listDeadLetterCounts(target.sources);
-  const deadLetters = listScopedDeadLetterEvidence(target.sources, excluded);
-  const evidence: ProgressReviewEvidenceRef[] = [
-    ...runs,
-    ...tasks,
-    ...events,
-    ...artifacts,
-    ...git,
-    ...ownerQuestions,
-    ...approvals,
-    ...deadLetters,
-  ].map(toEvidenceRef);
+  const events = scopes.flatMap((scope) => scope.events.map(cloneEvidenceItem));
+  const artifacts = scopes.flatMap((scope) => scope.artifacts.map(cloneEvidenceItem));
+  const git = scopes.flatMap((scope) => scope.git.map(cloneEvidenceItem));
+  const ownerQuestions = scopes.flatMap((scope) =>
+    scope.ownerQuestions.map(cloneEvidenceItem),
+  );
+  const approvals = scopes.flatMap((scope) => scope.approvals.map(cloneEvidenceItem));
+  const deadLetterCounts = scopes.flatMap((scope) =>
+    scope.deadLetterCounts.map(cloneDeadLetterCounts),
+  );
+  const deadLetters = scopes.flatMap((scope) =>
+    scope.deadLetters.map(cloneDeadLetterEvidence),
+  );
+  const evidence = evidenceRefs({
+    runs,
+    tasks,
+    events,
+    artifacts,
+    git,
+    ownerQuestions,
+    approvals,
+    deadLetters,
+  });
 
   return {
     generatedAt: endedAt,
     triggerKind: classifyProgressReviewTrigger(args.trigger),
     triggerEvent: args.trigger.event,
     scope: target.scope,
-    window: {
-      startedAt,
-      endedAt,
-      maxAgeMs: windowMs,
-    },
+    window,
     batch: batchSummary(args.trigger),
+    scopes,
     runs,
     tasks,
     events,
@@ -1569,7 +1812,7 @@ export function collectProgressReviewEvidence(args: {
     taskClassDistribution: classDistribution,
     operatorJourneyRisks: journeyRisks,
     evidence,
-    excluded,
+    excluded: aggregateExcluded(scopes),
   };
 }
 
@@ -1577,6 +1820,16 @@ export function decodeProgressReviewAgentOutput(
   raw: Parameters<typeof progressReviewAgentOutputSchema.parse>[0],
 ): ProgressReviewAgentOutput {
   return progressReviewAgentOutputSchema.parse(raw);
+}
+
+function progressReviewFindingGroupEntries(review: ProgressReviewAgentOutput): readonly {
+  label: string;
+  group: ProgressReviewFindingGroup;
+}[] {
+  return [
+    { label: "cross-scope", group: review.findings.crossScope },
+    { label: "local-scope", group: review.findings.localScope },
+  ];
 }
 
 function evidenceIdsForPacket(packet: ProgressReviewEvidenceIdPacket): Set<string> {
@@ -1607,19 +1860,21 @@ export function validateProgressReviewEvidenceIds(args: {
   review: ProgressReviewAgentOutput;
 }): void {
   const knownIds = evidenceIdsForPacket(args.evidence);
-  for (const claim of args.review.claims) {
-    assertKnownEvidenceIds({
-      knownIds,
-      field: `claim ${claim.id}`,
-      evidenceIds: claim.evidenceIds,
-    });
-  }
-  for (const task of args.review.followUpTasks) {
-    assertKnownEvidenceIds({
-      knownIds,
-      field: `follow-up task "${task.title}"`,
-      evidenceIds: task.evidenceIds,
-    });
+  for (const { label, group } of progressReviewFindingGroupEntries(args.review)) {
+    for (const claim of group.claims) {
+      assertKnownEvidenceIds({
+        knownIds,
+        field: `${label} claim ${claim.id}`,
+        evidenceIds: claim.evidenceIds,
+      });
+    }
+    for (const task of group.followUpTasks) {
+      assertKnownEvidenceIds({
+        knownIds,
+        field: `${label} follow-up task "${task.title}"`,
+        evidenceIds: task.evidenceIds,
+      });
+    }
   }
   for (const question of args.review.ownerQuestions) {
     assertKnownEvidenceIds({
@@ -1648,6 +1903,7 @@ function taskRelativePath(state: RepoTaskState, id: string): string {
 }
 
 function findExistingTask(projectDir: string, id: string, title: string): ExistingWorkItem | null {
+  const scopeId = deriveDirectoryScopeId(projectDir);
   for (const state of REPO_TASK_STATES) {
     const candidate = taskPathForId(projectDir, state, id);
     if (existsSync(candidate)) {
@@ -1655,6 +1911,7 @@ function findExistingTask(projectDir: string, id: string, title: string): Existi
         id,
         state,
         path: taskRelativePath(state, id),
+        scopeId,
       };
     }
   }
@@ -1666,11 +1923,49 @@ function findExistingTask(projectDir: string, id: string, title: string): Existi
         id: record.id,
         state: record.state,
         path: taskRelativePath(record.state, record.id),
+        scopeId,
       };
     }
   }
   const inbox = findExistingInboxEntry(projectDir, id, title);
   if (inbox) return inbox;
+  return null;
+}
+
+function uniqueProjectDirs(projectDirs: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const projectDir of projectDirs) {
+    const resolved = resolve(projectDir);
+    if (seen.has(resolved)) continue;
+    seen.add(resolved);
+    unique.push(projectDir);
+  }
+  return unique;
+}
+
+function taskDedupeProjectDirs(
+  projectDir: string,
+  evidence: ProgressReviewEvidenceIdPacket,
+): string[] {
+  if (evidence.scope?.kind !== "global") return [projectDir];
+  return uniqueProjectDirs([
+    projectDir,
+    ...(evidence.scopes ?? []).flatMap((scope) =>
+      scope.scope.directoryRoot ? [scope.scope.directoryRoot] : [],
+    ),
+  ]);
+}
+
+function findExistingTaskAcrossProjectDirs(
+  projectDirs: readonly string[],
+  id: string,
+  title: string,
+): ExistingWorkItem | null {
+  for (const projectDir of projectDirs) {
+    const existing = findExistingTask(projectDir, id, title);
+    if (existing) return existing;
+  }
   return null;
 }
 
@@ -1698,7 +1993,12 @@ function findExistingInboxEntry(
     const path = join(inboxDir, file);
     const inboxId = file.slice(0, -".md".length);
     if (inboxId === id) {
-      return { id: inboxId, state: "inbox", path: join("data", "inbox", file) };
+      return {
+        id: inboxId,
+        state: "inbox",
+        path: join("data", "inbox", file),
+        scopeId: deriveDirectoryScopeId(projectDir),
+      };
     }
     const raw = readFileSync(path, "utf-8");
     const { attrs, body } = parseFlatFrontMatter(raw);
@@ -1709,7 +2009,12 @@ function findExistingInboxEntry(
       body,
     ];
     if (candidates.some((candidate) => normalizeRelatedText(candidate).includes(normalizedTitle))) {
-      return { id: inboxId, state: "inbox", path: join("data", "inbox", file) };
+      return {
+        id: inboxId,
+        state: "inbox",
+        path: join("data", "inbox", file),
+        scopeId: deriveDirectoryScopeId(projectDir),
+      };
     }
   }
   return null;
@@ -1731,7 +2036,7 @@ function stageBestEffort(projectDir: string, path: string): void {
 function buildTaskBody(args: {
   runId: string;
   review: ProgressReviewAgentOutput;
-  task: ProgressReviewAgentOutput["followUpTasks"][number];
+  task: ProgressReviewFollowUpTaskOutput;
 }): string {
   const evidenceIds = args.task.evidenceIds.map((id) => `- ${id}`).join("\n");
   return [
@@ -1778,9 +2083,10 @@ function buildTaskBody(args: {
 
 function writeFollowUpTask(args: {
   projectDir: string;
+  dedupeProjectDirs: readonly string[];
   runId: string;
   review: ProgressReviewAgentOutput;
-  task: ProgressReviewAgentOutput["followUpTasks"][number];
+  task: ProgressReviewFollowUpTaskOutput;
 }): ProgressReviewAppliedAction {
   const id = `task-${slugifyTaskTitle(args.task.title)}`;
   if (id === "task-") {
@@ -1790,7 +2096,11 @@ function writeFollowUpTask(args: {
       reason: "title produced an empty task slug",
     };
   }
-  const existing = findExistingTask(args.projectDir, id, args.task.title);
+  const existing = findExistingTaskAcrossProjectDirs(
+    args.dedupeProjectDirs,
+    id,
+    args.task.title,
+  );
   if (existing) {
     return {
       kind: "skipped-task",
@@ -1799,6 +2109,7 @@ function writeFollowUpTask(args: {
       existingTaskId: existing.id,
       existingState: existing.state,
       existingPath: existing.path,
+      existingScopeId: existing.scopeId,
     };
   }
   const taskPath = taskPathForId(args.projectDir, "ready", id);
@@ -1839,7 +2150,7 @@ function findPendingOwnerQuestion(queue: OwnerQuestionQueue, question: string): 
 function enqueueOwnerQuestion(args: {
   projectDir: string;
   runId: string;
-  question: ProgressReviewAgentOutput["ownerQuestions"][number];
+  question: ProgressReviewOwnerQuestionOutput;
 }): ProgressReviewAppliedAction {
   const queue = new OwnerQuestionQueue(join(args.projectDir, ".kota", "owner-questions"));
   const existingId = findPendingOwnerQuestion(queue, args.question.question);
@@ -1880,8 +2191,11 @@ export function applyProgressReviewActions(args: {
 }): ProgressReviewActionResult {
   validateProgressReviewEvidenceIds({ evidence: args.evidence, review: args.review });
   const applied: ProgressReviewAppliedAction[] = [];
-  for (const task of args.review.followUpTasks) {
-    applied.push(writeFollowUpTask({ ...args, task }));
+  const dedupeProjectDirs = taskDedupeProjectDirs(args.projectDir, args.evidence);
+  for (const { group } of progressReviewFindingGroupEntries(args.review)) {
+    for (const task of group.followUpTasks) {
+      applied.push(writeFollowUpTask({ ...args, dedupeProjectDirs, task }));
+    }
   }
   for (const question of args.review.ownerQuestions) {
     applied.push(enqueueOwnerQuestion({ ...args, question }));

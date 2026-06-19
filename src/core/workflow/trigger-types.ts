@@ -108,6 +108,12 @@ export type WorkflowBatchFlushPayload = {
   };
 };
 
+export type WorkflowTriggerRunOn = "every-scope" | "default-scope";
+export type WorkflowScheduledPayloadValue = string | number | boolean | null;
+export type WorkflowScheduledPayload = {
+  readonly [key: string]: WorkflowScheduledPayloadValue;
+};
+
 export type WorkflowTriggerInput = {
   event?: keyof BusEvents | string;
   schemaVersion?: number;
@@ -126,6 +132,17 @@ export type WorkflowTriggerInput = {
   timezone?: string;
   /** Interval in milliseconds. Fires immediately on first run, then every N ms. */
   intervalMs?: number;
+  /**
+   * Scheduled trigger placement in multi-scope daemons. Omit or use
+   * `"every-scope"` for the existing behavior; use `"default-scope"` for one
+   * daemon-wide scheduled run from the default directory scope.
+   */
+  runOn?: WorkflowTriggerRunOn;
+  /**
+   * Static payload fields merged into schedule/interval runs. The scheduler
+   * still owns `scheduledAt`.
+   */
+  payload?: WorkflowScheduledPayload;
   /**
    * When true, this trigger fires when the daemon receives a signed HTTP POST
    * to `POST /webhooks/:workflowName`. Secret is configured in daemon config
@@ -157,6 +174,10 @@ export type WorkflowTrigger = {
   timezone?: string;
   /** Interval in milliseconds, if this is an interval trigger. */
   intervalMs?: number;
+  /** Multi-scope placement for schedule/interval triggers. */
+  runOn?: WorkflowTriggerRunOn;
+  /** Static payload fields merged into schedule/interval runs. */
+  payload?: WorkflowScheduledPayload;
   /** When true, this trigger fires via the daemon webhook endpoint. */
   webhook?: boolean;
   /** Glob patterns for file-watch triggers. */

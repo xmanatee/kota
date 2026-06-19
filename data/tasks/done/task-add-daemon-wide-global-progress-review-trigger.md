@@ -1,12 +1,12 @@
 ---
 id: task-add-daemon-wide-global-progress-review-trigger
 title: Add daemon-wide global progress-review trigger
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Make the progress-reviewer able to run a real daemon-wide scheduled global review across all configured scopes.
 created_at: 2026-06-04T13:06:38.510Z
-updated_at: 2026-06-19T01:57:38.121Z
+updated_at: 2026-06-19T02:09:32.000Z
 ---
 
 ## Problem
@@ -70,6 +70,6 @@ Outcome-aware autonomy.
 
 ## Acceptance Evidence
 
-- Focused daemon/workflow test output showing a scheduled global progress-review
-  across at least two configured directory scopes.
-- Run artifact fixture for a global review containing scoped evidence sections.
+- `pnpm test src/core/workflow/schedule-triggers.test.ts`
+- `pnpm test src/workflow-validation.integration.test.ts`
+- `pnpm test src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts`

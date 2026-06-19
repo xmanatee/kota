@@ -5,8 +5,11 @@ import type {
   WorkflowBatchOverflowPolicy,
   WorkflowBatchTrigger,
   WorkflowBatchTriggerInput,
+  WorkflowScheduledPayload,
+  WorkflowScheduledPayloadValue,
   WorkflowTrigger,
   WorkflowTriggerInput,
+  WorkflowTriggerRunOn,
 } from "./trigger-types.js";
 import {
   expectNonEmptyString,
@@ -21,6 +24,11 @@ const BATCH_OVERFLOW_POLICIES: readonly WorkflowBatchOverflowPolicy[] = [
   "drop-newest",
   "flush-oldest",
 ];
+const RUN_ON_VALUES: readonly WorkflowTriggerRunOn[] = [
+  "every-scope",
+  "default-scope",
+];
+const RESERVED_SCHEDULE_PAYLOAD_KEYS = new Set(["scheduledAt"]);
 
 /** Validates that a glob pattern is syntactically usable. */
 function validateGlobPattern(pattern: string, field: string, definitionPath: string): void {
@@ -34,6 +42,49 @@ function validateGlobPattern(pattern: string, field: string, definitionPath: str
   } catch {
     throw new WorkflowDefinitionError(`${field}: invalid glob pattern "${pattern}"`, definitionPath);
   }
+}
+
+function validateScheduledPayloadValue(
+  value: WorkflowScheduledPayloadValue,
+  field: string,
+  definitionPath: string,
+): WorkflowScheduledPayloadValue {
+  if (value === null) return value;
+  if (typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  throw new WorkflowDefinitionError(
+    `${field} must be a string, finite number, boolean, or null`,
+    definitionPath,
+  );
+}
+
+function validateScheduledPayload(
+  payload: WorkflowTriggerInput["payload"],
+  field: string,
+  definitionPath: string,
+): WorkflowScheduledPayload | undefined {
+  if (payload === undefined) return undefined;
+  if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new WorkflowDefinitionError(`${field} must be an object`, definitionPath);
+  }
+  const validated: { [key: string]: WorkflowScheduledPayloadValue } = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (key.trim().length === 0) {
+      throw new WorkflowDefinitionError(`${field} keys must be non-empty`, definitionPath);
+    }
+    if (RESERVED_SCHEDULE_PAYLOAD_KEYS.has(key)) {
+      throw new WorkflowDefinitionError(
+        `${field}.${key} is reserved by the scheduler`,
+        definitionPath,
+      );
+    }
+    validated[key] = validateScheduledPayloadValue(
+      value,
+      `${field}.${key}`,
+      definitionPath,
+    );
+  }
+  return validated;
 }
 
 export function validateTrigger(
@@ -55,11 +106,13 @@ export function validateTrigger(
       trigger.batch != null ||
       trigger.schedule != null ||
       trigger.intervalMs != null ||
+      trigger.runOn != null ||
+      trigger.payload != null ||
       trigger.schemaVersion != null ||
       trigger.webhook === true
     ) {
       throw new WorkflowDefinitionError(
-        `triggers[${index}]: watch triggers do not support event, filter, batch, schedule, intervalMs, schemaVersion, or webhook`,
+        `triggers[${index}]: watch triggers do not support event, filter, batch, schedule, intervalMs, runOn, payload, schemaVersion, or webhook`,
         definitionPath,
       );
     }
@@ -92,10 +145,12 @@ export function validateTrigger(
       trigger.batch != null ||
       trigger.schedule != null ||
       trigger.intervalMs != null ||
+      trigger.runOn != null ||
+      trigger.payload != null ||
       trigger.schemaVersion != null
     ) {
       throw new WorkflowDefinitionError(
-        `triggers[${index}]: webhook triggers do not support event, filter, batch, schedule, intervalMs, or schemaVersion`,
+        `triggers[${index}]: webhook triggers do not support event, filter, batch, schedule, intervalMs, runOn, payload, or schemaVersion`,
         definitionPath,
       );
     }
@@ -103,6 +158,20 @@ export function validateTrigger(
   }
 
   const isSchedule = trigger.schedule != null || trigger.intervalMs != null;
+
+  if (!isSchedule && trigger.runOn != null) {
+    throw new WorkflowDefinitionError(
+      `triggers[${index}].runOn is only valid on schedule or interval triggers`,
+      definitionPath,
+    );
+  }
+
+  if (!isSchedule && trigger.payload != null) {
+    throw new WorkflowDefinitionError(
+      `triggers[${index}].payload is only valid on schedule or interval triggers`,
+      definitionPath,
+    );
+  }
 
   if (isSchedule && trigger.filter != null) {
     throw new WorkflowDefinitionError(
@@ -135,6 +204,24 @@ export function validateTrigger(
   const event = isSchedule
     ? (trigger.event ?? "schedule")
     : expectNonEmptyString(trigger.event, `triggers[${index}].event`, definitionPath);
+  const runOn = (() => {
+    if (trigger.runOn === undefined) return undefined;
+    if (
+      typeof trigger.runOn !== "string" ||
+      !RUN_ON_VALUES.includes(trigger.runOn as WorkflowTriggerRunOn)
+    ) {
+      throw new WorkflowDefinitionError(
+        `triggers[${index}].runOn must be "every-scope" or "default-scope"`,
+        definitionPath,
+      );
+    }
+    return trigger.runOn as WorkflowTriggerRunOn;
+  })();
+  const payload = validateScheduledPayload(
+    trigger.payload,
+    `triggers[${index}].payload`,
+    definitionPath,
+  );
 
   const cooldownMs =
     expectOptionalInteger(
@@ -189,7 +276,14 @@ export function validateTrigger(
       }
       timezone = trigger.timezone;
     }
-    return { event, cooldownMs, schedule: trigger.schedule, timezone };
+    return {
+      event,
+      cooldownMs,
+      schedule: trigger.schedule,
+      timezone,
+      ...(runOn !== undefined ? { runOn } : {}),
+      ...(payload !== undefined ? { payload } : {}),
+    };
   }
 
   if (trigger.intervalMs != null) {
@@ -205,7 +299,13 @@ export function validateTrigger(
         definitionPath,
       );
     }
-    return { event, cooldownMs, intervalMs };
+    return {
+      event,
+      cooldownMs,
+      intervalMs,
+      ...(runOn !== undefined ? { runOn } : {}),
+      ...(payload !== undefined ? { payload } : {}),
+    };
   }
 
   const registry = getModuleEventRegistry();

@@ -49,6 +49,8 @@ type ActionOutput = {
   actions: AutonomyHealthReviewActionResult;
 };
 
+const AUTONOMY_HEALTH_AUDIT_SCHEDULE_EVENT = "autonomy.runtime-health.audit.scheduled";
+
 const inspectWorktree = typedCodeStep<WorktreeInspection>({
   id: "inspect-worktree",
   type: "code",
@@ -60,7 +62,11 @@ const inspectWorktree = typedCodeStep<WorktreeInspection>({
 });
 
 function isRuntimeAuditTrigger(event: string): boolean {
-  return event === "schedule" || event === "runtime.recovered";
+  return (
+    event === "schedule" ||
+    event === AUTONOMY_HEALTH_AUDIT_SCHEDULE_EVENT ||
+    event === "runtime.recovered"
+  );
 }
 
 const buildRuntimeAudit = typedCodeStep<AuditOutput>({
@@ -237,7 +243,7 @@ const autonomyHealthReviewerWorkflow: WorkflowDefinitionInput = {
   concurrencyGroup: "agent",
   triggers: [
     {
-      event: "autonomy.runtime-health.audit.scheduled",
+      event: AUTONOMY_HEALTH_AUDIT_SCHEDULE_EVENT,
       intervalMs: 6 * 60 * 60 * 1000,
       cooldownMs: 60 * 60 * 1000,
     },

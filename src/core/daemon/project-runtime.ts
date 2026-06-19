@@ -158,6 +158,7 @@ export function createProjectRuntime(
     resolveSkillsPrompt: opts.resolveSkillsPrompt,
     agentConcurrency: opts.config?.scheduler?.agentConcurrency,
     codeConcurrency: opts.config?.scheduler?.codeConcurrency,
+    isDefaultScopeRuntime: opts.installSingletons,
   });
 
   if (opts.installSingletons) {

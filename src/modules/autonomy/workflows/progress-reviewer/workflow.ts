@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
+import { GLOBAL_SCOPE_ID } from "#core/daemon/scope-registry.js";
 import type { JsonSchemaObject } from "#core/util/json-schema-validator.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
@@ -29,6 +30,7 @@ import {
   compactProgressReviewEvidenceForAgent,
   decodeProgressReviewAgentOutput,
   decodeProgressReviewAgentOutputForEvidence,
+  PROGRESS_REVIEW_SCHEDULE_EVENT,
   type ProgressReviewActionResult,
   type ProgressReviewAgentEvidencePacket,
   type ProgressReviewAgentOutput,
@@ -38,11 +40,65 @@ import {
 } from "./progress-review.js";
 
 const REVIEW_AGENT_TIMEOUT_MS = 30 * 60 * 1000;
-const PROGRESS_REVIEW_SCHEDULE_EVENT = "autonomy.progress-review.scheduled";
+
+const reviewClaimOutputSchema = {
+  type: "object",
+  required: ["id", "claim", "evidenceIds", "confidence"],
+  additionalProperties: false,
+  properties: {
+    id: { type: "string" },
+    claim: { type: "string" },
+    evidenceIds: { type: "array", items: { type: "string" } },
+    confidence: {
+      type: "string",
+      enum: ["low", "medium", "high"],
+    },
+  },
+} satisfies JsonSchemaObject;
+
+const reviewFollowUpTaskOutputSchema = {
+  type: "object",
+  required: [
+    "title",
+    "summary",
+    "priority",
+    "area",
+    "evidenceIds",
+    "acceptanceEvidence",
+  ],
+  additionalProperties: false,
+  properties: {
+    title: { type: "string" },
+    summary: { type: "string" },
+    priority: {
+      type: "string",
+      enum: ["p0", "p1", "p2", "p3"],
+    },
+    area: { type: "string" },
+    evidenceIds: { type: "array", items: { type: "string" } },
+    acceptanceEvidence: { type: "string" },
+  },
+} satisfies JsonSchemaObject;
+
+const reviewFindingGroupOutputSchema = {
+  type: "object",
+  required: ["claims", "followUpTasks"],
+  additionalProperties: false,
+  properties: {
+    claims: {
+      type: "array",
+      items: reviewClaimOutputSchema,
+    },
+    followUpTasks: {
+      type: "array",
+      items: reviewFollowUpTaskOutputSchema,
+    },
+  },
+} satisfies JsonSchemaObject;
 
 const progressReviewOutputSchema = {
   type: "object",
-  required: ["verdict", "summary", "claims", "followUpTasks", "ownerQuestions"],
+  required: ["verdict", "summary", "findings", "ownerQuestions"],
   additionalProperties: false,
   properties: {
     verdict: {
@@ -55,47 +111,13 @@ const progressReviewOutputSchema = {
       ],
     },
     summary: { type: "string" },
-    claims: {
-      type: "array",
-      items: {
-        type: "object",
-        required: ["id", "claim", "evidenceIds", "confidence"],
-        additionalProperties: false,
-        properties: {
-          id: { type: "string" },
-          claim: { type: "string" },
-          evidenceIds: { type: "array", items: { type: "string" } },
-          confidence: {
-            type: "string",
-            enum: ["low", "medium", "high"],
-          },
-        },
-      },
-    },
-    followUpTasks: {
-      type: "array",
-      items: {
-        type: "object",
-        required: [
-          "title",
-          "summary",
-          "priority",
-          "area",
-          "evidenceIds",
-          "acceptanceEvidence",
-        ],
-        additionalProperties: false,
-        properties: {
-          title: { type: "string" },
-          summary: { type: "string" },
-          priority: {
-            type: "string",
-            enum: ["p0", "p1", "p2", "p3"],
-          },
-          area: { type: "string" },
-          evidenceIds: { type: "array", items: { type: "string" } },
-          acceptanceEvidence: { type: "string" },
-        },
+    findings: {
+      type: "object",
+      required: ["crossScope", "localScope"],
+      additionalProperties: false,
+      properties: {
+        crossScope: reviewFindingGroupOutputSchema,
+        localScope: reviewFindingGroupOutputSchema,
       },
     },
     ownerQuestions: {
@@ -149,6 +171,7 @@ const collectEvidence = typedCodeStep<ProgressReviewEvidencePacket>({
       "triggerEvent",
       "scope",
       "window",
+      "scopes",
       "evidence",
       "approvals",
       "excluded",
@@ -176,6 +199,7 @@ const prepareReviewInput = typedCodeStep<ProgressReviewAgentEvidencePacket>({
       "scope",
       "window",
       "batch",
+      "scopes",
       "counts",
       "deadLetterCounts",
       "operatorJourneyRisks",
@@ -319,6 +343,8 @@ const progressReviewerWorkflow: WorkflowDefinitionInput = {
     {
       event: PROGRESS_REVIEW_SCHEDULE_EVENT,
       schedule: "0 */6 * * *",
+      runOn: "default-scope",
+      payload: { scopeId: GLOBAL_SCOPE_ID },
       cooldownMs: 60 * 60 * 1000,
     },
     {
