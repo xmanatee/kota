@@ -1,13 +1,13 @@
 ---
 id: task-review-inaccessible-research-resources-when-access
 title: Review inaccessible research resources when access is available
-status: ready
+status: done
 priority: p3
 area: research
 summary: Grouped follow-up for research URLs that were captured but never read due to auth walls or fetch failures
 depends_on: [task-enable-autonomous-access-to-auth-walled-sources-so]
 created_at: 2026-04-14T00:29:07.947Z
-updated_at: 2026-06-19T13:04:59.960Z
+updated_at: 2026-06-19T13:28:19.740Z
 ---
 
 ## Problem
@@ -47,9 +47,9 @@ explicitly dropped with a reason based on actual content.
 
 ## Constraints
 
-- Waiting on X/Twitter authentication (operator-configured
-  `modules.browser.storageStatePath`) for the social posts still in the
-  Resources block.
+- Read X/Twitter resources through the operator-configured authenticated
+  browser profile (`modules.browser.storageStatePath`) rather than public
+  mirrors or snippets.
 - Do not infer content from URL shape, author, or surrounding context.
 - Do not create one task per URL.
 - Update the relevant task outcome or create follow-up work when resources are
@@ -134,3 +134,31 @@ Resources. The capture only had an inaccessible direct X URL plus an
 unverified search-result snippet/title; no KOTA disposition should be made
 until the actual post text, images, links, and claims are read through an
 authenticated browser path.
+
+## Status (2026-06-19 final disposition)
+
+Access path is now available. The builder run
+`.kota/runs/2026-06-19T13-20-47-291Z-builder-8l4rkn/` used
+`pnpm dev browser source-access-report --x-url <url> --timeout-ms 60000`
+with `modules.browser.storageStatePath` configured to
+`.kota/browser/x-storage-state.json`. Each per-URL report has
+`reads.xPost.status: "success"` and records a sanitized excerpt plus content
+length. The per-URL report `overall` is `not_ready` only because
+`rendered_article_read` was not requested for these X-only checks.
+
+Final dispositions:
+
+| URL | Report artifact | Disposition |
+| --- | --- | --- |
+| `https://x.com/akshay_pachaar/status/2041146899319971922` | `.kota/runs/2026-06-19T13-20-47-291Z-builder-8l4rkn/source-access-akshay/source-access-report.json` | Reference-only. The post is an agent-harness overview covering orchestration loops, tools, memory, and context management. KOTA already models these through typed harnesses, tools, stores, workflows, and scoped prompts; no missing bounded task surfaced. |
+| `https://x.com/arlanr/status/2041215978957389908` | `.kota/runs/2026-06-19T13-20-47-291Z-builder-8l4rkn/source-access-arlan/source-access-report.json` | Reference-only. The post argues that code hallucinations come from stale API/docs data and proposes treating the web as a filesystem. KOTA should continue to fetch current primary docs through tool/module-owned access paths during tasks rather than mirror the web into a parallel filesystem abstraction. |
+| `https://x.com/NickSpisak_/status/2040448463540830705` | `.kota/runs/2026-06-19T13-20-47-291Z-builder-8l4rkn/source-access-NickSpisak_/source-access-report.json` | Reference-only. The post describes an AI-organized personal knowledge base built from folders and text files. KOTA already has explicit knowledge, memory, skills, and scoped `AGENTS.md`; adding another second-brain store would duplicate existing surfaces. |
+| `https://x.com/johnrushx/status/2011029959079301373` | `.kota/runs/2026-06-19T13-20-47-291Z-builder-8l4rkn/source-access-johnrushx/source-access-report.json` | Dropped for KOTA action. The content is general startup/product advice, not a KOTA architecture, safety, workflow, module, client, channel, or evaluation input. |
+| `https://x.com/tianle_cai/status/2042459055483207818` | `.kota/runs/2026-06-19T13-20-47-291Z-builder-8l4rkn/source-access-tianle_cai/source-access-report.json` | Reference-only. The post frames continual learning as extending the reliable task horizon rather than a single technique. KOTA already records durable learning through scoped instructions, tasks, run artifacts, and eval fixtures, and rejects runtime strategy banks as a separate memory system. |
+| `https://x.com/pedroh96/status/2046604993982009825` | `.kota/runs/2026-06-19T13-20-47-291Z-builder-8l4rkn/source-access-pedroh96/source-access-report.json` | Reference-only. The post describes an LLM-as-judge HTTP proxy for production-agent network traffic. KOTA's current canonical boundary is typed tools/actions with effect metadata, guardrails, approval, and injection defense; a generic network proxy would be a parallel enforcement surface unless a later module-owned adapter has a specific need. |
+| `https://x.com/alokbishoyi97/status/2064281952631525741` | `.kota/runs/2026-06-19T13-20-47-291Z-builder-8l4rkn/source-access-alokbishoyi97/source-access-report.json` | Reference-only. The post discusses self-evolving autoresearch workflow loops and generated orchestration code. KOTA already has typed workflows, explorer/research-retry automation, and explicit external-pattern decisions that reject dynamic workflow DSLs or runtime strategy banks as primary mechanisms. |
+
+No adopted or deferred idea needs a new normalized follow-up task from this
+batch. The previously inaccessible resources are resolved, and this task can
+leave the actionable queue without producing another unchanged research-retry
+reconfirmation commit.
