@@ -230,6 +230,10 @@ const autonomyHealthReviewerWorkflow: WorkflowDefinitionInput = {
   description:
     "Batch typed autonomy health signals and persisted runtime evidence into deduped review artifacts, repair tasks, owner questions, and attention items.",
   recoveryCapable: true,
+  // This code-only workflow can create or refresh task files. Keep it in the
+  // agent dispatch group so scoped agent writeScope snapshots do not attribute
+  // its uncommitted task mutations to a concurrently running agent step.
+  concurrencyGroup: "agent",
   triggers: [
     {
       event: "autonomy.runtime-health.audit.scheduled",

@@ -110,4 +110,43 @@ describe("renderOnDemandDigest", () => {
     });
     expect(result.data.queueDelta.delta.ready).toBe(1);
   });
+
+  it("reads pending owner questions from the requested project directory", async () => {
+    const ownerMod = await import("#core/daemon/owner-question-queue.js");
+    ownerMod.resetOwnerQuestionQueue();
+    const defaultQueue = ownerMod.getOwnerQuestionQueue(
+      join(projectDir, "default-project", ".kota", "owner-questions"),
+    );
+    defaultQueue.enqueue({
+      context: "ctx",
+      question: "default project question?",
+      reason: "r",
+      source: "test",
+      answerBehavior: "record-only",
+      origin: { kind: "manual", source: "test" },
+    });
+
+    const projectQueue = new ownerMod.OwnerQuestionQueue(
+      join(projectDir, ".kota", "owner-questions"),
+    );
+    projectQueue.enqueue({
+      context: "ctx",
+      question: "requested project question?",
+      reason: "r",
+      source: "test",
+      answerBehavior: "record-only",
+      origin: { kind: "manual", source: "test" },
+    });
+
+    const result = renderOnDemandDigest({
+      projectDir,
+      windowEndMs: Date.parse("2026-04-26T08:00:00.000Z"),
+    });
+
+    expect(result.data.pendingOwnerQuestions.map((q) => q.question)).toEqual([
+      "requested project question?",
+    ]);
+    expect(result.text).toContain("requested project question?");
+    expect(result.text).not.toContain("default project question?");
+  });
 });

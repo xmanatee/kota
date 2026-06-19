@@ -1,9 +1,11 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { WorkflowBatchFlushPayload } from "#core/workflow/trigger-types.js";
 import { type AutonomyHealthSignalInput, normalizeHealthSignal } from "#modules/autonomy/health-signal.js";
+import { validateTaskQueue } from "#modules/repo-tasks/task-queue-validation.js";
 import {
   applyAutonomyHealthReviewActions,
   buildAutonomyHealthReview,
@@ -125,7 +127,43 @@ describe("autonomy health review actions", () => {
     expect(task).toContain("runtime");
     expect(task).toContain(".kota/runs/builder-1/metadata.json");
     expect(task).toContain(".kota/runs/builder-2/metadata.json");
+    expect(task).toContain("## Initiative");
     expect(task).toContain("<!-- autonomy-health-dedupe-key: workflow:builder:runtime-warning -->");
+  });
+
+  it("creates a staged task that passes task queue validation", () => {
+    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
+    execFileSync("git", ["config", "user.email", "t@example.com"], {
+      cwd: projectDir,
+    });
+    execFileSync("git", ["config", "user.name", "test"], { cwd: projectDir });
+    execFileSync("git", ["config", "commit.gpgsign", "false"], {
+      cwd: projectDir,
+    });
+
+    const review = buildAutonomyHealthReview({
+      triggerPayload: batchPayload([signal(), signal()]),
+      generatedAt: NOW,
+    });
+
+    applyAutonomyHealthReviewActions({
+      projectDir,
+      runId: "health-review-run",
+      review,
+      nowIso: NOW,
+    });
+
+    const result = validateTaskQueue(projectDir);
+    expect(result.findings.map((finding) => finding.code)).not.toContain(
+      "strategic-task-missing-initiative",
+    );
+    expect(result.findings.map((finding) => finding.code)).not.toContain(
+      "strategic-task-weak-initiative",
+    );
+    expect(result.findings.map((finding) => finding.code)).not.toContain(
+      "task-untracked",
+    );
+    expect(result.errorCount).toBe(0);
   });
 
   it("does not churn a task when duplicate evidence is reviewed again", () => {

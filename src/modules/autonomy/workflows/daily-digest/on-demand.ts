@@ -8,7 +8,7 @@
  */
 
 import { join } from "node:path";
-import { getOwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
+import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { countRepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   aggregateDailyDigest,
@@ -51,10 +51,13 @@ export function computeDigestSnapshot(opts: {
   const statePath = join(opts.projectDir, ".kota", DAILY_DIGEST_STATE_FILENAME);
   const previousState = readDigestState(statePath);
   const currentCounts = readQueueCounts(opts.projectDir);
+  const ownerQuestions = new OwnerQuestionQueue(
+    join(opts.projectDir, ".kota", "owner-questions"),
+  );
   const data = aggregateDailyDigest({
     runsDir,
     projectDir: opts.projectDir,
-    ownerQuestions: getOwnerQuestionQueue(),
+    ownerQuestions,
     windowEndMs,
     previousQueueCounts: previousState?.counts ?? null,
     currentQueueCounts: currentCounts,

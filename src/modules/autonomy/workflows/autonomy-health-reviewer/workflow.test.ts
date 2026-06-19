@@ -3,6 +3,10 @@ import { autonomyHealthSignal } from "#modules/autonomy/health-signal.js";
 import autonomyHealthReviewerWorkflow from "./workflow.js";
 
 describe("autonomy-health-reviewer workflow", () => {
+  it("shares the agent dispatch group because it mutates task files", () => {
+    expect(autonomyHealthReviewerWorkflow.concurrencyGroup).toBe("agent");
+  });
+
   it("reviews health signals and audits persisted runtime evidence on a cadence", () => {
     const critical = autonomyHealthReviewerWorkflow.triggers.find(
       (trigger) =>

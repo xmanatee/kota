@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   existsSync,
@@ -8,6 +9,7 @@ import {
 import { dirname, join, relative } from "node:path";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { serializeFlatFrontMatter } from "#core/util/frontmatter.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { WorkflowBatchFlushPayload } from "#core/workflow/trigger-types.js";
 import {
   type AutonomyHealthActionability,
@@ -409,6 +411,10 @@ function buildTaskBody(group: AutonomyHealthReviewGroup): string {
     "",
     "This Meta repair protects Product and Safety execution by reducing repeated local autonomy failures, blocked operator paths, missing evidence loops, or validation drift before they consume builder capacity or hide user-facing regressions.",
     "",
+    "## Initiative",
+    "",
+    "Autonomy fleet health: repeated local workflow and runtime health patterns should become valid, evidence-backed repair work without destabilizing the active agent loop.",
+    "",
     "## Constraints",
     "",
     "- Do not implement direct auto-repair as part of this task unless a separate owner-approved policy enables it.",
@@ -445,6 +451,19 @@ function serializeTask(group: AutonomyHealthReviewGroup, nowIso: string): string
     task_class: "Meta",
   };
   return serializeFlatFrontMatter(attrs, buildTaskBody(group));
+}
+
+function stageBestEffort(projectDir: string, path: string): void {
+  try {
+    execFileSync("git", ["add", path], {
+      cwd: projectDir,
+      env: withProtectedGitBareRepositoryEnv(),
+      stdio: "ignore",
+    });
+  } catch {
+    // The commit step stages the final path set. Staging here keeps
+    // validate-tasks aligned in live git worktrees.
+  }
 }
 
 function shouldCreateLocalRepairTask(group: AutonomyHealthReviewGroup): boolean {
@@ -491,6 +510,7 @@ function createOrRefreshTask(args: {
       };
     }
     writeFileSync(existing.path, serializeTask(args.group, args.nowIso), "utf-8");
+    stageBestEffort(args.projectDir, existing.path);
     return {
       kind: "refreshed-task",
       taskId,
@@ -502,6 +522,7 @@ function createOrRefreshTask(args: {
   const taskPath = taskPathForId(args.projectDir, "ready", taskId);
   mkdirSync(dirname(taskPath), { recursive: true });
   writeFileSync(taskPath, serializeTask(args.group, args.nowIso), "utf-8");
+  stageBestEffort(args.projectDir, taskPath);
   return {
     kind: "created-task",
     taskId,
