@@ -69,6 +69,18 @@ const MOBILE_CASES_COPY = resolve(
   __dirname,
   "../clients/mobile/src/daemon/conformance/decoders.test-cases.ts",
 );
+const CANONICAL_RECALL_RENDER_FIXTURE = resolve(
+  __dirname,
+  "../clients/conformance/recall-render-fixture.json",
+);
+const SWIFT_RECALL_RENDER_FIXTURE_COPY = resolve(
+  __dirname,
+  "../clients/apple/Tests/KotaSharedTests/recall-render-fixture.json",
+);
+const MOBILE_RECALL_RENDER_FIXTURE_COPY = resolve(
+  __dirname,
+  "../clients/mobile/src/__tests__/__fixtures__/recall-render-fixture.json",
+);
 
 function readJsonTree(path: string): unknown {
   return JSON.parse(readFileSync(path, "utf8"));
@@ -88,6 +100,18 @@ describe("contract fixture cross-client parity", () => {
   it("the mobile embedded fixture parses to the same JSON tree as the canonical file", () => {
     expect(readJsonTree(MOBILE_FIXTURE_COPY)).toEqual(
       readJsonTree(CANONICAL_FIXTURE),
+    );
+  });
+
+  it("the macOS embedded recall render fixture parses to the same JSON tree as the canonical file", () => {
+    expect(readJsonTree(SWIFT_RECALL_RENDER_FIXTURE_COPY)).toEqual(
+      readJsonTree(CANONICAL_RECALL_RENDER_FIXTURE),
+    );
+  });
+
+  it("the mobile embedded recall render fixture parses to the same JSON tree as the canonical file", () => {
+    expect(readJsonTree(MOBILE_RECALL_RENDER_FIXTURE_COPY)).toEqual(
+      readJsonTree(CANONICAL_RECALL_RENDER_FIXTURE),
     );
   });
 

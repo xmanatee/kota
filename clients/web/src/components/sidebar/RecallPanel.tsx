@@ -1,40 +1,15 @@
 import { api } from "@/api/client";
-import type { RecallHit, RecallResult, RecallSource } from "@/api/types";
+import type { RecallResult } from "@/api/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  RECALL_SOURCE_BADGE_VARIANT,
+  describeRecallHit,
+  formatRecallScore,
+} from "@/lib/recall-render";
 import { useMutation } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
-
-const SOURCE_BADGE_VARIANT: Record<
-  RecallSource,
-  "default" | "secondary" | "success" | "warning" | "running"
-> = {
-  knowledge: "default",
-  memory: "secondary",
-  history: "running",
-  tasks: "warning",
-  answer: "success",
-};
-
-function describeHit(hit: RecallHit): string {
-  switch (hit.source) {
-    case "knowledge":
-      return hit.title;
-    case "memory":
-      return hit.preview;
-    case "history":
-      return hit.title;
-    case "tasks":
-      return `[${hit.state}/${hit.priority}] ${hit.title}`;
-    case "answer":
-      return hit.result.ok ? hit.query : `[${hit.result.reason}] ${hit.query}`;
-  }
-}
-
-function formatScore(score: number): string {
-  return score.toFixed(3);
-}
 
 export function RecallPanel() {
   const [draft, setDraft] = useState("");
@@ -99,16 +74,16 @@ function RecallResultView({ result }: { result: RecallResult }) {
           className="flex items-start gap-1.5 text-xs"
         >
           <Badge
-            variant={SOURCE_BADGE_VARIANT[hit.source]}
+            variant={RECALL_SOURCE_BADGE_VARIANT[hit.source]}
             className="h-5 shrink-0 text-[10px]"
           >
             {hit.source}
           </Badge>
           <div className="min-w-0 flex-1">
-            <div className="truncate">{describeHit(hit)}</div>
+            <div className="truncate">{describeRecallHit(hit)}</div>
           </div>
           <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
-            {formatScore(hit.score)}
+            {formatRecallScore(hit.score)}
           </span>
         </div>
       ))}

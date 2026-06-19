@@ -11,11 +11,11 @@ import type { RecallHit } from "./client.js";
 
 const SCORE_PRECISION = 3;
 
-function formatScore(score: number): string {
+export function formatRecallScore(score: number): string {
   return score.toFixed(SCORE_PRECISION);
 }
 
-function describeHit(hit: RecallHit): string {
+export function describeRecallHit(hit: RecallHit): string {
   switch (hit.source) {
     case "knowledge":
       return hit.title;
@@ -26,7 +26,9 @@ function describeHit(hit: RecallHit): string {
     case "tasks":
       return `[${hit.state}/${hit.priority}] ${hit.title}`;
     case "answer": {
-      const badge = hit.result.ok ? `ok(${hit.citationCount})` : hit.result.reason;
+      const badge = hit.result.ok
+        ? `ok(${hit.citationCount})`
+        : hit.result.reason;
       return `[${badge}] ${hit.query}`;
     }
   }
@@ -40,9 +42,9 @@ export function renderRecallHitsPlain(hits: RecallHit[]): string {
   return hits
     .map((hit) => {
       const source = hit.source.padEnd(sourceWidth);
-      const score = formatScore(hit.score).padStart(scoreWidth);
+      const score = formatRecallScore(hit.score).padStart(scoreWidth);
       const id = hit.id.padEnd(idWidth);
-      return `${source}  ${score}  ${id}  ${describeHit(hit)}`;
+      return `${source}  ${score}  ${id}  ${describeRecallHit(hit)}`;
     })
     .join("\n");
 }

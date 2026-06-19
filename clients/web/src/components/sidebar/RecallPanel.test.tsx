@@ -26,7 +26,16 @@ import {
 } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import renderFixtureJson from "../../../../conformance/recall-render-fixture.json";
 import { RecallPanel } from "./RecallPanel";
+
+type RecallRenderFixture = {
+  populated: { result: Extract<RecallResult, { ok: true }> };
+  empty: { result: Extract<RecallResult, { ok: true }> };
+  semanticUnavailable: { result: Extract<RecallResult, { ok: false }> };
+};
+
+const renderFixture = renderFixtureJson as RecallRenderFixture;
 
 function makeWrapper(): {
   Wrapper: ({ children }: { children: ReactNode }) => ReactElement;
@@ -64,45 +73,9 @@ function writeEvidenceFile(fileName: string, body: string): void {
   writeFileSync(join(dir, fileName), body, "utf-8");
 }
 
-const RANKED_HITS: RecallResult = {
-  ok: true,
-  hits: [
-    {
-      source: "knowledge",
-      score: 0.94,
-      id: "k-1",
-      title: "Recall design",
-      preview: "...",
-      updated: "2026-04-26",
-    },
-    {
-      source: "tasks",
-      score: 0.81,
-      id: "task-recall",
-      title: "Add recall seam",
-      state: "doing",
-      priority: "p2",
-      updatedAt: "2026-04-27",
-    },
-    {
-      source: "answer",
-      score: 0.73,
-      id: "ans-1",
-      query: "How does the harness boundary work?",
-      preview: "The harness boundary is a typed protocol; see k-1.",
-      citationCount: 1,
-      createdAt: "2026-05-01T12:00:00.000Z",
-      result: { ok: true },
-    },
-  ],
-};
-
-const EMPTY_HITS: RecallResult = { ok: true, hits: [] };
-
-const UNAVAILABLE: RecallResult = {
-  ok: false,
-  reason: "semantic_unavailable",
-};
+const RANKED_HITS: RecallResult = renderFixture.populated.result;
+const EMPTY_HITS: RecallResult = renderFixture.empty.result;
+const UNAVAILABLE: RecallResult = renderFixture.semanticUnavailable.result;
 
 function submitQuery(query: string): void {
   const input = screen.getByPlaceholderText(/Recall across stores/);
@@ -143,18 +116,30 @@ describe("RecallPanel", () => {
     submitQuery("recall");
 
     await waitFor(() =>
-      expect(screen.getByText("Recall design")).toBeInTheDocument(),
+      expect(
+        screen.getByText("Cross-store recall fan-out"),
+      ).toBeInTheDocument(),
     );
     expect(screen.getByText("knowledge")).toBeInTheDocument();
+    expect(screen.getByText("memory")).toBeInTheDocument();
+    expect(screen.getByText("history")).toBeInTheDocument();
     expect(screen.getByText("tasks")).toBeInTheDocument();
-    expect(screen.getByText("answer")).toBeInTheDocument();
-    expect(screen.getByText("[doing/p2] Add recall seam")).toBeInTheDocument();
+    expect(screen.getAllByText("answer")).toHaveLength(2);
     expect(
-      screen.getByText("How does the harness boundary work?"),
+      screen.getByText("[ready/p2] Wire recall surfaces"),
     ).toBeInTheDocument();
-    expect(screen.getByText("0.940")).toBeInTheDocument();
-    expect(screen.getByText("0.810")).toBeInTheDocument();
-    expect(screen.getByText("0.730")).toBeInTheDocument();
+    expect(
+      screen.getByText("[ok(2)] How does the harness boundary work?"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("[semantic_unavailable] Why did synthesis fail?"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("0.912")).toBeInTheDocument();
+    expect(screen.getByText("0.834")).toBeInTheDocument();
+    expect(screen.getByText("0.712")).toBeInTheDocument();
+    expect(screen.getByText("0.633")).toBeInTheDocument();
+    expect(screen.getByText("0.521")).toBeInTheDocument();
+    expect(screen.getByText("0.409")).toBeInTheDocument();
 
     expect(globalThis.fetch).toHaveBeenCalledWith(
       "/api/recall",
@@ -250,9 +235,9 @@ describe("RecallPanel", () => {
         id: "ranked-hits",
         payload: RANKED_HITS,
         query: "recall",
-        waitForText: "How does the harness boundary work?",
+        waitForText: "[ok(2)] How does the harness boundary work?",
         proves:
-          "RecallPanel rendered ranked hits with knowledge, tasks, and answer source badges plus normalized scores.",
+          "RecallPanel rendered the shared recall render fixture with knowledge, memory, history, tasks, answer-success, and answer-failure rows plus normalized scores.",
       },
       {
         id: "no-hits",

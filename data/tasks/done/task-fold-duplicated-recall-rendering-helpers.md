@@ -1,12 +1,12 @@
 ---
 id: task-fold-duplicated-recall-rendering-helpers
 title: Fold duplicated recall rendering helpers
-status: ready
+status: done
 priority: p2
 area: client
 summary: Fold duplicated recall hit description and score rendering across web, mobile, Apple, and module-owned plain-text surfaces into one durable client-safe contract.
 created_at: 2026-06-18T17:08:06.305Z
-updated_at: 2026-06-19T06:15:53.549Z
+updated_at: 2026-06-19T06:28:06.000Z
 task_class: Product
 ---
 
@@ -86,3 +86,11 @@ Cross-client coherence for operator recall surfaces.
 - A short run artifact under `.kota/runs/<run-id>/` showing the shared
   fixture rendered for Telegram/CLI plain text plus web, mobile, and Apple.
 - Updated recall consolidation note naming this task as closed or superseded.
+
+## Completion Notes
+
+Closed by `clients/conformance/recall-render-fixture.json`, consumed directly
+by module/web tests and by parity-checked mobile and Apple fixture copies.
+The fixture pins the all-source descriptions, score precision, plain-text
+layout, empty result, and `semantic_unavailable` envelope. The prior recall
+consolidation verdict now names this task as the duplicate-rendering closure.

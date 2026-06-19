@@ -22,6 +22,11 @@ corpus contributed by the answer module.
   `RecallProvider` and renders results through `renderRecallHitsPlain`,
   so a per-user agent session can pull cross-store context mid-
   conversation without an explicit `/recall` slash command.
+- The module-owned plain-text render helper is pinned with the cross-client
+  recall render fixture in `clients/conformance/`. Web, mobile, and Apple
+  tests consume the same fixture (or verified embedded copies), so changes to
+  source labels, score precision, or per-source descriptions must update the
+  fixture and every consuming surface together.
 - One per-turn dynamic system-prompt contributor (entry point
   `buildRecallDynamicStateProvider` in `system-prompt.ts`, registered
   through `ctx.registerDynamicStateProvider` during `onLoad`). The block

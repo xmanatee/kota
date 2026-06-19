@@ -1,3 +1,4 @@
+import Foundation
 import XCTest
 @testable import KotaShared
 
@@ -30,6 +31,43 @@ import XCTest
 /// exercised in `DaemonClientTests` against the same `MockURLProtocol`.
 final class RecallViewTests: XCTestCase {
     private let decoder = JSONDecoder()
+
+    private struct RecallRenderFixture: Decodable {
+        let populated: RecallRenderPopulatedFixture
+        let empty: RecallRenderEmptyFixture
+        let semanticUnavailable: RecallRenderUnavailableFixture
+    }
+
+    private struct RecallRenderPopulatedFixture: Decodable {
+        let result: RecallSearchResponse
+        let descriptions: [String: String]
+        let scores: [String: String]
+        let plain: String
+    }
+
+    private struct RecallRenderEmptyFixture: Decodable {
+        let result: RecallSearchResponse
+        let plain: String
+    }
+
+    private struct RecallRenderUnavailableFixture: Decodable {
+        let result: RecallSearchResponse
+    }
+
+    private func loadRecallRenderFixture() throws -> RecallRenderFixture {
+        guard let url = Bundle.module.url(
+            forResource: "recall-render-fixture",
+            withExtension: "json"
+        ) else {
+            throw XCTSkip("recall-render-fixture.json missing from KotaSharedTests resources")
+        }
+        let data = try Data(contentsOf: url)
+        return try decoder.decode(RecallRenderFixture.self, from: data)
+    }
+
+    private func fixtureKey(_ hit: RecallHit) -> String {
+        "\(hit.source):\(hit.id)"
+    }
 
     // MARK: - Populated branch
 
@@ -78,9 +116,8 @@ final class RecallViewTests: XCTestCase {
         XCTAssertEqual(hits.count, 4)
         XCTAssertEqual(hits.map { $0.source }, ["knowledge", "memory", "history", "tasks"])
 
-        // Each arm's `describe` exposes exactly the per-arm title the view
-        // renders; the SwiftUI view reads `hit.describe` so this pins the
-        // contract one-to-one with the helper `renderRecallHitsPlain` reads.
+        // The all-source render fixture covers cross-surface parity; this
+        // focused decode check keeps each store arm's Swift accessor explicit.
         XCTAssertEqual(hits[0].describe, "Cross-store recall fan-out")
         XCTAssertEqual(hits[1].describe, "Note about recall design")
         XCTAssertEqual(hits[2].describe, "Recall design discussion")
@@ -91,13 +128,9 @@ final class RecallViewTests: XCTestCase {
     }
 
     func testRenderRecallHitsPlainMatchesSharedLineShape() {
-        // Mirrors `renderRecallHitsPlain` from src/modules/recall/render.ts:
-        // padEnd source to widest (min 6), score formatted as "%.3f", id
-        // padded to widest (min 2), columns joined by two spaces, per-arm
-        // describe last. Tests source ordering follows the daemon's
-        // `RECALL_SOURCE_ORDER` tie-breaker — view never re-sorts, so the
-        // same payload renders identically across CLI / Telegram / web /
-        // macOS.
+        // The shared recall render fixture pins the broader all-source
+        // contract. This focused case keeps the local line-shape helper easy
+        // to inspect when it fails.
         let hits: [RecallHit] = [
             .knowledge(
                 score: 0.91,
@@ -123,6 +156,32 @@ final class RecallViewTests: XCTestCase {
         XCTAssertEqual(rendered, expected)
     }
 
+    func testRecallRenderFixturePinsAllSourcesAndFailureStates() throws {
+        let fixture = try loadRecallRenderFixture()
+        guard case .success(let hits) = fixture.populated.result else {
+            XCTFail("expected populated success branch")
+            return
+        }
+        XCTAssertEqual(
+            hits.map { $0.source },
+            ["knowledge", "memory", "history", "tasks", "answer", "answer"]
+        )
+        for hit in hits {
+            let key = fixtureKey(hit)
+            XCTAssertEqual(hit.describe, fixture.populated.descriptions[key])
+            XCTAssertEqual(String(format: "%.3f", hit.score), fixture.populated.scores[key])
+        }
+        XCTAssertEqual(renderRecallHitsPlain(hits), fixture.populated.plain)
+
+        guard case .success(let emptyHits) = fixture.empty.result else {
+            XCTFail("expected empty success branch")
+            return
+        }
+        XCTAssertTrue(emptyHits.isEmpty)
+        XCTAssertEqual(renderRecallHitsPlain(emptyHits), fixture.empty.plain)
+        XCTAssertEqual(fixture.semanticUnavailable.result, .semanticUnavailable)
+    }
+
     // MARK: - Empty branch
 
     func testRecallSearchResponseDecodesEmptyHits() throws {
@@ -137,8 +196,8 @@ final class RecallViewTests: XCTestCase {
 
     func testRenderRecallHitsPlainEmptyReturnsEmpty() {
         // The view inspects `hits.isEmpty` itself before falling through to
-        // the row list (so it can show the fixed "No matching hits." copy),
-        // but this mirrors the TS helper's empty contract one-to-one.
+        // the row list so it can show the fixed "No matching hits." copy.
+        // The shared render fixture pins the empty plain-text helper result.
         XCTAssertEqual(renderRecallHitsPlain([]), "")
     }
 
@@ -250,8 +309,8 @@ final class RecallViewTests: XCTestCase {
 
     // MARK: - Answer-source arm
 
-    /// Pins the `RecallAnswerHit` shape mirrored from
-    /// `src/core/server/kota-client.ts`. The success-result variant
+    /// Pins the Swift `RecallAnswerHit` decode against the daemon contract.
+    /// The success-result variant
     /// decodes through every accessor (`source`, `id`, `score`,
     /// `describe`) so the per-arm view rows render identically with the
     /// other four sources.
@@ -279,7 +338,7 @@ final class RecallViewTests: XCTestCase {
         XCTAssertEqual(hit.source, "answer")
         XCTAssertEqual(hit.id, "ans-1")
         XCTAssertEqual(hit.score, 0.49, accuracy: 1e-6)
-        XCTAssertEqual(hit.describe, "How does the harness boundary work?")
+        XCTAssertEqual(hit.describe, "[ok(1)] How does the harness boundary work?")
         if case .answer(_, _, _, _, let citationCount, _, let result) = hit {
             XCTAssertEqual(citationCount, 1)
             XCTAssertEqual(result, .success)

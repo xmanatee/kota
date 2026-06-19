@@ -1,8 +1,36 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
+import recallRenderFixtureJson from './__fixtures__/recall-render-fixture.json';
 import { RecallScreen } from '../screens/RecallScreen';
-import { describeRecallHit, renderRecallHitsPlain } from '../recallRender';
-import type { RecallSearchResponse } from '../types';
+import {
+  describeRecallHit,
+  formatRecallScore,
+  renderRecallHitsPlain,
+} from '../recallRender';
+import type { RecallHit, RecallSearchResponse } from '../types';
+
+type RecallRenderFixture = {
+  populated: {
+    result: Extract<RecallSearchResponse, { ok: true }>;
+    descriptions: Record<string, string>;
+    scores: Record<string, string>;
+    plain: string;
+  };
+  empty: {
+    result: Extract<RecallSearchResponse, { ok: true }>;
+    plain: string;
+  };
+  semanticUnavailable: {
+    result: Extract<RecallSearchResponse, { ok: false }>;
+  };
+};
+
+const recallRenderFixture =
+  recallRenderFixtureJson as RecallRenderFixture;
+
+function hitKey(hit: RecallHit): string {
+  return `${hit.source}:${hit.id}`;
+}
 
 const mockUseDaemon = jest.fn();
 
@@ -115,37 +143,15 @@ describe('RecallScreen', () => {
   });
 
   test('renders populated results across multiple source arms with per-row badges and scores', () => {
-    const result: RecallSearchResponse = {
-      ok: true,
-      hits: [
-        {
-          source: 'knowledge',
-          score: 0.912,
-          id: 'k-1',
-          title: 'Autonomy loop notes',
-          preview: 'cross-store recall seam preview',
-          updated: '2026-04-26T12:00:00.000Z',
-        },
-        {
-          source: 'tasks',
-          score: 0.713,
-          id: 'task-foo',
-          title: 'Wire mobile recall',
-          state: 'ready',
-          priority: 'p2',
-          updatedAt: '2026-04-25T12:00:00.000Z',
-        },
-      ],
-    };
+    const result: RecallSearchResponse = recallRenderFixture.populated.result;
     mockDaemon({ recallQuery: 'autonomy', recallResult: result });
-    const { getByText, queryByText } = render(<RecallScreen />);
-    expect(getByText('2 hits')).toBeTruthy();
-    expect(getByText('knowledge')).toBeTruthy();
-    expect(getByText('tasks')).toBeTruthy();
-    expect(getByText('0.912')).toBeTruthy();
-    expect(getByText('0.713')).toBeTruthy();
-    expect(getByText(describeRecallHit(result.hits[0]))).toBeTruthy();
-    expect(getByText(describeRecallHit(result.hits[1]))).toBeTruthy();
+    const { getAllByText, getByText, queryByText } = render(<RecallScreen />);
+    expect(getByText('6 hits')).toBeTruthy();
+    for (const hit of result.hits) {
+      expect(getAllByText(hit.source).length).toBeGreaterThan(0);
+      expect(getByText(formatRecallScore(hit.score))).toBeTruthy();
+      expect(getByText(describeRecallHit(hit))).toBeTruthy();
+    }
     expect(queryByText('No matching hits.')).toBeNull();
   });
 
@@ -168,7 +174,7 @@ describe('RecallScreen', () => {
   });
 
   test('renders the empty-results body and "no matches" badge when the result is empty', () => {
-    const result: RecallSearchResponse = { ok: true, hits: [] };
+    const result: RecallSearchResponse = recallRenderFixture.empty.result;
     mockDaemon({ recallQuery: 'autonomy', recallResult: result });
     const { getByText } = render(<RecallScreen />);
     expect(getByText('no matches')).toBeTruthy();
@@ -176,10 +182,8 @@ describe('RecallScreen', () => {
   });
 
   test('renders the semantic-unavailable explanation explicitly without degrading silently', () => {
-    const result: RecallSearchResponse = {
-      ok: false,
-      reason: 'semantic_unavailable',
-    };
+    const result: RecallSearchResponse =
+      recallRenderFixture.semanticUnavailable.result;
     mockDaemon({ recallQuery: 'autonomy', recallResult: result });
     const { getByText, queryByText } = render(<RecallScreen />);
     expect(getByText('semantic unavailable')).toBeTruthy();
@@ -222,49 +226,25 @@ describe('RecallScreen', () => {
     expect(recall).toHaveBeenCalledWith('autonomy');
   });
 
-  test('describeRecallHit + renderRecallHitsPlain produce the same line shape as src/modules/recall/render.ts', () => {
-    const result: RecallSearchResponse = {
-      ok: true,
-      hits: [
-        {
-          source: 'knowledge',
-          score: 0.912,
-          id: 'k-1',
-          title: 'Autonomy loop notes',
-          preview: 'cross-store recall seam preview',
-          updated: '2026-04-26T12:00:00.000Z',
-        },
-        {
-          source: 'memory',
-          score: 0.834,
-          id: 'm-1',
-          preview: 'remembers the recall fan-out cadence',
-          created: '2026-04-25T18:30:00.000Z',
-        },
-        {
-          source: 'history',
-          score: 0.712,
-          id: 'c-1',
-          title: 'Autonomy loop debug',
-          cwd: '/Users/x/proj',
-          updatedAt: '2026-04-25T12:00:00.000Z',
-        },
-        {
-          source: 'tasks',
-          score: 0.633,
-          id: 'task-foo',
-          title: 'Wire mobile recall',
-          state: 'ready',
-          priority: 'p2',
-          updatedAt: '2026-04-24T12:00:00.000Z',
-        },
-      ],
-    };
+  test('describeRecallHit + renderRecallHitsPlain consume the shared golden render fixture', () => {
+    const result = recallRenderFixture.populated.result;
+    for (const hit of result.hits) {
+      expect(describeRecallHit(hit)).toBe(
+        recallRenderFixture.populated.descriptions[hitKey(hit)],
+      );
+      expect(formatRecallScore(hit.score)).toBe(
+        recallRenderFixture.populated.scores[hitKey(hit)],
+      );
+    }
     expect(renderRecallHitsPlain(result.hits)).toBe(
-      'knowledge  0.912  k-1       Autonomy loop notes\n' +
-        'memory     0.834  m-1       remembers the recall fan-out cadence\n' +
-        'history    0.712  c-1       Autonomy loop debug\n' +
-        'tasks      0.633  task-foo  [ready/p2] Wire mobile recall',
+      recallRenderFixture.populated.plain,
     );
+    expect(renderRecallHitsPlain(recallRenderFixture.empty.result.hits)).toBe(
+      recallRenderFixture.empty.plain,
+    );
+    expect(recallRenderFixture.semanticUnavailable.result).toEqual({
+      ok: false,
+      reason: 'semantic_unavailable',
+    });
   });
 });

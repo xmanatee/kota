@@ -48,6 +48,7 @@ let package = Package(
             path: "Tests/KotaSharedTests",
             resources: [
                 .copy("contract-fixture.json"),
+                .copy("recall-render-fixture.json"),
                 .copy("RecallEmptyStateSnapshot.txt"),
             ]
         ),

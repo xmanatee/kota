@@ -25,6 +25,11 @@ rather than accidentally lax.
 - The macOS suite consumes a `Bundle.module` resource copy declared in
   the Swift package manifest; the same cross-client guard asserts the
   copy parses to the same JSON tree as the canonical file.
+- `recall-render-fixture.json` is the golden cross-surface render contract for
+  recall hits: per-source description text, normalized score precision, the
+  module-owned plain-text layout, empty results, and the
+  `semantic_unavailable` envelope. Web imports it directly; mobile and Apple
+  consume embedded copies that the cross-client guard compares to this file.
 
 ## Adding a new surface
 

@@ -1,21 +1,10 @@
-import type {
-  AnswerCitation,
-  AnswerResult,
-  RecallHit,
-  RecallSource,
-} from "@/api/types";
+import type { AnswerCitation, AnswerResult, RecallHit } from "@/api/types";
 import { Badge } from "@/components/ui/badge";
-
-const SOURCE_BADGE_VARIANT: Record<
-  RecallSource,
-  "default" | "secondary" | "success" | "warning" | "running"
-> = {
-  knowledge: "default",
-  memory: "secondary",
-  history: "running",
-  tasks: "warning",
-  answer: "success",
-};
+import {
+  RECALL_SOURCE_BADGE_VARIANT,
+  describeRecallHit,
+  formatRecallScore,
+} from "@/lib/recall-render";
 
 export const ANSWER_FAILURE_MESSAGE: Record<
   Extract<AnswerResult, { ok: false }>["reason"],
@@ -26,25 +15,6 @@ export const ANSWER_FAILURE_MESSAGE: Record<
     "Answer unavailable — no recall contributors registered.",
   synthesis_failed: "Could not compose a cited answer for this question.",
 };
-
-function describeHit(hit: RecallHit): string {
-  switch (hit.source) {
-    case "knowledge":
-      return hit.title;
-    case "memory":
-      return hit.preview;
-    case "history":
-      return hit.title;
-    case "tasks":
-      return `[${hit.state}/${hit.priority}] ${hit.title}`;
-    case "answer":
-      return hit.result.ok ? hit.query : `[${hit.result.reason}] ${hit.query}`;
-  }
-}
-
-function formatScore(score: number): string {
-  return score.toFixed(3);
-}
 
 function findHit(hits: RecallHit[], citation: AnswerCitation): RecallHit {
   let match: RecallHit | undefined;
@@ -116,7 +86,7 @@ function CitationRow({
   return (
     <div className="flex items-start gap-1.5 text-xs">
       <Badge
-        variant={SOURCE_BADGE_VARIANT[citation.source]}
+        variant={RECALL_SOURCE_BADGE_VARIANT[citation.source]}
         className="h-5 shrink-0 text-[10px]"
       >
         {citation.source}
@@ -125,10 +95,10 @@ function CitationRow({
         <div className="truncate font-mono text-[10px] text-muted-foreground">
           {citation.id}
         </div>
-        <div className="truncate">{describeHit(hit)}</div>
+        <div className="truncate">{describeRecallHit(hit)}</div>
       </div>
       <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
-        {formatScore(hit.score)}
+        {formatRecallScore(hit.score)}
       </span>
     </div>
   );

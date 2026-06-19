@@ -22,17 +22,15 @@ export const RECALL_SOURCE_TINT: Record<
   answer: { bg: 'rgba(255, 45, 85, 0.15)', fg: '#a8002b' },
 };
 
-function formatScore(score: number): string {
+export function formatRecallScore(score: number): string {
   return score.toFixed(SCORE_PRECISION);
 }
 
 /**
- * Per-source title/preview derivation, mirrored one-to-one from
- * `src/modules/recall/render.ts:18-29` and the macOS
- * `RecallHit.describe` computed property. Keeping the per-arm describe
- * shape canonical means the per-row body in `RecallScreen`, the macOS
- * row body, and the plain-text helper all read off the same field
- * mapping — no third describe shape on the mobile side.
+ * Per-source title/preview derivation pinned by
+ * `clients/conformance/recall-render-fixture.json` and its mobile copy.
+ * `RecallScreen`, answer citations, and the plain-text helper all read
+ * through this function so drift fails in one contract test.
  */
 export function describeRecallHit(hit: RecallHit): string {
   switch (hit.source) {
@@ -45,22 +43,16 @@ export function describeRecallHit(hit: RecallHit): string {
     case 'tasks':
       return `[${hit.state}/${hit.priority}] ${hit.title}`;
     case 'answer':
-      return hit.result.ok
-        ? hit.query
-        : `[${hit.result.reason}] ${hit.query}`;
+      return `[${
+        hit.result.ok ? `ok(${hit.citationCount})` : hit.result.reason
+      }] ${hit.query}`;
   }
 }
 
 /**
- * Mirror of `renderRecallHitsPlain` exported from
- * `src/modules/recall/render.ts:31-44`: source padded to the widest
- * source (min width 6), score right-padded to width 5 (`0.xxx`), id
- * padded to the widest id (min width 2), columns joined by two spaces,
- * with the per-source describe last. An empty result returns the empty
- * string. Sharing the line shape keeps the mobile body identical to the
- * `kota recall` CLI, the Telegram `/recall` body, and the macOS
- * `renderRecallHitsPlain` line shape — six operator pull-surfaces, one
- * rendered line shape.
+ * Plain-text line shape pinned by the shared recall render fixture:
+ * padded source, score, id, and the per-source description. An empty
+ * result returns the empty string.
  */
 export function renderRecallHitsPlain(hits: RecallHit[]): string {
   if (hits.length === 0) return '';
@@ -70,7 +62,7 @@ export function renderRecallHitsPlain(hits: RecallHit[]): string {
   return hits
     .map((hit) => {
       const source = hit.source.padEnd(sourceWidth);
-      const score = formatScore(hit.score).padStart(scoreWidth);
+      const score = formatRecallScore(hit.score).padStart(scoreWidth);
       const id = hit.id.padEnd(idWidth);
       return `${source}  ${score}  ${id}  ${describeRecallHit(hit)}`;
     })

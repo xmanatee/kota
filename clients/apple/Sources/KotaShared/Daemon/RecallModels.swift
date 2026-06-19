@@ -167,18 +167,17 @@ enum RecallHit: Decodable, Equatable {
         case .memory(_, _, let preview, _): return preview
         case .history(_, _, let title, _, _): return title
         case .tasks(_, _, let title, let state, let priority, _): return "[\(state)/\(priority)] \(title)"
-        case .answer(_, _, let query, _, _, _, let result):
+        case .answer(_, _, let query, _, let citationCount, _, let result):
             switch result {
-            case .success: return query
+            case .success: return "[ok(\(citationCount))] \(query)"
             case .failure(let reason): return "[\(reason)] \(query)"
             }
         }
     }
 }
 
-/// Renders cross-store recall hits one-to-one with the shared
-/// `renderRecallHitsPlain` helper exported by
-/// `src/modules/recall/render.ts`. An empty result returns the empty
+/// Renders cross-store recall hits using the line shape pinned by the
+/// shared recall render fixture. An empty result returns the empty
 /// string.
 func renderRecallHitsPlain(_ hits: [RecallHit]) -> String {
     if hits.isEmpty { return "" }

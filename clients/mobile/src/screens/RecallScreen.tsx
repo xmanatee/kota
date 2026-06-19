@@ -10,7 +10,11 @@ import {
   View,
 } from 'react-native';
 import { useDaemon } from '../context/DaemonContext';
-import { describeRecallHit, RECALL_SOURCE_TINT } from '../recallRender';
+import {
+  describeRecallHit,
+  formatRecallScore,
+  RECALL_SOURCE_TINT,
+} from '../recallRender';
 import type { RecallHit } from '../types';
 
 const SEMANTIC_UNAVAILABLE_TEXT =
@@ -179,7 +183,7 @@ function RecallHitRow({ hit }: { hit: RecallHit }) {
           {hit.source}
         </Text>
       </View>
-      <Text style={styles.score}>{hit.score.toFixed(3)}</Text>
+      <Text style={styles.score}>{formatRecallScore(hit.score)}</Text>
       <Text style={styles.hitDescribe} numberOfLines={2}>
         {describeRecallHit(hit)}
       </Text>
