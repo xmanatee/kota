@@ -108,7 +108,7 @@ describe("improver evidence gate", () => {
     expect(decision.latestActionableRunAt).toBe("2026-04-21T02:30:00.000Z");
   });
 
-  it("runs when new systemic health issue evidence appears", () => {
+  it("runs when new systemic local-code health issue evidence appears", () => {
     const healthEvidence = {
       generatedAt: "2026-06-17T12:31:00.000Z",
       latestHealthReviewAt: "2026-06-17T12:30:00.000Z",
@@ -137,6 +137,40 @@ describe("improver evidence gate", () => {
     expect(decision.shouldRun).toBe(true);
     expect(decision.reason).toBe("new systemic health signal evidence");
     expect(decision.latestHealthReviewAt).toBe("2026-06-17T12:30:00.000Z");
+  });
+
+  it("skips owner-action-only health issue evidence", () => {
+    const healthEvidence = {
+      generatedAt: "2026-06-19T07:56:02.532Z",
+      latestHealthReviewAt: "2026-06-19T07:32:57.137Z",
+      issueCards: [
+        {
+          reviewedAt: "2026-06-19T07:32:57.137Z",
+          dedupeKey: "workflow:improver:interrupted-run:harness-abort",
+          severity: "warning" as const,
+          labels: ["harness-abort", "interrupted-run", "operator-action"],
+          actionability: "owner-action" as const,
+          signalCount: 1,
+          summaries: [
+            "improver has recent interrupted runs caused by agent harness aborts.",
+          ],
+          evidenceRefs: [],
+          createdTaskIds: [],
+          ownerQuestionIds: ["4d727b42"],
+        },
+      ],
+    };
+
+    const decision = decideImproverEvidenceGate(
+      emptyAggregation(),
+      null,
+      healthEvidence,
+    );
+
+    expect(decision).toEqual({
+      shouldRun: false,
+      reason: "no recent actionable run or health signal evidence",
+    });
   });
 
   it("skips repeated health issue evidence after the last improver pass", () => {

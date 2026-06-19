@@ -21,7 +21,42 @@ describe("autonomy health issue cards", () => {
     rmSync(runsDir, { recursive: true, force: true });
   });
 
-  it("whitelists compact health issue cards from recent review artifacts", () => {
+  it("whitelists compact health issue cards from the latest review artifact", () => {
+    mkdirSync(join(runsDir, "review-0"), { recursive: true });
+    writeFileSync(
+      join(runsDir, "review-0", "autonomy-health-review.json"),
+      JSON.stringify(
+        {
+          generatedAt: "2026-06-17T12:00:00.000Z",
+          review: {
+            groups: [
+              {
+                dedupeKey: "workflow:improver:interrupted-run",
+                labels: ["local-code", "runtime"],
+                severity: "error",
+                actionability: "local-code",
+                signalCount: 3,
+                summaries: ["Stale local-code health card."],
+                evidenceRefs: [
+                  {
+                    kind: "run",
+                    ref: ".kota/runs/improver-stale/metadata.json",
+                  },
+                ],
+              },
+            ],
+          },
+          actions: {
+            createdTaskIds: ["task-health-workflow-improver-interrupted-run"],
+            ownerQuestionIds: [],
+            applied: [],
+          },
+        },
+        null,
+        2,
+      ),
+      "utf-8",
+    );
     writeFileSync(
       join(runsDir, "review-1", "autonomy-health-review.json"),
       JSON.stringify(
@@ -73,6 +108,13 @@ describe("autonomy health issue cards", () => {
         createdTaskIds: ["task-health-workflow-builder-runtime-warning"],
       }),
     ]);
+    expect(evidence.issueCards).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          dedupeKey: "workflow:improver:interrupted-run",
+        }),
+      ]),
+    );
     expect(JSON.stringify(evidence)).not.toContain("SECRET");
     expect(JSON.stringify(evidence)).not.toContain("costRanking");
   });

@@ -52,6 +52,15 @@ function discardInvalidEvidenceGateState(path: string): null {
   return null;
 }
 
+function hasLocalCodeHealthIssue(
+  healthEvidence: AutonomyHealthIssueEvidence | undefined,
+): boolean {
+  return (
+    healthEvidence?.issueCards.some((card) => card.actionability === "local-code") ??
+    false
+  );
+}
+
 export function readImproverEvidenceGateState(
   projectDir: string,
 ): EvidenceGateState | null {
@@ -79,7 +88,7 @@ export function decideImproverEvidenceGate(
 ): ImproverEvidenceGateDecision {
   const { latestActionableRunAt } = aggregation;
   const latestHealthReviewAt =
-    healthEvidence && healthEvidence.issueCards.length > 0
+    healthEvidence && hasLocalCodeHealthIssue(healthEvidence)
       ? healthEvidence.latestHealthReviewAt
       : null;
   if (latestActionableRunAt === null && latestHealthReviewAt === null) {

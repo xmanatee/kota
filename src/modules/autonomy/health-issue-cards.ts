@@ -35,6 +35,13 @@ type RawReviewArtifact = {
   actions?: AutonomyHealthJsonValue;
 };
 
+type ReviewArtifactEntry = {
+  generatedAt: string;
+  groups: AutonomyHealthJsonValue[];
+  createdTaskIds: string[];
+  ownerQuestionIds: string[];
+};
+
 const DEFAULT_CARD_LIMIT = 12;
 const MAX_SUMMARIES_PER_CARD = 3;
 const MAX_EVIDENCE_REFS_PER_CARD = 5;
@@ -151,8 +158,7 @@ export function collectRecentAutonomyHealthIssueCards(
     return { generatedAt, latestHealthReviewAt: null, issueCards: [] };
   }
 
-  const cardsByDedupe = new Map<string, AutonomyHealthIssueCard>();
-  const reviewTimes: string[] = [];
+  const reviewArtifacts: ReviewArtifactEntry[] = [];
   for (const entry of readdirSync(runsDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const artifactPath = join(runsDir, entry.name, AUTONOMY_HEALTH_REVIEW_ARTIFACT);
@@ -164,23 +170,37 @@ export function collectRecentAutonomyHealthIssueCards(
       : undefined;
     const groups = review?.groups;
     if (!Array.isArray(groups)) continue;
-    reviewTimes.push(artifact.generatedAt);
     const actions = isAutonomyHealthJsonObject(artifact.actions)
       ? artifact.actions
       : undefined;
-    const createdTaskIds = stringArray(actions?.createdTaskIds);
-    const ownerQuestionIds = stringArray(actions?.ownerQuestionIds);
-    for (const group of groups) {
-      const card = cardFromGroup({
-        group,
-        reviewedAt: artifact.generatedAt,
-        createdTaskIds,
-        ownerQuestionIds,
-      });
-      if (!card) continue;
-      const existing = cardsByDedupe.get(card.dedupeKey);
-      if (existing && existing.reviewedAt >= card.reviewedAt) continue;
-      cardsByDedupe.set(card.dedupeKey, card);
+    reviewArtifacts.push({
+      generatedAt: artifact.generatedAt,
+      groups,
+      createdTaskIds: stringArray(actions?.createdTaskIds),
+      ownerQuestionIds: stringArray(actions?.ownerQuestionIds),
+    });
+  }
+
+  const latestHealthReviewAt =
+    reviewArtifacts.length > 0
+      ? reviewArtifacts.map((entry) => entry.generatedAt).sort(compareIsoDesc)[0]!
+      : null;
+  const cardsByDedupe = new Map<string, AutonomyHealthIssueCard>();
+  if (latestHealthReviewAt) {
+    for (const artifact of reviewArtifacts) {
+      if (artifact.generatedAt !== latestHealthReviewAt) continue;
+      for (const group of artifact.groups) {
+        const card = cardFromGroup({
+          group,
+          reviewedAt: artifact.generatedAt,
+          createdTaskIds: artifact.createdTaskIds,
+          ownerQuestionIds: artifact.ownerQuestionIds,
+        });
+        if (!card) continue;
+        const existing = cardsByDedupe.get(card.dedupeKey);
+        if (existing && existing.reviewedAt >= card.reviewedAt) continue;
+        cardsByDedupe.set(card.dedupeKey, card);
+      }
     }
   }
 
@@ -188,7 +208,5 @@ export function collectRecentAutonomyHealthIssueCards(
   const issueCards = [...cardsByDedupe.values()]
     .sort((a, b) => compareIsoDesc(a.reviewedAt, b.reviewedAt))
     .slice(0, limit);
-  const latestHealthReviewAt =
-    reviewTimes.length > 0 ? reviewTimes.sort(compareIsoDesc)[0]! : null;
   return { generatedAt, latestHealthReviewAt, issueCards };
 }
