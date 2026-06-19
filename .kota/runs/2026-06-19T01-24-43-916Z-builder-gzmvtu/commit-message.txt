@@ -1,0 +1,5 @@
+Resolve autonomy health/security DLQs
+
+- make code-only explicit agent-group workflows exclusive against active agent workflows
+- dismiss cited health-reviewer and security-review DLQs with preserved diagnostics
+- mark task-resolve-open-health-reviewer-and-security-review-d done

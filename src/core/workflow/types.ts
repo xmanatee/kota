@@ -40,6 +40,11 @@ export type WorkflowDefinitionInput = {
    * run at most one at a time. Omit to use type-based defaults: agent-step
    * workflows use the default "agent" group (agentConcurrency cap), code-only
    * workflows use the "code" group (codeConcurrency cap).
+   *
+   * A code-only workflow may explicitly set `concurrencyGroup: "agent"` when
+   * it mutates tracked workflow/task state that agent write-scope snapshots
+   * would otherwise misattribute. That explicit code-only "agent" group is an
+   * exclusive slot: it waits for active agent workflows and blocks new ones.
    */
   concurrencyGroup?: string;
   /**
@@ -117,7 +122,8 @@ export type WorkflowDefinition = {
   defaultAutonomyMode?: AutonomyMode;
   /**
    * Named concurrency group. Workflows in the same named group run at most one
-   * at a time. Omit to use type-based defaults ("agent" or "code").
+   * at a time, except the reserved "agent" and "code" groups. Omit to use
+   * type-based defaults ("agent" or "code").
    */
   concurrencyGroup?: string;
   /** Optional JSON Schema for validating trigger payloads at enqueue time. */

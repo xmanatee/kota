@@ -1,0 +1,4 @@
+1. The root cause for the two cited workflow-dispatch DLQs is identified from the cited dead-letter and run evidence.
+2. The local workflow/runtime behavior is repaired or explicitly shown safe so security-review agent write-scope checks do not blame `investigate-candidates` for concurrent task-file creation.
+3. Both cited DLQ items are resolved from open state with before/after evidence or a redrive artifact in this run directory.
+4. The task file records acceptance evidence, and `pnpm run validate-tasks` passes after the task reaches its final state.

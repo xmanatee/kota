@@ -1,0 +1,57 @@
+{
+  "item": {
+    "id": "dlq-3dee14c8-48ca-4e91-bcd9-f8e93ec5ff17",
+    "type": "workflow-dispatch",
+    "status": "dismissed",
+    "scopeId": "8nrg1m",
+    "projectId": "8nrg1m",
+    "owningModule": "workflow-runtime",
+    "sourceEventIds": [],
+    "affectedWorkflowNames": [
+      "autonomy-health-reviewer"
+    ],
+    "failure": {
+      "reason": "\n> kota@0.1.0 validate-tasks /Users/xmanatee/Desktop/mono/apps/kota\n> node --conditions=source --import tsx src/validate-queue.ts\n\n ELIFECYCLE  Command failed with exit code 1.\n\n- [strategic-task-missing-initiative] /Users/xmanatee/Desktop/mono/apps/kota/data/tasks/ready/task-health-workflow-improver-interrupted-run.md is p2 open work but is missing required section: ## Initiative. Strategic work must name the larger outcome so it does not become an isolated tiny task.\n- [strategic-task-weak-initiative] /Users/xmanatee/Desktop/mono/apps/kota/data/tasks/ready/task-health-workflow-improver-interrupted-run.md needs a substantive ## Initiative section that names the broader outcome/campaign.\n- [task-untracked] Task files must be tracked before a run finishes: data/tasks/ready/task-health-workflow-improver-interrupted-run.md. Fix: run `git add data/tasks/ready/task-health-workflow-improver-interrupted-run.md`\n",
+      "retryCount": 1,
+      "lastErrorClass": "execution",
+      "firstFailedAt": "2026-06-19T00:59:55.927Z",
+      "lastFailedAt": "2026-06-19T00:59:55.927Z"
+    },
+    "source": {
+      "kind": "workflow-dispatch",
+      "workflowName": "autonomy-health-reviewer",
+      "triggerEvent": "schedule",
+      "triggerSchemaRef": null,
+      "failedRunId": "2026-06-19T00-59-54-583Z-autonomy-health-reviewer-rigs08",
+      "runDir": ".kota/runs/2026-06-19T00-59-54-583Z-autonomy-health-reviewer-rigs08"
+    },
+    "redrive": {
+      "kind": "workflow",
+      "workflowName": "autonomy-health-reviewer",
+      "source": {
+        "kind": "run-trigger",
+        "runId": "2026-06-19T00-59-54-583Z-autonomy-health-reviewer-rigs08"
+      }
+    },
+    "redactedProjection": {
+      "workflowName": "autonomy-health-reviewer",
+      "triggerEvent": "schedule",
+      "triggerSchemaRef": null,
+      "triggerPayload": {
+        "scheduledAt": "2026-06-19T00:59:54.583Z"
+      }
+    },
+    "createdAt": "2026-06-19T00:59:55.927Z",
+    "updatedAt": "2026-06-19T01:32:57.964Z",
+    "redriveAttempts": [],
+    "retention": {
+      "kind": "expire-after-ms",
+      "durationMs": 1209600000,
+      "expiresAt": "2026-07-03T01:32:57.964Z"
+    },
+    "dismissedAt": "2026-06-19T01:32:57.964Z",
+    "dismissalReason": "Superseded after task-health-workflow-improver-interrupted-run was repaired into a tracked valid task with Initiative; redriving the stale scheduled health audit would duplicate task creation rather than prove a remaining failure."
+  },
+  "exportedAt": "2026-06-19T01:33:07.085Z",
+  "storePath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/dead-letter-queue/items.json"
+}

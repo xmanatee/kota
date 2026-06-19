@@ -1,0 +1,184 @@
+{
+  "item": {
+    "id": "dlq-36859e8d-b4d9-474d-a4e6-66593913c382",
+    "type": "workflow-dispatch",
+    "status": "open",
+    "scopeId": "8nrg1m",
+    "projectId": "8nrg1m",
+    "owningModule": "workflow-runtime",
+    "sourceEventIds": [
+      "evtj-000000038843"
+    ],
+    "affectedWorkflowNames": [
+      "security-review"
+    ],
+    "failure": {
+      "reason": "Agent step \"investigate-candidates\" (security-reviewer) wrote tracked files outside its declared writeScope [.kota/runs/]: data/tasks/ready/task-health-workflow-improver-interrupted-run.md",
+      "retryCount": 2,
+      "lastErrorClass": "execution",
+      "firstFailedAt": "2026-06-19T01:04:56.996Z",
+      "lastFailedAt": "2026-06-19T01:04:56.996Z"
+    },
+    "source": {
+      "kind": "workflow-dispatch",
+      "workflowName": "security-review",
+      "triggerEvent": "autonomy.security-review.due",
+      "triggerSchemaRef": null,
+      "failedRunId": "2026-06-19T00-24-17-624Z-security-review-zyh0fn",
+      "runDir": ".kota/runs/2026-06-19T00-24-17-624Z-security-review-zyh0fn"
+    },
+    "redrive": {
+      "kind": "workflow",
+      "workflowName": "security-review",
+      "source": {
+        "kind": "run-trigger",
+        "runId": "2026-06-19T00-24-17-624Z-security-review-zyh0fn"
+      }
+    },
+    "redactedProjection": {
+      "workflowName": "security-review",
+      "triggerEvent": "autonomy.security-review.due",
+      "triggerSchemaRef": null,
+      "triggerPayload": {
+        "due": true,
+        "reason": "high-risk-security-sensitive-change",
+        "currentHead": {
+          "kind": "commit",
+          "sha": "d23c493eabf0914e71f3280de36fbcdffd7e5c20"
+        },
+        "lastReview": {
+          "kind": "found",
+          "runId": "2026-06-18T22-10-55-281Z-security-review-amqqnw",
+          "runDir": ".kota/runs/2026-06-18T22-10-55-281Z-security-review-amqqnw",
+          "workflow": "security-review",
+          "outcome": "confirmed-findings",
+          "completedAt": {
+            "kind": "timestamp",
+            "value": "2026-06-18T23:00:24.899Z",
+            "epochMs": 1781823624899
+          },
+          "head": {
+            "kind": "commit",
+            "sha": "185466078750a2fb434cbe7229725b3275336e00"
+          }
+        },
+        "comparison": {
+          "kind": "commit-range",
+          "baseSha": "185466078750a2fb434cbe7229725b3275336e00",
+          "headSha": "d23c493eabf0914e71f3280de36fbcdffd7e5c20"
+        },
+        "changedSurfaces": [
+          {
+            "surface": "auth-approval-boundary",
+            "paths": [
+              "data/tasks/done/task-security-review-the-approval-cli-strips-ansic0c1-t.md",
+              "src/core/server/daemon-client-test-stubs.ts",
+              "src/core/server/daemon-client.test.ts",
+              "src/modules/approval-queue/cli.test.ts",
+              "src/modules/approval-queue/cli.ts",
+              "src/modules/cli/index.ts",
+              "src/modules/cli/navigator.test.ts",
+              "src/modules/daemon-ops/index.ts",
+              "src/modules/daemon-ops/operator-ui-builders.ts"
+            ]
+          },
+          {
+            "surface": "daemon-control-route",
+            "paths": [
+              "src/cli.test.ts",
+              "src/core/server/daemon-client.test.ts",
+              "src/modules/cli/navigator.test.ts",
+              "src/modules/daemon-ops/client.ts",
+              "src/modules/daemon-ops/index.test.ts",
+              "src/modules/daemon-ops/index.ts",
+              "src/modules/daemon-ops/operator-ui-actions.ts",
+              "src/modules/daemon-ops/operator-ui-builders.ts",
+              "src/modules/daemon-ops/operator-ui.ts"
+            ]
+          },
+          {
+            "surface": "external-fetch",
+            "paths": [
+              "src/core/server/daemon-client.test.ts"
+            ]
+          },
+          {
+            "surface": "mcp-transport",
+            "paths": [
+              "src/cli.ts",
+              "src/core/server/daemon-client-test-stubs.ts",
+              "src/modules/daemon-ops/index.ts",
+              "src/modules/daemon-ops/operator-ui-builders.ts"
+            ]
+          },
+          {
+            "surface": "[redacted]",
+            "paths": [
+              "data/tasks/done/task-security-review-the-approval-cli-strips-ansic0c1-t.md",
+              "data/tasks/ready/task-add-general-runtime-issue-recovery-loop.md",
+              "src/cli.test.ts",
+              "src/cli.ts",
+              "src/core/server/daemon-client-test-stubs.ts",
+              "src/core/server/daemon-client.test.ts",
+              "src/modules/approval-queue/cli.test.ts",
+              "src/modules/cli/navigator.test.ts",
+              "src/modules/daemon-ops/index.ts",
+              "src/modules/daemon-ops/operator-ui-builders.ts"
+            ]
+          },
+          {
+            "surface": "task-workflow-mutation",
+            "paths": [
+              "data/tasks/done/task-make-bare-kota-launch-the-full-daemon-backed-cli-c.md",
+              "data/tasks/done/task-security-review-the-approval-cli-strips-ansic0c1-t.md",
+              "data/tasks/ready/task-add-general-runtime-issue-recovery-loop.md",
+              "src/cli.test.ts",
+              "src/modules/approval-queue/cli.test.ts",
+              "src/modules/cli/navigator.test.ts",
+              "src/modules/daemon-ops/index.ts",
+              "src/modules/daemon-ops/operator-ui-actions.ts",
+              "src/modules/daemon-ops/operator-ui-builders.ts"
+            ]
+          },
+          {
+            "surface": "tool-execution",
+            "paths": [
+              "src/cli.test.ts",
+              "src/modules/daemon-ops/index.ts"
+            ]
+          }
+        ],
+        "changedPathCount": 23,
+        "highRiskChangedPaths": [
+          "src/cli.ts",
+          "src/core/server/daemon-client-test-stubs.ts",
+          "src/modules/approval-queue/cli.ts",
+          "src/modules/cli/index.ts",
+          "src/modules/daemon-ops/client.ts",
+          "src/modules/daemon-ops/index.ts",
+          "src/modules/daemon-ops/operator-ui-actions.ts",
+          "src/modules/daemon-ops/operator-ui-builders.ts",
+          "src/modules/daemon-ops/operator-ui.ts"
+        ],
+        "openSecurityTasks": [],
+        "cooldownMs": 3600000,
+        "cooldown": {
+          "elapsedMs": 5032403,
+          "remainingMs": 0
+        },
+        "scopeId": "8nrg1m",
+        "projectId": "8nrg1m"
+      }
+    },
+    "createdAt": "2026-06-19T01:04:56.996Z",
+    "updatedAt": "2026-06-19T01:04:56.996Z",
+    "redriveAttempts": [],
+    "retention": {
+      "kind": "expire-after-ms",
+      "durationMs": 2592000000,
+      "expiresAt": "2026-07-19T01:04:56.996Z"
+    }
+  },
+  "exportedAt": "2026-06-19T01:32:43.830Z",
+  "storePath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/dead-letter-queue/items.json"
+}

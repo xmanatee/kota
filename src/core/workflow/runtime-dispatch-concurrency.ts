@@ -4,12 +4,21 @@ import type { WorkflowDefinition } from "./types.js";
 
 /**
  * Returns the concurrency group for a workflow definition.
- * Named groups serialize within themselves (cap 1).
- * Unnamed workflows fall into "agent" or "code" based on step types.
+ * Named groups serialize within themselves (cap 1), except the reserved
+ * "agent" and "code" groups. Unnamed workflows fall into "agent" or "code"
+ * based on step types.
  */
 function getConcurrencyGroup(definition: WorkflowDefinition): string {
   if (definition.concurrencyGroup) return definition.concurrencyGroup;
   return workflowUsesAgent(definition) ? "agent" : "code";
+}
+
+function usesAgentGroup(definition: WorkflowDefinition): boolean {
+  return getConcurrencyGroup(definition) === "agent";
+}
+
+function requiresExclusiveAgentSlot(definition: WorkflowDefinition): boolean {
+  return definition.concurrencyGroup === "agent" && !workflowUsesAgent(definition);
 }
 
 function activeCountForGroup(state: WorkflowRuntimeDispatchState, group: string): number {
@@ -21,13 +30,36 @@ function activeCountForGroup(state: WorkflowRuntimeDispatchState, group: string)
   return count;
 }
 
+function activeAgentWorkflowCount(state: WorkflowRuntimeDispatchState): number {
+  let count = 0;
+  for (const workflowName of state.activeRuns.keys()) {
+    const def = state.definitions.find((d) => d.name === workflowName);
+    if (def && (usesAgentGroup(def) || workflowUsesAgent(def))) count++;
+  }
+  return count;
+}
+
+function hasActiveExclusiveAgentSlot(state: WorkflowRuntimeDispatchState): boolean {
+  for (const workflowName of state.activeRuns.keys()) {
+    const def = state.definitions.find((d) => d.name === workflowName);
+    if (def && requiresExclusiveAgentSlot(def)) return true;
+  }
+  return false;
+}
+
 export function canDispatchDefinition(
   state: WorkflowRuntimeDispatchState,
   definition: WorkflowDefinition,
 ): boolean {
   const group = getConcurrencyGroup(definition);
   let limit: number;
+  if (workflowUsesAgent(definition) && hasActiveExclusiveAgentSlot(state)) {
+    return false;
+  }
   if (group === "agent") {
+    if (requiresExclusiveAgentSlot(definition)) {
+      return activeAgentWorkflowCount(state) === 0;
+    }
     limit = state.agentConcurrency;
   } else if (group === "code") {
     limit = state.codeConcurrency;

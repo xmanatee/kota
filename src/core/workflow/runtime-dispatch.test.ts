@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { WorkflowRuntime } from "./runtime.js";
@@ -390,5 +391,111 @@ describe("runtime idle dispatch", () => {
     expect(countWorkflowRuns(projectDir, "builder-like-agent-slot")).toBe(1);
     expect(countWorkflowRuns(projectDir, "security-review")).toBe(1);
     expect(runtime.getState().pendingRuns).toHaveLength(0);
+  });
+
+  it("keeps code-only agent-group workflows from overlapping active agent workflows", async () => {
+    const harnessName =
+      `runtime-dispatch-agent-hold-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    writeFileSync(join(projectDir, "prompt.md"), "Investigate.\n");
+
+    let agentActive = false;
+    let healthStarted = false;
+    let healthStartedWhileAgentActive = false;
+    let releaseAgent!: () => void;
+    const agentReleased = new Promise<void>((resolve) => {
+      releaseAgent = resolve;
+    });
+
+    registerAgentHarness({
+      name: harnessName,
+      description: "runtime dispatch hold harness",
+      supportsMultiTurn: false,
+      supportedHookKinds: [],
+      askOwnerToolName: null,
+      emitsAgentMessageStream: false,
+      toolControl: "kota",
+      run: async () => {
+        agentActive = true;
+        await agentReleased;
+        agentActive = false;
+        return {
+          text: "done",
+          streamedText: "done",
+          turns: 1,
+          isError: false,
+        };
+      },
+    });
+
+    const runtime = new WorkflowRuntime({
+      bus: new EventBus(),
+      projectDir,
+      idleIntervalMs: 60_000,
+      agentConcurrency: 2,
+      workflows: [
+        {
+          name: "security-review",
+          definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
+          moduleRoot: projectDir,
+          triggers: [{ event: "manual", cooldownMs: 0 }],
+          steps: [
+            {
+              id: "investigate-candidates",
+              type: "agent",
+              harness: harnessName,
+              promptPath: "prompt.md",
+              model: "test-model",
+              effort: "low",
+              autonomyMode: "autonomous",
+              timeoutMs: 2_000,
+            },
+          ],
+        },
+        {
+          name: "autonomy-health-reviewer",
+          definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
+          moduleRoot: projectDir,
+          concurrencyGroup: "agent",
+          triggers: [{ event: "manual", cooldownMs: 0 }],
+          steps: [
+            {
+              id: "create-task",
+              type: "code",
+              run: () => {
+                healthStarted = true;
+                healthStartedWhileAgentActive = agentActive;
+                return { ok: true };
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    runtime.start();
+    try {
+      expect(runtime.enqueuePendingRun("security-review").ok).toBe(true);
+      await waitUntil(() => agentActive, "Timed out waiting for security-review agent step");
+
+      expect(runtime.enqueuePendingRun("autonomy-health-reviewer").ok).toBe(true);
+      await wait(50);
+      expect(healthStarted).toBe(false);
+
+      releaseAgent();
+      await waitUntil(
+        () =>
+          healthStarted &&
+          !runtime.isBusy() &&
+          runtime.getState().pendingRuns.length === 0,
+        "Timed out waiting for exclusive agent-group workflow to run",
+      );
+    } finally {
+      releaseAgent();
+      await runtime.stop();
+    }
+
+    expect(healthStartedWhileAgentActive).toBe(false);
+    expect(countWorkflowRuns(projectDir, "security-review")).toBe(1);
+    expect(countWorkflowRuns(projectDir, "autonomy-health-reviewer")).toBe(1);
   });
 });

@@ -1,0 +1,4 @@
+1. Verified: the run artifact `dead-letter-resolution.md` identifies the health-reviewer validation/staging DLQ and the security-review write-scope false-attribution DLQ from the cited dead-letter diagnostics.
+2. Verified: `runtime-dispatch-concurrency.ts` now makes explicit code-only `concurrencyGroup: "agent"` workflows exclusive against active agent workflows, and `pnpm test src/core/workflow/runtime-dispatch.test.ts` covers the security-review `investigate-candidates` overlap path.
+3. Verified: both cited DLQs were exported before and after dismissal under this run directory, and `pnpm dev workflow dlq list --status open --json` reported `open=0`.
+4. Verified: the task was moved to `done/`, its acceptance evidence points at the run artifacts and tests, and `pnpm run validate-tasks` passed before completion.

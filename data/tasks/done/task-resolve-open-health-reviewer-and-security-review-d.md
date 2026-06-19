@@ -1,12 +1,12 @@
 ---
 id: task-resolve-open-health-reviewer-and-security-review-d
 title: Resolve open health-reviewer and security-review DLQs
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Two open workflow-dispatch DLQs remain from concurrent autonomy-health-reviewer and security-review activity around task-health-workflow-improver-interrupted-run.md. The health-reviewer item is validation and task-staging fallout, and the security-review item is writeScope attribution against the same task path. Existing ready work covers the improver interrupted-run signal, not these open DLQ items.
 created_at: 2026-06-19T01:22:39.774Z
-updated_at: 2026-06-19T01:22:39.774Z
+updated_at: 2026-06-19T01:34:09.278Z
 ---
 
 ## Problem
@@ -26,6 +26,18 @@ Resolve the progress-review finding from run 2026-06-19T00-59-48-513Z-progress-r
 
 - The cited progress gap is fixed or explicitly disproven with evidence.
 - Acceptance evidence is recorded in this task or its run artifact.
+
+## Resolution
+
+The cited open DLQs were dismissed with recorded rationale after preserving
+before/after diagnostics under the builder run directory. The health-reviewer
+DLQ was stale validation/staging fallout from the health task before it became
+a tracked valid task with `## Initiative`. The security-review DLQ was a
+write-scope false attribution: `investigate-candidates` observed the health
+task file appearing during its pre/post snapshot window. The runtime scheduler
+now treats explicit `concurrencyGroup: "agent"` on code-only workflows as an
+exclusive agent slot, so the task-mutating autonomy-health-reviewer cannot
+overlap active agent workflows even when `agentConcurrency` is greater than 1.
 
 ## Source / Intent
 
@@ -49,4 +61,9 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- Both cited DLQ items are redriven to terminal success or dismissed with recorded rationale; pnpm run validate-tasks passes; and a redrive artifact or focused workflow test shows security-review investigate-candidates no longer reports a writeScope violation for data/tasks/ready/task-health-workflow-improver-interrupted-run.md.
+- `.kota/runs/2026-06-19T01-24-43-916Z-builder-gzmvtu/dlq-3dee14c8-before-dismissal.json` and `.kota/runs/2026-06-19T01-24-43-916Z-builder-gzmvtu/dlq-3dee14c8-after-dismissal.json` preserve the health-reviewer DLQ diagnostics and dismissal.
+- `.kota/runs/2026-06-19T01-24-43-916Z-builder-gzmvtu/dlq-36859e8d-before-dismissal.json` and `.kota/runs/2026-06-19T01-24-43-916Z-builder-gzmvtu/dlq-36859e8d-after-dismissal.json` preserve the security-review DLQ diagnostics and dismissal.
+- `.kota/runs/2026-06-19T01-24-43-916Z-builder-gzmvtu/dead-letter-resolution.md` records the root cause, repair, DLQ state, and validation evidence.
+- `pnpm dev workflow dlq list --status open --json` reports `open=0`.
+- `pnpm test src/core/workflow/runtime-dispatch.test.ts` covers the `security-review` `investigate-candidates` overlap path against a code-only `autonomy-health-reviewer` task mutation with `agentConcurrency: 2`.
+- `pnpm test src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.test.ts` covers the workflow's explicit exclusive agent-group declaration.

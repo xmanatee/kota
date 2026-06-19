@@ -3,7 +3,7 @@ import { autonomyHealthSignal } from "#modules/autonomy/health-signal.js";
 import autonomyHealthReviewerWorkflow from "./workflow.js";
 
 describe("autonomy-health-reviewer workflow", () => {
-  it("shares the agent dispatch group because it mutates task files", () => {
+  it("claims the exclusive agent dispatch slot because it mutates task files", () => {
     expect(autonomyHealthReviewerWorkflow.concurrencyGroup).toBe("agent");
   });
 
