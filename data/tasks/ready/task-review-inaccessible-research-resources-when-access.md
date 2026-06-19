@@ -1,13 +1,13 @@
 ---
 id: task-review-inaccessible-research-resources-when-access
 title: Review inaccessible research resources when access is available
-status: backlog
+status: ready
 priority: p3
 area: research
 summary: Grouped follow-up for research URLs that were captured but never read due to auth walls or fetch failures
 depends_on: [task-enable-autonomous-access-to-auth-walled-sources-so]
 created_at: 2026-04-14T00:29:07.947Z
-updated_at: 2026-06-13T00:16:08.543Z
+updated_at: 2026-06-19T13:04:59.960Z
 ---
 
 ## Problem

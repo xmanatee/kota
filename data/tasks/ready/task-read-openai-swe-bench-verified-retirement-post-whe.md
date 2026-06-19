@@ -1,13 +1,13 @@
 ---
 id: task-read-openai-swe-bench-verified-retirement-post-whe
 title: Read OpenAI SWE-bench Verified retirement post when fetchable
-status: backlog
+status: ready
 priority: p3
 area: research
 summary: Read OpenAI's SWE-bench Verified retirement post and record a KOTA decision once the rendered-browser source-access enabler is complete
 depends_on: [task-enable-autonomous-access-to-auth-walled-sources-so]
 created_at: 2026-04-20T20:18:43.712Z
-updated_at: 2026-05-18T07:10:06Z
+updated_at: 2026-06-19T13:04:59.935Z
 ---
 
 ## Problem
