@@ -1,12 +1,12 @@
 ---
 id: task-add-daemon-wide-global-progress-review-trigger
 title: Add daemon-wide global progress-review trigger
-status: backlog
+status: ready
 priority: p1
 area: autonomy
 summary: Make the progress-reviewer able to run a real daemon-wide scheduled global review across all configured scopes.
 created_at: 2026-06-04T13:06:38.510Z
-updated_at: 2026-06-04T13:06:38.510Z
+updated_at: 2026-06-19T01:57:38.121Z
 ---
 
 ## Problem

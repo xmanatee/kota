@@ -1,13 +1,13 @@
 ---
 id: task-add-compiled-automation-graph-explain-api
 title: Add compiled automation graph explain API
-status: backlog
+status: ready
 priority: p1
 area: modules
 summary: Extend the existing workflow graph into an explainable compiled automation view that shows triggers, filters, batches, policies, idempotency, effects, downstream runs, and why a sample event would or would not execute.
 depends_on: [task-unify-hooks-and-workflows-under-one-automation-pro, task-add-generic-event-batching-to-workflow-triggers, task-add-module-capability-and-effect-manifest]
 created_at: 2026-06-03T15:50:37.825Z
-updated_at: 2026-06-03T15:50:37.825Z
+updated_at: 2026-06-19T01:57:38.098Z
 ---
 
 ## Problem
