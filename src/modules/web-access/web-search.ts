@@ -6,6 +6,10 @@ import {
   WebAccessTargetError,
 } from "./private-network.js";
 import {
+  readResponseTextWithLimit,
+  WebAccessResponseBodyLimitError,
+} from "./response-body-limit.js";
+import {
   type BraveSearchResponse,
   formatResults,
   isRateLimited,
@@ -39,6 +43,8 @@ type SearchProviderResult =
   | { status: "results"; results: SearchResult[] }
   | { status: "unavailable" }
   | { status: "blocked"; message: string };
+
+const SEARCH_RESPONSE_MAX_BYTES = 1_000_000;
 
 export async function runWebSearch(
   input: Record<string, unknown>,
@@ -84,7 +90,12 @@ async function fetchBraveSearch(
       },
     });
     if (!response.ok) return { status: "unavailable" };
-    const data = (await response.json()) as BraveSearchResponse;
+    const raw = await readResponseTextWithLimit(
+      response,
+      SEARCH_RESPONSE_MAX_BYTES,
+      "search_response_limit",
+    );
+    const data = JSON.parse(raw) as BraveSearchResponse;
     const results = parseBraveResults(data, numResults);
     return results.length > 0
       ? { status: "results", results }
@@ -121,7 +132,11 @@ async function fetchDuckDuckGo(
       return { content: `Search failed: HTTP ${response.status}`, is_error: true };
     }
 
-    const html = await response.text();
+    const html = await readResponseTextWithLimit(
+      response,
+      SEARCH_RESPONSE_MAX_BYTES,
+      "search_response_limit",
+    );
 
     if (isRateLimited(html)) {
       return {
@@ -142,6 +157,9 @@ async function fetchDuckDuckGo(
       return { content: "Search timed out (15s)", is_error: true };
     }
     if (err instanceof WebAccessTargetError) {
+      return { content: err.message, is_error: true };
+    }
+    if (err instanceof WebAccessResponseBodyLimitError) {
       return { content: err.message, is_error: true };
     }
     const msg = err instanceof Error ? err.message : String(err);

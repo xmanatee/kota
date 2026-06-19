@@ -4,12 +4,18 @@ import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { resolveProjectPath } from "#core/tools/project-path-policy.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { extractPage, formatMetadataHeader } from "./html-page-extract.js";
-import { isAbortError } from "./http-request-utils.js";
+import { isAbortError, safePositiveInt } from "./http-request-utils.js";
 import {
   fetchPublicWebAccessUrl,
   validatePublicWebAccessUrl,
   WebAccessTargetError,
 } from "./private-network.js";
+import {
+  readResponseBytesWithLimit,
+  readResponseTextPrefixWithLimit,
+  readResponseTextWithLimit,
+  WebAccessResponseBodyLimitError,
+} from "./response-body-limit.js";
 
 export const webFetchTool: KotaTool = {
   name: "web_fetch",
@@ -85,7 +91,7 @@ export async function runWebFetch(
   input: Record<string, unknown>,
 ): Promise<ToolResult> {
   const url = input.url as string;
-  const maxLength = Math.max(1, (input.max_length as number) || 20_000);
+  const maxLength = safePositiveInt(input.max_length, 20_000);
   const saveTo = typeof input.save_to === "string" && input.save_to.length > 0
     ? input.save_to
     : undefined;
@@ -135,20 +141,20 @@ export async function runWebFetch(
         try {
           await mkdir(dirname(savePath.path), { recursive: true });
           if (isBinaryContentType(contentType)) {
-            const buffer = await response.arrayBuffer();
-            await writeFile(savePath.path, Buffer.from(buffer));
+            const buffer = await readResponseBytesWithLimit(response, maxLength, "max_length");
+            await writeFile(savePath.path, buffer);
             return {
               content: `Downloaded ${mime} to ${savePath.path} (${formatBytes(buffer.byteLength)})`,
             };
           }
-          const text = await response.text();
+          const text = await readResponseTextWithLimit(response, maxLength, "max_length");
           await writeFile(savePath.path, text, "utf-8");
           const preview = text.slice(0, 500);
           return {
             content: `Saved to ${savePath.path} (${formatBytes(Buffer.byteLength(text))}, ${mime})\n\nPreview:\n${preview}${text.length > 500 ? "\n..." : ""}`,
           };
         } catch (err) {
-          if (isAbortError(err)) throw err;
+          if (isAbortError(err) || err instanceof WebAccessResponseBodyLimitError) throw err;
           const msg = err instanceof Error ? err.message : String(err);
           return { content: `Error saving file: ${msg}`, is_error: true };
         }
@@ -166,11 +172,15 @@ export async function runWebFetch(
         };
       }
 
-      const raw = await response.text();
+      const rawRead = await readResponseTextPrefixWithLimit(response, maxLength, "max_length");
+      const raw = rawRead.text;
 
       // JSON: pretty-print with structure hints
       if (contentType.includes("json")) {
-        const text = formatJsonResponse(raw, maxLength);
+        let text = formatJsonResponse(raw, maxLength);
+        if (rawRead.truncated && !text.includes("[Truncated")) {
+          text += `\n\n[Truncated — response exceeded ${maxLength} bytes, showing first ${raw.length} chars]`;
+        }
         return { content: text || "(empty response)" };
       }
 
@@ -184,10 +194,13 @@ export async function runWebFetch(
       }
 
       // Truncate to save tokens
-      if (text.length > maxLength) {
+      if (text.length > maxLength || rawRead.truncated) {
+        const visible = text.slice(0, maxLength);
+        const truncation = rawRead.truncated
+          ? `response exceeded ${maxLength} bytes, showing first ${visible.length} chars`
+          : `${text.length} chars total, showing first ${maxLength}`;
         return {
-          content: text.slice(0, maxLength) +
-            `\n\n[Truncated — ${text.length} chars total, showing first ${maxLength}]`,
+          content: `${visible}\n\n[Truncated — ${truncation}]`,
         };
       }
 
@@ -200,6 +213,9 @@ export async function runWebFetch(
       return { content: "Error: request timed out (30s)", is_error: true };
     }
     if (err instanceof WebAccessTargetError) {
+      return { content: err.message, is_error: true };
+    }
+    if (err instanceof WebAccessResponseBodyLimitError) {
       return { content: err.message, is_error: true };
     }
     const msg = err instanceof Error ? err.message : String(err);

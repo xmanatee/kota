@@ -8,6 +8,7 @@ import {
   formatResponseHeaders,
   formatResult,
   formatTabularJson,
+  formatTabularJsonPrefix,
   isAbortError,
   isBinaryContentType,
   looksLikeJson,
@@ -18,6 +19,12 @@ import {
   validatePublicWebAccessUrl,
   WebAccessTargetError,
 } from "./private-network.js";
+import {
+  readResponseBytesWithLimit,
+  readResponseTextPrefixWithLimit,
+  readResponseTextWithLimit,
+  WebAccessResponseBodyLimitError,
+} from "./response-body-limit.js";
 
 export const httpRequestTool: KotaTool = {
   name: "http_request",
@@ -111,126 +118,137 @@ export async function runHttpRequest(
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-    const fetchOptions: RequestInit = {
-      method,
-      signal: controller.signal,
-      headers: {
-        "User-Agent": "KOTA/0.1",
-        ...headers,
-      },
-    };
-
-    if (body) {
-      fetchOptions.body = body;
-    }
-
-    let response: Response;
-    let finalUrl = url;
-    let redirected = false;
     try {
-      const fetched = await fetchPublicWebAccessUrl(url, fetchOptions);
-      response = fetched.response;
-      finalUrl = fetched.url;
-      redirected = fetched.redirected;
-    } catch (err) {
-      clearTimeout(timeout);
-      throw err;
-    }
-    // Keep timeout active — it covers body reads too, not just connection
-
-    // Build response header summary (selected useful headers)
-    let responseHeaders = formatResponseHeaders(response.headers);
-
-    // Show redirect info so users can debug endpoint issues
-    if (redirected && finalUrl !== url) {
-      responseHeaders = `[Redirected → ${finalUrl}]\n${responseHeaders}`;
-    }
-
-    if (method === "HEAD") {
-      clearTimeout(timeout);
-      return {
-        content: formatResult(response.status, response.statusText, responseHeaders, "(HEAD — no body)"),
+      const fetchOptions: RequestInit = {
+        method,
+        signal: controller.signal,
+        headers: {
+          "User-Agent": "KOTA/0.1",
+          ...headers,
+        },
       };
-    }
 
-    const contentType = response.headers.get("content-type") || "";
+      if (body) {
+        fetchOptions.body = body;
+      }
 
-    if (savePath?.ok) {
+      let response: Response;
+      let finalUrl = url;
+      let redirected = false;
       try {
-        mkdirSync(dirname(savePath.path), { recursive: true });
-        let size: number;
-        if (isBinaryContentType(contentType)) {
-          const buffer = Buffer.from(await response.arrayBuffer());
-          clearTimeout(timeout);
-          writeFileSync(savePath.path, buffer);
-          size = buffer.length;
-        } else {
-          const raw = await response.text();
-          clearTimeout(timeout);
-          writeFileSync(savePath.path, raw, "utf-8");
-          size = Buffer.byteLength(raw, "utf-8");
-        }
-        const result: ToolResult = {
-          content: formatResult(response.status, response.statusText, responseHeaders,
-            `[Saved to ${savePath.path} (${formatBytes(size)})]`),
-        };
-        if (response.status >= 400) result.is_error = true;
-        return result;
+        const fetched = await fetchPublicWebAccessUrl(url, fetchOptions);
+        response = fetched.response;
+        finalUrl = fetched.url;
+        redirected = fetched.redirected;
       } catch (err) {
         clearTimeout(timeout);
-        if (isAbortError(err)) throw err; // Let timeout bubble up
-        const msg = err instanceof Error ? err.message : String(err);
-        return { content: `Error saving response to ${savePath.path}: ${msg}`, is_error: true };
+        throw err;
       }
-    }
+      // Keep timeout active — it covers body reads too, not just connection
 
-    // Reject binary responses (no body read needed — clear timeout early)
-    if (isBinaryContentType(contentType)) {
+      // Build response header summary (selected useful headers)
+      let responseHeaders = formatResponseHeaders(response.headers);
+
+      // Show redirect info so users can debug endpoint issues
+      if (redirected && finalUrl !== url) {
+        responseHeaders = `[Redirected → ${finalUrl}]\n${responseHeaders}`;
+      }
+
+      if (method === "HEAD") {
+        clearTimeout(timeout);
+        return {
+          content: formatResult(response.status, response.statusText, responseHeaders, "(HEAD — no body)"),
+        };
+      }
+
+      const contentType = response.headers.get("content-type") || "";
+
+      if (savePath?.ok) {
+        try {
+          mkdirSync(dirname(savePath.path), { recursive: true });
+          let size: number;
+          if (isBinaryContentType(contentType)) {
+            const bytes = await readResponseBytesWithLimit(response, maxResponse, "max_response_length");
+            clearTimeout(timeout);
+            writeFileSync(savePath.path, bytes);
+            size = bytes.byteLength;
+          } else {
+            const raw = await readResponseTextWithLimit(response, maxResponse, "max_response_length");
+            clearTimeout(timeout);
+            writeFileSync(savePath.path, raw, "utf-8");
+            size = Buffer.byteLength(raw, "utf-8");
+          }
+          const result: ToolResult = {
+            content: formatResult(response.status, response.statusText, responseHeaders,
+              `[Saved to ${savePath.path} (${formatBytes(size)})]`),
+          };
+          if (response.status >= 400) result.is_error = true;
+          return result;
+        } catch (err) {
+          clearTimeout(timeout);
+          if (isAbortError(err) || err instanceof WebAccessResponseBodyLimitError) throw err; // Let timeout/limit bubble up
+          const msg = err instanceof Error ? err.message : String(err);
+          return { content: `Error saving response to ${savePath.path}: ${msg}`, is_error: true };
+        }
+      }
+
+      // Reject binary responses (no body read needed — clear timeout early)
+      if (isBinaryContentType(contentType)) {
+        clearTimeout(timeout);
+        const contentLength = response.headers.get("content-length");
+        const size = contentLength ? ` (${formatBytes(Number(contentLength))})` : "";
+        return {
+          content: formatResult(
+            response.status, response.statusText, responseHeaders,
+            `[Binary response: ${contentType}${size} — use save_to to download to a file]`,
+          ),
+        };
+      }
+
+      const rawRead = await readResponseTextPrefixWithLimit(response, maxResponse, "max_response_length");
+      const raw = rawRead.text;
       clearTimeout(timeout);
-      const contentLength = response.headers.get("content-length");
-      const size = contentLength ? ` (${formatBytes(Number(contentLength))})` : "";
-      return {
-        content: formatResult(
-          response.status, response.statusText, responseHeaders,
-          `[Binary response: ${contentType}${size} — use save_to to download to a file]`,
-        ),
-      };
-    }
+      let bodyText = raw;
 
-    const raw = await response.text();
-    clearTimeout(timeout);
-    let bodyText = raw;
-
-    // Pretty-print JSON for readability; use compact table for arrays of objects
-    if (contentType.includes("json") || looksLikeJson(raw)) {
-      try {
-        const parsed = JSON.parse(raw);
-        const table = formatTabularJson(parsed);
-        bodyText = table ?? JSON.stringify(parsed, null, 2);
-      } catch {
-        // Not valid JSON despite content-type; use raw
+      // Pretty-print JSON for readability; use compact table for arrays of objects
+      if (contentType.includes("json") || looksLikeJson(raw)) {
+        try {
+          const parsed = JSON.parse(raw);
+          const table = formatTabularJson(parsed);
+          bodyText = table ?? JSON.stringify(parsed, null, 2);
+        } catch {
+          bodyText = rawRead.truncated ? formatTabularJsonPrefix(raw) ?? raw : raw;
+        }
       }
-    }
 
-    // Truncate large responses
-    if (bodyText.length > maxResponse) {
-      bodyText =
-        bodyText.slice(0, maxResponse) +
-        `\n\n[Truncated — ${bodyText.length} chars total, showing first ${maxResponse}. Use save_to to get the full response.]`;
-    }
+      // Truncate large responses
+      if (bodyText.length > maxResponse || rawRead.truncated) {
+        const truncation = rawRead.truncated
+          ? `response exceeded ${maxResponse} bytes`
+          : `${bodyText.length} chars total`;
+        bodyText =
+          bodyText.slice(0, maxResponse) +
+          `\n\n[Truncated — ${truncation}, showing first ${maxResponse}. Use save_to to get the full response.]`;
+      }
 
-    const result: ToolResult = {
-      content: formatResult(response.status, response.statusText, responseHeaders, bodyText),
-    };
-    if (response.status >= 400) {
-      result.is_error = true;
+      const result: ToolResult = {
+        content: formatResult(response.status, response.statusText, responseHeaders, bodyText),
+      };
+      if (response.status >= 400) {
+        result.is_error = true;
+      }
+      return result;
+    } finally {
+      clearTimeout(timeout);
     }
-    return result;
   } catch (err) {
     if (isAbortError(err)) {
       return { content: `Error: request timed out (${Math.round(timeoutMs / 1000)}s)`, is_error: true };
     }
     if (err instanceof WebAccessTargetError) {
+      return { content: err.message, is_error: true };
+    }
+    if (err instanceof WebAccessResponseBodyLimitError) {
       return { content: err.message, is_error: true };
     }
     const msg = err instanceof Error ? err.message : String(err);

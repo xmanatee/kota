@@ -134,6 +134,23 @@ describe("runWebFetch", () => {
     };
   }
 
+  function mockStreamResponse(
+    chunks: string[],
+    opts: { status?: number; headers?: Record<string, string>; statusText?: string } = {},
+  ) {
+    const { status = 200, headers = {}, statusText = "OK" } = opts;
+    const encoder = new TextEncoder();
+    return new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          for (const chunk of chunks) controller.enqueue(encoder.encode(chunk));
+          controller.close();
+        },
+      }),
+      { status, statusText, headers },
+    );
+  }
+
   beforeEach(() => {
     global.fetch = vi.fn();
   });
@@ -279,7 +296,46 @@ describe("runWebFetch", () => {
     );
     const result = await runWebFetch({ url: "https://example.com/big.txt", max_length: 1000 });
     expect(result.content).toContain("[Truncated");
-    expect(result.content).toContain("25000 chars total");
+    expect(result.content).toContain("response exceeded 1000 bytes");
+  });
+
+  it("rejects oversized text by Content-Length before reading the body", async () => {
+    const text = vi.fn().mockResolvedValue("x".repeat(20));
+    const arrayBuffer = vi.fn().mockResolvedValue(new Uint8Array(20).buffer);
+    vi.mocked(global.fetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      headers: new Headers({
+        "content-type": "text/plain",
+        "content-length": "20",
+      }),
+      text,
+      arrayBuffer,
+      body: { cancel: vi.fn().mockResolvedValue(undefined) },
+    } as never);
+
+    const result = await runWebFetch({ url: "https://example.com/big.txt", max_length: 10 });
+
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("max_length");
+    expect(result.content).toContain("Content-Length");
+    expect(text).not.toHaveBeenCalled();
+    expect(arrayBuffer).not.toHaveBeenCalled();
+  });
+
+  it("aborts oversized chunked JSON responses while streaming", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(
+      mockStreamResponse(["{\"data\":\"", "xxxxxxxx\"}"], {
+        headers: { "content-type": "application/json" },
+      }) as never,
+    );
+
+    const result = await runWebFetch({ url: "https://api.example.com/big.json", max_length: 8 });
+
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("response exceeded 8 bytes");
+    expect(result.content).toContain("[Truncated");
   });
 
   it("handles fetch errors gracefully", async () => {
@@ -493,6 +549,36 @@ describe("runWebFetch", () => {
     expect(resp.text).not.toHaveBeenCalled();
   });
 
+  it("rejects oversized binary save_to responses by Content-Length before allocation", async () => {
+    const { writeFile: wf } = await import("node:fs/promises");
+    vi.mocked(wf).mockClear();
+    const arrayBuffer = vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3, 4]).buffer);
+    vi.mocked(global.fetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      headers: new Headers({
+        "content-type": "application/pdf",
+        "content-length": "4",
+      }),
+      text: vi.fn(),
+      arrayBuffer,
+      body: { cancel: vi.fn().mockResolvedValue(undefined) },
+    } as never);
+
+    const result = await runWebFetch({
+      url: "https://example.com/big.pdf",
+      save_to: "data/big.pdf",
+      max_length: 3,
+    });
+
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("max_length");
+    expect(result.content).toContain("Content-Length");
+    expect(arrayBuffer).not.toHaveBeenCalled();
+    expect(wf).not.toHaveBeenCalled();
+  });
+
   it("truncates preview for large text in save_to mode", async () => {
     const longText = "x".repeat(1000);
     vi.mocked(global.fetch).mockResolvedValue(
@@ -632,7 +718,7 @@ describe("runWebFetch — HTML extraction (cross-module: web-fetch → html-extr
     );
     const result = await runWebFetch({ url: "https://example.com/long", max_length: 500 });
     expect(result.content).toContain("[Truncated");
-    expect(result.content).toContain("showing first 500");
+    expect(result.content).toContain("response exceeded 500 bytes");
   });
 
   it("converts links and formatting to markdown", async () => {

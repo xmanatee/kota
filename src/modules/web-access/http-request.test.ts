@@ -44,6 +44,33 @@ describe("runHttpRequest", () => {
     });
   }
 
+  function mockStreamFetch(opts: {
+    status?: number;
+    statusText?: string;
+    chunks: string[];
+    contentType?: string;
+    headers?: Record<string, string>;
+  }) {
+    const { status = 200, statusText = "OK", chunks, contentType = "text/plain", headers = {} } = opts;
+    const encoder = new TextEncoder();
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          for (const chunk of chunks) controller.enqueue(encoder.encode(chunk));
+          controller.close();
+        },
+      }),
+      {
+        status,
+        statusText,
+        headers: {
+          "content-type": contentType,
+          ...headers,
+        },
+      },
+    ));
+  }
+
   async function makeProjectTempDir(prefix: string): Promise<string> {
     const fs = await import("node:fs");
     const path = await import("node:path");
@@ -276,7 +303,51 @@ describe("runHttpRequest", () => {
     mockFetch({ body: bigBody });
     const result = await runHttpRequest({ url: "https://api.example.com", max_response_length: 20000 });
     expect(result.content).toContain("[Truncated");
-    expect(result.content).toContain("25000 chars total");
+    expect(result.content).toContain("response exceeded 20000 bytes");
+  });
+
+  it("rejects oversized text by Content-Length before reading the body", async () => {
+    const text = vi.fn().mockResolvedValue("x".repeat(20));
+    const arrayBuffer = vi.fn().mockResolvedValue(new Uint8Array(20).buffer);
+    const responseHeaders = new Map<string, string>([
+      ["content-type", "text/plain"],
+      ["content-length", "20"],
+    ]);
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      headers: { get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null },
+      text,
+      arrayBuffer,
+    });
+
+    const result = await runHttpRequest({
+      url: "https://api.example.com/big.txt",
+      max_response_length: 10,
+    });
+
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("max_response_length");
+    expect(result.content).toContain("Content-Length");
+    expect(text).not.toHaveBeenCalled();
+    expect(arrayBuffer).not.toHaveBeenCalled();
+  });
+
+  it("aborts oversized chunked JSON responses while streaming", async () => {
+    mockStreamFetch({
+      chunks: ["{\"data\":\"", "xxxxxxxx\"}"],
+      contentType: "application/json",
+    });
+
+    const result = await runHttpRequest({
+      url: "https://api.example.com/big.json",
+      max_response_length: 8,
+    });
+
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("response exceeded 8 bytes");
+    expect(result.content).toContain("[Truncated");
   });
 
   // --- Binary handling ---
@@ -414,6 +485,42 @@ describe("runHttpRequest", () => {
     fs.rmSync(dir, { recursive: true });
   });
 
+  it("rejects oversized binary save_to responses by Content-Length before allocation", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const dir = await makeProjectTempDir("kota-http-");
+    const savePath = path.join(dir, "image.bin");
+    const arrayBuffer = vi.fn().mockResolvedValue(new Uint8Array([0x89, 0x50, 0x4e, 0x47]).buffer);
+    const responseHeaders = new Map<string, string>([
+      ["content-type", "image/png"],
+      ["content-length", "4"],
+    ]);
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      headers: { get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null },
+      arrayBuffer,
+      text: vi.fn(),
+    });
+
+    try {
+      const result = await runHttpRequest({
+        url: "https://api.example.com/image.png",
+        save_to: savePath,
+        max_response_length: 3,
+      });
+
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("max_response_length");
+      expect(result.content).toContain("Content-Length");
+      expect(arrayBuffer).not.toHaveBeenCalled();
+      expect(fs.existsSync(savePath)).toBe(false);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("marks saved 4xx response as error", async () => {
     const fs = await import("node:fs");
     const path = await import("node:path");
@@ -538,7 +645,7 @@ describe("runHttpRequest", () => {
     mockFetch({ body });
     const result = await runHttpRequest({ url: "https://api.example.com", max_response_length: 100 });
     expect(result.content).toContain("[Truncated");
-    expect(result.content).toContain("500 chars total");
+    expect(result.content).toContain("response exceeded 100 bytes");
     expect(result.content).toContain("showing first 100");
   });
 

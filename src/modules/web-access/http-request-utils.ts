@@ -64,6 +64,9 @@ export function formatBytes(bytes: number): string {
 const MAX_TABLE_ROWS = 50;
 const MAX_TABLE_COLS = 10;
 
+type JsonValue = string | number | boolean | null | JsonValue[] | JsonObject;
+type JsonObject = { [key: string]: JsonValue };
+
 /**
  * Format an array of objects as a compact markdown table.
  * Returns null if the data is not suitable for tabular display.
@@ -117,4 +120,88 @@ export function formatTabularJson(data: unknown): string | null {
   if (truncCols) notes.push(`showing ${MAX_TABLE_COLS} of ${keySet.size} columns`);
   if (notes.length > 0) result += `\n[${notes.join("; ")}]`;
   return result;
+}
+
+/**
+ * Format complete object rows from a truncated JSON array prefix.
+ * This keeps inline response reads bounded while still preserving tabular
+ * display for large array-of-object API responses.
+ */
+export function formatTabularJsonPrefix(text: string): string | null {
+  const rows = parseCompleteTopLevelArrayObjects(text);
+  return rows.length > 0 ? formatTabularJson(rows) : null;
+}
+
+function parseCompleteTopLevelArrayObjects(text: string): JsonObject[] {
+  let index = skipWhitespace(text, 0);
+  if (text[index] !== "[") return [];
+  index++;
+
+  const rows: JsonObject[] = [];
+  for (;;) {
+    index = skipWhitespace(text, index);
+    if (index >= text.length || text[index] === "]") return rows;
+    if (text[index] === ",") {
+      index++;
+      continue;
+    }
+    if (text[index] !== "{") return rows;
+
+    const end = findCompleteJsonObjectEnd(text, index);
+    if (end === null) return rows;
+
+    try {
+      const parsed: JsonValue = JSON.parse(text.slice(index, end));
+      if (!isJsonObject(parsed)) return rows;
+      rows.push(parsed);
+    } catch {
+      return rows;
+    }
+    index = end;
+  }
+}
+
+function isJsonObject(value: JsonValue): value is JsonObject {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function findCompleteJsonObjectEnd(text: string, start: number): number | null {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === "\"") {
+      inString = true;
+      continue;
+    }
+    if (ch === "{" || ch === "[") {
+      depth++;
+      continue;
+    }
+    if (ch === "}" || ch === "]") {
+      depth--;
+      if (depth === 0) return i + 1;
+    }
+  }
+
+  return null;
+}
+
+function skipWhitespace(text: string, index: number): number {
+  while (index < text.length && /\s/.test(text[index] ?? "")) index++;
+  return index;
 }

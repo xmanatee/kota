@@ -1,12 +1,12 @@
 ---
 id: task-security-review-external-fetch-consumers-read-arbi
 title: Security review: External fetch consumers read arbitrary public response bodies with response.text() or arrayBuffer() before enforcing max_length or max_response_length, so a hostile endpoint can force unbounded memory use and crash or stall the agent/daemon process.
-status: ready
+status: done
 priority: p2
 area: security
 summary: External fetch consumers read arbitrary public response bodies with response.text() or arrayBuffer() before enforcing max_length or max_response_length, so a hostile endpoint can force unbounded memory use and crash or stall the agent/daemon process.
 created_at: 2026-06-19T12:29:20.919Z
-updated_at: 2026-06-19T12:29:20.919Z
+updated_at: 2026-06-19T12:48:40.768Z
 ---
 
 ## Problem
@@ -56,3 +56,9 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm test src/modules/web-access/web-fetch.test.ts src/modules/web-access/http-request.test.ts src/modules/web-access/web-search.test.ts` passed with 165 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` exited 0; it reported an unrelated pre-existing unused-import warning in `src/modules/workflow-ops/simulation/engine.ts`.

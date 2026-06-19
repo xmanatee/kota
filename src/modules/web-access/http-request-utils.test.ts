@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatBytes,
   formatTabularJson,
+  formatTabularJsonPrefix,
   isBinaryContentType,
   looksLikeJson,
   safePositiveInt,
@@ -188,5 +189,17 @@ describe("formatTabularJson", () => {
     for (let i = 0; i < 12; i++) row[`col${i}`] = i;
     const result = formatTabularJson([row]);
     expect(result).toContain("showing 10 of 12 columns");
+  });
+
+  it("formats complete rows from a truncated JSON array prefix", () => {
+    const prefix = '[{"name":"Alice","score":95},{"name":"Bob","score":87},{"name":"Charl';
+    const result = formatTabularJsonPrefix(prefix);
+    expect(result).toContain("| name  | score |");
+    expect(result).toContain("| Alice | 95    |");
+    expect(result).toContain("| Bob   | 87    |");
+  });
+
+  it("returns null for a truncated JSON array without a complete object", () => {
+    expect(formatTabularJsonPrefix('[{"name":"Alice"')).toBeNull();
   });
 });
