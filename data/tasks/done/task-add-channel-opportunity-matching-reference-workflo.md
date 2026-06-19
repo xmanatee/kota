@@ -1,13 +1,13 @@
 ---
 id: task-add-channel-opportunity-matching-reference-workflo
 title: Add channel opportunity matching reference workflow
-status: ready
+status: done
 priority: p2
 area: channel
 summary: Build a reference workflow for high-volume community messages that batches opportunities, classifies them cheaply, checks calendar availability, asks the owner, and performs a confirmed provider-specific action.
 depends_on: [task-add-declarative-inbound-signal-routing-for-channel, task-add-generic-event-batching-to-workflow-triggers, task-add-module-setup-and-auth-requirement-protocol, task-add-persisted-owner-confirmed-action-protocol]
 created_at: 2026-06-03T14:01:23.477Z
-updated_at: 2026-06-19T11:07:19.962Z
+updated_at: 2026-06-19T12:10:00Z
 ---
 
 ## Problem
@@ -90,3 +90,18 @@ high-volume channel workflow.
   classification, calendar check, owner decision, and dry-run provider action.
 - Rendered Telegram or CLI fixture showing the owner confirmation prompt and
   accepted/declined outcomes.
+
+## Completion Evidence
+
+- Added the `channel-opportunity-reference` module with a contributed reference
+  workflow, redacted Telegram sports-community fixture, setup requirements, and
+  local guidance for applying the same pattern to Slack, Gmail, and other
+  community sources.
+- Added tests in `src/modules/channel-opportunity-reference/workflow.test.ts`
+  covering route config, audit-only blocked routing, no-op batch, blocked
+  source, cheap rejection, calendar conflict, owner decline, owner accept, and
+  provider action failure.
+- Run artifacts:
+  `.kota/runs/2026-06-19T11-54-17-284Z-builder-vy2dey/channel-opportunity-reference-evidence.json`,
+  `.kota/runs/2026-06-19T11-54-17-284Z-builder-vy2dey/owner-confirmation-fixture.md`,
+  and `.kota/runs/2026-06-19T11-54-17-284Z-builder-vy2dey/validation-transcript.txt`.

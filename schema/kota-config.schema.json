@@ -377,6 +377,28 @@
       "description": "Per-module configuration. Keys are module names, values are module-specific settings.",
       "type": "object",
       "properties": {
+        "channel-opportunity-reference": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "calendarToolName": {
+              "type": "string",
+              "minLength": 1
+            },
+            "providerActionAdapterName": {
+              "type": "string",
+              "minLength": 1
+            },
+            "failProviderActionIds": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
         "google-workspace": {
           "type": "object",
           "additionalProperties": false,
