@@ -2,8 +2,14 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { PendingApproval } from "#core/daemon/approval-queue.js";
-import type { InteractiveSession, WorkflowDefinitionSummary } from "#core/daemon/daemon-control.js";
+import type { DaemonSseStreamEvent, InteractiveSession, WorkflowDefinitionSummary } from "#core/daemon/daemon-control.js";
 import type { KotaClient } from "#core/server/kota-client.js";
+import {
+  buildOperatorControlUiSurface,
+  type UiAction,
+  type UiSurface,
+  type UiSurfaceBundle,
+} from "#modules/daemon-ops/operator-ui.js";
 import type { ModuleListEntry } from "#modules/module-manager/client.js";
 import type { RenderNode } from "#modules/rendering/primitives.js";
 import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
@@ -188,6 +194,7 @@ function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
     ui: {
       listSurfaces: stub({ protocolVersion: "ui.surface.v1", surfaces: [] }),
       executeAction: stub({ ok: false, reason: "not_found", message: "stub" }),
+      watchEvents: async function* () {},
     },
     doctor: {
       run: stub({ checks: [] }),
@@ -243,6 +250,85 @@ function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
   return { ...base, ...overrides };
 }
 
+function surfaceBundle(): UiSurfaceBundle {
+  return {
+    protocolVersion: "ui.surface.v1",
+    surfaces: [buildOperatorControlUiSurface("scope-main")],
+  };
+}
+
+function navigationAction(surfaceId: string, actionId: string, label: string): UiAction {
+  return {
+    surfaceId,
+    actionId,
+    scopeId: "scope-main",
+    label,
+    effect: "read",
+    operation: { kind: "client-namespace", namespace: "workflow", method: "status" },
+    confirmation: { mode: "none" },
+    readiness: { state: "ready" },
+    result: {
+      success: { message: `${label} completed.` },
+      errors: [{ reason: "unavailable", message: "Unavailable in test." }],
+    },
+    permissions: [
+      { kind: "effect", effect: "read" },
+      { kind: "capability-scope", scope: "read" },
+    ],
+  };
+}
+
+function navigationSurface(args: {
+  surfaceId: string;
+  title: string;
+  intent: UiSurface["intent"];
+  order: number;
+  actions: readonly UiAction[];
+}): UiSurface {
+  return {
+    protocolVersion: "ui.surface.v1",
+    surfaceId: args.surfaceId,
+    extensionId: `test.${args.surfaceId}`,
+    title: args.title,
+    intent: args.intent,
+    scopeId: "scope-main",
+    attachmentPoint: { kind: "intent", intent: args.intent },
+    order: args.order,
+    permissions: [{ kind: "capability-scope", scope: "read" }],
+    nodes: [{ kind: "text", title: args.title, body: `${args.title} body.` }],
+    actions: args.actions,
+  };
+}
+
+function navigationSurfaceBundle(): UiSurfaceBundle {
+  const statusActions = [
+    navigationAction("status-panel", "status.refresh", "Refresh status"),
+  ];
+  const workActions = [
+    navigationAction("work-console", "work.first", "First work action"),
+    navigationAction("work-console", "work.second", "Second work action"),
+  ];
+  return {
+    protocolVersion: "ui.surface.v1",
+    surfaces: [
+      navigationSurface({
+        surfaceId: "status-panel",
+        title: "Status Panel",
+        intent: "Status",
+        order: 10,
+        actions: statusActions,
+      }),
+      navigationSurface({
+        surfaceId: "work-console",
+        title: "Work Console",
+        intent: "Work",
+        order: 20,
+        actions: workActions,
+      }),
+    ],
+  };
+}
+
 describe("runtime navigator", () => {
   it("refuses non-TTY launch and prints the equivalent one-shot hint", () => {
     let captured = "";
@@ -251,129 +337,208 @@ describe("runtime navigator", () => {
     expect(captured.trim()).toBe(NON_TTY_HINT);
   });
 
-  it("renders the operator intent menu, opens setup, and quits cleanly", async () => {
-    const modulesEntry: ModuleListEntry = {
-      name: "approval-queue",
-      source: "project",
-      status: "loaded",
-      toolCount: 0,
-      workflowCount: 0,
-      commandCount: 1,
-      channelCount: 0,
-      skillCount: 0,
-      agentCount: 0,
-      version: "1.0.0",
-      description: "Approval queue state",
-    };
+  it("renders shared UI surfaces, opens a Work intent surface, and quits cleanly", async () => {
     const client = emptyClient({
-      modules: { list: vi.fn(async () => ({ modules: [modulesEntry] })) },
+      ui: {
+        listSurfaces: vi.fn(async () => surfaceBundle()),
+        executeAction: vi.fn(async () => ({ ok: false as const, reason: "not_found" as const, message: "stub" })),
+        watchEvents: async function* () {},
+      },
     });
     const output = makeOutput();
     await runNavigator({
       client,
-      prompt: makePrompt(["5", "q"]),
+      prompt: makePrompt(["work", "q"]),
       output: output.capture,
     });
     const joined = output.frames.join("\n");
-    expect(joined).toMatch(/KOTA operator console/);
-    expect(joined).toMatch(/Status/);
-    expect(joined).toMatch(/Inbox/);
-    expect(joined).toMatch(/Work/);
-    expect(joined).toMatch(/Knowledge/);
-    expect(joined).toMatch(/Setup/);
-    expect(joined).toMatch(/approval-queue/);
-    expect(client.modules.list).toHaveBeenCalledTimes(1);
+    expect(joined).toMatch(/KOTA CLI client/);
+    expect(joined).toMatch(/Daemon-backed shared UI client/);
+    expect(joined).toMatch(/operator-control/);
+    expect(joined).toMatch(/Operator Control/);
+    expect(joined).toMatch(/Launch workflow run/);
+    expect(joined).toMatch(/Live daemon events/);
+    expect(joined).toMatch(/launch\.defaults\.configure/);
+    expect(client.ui.listSurfaces).toHaveBeenCalledTimes(1);
   });
 
-  it("approves a pending item via the approvals screen", async () => {
-    const pending: PendingApproval = {
-      id: "ap_1",
-      tool: "shell",
-      input: { command: "ls" },
-      risk: "moderate",
-      reason: "moderate-risk command",
-      status: "pending",
-      createdAt: new Date().toISOString(),
-    } as PendingApproval;
-    const approve = vi.fn(async () => ({
-      ok: true as const,
-      approval: { ...pending, status: "approved" } as PendingApproval,
-    }));
+  it("refreshes the shared surface bundle on command", async () => {
+    const listSurfaces = vi.fn(async () => surfaceBundle());
     const client = emptyClient({
-      approvals: {
-        list: vi.fn(async () => ({ approvals: [pending] })),
-        approve,
-        reject: vi.fn(async () => ({ ok: false as const, reason: "not_found" as const })),
+      ui: {
+        listSurfaces,
+        executeAction: vi.fn(async () => ({ ok: false as const, reason: "not_found" as const, message: "stub" })),
+        watchEvents: async function* () {},
       },
     });
     const output = makeOutput();
     await runNavigator({
       client,
-      prompt: makePrompt(["2", "ap_1 approve looks ok", "q"]),
+      prompt: makePrompt(["refresh", "q"]),
       output: output.capture,
     });
-    expect(approve).toHaveBeenCalledWith("ap_1", "looks ok");
-    expect(output.frames.join("\n")).toMatch(/Approved ap_1/);
+    expect(listSurfaces).toHaveBeenCalledTimes(2);
+    expect(output.frames.join("\n")).toMatch(/operator-control/);
   });
 
-  it("renders invalid approval id responses in the approvals screen", async () => {
-    const pending: PendingApproval = {
-      id: "abcd1234",
-      tool: "shell",
-      input: { command: "ls" },
-      risk: "moderate",
-      reason: "moderate-risk command",
-      status: "pending",
-      createdAt: new Date().toISOString(),
-    } as PendingApproval;
-    const approve = vi.fn(async () => ({ ok: false as const, reason: "invalid_id" as const }));
+  it("renders command palette, resize, theme, and keybinding states", async () => {
     const client = emptyClient({
-      approvals: {
-        list: vi.fn(async () => ({ approvals: [pending] })),
-        approve,
-        reject: vi.fn(async () => ({ ok: false as const, reason: "not_found" as const })),
+      ui: {
+        listSurfaces: vi.fn(async () => surfaceBundle()),
+        executeAction: vi.fn(async () => ({ ok: false as const, reason: "not_found" as const, message: "stub" })),
+        watchEvents: async function* () {},
       },
     });
     const output = makeOutput();
     await runNavigator({
       client,
-      prompt: makePrompt(["2", "../abcd1234 approve", "q"]),
+      prompt: makePrompt([":", "resize 120", "theme ascii", "keys", "q"]),
       output: output.capture,
     });
-    expect(approve).toHaveBeenCalledWith("../abcd1234", undefined);
-    expect(output.frames.join("\n")).toMatch(/Invalid approval id/);
+    const joined = output.frames.join("\n");
+    expect(joined).toMatch(/Command palette/);
+    expect(joined).toMatch(/Width set to 120/);
+    expect(joined).toMatch(/Theme preference set to ascii/);
+    expect(joined).toMatch(/Keybindings/);
   });
 
-  it("summarizes active sessions inside the Work intent", async () => {
-    const session: InteractiveSession = {
-      id: "sess-1",
-      scopeId: "test-project",
-      projectId: "test-project",
-      createdAt: new Date().toISOString(),
-      lastActive: Date.now(),
-      autonomyMode: "supervised",
-      source: "daemon",
-    };
+  it("drives keyboard focus and selected surface/action movement deterministically", async () => {
     const client = emptyClient({
-      sessions: {
-        list: vi.fn(async () => ({ sessions: [session] })),
-        setAutonomyMode: vi.fn(async () => ({ ok: false as const, reason: "daemon_required" as const })),
+      ui: {
+        listSurfaces: vi.fn(async () => navigationSurfaceBundle()),
+        executeAction: vi.fn(async () => ({ ok: false as const, reason: "not_found" as const, message: "stub" })),
+        watchEvents: async function* () {},
       },
     });
     const output = makeOutput();
     await runNavigator({
       client,
-      prompt: makePrompt(["3", "q"]),
+      prompt: makePrompt(["j", "k", "j", "enter", "tab", "j", "k", "q"]),
       output: output.capture,
     });
-    expect(client.sessions.list).toHaveBeenCalledTimes(1);
-    expect(output.frames.join("\n")).toMatch(/Sessions\s+1/);
+
+    expect(output.frames[0]).toMatch(/focus:surfaces/);
+    expect(output.frames[0]).toMatch(/>\s+1\s+status-panel/);
+    expect(output.frames[1]).toMatch(/>\s+2\s+work-console/);
+    expect(output.frames[2]).toMatch(/>\s+1\s+status-panel/);
+    expect(output.frames[3]).toMatch(/>\s+2\s+work-console/);
+    expect(output.frames[4]).toMatch(/Work Console/);
+    expect(output.frames[4]).toMatch(/>\s+work\.first\s+First work action/);
+    expect(output.frames[5]).toMatch(/focus:actions/);
+    expect(output.frames[6]).toMatch(/>\s+work\.second\s+Second work action/);
+    expect(output.frames[7]).toMatch(/>\s+work\.first\s+First work action/);
   });
 
-  it("never imports `.kota/` paths or module services directly", () => {
+  it("subscribes to live daemon UI events and refreshes the current frame", async () => {
+    const listSurfaces = vi.fn(async () => surfaceBundle());
+    async function* watchEvents(): AsyncIterable<DaemonSseStreamEvent> {
+      yield {
+        id: "evt-1",
+        type: "workflow.started",
+        payload: {
+          projectId: "scope-main",
+          workflow: "builder",
+          runId: "run-1",
+          triggerEvent: "manual",
+          definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+          runDir: ".kota/runs/run-1",
+          startedAt: "2026-06-19T00:00:00.000Z",
+        },
+      };
+    }
+    const client = emptyClient({
+      ui: {
+        listSurfaces,
+        executeAction: vi.fn(async () => ({ ok: false as const, reason: "not_found" as const, message: "stub" })),
+        watchEvents,
+      },
+    });
+    const output = makeOutput();
+    await runNavigator({
+      client,
+      prompt: {
+        ask: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+          return "q";
+        },
+        close: () => {},
+      },
+      output: output.capture,
+    });
+    const joined = output.frames.join("\n");
+    expect(listSurfaces).toHaveBeenCalledTimes(2);
+    expect(joined).toMatch(/Live update workflow\.started/);
+    expect(joined).toMatch(/live:event-stream 1/);
+  });
+
+  it("executes a typed shared UI action with JSON parameters", async () => {
+    const executeAction = vi.fn(async () => ({ ok: true as const, message: "Workflow queued." }));
+    const client = emptyClient({
+      ui: {
+        listSurfaces: vi.fn(async () => surfaceBundle()),
+        executeAction,
+        watchEvents: async function* () {},
+      },
+    });
+    const output = makeOutput();
+    await runNavigator({
+      client,
+      prompt: makePrompt(['action operator-control workflow.launch --yes {"name":"builder"}', "q"]),
+      output: output.capture,
+    });
+    expect(executeAction).toHaveBeenCalledWith({
+      surfaceId: "operator-control",
+      actionId: "workflow.launch",
+      parameters: { name: "builder" },
+    });
+    expect(output.frames.join("\n")).toMatch(/UI action executed/);
+  });
+
+  it("requires confirmation for write actions when --yes is absent", async () => {
+    const executeAction = vi.fn(async () => ({ ok: true as const, message: "Workflow queued." }));
+    const client = emptyClient({
+      ui: {
+        listSurfaces: vi.fn(async () => surfaceBundle()),
+        executeAction,
+        watchEvents: async function* () {},
+      },
+    });
+    const output = makeOutput();
+    await runNavigator({
+      client,
+      prompt: makePrompt(["action operator-control workflow.launch", "Launch run", "q"]),
+      output: output.capture,
+    });
+    expect(executeAction).toHaveBeenCalledWith({
+      surfaceId: "operator-control",
+      actionId: "workflow.launch",
+      parameters: undefined,
+    });
+    expect(output.frames.join("\n")).toMatch(/UI action executed/);
+  });
+
+  it("keeps disabled actions local instead of executing them", async () => {
+    const executeAction = vi.fn(async () => ({ ok: true as const, message: "Updated." }));
+    const client = emptyClient({
+      ui: {
+        listSurfaces: vi.fn(async () => surfaceBundle()),
+        executeAction,
+        watchEvents: async function* () {},
+      },
+    });
+    const output = makeOutput();
+    await runNavigator({
+      client,
+      prompt: makePrompt(["action operator-control launch.defaults.configure --yes {}", "q"]),
+      output: output.capture,
+    });
+    expect(executeAction).not.toHaveBeenCalled();
+    expect(output.frames.join("\n")).toMatch(/Configure launch defaults is disabled/);
+  });
+
+  it("never imports `.kota/` paths, module services, or private navigator data paths", () => {
     const sources = [
       readFileSync(join(import.meta.dirname, "navigator.ts"), "utf-8"),
-      readFileSync(join(import.meta.dirname, "navigator-screens.ts"), "utf-8"),
       readFileSync(join(import.meta.dirname, "index.ts"), "utf-8"),
     ];
     for (const src of sources) {
@@ -385,24 +550,27 @@ describe("runtime navigator", () => {
       expect(/getProvider|getModuleSummaries|getApprovalQueue|moduleServices/.test(src),
         "navigator must not resolve module services through ctx",
       ).toBe(false);
+      expect(/client\.(approvals|tasks|workflow|sessions|modules|setup|secrets|memory|knowledge|history|ownerQuestions)\b/.test(src),
+        "navigator must consume shared ui surfaces rather than private namespace projections",
+      ).toBe(false);
     }
   });
 
   it("surfaces contract errors in place rather than swallowing them", async () => {
     const failingList = vi.fn(async () => {
-      throw new Error("Daemon unreachable while listing approvals");
+      throw new Error("Daemon unreachable while listing shared UI surfaces");
     });
     const client = emptyClient({
-      approvals: {
-        list: failingList,
-        approve: vi.fn(async () => ({ ok: false as const, reason: "not_found" as const })),
-        reject: vi.fn(async () => ({ ok: false as const, reason: "not_found" as const })),
+      ui: {
+        listSurfaces: failingList,
+        executeAction: vi.fn(async () => ({ ok: false as const, reason: "not_found" as const, message: "stub" })),
+        watchEvents: async function* () {},
       },
     });
     const output = makeOutput();
     await runNavigator({
       client,
-      prompt: makePrompt(["2", "q"]),
+      prompt: makePrompt(["work", "q"]),
       output: output.capture,
     });
     expect(output.frames.join("\n")).toMatch(/Daemon unreachable/);

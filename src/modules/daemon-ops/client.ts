@@ -21,6 +21,7 @@
 
 import type {
   DaemonLiveStatus,
+  DaemonSseStreamEvent,
   InteractiveSession,
 } from "#core/daemon/daemon-control.js";
 import type {
@@ -38,6 +39,11 @@ export type UiActionExecuteInput = {
   parameters?: UiJsonValue;
 };
 
+export type UiEventWatchInput = {
+  eventTypes?: readonly string[];
+  signal?: AbortSignal;
+};
+
 /**
  * Shared operator UI surface operations.
  *
@@ -48,6 +54,7 @@ export type UiActionExecuteInput = {
 export interface UiClient {
   listSurfaces(): Promise<UiSurfaceBundle>;
   executeAction(input: UiActionExecuteInput): Promise<UiActionExecutionResult>;
+  watchEvents(input?: UiEventWatchInput): AsyncIterable<DaemonSseStreamEvent>;
 }
 
 export type SessionsListResult = {

@@ -203,11 +203,19 @@ function modelForHarness(modelSpec: string, harnessName: string): string {
 program
   .name("kota")
   .description("KOTA — Keep Only The Awesome. A general-purpose AI agent.")
-  .version("0.1.0");
+  .version("0.1.0")
+  .addHelpText(
+    "after",
+    `
+Default client:
+  bare kota on a TTY launches the shared UI CLI client.
+  Use kota run <prompt> for the explicit prompt path; pipes keep one-shot behavior.
+`,
+  );
 
 program
   .command("run", { isDefault: true })
-  .description("Run KOTA with a prompt")
+  .description("Run an explicit prompt or interactive agent REPL")
   .argument("[prompt...]", "The task to perform")
   .option("-m, --model <model>", "Model. Defaults to the active preset's defaultModel. Supports provider/model notation: ollama/<model>, openai/<model>, openrouter/<model>, anthropic/<model>")
   .option("--provider <name>", "Model provider: anthropic, openai, openrouter, ollama, groq, together, lmstudio, agent-sdk (Claude Agent SDK)")

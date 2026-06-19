@@ -6,9 +6,15 @@ export type {
 export { executeUiAction, findUiAction } from "./operator-ui-actions.js";
 export {
   buildInboxUiSurface,
+  buildModulesAgentsUiSurface,
   buildOperatorControlUiSurface,
+  buildRuntimeUiSurface,
+  buildScopeUiSurface,
+  buildSetupUiSurface,
   buildStatusInboxBundle,
   buildStatusUiSurface,
+  buildStoresUiSurface,
+  type SurfaceRead,
 } from "./operator-ui-builders.js";
 export { renderUiSurface } from "./operator-ui-render.js";
 export type {

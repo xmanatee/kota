@@ -11,7 +11,7 @@
 import { Command } from "commander";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import { getTerminalTransport } from "#modules/rendering/transport.js";
-import { createReadlinePrompt, refuseNonTtyLaunch, runNavigator } from "./navigator.js";
+import { createReadlinePrompt, createStdoutResizeSource, refuseNonTtyLaunch, runNavigator } from "./navigator.js";
 
 const cliModule: KotaModule = {
   name: "cli",
@@ -21,7 +21,7 @@ const cliModule: KotaModule = {
 
   commands: (ctx: ModuleContext) => {
     const navigate = new Command("navigate")
-      .description("Open the interactive runtime navigator (TTY only)")
+      .description("Open the shared UI CLI client (TTY only)")
       .action(async () => {
         if (process.stdin.isTTY !== true) {
           refuseNonTtyLaunch(process.stderr);
@@ -32,6 +32,7 @@ const cliModule: KotaModule = {
           client: ctx.client,
           prompt: createReadlinePrompt(),
           output: getTerminalTransport(),
+          resizeSource: createStdoutResizeSource(),
         });
       });
     return [navigate];

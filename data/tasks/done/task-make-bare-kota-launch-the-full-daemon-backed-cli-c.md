@@ -1,13 +1,13 @@
 ---
 id: task-make-bare-kota-launch-the-full-daemon-backed-cli-c
 title: Replace the shallow bare KOTA navigator with a full daemon-backed CLI client
-status: ready
+status: done
 priority: p1
 area: client
 summary: Replace the current readline-style operator menu launched by bare `kota` with a modern daemon-backed CLI/TUI client that consumes the shared UI/action protocol and gives parity access to scopes, workflows, agents, modules, setup, pending owner requests, approvals, model/effort/default controls, stores, and live runs.
 depends_on: [task-add-shared-ui-contribution-protocol-across-clients]
 created_at: 2026-06-03T13:40:30.000Z
-updated_at: 2026-06-18T23:18:26.568Z
+updated_at: 2026-06-19T00:00:29.000Z
 task_class: Product
 ---
 

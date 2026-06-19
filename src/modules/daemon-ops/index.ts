@@ -71,9 +71,15 @@ import type {
 } from "./operator-ui.js";
 import {
   buildInboxUiSurface,
+  buildModulesAgentsUiSurface,
+  buildRuntimeUiSurface,
+  buildScopeUiSurface,
+  buildSetupUiSurface,
   buildStatusUiSurface,
+  buildStoresUiSurface,
   executeUiAction,
   findUiAction,
+  type SurfaceRead,
 } from "./operator-ui.js";
 import { buildOperatorControlUiSurface } from "./operator-ui-builders.js";
 import { buildUiCommand } from "./operator-ui-cli.js";
@@ -111,9 +117,14 @@ export type {
 } from "./operator-ui.js";
 export {
   buildInboxUiSurface,
+  buildModulesAgentsUiSurface,
   buildOperatorControlUiSurface,
+  buildRuntimeUiSurface,
+  buildScopeUiSurface,
+  buildSetupUiSurface,
   buildStatusInboxBundle,
   buildStatusUiSurface,
+  buildStoresUiSurface,
   executeUiAction,
   renderUiSurface,
 } from "./operator-ui.js";
@@ -421,6 +432,19 @@ function emptyInboxSnapshot(projectDir: string): OperatorInboxSnapshot {
 
 async function buildSharedUiSurfaceBundle(ctx: ModuleContext): Promise<UiSurfaceBundle> {
   const status = await gatherStatus(ctx.cwd);
+  const readSurface = async <T>(
+    label: string,
+    loader: () => Promise<T>,
+  ): Promise<SurfaceRead<T>> => {
+    try {
+      return { ok: true, value: await loader() };
+    } catch (error) {
+      return {
+        ok: false,
+        message: `${label}: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+  };
   let inbox = emptyInboxSnapshot(ctx.cwd);
   try {
     inbox = await buildOperatorInboxSnapshot({
@@ -436,9 +460,51 @@ async function buildSharedUiSurfaceBundle(ctx: ModuleContext): Promise<UiSurface
     // have an active KotaClient. The shared Inbox surface still belongs in the
     // daemon UI graph, even when its live item projection is unavailable.
   }
+  const [
+    projects,
+    sessions,
+    workflowStatus,
+    runs,
+    definitions,
+    approvals,
+    ownerQuestions,
+    modules,
+    agents,
+    setup,
+    memory,
+    knowledge,
+    history,
+  ] = await Promise.all([
+    readSurface("projects", () => ctx.client.projects.list()),
+    readSurface("sessions", () => ctx.client.sessions.list()),
+    readSurface("workflow status", () => ctx.client.workflow.status()),
+    readSurface("workflow runs", () => ctx.client.workflow.listRuns({ limit: 20 })),
+    readSurface("workflow definitions", () => ctx.client.workflow.listDefinitions()),
+    readSurface("approvals", () => ctx.client.approvals.list({ status: "pending" })),
+    readSurface("owner questions", () => ctx.client.ownerQuestions.list({ status: "pending" })),
+    readSurface("modules", () => ctx.client.modules.list()),
+    readSurface("agents", () => ctx.client.agents.list()),
+    readSurface("setup", () => ctx.client.setup.list()),
+    readSurface("memory", () => ctx.client.memory.list({ limit: 10 })),
+    readSurface("knowledge", () => ctx.client.knowledge.list()),
+    readSurface("history", () => ctx.client.history.list({ limit: 10 })),
+  ]);
   return buildUiSurfaceBundle([
     buildStatusUiSurface(status, { explain: true }),
+    buildScopeUiSurface({ status, projects, sessions }),
     buildInboxUiSurface(inbox),
+    buildRuntimeUiSurface({
+      status,
+      workflowStatus,
+      runs,
+      definitions,
+      approvals,
+      ownerQuestions,
+      sessions,
+    }),
+    buildModulesAgentsUiSurface({ status, modules, agents }),
+    buildSetupUiSurface({ status, setup }),
+    buildStoresUiSurface({ status, memory, knowledge, history }),
     ...ctx.getContributedUiSurfaces(),
   ]);
 }
@@ -497,10 +563,115 @@ function localUiNamespaceExecutor(ctx: ModuleContext): UiClientNamespaceExecutor
   };
 }
 
-function daemonUiNamespaceExecutor(): UiClientNamespaceExecutor {
-  return async (operation) => {
+function uiObjectParameter(parameters: UiJsonValue | undefined): { readonly [key: string]: UiJsonValue } | null {
+  if (parameters === undefined || parameters === null || Array.isArray(parameters) || typeof parameters !== "object") {
+    return null;
+  }
+  return parameters;
+}
+
+function stringUiParameter(parameters: UiJsonValue | undefined, key: string): string | undefined {
+  const value = uiObjectParameter(parameters)?.[key];
+  return typeof value === "string" ? value : undefined;
+}
+
+function booleanUiParameter(parameters: UiJsonValue | undefined, key: string): boolean {
+  const value = uiObjectParameter(parameters)?.[key];
+  return typeof value === "boolean" ? value : false;
+}
+
+function routeForUiNamespaceOperation(
+  operation: Parameters<UiClientNamespaceExecutor>[0],
+  parameters: UiJsonValue | undefined,
+): { method: string; path: string; body?: UiJsonValue; message: string } | null {
+  if (operation.namespace === "projects" && operation.method === "list") {
+    return { method: "GET", path: "/projects", message: "Scope registry loaded." };
+  }
+  if (operation.namespace === "projects" && operation.method === "use") {
+    const projectId = booleanUiParameter(parameters, "clear")
+      ? null
+      : stringUiParameter(parameters, "projectId") ?? null;
+    return {
+      method: "PATCH",
+      path: "/projects/active",
+      body: { projectId },
+      message: projectId === null ? "Active scope cleared." : `Active scope set to ${projectId}.`,
+    };
+  }
+  if (operation.namespace === "workflow" && operation.method === "status") {
+    return { method: "GET", path: "/workflow/status", message: "Workflow status loaded." };
+  }
+  if (operation.namespace === "workflow" && operation.method === "pause") {
+    return { method: "POST", path: "/workflow/pause", message: "Workflow dispatch paused." };
+  }
+  if (operation.namespace === "workflow" && operation.method === "resume") {
+    return { method: "POST", path: "/workflow/resume", message: "Workflow dispatch resumed." };
+  }
+  if (operation.namespace === "workflow" && operation.method === "abort") {
+    return { method: "POST", path: "/workflow/abort", message: "Active workflow runs aborted." };
+  }
+  if (operation.namespace === "workflow" && operation.method === "abortRun") {
+    const runId = stringUiParameter(parameters, "runId");
+    if (!runId) {
+      return { method: "POST", path: "/workflow/runs//abort", message: "runId is required." };
+    }
+    return {
+      method: "POST",
+      path: `/workflow/runs/${encodeURIComponent(runId)}/abort`,
+      message: `Run ${runId} aborted.`,
+    };
+  }
+  if (operation.namespace === "workflow" && operation.method === "listDefinitions") {
+    return { method: "GET", path: "/workflow/definitions", message: "Workflow definitions loaded." };
+  }
+  if (operation.namespace === "sessions" && operation.method === "list") {
+    return { method: "GET", path: "/sessions", message: "Live sessions loaded." };
+  }
+  if (operation.namespace === "modules" && operation.method === "list") {
+    return { method: "GET", path: "/modules", message: "Modules loaded." };
+  }
+  if (operation.namespace === "agents" && operation.method === "list") {
+    return { method: "GET", path: "/agents", message: "Agents loaded." };
+  }
+  if (operation.namespace === "setup" && operation.method === "list") {
+    return { method: "GET", path: "/setup/requirements", message: "Setup requirements loaded." };
+  }
+  if (operation.namespace === "memory" && operation.method === "list") {
+    return { method: "GET", path: "/api/memory?limit=10", message: "Memory loaded." };
+  }
+  if (operation.namespace === "knowledge" && operation.method === "list") {
+    return { method: "GET", path: "/api/knowledge", message: "Knowledge loaded." };
+  }
+  if (operation.namespace === "history" && operation.method === "list") {
+    return { method: "GET", path: "/history?limit=10", message: "History loaded." };
+  }
+  return null;
+}
+
+function daemonUiNamespaceExecutor(link: DaemonTransport): UiClientNamespaceExecutor {
+  return async (operation, parameters) => {
     if (operation.namespace === "daemonOps" && operation.method === "start") {
       return { ok: true, message: "Daemon already running." };
+    }
+    const route = routeForUiNamespaceOperation(operation, parameters);
+    if (route) {
+      if (route.path === "/workflow/runs//abort") {
+        return { ok: false, reason: "invalid-input", message: route.message };
+      }
+      const result = await link.request<UiJsonValue>(
+        route.method,
+        route.path,
+        route.body,
+        { timeoutMs: 10_000 },
+      );
+      if (result === null) {
+        return {
+          ok: false,
+          reason: "unavailable",
+          message: `${route.method} ${route.path} is unavailable.`,
+        };
+      }
+      return { ok: true, message: route.message };
     }
     return null;
   };
@@ -548,6 +719,10 @@ function buildLocalUiClient(ctx: ModuleContext): UiClient {
         },
       });
     },
+    watchEvents: async function* () {
+      // Local mode has no daemon event stream. The method is still present so
+      // clients can keep one update loop across daemon and local handlers.
+    },
   };
 }
 
@@ -561,7 +736,7 @@ function buildUiDaemonHandler(link: DaemonTransport): UiClient {
       if (!action) return missingUiAction(input);
       return executeUiAction({
         action,
-        clientNamespaceExecutor: daemonUiNamespaceExecutor(),
+        clientNamespaceExecutor: daemonUiNamespaceExecutor(link),
         parameters: input.parameters,
         routeExecutor: async (operation, parameters) => {
           const result = await link.request<UiJsonValue>(
@@ -580,6 +755,13 @@ function buildUiDaemonHandler(link: DaemonTransport): UiClient {
           return { ok: true, message: action.result.success.message };
         },
       });
+    },
+    watchEvents: async function* (input) {
+      const allowed = input?.eventTypes !== undefined ? new Set(input.eventTypes) : null;
+      for await (const event of link.events({ signal: input?.signal })) {
+        if (allowed !== null && !allowed.has(event.type)) continue;
+        yield event;
+      }
     },
   };
 }

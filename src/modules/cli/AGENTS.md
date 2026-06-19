@@ -28,8 +28,15 @@ transports.
   launch and prints the equivalent one-shot subcommand hint so pipes,
   cron jobs, and scripted callers fail loudly instead of hanging on a
   prompt.
-- The first screen is organized by operator intent: Status, Inbox, Work,
-  Knowledge, and Setup. Backend nouns stay nested under those intents instead
-  of becoming top-level navigation.
+- The first screen is built from `client.ui.listSurfaces()` and groups exposed
+  shared UI surfaces by protocol intent: Status, Inbox, Work, Knowledge, and
+  Setup. Backend nouns stay inside contributed surfaces instead of becoming a
+  second CLI-only navigation model.
+- Interaction state is explicit and testable: focus, selected surface/action,
+  command palette, keybindings, theme preference, resize width, and live
+  event-stream status live in the navigator state reducer.
+- Live updates subscribe through `client.ui.watchEvents()` using the
+  `log-stream` event metadata declared by shared UI surfaces. Do not open a
+  private daemon transport from the navigator.
 - Secrets values are never rendered. The screen lists names and sources
   only; the only mutation is removal.

@@ -132,6 +132,8 @@ describe("cli", () => {
     const out = run("--help");
     expect(out).toContain("KOTA");
     expect(out).toContain("Keep Only The Awesome");
+    expect(out).toContain("bare kota on a TTY launches the shared UI CLI client");
+    expect(out).toContain("Use kota run <prompt> for the explicit prompt path");
   });
 
   it("--version prints semver", () => {
@@ -519,7 +521,7 @@ describe("history resume validation", () => {
       },
     );
 
-    expect(exitCode).toBe(0);
+    expect(exitCode, stderr).toBe(0);
     expect(stderr).toContain(`using saved directory ${savedDir}`);
     expect(stderr).toContain(`Project: ${savedDir}`);
     expect(stderr).toContain("Model: saved-run-model");

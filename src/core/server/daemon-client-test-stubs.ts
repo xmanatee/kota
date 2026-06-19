@@ -239,6 +239,7 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
         reason: "not_found",
         message: "stub",
       }),
+      watchEvents: async function* () {},
     },
     config: {
       validate: async () => ({ sources: [], warnings: [], resolved: {} }),

@@ -109,7 +109,7 @@ describe("daemonModule", () => {
     expect(daemonModule.dependencies).toContain("rendering");
   });
 
-  it("serves Status, Inbox, and contributed module surfaces from /ui/surfaces", async () => {
+  it("serves canonical operator surfaces and contributed module surfaces from /ui/surfaces", async () => {
     const projectDir = mkdtempSync(join(tmpdir(), "kota-ui-route-"));
     try {
       const ctx: ModuleRuntimeContext = {
@@ -140,8 +140,13 @@ describe("daemonModule", () => {
       const parsed = JSON.parse(body) as { surfaces: Array<{ surfaceId: string }> };
       expect(parsed.surfaces.map((surface) => surface.surfaceId)).toEqual([
         "status",
+        "scopes",
         "inbox",
         "operator-control",
+        "runs",
+        "modules-agents",
+        "setup",
+        "stores",
       ]);
     } finally {
       rmSync(projectDir, { recursive: true, force: true });

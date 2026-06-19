@@ -330,6 +330,7 @@ function makeStubUi(): DaemonClientHandlers["ui"] {
   return {
     listSurfaces: async () => ({ protocolVersion: "ui.surface.v1", surfaces: [] }),
     executeAction: async () => ({ ok: false, reason: "not_found", message: "stub" }),
+    watchEvents: async function* () {},
   };
 }
 

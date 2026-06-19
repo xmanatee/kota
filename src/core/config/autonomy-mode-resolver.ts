@@ -1,4 +1,4 @@
-import { type AutonomyMode, isAutonomyMode } from "../tools/autonomy-mode.js";
+import { type AutonomyMode, isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { KotaConfig } from "./config.js";
 
 /**

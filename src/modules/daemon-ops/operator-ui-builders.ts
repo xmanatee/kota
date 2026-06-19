@@ -1,9 +1,24 @@
+import type { PendingApproval } from "#core/daemon/approval-queue.js";
+import type { WorkflowDefinitionSummary } from "#core/daemon/daemon-control.js";
+import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
 import { buildUiSurfaceBundle } from "#core/daemon/ui-surface.js";
 import {
   getPreset,
   listShippedPresets,
   SHIPPED_DEFAULT_PRESET_ID,
 } from "#core/model/preset.js";
+import type { AgentsListResult } from "#modules/agent-ops/client.js";
+import type { HistoryListResult } from "#modules/history/client.js";
+import type { KnowledgeListResult } from "#modules/knowledge/client.js";
+import type { MemoryListResult } from "#modules/memory/client.js";
+import type { ModulesListResult } from "#modules/module-manager/client.js";
+import type { ModuleSetupStatusResponse } from "#modules/setup/client.js";
+import type {
+  WorkflowDefinitionsResult,
+  WorkflowRunsListResult,
+  WorkflowStatusSnapshot,
+} from "#modules/workflow-ops/client.js";
+import type { ProjectsListResult, SessionsListResult } from "./client.js";
 import type { OperatorInboxItem, OperatorInboxSnapshot } from "./operator-inbox.js";
 import type {
   UiAction,
@@ -41,6 +56,10 @@ type ActionArgs = {
   result?: UiActionResultSpec;
   permissions?: readonly UiPermission[];
 };
+
+export type SurfaceRead<T> =
+  | { ok: true; value: T }
+  | { ok: false; message: string };
 
 function resultSpec(message: string): UiActionResultSpec {
   return {
@@ -673,6 +692,812 @@ function demoLogEntries(): UiLogEntry[] {
       message: "UI surface fixture rendered for client conformance.",
     },
   ];
+}
+
+function readRole<T>(read: SurfaceRead<T>): UiRole {
+  return read.ok ? "success" : "warn";
+}
+
+function readValue<T>(read: SurfaceRead<T>, value: (inner: T) => string): string {
+  return read.ok ? value(read.value) : read.message;
+}
+
+function shortId(value: string, max = 32): string {
+  return value.length <= max ? value : `${value.slice(0, max - 3)}...`;
+}
+
+function triggerSummary(definition: WorkflowDefinitionSummary): string {
+  if (definition.triggers.length === 0) return "manual";
+  return definition.triggers.map((trigger) => {
+    switch (trigger.type) {
+      case "event":
+        return trigger.event;
+      case "cron":
+        return trigger.schedule;
+      case "interval":
+        return `${trigger.intervalMs}ms`;
+      case "webhook":
+        return "webhook";
+      case "watch":
+        return trigger.patterns.join(",");
+    }
+  }).join(", ");
+}
+
+function unavailableRows(message: string): UiTableRow[] {
+  return [
+    {
+      id: "unavailable",
+      cells: [
+        { columnId: "name", value: "Unavailable", role: "warn" },
+        { columnId: "state", value: message, role: "warn" },
+        { columnId: "detail", value: "The active KotaClient could not read this namespace.", role: "muted" },
+      ],
+    },
+  ];
+}
+
+const NAME_STATE_DETAIL_COLUMNS: UiTableColumn[] = [
+  { id: "name", label: "Name" },
+  { id: "state", label: "State" },
+  { id: "detail", label: "Detail" },
+];
+
+function emptyRows(label: string): UiTableRow[] {
+  return [
+    {
+      id: "none",
+      cells: [
+        { columnId: "name", value: label, role: "muted" },
+        { columnId: "state", value: "empty", role: "muted" },
+        { columnId: "detail", value: "No matching records are exposed right now.", role: "muted" },
+      ],
+    },
+  ];
+}
+
+function projectUseParameters(): UiActionParameterSpec {
+  return {
+    fields: [
+      {
+        id: "projectId",
+        label: "Project id",
+        input: "text",
+        required: false,
+      },
+      {
+        id: "clear",
+        label: "Clear active selection",
+        input: "boolean",
+        required: false,
+      },
+    ],
+    schema: {
+      type: "object",
+      properties: {
+        projectId: { type: "string" },
+        clear: { type: "boolean", default: false },
+      },
+      additionalProperties: false,
+    },
+  };
+}
+
+export function buildScopeUiSurface(args: {
+  status: StatusSnapshot;
+  projects: SurfaceRead<ProjectsListResult>;
+  sessions: SurfaceRead<SessionsListResult>;
+}): UiSurface {
+  const scopeId = scopeIdForStatus(args.status);
+  const projectRows: UiTableRow[] = args.projects.ok
+    ? args.projects.value.ok
+      ? (() => {
+          const projectsView = args.projects.value;
+          return projectsView.projects.map((project) => {
+          const markers: string[] = [];
+          if (project.projectId === projectsView.activeProjectId) markers.push("active");
+          if (project.projectId === projectsView.defaultProjectId) markers.push("default");
+          return {
+            id: project.projectId,
+            cells: [
+              { columnId: "name", value: project.projectId, role: markers.includes("active") ? "info" : "neutral" },
+              { columnId: "state", value: markers.length > 0 ? markers.join(", ") : "available", role: markers.includes("active") ? "success" : "muted" },
+              { columnId: "detail", value: `${project.displayName}  ${project.projectDir}`, role: "muted" },
+            ],
+          };
+        });
+        })()
+      : unavailableRows("daemon required")
+    : unavailableRows(args.projects.message);
+
+  const sessionRows: UiTableRow[] = args.sessions.ok
+    ? args.sessions.value.sessions.length === 0
+      ? emptyRows("Live sessions")
+      : args.sessions.value.sessions.map((session) => ({
+          id: session.id,
+          cells: [
+            { columnId: "name", value: shortId(session.id), role: "info" },
+            { columnId: "state", value: session.autonomyMode, role: "success" },
+            { columnId: "detail", value: `${session.projectId}  ${session.source ?? "daemon"}  last=${new Date(session.lastActive).toISOString()}`, role: "muted" },
+          ],
+        }))
+    : unavailableRows(args.sessions.message);
+
+  const actions = [
+    action({
+      surfaceId: "scopes",
+      actionId: "projects.list",
+      scopeId,
+      label: "Reload scope registry",
+      operation: { kind: "client-namespace", namespace: "projects", method: "list" },
+      result: resultSpec("Scope registry loaded."),
+    }),
+    action({
+      surfaceId: "scopes",
+      actionId: "project.use",
+      scopeId,
+      label: "Switch active scope",
+      effect: "write",
+      operation: { kind: "client-namespace", namespace: "projects", method: "use" },
+      parameters: projectUseParameters(),
+      confirmation: {
+        mode: "required",
+        title: "Switch active scope",
+        detail: "Subsequent daemon reads without an explicit project override use this selection.",
+        confirmLabel: "Switch scope",
+        risk: "low",
+      },
+      result: resultSpec("Active scope updated."),
+    }),
+    action({
+      surfaceId: "scopes",
+      actionId: "sessions.list",
+      scopeId,
+      label: "List live sessions",
+      operation: { kind: "client-namespace", namespace: "sessions", method: "list" },
+      result: resultSpec("Live sessions loaded."),
+    }),
+  ];
+
+  return {
+    protocolVersion: "ui.surface.v1",
+    surfaceId: "scopes",
+    extensionId: "core.scopes",
+    title: "Scopes",
+    intent: "Status",
+    scopeId,
+    attachmentPoint: { kind: "intent", intent: "Status" },
+    order: 15,
+    permissions: [{ kind: "capability-scope", scope: "read" }],
+    nodes: [
+      {
+        kind: "status-summary",
+        entries: [
+          {
+            label: "Registry",
+            value: readValue(args.projects, (projects) => projects.ok ? `${projects.projects.length} configured` : "daemon required"),
+            role: readRole(args.projects),
+          },
+          {
+            label: "Active",
+            value: readValue(args.projects, (projects) => projects.ok ? projects.activeProjectId ?? projects.defaultProjectId : "unavailable"),
+            role: readRole(args.projects),
+          },
+          {
+            label: "Sessions",
+            value: readValue(args.sessions, (sessions) => `${sessions.sessions.length} live`),
+            role: readRole(args.sessions),
+          },
+        ],
+      },
+      { kind: "table", title: "Directory scopes", columns: NAME_STATE_DETAIL_COLUMNS, rows: projectRows },
+      { kind: "table", title: "Live sessions", columns: NAME_STATE_DETAIL_COLUMNS, rows: sessionRows },
+      { kind: "action-list", title: "Scope actions", actions },
+    ],
+    actions,
+  };
+}
+
+function workflowRows(definitions: SurfaceRead<WorkflowDefinitionsResult>): UiTableRow[] {
+  if (!definitions.ok) return unavailableRows(definitions.message);
+  if (definitions.value.definitions.length === 0) return emptyRows("Workflow definitions");
+  return definitions.value.definitions.map((definition) => ({
+    id: definition.name,
+    cells: [
+      { columnId: "name", value: definition.name, role: definition.enabled ? "success" : "muted" },
+      { columnId: "state", value: definition.runtimeEnabled === false ? "runtime disabled" : definition.enabled ? "enabled" : "disabled", role: definition.enabled ? "success" : "warn" },
+      { columnId: "detail", value: `${definition.stepCount} step(s); ${triggerSummary(definition)}`, role: "muted" },
+    ],
+  }));
+}
+
+function activeRunRows(status: SurfaceRead<WorkflowStatusSnapshot>): UiTableRow[] {
+  if (!status.ok) return unavailableRows(status.message);
+  if (status.value.activeRuns.length === 0) return emptyRows("Active runs");
+  return status.value.activeRuns.map((run) => ({
+    id: run.runId,
+    cells: [
+      { columnId: "name", value: shortId(run.runId), role: "info" },
+      { columnId: "state", value: run.workflow, role: "success" },
+      { columnId: "detail", value: `started ${run.startedAt}`, role: "muted" },
+    ],
+  }));
+}
+
+function queuedRunRows(status: SurfaceRead<WorkflowStatusSnapshot>): UiTableRow[] {
+  if (!status.ok) return unavailableRows(status.message);
+  if (status.value.pendingRuns.length === 0) return emptyRows("Queued runs");
+  return status.value.pendingRuns.map((run, index) => ({
+    id: run.runId ?? `queued-${index}`,
+    cells: [
+      { columnId: "name", value: shortId(run.runId ?? `queued-${index}`), role: "info" },
+      { columnId: "state", value: run.workflowName, role: "warn" },
+      { columnId: "detail", value: `enqueued ${new Date(run.enqueuedAtMs).toISOString()}; not-before ${new Date(run.notBeforeMs).toISOString()}`, role: "muted" },
+    ],
+  }));
+}
+
+function recentRunRows(runs: SurfaceRead<WorkflowRunsListResult>): UiTableRow[] {
+  if (!runs.ok) return unavailableRows(runs.message);
+  if (runs.value.runs.length === 0) return emptyRows("Recent runs");
+  return runs.value.runs.map((run) => ({
+    id: run.id,
+    cells: [
+      { columnId: "name", value: shortId(run.id), role: "info" },
+      { columnId: "state", value: `${run.workflow} ${run.status}`, role: run.status === "failed" ? "error" : run.status === "success" ? "success" : "warn" },
+      { columnId: "detail", value: `${run.startedAt}${run.totalCostUsd !== undefined ? `  $${run.totalCostUsd.toFixed(4)}` : ""}`, role: "muted" },
+    ],
+  }));
+}
+
+function approvalRows(approvals: SurfaceRead<{ approvals: PendingApproval[] }>): UiTableRow[] {
+  if (!approvals.ok) return unavailableRows(approvals.message);
+  if (approvals.value.approvals.length === 0) return emptyRows("Approvals");
+  return approvals.value.approvals.map((approval) => ({
+    id: approval.id,
+    cells: [
+      { columnId: "name", value: shortId(approval.id), role: approval.risk === "dangerous" ? "error" : "warn" },
+      { columnId: "state", value: approval.status, role: approval.status === "pending" ? "warn" : "muted" },
+      { columnId: "detail", value: `${approval.tool}  ${approval.reason}`, role: "muted" },
+    ],
+  }));
+}
+
+function ownerQuestionRows(questions: SurfaceRead<{ questions: PendingOwnerQuestion[] }>): UiTableRow[] {
+  if (!questions.ok) return unavailableRows(questions.message);
+  if (questions.value.questions.length === 0) return emptyRows("Owner questions");
+  return questions.value.questions.map((question) => ({
+    id: question.id,
+    cells: [
+      { columnId: "name", value: shortId(question.id), role: "warn" },
+      { columnId: "state", value: question.status, role: question.status === "pending" ? "warn" : "muted" },
+      { columnId: "detail", value: question.question, role: "muted" },
+    ],
+  }));
+}
+
+function runtimeLogEntries(args: {
+  status: SurfaceRead<WorkflowStatusSnapshot>;
+  runs: SurfaceRead<WorkflowRunsListResult>;
+}): UiLogEntry[] {
+  const entries: UiLogEntry[] = [];
+  if (args.status.ok) {
+    for (const run of args.status.value.activeRuns.slice(0, 3)) {
+      entries.push({
+        timestamp: run.startedAt,
+        level: "info",
+        source: `workflow.${run.workflow}`,
+        message: `Active run ${run.runId} is executing.`,
+      });
+    }
+  }
+  if (args.runs.ok) {
+    for (const run of args.runs.value.runs.slice(0, 3)) {
+      entries.push({
+        timestamp: run.startedAt,
+        level: run.status === "failed" ? "error" : run.status === "success" ? "info" : "warn",
+        source: `workflow.${run.workflow}`,
+        message: `${run.id} ${run.status}.`,
+      });
+    }
+  }
+  return entries.length > 0 ? entries : [
+    {
+      timestamp: new Date().toISOString(),
+      level: "info",
+      source: "daemon.events",
+      message: "Waiting for live workflow, approval, owner-question, and session events.",
+    },
+  ];
+}
+
+function runAbortParameters(): UiActionParameterSpec {
+  return {
+    fields: [{ id: "runId", label: "Run id", input: "text", required: true }],
+    schema: {
+      type: "object",
+      required: ["runId"],
+      properties: { runId: { type: "string" } },
+      additionalProperties: false,
+    },
+  };
+}
+
+export function buildRuntimeUiSurface(args: {
+  status: StatusSnapshot;
+  workflowStatus: SurfaceRead<WorkflowStatusSnapshot>;
+  runs: SurfaceRead<WorkflowRunsListResult>;
+  definitions: SurfaceRead<WorkflowDefinitionsResult>;
+  approvals: SurfaceRead<{ approvals: PendingApproval[] }>;
+  ownerQuestions: SurfaceRead<{ questions: PendingOwnerQuestion[] }>;
+  sessions: SurfaceRead<SessionsListResult>;
+}): UiSurface {
+  const scopeId = scopeIdForStatus(args.status);
+  const launch = action({
+    surfaceId: "runs",
+    actionId: "workflow.launch",
+    scopeId,
+    label: "Launch workflow run",
+    effect: "write",
+    operation: { kind: "daemon-route", method: "POST", path: "/workflow/trigger" },
+    parameters: launchWorkflowParameters(),
+    confirmation: {
+      mode: "required",
+      title: "Launch workflow",
+      detail: "This queues a workflow run in the selected scope.",
+      confirmLabel: "Launch run",
+      risk: "medium",
+    },
+    result: resultSpec("Workflow queued."),
+  });
+  const actions = [
+    action({
+      surfaceId: "runs",
+      actionId: "workflow.status",
+      scopeId,
+      label: "Refresh workflow status",
+      operation: { kind: "client-namespace", namespace: "workflow", method: "status" },
+      result: resultSpec("Workflow status loaded."),
+    }),
+    action({
+      surfaceId: "runs",
+      actionId: "workflow.pause",
+      scopeId,
+      label: "Pause dispatch",
+      effect: "write",
+      operation: { kind: "client-namespace", namespace: "workflow", method: "pause" },
+      confirmation: {
+        mode: "required",
+        title: "Pause workflow dispatch",
+        detail: "No new workflow runs will be dispatched until resumed.",
+        confirmLabel: "Pause dispatch",
+        risk: "medium",
+      },
+      result: resultSpec("Workflow dispatch paused."),
+    }),
+    action({
+      surfaceId: "runs",
+      actionId: "workflow.resume",
+      scopeId,
+      label: "Resume dispatch",
+      effect: "write",
+      operation: { kind: "client-namespace", namespace: "workflow", method: "resume" },
+      result: resultSpec("Workflow dispatch resumed."),
+    }),
+    action({
+      surfaceId: "runs",
+      actionId: "workflow.abort",
+      scopeId,
+      label: "Abort active runs",
+      effect: "write",
+      operation: { kind: "client-namespace", namespace: "workflow", method: "abort" },
+      confirmation: {
+        mode: "required",
+        title: "Abort active workflow runs",
+        detail: "This asks every active workflow run to stop.",
+        confirmLabel: "Abort runs",
+        risk: "high",
+      },
+      result: resultSpec("Active workflow runs aborted."),
+    }),
+    action({
+      surfaceId: "runs",
+      actionId: "run.abort",
+      scopeId,
+      label: "Abort one run",
+      effect: "write",
+      operation: { kind: "client-namespace", namespace: "workflow", method: "abortRun" },
+      parameters: runAbortParameters(),
+      confirmation: {
+        mode: "required",
+        title: "Abort workflow run",
+        detail: "This asks one active workflow run to stop.",
+        confirmLabel: "Abort run",
+        risk: "high",
+      },
+      result: resultSpec("Workflow run aborted."),
+    }),
+    launch,
+  ];
+
+  const activeCount = args.workflowStatus.ok ? args.workflowStatus.value.activeRuns.length : 0;
+  const queuedCount = args.workflowStatus.ok ? args.workflowStatus.value.pendingRuns.length : 0;
+  const agentLimit = args.workflowStatus.ok ? args.workflowStatus.value.agentConcurrency : 1;
+  const codeLimit = args.workflowStatus.ok ? args.workflowStatus.value.codeConcurrency : 1;
+
+  return {
+    protocolVersion: "ui.surface.v1",
+    surfaceId: "runs",
+    extensionId: "core.runs",
+    title: "Runs and Automations",
+    intent: "Work",
+    scopeId,
+    attachmentPoint: { kind: "intent", intent: "Work" },
+    order: 30,
+    permissions: [{ kind: "capability-scope", scope: "read" }],
+    nodes: [
+      {
+        kind: "status-summary",
+        entries: [
+          { label: "Dispatch", value: args.workflowStatus.ok ? args.workflowStatus.value.paused ? "paused" : "running" : args.workflowStatus.message, role: readRole(args.workflowStatus) },
+          { label: "Active", value: `${activeCount}`, role: activeCount > 0 ? "warn" : "muted" },
+          { label: "Queued", value: `${queuedCount}`, role: queuedCount > 0 ? "warn" : "muted" },
+          { label: "Definitions", value: readValue(args.definitions, (definitions) => `${definitions.definitions.length}`), role: readRole(args.definitions) },
+          { label: "Approvals", value: readValue(args.approvals, (approvals) => `${approvals.approvals.length}`), role: readRole(args.approvals) },
+          { label: "Owner questions", value: readValue(args.ownerQuestions, (questions) => `${questions.questions.length}`), role: readRole(args.ownerQuestions) },
+          { label: "Sessions", value: readValue(args.sessions, (sessions) => `${sessions.sessions.length}`), role: readRole(args.sessions) },
+        ],
+      },
+      { kind: "progress", label: "Agent run slots", value: Math.min(activeCount, agentLimit), max: Math.max(1, agentLimit), role: activeCount > 0 ? "warn" : "info" },
+      { kind: "progress", label: "Code run slots", value: Math.min(activeCount, codeLimit), max: Math.max(1, codeLimit), role: activeCount > 0 ? "warn" : "info" },
+      { kind: "table", title: "Active run supervision", columns: NAME_STATE_DETAIL_COLUMNS, rows: activeRunRows(args.workflowStatus) },
+      { kind: "table", title: "Queued workflow runs", columns: NAME_STATE_DETAIL_COLUMNS, rows: queuedRunRows(args.workflowStatus) },
+      { kind: "table", title: "Recent run results", columns: NAME_STATE_DETAIL_COLUMNS, rows: recentRunRows(args.runs) },
+      { kind: "table", title: "Workflow definitions and schedules", columns: NAME_STATE_DETAIL_COLUMNS, rows: workflowRows(args.definitions) },
+      { kind: "table", title: "Approvals", columns: NAME_STATE_DETAIL_COLUMNS, rows: approvalRows(args.approvals) },
+      { kind: "table", title: "Owner questions", columns: NAME_STATE_DETAIL_COLUMNS, rows: ownerQuestionRows(args.ownerQuestions) },
+      {
+        kind: "log-stream",
+        title: "Live run event stream",
+        streamId: "workflow-events",
+        source: {
+          kind: "sse",
+          path: "/events",
+          eventTypes: [
+            "workflow.started",
+            "workflow.step.completed",
+            "workflow.completed",
+            "queue.changed",
+            "approval.changed",
+            "owner.question.asked",
+            "owner.question.changed",
+            "session.registered",
+            "session.unregistered",
+          ],
+        },
+        entries: runtimeLogEntries({ status: args.workflowStatus, runs: args.runs }),
+      },
+      {
+        kind: "form",
+        title: "Launch workflow run",
+        fields: launchWorkflowParameters().fields,
+        submit: launch,
+      },
+      {
+        kind: "form",
+        title: "Run/session parameters",
+        fields: sessionLaunchParameters().fields,
+        submit: action({
+          surfaceId: "runs",
+          actionId: "session.launch",
+          scopeId,
+          label: "Start session",
+          effect: "write",
+          operation: { kind: "daemon-route", method: "POST", path: "/sessions" },
+          parameters: sessionLaunchParameters(),
+          result: resultSpec("Session started."),
+        }),
+      },
+      {
+        kind: "form",
+        title: "Model, effort, and launch defaults",
+        fields: launchDefaultParameters().fields,
+        submit: action({
+          surfaceId: "runs",
+          actionId: "launch.defaults.configure",
+          scopeId,
+          label: "Configure launch defaults",
+          effect: "write",
+          operation: { kind: "client-namespace", namespace: "config", method: "set" },
+          parameters: launchDefaultParameters(),
+          readiness: {
+            state: "disabled",
+            reason: "controller-unavailable",
+            message: "The shared UI exposes preset/model/effort defaults; a multi-key config controller is not installed yet.",
+          },
+          result: resultSpec("Launch defaults updated."),
+        }),
+      },
+      { kind: "action-list", title: "Run controls", actions },
+    ],
+    actions: uniqueActions(actions),
+  };
+}
+
+function moduleRows(modules: SurfaceRead<ModulesListResult>): UiTableRow[] {
+  if (!modules.ok) return unavailableRows(modules.message);
+  if (modules.value.modules.length === 0) return emptyRows("Modules");
+  return modules.value.modules.map((module) => ({
+    id: module.name,
+    cells: [
+      { columnId: "name", value: module.name, role: module.status === "loaded" ? "success" : "error" },
+      { columnId: "state", value: module.status, role: module.status === "loaded" ? "success" : "error" },
+      {
+        columnId: "detail",
+        value: `${module.toolCount} tools, ${module.workflowCount} workflows, ${module.channelCount} channels, ${module.agentCount} agents`,
+        role: "muted",
+      },
+    ],
+  }));
+}
+
+function agentRows(agents: SurfaceRead<AgentsListResult>): UiTableRow[] {
+  if (!agents.ok) return unavailableRows(agents.message);
+  if (agents.value.agents.length === 0) return emptyRows("Agents");
+  return agents.value.agents.map((agent) => ({
+    id: agent.name,
+    cells: [
+      { columnId: "name", value: agent.name, role: "info" },
+      { columnId: "state", value: agent.effort ?? "default", role: "muted" },
+      { columnId: "detail", value: `${agent.source}  ${agent.model}  ${agent.role}`, role: "muted" },
+    ],
+  }));
+}
+
+function channelRows(modules: SurfaceRead<ModulesListResult>): UiTableRow[] {
+  if (!modules.ok) return unavailableRows(modules.message);
+  const rows: UiTableRow[] = modules.value.modules
+    .filter((module) => module.channelCount > 0 || /notification|slack|telegram|email|push|channel|digest/.test(module.name))
+    .map((module) => ({
+      id: module.name,
+      cells: [
+        { columnId: "name", value: module.name, role: module.channelCount > 0 ? "success" : "muted" },
+        { columnId: "state", value: `${module.channelCount} channel(s)`, role: module.channelCount > 0 ? "success" : "muted" },
+        { columnId: "detail", value: module.description ?? "notification or digest capability module", role: "muted" },
+      ],
+    }));
+  return rows.length > 0 ? rows : emptyRows("Channels, digest, and notifications");
+}
+
+export function buildModulesAgentsUiSurface(args: {
+  status: StatusSnapshot;
+  modules: SurfaceRead<ModulesListResult>;
+  agents: SurfaceRead<AgentsListResult>;
+}): UiSurface {
+  const scopeId = scopeIdForStatus(args.status);
+  const actions = [
+    action({
+      surfaceId: "modules-agents",
+      actionId: "modules.list",
+      scopeId,
+      label: "Reload modules",
+      operation: { kind: "client-namespace", namespace: "modules", method: "list" },
+      result: resultSpec("Modules loaded."),
+    }),
+    action({
+      surfaceId: "modules-agents",
+      actionId: "agents.list",
+      scopeId,
+      label: "Reload agents",
+      operation: { kind: "client-namespace", namespace: "agents", method: "list" },
+      result: resultSpec("Agents loaded."),
+    }),
+  ];
+  return {
+    protocolVersion: "ui.surface.v1",
+    surfaceId: "modules-agents",
+    extensionId: "core.modules-agents",
+    title: "Modules and Agents",
+    intent: "Work",
+    scopeId,
+    attachmentPoint: { kind: "intent", intent: "Work" },
+    order: 40,
+    permissions: [{ kind: "capability-scope", scope: "read" }],
+    nodes: [
+      {
+        kind: "status-summary",
+        entries: [
+          { label: "Modules", value: readValue(args.modules, (modules) => `${modules.modules.length}`), role: readRole(args.modules) },
+          { label: "Agents", value: readValue(args.agents, (agents) => `${agents.agents.length}`), role: readRole(args.agents) },
+        ],
+      },
+      { kind: "table", title: "Loaded modules", columns: NAME_STATE_DETAIL_COLUMNS, rows: moduleRows(args.modules) },
+      { kind: "table", title: "Agents", columns: NAME_STATE_DETAIL_COLUMNS, rows: agentRows(args.agents) },
+      { kind: "table", title: "Channels, digest, and notifications", columns: NAME_STATE_DETAIL_COLUMNS, rows: channelRows(args.modules) },
+      { kind: "action-list", title: "Module and agent actions", actions },
+    ],
+    actions,
+  };
+}
+
+function setupRows(setup: SurfaceRead<ModuleSetupStatusResponse>): UiTableRow[] {
+  if (!setup.ok) return unavailableRows(setup.message);
+  if (setup.value.requirements.length === 0) return emptyRows("Setup requirements");
+  return setup.value.requirements.map((requirement) => ({
+    id: `${requirement.moduleName}-${requirement.requirementId}`,
+    cells: [
+      { columnId: "name", value: `${requirement.moduleName}/${requirement.requirementId}`, role: requirement.state === "ready" ? "success" : "warn" },
+      { columnId: "state", value: `${requirement.kind} ${requirement.state}`, role: requirement.state === "ready" ? "success" : "warn" },
+      { columnId: "detail", value: requirement.message, role: "muted" },
+    ],
+  }));
+}
+
+function setupActions(scopeId: string, setup: SurfaceRead<ModuleSetupStatusResponse>): UiAction[] {
+  const refresh = action({
+    surfaceId: "setup",
+    actionId: "setup.list",
+    scopeId,
+    label: "Reload setup requirements",
+    operation: { kind: "client-namespace", namespace: "setup", method: "list" },
+    result: resultSpec("Setup requirements loaded."),
+  });
+  if (!setup.ok) return [refresh];
+  return uniqueActions([
+    refresh,
+    ...setup.value.requirements.filter((requirement) => requirement.state !== "ready").map((requirement) =>
+      action({
+        surfaceId: "setup",
+        actionId: `setup.${requirement.moduleName}.${requirement.requirementId}.start`,
+        scopeId,
+        label: `Start ${requirement.moduleName}/${requirement.requirementId}`,
+        effect: requirement.setup.mode === "url" ? "external" : "write",
+        operation: {
+          kind: "daemon-route",
+          method: "POST",
+          path: `/setup/requirements/${requirement.moduleName}/${requirement.requirementId}/start`,
+        },
+        readiness: requirement.state === "missing" || requirement.state === "expired" || requirement.state === "revoked"
+          ? { state: "needs-setup", moduleName: requirement.moduleName, requirementId: requirement.requirementId, message: requirement.message }
+          : { state: "ready" },
+        result: resultSpec("Setup action started."),
+      })
+    ),
+  ]);
+}
+
+export function buildSetupUiSurface(args: {
+  status: StatusSnapshot;
+  setup: SurfaceRead<ModuleSetupStatusResponse>;
+}): UiSurface {
+  const scopeId = scopeIdForStatus(args.status);
+  const actions = setupActions(scopeId, args.setup);
+  return {
+    protocolVersion: "ui.surface.v1",
+    surfaceId: "setup",
+    extensionId: "core.setup",
+    title: "Setup",
+    intent: "Setup",
+    scopeId,
+    attachmentPoint: { kind: "intent", intent: "Setup" },
+    order: 50,
+    permissions: [{ kind: "capability-scope", scope: "read" }],
+    nodes: [
+      {
+        kind: "status-summary",
+        entries: args.setup.ok
+          ? Object.entries(args.setup.value.summary).map(([label, value]) => ({
+              label,
+              value: `${value}`,
+              role: value > 0 && label !== "ready" ? "warn" : "muted" as UiRole,
+            }))
+          : [{ label: "Setup", value: args.setup.message, role: "warn" }],
+      },
+      { kind: "table", title: "Setup and auth requirements", columns: NAME_STATE_DETAIL_COLUMNS, rows: setupRows(args.setup) },
+      { kind: "action-list", title: "Setup actions", actions },
+    ],
+    actions,
+  };
+}
+
+function memoryRows(memory: SurfaceRead<MemoryListResult>): UiTableRow[] {
+  if (!memory.ok) return unavailableRows(memory.message);
+  if (memory.value.entries.length === 0) return emptyRows("Memory");
+  return memory.value.entries.slice(0, 10).map((entry) => ({
+    id: entry.id,
+    cells: [
+      { columnId: "name", value: shortId(entry.id), role: "info" },
+      { columnId: "state", value: entry.created, role: "muted" },
+      { columnId: "detail", value: shortId(entry.content, 96), role: "muted" },
+    ],
+  }));
+}
+
+function knowledgeRows(knowledge: SurfaceRead<KnowledgeListResult>): UiTableRow[] {
+  if (!knowledge.ok) return unavailableRows(knowledge.message);
+  if (knowledge.value.entries.length === 0) return emptyRows("Knowledge");
+  return knowledge.value.entries.slice(0, 10).map((entry) => ({
+    id: entry.id,
+    cells: [
+      { columnId: "name", value: shortId(entry.id), role: "info" },
+      { columnId: "state", value: entry.status ?? entry.type ?? "stored", role: "muted" },
+      { columnId: "detail", value: entry.title, role: "muted" },
+    ],
+  }));
+}
+
+function historyRows(history: SurfaceRead<HistoryListResult>): UiTableRow[] {
+  if (!history.ok) return unavailableRows(history.message);
+  if (history.value.conversations.length === 0) return emptyRows("History");
+  return history.value.conversations.slice(0, 10).map((conversation) => ({
+    id: conversation.id,
+    cells: [
+      { columnId: "name", value: shortId(conversation.id), role: "info" },
+      { columnId: "state", value: conversation.updatedAt ?? conversation.createdAt, role: "muted" },
+      { columnId: "detail", value: conversation.title ?? conversation.cwd ?? "conversation", role: "muted" },
+    ],
+  }));
+}
+
+export function buildStoresUiSurface(args: {
+  status: StatusSnapshot;
+  memory: SurfaceRead<MemoryListResult>;
+  knowledge: SurfaceRead<KnowledgeListResult>;
+  history: SurfaceRead<HistoryListResult>;
+}): UiSurface {
+  const scopeId = scopeIdForStatus(args.status);
+  const actions = [
+    action({
+      surfaceId: "stores",
+      actionId: "memory.list",
+      scopeId,
+      label: "Reload memory",
+      operation: { kind: "client-namespace", namespace: "memory", method: "list" },
+      result: resultSpec("Memory loaded."),
+    }),
+    action({
+      surfaceId: "stores",
+      actionId: "knowledge.list",
+      scopeId,
+      label: "Reload knowledge",
+      operation: { kind: "client-namespace", namespace: "knowledge", method: "list" },
+      result: resultSpec("Knowledge loaded."),
+    }),
+    action({
+      surfaceId: "stores",
+      actionId: "history.list",
+      scopeId,
+      label: "Reload history",
+      operation: { kind: "client-namespace", namespace: "history", method: "list" },
+      result: resultSpec("History loaded."),
+    }),
+  ];
+  return {
+    protocolVersion: "ui.surface.v1",
+    surfaceId: "stores",
+    extensionId: "core.stores",
+    title: "Stores",
+    intent: "Knowledge",
+    scopeId,
+    attachmentPoint: { kind: "intent", intent: "Knowledge" },
+    order: 60,
+    permissions: [{ kind: "capability-scope", scope: "read" }],
+    nodes: [
+      {
+        kind: "status-summary",
+        entries: [
+          { label: "Memory", value: readValue(args.memory, (memory) => `${memory.entries.length}`), role: readRole(args.memory) },
+          { label: "Knowledge", value: readValue(args.knowledge, (knowledge) => `${knowledge.entries.length}`), role: readRole(args.knowledge) },
+          { label: "History", value: readValue(args.history, (history) => `${history.conversations.length}`), role: readRole(args.history) },
+        ],
+      },
+      { kind: "table", title: "Memory", columns: NAME_STATE_DETAIL_COLUMNS, rows: memoryRows(args.memory) },
+      { kind: "table", title: "Knowledge", columns: NAME_STATE_DETAIL_COLUMNS, rows: knowledgeRows(args.knowledge) },
+      { kind: "table", title: "History", columns: NAME_STATE_DETAIL_COLUMNS, rows: historyRows(args.history) },
+      { kind: "action-list", title: "Store actions", actions },
+    ],
+    actions,
+  };
 }
 
 export function buildOperatorControlUiSurface(scopeId = "p-kota-fixture-default"): UiSurface {
