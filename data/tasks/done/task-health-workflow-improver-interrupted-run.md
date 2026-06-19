@@ -1,12 +1,12 @@
 ---
 id: task-health-workflow-improver-interrupted-run
 title: Repair autonomy health pattern workflow:improver:interrupted-run
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Health signals labeled improver, interrupted-run, local-code, runtime repeatedly point at workflow:improver:interrupted-run; investigate and improve the local autonomy protocol, validation, prompt, or module behavior without relying on direct auto-repair.
 created_at: 2026-06-19T00:59:55.253Z
-updated_at: 2026-06-19T00:59:55.253Z
+updated_at: 2026-06-19T01:51:38.149Z
 task_class: Meta
 ---
 
@@ -60,7 +60,24 @@ Autonomy fleet health: repeated local workflow and runtime health patterns shoul
 - The relevant workflow, prompt, validator, module, or routing tests prove the regression path.
 - The repair avoids duplicate task churn for the same dedupe key.
 
+## Resolution
+
+The runtime health audit collapsed every interrupted run for a workflow into
+`workflow:<workflow>:interrupted-run` and ignored the run's `error.txt`. The
+cited improver evidence was not one local improver protocol failure: two runs
+ended with `Codex CLI run aborted`, and one was marked interrupted because the
+daemon restarted while the run was in progress.
+
+`scanRuns` now classifies interrupted runs by the bounded `error.txt` summary.
+Known daemon-restart and harness-abort interruptions use cause-specific
+dedupe keys and `owner-action` actionability, while unknown interruptions keep
+the existing local-code repair path.
+
 ## Acceptance Evidence
 
 - Focused test output covering the repaired health pattern.
 - A follow-up `.kota/runs/` artifact, event replay, or reviewer artifact showing the pattern no longer routes incorrectly.
+- `pnpm test src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit.test.ts src/modules/autonomy/workflows/autonomy-health-reviewer/health-review.test.ts src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.test.ts` passed: 3 files, 14 tests.
+- `pnpm run typecheck` passed.
+- `pnpm run validate-tasks` passed while the task was active.
+- `.kota/runs/2026-06-19T01-43-47-740Z-builder-ke7gug/interrupted-run-routing-replay.json` shows the old `workflow:improver:interrupted-run` local-code key is no longer emitted for the cited pattern; the repeated Codex aborts now route to `workflow:improver:interrupted-run:harness-abort` with `owner-action`.

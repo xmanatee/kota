@@ -56,6 +56,36 @@ describe("runtime health audit", () => {
     return readdirSync(dir).filter((name) => name.endsWith(".md"));
   }
 
+  function writeInterruptedRun(args: {
+    id: string;
+    workflow: string;
+    startedAt: string;
+    error?: string;
+  }): void {
+    const runDir = join(projectDir, ".kota", "runs", args.id);
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(
+      join(runDir, "metadata.json"),
+      JSON.stringify(
+        {
+          id: args.id,
+          workflow: args.workflow,
+          status: "interrupted",
+          startedAt: args.startedAt,
+          completedAt: args.startedAt,
+          durationMs: 1000,
+          steps: [],
+        },
+        null,
+        2,
+      ),
+      "utf-8",
+    );
+    if (args.error) {
+      writeFileSync(join(runDir, "error.txt"), args.error, "utf-8");
+    }
+  }
+
   it("routes Telegram getUpdates conflicts to one duplicate-consumer owner outcome", () => {
     writeModuleLog("telegram", [
       JSON.stringify({
@@ -182,25 +212,7 @@ describe("runtime health audit", () => {
       ["run-a", "2026-06-19T10:00:00.000Z"],
       ["run-b", "2026-06-19T11:00:00.000Z"],
     ] as const) {
-      const runDir = join(projectDir, ".kota", "runs", id);
-      mkdirSync(runDir, { recursive: true });
-      writeFileSync(
-        join(runDir, "metadata.json"),
-        JSON.stringify(
-          {
-            id,
-            workflow: "builder",
-            status: "interrupted",
-            startedAt,
-            completedAt: startedAt,
-            durationMs: 1000,
-            steps: [],
-          },
-          null,
-          2,
-        ),
-        "utf-8",
-      );
+      writeInterruptedRun({ id, workflow: "builder", startedAt });
     }
 
     const audit = collectRuntimeHealthAudit({
@@ -229,6 +241,68 @@ describe("runtime health audit", () => {
         reason: expect.stringContaining("already records this evidence"),
       }),
     ]);
+  });
+
+  it("routes known runtime abort interruptions outside local repair tasks", () => {
+    writeInterruptedRun({
+      id: "improver-abort-a",
+      workflow: "improver",
+      startedAt: "2026-06-17T16:38:32.184Z",
+      error: 'Agent step "improve" failed (aborted): Codex CLI run aborted.',
+    });
+    writeInterruptedRun({
+      id: "improver-abort-b",
+      workflow: "improver",
+      startedAt: "2026-06-17T16:52:59.769Z",
+      error: 'Agent step "improve" failed (aborted): Codex CLI run aborted.',
+    });
+    writeInterruptedRun({
+      id: "improver-restart",
+      workflow: "improver",
+      startedAt: "2026-06-15T23:44:08.673Z",
+      error: "Interrupted: daemon restarted while run was in progress.",
+    });
+
+    const audit = collectRuntimeHealthAudit({
+      projectDir,
+      options: { nowIso: NOW, interruptedRunMinCount: 2 },
+    });
+
+    expect(audit.patterns).toEqual([
+      expect.objectContaining({
+        dedupeKey: "workflow:improver:interrupted-run:harness-abort",
+        category: "operator-action",
+        actionability: "owner-action",
+        labels: expect.arrayContaining([
+          "harness-abort",
+          "improver",
+          "interrupted-run",
+          "operator-action",
+        ]),
+        observationCount: 2,
+        evidenceRefs: expect.arrayContaining([
+          expect.objectContaining({
+            kind: "artifact",
+            ref: ".kota/runs/improver-abort-a/error.txt",
+            summary:
+              'Agent step "improve" failed (aborted): Codex CLI run aborted.',
+          }),
+        ]),
+      }),
+    ]);
+    expect(audit.patterns).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          dedupeKey: "workflow:improver:interrupted-run",
+        }),
+      ]),
+    );
+
+    const actions = reviewAndApply(audit);
+
+    expect(actions.createdTaskIds).toEqual([]);
+    expect(actions.ownerQuestionIds).toHaveLength(1);
+    expect(readyTaskFiles()).toEqual([]);
   });
 
   it("reads status-derived operator runtime warnings from daemon control evidence", () => {
