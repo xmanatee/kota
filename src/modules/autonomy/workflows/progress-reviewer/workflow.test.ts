@@ -605,10 +605,9 @@ describe("progress-reviewer workflow", () => {
     expect(result.steps["write-artifact"].status).toBe("skipped");
   });
 
-  it("declares schedule, manual, run-count, task-count, and channel batch triggers without a completion self-loop", () => {
+  it("declares schedule, manual, run-count, and task-count triggers without direct inbound-signal triggers", () => {
     const moduleEvents = initModuleEventRegistry();
     moduleEvents.register("autonomy", progressReviewRequested);
-    moduleEvents.register("inbound-signals", inboundSignalReceived);
 
     expect(() =>
       validateWorkflowDefinitions([
@@ -636,10 +635,11 @@ describe("progress-reviewer workflow", () => {
           event: "workflow.build.committed",
           batch: expect.objectContaining({ maxCount: 3 }),
         }),
-        expect.objectContaining({
-          event: inboundSignalReceived.name,
-          batch: expect.objectContaining({ maxCount: 10 }),
-        }),
+      ]),
+    );
+    expect(progressReviewerWorkflow.triggers).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ event: inboundSignalReceived.name }),
       ]),
     );
     expect(

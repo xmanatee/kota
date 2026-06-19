@@ -1,13 +1,13 @@
 ---
 id: task-add-declarative-inbound-signal-routing-for-channel
 title: Add declarative inbound signal routing for channels
-status: ready
+status: done
 priority: p1
 area: channel
 summary: Add a provider-neutral routing table for inbound channel events so Telegram, Slack, Gmail, and future adapters map sources to scopes, workflows, agents, trust states, and blocked/audit behavior consistently.
 depends_on: [task-promote-projects-into-hierarchical-scopes, task-unify-hooks-and-workflows-under-one-automation-pro, task-add-generic-event-batching-to-workflow-triggers]
 created_at: 2026-06-03T13:40:37.844Z
-updated_at: 2026-06-19T03:53:10.683Z
+updated_at: 2026-06-19T04:17:45.000Z
 ---
 
 ## Problem
@@ -94,7 +94,11 @@ scope-aware KOTA events before any agent or side effect runs.
 
 - Unit/integration tests for route validation, blocked source behavior,
   workflow dispatch, and batch-policy attachment.
-- Rendered Telegram or Slack message fixture showing a blocked-source event is
-  recorded but not processed.
-- CLI transcript or web screenshot under `.kota/runs/<run-id>/` listing
-  inbound routes and source statuses.
+- Rendered Slack blocked-source fixture:
+  `.kota/runs/2026-06-19T03-58-34-642Z-builder-mkxshw/blocked-slack-source-fixture.md`.
+- CLI transcript listing inbound routes and source statuses:
+  `.kota/runs/2026-06-19T03-58-34-642Z-builder-mkxshw/transcript.txt`.
+- Validation commands:
+  `pnpm run lint`,
+  `pnpm run typecheck`,
+  `pnpm test src/modules/inbound-signals/inbound-signals.test.ts src/modules/telegram/inbound-signal.test.ts src/modules/slack-channel/inbound-signal.test.ts src/modules/google-workspace/inbound-signal.test.ts src/modules/google-workspace/index.test.ts src/core/modules/module-deps.test.ts src/core/server/daemon-client.test.ts src/core/server/project-scoped-kota-client.test.ts src/core/server/kota-client-guard.test.ts src/modules/cli/navigator.test.ts src/strict-types-policy.integration.test.ts`.

@@ -146,6 +146,16 @@ export function createProjectScopedKotaClient(
           base.history.reindex(withProject(project, selectedProjectId)),
         ),
     },
+    inboundSignals: {
+      listRoutes: (project) =>
+        scoped(selectedProjectId, () =>
+          base.inboundSignals.listRoutes(withProject(project, selectedProjectId)),
+        ),
+      validateRoutes: (project) =>
+        scoped(selectedProjectId, () =>
+          base.inboundSignals.validateRoutes(withProject(project, selectedProjectId)),
+        ),
+    },
     tasks: {
       list: (states, project) =>
         scoped(selectedProjectId, () =>

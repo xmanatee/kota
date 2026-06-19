@@ -30,6 +30,7 @@ const NAMESPACE_OWNERS: Record<(typeof KOTA_CLIENT_NAMESPACES)[number], string> 
   ownerDecisions: "owner-decisions",
   ownerQuestions: "owner-questions",
   history: "history",
+  inboundSignals: "inbound-signals",
   knowledge: "knowledge",
   sessions: "daemon-ops",
   modules: "module-manager",

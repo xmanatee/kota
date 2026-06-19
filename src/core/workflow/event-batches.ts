@@ -1,6 +1,9 @@
 import type { BusEnvelope } from "#core/events/event-bus.js";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
-import { matchesFilter } from "./run-executor-utils.js";
+import {
+  matchesFilter,
+  workflowEventTriggeringAllowed,
+} from "./run-executor-utils.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import {
   WORKFLOW_BATCH_FLUSH_EVENT,
@@ -30,6 +33,23 @@ type BatchTarget = {
   trigger: WorkflowTrigger;
   triggerIndex: number;
 };
+
+export type WorkflowBatchDispatchInput = {
+  workflowName: string;
+  event: string;
+  schemaRef: BusEnvelope["schemaRef"];
+  eventId?: string;
+  payload: BusEnvelope["payload"];
+  batch: WorkflowBatchTrigger;
+};
+
+export type WorkflowBatchDispatchResult =
+  | { ok: true; status: "batched" | "queued" }
+  | {
+      ok: false;
+      reason: "unknown_workflow" | "disabled_workflow" | "invalid_group";
+      message: string;
+    };
 
 type GroupResolution =
   | { ok: true; groupingKey: string; groupValues: readonly WorkflowBatchGroupValue[] }
@@ -81,6 +101,10 @@ export class WorkflowEventBatchManager {
   handleEvent(envelope: BusEnvelope): void {
     if (this.isStopping()) return;
     let flushed = this.flushManualMatches(envelope);
+    if (!workflowEventTriggeringAllowed(envelope.type)) {
+      if (flushed) this.maybeStartNext();
+      return;
+    }
 
     for (const definition of this.definitions) {
       if (!definition.enabled) continue;
@@ -89,11 +113,72 @@ export class WorkflowEventBatchManager {
         if (!trigger.batch) continue;
         if (trigger.event !== envelope.type) continue;
         if (!matchesFilter(trigger.filter, envelope.payload)) continue;
-        flushed = this.addEventToBuffer(definition, trigger, triggerIndex, envelope) || flushed;
+        const result = this.addEventToBuffer(
+          { definition, trigger, triggerIndex },
+          envelope,
+        );
+        if (!result.ok) {
+          this.log(
+            `Skipped workflow batch input for "${definition.name}" from event "${envelope.type}": ${result.reason}`,
+          );
+          continue;
+        }
+        flushed = result.flushed || flushed;
       }
     }
 
     if (flushed) this.maybeStartNext();
+  }
+
+  dispatchToWorkflowBatch(
+    input: WorkflowBatchDispatchInput,
+  ): WorkflowBatchDispatchResult {
+    const definition = this.definitions.find(
+      (candidate) => candidate.name === input.workflowName,
+    );
+    if (!definition) {
+      return {
+        ok: false,
+        reason: "unknown_workflow",
+        message: `Unknown workflow "${input.workflowName}"`,
+      };
+    }
+    if (!definition.enabled) {
+      return {
+        ok: false,
+        reason: "disabled_workflow",
+        message: `Workflow "${input.workflowName}" is disabled`,
+      };
+    }
+
+    const target: BatchTarget = {
+      definition,
+      trigger: {
+        event: input.event,
+        cooldownMs: 0,
+        batch: input.batch,
+      },
+      triggerIndex: -1,
+    };
+    const envelope: BusEnvelope = {
+      type: input.event,
+      schemaRef: input.schemaRef,
+      ...(input.eventId !== undefined ? { eventId: input.eventId } : {}),
+      payload: input.payload,
+    };
+    const result = this.addEventToBuffer(target, envelope);
+    if (!result.ok) {
+      return {
+        ok: false,
+        reason: "invalid_group",
+        message: result.reason,
+      };
+    }
+    if (result.flushed) {
+      this.maybeStartNext();
+      return { ok: true, status: "queued" };
+    }
+    return { ok: true, status: "batched" };
   }
 
   private flushManualMatches(envelope: BusEnvelope): boolean {
@@ -132,19 +217,15 @@ export class WorkflowEventBatchManager {
   }
 
   private addEventToBuffer(
-    definition: WorkflowDefinition,
-    trigger: WorkflowTrigger,
-    triggerIndex: number,
+    target: BatchTarget,
     envelope: BusEnvelope,
-  ): boolean {
+  ): { ok: true; flushed: boolean } | { ok: false; reason: string } {
+    const { definition, trigger, triggerIndex } = target;
     const batch = trigger.batch!;
     const scopeId = explicitScope(envelope.payload) ?? this.getProjectBus().getScopeId();
     const group = resolveGroup(batch, envelope.payload);
     if (!group.ok) {
-      this.log(
-        `Skipped workflow batch input for "${definition.name}" from event "${envelope.type}": ${group.reason}`,
-      );
-      return false;
+      return group;
     }
 
     const key = bufferKey(definition.name, triggerIndex, scopeId, group.groupingKey);
@@ -166,17 +247,17 @@ export class WorkflowEventBatchManager {
           droppedInputCount: existing.droppedInputCount + 1,
         };
         this.store.setBatchBuffers(buffers);
-        return false;
+        return { ok: true, flushed: false };
       }
 
       const flushed = this.flushBuffer(key, "overflow");
-      const replacement = createBuffer(definition, triggerIndex, scopeId, group, inputEvent);
+      const replacement = createBuffer(target, scopeId, group, inputEvent);
       this.storeBuffer(key, replacement);
       if (batch.maxCount !== undefined && replacement.inputEvents.length >= batch.maxCount) {
-        return this.flushBuffer(key, "count") || flushed;
+        return { ok: true, flushed: this.flushBuffer(key, "count") || flushed };
       }
       this.scheduleBuffer(key, replacement, batch);
-      return flushed;
+      return { ok: true, flushed };
     }
 
     const nextBuffer = existing
@@ -185,15 +266,15 @@ export class WorkflowEventBatchManager {
           lastEventAt: receivedAt,
           inputEvents: [...existing.inputEvents, inputEvent],
         }
-      : createBuffer(definition, triggerIndex, scopeId, group, inputEvent);
+      : createBuffer(target, scopeId, group, inputEvent);
 
     this.storeBuffer(key, nextBuffer);
 
     if (batch.maxCount !== undefined && nextBuffer.inputEvents.length >= batch.maxCount) {
-      return this.flushBuffer(key, "count");
+      return { ok: true, flushed: this.flushBuffer(key, "count") };
     }
     this.scheduleBuffer(key, nextBuffer, batch);
-    return false;
+    return { ok: true, flushed: false };
   }
 
   private storeBuffer(key: string, buffer: WorkflowBatchBufferState): void {
@@ -253,6 +334,12 @@ export class WorkflowEventBatchManager {
       (candidate) => candidate.name === buffer.definitionName,
     );
     if (!definition?.enabled) return null;
+    if (buffer.triggerIndex === -1) {
+      const trigger = buffer.runtimeTrigger;
+      if (!trigger?.batch) return null;
+      if (trigger.event !== buffer.sourceEventName) return null;
+      return { definition, trigger, triggerIndex: buffer.triggerIndex };
+    }
     const trigger = definition.triggers[buffer.triggerIndex];
     if (!trigger?.batch) return null;
     if (trigger.event !== buffer.sourceEventName) return null;
@@ -289,16 +376,16 @@ export class WorkflowEventBatchManager {
 }
 
 function createBuffer(
-  definition: WorkflowDefinition,
-  triggerIndex: number,
+  target: BatchTarget,
   scopeId: string,
   group: Extract<GroupResolution, { ok: true }>,
   inputEvent: WorkflowBatchInputEventEnvelope,
 ): WorkflowBatchBufferState {
   return {
-    definitionName: definition.name,
-    triggerIndex,
+    definitionName: target.definition.name,
+    triggerIndex: target.triggerIndex,
     sourceEventName: inputEvent.event,
+    ...(target.triggerIndex === -1 ? { runtimeTrigger: target.trigger } : {}),
     scopeId,
     projectId: scopeId,
     groupingKey: group.groupingKey,

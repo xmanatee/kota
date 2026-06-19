@@ -889,6 +889,7 @@ describe("DaemonControlServer", () => {
           filterablePaths: ["value", "actor.trust"],
           sensitivity: "sensitive",
           compatibility: "backward",
+          workflowTriggerPolicy: "allowed",
         },
       ]);
 

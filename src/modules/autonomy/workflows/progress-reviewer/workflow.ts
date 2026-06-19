@@ -21,7 +21,6 @@ import {
   stepCommitted,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
-import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
 import { assertTaskQueueValid } from "#modules/repo-tasks/task-queue-validation.js";
 import { progressReviewRequested } from "./events.js";
 import {
@@ -365,16 +364,6 @@ const progressReviewerWorkflow: WorkflowDefinitionInput = {
         maxAgeMs: 6 * 60 * 60 * 1000,
         groupBy: "projectId",
         maxBufferSize: 12,
-        overflow: "flush-oldest",
-      },
-    },
-    {
-      event: inboundSignalReceived.name,
-      batch: {
-        maxCount: 10,
-        idleTimeoutMs: 10 * 60 * 1000,
-        groupBy: ["channel", "sourceId"],
-        maxBufferSize: 30,
         overflow: "flush-oldest",
       },
     },

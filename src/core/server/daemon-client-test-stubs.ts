@@ -179,6 +179,13 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
       search: async () => ({ ok: true as const, conversations: [] }),
       reindex: async () => ({ indexed: 0, failed: 0 }),
     },
+    inboundSignals: {
+      listRoutes: async () => ({
+        routes: [],
+        validation: { ok: true as const, routes: [] },
+      }),
+      validateRoutes: async () => ({ ok: true as const, routes: [] }),
+    },
     evalHarness: {
       list: async () => ({
         fixtures: [],

@@ -20,33 +20,41 @@ export type SlackTextInboundSignalContext = {
 };
 
 export type SlackTextInboundSignalBuildResult =
-  | { kind: "signal"; payload: InboundSignalReceivedPayload }
+  | {
+      kind: "signal";
+      payload: InboundSignalReceivedPayload;
+      consumed: boolean;
+    }
   | {
       kind: "skip";
-      reason: "prefix-mismatch" | "empty-message";
+      reason: "empty-message";
     }
   | { kind: "invalid"; error: string };
 
 export type SlackInboundSignalEmitResult =
-  | { emitted: true; payload: InboundSignalReceivedPayload }
-  | { emitted: false; reason: "prefix-mismatch" | "empty-message" }
+  | {
+      emitted: true;
+      payload: InboundSignalReceivedPayload;
+      consumed: boolean;
+    }
+  | { emitted: false; reason: "empty-message" }
   | { emitted: false; error: string };
 
-function matchedAutomationText(
+function automationText(
   text: string,
   prefixes: readonly string[],
-): { matched: true; text: string } | { matched: false; reason: "prefix-mismatch" | "empty-message" } {
+): { ok: true; text: string; consumed: boolean } | { ok: false; reason: "empty-message" } {
   const trimmed = text.trimStart();
   for (const prefix of prefixes) {
-    if (prefix.trim().length === 0) {
-      return { matched: false, reason: "prefix-mismatch" };
-    }
+    if (prefix.trim().length === 0) continue;
     if (!trimmed.startsWith(prefix)) continue;
     const body = trimmed.slice(prefix.length).trim();
-    if (body.length === 0) return { matched: false, reason: "empty-message" };
-    return { matched: true, text: body };
+    if (body.length === 0) return { ok: false, reason: "empty-message" };
+    return { ok: true, text: body, consumed: true };
   }
-  return { matched: false, reason: "prefix-mismatch" };
+  const body = trimmed.trim();
+  if (body.length === 0) return { ok: false, reason: "empty-message" };
+  return { ok: true, text: body, consumed: false };
 }
 
 function timestampFromSlackSeconds(value: string | number | undefined): string | null {
@@ -96,8 +104,8 @@ export function slackTextMessageToInboundSignal(
   context: SlackTextInboundSignalContext,
 ): SlackTextInboundSignalBuildResult {
   const text = event.text ?? "";
-  const matched = matchedAutomationText(text, context.config.prefixes);
-  if (!matched.matched) return { kind: "skip", reason: matched.reason };
+  const normalized = automationText(text, context.config.prefixes);
+  if (!normalized.ok) return { kind: "skip", reason: normalized.reason };
 
   const teamId = envelope.team_id ?? "unknown-team";
   const messageTs = event.ts ?? event.event_ts ?? envelope.event_id ?? context.receivedAt;
@@ -113,9 +121,7 @@ export function slackTextMessageToInboundSignal(
     provider: "slack",
     channel: "slack.message",
     accountId: `slack:${teamId}`,
-    sourceId:
-      `slack:${teamId}:channel:${event.channel ?? "unknown-channel"}` +
-      `:message:${messageTs}`,
+    sourceId: `slack:${teamId}:channel:${event.channel ?? "unknown-channel"}`,
     sourceUrl,
     externalId,
     occurredAt:
@@ -133,12 +139,12 @@ export function slackTextMessageToInboundSignal(
     body: {
       kind: "message",
       format: "plain",
-      text: matched.text,
+      text: normalized.text,
     },
   });
 
   if (!signal.ok) return { kind: "invalid", error: signal.error };
-  return { kind: "signal", payload: signal.payload };
+  return { kind: "signal", payload: signal.payload, consumed: normalized.consumed };
 }
 
 export function emitSlackTextInboundSignal(
@@ -153,5 +159,5 @@ export function emitSlackTextInboundSignal(
   }
   if (signal.kind === "invalid") return { emitted: false, error: signal.error };
   events.emit(inboundSignalReceived, signal.payload);
-  return { emitted: true, payload: signal.payload };
+  return { emitted: true, payload: signal.payload, consumed: signal.consumed };
 }

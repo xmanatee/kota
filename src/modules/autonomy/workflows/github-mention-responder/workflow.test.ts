@@ -11,7 +11,7 @@ import type {
   GitHubWebhookActorIntegrity,
 } from "#modules/github-webhook/events.js";
 import { githubIssueCommentMentionToInboundSignal } from "#modules/github-webhook/inbound-signal.js";
-import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
+import { inboundSignalRouted } from "#modules/inbound-signals/events.js";
 import githubMentionResponderWorkflow from "./workflow.js";
 
 type MentionPayload = Partial<
@@ -61,17 +61,47 @@ function makeTrigger(overrides: MentionPayload = {}) {
   if (result.payload.body.kind !== "action") {
     throw new Error("GitHub mention test payload must be an action signal");
   }
-  return {
-    event: inboundSignalReceived.name,
-    schemaRef: null, payload: {
-      ...result.payload,
-      body: {
-        ...result.payload.body,
-        data: {
-          ...result.payload.body.data,
-          ...makePayload(overrides),
-        },
+  const signal = {
+    ...result.payload,
+    body: {
+      ...result.payload.body,
+      data: {
+        ...result.payload.body.data,
+        ...makePayload(overrides),
       },
+    },
+  };
+  return {
+    event: inboundSignalRouted.name,
+    schemaRef: null,
+    payload: {
+      scopeId: signal.scopeId,
+      projectId: signal.projectId,
+      routeId: "github-issue-comment-mentions",
+      decision: "dispatched",
+      sourceStatus: "active",
+      provider: signal.provider,
+      channel: signal.channel,
+      accountId: signal.accountId,
+      sourceId: signal.sourceId,
+      actorTrust: signal.actor.trust,
+      policy: {
+        routeId: "github-issue-comment-mentions",
+        sourceStatus: "active",
+        blockedHandling: "audit-only",
+        batch: null,
+        processing: null,
+      },
+      signal,
+      targets: [
+        {
+          kind: "workflow",
+          name: "github-mention-responder",
+          status: "queued",
+          runId: "github-mention-responder-run",
+        },
+      ],
+      reason: "route dispatched to configured target",
     },
   };
 }
@@ -93,7 +123,7 @@ function buildDraftPrompt(trigger: WorkflowRunTrigger): string {
     recoveryCapable: githubMentionResponderWorkflow.recoveryCapable ?? false,
     definitionPath: "src/modules/autonomy/workflows/github-mention-responder/workflow.ts",
     tags: githubMentionResponderWorkflow.tags ?? [],
-    triggers: [{ event: inboundSignalReceived.name, cooldownMs: 0 }],
+    triggers: [{ event: "github-mention-responder.requested", cooldownMs: 0 }],
     steps: githubMentionResponderWorkflow.steps.map((step) =>
       step.id === "draft-response" ? draftStep : step,
     ) as WorkflowDefinition["steps"],
@@ -135,6 +165,12 @@ function toolSpy(): {
 }
 
 describe("github-mention-responder workflow", () => {
+  it("declares only the routed responder request trigger", () => {
+    expect(githubMentionResponderWorkflow.triggers).toEqual([
+      { event: "github-mention-responder.requested" },
+    ]);
+  });
+
   it("runs an allowed mention through draft, approval, and exactly one github_comment write", async () => {
     const tools = toolSpy();
     const harness = new WorkflowTestHarness(githubMentionResponderWorkflow, {

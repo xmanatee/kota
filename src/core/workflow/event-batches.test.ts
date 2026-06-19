@@ -393,6 +393,107 @@ describe("WorkflowEventBatchManager", () => {
     ]);
   });
 
+  it("persists and flushes route-owned workflow batch inputs after restart", async () => {
+    const projectDir = trackProjectDir();
+    const bus = new EventBus();
+    const pbus = new ProjectScopedEventBus(bus, "route-batch-scope");
+    const processed: WorkflowBatchFlushPayload[] = [];
+    const routeEvent = defineProjectScopedModuleEvent<{
+      sourceId: string;
+      text: string;
+    }>("route.blocked.input", ["sourceId", "text"], {
+      workflowTriggerPolicy: "blocked",
+    });
+    initModuleEventRegistry().register("route", routeEvent);
+    const workflow = {
+      name: "route-owned-batch",
+      triggers: [{ event: "manual.route-owned-batch" }],
+      steps: [
+        {
+          id: "process",
+          type: "code" as const,
+          run: (ctx: WorkflowStepContext) => {
+            processed.push(ctx.trigger.payload as WorkflowBatchFlushPayload);
+          },
+        },
+      ],
+    };
+    const batch = {
+      maxCount: 2,
+      groupBy: ["sourceId"],
+      maxBufferSize: 4,
+      overflow: "flush-oldest" as const,
+    };
+
+    const firstRuntime = startRuntime(projectDir, bus, [workflow], pbus);
+    const firstResult = firstRuntime.enqueueBatchedEvent({
+      workflowName: workflow.name,
+      event: routeEvent.name,
+      schemaRef: { name: routeEvent.name, version: routeEvent.schema.currentVersion },
+      payload: {
+        scopeId: "route-batch-scope",
+        projectId: "route-batch-scope",
+        sourceId: "github/17",
+        text: "one",
+      },
+      batch,
+    });
+
+    expect(firstResult).toEqual({ ok: true, status: "batched" });
+    const buffers = new WorkflowRunStore(projectDir).getBatchBuffers();
+    const buffer = Object.values(buffers)[0];
+    expect(buffer).toMatchObject({
+      definitionName: workflow.name,
+      triggerIndex: -1,
+      sourceEventName: routeEvent.name,
+      runtimeTrigger: {
+        event: routeEvent.name,
+        cooldownMs: 0,
+        batch,
+      },
+      scopeId: "route-batch-scope",
+      groupingKey: "sourceId=github/17",
+    });
+    await firstRuntime.stop(0);
+    runtimes.splice(runtimes.indexOf(firstRuntime), 1);
+
+    const secondRuntime = startRuntime(projectDir, bus, [workflow], pbus);
+    const secondResult = secondRuntime.enqueueBatchedEvent({
+      workflowName: workflow.name,
+      event: routeEvent.name,
+      schemaRef: { name: routeEvent.name, version: routeEvent.schema.currentVersion },
+      payload: {
+        scopeId: "route-batch-scope",
+        projectId: "route-batch-scope",
+        sourceId: "github/17",
+        text: "two",
+      },
+      batch,
+    });
+    await wait(80);
+
+    expect(secondResult).toEqual({ ok: true, status: "queued" });
+    expect(processed).toHaveLength(1);
+    expect(processed[0]).toMatchObject({
+      sourceEventName: routeEvent.name,
+      groupingKey: "sourceId=github/17",
+      reason: "count",
+      count: 2,
+      batch: {
+        workflow: workflow.name,
+        triggerIndex: -1,
+        maxBufferSize: 4,
+        overflow: "flush-oldest",
+        droppedInputCount: 0,
+      },
+    });
+    expect(processed[0]!.inputEvents.map((entry) => entry.payload.text)).toEqual([
+      "one",
+      "two",
+    ]);
+    expect(new WorkflowRunStore(projectDir).getBatchBuffers()).toEqual({});
+  });
+
   it("isolates buffers by scope and supports explicit manual flush", async () => {
     const bus = new EventBus();
     const projectA = trackProjectDir();

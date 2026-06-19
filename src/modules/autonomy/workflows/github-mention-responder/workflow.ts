@@ -84,10 +84,22 @@ function isNonEmptyString(value: string | null | undefined): value is string {
 function mentionPayloadFromTrigger(
   trigger: { event: string; payload: object },
 ): MentionWebhookPayload {
-  if (trigger.event !== inboundSignalReceived.name) return {};
-  return githubIssueCommentMentionFromInboundSignal(
-    trigger.payload as InboundSignalReceivedPayload,
-  );
+  const signal = signalPayloadFromTrigger(trigger);
+  if (!signal) return {};
+  return githubIssueCommentMentionFromInboundSignal(signal);
+}
+
+function signalPayloadFromTrigger(
+  trigger: { event: string; payload: object },
+): InboundSignalReceivedPayload | null {
+  const payload = trigger.payload as Partial<
+    InboundSignalReceivedPayload & { signal: InboundSignalReceivedPayload }
+  >;
+  if (payload.signal && typeof payload.signal === "object") {
+    return payload.signal;
+  }
+  if (trigger.event !== inboundSignalReceived.name) return null;
+  return payload as InboundSignalReceivedPayload;
 }
 
 function hasCompleteActor(actor: GitHubWebhookActor | undefined): actor is { login: string; type: string } {
@@ -332,8 +344,7 @@ const githubMentionResponderWorkflow: WorkflowDefinitionInput = {
   defaultAutonomyMode: "passive",
   triggers: [
     {
-      event: inboundSignalReceived.name,
-      filter: { provider: "github", channel: "github.issue_comment" },
+      event: "github-mention-responder.requested",
     },
   ],
   steps: [

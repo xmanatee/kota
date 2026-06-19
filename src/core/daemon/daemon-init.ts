@@ -24,6 +24,10 @@ import {
   type WorkflowDispatcher,
 } from "#core/workflow/workflow-dispatcher-provider.js";
 import {
+  WORKFLOW_EVENT_DISPATCHER_PROVIDER_TYPE,
+  type WorkflowEventDispatcher,
+} from "#core/workflow/workflow-event-dispatcher-provider.js";
+import {
   type CapabilityReadinessResponse,
   probeCapabilityReadiness,
 } from "./capability-readiness.js";
@@ -197,6 +201,9 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
       return result;
     },
   };
+  const eventDispatcher: WorkflowEventDispatcher = {
+    enqueueBatchedEvent: (input) => workflows.enqueueBatchedEvent(input),
+  };
   const metricsSource: WorkflowMetricsSource = {
     getWorkflowMetricCounts: () => handle.getWorkflowMetricCounts(),
     listSessions: () => handle.listSessions(),
@@ -236,6 +243,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
       },
     });
     registry.register(WORKFLOW_DISPATCHER_PROVIDER_TYPE, "daemon", dispatcher);
+    registry.register(WORKFLOW_EVENT_DISPATCHER_PROVIDER_TYPE, "daemon", eventDispatcher);
     registry.register(WORKFLOW_METRICS_SOURCE_PROVIDER_TYPE, "daemon", metricsSource);
     registry.register(WORKFLOW_DEFINITIONS_PROVIDER_TYPE, "daemon", definitionsSource);
   }

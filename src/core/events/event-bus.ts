@@ -199,6 +199,7 @@ export class EventBus {
               filterablePaths: registered.filterablePaths,
               sensitivity: registered.sensitivity,
               compatibility: registered.compatibility,
+              workflowTriggerPolicy: registered.workflowTriggerPolicy,
               examples: registered.examples,
             },
             payload as ModuleEventPayloadObject,

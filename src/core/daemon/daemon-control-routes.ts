@@ -228,6 +228,7 @@ function listEventSchemaDetails(): EventSchemaDetail[] {
       filterablePaths: registration.filterablePaths,
       sensitivity: registration.sensitivity,
       compatibility: registration.compatibility,
+      workflowTriggerPolicy: registration.workflowTriggerPolicy,
       payloadSchema: registration.payloadSchema,
       examples: registration.examples,
     }))
@@ -244,6 +245,7 @@ function eventSchemaSummary(detail: EventSchemaDetail): EventSchemaSummary {
     filterablePaths: detail.filterablePaths,
     sensitivity: detail.sensitivity,
     compatibility: detail.compatibility,
+    workflowTriggerPolicy: detail.workflowTriggerPolicy,
   };
 }
 

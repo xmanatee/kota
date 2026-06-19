@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
-import { enqueueMatchingWorkflows } from "#core/workflow/run-executor-utils.js";
 import { expectStructuredOutput } from "#core/workflow/step-input-code.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
-  registerWorkflowDefinition,
-  validateWorkflowDefinitions,
-} from "#core/workflow/validation.js";
-import type { InboundSignalReceivedPayload } from "#modules/inbound-signals/events.js";
-import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
+  type InboundSignalReceivedPayload,
+  type InboundSignalRoutedPayload,
+  inboundSignalReceived,
+  inboundSignalRouted,
+} from "#modules/inbound-signals/events.js";
+import { dispatchInboundSignalRoute } from "#modules/inbound-signals/routing.js";
 import type { SlackEventsApiPayload, SlackMessageEvent } from "./client.js";
 import {
   emitSlackTextInboundSignal,
@@ -62,7 +62,7 @@ describe("Slack channel inbound signal adapter", () => {
         provider: "slack",
         channel: "slack.message",
         accountId: "slack:T123",
-        sourceId: "slack:T123:channel:D123:message:1770000000.250000",
+        sourceId: "slack:T123:channel:D123",
         externalId: "slack:event:Ev123",
         actor: {
           id: "slack:user:U123",
@@ -77,14 +77,23 @@ describe("Slack channel inbound signal adapter", () => {
     });
   });
 
-  it("skips non-configured Slack text without emitting", () => {
+  it("emits non-prefixed Slack text so shared routing decides eligibility", () => {
     const result = slackTextMessageToInboundSignal(
       slackMessage("ordinary chat session message"),
       slackEnvelope(),
       slackSignalContext,
     );
 
-    expect(result).toEqual({ kind: "skip", reason: "prefix-mismatch" });
+    expect(result).toMatchObject({
+      kind: "signal",
+      payload: {
+        body: {
+          kind: "message",
+          format: "plain",
+          text: "ordinary chat session message",
+        },
+      },
+    });
   });
 
   it("emits the shared typed event only after adapter validation succeeds", () => {
@@ -113,15 +122,18 @@ type ProbeDecision = {
   actorTrust: string;
 };
 
+type RoutedProbePayload = {
+  projectId: string;
+  provider: string;
+  channel: string;
+  actorTrust: string;
+  signal: InboundSignalReceivedPayload;
+};
+
 const slackSignalProbeWorkflow: WorkflowDefinitionInput = {
   name: "slack-signal-probe",
-  description: "Test-only bounded workflow for Slack-origin inbound signals.",
-  triggers: [
-    {
-      event: inboundSignalReceived.name,
-      filter: { provider: "slack", channel: "slack.message" },
-    },
-  ],
+  description: "Test-only route target for Slack-origin inbound signals.",
+  triggers: [{ event: "manual" }],
   steps: [
     {
       id: "decide",
@@ -135,13 +147,13 @@ const slackSignalProbeWorkflow: WorkflowDefinitionInput = {
           "actorTrust",
         ]),
       run: ({ trigger }): ProbeDecision => {
-        const payload = trigger.payload as InboundSignalReceivedPayload;
+        const payload = trigger.payload as RoutedProbePayload;
         return {
-          decision: payload.actor.trust === "trusted" ? "accept" : "noop",
+          decision: payload.actorTrust === "trusted" ? "accept" : "noop",
           projectId: payload.projectId,
           provider: payload.provider,
           channel: payload.channel,
-          actorTrust: payload.actor.trust,
+          actorTrust: payload.actorTrust,
         };
       },
     },
@@ -149,16 +161,7 @@ const slackSignalProbeWorkflow: WorkflowDefinitionInput = {
 };
 
 describe("Slack-origin inbound signal workflow dispatch", () => {
-  it("routes a Slack-origin signal to a bounded workflow decision", async () => {
-    const [definition] = validateWorkflowDefinitions(
-      [
-        registerWorkflowDefinition(
-          "src/modules/slack-channel/inbound-signal.test.ts",
-          slackSignalProbeWorkflow,
-        ),
-      ],
-      "/tmp/kota-slack-signal-probe",
-    );
+  it("routes a Slack-origin source through the shared dispatcher to a bounded workflow decision", async () => {
     const signal = slackTextMessageToInboundSignal(
       slackMessage(),
       slackEnvelope(),
@@ -168,28 +171,60 @@ describe("Slack-origin inbound signal workflow dispatch", () => {
       throw new Error("expected Slack signal");
     }
     const queued: Array<{ event: string; payload: Record<string, unknown> }> = [];
+    const routed: InboundSignalRoutedPayload[] = [];
 
-    enqueueMatchingWorkflows(
-      {
-        type: inboundSignalReceived.name,
-        schemaRef: {
-          name: inboundSignalReceived.name,
-          version: inboundSignalReceived.schema.currentVersion,
-        },
-        payload: signal.payload,
+    const routeResult = await dispatchInboundSignalRoute({
+      config: {
+        routes: [
+          {
+            id: "slack-d123-capture",
+            provider: "slack",
+            channel: "slack.message",
+            sourceId: "slack:T123:channel:D123",
+            targets: [{ kind: "workflow", name: slackSignalProbeWorkflow.name }],
+          },
+        ],
       },
-      [definition],
-      (_definition, _trigger, run) => queued.push(run),
-    );
+      signal: signal.payload,
+      context: {
+        workflowNames: new Set([slackSignalProbeWorkflow.name]),
+        agentNames: new Set(),
+      },
+      deps: {
+        async triggerWorkflow(_name, options) {
+          queued.push({
+            event: options.event ?? "manual",
+            payload: options.payload ?? {},
+          });
+          return {
+            ok: true,
+            path: "queue",
+            queued: slackSignalProbeWorkflow.name,
+            runId: "run-slack-d123",
+          };
+        },
+        emitRouted(payload) {
+          routed.push(payload);
+        },
+      },
+    });
 
     expect(queued).toHaveLength(1);
+    expect(routed).toEqual([routeResult]);
+    expect(routeResult).toMatchObject({
+      routeId: "slack-d123-capture",
+      decision: "dispatched",
+      sourceId: "slack:T123:channel:D123",
+    });
     expect(queued[0]).toMatchObject({
-      event: inboundSignalReceived.name,
+      event: inboundSignalRouted.name,
       payload: {
         projectId: "project-slack",
+        routeId: "slack-d123-capture",
         provider: "slack",
         channel: "slack.message",
-        actor: { trust: "trusted" },
+        sourceId: "slack:T123:channel:D123",
+        actorTrust: "trusted",
       },
     });
 

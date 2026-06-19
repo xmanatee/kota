@@ -1,6 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import type { BusEnvelope } from "#core/events/event-bus.js";
-import { enqueueMatchingWorkflows, matchesFilter, workflowUsesAgent } from "./run-executor-utils.js";
+import {
+  defineDaemonWideModuleEvent,
+  initModuleEventRegistry,
+  resetModuleEventRegistry,
+} from "#core/events/module-event.js";
+import {
+  enqueueMatchingWorkflows,
+  matchesFilter,
+  workflowUsesAgent,
+} from "./run-executor-utils.js";
 import { safeJsonStringify } from "./run-io.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
@@ -29,6 +38,29 @@ function workflow(name: string): WorkflowDefinition {
     process.cwd(),
   )[0]!;
 }
+
+function eventWorkflow(name: string, event: string): WorkflowDefinition {
+  return validateWorkflowDefinitions(
+    [
+      registerWorkflowDefinition(`test/${name}.ts`, {
+        name,
+        triggers: [{ event }],
+        steps: [
+          {
+            id: "mark",
+            type: "emit",
+            event: `${name}.done`,
+          },
+        ],
+      }),
+    ],
+    process.cwd(),
+  )[0]!;
+}
+
+afterEach(() => {
+  resetModuleEventRegistry();
+});
 
 describe("enqueueMatchingWorkflows", () => {
   it("clones matched trigger payloads so queued runs do not share nested references", () => {
@@ -118,6 +150,28 @@ describe("enqueueMatchingWorkflows", () => {
 
     expect(enqueued).toHaveLength(1);
     expect(enqueued[0]?.eventId).toBe("evtj-000000000042");
+  });
+
+  it("does not queue workflows from module events marked as workflow-trigger blocked", () => {
+    const event = defineDaemonWideModuleEvent<{ sourceId: string }>(
+      "audit.only.received",
+      ["sourceId"],
+      { workflowTriggerPolicy: "blocked" },
+    );
+    initModuleEventRegistry().register("audit-only", event);
+    const enqueued: WorkflowRunTrigger[] = [];
+
+    enqueueMatchingWorkflows(
+      {
+        type: event.name,
+        schemaRef: { name: event.name, version: event.schema.currentVersion },
+        payload: { sourceId: "source-1" },
+      },
+      [eventWorkflow("direct-consumer", event.name)],
+      (_def, _trigger, run) => enqueued.push(run),
+    );
+
+    expect(enqueued).toEqual([]);
   });
 
   it("rejects circular trigger payloads before they enter the queue", () => {

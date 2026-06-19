@@ -11,6 +11,7 @@ import type {
   ModuleEventPayloadSchema,
   ModuleEventScope,
   ModuleEventSensitivity,
+  ModuleEventWorkflowTriggerPolicy,
 } from "#core/events/module-event.js";
 import type {
   ModuleSetupCompleteInput,
@@ -111,6 +112,7 @@ export type EventSchemaSummary = {
   filterablePaths: readonly string[];
   sensitivity: ModuleEventSensitivity;
   compatibility: ModuleEventCompatibilityPolicy;
+  workflowTriggerPolicy: ModuleEventWorkflowTriggerPolicy;
 };
 
 export type EventSchemaDetail = EventSchemaSummary & {

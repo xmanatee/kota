@@ -12,7 +12,10 @@ import type {
   GitHubWebhookActorIntegrity,
 } from "#modules/github-webhook/events.js";
 import { githubIssueCommentMentionToInboundSignal } from "#modules/github-webhook/inbound-signal.js";
-import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
+import {
+  inboundSignalReceived,
+  inboundSignalRouted,
+} from "#modules/inbound-signals/events.js";
 
 const mocks = vi.hoisted(() => ({
   checkCommitMessageExists: vi.fn(),
@@ -78,21 +81,51 @@ function makePayload(overrides: MentionPayload = {}): Record<string, unknown> {
 }
 
 function makeTrigger(overrides: MentionPayload = {}) {
-  const payload = makeInboundSignalPayload();
-  if (payload.body.kind !== "action") {
+  const baseSignal = makeInboundSignalPayload();
+  if (baseSignal.body.kind !== "action") {
     throw new Error("GitHub mention test payload must be an action signal");
   }
-  return {
-    event: inboundSignalReceived.name,
-    payload: {
-      ...payload,
-      body: {
-        ...payload.body,
-        data: {
-          ...payload.body.data,
-          ...makePayload(overrides),
-        },
+  const signal = {
+    ...baseSignal,
+    body: {
+      ...baseSignal.body,
+      data: {
+        ...baseSignal.body.data,
+        ...makePayload(overrides),
       },
+    },
+  };
+  return {
+    event: inboundSignalRouted.name,
+    schemaRef: null,
+    payload: {
+      scopeId: signal.scopeId,
+      projectId: signal.projectId,
+      routeId: "github-issue-comment-mentions",
+      decision: "dispatched",
+      sourceStatus: "active",
+      provider: signal.provider,
+      channel: signal.channel,
+      accountId: signal.accountId,
+      sourceId: signal.sourceId,
+      actorTrust: signal.actor.trust,
+      policy: {
+        routeId: "github-issue-comment-mentions",
+        sourceStatus: "active",
+        blockedHandling: "audit-only",
+        batch: null,
+        processing: null,
+      },
+      signal,
+      targets: [
+        {
+          kind: "workflow",
+          name: "github-mention-intake",
+          status: "queued",
+          runId: "github-mention-intake-run",
+        },
+      ],
+      reason: "route dispatched to configured target",
     },
   };
 }
@@ -222,7 +255,7 @@ describe("github-mention-intake workflow", () => {
     });
   });
 
-  it("queues only a normalized inbound signal through workflow dispatch and explicitly no-ops non-implementation mentions", async () => {
+  it("uses only routed dispatcher payloads and explicitly no-ops non-implementation mentions", async () => {
     const projectDir = makeProjectDir();
     const tools = toolSpy();
     const [definition] = validateWorkflowDefinitions(
@@ -259,20 +292,18 @@ describe("github-mention-intake workflow", () => {
       (_definition, _trigger, run) => queued.push(run),
     );
 
-    expect(queued).toHaveLength(1);
-    expect(queued[0]).toMatchObject({
-      event: inboundSignalReceived.name,
-      payload: {
-        projectId: "project-test",
-        provider: "github",
-        channel: "github.issue_comment",
-        actor: { trust: "trusted" },
-      },
-    });
+    expect(queued).toHaveLength(0);
+    expect(githubMentionIntakeWorkflow.triggers).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ event: inboundSignalReceived.name }),
+      ]),
+    );
 
     const harness = new WorkflowTestHarness(githubMentionIntakeWorkflow, {
       projectDir,
-      trigger: queued[0],
+      trigger: makeTrigger({
+        commentBody: "@kota can you explain why the queue is paused?",
+      }),
       contextOverrides: {
         runTool: tools.runTool,
       },

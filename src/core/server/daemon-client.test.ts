@@ -45,6 +45,7 @@ const STUB_OMITTED_NAMESPACES: ReadonlySet<string> = new Set<string>([
   "approvals",
   "secrets",
   "memory",
+  "inboundSignals",
   "knowledge",
   "history",
   "evalHarness",
@@ -267,6 +268,16 @@ function makeStubHistory(): DaemonClientHandlers["history"] {
   };
 }
 
+function makeStubInboundSignals(): DaemonClientHandlers["inboundSignals"] {
+  return {
+    listRoutes: async () => ({
+      routes: [],
+      validation: { ok: true, routes: [] },
+    }),
+    validateRoutes: async () => ({ ok: true, routes: [] }),
+  };
+}
+
 function makeStubEvalHarness(): DaemonClientHandlers["evalHarness"] {
   return {
     list: async () => ({
@@ -454,6 +465,7 @@ describe("assembleDaemonClientHandlers", () => {
       approvals: makeStubApprovals(),
       secrets: makeStubSecrets(),
       memory: makeStubMemory(),
+      inboundSignals: makeStubInboundSignals(),
       knowledge: makeStubKnowledge(),
       history: makeStubHistory(),
       evalHarness: makeStubEvalHarness(),
@@ -494,6 +506,7 @@ describe("assembleDaemonClientHandlers", () => {
       approvals: makeStubApprovals(),
       secrets: makeStubSecrets(),
       memory: makeStubMemory(),
+      inboundSignals: makeStubInboundSignals(),
       knowledge: makeStubKnowledge(),
       history: makeStubHistory(),
       evalHarness: makeStubEvalHarness(),
@@ -517,7 +530,7 @@ describe("assembleDaemonClientHandlers", () => {
 
   it("throws naming each migrated namespace when no module contributes it", () => {
     expect(() => assembleDaemonClientHandlers(transport)).toThrow(
-      /missing daemon handler\(s\) for: workflow, approvals, secrets, tasks, memory, ownerDecisions, ownerQuestions, history, knowledge, sessions, modules, agents, skills, harnessParity, webhook, voice, web, mcpServer, audit, config, modulesAdmin, daemonOps, projects, ui, doctor, evalHarness, recall, answer, capture, retract, setup/,
+      /missing daemon handler\(s\) for: workflow, approvals, secrets, tasks, memory, ownerDecisions, ownerQuestions, history, inboundSignals, knowledge, sessions, modules, agents, skills, harnessParity, webhook, voice, web, mcpServer, audit, config, modulesAdmin, daemonOps, projects, ui, doctor, evalHarness, recall, answer, capture, retract, setup/,
     );
   });
 });

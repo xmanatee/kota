@@ -13,7 +13,9 @@ import type {
 import type {
   WorkflowAgentBackoffState,
   WorkflowBatchBufferState,
+  WorkflowBatchTrigger,
   WorkflowRunTrigger,
+  WorkflowTrigger,
 } from "./trigger-types.js";
 
 function fail(path: string, message: string): never {
@@ -224,16 +226,82 @@ function isWorkflowBatchInputEventEnvelope(value: Parameters<typeof isPlainObjec
   );
 }
 
+function isWorkflowBatchTrigger(value: Parameters<typeof isPlainObject>[0]): value is WorkflowBatchTrigger {
+  if (!isPlainObject(value)) return false;
+  const hasFlushCondition =
+    value.maxCount !== undefined ||
+    value.maxAgeMs !== undefined ||
+    value.idleTimeoutMs !== undefined;
+  const maxCount =
+    typeof value.maxCount === "number" && Number.isInteger(value.maxCount)
+      ? value.maxCount
+      : undefined;
+  const maxBufferSize =
+    typeof value.maxBufferSize === "number" && Number.isInteger(value.maxBufferSize)
+      ? value.maxBufferSize
+      : undefined;
+  return (
+    hasFlushCondition &&
+    (value.maxCount === undefined ||
+      (maxCount !== undefined && maxCount > 0)) &&
+    (value.maxAgeMs === undefined ||
+      (typeof value.maxAgeMs === "number" &&
+        Number.isInteger(value.maxAgeMs) &&
+        value.maxAgeMs > 0)) &&
+    (value.idleTimeoutMs === undefined ||
+      (typeof value.idleTimeoutMs === "number" &&
+        Number.isInteger(value.idleTimeoutMs) &&
+        value.idleTimeoutMs > 0)) &&
+    Array.isArray(value.groupBy) &&
+    value.groupBy.every((item) => typeof item === "string" && item.trim().length > 0) &&
+    (value.flushEvent === undefined ||
+      (typeof value.flushEvent === "string" && value.flushEvent.trim().length > 0)) &&
+    maxBufferSize !== undefined &&
+    maxBufferSize > 0 &&
+    (maxCount === undefined || maxCount <= maxBufferSize) &&
+    (value.overflow === "drop-newest" || value.overflow === "flush-oldest")
+  );
+}
+
+function isWorkflowRuntimeBufferTrigger(
+  value: Parameters<typeof isPlainObject>[0],
+): value is WorkflowTrigger {
+  return (
+    isPlainObject(value) &&
+    typeof value.event === "string" &&
+    value.event.trim().length > 0 &&
+    (value.schemaVersion === undefined ||
+      (typeof value.schemaVersion === "number" &&
+        Number.isInteger(value.schemaVersion) &&
+        value.schemaVersion >= 1)) &&
+    value.filter === undefined &&
+    isWorkflowBatchTrigger(value.batch) &&
+    typeof value.cooldownMs === "number" &&
+    Number.isInteger(value.cooldownMs) &&
+    value.cooldownMs >= 0
+  );
+}
+
 function isWorkflowBatchBufferState(
   value: Parameters<typeof isPlainObject>[0],
 ): value is WorkflowBatchBufferState {
-  return (
-    isPlainObject(value) &&
-    typeof value.definitionName === "string" &&
-    value.definitionName.trim().length > 0 &&
+  if (!isPlainObject(value)) return false;
+  const sourceEventName =
+    typeof value.sourceEventName === "string" ? value.sourceEventName : "";
+  const runtimeTrigger = value.runtimeTrigger;
+  const hasDeclaredTrigger =
     typeof value.triggerIndex === "number" &&
     Number.isInteger(value.triggerIndex) &&
     value.triggerIndex >= 0 &&
+    runtimeTrigger === undefined;
+  const hasRuntimeTrigger =
+    value.triggerIndex === -1 &&
+    isWorkflowRuntimeBufferTrigger(runtimeTrigger) &&
+    runtimeTrigger.event === sourceEventName;
+  return (
+    typeof value.definitionName === "string" &&
+    value.definitionName.trim().length > 0 &&
+    (hasDeclaredTrigger || hasRuntimeTrigger) &&
     typeof value.sourceEventName === "string" &&
     value.sourceEventName.trim().length > 0 &&
     typeof value.scopeId === "string" &&

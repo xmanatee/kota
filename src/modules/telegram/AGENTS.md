@@ -67,8 +67,9 @@ notification forwarding.
   vendor API directly; absence of a registered provider surfaces as an
   explicit failure, not a silent drop.
 - Prefix-configured text updates emit `inbound.signal.received` with project
-  scope, Telegram source metadata, and chat trust. The Telegram module does not
-  decide whether that signal becomes a task, answer, owner question, or no-op.
+  scope, Telegram source metadata, and chat trust. The shared inbound-signals
+  dispatcher decides source eligibility and workflow routing; Telegram does not
+  decide whether a signal becomes a task, answer, owner question, or no-op.
 - The interactive channel does not own the scheduler. The daemon owns
   it; the channel subscribes to `schedule.fire` bus events and
   broadcasts reminders to active chat sessions.
@@ -80,7 +81,7 @@ notification forwarding.
 - Does not own transcription. Voice input is delegated to the
   `transcription` module's `TranscriptionProvider` boundary.
 - Does not add provider-local automation planning for chat messages; configured
-  updates enter the shared inbound-signal workflow path.
+  updates enter the shared inbound-signals dispatcher.
 
 ## Operator Deployment
 

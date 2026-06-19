@@ -21,33 +21,41 @@ export type TelegramTextInboundSignalContext = {
 };
 
 export type TelegramTextInboundSignalBuildResult =
-  | { kind: "signal"; payload: InboundSignalReceivedPayload }
+  | {
+      kind: "signal";
+      payload: InboundSignalReceivedPayload;
+      consumed: boolean;
+    }
   | {
       kind: "skip";
-      reason: "prefix-mismatch" | "empty-message";
+      reason: "empty-message";
     }
   | { kind: "invalid"; error: string };
 
 export type TelegramInboundSignalEmitResult =
-  | { emitted: true; payload: InboundSignalReceivedPayload }
-  | { emitted: false; reason: "prefix-mismatch" | "empty-message" }
+  | {
+      emitted: true;
+      payload: InboundSignalReceivedPayload;
+      consumed: boolean;
+    }
+  | { emitted: false; reason: "empty-message" }
   | { emitted: false; error: string };
 
-function matchedAutomationText(
+function automationText(
   text: string,
   prefixes: readonly string[],
-): { matched: true; text: string } | { matched: false; reason: "prefix-mismatch" | "empty-message" } {
+): { ok: true; text: string; consumed: boolean } | { ok: false; reason: "empty-message" } {
   const trimmed = text.trimStart();
   for (const prefix of prefixes) {
-    if (prefix.trim().length === 0) {
-      return { matched: false, reason: "prefix-mismatch" };
-    }
+    if (prefix.trim().length === 0) continue;
     if (!trimmed.startsWith(prefix)) continue;
     const body = trimmed.slice(prefix.length).trim();
-    if (body.length === 0) return { matched: false, reason: "empty-message" };
-    return { matched: true, text: body };
+    if (body.length === 0) return { ok: false, reason: "empty-message" };
+    return { ok: true, text: body, consumed: true };
   }
-  return { matched: false, reason: "prefix-mismatch" };
+  const body = trimmed.trim();
+  if (body.length === 0) return { ok: false, reason: "empty-message" };
+  return { ok: true, text: body, consumed: false };
 }
 
 function actorTrust(
@@ -105,8 +113,8 @@ export function telegramTextMessageToInboundSignal(
   context: TelegramTextInboundSignalContext,
 ): TelegramTextInboundSignalBuildResult {
   const text = message.text ?? "";
-  const matched = matchedAutomationText(text, context.config.prefixes);
-  if (!matched.matched) return { kind: "skip", reason: matched.reason };
+  const normalized = automationText(text, context.config.prefixes);
+  if (!normalized.ok) return { kind: "skip", reason: normalized.reason };
 
   const chatId = message.chat.id;
   const actor = actorIdentity(message.from, chatId);
@@ -117,7 +125,7 @@ export function telegramTextMessageToInboundSignal(
     provider: "telegram",
     channel: "telegram.message",
     accountId: "telegram:bot",
-    sourceId: `telegram:chat:${chatId}:message:${message.message_id}`,
+    sourceId: `telegram:chat:${chatId}`,
     sourceUrl: `telegram://chat/${chatId}/message/${message.message_id}`,
     externalId: `telegram:${chatId}:${message.message_id}`,
     occurredAt: timestampFromTelegramDate(message.date) ?? context.receivedAt,
@@ -131,12 +139,12 @@ export function telegramTextMessageToInboundSignal(
     body: {
       kind: "message",
       format: "plain",
-      text: matched.text,
+      text: normalized.text,
     },
   });
 
   if (!signal.ok) return { kind: "invalid", error: signal.error };
-  return { kind: "signal", payload: signal.payload };
+  return { kind: "signal", payload: signal.payload, consumed: normalized.consumed };
 }
 
 export function emitTelegramTextInboundSignal(
@@ -150,5 +158,5 @@ export function emitTelegramTextInboundSignal(
   }
   if (signal.kind === "invalid") return { emitted: false, error: signal.error };
   events.emit(inboundSignalReceived, signal.payload);
-  return { emitted: true, payload: signal.payload };
+  return { emitted: true, payload: signal.payload, consumed: signal.consumed };
 }

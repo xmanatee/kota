@@ -90,6 +90,7 @@ export class DaemonControlClient implements KotaClient {
   readonly ownerDecisions: KotaClient["ownerDecisions"];
   readonly ownerQuestions: KotaClient["ownerQuestions"];
   readonly history: KotaClient["history"];
+  readonly inboundSignals: KotaClient["inboundSignals"];
   readonly knowledge: KotaClient["knowledge"];
   readonly sessions: KotaClient["sessions"];
   readonly modules: KotaClient["modules"];
@@ -128,6 +129,7 @@ export class DaemonControlClient implements KotaClient {
     this.ownerDecisions = handlers.ownerDecisions;
     this.ownerQuestions = handlers.ownerQuestions;
     this.history = handlers.history;
+    this.inboundSignals = handlers.inboundSignals;
     this.knowledge = handlers.knowledge;
     this.sessions = handlers.sessions;
     this.modules = handlers.modules;

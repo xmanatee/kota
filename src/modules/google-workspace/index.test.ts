@@ -311,7 +311,7 @@ describe("google-workspace module inbound routes", () => {
       provider: "google-workspace",
       channel: "gmail.message",
       actor: { trust: "trusted" },
-      sourceId: "google:gmail:owner@example.com:message:gmail-msg-2",
+      sourceId: "google:gmail:owner@example.com",
       body: {
         kind: "message",
         text: expect.stringContaining("Please capture this in the queue."),
@@ -379,8 +379,7 @@ describe("google-workspace module inbound routes", () => {
       provider: "google-workspace",
       channel: "calendar.event",
       actor: { trust: "trusted" },
-      sourceId:
-        "google:calendar:owner@example.com:primary:event:calendar-event-2",
+      sourceId: "google:calendar:owner@example.com:primary",
       body: {
         kind: "action",
         action: "google.calendar.event.changed",

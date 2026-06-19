@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import type { BusEnvelope } from "#core/events/event-bus.js";
+import { getModuleEventRegistry } from "#core/events/module-event.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type {
   WorkflowRunMetadata,
@@ -301,6 +302,11 @@ function cloneTriggerPayload(
   return cloneTriggerPayloadValue(payload) as Record<string, unknown>;
 }
 
+export function workflowEventTriggeringAllowed(event: string): boolean {
+  const declared = getModuleEventRegistry()?.get(event);
+  return declared?.workflowTriggerPolicy !== "blocked";
+}
+
 export function enqueueMatchingWorkflows(
   envelope: BusEnvelope,
   definitions: readonly WorkflowDefinition[],
@@ -310,6 +316,8 @@ export function enqueueMatchingWorkflows(
     run: WorkflowRunTrigger,
   ) => void,
 ): void {
+  if (!workflowEventTriggeringAllowed(envelope.type)) return;
+
   for (const definition of definitions) {
     if (!definition.enabled) continue;
     for (const trigger of definition.triggers) {

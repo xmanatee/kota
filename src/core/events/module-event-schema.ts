@@ -2,6 +2,8 @@ export type ModuleEventSensitivity = "public" | "internal" | "sensitive" | "secr
 
 export type ModuleEventCompatibilityPolicy = "none" | "backward";
 
+export type ModuleEventWorkflowTriggerPolicy = "allowed" | "blocked";
+
 export type ModuleEventPayloadObject = {
   readonly [key: string]: ModuleEventPayloadValue | undefined;
 };
@@ -84,6 +86,7 @@ export type ModuleEventOptions<TPayload extends object> = {
   readonly filterablePaths?: readonly string[];
   readonly sensitivity?: ModuleEventSensitivity;
   readonly compatibility?: ModuleEventCompatibilityPolicy;
+  readonly workflowTriggerPolicy?: ModuleEventWorkflowTriggerPolicy;
   readonly examples?: readonly ModuleEventPayloadExample<TPayload>[];
   readonly normalizeExternal?: (input: ModuleEventPayloadObject) => TPayload;
 };
@@ -93,6 +96,7 @@ export type ModuleEventSchemaContract<TPayload extends object> = {
   readonly filterablePaths: readonly string[];
   readonly sensitivity: ModuleEventSensitivity;
   readonly compatibility: ModuleEventCompatibilityPolicy;
+  readonly workflowTriggerPolicy: ModuleEventWorkflowTriggerPolicy;
   readonly examples: readonly ModuleEventPayloadExample<TPayload>[];
   readonly normalizeExternal?: (input: ModuleEventPayloadObject) => TPayload;
 };
@@ -100,6 +104,7 @@ export type ModuleEventSchemaContract<TPayload extends object> = {
 const DEFAULT_SCHEMA_VERSION = 1;
 const DEFAULT_EVENT_SENSITIVITY: ModuleEventSensitivity = "internal";
 const DEFAULT_COMPATIBILITY: ModuleEventCompatibilityPolicy = "backward";
+const DEFAULT_WORKFLOW_TRIGGER_POLICY: ModuleEventWorkflowTriggerPolicy = "allowed";
 
 export function buildModuleEventSchemaContract<TPayload extends object>(
   eventName: string,
@@ -120,6 +125,8 @@ export function buildModuleEventSchemaContract<TPayload extends object>(
     filterablePaths,
     sensitivity: options?.sensitivity ?? DEFAULT_EVENT_SENSITIVITY,
     compatibility: options?.compatibility ?? DEFAULT_COMPATIBILITY,
+    workflowTriggerPolicy:
+      options?.workflowTriggerPolicy ?? DEFAULT_WORKFLOW_TRIGGER_POLICY,
     examples: options?.examples ?? [],
   };
   if (options?.normalizeExternal) {

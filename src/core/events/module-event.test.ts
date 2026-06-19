@@ -39,6 +39,17 @@ describe("defineModuleEvent", () => {
     expect(decl.scope).toBe("daemon");
     expect(decl.schema.currentVersion).toBe(1);
     expect(decl.filterablePaths).toEqual(["id", "count"]);
+    expect(decl.workflowTriggerPolicy).toBe("allowed");
+  });
+
+  it("captures explicit workflow trigger blocking policy", () => {
+    const decl = defineModuleEvent<{ id: string }>(
+      "audit.only",
+      ["id"],
+      "daemon",
+      { workflowTriggerPolicy: "blocked" },
+    );
+    expect(decl.workflowTriggerPolicy).toBe("blocked");
   });
 
   it("defineDaemonWideModuleEvent sugar yields scope: 'daemon'", () => {
@@ -74,6 +85,7 @@ describe("ModuleEventRegistry", () => {
       fields: ["id"],
       currentVersion: 1,
       filterablePaths: ["id"],
+      workflowTriggerPolicy: "allowed",
     });
     expect(moduleEvents.has("alpha.event")).toBe(true);
   });

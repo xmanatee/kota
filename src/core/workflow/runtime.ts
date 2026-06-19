@@ -7,7 +7,11 @@ import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { EventJournal } from "#core/events/event-journal.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { AgentBackoffManager } from "./agent-backoff.js";
-import { WorkflowEventBatchManager } from "./event-batches.js";
+import {
+  type WorkflowBatchDispatchInput,
+  type WorkflowBatchDispatchResult,
+  WorkflowEventBatchManager,
+} from "./event-batches.js";
 import { workflowUsesAgent } from "./run-executor-utils.js";
 import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowRunExecutionResult, WorkflowRuntimeState } from "./run-types.js";
@@ -297,6 +301,10 @@ export class WorkflowRuntime {
     webhookPayload: WebhookRunPayload,
   ): { ok: boolean; runId?: string; alreadyRunning?: boolean; error?: string } {
     return enqueueWebhookRun(this.ctx, name, webhookPayload);
+  }
+
+  enqueueBatchedEvent(input: WorkflowBatchDispatchInput): WorkflowBatchDispatchResult {
+    return this.ctx.eventBatches.dispatchToWorkflowBatch(input);
   }
 
   cancelQueuedRun(runId: string): { ok: boolean; notFound?: boolean; active?: boolean } {

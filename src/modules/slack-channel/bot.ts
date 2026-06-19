@@ -324,7 +324,7 @@ export class SlackBot {
         config: inboundSignals.config,
       },
     );
-    if (result.emitted) return true;
+    if (result.emitted) return result.consumed;
     if ("error" in result) {
       throw new Error(`Slack inbound signal is invalid: ${result.error}`);
     }

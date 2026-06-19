@@ -3,8 +3,9 @@
 This workflow turns trusted GitHub issue-comment mention signals into one
 bounded GitHub thread response.
 
-- Consume only the shared `inbound.signal.received` action form emitted by
-  thin inbound adapters.
+- Consume only the shared inbound-signals routing payload and its nested
+  `signal` action form. Raw `inbound.signal.received` is not a responder
+  trigger because the dispatcher owns source eligibility.
 - Keep actor-integrity, action, malformed-payload, and implementation-request
   gating in code before the response agent runs.
 - Keep the agent passive and response-only. GitHub posting happens through the

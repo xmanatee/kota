@@ -565,7 +565,7 @@ export class TelegramBot {
         allowedChatIds: this.options.allowedChatIds,
       },
     );
-    if (result.emitted) return true;
+    if (result.emitted) return result.consumed;
     if ("error" in result) {
       throw new Error(`Telegram inbound signal is invalid: ${result.error}`);
     }

@@ -146,6 +146,13 @@ function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
       search: stub({ ok: true, conversations: [] }),
       reindex: stub({ indexed: 0, failed: 0 }),
     },
+    inboundSignals: {
+      listRoutes: stub({
+        routes: [],
+        validation: { ok: true, routes: [] },
+      }),
+      validateRoutes: stub({ ok: true, routes: [] }),
+    },
     knowledge: {
       list: stub({ entries: [] }),
       show: stub({ found: false }),

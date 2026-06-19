@@ -72,8 +72,15 @@ export type WorkflowBatchInputEventEnvelope = {
 
 export type WorkflowBatchBufferState = {
   definitionName: string;
+  /**
+   * Index of the workflow-declared trigger that owns this buffer. Route-level
+   * dispatches that are buffered through the same runtime primitive use -1 and
+   * persist `runtimeTrigger` below because they are not declared on the target
+   * workflow itself.
+   */
   triggerIndex: number;
   sourceEventName: string;
+  runtimeTrigger?: WorkflowTrigger;
   scopeId: string;
   projectId: string;
   groupingKey: string;

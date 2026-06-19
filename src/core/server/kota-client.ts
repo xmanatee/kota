@@ -40,6 +40,7 @@ import type { EvalHarnessClient } from "#modules/eval-harness/client.js";
 import type { AuditClient } from "#modules/guardrails-audit/client.js";
 import type { HarnessParityClient } from "#modules/harness-parity/client.js";
 import type { HistoryClient } from "#modules/history/client.js";
+import type { InboundSignalsClient } from "#modules/inbound-signals/client.js";
 import type { KnowledgeClient } from "#modules/knowledge/client.js";
 import type { McpServerClient } from "#modules/mcp-server/client.js";
 import type { MemoryClient } from "#modules/memory/client.js";
@@ -78,6 +79,7 @@ export interface KotaClient {
   readonly ownerDecisions: OwnerDecisionsClient;
   readonly ownerQuestions: OwnerQuestionsClient;
   readonly history: HistoryClient;
+  readonly inboundSignals: InboundSignalsClient;
   readonly knowledge: KnowledgeClient;
   readonly sessions: SessionsClient;
   readonly modules: ModulesClient;
@@ -117,6 +119,7 @@ export const KOTA_CLIENT_NAMESPACES = [
   "ownerDecisions",
   "ownerQuestions",
   "history",
+  "inboundSignals",
   "knowledge",
   "sessions",
   "modules",

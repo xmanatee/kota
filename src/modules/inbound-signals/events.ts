@@ -15,6 +15,12 @@ export type InboundSignalJsonObject = {
 
 export type InboundSignalActorTrust = "trusted" | "untrusted" | "blocked";
 
+export type InboundSignalSourceStatus =
+  | "active"
+  | "blocked"
+  | "archived"
+  | "ignored";
+
 export type InboundSignalActor = {
   id: string;
   displayName: string;
@@ -54,6 +60,57 @@ export type InboundSignalPayload = {
 
 export type InboundSignalReceivedPayload =
   ProjectScopedPayload<InboundSignalPayload>;
+
+export type InboundSignalRouteDecision =
+  | "dispatched"
+  | "blocked"
+  | "archived"
+  | "ignored"
+  | "no-route"
+  | "validation-error";
+
+export type InboundSignalRouteTargetKind = "workflow" | "agent";
+
+export type InboundSignalRouteTargetStatus =
+  | "queued"
+  | "batched"
+  | "completed"
+  | "already-queued"
+  | "skipped"
+  | "unsupported"
+  | "failed";
+
+export type InboundSignalRouteTargetResult = {
+  kind: InboundSignalRouteTargetKind;
+  name: string;
+  status: InboundSignalRouteTargetStatus;
+  runId?: string;
+  sessionId?: string;
+  reason?: string;
+};
+
+export type InboundSignalRoutePolicyPayload = {
+  routeId: string;
+  sourceStatus: InboundSignalSourceStatus;
+  blockedHandling: "audit-only" | "dispatch";
+  batch: InboundSignalJsonObject | null;
+  processing: InboundSignalJsonObject | null;
+};
+
+export type InboundSignalRoutedPayload = ProjectScopedPayload<{
+  routeId: string;
+  decision: InboundSignalRouteDecision;
+  sourceStatus: InboundSignalSourceStatus;
+  provider: string;
+  channel: string;
+  accountId: string;
+  sourceId: string;
+  actorTrust: InboundSignalActorTrust;
+  policy: InboundSignalRoutePolicyPayload;
+  signal: InboundSignalReceivedPayload;
+  targets: readonly InboundSignalRouteTargetResult[];
+  reason: string;
+}>;
 
 export type InboundSignalValidationResult =
   | { ok: true; payload: InboundSignalReceivedPayload }
@@ -142,6 +199,91 @@ export const inboundSignalReceived =
         },
       },
       sensitivity: "internal",
+      workflowTriggerPolicy: "blocked",
+    },
+  );
+
+export const inboundSignalRouted =
+  defineProjectScopedModuleEvent<Omit<InboundSignalRoutedPayload, "scopeId" | "projectId">>(
+    "inbound.signal.routed",
+    [
+      "routeId",
+      "decision",
+      "sourceStatus",
+      "provider",
+      "channel",
+      "accountId",
+      "sourceId",
+      "actorTrust",
+      "policy",
+      "signal",
+      "targets",
+      "reason",
+    ],
+    {
+      payloadSchema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          routeId: { type: "string" },
+          decision: {
+            type: "string",
+            enum: [
+              "dispatched",
+              "blocked",
+              "archived",
+              "ignored",
+              "no-route",
+              "validation-error",
+            ],
+          },
+          sourceStatus: {
+            type: "string",
+            enum: ["active", "blocked", "archived", "ignored"],
+          },
+          provider: { type: "string" },
+          channel: { type: "string" },
+          accountId: { type: "string" },
+          sourceId: { type: "string" },
+          actorTrust: {
+            type: "string",
+            enum: ["trusted", "untrusted", "blocked"],
+          },
+          policy: {
+            type: "object",
+            additionalProperties: true,
+            properties: {
+              routeId: { type: "string" },
+              sourceStatus: {
+                type: "string",
+                enum: ["active", "blocked", "archived", "ignored"],
+              },
+              blockedHandling: {
+                type: "string",
+                enum: ["audit-only", "dispatch"],
+              },
+              batch: { type: "json" },
+              processing: { type: "json" },
+            },
+          },
+          signal: { type: "json", filterable: false },
+          targets: { type: "json", filterable: false },
+          reason: { type: "string" },
+        },
+      },
+      filterablePaths: [
+        "routeId",
+        "decision",
+        "sourceStatus",
+        "provider",
+        "channel",
+        "accountId",
+        "sourceId",
+        "actorTrust",
+        "policy.blockedHandling",
+      ],
+      sensitivity: "internal",
+      workflowTriggerPolicy: "blocked",
     },
   );
 

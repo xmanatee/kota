@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
+import {
+  type InboundSignalRoutedPayload,
+  inboundSignalReceived,
+  inboundSignalRouted,
+} from "#modules/inbound-signals/events.js";
+import { dispatchInboundSignalRoute } from "#modules/inbound-signals/routing.js";
 import type { TelegramMessage } from "./client.js";
 import {
   emitTelegramTextInboundSignal,
@@ -43,7 +48,7 @@ describe("Telegram inbound signal adapter", () => {
         provider: "telegram",
         channel: "telegram.message",
         accountId: "telegram:bot",
-        sourceId: "telegram:chat:9001:message:42",
+        sourceId: "telegram:chat:9001",
         externalId: "telegram:9001:42",
         actor: {
           id: "telegram:user:77",
@@ -79,13 +84,22 @@ describe("Telegram inbound signal adapter", () => {
     });
   });
 
-  it("skips non-configured Telegram text without emitting", () => {
+  it("emits non-prefixed Telegram text so shared routing decides eligibility", () => {
     const result = telegramTextMessageToInboundSignal(
       telegramMessage("ordinary chat session message"),
       telegramSignalContext,
     );
 
-    expect(result).toEqual({ kind: "skip", reason: "prefix-mismatch" });
+    expect(result).toMatchObject({
+      kind: "signal",
+      payload: {
+        body: {
+          kind: "message",
+          format: "plain",
+          text: "ordinary chat session message",
+        },
+      },
+    });
   });
 
   it("emits the shared typed event only after adapter validation succeeds", () => {
@@ -102,5 +116,64 @@ describe("Telegram inbound signal adapter", () => {
       inboundSignalReceived,
       result.payload,
     );
+  });
+
+  it("routes a configured Telegram chat source through the shared dispatcher", async () => {
+    const signal = telegramTextMessageToInboundSignal(
+      telegramMessage(),
+      telegramSignalContext,
+    );
+    if (signal.kind !== "signal") throw new Error("expected Telegram signal");
+    const queued: Array<{ event: string; payload: Record<string, unknown> }> = [];
+    const routed: InboundSignalRoutedPayload[] = [];
+
+    const routeResult = await dispatchInboundSignalRoute({
+      config: {
+        routes: [
+          {
+            id: "telegram-9001-capture",
+            provider: "telegram",
+            channel: "telegram.message",
+            sourceId: "telegram:chat:9001",
+            targets: [{ kind: "workflow", name: "telegram-signal-probe" }],
+          },
+        ],
+      },
+      signal: signal.payload,
+      context: {
+        workflowNames: new Set(["telegram-signal-probe"]),
+        agentNames: new Set(),
+      },
+      deps: {
+        async triggerWorkflow(_name, options) {
+          queued.push({
+            event: options.event ?? "manual",
+            payload: options.payload ?? {},
+          });
+          return {
+            ok: true,
+            path: "queue",
+            queued: "telegram-signal-probe",
+            runId: "run-telegram-9001",
+          };
+        },
+        emitRouted(payload) {
+          routed.push(payload);
+        },
+      },
+    });
+
+    expect(routed).toEqual([routeResult]);
+    expect(queued).toHaveLength(1);
+    expect(queued[0]).toMatchObject({
+      event: inboundSignalRouted.name,
+      payload: {
+        routeId: "telegram-9001-capture",
+        provider: "telegram",
+        channel: "telegram.message",
+        sourceId: "telegram:chat:9001",
+        actorTrust: "trusted",
+      },
+    });
   });
 });

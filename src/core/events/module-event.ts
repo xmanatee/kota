@@ -39,6 +39,7 @@ import {
   type ModuleEventPayloadSchema,
   type ModuleEventSchema,
   type ModuleEventSensitivity,
+  type ModuleEventWorkflowTriggerPolicy,
 } from "./module-event-schema.js";
 
 export type {
@@ -54,6 +55,7 @@ export type {
   ModuleEventSchemaNode,
   ModuleEventSchemaProperties,
   ModuleEventSensitivity,
+  ModuleEventWorkflowTriggerPolicy,
 } from "./module-event-schema.js";
 
 /**
@@ -73,6 +75,7 @@ export type ModuleEventDef<TPayload extends object = object> = {
   readonly filterablePaths: ReadonlyArray<string>;
   readonly sensitivity: ModuleEventSensitivity;
   readonly compatibility: ModuleEventCompatibilityPolicy;
+  readonly workflowTriggerPolicy: ModuleEventWorkflowTriggerPolicy;
   readonly examples: readonly ModuleEventPayloadExample<TPayload>[];
   readonly normalizeExternal?: (input: ModuleEventPayloadObject) => TPayload;
   /**
@@ -105,6 +108,7 @@ export function defineModuleEvent<TPayload extends object>(
     filterablePaths: contract.filterablePaths,
     sensitivity: contract.sensitivity,
     compatibility: contract.compatibility,
+    workflowTriggerPolicy: contract.workflowTriggerPolicy,
     examples: contract.examples,
   };
   if (contract.normalizeExternal) {
@@ -191,6 +195,7 @@ export type ModuleEventRegistration = {
   readonly filterablePaths: ReadonlyArray<string>;
   readonly sensitivity: ModuleEventSensitivity;
   readonly compatibility: ModuleEventCompatibilityPolicy;
+  readonly workflowTriggerPolicy: ModuleEventWorkflowTriggerPolicy;
   readonly examples: readonly ModuleEventPayloadExample[];
 };
 
@@ -272,6 +277,7 @@ function registrationFromDef(
     filterablePaths: def.filterablePaths,
     sensitivity: def.sensitivity,
     compatibility: def.compatibility,
+    workflowTriggerPolicy: def.workflowTriggerPolicy,
     examples: def.examples,
   };
 }
@@ -289,6 +295,7 @@ function sameRegistrationContract(
       filterablePaths: a.filterablePaths,
       sensitivity: a.sensitivity,
       compatibility: a.compatibility,
+      workflowTriggerPolicy: a.workflowTriggerPolicy,
     }) ===
       JSON.stringify({
         fields: b.fields,
@@ -297,6 +304,7 @@ function sameRegistrationContract(
         filterablePaths: b.filterablePaths,
         sensitivity: b.sensitivity,
         compatibility: b.compatibility,
+        workflowTriggerPolicy: b.workflowTriggerPolicy,
       })
   );
 }

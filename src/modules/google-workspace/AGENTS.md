@@ -52,6 +52,7 @@ Values starting with `$` are resolved through the shared secret provider, so set
   Google API-shaped message/event JSON or the module's normalized adapter
   shape, then emit `inbound.signal.received`.
 - Gmail and Calendar inbound routes only normalize Google source metadata,
-  actor trust, and content into `inbound.signal.received`; workflows own
-  downstream task capture, replies, owner questions, retries, audit, and no-op
-  decisions.
+  actor trust, and content into `inbound.signal.received`. The shared
+  inbound-signals dispatcher decides source eligibility and workflow routing;
+  downstream workflows own task capture, replies, owner questions, retries,
+  audit, and no-op decisions after routing.
