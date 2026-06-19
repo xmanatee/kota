@@ -160,11 +160,17 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
       const r = decoded as {
         requirements: Array<{ kind: string; state: string; sensitivity: string }>;
       };
-      if (r.requirements.length !== 4) {
-        throw new Error("expected 4 setup requirement statuses");
+      if (r.requirements.length !== 6) {
+        throw new Error("expected 6 setup requirement statuses");
       }
       if (!r.requirements.some((entry) => entry.kind === "oauth" && entry.state === "pending")) {
         throw new Error("expected pending OAuth setup arm");
+      }
+      if (!r.requirements.some((entry) => entry.state === "expired")) {
+        throw new Error("expected expired setup arm");
+      }
+      if (!r.requirements.some((entry) => entry.state === "revoked")) {
+        throw new Error("expected revoked setup arm");
       }
       if (!r.requirements.some((entry) => entry.sensitivity === "browser-profile")) {
         throw new Error("expected browser-profile sensitivity arm");
@@ -219,9 +225,10 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
             confirmation: { mode: string };
             readiness: { state: string; reason?: string; moduleName?: string; requirementId?: string };
             parameters?: {
+              fields: Array<{ id: string; input: string }>;
               schema: {
                 required?: string[];
-                properties: {
+                properties: Record<string, unknown> & {
                   name?: unknown;
                   tags?: unknown;
                   payload?: unknown;
@@ -236,6 +243,7 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
                 };
               };
             };
+            conditions?: Array<{ kind: string; state: string }>;
             result: { errors: Array<{ reason: string }> };
           }>;
         }>;
@@ -243,8 +251,8 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
       if (bundle.protocolVersion !== "ui.surface.v1") {
         throw new Error("expected ui.surface.v1 protocol");
       }
-      if (bundle.surfaces.map((surface) => surface.intent).join(",") !== "Status,Inbox,Work") {
-        throw new Error("expected Status, Inbox, and Work intent surfaces");
+      if (bundle.surfaces.map((surface) => surface.intent).join(",") !== "Status,Inbox,Work,Setup") {
+        throw new Error("expected Status, Inbox, Work, and Setup intent surfaces");
       }
       const inbox = bundle.surfaces.find((surface) => surface.surfaceId === "inbox");
       const approvalAction = inbox?.actions.find((action) => action.actionId === "approval.open");
@@ -338,6 +346,40 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
       ) {
         throw new Error("expected setup OAuth action to carry needs-setup readiness metadata");
       }
+      const setupSurface = bundle.surfaces.find((surface) => surface.surfaceId === "setup");
+      if (!setupSurface) {
+        throw new Error("expected dedicated setup surface");
+      }
+      if (!setupSurface.nodes.some((node) => node.kind === "form")) {
+        throw new Error("expected setup surface to render setup forms");
+      }
+      const secretAction = setupSurface.actions.find((action) =>
+        action.actionId === "setup.telegram.bot-credentials.store-secret"
+      );
+      if (
+        !secretAction ||
+        secretAction.operation.kind !== "daemon-route" ||
+        secretAction.operation.path !== "/setup/requirements/telegram/bot-credentials/secret" ||
+        secretAction.parameters?.fields[0]?.input !== "secret"
+      ) {
+        throw new Error("expected setup secret action to use typed secret input and setup route");
+      }
+      const configAction = setupSurface.actions.find((action) =>
+        action.actionId === "setup.google-workspace.oauth-config.submit-form"
+      );
+      if (configAction?.parameters?.schema.properties["client-id-ref"] === undefined) {
+        throw new Error("expected setup form action to carry non-sensitive config field schema");
+      }
+      if (!setupSurface.actions.some((action) =>
+        action.conditions?.some((condition) => condition.kind === "setup" && condition.state === "expired")
+      )) {
+        throw new Error("expected setup actions to cover expired requirement state");
+      }
+      if (!setupSurface.actions.some((action) =>
+        action.conditions?.some((condition) => condition.kind === "setup" && condition.state === "revoked")
+      )) {
+        throw new Error("expected setup actions to cover revoked requirement state");
+      }
     },
   },
   {
@@ -379,6 +421,12 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
   {
     name: "uiSurfaces: unknown log stream source rejected",
     path: "uiSurfaces.negative_unknownLogStreamSourceKind",
+    parse: parseUiSurfaceBundle,
+    expectThrow: true,
+  },
+  {
+    name: "uiSurfaces: unknown setup condition state rejected",
+    path: "uiSurfaces.negative_unknownSetupConditionState",
     parse: parseUiSurfaceBundle,
     expectThrow: true,
   },

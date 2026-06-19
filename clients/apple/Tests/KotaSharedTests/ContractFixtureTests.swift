@@ -231,13 +231,17 @@ final class ContractFixtureTests: XCTestCase {
     func testDecodesSetupRequirementsStatus() throws {
         let data = try Self.nestedData(["setupRequirements", "status"])
         let response = try JSONDecoder().decode(SetupStatusResponse.self, from: data)
-        XCTAssertEqual(response.requirements.count, 4)
+        XCTAssertEqual(response.requirements.count, 6)
         XCTAssertEqual(response.summary.ready, 1)
         XCTAssertEqual(response.summary.missing, 1)
         XCTAssertEqual(response.summary.pending, 1)
+        XCTAssertEqual(response.summary.expired, 1)
+        XCTAssertEqual(response.summary.revoked, 1)
         let oauth = response.requirements.first { $0.kind == .oauth }
         XCTAssertEqual(oauth?.state, .pending)
         XCTAssertEqual(oauth?.pendingAction?.status, .pending)
+        XCTAssertTrue(response.requirements.contains { $0.state == .expired })
+        XCTAssertTrue(response.requirements.contains { $0.state == .revoked })
         let config = response.requirements.first { $0.kind == .config }
         if case .form(let fields)? = config?.setup {
             XCTAssertEqual(fields.first?.valueKind, .secretReference)
@@ -274,7 +278,7 @@ final class ContractFixtureTests: XCTestCase {
         let data = try Self.nestedData(["uiSurfaces", "statusInbox"])
         let bundle = try JSONDecoder().decode(UiSurfaceBundle.self, from: data)
         XCTAssertEqual(bundle.protocolVersion, .surfaceV1)
-        XCTAssertEqual(bundle.surfaces.map(\.intent), [.status, .inbox, .work])
+        XCTAssertEqual(bundle.surfaces.map(\.intent), [.status, .inbox, .work, .setup])
         let inbox = bundle.surfaces.first { $0.surfaceId == "inbox" }
         let approvalAction = try XCTUnwrap(inbox?.actions.first { $0.actionId == "approval.open" })
         XCTAssertEqual(approvalAction.operation.kind, .daemonRoute)
@@ -336,6 +340,30 @@ final class ContractFixtureTests: XCTestCase {
         XCTAssertEqual(setup.readiness.state, .needsSetup)
         XCTAssertEqual(setup.readiness.moduleName, "google-workspace")
         XCTAssertEqual(setup.readiness.requirementId, "oauth-credentials")
+        let setupSurface = try XCTUnwrap(bundle.surfaces.first { $0.surfaceId == "setup" })
+        XCTAssertEqual(setupSurface.intent, .setup)
+        XCTAssertTrue(setupSurface.nodes.contains {
+            if case .form = $0 { return true }
+            return false
+        })
+        let secret = try XCTUnwrap(setupSurface.actions.first {
+            $0.actionId == "setup.telegram.bot-credentials.store-secret"
+        })
+        XCTAssertEqual(secret.operation.kind, .daemonRoute)
+        XCTAssertEqual(secret.operation.path, "/setup/requirements/telegram/bot-credentials/secret")
+        XCTAssertEqual(secret.parameters?.fields.first?.input, .secret)
+        XCTAssertEqual(secret.conditions?.first?.kind, .setup)
+        XCTAssertEqual(secret.conditions?.first?.state, .missing)
+        let configAction = try XCTUnwrap(setupSurface.actions.first {
+            $0.actionId == "setup.google-workspace.oauth-config.submit-form"
+        })
+        XCTAssertNotNil(configAction.parameters?.schema.properties?["client-id-ref"])
+        XCTAssertTrue(setupSurface.actions.contains {
+            $0.conditions?.contains { $0.kind == .setup && $0.state == .expired } == true
+        })
+        XCTAssertTrue(setupSurface.actions.contains {
+            $0.conditions?.contains { $0.kind == .setup && $0.state == .revoked } == true
+        })
     }
 
     func testUiSurfacesRejectUnknownNodeKind() throws {
@@ -370,6 +398,11 @@ final class ContractFixtureTests: XCTestCase {
 
     func testUiSurfacesRejectUnknownLogStreamSourceKind() throws {
         let data = try Self.nestedData(["uiSurfaces", "negative_unknownLogStreamSourceKind"])
+        XCTAssertThrowsError(try JSONDecoder().decode(UiSurfaceBundle.self, from: data))
+    }
+
+    func testUiSurfacesRejectUnknownSetupConditionState() throws {
+        let data = try Self.nestedData(["uiSurfaces", "negative_unknownSetupConditionState"])
         XCTAssertThrowsError(try JSONDecoder().decode(UiSurfaceBundle.self, from: data))
     }
 

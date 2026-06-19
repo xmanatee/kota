@@ -541,14 +541,90 @@
               "present": true
             }
           ]
+        },
+        {
+          "moduleName": "slack-channel",
+          "requirementId": "app-token",
+          "kind": "secret",
+          "title": "Slack app token",
+          "description": "Slack socket mode app token used by the channel adapter.",
+          "required": true,
+          "scope": "project",
+          "owner": "slack-channel",
+          "sensitivity": "secret",
+          "setup": {
+            "mode": "url",
+            "url": "https://api.slack.com/apps",
+            "label": "Open Slack app config",
+            "pendingTtlMs": 1800000
+          },
+          "state": "expired",
+          "reason": "url_setup_expired",
+          "message": "Setup URL action expired",
+          "secretRefs": [
+            {
+              "name": "SLACK_APP_TOKEN",
+              "scope": "project",
+              "present": true,
+              "source": "project-file"
+            }
+          ],
+          "pendingAction": {
+            "actionId": "slack-channel.app-token.1769990000000",
+            "moduleName": "slack-channel",
+            "requirementId": "app-token",
+            "url": "https://api.slack.com/apps",
+            "label": "Open Slack app config",
+            "status": "pending",
+            "createdAt": "2026-06-04T07:00:00.000Z",
+            "expiresAt": "2026-06-04T07:30:00.000Z"
+          }
+        },
+        {
+          "moduleName": "email",
+          "requirementId": "smtp-password",
+          "kind": "secret",
+          "title": "SMTP password",
+          "description": "SMTP password reference used for outbound email alerts.",
+          "required": true,
+          "scope": "project",
+          "owner": "email",
+          "sensitivity": "secret",
+          "setup": {
+            "mode": "url",
+            "url": "https://mail.example.invalid/security",
+            "label": "Open mail security settings",
+            "pendingTtlMs": 1800000
+          },
+          "state": "revoked",
+          "reason": "credential_revoked",
+          "message": "Stored credential was revoked",
+          "secretRefs": [
+            {
+              "name": "SMTP_PASSWORD",
+              "scope": "project",
+              "present": false
+            }
+          ],
+          "pendingAction": {
+            "actionId": "email.smtp-password.1769980000000",
+            "moduleName": "email",
+            "requirementId": "smtp-password",
+            "url": "https://mail.example.invalid/security",
+            "label": "Open mail security settings",
+            "status": "revoked",
+            "createdAt": "2026-06-04T06:00:00.000Z",
+            "expiresAt": "2026-06-04T06:30:00.000Z",
+            "completedAt": "2026-06-04T06:15:00.000Z"
+          }
         }
       ],
       "summary": {
         "ready": 1,
         "missing": 1,
         "pending": 1,
-        "expired": 0,
-        "revoked": 0,
+        "expired": 1,
+        "revoked": 1,
         "unknown": 0,
         "unavailable": 1
       }
@@ -3586,6 +3662,3905 @@
               ]
             }
           ]
+        },
+        {
+          "protocolVersion": "ui.surface.v1",
+          "surfaceId": "setup",
+          "extensionId": "core.setup",
+          "title": "Setup",
+          "intent": "Setup",
+          "scopeId": "p-kota-fixture-default",
+          "attachmentPoint": {
+            "kind": "intent",
+            "intent": "Setup"
+          },
+          "order": 50,
+          "permissions": [
+            {
+              "kind": "capability-scope",
+              "scope": "read"
+            }
+          ],
+          "nodes": [
+            {
+              "kind": "status-summary",
+              "entries": [
+                {
+                  "label": "ready",
+                  "value": "1",
+                  "role": "muted"
+                },
+                {
+                  "label": "missing",
+                  "value": "1",
+                  "role": "warn"
+                },
+                {
+                  "label": "pending",
+                  "value": "1",
+                  "role": "warn"
+                },
+                {
+                  "label": "expired",
+                  "value": "1",
+                  "role": "warn"
+                },
+                {
+                  "label": "revoked",
+                  "value": "1",
+                  "role": "warn"
+                },
+                {
+                  "label": "unknown",
+                  "value": "0",
+                  "role": "muted"
+                },
+                {
+                  "label": "unavailable",
+                  "value": "1",
+                  "role": "warn"
+                }
+              ]
+            },
+            {
+              "kind": "table",
+              "title": "Setup and auth requirements",
+              "columns": [
+                {
+                  "id": "name",
+                  "label": "Name"
+                },
+                {
+                  "id": "state",
+                  "label": "State"
+                },
+                {
+                  "id": "detail",
+                  "label": "Detail"
+                }
+              ],
+              "rows": [
+                {
+                  "id": "telegram-bot-credentials",
+                  "cells": [
+                    {
+                      "columnId": "name",
+                      "value": "telegram/bot-credentials",
+                      "role": "warn"
+                    },
+                    {
+                      "columnId": "state",
+                      "value": "missing",
+                      "role": "warn"
+                    },
+                    {
+                      "columnId": "detail",
+                      "value": "secret; secret; url; Required credential is missing",
+                      "role": "muted"
+                    }
+                  ],
+                  "action": {
+                    "surfaceId": "setup",
+                    "actionId": "setup.telegram.bot-credentials.store-secret",
+                    "scopeId": "p-kota-fixture-default",
+                    "label": "Store telegram/bot-credentials secrets",
+                    "effect": "write",
+                    "operation": {
+                      "kind": "daemon-route",
+                      "method": "POST",
+                      "path": "/setup/requirements/telegram/bot-credentials/secret"
+                    },
+                    "parameters": {
+                      "fields": [
+                        {
+                          "id": "TELEGRAM_BOT_TOKEN",
+                          "label": "TELEGRAM_BOT_TOKEN",
+                          "input": "secret",
+                          "required": true,
+                          "schema": {
+                            "type": "string",
+                            "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                          }
+                        }
+                      ],
+                      "schema": {
+                        "type": "object",
+                        "required": [
+                          "TELEGRAM_BOT_TOKEN"
+                        ],
+                        "properties": {
+                          "TELEGRAM_BOT_TOKEN": {
+                            "type": "string",
+                            "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "confirmation": {
+                      "mode": "none"
+                    },
+                    "readiness": {
+                      "state": "needs-setup",
+                      "moduleName": "telegram",
+                      "requirementId": "bot-credentials",
+                      "message": "Required credential is missing"
+                    },
+                    "result": {
+                      "success": {
+                        "message": "Setup secrets stored."
+                      },
+                      "errors": [
+                        {
+                          "reason": "unavailable",
+                          "message": "The daemon action is currently unavailable."
+                        },
+                        {
+                          "reason": "invalid-input",
+                          "message": "The action parameters did not match the declared schema."
+                        }
+                      ]
+                    },
+                    "conditions": [
+                      {
+                        "kind": "setup",
+                        "moduleName": "telegram",
+                        "requirementId": "bot-credentials",
+                        "state": "missing"
+                      }
+                    ],
+                    "permissions": [
+                      {
+                        "kind": "effect",
+                        "effect": "write"
+                      },
+                      {
+                        "kind": "capability-scope",
+                        "scope": "control"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "google-workspace-oauth-config",
+                  "cells": [
+                    {
+                      "columnId": "name",
+                      "value": "google-workspace/oauth-config",
+                      "role": "success"
+                    },
+                    {
+                      "columnId": "state",
+                      "value": "ready",
+                      "role": "success"
+                    },
+                    {
+                      "columnId": "detail",
+                      "value": "config; none; form; Required configuration is present",
+                      "role": "muted"
+                    }
+                  ],
+                  "action": {
+                    "surfaceId": "setup",
+                    "actionId": "setup.google-workspace.oauth-config.submit-form",
+                    "scopeId": "p-kota-fixture-default",
+                    "label": "Submit google-workspace/oauth-config form",
+                    "effect": "write",
+                    "operation": {
+                      "kind": "daemon-route",
+                      "method": "POST",
+                      "path": "/setup/requirements/google-workspace/oauth-config/form"
+                    },
+                    "parameters": {
+                      "fields": [
+                        {
+                          "id": "client-id-ref",
+                          "label": "Client ID reference",
+                          "input": "text",
+                          "required": true,
+                          "schema": {
+                            "type": "string",
+                            "format": "secret-reference"
+                          }
+                        }
+                      ],
+                      "schema": {
+                        "type": "object",
+                        "required": [
+                          "client-id-ref"
+                        ],
+                        "properties": {
+                          "client-id-ref": {
+                            "type": "string",
+                            "format": "secret-reference"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "confirmation": {
+                      "mode": "none"
+                    },
+                    "readiness": {
+                      "state": "ready"
+                    },
+                    "result": {
+                      "success": {
+                        "message": "Setup form submitted."
+                      },
+                      "errors": [
+                        {
+                          "reason": "unavailable",
+                          "message": "The daemon action is currently unavailable."
+                        },
+                        {
+                          "reason": "invalid-input",
+                          "message": "The action parameters did not match the declared schema."
+                        }
+                      ]
+                    },
+                    "conditions": [
+                      {
+                        "kind": "setup",
+                        "moduleName": "google-workspace",
+                        "requirementId": "oauth-config",
+                        "state": "ready"
+                      }
+                    ],
+                    "permissions": [
+                      {
+                        "kind": "effect",
+                        "effect": "write"
+                      },
+                      {
+                        "kind": "capability-scope",
+                        "scope": "control"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "google-workspace-oauth-credentials",
+                  "cells": [
+                    {
+                      "columnId": "name",
+                      "value": "google-workspace/oauth-credentials",
+                      "role": "warn"
+                    },
+                    {
+                      "columnId": "state",
+                      "value": "pending",
+                      "role": "warn"
+                    },
+                    {
+                      "columnId": "detail",
+                      "value": "oauth; oauth; url; Setup URL action is pending",
+                      "role": "muted"
+                    }
+                  ],
+                  "action": {
+                    "surfaceId": "setup",
+                    "actionId": "setup.google-workspace.oauth-credentials.store-secret",
+                    "scopeId": "p-kota-fixture-default",
+                    "label": "Store google-workspace/oauth-credentials secrets",
+                    "effect": "write",
+                    "operation": {
+                      "kind": "daemon-route",
+                      "method": "POST",
+                      "path": "/setup/requirements/google-workspace/oauth-credentials/secret"
+                    },
+                    "parameters": {
+                      "fields": [
+                        {
+                          "id": "GOOGLE_REFRESH_TOKEN",
+                          "label": "GOOGLE_REFRESH_TOKEN",
+                          "input": "secret",
+                          "required": true,
+                          "schema": {
+                            "type": "string",
+                            "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                          }
+                        }
+                      ],
+                      "schema": {
+                        "type": "object",
+                        "required": [
+                          "GOOGLE_REFRESH_TOKEN"
+                        ],
+                        "properties": {
+                          "GOOGLE_REFRESH_TOKEN": {
+                            "type": "string",
+                            "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "confirmation": {
+                      "mode": "none"
+                    },
+                    "readiness": {
+                      "state": "ready"
+                    },
+                    "result": {
+                      "success": {
+                        "message": "Setup secrets stored."
+                      },
+                      "errors": [
+                        {
+                          "reason": "unavailable",
+                          "message": "The daemon action is currently unavailable."
+                        },
+                        {
+                          "reason": "invalid-input",
+                          "message": "The action parameters did not match the declared schema."
+                        }
+                      ]
+                    },
+                    "conditions": [
+                      {
+                        "kind": "setup",
+                        "moduleName": "google-workspace",
+                        "requirementId": "oauth-credentials",
+                        "state": "pending"
+                      }
+                    ],
+                    "permissions": [
+                      {
+                        "kind": "effect",
+                        "effect": "write"
+                      },
+                      {
+                        "kind": "capability-scope",
+                        "scope": "control"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "browser-auth-profile",
+                  "cells": [
+                    {
+                      "columnId": "name",
+                      "value": "browser/auth-profile",
+                      "role": "warn"
+                    },
+                    {
+                      "columnId": "state",
+                      "value": "unavailable",
+                      "role": "warn"
+                    },
+                    {
+                      "columnId": "detail",
+                      "value": "browser-profile; browser-profile; form; Browser profile file does not exist",
+                      "role": "muted"
+                    }
+                  ],
+                  "action": {
+                    "surfaceId": "setup",
+                    "actionId": "setup.browser.auth-profile.submit-form",
+                    "scopeId": "p-kota-fixture-default",
+                    "label": "Submit browser/auth-profile form",
+                    "effect": "write",
+                    "operation": {
+                      "kind": "daemon-route",
+                      "method": "POST",
+                      "path": "/setup/requirements/browser/auth-profile/form"
+                    },
+                    "parameters": {
+                      "fields": [
+                        {
+                          "id": "storage-state-path",
+                          "label": "Storage state path",
+                          "input": "path",
+                          "required": true,
+                          "schema": {
+                            "type": "string",
+                            "format": "path"
+                          }
+                        }
+                      ],
+                      "schema": {
+                        "type": "object",
+                        "required": [
+                          "storage-state-path"
+                        ],
+                        "properties": {
+                          "storage-state-path": {
+                            "type": "string",
+                            "format": "path"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "confirmation": {
+                      "mode": "none"
+                    },
+                    "readiness": {
+                      "state": "needs-setup",
+                      "moduleName": "browser",
+                      "requirementId": "auth-profile",
+                      "message": "Browser profile file does not exist"
+                    },
+                    "result": {
+                      "success": {
+                        "message": "Setup form submitted."
+                      },
+                      "errors": [
+                        {
+                          "reason": "unavailable",
+                          "message": "The daemon action is currently unavailable."
+                        },
+                        {
+                          "reason": "invalid-input",
+                          "message": "The action parameters did not match the declared schema."
+                        }
+                      ]
+                    },
+                    "conditions": [
+                      {
+                        "kind": "setup",
+                        "moduleName": "browser",
+                        "requirementId": "auth-profile",
+                        "state": "unavailable"
+                      }
+                    ],
+                    "permissions": [
+                      {
+                        "kind": "effect",
+                        "effect": "write"
+                      },
+                      {
+                        "kind": "capability-scope",
+                        "scope": "control"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "slack-channel-app-token",
+                  "cells": [
+                    {
+                      "columnId": "name",
+                      "value": "slack-channel/app-token",
+                      "role": "warn"
+                    },
+                    {
+                      "columnId": "state",
+                      "value": "expired",
+                      "role": "warn"
+                    },
+                    {
+                      "columnId": "detail",
+                      "value": "secret; secret; url; Setup URL action expired",
+                      "role": "muted"
+                    }
+                  ],
+                  "action": {
+                    "surfaceId": "setup",
+                    "actionId": "setup.slack-channel.app-token.store-secret",
+                    "scopeId": "p-kota-fixture-default",
+                    "label": "Store slack-channel/app-token secrets",
+                    "effect": "write",
+                    "operation": {
+                      "kind": "daemon-route",
+                      "method": "POST",
+                      "path": "/setup/requirements/slack-channel/app-token/secret"
+                    },
+                    "parameters": {
+                      "fields": [
+                        {
+                          "id": "SLACK_APP_TOKEN",
+                          "label": "SLACK_APP_TOKEN",
+                          "input": "secret",
+                          "required": true,
+                          "schema": {
+                            "type": "string",
+                            "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                          }
+                        }
+                      ],
+                      "schema": {
+                        "type": "object",
+                        "required": [
+                          "SLACK_APP_TOKEN"
+                        ],
+                        "properties": {
+                          "SLACK_APP_TOKEN": {
+                            "type": "string",
+                            "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "confirmation": {
+                      "mode": "none"
+                    },
+                    "readiness": {
+                      "state": "needs-setup",
+                      "moduleName": "slack-channel",
+                      "requirementId": "app-token",
+                      "message": "Setup URL action expired"
+                    },
+                    "result": {
+                      "success": {
+                        "message": "Setup secrets stored."
+                      },
+                      "errors": [
+                        {
+                          "reason": "unavailable",
+                          "message": "The daemon action is currently unavailable."
+                        },
+                        {
+                          "reason": "invalid-input",
+                          "message": "The action parameters did not match the declared schema."
+                        }
+                      ]
+                    },
+                    "conditions": [
+                      {
+                        "kind": "setup",
+                        "moduleName": "slack-channel",
+                        "requirementId": "app-token",
+                        "state": "expired"
+                      }
+                    ],
+                    "permissions": [
+                      {
+                        "kind": "effect",
+                        "effect": "write"
+                      },
+                      {
+                        "kind": "capability-scope",
+                        "scope": "control"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "email-smtp-password",
+                  "cells": [
+                    {
+                      "columnId": "name",
+                      "value": "email/smtp-password",
+                      "role": "warn"
+                    },
+                    {
+                      "columnId": "state",
+                      "value": "revoked",
+                      "role": "warn"
+                    },
+                    {
+                      "columnId": "detail",
+                      "value": "secret; secret; url; Stored credential was revoked",
+                      "role": "muted"
+                    }
+                  ],
+                  "action": {
+                    "surfaceId": "setup",
+                    "actionId": "setup.email.smtp-password.store-secret",
+                    "scopeId": "p-kota-fixture-default",
+                    "label": "Store email/smtp-password secrets",
+                    "effect": "write",
+                    "operation": {
+                      "kind": "daemon-route",
+                      "method": "POST",
+                      "path": "/setup/requirements/email/smtp-password/secret"
+                    },
+                    "parameters": {
+                      "fields": [
+                        {
+                          "id": "SMTP_PASSWORD",
+                          "label": "SMTP_PASSWORD",
+                          "input": "secret",
+                          "required": true,
+                          "schema": {
+                            "type": "string",
+                            "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                          }
+                        }
+                      ],
+                      "schema": {
+                        "type": "object",
+                        "required": [
+                          "SMTP_PASSWORD"
+                        ],
+                        "properties": {
+                          "SMTP_PASSWORD": {
+                            "type": "string",
+                            "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "confirmation": {
+                      "mode": "none"
+                    },
+                    "readiness": {
+                      "state": "needs-setup",
+                      "moduleName": "email",
+                      "requirementId": "smtp-password",
+                      "message": "Stored credential was revoked"
+                    },
+                    "result": {
+                      "success": {
+                        "message": "Setup secrets stored."
+                      },
+                      "errors": [
+                        {
+                          "reason": "unavailable",
+                          "message": "The daemon action is currently unavailable."
+                        },
+                        {
+                          "reason": "invalid-input",
+                          "message": "The action parameters did not match the declared schema."
+                        }
+                      ]
+                    },
+                    "conditions": [
+                      {
+                        "kind": "setup",
+                        "moduleName": "email",
+                        "requirementId": "smtp-password",
+                        "state": "revoked"
+                      }
+                    ],
+                    "permissions": [
+                      {
+                        "kind": "effect",
+                        "effect": "write"
+                      },
+                      {
+                        "kind": "capability-scope",
+                        "scope": "control"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "form",
+              "title": "Store telegram/bot-credentials secrets",
+              "fields": [
+                {
+                  "id": "TELEGRAM_BOT_TOKEN",
+                  "label": "TELEGRAM_BOT_TOKEN",
+                  "input": "secret",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                  }
+                }
+              ],
+              "submit": {
+                "surfaceId": "setup",
+                "actionId": "setup.telegram.bot-credentials.store-secret",
+                "scopeId": "p-kota-fixture-default",
+                "label": "Store telegram/bot-credentials secrets",
+                "effect": "write",
+                "operation": {
+                  "kind": "daemon-route",
+                  "method": "POST",
+                  "path": "/setup/requirements/telegram/bot-credentials/secret"
+                },
+                "parameters": {
+                  "fields": [
+                    {
+                      "id": "TELEGRAM_BOT_TOKEN",
+                      "label": "TELEGRAM_BOT_TOKEN",
+                      "input": "secret",
+                      "required": true,
+                      "schema": {
+                        "type": "string",
+                        "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                      }
+                    }
+                  ],
+                  "schema": {
+                    "type": "object",
+                    "required": [
+                      "TELEGRAM_BOT_TOKEN"
+                    ],
+                    "properties": {
+                      "TELEGRAM_BOT_TOKEN": {
+                        "type": "string",
+                        "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "confirmation": {
+                  "mode": "none"
+                },
+                "readiness": {
+                  "state": "needs-setup",
+                  "moduleName": "telegram",
+                  "requirementId": "bot-credentials",
+                  "message": "Required credential is missing"
+                },
+                "result": {
+                  "success": {
+                    "message": "Setup secrets stored."
+                  },
+                  "errors": [
+                    {
+                      "reason": "unavailable",
+                      "message": "The daemon action is currently unavailable."
+                    },
+                    {
+                      "reason": "invalid-input",
+                      "message": "The action parameters did not match the declared schema."
+                    }
+                  ]
+                },
+                "conditions": [
+                  {
+                    "kind": "setup",
+                    "moduleName": "telegram",
+                    "requirementId": "bot-credentials",
+                    "state": "missing"
+                  }
+                ],
+                "permissions": [
+                  {
+                    "kind": "effect",
+                    "effect": "write"
+                  },
+                  {
+                    "kind": "capability-scope",
+                    "scope": "control"
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "form",
+              "title": "Submit google-workspace/oauth-config form",
+              "fields": [
+                {
+                  "id": "client-id-ref",
+                  "label": "Client ID reference",
+                  "input": "text",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "format": "secret-reference"
+                  }
+                }
+              ],
+              "submit": {
+                "surfaceId": "setup",
+                "actionId": "setup.google-workspace.oauth-config.submit-form",
+                "scopeId": "p-kota-fixture-default",
+                "label": "Submit google-workspace/oauth-config form",
+                "effect": "write",
+                "operation": {
+                  "kind": "daemon-route",
+                  "method": "POST",
+                  "path": "/setup/requirements/google-workspace/oauth-config/form"
+                },
+                "parameters": {
+                  "fields": [
+                    {
+                      "id": "client-id-ref",
+                      "label": "Client ID reference",
+                      "input": "text",
+                      "required": true,
+                      "schema": {
+                        "type": "string",
+                        "format": "secret-reference"
+                      }
+                    }
+                  ],
+                  "schema": {
+                    "type": "object",
+                    "required": [
+                      "client-id-ref"
+                    ],
+                    "properties": {
+                      "client-id-ref": {
+                        "type": "string",
+                        "format": "secret-reference"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "confirmation": {
+                  "mode": "none"
+                },
+                "readiness": {
+                  "state": "ready"
+                },
+                "result": {
+                  "success": {
+                    "message": "Setup form submitted."
+                  },
+                  "errors": [
+                    {
+                      "reason": "unavailable",
+                      "message": "The daemon action is currently unavailable."
+                    },
+                    {
+                      "reason": "invalid-input",
+                      "message": "The action parameters did not match the declared schema."
+                    }
+                  ]
+                },
+                "conditions": [
+                  {
+                    "kind": "setup",
+                    "moduleName": "google-workspace",
+                    "requirementId": "oauth-config",
+                    "state": "ready"
+                  }
+                ],
+                "permissions": [
+                  {
+                    "kind": "effect",
+                    "effect": "write"
+                  },
+                  {
+                    "kind": "capability-scope",
+                    "scope": "control"
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "form",
+              "title": "Store google-workspace/oauth-credentials secrets",
+              "fields": [
+                {
+                  "id": "GOOGLE_REFRESH_TOKEN",
+                  "label": "GOOGLE_REFRESH_TOKEN",
+                  "input": "secret",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                  }
+                }
+              ],
+              "submit": {
+                "surfaceId": "setup",
+                "actionId": "setup.google-workspace.oauth-credentials.store-secret",
+                "scopeId": "p-kota-fixture-default",
+                "label": "Store google-workspace/oauth-credentials secrets",
+                "effect": "write",
+                "operation": {
+                  "kind": "daemon-route",
+                  "method": "POST",
+                  "path": "/setup/requirements/google-workspace/oauth-credentials/secret"
+                },
+                "parameters": {
+                  "fields": [
+                    {
+                      "id": "GOOGLE_REFRESH_TOKEN",
+                      "label": "GOOGLE_REFRESH_TOKEN",
+                      "input": "secret",
+                      "required": true,
+                      "schema": {
+                        "type": "string",
+                        "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                      }
+                    }
+                  ],
+                  "schema": {
+                    "type": "object",
+                    "required": [
+                      "GOOGLE_REFRESH_TOKEN"
+                    ],
+                    "properties": {
+                      "GOOGLE_REFRESH_TOKEN": {
+                        "type": "string",
+                        "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "confirmation": {
+                  "mode": "none"
+                },
+                "readiness": {
+                  "state": "ready"
+                },
+                "result": {
+                  "success": {
+                    "message": "Setup secrets stored."
+                  },
+                  "errors": [
+                    {
+                      "reason": "unavailable",
+                      "message": "The daemon action is currently unavailable."
+                    },
+                    {
+                      "reason": "invalid-input",
+                      "message": "The action parameters did not match the declared schema."
+                    }
+                  ]
+                },
+                "conditions": [
+                  {
+                    "kind": "setup",
+                    "moduleName": "google-workspace",
+                    "requirementId": "oauth-credentials",
+                    "state": "pending"
+                  }
+                ],
+                "permissions": [
+                  {
+                    "kind": "effect",
+                    "effect": "write"
+                  },
+                  {
+                    "kind": "capability-scope",
+                    "scope": "control"
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "form",
+              "title": "Submit browser/auth-profile form",
+              "fields": [
+                {
+                  "id": "storage-state-path",
+                  "label": "Storage state path",
+                  "input": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "format": "path"
+                  }
+                }
+              ],
+              "submit": {
+                "surfaceId": "setup",
+                "actionId": "setup.browser.auth-profile.submit-form",
+                "scopeId": "p-kota-fixture-default",
+                "label": "Submit browser/auth-profile form",
+                "effect": "write",
+                "operation": {
+                  "kind": "daemon-route",
+                  "method": "POST",
+                  "path": "/setup/requirements/browser/auth-profile/form"
+                },
+                "parameters": {
+                  "fields": [
+                    {
+                      "id": "storage-state-path",
+                      "label": "Storage state path",
+                      "input": "path",
+                      "required": true,
+                      "schema": {
+                        "type": "string",
+                        "format": "path"
+                      }
+                    }
+                  ],
+                  "schema": {
+                    "type": "object",
+                    "required": [
+                      "storage-state-path"
+                    ],
+                    "properties": {
+                      "storage-state-path": {
+                        "type": "string",
+                        "format": "path"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "confirmation": {
+                  "mode": "none"
+                },
+                "readiness": {
+                  "state": "needs-setup",
+                  "moduleName": "browser",
+                  "requirementId": "auth-profile",
+                  "message": "Browser profile file does not exist"
+                },
+                "result": {
+                  "success": {
+                    "message": "Setup form submitted."
+                  },
+                  "errors": [
+                    {
+                      "reason": "unavailable",
+                      "message": "The daemon action is currently unavailable."
+                    },
+                    {
+                      "reason": "invalid-input",
+                      "message": "The action parameters did not match the declared schema."
+                    }
+                  ]
+                },
+                "conditions": [
+                  {
+                    "kind": "setup",
+                    "moduleName": "browser",
+                    "requirementId": "auth-profile",
+                    "state": "unavailable"
+                  }
+                ],
+                "permissions": [
+                  {
+                    "kind": "effect",
+                    "effect": "write"
+                  },
+                  {
+                    "kind": "capability-scope",
+                    "scope": "control"
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "form",
+              "title": "Store slack-channel/app-token secrets",
+              "fields": [
+                {
+                  "id": "SLACK_APP_TOKEN",
+                  "label": "SLACK_APP_TOKEN",
+                  "input": "secret",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                  }
+                }
+              ],
+              "submit": {
+                "surfaceId": "setup",
+                "actionId": "setup.slack-channel.app-token.store-secret",
+                "scopeId": "p-kota-fixture-default",
+                "label": "Store slack-channel/app-token secrets",
+                "effect": "write",
+                "operation": {
+                  "kind": "daemon-route",
+                  "method": "POST",
+                  "path": "/setup/requirements/slack-channel/app-token/secret"
+                },
+                "parameters": {
+                  "fields": [
+                    {
+                      "id": "SLACK_APP_TOKEN",
+                      "label": "SLACK_APP_TOKEN",
+                      "input": "secret",
+                      "required": true,
+                      "schema": {
+                        "type": "string",
+                        "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                      }
+                    }
+                  ],
+                  "schema": {
+                    "type": "object",
+                    "required": [
+                      "SLACK_APP_TOKEN"
+                    ],
+                    "properties": {
+                      "SLACK_APP_TOKEN": {
+                        "type": "string",
+                        "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "confirmation": {
+                  "mode": "none"
+                },
+                "readiness": {
+                  "state": "needs-setup",
+                  "moduleName": "slack-channel",
+                  "requirementId": "app-token",
+                  "message": "Setup URL action expired"
+                },
+                "result": {
+                  "success": {
+                    "message": "Setup secrets stored."
+                  },
+                  "errors": [
+                    {
+                      "reason": "unavailable",
+                      "message": "The daemon action is currently unavailable."
+                    },
+                    {
+                      "reason": "invalid-input",
+                      "message": "The action parameters did not match the declared schema."
+                    }
+                  ]
+                },
+                "conditions": [
+                  {
+                    "kind": "setup",
+                    "moduleName": "slack-channel",
+                    "requirementId": "app-token",
+                    "state": "expired"
+                  }
+                ],
+                "permissions": [
+                  {
+                    "kind": "effect",
+                    "effect": "write"
+                  },
+                  {
+                    "kind": "capability-scope",
+                    "scope": "control"
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "form",
+              "title": "Store email/smtp-password secrets",
+              "fields": [
+                {
+                  "id": "SMTP_PASSWORD",
+                  "label": "SMTP_PASSWORD",
+                  "input": "secret",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                  }
+                }
+              ],
+              "submit": {
+                "surfaceId": "setup",
+                "actionId": "setup.email.smtp-password.store-secret",
+                "scopeId": "p-kota-fixture-default",
+                "label": "Store email/smtp-password secrets",
+                "effect": "write",
+                "operation": {
+                  "kind": "daemon-route",
+                  "method": "POST",
+                  "path": "/setup/requirements/email/smtp-password/secret"
+                },
+                "parameters": {
+                  "fields": [
+                    {
+                      "id": "SMTP_PASSWORD",
+                      "label": "SMTP_PASSWORD",
+                      "input": "secret",
+                      "required": true,
+                      "schema": {
+                        "type": "string",
+                        "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                      }
+                    }
+                  ],
+                  "schema": {
+                    "type": "object",
+                    "required": [
+                      "SMTP_PASSWORD"
+                    ],
+                    "properties": {
+                      "SMTP_PASSWORD": {
+                        "type": "string",
+                        "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "confirmation": {
+                  "mode": "none"
+                },
+                "readiness": {
+                  "state": "needs-setup",
+                  "moduleName": "email",
+                  "requirementId": "smtp-password",
+                  "message": "Stored credential was revoked"
+                },
+                "result": {
+                  "success": {
+                    "message": "Setup secrets stored."
+                  },
+                  "errors": [
+                    {
+                      "reason": "unavailable",
+                      "message": "The daemon action is currently unavailable."
+                    },
+                    {
+                      "reason": "invalid-input",
+                      "message": "The action parameters did not match the declared schema."
+                    }
+                  ]
+                },
+                "conditions": [
+                  {
+                    "kind": "setup",
+                    "moduleName": "email",
+                    "requirementId": "smtp-password",
+                    "state": "revoked"
+                  }
+                ],
+                "permissions": [
+                  {
+                    "kind": "effect",
+                    "effect": "write"
+                  },
+                  {
+                    "kind": "capability-scope",
+                    "scope": "control"
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "action-list",
+              "title": "Setup actions",
+              "actions": [
+                {
+                  "surfaceId": "setup",
+                  "actionId": "setup.list",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Reload setup requirements",
+                  "effect": "read",
+                  "operation": {
+                    "kind": "client-namespace",
+                    "namespace": "setup",
+                    "method": "list"
+                  },
+                  "confirmation": {
+                    "mode": "none"
+                  },
+                  "readiness": {
+                    "state": "ready"
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Setup requirements loaded."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "read"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "read"
+                    }
+                  ]
+                },
+                {
+                  "surfaceId": "setup",
+                  "actionId": "setup.telegram.bot-credentials.store-secret",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Store telegram/bot-credentials secrets",
+                  "effect": "write",
+                  "operation": {
+                    "kind": "daemon-route",
+                    "method": "POST",
+                    "path": "/setup/requirements/telegram/bot-credentials/secret"
+                  },
+                  "parameters": {
+                    "fields": [
+                      {
+                        "id": "TELEGRAM_BOT_TOKEN",
+                        "label": "TELEGRAM_BOT_TOKEN",
+                        "input": "secret",
+                        "required": true,
+                        "schema": {
+                          "type": "string",
+                          "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                        }
+                      }
+                    ],
+                    "schema": {
+                      "type": "object",
+                      "required": [
+                        "TELEGRAM_BOT_TOKEN"
+                      ],
+                      "properties": {
+                        "TELEGRAM_BOT_TOKEN": {
+                          "type": "string",
+                          "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "confirmation": {
+                    "mode": "none"
+                  },
+                  "readiness": {
+                    "state": "needs-setup",
+                    "moduleName": "telegram",
+                    "requirementId": "bot-credentials",
+                    "message": "Required credential is missing"
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Setup secrets stored."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "conditions": [
+                    {
+                      "kind": "setup",
+                      "moduleName": "telegram",
+                      "requirementId": "bot-credentials",
+                      "state": "missing"
+                    }
+                  ],
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "write"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "control"
+                    }
+                  ]
+                },
+                {
+                  "surfaceId": "setup",
+                  "actionId": "setup.telegram.bot-credentials.start",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Start telegram/bot-credentials",
+                  "effect": "external",
+                  "operation": {
+                    "kind": "daemon-route",
+                    "method": "POST",
+                    "path": "/setup/requirements/telegram/bot-credentials/start"
+                  },
+                  "confirmation": {
+                    "mode": "none"
+                  },
+                  "readiness": {
+                    "state": "needs-setup",
+                    "moduleName": "telegram",
+                    "requirementId": "bot-credentials",
+                    "message": "Required credential is missing"
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Setup action started."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "conditions": [
+                    {
+                      "kind": "setup",
+                      "moduleName": "telegram",
+                      "requirementId": "bot-credentials",
+                      "state": "missing"
+                    }
+                  ],
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "external"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "control"
+                    }
+                  ]
+                },
+                {
+                  "surfaceId": "setup",
+                  "actionId": "setup.telegram.bot-credentials.refresh",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Refresh telegram/bot-credentials",
+                  "effect": "read",
+                  "operation": {
+                    "kind": "daemon-route",
+                    "method": "POST",
+                    "path": "/setup/requirements/telegram/bot-credentials/refresh"
+                  },
+                  "confirmation": {
+                    "mode": "none"
+                  },
+                  "readiness": {
+                    "state": "ready"
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Setup status refreshed."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "conditions": [
+                    {
+                      "kind": "setup",
+                      "moduleName": "telegram",
+                      "requirementId": "bot-credentials",
+                      "state": "missing"
+                    }
+                  ],
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "read"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "read"
+                    }
+                  ]
+                },
+                {
+                  "surfaceId": "setup",
+                  "actionId": "setup.telegram.bot-credentials.revoke",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Revoke telegram/bot-credentials",
+                  "effect": "write",
+                  "operation": {
+                    "kind": "daemon-route",
+                    "method": "DELETE",
+                    "path": "/setup/requirements/telegram/bot-credentials"
+                  },
+                  "confirmation": {
+                    "mode": "required",
+                    "title": "Revoke setup",
+                    "detail": "This removes stored setup state or credentials for the selected requirement.",
+                    "confirmLabel": "Revoke setup",
+                    "risk": "medium"
+                  },
+                  "readiness": {
+                    "state": "ready"
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Setup revoked."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "conditions": [
+                    {
+                      "kind": "setup",
+                      "moduleName": "telegram",
+                      "requirementId": "bot-credentials",
+                      "state": "missing"
+                    }
+                  ],
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "write"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "control"
+                    }
+                  ]
+                },
+                {
+                  "surfaceId": "setup",
+                  "actionId": "setup.google-workspace.oauth-config.submit-form",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Submit google-workspace/oauth-config form",
+                  "effect": "write",
+                  "operation": {
+                    "kind": "daemon-route",
+                    "method": "POST",
+                    "path": "/setup/requirements/google-workspace/oauth-config/form"
+                  },
+                  "parameters": {
+                    "fields": [
+                      {
+                        "id": "client-id-ref",
+                        "label": "Client ID reference",
+                        "input": "text",
+                        "required": true,
+                        "schema": {
+                          "type": "string",
+                          "format": "secret-reference"
+                        }
+                      }
+                    ],
+                    "schema": {
+                      "type": "object",
+                      "required": [
+                        "client-id-ref"
+                      ],
+                      "properties": {
+                        "client-id-ref": {
+                          "type": "string",
+                          "format": "secret-reference"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "confirmation": {
+                    "mode": "none"
+                  },
+                  "readiness": {
+                    "state": "ready"
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Setup form submitted."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "conditions": [
+                    {
+                      "kind": "setup",
+                      "moduleName": "google-workspace",
+                      "requirementId": "oauth-config",
+                      "state": "ready"
+                    }
+                  ],
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "write"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "control"
+                    }
+                  ]
+                },
+                {
+                  "surfaceId": "setup",
+                  "actionId": "setup.google-workspace.oauth-config.refresh",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Refresh google-workspace/oauth-config",
+                  "effect": "read",
+                  "operation": {
+                    "kind": "daemon-route",
+                    "method": "POST",
+                    "path": "/setup/requirements/google-workspace/oauth-config/refresh"
+                  },
+                  "confirmation": {
+                    "mode": "none"
+                  },
+                  "readiness": {
+                    "state": "ready"
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Setup status refreshed."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "conditions": [
+                    {
+                      "kind": "setup",
+                      "moduleName": "google-workspace",
+                      "requirementId": "oauth-config",
+                      "state": "ready"
+                    }
+                  ],
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "read"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "read"
+                    }
+                  ]
+                },
+                {
+                  "surfaceId": "setup",
+                  "actionId": "setup.google-workspace.oauth-credentials.store-secret",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Store google-workspace/oauth-credentials secrets",
+                  "effect": "write",
+                  "operation": {
+                    "kind": "daemon-route",
+                    "method": "POST",
+                    "path": "/setup/requirements/google-workspace/oauth-credentials/secret"
+                  },
+                  "parameters": {
+                    "fields": [
+                      {
+                        "id": "GOOGLE_REFRESH_TOKEN",
+                        "label": "GOOGLE_REFRESH_TOKEN",
+                        "input": "secret",
+                        "required": true,
+                        "schema": {
+                          "type": "string",
+                          "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                        }
+                      }
+                    ],
+                    "schema": {
+                      "type": "object",
+                      "required": [
+                        "GOOGLE_REFRESH_TOKEN"
+                      ],
+                      "properties": {
+                        "GOOGLE_REFRESH_TOKEN": {
+                          "type": "string",
+                          "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "confirmation": {
+                    "mode": "none"
+                  },
+                  "readiness": {
+                    "state": "ready"
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Setup secrets stored."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "conditions": [
+                    {
+                      "kind": "setup",
+                      "moduleName": "google-workspace",
+                      "requirementId": "oauth-credentials",
+                      "state": "pending"
+                    }
+                  ],
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "write"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "control"
+                    }
+                  ]
+                },
+                {
+                  "surfaceId": "setup",
+                  "actionId": "setup.google-workspace.oauth-credentials.start",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Start google-workspace/oauth-credentials",
+                  "effect": "external",
+                  "operation": {
+                    "kind": "daemon-route",
+                    "method": "POST",
+                    "path": "/setup/requirements/google-workspace/oauth-credentials/start"
+                  },
+                  "confirmation": {
+                    "mode": "none"
+                  },
+                  "readiness": {
+                    "state": "ready"
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Setup action started."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "conditions": [
+                    {
+                      "kind": "setup",
+                      "moduleName": "google-workspace",
+                      "requirementId": "oauth-credentials",
+                      "state": "pending"
+                    }
+                  ],
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "external"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "control"
+                    }
+                  ]
+                },
+                {
+                  "surfaceId": "setup",
+                  "actionId": "setup.google-workspace.oauth-credentials.refresh",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Refresh google-workspace/oauth-credentials",
+                  "effect": "read",
+                  "operation": {
+                    "kind": "daemon-route",
+                    "method": "POST",
+                    "path": "/setup/requirements/google-workspace/oauth-credentials/refresh"
+                  },
+                  "confirmation": {
+                    "mode": "none"
+                  },
+                  "readiness": {
+                    "state": "ready"
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Setup status refreshed."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "conditions": [
+                    {
+                      "kind": "setup",
+                      "moduleName": "google-workspace",
+                      "requirementId": "oauth-credentials",
+                      "state": "pending"
+                    }
+                  ],
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "read"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "read"
+                    }
+                  ]
+                },
+                {
+                  "surfaceId": "setup",
+                  "actionId": "setup.google-workspace.oauth-credentials.revoke",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Revoke google-workspace/oauth-credentials",
+                  "effect": "write",
+                  "operation": {
+                    "kind": "daemon-route",
+                    "method": "DELETE",
+                    "path": "/setup/requirements/google-workspace/oauth-credentials"
+                  },
+                  "confirmation": {
+                    "mode": "required",
+                    "title": "Revoke setup",
+                    "detail": "This removes stored setup state or credentials for the selected requirement.",
+                    "confirmLabel": "Revoke setup",
+                    "risk": "medium"
+                  },
+                  "readiness": {
+                    "state": "ready"
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Setup revoked."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "conditions": [
+                    {
+                      "kind": "setup",
+                      "moduleName": "google-workspace",
+                      "requirementId": "oauth-credentials",
+                      "state": "pending"
+                    }
+                  ],
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "write"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "control"
+                    }
+                  ]
+                },
+                {
+                  "surfaceId": "setup",
+                  "actionId": "setup.browser.auth-profile.submit-form",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Submit browser/auth-profile form",
+                  "effect": "write",
+                  "operation": {
+                    "kind": "daemon-route",
+                    "method": "POST",
+                    "path": "/setup/requirements/browser/auth-profile/form"
+                  },
+                  "parameters": {
+                    "fields": [
+                      {
+                        "id": "storage-state-path",
+                        "label": "Storage state path",
+                        "input": "path",
+                        "required": true,
+                        "schema": {
+                          "type": "string",
+                          "format": "path"
+                        }
+                      }
+                    ],
+                    "schema": {
+                      "type": "object",
+                      "required": [
+                        "storage-state-path"
+                      ],
+                      "properties": {
+                        "storage-state-path": {
+                          "type": "string",
+                          "format": "path"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "confirmation": {
+                    "mode": "none"
+                  },
+                  "readiness": {
+                    "state": "needs-setup",
+                    "moduleName": "browser",
+                    "requirementId": "auth-profile",
+                    "message": "Browser profile file does not exist"
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Setup form submitted."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "conditions": [
+                    {
+                      "kind": "setup",
+                      "moduleName": "browser",
+                      "requirementId": "auth-profile",
+                      "state": "unavailable"
+                    }
+                  ],
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "write"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "control"
+                    }
+                  ]
+                },
+                {
+                  "surfaceId": "setup",
+                  "actionId": "setup.browser.auth-profile.refresh",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Refresh browser/auth-profile",
+                  "effect": "read",
+                  "operation": {
+                    "kind": "daemon-route",
+                    "method": "POST",
+                    "path": "/setup/requirements/browser/auth-profile/refresh"
+                  },
+                  "confirmation": {
+                    "mode": "none"
+                  },
+                  "readiness": {
+                    "state": "ready"
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Setup status refreshed."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "conditions": [
+                    {
+                      "kind": "setup",
+                      "moduleName": "browser",
+                      "requirementId": "auth-profile",
+                      "state": "unavailable"
+                    }
+                  ],
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "read"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "read"
+                    }
+                  ]
+                },
+                {
+                  "surfaceId": "setup",
+                  "actionId": "setup.browser.auth-profile.revoke",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Revoke browser/auth-profile",
+                  "effect": "write",
+                  "operation": {
+                    "kind": "daemon-route",
+                    "method": "DELETE",
+                    "path": "/setup/requirements/browser/auth-profile"
+                  },
+                  "confirmation": {
+                    "mode": "required",
+                    "title": "Revoke setup",
+                    "detail": "This removes stored setup state or credentials for the selected requirement.",
+                    "confirmLabel": "Revoke setup",
+                    "risk": "medium"
+                  },
+                  "readiness": {
+                    "state": "ready"
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Setup revoked."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "conditions": [
+                    {
+                      "kind": "setup",
+                      "moduleName": "browser",
+                      "requirementId": "auth-profile",
+                      "state": "unavailable"
+                    }
+                  ],
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "write"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "control"
+                    }
+                  ]
+                },
+                {
+                  "surfaceId": "setup",
+                  "actionId": "setup.slack-channel.app-token.store-secret",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Store slack-channel/app-token secrets",
+                  "effect": "write",
+                  "operation": {
+                    "kind": "daemon-route",
+                    "method": "POST",
+                    "path": "/setup/requirements/slack-channel/app-token/secret"
+                  },
+                  "parameters": {
+                    "fields": [
+                      {
+                        "id": "SLACK_APP_TOKEN",
+                        "label": "SLACK_APP_TOKEN",
+                        "input": "secret",
+                        "required": true,
+                        "schema": {
+                          "type": "string",
+                          "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                        }
+                      }
+                    ],
+                    "schema": {
+                      "type": "object",
+                      "required": [
+                        "SLACK_APP_TOKEN"
+                      ],
+                      "properties": {
+                        "SLACK_APP_TOKEN": {
+                          "type": "string",
+                          "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "confirmation": {
+                    "mode": "none"
+                  },
+                  "readiness": {
+                    "state": "needs-setup",
+                    "moduleName": "slack-channel",
+                    "requirementId": "app-token",
+                    "message": "Setup URL action expired"
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Setup secrets stored."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "conditions": [
+                    {
+                      "kind": "setup",
+                      "moduleName": "slack-channel",
+                      "requirementId": "app-token",
+                      "state": "expired"
+                    }
+                  ],
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "write"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "control"
+                    }
+                  ]
+                },
+                {
+                  "surfaceId": "setup",
+                  "actionId": "setup.slack-channel.app-token.start",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Start slack-channel/app-token",
+                  "effect": "external",
+                  "operation": {
+                    "kind": "daemon-route",
+                    "method": "POST",
+                    "path": "/setup/requirements/slack-channel/app-token/start"
+                  },
+                  "confirmation": {
+                    "mode": "none"
+                  },
+                  "readiness": {
+                    "state": "needs-setup",
+                    "moduleName": "slack-channel",
+                    "requirementId": "app-token",
+                    "message": "Setup URL action expired"
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Setup action started."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "conditions": [
+                    {
+                      "kind": "setup",
+                      "moduleName": "slack-channel",
+                      "requirementId": "app-token",
+                      "state": "expired"
+                    }
+                  ],
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "external"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "control"
+                    }
+                  ]
+                },
+                {
+                  "surfaceId": "setup",
+                  "actionId": "setup.slack-channel.app-token.refresh",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Refresh slack-channel/app-token",
+                  "effect": "read",
+                  "operation": {
+                    "kind": "daemon-route",
+                    "method": "POST",
+                    "path": "/setup/requirements/slack-channel/app-token/refresh"
+                  },
+                  "confirmation": {
+                    "mode": "none"
+                  },
+                  "readiness": {
+                    "state": "ready"
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Setup status refreshed."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "conditions": [
+                    {
+                      "kind": "setup",
+                      "moduleName": "slack-channel",
+                      "requirementId": "app-token",
+                      "state": "expired"
+                    }
+                  ],
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "read"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "read"
+                    }
+                  ]
+                },
+                {
+                  "surfaceId": "setup",
+                  "actionId": "setup.slack-channel.app-token.revoke",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Revoke slack-channel/app-token",
+                  "effect": "write",
+                  "operation": {
+                    "kind": "daemon-route",
+                    "method": "DELETE",
+                    "path": "/setup/requirements/slack-channel/app-token"
+                  },
+                  "confirmation": {
+                    "mode": "required",
+                    "title": "Revoke setup",
+                    "detail": "This removes stored setup state or credentials for the selected requirement.",
+                    "confirmLabel": "Revoke setup",
+                    "risk": "medium"
+                  },
+                  "readiness": {
+                    "state": "ready"
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Setup revoked."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "conditions": [
+                    {
+                      "kind": "setup",
+                      "moduleName": "slack-channel",
+                      "requirementId": "app-token",
+                      "state": "expired"
+                    }
+                  ],
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "write"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "control"
+                    }
+                  ]
+                },
+                {
+                  "surfaceId": "setup",
+                  "actionId": "setup.email.smtp-password.store-secret",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Store email/smtp-password secrets",
+                  "effect": "write",
+                  "operation": {
+                    "kind": "daemon-route",
+                    "method": "POST",
+                    "path": "/setup/requirements/email/smtp-password/secret"
+                  },
+                  "parameters": {
+                    "fields": [
+                      {
+                        "id": "SMTP_PASSWORD",
+                        "label": "SMTP_PASSWORD",
+                        "input": "secret",
+                        "required": true,
+                        "schema": {
+                          "type": "string",
+                          "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                        }
+                      }
+                    ],
+                    "schema": {
+                      "type": "object",
+                      "required": [
+                        "SMTP_PASSWORD"
+                      ],
+                      "properties": {
+                        "SMTP_PASSWORD": {
+                          "type": "string",
+                          "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "confirmation": {
+                    "mode": "none"
+                  },
+                  "readiness": {
+                    "state": "needs-setup",
+                    "moduleName": "email",
+                    "requirementId": "smtp-password",
+                    "message": "Stored credential was revoked"
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Setup secrets stored."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "conditions": [
+                    {
+                      "kind": "setup",
+                      "moduleName": "email",
+                      "requirementId": "smtp-password",
+                      "state": "revoked"
+                    }
+                  ],
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "write"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "control"
+                    }
+                  ]
+                },
+                {
+                  "surfaceId": "setup",
+                  "actionId": "setup.email.smtp-password.start",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Start email/smtp-password",
+                  "effect": "external",
+                  "operation": {
+                    "kind": "daemon-route",
+                    "method": "POST",
+                    "path": "/setup/requirements/email/smtp-password/start"
+                  },
+                  "confirmation": {
+                    "mode": "none"
+                  },
+                  "readiness": {
+                    "state": "needs-setup",
+                    "moduleName": "email",
+                    "requirementId": "smtp-password",
+                    "message": "Stored credential was revoked"
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Setup action started."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "conditions": [
+                    {
+                      "kind": "setup",
+                      "moduleName": "email",
+                      "requirementId": "smtp-password",
+                      "state": "revoked"
+                    }
+                  ],
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "external"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "control"
+                    }
+                  ]
+                },
+                {
+                  "surfaceId": "setup",
+                  "actionId": "setup.email.smtp-password.refresh",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Refresh email/smtp-password",
+                  "effect": "read",
+                  "operation": {
+                    "kind": "daemon-route",
+                    "method": "POST",
+                    "path": "/setup/requirements/email/smtp-password/refresh"
+                  },
+                  "confirmation": {
+                    "mode": "none"
+                  },
+                  "readiness": {
+                    "state": "ready"
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Setup status refreshed."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "conditions": [
+                    {
+                      "kind": "setup",
+                      "moduleName": "email",
+                      "requirementId": "smtp-password",
+                      "state": "revoked"
+                    }
+                  ],
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "read"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "read"
+                    }
+                  ]
+                },
+                {
+                  "surfaceId": "setup",
+                  "actionId": "setup.email.smtp-password.revoke",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Revoke email/smtp-password",
+                  "effect": "write",
+                  "operation": {
+                    "kind": "daemon-route",
+                    "method": "DELETE",
+                    "path": "/setup/requirements/email/smtp-password"
+                  },
+                  "confirmation": {
+                    "mode": "required",
+                    "title": "Revoke setup",
+                    "detail": "This removes stored setup state or credentials for the selected requirement.",
+                    "confirmLabel": "Revoke setup",
+                    "risk": "medium"
+                  },
+                  "readiness": {
+                    "state": "ready"
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Setup revoked."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "conditions": [
+                    {
+                      "kind": "setup",
+                      "moduleName": "email",
+                      "requirementId": "smtp-password",
+                      "state": "revoked"
+                    }
+                  ],
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "write"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "control"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "actions": [
+            {
+              "surfaceId": "setup",
+              "actionId": "setup.list",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Reload setup requirements",
+              "effect": "read",
+              "operation": {
+                "kind": "client-namespace",
+                "namespace": "setup",
+                "method": "list"
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Setup requirements loaded."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "read"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "read"
+                }
+              ]
+            },
+            {
+              "surfaceId": "setup",
+              "actionId": "setup.telegram.bot-credentials.store-secret",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Store telegram/bot-credentials secrets",
+              "effect": "write",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "POST",
+                "path": "/setup/requirements/telegram/bot-credentials/secret"
+              },
+              "parameters": {
+                "fields": [
+                  {
+                    "id": "TELEGRAM_BOT_TOKEN",
+                    "label": "TELEGRAM_BOT_TOKEN",
+                    "input": "secret",
+                    "required": true,
+                    "schema": {
+                      "type": "string",
+                      "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                    }
+                  }
+                ],
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "TELEGRAM_BOT_TOKEN"
+                  ],
+                  "properties": {
+                    "TELEGRAM_BOT_TOKEN": {
+                      "type": "string",
+                      "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "needs-setup",
+                "moduleName": "telegram",
+                "requirementId": "bot-credentials",
+                "message": "Required credential is missing"
+              },
+              "result": {
+                "success": {
+                  "message": "Setup secrets stored."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "conditions": [
+                {
+                  "kind": "setup",
+                  "moduleName": "telegram",
+                  "requirementId": "bot-credentials",
+                  "state": "missing"
+                }
+              ],
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "write"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "control"
+                }
+              ]
+            },
+            {
+              "surfaceId": "setup",
+              "actionId": "setup.telegram.bot-credentials.start",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Start telegram/bot-credentials",
+              "effect": "external",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "POST",
+                "path": "/setup/requirements/telegram/bot-credentials/start"
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "needs-setup",
+                "moduleName": "telegram",
+                "requirementId": "bot-credentials",
+                "message": "Required credential is missing"
+              },
+              "result": {
+                "success": {
+                  "message": "Setup action started."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "conditions": [
+                {
+                  "kind": "setup",
+                  "moduleName": "telegram",
+                  "requirementId": "bot-credentials",
+                  "state": "missing"
+                }
+              ],
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "external"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "control"
+                }
+              ]
+            },
+            {
+              "surfaceId": "setup",
+              "actionId": "setup.telegram.bot-credentials.refresh",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Refresh telegram/bot-credentials",
+              "effect": "read",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "POST",
+                "path": "/setup/requirements/telegram/bot-credentials/refresh"
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Setup status refreshed."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "conditions": [
+                {
+                  "kind": "setup",
+                  "moduleName": "telegram",
+                  "requirementId": "bot-credentials",
+                  "state": "missing"
+                }
+              ],
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "read"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "read"
+                }
+              ]
+            },
+            {
+              "surfaceId": "setup",
+              "actionId": "setup.telegram.bot-credentials.revoke",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Revoke telegram/bot-credentials",
+              "effect": "write",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "DELETE",
+                "path": "/setup/requirements/telegram/bot-credentials"
+              },
+              "confirmation": {
+                "mode": "required",
+                "title": "Revoke setup",
+                "detail": "This removes stored setup state or credentials for the selected requirement.",
+                "confirmLabel": "Revoke setup",
+                "risk": "medium"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Setup revoked."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "conditions": [
+                {
+                  "kind": "setup",
+                  "moduleName": "telegram",
+                  "requirementId": "bot-credentials",
+                  "state": "missing"
+                }
+              ],
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "write"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "control"
+                }
+              ]
+            },
+            {
+              "surfaceId": "setup",
+              "actionId": "setup.google-workspace.oauth-config.submit-form",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Submit google-workspace/oauth-config form",
+              "effect": "write",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "POST",
+                "path": "/setup/requirements/google-workspace/oauth-config/form"
+              },
+              "parameters": {
+                "fields": [
+                  {
+                    "id": "client-id-ref",
+                    "label": "Client ID reference",
+                    "input": "text",
+                    "required": true,
+                    "schema": {
+                      "type": "string",
+                      "format": "secret-reference"
+                    }
+                  }
+                ],
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "client-id-ref"
+                  ],
+                  "properties": {
+                    "client-id-ref": {
+                      "type": "string",
+                      "format": "secret-reference"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Setup form submitted."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "conditions": [
+                {
+                  "kind": "setup",
+                  "moduleName": "google-workspace",
+                  "requirementId": "oauth-config",
+                  "state": "ready"
+                }
+              ],
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "write"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "control"
+                }
+              ]
+            },
+            {
+              "surfaceId": "setup",
+              "actionId": "setup.google-workspace.oauth-config.refresh",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Refresh google-workspace/oauth-config",
+              "effect": "read",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "POST",
+                "path": "/setup/requirements/google-workspace/oauth-config/refresh"
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Setup status refreshed."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "conditions": [
+                {
+                  "kind": "setup",
+                  "moduleName": "google-workspace",
+                  "requirementId": "oauth-config",
+                  "state": "ready"
+                }
+              ],
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "read"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "read"
+                }
+              ]
+            },
+            {
+              "surfaceId": "setup",
+              "actionId": "setup.google-workspace.oauth-credentials.store-secret",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Store google-workspace/oauth-credentials secrets",
+              "effect": "write",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "POST",
+                "path": "/setup/requirements/google-workspace/oauth-credentials/secret"
+              },
+              "parameters": {
+                "fields": [
+                  {
+                    "id": "GOOGLE_REFRESH_TOKEN",
+                    "label": "GOOGLE_REFRESH_TOKEN",
+                    "input": "secret",
+                    "required": true,
+                    "schema": {
+                      "type": "string",
+                      "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                    }
+                  }
+                ],
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "GOOGLE_REFRESH_TOKEN"
+                  ],
+                  "properties": {
+                    "GOOGLE_REFRESH_TOKEN": {
+                      "type": "string",
+                      "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Setup secrets stored."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "conditions": [
+                {
+                  "kind": "setup",
+                  "moduleName": "google-workspace",
+                  "requirementId": "oauth-credentials",
+                  "state": "pending"
+                }
+              ],
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "write"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "control"
+                }
+              ]
+            },
+            {
+              "surfaceId": "setup",
+              "actionId": "setup.google-workspace.oauth-credentials.start",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Start google-workspace/oauth-credentials",
+              "effect": "external",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "POST",
+                "path": "/setup/requirements/google-workspace/oauth-credentials/start"
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Setup action started."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "conditions": [
+                {
+                  "kind": "setup",
+                  "moduleName": "google-workspace",
+                  "requirementId": "oauth-credentials",
+                  "state": "pending"
+                }
+              ],
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "external"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "control"
+                }
+              ]
+            },
+            {
+              "surfaceId": "setup",
+              "actionId": "setup.google-workspace.oauth-credentials.refresh",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Refresh google-workspace/oauth-credentials",
+              "effect": "read",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "POST",
+                "path": "/setup/requirements/google-workspace/oauth-credentials/refresh"
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Setup status refreshed."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "conditions": [
+                {
+                  "kind": "setup",
+                  "moduleName": "google-workspace",
+                  "requirementId": "oauth-credentials",
+                  "state": "pending"
+                }
+              ],
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "read"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "read"
+                }
+              ]
+            },
+            {
+              "surfaceId": "setup",
+              "actionId": "setup.google-workspace.oauth-credentials.revoke",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Revoke google-workspace/oauth-credentials",
+              "effect": "write",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "DELETE",
+                "path": "/setup/requirements/google-workspace/oauth-credentials"
+              },
+              "confirmation": {
+                "mode": "required",
+                "title": "Revoke setup",
+                "detail": "This removes stored setup state or credentials for the selected requirement.",
+                "confirmLabel": "Revoke setup",
+                "risk": "medium"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Setup revoked."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "conditions": [
+                {
+                  "kind": "setup",
+                  "moduleName": "google-workspace",
+                  "requirementId": "oauth-credentials",
+                  "state": "pending"
+                }
+              ],
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "write"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "control"
+                }
+              ]
+            },
+            {
+              "surfaceId": "setup",
+              "actionId": "setup.browser.auth-profile.submit-form",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Submit browser/auth-profile form",
+              "effect": "write",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "POST",
+                "path": "/setup/requirements/browser/auth-profile/form"
+              },
+              "parameters": {
+                "fields": [
+                  {
+                    "id": "storage-state-path",
+                    "label": "Storage state path",
+                    "input": "path",
+                    "required": true,
+                    "schema": {
+                      "type": "string",
+                      "format": "path"
+                    }
+                  }
+                ],
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "storage-state-path"
+                  ],
+                  "properties": {
+                    "storage-state-path": {
+                      "type": "string",
+                      "format": "path"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "needs-setup",
+                "moduleName": "browser",
+                "requirementId": "auth-profile",
+                "message": "Browser profile file does not exist"
+              },
+              "result": {
+                "success": {
+                  "message": "Setup form submitted."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "conditions": [
+                {
+                  "kind": "setup",
+                  "moduleName": "browser",
+                  "requirementId": "auth-profile",
+                  "state": "unavailable"
+                }
+              ],
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "write"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "control"
+                }
+              ]
+            },
+            {
+              "surfaceId": "setup",
+              "actionId": "setup.browser.auth-profile.refresh",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Refresh browser/auth-profile",
+              "effect": "read",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "POST",
+                "path": "/setup/requirements/browser/auth-profile/refresh"
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Setup status refreshed."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "conditions": [
+                {
+                  "kind": "setup",
+                  "moduleName": "browser",
+                  "requirementId": "auth-profile",
+                  "state": "unavailable"
+                }
+              ],
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "read"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "read"
+                }
+              ]
+            },
+            {
+              "surfaceId": "setup",
+              "actionId": "setup.browser.auth-profile.revoke",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Revoke browser/auth-profile",
+              "effect": "write",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "DELETE",
+                "path": "/setup/requirements/browser/auth-profile"
+              },
+              "confirmation": {
+                "mode": "required",
+                "title": "Revoke setup",
+                "detail": "This removes stored setup state or credentials for the selected requirement.",
+                "confirmLabel": "Revoke setup",
+                "risk": "medium"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Setup revoked."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "conditions": [
+                {
+                  "kind": "setup",
+                  "moduleName": "browser",
+                  "requirementId": "auth-profile",
+                  "state": "unavailable"
+                }
+              ],
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "write"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "control"
+                }
+              ]
+            },
+            {
+              "surfaceId": "setup",
+              "actionId": "setup.slack-channel.app-token.store-secret",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Store slack-channel/app-token secrets",
+              "effect": "write",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "POST",
+                "path": "/setup/requirements/slack-channel/app-token/secret"
+              },
+              "parameters": {
+                "fields": [
+                  {
+                    "id": "SLACK_APP_TOKEN",
+                    "label": "SLACK_APP_TOKEN",
+                    "input": "secret",
+                    "required": true,
+                    "schema": {
+                      "type": "string",
+                      "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                    }
+                  }
+                ],
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "SLACK_APP_TOKEN"
+                  ],
+                  "properties": {
+                    "SLACK_APP_TOKEN": {
+                      "type": "string",
+                      "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "needs-setup",
+                "moduleName": "slack-channel",
+                "requirementId": "app-token",
+                "message": "Setup URL action expired"
+              },
+              "result": {
+                "success": {
+                  "message": "Setup secrets stored."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "conditions": [
+                {
+                  "kind": "setup",
+                  "moduleName": "slack-channel",
+                  "requirementId": "app-token",
+                  "state": "expired"
+                }
+              ],
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "write"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "control"
+                }
+              ]
+            },
+            {
+              "surfaceId": "setup",
+              "actionId": "setup.slack-channel.app-token.start",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Start slack-channel/app-token",
+              "effect": "external",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "POST",
+                "path": "/setup/requirements/slack-channel/app-token/start"
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "needs-setup",
+                "moduleName": "slack-channel",
+                "requirementId": "app-token",
+                "message": "Setup URL action expired"
+              },
+              "result": {
+                "success": {
+                  "message": "Setup action started."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "conditions": [
+                {
+                  "kind": "setup",
+                  "moduleName": "slack-channel",
+                  "requirementId": "app-token",
+                  "state": "expired"
+                }
+              ],
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "external"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "control"
+                }
+              ]
+            },
+            {
+              "surfaceId": "setup",
+              "actionId": "setup.slack-channel.app-token.refresh",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Refresh slack-channel/app-token",
+              "effect": "read",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "POST",
+                "path": "/setup/requirements/slack-channel/app-token/refresh"
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Setup status refreshed."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "conditions": [
+                {
+                  "kind": "setup",
+                  "moduleName": "slack-channel",
+                  "requirementId": "app-token",
+                  "state": "expired"
+                }
+              ],
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "read"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "read"
+                }
+              ]
+            },
+            {
+              "surfaceId": "setup",
+              "actionId": "setup.slack-channel.app-token.revoke",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Revoke slack-channel/app-token",
+              "effect": "write",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "DELETE",
+                "path": "/setup/requirements/slack-channel/app-token"
+              },
+              "confirmation": {
+                "mode": "required",
+                "title": "Revoke setup",
+                "detail": "This removes stored setup state or credentials for the selected requirement.",
+                "confirmLabel": "Revoke setup",
+                "risk": "medium"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Setup revoked."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "conditions": [
+                {
+                  "kind": "setup",
+                  "moduleName": "slack-channel",
+                  "requirementId": "app-token",
+                  "state": "expired"
+                }
+              ],
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "write"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "control"
+                }
+              ]
+            },
+            {
+              "surfaceId": "setup",
+              "actionId": "setup.email.smtp-password.store-secret",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Store email/smtp-password secrets",
+              "effect": "write",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "POST",
+                "path": "/setup/requirements/email/smtp-password/secret"
+              },
+              "parameters": {
+                "fields": [
+                  {
+                    "id": "SMTP_PASSWORD",
+                    "label": "SMTP_PASSWORD",
+                    "input": "secret",
+                    "required": true,
+                    "schema": {
+                      "type": "string",
+                      "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                    }
+                  }
+                ],
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "SMTP_PASSWORD"
+                  ],
+                  "properties": {
+                    "SMTP_PASSWORD": {
+                      "type": "string",
+                      "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "needs-setup",
+                "moduleName": "email",
+                "requirementId": "smtp-password",
+                "message": "Stored credential was revoked"
+              },
+              "result": {
+                "success": {
+                  "message": "Setup secrets stored."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "conditions": [
+                {
+                  "kind": "setup",
+                  "moduleName": "email",
+                  "requirementId": "smtp-password",
+                  "state": "revoked"
+                }
+              ],
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "write"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "control"
+                }
+              ]
+            },
+            {
+              "surfaceId": "setup",
+              "actionId": "setup.email.smtp-password.start",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Start email/smtp-password",
+              "effect": "external",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "POST",
+                "path": "/setup/requirements/email/smtp-password/start"
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "needs-setup",
+                "moduleName": "email",
+                "requirementId": "smtp-password",
+                "message": "Stored credential was revoked"
+              },
+              "result": {
+                "success": {
+                  "message": "Setup action started."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "conditions": [
+                {
+                  "kind": "setup",
+                  "moduleName": "email",
+                  "requirementId": "smtp-password",
+                  "state": "revoked"
+                }
+              ],
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "external"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "control"
+                }
+              ]
+            },
+            {
+              "surfaceId": "setup",
+              "actionId": "setup.email.smtp-password.refresh",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Refresh email/smtp-password",
+              "effect": "read",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "POST",
+                "path": "/setup/requirements/email/smtp-password/refresh"
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Setup status refreshed."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "conditions": [
+                {
+                  "kind": "setup",
+                  "moduleName": "email",
+                  "requirementId": "smtp-password",
+                  "state": "revoked"
+                }
+              ],
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "read"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "read"
+                }
+              ]
+            },
+            {
+              "surfaceId": "setup",
+              "actionId": "setup.email.smtp-password.revoke",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Revoke email/smtp-password",
+              "effect": "write",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "DELETE",
+                "path": "/setup/requirements/email/smtp-password"
+              },
+              "confirmation": {
+                "mode": "required",
+                "title": "Revoke setup",
+                "detail": "This removes stored setup state or credentials for the selected requirement.",
+                "confirmLabel": "Revoke setup",
+                "risk": "medium"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Setup revoked."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "conditions": [
+                {
+                  "kind": "setup",
+                  "moduleName": "email",
+                  "requirementId": "smtp-password",
+                  "state": "revoked"
+                }
+              ],
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "write"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "control"
+                }
+              ]
+            }
+          ]
         }
       ]
     },
@@ -3986,6 +7961,202 @@
             }
           ],
           "actions": []
+        }
+      ]
+    },
+    "negative_unknownSetupConditionState": {
+      "protocolVersion": "ui.surface.v1",
+      "surfaces": [
+        {
+          "protocolVersion": "ui.surface.v1",
+          "surfaceId": "negative-surface",
+          "extensionId": "negative.surface",
+          "title": "Negative",
+          "intent": "Setup",
+          "scopeId": "p-kota-fixture-default",
+          "attachmentPoint": {
+            "kind": "intent",
+            "intent": "Setup"
+          },
+          "order": 50,
+          "permissions": [
+            {
+              "kind": "capability-scope",
+              "scope": "read"
+            }
+          ],
+          "nodes": [
+            {
+              "kind": "action-list",
+              "title": "Malformed setup action",
+              "actions": [
+                {
+                  "surfaceId": "negative-surface",
+                  "actionId": "setup.telegram.bot-credentials.store-secret",
+                  "scopeId": "p-kota-fixture-default",
+                  "label": "Store telegram/bot-credentials secrets",
+                  "effect": "write",
+                  "operation": {
+                    "kind": "daemon-route",
+                    "method": "POST",
+                    "path": "/setup/requirements/telegram/bot-credentials/secret"
+                  },
+                  "parameters": {
+                    "fields": [
+                      {
+                        "id": "TELEGRAM_BOT_TOKEN",
+                        "label": "TELEGRAM_BOT_TOKEN",
+                        "input": "secret",
+                        "required": true,
+                        "schema": {
+                          "type": "string",
+                          "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                        }
+                      }
+                    ],
+                    "schema": {
+                      "type": "object",
+                      "required": [
+                        "TELEGRAM_BOT_TOKEN"
+                      ],
+                      "properties": {
+                        "TELEGRAM_BOT_TOKEN": {
+                          "type": "string",
+                          "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "confirmation": {
+                    "mode": "none"
+                  },
+                  "readiness": {
+                    "state": "needs-setup",
+                    "moduleName": "telegram",
+                    "requirementId": "bot-credentials",
+                    "message": "Required credential is missing"
+                  },
+                  "result": {
+                    "success": {
+                      "message": "Setup secrets stored."
+                    },
+                    "errors": [
+                      {
+                        "reason": "unavailable",
+                        "message": "The daemon action is currently unavailable."
+                      },
+                      {
+                        "reason": "invalid-input",
+                        "message": "The action parameters did not match the declared schema."
+                      }
+                    ]
+                  },
+                  "conditions": [
+                    {
+                      "kind": "setup",
+                      "moduleName": "telegram",
+                      "requirementId": "bot-credentials",
+                      "state": "future-state"
+                    }
+                  ],
+                  "permissions": [
+                    {
+                      "kind": "effect",
+                      "effect": "write"
+                    },
+                    {
+                      "kind": "capability-scope",
+                      "scope": "control"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "actions": [
+            {
+              "surfaceId": "negative-surface",
+              "actionId": "setup.telegram.bot-credentials.store-secret",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Store telegram/bot-credentials secrets",
+              "effect": "write",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "POST",
+                "path": "/setup/requirements/telegram/bot-credentials/secret"
+              },
+              "parameters": {
+                "fields": [
+                  {
+                    "id": "TELEGRAM_BOT_TOKEN",
+                    "label": "TELEGRAM_BOT_TOKEN",
+                    "input": "secret",
+                    "required": true,
+                    "schema": {
+                      "type": "string",
+                      "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                    }
+                  }
+                ],
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "TELEGRAM_BOT_TOKEN"
+                  ],
+                  "properties": {
+                    "TELEGRAM_BOT_TOKEN": {
+                      "type": "string",
+                      "description": "Secret value submitted through the setup secret path; clients must not render it back."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "needs-setup",
+                "moduleName": "telegram",
+                "requirementId": "bot-credentials",
+                "message": "Required credential is missing"
+              },
+              "result": {
+                "success": {
+                  "message": "Setup secrets stored."
+                },
+                "errors": [
+                  {
+                    "reason": "unavailable",
+                    "message": "The daemon action is currently unavailable."
+                  },
+                  {
+                    "reason": "invalid-input",
+                    "message": "The action parameters did not match the declared schema."
+                  }
+                ]
+              },
+              "conditions": [
+                {
+                  "kind": "setup",
+                  "moduleName": "telegram",
+                  "requirementId": "bot-credentials",
+                  "state": "future-state"
+                }
+              ],
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "write"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "control"
+                }
+              ]
+            }
+          ]
         }
       ]
     }
