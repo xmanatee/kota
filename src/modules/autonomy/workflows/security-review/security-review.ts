@@ -4,6 +4,7 @@ import { dirname, extname, join, relative } from "node:path";
 import { z } from "zod";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import {
   getRepoTaskStateDir,
   REPO_TASK_STATES,
@@ -35,9 +36,49 @@ export type SecurityReviewCandidate = {
   excerpt: string;
 };
 
+export type SecurityReviewDueTarget = {
+  surface: SecurityReviewSurface;
+  path: string;
+};
+
+export type SecurityReviewDueTargetMissReason =
+  | "candidate-cap"
+  | "missing-path"
+  | "no-matcher"
+  | "no-surface-matcher"
+  | "not-file"
+  | "outside-project"
+  | "read-error"
+  | "skipped-directory"
+  | "too-large"
+  | "unsupported-extension";
+
+export type SecurityReviewDueTargetDiagnostic = {
+  surface: SecurityReviewSurface;
+  path: string;
+} & (
+  | {
+      status: "matched";
+      candidateIds: string[];
+    }
+  | {
+      status: "missed";
+      reason: SecurityReviewDueTargetMissReason;
+      candidateIds: string[];
+    }
+);
+
+export type SecurityReviewDueTargetSummary = {
+  total: number;
+  matched: number;
+  missed: number;
+  diagnostics: SecurityReviewDueTargetDiagnostic[];
+};
+
 export type SecurityReviewScanOptions = {
   maxCandidates?: number;
   maxCandidatesPerSurface?: number;
+  dueTargets?: readonly SecurityReviewDueTarget[];
 };
 
 export type SecurityReviewScanResult = {
@@ -47,6 +88,7 @@ export type SecurityReviewScanResult = {
   truncated: boolean;
   maxCandidates: number;
   maxCandidatesPerSurface: number;
+  dueTargets: SecurityReviewDueTargetSummary;
 };
 
 export type SecurityReviewCandidatePacket = SecurityReviewScanResult & {
@@ -137,6 +179,46 @@ function normalizeRepoPath(path: string): string {
   return path.split("\\").join("/");
 }
 
+function isSafeRepoRelativePath(path: string): boolean {
+  const normalized = normalizeRepoPath(path);
+  return normalized.length > 0 &&
+    !normalized.startsWith("/") &&
+    !normalized.split("/").includes("..");
+}
+
+function isSecurityReviewSurface(value: string): value is SecurityReviewSurface {
+  return SECURITY_REVIEW_SURFACES.some((surface) => surface === value);
+}
+
+function compareDueTargets(a: SecurityReviewDueTarget, b: SecurityReviewDueTarget): number {
+  return SECURITY_REVIEW_SURFACES.indexOf(a.surface) - SECURITY_REVIEW_SURFACES.indexOf(b.surface) ||
+    a.path.localeCompare(b.path);
+}
+
+export function securityReviewDueTargetsFromPayload(
+  projectDir: string,
+  payload: WorkflowRunTrigger["payload"],
+): SecurityReviewDueTarget[] {
+  const parsed = duePayloadSchema.safeParse(payload);
+  if (!parsed.success) return [];
+
+  const targets = new Map<string, SecurityReviewDueTarget>();
+  for (const changedSurface of parsed.data.changedSurfaces ?? []) {
+    for (const rawPath of changedSurface.paths) {
+      const path = normalizeRepoPath(rawPath);
+      if (!isSafeRepoRelativePath(path)) continue;
+      const surfaces = isSecurityReviewSurface(changedSurface.surface)
+        ? [changedSurface.surface]
+        : securityReviewSurfacesForChangedPath(projectDir, path);
+      for (const surface of surfaces) {
+        targets.set(`${surface}\0${path}`, { surface, path });
+      }
+    }
+  }
+
+  return Array.from(targets.values()).sort(compareDueTargets);
+}
+
 export function securityReviewSurfacesForPath(path: string): SecurityReviewSurface[] {
   const normalized = normalizeRepoPath(path);
   return SECURITY_REVIEW_SURFACES.filter((surface) =>
@@ -224,6 +306,13 @@ const revalidationVerdictOutputSchema = z.object({
   findings: z.array(revalidationVerdictSchema),
   summary: z.string().min(1),
 }).strict();
+const duePayloadChangedSurfaceSchema = z.object({
+  surface: z.string().min(1),
+  paths: z.array(z.string().min(1)),
+}).passthrough();
+const duePayloadSchema = z.object({
+  changedSurfaces: z.array(duePayloadChangedSurfaceSchema).optional(),
+}).passthrough();
 
 export type SecurityFindingSeverity = z.infer<typeof severitySchema>;
 export type SecurityFindingVerdict = z.infer<typeof verdictSchema>;
@@ -386,14 +475,19 @@ function collectAllCandidates(projectDir: string): SecurityReviewCandidate[] {
   for (const path of listScannableFiles(projectDir)) {
     candidates.push(...scanSecurityReviewCandidatesForPath(projectDir, path));
   }
-  return candidates.sort((a, b) =>
-    SECURITY_REVIEW_SURFACES.indexOf(a.surface) - SECURITY_REVIEW_SURFACES.indexOf(b.surface) ||
+  return candidates.sort(compareSecurityReviewCandidates);
+}
+
+function compareSecurityReviewCandidates(
+  a: SecurityReviewCandidate,
+  b: SecurityReviewCandidate,
+): number {
+  return SECURITY_REVIEW_SURFACES.indexOf(a.surface) - SECURITY_REVIEW_SURFACES.indexOf(b.surface) ||
     candidatePathRank(a) - candidatePathRank(b) ||
     preferredSourcePrefixRank(a) - preferredSourcePrefixRank(b) ||
     a.path.localeCompare(b.path) ||
     a.line - b.line ||
-    a.matcher.localeCompare(b.matcher)
-  );
+    a.matcher.localeCompare(b.matcher);
 }
 
 export function scanSecurityReviewCandidatesForPath(
@@ -401,7 +495,11 @@ export function scanSecurityReviewCandidatesForPath(
   path: string,
 ): SecurityReviewCandidate[] {
   const normalized = normalizeRepoPath(path);
-  if (pathHasSkippedSegment(normalized) || !shouldScanFile(normalized)) {
+  if (
+    !isSafeRepoRelativePath(normalized) ||
+    pathHasSkippedSegment(normalized) ||
+    !shouldScanFile(normalized)
+  ) {
     return [];
   }
 
@@ -459,6 +557,19 @@ function boundCandidates(
   candidates: readonly SecurityReviewCandidate[],
   options: Required<SecurityReviewScanOptions>,
 ): SecurityReviewCandidate[] {
+  const dueTargetKeys = new Set(
+    options.dueTargets.map((target) => `${target.surface}\0${target.path}`),
+  );
+  const dueCandidateIds = new Set<string>();
+  for (const candidate of candidates) {
+    if (dueTargetKeys.has(`${candidate.surface}\0${candidate.path}`)) {
+      dueCandidateIds.add(candidate.id);
+    }
+  }
+  if (dueCandidateIds.size > 0) {
+    return boundCandidatesByPriority(candidates, options, dueCandidateIds);
+  }
+
   const selected: SecurityReviewCandidate[] = [];
   for (const surface of SECURITY_REVIEW_SURFACES) {
     let selectedForSurface = 0;
@@ -473,6 +584,118 @@ function boundCandidates(
   return selected;
 }
 
+function boundCandidatesByPriority(
+  candidates: readonly SecurityReviewCandidate[],
+  options: Required<SecurityReviewScanOptions>,
+  dueCandidateIds: ReadonlySet<string>,
+): SecurityReviewCandidate[] {
+  const selected: SecurityReviewCandidate[] = [];
+  const selectedIds = new Set<string>();
+  const selectedCountsBySurface = new Map<SecurityReviewSurface, number>();
+
+  const selectCandidate = (candidate: SecurityReviewCandidate): void => {
+    if (selected.length >= options.maxCandidates) return;
+    const selectedForSurface = selectedCountsBySurface.get(candidate.surface) ?? 0;
+    if (selectedForSurface >= options.maxCandidatesPerSurface) return;
+    selected.push(candidate);
+    selectedIds.add(candidate.id);
+    selectedCountsBySurface.set(candidate.surface, selectedForSurface + 1);
+  };
+
+  for (const priority of [true, false]) {
+    for (const surface of SECURITY_REVIEW_SURFACES) {
+      for (const candidate of candidates) {
+        if (candidate.surface !== surface) continue;
+        if (selectedIds.has(candidate.id)) continue;
+        if (dueCandidateIds.has(candidate.id) !== priority) continue;
+        selectCandidate(candidate);
+      }
+    }
+  }
+
+  return selected;
+}
+
+function candidatesForDueTarget(
+  target: SecurityReviewDueTarget,
+  candidates: readonly SecurityReviewCandidate[],
+): SecurityReviewCandidate[] {
+  return candidates.filter((candidate) =>
+    candidate.surface === target.surface && candidate.path === target.path
+  );
+}
+
+function dueTargetMissReason(
+  projectDir: string,
+  target: SecurityReviewDueTarget,
+  allCandidates: readonly SecurityReviewCandidate[],
+): SecurityReviewDueTargetMissReason {
+  const normalized = normalizeRepoPath(target.path);
+  if (!isSafeRepoRelativePath(normalized)) return "outside-project";
+  if (pathHasSkippedSegment(normalized)) return "skipped-directory";
+  if (!shouldScanFile(normalized)) return "unsupported-extension";
+
+  const fullPath = join(projectDir, normalized);
+  let fileSize = 0;
+  try {
+    const stats = statSync(fullPath);
+    if (!stats.isFile()) return "not-file";
+    fileSize = stats.size;
+  } catch {
+    return "missing-path";
+  }
+  if (fileSize > MAX_SCANNED_FILE_BYTES) return "too-large";
+
+  let contentByteLength = 0;
+  try {
+    contentByteLength = Buffer.byteLength(readFileSync(fullPath, "utf-8"), "utf-8");
+  } catch {
+    return "read-error";
+  }
+  if (contentByteLength > MAX_SCANNED_FILE_BYTES) return "too-large";
+
+  const pathCandidates = allCandidates.filter((candidate) => candidate.path === normalized);
+  if (pathCandidates.length > 0) return "no-surface-matcher";
+  return "no-matcher";
+}
+
+function summarizeDueTargets(args: {
+  projectDir: string;
+  dueTargets: readonly SecurityReviewDueTarget[];
+  allCandidates: readonly SecurityReviewCandidate[];
+  selectedCandidates: readonly SecurityReviewCandidate[];
+}): SecurityReviewDueTargetSummary {
+  const diagnostics = args.dueTargets.map((target): SecurityReviewDueTargetDiagnostic => {
+    const selected = candidatesForDueTarget(target, args.selectedCandidates);
+    if (selected.length > 0) {
+      return {
+        surface: target.surface,
+        path: target.path,
+        status: "matched",
+        candidateIds: selected.map((candidate) => candidate.id),
+      };
+    }
+
+    const available = candidatesForDueTarget(target, args.allCandidates);
+    return {
+      surface: target.surface,
+      path: target.path,
+      status: "missed",
+      reason: available.length > 0
+        ? "candidate-cap"
+        : dueTargetMissReason(args.projectDir, target, args.allCandidates),
+      candidateIds: available.map((candidate) => candidate.id),
+    };
+  });
+
+  return {
+    total: diagnostics.length,
+    matched: diagnostics.filter((diagnostic) => diagnostic.status === "matched").length,
+    missed: diagnostics.filter((diagnostic) => diagnostic.status === "missed").length,
+    diagnostics,
+  };
+}
+
 export function scanSecurityReviewCandidates(
   projectDir: string,
   options: SecurityReviewScanOptions = {},
@@ -481,6 +704,7 @@ export function scanSecurityReviewCandidates(
     maxCandidates: options.maxCandidates ?? SECURITY_REVIEW_MAX_CANDIDATES,
     maxCandidatesPerSurface:
       options.maxCandidatesPerSurface ?? SECURITY_REVIEW_MAX_CANDIDATES_PER_SURFACE,
+    dueTargets: options.dueTargets ?? [],
   };
   const allCandidates = collectAllCandidates(projectDir);
   const candidates = boundCandidates(allCandidates, resolvedOptions);
@@ -491,6 +715,12 @@ export function scanSecurityReviewCandidates(
     truncated: allCandidates.length > candidates.length,
     maxCandidates: resolvedOptions.maxCandidates,
     maxCandidatesPerSurface: resolvedOptions.maxCandidatesPerSurface,
+    dueTargets: summarizeDueTargets({
+      projectDir,
+      dueTargets: resolvedOptions.dueTargets,
+      allCandidates,
+      selectedCandidates: candidates,
+    }),
   };
 }
 

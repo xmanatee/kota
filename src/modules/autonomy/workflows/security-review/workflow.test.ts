@@ -15,6 +15,7 @@ import {
   type SecurityRevalidationOutput,
   type SecurityRevalidationVerdictOutput,
   scanSecurityReviewCandidates,
+  securityReviewDueTargetsFromPayload,
 } from "./security-review.js";
 import securityReviewWorkflow from "./workflow.js";
 
@@ -118,6 +119,103 @@ describe("security-review workflow", () => {
     );
   });
 
+  it("prioritizes due targets before lower-priority full-tree candidates and reports misses", () => {
+    writeProjectFile("src/modules/web-access/a-full-tree.ts", "await fetch('https://noise.example');\n");
+    writeProjectFile("src/modules/web-access/z-due.ts", "await fetch(url, { headers });\n");
+    writeProjectFile("notes/no-matcher.md", "No security-sensitive content here.\n");
+    writeProjectFile("node_modules/generated.ts", "await fetch('https://ignored.example');\n");
+
+    const dueTargets = securityReviewDueTargetsFromPayload(projectDir, {
+      changedSurfaces: [
+        {
+          surface: "external-fetch",
+          paths: [
+            "src/modules/web-access/z-due.ts",
+            "notes/no-matcher.md",
+            "node_modules/generated.ts",
+            "../outside.ts",
+          ],
+        },
+      ],
+    });
+
+    const result = scanSecurityReviewCandidates(projectDir, {
+      maxCandidates: 1,
+      maxCandidatesPerSurface: 1,
+      dueTargets,
+    });
+
+    expect(result.candidates.map((candidate) => candidate.path)).toEqual([
+      "src/modules/web-access/z-due.ts",
+    ]);
+    expect(result.dueTargets).toMatchObject({
+      total: 3,
+      matched: 1,
+      missed: 2,
+    });
+    expect(result.dueTargets.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          surface: "external-fetch",
+          path: "src/modules/web-access/z-due.ts",
+          status: "matched",
+        }),
+        expect.objectContaining({
+          surface: "external-fetch",
+          path: "notes/no-matcher.md",
+          status: "missed",
+          reason: "no-matcher",
+        }),
+        expect.objectContaining({
+          surface: "external-fetch",
+          path: "node_modules/generated.ts",
+          status: "missed",
+          reason: "skipped-directory",
+        }),
+      ]),
+    );
+  });
+
+  it("reports due target cap misses when caps are exhausted by earlier due candidates", () => {
+    writeProjectFile("src/modules/web-access/a-due.ts", "await fetch(first);\n");
+    writeProjectFile("src/modules/web-access/b-due.ts", "await fetch(second);\n");
+
+    const dueTargets = securityReviewDueTargetsFromPayload(projectDir, {
+      changedSurfaces: [
+        {
+          surface: "external-fetch",
+          paths: [
+            "src/modules/web-access/a-due.ts",
+            "src/modules/web-access/b-due.ts",
+          ],
+        },
+      ],
+    });
+
+    const result = scanSecurityReviewCandidates(projectDir, {
+      maxCandidates: 1,
+      maxCandidatesPerSurface: 1,
+      dueTargets,
+    });
+
+    expect(result.candidates.map((candidate) => candidate.path)).toEqual([
+      "src/modules/web-access/a-due.ts",
+    ]);
+    expect(result.dueTargets).toMatchObject({
+      total: 2,
+      matched: 1,
+      missed: 1,
+    });
+    expect(result.dueTargets.diagnostics).toContainEqual(
+      expect.objectContaining({
+        surface: "external-fetch",
+        path: "src/modules/web-access/b-due.ts",
+        status: "missed",
+        reason: "candidate-cap",
+      }),
+    );
+  });
+
   it("uses surface-specific source priority before lexicographic path order", () => {
     for (let index = 0; index < 5; index += 1) {
       writeProjectFile(`src/core/tools/tool-noise-${index}.ts`, "spawnSync(command, { shell: true });\n");
@@ -200,6 +298,70 @@ describe("security-review workflow", () => {
 
     expect(result.status).toBe("success");
     expect(result.steps["record-empty-scan"].status).toBe("success");
+  });
+
+  it("writes due target diagnostics into the candidate artifact for due events", async () => {
+    writeProjectFile("src/modules/web-access/a-full-tree.ts", "await fetch('https://noise.example');\n");
+    writeProjectFile("src/modules/web-access/z-due.ts", "await fetch(url, { headers });\n");
+    writeProjectFile("notes/no-matcher.md", "No security-sensitive content here.\n");
+
+    const harness = new WorkflowTestHarness(securityReviewWorkflow, {
+      projectDir,
+      trigger: {
+        event: SECURITY_REVIEW_DUE_EVENT,
+        payload: {
+          changedSurfaces: [
+            {
+              surface: "external-fetch",
+              paths: [
+                "src/modules/web-access/z-due.ts",
+                "notes/no-matcher.md",
+              ],
+            },
+          ],
+        },
+      },
+      stepMocks: {
+        "investigate-candidates": { findings: [] },
+      },
+    });
+
+    const result = await harness.run();
+
+    expect(result.status).toBe("success");
+    const artifact = JSON.parse(
+      readFileSync(
+        join(projectDir, ".kota/runs/harness/security-review-candidates.json"),
+        "utf-8",
+      ),
+    ) as {
+      candidates: Array<{ path: string }>;
+      dueTargets: {
+        total: number;
+        matched: number;
+        missed: number;
+        diagnostics: Array<{ path: string; status: string; reason?: string }>;
+      };
+    };
+    expect(artifact.candidates[0]?.path).toBe("src/modules/web-access/z-due.ts");
+    expect(artifact.dueTargets).toMatchObject({
+      total: 2,
+      matched: 1,
+      missed: 1,
+    });
+    expect(artifact.dueTargets.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: "src/modules/web-access/z-due.ts",
+          status: "matched",
+        }),
+        expect.objectContaining({
+          path: "notes/no-matcher.md",
+          status: "missed",
+          reason: "no-matcher",
+        }),
+      ]),
+    );
   });
 
   it("decodes investigation and revalidation output before creating confirmed follow-up tasks", () => {

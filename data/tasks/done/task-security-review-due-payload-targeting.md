@@ -1,13 +1,13 @@
 ---
 id: task-security-review-due-payload-targeting
 title: security-review due payload targeting
-status: ready
+status: done
 priority: p1
 area: autonomy
 task_class: Safety
 summary: Measure and close gaps between security-review due payload paths and scanned candidates.
 created_at: 2026-06-19T16:16:13.130Z
-updated_at: 2026-06-19T16:16:13.130Z
+updated_at: 2026-06-19T23:50:08.280Z
 ---
 
 ## Problem
@@ -45,3 +45,10 @@ Autonomy safety-review reliability.
 - Include a recent-run artifact or fixture showing due-target matched and missed entries.
 - Include the static query used to prove due targets are prioritized before full-tree candidates.
 - Include at least one explicit unscannable miss reason in fixture or runtime evidence, or state that no miss was observed in the measured sample.
+
+## Completion Evidence
+
+- Prior artifact measurement: `.kota/runs/2026-06-19T15-01-23-246Z-security-review-bmgpb3/security-review-candidates.json` had `hasDueTargets: false` before this change, confirming the gap was real.
+- Fixture evidence: `src/modules/autonomy/workflows/security-review/workflow.test.ts` covers matched due targets, `no-matcher`, `skipped-directory`, and `candidate-cap` miss reasons, plus a due-triggered workflow artifact containing `dueTargets`.
+- Static query: `rg -n "securityReviewDueTargetsFromPayload|boundCandidatesByPriority|dueTargets: trigger.event|candidate-cap|skipped-directory|no-matcher" src/modules/autonomy/workflows/security-review/security-review.ts src/modules/autonomy/workflows/security-review/workflow.ts src/modules/autonomy/workflows/security-review/workflow.test.ts`.
+- Validation: `pnpm test src/modules/autonomy/workflows/security-review/workflow.test.ts`, `pnpm exec biome check src/modules/autonomy/workflows/security-review/security-review.ts src/modules/autonomy/workflows/security-review/workflow.ts src/modules/autonomy/workflows/security-review/workflow.test.ts`, and `pnpm typecheck` pass.

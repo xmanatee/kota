@@ -39,6 +39,7 @@ import {
   type SecurityRevalidationOutput,
   type SecurityReviewCandidatePacket,
   scanAndWriteSecurityReviewCandidates,
+  securityReviewDueTargetsFromPayload,
   writeJsonArtifact,
   writeSecurityReviewOutcome,
 } from "./security-review.js";
@@ -185,10 +186,13 @@ const scanCandidates = typedCodeStep<SecurityReviewCandidatePacket>({
       "artifactPath",
       "truncated",
     ]),
-  run: ({ projectDir, workflow }) =>
+  run: ({ projectDir, trigger, workflow }) =>
     scanAndWriteSecurityReviewCandidates(projectDir, workflow.runDirPath, {
       maxCandidates: SECURITY_REVIEW_MAX_CANDIDATES,
       maxCandidatesPerSurface: SECURITY_REVIEW_MAX_CANDIDATES_PER_SURFACE,
+      dueTargets: trigger.event === SECURITY_REVIEW_DUE_EVENT
+        ? securityReviewDueTargetsFromPayload(projectDir, trigger.payload)
+        : [],
     }),
 });
 
