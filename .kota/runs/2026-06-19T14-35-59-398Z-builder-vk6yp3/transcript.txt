@@ -1,0 +1,187 @@
+# Operator Journey Transcript
+
+Captured: 2026-06-19
+Run: 2026-06-19T14-35-59-398Z-builder-vk6yp3
+Working directory: /Users/xmanatee/Desktop/mono/apps/kota
+
+Purpose: show the operator-visible repair path for the peer benchmark Product
+evidence gap. The source checkout uses the source-mode CLI entrypoint below;
+it is the local equivalent of `kota task show`.
+
+$ node --conditions=source --import tsx src/cli.ts task show task-close-peer-benchmark-operator-evidence-gap
+---
+id: task-close-peer-benchmark-operator-evidence-gap
+title: Close peer benchmark operator evidence gap
+status: done
+priority: p3
+area: research
+summary: Backfill concise operator-facing evidence for the completed peer agent product benchmark matrix, or reclassify the task with rationale if it should not be Product work. The current done task is flagged as Product work without recognized operator-journey proof.
+created_at: 2026-06-19T13:41:58.571Z
+updated_at: 2026-06-19T14:40:46.300Z
+---
+
+## Problem
+
+Backfill concise operator-facing evidence for the completed peer agent product benchmark matrix, or reclassify the task with rationale if it should not be Product work. The current done task is flagged as Product work without recognized operator-journey proof.
+
+## Desired Outcome
+
+Resolve the progress-review finding from run 2026-06-19T13-32-38-511Z-progress-reviewer-ublbqz.
+
+## Constraints
+
+- Preserve the cited evidence ids until the task is resolved.
+- Do not treat this seeded task as proof that the finding is already fixed.
+
+## Done When
+
+- The cited progress gap is fixed or explicitly disproven with evidence.
+- Acceptance evidence is recorded in this task or its run artifact.
+
+## Source / Intent
+
+Created by progress-reviewer workflow run 2026-06-19T13-32-38-511Z-progress-reviewer-ublbqz.
+
+review verdict: needs-steering
+review summary: The local 24h packet shows Product 4, Safety 0, Platform 1, Meta 1, and Unclassified 14. Recent monitored workflows are completing, but one open progress-reviewer DLQ and one Product evidence gap need follow-up.
+
+Evidence ids:
+
+- task:task-add-peer-agent-product-benchmark-matrix
+
+## Outcome (2026-06-19)
+
+The cited Product task now names operator-consumable evidence in its
+`## Acceptance Evidence` section:
+
+- task:task-add-peer-agent-product-benchmark-matrix
+- transcript:
+  `.kota/runs/2026-06-19T05-46-54-721Z-builder-047rt8/operator-journey-transcript.txt`
+
+That transcript shows the completed task through `kota task show`, an excerpt
+of the benchmark artifact, the bounded follow-up task opened from the benchmark
+cycle, and successful task validation. The Product classification remains
+appropriate because the benchmark is an operator-facing product positioning and
+follow-up selection artifact.
+
+This repair run also records current operator-visible proof at
+`.kota/runs/2026-06-19T14-35-59-398Z-builder-vk6yp3/transcript.txt`, showing
+the closed repair task, the updated Product task acceptance evidence, and
+task validation through the source-mode CLI entrypoint.
+
+## Initiative
+
+Outcome-aware autonomy progress review.
+
+## Acceptance Evidence
+
+- `data/tasks/done/task-add-peer-agent-product-benchmark-matrix.md` cites the
+  operator journey transcript that proves an operator can consume the benchmark
+  outcome.
+- This task preserves the cited evidence id and records the resolution
+  rationale above.
+- `.kota/runs/2026-06-19T14-35-59-398Z-builder-vk6yp3/transcript.txt`
+  records the operator-visible task output after the evidence backfill.
+- `.kota/runs/2026-06-19T14-35-59-398Z-builder-vk6yp3/validation-results.txt`
+  records `pnpm run validate-tasks` passing after the task-state update.
+
+exit status: 0
+
+$ node --conditions=source --import tsx src/cli.ts task show task-add-peer-agent-product-benchmark-matrix
+---
+id: task-add-peer-agent-product-benchmark-matrix
+title: Add peer agent product benchmark matrix
+status: done
+priority: p2
+area: research
+summary: Compare KOTA against DOX, Agent Zero, Space Agent, ClawPatrol, Rowboat, Open Notebook, Headroom, secure MCP tunnels, project-shaped workflow framing, and agent-computer patterns with bounded adopt/adapt/reject decisions.
+created_at: 2026-06-11T22:24:20.132Z
+updated_at: 2026-06-19T05:55:14.888Z
+task_class: Product
+---
+
+## Problem
+
+KOTA has accumulated many internal concepts, but it is not always obvious how
+it objectively differs from peer agent systems or which external ideas should
+be adopted. Without a bounded comparison process, research links become either
+random inspiration or ignored inbox material.
+
+## Desired Outcome
+
+Create a recurring peer product benchmark matrix that compares KOTA against
+selected external agent/runtime/security/knowledge projects and records
+bounded adopt/adapt/reject/later decisions mapped to existing KOTA concepts.
+
+## Constraints
+
+- Use current external sources and cite them.
+- At most three KOTA tasks may come from one review cycle.
+- Every adopted idea must map to an existing KOTA concept: module, client,
+  workflow, channel, tool, setup requirement, store, daemon, or scope.
+- Do not create a new subsystem just because a peer project names one.
+
+## Done When
+
+- Matrix covers DOX, Agent Zero, Space Agent, ClawPatrol, Rowboat, Open
+  Notebook, Headroom, OpenAI secure MCP tunnels, project-shaped workflow
+  framing, and agent-computer patterns.
+- Each row records capability, KOTA equivalent, gap, decision, and resulting
+  bounded next action.
+- External pattern decisions or watchlist entries are updated only for adopted
+  or revisit-worthy ideas.
+
+## Source / Intent
+
+Owner supplied research links on 2026-06-11 and asked to understand which
+external project capabilities matter for KOTA rather than blindly copying or
+ignoring them.
+
+The 2026-06-10 inbox research bundle already contained notes for those peer
+systems plus project-first hiring and LangChain sandbox references. Its unread
+bare-link tail is tracked separately in
+`task-review-owner-captured-automated-research-and-mimo-`; its inaccessible X
+post is tracked in `task-review-inaccessible-research-resources-when-access`.
+
+## Initiative
+
+KOTA external product benchmarking.
+
+## Acceptance Evidence
+
+- A benchmark artifact cites current source URLs and records adopt/adapt/reject
+  decisions.
+- Operator-facing transcript
+  `.kota/runs/2026-06-19T05-46-54-721Z-builder-047rt8/operator-journey-transcript.txt`
+  shows `kota task show` output for this Product task, the benchmark artifact
+  excerpt, the bounded follow-up task, and task validation.
+- Repair transcript
+  `.kota/runs/2026-06-19T14-35-59-398Z-builder-vk6yp3/transcript.txt`
+  shows the current `task show` output after the Product evidence backfill and
+  the validation command passing.
+- `pnpm validate-tasks` passes after any resulting tasks are created.
+- No more than three new KOTA tasks are opened from the benchmark cycle.
+
+## Outcome (2026-06-19)
+
+Benchmark artifact:
+`.kota/runs/2026-06-19T05-46-54-721Z-builder-047rt8/peer-agent-product-benchmark-matrix.md`.
+
+Durable changes from the cycle:
+
+- Added watchlist entries for Agent Zero, Space Agent, Rowboat, Open Notebook,
+  and OpenAI Secure MCP Tunnel as recurring product signals.
+- Opened one follow-up task,
+  `task-add-private-mcp-tunnel-connector-support`, for the adopted private MCP
+  tunnel gap.
+- Left ClawPatrol and Headroom as later/no-action rows because current public
+  source access did not provide enough primary content for honest adoption.
+
+exit status: 0
+
+$ pnpm run validate-tasks
+
+> kota@0.1.0 validate-tasks /Users/xmanatee/Desktop/mono/apps/kota
+> node --conditions=source --import tsx src/validate-queue.ts
+
+exit status: 0

@@ -1,12 +1,12 @@
 ---
 id: task-close-peer-benchmark-operator-evidence-gap
 title: Close peer benchmark operator evidence gap
-status: ready
+status: done
 priority: p3
 area: research
 summary: Backfill concise operator-facing evidence for the completed peer agent product benchmark matrix, or reclassify the task with rationale if it should not be Product work. The current done task is flagged as Product work without recognized operator-journey proof.
 created_at: 2026-06-19T13:41:58.571Z
-updated_at: 2026-06-19T13:41:58.571Z
+updated_at: 2026-06-19T14:40:46.300Z
 ---
 
 ## Problem
@@ -38,10 +38,38 @@ Evidence ids:
 
 - task:task-add-peer-agent-product-benchmark-matrix
 
+## Outcome (2026-06-19)
+
+The cited Product task now names operator-consumable evidence in its
+`## Acceptance Evidence` section:
+
+- task:task-add-peer-agent-product-benchmark-matrix
+- transcript:
+  `.kota/runs/2026-06-19T05-46-54-721Z-builder-047rt8/operator-journey-transcript.txt`
+
+That transcript shows the completed task through `kota task show`, an excerpt
+of the benchmark artifact, the bounded follow-up task opened from the benchmark
+cycle, and successful task validation. The Product classification remains
+appropriate because the benchmark is an operator-facing product positioning and
+follow-up selection artifact.
+
+This repair run also records current operator-visible proof at
+`.kota/runs/2026-06-19T14-35-59-398Z-builder-vk6yp3/transcript.txt`, showing
+the closed repair task, the updated Product task acceptance evidence, and
+task validation through the source-mode CLI entrypoint.
+
 ## Initiative
 
 Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- The done task record cites a transcript, screenshot, rendered snapshot, runtime probe, demo, or equivalent proof that an operator can consume the benchmark outcome; alternatively task_class is corrected with rationale and pnpm validate-tasks passes.
+- `data/tasks/done/task-add-peer-agent-product-benchmark-matrix.md` cites the
+  operator journey transcript that proves an operator can consume the benchmark
+  outcome.
+- This task preserves the cited evidence id and records the resolution
+  rationale above.
+- `.kota/runs/2026-06-19T14-35-59-398Z-builder-vk6yp3/transcript.txt`
+  records the operator-visible task output after the evidence backfill.
+- `.kota/runs/2026-06-19T14-35-59-398Z-builder-vk6yp3/validation-results.txt`
+  records `pnpm run validate-tasks` passing after the task-state update.

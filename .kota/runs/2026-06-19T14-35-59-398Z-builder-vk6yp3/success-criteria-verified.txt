@@ -1,0 +1,3 @@
+1. Verified: `data/tasks/done/task-add-peer-agent-product-benchmark-matrix.md` now cites `.kota/runs/2026-06-19T05-46-54-721Z-builder-047rt8/operator-journey-transcript.txt` and this run's transcript as operator-facing Product acceptance evidence while preserving `task:task-add-peer-agent-product-benchmark-matrix`.
+2. Verified: `task-close-peer-benchmark-operator-evidence-gap` is in `data/tasks/done/` with resolution rationale and acceptance evidence naming `.kota/runs/2026-06-19T14-35-59-398Z-builder-vk6yp3/transcript.txt` plus this run's validation artifact.
+3. Verified: `pnpm run validate-tasks` passed; the source-mode `task show` output and validation command are recorded at `.kota/runs/2026-06-19T14-35-59-398Z-builder-vk6yp3/transcript.txt`.

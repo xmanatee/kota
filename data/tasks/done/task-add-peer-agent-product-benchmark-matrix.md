@@ -61,6 +61,14 @@ KOTA external product benchmarking.
 
 - A benchmark artifact cites current source URLs and records adopt/adapt/reject
   decisions.
+- Operator-facing transcript
+  `.kota/runs/2026-06-19T05-46-54-721Z-builder-047rt8/operator-journey-transcript.txt`
+  shows `kota task show` output for this Product task, the benchmark artifact
+  excerpt, the bounded follow-up task, and task validation.
+- Repair transcript
+  `.kota/runs/2026-06-19T14-35-59-398Z-builder-vk6yp3/transcript.txt`
+  shows the current `task show` output after the Product evidence backfill and
+  the validation command passing.
 - `pnpm validate-tasks` passes after any resulting tasks are created.
 - No more than three new KOTA tasks are opened from the benchmark cycle.
 
