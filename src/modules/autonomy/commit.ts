@@ -23,6 +23,7 @@ export type WorkflowCommitPathPolicy =
   };
 
 const ALL_MUTATED_PATHS: WorkflowCommitPathPolicy = { kind: "all-mutated-paths" };
+const GIT_INDEX_LOCK_RETRY_DELAYS_MS = [100, 250, 500, 1_000, 2_000, 3_000];
 
 function runGit(projectDir: string, command: string): string {
   return execSync(command, {
@@ -33,15 +34,43 @@ function runGit(projectDir: string, command: string): string {
   }).trim();
 }
 
+function isGitIndexLockErrorMessage(message: string): boolean {
+  return (
+    message.includes(".git/index.lock") ||
+    message.includes("index.lock") && message.includes("Another git process")
+  );
+}
+
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function withGitIndexLockRetry<T>(run: () => T): T {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return run();
+    } catch (error) {
+      const message = describeError(error);
+      const delayMs = GIT_INDEX_LOCK_RETRY_DELAYS_MS[attempt];
+      if (!isGitIndexLockErrorMessage(message) || delayMs === undefined) {
+        throw error;
+      }
+      sleepSync(delayMs);
+    }
+  }
+}
+
 function runGitCommitOnlyPaths(
   projectDir: string,
   msgPath: string,
   paths: readonly string[],
 ): void {
-  execFileSync("git", ["commit", "-F", msgPath, "--only", "--", ...paths], {
-    cwd: projectDir,
-    env: withProtectedGitBareRepositoryEnv(),
-    stdio: "pipe",
+  withGitIndexLockRetry(() => {
+    execFileSync("git", ["commit", "-F", msgPath, "--only", "--", ...paths], {
+      cwd: projectDir,
+      env: withProtectedGitBareRepositoryEnv(),
+      stdio: "pipe",
+    });
   });
 }
 
@@ -196,16 +225,21 @@ export function commitWorkflowChanges(
   const pathsToStage = mutatedPaths.filter((p) => !alreadyStagedDeletions.has(p));
 
   if (pathsToStage.length > 0) {
-    execFileSync("git", ["add", "-A", "--", ...pathsToStage], {
-      cwd: projectDir,
-      env: withProtectedGitBareRepositoryEnv(),
-      stdio: "pipe",
+    withGitIndexLockRetry(() => {
+      execFileSync("git", ["add", "-A", "--", ...pathsToStage], {
+        cwd: projectDir,
+        env: withProtectedGitBareRepositoryEnv(),
+        stdio: "pipe",
+      });
     });
   }
 
   try {
     runGitCommitOnlyPaths(projectDir, msgPath, mutatedPaths);
   } catch (error) {
+    if (isGitIndexLockErrorMessage(describeError(error))) {
+      throw error;
+    }
     unstageAfterFailedCommit(projectDir, error);
     throw error;
   }

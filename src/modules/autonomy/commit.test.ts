@@ -1,4 +1,4 @@
-import { execFileSync, execSync } from "node:child_process";
+import { execFileSync, execSync, spawn } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -19,6 +19,15 @@ function initGitRepo(dir: string): void {
   writeFileSync(join(dir, "README.md"), "init\n");
   execSync("git add README.md", { cwd: dir });
   execSync('git commit -m "init"', { cwd: dir });
+}
+
+function removeFileSoon(path: string, delayMs: number): void {
+  const script = [
+    "const { rmSync } = require('node:fs');",
+    `setTimeout(() => rmSync(${JSON.stringify(path)}, { force: true }), ${delayMs});`,
+  ].join("");
+  const child = spawn(process.execPath, ["-e", script], { stdio: "ignore" });
+  child.unref();
 }
 
 function createNestedBareRepoWithHookConfig(dir: string): {
@@ -114,6 +123,23 @@ describe("commitWorkflowChanges", () => {
       encoding: "utf-8",
     }).trim();
     expect(result.sha).toBe(headSha);
+  });
+
+  it("retries staging when a transient Git index lock clears", () => {
+    writeFileSync(join(projectDir, "change.txt"), "hello\n");
+    writeFileSync(join(runDirPath, "commit-message.txt"), "Builder: my custom message");
+    const lockPath = join(projectDir, ".git", "index.lock");
+    writeFileSync(lockPath, "busy\n");
+    removeFileSoon(lockPath, 150);
+
+    const result = commitWorkflowChanges(projectDir, runDirPath);
+
+    expect(result.committed).toBe(true);
+    const tree = execSync("git show --name-only --format= HEAD", {
+      cwd: projectDir,
+      encoding: "utf-8",
+    }).trim();
+    expect(tree).toBe("change.txt");
   });
 
   it("requires commit-message.txt when there are working tree changes", () => {
@@ -296,6 +322,28 @@ describe("commitWorkflowChanges", () => {
     expect(result.message).toBe("Sort inbox: drop stale note");
     expect(result.sha).toMatch(/^[0-9a-f]{40}$/);
 
+    const tree = execSync("git show --name-status --format= HEAD", {
+      cwd: projectDir,
+      encoding: "utf-8",
+    }).trim();
+    expect(tree).toBe("D\tdata/inbox/note.md");
+  });
+
+  it("retries path-only commit when a transient Git index lock clears", () => {
+    const removed = join(projectDir, "data", "inbox", "note.md");
+    mkdirSync(join(projectDir, "data", "inbox"), { recursive: true });
+    writeFileSync(removed, "idea\n");
+    execSync("git add data/inbox/note.md", { cwd: projectDir });
+    execSync('git commit -q -m "add note"', { cwd: projectDir });
+    execSync("git rm data/inbox/note.md", { cwd: projectDir });
+    writeFileSync(join(runDirPath, "commit-message.txt"), "Sort inbox: drop stale note");
+    const lockPath = join(projectDir, ".git", "index.lock");
+    writeFileSync(lockPath, "busy\n");
+    removeFileSoon(lockPath, 150);
+
+    const result = commitWorkflowChanges(projectDir, runDirPath);
+
+    expect(result.committed).toBe(true);
     const tree = execSync("git show --name-status --format= HEAD", {
       cwd: projectDir,
       encoding: "utf-8",
