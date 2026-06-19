@@ -210,6 +210,10 @@ resources:
   - url: https://mubit.ai/
     added: "2026-06-16"
     notes: "Execution-memory product: records run outcomes, tool calls, verifiers, and traces, then feeds lessons plus prompt/tool updates into later runs. Monitor as a vendor signal for run-artifact learning and verifier-gated self-improvement; do not import managed memory or automatic prompt mutation without evaluator evidence."
+    snapshot:
+      fingerprint: sha256:324c4023673342795aa7e853454bfafd
+      summary: "Mubit is accessible; its execution-memory and self-updating-prompt pattern reinforces KOTA's existing run artifacts, verifier traces, trajectory diagnostics, and scoped AGENTS.md learning posture, so no new primitive or task is opened from this snapshot."
+      last_seen_at: "2026-06-19T13:36:13.092Z"
   - url: https://github.com/microsoft/autogen
     added: "2026-04-19"
     snapshot:
@@ -585,6 +589,10 @@ resources:
   - url: https://github.com/EuniAI/TerminalWorld
     added: "2026-05-29"
     notes: "TerminalWorld reverse-engineers terminal-agent eval tasks from public terminal recordings, then validates synthesized environments and state-based tests. Monitor as an eval-harness authoring signal for fixture-candidate mining from KOTA run artifacts, safety filtering, reproducibility checks, and no-op/partial verifier calibration; do not import the benchmark runner or scrape external recordings."
+    snapshot:
+      fingerprint: sha256:c2540f6c01a1984c811f27cff93c5b6d
+      summary: "TerminalWorld is accessible and still maps to KOTA's completed fixture-candidate mining work; no duplicate task is needed from this snapshot."
+      last_seen_at: "2026-06-19T13:36:13.092Z"
   - url: https://github.com/scaleapi/SWE-Atlas
     added: "2026-05-29"
     notes: "SWE Atlas evaluates coding agents on Codebase QnA, Test Writing, and Refactoring across professional repository tasks. Monitor as an eval-methodology signal for targeted test-writing, mutation-style test relevance checks, behavior-preserving refactors, and codebase-exploration diagnostics; do not import Harbor, Modal, or an LLM judge."
@@ -637,15 +645,35 @@ resources:
   - url: https://github.com/agent0ai/agent-zero
     added: "2026-06-19"
     notes: "Agent Zero is a direct peer workbench with a full Linux desktop, browser DOM annotation, plugin hub, project isolation, skills, MCP/A2A/custom tools, subagents, host connector, and time-travel workspace recovery. Monitor as a product/client signal for operator-visible agent workspaces and recoverable artifacts; map ideas to KOTA clients, modules, skills, workflows, and run artifacts rather than copying its all-in-one workbench."
+    snapshot:
+      fingerprint: sha256:d34e325e9d1a9405bcb374a8c7daa152
+      summary: "Agent Zero is accessible; it remains a product/workspace watch signal for operator-visible desktop/browser artifacts and recoverable project workspaces, with no new KOTA task beyond existing client, module, scope, and artifact primitives."
+      last_seen_at: "2026-06-19T13:36:13.092Z"
   - url: https://github.com/agent0ai/space-agent
     added: "2026-06-19"
     notes: "Space Agent is Agent Zero's browser-first workspace where the agent can reshape the running interface and uses a DOX AGENTS.md hierarchy. Monitor as a client/workspace and scoped-instruction signal for KOTA's shared client surfaces and AGENTS hierarchy; do not add a second docs system beside scoped AGENTS.md."
+    snapshot:
+      fingerprint: sha256:e2a262404c8e8a1c5697a4a050319ddf
+      summary: "Space Agent is accessible; it reinforces KOTA's existing scoped-instruction and recoverable client-surface direction, while runtime-authored UI remains watch-only until local evidence requires it."
+      last_seen_at: "2026-06-19T13:36:13.092Z"
   - url: https://github.com/rowboatlabs/rowboat
     added: "2026-06-19"
     notes: "Rowboat is a local-first AI coworker that turns email, meetings, and notes into an inspectable Markdown knowledge graph with background agents. Monitor as a knowledge/memory/client signal for editable operator-owned context and recurring brief generation; map to KOTA stores, clients, workflows, and channels rather than adding a parallel memory product."
+    snapshot:
+      fingerprint: sha256:2cac877f780e94a500c2d0fd4e0c7439
+      summary: "Rowboat is accessible; its editable Markdown knowledge-graph pattern reinforces KOTA's existing knowledge/memory/client direction without opening a duplicate memory-subsystem task."
+      last_seen_at: "2026-06-19T13:36:13.092Z"
   - url: https://github.com/lfnovo/open-notebook
     added: "2026-06-19"
     notes: "Open Notebook is a self-hosted, multi-model NotebookLM-style research surface with source ingestion, vector/full-text search, citations, content transformations, API access, and podcast generation. Monitor as a read-document/knowledge/rendering signal for source-backed research artifacts; do not import a notebook subsystem."
+    snapshot:
+      fingerprint: sha256:1844045ff72f61e56bd863d38309da7f
+      summary: "Open Notebook is accessible; it remains a source-backed research-artifact signal for existing read-document, knowledge, rendering, citation, and MCP modules, with no notebook-subsystem task opened."
+      last_seen_at: "2026-06-19T13:36:13.092Z"
   - url: https://developers.openai.com/api/docs/guides/secure-mcp-tunnels
     added: "2026-06-19"
     notes: "OpenAI Secure MCP Tunnel exposes private MCP servers to supported OpenAI products through an outbound tunnel-client while keeping the server inside the customer's network. Monitor as a private MCP connectivity signal for KOTA's mcp-server, mcp-registry, setup, and secret surfaces; this review opened task-add-private-mcp-tunnel-connector-support for the nonduplicative local gap."
+    snapshot:
+      fingerprint: sha256:a2b3812be5efa8b414190b67e20c6489
+      summary: "OpenAI Secure MCP Tunnel is accessible and still maps to completed task-add-private-mcp-tunnel-connector-support; no additional tunnel task is opened from this snapshot."
+      last_seen_at: "2026-06-19T13:36:13.092Z"
