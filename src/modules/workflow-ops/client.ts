@@ -23,6 +23,10 @@ import type {
 } from "#core/daemon/daemon-control.js";
 import type { EventSchemaReference } from "#core/events/event-bus.js";
 import type { EventJsonObject } from "#core/events/event-journal.js";
+import type {
+  AutomationExplainOptions,
+  AutomationExplainResult,
+} from "./graph/index.js";
 
 /** Filters accepted by `client.workflow.listRuns`. */
 export type WorkflowRunsListFilter = {
@@ -351,6 +355,7 @@ export interface WorkflowClient {
     name: string,
     options?: WorkflowTrialOptions,
   ): Promise<WorkflowTrialResult>;
+  explain(options?: AutomationExplainOptions): Promise<AutomationExplainResult>;
   enable(
     name: string,
   ): Promise<WorkflowEnableResult | WorkflowDaemonRequiredResult>;

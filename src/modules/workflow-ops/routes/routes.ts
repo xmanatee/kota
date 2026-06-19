@@ -3,7 +3,8 @@ import { getDaemonTransport } from "#core/server/daemon-transport.js";
 import { jsonResponse } from "#core/server/session-pool.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { getValidatedWorkflowDefinitions } from "../definitions-source.js";
-import { assembleWorkflowGraph } from "../graph/index.js";
+import { assembleCompiledAutomationGraph } from "../graph/index.js";
+import { handleWorkflowExplain } from "./explain.js";
 import {
   handleWorkflowAbort,
   handleWorkflowAbortRun,
@@ -39,8 +40,19 @@ export function workflowRoutes(ctx?: ModuleContext): RouteRegistration[] {
               summary.manifest ? [summary.manifest] : []
             )
           : [];
-        const graph = assembleWorkflowGraph(definitions, { moduleManifests });
+        const graph = assembleCompiledAutomationGraph(definitions, { moduleManifests });
         jsonResponse(res, 200, graph);
+      },
+    },
+    {
+      method: "POST",
+      path: "/api/workflow/explain",
+      handler: (req, res) => {
+        const definitions = ctx ? getValidatedWorkflowDefinitions(ctx, ctx.cwd) : [];
+        const moduleManifests = ctx
+          ? ctx.getModuleSummaries().map((summary) => summary.manifest)
+          : [];
+        return handleWorkflowExplain(req, res, { definitions, moduleManifests });
       },
     },
     {

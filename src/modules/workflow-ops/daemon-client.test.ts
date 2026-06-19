@@ -6,13 +6,13 @@
  * invariants the migration relies on:
  *
  *  1. The workflow-ops module exposes a `daemonClient(link)` factory and the
- *     factory contributes the `workflow` namespace with the fourteen contract
+ *     factory contributes the `workflow` namespace with the fifteen contract
  *     methods.
  *  2. Each method routes through the expected HTTP method + path with the
  *     expected query/body shape (byte-for-byte against the prior core stub).
  *  3. The success arm decodes correctly for each method.
  *  4. The throw-on-`null` arm fires with the byte-for-byte error string for
- *     each of the eleven methods that throw on transport failure.
+ *     each of the twelve methods that throw on transport failure.
  *  5. `listRuns` and `getRun` soft-fall through on `null` (returning `{ runs:
  *     [] }` and `{ found: false }` respectively).
  *  6. `triggerByName` forwards only the user-extension `payload` after
@@ -120,6 +120,7 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
     expect(typeof wf.listDefinitions).toBe("function");
     expect(typeof wf.triggerByName).toBe("function");
     expect(typeof wf.trial).toBe("function");
+    expect(typeof wf.explain).toBe("function");
   });
 
   it("listRuns routes through GET /workflow/runs with no filter", async () => {
@@ -692,6 +693,72 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
     const wf = workflowOpsModule.daemonClient!(transport).workflow!;
     await expect(wf.trial("wf-1", { projectId: "ghost" })).rejects.toThrow(
       "Unknown project: ghost",
+    );
+  });
+
+  it("explain routes through POST /workflow/explain with sample event options", async () => {
+    const explainResult = {
+      graph: {
+        workflows: [],
+        events: [],
+        agents: [],
+        automation: {
+          workflows: [],
+          events: [],
+          blockers: [],
+          downstream: [],
+        },
+      },
+      query: {
+        workflowName: "wf-1",
+        eventName: "inbound.signal.received",
+      },
+      outcome: "queued",
+      matches: [],
+      reasons: [],
+    };
+    const { transport, calls } = makeRecordingTransport({
+      respondFetch: () => jsonResponse(200, explainResult),
+    });
+    const wf = workflowOpsModule.daemonClient!(transport).workflow!;
+    const result = await wf.explain({
+      workflowName: "wf-1",
+      sampleEvent: {
+        event: "inbound.signal.received",
+        payload: {
+          scopeId: "scope-a",
+          projectId: "scope-a",
+          channel: "telegram",
+        },
+        eventId: "evt-1",
+      },
+    });
+
+    expect(result).toEqual(explainResult);
+    const call = calls[0] as { path: string; init: RequestInit };
+    expect(call.path).toBe("/workflow/explain");
+    expect(call.init.method).toBe("POST");
+    expect(JSON.parse(String(call.init.body))).toEqual({
+      workflow: "wf-1",
+      event: "inbound.signal.received",
+      payload: {
+        scopeId: "scope-a",
+        projectId: "scope-a",
+        channel: "telegram",
+      },
+      eventId: "evt-1",
+    });
+  });
+
+  it("explain throws byte-for-byte on transport failure", async () => {
+    const { transport } = makeRecordingTransport({
+      respondFetch: () => {
+        throw new TypeError("fetch failed");
+      },
+    });
+    const wf = workflowOpsModule.daemonClient!(transport).workflow!;
+    await expect(wf.explain({ eventName: "missing.event" })).rejects.toThrow(
+      "Daemon unreachable while explaining workflow automation",
     );
   });
 

@@ -46,6 +46,26 @@ function makeOutput(): { capture: NavigatorOutput; frames: string[]; nodes: Rend
   };
 }
 
+function emptyExplainResult() {
+  return {
+    graph: {
+      workflows: [],
+      events: [],
+      agents: [],
+      automation: {
+        workflows: [],
+        events: [],
+        blockers: [],
+        downstream: [],
+      },
+    },
+    query: {},
+    outcome: "unknown" as const,
+    matches: [],
+    reasons: [],
+  };
+}
+
 function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
   const stub = <T>(value: T) => vi.fn(async () => value);
   const base: KotaClient = {
@@ -65,6 +85,7 @@ function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
       reload: stub({ status: "applied", count: 0 }),
       triggerByName: stub({ ok: true, path: "queue", queued: "x" }),
       trial: stub({ ok: false, reason: "daemon_required", message: "stub" }),
+      explain: stub(emptyExplainResult()),
       enable: stub({ ok: true } as WorkflowEnableResult),
       disable: stub({ ok: true } as WorkflowEnableResult),
       cancelRun: stub({ ok: true }),

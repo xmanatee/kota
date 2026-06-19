@@ -306,6 +306,23 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
         reason: "daemon_required" as const,
         message: "stub",
       }),
+      explain: async () => ({
+        graph: {
+          workflows: [],
+          events: [],
+          agents: [],
+          automation: {
+            workflows: [],
+            events: [],
+            blockers: [],
+            downstream: [],
+          },
+        },
+        query: {},
+        outcome: "unknown" as const,
+        matches: [],
+        reasons: [],
+      }),
     },
   };
 }

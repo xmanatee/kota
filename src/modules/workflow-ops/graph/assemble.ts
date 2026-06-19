@@ -11,7 +11,6 @@ import type {
 } from "#core/modules/module-manifest.js";
 import type { WorkflowStepInput } from "#core/workflow/step-input-types.js";
 import type { WorkflowTriggerInput } from "#core/workflow/trigger-types.js";
-import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import type {
   EventNode,
   StepSummary,
@@ -22,6 +21,16 @@ import type {
 
 export type AssembleWorkflowGraphOptions = {
   moduleManifests?: readonly ModuleCapabilityManifestProjection[];
+};
+
+type WorkflowGraphDefinition = {
+  name: string;
+  description?: string;
+  enabled?: boolean;
+  tags?: readonly string[];
+  concurrencyGroup?: string;
+  triggers: readonly WorkflowTriggerInput[];
+  steps: readonly WorkflowStepInput[];
 };
 
 type ManifestToolEffect = {
@@ -135,14 +144,14 @@ function summarizeStep(
   return base;
 }
 
-function collectEmittedEvents(steps: WorkflowStepInput[]): {
+function collectEmittedEvents(steps: readonly WorkflowStepInput[]): {
   emits: string[];
   directTriggers: string[];
 } {
   const emits = new Set<string>();
   const directTriggers = new Set<string>();
 
-  function walk(items: WorkflowStepInput[]): void {
+  function walk(items: readonly WorkflowStepInput[]): void {
     for (const step of items) {
       if (step.type === "emit") {
         emits.add(step.event);
@@ -160,10 +169,10 @@ function collectEmittedEvents(steps: WorkflowStepInput[]): {
   return { emits: [...emits], directTriggers: [...directTriggers] };
 }
 
-function collectAgents(steps: WorkflowStepInput[]): string[] {
+function collectAgents(steps: readonly WorkflowStepInput[]): string[] {
   const agents = new Set<string>();
 
-  function walk(items: WorkflowStepInput[]): void {
+  function walk(items: readonly WorkflowStepInput[]): void {
     for (const step of items) {
       if (step.type === "agent" && step.agentName) {
         agents.add(step.agentName);
@@ -181,7 +190,7 @@ function collectAgents(steps: WorkflowStepInput[]): string[] {
 }
 
 function buildWorkflowNode(
-  def: RegisteredWorkflowDefinitionInput,
+  def: WorkflowGraphDefinition,
   toolEffects: ReadonlyMap<string, ManifestToolEffect>,
 ): WorkflowNode {
   const triggers = def.triggers.map(summarizeTrigger);
@@ -247,7 +256,7 @@ function buildEventNodes(workflows: WorkflowNode[]): EventNode[] {
 }
 
 export function assembleWorkflowGraph(
-  definitions: readonly RegisteredWorkflowDefinitionInput[],
+  definitions: readonly WorkflowGraphDefinition[],
   options: AssembleWorkflowGraphOptions = {},
 ): WorkflowGraph {
   const toolEffects = buildToolEffectLookup(options.moduleManifests ?? []);

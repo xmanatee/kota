@@ -129,6 +129,7 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
     expect(await handler.cancelRun("run-1")).toEqual({ ok: false, reason: "daemon_required" });
     expect(await handler.abortRun("run-1")).toEqual({ ok: false, reason: "daemon_required" });
     expect(typeof handler.trial).toBe("function");
+    expect(typeof handler.explain).toBe("function");
   });
 
   it("getRun returns artifact metadata projected onto the redacted WorkflowRunDetail", async () => {
@@ -293,6 +294,61 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
       replayOf: "2026-04-25T20-00-00-000Z-builder-aaa111",
       tags: ["smoke"],
     });
+  });
+
+  it("explain resolves compiled automation locally from contributed workflows", async () => {
+    const definition = {
+      name: "client-channel-match",
+      enabled: true,
+      definitionPath: "ignored",
+      moduleRoot: projectDir,
+      triggers: [
+        {
+          event: "inbound.signal.received",
+          filter: { channel: "telegram" },
+          cooldownMs: 0,
+        },
+      ],
+      steps: [
+        {
+          id: "matched",
+          type: "emit",
+          event: "opportunity.matched",
+        },
+      ],
+    } as unknown as RegisteredWorkflowDefinitionInput;
+    const handler = buildHandler(projectDir, {
+      config: { defaultAgentHarness: "thin" } as ModuleContext["config"],
+      resolveAgentDef: vi.fn(),
+      getContributedWorkflows: () => [definition],
+      getModuleSummaries: () => [],
+    } as unknown as Partial<ModuleContext>);
+
+    const result = await handler.explain({
+      sampleEvent: {
+        event: "inbound.signal.received",
+        payload: {
+          scopeId: "scope-a",
+          projectId: "scope-a",
+          channel: "telegram",
+        },
+      },
+    });
+
+    expect(result.outcome).toBe("queued");
+    expect(result.matches[0]).toMatchObject({
+      workflow: "client-channel-match",
+      triggerEvent: "inbound.signal.received",
+    });
+    expect(result.matches[0].downstream).toEqual([
+      {
+        fromWorkflow: "client-channel-match",
+        kind: "event",
+        target: "opportunity.matched",
+        consumers: [],
+        stepId: "matched",
+      },
+    ]);
   });
 
   it("triggerByName surfaces already_queued when a run is already pending", async () => {

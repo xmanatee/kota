@@ -40,6 +40,7 @@ import { buildTriggerHttpPayload, type WorkflowClient } from "./client.js";
 import { registerDefinitionLogCommand } from "./definitions/definition-log.js";
 import { registerDefinitionsCommand } from "./definitions/definitions.js";
 import { registerDepsCommand } from "./definitions/deps.js";
+import { registerExplainCommand } from "./definitions/explain.js";
 import { registerValidateCommand } from "./definitions/validate.js";
 import { getValidatedWorkflowDefinitions } from "./definitions-source.js";
 import { registerControlCommands } from "./execution/control.js";
@@ -54,6 +55,8 @@ import {
 } from "./execution/trial.js";
 import { registerTriggerCommands } from "./execution/trigger.js";
 import { registerTriggersCommand } from "./execution/triggers.js";
+import { explainAutomation } from "./graph/index.js";
+import { workflowExplainControlRoutes } from "./routes/explain.js";
 import { workflowRoutes } from "./routes/routes.js";
 import { registerFollowCommand } from "./runs/follow.js";
 import { registerLogsCommand } from "./runs/logs.js";
@@ -86,6 +89,7 @@ export function buildWorkflowCommand(ctx: ModuleContext): Command {
   registerRunDiffCommand(wfCmd);
   registerDefinitionsCommand(wfCmd, ctx);
   registerDepsCommand(wfCmd, ctx);
+  registerExplainCommand(wfCmd, ctx);
   registerDefinitionLogCommand(wfCmd, ctx);
   registerCostCommand(wfCmd, ctx);
   registerLogsCommand(wfCmd);
@@ -110,7 +114,10 @@ const workflowModule: KotaModule = {
   dependencies: ["rendering"],
   commands: (ctx) => [buildWorkflowCommand(ctx)],
   routes: (ctx) => workflowRoutes(ctx),
-  controlRoutes: (ctx) => workflowTrialControlRoutes(ctx),
+  controlRoutes: (ctx) => [
+    ...workflowTrialControlRoutes(ctx),
+    ...workflowExplainControlRoutes(ctx),
+  ],
   localClient: (ctx) => {
     const handler: WorkflowClient = {
       async listRuns(filter) {
@@ -375,6 +382,16 @@ const workflowModule: KotaModule = {
       async trial(name, options) {
         return runLocalWorkflowTrial(ctx, name, options);
       },
+      async explain(options) {
+        const definitions = getValidatedWorkflowDefinitions(ctx);
+        const moduleManifests = ctx
+          .getModuleSummaries()
+          .flatMap((summary) => summary.manifest ? [summary.manifest] : []);
+        return explainAutomation(definitions, {
+          moduleManifests,
+          ...(options ?? {}),
+        });
+      },
     };
     return { workflow: handler };
   },
@@ -383,7 +400,7 @@ const workflowModule: KotaModule = {
 
 /**
  * Daemon-side `WorkflowClient` backed by the typed `DaemonTransport`. Routes
- * the fourteen `workflow` namespace methods through the daemon HTTP control
+ * the fifteen `workflow` namespace methods through the daemon HTTP control
  * routes.
  *
  * Wire contract per method (preserved byte-for-byte from the prior core stub):
@@ -425,6 +442,8 @@ const workflowModule: KotaModule = {
  *  - `trial(name, options)` → `POST /workflow/trial` with body
  *    `{ name, ...options }`. Transport failure returns the daemon_required arm
  *    so the CLI can use the local isolated-project runner.
+ *  - `explain(options)` → `POST /workflow/explain` with workflow/event/sample
+ *    body fields. Throws on transport failure.
  */
 export function buildWorkflowDaemonHandler(
   link: DaemonTransport,
@@ -725,6 +744,29 @@ export function buildWorkflowDaemonHandler(
         return { ok: false, reason, message };
       }
       return (await resp.json()) as Awaited<ReturnType<WorkflowClient["trial"]>>;
+    },
+    explain: async (options) => {
+      const sample = options?.sampleEvent;
+      const body = {
+        ...(options?.workflowName ? { workflow: options.workflowName } : {}),
+        ...(sample
+          ? {
+              event: sample.event,
+              payload: sample.payload,
+              ...(sample.eventId ? { eventId: sample.eventId } : {}),
+            }
+          : options?.eventName
+            ? { event: options.eventName }
+            : {}),
+      };
+      const resp = await fetchJson("POST", "/workflow/explain", body);
+      if (!resp) {
+        throw new Error("Daemon unreachable while explaining workflow automation");
+      }
+      if (!resp.ok && resp.status !== 422) {
+        throw new Error("Daemon unreachable while explaining workflow automation");
+      }
+      return (await resp.json()) as Awaited<ReturnType<WorkflowClient["explain"]>>;
     },
   };
 }

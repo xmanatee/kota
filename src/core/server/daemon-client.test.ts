@@ -396,6 +396,23 @@ function makeStubWorkflow(): DaemonClientHandlers["workflow"] {
     listDefinitions: async () => ({ source: "daemon", definitions: [] }),
     triggerByName: async () => ({ ok: true, path: "daemon", queued: "x" }),
     trial: async () => ({ ok: false, reason: "daemon_required", message: "stub" }),
+    explain: async () => ({
+      graph: {
+        workflows: [],
+        events: [],
+        agents: [],
+        automation: {
+          workflows: [],
+          events: [],
+          blockers: [],
+          downstream: [],
+        },
+      },
+      query: {},
+      outcome: "unknown",
+      matches: [],
+      reasons: [],
+    }),
   };
 }
 
