@@ -2,8 +2,8 @@
 
 Owns KOTA's autonomous development loop.
 
-- Keep the autonomous workflows and their helpers inside this module; do
-  not recreate a parallel workflow catalog in core.
+- Keep autonomous workflows and helpers here; do not recreate a parallel
+  workflow catalog in core.
 - Durable autonomous learning belongs in scoped `AGENTS.md` at the
   narrowest useful directory. Evidence lives in run artifacts and git
   history; no second lessons store or injected summaries.
@@ -30,8 +30,7 @@ artifacts or `data/watchlist.yaml`.
 - **Product work proves the operator journey.** For `task_class: Product`
   or owner-facing client/operator tasks, critic/reviewer judgment must inspect
   rendered evidence (CLI transcript, screenshot, runtime probe, or equivalent)
-  that shows the actual human path improved. Passing implementation tests is
-  necessary but not sufficient.
+  of the improved human path. Tests alone are insufficient.
 - **Critic input stays artifact-only.** Diff + repo state + run
   artifacts (+ optional runtime probe). No thinking traces or
   self-reports.
@@ -45,21 +44,21 @@ artifacts or `data/watchlist.yaml`.
   payload.
 - **Session state reconstructible from append-only logs.** Write through
   to run artifacts or the event bus.
-- **Eval fixtures come from real failures.** Seed `eval-harness` from
-  `.kota/runs/`, not synthetic.
+- **Eval fixtures resist contamination.** After OpenAI retired SWE-bench
+  Verified, keep SWE-bench/Pro reference-only; seed `eval-harness` from local
+  failures or justified smoke cases with non-vacuous predicates.
 
 ## Live-Run Evaluator Calibration
 
 Fixture `pass^k` catches generator drift; per-run artifacts catch
-evaluator drift. Pass-contradiction requires later overlap with final
+evaluator drift. Pass-contradiction needs later overlap with final
 failure (`verdict==="fail"` or failed terminal status);
-`criticFailureCount>0` alone is diagnostic evidence. Mechanical repair
-is iteration noise. PWW escalation needs later overlap with final
-hedging/failing verdict. Artifacts record critic prompt hash; prompt
-edits reset the window. Drift creates/recreates/promotes
+`criticFailureCount>0` alone is diagnostic. Mechanical repair
+is iteration noise. PWW escalation needs later final hedging/failing
+overlap. Prompt-hash changes reset the window. Drift creates/recreates/promotes
 `task-evaluator-calibration-drift-repair` in `ready/`; regression
 bridges to attention digest. Recreate noops when the prior repair
-commit is newer than the latest calibration artifact: the daemon has not
+commit is newer than the latest calibration artifact: daemon has not
 loaded post-fix dist. Critic blocks weak rendered evidence
 (preflight-only), placeholder tests, untracked compat shims, baseline
 ratchets (hedged "if inadvertent"), required-source dishonesty,

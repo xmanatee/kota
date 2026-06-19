@@ -1,13 +1,13 @@
 ---
 id: task-read-openai-swe-bench-verified-retirement-post-whe
 title: Read OpenAI SWE-bench Verified retirement post when fetchable
-status: ready
+status: done
 priority: p3
 area: research
 summary: Read OpenAI's SWE-bench Verified retirement post and record a KOTA decision once the rendered-browser source-access enabler is complete
 depends_on: [task-enable-autonomous-access-to-auth-walled-sources-so]
 created_at: 2026-04-20T20:18:43.712Z
-updated_at: 2026-06-19T13:04:59.935Z
+updated_at: 2026-06-19T13:09:32.094Z
 ---
 
 ## Problem
@@ -111,3 +111,28 @@ of `blocked/`; the typed dependency edge is the scheduler-visible wait. The
 required live `rendered_article_read` evidence is still absent, so this task
 remains dependency-waiting in `backlog/` and no eval-harness decision note is
 recorded from this repair run.
+
+## Status (2026-06-19 rendered read)
+
+The source-access blocker is resolved for this article. Current run artifact
+`.kota/runs/2026-06-19T13-05-34-081Z-builder-d8ilhd/source-access/source-access-report.json`
+records `rendered_article_read` success against
+`https://openai.com/index/why-we-no-longer-evaluate-swe-bench-verified/`
+with Playwright available and the configured browser storage-state file
+present.
+
+Disposition: adopted as a concise autonomy eval decision in
+`src/modules/autonomy/AGENTS.md`. The post's KOTA-relevant signal is that
+public coding benchmarks can stop measuring frontier capability when benchmark
+content leaks into model training and automated tests reject correct or
+underspecified solutions. KOTA therefore keeps SWE-bench / SWE-bench Pro as
+methodology references, not gates, and relies on local real-failure or
+justified-smoke fixtures with pre-run sanity, artifact predicates, and runtime
+probes where needed.
+
+No new follow-up task is needed from this read: the concrete local scoring gap
+surfaced by this article was already covered by
+`task-add-pre-run-predicate-sanity-checks-to-eval-harnes`, and the remaining
+fixture-provenance / runtime-evidence rules are already documented in
+`src/modules/eval-harness/AGENTS.md` and
+`src/modules/autonomy/workflows/builder/AGENTS.md`.
