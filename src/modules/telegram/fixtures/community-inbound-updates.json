@@ -1,0 +1,92 @@
+{
+  "description": "Redacted Telegram sports-community update batch for inbound signal adapter tests.",
+  "routeShape": {
+    "id": "telegram-sports-community-batch",
+    "provider": "telegram",
+    "sourceId": "telegram:chat:-7001",
+    "batch": {
+      "mode": "workflow-trigger",
+      "maxItems": 25,
+      "idleMs": 300000,
+      "groupBy": ["sourceId"]
+    }
+  },
+  "updates": [
+    {
+      "update_id": 1001,
+      "message": {
+        "message_id": 501,
+        "from": { "id": 201, "first_name": "Alex", "username": "redacted_alex" },
+        "chat": { "id": -7001, "type": "supergroup", "title": "West London Padel" },
+        "text": "!sport Padel tonight 19:00 at Court 4. Two players needed.",
+        "date": 1770000100
+      }
+    },
+    {
+      "update_id": 1002,
+      "message": {
+        "message_id": 502,
+        "from": { "id": 202, "first_name": "Nina", "username": "redacted_nina" },
+        "chat": { "id": -7001, "type": "supergroup", "title": "West London Padel" },
+        "caption": "!sport Badminton doubles Sunday 10:30. Looking for one sub.",
+        "photo": [
+          {
+            "file_id": "redacted-photo-file-id",
+            "file_unique_id": "redacted-photo-unique-id",
+            "width": 640,
+            "height": 480
+          }
+        ],
+        "date": 1770000200
+      }
+    },
+    {
+      "update_id": 1003,
+      "edited_message": {
+        "message_id": 503,
+        "from": { "id": 203, "first_name": "Sam", "username": "redacted_sam" },
+        "chat": { "id": -7001, "type": "supergroup", "title": "West London Padel" },
+        "text": "!sport Tennis moved to 18:30. Indoor court confirmed.",
+        "date": 1770000300,
+        "edit_date": 1770000360
+      }
+    },
+    {
+      "update_id": 1004,
+      "message_reaction": {
+        "chat": { "id": -7001, "type": "supergroup", "title": "West London Padel" },
+        "message_id": 501,
+        "user": { "id": 204, "first_name": "Priya", "username": "redacted_priya" },
+        "date": 1770000400,
+        "old_reaction": [],
+        "new_reaction": [{ "type": "emoji", "emoji": "👍" }]
+      }
+    },
+    {
+      "update_id": 1005,
+      "chat_member": {
+        "chat": { "id": -7001, "type": "supergroup", "title": "West London Padel" },
+        "from": { "id": 205, "first_name": "Morgan", "username": "redacted_morgan" },
+        "date": 1770000500,
+        "old_chat_member": {
+          "user": { "id": 206, "first_name": "Taylor", "username": "redacted_taylor" },
+          "status": "left"
+        },
+        "new_chat_member": {
+          "user": { "id": 206, "first_name": "Taylor", "username": "redacted_taylor" },
+          "status": "member"
+        }
+      }
+    },
+    {
+      "update_id": 1006,
+      "message": {
+        "message_id": 901,
+        "from": { "id": 301, "first_name": "Blocked", "username": "redacted_blocked" },
+        "chat": { "id": -9001, "type": "supergroup", "title": "Archived Tennis Leads" },
+        "text": "!sport Tennis spam from archived group.",
+        "date": 1770000600
+      }
+    }
+  ]
+}

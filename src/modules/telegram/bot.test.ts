@@ -11,7 +11,12 @@ import {
   initProviderRegistry,
   resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
-import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
+import {
+  type InboundSignalReceivedPayload,
+  type InboundSignalRoutedPayload,
+  inboundSignalReceived,
+} from "#modules/inbound-signals/events.js";
+import { dispatchInboundSignalRoute } from "#modules/inbound-signals/routing.js";
 import {
   TRANSCRIPTION_PROVIDER_TYPE,
   type TranscriptionProvider,
@@ -23,6 +28,7 @@ import {
   type TelegramBotOptions,
   TelegramTransport,
 } from "./bot.js";
+import { TELEGRAM_SIGNAL_ALLOWED_UPDATES } from "./inbound-signal.js";
 import { resetTelegramPollingOwnersForTests } from "./polling-ownership.js";
 import type { TelegramProjectSelection } from "./project-selection.js";
 
@@ -1133,6 +1139,283 @@ describe("TelegramBot", () => {
         }),
       }),
     );
+    const getUpdatesCall = fetchMock.mock.calls.find((call) =>
+      String(call[0]).endsWith("/getUpdates")
+    );
+    expect(JSON.parse((getUpdatesCall?.[1] as { body: string }).body)).toMatchObject({
+      allowed_updates: [...TELEGRAM_SIGNAL_ALLOWED_UPDATES],
+    });
+    expect(agentSendMock).not.toHaveBeenCalled();
+  });
+
+  it("emits blocked and archived text/caption updates outside allowed chats through the polling path", async () => {
+    agentSendMock.mockClear();
+    const routed: InboundSignalRoutedPayload[] = [];
+    const routePromises: Promise<InboundSignalRoutedPayload>[] = [];
+    const triggerWorkflow = vi.fn(async () => ({
+      ok: true as const,
+      path: "queue" as const,
+      queued: "telegram-signal-probe",
+      runId: "run-telegram-signal-probe",
+    }));
+    const events = {
+      emit: vi.fn((event: unknown, payload: InboundSignalReceivedPayload) => {
+        if (event !== inboundSignalReceived) return;
+        routePromises.push(
+          dispatchInboundSignalRoute({
+            config: {
+              routes: [
+                {
+                  id: "telegram-blocked-group",
+                  provider: "telegram",
+                  channel: "telegram.message",
+                  actorTrust: "blocked",
+                  sourceStatus: "blocked",
+                  targets: [{ kind: "workflow", name: "telegram-signal-probe" }],
+                },
+                {
+                  id: "telegram-archived-group",
+                  provider: "telegram",
+                  channel: "telegram.media_caption",
+                  sourceId: "telegram:chat:100",
+                  sourceStatus: "archived",
+                  targets: [{ kind: "workflow", name: "telegram-signal-probe" }],
+                },
+              ],
+            },
+            signal: payload,
+            context: {
+              workflowNames: new Set(["telegram-signal-probe"]),
+              agentNames: new Set(),
+            },
+            deps: {
+              triggerWorkflow,
+              emitRouted(payload) {
+                routed.push(payload);
+              },
+            },
+          }),
+        );
+      }),
+    };
+    const bot = new TelegramBot(
+      botOptions({
+        allowedChatIds: [9],
+        inboundSignals: {
+          config: {
+            prefixes: ["!task"],
+            blockedChatIds: [99],
+            trustedChatIds: [100],
+          },
+          events,
+        },
+      }),
+    );
+    let delivered = false;
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/getMe")) {
+        return {
+          json: () => Promise.resolve({ ok: true, result: { id: 1, first_name: "Bot" } }),
+        };
+      }
+      if (url.endsWith("/getUpdates")) {
+        if (!delivered) {
+          delivered = true;
+          return {
+            json: () =>
+              Promise.resolve({
+                ok: true,
+                result: [
+                  {
+                    update_id: 20,
+                    message: {
+                      message_id: 30,
+                      from: { id: 7, first_name: "Blocked", username: "blocked" },
+                      chat: { id: 99, type: "group", title: "Blocked group" },
+                      text: "!task blocked source audit",
+                      date: 1770000100,
+                    },
+                  },
+                  {
+                    update_id: 21,
+                    message: {
+                      message_id: 31,
+                      from: { id: 8, first_name: "Archived", username: "archived" },
+                      chat: { id: 100, type: "group", title: "Archived group" },
+                      caption: "!task archived caption audit",
+                      photo: [
+                        {
+                          file_id: "redacted-photo-file-id",
+                          file_unique_id: "redacted-photo-unique-id",
+                          width: 640,
+                          height: 480,
+                        },
+                      ],
+                      date: 1770000110,
+                    },
+                  },
+                ],
+              }),
+          };
+        }
+        return {
+          json: () =>
+            new Promise((resolve) =>
+              setTimeout(() => {
+                bot.stop();
+                resolve({ ok: true, result: [] });
+              }, 100),
+            ),
+        };
+      }
+      return { json: () => Promise.resolve({ ok: true, result: true }) };
+    });
+
+    const startPromise = bot.start();
+
+    const deadline = Date.now() + 2_000;
+    while (Date.now() < deadline && events.emit.mock.calls.length < 2) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+
+    await startPromise;
+    await Promise.all(routePromises);
+
+    const emittedPayloads = events.emit.mock.calls.map(
+      (call) => call[1] as InboundSignalReceivedPayload,
+    );
+    expect(emittedPayloads).toHaveLength(2);
+    expect(emittedPayloads[0]).toMatchObject({
+      channel: "telegram.message",
+      sourceId: "telegram:chat:99",
+      actor: { trust: "blocked" },
+      body: { kind: "message", text: "blocked source audit" },
+    });
+    expect(emittedPayloads[1]).toMatchObject({
+      channel: "telegram.media_caption",
+      sourceId: "telegram:chat:100",
+      actor: { trust: "trusted" },
+      body: { kind: "message", text: "archived caption audit" },
+    });
+    expect(routed.map((entry) => entry.decision)).toEqual(["blocked", "archived"]);
+    expect(routed.map((entry) => entry.sourceStatus)).toEqual(["blocked", "archived"]);
+    expect(triggerWorkflow).not.toHaveBeenCalled();
+    expect(agentSendMock).not.toHaveBeenCalled();
+  });
+
+  it("emits non-text Telegram updates as inbound signals without entering chat sessions", async () => {
+    agentSendMock.mockClear();
+    const events = { emit: vi.fn() };
+    const bot = new TelegramBot(
+      botOptions({
+        allowedChatIds: [9],
+        inboundSignals: {
+          config: { prefixes: ["!task"], trustedChatIds: [9] },
+          events,
+        },
+      }),
+    );
+    let delivered = false;
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/getMe")) {
+        return {
+          json: () => Promise.resolve({ ok: true, result: { id: 1, first_name: "Bot" } }),
+        };
+      }
+      if (url.endsWith("/getUpdates")) {
+        if (!delivered) {
+          delivered = true;
+          return {
+            json: () =>
+              Promise.resolve({
+                ok: true,
+                result: [
+                  {
+                    update_id: 10,
+                    edited_message: {
+                      message_id: 20,
+                      from: { id: 7, first_name: "Op", username: "op" },
+                      chat: { id: 9, type: "private", first_name: "Op" },
+                      text: "!task edited event",
+                      date: 1770000000,
+                      edit_date: 1770000060,
+                    },
+                  },
+                  {
+                    update_id: 11,
+                    message_reaction: {
+                      chat: { id: 9, type: "private", first_name: "Op" },
+                      message_id: 20,
+                      user: { id: 8, first_name: "Peer", username: "peer" },
+                      date: 1770000070,
+                      old_reaction: [],
+                      new_reaction: [{ type: "emoji", emoji: "👍" }],
+                    },
+                  },
+                  {
+                    update_id: 12,
+                    chat_member: {
+                      chat: { id: 9, type: "private", first_name: "Op" },
+                      from: { id: 7, first_name: "Op", username: "op" },
+                      date: 1770000080,
+                      old_chat_member: {
+                        user: { id: 8, first_name: "Peer", username: "peer" },
+                        status: "left",
+                      },
+                      new_chat_member: {
+                        user: { id: 8, first_name: "Peer", username: "peer" },
+                        status: "member",
+                      },
+                    },
+                  },
+                  {
+                    update_id: 13,
+                    callback_query: {
+                      id: "callback-13",
+                      from: { id: 7, first_name: "Op", username: "op" },
+                      message: {
+                        message_id: 21,
+                        from: { id: 1, first_name: "Bot" },
+                        chat: { id: 9, type: "private", first_name: "Op" },
+                        text: "Choose a court",
+                        date: 1770000090,
+                      },
+                      data: "court:4",
+                    },
+                  },
+                ],
+              }),
+          };
+        }
+        return {
+          json: () =>
+            new Promise((resolve) =>
+              setTimeout(() => {
+                bot.stop();
+                resolve({ ok: true, result: [] });
+              }, 100),
+            ),
+        };
+      }
+      return { json: () => Promise.resolve({ ok: true, result: true }) };
+    });
+
+    const startPromise = bot.start();
+
+    const deadline = Date.now() + 2_000;
+    while (Date.now() < deadline && events.emit.mock.calls.length < 4) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+
+    await startPromise;
+
+    expect(events.emit).toHaveBeenCalledTimes(4);
+    expect(events.emit.mock.calls.map((call) => call[1].channel)).toEqual([
+      "telegram.edited_message",
+      "telegram.message_reaction",
+      "telegram.chat_member",
+      "telegram.callback",
+    ]);
     expect(agentSendMock).not.toHaveBeenCalled();
   });
 });
@@ -1267,6 +1550,61 @@ describe("TelegramBot voice messages", () => {
     expect(failureNotice.text).toContain("isn't configured");
 
     await startPromise;
+  });
+
+  it("emits blocked voice transcripts outside allowed chats through the polling path", async () => {
+    agentSendMock.mockClear();
+    const registry = initProviderRegistry();
+    const provider: TranscriptionProvider = {
+      name: "stub",
+      async transcribe() {
+        return { text: "!task blocked voice audit" };
+      },
+    };
+    registry.register(TRANSCRIPTION_PROVIDER_TYPE, provider.name, provider);
+
+    const events = { emit: vi.fn() };
+    const bot = new TelegramBot(
+      botOptions({
+        allowedChatIds: [9],
+        inboundSignals: {
+          config: { prefixes: ["!task"], blockedChatIds: [42] },
+          events,
+        },
+      }),
+    );
+
+    const startPromise = startBotAndQueueUpdate(bot, {
+      update_id: 3,
+      message: {
+        message_id: 12,
+        chat: { id: 42, type: "private", first_name: "Alice" },
+        date: 0,
+        voice: { file_id: "v3", duration: 2, mime_type: "audio/ogg" },
+      },
+    });
+
+    const deadline = Date.now() + 2_000;
+    while (Date.now() < deadline && events.emit.mock.calls.length === 0) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+
+    await startPromise;
+
+    expect(events.emit).toHaveBeenCalledWith(
+      inboundSignalReceived,
+      expect.objectContaining({
+        channel: "telegram.voice_transcript",
+        sourceId: "telegram:chat:42",
+        actor: expect.objectContaining({ trust: "blocked" }),
+        body: expect.objectContaining({
+          kind: "message",
+          text: "blocked voice audit",
+        }),
+      }),
+    );
+    expect(collectSendMessageBodies()).toEqual([]);
+    expect(agentSendMock).not.toHaveBeenCalled();
   });
 });
 

@@ -53,7 +53,10 @@ import {
   type TelegramVoice,
 } from "./client.js";
 import {
-  emitTelegramTextInboundSignal,
+  emitTelegramMessageInboundSignal,
+  emitTelegramUpdateInboundSignal,
+  emitTelegramVoiceTranscriptInboundSignal,
+  TELEGRAM_SIGNAL_ALLOWED_UPDATES,
   type TelegramInboundSignalConfig,
 } from "./inbound-signal.js";
 import {
@@ -322,7 +325,7 @@ export class TelegramBot {
     const updates = await callTelegramApi<TelegramUpdate[]>(this.token, "getUpdates", {
       offset: this.offset,
       timeout: POLL_TIMEOUT_S,
-      allowed_updates: ["message", "callback_query"],
+      allowed_updates: [...TELEGRAM_SIGNAL_ALLOWED_UPDATES],
     }, {
       signal: controller.signal,
     }).finally(() => {
@@ -333,19 +336,34 @@ export class TelegramBot {
 
     for (const update of updates) {
       this.offset = update.update_id + 1;
-      if (update.callback_query && this.options.onCallbackQuery) {
-        void this.options.onCallbackQuery(update.callback_query).catch((err) => {
-          printTerminalDiagnostic(
-            "[kota-telegram] Callback handler error:",
-            "error",
-            (err as Error).message,
-          );
-        });
+      if (update.callback_query) {
+        let handled = false;
+        if (this.options.onCallbackQuery) {
+          try {
+            handled = await this.options.onCallbackQuery(update.callback_query);
+          } catch (err) {
+            printTerminalDiagnostic(
+              "[kota-telegram] Callback handler error:",
+              "error",
+              (err as Error).message,
+            );
+          }
+        }
+        if (!handled) await this.emitInboundSignalUpdate(update);
+        continue;
+      }
+      if (
+        update.edited_message ||
+        update.message_reaction ||
+        update.my_chat_member ||
+        update.chat_member
+      ) {
+        await this.emitInboundSignalUpdate(update);
         continue;
       }
       const message = update.message;
       if (!message) continue;
-      const text = message.text;
+      const text = message.text ?? message.caption;
       if (text !== undefined) {
         const chatId = message.chat.id;
         const firstName = message.chat.first_name;
@@ -383,15 +401,31 @@ export class TelegramBot {
     }
   }
 
+  private isInteractiveChatAllowed(chatId: number): boolean {
+    return !(
+      this.options.allowedChatIds?.length &&
+      !this.options.allowedChatIds.includes(chatId)
+    );
+  }
+
+  private sendUnauthorizedChatMessage(chatId: number): void {
+    this.sendText(chatId, "Sorry, I'm not authorized to chat with you.");
+  }
+
   private async handleVoiceMessage(message: TelegramMessage): Promise<void> {
     const chatId = message.chat.id;
-    if (this.options.allowedChatIds?.length && !this.options.allowedChatIds.includes(chatId)) {
-      this.sendText(chatId, "Sorry, I'm not authorized to chat with you.");
+    const interactiveAllowed = this.isInteractiveChatAllowed(chatId);
+    if (!interactiveAllowed && !this.options.inboundSignals) {
+      this.sendUnauthorizedChatMessage(chatId);
       return;
     }
     const resolved = await this.resolveProjectTarget(chatId);
     if (!resolved.ok) {
-      this.sendText(chatId, resolved.message);
+      if (interactiveAllowed) {
+        this.sendText(chatId, resolved.message);
+      } else {
+        this.sendUnauthorizedChatMessage(chatId);
+      }
       return;
     }
 
@@ -405,10 +439,14 @@ export class TelegramBot {
     try {
       download = await downloadTelegramFile(this.token, media.file_id);
     } catch (err) {
-      this.sendText(
-        chatId,
-        `Couldn't download your voice message: ${(err as Error).message}`,
-      );
+      if (interactiveAllowed) {
+        this.sendText(
+          chatId,
+          `Couldn't download your voice message: ${(err as Error).message}`,
+        );
+      } else {
+        this.sendUnauthorizedChatMessage(chatId);
+      }
       return;
     }
 
@@ -422,22 +460,43 @@ export class TelegramBot {
       transcript = result.text.trim();
     } catch (err) {
       if (err instanceof TranscriptionProviderUnavailableError) {
-        this.sendText(
-          chatId,
-          "Voice transcription isn't configured on this KOTA deployment. Please send your message as text.",
-        );
+        if (interactiveAllowed) {
+          this.sendText(
+            chatId,
+            "Voice transcription isn't configured on this KOTA deployment. Please send your message as text.",
+          );
+        } else {
+          this.sendUnauthorizedChatMessage(chatId);
+        }
         return;
       }
-      this.sendText(chatId, `Voice transcription failed: ${(err as Error).message}`);
+      if (interactiveAllowed) {
+        this.sendText(chatId, `Voice transcription failed: ${(err as Error).message}`);
+      } else {
+        this.sendUnauthorizedChatMessage(chatId);
+      }
       return;
     }
 
     if (!transcript) {
-      this.sendText(chatId, "I couldn't hear anything in that voice message. Please try again.");
+      if (interactiveAllowed) {
+        this.sendText(chatId, "I couldn't hear anything in that voice message. Please try again.");
+      } else {
+        this.sendUnauthorizedChatMessage(chatId);
+      }
       return;
     }
 
-    this.sendText(chatId, `\u{1F3A4} Transcribed: ${transcript}`);
+    if (interactiveAllowed) {
+      this.sendText(chatId, `\u{1F3A4} Transcribed: ${transcript}`);
+    }
+    if (this.emitVoiceTranscriptInboundSignal(resolved.target, message, transcript)) {
+      return;
+    }
+    if (!interactiveAllowed) {
+      this.sendUnauthorizedChatMessage(chatId);
+      return;
+    }
     await this.handleMessage(chatId, transcript, message.chat.first_name, resolved.target);
   }
 
@@ -448,12 +507,13 @@ export class TelegramBot {
     resolvedTarget?: TelegramProjectTarget,
     sourceMessage?: TelegramMessage,
   ): Promise<void> {
-    if (this.options.allowedChatIds?.length && !this.options.allowedChatIds.includes(chatId)) {
-      this.sendText(chatId, "Sorry, I'm not authorized to chat with you.");
-      return;
-    }
+    const interactiveAllowed = this.isInteractiveChatAllowed(chatId);
 
     if (text === "/project" || text.startsWith("/project ")) {
+      if (!interactiveAllowed) {
+        this.sendUnauthorizedChatMessage(chatId);
+        return;
+      }
       try {
         await this.handleProjectCommand(chatId, text);
       } catch (err) {
@@ -464,6 +524,11 @@ export class TelegramBot {
         );
         this.sendText(chatId, "Project selection failed.");
       }
+      return;
+    }
+
+    if (!interactiveAllowed && (!this.options.inboundSignals || !sourceMessage)) {
+      this.sendUnauthorizedChatMessage(chatId);
       return;
     }
 
@@ -478,11 +543,19 @@ export class TelegramBot {
         "error",
         (err as Error).message,
       );
-      this.sendText(chatId, "Project selection failed.");
+      if (interactiveAllowed) {
+        this.sendText(chatId, "Project selection failed.");
+      } else {
+        this.sendUnauthorizedChatMessage(chatId);
+      }
       return;
     }
 
     if (text === "/start") {
+      if (!interactiveAllowed) {
+        this.sendUnauthorizedChatMessage(chatId);
+        return;
+      }
       if (!resolved.ok) {
         this.sendText(chatId, resolved.message);
         return;
@@ -496,6 +569,10 @@ export class TelegramBot {
     }
 
     if (text === "/clear") {
+      if (!interactiveAllowed) {
+        this.sendUnauthorizedChatMessage(chatId);
+        return;
+      }
       if (!resolved.ok) {
         this.sendText(chatId, resolved.message);
         return;
@@ -510,6 +587,10 @@ export class TelegramBot {
     }
 
     if (text === "/status") {
+      if (!interactiveAllowed) {
+        this.sendUnauthorizedChatMessage(chatId);
+        return;
+      }
       if (!resolved.ok) {
         this.sendText(chatId, resolved.message);
         return;
@@ -530,10 +611,18 @@ export class TelegramBot {
     }
 
     if (!resolved.ok) {
-      this.sendText(chatId, resolved.message);
+      if (interactiveAllowed) {
+        this.sendText(chatId, resolved.message);
+      } else {
+        this.sendUnauthorizedChatMessage(chatId);
+      }
       return;
     }
     if (this.emitInboundSignal(resolved.target, sourceMessage)) return;
+    if (!interactiveAllowed) {
+      this.sendUnauthorizedChatMessage(chatId);
+      return;
+    }
     // Skip bot commands we don't handle after configured automation prefixes
     // have had a chance to claim them.
     if (text.startsWith("/")) return;
@@ -554,22 +643,73 @@ export class TelegramBot {
     sourceMessage: TelegramMessage | undefined,
   ): boolean {
     const inboundSignals = this.options.inboundSignals;
-    if (!inboundSignals || !sourceMessage?.text) return false;
-    const result = emitTelegramTextInboundSignal(
+    if (!inboundSignals || !sourceMessage) return false;
+    const result = emitTelegramMessageInboundSignal(
       inboundSignals.events,
       sourceMessage,
-      {
-        projectId: target.projectId,
-        receivedAt: new Date().toISOString(),
-        config: inboundSignals.config,
-        allowedChatIds: this.options.allowedChatIds,
-      },
+      this.inboundSignalContext(target, inboundSignals.config),
     );
     if (result.emitted) return result.consumed;
     if ("error" in result) {
       throw new Error(`Telegram inbound signal is invalid: ${result.error}`);
     }
     return false;
+  }
+
+  private emitVoiceTranscriptInboundSignal(
+    target: TelegramProjectTarget,
+    sourceMessage: TelegramMessage,
+    transcript: string,
+  ): boolean {
+    const inboundSignals = this.options.inboundSignals;
+    if (!inboundSignals) return false;
+    const result = emitTelegramVoiceTranscriptInboundSignal(
+      inboundSignals.events,
+      sourceMessage,
+      transcript,
+      this.inboundSignalContext(target, inboundSignals.config),
+    );
+    if (result.emitted) return result.consumed;
+    if ("error" in result) {
+      throw new Error(`Telegram inbound signal is invalid: ${result.error}`);
+    }
+    return false;
+  }
+
+  private async emitInboundSignalUpdate(update: TelegramUpdate): Promise<boolean> {
+    const inboundSignals = this.options.inboundSignals;
+    if (!inboundSignals) return false;
+    const chatId = telegramUpdateChatId(update);
+    if (chatId === null) return false;
+    const resolved = await this.resolveProjectTarget(chatId);
+    if (!resolved.ok) return false;
+    const result = emitTelegramUpdateInboundSignal(
+      inboundSignals.events,
+      update,
+      this.inboundSignalContext(resolved.target, inboundSignals.config),
+    );
+    if (result.emitted) return result.consumed;
+    if ("error" in result) {
+      throw new Error(`Telegram inbound signal is invalid: ${result.error}`);
+    }
+    return false;
+  }
+
+  private inboundSignalContext(
+    target: TelegramProjectTarget,
+    config: TelegramInboundSignalConfig,
+  ): {
+    projectId: string;
+    receivedAt: string;
+    config: TelegramInboundSignalConfig;
+    allowedChatIds?: readonly number[];
+  } {
+    return {
+      projectId: target.projectId,
+      receivedAt: new Date().toISOString(),
+      config,
+      allowedChatIds: this.options.allowedChatIds,
+    };
   }
 
   private async processMessage(
@@ -744,4 +884,14 @@ export class TelegramBot {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+function telegramUpdateChatId(update: TelegramUpdate): number | null {
+  if (update.message) return update.message.chat.id;
+  if (update.edited_message) return update.edited_message.chat.id;
+  if (update.callback_query?.message) return update.callback_query.message.chat.id;
+  if (update.message_reaction) return update.message_reaction.chat.id;
+  if (update.my_chat_member) return update.my_chat_member.chat.id;
+  if (update.chat_member) return update.chat_member.chat.id;
+  return null;
 }

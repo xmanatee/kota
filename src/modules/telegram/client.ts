@@ -10,7 +10,39 @@ export const ERROR_BACKOFF_MS = 5000;
 
 export type TelegramUser = { id: number; first_name: string; username?: string };
 
-export type TelegramChat = { id: number; first_name?: string; username?: string; type: string };
+export type TelegramChat = {
+  id: number;
+  first_name?: string;
+  username?: string;
+  title?: string;
+  type: string;
+};
+
+export type TelegramPhotoSize = {
+  file_id: string;
+  file_unique_id?: string;
+  width: number;
+  height: number;
+  file_size?: number;
+};
+
+export type TelegramDocument = {
+  file_id: string;
+  file_unique_id?: string;
+  file_name?: string;
+  mime_type?: string;
+  file_size?: number;
+};
+
+export type TelegramVideo = {
+  file_id: string;
+  file_unique_id?: string;
+  mime_type?: string;
+  duration?: number;
+  width?: number;
+  height?: number;
+  file_size?: number;
+};
 
 export type TelegramVoice = {
   file_id: string;
@@ -39,9 +71,15 @@ export type TelegramMessage = {
   from?: TelegramUser;
   chat: TelegramChat;
   text?: string;
+  caption?: string;
   voice?: TelegramVoice;
   audio?: TelegramAudio;
+  photo?: readonly TelegramPhotoSize[];
+  document?: TelegramDocument;
+  video?: TelegramVideo;
+  animation?: TelegramVideo;
   date: number;
+  edit_date?: number;
   reply_to_message?: TelegramMessage;
 };
 
@@ -52,10 +90,43 @@ export type TelegramCallbackQuery = {
   data?: string;
 };
 
+export type TelegramReactionType = {
+  type: string;
+  emoji?: string;
+  custom_emoji_id?: string;
+};
+
+export type TelegramMessageReactionUpdated = {
+  chat: TelegramChat;
+  message_id: number;
+  user?: TelegramUser;
+  actor_chat?: TelegramChat;
+  date: number;
+  old_reaction: readonly TelegramReactionType[];
+  new_reaction: readonly TelegramReactionType[];
+};
+
+export type TelegramChatMember = {
+  user: TelegramUser;
+  status: string;
+};
+
+export type TelegramChatMemberUpdated = {
+  chat: TelegramChat;
+  from: TelegramUser;
+  date: number;
+  old_chat_member: TelegramChatMember;
+  new_chat_member: TelegramChatMember;
+};
+
 export type TelegramUpdate = {
   update_id: number;
   message?: TelegramMessage;
+  edited_message?: TelegramMessage;
   callback_query?: TelegramCallbackQuery;
+  message_reaction?: TelegramMessageReactionUpdated;
+  my_chat_member?: TelegramChatMemberUpdated;
+  chat_member?: TelegramChatMemberUpdated;
 };
 
 type TelegramApiResponse<T> = {

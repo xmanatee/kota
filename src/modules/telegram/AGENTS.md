@@ -66,10 +66,15 @@ notification forwarding.
   before reaching the session loop. The bot never calls a transcription
   vendor API directly; absence of a registered provider surfaces as an
   explicit failure, not a silent drop.
-- Prefix-configured text updates emit `inbound.signal.received` with project
-  scope, Telegram source metadata, and chat trust. The shared inbound-signals
-  dispatcher decides source eligibility and workflow routing; Telegram does not
-  decide whether a signal becomes a task, answer, owner question, or no-op.
+- Prefix-configured Telegram updates emit `inbound.signal.received` with
+  project scope, Telegram source metadata, and chat trust. Supported update
+  kinds include text, media captions, transcribed voice/audio, edited messages,
+  reactions, generic callbacks, and chat membership/status updates. True
+  online presence and message deletion signals are not exposed to bots, so the
+  adapter records them as unavailable rather than synthesizing events. The
+  shared inbound-signals dispatcher decides source eligibility and workflow
+  routing; Telegram does not decide whether a signal becomes a task, answer,
+  owner question, or no-op.
 - The interactive channel does not own the scheduler. The daemon owns
   it; the channel subscribes to `schedule.fire` bus events and
   broadcasts reminders to active chat sessions.
