@@ -1,12 +1,12 @@
 ---
 id: task-fold-duplicated-recall-rendering-helpers
 title: Fold duplicated recall rendering helpers
-status: backlog
+status: ready
 priority: p2
 area: client
 summary: Fold duplicated recall hit description and score rendering across web, mobile, Apple, and module-owned plain-text surfaces into one durable client-safe contract.
 created_at: 2026-06-18T17:08:06.305Z
-updated_at: 2026-06-18T17:12:06.300Z
+updated_at: 2026-06-19T06:15:53.549Z
 task_class: Product
 ---
 
