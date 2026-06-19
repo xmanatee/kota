@@ -9,7 +9,6 @@ import {
   autonomyHealthSignal,
 } from "#modules/autonomy/health-signal.js";
 import {
-  onNormalTrigger,
   onRecoveryTrigger,
   resetWorktreeForRecovery,
 } from "#modules/autonomy/recovery.js";
@@ -25,11 +24,21 @@ import {
   applyAutonomyHealthReviewActions,
   buildAutonomyHealthAttentionDigest,
   buildAutonomyHealthReview,
+  buildAutonomyHealthReviewFromSignals,
   writeAutonomyHealthReviewArtifact,
 } from "./health-review.js";
+import {
+  collectRuntimeHealthAudit,
+  type RuntimeHealthAudit,
+  writeRuntimeHealthAuditArtifact,
+} from "./runtime-health-audit.js";
 
 type WorktreeInspection = {
   dirty: boolean;
+};
+
+type AuditOutput = {
+  audit: RuntimeHealthAudit;
 };
 
 type ReviewOutput = {
@@ -43,7 +52,6 @@ type ActionOutput = {
 const inspectWorktree = typedCodeStep<WorktreeInspection>({
   id: "inspect-worktree",
   type: "code",
-  when: onNormalTrigger,
   validate: (raw) => expectStructuredOutput<WorktreeInspection>(raw, ["dirty"]),
   run: ({ projectDir }) => {
     const worktree = getRepoWorktreeStatus(projectDir);
@@ -51,17 +59,47 @@ const inspectWorktree = typedCodeStep<WorktreeInspection>({
   },
 });
 
+function isRuntimeAuditTrigger(event: string): boolean {
+  return event === "schedule" || event === "runtime.recovered";
+}
+
+const buildRuntimeAudit = typedCodeStep<AuditOutput>({
+  id: "build-runtime-audit",
+  type: "code",
+  when: (ctx) => isRuntimeAuditTrigger(ctx.trigger.event),
+  validate: (raw) => expectStructuredOutput<AuditOutput>(raw, ["audit"]),
+  run: ({ projectDir }) => ({
+    audit: collectRuntimeHealthAudit({ projectDir }),
+  }),
+});
+
 const buildReview = typedCodeStep<ReviewOutput>({
   id: "build-review",
   type: "code",
-  when: onNormalTrigger,
+  when: (ctx) =>
+    !isRuntimeAuditTrigger(ctx.trigger.event) ||
+    buildRuntimeAudit.output(ctx) !== undefined,
   validate: (raw) => expectStructuredOutput<ReviewOutput>(raw, ["review"]),
-  run: (ctx) => ({
-    review: buildAutonomyHealthReview({
-      triggerPayload: ctx.trigger.payload as AutonomyHealthJsonObject,
-      generatedAt: new Date().toISOString(),
-    }),
-  }),
+  run: (ctx) => {
+    const generatedAt = new Date().toISOString();
+    const runtimeAudit = buildRuntimeAudit.output(ctx);
+    if (runtimeAudit) {
+      return {
+        review: buildAutonomyHealthReviewFromSignals({
+          signals: runtimeAudit.audit.signals,
+          generatedAt,
+          sourceEventName: "autonomy.runtime-health.audit",
+          reason: ctx.trigger.event,
+        }),
+      };
+    }
+    return {
+      review: buildAutonomyHealthReview({
+        triggerPayload: ctx.trigger.payload as AutonomyHealthJsonObject,
+        generatedAt,
+      }),
+    };
+  },
 });
 
 const applyActions = typedCodeStep<ActionOutput>({
@@ -107,6 +145,22 @@ const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
       review,
       actions,
     });
+    return { written: true, path };
+  },
+});
+
+const writeRuntimeAuditArtifact = typedCodeStep<{ written: boolean; path: string }>({
+  id: "write-runtime-audit-artifact",
+  type: "code",
+  when: (ctx) => buildRuntimeAudit.output(ctx) !== undefined,
+  validate: (raw) =>
+    expectStructuredOutput<{ written: boolean; path: string }>(raw, [
+      "written",
+      "path",
+    ]),
+  run: (ctx) => {
+    const audit = buildRuntimeAudit.outputRequired(ctx).audit;
+    const path = writeRuntimeHealthAuditArtifact(ctx.workflow.runDirPath, audit);
     return { written: true, path };
   },
 });
@@ -174,9 +228,14 @@ const commitChanges = typedCodeStep<{ committed: boolean }>({
 const autonomyHealthReviewerWorkflow: WorkflowDefinitionInput = {
   name: "autonomy-health-reviewer",
   description:
-    "Batch typed autonomy health signals into deduped review artifacts, repair tasks, owner questions, and attention items.",
+    "Batch typed autonomy health signals and persisted runtime evidence into deduped review artifacts, repair tasks, owner questions, and attention items.",
   recoveryCapable: true,
   triggers: [
+    {
+      event: "autonomy.runtime-health.audit.scheduled",
+      intervalMs: 6 * 60 * 60 * 1000,
+      cooldownMs: 60 * 60 * 1000,
+    },
     {
       event: autonomyHealthSignal.name,
       filter: { severity: "critical" },
@@ -208,16 +267,18 @@ const autonomyHealthReviewerWorkflow: WorkflowDefinitionInput = {
         }),
     },
     inspectWorktree,
+    buildRuntimeAudit,
     buildReview,
     applyActions,
     writeArtifact,
+    writeRuntimeAuditArtifact,
     writeCommitMessage,
     validateBeforeCommit,
     commitChanges,
     {
       id: "emit-attention",
       type: "emit",
-      when: (ctx) => writeArtifact.output(ctx)?.written === true,
+      when: (ctx) => (buildReview.output(ctx)?.review.groups.length ?? 0) > 0,
       event: "workflow.attention.digest",
       payload: (ctx) =>
         buildAutonomyHealthAttentionDigest({

@@ -88,6 +88,7 @@ const autonomyModule: KotaModule = {
     "workflow-ops",
     "repo-tasks",
     "rendering",
+    "daemon-ops",
     "github-webhook",
     "github",
     "inbound-signals",

@@ -52,7 +52,9 @@ function countItems(items: OperatorInboxItem[]): Record<OperatorInboxKind, numbe
   return counts;
 }
 
-function runtimeItems(status: StatusSnapshot): OperatorInboxItem[] {
+export function buildOperatorRuntimeInboxItems(
+  status: StatusSnapshot,
+): OperatorInboxItem[] {
   const items: OperatorInboxItem[] = [];
   if (!status.daemonRunning) {
     items.push({
@@ -209,7 +211,7 @@ export async function buildOperatorInboxSnapshot(args: {
     .map(failedRunItem);
 
   const items = [
-    ...runtimeItems(status),
+    ...buildOperatorRuntimeInboxItems(status),
     ...approvals.approvals.slice(0, limit).map(approvalItem),
     ...questions.questions.slice(0, limit).map(ownerQuestionItem),
     ...blocked,

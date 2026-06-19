@@ -302,6 +302,32 @@ export function buildAutonomyHealthReview(args: {
   };
 }
 
+export function buildAutonomyHealthReviewFromSignals(args: {
+  signals: readonly AutonomyHealthSignal[];
+  generatedAt: string;
+  sourceEventName: string;
+  reason: string;
+}): AutonomyHealthReview {
+  const labels = args.signals.flatMap((signal) => signal.labels);
+  return {
+    generatedAt: args.generatedAt,
+    trigger: {
+      kind: "batch",
+      sourceEventName: args.sourceEventName,
+      count: args.signals.length,
+      reason: args.reason,
+    },
+    scope: {},
+    signals: [...args.signals],
+    groups: groupSignals(args.signals),
+    counts: {
+      bySeverity: countBy(args.signals.map((signal) => signal.severity)),
+      byActionability: countBy(args.signals.map((signal) => signal.actionability)),
+      byLabel: countBy(labels),
+    },
+  };
+}
+
 function slugFromDedupeKey(dedupeKey: string): string {
   return dedupeKey
     .toLowerCase()

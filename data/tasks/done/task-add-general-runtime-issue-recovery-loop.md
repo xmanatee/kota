@@ -1,12 +1,12 @@
 ---
 id: task-add-general-runtime-issue-recovery-loop
 title: Add general runtime issue recovery loop
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Add a bounded runtime health auditor that consolidates logs, DLQ, interrupted runs, shutdown failures, and operator-visible runtime warnings into one evidenced repair or owner-action path.
 created_at: 2026-06-16T00:18:54.552Z
-updated_at: 2026-06-18T23:18:26.595Z
+updated_at: 2026-06-19T00:50:29.000Z
 task_class: Platform
 ---
 
@@ -97,12 +97,9 @@ Runtime health and autonomous recovery.
 
 ## Acceptance Evidence
 
-- Fixture or focused test for Telegram `getUpdates` conflict logs creates one
-  duplicate-consumer/operator-action outcome, not repeated repair churn.
-- Fixture or focused test for stale open DLQ items creates one consolidated
-  repair task with exact item evidence.
-- Fixture or focused test for repeated interrupted runs creates one
-  root-cause-oriented repair task or covered-pattern record.
-- Fixture or focused test for noisy external provider failures proves they do
-  not create local-code repair churn.
-- Validation transcript shows the new audit path and task queue checks pass.
+- `pnpm exec vitest run src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit.test.ts src/modules/autonomy/workflows/autonomy-health-reviewer/health-review.test.ts src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.test.ts` passed: 3 files, 11 tests, including daemon stop-attempt evidence and status-derived operator runtime warnings.
+- `pnpm exec vitest run src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit.test.ts src/modules/autonomy/workflows/autonomy-health-reviewer/health-review.test.ts src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.test.ts src/modules/daemon-ops/operator-inbox.test.ts src/modules/daemon-ops/daemon-ops-daemon-client.test.ts` passed: 5 files, 27 tests.
+- `pnpm exec vitest run src/workflow-validation.integration.test.ts src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit.test.ts src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.test.ts` passed: 3 files, 90 tests.
+- `pnpm exec vitest run src/core/modules/module-deps.test.ts` passed: 1 file, 2 tests.
+- `pnpm exec tsc --noEmit --pretty false` passed.
+- `git add -A` and `pnpm run validate-tasks` passed with the real staged task move/source edits.

@@ -22,8 +22,9 @@
  *  5. `pid()` throws on `null` or missing `status.pid` with a message
  *     containing `"Daemon unreachable"`.
  *  6. `stop({ timeoutSec: 30 })` routes through `link.request("GET",
- *     "/status")`, reads the daemon pid, and reports not-running/stale states
- *     through the shared stop result contract.
+ *     "/status")`, reads the daemon pid, fetches identity for project-scoped
+ *     failure evidence when a pid is available, and reports
+ *     not-running/stale states through the shared stop result contract.
  *  7. `reload()` routes through `link.request("POST", "/reload")` and
  *     decodes the success arm correctly, including the session guardrails
  *     refresh summary.
@@ -37,11 +38,15 @@
  *     error.
  */
 
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { DaemonLiveStatus } from "#core/daemon/daemon-control.js";
 import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
 import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
+import { DAEMON_STOP_ATTEMPTS_RELATIVE_PATH } from "./daemon-ops-operations.js";
 import daemonOpsModule from "./index.js";
 
 type RecordedRequest = {
@@ -187,7 +192,52 @@ describe("daemon-ops module daemonClient(link) — daemonOps namespace", () => {
       reason: "stale",
       pid: deadPid,
     });
-    expect(calls).toHaveLength(1);
+    expect(calls.map((call) => `${call.method} ${call.path}`)).toEqual([
+      "GET /status",
+      "GET /identity",
+    ]);
+  });
+
+  it("stop() records daemon-side failed stop evidence when identity exposes the project directory", async () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "kota-daemon-stop-evidence-"));
+    try {
+      const deadPid = Number.MAX_SAFE_INTEGER;
+      const { transport } = makeRecordingTransport((method, path) => {
+        if (method === "GET" && path === "/status") {
+          return { ...SAMPLE_DAEMON_STATUS, pid: deadPid };
+        }
+        if (method === "GET" && path === "/identity") {
+          return {
+            projectName: "repo",
+            projectDir,
+            projects: { scopes: [], defaultScopeId: null },
+            daemonVersion: "0.1.0",
+            pid: deadPid,
+            startedAt: SAMPLE_DAEMON_STATUS.startedAt,
+            dashboard: { available: false, reason: "not_contributed" },
+          };
+        }
+        return null;
+      });
+      const contributed = daemonOpsModule.daemonClient!(transport);
+
+      await expect(contributed.daemonOps!.stop({ timeoutSec: 1 })).resolves.toEqual({
+        ok: false,
+        reason: "stale",
+        pid: deadPid,
+      });
+
+      const evidencePath = join(projectDir, DAEMON_STOP_ATTEMPTS_RELATIVE_PATH);
+      expect(existsSync(evidencePath)).toBe(true);
+      const record = JSON.parse(readFileSync(evidencePath, "utf-8").trim()) as {
+        timeoutSec: number;
+        result: unknown;
+      };
+      expect(record.timeoutSec).toBe(1);
+      expect(record.result).toEqual({ ok: false, reason: "stale", pid: deadPid });
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
   });
 
   it("routes reload() through POST /reload and shapes the success arm", async () => {

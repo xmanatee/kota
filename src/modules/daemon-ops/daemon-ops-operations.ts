@@ -7,7 +7,8 @@
  * detect "not running" vs "stale control file" states without re-doing
  * that filesystem logic in the CLI handler.
  */
-import { join } from "node:path";
+import { appendFileSync, mkdirSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { resolveProjectDir } from "#core/config/project-dir.js";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control.js";
 import {
@@ -32,6 +33,37 @@ import { isServiceInstalled } from "./service-install.js";
 type DaemonOpsProjectOptions = {
   projectDir?: string;
 };
+
+export const DAEMON_STOP_ATTEMPTS_RELATIVE_PATH = join(
+  ".kota",
+  "daemon-ops",
+  "stop-attempts.jsonl",
+);
+
+export type DaemonStopAttemptRecord = {
+  kind: "daemon-stop-attempt";
+  attemptedAt: string;
+  timeoutSec: number;
+  result: DaemonOpsStopResult;
+};
+
+export function recordDaemonStopAttempt(args: {
+  projectDir: string;
+  timeoutSec: number;
+  result: DaemonOpsStopResult;
+  attemptedAt?: string;
+}): string {
+  const path = join(args.projectDir, DAEMON_STOP_ATTEMPTS_RELATIVE_PATH);
+  mkdirSync(dirname(path), { recursive: true });
+  const record: DaemonStopAttemptRecord = {
+    kind: "daemon-stop-attempt",
+    attemptedAt: args.attemptedAt ?? new Date().toISOString(),
+    timeoutSec: args.timeoutSec,
+    result: args.result,
+  };
+  appendFileSync(path, `${JSON.stringify(record)}\n`, "utf-8");
+  return path;
+}
 
 function readControlAddress(options: DaemonOpsProjectOptions = {}): DaemonControlAddress | null {
   return readOptionalJsonFile<DaemonControlAddress>(
@@ -80,9 +112,17 @@ export async function stopDaemonPid(
 export async function localDaemonStop(
   options?: { timeoutSec?: number; projectDir?: string },
 ): Promise<DaemonOpsStopResult> {
-  const address = readControlAddress(options);
-  if (!address || typeof address.pid !== "number") return { ok: false, reason: "not_running" };
-  return stopDaemonPid(address.pid, options?.timeoutSec);
+  const projectDir = resolveProjectDir(options?.projectDir);
+  const timeoutSec = options?.timeoutSec ?? 90;
+  const address = readControlAddress({ projectDir });
+  const result =
+    !address || typeof address.pid !== "number"
+      ? { ok: false, reason: "not_running" } as const
+      : await stopDaemonPid(address.pid, timeoutSec);
+  if (!result.ok && result.reason !== "not_running") {
+    recordDaemonStopAttempt({ projectDir, timeoutSec, result });
+  }
+  return result;
 }
 
 export function localDaemonReload(options: DaemonOpsProjectOptions = {}): DaemonOpsReloadResult {

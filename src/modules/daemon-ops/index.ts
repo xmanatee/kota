@@ -2,6 +2,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
 import { resolveProjectDir } from "#core/config/project-dir.js";
+import type { ClientIdentity } from "#core/daemon/client-identity.js";
 import { Daemon, RESTART_EXIT_CODE } from "#core/daemon/daemon.js";
 import type { DaemonLiveStatus, InteractiveSession } from "#core/daemon/daemon-control.js";
 import type {
@@ -55,6 +56,7 @@ import {
   localDaemonReload,
   localDaemonStatus,
   localDaemonStop,
+  recordDaemonStopAttempt,
   stopDaemonPid,
 } from "./daemon-ops-operations.js";
 import { DaemonDashboard } from "./dashboard.js";
@@ -1208,7 +1210,17 @@ function buildDaemonOpsDaemonHandler(link: DaemonTransport): DaemonOpsClient {
       if (!status || typeof status.pid !== "number") {
         return { ok: false, reason: "not_running" };
       }
-      return stopDaemonPid(status.pid, options?.timeoutSec);
+      const identity = await link.request<ClientIdentity>("GET", "/identity");
+      const timeoutSec = options?.timeoutSec ?? 90;
+      const result = await stopDaemonPid(status.pid, timeoutSec);
+      if (!result.ok && result.reason !== "not_running" && identity?.projectDir) {
+        recordDaemonStopAttempt({
+          projectDir: identity.projectDir,
+          timeoutSec,
+          result,
+        });
+      }
+      return result;
     },
     reload: async () => {
       const result = await link.request<{
