@@ -2,6 +2,8 @@ import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { localWriteEffect } from "#core/tools/effect.js";
+import type { ToolRunnerContext } from "#core/tools/index.js";
+import { resolvePathFrom } from "#core/tools/project-path-policy.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 
 export const sqliteTool: KotaTool = {
@@ -209,11 +211,13 @@ function queryExec(database: string, sql: string): ToolResult {
 
 export async function runSqlite(
 	input: Record<string, unknown>,
+	context?: ToolRunnerContext,
 ): Promise<ToolResult> {
-	const database = input.database as string;
+	const rawDatabase = input.database as string;
 	const action = input.action as string;
 
-	if (!database) return err("database path is required");
+	if (!rawDatabase) return err("database path is required");
+	const database = resolvePathFrom(context?.cwd ?? process.cwd(), rawDatabase);
 
 	// Validate action-specific params before I/O
 	if (action === "query" && !input.sql) return err("sql is required for query action");

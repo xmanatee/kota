@@ -1,5 +1,6 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { runDelegate } from "#core/tools/delegate.js";
+import type { ToolRunnerContext } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 
 export const batchTool: KotaTool = {
@@ -70,6 +71,7 @@ function truncate(text: string, limit: number): string {
 
 export async function runBatch(
 	input: Record<string, unknown>,
+	context?: ToolRunnerContext,
 ): Promise<ToolResult> {
 	const tasks = input.tasks as string[];
 	const mode = (input.mode as string) || "explore";
@@ -105,7 +107,7 @@ export async function runBatch(
 		maxConcurrent,
 		async (task): Promise<BatchItemResult> => {
 			try {
-				const r = await runDelegate({ task, mode });
+				const r = await runDelegate({ task, mode }, context);
 				return {
 					task,
 					status: r.is_error ? "error" : "success",

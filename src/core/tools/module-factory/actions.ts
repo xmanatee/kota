@@ -27,6 +27,7 @@ import {
 
 export function handleCreate(
 	rawManifest: Record<string, unknown> | undefined,
+	cwd?: string,
 ): ToolResult {
 	if (!rawManifest) {
 		return {
@@ -84,7 +85,7 @@ export function handleCreate(
 
 	// Persist to disk
 	try {
-		saveManifest(manifest);
+		saveManifest(manifest, cwd);
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : String(err);
 		addLoadedModule(manifest.name);
@@ -108,8 +109,8 @@ export function handleCreate(
 
 // ─── List ────────────────────────────────────────────────────────────
 
-export function handleList(): ToolResult {
-	const saved = listManifestModules();
+export function handleList(cwd?: string): ToolResult {
+	const saved = listManifestModules(cwd);
 
 	if (saved.length === 0 && loadedModuleCount() === 0) {
 		return {
@@ -145,7 +146,7 @@ export function handleList(): ToolResult {
 
 // ─── Remove ──────────────────────────────────────────────────────────
 
-export function handleRemove(name: string | undefined): ToolResult {
+export function handleRemove(name: string | undefined, cwd?: string): ToolResult {
 	if (!name) {
 		return {
 			content: "Error: name is required for remove action",
@@ -154,7 +155,7 @@ export function handleRemove(name: string | undefined): ToolResult {
 	}
 
 	const wasLoaded = isModuleLoaded(name);
-	const wasOnDisk = deleteManifest(name);
+	const wasOnDisk = deleteManifest(name, cwd);
 
 	if (!wasLoaded && !wasOnDisk) {
 		return {
@@ -175,7 +176,7 @@ export function handleRemove(name: string | undefined): ToolResult {
 
 // ─── Info ────────────────────────────────────────────────────────────
 
-export function handleInfo(name: string | undefined): ToolResult {
+export function handleInfo(name: string | undefined, cwd?: string): ToolResult {
 	if (!name) {
 		return {
 			content: "Error: name is required for info action",
@@ -183,7 +184,7 @@ export function handleInfo(name: string | undefined): ToolResult {
 		};
 	}
 
-	const manifest = loadManifest(name);
+	const manifest = loadManifest(name, cwd);
 	if (!manifest) {
 		if (isModuleLoaded(name)) {
 			return {

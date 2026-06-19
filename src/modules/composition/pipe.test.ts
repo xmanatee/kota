@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { runPipe } from "./pipe.js";
 
+const mockState = vi.hoisted(() => ({
+	calls: [] as Array<{
+		name: string;
+		input: Record<string, unknown>;
+		context: unknown;
+	}>,
+}));
+
 vi.mock("#core/tools/index.js", () => {
 	const runners: Record<string, (input: Record<string, unknown>) => Promise<{ content: string; is_error?: boolean }>> = {
 		echo: async (input) => ({ content: String(input.text ?? "") }),
@@ -11,7 +19,8 @@ vi.mock("#core/tools/index.js", () => {
 		json_out: async () => ({ content: JSON.stringify({ name: "alice", score: 42 }) }),
 	};
 	return {
-		executeTool: async (name: string, input: Record<string, unknown>) => {
+		executeTool: async (name: string, input: Record<string, unknown>, context?: unknown) => {
+			mockState.calls.push({ name, input, context });
 			const runner = runners[name];
 			if (!runner) return { content: `Unknown tool: ${name}`, is_error: true };
 			return runner(input);
@@ -27,7 +36,9 @@ vi.mock("#core/manifest/index.js", async () => {
 	};
 });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+	mockState.calls.length = 0;
+});
 
 describe("pipe tool", () => {
 	describe("validation", () => {
@@ -71,6 +82,26 @@ describe("pipe tool", () => {
 				],
 			});
 			expect(r.content).toBe("HELLO WORLD");
+		});
+
+		it("passes runner context to each nested tool", async () => {
+			const context = {
+				cwd: "/tmp/project-b",
+				scopeId: "project-b",
+				projectId: "project-b",
+				sessionId: "session-b",
+			};
+
+			const r = await runPipe({
+				steps: [
+					{ tool: "echo", input: { text: "hello" } },
+					{ tool: "upper", input: { text: "$prev" } },
+				],
+			}, context);
+
+			expect(r.content).toBe("HELLO");
+			expect(mockState.calls).toHaveLength(2);
+			expect(mockState.calls.map((call) => call.context)).toEqual([context, context]);
 		});
 
 		it("chains three steps", async () => {

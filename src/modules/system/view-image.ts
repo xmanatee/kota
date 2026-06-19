@@ -1,9 +1,11 @@
 import { execFileSync } from "node:child_process";
 import { copyFileSync, readFileSync, statSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { extname, join, resolve } from "node:path";
+import { extname, join } from "node:path";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { readOnlyLocalEffect } from "#core/tools/effect.js";
+import type { ToolRunnerContext } from "#core/tools/index.js";
+import { resolvePathFrom } from "#core/tools/project-path-policy.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { line, span } from "#modules/rendering/primitives.js";
 import { printToStderr } from "#modules/rendering/transport.js";
@@ -87,6 +89,7 @@ const RESIZE_TIMEOUT = 10_000;
 
 export async function runViewImage(
 	input: ViewImageToolInput,
+	context?: ToolRunnerContext,
 ): Promise<ToolResult> {
 	const inputValidation = validateViewImageInput(input);
 	if (!inputValidation.ok) return inputValidation.result;
@@ -96,7 +99,7 @@ export async function runViewImage(
 		return { content: "Missing required parameter: path", is_error: true };
 	}
 
-	const filePath = resolve(rawPath);
+	const filePath = resolvePathFrom(context?.cwd ?? process.cwd(), rawPath);
 	const ext = extname(filePath).toLowerCase();
 
 	if (!SUPPORTED_EXTS.includes(ext)) {

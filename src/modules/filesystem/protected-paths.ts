@@ -1,5 +1,5 @@
-import { isAbsolute, relative, resolve, sep } from "node:path";
-import { resolveProjectPath } from "#core/tools/project-path-policy.js";
+import { existsSync, lstatSync, readlinkSync, realpathSync } from "node:fs";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 const PROTECTED_PROJECT_RUNTIME_FILES = [
   ".kota/daemon-control.json",
@@ -40,19 +40,100 @@ export function isProtectedRelativeProjectPath(relativePath: string): boolean {
   return isProtectedRuntimeFile(normalizedRelativePath) || isProtectedEnvFile(normalizedRelativePath);
 }
 
-export function isProtectedProjectPath(
-  filePath: string,
-  baseDirectory = process.cwd(),
-): boolean {
-  const resolved = resolveProjectPath(filePath, baseDirectory);
-  if (!resolved.ok) return false;
+function resolvePathFrom(baseDirectory: string, targetPath: string): string {
+  return isAbsolute(targetPath)
+    ? resolve(targetPath)
+    : resolve(baseDirectory, targetPath);
+}
 
-  const relativePath = relative(resolve(process.cwd()), resolved.path);
+function resolveBoundaryPath(path: string): string {
+  try {
+    return realpathSync.native(path);
+  } catch {
+    return path;
+  }
+}
+
+const MAX_SYMLINK_RESOLUTION_DEPTH = 40;
+
+function readSymlinkTarget(path: string): string | null {
+  try {
+    const stats = lstatSync(path);
+    if (!stats.isSymbolicLink()) return null;
+    return resolvePathFrom(dirname(path), readlinkSync(path));
+  } catch {
+    return null;
+  }
+}
+
+function resolveThroughExistingAncestor(
+  path: string,
+  symlinkDepth = 0,
+): string | null {
+  if (symlinkDepth > MAX_SYMLINK_RESOLUTION_DEPTH) return null;
+
+  let current = path;
+  const missingSegments: string[] = [];
+
+  while (true) {
+    const symlinkTarget = readSymlinkTarget(current);
+    if (symlinkTarget) {
+      return resolveThroughExistingAncestor(
+        join(symlinkTarget, ...missingSegments),
+        symlinkDepth + 1,
+      );
+    }
+
+    if (existsSync(current)) {
+      return join(resolveBoundaryPath(current), ...missingSegments);
+    }
+
+    const parent = dirname(current);
+    if (parent === current) {
+      return join(resolveBoundaryPath(current), ...missingSegments);
+    }
+    missingSegments.unshift(basename(current));
+    current = parent;
+  }
+}
+
+function isProtectedResolvedPathUnderBase(
+  resolvedPath: string,
+  baseDirectory: string,
+): boolean {
+  const relativePath = relative(baseDirectory, resolvedPath);
   if (relativePath === "" || relativePath.startsWith("..") || isAbsolute(relativePath)) {
     return false;
   }
 
   return isProtectedRelativeProjectPath(relativePath);
+}
+
+function isProtectedPathUnderBase(
+  filePath: string,
+  baseDirectory: string,
+): boolean {
+  const projectRoot = resolve(baseDirectory);
+  const requestedPath = resolvePathFrom(projectRoot, filePath);
+  const resolvedPath = resolveThroughExistingAncestor(requestedPath);
+  const candidatePaths = resolvedPath
+    ? [requestedPath, resolvedPath]
+    : [requestedPath];
+  const candidateRoots = [projectRoot, resolveBoundaryPath(projectRoot)];
+
+  return candidatePaths.some((path) =>
+    candidateRoots.some((root) => isProtectedResolvedPathUnderBase(path, root)),
+  );
+}
+
+export function isProtectedProjectPath(
+  filePath: string,
+  baseDirectory = process.cwd(),
+): boolean {
+  if (isProtectedPathUnderBase(filePath, baseDirectory)) return true;
+  const daemonProjectRoot = process.cwd();
+  return resolve(baseDirectory) !== resolve(daemonProjectRoot)
+    && isProtectedPathUnderBase(filePath, daemonProjectRoot);
 }
 
 export function protectedProjectPathError(filePath: string): string {

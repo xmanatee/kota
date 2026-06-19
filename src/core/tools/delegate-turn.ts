@@ -27,7 +27,12 @@ import {
 } from "./delegate-config.js";
 import type { CompletionReason } from "./delegate-format.js";
 import { collectImageBlocks, extractModifiedFiles } from "./delegate-format.js";
-import type { ToolResult, ToolResultBlock } from "./index.js";
+import type {
+  ToolResult,
+  ToolResultBlock,
+  ToolRunner,
+  ToolRunnerContext,
+} from "./index.js";
 import { getToolMiddleware } from "./tool-middleware.js";
 
 export type TurnLoopOptions = {
@@ -35,7 +40,8 @@ export type TurnLoopOptions = {
   messages: KotaMessage[];
   systemBlocks: KotaTextBlock[];
   tools: KotaTool[];
-  runners: Record<string, (input: Record<string, unknown>) => Promise<ToolResult>>;
+  runners: Record<string, ToolRunner>;
+  runnerContext?: ToolRunnerContext;
   mcpMgr: McpManager | undefined;
   isExecute: boolean;
   selectedModel: string;
@@ -70,7 +76,7 @@ type DelegateToolResultEntry = {
 
 export async function runDelegateTurns(opts: TurnLoopOptions): Promise<TurnLoopResult> {
   const {
-    client, messages, systemBlocks, tools, runners, mcpMgr, isExecute,
+    client, messages, systemBlocks, tools, runners, runnerContext, mcpMgr, isExecute,
     selectedModel, modelOutputTokenLimits, maxTurns, mode, transport, costTracker,
     modifiedFiles, collectedImages, toolsUsed, urlsFetched, searchQueries,
   } = opts;
@@ -194,12 +200,24 @@ export async function runDelegateTurns(opts: TurnLoopOptions): Promise<TurnLoopR
           return { tool_use_id: block.id, content: `Unknown tool: ${block.name}`, is_error: true as const };
         }
         let result: ToolResult;
+        const childRunnerContext = runnerContext
+          ? { ...runnerContext, toolUseId: block.id }
+          : undefined;
+        const callContext = childRunnerContext
+          ? {
+              ...(childRunnerContext.sessionId ? { sessionId: childRunnerContext.sessionId } : {}),
+              ...(childRunnerContext.toolUseId ? { toolUseId: childRunnerContext.toolUseId } : {}),
+              ...(childRunnerContext.signal ? { signal: childRunnerContext.signal } : {}),
+            }
+          : undefined;
         const call = { name: block.name, input: toolInput };
         try {
-          result = await getToolMiddleware().execute(call, () =>
+          result = await getToolMiddleware().execute(
+            callContext ? { ...call, context: callContext } : call,
+            () =>
             isMcp
               ? mcpMgr!.executeTool(block.name, call.input)
-              : runner!(call.input)
+              : runner!(call.input, childRunnerContext)
           );
         } catch (runnerErr) {
           const errMsg = runnerErr instanceof Error ? runnerErr.message : String(runnerErr);

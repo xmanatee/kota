@@ -1,5 +1,6 @@
 import { existsSync, statSync } from "node:fs";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type { ToolRunnerContext } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import {
   formatSize,
@@ -11,7 +12,7 @@ import {
   readPdf,
   readText,
 } from "./file-read-formats.js";
-import { fileNotFoundError } from "./path-resolver.js";
+import { fileNotFoundError, resolveToolPath } from "./path-resolver.js";
 import { isProtectedProjectPath, protectedProjectPathError } from "./protected-paths.js";
 
 export const fileReadTool: KotaTool = {
@@ -43,19 +44,21 @@ export const fileReadTool: KotaTool = {
 
 export async function runFileRead(
   input: Record<string, unknown>,
+  context?: ToolRunnerContext,
 ): Promise<ToolResult> {
-  const filePath = input.path as string;
+  const rawFilePath = input.path as string;
 
-  if (!filePath) {
+  if (!rawFilePath) {
     return { content: "Error: path is required", is_error: true };
   }
 
-  if (isProtectedProjectPath(filePath)) {
-    return { content: protectedProjectPathError(filePath), is_error: true };
+  const filePath = resolveToolPath(rawFilePath, context);
+  if (isProtectedProjectPath(filePath, context?.cwd)) {
+    return { content: protectedProjectPathError(rawFilePath), is_error: true };
   }
 
   if (!existsSync(filePath)) {
-    return { content: fileNotFoundError(filePath), is_error: true };
+    return { content: fileNotFoundError(filePath, context?.cwd), is_error: true };
   }
 
   let stats: ReturnType<typeof statSync>;

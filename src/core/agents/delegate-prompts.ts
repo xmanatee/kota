@@ -1,5 +1,5 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
-import type { ResolvedToolSet, ToolResult } from "#core/tools/index.js";
+import type { ResolvedToolSet, ToolRunner } from "#core/tools/index.js";
 import { resolveRegisteredToolSetByEffect } from "#core/tools/index.js";
 import { detectProject, getDirectoryOverview } from "#core/util/project-detection.js";
 import { formatResolvedToolGuidance, formatResolvedToolNameGuidance } from "./tool-guidance.js";
@@ -79,8 +79,6 @@ export const EXECUTE_PROMPT = `You are a task execution sub-agent. Complete the 
 
 // --- Tool sets ---
 
-type ToolRunner = (input: Record<string, unknown>) => Promise<ToolResult>;
-
 /** Custom shell tool definition with 60s timeout description for sub-agents. */
 const subShellTool: KotaTool = {
   name: "shell",
@@ -100,14 +98,14 @@ const subShellTool: KotaTool = {
 /** Wrap a shell runner with a 60s max timeout for sub-agents. */
 function createBoundedShellRunner(baseRunner: ToolRunner): ToolRunner {
   const MAX_SUB_TIMEOUT = 60_000;
-  return (input) =>
+  return (input, context) =>
     baseRunner({
       ...input,
       timeout_ms: Math.min(
         (input.timeout_ms as number) || MAX_SUB_TIMEOUT,
         MAX_SUB_TIMEOUT,
       ),
-    });
+    }, context);
 }
 
 /** Apply the bounded shell override to a resolved tool set. */

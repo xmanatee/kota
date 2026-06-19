@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { runReadDocument } from "./read-document.js";
 
@@ -46,6 +47,22 @@ describe("runReadDocument", () => {
 		const result = await runReadDocument({ path: "/tmp/missing.pdf" });
 		expect(result.is_error).toBe(true);
 		expect(result.content).toContain("file not found");
+	});
+
+	it("resolves relative paths against runner context cwd", async () => {
+		const projectDir = "/selected/project";
+		const filePath = join(projectDir, "docs", "scope.html");
+		mockRead.mockReturnValue("<html><body>Selected project</body></html>");
+
+		const result = await runReadDocument(
+			{ path: "docs/scope.html" },
+			{ cwd: projectDir },
+		);
+
+		expect(result.is_error).toBeUndefined();
+		expect(mockExists).toHaveBeenCalledWith(filePath);
+		expect(mockRead).toHaveBeenCalledWith(filePath, "utf-8");
+		expect(result.content).toContain("Selected project");
 	});
 
 	// --- PDF extraction ---

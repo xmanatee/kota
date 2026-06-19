@@ -1,6 +1,8 @@
 import { execFileSync } from "node:child_process";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type { ToolRunnerContext } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
+import { resolveToolPath } from "./path-resolver.js";
 import {
   isProtectedProjectPath,
   PROTECTED_PROJECT_GLOB_IGNORES,
@@ -74,9 +76,11 @@ export function formatCountOutput(raw: string): string {
 
 export async function runGrep(
   input: Record<string, unknown>,
+  context?: ToolRunnerContext,
 ): Promise<ToolResult> {
   const pattern = input.pattern as string;
-  const path = (input.path as string) || ".";
+  const rawPath = (input.path as string) || ".";
+  const path = resolveToolPath(rawPath, context);
   const fileGlob = input.file_glob as string | undefined;
 
   if (!pattern) {
@@ -117,8 +121,8 @@ export async function runGrep(
   const contextLines =
     rawContextLines === undefined ? DEFAULT_CONTEXT_LINES : rawContextLines;
 
-  if (isProtectedProjectPath(path)) {
-    return { content: protectedProjectPathError(path), is_error: true };
+  if (isProtectedProjectPath(path, context?.cwd)) {
+    return { content: protectedProjectPathError(rawPath), is_error: true };
   }
 
   // Try ripgrep first, fall back to grep

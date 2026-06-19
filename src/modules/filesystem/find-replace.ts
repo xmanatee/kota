@@ -3,6 +3,7 @@ import { glob } from "glob";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { recordModification } from "#core/file-tracking/file-tracker.js";
 import { trackFileChange } from "#core/loop/file-changes.js";
+import type { ToolRunnerContext } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { lintFile } from "./lint.js";
 
@@ -96,6 +97,7 @@ function revertOriginals(originals: Map<string, string>): string[] {
 
 export async function runFindReplace(
   input: Record<string, unknown>,
+  context?: ToolRunnerContext,
 ): Promise<ToolResult> {
   const pattern = input.pattern as string;
   const replacement = input.replacement as string;
@@ -123,6 +125,7 @@ export async function runFindReplace(
   }
 
   const matchedFiles = await glob(filesGlob, {
+    ...(context?.cwd ? { cwd: context.cwd, absolute: true } : {}),
     nodir: true,
     dot: true,
     ignore: ["**/node_modules/**", "**/.git/**"],
@@ -232,4 +235,3 @@ export async function runFindReplace(
     content: `Replaced ${total} occurrence(s) in ${modified.length} file(s):\n${lines}`,
   };
 }
-

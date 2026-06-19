@@ -1,6 +1,8 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { getWatcherManager } from "#core/file-tracking/file-watcher.js";
+import type { ToolRunnerContext } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
+import { resolveToolPath } from "./path-resolver.js";
 
 export const fileWatchTool: KotaTool = {
 	name: "file_watch",
@@ -39,15 +41,17 @@ export const fileWatchTool: KotaTool = {
 
 export async function runFileWatch(
 	input: Record<string, unknown>,
+	context?: ToolRunnerContext,
 ): Promise<ToolResult> {
 	const action = input.action as string;
 	const mgr = getWatcherManager();
 
 	switch (action) {
 		case "start": {
-			const watchPath = input.path as string;
-			if (!watchPath)
+			const rawWatchPath = input.path as string;
+			if (!rawWatchPath)
 				return { content: "Error: path is required", is_error: true };
+			const watchPath = resolveToolPath(rawWatchPath, context);
 
 			try {
 				const id = await mgr.start(watchPath, {
@@ -95,4 +99,3 @@ export async function runFileWatch(
 			};
 	}
 }
-

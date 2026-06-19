@@ -116,6 +116,22 @@ describe("sqlite tool", () => {
 			expect(result.is_error).toBe(true);
 			expect(result.content).toContain("Database not found");
 		});
+
+		it("checks read-only relative database paths against runner context cwd", async () => {
+			const contextDir = join(TEST_DIR, "context-cwd-check");
+			mkdirSync(contextDir, { recursive: true });
+
+			const result = await runSqlite(
+				{
+					database: "missing.db",
+					action: "tables",
+				},
+				{ cwd: contextDir },
+			);
+
+			expect(result.is_error).toBe(true);
+			expect(result.content).toContain(`Database not found: ${join(contextDir, "missing.db")}`);
+		});
 	});
 
 	// Integration tests that require sqlite3 CLI
@@ -378,6 +394,25 @@ describe("sqlite tool", () => {
 				});
 				expect(result.is_error).toBeUndefined();
 				expect(existsSync(newDb)).toBe(true);
+			});
+
+			it("creates relative query databases under runner context cwd", async () => {
+				if (!hasSqlite3) return;
+				const contextDir = join(TEST_DIR, "query-context-cwd");
+				mkdirSync(join(contextDir, "dbs"), { recursive: true });
+				const relativeDb = join("dbs", "relative-query.db");
+
+				const result = await runSqlite(
+					{
+						database: relativeDb,
+						action: "query",
+						sql: "CREATE TABLE test (id INTEGER PRIMARY KEY)",
+					},
+					{ cwd: contextDir },
+				);
+
+				expect(result.is_error).toBeUndefined();
+				expect(existsSync(join(contextDir, relativeDb))).toBe(true);
 			});
 		});
 	});

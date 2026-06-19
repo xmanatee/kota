@@ -32,6 +32,7 @@ export function handleCreate(
   customDefs: Map<string, CustomToolDef>,
   register: RegisterFn,
   deregister: DeregisterFn,
+  context?: ToolRunnerContext,
 ): ToolResult {
   const name = (input.name as string || "").trim();
   const description = (input.description as string || "").trim();
@@ -74,7 +75,7 @@ export function handleCreate(
 
   if (persist) {
     try {
-      saveToDisk(def);
+      saveToDisk(def, context?.cwd);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       return { content: `Tool "${name}" created (session-only). Failed to persist: ${msg}` };
@@ -107,6 +108,7 @@ export function handleRemove(
   input: Record<string, unknown>,
   customDefs: Map<string, CustomToolDef>,
   deregister: DeregisterFn,
+  context?: ToolRunnerContext,
 ): ToolResult {
   const name = (input.name as string || "").trim();
   if (!name) return { content: "Error: name is required for remove", is_error: true };
@@ -118,7 +120,7 @@ export function handleRemove(
   deregister(name);
   customDefs.delete(name);
 
-  const diskPath = getToolPath(name);
+  const diskPath = getToolPath(name, context?.cwd);
   if (existsSync(diskPath)) unlinkSync(diskPath);
 
   return { content: `Removed custom tool "${name}".` };

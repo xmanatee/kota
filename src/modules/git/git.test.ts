@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -73,6 +73,29 @@ describe("git tool", () => {
 			const r = await runGit({ op: "status" });
 			expect(r.is_error).toBeUndefined();
 			expect(r.content).toContain("main");
+		});
+
+		it("uses runner context cwd instead of daemon cwd", async () => {
+			const scopedDir = mkdtempSync(join(tmpdir(), "kota-git-context-"));
+			try {
+				gitExec("init", scopedDir);
+				gitExec("config user.email test@test.com", scopedDir);
+				gitExec("config user.name Test", scopedDir);
+				writeFileSync(join(scopedDir, "README.md"), "# Scoped\n");
+				gitExec("add README.md", scopedDir);
+				gitExec('commit -m "Scoped initial"', scopedDir);
+				writeFileSync(join(scopedDir, "scoped-only.txt"), "scoped\n");
+
+				const r = await runGit(
+					{ op: "status" },
+					{ cwd: scopedDir, scopeId: "scoped-project", projectId: "scoped-project" },
+				);
+
+				expect(r.is_error).toBeUndefined();
+				expect(r.content).toContain("scoped-only.txt");
+			} finally {
+				rmSync(scopedDir, { recursive: true, force: true });
+			}
 		});
 
 		it("shows modified files", async () => {

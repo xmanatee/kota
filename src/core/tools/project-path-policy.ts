@@ -58,8 +58,8 @@ function resolveThroughExistingAncestor(
   }
 }
 
-function isPathInsideProject(resolvedPath: string): boolean {
-  const projectRoot = resolveBoundaryPath(resolve(process.cwd()));
+function isPathInsideProject(resolvedPath: string, projectDirectory: string): boolean {
+  const projectRoot = resolveBoundaryPath(resolve(projectDirectory));
   const relativePath = relative(projectRoot, resolvedPath);
   return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath));
 }
@@ -71,16 +71,18 @@ export type ProjectPathResolution =
 export function resolveProjectPath(
   filePath: string,
   baseDirectory = process.cwd(),
+  projectDirectory = process.cwd(),
 ): ProjectPathResolution {
   const resolvedPath = resolveThroughExistingAncestor(resolvePathFrom(baseDirectory, filePath));
   if (!resolvedPath) return { ok: false };
-  if (!isPathInsideProject(resolvedPath)) return { ok: false };
+  if (!isPathInsideProject(resolvedPath, projectDirectory)) return { ok: false };
   return { ok: true, path: resolvedPath };
 }
 
 export function isOutsideProject(
   filePath: string,
   baseDirectory = process.cwd(),
+  projectDirectory = process.cwd(),
 ): boolean {
-  return !resolveProjectPath(filePath, baseDirectory).ok;
+  return !resolveProjectPath(filePath, baseDirectory, projectDirectory).ok;
 }

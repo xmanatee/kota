@@ -460,6 +460,35 @@ describe("runHttpRequest", () => {
     fs.rmSync(dir, { recursive: true });
   });
 
+  it("resolves relative save_to paths against the runner context cwd", async () => {
+    const fs = await import("node:fs");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "kota-http-context-"));
+    const savePath = ".approval-context/data.json";
+    const resolvedSavePath = path.join(projectDir, savePath);
+    const defaultCwdSaveDir = path.resolve(path.dirname(savePath));
+
+    mockFetch({ body: '{"project":"b"}', contentType: "application/json" });
+
+    try {
+      const result = await runHttpRequest(
+        {
+          url: "https://api.example.com/export",
+          save_to: savePath,
+        },
+        { cwd: projectDir, scopeId: "project-b", projectId: "project-b" },
+      );
+
+      expect(result.content).toContain("[Saved to");
+      expect(result.is_error).toBeUndefined();
+      expect(fs.readFileSync(resolvedSavePath, "utf-8")).toBe('{"project":"b"}');
+    } finally {
+      fs.rmSync(projectDir, { recursive: true, force: true });
+      fs.rmSync(defaultCwdSaveDir, { recursive: true, force: true });
+    }
+  });
+
   it("saves binary response to file instead of rejecting", async () => {
     const fs = await import("node:fs");
     const path = await import("node:path");

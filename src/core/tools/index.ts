@@ -22,6 +22,7 @@ export type ToolRunnerContext = {
   sessionId?: string;
   toolUseId?: string;
   signal?: AbortSignal;
+  cwd?: string;
   scopeId?: string;
   projectId?: string;
   workflow?: {

@@ -102,8 +102,9 @@ export async function startProcess(
   }
 
   const id = generateId();
+  const cwd = context?.cwd ?? process.cwd();
   const proc = spawn("sh", ["-c", command], {
-    cwd: process.cwd(),
+    cwd,
     env: buildExecutionEnv(context),
     stdio: ["pipe", "pipe", "pipe"],
     detached: false,

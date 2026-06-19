@@ -46,16 +46,16 @@ export function normalizeSchema(raw: Record<string, unknown> | undefined): Recor
   return raw;
 }
 
-export function getToolsDir(): string {
-  return join(process.cwd(), ".kota", "tools");
+export function getToolsDir(cwd?: string): string {
+  return join(cwd || process.cwd(), ".kota", "tools");
 }
 
-export function getToolPath(name: string): string {
-  return join(getToolsDir(), `${name}.json`);
+export function getToolPath(name: string, cwd?: string): string {
+  return join(getToolsDir(cwd), `${name}.json`);
 }
 
-export function saveToDisk(def: CustomToolDef): void {
-  const dir = getToolsDir();
+export function saveToDisk(def: CustomToolDef, cwd?: string): void {
+  const dir = getToolsDir(cwd);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   const data = {
     name: def.name,
@@ -64,5 +64,5 @@ export function saveToDisk(def: CustomToolDef): void {
     code: def.code,
     language: def.language,
   };
-  writeFileSync(getToolPath(def.name), JSON.stringify(data, null, 2));
+  writeFileSync(getToolPath(def.name, cwd), JSON.stringify(data, null, 2));
 }

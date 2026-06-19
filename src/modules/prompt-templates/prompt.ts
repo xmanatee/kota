@@ -1,25 +1,29 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
-import type { ToolResult } from "#core/tools/index.js";
+import type { ToolResult, ToolRunnerContext } from "#core/tools/index.js";
 import { PromptStore } from "./prompt-template.js";
 
-let store: PromptStore | null = null;
+let storeOverride: PromptStore | null = null;
+let stores = new Map<string, PromptStore>();
 
-function getStore(): PromptStore {
+function getStore(cwd: string): PromptStore {
+	if (storeOverride) return storeOverride;
+	let store = stores.get(cwd);
 	if (!store) {
-		store = new PromptStore(process.cwd());
-		store.discover();
+		store = new PromptStore(cwd);
+		stores.set(cwd, store);
 	}
 	return store;
 }
 
 /** Reset store (for testing). */
 export function resetPromptStore(): void {
-	store = null;
+	storeOverride = null;
+	stores = new Map<string, PromptStore>();
 }
 
 /** Set a custom store (for testing). */
 export function setPromptStore(s: PromptStore): void {
-	store = s;
+	storeOverride = s;
 }
 
 export const promptTool: KotaTool = {
@@ -69,9 +73,10 @@ export const promptTool: KotaTool = {
 
 export async function runPromptTemplate(
 	input: Record<string, unknown>,
+	context?: ToolRunnerContext,
 ): Promise<ToolResult> {
 	const action = input.action as string;
-	const s = getStore();
+	const s = getStore(context?.cwd ?? process.cwd());
 
 	switch (action) {
 		case "list": {
@@ -154,4 +159,3 @@ export async function runPromptTemplate(
 			};
 	}
 }
-

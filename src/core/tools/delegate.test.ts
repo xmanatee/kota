@@ -7,12 +7,19 @@ import type {
   KotaContentBlock,
   KotaMessageStream,
   KotaModelResponse,
+  KotaTool,
 } from "#core/agent-harness/message-protocol.js";
 import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
 import { BufferTransport } from "#core/loop/transport.js";
 import type { McpManager } from "#core/mcp/manager.js";
 import type { MessageStreamParams, ModelClient } from "#core/model/model-client.js";
 import { createDelegateBudget, runDelegate, setDelegateConfig } from "./delegate.js";
+import { localWriteEffect } from "./effect.js";
+import {
+  clearCustomTools,
+  registerTool,
+  type ToolRunnerContext,
+} from "./index.js";
 
 class TestStream implements KotaMessageStream {
   constructor(private readonly response: KotaModelResponse) {}
@@ -37,6 +44,18 @@ function modelResponse(content: KotaContentBlock[]): KotaModelResponse {
     usage: { input_tokens: 1, output_tokens: 1 },
   };
 }
+
+function testTool(name: string): KotaTool {
+  return {
+    name,
+    description: `Test tool: ${name}`,
+    input_schema: { type: "object" as const, properties: {} },
+  };
+}
+
+afterEach(() => {
+  clearCustomTools();
+});
 
 describe("runDelegate model output-token limits", () => {
   afterEach(() => {
@@ -215,6 +234,81 @@ describe("runDelegate model output-token limits", () => {
       model: "openai/operator-model",
       modelOutputTokenLimits: { "operator-model": 7777 },
     });
+  });
+});
+
+describe("runDelegate runner context", () => {
+  afterEach(() => {
+    setDelegateConfig({ model: "gpt-5.5" });
+  });
+
+  it("passes selected project context through the bounded shell runner", async () => {
+    let receivedInput: Record<string, unknown> | undefined;
+    let receivedContext: ToolRunnerContext | undefined;
+    registerTool(
+      testTool("shell"),
+      async (input, context) => {
+        receivedInput = input;
+        receivedContext = context;
+        return { content: `cwd:${context?.cwd ?? "missing"}` };
+      },
+      undefined,
+      { effect: localWriteEffect() },
+    );
+
+    const stream = vi
+      .fn()
+      .mockReturnValueOnce(
+        new TestStream(modelResponse([
+          {
+            type: "tool_use",
+            id: "toolu_shell",
+            name: "shell",
+            input: { command: "pwd", timeout_ms: 999_999 },
+          },
+        ])),
+      )
+      .mockReturnValueOnce(
+        new TestStream(modelResponse([{ type: "text", text: "finished" }])),
+      );
+    const client: ModelClient = {
+      messages: {
+        stream,
+        create: vi.fn(async () => modelResponse([{ type: "text", text: "unused" }])),
+      },
+    };
+    setDelegateConfig({
+      model: "test-model",
+      modelOutputTokenLimits: { "test-model": 1234 },
+      client,
+    });
+
+    const result = await runDelegate(
+      { task: "Run a nested shell command", mode: "execute" },
+      {
+        cwd: "/tmp/project-b",
+        scopeId: "project-b",
+        projectId: "project-b",
+        sessionId: "session-b",
+        toolUseId: "parent-tool",
+      },
+    );
+
+    expect(result.is_error).toBeUndefined();
+    expect(receivedInput).toMatchObject({
+      command: "pwd",
+      timeout_ms: 60_000,
+    });
+    expect(receivedContext).toMatchObject({
+      cwd: "/tmp/project-b",
+      scopeId: "project-b",
+      projectId: "project-b",
+      sessionId: "session-b",
+      toolUseId: "toolu_shell",
+    });
+    expect(stream.mock.calls[0][0].system[0].text).toContain(
+      "Working directory: /tmp/project-b",
+    );
   });
 });
 

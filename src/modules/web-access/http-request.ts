@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type { ToolRunnerContext } from "#core/tools/index.js";
 import { resolveProjectPath } from "#core/tools/project-path-policy.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import {
@@ -78,6 +79,7 @@ const DEFAULT_MAX_RESPONSE = 20_000;
 
 export async function runHttpRequest(
   input: Record<string, unknown>,
+  context?: ToolRunnerContext,
 ): Promise<ToolResult> {
   const url = input.url as string;
   const method = ((input.method as string) || "GET").toUpperCase();
@@ -88,7 +90,10 @@ export async function runHttpRequest(
   const saveTo = typeof input.save_to === "string" && input.save_to.length > 0
     ? input.save_to
     : undefined;
-  const savePath = saveTo ? resolveProjectPath(saveTo) : undefined;
+  const projectDirectory = context?.cwd ?? process.cwd();
+  const savePath = saveTo
+    ? resolveProjectPath(saveTo, projectDirectory, projectDirectory)
+    : undefined;
 
   if (!url) {
     return { content: "Error: url is required", is_error: true };

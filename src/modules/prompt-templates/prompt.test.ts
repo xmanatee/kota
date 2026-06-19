@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -106,6 +106,40 @@ describe("prompt_template tool", () => {
 		});
 		expect(result.content).toContain("X {{b}}");
 		expect(result.content).toContain("Unresolved variables: b");
+	});
+
+	it("uses runner context cwd for the default prompt store", async () => {
+		const defaultDir = mkdtempSync(join(tmpdir(), "prompt-default-"));
+		const selectedDir = mkdtempSync(join(tmpdir(), "prompt-selected-"));
+		for (const projectDir of [defaultDir, selectedDir]) {
+			mkdirSync(join(projectDir, ".kota", "prompts"), { recursive: true });
+		}
+		writeFileSync(
+			join(defaultDir, ".kota", "prompts", "scope.md"),
+			"---\nname: scope\n---\nDEFAULT_TEMPLATE_MARKER",
+			"utf-8",
+		);
+		writeFileSync(
+			join(selectedDir, ".kota", "prompts", "scope.md"),
+			"---\nname: scope\n---\nSELECTED_TEMPLATE_MARKER",
+			"utf-8",
+		);
+		const originalCwd = process.cwd();
+		resetPromptStore();
+		try {
+			process.chdir(defaultDir);
+			const result = await runPromptTemplate(
+				{ action: "render", name: "scope" },
+				{ cwd: selectedDir },
+			);
+
+			expect(result.content).toContain("SELECTED_TEMPLATE_MARKER");
+			expect(result.content).not.toContain("DEFAULT_TEMPLATE_MARKER");
+		} finally {
+			process.chdir(originalCwd);
+			rmSync(defaultDir, { recursive: true, force: true });
+			rmSync(selectedDir, { recursive: true, force: true });
+		}
 	});
 
 	// --- create ---

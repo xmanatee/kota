@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -40,6 +40,17 @@ describe("project path policy", () => {
     const outsideDir = makeOutsideTempDir();
 
     expect(isOutsideProject(join(outsideDir, "response.json"))).toBe(true);
+  });
+
+  it("allows callers to enforce an explicit project root outside process cwd", () => {
+    const projectDir = makeOutsideTempDir();
+    const resolvedProjectDir = realpathSync.native(projectDir);
+
+    expect(resolveProjectPath("nested/response.json", projectDir, projectDir)).toEqual({
+      ok: true,
+      path: join(resolvedProjectDir, "nested", "response.json"),
+    });
+    expect(resolveProjectPath("../escape.json", projectDir, projectDir)).toEqual({ ok: false });
   });
 
   it("rejects missing files under symlinked parents that resolve outside the project", () => {

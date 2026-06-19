@@ -2,6 +2,7 @@ import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { checkFreshness, recordModification } from "#core/file-tracking/file-tracker.js";
 import { trackFileChange } from "#core/loop/file-changes.js";
+import type { ToolRunnerContext } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { printEditDiff } from "./diff.js";
 import {
@@ -9,7 +10,7 @@ import {
   tryWhitespaceMatch,
 } from "./file-edit-helpers.js";
 import { lintFile } from "./lint.js";
-import { fileNotFoundError } from "./path-resolver.js";
+import { fileNotFoundError, resolveToolPath } from "./path-resolver.js";
 
 export const fileEditTool: KotaTool = {
   name: "file_edit",
@@ -45,19 +46,21 @@ export const fileEditTool: KotaTool = {
 
 export async function runFileEdit(
   input: Record<string, unknown>,
+  context?: ToolRunnerContext,
 ): Promise<ToolResult> {
-  const path = input.path as string;
+  const rawPath = input.path as string;
   const oldStr = input.old_string as string;
   const newStr = input.new_string as string;
   const replaceAll = (input.replace_all as boolean) || false;
 
-  if (!path) return { content: "Error: path is required", is_error: true };
+  if (!rawPath) return { content: "Error: path is required", is_error: true };
   if (!oldStr) return { content: "Error: old_string is required", is_error: true };
   if (newStr === undefined) return { content: "Error: new_string is required", is_error: true };
   if (oldStr === newStr) return { content: "Error: old_string and new_string are identical", is_error: true };
 
+  const path = resolveToolPath(rawPath, context);
   if (!existsSync(path)) {
-    return { content: fileNotFoundError(path), is_error: true };
+    return { content: fileNotFoundError(path, context?.cwd), is_error: true };
   }
   try {
     if (statSync(path).isDirectory()) {
@@ -145,4 +148,3 @@ export async function runFileEdit(
   printEditDiff(path, content, oldStr, newStr);
   return { content: `Replaced ${replacements} occurrence(s) in ${path}` };
 }
-

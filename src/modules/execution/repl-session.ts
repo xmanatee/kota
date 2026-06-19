@@ -46,25 +46,27 @@ export class REPLSession {
   private proc: ChildProcess | null = null;
   private language: Language;
   private alive = false;
+  private cwd: string | null = null;
 
   constructor(language: Language) {
     this.language = language;
   }
 
-  private start(context?: ToolRunnerContext): void {
+  private start(cwd: string, context?: ToolRunnerContext): void {
     if (this.alive) return;
 
     const [cmd, args] =
       this.language === "python"
-        ? [findPythonBinary(process.cwd()), ["-u", "-c", PYTHON_WRAPPER]]
+        ? [findPythonBinary(cwd), ["-u", "-c", PYTHON_WRAPPER]]
         : ["node", ["-e", NODE_WRAPPER]];
 
     this.proc = spawn(cmd, args, {
-      cwd: process.cwd(),
+      cwd,
       env: buildExecutionEnv(context),
       stdio: ["pipe", "pipe", "pipe"],
     });
 
+    this.cwd = cwd;
     this.alive = true;
     // Guard: only update state if this is still the current process.
     // Prevents old process's exit event from resetting a new session.
@@ -78,8 +80,10 @@ export class REPLSession {
     timeoutMs: number,
     context?: ToolRunnerContext,
   ): Promise<{ output: string; isError: boolean }> {
+    const cwd = context?.cwd ?? process.cwd();
+    if (this.alive && this.cwd !== cwd) this.kill();
     const crashRestarted = !this.alive && this.proc !== null;
-    if (!this.alive || !this.proc) this.start(context);
+    if (!this.alive || !this.proc) this.start(cwd, context);
     const proc = this.proc!;
     if (!proc.stdin || !proc.stdout || !proc.stderr) {
       return { output: "Process stdio not available", isError: true };
@@ -189,6 +193,7 @@ export class REPLSession {
     }
     this.alive = false;
     this.proc = null;
+    this.cwd = null;
   }
 
   isAlive(): boolean {

@@ -148,6 +148,42 @@ describe("handoff_agent", () => {
     });
   });
 
+  it("uses the runner context cwd for approved selected-project handoffs", async () => {
+    const selectedProjectDir = mkdtempSync(join(tmpdir(), "kota-handoff-selected-project-"));
+    mkdirSync(join(selectedProjectDir, "agents"), { recursive: true });
+    writeFileSync(join(selectedProjectDir, "agents", "reviewer.md"), "Selected project prompt.\n");
+    initGit(selectedProjectDir);
+    const selectedScope = scopeInput(selectedProjectDir);
+
+    try {
+      const result = await runHandoffAgent(
+        {
+          agent: "reviewer",
+          mode: "call",
+          input: { task: "Review the selected project." },
+          reason: "Approved selected-project handoff.",
+          autonomy_mode: "autonomous",
+          budget: { max_turns: 3 },
+          scope: selectedScope,
+        },
+        {
+          cwd: selectedProjectDir,
+          scopeId: selectedScope.scope_id,
+          projectId: selectedScope.project_id,
+          sessionId: "session-b",
+        },
+      );
+
+      expect(result.is_error).toBeUndefined();
+      expect(receivedOptions).toHaveLength(1);
+      expect(receivedOptions[0].cwd).toBe(selectedProjectDir);
+      expect(receivedOptions[0].systemPrompt).toContain("Selected project prompt.");
+      expect(receivedOptions[0].systemPrompt).not.toContain("Reviewer prompt.");
+    } finally {
+      rmSync(selectedProjectDir, { recursive: true, force: true });
+    }
+  });
+
   it("applies passive read-only tool scope before child harness dispatch", async () => {
     const result = await runHandoffAgent({
       agent: "reviewer",

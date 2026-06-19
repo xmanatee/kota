@@ -136,7 +136,7 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
 
   const projectModules = await discoverProjectModules();
   const modules = await discoverModules(state.projectDir, state.verbose);
-  for (const { name } of listManifestModules()) addLoadedModule(name);
+  for (const { name } of listManifestModules(state.projectDir)) addLoadedModule(name);
   try {
     await state.moduleLoader.loadAll(projectModules, modules);
   } catch (err) {
@@ -154,7 +154,7 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
     state.context.appendSystemPrompt(skillsPrompt);
   }
 
-  const customToolCount = loadSavedTools();
+  const customToolCount = loadSavedTools(state.projectDir);
   if (customToolCount > 0 && state.verbose) {
     state.transport.emit({ type: "status", message: `[kota] Loaded ${customToolCount} custom tool(s)` });
   }

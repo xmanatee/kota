@@ -81,6 +81,24 @@ describe("map tool", () => {
 			expect(r.content).toContain("gamma content");
 		});
 
+		it("passes runner context to each mapped tool invocation", async () => {
+			const r = await runMap(
+				{
+					tool: "file_read",
+					items: [
+						{ path: "a.txt" },
+						{ path: "b.txt" },
+					],
+				},
+				{ cwd: testDir, scopeId: "project-b", projectId: "project-b" },
+			);
+
+			expect(r.is_error).toBeUndefined();
+			expect(r.content).toContain("[map: 2 items | tool: file_read | 2 ok, 0 failed]");
+			expect(r.content).toContain("alpha content");
+			expect(r.content).toContain("beta content");
+		});
+
 		it("applies grep to multiple directories", { timeout: 15000 }, async () => {
 			mkdirSync(join(testDir, "d1"), { recursive: true });
 			mkdirSync(join(testDir, "d2"), { recursive: true });

@@ -2,9 +2,11 @@ import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { recordModification } from "#core/file-tracking/file-tracker.js";
 import { trackFileChange } from "#core/loop/file-changes.js";
+import type { ToolRunnerContext } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { printEditDiff } from "./diff.js";
 import { lintFile } from "./lint.js";
+import { resolveToolPath } from "./path-resolver.js";
 
 export const multiEditTool: KotaTool = {
   name: "multi_edit",
@@ -41,15 +43,22 @@ type EditEntry = {
   replace_all?: boolean;
 };
 
-export async function runMultiEdit(input: Record<string, unknown>): Promise<ToolResult> {
+export async function runMultiEdit(
+  input: Record<string, unknown>,
+  context?: ToolRunnerContext,
+): Promise<ToolResult> {
   const edits = input.edits as EditEntry[] | undefined;
   if (!edits || !Array.isArray(edits) || edits.length === 0) {
     return { content: "Error: edits array is required and must not be empty", is_error: true };
   }
+  const resolvedEdits = edits.map((edit) => ({
+    ...edit,
+    path: edit.path ? resolveToolPath(edit.path, context) : edit.path,
+  }));
 
   // Phase 1: Validate all inputs upfront
-  for (let i = 0; i < edits.length; i++) {
-    const e = edits[i];
+  for (let i = 0; i < resolvedEdits.length; i++) {
+    const e = resolvedEdits[i];
     if (!e.path || !e.old_string || e.new_string === undefined) {
       return { content: `Error: edit[${i}] missing required fields`, is_error: true };
     }
@@ -71,7 +80,7 @@ export async function runMultiEdit(input: Record<string, unknown>): Promise<Tool
 
   // Phase 2: Save originals for rollback
   const originals = new Map<string, string>();
-  for (const e of edits) {
+  for (const e of resolvedEdits) {
     if (!originals.has(e.path)) {
       originals.set(e.path, readFileSync(e.path, "utf-8"));
     }
@@ -79,8 +88,8 @@ export async function runMultiEdit(input: Record<string, unknown>): Promise<Tool
 
   // Phase 3: Apply edits sequentially, lint after each
   const filesModified = new Set<string>();
-  for (let i = 0; i < edits.length; i++) {
-    const e = edits[i];
+  for (let i = 0; i < resolvedEdits.length; i++) {
+    const e = resolvedEdits[i];
     const content = readFileSync(e.path, "utf-8");
     const count = content.split(e.old_string).length - 1;
 
@@ -122,7 +131,7 @@ export async function runMultiEdit(input: Record<string, unknown>): Promise<Tool
     trackFileChange(path, originals.get(path) ?? null, "multi_edit");
   }
 
-  return { content: `Applied ${edits.length} edit(s) across ${filesModified.size} file(s)` };
+  return { content: `Applied ${resolvedEdits.length} edit(s) across ${filesModified.size} file(s)` };
 }
 
 /** Revert files to originals. Returns list of paths that failed to revert. */
@@ -138,4 +147,3 @@ function revertAll(originals: Map<string, string>): string[] {
   }
   return failures;
 }
-

@@ -3,9 +3,11 @@ import { dirname } from "node:path";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { recordModification } from "#core/file-tracking/file-tracker.js";
 import { trackFileChange } from "#core/loop/file-changes.js";
+import type { ToolRunnerContext } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { printWriteSummary } from "./diff.js";
 import { lintFile } from "./lint.js";
+import { resolveToolPath } from "./path-resolver.js";
 
 export const fileWriteTool: KotaTool = {
   name: "file_write",
@@ -31,17 +33,19 @@ export const fileWriteTool: KotaTool = {
 
 export async function runFileWrite(
   input: Record<string, unknown>,
+  context?: ToolRunnerContext,
 ): Promise<ToolResult> {
-  const path = input.path as string;
+  const rawPath = input.path as string;
   const content = input.content as string;
 
-  if (!path) {
+  if (!rawPath) {
     return { content: "Error: path is required", is_error: true };
   }
   if (content === undefined || content === null) {
     return { content: "Error: content is required", is_error: true };
   }
 
+  const path = resolveToolPath(rawPath, context);
   const existed = existsSync(path);
   if (existed) {
     try {
@@ -83,4 +87,3 @@ export async function runFileWrite(
   }
   return { content: `Wrote ${lines} lines to ${path}` };
 }
-

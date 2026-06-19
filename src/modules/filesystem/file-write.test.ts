@@ -66,6 +66,18 @@ describe("file_write: creating new files", () => {
     expect(readFileSync(path, "utf-8")).toBe("deep content");
   });
 
+  it("resolves relative paths against context cwd", async () => {
+    const projectDir = join(TEST_DIR, "context-project");
+    const result = await runFileWrite(
+      { path: "scoped.txt", content: "scoped content" },
+      { cwd: projectDir },
+    );
+
+    expect(result.is_error).toBeUndefined();
+    expect(readFileSync(join(projectDir, "scoped.txt"), "utf-8")).toBe("scoped content");
+    expect(existsSync(join(process.cwd(), "scoped.txt"))).toBe(false);
+  });
+
   it("creates an empty file", async () => {
     const path = join(TEST_DIR, "empty.txt");
     const result = await runFileWrite({ path, content: "" });

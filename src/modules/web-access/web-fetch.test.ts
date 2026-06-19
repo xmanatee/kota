@@ -459,6 +459,38 @@ describe("runWebFetch", () => {
     expect(wf).toHaveBeenCalledWith(resolvedSavePath, "Hello world content here", "utf-8");
   });
 
+  it("resolves relative save_to paths against the runner context cwd", async () => {
+    const fs = await import("node:fs");
+    const os = await import("node:os");
+    const { writeFile: wf, mkdir: mk } = await import("node:fs/promises");
+    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "kota-web-fetch-context-"));
+    const savePath = "downloads/page.txt";
+    const resolvedSavePath = path.join(fs.realpathSync.native(projectDir), savePath);
+    vi.mocked(wf).mockClear();
+    vi.mocked(mk).mockClear();
+    vi.mocked(global.fetch).mockResolvedValue(
+      mockResponse("Project B content", {
+        headers: { "content-type": "text/plain" },
+      }) as never,
+    );
+
+    try {
+      const result = await runWebFetch(
+        {
+          url: "https://example.com/data.txt",
+          save_to: savePath,
+        },
+        { cwd: projectDir, scopeId: "project-b", projectId: "project-b" },
+      );
+
+      expect(result.is_error).toBeUndefined();
+      expect(mk).toHaveBeenCalledWith(path.dirname(resolvedSavePath), { recursive: true });
+      expect(wf).toHaveBeenCalledWith(resolvedSavePath, "Project B content", "utf-8");
+    } finally {
+      fs.rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+
   it("keeps the timeout active through save_to writes", async () => {
     vi.useFakeTimers();
     const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");

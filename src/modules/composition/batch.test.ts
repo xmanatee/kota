@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { ToolRunnerContext } from "#core/tools/index.js";
 import { runBatch } from "./batch.js";
 
 vi.mock("#core/tools/delegate.js", () => ({
@@ -59,14 +60,37 @@ describe("runBatch execution", () => {
 		mockDelegate.mockResolvedValue({ content: "done" });
 		await runBatch({ tasks: ["t1"], mode: "execute" });
 
-		expect(mockDelegate).toHaveBeenCalledWith({ task: "t1", mode: "execute" });
+		expect(mockDelegate).toHaveBeenCalledWith(
+			{ task: "t1", mode: "execute" },
+			undefined,
+		);
 	});
 
 	it("defaults mode to explore", async () => {
 		mockDelegate.mockResolvedValue({ content: "done" });
 		await runBatch({ tasks: ["t1"] });
 
-		expect(mockDelegate).toHaveBeenCalledWith({ task: "t1", mode: "explore" });
+		expect(mockDelegate).toHaveBeenCalledWith(
+			{ task: "t1", mode: "explore" },
+			undefined,
+		);
+	});
+
+	it("passes runner context through to delegated tasks", async () => {
+		const context: ToolRunnerContext = {
+			cwd: "/tmp/project-b",
+			scopeId: "project-b",
+			projectId: "project-b",
+			sessionId: "session-b",
+		};
+		mockDelegate.mockResolvedValue({ content: "done" });
+
+		await runBatch({ tasks: ["t1"], mode: "execute" }, context);
+
+		expect(mockDelegate).toHaveBeenCalledWith(
+			{ task: "t1", mode: "execute" },
+			context,
+		);
 	});
 
 	it("handles partial failures gracefully", async () => {

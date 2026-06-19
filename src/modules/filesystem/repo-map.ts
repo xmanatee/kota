@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { glob as globFn } from "glob";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
-import type { ToolResult } from "#core/tools/index.js";
+import type { ToolResult, ToolRunnerContext } from "#core/tools/index.js";
+import { resolveToolPath } from "./path-resolver.js";
 import { isProtectedProjectPath, PROTECTED_PROJECT_GLOB_IGNORES } from "./protected-paths.js";
 
 export const repoMapTool: KotaTool = {
@@ -70,8 +72,11 @@ export function extractSymbols(content: string, isPython: boolean): string[] {
 
 export async function runRepoMap(
   input: Record<string, unknown>,
+  context?: ToolRunnerContext,
 ): Promise<ToolResult> {
-  const directory = (input.directory as string) || ".";
+  const rawDirectory = (input.directory as string) || ".";
+  const directory = resolveToolPath(rawDirectory, context);
+  const protectionBasePath = context?.cwd ?? process.cwd();
   const pattern = (input.pattern as string) || "**/*.{ts,tsx,js,jsx,py}";
 
   const files = await globFn(pattern, {
@@ -79,7 +84,10 @@ export async function runRepoMap(
     nodir: true,
     ignore: ["**/node_modules/**", "**/.git/**", "**/dist/**", "**/*.d.ts", ...PROTECTED_PROJECT_GLOB_IGNORES],
   });
-  const visibleFiles = files.filter((file) => !isProtectedProjectPath(`${directory}/${file}`));
+  const visibleFiles = files.filter((file) => !isProtectedProjectPath(
+    join(directory, file),
+    protectionBasePath,
+  ));
 
   if (visibleFiles.length === 0) {
     return { content: "No source files found." };
@@ -93,7 +101,7 @@ export async function runRepoMap(
   for (const file of limited) {
     if (symbolCount >= MAX_SYMBOLS) break;
 
-    const fullPath = directory === "." ? file : `${directory}/${file}`;
+    const fullPath = join(directory, file);
     try {
       const content = readFileSync(fullPath, "utf-8");
       const isPython = file.endsWith(".py");

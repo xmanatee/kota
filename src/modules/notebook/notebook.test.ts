@@ -14,11 +14,16 @@ function tmpPath(name: string): string {
 
 describe("notebook tool", () => {
   const created: string[] = [];
+  const createdDirs: string[] = [];
   afterEach(() => {
     for (const p of created) {
       if (fs.existsSync(p)) fs.unlinkSync(p);
     }
+    for (const dir of createdDirs) {
+      if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
+    }
     created.length = 0;
+    createdDirs.length = 0;
   });
 
   it("has required fields in tool definition", () => {
@@ -139,6 +144,51 @@ describe("notebook tool", () => {
     const nb = JSON.parse(fs.readFileSync(p, "utf-8"));
     expect(nb.cells).toHaveLength(3);
     expect(nb.cells[2].cell_type).toBe("markdown");
+  });
+
+  it("resolves relative paths against runner cwd for create and add_cells", async () => {
+    const processProject = fs.mkdtempSync(
+      path.join(os.tmpdir(), "kota-nb-process-cwd-"),
+    );
+    const runnerProject = fs.mkdtempSync(
+      path.join(os.tmpdir(), "kota-nb-runner-cwd-"),
+    );
+    createdDirs.push(processProject, runnerProject);
+
+    const originalCwd = process.cwd();
+    const relativeNotebook = path.join("analysis", "context.ipynb");
+    const runnerTarget = path.join(runnerProject, relativeNotebook);
+    const processTarget = path.join(processProject, relativeNotebook);
+
+    process.chdir(processProject);
+    try {
+      const create = await runNotebook(
+        {
+          action: "create",
+          path: relativeNotebook,
+          cells: [{ type: "markdown", content: "# Context" }],
+        },
+        { cwd: runnerProject },
+      );
+      expect(create.is_error).toBeUndefined();
+
+      const append = await runNotebook(
+        {
+          action: "add_cells",
+          path: relativeNotebook,
+          cells: [{ type: "code", content: "x = 1" }],
+        },
+        { cwd: runnerProject },
+      );
+      expect(append.is_error).toBeUndefined();
+    } finally {
+      process.chdir(originalCwd);
+    }
+
+    expect(fs.existsSync(runnerTarget)).toBe(true);
+    expect(fs.existsSync(processTarget)).toBe(false);
+    const nb = JSON.parse(fs.readFileSync(runnerTarget, "utf-8"));
+    expect(nb.cells).toHaveLength(2);
   });
 
   it("returns error for add_cells on missing file", async () => {

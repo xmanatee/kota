@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type { ToolRunnerContext } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 
@@ -49,10 +50,10 @@ function truncateDiff(text: string): string {
 	);
 }
 
-function git(args: string[], cwd?: string): Promise<{ stdout: string; stderr: string; code: number }> {
+function git(args: string[], context?: ToolRunnerContext): Promise<{ stdout: string; stderr: string; code: number }> {
 	return new Promise((resolve) => {
 		const proc = execFile("git", args, {
-			cwd: cwd ?? process.cwd(),
+			cwd: context?.cwd ?? process.cwd(),
 			env: withProtectedGitBareRepositoryEnv(),
 			maxBuffer: 5 * 1024 * 1024,
 			timeout: 30_000,
@@ -66,67 +67,67 @@ function git(args: string[], cwd?: string): Promise<{ stdout: string; stderr: st
 	});
 }
 
-function getCurrentBranch(): Promise<string> {
-	return git(["rev-parse", "--abbrev-ref", "HEAD"]).then((r) => r.stdout.trim());
+function getCurrentBranch(context?: ToolRunnerContext): Promise<string> {
+	return git(["rev-parse", "--abbrev-ref", "HEAD"], context).then((r) => r.stdout.trim());
 }
 
-async function opStatus(): Promise<ToolResult> {
-	const result = await git(["status", "--short", "--branch"]);
+async function opStatus(context?: ToolRunnerContext): Promise<ToolResult> {
+	const result = await git(["status", "--short", "--branch"], context);
 	if (result.code !== 0) {
 		return { content: `Error: ${result.stderr.trim() || result.stdout.trim()}`, is_error: true };
 	}
 	return { content: result.stdout.trim() || "(clean working tree)" };
 }
 
-async function opDiff(args: string): Promise<ToolResult> {
+async function opDiff(args: string, context?: ToolRunnerContext): Promise<ToolResult> {
 	const parts = args ? args.split(/\s+/) : [];
-	const result = await git(["diff", "--stat", ...parts]);
+	const result = await git(["diff", "--stat", ...parts], context);
 	if (result.code !== 0) {
 		return { content: `Error: ${result.stderr.trim()}`, is_error: true };
 	}
-	const full = await git(["diff", ...parts]);
+	const full = await git(["diff", ...parts], context);
 	const diff = full.stdout.trim();
 	if (!diff) return { content: "(no changes)" };
 	return { content: truncateDiff(diff) };
 }
 
-async function opLog(args: string): Promise<ToolResult> {
+async function opLog(args: string, context?: ToolRunnerContext): Promise<ToolResult> {
 	const parts = args ? args.split(/\s+/) : ["--oneline", "-20"];
-	const result = await git(["log", ...parts]);
+	const result = await git(["log", ...parts], context);
 	if (result.code !== 0) {
 		return { content: `Error: ${result.stderr.trim()}`, is_error: true };
 	}
 	return { content: result.stdout.trim() || "(no commits)" };
 }
 
-async function opShow(args: string): Promise<ToolResult> {
+async function opShow(args: string, context?: ToolRunnerContext): Promise<ToolResult> {
 	const ref = args?.trim() || "HEAD";
-	const result = await git(["show", "--stat", ref]);
+	const result = await git(["show", "--stat", ref], context);
 	if (result.code !== 0) {
 		return { content: `Error: ${result.stderr.trim()}`, is_error: true };
 	}
-	const full = await git(["show", ref]);
+	const full = await git(["show", ref], context);
 	return { content: truncateDiff(full.stdout.trim()) };
 }
 
-async function opAdd(args: string): Promise<ToolResult> {
+async function opAdd(args: string, context?: ToolRunnerContext): Promise<ToolResult> {
 	if (!args?.trim()) {
 		return { content: "Error: file paths required (e.g. 'src/foo.ts' or '.')", is_error: true };
 	}
 	const parts = args.split(/\s+/);
-	const result = await git(["add", ...parts]);
+	const result = await git(["add", ...parts], context);
 	if (result.code !== 0) {
 		return { content: `Error: ${result.stderr.trim()}`, is_error: true };
 	}
-	const status = await git(["status", "--short"]);
+	const status = await git(["status", "--short"], context);
 	return { content: `Staged. Current status:\n${status.stdout.trim()}` };
 }
 
-async function opCommit(args: string): Promise<ToolResult> {
+async function opCommit(args: string, context?: ToolRunnerContext): Promise<ToolResult> {
 	if (!args?.trim()) {
 		return { content: "Error: commit message required", is_error: true };
 	}
-	const result = await git(["commit", "-m", args.trim()]);
+	const result = await git(["commit", "-m", args.trim()], context);
 	if (result.code !== 0) {
 		const msg = result.stderr.trim() || result.stdout.trim();
 		return { content: `Error: ${msg}`, is_error: true };
@@ -134,16 +135,16 @@ async function opCommit(args: string): Promise<ToolResult> {
 	return { content: result.stdout.trim() };
 }
 
-async function opBranch(args: string): Promise<ToolResult> {
+async function opBranch(args: string, context?: ToolRunnerContext): Promise<ToolResult> {
 	const parts = args?.trim().split(/\s+/) ?? [];
 	if (!args?.trim()) {
-		const result = await git(["branch", "-vv"]);
+		const result = await git(["branch", "-vv"], context);
 		return { content: result.stdout.trim() || "(no branches)" };
 	}
 	if (parts[0] === "checkout" || parts[0] === "switch") {
 		const name = parts[1];
 		if (!name) return { content: "Error: branch name required", is_error: true };
-		const result = await git(["checkout", name]);
+		const result = await git(["checkout", name], context);
 		if (result.code !== 0) {
 			return { content: `Error: ${result.stderr.trim()}`, is_error: true };
 		}
@@ -155,24 +156,24 @@ async function opBranch(args: string): Promise<ToolResult> {
 		if (PROTECTED_BRANCHES.has(name)) {
 			return { content: `Blocked: cannot delete protected branch '${name}'`, is_error: true };
 		}
-		const result = await git(["branch", parts[0], name]);
+		const result = await git(["branch", parts[0], name], context);
 		if (result.code !== 0) {
 			return { content: `Error: ${result.stderr.trim()}`, is_error: true };
 		}
 		return { content: result.stdout.trim() || `Deleted branch ${name}` };
 	}
-	const result = await git(["checkout", "-b", parts[0]]);
+	const result = await git(["checkout", "-b", parts[0]], context);
 	if (result.code !== 0) {
 		return { content: `Error: ${result.stderr.trim()}`, is_error: true };
 	}
 	return { content: result.stderr.trim() || `Created and switched to ${parts[0]}` };
 }
 
-async function opPush(args: string): Promise<ToolResult> {
+async function opPush(args: string, context?: ToolRunnerContext): Promise<ToolResult> {
 	const parts = args?.trim().split(/\s+/).filter(Boolean) ?? [];
 
 	if (parts.some((p) => p === "--force" || p === "-f")) {
-		const branch = await getCurrentBranch();
+		const branch = await getCurrentBranch(context);
 		if (PROTECTED_BRANCHES.has(branch)) {
 			return {
 				content: `Blocked: force-push to '${branch}' is not allowed. Use --force-with-lease for safety.`,
@@ -181,15 +182,15 @@ async function opPush(args: string): Promise<ToolResult> {
 		}
 	}
 
-	const result = await git(["push", ...parts]);
+	const result = await git(["push", ...parts], context);
 	if (result.code !== 0) {
 		return { content: `Error: ${result.stderr.trim()}`, is_error: true };
 	}
 	return { content: result.stderr.trim() || result.stdout.trim() || "Push completed" };
 }
 
-const OPS: Record<string, (args: string) => Promise<ToolResult>> = {
-	status: () => opStatus(),
+const OPS: Record<string, (args: string, context?: ToolRunnerContext) => Promise<ToolResult>> = {
+	status: (_args, context) => opStatus(context),
 	diff: opDiff,
 	log: opLog,
 	show: opShow,
@@ -199,12 +200,12 @@ const OPS: Record<string, (args: string) => Promise<ToolResult>> = {
 	push: opPush,
 };
 
-export async function runGit(input: Record<string, unknown>): Promise<ToolResult> {
+export async function runGit(input: Record<string, unknown>, context?: ToolRunnerContext): Promise<ToolResult> {
 	const op = input.op as string;
 	if (!op) return { content: "Error: op is required", is_error: true };
 	const handler = OPS[op];
 	if (!handler) {
 		return { content: `Error: unknown op '${op}'. Valid: ${Object.keys(OPS).join(", ")}`, is_error: true };
 	}
-	return handler((input.args as string) ?? "");
+	return handler((input.args as string) ?? "", context);
 }

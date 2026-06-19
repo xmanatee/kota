@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { recordModification, recordRead } from "#core/file-tracking/file-tracker.js";
+import type { ToolRunnerContext } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 
 interface NotebookCell {
@@ -58,6 +59,13 @@ function buildNotebook(cells: NotebookCell[], kernel = "python3") {
   };
 }
 
+function resolveNotebookPath(
+  filePath: string,
+  context?: ToolRunnerContext,
+): string {
+  return path.resolve(context?.cwd ?? process.cwd(), filePath);
+}
+
 export const notebookTool = {
   name: "notebook",
   description:
@@ -103,6 +111,7 @@ export const notebookTool = {
 
 export async function runNotebook(
   input: Record<string, unknown>,
+  context?: ToolRunnerContext,
 ): Promise<ToolResult> {
   const action = input.action as string;
   const filePath = input.path as string;
@@ -124,7 +133,7 @@ export async function runNotebook(
     }
   }
 
-  const resolved = path.resolve(filePath);
+  const resolved = resolveNotebookPath(filePath, context);
 
   if (action === "create") {
     await fs.promises.mkdir(path.dirname(resolved), { recursive: true });

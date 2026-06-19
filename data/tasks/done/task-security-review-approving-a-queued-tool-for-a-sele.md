@@ -1,12 +1,12 @@
 ---
 id: task-security-review-approving-a-queued-tool-for-a-sele
 title: Security review: Approving a queued tool for a selected non-default project resolves that project's approval queue, but then executes the approved tool without passing any project/session scope into executeTool. Relative-path or cwd-sensitive tools can therefore run against the daemon/default cwd instead of the project whose queue was approved.
-status: ready
+status: done
 priority: p2
 area: security
 summary: Approving a queued tool for a selected non-default project resolves that project's approval queue, but then executes the approved tool without passing any project/session scope into executeTool. Relative-path or cwd-sensitive tools can therefore run against the daemon/default cwd instead of the project whose queue was approved.
 created_at: 2026-06-19T15:14:20.974Z
-updated_at: 2026-06-19T15:14:20.974Z
+updated_at: 2026-06-19T15:30:34.969Z
 ---
 
 ## Problem
@@ -59,3 +59,4 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Verification: `pnpm exec vitest run src/modules/approval-queue/execution-scope.test.ts src/modules/approval-queue/routes.test.ts src/modules/approval-queue/daemon-control.test.ts src/modules/filesystem/file-write.test.ts src/modules/execution/shell.test.ts`, `pnpm typecheck`, and `pnpm validate-tasks` pass.

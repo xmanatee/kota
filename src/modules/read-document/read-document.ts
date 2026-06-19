@@ -11,8 +11,10 @@
  */
 
 import { existsSync } from "node:fs";
-import { extname, resolve } from "node:path";
+import { extname } from "node:path";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type { ToolRunnerContext } from "#core/tools/index.js";
+import { resolvePathFrom } from "#core/tools/project-path-policy.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import {
 	extractText,
@@ -52,13 +54,14 @@ const DEFAULT_MAX_CHARS = 50_000;
 
 export async function runReadDocument(
 	input: Record<string, unknown>,
+	context?: ToolRunnerContext,
 ): Promise<ToolResult> {
 	const rawPath = input.path as string;
 	if (!rawPath) {
 		return { content: "Error: path is required", is_error: true };
 	}
 
-	const filePath = resolve(rawPath);
+	const filePath = resolvePathFrom(context?.cwd ?? process.cwd(), rawPath);
 	if (!existsSync(filePath)) {
 		return { content: `Error: file not found: ${filePath}`, is_error: true };
 	}

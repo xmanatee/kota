@@ -507,7 +507,7 @@ export async function runHandoffAgent(
   const budgetLease = budgetStart.lease;
   try {
     return await budgetLease.run(async () => {
-      const cwd = runtime.cwd;
+      const cwd = context?.cwd ?? runtime.cwd;
       const scope = readScope(input, currentScope(cwd, context));
       if (isErrorResult(scope)) return scope;
       const preSnapshot = writeScopeSnapshot(cwd, writeScope);

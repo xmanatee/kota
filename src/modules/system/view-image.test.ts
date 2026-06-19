@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { runViewImage, viewImageTool } from "./view-image.js";
 
@@ -452,5 +453,21 @@ describe("runViewImage", () => {
 		setPlatform("win32");
 		const result = await runViewImage({ path: "./images/chart.png" });
 		expect(result.content).toContain("./images/chart.png");
+	});
+
+	it("resolves relative paths against runner context cwd", async () => {
+		setPlatform("win32");
+		const projectDir = "/selected/project";
+		const filePath = join(projectDir, "images", "chart.png");
+
+		const result = await runViewImage(
+			{ path: "images/chart.png", detail: "original" },
+			{ cwd: projectDir },
+		);
+
+		expect(result.is_error).toBeUndefined();
+		expect(mockStat).toHaveBeenCalledWith(filePath);
+		expect(mockRead).toHaveBeenCalledWith(filePath);
+		expect(result.content).toContain("Image loaded: images/chart.png");
 	});
 });

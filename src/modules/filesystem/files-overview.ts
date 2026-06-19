@@ -1,7 +1,9 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { extname, join } from "node:path";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type { ToolRunnerContext } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
+import { resolveToolPath } from "./path-resolver.js";
 import { isProtectedProjectPath } from "./protected-paths.js";
 
 export const filesOverviewTool: KotaTool = {
@@ -110,7 +112,7 @@ const SKIP_DIRS = new Set([
 ]);
 
 async function scan(
-  dir: string, maxDepth: number, depth = 0,
+  dir: string, maxDepth: number, protectionBasePath: string, depth = 0,
 ): Promise<{ files: Entry[]; dirs: string[] }> {
   const files: Entry[] = [];
   const dirs: string[] = [];
@@ -126,11 +128,11 @@ async function scan(
     if (e.isDirectory()) {
       dirs.push(e.name);
       if (depth < maxDepth) {
-        const sub = await scan(full, maxDepth, depth + 1);
+        const sub = await scan(full, maxDepth, protectionBasePath, depth + 1);
         files.push(...sub.files.map((f) => ({ ...f, path: join(e.name, f.path) })));
       }
     } else if (e.isFile()) {
-      if (isProtectedProjectPath(full)) continue;
+      if (isProtectedProjectPath(full, protectionBasePath)) continue;
       try {
         const s = await stat(full);
         const ext = extname(e.name);
@@ -148,8 +150,11 @@ async function scan(
 
 export async function runFilesOverview(
   input: Record<string, unknown>,
+  context?: ToolRunnerContext,
 ): Promise<ToolResult> {
-  const basePath = (input.path as string) || ".";
+  const rawBasePath = (input.path as string) || ".";
+  const basePath = resolveToolPath(rawBasePath, context);
+  const protectionBasePath = context?.cwd ?? process.cwd();
   const maxDepth = (input.max_depth as number) ?? 2;
 
   try {
@@ -161,7 +166,7 @@ export async function runFilesOverview(
     return { content: `Error: Directory not found: ${basePath}`, is_error: true };
   }
 
-  const { files, dirs } = await scan(basePath, maxDepth);
+  const { files, dirs } = await scan(basePath, maxDepth, protectionBasePath);
   if (files.length === 0 && dirs.length === 0) {
     return { content: `Directory ${basePath} is empty.` };
   }

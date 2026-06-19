@@ -17,7 +17,7 @@ import {
   normalizeSchema,
 } from "./custom-tool-persistence.js";
 import { localWriteEffect } from "./effect.js";
-import type { ToolRunner } from "./index.js";
+import type { ToolRunner, ToolRunnerContext } from "./index.js";
 
 // Avoid circular dependency: index.ts imports from us, so we accept
 // registerTool/deregisterTool via injection instead of importing them.
@@ -91,15 +91,18 @@ export const customToolTool: KotaTool = {
 
 // ─── Runner ───────────────────────────────────────────────────────────
 
-export async function runCustomTool(input: Record<string, unknown>): Promise<ToolResult> {
+export async function runCustomTool(
+  input: Record<string, unknown>,
+  context?: ToolRunnerContext,
+): Promise<ToolResult> {
   const action = input.action as string;
   switch (action) {
     case "create":
-      return handleCreate(input, customDefs, _register, _deregister);
+      return handleCreate(input, customDefs, _register, _deregister, context);
     case "list":
       return handleList(customDefs);
     case "remove":
-      return handleRemove(input, customDefs, _deregister);
+      return handleRemove(input, customDefs, _deregister, context);
     default:
       return { content: `Unknown action: "${action}". Use create, list, or remove.`, is_error: true };
   }
@@ -108,8 +111,8 @@ export async function runCustomTool(input: Record<string, unknown>): Promise<Too
 // ─── Persistence ──────────────────────────────────────────────────────
 
 /** Load saved custom tools from .kota/tools/. Returns count of tools loaded. */
-export function loadSavedTools(): number {
-  const dir = getToolsDir();
+export function loadSavedTools(cwd?: string): number {
+  const dir = getToolsDir(cwd);
   if (!existsSync(dir)) return 0;
 
   let loaded = 0;

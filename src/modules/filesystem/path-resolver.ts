@@ -1,5 +1,6 @@
-import { basename } from "node:path";
+import { basename, isAbsolute, resolve } from "node:path";
 import { globSync } from "glob";
+import type { ToolRunnerContext } from "#core/tools/index.js";
 
 const IGNORE_DIRS = [
   "node_modules/**",
@@ -16,13 +17,14 @@ const IGNORE_DIRS = [
  * for files with the same or similar basename.
  * Returns at most `max` suggestions, sorted by relevance.
  */
-export function suggestAlternatives(missingPath: string, max = 5): string[] {
+export function suggestAlternatives(missingPath: string, max = 5, cwd?: string): string[] {
   const name = basename(missingPath);
   if (!name) return [];
 
   // Try exact filename match first (most common case: right name, wrong directory)
   try {
     const exact = globSync(`**/${escapeGlob(name)}`, {
+      ...(cwd !== undefined ? { cwd } : {}),
       ignore: IGNORE_DIRS,
       maxDepth: 10,
       nodir: true,
@@ -40,6 +42,7 @@ export function suggestAlternatives(missingPath: string, max = 5): string[] {
 
   try {
     const candidates = globSync(`**/*${ext}`, {
+      ...(cwd !== undefined ? { cwd } : {}),
       ignore: IGNORE_DIRS,
       maxDepth: 8,
       nodir: true,
@@ -100,8 +103,8 @@ export function nameSimilarity(a: string, b: string): number {
  * Format a "file not found" error with path suggestions.
  * The glob search runs only on miss — zero cost for existing files.
  */
-export function fileNotFoundError(path: string): string {
-  const suggestions = suggestAlternatives(path);
+export function fileNotFoundError(path: string, cwd?: string): string {
+  const suggestions = suggestAlternatives(path, 5, cwd);
   const base = `Error: file not found: ${path}`;
 
   if (suggestions.length === 0) return base;
@@ -111,4 +114,12 @@ export function fileNotFoundError(path: string): string {
   }
 
   return `${base}\n\nSimilar files found:\n${suggestions.map((s) => `  - ${s}`).join("\n")}`;
+}
+
+export function resolveToolPath(
+  path: string,
+  context?: ToolRunnerContext,
+): string {
+  if (isAbsolute(path) || !context?.cwd) return path;
+  return resolve(context.cwd, path);
 }

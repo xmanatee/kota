@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
+import { isAbsolute, resolve } from "node:path";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
@@ -57,6 +58,24 @@ function abortMessage(signal: AbortSignal): string {
   return reason instanceof Error ? reason.message : "Session cancelled";
 }
 
+function resolveShellCwd(
+  inputCwd: string | undefined,
+  context?: ToolRunnerContext,
+): { cwd: string; explicit: boolean } {
+  const cwd = inputCwd && inputCwd.length > 0 ? inputCwd : undefined;
+  if (!cwd) {
+    return {
+      cwd: context?.cwd ?? process.cwd(),
+      explicit: Boolean(context?.cwd),
+    };
+  }
+  if (isAbsolute(cwd)) return { cwd: resolve(cwd), explicit: true };
+  return {
+    cwd: resolve(context?.cwd ?? process.cwd(), cwd),
+    explicit: true,
+  };
+}
+
 export async function runShell(
   input: Record<string, unknown>,
   context?: ToolRunnerContext,
@@ -69,8 +88,9 @@ export async function runShell(
     return { content: "Error: command is required", is_error: true };
   }
 
-  const cwd = (input.cwd as string) || process.cwd();
-  if (input.cwd && !existsSync(cwd)) {
+  const inputCwd = typeof input.cwd === "string" ? input.cwd : undefined;
+  const { cwd, explicit: explicitCwd } = resolveShellCwd(inputCwd, context);
+  if (explicitCwd && !existsSync(cwd)) {
     return { content: `Error: working directory not found: ${cwd}`, is_error: true };
   }
 
@@ -145,7 +165,7 @@ export async function runShell(
       if (code !== 0 && code !== null) {
         const truncated = smartErrorTruncate(output || `Command failed with exit code ${code}`);
         resolve({
-          content: enrichWithSourceContext(truncated, input.cwd ? cwd : undefined),
+          content: enrichWithSourceContext(truncated, explicitCwd ? cwd : undefined),
           is_error: true,
         });
         return;

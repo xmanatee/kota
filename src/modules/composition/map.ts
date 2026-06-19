@@ -1,5 +1,5 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
-import { executeTool } from "#core/tools/index.js";
+import { executeTool, type ToolRunnerContext } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 
 export const mapTool: KotaTool = {
@@ -69,6 +69,7 @@ function truncate(text: string, limit: number): string {
 
 export async function runMap(
 	input: Record<string, unknown>,
+	context?: ToolRunnerContext,
 ): Promise<ToolResult> {
 	const toolName = input.tool as string;
 	const items = input.items as Record<string, unknown>[];
@@ -102,6 +103,7 @@ export async function runMap(
 			const result = await executeTool(
 				toolName,
 				item as Record<string, unknown>,
+				context,
 			);
 			return {
 				index,

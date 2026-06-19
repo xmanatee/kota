@@ -36,7 +36,7 @@ import {
 } from "./delegate-format.js";
 import { runDelegateTurns } from "./delegate-turn.js";
 import { localWriteEffect } from "./effect.js";
-import type { ResolvedToolSet, ToolResult } from "./index.js";
+import type { ResolvedToolSet, ToolResult, ToolRunnerContext } from "./index.js";
 
 export {
   createDelegateBudget,
@@ -112,7 +112,10 @@ type DelegateInput = Record<string, unknown>;
 
 const VALID_MODES: Set<DelegateMode> = new Set(["explore", "execute", "research"]);
 
-export async function runDelegate(input: DelegateInput): Promise<ToolResult> {
+export async function runDelegate(
+  input: DelegateInput,
+  context?: ToolRunnerContext,
+): Promise<ToolResult> {
   const task = input.task as string;
   const rawMode = (input.mode as string) || "explore";
 
@@ -137,7 +140,7 @@ export async function runDelegate(input: DelegateInput): Promise<ToolResult> {
 
   try {
     return await budgetLease.run(() =>
-      runDelegateWithBudget(input, task, mode, delegateConfig, budgetLease),
+      runDelegateWithBudget(input, task, mode, delegateConfig, budgetLease, context),
     );
   } finally {
     budgetLease.release();
@@ -150,8 +153,10 @@ async function runDelegateWithBudget(
   mode: DelegateMode,
   delegateConfig: ResolvedDelegateConfig,
   budgetLease: DelegateBudgetLease,
+  context?: ToolRunnerContext,
 ): Promise<ToolResult> {
   const isExecute = mode === "execute";
+  const cwd = context?.cwd ?? delegateConfig.cwd;
 
   const modelRoute = delegateConfig.modelTiers
     ? routeModel(task, mode, delegateConfig.modelTiers, delegateConfig.model)
@@ -173,7 +178,7 @@ async function runDelegateWithBudget(
       message: `[kota] delegate(${mode}) budget ${formatBudgetStatus(budgetLease)}`,
     });
     return runDelegateHarness(task, mode, {
-      cwd: delegateConfig.cwd,
+      cwd,
       projectContext: delegateConfig.projectContext,
       instructionContext: delegateConfig.instructionContext,
       costTracker: delegateConfig.costTracker,
@@ -205,14 +210,14 @@ async function runDelegateWithBudget(
   const promptVars = (input.prompt_vars as Record<string, string>) || {};
   let basePrompt: string;
   if (promptName) {
-    const resolved = resolvePromptTemplate(promptName, promptVars, delegateConfig.cwd);
+    const resolved = resolvePromptTemplate(promptName, promptVars, cwd);
     if (resolved.error) return { content: resolved.error, is_error: true };
     basePrompt = resolved.content!;
   } else {
     basePrompt = PROMPT_BY_MODE[mode];
   }
   const systemPrompt = buildSubAgentPrompt(basePrompt, {
-    cwd: delegateConfig.cwd,
+    cwd,
     projectContext: delegateConfig.projectContext,
     instructionContext: delegateConfig.instructionContext,
     tools,
@@ -226,7 +231,7 @@ async function runDelegateWithBudget(
 
   const client = delegateConfig.client ?? createModelClient({
     model: delegateConfig.model,
-    projectDir: delegateConfig.cwd,
+    projectDir: cwd,
   }).client;
   const costTracker = delegateConfig.costTracker;
   const transport = delegateConfig.transport;
@@ -246,7 +251,7 @@ async function runDelegateWithBudget(
   }
 
   const loopResult = await runDelegateTurns({
-    client, messages, systemBlocks, tools, runners, mcpMgr,
+    client, messages, systemBlocks, tools, runners, runnerContext: context, mcpMgr,
     isExecute, selectedModel, modelOutputTokenLimits: delegateConfig.modelOutputTokenLimits,
     maxTurns, mode, transport, costTracker,
     modifiedFiles, collectedImages, toolsUsed, urlsFetched, searchQueries,

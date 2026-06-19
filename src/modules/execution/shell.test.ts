@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -245,6 +245,44 @@ describe("shell: working directory (cwd)", () => {
     const result = await runShell({ command: "pwd" });
     expect(result.is_error).toBeUndefined();
     expect(result.content).toBe(process.cwd());
+  });
+
+  it("uses context cwd when input cwd is not specified", async () => {
+    const projectDir = makeTempProject("kota-shell-context-cwd");
+    try {
+      const result = await runShell(
+        { command: "pwd", stream_output: false },
+        { cwd: projectDir },
+      );
+
+      expect(result.is_error).toBeUndefined();
+      expect(realpathSync(result.content)).toBe(realpathSync(projectDir));
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+
+  it("resolves relative input cwd against context cwd", async () => {
+    const originalCwd = process.cwd();
+    const daemonDir = makeTempProject("kota-shell-daemon-cwd");
+    const projectDir = makeTempProject("kota-shell-project-cwd");
+    try {
+      mkdirSync(join(daemonDir, "subdir"), { recursive: true });
+      mkdirSync(join(projectDir, "subdir"), { recursive: true });
+      process.chdir(daemonDir);
+
+      const result = await runShell(
+        { command: "pwd", cwd: "subdir", stream_output: false },
+        { cwd: projectDir },
+      );
+
+      expect(result.is_error).toBeUndefined();
+      expect(realpathSync(result.content)).toBe(realpathSync(join(projectDir, "subdir")));
+    } finally {
+      process.chdir(originalCwd);
+      rmSync(daemonDir, { recursive: true, force: true });
+      rmSync(projectDir, { recursive: true, force: true });
+    }
   });
 
   it("accesses files relative to cwd", async () => {
