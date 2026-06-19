@@ -1,12 +1,12 @@
 ---
 id: task-add-peer-agent-product-benchmark-matrix
 title: Add peer agent product benchmark matrix
-status: backlog
+status: ready
 priority: p2
 area: research
 summary: Compare KOTA against DOX, Agent Zero, Space Agent, ClawPatrol, Rowboat, Open Notebook, Headroom, secure MCP tunnels, project-shaped workflow framing, and agent-computer patterns with bounded adopt/adapt/reject decisions.
 created_at: 2026-06-11T22:24:20.132Z
-updated_at: 2026-06-13T00:16:08.543Z
+updated_at: 2026-06-19T03:53:10.709Z
 task_class: Product
 ---
 

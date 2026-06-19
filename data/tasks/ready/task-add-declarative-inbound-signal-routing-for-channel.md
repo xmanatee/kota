@@ -1,13 +1,13 @@
 ---
 id: task-add-declarative-inbound-signal-routing-for-channel
 title: Add declarative inbound signal routing for channels
-status: backlog
+status: ready
 priority: p1
 area: channel
 summary: Add a provider-neutral routing table for inbound channel events so Telegram, Slack, Gmail, and future adapters map sources to scopes, workflows, agents, trust states, and blocked/audit behavior consistently.
 depends_on: [task-promote-projects-into-hierarchical-scopes, task-unify-hooks-and-workflows-under-one-automation-pro, task-add-generic-event-batching-to-workflow-triggers]
 created_at: 2026-06-03T13:40:37.844Z
-updated_at: 2026-06-03T14:08:54.000Z
+updated_at: 2026-06-19T03:53:10.683Z
 ---
 
 ## Problem
