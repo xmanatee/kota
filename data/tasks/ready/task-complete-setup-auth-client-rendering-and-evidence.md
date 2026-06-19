@@ -1,13 +1,13 @@
 ---
 id: task-complete-setup-auth-client-rendering-and-evidence
 title: Complete setup auth client rendering and evidence
-status: backlog
+status: ready
 priority: p2
 area: client
 summary: Close the setup/auth rollout gap by rendering the same requirement states and safe collection actions through shared client surfaces with transcript/screenshot evidence.
 depends_on: [task-add-shared-ui-contribution-protocol-across-clients]
 created_at: 2026-06-04T13:06:53.015Z
-updated_at: 2026-06-18T19:35:00.000Z
+updated_at: 2026-06-19T11:07:19.984Z
 ---
 
 ## Problem

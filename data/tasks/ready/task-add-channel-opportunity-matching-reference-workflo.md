@@ -1,13 +1,13 @@
 ---
 id: task-add-channel-opportunity-matching-reference-workflo
 title: Add channel opportunity matching reference workflow
-status: backlog
+status: ready
 priority: p2
 area: channel
 summary: Build a reference workflow for high-volume community messages that batches opportunities, classifies them cheaply, checks calendar availability, asks the owner, and performs a confirmed provider-specific action.
 depends_on: [task-add-declarative-inbound-signal-routing-for-channel, task-add-generic-event-batching-to-workflow-triggers, task-add-module-setup-and-auth-requirement-protocol, task-add-persisted-owner-confirmed-action-protocol]
 created_at: 2026-06-03T14:01:23.477Z
-updated_at: 2026-06-03T14:01:29.000Z
+updated_at: 2026-06-19T11:07:19.962Z
 ---
 
 ## Problem
