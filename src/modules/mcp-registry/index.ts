@@ -1,6 +1,12 @@
 import { Command, InvalidArgumentError } from "commander";
 import type { KotaJsonValue } from "#core/agent-harness/message-protocol.js";
 import type { KotaModule } from "#core/modules/module-types.js";
+import type { McpRegistryModuleConfig } from "./private-tunnel.js";
+import { buildPrivateTunnelCommand } from "./private-tunnel-cli.js";
+import {
+	privateTunnelConfigSchema,
+	privateTunnelSetupRequirements,
+} from "./private-tunnel-setup.js";
 import {
 	RegistryImportError,
 	type RegistryImportOptions,
@@ -18,6 +24,8 @@ type Writable = {
 
 type McpRegistryCommandDeps = {
 	fetchRegistry?: FetchRegistry;
+	getConfig?: () => McpRegistryModuleConfig | undefined;
+	getSecret?: (name: string) => string | null;
 	stdout?: Writable;
 	stderr?: Writable;
 };
@@ -34,6 +42,8 @@ export function buildMcpRegistryCommand(
 	deps: McpRegistryCommandDeps = {},
 ): Command {
 	const fetchRegistry = deps.fetchRegistry ?? globalThis.fetch.bind(globalThis);
+	const getConfig = deps.getConfig ?? (() => undefined);
+	const getSecret = deps.getSecret ?? (() => null);
 	const stdout = deps.stdout ?? process.stdout;
 	const stderr = deps.stderr ?? process.stderr;
 	const cmd = new Command("mcp-registry").description(
@@ -82,6 +92,8 @@ export function buildMcpRegistryCommand(
 				process.exitCode = 1;
 			}
 		});
+
+	cmd.addCommand(buildPrivateTunnelCommand({ getConfig, getSecret, stdout, stderr }));
 
 	return cmd;
 }
@@ -150,7 +162,53 @@ const mcpRegistryModule: KotaModule = {
 	name: "mcp-registry",
 	version: "1.0.0",
 	description: "Import external MCP server config from MCP Registry metadata",
-	commands: () => [buildMcpRegistryCommand()],
+	manifest: {
+		schemaVersion: 1,
+		capabilities: [
+			{
+				id: "mcp-registry.import",
+				description: "Resolve MCP Registry metadata into strict KOTA mcpServers configuration.",
+				scope: "external",
+				scopePolicyHooks: ["external-effects"],
+			},
+			{
+				id: "mcp-registry.private-tunnel",
+				description:
+					"Resolve configured private MCP tunnel profiles into an existing MCP connection projection.",
+				scope: "external",
+				scopePolicyHooks: ["external-effects", "setup"],
+				setupRequirementIds: ["private-tunnel-config", "private-tunnel-runtime-key"],
+			},
+		],
+		dataClasses: [
+			{
+				id: "mcp-registry.private-tunnel-credentials",
+				description: "Runtime API key references for outbound private MCP tunnel clients.",
+				sensitivity: "credential",
+				retention: "project-durable",
+				redaction: "mask-secret",
+			},
+			{
+				id: "mcp-registry.private-target-metadata",
+				description: "Private MCP target labels, commands, URLs, and tunnel association metadata.",
+				sensitivity: "internal",
+				retention: "project-durable",
+				redaction: "metadata-only",
+			},
+		],
+		simulation: {
+			support: "external-effects-blocked",
+			blockedReasons: [
+				"Private MCP tunnel profiles can launch outbound tunnel clients and are blocked in workflow trial mode.",
+			],
+		},
+	},
+	setupRequirements: privateTunnelSetupRequirements,
+	configSchema: privateTunnelConfigSchema,
+	commands: (ctx) => [buildMcpRegistryCommand({
+		getConfig: () => ctx.getModuleConfig<McpRegistryModuleConfig>(),
+		getSecret: ctx.getSecret,
+	})],
 };
 
 export default mcpRegistryModule;

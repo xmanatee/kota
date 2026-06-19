@@ -1,12 +1,12 @@
 ---
 id: task-add-private-mcp-tunnel-connector-support
 title: Add private MCP tunnel connector support
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Expose private MCP servers to supported cloud agent surfaces through an outbound tunnel profile without making the server publicly reachable.
 created_at: 2026-06-19T05:52:37.564Z
-updated_at: 2026-06-19T06:15:53.526Z
+updated_at: 2026-06-19T07:03:09.000Z
 task_class: Product
 ---
 

@@ -674,6 +674,63 @@
             }
           }
         },
+        "mcp-registry": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "privateTunnels": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "required": [
+                  "provider",
+                  "tunnelId",
+                  "tunnelClientProfile",
+                  "runtimeApiKeyRef",
+                  "defaultTarget",
+                  "targets"
+                ],
+                "properties": {
+                  "provider": {
+                    "const": "openai-secure-mcp-tunnel"
+                  },
+                  "tunnelId": {
+                    "type": "string",
+                    "pattern": "^tunnel_[A-Za-z0-9_-]+$"
+                  },
+                  "tunnelClientProfile": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "runtimeApiKeyRef": {
+                    "type": "string",
+                    "pattern": "^\\$[A-Z][A-Z0-9_]*$"
+                  },
+                  "defaultTarget": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "targets": {
+                    "type": "object",
+                    "minProperties": 1
+                  },
+                  "serverKey": {
+                    "type": "string"
+                  },
+                  "tunnelClientCommand": {
+                    "type": "string"
+                  },
+                  "organizationId": {
+                    "type": "string"
+                  },
+                  "workspaceId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
         "slack-channel": {
           "type": "object",
           "additionalProperties": false,

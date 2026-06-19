@@ -1,0 +1,145 @@
+import type { ModuleSetupRequirement } from "#core/modules/setup-requirements.js";
+
+export const privateTunnelSetupRequirements: ModuleSetupRequirement[] = [
+	{
+		id: "private-tunnel-config",
+		kind: "config",
+		title: "Default private MCP tunnel profile",
+		description:
+			"Project config that maps one private MCP target to an outbound tunnel profile.",
+		required: false,
+		scope: "project",
+		owner: "mcp-registry",
+		sensitivity: "none",
+		setup: {
+			mode: "form",
+			fields: [
+				{
+					id: "provider",
+					label: "Provider",
+					type: "string",
+					configPath: "modules.mcp-registry.privateTunnels.default.provider",
+					required: true,
+					placeholder: "openai-secure-mcp-tunnel",
+				},
+				{
+					id: "tunnel-id",
+					label: "Tunnel ID",
+					type: "string",
+					configPath: "modules.mcp-registry.privateTunnels.default.tunnelId",
+					required: true,
+					placeholder: "tunnel_0123456789abcdef",
+				},
+				{
+					id: "tunnel-client-profile",
+					label: "Tunnel client profile",
+					type: "string",
+					configPath: "modules.mcp-registry.privateTunnels.default.tunnelClientProfile",
+					required: true,
+					placeholder: "local-private-mcp",
+				},
+				{
+					id: "runtime-api-key-ref",
+					label: "Runtime API key reference",
+					type: "string",
+					valueKind: "secret-reference",
+					configPath: "modules.mcp-registry.privateTunnels.default.runtimeApiKeyRef",
+					required: true,
+					placeholder: "$OPENAI_TUNNEL_API_KEY",
+					helperText: "Use a secret reference, not a raw runtime API key.",
+				},
+				{
+					id: "default-target",
+					label: "Default target",
+					type: "string",
+					configPath: "modules.mcp-registry.privateTunnels.default.defaultTarget",
+					required: true,
+					placeholder: "default",
+				},
+				{
+					id: "default-target-type",
+					label: "Default target type",
+					type: "string",
+					configPath: "modules.mcp-registry.privateTunnels.default.targets.default.type",
+					required: true,
+					placeholder: "http",
+				},
+				{
+					id: "default-target-url",
+					label: "Default target URL",
+					type: "string",
+					configPath: "modules.mcp-registry.privateTunnels.default.targets.default.url",
+					required: true,
+					placeholder: "http://127.0.0.1:8765/mcp",
+				},
+				{
+					id: "workspace-id",
+					label: "Workspace ID",
+					type: "string",
+					configPath: "modules.mcp-registry.privateTunnels.default.workspaceId",
+					required: false,
+					placeholder: "ws_...",
+				},
+				{
+					id: "organization-id",
+					label: "Organization ID",
+					type: "string",
+					configPath: "modules.mcp-registry.privateTunnels.default.organizationId",
+					required: false,
+					placeholder: "org_...",
+				},
+			],
+		},
+	},
+	{
+		id: "private-tunnel-runtime-key",
+		kind: "secret",
+		title: "Private MCP tunnel runtime API key",
+		description:
+			"Runtime API key used by the outbound tunnel client. The value is stored through the shared secret provider.",
+		required: false,
+		scope: "project",
+		owner: "mcp-registry",
+		sensitivity: "secret",
+		setup: {
+			mode: "url",
+			url: "https://platform.openai.com/settings/organization/tunnels",
+			label: "Open tunnel settings",
+			pendingTtlMs: 30 * 60 * 1000,
+		},
+		secretRefs: [{ name: "OPENAI_TUNNEL_API_KEY", scope: "project" }],
+	},
+];
+
+export const privateTunnelConfigSchema = {
+	type: "object",
+	additionalProperties: true,
+	properties: {
+		privateTunnels: {
+			type: "object",
+			additionalProperties: {
+				type: "object",
+				required: [
+					"provider",
+					"tunnelId",
+					"tunnelClientProfile",
+					"runtimeApiKeyRef",
+					"defaultTarget",
+					"targets",
+				],
+				properties: {
+					provider: { const: "openai-secure-mcp-tunnel" },
+					tunnelId: { type: "string", pattern: "^tunnel_[A-Za-z0-9_-]+$" },
+					tunnelClientProfile: { type: "string", minLength: 1 },
+					runtimeApiKeyRef: { type: "string", pattern: "^\\$[A-Z][A-Z0-9_]*$" },
+					defaultTarget: { type: "string", minLength: 1 },
+					targets: { type: "object", minProperties: 1 },
+					serverKey: { type: "string" },
+					tunnelClientCommand: { type: "string" },
+					organizationId: { type: "string" },
+					workspaceId: { type: "string" },
+				},
+			},
+		},
+	},
+};
