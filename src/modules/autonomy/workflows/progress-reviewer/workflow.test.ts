@@ -1410,12 +1410,8 @@ describe("progress-reviewer workflow", () => {
             {
               id: "large-run-count-step-returned-json",
               claim:
-                "The review-evidence agent step completed against the bounded run-count evidence packet and cited a collected artifact id that was omitted from the compact prompt packet.",
-              evidenceIds: [
-                `run:${runId}`,
-                `dead-letter:${deadLetter.id}`,
-                hiddenArtifactId,
-              ],
+                "The review-evidence agent step completed against the bounded run-count evidence packet and cited only ids exposed to the agent.",
+              evidenceIds: [`run:${runId}`, `dead-letter:${deadLetter.id}`],
               confidence: "high",
             },
           ],
@@ -1495,8 +1491,77 @@ describe("progress-reviewer workflow", () => {
     expect(artifact.review.findings.localScope.claims[0]?.evidenceIds).toEqual([
       `run:${runId}`,
       `dead-letter:${deadLetter.id}`,
-      hiddenArtifactId,
     ]);
+  });
+
+  it("rejects review-evidence output that cites compacted-away evidence ids", async () => {
+    const projectDir = trackProjectDir("progress-reviewer-runtime-hidden-id");
+    const runId = "batched-builder-run";
+    writeRun(
+      projectDir,
+      runId,
+      "builder",
+      "success",
+      "2026-06-04T11:00:00.000Z",
+    );
+    for (let index = 0; index < PROGRESS_REVIEW_MAX_ARTIFACTS; index += 1) {
+      writeRunArtifactFile(
+        projectDir,
+        runId,
+        `artifact-${String(index).padStart(2, "0")}.json`,
+        JSON.stringify({ index, body: "x".repeat(256) }),
+      );
+    }
+    const hiddenArtifactId =
+      `artifact:${runId}:artifact-${String(PROGRESS_REVIEW_MAX_ARTIFACTS - 1).padStart(2, "0")}.json`;
+    const payload = runCountBatchPayload(projectDir, runId);
+    registerProgressReviewHarness(async (options) => {
+      const reviewInput = parseReviewInputFromAgentPrompt(options);
+      expect(reviewInput.evidence.map((item) => item.id)).not.toContain(hiddenArtifactId);
+      const output = reviewOutput({
+        verdict: "on-track",
+        summary: "The compact packet should reject hidden evidence ids.",
+        localScope: {
+          claims: [
+            {
+              id: "hidden-id-should-fail",
+              claim: "The reviewer cited an artifact id omitted from the compact prompt packet.",
+              evidenceIds: [`run:${runId}`, hiddenArtifactId],
+              confidence: "low",
+            },
+          ],
+        },
+      });
+      return {
+        text: `Review complete.\n\`\`\`json\n${JSON.stringify(output)}\n\`\`\``,
+        streamedText: "",
+        turns: 1,
+        isError: false,
+      };
+    });
+    const { promise } = executeWorkflowRun(
+      compileProgressReviewerWorkflow(),
+      {
+        event: WORKFLOW_BATCH_FLUSH_EVENT,
+        schemaRef: null,
+        payload,
+      },
+      {
+        projectDir,
+        bus: new EventBus(),
+        store: new WorkflowRunStore(projectDir),
+        log: vi.fn(),
+        runId: "runtime-hidden-id-packet",
+      },
+    );
+
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("failed");
+    const failedStep = result.metadata.steps.find((step) => step.status === "failed");
+    expect(failedStep?.id).toBe("apply-actions");
+    expect(JSON.stringify(failedStep)).toContain("unknown evidence id");
+    expect(JSON.stringify(failedStep)).toContain(hiddenArtifactId);
   });
 
   it("keeps directory scope evidence isolated to the selected project directory", () => {

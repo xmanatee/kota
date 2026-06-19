@@ -122,7 +122,7 @@ export const applyActions = typedCodeStep<ProgressReviewActionResult>({
       evidence: collectEvidence.outputRequired(ctx),
       review: decodeProgressReviewAgentOutputForEvidence(
         ctx.stepOutputs["review-evidence"],
-        collectEvidence.outputRequired(ctx),
+        prepareReviewInput.outputRequired(ctx),
       ),
     }),
 });
@@ -153,7 +153,7 @@ export const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
       reviewInput,
       review: decodeProgressReviewAgentOutputForEvidence(
         ctx.stepOutputs["review-evidence"],
-        collectEvidence.outputRequired(ctx),
+        reviewInput,
       ),
       actions: applyActions.output(ctx) ?? emptyActions(),
     };
