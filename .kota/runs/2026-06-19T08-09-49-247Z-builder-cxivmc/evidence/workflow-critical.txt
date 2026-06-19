@@ -1,0 +1,177 @@
+Command: pnpm run test:workflow-critical
+Cwd: /Users/xmanatee/Desktop/mono/apps/kota
+Started: 2026-06-19T08:45:26Z
+
+
+> kota@0.1.0 test:workflow-critical /Users/xmanatee/Desktop/mono/apps/kota
+> NODE_OPTIONS=--conditions=source vitest run src/modules/claude-agent-harness/executor.test.ts src/core/events/event-bus.test.ts src/core/loop/instruction-files.test.ts src/modules/daemon-ops/index.test.ts src/daemon.integration.test.ts src/task-files.test.ts src/workflow-runtime.integration.test.ts src/workflow-validation.integration.test.ts
+
+
+ RUN  v4.1.0 /Users/xmanatee/Desktop/mono/apps/kota
+
+[kota-daemon] Daemon starting...
+[kota-daemon] Control API on http://127.0.0.1:10000
+[kota-daemon] Queued workflow "builder" from event "runtime.idle"
+[kota-daemon] Dispatching workflow "builder"
+[kota-daemon] Starting workflow "builder" (2026-06-19T08-45-28-154Z-builder-9jgyo2)
+[kota-daemon] Daemon ready (pid 46201): 1 workflows, 0 scheduled items, poll 60s
+[kota-daemon] Starting step "build" (agent) in workflow "builder"
+[kota-daemon] Completed step "build" (agent) in workflow "builder" [23ms, 1 turn(s), success]
+[kota-daemon] Completed workflow "builder" (2026-06-19T08-45-28-154Z-builder-9jgyo2)
+[kota-daemon] Daemon shutting down...
+[kota-daemon] Daemon stopped.
+[workflow "parent"] trigger step "notify" references unknown workflow "child" — it may be registered by a module loaded later
+[workflow "parent"] trigger step "notify" references unknown workflow "child" — it may be registered by a module loaded later
+(node:46203) ExperimentalWarning: glob is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[kota-daemon] Daemon starting...
+[kota-daemon] Control API on http://127.0.0.1:10001
+[kota-daemon] Channel started: ch-started
+[kota-daemon] Channel disabled: ch-disabled: operator turned it off
+[kota-daemon] Channel unavailable: ch-unavailable: secret SOME_TOKEN is not set
+[kota-daemon] Channel failed during create: ch-failed-create: create blew up
+[kota-daemon] Channel failed during start: ch-failed-start: start blew up
+[kota-daemon] Channel failed: ch-failed-result: deps unavailable
+[kota-daemon] Daemon ready (pid 46201): 0 workflows, 0 scheduled items, poll 60s
+[kota-daemon] Daemon shutting down...
+[kota-daemon] Daemon stopped.
+[kota-daemon] Daemon starting...
+[kota-daemon] Control API on http://127.0.0.1:10002
+[kota-daemon] Queued workflow "builder" from event "runtime.idle"
+[kota-daemon] Dispatching workflow "builder"
+[kota-daemon] Starting workflow "builder" (2026-06-19T08-45-30-216Z-builder-174pcc)
+[kota-daemon] Daemon ready (pid 46201): 1 workflows, 0 scheduled items, poll 60s
+[kota-daemon] Starting step "build" (agent) in workflow "builder"
+[kota-daemon] Completed step "build" (agent) in workflow "builder" [17ms, 2 turn(s), success]
+[kota-daemon] Completed workflow "builder" (2026-06-19T08-45-30-216Z-builder-174pcc)
+[kota-daemon] Daemon shutting down...
+[kota-daemon] Daemon stopped.
+[kota-daemon] Daemon starting...
+[kota-daemon] Control API on http://127.0.0.1:10003
+[kota-daemon] Daemon ready (pid 46201): 0 workflows, 1 scheduled items, poll 0.1s
+[kota-daemon] Reminder: Test reminder
+[kota-daemon] Daemon shutting down...
+[kota-daemon] Daemon stopped.
+[kota-daemon] Daemon shutting down...
+[kota-daemon] Daemon starting...
+[kota-daemon] Control API on http://127.0.0.1:10004
+[kota-daemon] Daemon ready (pid 46201): 0 workflows, 0 scheduled items, poll 60s
+[kota-daemon] Daemon stopped.
+[kota-daemon] Daemon starting...
+[kota-daemon] Control API on http://127.0.0.1:10005
+[kota-daemon] Daemon ready (pid 46201): 0 workflows, 0 scheduled items, poll 60s
+[kota-daemon] Daemon shutting down...
+[kota-daemon] Daemon stopped.
+[kota-daemon] Daemon shutting down...
+[kota-daemon] Daemon starting...
+[kota-daemon] Control API on http://127.0.0.1:10006
+[kota-daemon] Daemon ready (pid 46201): 0 workflows, 0 scheduled items, poll 60s
+[kota-daemon] Daemon stopped.
+[kota-daemon] Daemon starting...
+[kota-daemon] Control API on http://127.0.0.1:10007
+[kota-daemon] Queued workflow "builder" from event "runtime.idle"
+[kota-daemon] Dispatching workflow "builder"
+[kota-daemon] Starting workflow "builder" (2026-06-19T08-45-35-361Z-builder-o4rqdz)
+[kota-daemon] Daemon ready (pid 46201): 1 workflows, 0 scheduled items, poll 60s
+[kota-daemon] Starting step "build" (agent) in workflow "builder"
+[kota-daemon] Daemon shutting down...
+[kota-daemon] Failed step "build" (agent) in workflow "builder": This operation was aborted
+[kota-daemon] Interrupted workflow "builder" (2026-06-19T08-45-35-361Z-builder-o4rqdz): This operation was aborted
+[kota-daemon] Daemon stopped.
+[kota-daemon] Daemon starting...
+[kota-daemon] Control API on http://127.0.0.1:10008
+[kota-daemon] Queued workflow "builder" from event "runtime.idle"
+[kota-daemon] Dispatching workflow "builder"
+[kota-daemon] Starting workflow "builder" (2026-06-19T08-45-36-393Z-builder-jjc4wo)
+[kota-daemon] Daemon ready (pid 46201): 1 workflows, 0 scheduled items, poll 60s
+[kota-daemon] Starting step "build" (agent) in workflow "builder"
+[kota-daemon] Completed step "build" (agent) in workflow "builder" [17ms, 1 turn(s), success]
+[kota-daemon] Completed workflow "builder" (2026-06-19T08-45-36-393Z-builder-jjc4wo)
+[kota-daemon] Daemon shutting down...
+[kota-daemon] Daemon stopped.
+[kota-daemon] Daemon starting...
+[kota-daemon] Control API on http://127.0.0.1:10009
+[kota-daemon] Queued workflow "builder" from event "runtime.idle"
+[kota-daemon] Dispatching workflow "builder"
+[kota-daemon] Starting workflow "builder" (2026-06-19T08-45-37-424Z-builder-y5hgzt)
+[kota-daemon] Daemon ready (pid 46201): 1 workflows, 0 scheduled items, poll 60s
+[kota-daemon] Starting step "build" (agent) in workflow "builder"
+[kota-daemon] Completed step "build" (agent) in workflow "builder" [17ms, 1 turn(s), success]
+[kota-daemon] Completed workflow "builder" (2026-06-19T08-45-37-424Z-builder-y5hgzt)
+[kota-daemon] Daemon shutting down...
+[kota-daemon] Daemon stopped.
+[kota-daemon] Daemon starting...
+[kota-daemon] Control API on http://127.0.0.1:10010
+[kota-daemon] Queued workflow "builder" from event "runtime.idle"
+[kota-daemon] Dispatching workflow "builder"
+[kota-daemon] Starting workflow "builder" (2026-06-19T08-45-38-448Z-builder-o217ji)
+[kota-daemon] Daemon ready (pid 46201): 1 workflows, 0 scheduled items, poll 60s
+[kota-daemon] Starting step "build" (agent) in workflow "builder"
+[kota-daemon] Completed step "build" (agent) in workflow "builder" [16ms, 1 turn(s), success]
+[kota-daemon] Completed workflow "builder" (2026-06-19T08-45-38-448Z-builder-o217ji)
+[kota-daemon] Daemon shutting down...
+[kota-daemon] Daemon stopped.
+[kota-daemon] Daemon starting...
+[kota-daemon] Control API on http://127.0.0.1:10011
+[kota-daemon] Queued workflow "builder" from event "runtime.idle"
+[kota-daemon] Dispatching workflow "builder"
+[kota-daemon] Starting workflow "builder" (2026-06-19T08-45-39-473Z-builder-deuk50)
+[kota-daemon] Daemon ready (pid 46201): 1 workflows, 0 scheduled items, poll 60s
+[kota-daemon] Starting step "build" (agent) in workflow "builder"
+[kota-daemon] Failed step "build" (agent) in workflow "builder": Agent step "build" failed (error_max_turns): Agent step returned an error result
+[kota-daemon] Failed workflow "builder" (2026-06-19T08-45-39-473Z-builder-deuk50): Agent step "build" failed (error_max_turns): Agent step returned an error result
+[kota-daemon] Daemon shutting down...
+[kota-daemon] Daemon stopped.
+[kota-daemon] Daemon starting...
+[kota-daemon] Control API on http://127.0.0.1:10012
+[kota-daemon] Queued workflow "builder" from event "runtime.idle"
+[kota-daemon] Dispatching workflow "builder"
+[kota-daemon] Starting workflow "builder" (2026-06-19T08-45-40-500Z-builder-13i0h5)
+[kota-daemon] Daemon ready (pid 46201): 2 workflows, 0 scheduled items, poll 60s
+[kota-daemon] Starting step "verify" (code) in workflow "builder"
+[kota-daemon] Completed step "verify" (code) in workflow "builder" [0ms]
+[kota-daemon] Starting step "request-restart" (restart) in workflow "builder"
+[kota-daemon] builder requested restart — restart requested
+[kota-daemon] Completed step "request-restart" (restart) in workflow "builder" [0ms]
+[kota-daemon] Queued workflow "improver" from event "workflow.completed"
+[kota-daemon] Completed workflow "builder" (2026-06-19T08-45-40-500Z-builder-13i0h5)
+[kota-daemon] Restarting daemon: builder requested restart
+[kota-daemon] Daemon shutting down...
+[kota-daemon] Daemon stopped.
+[kota-daemon] Daemon starting...
+[kota-daemon] Control API on http://127.0.0.1:10013
+[kota-daemon] Recovered 1 queued workflow run(s)
+[kota-daemon] Dispatching workflow "improver"
+[kota-daemon] Starting workflow "improver" (2026-06-19T08-45-40-512Z-improver-9rweoa)
+[kota-daemon] Daemon ready (pid 46201): 2 workflows, 0 scheduled items, poll 60s
+[kota-daemon] Starting step "improve" (emit) in workflow "improver"
+[kota-daemon] Completed step "improve" (emit) in workflow "improver" [1ms]
+[kota-daemon] Completed workflow "improver" (2026-06-19T08-45-40-512Z-improver-9rweoa)
+[kota-daemon] Queued workflow "builder" from event "runtime.idle"
+[kota-daemon] Daemon shutting down...
+[kota-daemon] Daemon stopped.
+[kota-daemon] Daemon starting...
+[kota-daemon] Control API on http://127.0.0.1:10014
+[kota-daemon] Queued workflow "builder" from event "runtime.idle"
+[kota-daemon] Dispatching workflow "builder"
+[kota-daemon] Starting workflow "builder" (2026-06-19T08-45-43-555Z-builder-379giy)
+[kota-daemon] Daemon ready (pid 46201): 1 workflows, 0 scheduled items, poll 60s
+[kota-daemon] Starting step "verify" (code) in workflow "builder"
+[kota-daemon] Completed step "verify" (code) in workflow "builder" [1ms]
+[kota-daemon] Starting step "request-restart" (restart) in workflow "builder"
+[kota-daemon] builder requested restart — restart requested
+[kota-daemon] Completed step "request-restart" (restart) in workflow "builder" [0ms]
+[kota-daemon] Completed workflow "builder" (2026-06-19T08-45-43-555Z-builder-379giy)
+[kota-daemon] Restarting daemon: builder requested restart
+[kota-daemon] Daemon shutting down...
+[kota-daemon] Daemon stopped.
+[kota-daemon] Restart shutdown failed: restart exit unavailable
+
+ Test Files  8 passed (8)
+      Tests  411 passed (411)
+   Start at  09:45:27
+   Duration  18.44s (transform 3.02s, setup 267ms, import 3.44s, tests 24.08s, environment 0ms)
+
+
+Exit status: 0
+Finished: 2026-06-19T08:45:45Z

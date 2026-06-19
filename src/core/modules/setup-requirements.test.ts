@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getSecretStore, resetSecretStore } from "#core/config/secrets.js";
 import {
+  type ModuleSetupBase,
   type ModuleSetupCapabilityRequirement,
   type ModuleSetupCapabilityStatus,
   type ModuleSetupConfigRequirement,
@@ -15,12 +16,16 @@ import {
 } from "./setup-requirements.js";
 
 function configRequirement(): ModuleSetupConfigRequirement {
-  return {
+  const base: ModuleSetupBase = {
     id: "endpoint",
-    kind: "config",
     title: "Endpoint",
     required: true,
     scope: "project",
+  };
+
+  return {
+    ...base,
+    kind: "config",
     sensitivity: "none",
     setup: {
       mode: "form",

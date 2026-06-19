@@ -1,0 +1,12 @@
+Command: pnpm run lint
+Cwd: /Users/xmanatee/Desktop/mono/apps/kota
+Started: 2026-06-19T08:45:18Z
+
+
+> kota@0.1.0 lint /Users/xmanatee/Desktop/mono/apps/kota
+> biome check src/
+
+Checked 1844 files in 404ms. No fixes applied.
+
+Exit status: 0
+Finished: 2026-06-19T08:45:18Z

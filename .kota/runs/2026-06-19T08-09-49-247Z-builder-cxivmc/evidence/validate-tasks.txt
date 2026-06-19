@@ -1,0 +1,11 @@
+Command: pnpm run validate-tasks
+Cwd: /Users/xmanatee/Desktop/mono/apps/kota
+Started: 2026-06-19T08:45:56Z
+
+
+> kota@0.1.0 validate-tasks /Users/xmanatee/Desktop/mono/apps/kota
+> node --conditions=source --import tsx src/validate-queue.ts
+
+
+Exit status: 0
+Finished: 2026-06-19T08:45:56Z

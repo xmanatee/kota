@@ -1,0 +1,43 @@
+Command: wc -l on split entrypoints and new helper files
+Cwd: /Users/xmanatee/Desktop/mono/apps/kota
+Started: 2026-06-19T08:46:48Z
+
+      40 src/core/modules/setup-requirements.ts
+      60 src/core/modules/setup-requirements/config-paths.ts
+      15 src/core/modules/setup-requirements/constants.ts
+      33 src/core/modules/setup-requirements/pending-actions.ts
+      21 src/core/modules/setup-requirements/results.ts
+      54 src/core/modules/setup-requirements/service-revoke.ts
+     297 src/core/modules/setup-requirements/service.ts
+      68 src/core/modules/setup-requirements/status-utils.ts
+     282 src/core/modules/setup-requirements/status.ts
+     224 src/core/modules/setup-requirements/types.ts
+     253 src/core/modules/setup-requirements/validation.ts
+     298 src/core/workflow/event-batch-helpers.ts
+     299 src/core/workflow/event-batches.ts
+      55 src/modules/autonomy/workflows/progress-reviewer/progress-review.ts
+     294 src/modules/autonomy/workflows/progress-reviewer/progress-review/action-writers.ts
+      59 src/modules/autonomy/workflows/progress-reviewer/progress-review/actions.ts
+     127 src/modules/autonomy/workflows/progress-reviewer/progress-review/agent-output.ts
+     178 src/modules/autonomy/workflows/progress-reviewer/progress-review/agent-packet.ts
+     111 src/modules/autonomy/workflows/progress-reviewer/progress-review/artifact-evidence.ts
+      19 src/modules/autonomy/workflows/progress-reviewer/progress-review/artifact.ts
+     178 src/modules/autonomy/workflows/progress-reviewer/progress-review/collect.ts
+      28 src/modules/autonomy/workflows/progress-reviewer/progress-review/constants.ts
+      50 src/modules/autonomy/workflows/progress-reviewer/progress-review/event-evidence.ts
+     160 src/modules/autonomy/workflows/progress-reviewer/progress-review/git-evidence.ts
+     106 src/modules/autonomy/workflows/progress-reviewer/progress-review/internal-types.ts
+     253 src/modules/autonomy/workflows/progress-reviewer/progress-review/operator-evidence.ts
+      85 src/modules/autonomy/workflows/progress-reviewer/progress-review/review-types.ts
+     256 src/modules/autonomy/workflows/progress-reviewer/progress-review/run-evidence.ts
+     114 src/modules/autonomy/workflows/progress-reviewer/progress-review/task-evidence.ts
+      23 src/modules/autonomy/workflows/progress-reviewer/progress-review/task-status.ts
+     187 src/modules/autonomy/workflows/progress-reviewer/progress-review/trigger-target.ts
+     267 src/modules/autonomy/workflows/progress-reviewer/progress-review/types.ts
+      97 src/modules/autonomy/workflows/progress-reviewer/workflow-output-schema.ts
+     220 src/modules/autonomy/workflows/progress-reviewer/workflow-steps.ts
+     151 src/modules/autonomy/workflows/progress-reviewer/workflow.ts
+    4962 total
+
+Exit status: 0
+Finished: 2026-06-19T08:46:48Z

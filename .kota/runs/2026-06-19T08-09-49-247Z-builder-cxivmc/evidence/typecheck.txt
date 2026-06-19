@@ -1,0 +1,11 @@
+Command: pnpm run typecheck
+Cwd: /Users/xmanatee/Desktop/mono/apps/kota
+Started: 2026-06-19T08:45:02Z
+
+
+> kota@0.1.0 typecheck /Users/xmanatee/Desktop/mono/apps/kota
+> tsc --noEmit
+
+
+Exit status: 0
+Finished: 2026-06-19T08:45:10Z

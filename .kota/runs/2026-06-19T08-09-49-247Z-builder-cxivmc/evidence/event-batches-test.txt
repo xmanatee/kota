@@ -1,0 +1,16 @@
+Command: NODE_OPTIONS=--conditions=source pnpm exec vitest run src/core/workflow/event-batches.test.ts
+Cwd: /Users/xmanatee/Desktop/mono/apps/kota
+Started: 2026-06-19T08:44:24Z
+
+
+ RUN  v4.1.0 /Users/xmanatee/Desktop/mono/apps/kota
+
+
+ Test Files  1 passed (1)
+      Tests  11 passed (11)
+   Start at  09:44:24
+   Duration  1.70s (transform 312ms, setup 32ms, import 362ms, tests 1.24s, environment 0ms)
+
+
+Exit status: 0
+Finished: 2026-06-19T08:44:26Z

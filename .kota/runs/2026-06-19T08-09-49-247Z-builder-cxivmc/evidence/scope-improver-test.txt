@@ -1,0 +1,18 @@
+Command: NODE_OPTIONS=--conditions=source pnpm exec vitest run src/modules/autonomy/workflows/scope-improver/workflow.test.ts
+Cwd: /Users/xmanatee/Desktop/mono/apps/kota
+Started: 2026-06-19T08:44:52Z
+
+
+ RUN  v4.1.0 /Users/xmanatee/Desktop/mono/apps/kota
+
+(node:44204) ExperimentalWarning: glob is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ Test Files  1 passed (1)
+      Tests  13 passed (13)
+   Start at  09:44:52
+   Duration  1.07s (transform 301ms, setup 31ms, import 350ms, tests 623ms, environment 0ms)
+
+
+Exit status: 0
+Finished: 2026-06-19T08:44:53Z

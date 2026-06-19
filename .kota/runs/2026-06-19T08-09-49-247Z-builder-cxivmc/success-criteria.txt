@@ -1,0 +1,4 @@
+1. Split each named oversized TypeScript file into ownership-aligned modules, keeping each named entrypoint below the repo's approximate 300-line guideline or leaving only a narrow cohesive exception with justification.
+2. Preserve existing behavior and public contracts without adding parallel setup stores, event batching engines, or progress-reviewer mechanisms.
+3. Keep local AGENTS.md guidance concise and accurate for any touched directories.
+4. Pass typecheck, lint, and focused setup, event-batching, progress-reviewer, scope-improver, and workflow-critical tests.

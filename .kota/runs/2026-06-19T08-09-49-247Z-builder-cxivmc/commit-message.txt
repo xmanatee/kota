@@ -1,0 +1,7 @@
+Split setup batching and progress review files
+
+- move setup requirement validation, status, service, and storage helpers behind the existing public entrypoint
+- restore the public ModuleSetupBase type export from setup requirements
+- split workflow event batching helpers from the manager while preserving batching behavior
+- split progress-review evidence collection, action writing, schema, and workflow step wiring by ownership
+- preserve progress-review public constants and helper ownership docs

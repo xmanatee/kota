@@ -1,0 +1,16 @@
+Command: NODE_OPTIONS=--conditions=source pnpm exec vitest run src/core/modules/setup-requirements.test.ts
+Cwd: /Users/xmanatee/Desktop/mono/apps/kota
+Started: 2026-06-19T08:44:07Z
+
+
+ RUN  v4.1.0 /Users/xmanatee/Desktop/mono/apps/kota
+
+
+ Test Files  1 passed (1)
+      Tests  15 passed (15)
+   Start at  09:44:08
+   Duration  343ms (transform 195ms, setup 33ms, import 218ms, tests 23ms, environment 0ms)
+
+
+Exit status: 0
+Finished: 2026-06-19T08:44:08Z

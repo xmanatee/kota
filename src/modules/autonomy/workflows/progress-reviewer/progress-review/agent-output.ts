@@ -1,0 +1,127 @@
+import { z } from "zod";
+import type {
+  ProgressReviewAgentOutput,
+  ProgressReviewEvidenceIdPacket,
+  ProgressReviewFindingGroup,
+} from "./types.js";
+
+const reviewClaimSchema = z.object({
+  id: z.string().min(1),
+  claim: z.string().min(1),
+  evidenceIds: z.array(z.string().min(1)).min(1),
+  confidence: z.enum(["low", "medium", "high"]),
+}).strict();
+
+const reviewFollowUpTaskSchema = z.object({
+  title: z.string().min(1),
+  summary: z.string().min(1),
+  priority: z.enum(["p0", "p1", "p2", "p3"]),
+  area: z.string().min(1),
+  evidenceIds: z.array(z.string().min(1)).min(1),
+  acceptanceEvidence: z.string().min(1),
+}).strict();
+
+const reviewOwnerQuestionSchema = z.object({
+  question: z.string().min(1),
+  reason: z.string().min(1),
+  evidenceIds: z.array(z.string().min(1)).min(1),
+  proposedAnswers: z.array(z.string().min(1)).min(1).optional(),
+}).strict();
+
+const reviewFindingGroupSchema = z.object({
+  claims: z.array(reviewClaimSchema),
+  followUpTasks: z.array(reviewFollowUpTaskSchema),
+}).strict();
+
+const progressReviewAgentOutputSchema = z.object({
+  verdict: z.enum([
+    "on-track",
+    "needs-steering",
+    "blocked",
+    "insufficient-evidence",
+  ]),
+  summary: z.string().min(1),
+  findings: z.object({
+    crossScope: reviewFindingGroupSchema,
+    localScope: reviewFindingGroupSchema,
+  }).strict(),
+  ownerQuestions: z.array(reviewOwnerQuestionSchema),
+}).strict();
+
+export function decodeProgressReviewAgentOutput(
+  raw: Parameters<typeof progressReviewAgentOutputSchema.parse>[0],
+): ProgressReviewAgentOutput {
+  return progressReviewAgentOutputSchema.parse(raw);
+}
+
+export function progressReviewFindingGroupEntries(review: ProgressReviewAgentOutput): readonly {
+  label: string;
+  group: ProgressReviewFindingGroup;
+}[] {
+  return [
+    { label: "cross-scope", group: review.findings.crossScope },
+    { label: "local-scope", group: review.findings.localScope },
+  ];
+}
+
+function evidenceIdsForPacket(packet: ProgressReviewEvidenceIdPacket): Set<string> {
+  const ids = new Set<string>();
+  for (const evidence of packet.evidence) {
+    if (ids.has(evidence.id)) {
+      throw new Error(`progress-review evidence packet contains duplicate id: ${evidence.id}`);
+    }
+    ids.add(evidence.id);
+  }
+  return ids;
+}
+
+function assertKnownEvidenceIds(args: {
+  knownIds: ReadonlySet<string>;
+  field: string;
+  evidenceIds: readonly string[];
+}): void {
+  const unknown = args.evidenceIds.filter((id) => !args.knownIds.has(id));
+  if (unknown.length === 0) return;
+  throw new Error(
+    `progress-review ${args.field} cites unknown evidence id(s): ${unknown.join(", ")}`,
+  );
+}
+
+export function validateProgressReviewEvidenceIds(args: {
+  evidence: ProgressReviewEvidenceIdPacket;
+  review: ProgressReviewAgentOutput;
+}): void {
+  const knownIds = evidenceIdsForPacket(args.evidence);
+  for (const { label, group } of progressReviewFindingGroupEntries(args.review)) {
+    for (const claim of group.claims) {
+      assertKnownEvidenceIds({
+        knownIds,
+        field: `${label} claim ${claim.id}`,
+        evidenceIds: claim.evidenceIds,
+      });
+    }
+    for (const task of group.followUpTasks) {
+      assertKnownEvidenceIds({
+        knownIds,
+        field: `${label} follow-up task "${task.title}"`,
+        evidenceIds: task.evidenceIds,
+      });
+    }
+  }
+  for (const question of args.review.ownerQuestions) {
+    assertKnownEvidenceIds({
+      knownIds,
+      field: `owner question "${question.question}"`,
+      evidenceIds: question.evidenceIds,
+    });
+  }
+}
+
+export function decodeProgressReviewAgentOutputForEvidence(
+  raw: Parameters<typeof progressReviewAgentOutputSchema.parse>[0],
+  evidence: ProgressReviewEvidenceIdPacket,
+): ProgressReviewAgentOutput {
+  const review = decodeProgressReviewAgentOutput(raw);
+  validateProgressReviewEvidenceIds({ evidence, review });
+  return review;
+}

@@ -1,0 +1,16 @@
+Command: NODE_OPTIONS=--conditions=source pnpm exec vitest run src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts
+Cwd: /Users/xmanatee/Desktop/mono/apps/kota
+Started: 2026-06-19T08:44:37Z
+
+
+ RUN  v4.1.0 /Users/xmanatee/Desktop/mono/apps/kota
+
+
+ Test Files  1 passed (1)
+      Tests  27 passed (27)
+   Start at  09:44:38
+   Duration  2.39s (transform 361ms, setup 32ms, import 436ms, tests 1.84s, environment 0ms)
+
+
+Exit status: 0
+Finished: 2026-06-19T08:44:40Z
