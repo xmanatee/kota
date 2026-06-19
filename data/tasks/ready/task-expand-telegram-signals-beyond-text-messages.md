@@ -1,13 +1,13 @@
 ---
 id: task-expand-telegram-signals-beyond-text-messages
 title: Expand Telegram signals beyond text messages
-status: backlog
+status: ready
 priority: p2
 area: channel
 summary: Extend the Telegram module from prefix text intake to typed message, reaction, membership, and presence-like signal events where the Bot API supports them, while preserving blocked-source emission and downstream workflow routing.
 depends_on: [task-add-declarative-inbound-signal-routing-for-channel]
 created_at: 2026-06-03T13:40:43.464Z
-updated_at: 2026-06-03T13:41:17.000Z
+updated_at: 2026-06-19T10:17:07.977Z
 ---
 
 ## Problem
