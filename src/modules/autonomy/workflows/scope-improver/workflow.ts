@@ -26,12 +26,14 @@ import {
   type ScopeImprovementActionResult,
   type ScopeImprovementArtifact,
   type ScopeImprovementCandidate,
+  type ScopeImprovementCooldownDecision,
   type ScopeImprovementEvidencePacket,
   type ScopeImprovementInputs,
   type ScopeImprovementPreflight,
   type ScopeImprovementRecommendation,
   writeScopeImprovementArtifact,
 } from "./scope-improvement.js";
+import { writeScopeImprovementState } from "./scope-improvement-state.js";
 import { scopeImproverTriggers } from "./triggers.js";
 
 type WorktreeInspection = {
@@ -163,6 +165,49 @@ const applyRecommendations = typedCodeStep<ScopeImprovementActionResult>({
     }),
 });
 
+function hasVisibleActions(actions: ScopeImprovementActionResult): boolean {
+  return (
+    actions.createdTaskIds.length > 0 ||
+    actions.ownerQuestionIds.length > 0 ||
+    actions.safeEditPaths.length > 0
+  );
+}
+
+function zeroActionCooldownReason(
+  ctx: Parameters<typeof collectInputs.outputRequired>[0],
+): string | null {
+  const inputs = collectInputs.outputRequired(ctx);
+  if (!inputs.config.enabled || inputs.throttle) return null;
+  if (applyRecommendations.output(ctx)) return null;
+  const recommendations = recommend.output(ctx)?.recommendations ?? [];
+  if (recommendations.length === 0) return "no scope-improvement recommendations";
+  if (inspectWorktree.output(ctx)?.dirty !== false) {
+    return "worktree was dirty before recommendations could be applied";
+  }
+  return null;
+}
+
+const recordZeroActionCooldown = typedCodeStep<ScopeImprovementCooldownDecision>({
+  id: "record-zero-action-cooldown",
+  type: "code",
+  when: stepSucceeded("recommend-improvements"),
+  validate: (raw) =>
+    expectStructuredOutput<ScopeImprovementCooldownDecision>(raw, [
+      "recorded",
+      "reason",
+    ]),
+  run: (ctx) => {
+    const reason = zeroActionCooldownReason(ctx);
+    if (!reason) return { recorded: false, reason: null };
+    writeScopeImprovementState({
+      projectDir: ctx.projectDir,
+      inputs: collectInputs.outputRequired(ctx),
+      actions: [],
+    });
+    return { recorded: true, reason };
+  },
+});
+
 function emptyActions(): ScopeImprovementActionResult {
   return {
     createdTaskIds: [],
@@ -204,6 +249,10 @@ const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
       evidence: gatherEvidence.outputRequired(ctx),
       recommendations: recommend.output(ctx)?.recommendations ?? [],
       actions: applyRecommendations.output(ctx) ?? emptyActions(),
+      cooldown: recordZeroActionCooldown.output(ctx) ?? {
+        recorded: false,
+        reason: null,
+      },
     };
     return {
       written: true,
@@ -287,6 +336,7 @@ const scopeImproverWorkflow: WorkflowDefinitionInput = {
     gatherEvidence,
     recommend,
     applyRecommendations,
+    recordZeroActionCooldown,
     writeArtifact,
     writeCommitMessage,
     validateBeforeCommit,
@@ -294,7 +344,11 @@ const scopeImproverWorkflow: WorkflowDefinitionInput = {
     {
       id: "emit-applied",
       type: "emit",
-      when: stepSucceeded("write-artifact"),
+      when: (ctx) => {
+        if (!stepSucceeded("write-artifact")(ctx)) return false;
+        const actions = applyRecommendations.output(ctx);
+        return actions ? hasVisibleActions(actions) : false;
+      },
       event: "workflow.attention.digest",
       payload: (ctx) => {
         const actions = applyRecommendations.output(ctx) ?? emptyActions();

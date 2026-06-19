@@ -164,6 +164,11 @@ export type ScopeImprovementPreflight = {
   };
 };
 
+export type ScopeImprovementCooldownDecision = {
+  recorded: boolean;
+  reason: string | null;
+};
+
 export type ScopeImprovementArtifact = {
   generatedAt: string;
   preflight: ScopeImprovementPreflight;
@@ -171,4 +176,5 @@ export type ScopeImprovementArtifact = {
   evidence: ScopeImprovementEvidencePacket;
   recommendations: ScopeImprovementRecommendation[];
   actions: ScopeImprovementActionResult;
+  cooldown: ScopeImprovementCooldownDecision;
 };

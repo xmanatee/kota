@@ -1,12 +1,12 @@
 ---
 id: task-throttle-no-action-scope-improver-file-change-runs
 title: Throttle no-action scope-improver file-change runs
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: During the 2026-06-19 builder edit burst, file-watch scope-improver runs repeated within minutes with a dirty worktree, skipped recommendations, and zero created tasks, owner questions, edits, or commits. Make no-action or dirty-file-change scope-improver outcomes update cooldown/dedupe state or suppress attention so active builders do not generate repeated zero-value runs.
 created_at: 2026-06-19T06:48:27.377Z
-updated_at: 2026-06-19T06:48:27.377Z
+updated_at: 2026-06-19T07:41:33.638Z
 ---
 
 ## Problem
@@ -54,3 +54,6 @@ Outcome-aware autonomy progress review.
 ## Acceptance Evidence
 
 - Focused scope-improver tests cover a dirty files.changed burst and a skip-only candidate burst, proving no more than one zero-action attention item within minMinutesBetweenRuns while a later actionable candidate still runs; include a run artifact or fixture showing the throttle/dedupe decision.
+- Implemented evidence: scope-improver now records cooldown for non-throttled zero-action runs that never reach apply-recommendations, does not slide the cooldown on already-throttled runs, and emits workflow.attention.digest only for visible actions.
+- Validation: `NODE_OPTIONS=--conditions=source pnpm exec vitest run src/modules/autonomy/workflows/scope-improver/workflow.test.ts` passed with 13 tests.
+- Run artifact: `.kota/runs/2026-06-19T07-32-53-546Z-builder-kuhf75/scope-improver-throttle-evidence.json`.

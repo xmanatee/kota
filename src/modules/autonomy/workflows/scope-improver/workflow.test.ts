@@ -12,7 +12,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import {
+  type HarnessRunResult,
+  WorkflowTestHarness,
+} from "#core/workflow/testing/index.js";
 import {
   WORKFLOW_BATCH_FLUSH_EVENT,
   type WorkflowBatchFlushPayload,
@@ -29,6 +32,8 @@ import {
   recommendScopeImprovements,
   SCOPE_IMPROVEMENT_ARTIFACT,
   SCOPE_IMPROVEMENT_SCHEDULE_EVENT,
+  type ScopeImprovementArtifact,
+  type ScopeImprovementState,
 } from "./scope-improvement.js";
 import scopeImproverWorkflow from "./workflow.js";
 
@@ -69,6 +74,9 @@ vi.mock("#modules/autonomy/shared.js", async () => {
 });
 
 const NOW = new Date("2026-06-04T12:00:00.000Z");
+const FIVE_MINUTES_LATER = new Date("2026-06-04T12:05:00.000Z");
+const AFTER_COOLDOWN = new Date("2026-06-04T12:31:00.000Z");
+const ATTENTION_EVENT = "workflow.attention.digest";
 
 function makeScope(label: string): string {
   const dir = mkdtempSync(join(tmpdir(), `kota-scope-improver-${label}-`));
@@ -132,6 +140,45 @@ function runCycle(projectDir: string, files: string[]) {
   return { inputs, candidates, evidence, recommendations, actions };
 }
 
+async function runWorkflowAt(
+  projectDir: string,
+  files: string[],
+  now: Date,
+): Promise<HarnessRunResult> {
+  vi.useFakeTimers();
+  vi.setSystemTime(now);
+  try {
+    return await new WorkflowTestHarness(scopeImproverWorkflow, {
+      projectDir,
+      trigger: trigger(files),
+    }).run();
+  } finally {
+    vi.useRealTimers();
+  }
+}
+
+function attentionEvents(result: HarnessRunResult): HarnessRunResult["emitted"] {
+  return result.emitted.filter((event) => event.event === ATTENTION_EVENT);
+}
+
+function readScopeImprovementArtifact(projectDir: string): ScopeImprovementArtifact {
+  return JSON.parse(
+    readFileSync(
+      join(projectDir, ".kota", "runs", "harness", SCOPE_IMPROVEMENT_ARTIFACT),
+      "utf-8",
+    ),
+  ) as ScopeImprovementArtifact;
+}
+
+function readScopeImprovementStateFile(projectDir: string): ScopeImprovementState {
+  return JSON.parse(
+    readFileSync(
+      join(projectDir, ".kota", "scope-improvement", "state.json"),
+      "utf-8",
+    ),
+  ) as ScopeImprovementState;
+}
+
 describe("scope-improver workflow", () => {
   const projectDirs: string[] = [];
 
@@ -150,6 +197,7 @@ describe("scope-improver workflow", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     for (const projectDir of projectDirs.splice(0)) {
       rmSync(projectDir, { recursive: true, force: true });
     }
@@ -362,6 +410,114 @@ describe("scope-improver workflow", () => {
       entries: ["?? owner-note.md"],
       summary: "owner-note.md",
     });
+    expect(artifact.cooldown).toMatchObject({
+      recorded: true,
+      reason: expect.stringContaining("dirty"),
+    });
+  });
+
+  it("records cooldown and suppresses attention for dirty files.changed zero-action bursts", async () => {
+    const projectDir = track("dirty-burst");
+    writeRootAgents(projectDir);
+    writeConfig(projectDir, { minMinutesBetweenRuns: 30 });
+    mkdirSync(join(projectDir, "notes"), { recursive: true });
+    writeFileSync(join(projectDir, "notes", "plan.md"), "changed plan\n");
+    const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
+    vi.mocked(getRepoWorktreeStatus).mockReturnValue({
+      available: true,
+      dirty: true,
+      trackedDirty: false,
+      entries: ["M notes/plan.md"],
+      fingerprint: "M notes/plan.md",
+      summary: "notes/plan.md",
+      headSha: "abc1234",
+    });
+
+    const first = await runWorkflowAt(projectDir, ["notes/plan.md"], NOW);
+
+    expect(first.status).toBe("success");
+    expect(first.steps["apply-recommendations"].status).toBe("skipped");
+    expect(first.steps["record-zero-action-cooldown"].output).toMatchObject({
+      recorded: true,
+      reason: expect.stringContaining("dirty"),
+    });
+    expect(attentionEvents(first)).toHaveLength(0);
+    const firstArtifact = readScopeImprovementArtifact(projectDir);
+    expect(firstArtifact.cooldown).toMatchObject({
+      recorded: true,
+      reason: expect.stringContaining("dirty"),
+    });
+    expect(readScopeImprovementStateFile(projectDir).lastRunAt).toBe(
+      NOW.toISOString(),
+    );
+
+    const second = await runWorkflowAt(
+      projectDir,
+      ["notes/plan.md"],
+      FIVE_MINUTES_LATER,
+    );
+
+    expect(second.status).toBe("success");
+    expect(second.steps["apply-recommendations"].status).toBe("skipped");
+    expect(attentionEvents(second)).toHaveLength(0);
+    const secondArtifact = readScopeImprovementArtifact(projectDir);
+    expect(secondArtifact.inputs.throttle?.reason).toContain(
+      "last scope improvement ran",
+    );
+    expect(secondArtifact.cooldown).toEqual({ recorded: false, reason: null });
+    expect(readScopeImprovementStateFile(projectDir).lastRunAt).toBe(
+      NOW.toISOString(),
+    );
+  });
+
+  it("throttles skip-only bursts without attention and still runs later actionable candidates", async () => {
+    const projectDir = track("skip-burst");
+    writeRootAgents(projectDir);
+    writeConfig(projectDir, { minMinutesBetweenRuns: 30 });
+    mkdirSync(join(projectDir, "notes"), { recursive: true });
+    writeFileSync(join(projectDir, "notes", "plan.md"), "changed plan\n");
+
+    const first = await runWorkflowAt(projectDir, ["notes/plan.md"], NOW);
+
+    expect(first.status).toBe("success");
+    expect(first.steps["apply-recommendations"].status).toBe("success");
+    expect(first.steps["emit-applied"].status).toBe("skipped");
+    expect(attentionEvents(first)).toHaveLength(0);
+    expect(readScopeImprovementStateFile(projectDir).lastRunAt).toBe(
+      NOW.toISOString(),
+    );
+
+    const second = await runWorkflowAt(
+      projectDir,
+      ["notes/plan.md"],
+      FIVE_MINUTES_LATER,
+    );
+
+    expect(second.status).toBe("success");
+    expect(second.steps["apply-recommendations"].status).toBe("skipped");
+    expect(second.steps["emit-applied"].status).toBe("skipped");
+    expect(attentionEvents(second)).toHaveLength(0);
+    const secondArtifact = readScopeImprovementArtifact(projectDir);
+    expect(secondArtifact.inputs.throttle?.reason).toContain(
+      "last scope improvement ran",
+    );
+    expect(readScopeImprovementStateFile(projectDir).lastRunAt).toBe(
+      NOW.toISOString(),
+    );
+
+    writeFailedRun(projectDir, "2026-06-04T12-30-00-000Z-builder-failed");
+    const third = await runWorkflowAt(
+      projectDir,
+      ["notes/plan.md"],
+      AFTER_COOLDOWN,
+    );
+
+    expect(third.status).toBe("success");
+    expect(third.steps["apply-recommendations"].status).toBe("success");
+    expect(attentionEvents(third)).toHaveLength(1);
+    const readyFiles = readdirSync(join(projectDir, "data", "tasks", "ready"))
+      .filter((file) => file.endsWith(".md") && file !== "AGENTS.md");
+    expect(readyFiles).toHaveLength(1);
   });
 
   it("keeps scope state isolated and dedupes repeated recommendations", () => {
