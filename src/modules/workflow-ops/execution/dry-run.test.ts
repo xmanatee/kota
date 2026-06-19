@@ -11,7 +11,10 @@ import {
   resetModuleEventRegistry,
 } from "#core/events/module-event.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
+import {
+  WORKFLOW_BATCH_FLUSH_EVENT,
+  type WorkflowRunTrigger,
+} from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import {
@@ -485,6 +488,121 @@ describe("buildDryRunPlan with options", () => {
       schemaRef: { name: "task.ready", version: 1 },
       eventId: "evtj-000000000123",
       payload: { area: "workflows", taskId: "task-1" },
+    });
+    expect(result.steps[0].whenResult).toBe("runs");
+  });
+
+  it("replays workflow batch flush envelopes through matching batch triggers", async () => {
+    let observedTrigger: WorkflowRunTrigger | undefined;
+    const def = makeDefinition({
+      name: "progress-reviewer",
+      triggers: [
+        {
+          event: "workflow.completed",
+          cooldownMs: 0,
+          filter: { tags: ["monitored"] },
+          batch: {
+            maxCount: 5,
+            groupBy: ["projectId"],
+            maxBufferSize: 20,
+            overflow: "flush-oldest",
+          },
+        },
+      ],
+      steps: [
+        {
+          id: "review-batch",
+          type: "code",
+          run: () => null,
+          when: ({ trigger }) => {
+            observedTrigger = trigger;
+            return trigger.payload.reason === "count";
+          },
+        },
+      ],
+    });
+    const eventEnvelope: EventEnvelope = {
+      id: "evtj-000000000124",
+      sequence: 124,
+      event: {
+        name: WORKFLOW_BATCH_FLUSH_EVENT,
+        schema: { name: WORKFLOW_BATCH_FLUSH_EVENT, version: 1 },
+      },
+      source: { kind: "workflow", id: "progress-reviewer-batch" },
+      scope: {
+        kind: "scope",
+        scopeId: "scope-a",
+        projectId: "scope-a",
+        lineage: ["global", "scope-a"],
+      },
+      timestamps: {
+        occurredAt: "2026-06-05T10:00:00.000Z",
+        receivedAt: "2026-06-05T10:00:00.000Z",
+        emittedAt: "2026-06-05T10:00:00.000Z",
+        journaledAt: "2026-06-05T10:00:00.000Z",
+      },
+      producer: {
+        kind: "workflow",
+        workflow: "progress-reviewer",
+        runId: "progress-reviewer-run",
+      },
+      causality: {},
+      trace: {},
+      idempotency: {},
+      data: {
+        classification: "internal",
+        sensitivity: "internal",
+        dataClasses: ["operational-metadata"],
+        redactionProfile: "plain",
+        storageProfile: "internal-storage",
+      },
+      payload: {
+        kind: "inline",
+        payload: {
+          scopeId: "scope-a",
+          projectId: "scope-a",
+          sourceEventName: "workflow.completed",
+          groupingKey: "projectId=scope-a",
+          reason: "count",
+          count: 5,
+          window: {
+            firstEventAt: "2026-06-05T09:00:00.000Z",
+            lastEventAt: "2026-06-05T10:00:00.000Z",
+            flushedAt: "2026-06-05T10:00:00.000Z",
+          },
+          inputEvents: [],
+          batch: {
+            workflow: "progress-reviewer",
+            triggerIndex: 0,
+            maxBufferSize: 20,
+            overflow: "flush-oldest",
+            droppedInputCount: 0,
+          },
+        },
+      },
+      retention: { kind: "retain" },
+    };
+
+    const result = await buildDryRunPlan(def, { eventEnvelope });
+
+    expect(result.pass).toBe(true);
+    expect(result.triggerMatch).toMatchObject({
+      matched: true,
+      matchedEvent: WORKFLOW_BATCH_FLUSH_EVENT,
+      schemaRef: { name: WORKFLOW_BATCH_FLUSH_EVENT, version: 1 },
+      eventId: "evtj-000000000124",
+    });
+    expect(observedTrigger).toMatchObject({
+      event: WORKFLOW_BATCH_FLUSH_EVENT,
+      schemaRef: { name: WORKFLOW_BATCH_FLUSH_EVENT, version: 1 },
+      eventId: "evtj-000000000124",
+      payload: {
+        reason: "count",
+        batch: {
+          workflow: "progress-reviewer",
+          triggerIndex: 0,
+        },
+      },
     });
     expect(result.steps[0].whenResult).toBe("runs");
   });

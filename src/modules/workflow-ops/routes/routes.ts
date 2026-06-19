@@ -4,6 +4,7 @@ import { jsonResponse } from "#core/server/session-pool.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { getValidatedWorkflowDefinitions } from "../definitions-source.js";
 import { assembleCompiledAutomationGraph } from "../graph/index.js";
+import { handleWorkflowSimulation } from "../simulation/routes.js";
 import { handleWorkflowExplain } from "./explain.js";
 import {
   handleWorkflowAbort,
@@ -53,6 +54,25 @@ export function workflowRoutes(ctx?: ModuleContext): RouteRegistration[] {
           ? ctx.getModuleSummaries().map((summary) => summary.manifest)
           : [];
         return handleWorkflowExplain(req, res, { definitions, moduleManifests });
+      },
+    },
+    {
+      method: "POST",
+      path: "/api/workflow/simulate",
+      handler: (req, res) => {
+        const definitions = ctx ? getValidatedWorkflowDefinitions(ctx, ctx.cwd) : [];
+        const moduleManifests = ctx
+          ? ctx.getModuleSummaries().map((summary) => summary.manifest)
+          : [];
+        const toolNames = ctx && typeof ctx.listTools === "function"
+          ? new Set(ctx.listTools())
+          : undefined;
+        return handleWorkflowSimulation(req, res, {
+          projectDir: ctx?.cwd ?? process.cwd(),
+          definitions,
+          moduleManifests,
+          ...(toolNames ? { availableToolNames: toolNames } : {}),
+        });
       },
     },
     {

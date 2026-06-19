@@ -351,6 +351,57 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
     ]);
   });
 
+  it("simulate resolves event previews locally from contributed workflows", async () => {
+    const definition = {
+      name: "client-simulation-match",
+      enabled: true,
+      definitionPath: "ignored",
+      moduleRoot: projectDir,
+      triggers: [
+        {
+          event: "simulation.event",
+          cooldownMs: 0,
+        },
+      ],
+      steps: [
+        {
+          id: "preview",
+          type: "code",
+          run: () => ({ ok: true }),
+        },
+      ],
+    } as unknown as RegisteredWorkflowDefinitionInput;
+    const handler = buildHandler(projectDir, {
+      config: { defaultAgentHarness: "thin" } as ModuleContext["config"],
+      resolveAgentDef: vi.fn(),
+      getContributedWorkflows: () => [definition],
+      getModuleSummaries: () => [],
+      listTools: () => [],
+    } as unknown as Partial<ModuleContext>);
+
+    const result = await handler.simulate({
+      event: "simulation.event",
+      payload: {
+        scopeId: "scope-a",
+        projectId: "scope-a",
+      },
+    });
+
+    expect(result.summary).toMatchObject({
+      total: 1,
+      "would-queue": 1,
+    });
+    expect(result.inputs[0]).toMatchObject({
+      event: "simulation.event",
+      outcome: "would-queue",
+      matches: [
+        {
+          workflow: "client-simulation-match",
+        },
+      ],
+    });
+  });
+
   it("triggerByName surfaces already_queued when a run is already pending", async () => {
     const handler = buildHandler(projectDir);
     const first = await handler.triggerByName("builder", { payload: {} });

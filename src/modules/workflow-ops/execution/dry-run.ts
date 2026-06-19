@@ -9,7 +9,11 @@ import { validatePayloadAgainstSchema } from "#core/events/module-event-payload-
 import { matchesFilter } from "#core/workflow/run-executor-utils.js";
 import type { WorkflowPredicate, WorkflowStepContext } from "#core/workflow/run-types.js";
 import type { WorkflowStep } from "#core/workflow/step-types.js";
-import type { WorkflowRunTrigger, WorkflowTrigger } from "#core/workflow/trigger-types.js";
+import {
+  WORKFLOW_BATCH_FLUSH_EVENT,
+  type WorkflowRunTrigger,
+  type WorkflowTrigger,
+} from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 
 export type DryRunWhenResult = "runs" | "skipped" | "error" | "no-condition";
@@ -56,6 +60,9 @@ export type DryRunOptions = {
   eventEnvelope?: EventEnvelope;
   availableToolNames?: ReadonlySet<string>;
 };
+
+type Payload = WorkflowRunTrigger["payload"];
+type PayloadValue = Payload[string];
 
 function makeDryRunContext(
   definition: WorkflowDefinition,
@@ -169,7 +176,7 @@ function checkToolAvailability(
 }
 
 function resolveTriggerMatch(
-  triggers: WorkflowTrigger[],
+  definition: WorkflowDefinition,
   payload: Record<string, unknown>,
   diagnostics: DryRunDiagnostic[],
   replay?: {
@@ -178,7 +185,16 @@ function resolveTriggerMatch(
     eventId: string;
   },
 ): DryRunTriggerMatch {
-  for (const trigger of triggers) {
+  for (let triggerIndex = 0; triggerIndex < definition.triggers.length; triggerIndex++) {
+    const trigger = definition.triggers[triggerIndex]!;
+    if (replay && batchFlushMatchesTrigger(definition.name, triggerIndex, trigger, payload, replay)) {
+      return {
+        matched: true,
+        matchedEvent: replay.event,
+        schemaRef: replay.schemaRef,
+        eventId: replay.eventId,
+      };
+    }
     if (replay && trigger.event !== replay.event) continue;
     if (trigger.event && matchesFilter(trigger.filter, payload)) {
       const schemaRef = replay
@@ -194,6 +210,43 @@ function resolveTriggerMatch(
     }
   }
   return { matched: false };
+}
+
+function batchFlushMatchesTrigger(
+  workflowName: string,
+  triggerIndex: number,
+  trigger: WorkflowTrigger,
+  payload: Record<string, unknown>,
+  replay: {
+    event: string;
+  },
+): boolean {
+  if (replay.event !== WORKFLOW_BATCH_FLUSH_EVENT) return false;
+  if (!trigger.batch) return false;
+  const batch = objectValue(payload.batch);
+  if (!batch) return false;
+  if (stringValue(batch.workflow) !== workflowName) return false;
+  const payloadTriggerIndex = numberValue(batch.triggerIndex);
+  if (payloadTriggerIndex !== undefined && payloadTriggerIndex !== triggerIndex) {
+    return false;
+  }
+  const sourceEventName =
+    stringValue(payload.sourceEventName) ?? stringValue(batch.sourceEventName);
+  return sourceEventName === undefined || sourceEventName === trigger.event;
+}
+
+function objectValue(value: PayloadValue): Payload | null {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
+    ? value as Payload
+    : null;
+}
+
+function stringValue(value: PayloadValue): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+}
+
+function numberValue(value: PayloadValue): number | undefined {
+  return typeof value === "number" ? value : undefined;
 }
 
 function resolveDryRunSchemaRef(
@@ -262,7 +315,7 @@ export async function buildDryRunPlan(
           }
         : undefined;
     triggerMatch = resolveTriggerMatch(
-      definition.triggers,
+      definition,
       payload,
       diagnostics,
       replayInput,

@@ -27,6 +27,10 @@ import type {
   AutomationExplainOptions,
   AutomationExplainResult,
 } from "./graph/index.js";
+import type {
+  WorkflowSimulationRequest,
+  WorkflowSimulationResult,
+} from "./simulation/types.js";
 
 /** Filters accepted by `client.workflow.listRuns`. */
 export type WorkflowRunsListFilter = {
@@ -356,6 +360,7 @@ export interface WorkflowClient {
     options?: WorkflowTrialOptions,
   ): Promise<WorkflowTrialResult>;
   explain(options?: AutomationExplainOptions): Promise<AutomationExplainResult>;
+  simulate(request: WorkflowSimulationRequest): Promise<WorkflowSimulationResult>;
   enable(
     name: string,
   ): Promise<WorkflowEnableResult | WorkflowDaemonRequiredResult>;

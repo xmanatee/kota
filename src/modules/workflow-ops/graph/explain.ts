@@ -519,6 +519,11 @@ function payloadBoolean(payload: Payload, path: string): boolean | undefined {
   return typeof value === "boolean" ? value : undefined;
 }
 
+function payloadNumber(payload: Payload, path: string): number | undefined {
+  const value = payloadPathValue(payload, path);
+  return typeof value === "number" ? value : undefined;
+}
+
 function sourceIgnoredReason(sample: AutomationExplainSampleEvent): string | null {
   const trust = payloadString(sample.payload, "actor.trust");
   if (trust === "blocked") return "actor.trust is blocked";
@@ -559,6 +564,7 @@ function schemaError(sample: AutomationExplainSampleEvent): string | null {
 function candidateMatchesEvent(
   sampleEventName: string,
   workflow: AutomationWorkflowNode,
+  trigger: AutomationTriggerSummary,
   sourceTrigger: WorkflowTrigger,
   sample?: AutomationExplainSampleEvent,
 ): "event" | "batch-flush" | null {
@@ -569,6 +575,13 @@ function candidateMatchesEvent(
     sampleEventName === WORKFLOW_BATCH_FLUSH_EVENT &&
     payloadString(sample?.payload ?? {}, "batch.workflow") === workflow.name
   ) {
+    const triggerIndex = payloadNumber(sample?.payload ?? {}, "batch.triggerIndex");
+    if (triggerIndex !== undefined && triggerIndex !== trigger.index) return null;
+    const sourceEventName = payloadString(sample?.payload ?? {}, "sourceEventName") ??
+      payloadString(sample?.payload ?? {}, "batch.sourceEventName");
+    if (sourceEventName !== undefined && sourceEventName !== sourceTrigger.event) {
+      return null;
+    }
     return "batch-flush";
   }
   return null;
@@ -589,7 +602,13 @@ function matchingCandidates(
     for (let index = 0; index < definition.triggers.length; index++) {
       const sourceTrigger = definition.triggers[index]!;
       const trigger = workflow.triggers[index]!;
-      const sourceKind = candidateMatchesEvent(eventName, workflow, sourceTrigger, sample);
+      const sourceKind = candidateMatchesEvent(
+        eventName,
+        workflow,
+        trigger,
+        sourceTrigger,
+        sample,
+      );
       if (!sourceKind) continue;
       if (sample && sourceKind === "event" && !matchesFilter(sourceTrigger.filter, sample.payload)) {
         continue;

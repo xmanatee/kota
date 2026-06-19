@@ -67,6 +67,9 @@ import { registerRunListCommands } from "./runs/run-list.js";
 import { registerRunShowCommand } from "./runs/run-show.js";
 import { registerStatsCommand } from "./runs/run-stats.js";
 import { registerStepInspectCommand } from "./runs/step-inspect.js";
+import { registerSimulationCommand } from "./simulation/cli.js";
+import { simulateAutomation } from "./simulation/engine.js";
+import { workflowSimulationControlRoutes } from "./simulation/routes.js";
 import { eventJournalForProject, listRuns } from "./utils.js";
 
 export function buildWorkflowCommand(ctx: ModuleContext): Command {
@@ -102,6 +105,7 @@ export function buildWorkflowCommand(ctx: ModuleContext): Command {
   registerControlCommands(wfCmd, ctx);
   registerRunCommand(wfCmd, ctx);
   registerTrialCommand(wfCmd, ctx);
+  registerSimulationCommand(wfCmd, ctx);
   registerGcCommand(wfCmd, ctx);
 
   return wfCmd;
@@ -117,6 +121,7 @@ const workflowModule: KotaModule = {
   controlRoutes: (ctx) => [
     ...workflowTrialControlRoutes(ctx),
     ...workflowExplainControlRoutes(ctx),
+    ...workflowSimulationControlRoutes(ctx),
   ],
   localClient: (ctx) => {
     const handler: WorkflowClient = {
@@ -392,6 +397,22 @@ const workflowModule: KotaModule = {
           ...(options ?? {}),
         });
       },
+      async simulate(request) {
+        const definitions = getValidatedWorkflowDefinitions(ctx);
+        const moduleManifests = typeof ctx.getModuleSummaries === "function"
+          ? ctx.getModuleSummaries().flatMap((summary) =>
+              summary.manifest ? [summary.manifest] : []
+            )
+          : [];
+        const toolNames = typeof ctx.listTools === "function" ? ctx.listTools() : [];
+        return simulateAutomation({
+          projectDir: ctx.cwd,
+          definitions,
+          moduleManifests,
+          availableToolNames: new Set(toolNames),
+          request,
+        });
+      },
     };
     return { workflow: handler };
   },
@@ -444,6 +465,8 @@ const workflowModule: KotaModule = {
  *    so the CLI can use the local isolated-project runner.
  *  - `explain(options)` → `POST /workflow/explain` with workflow/event/sample
  *    body fields. Throws on transport failure.
+ *  - `simulate(request)` → `POST /workflow/simulate` with an event,
+ *    envelope, or journal selector. Throws on transport failure.
  */
 export function buildWorkflowDaemonHandler(
   link: DaemonTransport,
@@ -767,6 +790,16 @@ export function buildWorkflowDaemonHandler(
         throw new Error("Daemon unreachable while explaining workflow automation");
       }
       return (await resp.json()) as Awaited<ReturnType<WorkflowClient["explain"]>>;
+    },
+    simulate: async (request) => {
+      const resp = await fetchJson("POST", "/workflow/simulate", request);
+      if (!resp) {
+        throw new Error("Daemon unreachable while simulating workflow automation");
+      }
+      if (!resp.ok && resp.status !== 422) {
+        throw new Error("Daemon unreachable while simulating workflow automation");
+      }
+      return (await resp.json()) as Awaited<ReturnType<WorkflowClient["simulate"]>>;
     },
   };
 }

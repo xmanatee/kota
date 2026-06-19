@@ -15,6 +15,7 @@ import type { RenderNode } from "#modules/rendering/primitives.js";
 import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { renderToString } from "#modules/rendering/transport.js";
 import type { WorkflowEnableResult } from "#modules/workflow-ops/client.js";
+import type { WorkflowSimulationResult } from "#modules/workflow-ops/simulation/types.js";
 import {
   type NavigatorOutput,
   type NavigatorPrompt,
@@ -66,6 +67,26 @@ function emptyExplainResult() {
   };
 }
 
+function emptySimulationResult(): WorkflowSimulationResult {
+  return {
+    ok: true,
+    request: {},
+    inputs: [],
+    summary: {
+      total: 0,
+      "would-ignore": 0,
+      "would-batch": 0,
+      "would-queue": 0,
+      "would-block": 0,
+      "would-ask-owner": 0,
+      "would-dlq": 0,
+      "would-perform-effect": 0,
+      "would-noop": 0,
+      unknown: 0,
+    },
+  };
+}
+
 function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
   const stub = <T>(value: T) => vi.fn(async () => value);
   const base: KotaClient = {
@@ -86,6 +107,7 @@ function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
       triggerByName: stub({ ok: true, path: "queue", queued: "x" }),
       trial: stub({ ok: false, reason: "daemon_required", message: "stub" }),
       explain: stub(emptyExplainResult()),
+      simulate: stub(emptySimulationResult()),
       enable: stub({ ok: true } as WorkflowEnableResult),
       disable: stub({ ok: true } as WorkflowEnableResult),
       cancelRun: stub({ ok: true }),

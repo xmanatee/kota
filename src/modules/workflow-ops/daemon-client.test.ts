@@ -121,6 +121,7 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
     expect(typeof wf.triggerByName).toBe("function");
     expect(typeof wf.trial).toBe("function");
     expect(typeof wf.explain).toBe("function");
+    expect(typeof wf.simulate).toBe("function");
   });
 
   it("listRuns routes through GET /workflow/runs with no filter", async () => {
@@ -760,6 +761,55 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
     await expect(wf.explain({ eventName: "missing.event" })).rejects.toThrow(
       "Daemon unreachable while explaining workflow automation",
     );
+  });
+
+  it("simulate routes through POST /workflow/simulate with event input", async () => {
+    const simulationResult = {
+      ok: true,
+      request: {
+        event: "inbound.signal.received",
+      },
+      inputs: [],
+      summary: {
+        total: 0,
+        "would-ignore": 0,
+        "would-batch": 0,
+        "would-queue": 0,
+        "would-block": 0,
+        "would-ask-owner": 0,
+        "would-dlq": 0,
+        "would-perform-effect": 0,
+        "would-noop": 0,
+        unknown: 0,
+      },
+    };
+    const { transport, calls } = makeRecordingTransport({
+      respondFetch: () => jsonResponse(200, simulationResult),
+    });
+    const wf = workflowOpsModule.daemonClient!(transport).workflow!;
+    const result = await wf.simulate({
+      event: "inbound.signal.received",
+      payload: {
+        scopeId: "scope-a",
+        projectId: "scope-a",
+        channel: "telegram",
+      },
+      eventId: "evt-1",
+    });
+
+    expect(result).toEqual(simulationResult);
+    const call = calls[0] as { path: string; init: RequestInit };
+    expect(call.path).toBe("/workflow/simulate");
+    expect(call.init.method).toBe("POST");
+    expect(JSON.parse(String(call.init.body))).toEqual({
+      event: "inbound.signal.received",
+      payload: {
+        scopeId: "scope-a",
+        projectId: "scope-a",
+        channel: "telegram",
+      },
+      eventId: "evt-1",
+    });
   });
 
   it("supplying the workflow contribution to the assembly path satisfies coverage", () => {

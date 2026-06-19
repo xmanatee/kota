@@ -424,6 +424,23 @@ function makeStubWorkflow(): DaemonClientHandlers["workflow"] {
       matches: [],
       reasons: [],
     }),
+    simulate: async () => ({
+      ok: true,
+      request: {},
+      inputs: [],
+      summary: {
+        total: 0,
+        "would-ignore": 0,
+        "would-batch": 0,
+        "would-queue": 0,
+        "would-block": 0,
+        "would-ask-owner": 0,
+        "would-dlq": 0,
+        "would-perform-effect": 0,
+        "would-noop": 0,
+        unknown: 0,
+      },
+    }),
   };
 }
 
