@@ -1,13 +1,13 @@
 ---
 id: task-refactor-runtime-health-audit
 title: refactor runtime-health-audit
-status: ready
+status: done
 priority: p3
 area: autonomy
 task_class: Platform
 summary: Split the oversized runtime health audit module while preserving behavior.
 created_at: 2026-06-19T16:16:47.718Z
-updated_at: 2026-06-19T16:16:47.718Z
+updated_at: 2026-06-20T18:22:24.984Z
 ---
 
 ## Problem
