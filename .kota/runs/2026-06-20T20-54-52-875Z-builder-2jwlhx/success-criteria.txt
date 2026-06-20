@@ -1,0 +1,4 @@
+1. Each listed URL has a disposition based on fetched or otherwise operator-provided content, with access method recorded.
+2. Any KOTA-relevant idea is mapped to an existing KOTA concept or a named normalized follow-up task.
+3. If a source produces no action, the task records "read, no action" with a concise reason.
+4. Task validation passes with `pnpm run validate-tasks -- --min-ready 0`.

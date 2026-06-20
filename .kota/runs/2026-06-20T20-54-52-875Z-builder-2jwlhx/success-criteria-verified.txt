@@ -1,0 +1,4 @@
+1. Partially verified: five listed URLs were fetched and dispositioned from read content; `https://mimo.xiaomi.com/blog/mimo-code-long-horizon` remained inaccessible and was recorded as a blocker rather than processed.
+2. Verified: relevant ideas were mapped to existing KOTA concepts in the task notes; no normalized follow-up task was opened because no non-duplicative bounded action was found from the readable sources.
+3. Verified for the readable no-action sources: the task records "read, no action" rationales; the inaccessible MiMo blog is explicitly blocked and not marked read.
+4. Verified: `pnpm run validate-tasks -- --min-ready 0` passed on 2026-06-20.
