@@ -1,12 +1,12 @@
 ---
 id: task-split-oversized-core-workflow-run-store-helpers-af
 title: Split oversized core workflow run-store helpers after run-id hardening
-status: ready
+status: done
 priority: p3
 area: core
 summary: The run-id security hardening landed, but the builder run recorded source-size warnings on touched core workflow files: src/core/workflow/run-store.ts remains 516 lines and src/core/workflow/run-executor-utils.ts remains 337 lines. Split cohesive run-store and executor-helper responsibilities into co-located core workflow modules while preserving the run-id validation behavior and public imports.
 created_at: 2026-06-20T17:42:07.830Z
-updated_at: 2026-06-20T17:42:07.830Z
+updated_at: 2026-06-20T17:57:48.436Z
 ---
 
 ## Problem
