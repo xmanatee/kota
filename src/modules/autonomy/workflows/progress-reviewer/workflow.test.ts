@@ -1237,8 +1237,6 @@ describe("progress-reviewer workflow", () => {
       ]),
     );
 
-    const hidden = evidence.evidence.find((item) => !exposedIds.has(item.id));
-    if (!hidden) throw new Error("expected at least one hidden evidence id");
     expect(() =>
       decodeProgressReviewAgentOutputForEvidence(
         reviewOutput({
@@ -1262,13 +1260,13 @@ describe("progress-reviewer workflow", () => {
       decodeProgressReviewAgentOutputForEvidence(
         reviewOutput({
           verdict: "on-track",
-          summary: "Hidden ids should not be accepted.",
+          summary: "Unknown ids should not be accepted.",
           localScope: {
             claims: [
               {
-                id: "claim-hidden-id",
-                claim: "The review cited a hidden id.",
-                evidenceIds: [hidden.id],
+                id: "claim-unknown-id",
+                claim: "The review cited an id outside the packet.",
+                evidenceIds: ["run:not-in-packet"],
                 confidence: "low",
               },
             ],
@@ -1348,6 +1346,58 @@ describe("progress-reviewer workflow", () => {
       `artifact:${noiseRunId}:steps/noise-${String(noiseArtifactCount - 1).padStart(2, "0")}.json`,
     );
     expect(evidence.evidence.length).toBeGreaterThan(reviewInput.evidence.length);
+  });
+
+  it("normalizes compacted child evidence ids to exposed parent ids", () => {
+    const evidence = {
+      evidence: [
+        {
+          id: "git:commit:abc123def456",
+          kind: "git" as const,
+          summary: "commit abc123def456: Refactor review evidence",
+        },
+        {
+          id: "run:builder-run-001",
+          kind: "run" as const,
+          summary: "builder success (builder-run-001)",
+        },
+        {
+          id: "event:1",
+          kind: "event" as const,
+          summary:
+            'workflow.build.committed at 2026-06-04T11:59:00.000Z: {"runId":"builder-run-002","taskId":"task-a"}',
+        },
+      ],
+    };
+
+    const normalized = decodeProgressReviewAgentOutputForEvidence(
+      reviewOutput({
+        verdict: "on-track",
+        summary: "Compacted child ids are represented by exposed parents.",
+        localScope: {
+          claims: [
+            {
+              id: "compacted-child-ids",
+              claim:
+                "A reviewer inspected compacted child evidence but cited child ids.",
+              evidenceIds: [
+                "git:commit:abc123def456:file:3",
+                "artifact:builder-run-001:critic-review.json",
+                "run:builder-run-002",
+              ],
+              confidence: "medium",
+            },
+          ],
+        },
+      }),
+      evidence,
+    );
+
+    expect(normalized.findings.localScope.claims[0]?.evidenceIds).toEqual([
+      "git:commit:abc123def456",
+      "run:builder-run-001",
+      "event:1",
+    ]);
   });
 
   it("reports task_class distribution and Product operator-journey risks", () => {
@@ -1565,7 +1615,7 @@ describe("progress-reviewer workflow", () => {
     ]);
   });
 
-  it("rejects review-evidence output that cites compacted-away evidence ids", async () => {
+  it("normalizes review-evidence output that cites compacted-away child ids", async () => {
     const projectDir = trackProjectDir("progress-reviewer-runtime-hidden-id");
     const runId = "batched-builder-run";
     writeRun(
@@ -1591,11 +1641,11 @@ describe("progress-reviewer workflow", () => {
       expect(reviewInput.evidence.map((item) => item.id)).not.toContain(hiddenArtifactId);
       const output = reviewOutput({
         verdict: "on-track",
-        summary: "The compact packet should reject hidden evidence ids.",
+        summary: "The compact packet should normalize hidden child evidence ids.",
         localScope: {
           claims: [
             {
-              id: "hidden-id-should-fail",
+              id: "hidden-id-normalized",
               claim: "The reviewer cited an artifact id omitted from the compact prompt packet.",
               evidenceIds: [`run:${runId}`, hiddenArtifactId],
               confidence: "low",
@@ -1628,11 +1678,24 @@ describe("progress-reviewer workflow", () => {
 
     const result = await promise;
 
-    expect(result.metadata.status).toBe("failed");
-    const failedStep = result.metadata.steps.find((step) => step.status === "failed");
-    expect(failedStep?.id).toBe("apply-actions");
-    expect(JSON.stringify(failedStep)).toContain("unknown evidence id");
-    expect(JSON.stringify(failedStep)).toContain(hiddenArtifactId);
+    expect(result.metadata.status).toBe("success");
+    const artifactPath = join(
+      projectDir,
+      ".kota",
+      "runs",
+      "runtime-hidden-id-packet",
+      PROGRESS_REVIEW_ARTIFACT,
+    );
+    const artifact = JSON.parse(readFileSync(artifactPath, "utf-8")) as {
+      review: {
+        findings: {
+          localScope: { claims: Array<{ evidenceIds: string[] }> };
+        };
+      };
+    };
+    expect(artifact.review.findings.localScope.claims[0]?.evidenceIds).toEqual([
+      `run:${runId}`,
+    ]);
   });
 
   it("keeps directory scope evidence isolated to the selected project directory", () => {
