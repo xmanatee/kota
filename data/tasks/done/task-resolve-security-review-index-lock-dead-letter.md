@@ -1,12 +1,12 @@
 ---
 id: task-resolve-security-review-index-lock-dead-letter
 title: Resolve security-review index-lock dead letter
-status: ready
+status: done
 priority: p3
 area: autonomy
 summary: Clear open DLQ dlq-06ffee5b-137d-4a55-bd05-c1e2bb30389f after the security-review task was committed and workflow commits now retry transient index locks. Redrive only if it will not duplicate task-security-review-http-mcp-transport-and-its-oauthpr; otherwise dismiss with durable rationale.
 created_at: 2026-06-19T14:11:31.827Z
-updated_at: 2026-06-19T14:11:31.827Z
+updated_at: 2026-06-20T00:45:59.736Z
 ---
 
 ## Problem
@@ -45,6 +45,22 @@ Evidence ids:
 
 Outcome-aware autonomy progress review.
 
+## Resolution
+
+Dead-letter item `dlq-06ffee5b-137d-4a55-bd05-c1e2bb30389f` was dismissed
+through the workflow-ops DLQ command after exporting diagnostics to this
+builder run directory. Redrive was not used because the failed
+`security-review` run was trying to commit
+`task-security-review-http-mcp-transport-and-its-oauthpr`, and that task is
+already complete in `data/tasks/done/` from commit `ee324625`. The transient
+Git index-lock failure class cited by this cleanup task was separately covered
+by commit `0e4b5944`, so replaying the stale run would duplicate completed
+work instead of resolving a live implementation gap.
+
 ## Acceptance Evidence
 
-- A DLQ export before and after resolution shows dlq-06ffee5b-137d-4a55-bd05-c1e2bb30389f redriven to a terminal outcome or dismissed with rationale, the existing security task remains the single implementation follow-up, and pnpm validate-tasks passes.
+- `.kota/runs/2026-06-20T00-43-06-892Z-builder-zgkac8/dead-letter-before-dismissal.json` records `status: "open"` for `dlq-06ffee5b-137d-4a55-bd05-c1e2bb30389f` before resolution.
+- `.kota/runs/2026-06-20T00-43-06-892Z-builder-zgkac8/dead-letter-after-dismissal.json` records `status: "dismissed"`, `dismissedAt: "2026-06-20T00:45:08.757Z"`, and the superseded-by-completed-security-fix rationale.
+- `pnpm dev workflow dlq list --status open --workflow security-review --json` returned `items: []` and `counts.open: 0` after dismissal.
+- `find data/tasks -name 'task-security-review-http-mcp-transport-and-its-oauthpr.md' -print` returns only `data/tasks/done/task-security-review-http-mcp-transport-and-its-oauthpr.md`.
+- `pnpm validate-tasks` passed after moving this task to `done/`.
