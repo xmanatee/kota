@@ -751,6 +751,71 @@ function taskPriorityForSeverity(severity: SecurityFindingSeverity): "p1" | "p2"
   return "p3";
 }
 
+function replaceControlCharacters(
+  value: string,
+  options: { preserveLineFeeds: boolean },
+): string {
+  let output = "";
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index] ?? "";
+    const code = char.charCodeAt(0);
+    if (options.preserveLineFeeds && code === 13) {
+      output += "\n";
+      if (value.charCodeAt(index + 1) === 10) index += 1;
+      continue;
+    }
+    if (options.preserveLineFeeds && code === 10) {
+      output += "\n";
+      continue;
+    }
+    output += code < 32 || code === 127 ? " " : char;
+  }
+  return output;
+}
+
+function normalizeControlWhitespace(value: string): string {
+  const normalized = replaceControlCharacters(value, { preserveLineFeeds: false })
+    .replace(/\s+/g, " ")
+    .trim();
+  return normalized.length > 0 ? normalized : "(empty)";
+}
+
+function frontMatterScalar(value: string): string {
+  const normalized = escapeMarkdownHeadingMarkers(normalizeControlWhitespace(value));
+  return normalized.startsWith("[") && normalized.endsWith("]")
+    ? `\\${normalized}`
+    : normalized;
+}
+
+function bodyScalar(value: string): string {
+  return escapeMarkdownHeadingMarkers(normalizeControlWhitespace(value));
+}
+
+function escapeMarkdownHeadingMarkers(line: string): string {
+  let escaped = "";
+  let hashRunLength = 0;
+  for (const char of line) {
+    if (char === "#") {
+      escaped += hashRunLength === 0 ? char : `\\${char}`;
+      hashRunLength += 1;
+      continue;
+    }
+    escaped += char;
+    hashRunLength = 0;
+  }
+  return escaped;
+}
+
+function quoteMarkdown(value: string): string {
+  return replaceControlCharacters(value, { preserveLineFeeds: true })
+    .split("\n")
+    .map((line) => {
+      const escapedLine = escapeMarkdownHeadingMarkers(line);
+      return escapedLine.length > 0 ? `> ${escapedLine}` : ">";
+    })
+    .join("\n");
+}
+
 function findExistingTask(projectDir: string, id: string): { state: RepoTaskState; path: string } | null {
   for (const state of REPO_TASK_STATES) {
     const taskPath = join(getRepoTaskStateDir(projectDir, state), `${id}.md`);
@@ -764,9 +829,15 @@ function buildFindingTaskBody(args: {
   finding: SecurityRevalidatedFinding;
 }): string {
   const { finding, runId } = args;
-  const evidence = finding.evidence
-    .map((entry) => `- ${entry.path}:${entry.line} - ${entry.excerpt}`)
-    .join("\n");
+  const evidence = finding.evidence.flatMap((entry, index) => [
+    `Evidence ${index + 1}:`,
+    "",
+    `path: ${bodyScalar(entry.path)}`,
+    `line: ${entry.line}`,
+    "excerpt:",
+    "",
+    quoteMarkdown(entry.excerpt),
+  ]).join("\n\n");
   return [
     "",
     "## Problem",
@@ -774,12 +845,14 @@ function buildFindingTaskBody(args: {
     "The security-review workflow confirmed an application-security finding.",
     "",
     `severity: ${finding.severity}`,
-    `affected path: ${finding.affectedPath}`,
-    `claim: ${finding.claim}`,
+    `affected path: ${bodyScalar(finding.affectedPath)}`,
+    "claim:",
+    "",
+    quoteMarkdown(finding.claim),
     "",
     "## Desired Outcome",
     "",
-    finding.recommendedOutcome,
+    quoteMarkdown(finding.recommendedOutcome),
     "",
     "## Constraints",
     "",
@@ -796,10 +869,12 @@ function buildFindingTaskBody(args: {
     "",
     `Created by security-review workflow run ${runId}.`,
     "",
-    `finding id: ${finding.id}`,
-    `candidate id: ${finding.candidateId}`,
+    `finding id: ${bodyScalar(finding.id)}`,
+    `candidate id: ${bodyScalar(finding.candidateId)}`,
     `verdict: ${finding.verdict}`,
-    `rationale: ${finding.rationale}`,
+    "rationale:",
+    "",
+    quoteMarkdown(finding.rationale),
     "",
     "Evidence:",
     "",
@@ -853,7 +928,8 @@ export function createOrUpdateSecurityFindingTasks(
       skippedFindingIds.push(finding.id);
       continue;
     }
-    const title = `Security review: ${finding.claim}`;
+    const safeClaim = frontMatterScalar(finding.claim);
+    const title = `Security review: ${safeClaim}`;
     const id = `task-${slugifyTaskTitle(title)}`;
     const existing = findExistingTask(projectDir, id);
     const state = existing?.state ?? "ready";
@@ -865,11 +941,11 @@ export function createOrUpdateSecurityFindingTasks(
       : now;
     const attrs: Record<string, string> = {
       id,
-      title,
+      title: `Security review: ${safeClaim}`,
       status: state,
       priority: taskPriorityForSeverity(finding.severity),
       area: "security",
-      summary: finding.claim,
+      summary: safeClaim,
       created_at: existingCreatedAt,
       updated_at: now,
     };

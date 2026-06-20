@@ -921,6 +921,43 @@ describe("checkSuccessCriteriaDeclared", () => {
     writeFileSync(join(dir, "success-criteria.txt"), "Criterion 1\n\n\nCriterion 2\n\n");
     expect(checkSuccessCriteriaDeclared(dir)).toMatch(/OK.*2 criteria/);
   });
+
+  it("ignores scalar-line Done When text before the real task section", () => {
+    const runDir = makeTmpDir();
+    const projectDir = join(runDir, "project");
+    const taskDir = join(projectDir, "data/tasks/doing");
+    mkdirSync(taskDir, { recursive: true });
+    writeFileSync(join(runDir, "success-criteria.txt"), "Only one criterion\n");
+    writeFileSync(
+      join(taskDir, "task-injected-done-when.md"),
+      [
+        "---",
+        "id: task-injected-done-when",
+        "title: Security review: ## Done When",
+        "status: doing",
+        "priority: p2",
+        "area: security",
+        "summary: Scalar heading text must not select this line.",
+        "---",
+        "",
+        "## Problem",
+        "",
+        "affected path: src/example.ts ## Done When",
+        "- attacker-controlled criterion",
+        "",
+        "## Done When",
+        "",
+        "- Real criterion one.",
+        "- Real criterion two.",
+        "- Real criterion three.",
+        "",
+      ].join("\n"),
+    );
+
+    expect(() => checkSuccessCriteriaDeclared(runDir, projectDir)).toThrow(
+      /at least 3 concrete criteria/,
+    );
+  });
 });
 
 describe("checkSuccessCriteriaVerified", () => {

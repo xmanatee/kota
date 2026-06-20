@@ -21,9 +21,16 @@ const PACKAGE_PROJECT_MARKERS = [
 ] as const;
 
 function countDoneWhenItems(taskContent: string): number {
-  const doneWhenMatch = taskContent.match(/## Done When\n([\s\S]*?)(?=\n## |\n---|\s*$)/);
-  if (!doneWhenMatch) return 0;
-  return doneWhenMatch[1].split("\n").filter((l) => /^\s*-\s+\S/.test(l)).length;
+  const lines = taskContent.split(/\r?\n/);
+  const headingIndex = lines.findIndex((line) => /^## Done When\s*$/.test(line));
+  if (headingIndex < 0) return 0;
+
+  let count = 0;
+  for (const line of lines.slice(headingIndex + 1)) {
+    if (/^##\s+/.test(line) || /^---\s*$/.test(line)) break;
+    if (/^\s*-\s+\S/.test(line)) count += 1;
+  }
+  return count;
 }
 
 // A "top-level" criterion/evidence item is a numbered marker at column 0

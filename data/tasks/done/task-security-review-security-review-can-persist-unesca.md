@@ -1,12 +1,12 @@
 ---
 id: task-security-review-security-review-can-persist-unesca
 title: Security review: Security-review can persist unescaped agent-generated finding strings into normal task frontmatter and markdown, allowing newline/frontmatter or markdown-heading injection to alter task metadata or the builder's Done When criteria.
-status: ready
+status: done
 priority: p2
 area: security
 summary: Security-review can persist unescaped agent-generated finding strings into normal task frontmatter and markdown, allowing newline/frontmatter or markdown-heading injection to alter task metadata or the builder's Done When criteria.
 created_at: 2026-06-20T00:55:20.627Z
-updated_at: 2026-06-20T00:55:20.627Z
+updated_at: 2026-06-20T01:04:51.000Z
 ---
 
 ## Problem
@@ -60,3 +60,4 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `NODE_OPTIONS=--conditions=source pnpm exec vitest run src/modules/autonomy/workflows/security-review/workflow.test.ts` passed on 2026-06-20.
