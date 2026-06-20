@@ -86,12 +86,50 @@ function quoteMarkdown(value: string): string {
     .join("\n");
 }
 
-function findExistingTask(projectDir: string, id: string): { state: RepoTaskState; path: string } | null {
+type ExistingSecurityFindingTask = { state: RepoTaskState; path: string };
+
+type SecurityFindingTaskTarget =
+  | { kind: "create"; id: string; state: "ready"; path: string }
+  | { kind: "update"; id: string; state: RepoTaskState; path: string };
+
+function isTerminalTaskState(state: RepoTaskState): boolean {
+  return state === "done" || state === "dropped";
+}
+
+function securityFindingTaskId(baseId: string, collisionIndex: number): string {
+  return collisionIndex === 1 ? baseId : `${baseId}-${collisionIndex}`;
+}
+
+function findExistingTask(
+  projectDir: string,
+  id: string,
+): ExistingSecurityFindingTask | null {
   for (const state of REPO_TASK_STATES) {
     const taskPath = join(getRepoTaskStateDir(projectDir, state), `${id}.md`);
     if (existsSync(taskPath)) return { state, path: taskPath };
   }
   return null;
+}
+
+function resolveSecurityFindingTaskTarget(
+  projectDir: string,
+  baseId: string,
+): SecurityFindingTaskTarget {
+  for (let collisionIndex = 1; ; collisionIndex += 1) {
+    const id = securityFindingTaskId(baseId, collisionIndex);
+    const existing = findExistingTask(projectDir, id);
+    if (!existing) {
+      return {
+        kind: "create",
+        id,
+        state: "ready",
+        path: join(getRepoTaskStateDir(projectDir, "ready"), `${id}.md`),
+      };
+    }
+    if (!isTerminalTaskState(existing.state)) {
+      return { kind: "update", id, state: existing.state, path: existing.path };
+    }
+  }
 }
 
 function buildFindingTaskBody(args: {
@@ -200,19 +238,16 @@ export function createOrUpdateSecurityFindingTasks(
     }
     const safeClaim = frontMatterScalar(finding.claim);
     const title = `Security review: ${safeClaim}`;
-    const id = `task-${slugifyTaskTitle(title)}`;
-    const existing = findExistingTask(projectDir, id);
-    const state = existing?.state ?? "ready";
-    const taskPath = existing?.path ?? join(getRepoTaskStateDir(projectDir, "ready"), `${id}.md`);
-    mkdirSync(dirname(taskPath), { recursive: true });
+    const target = resolveSecurityFindingTaskTarget(projectDir, `task-${slugifyTaskTitle(title)}`);
+    mkdirSync(dirname(target.path), { recursive: true });
     const now = new Date().toISOString();
-    const existingCreatedAt = existing
-      ? String(parseFlatFrontMatter(readFileSync(existing.path, "utf-8")).attrs.created_at ?? now)
+    const existingCreatedAt = target.kind === "update"
+      ? String(parseFlatFrontMatter(readFileSync(target.path, "utf-8")).attrs.created_at ?? now)
       : now;
     const attrs: Record<string, string> = {
-      id,
+      id: target.id,
       title: `Security review: ${safeClaim}`,
-      status: state,
+      status: target.state,
       priority: taskPriorityForSeverity(finding.severity),
       area: "security",
       summary: safeClaim,
@@ -220,14 +255,14 @@ export function createOrUpdateSecurityFindingTasks(
       updated_at: now,
     };
     writeFileSync(
-      taskPath,
+      target.path,
       serializeFlatFrontMatter(attrs, buildFindingTaskBody({ runId: args.runId, finding })),
       "utf-8",
     );
-    stageBestEffort(projectDir, taskPath);
-    taskPaths.push(taskPath);
-    if (existing) updatedTaskIds.push(id);
-    else createdTaskIds.push(id);
+    stageBestEffort(projectDir, target.path);
+    taskPaths.push(target.path);
+    if (target.kind === "update") updatedTaskIds.push(target.id);
+    else createdTaskIds.push(target.id);
   }
 
   return { createdTaskIds, updatedTaskIds, skippedFindingIds, taskPaths };

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
 import { validatePayloadSchema } from "#core/workflow/payload-validator.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { slugifyTaskTitle } from "#modules/repo-tasks/repo-tasks-operations.js";
 import { assertTaskQueueValid } from "#modules/repo-tasks/task-queue-validation.js";
 import { SECURITY_REVIEW_DUE_EVENT } from "./due-check.js";
 import {
@@ -45,6 +46,93 @@ describe("security-review workflow", () => {
     const fullPath = join(projectDir, path);
     mkdirSync(join(fullPath, ".."), { recursive: true });
     writeFileSync(fullPath, content, "utf-8");
+  }
+
+  function securityFindingTaskIdForClaim(claim: string): string {
+    return `task-${slugifyTaskTitle(`Security review: ${claim}`)}`;
+  }
+
+  function confirmedFindingForClaim(claim: string): SecurityRevalidationOutput["findings"][number] {
+    const investigation: SecurityInvestigationOutput = decodeSecurityInvestigationOutput({
+      findings: [
+        {
+          id: "finding-terminal-task-regression",
+          candidateId: "task-workflow-mutation:src/modules/example.ts:12",
+          claim,
+          severity: "medium",
+          affectedPath: "src/modules/example.ts",
+          evidence: [
+            {
+              path: "src/modules/example.ts",
+              line: 12,
+              excerpt: "writeFileSync(taskPath, body);",
+            },
+          ],
+          recommendedOutcome: "Create actionable ready remediation without mutating terminal task history.",
+        },
+      ],
+    });
+    const revalidation = decodeSecurityRevalidationOutputForInvestigation(
+      {
+        findings: [
+          {
+            id: "finding-terminal-task-regression",
+            verdict: "confirmed",
+            rationale: "The terminal task collision still leaves no actionable ready remediation.",
+          },
+        ],
+        summary: "Confirmed terminal task suppression.",
+      },
+      investigation,
+    );
+    const finding = revalidation.findings[0];
+    if (!finding) throw new Error("fixture did not produce a confirmed finding");
+    return finding;
+  }
+
+  function writeTerminalSecurityTask(
+    id: string,
+    state: "done" | "dropped",
+    marker: string,
+  ): void {
+    const path = `data/tasks/${state}/${id}.md`;
+    writeProjectFile(
+      path,
+      [
+        "---",
+        `id: ${id}`,
+        `title: ${marker}`,
+        `status: ${state}`,
+        "priority: p2",
+        "area: security",
+        `summary: ${marker}`,
+        "created_at: 2026-06-19T00:00:00.000Z",
+        "updated_at: 2026-06-19T00:00:00.000Z",
+        "---",
+        "",
+        "## Problem",
+        "",
+        marker,
+        "",
+        "## Desired Outcome",
+        "",
+        "Keep this terminal task as historical evidence.",
+        "",
+        "## Constraints",
+        "",
+        "- Do not reopen this fixture directly.",
+        "",
+        "## Done When",
+        "",
+        "- Historical task state is preserved.",
+        "",
+        "## Acceptance Evidence",
+        "",
+        "- Historical evidence.",
+        "",
+      ].join("\n"),
+    );
+    execFileSync("git", ["add", path], { cwd: projectDir, stdio: "ignore" });
   }
 
   it("orders security-review commit behind the explicit preflight gate", () => {
@@ -435,6 +523,54 @@ describe("security-review workflow", () => {
     expect(task).toContain("Untrusted URL reaches fetch without an allowlist.");
     expect(task).toContain("Validate URL scheme and host before fetch.");
     expect(task).not.toContain("Secret value is printed.");
+    expect(() => assertTaskQueueValid(projectDir, { minReady: 0 })).not.toThrow();
+  });
+
+  it("creates a new ready task when a repeated confirmed finding has a previous done task", () => {
+    const claim = "Terminal task suppresses repeated confirmed findings.";
+    const baseId = securityFindingTaskIdForClaim(claim);
+    writeTerminalSecurityTask(baseId, "done", "previous done finding task");
+
+    const result = createOrUpdateSecurityFindingTasks(projectDir, {
+      runId: "security-review-run",
+      findings: [confirmedFindingForClaim(claim)],
+    });
+
+    expect(result.createdTaskIds).toEqual([`${baseId}-2`]);
+    expect(result.updatedTaskIds).toEqual([]);
+    const terminalPath = join(projectDir, "data/tasks/done", `${baseId}.md`);
+    const terminalTask = readFileSync(terminalPath, "utf-8");
+    expect(parseFlatFrontMatter(terminalTask).attrs.status).toBe("done");
+    expect(terminalTask).toContain("previous done finding task");
+
+    const readyPath = join(projectDir, "data/tasks/ready", `${baseId}-2.md`);
+    const readyTask = readFileSync(readyPath, "utf-8");
+    const parsed = parseFlatFrontMatter(readyTask);
+    expect(parsed.attrs.id).toBe(`${baseId}-2`);
+    expect(parsed.attrs.status).toBe("ready");
+    expect(readyTask).toContain("Terminal task suppresses repeated confirmed findings.");
+    expect(() => assertTaskQueueValid(projectDir, { minReady: 0 })).not.toThrow();
+  });
+
+  it("allocates a unique ready id when terminal task ids collide with the finding slug", () => {
+    const claim = "Terminal slug collision hides actionable remediation.";
+    const baseId = securityFindingTaskIdForClaim(claim);
+    writeTerminalSecurityTask(baseId, "done", "done collision owner");
+    writeTerminalSecurityTask(`${baseId}-2`, "dropped", "dropped collision owner");
+
+    const result = createOrUpdateSecurityFindingTasks(projectDir, {
+      runId: "security-review-run",
+      findings: [confirmedFindingForClaim(claim)],
+    });
+
+    expect(result.createdTaskIds).toEqual([`${baseId}-3`]);
+    expect(result.updatedTaskIds).toEqual([]);
+    expect(existsSync(join(projectDir, "data/tasks/done", `${baseId}.md`))).toBe(true);
+    expect(existsSync(join(projectDir, "data/tasks/dropped", `${baseId}-2.md`))).toBe(true);
+    const readyTask = readFileSync(join(projectDir, "data/tasks/ready", `${baseId}-3.md`), "utf-8");
+    const parsed = parseFlatFrontMatter(readyTask);
+    expect(parsed.attrs.id).toBe(`${baseId}-3`);
+    expect(parsed.attrs.status).toBe("ready");
     expect(() => assertTaskQueueValid(projectDir, { minReady: 0 })).not.toThrow();
   });
 

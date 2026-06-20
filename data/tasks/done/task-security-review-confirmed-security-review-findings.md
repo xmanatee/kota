@@ -1,12 +1,12 @@
 ---
 id: task-security-review-confirmed-security-review-findings
 title: Security review: Confirmed security-review findings can be written into an existing done or dropped task instead of reopening or creating an actionable task, so recurring or slug-colliding vulnerabilities may be recorded as handled while no ready security task exists.
-status: ready
+status: done
 priority: p2
 area: security
 summary: Confirmed security-review findings can be written into an existing done or dropped task instead of reopening or creating an actionable task, so recurring or slug-colliding vulnerabilities may be recorded as handled while no ready security task exists.
 created_at: 2026-06-20T02:15:02.551Z
-updated_at: 2026-06-20T02:15:02.551Z
+updated_at: 2026-06-20T02:23:37.368Z
 ---
 
 ## Problem
@@ -124,3 +124,7 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `NODE_OPTIONS=--conditions=source pnpm exec vitest run src/modules/autonomy/workflows/security-review/workflow.test.ts` passed with 19 tests.
+- `pnpm exec biome check src/modules/autonomy/workflows/security-review/security-review-tasks.ts src/modules/autonomy/workflows/security-review/workflow.test.ts` passed.
+- `pnpm typecheck` passed.
+- `pnpm validate-tasks` passed after staging the task move.
