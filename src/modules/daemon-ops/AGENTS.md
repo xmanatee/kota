@@ -26,7 +26,8 @@ CLI commands.
   `pid()`, `stop()`, `reload()`) is also owned end-to-end by this module.
   The local handler (`localClient` in `index.ts` backed by
   `daemon-ops-operations.ts`) reads `.kota/daemon-control.json` to
-  distinguish "not running" from "stale control file"; the daemon-side
+  distinguish "not running" from "stale/unverified control file"; local stop
+  authenticates `/status` and confirms the published pid before signaling. The daemon-side
   handler (`buildDaemonOpsDaemonHandler` in `index.ts`, contributed through
   the same `daemonClient(link)` factory alongside `sessions`) routes
   `status()`/`pid()` through `GET /status` and `reload()` through
@@ -34,8 +35,7 @@ CLI commands.
   pid and waiting for process exit, so the supervised child exits and lets the
   supervisor return. Lifecycle CLI subcommands that accept `--project-dir`
   resolve the target project after command parsing and then select that
-  project's control file/transport. The
-  non-namespace direct methods
+  project's control file/transport. The non-namespace direct methods
   `DaemonControlClient.getDaemonStatus()` and `reloadConfig()` continue to
   consume the helpers in `src/core/server/daemon-client.ts` because they
   bridge `kota serve` ⇄ daemon and are not part of the namespace contract.

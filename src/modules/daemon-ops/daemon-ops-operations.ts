@@ -10,7 +10,7 @@
 import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { resolveProjectDir } from "#core/config/project-dir.js";
-import type { DaemonControlAddress } from "#core/daemon/daemon-control.js";
+import type { DaemonControlAddress, DaemonLiveStatus } from "#core/daemon/daemon-control.js";
 import {
   isDaemonControlAddressReachable,
   readLiveDaemonControlAddress,
@@ -109,16 +109,36 @@ export async function stopDaemonPid(
   return { ok: false, reason: "timeout", pid };
 }
 
+async function verifyLocalStopTarget(
+  address: DaemonControlAddress,
+): Promise<DaemonOpsStopResult | null> {
+  if (!isProcessAlive(address.pid)) return { ok: false, reason: "stale", pid: address.pid };
+  if (typeof address.port !== "number" || typeof address.token !== "string") {
+    return { ok: false, reason: "unavailable", pid: address.pid };
+  }
+
+  const status = await daemonTransportFromAddress(address).request<DaemonLiveStatus>(
+    "GET",
+    "/status",
+  );
+  if (!status || typeof status.pid !== "number" || status.pid !== address.pid) {
+    return { ok: false, reason: "unavailable", pid: address.pid };
+  }
+  return null;
+}
+
 export async function localDaemonStop(
   options?: { timeoutSec?: number; projectDir?: string },
 ): Promise<DaemonOpsStopResult> {
   const projectDir = resolveProjectDir(options?.projectDir);
   const timeoutSec = options?.timeoutSec ?? 90;
   const address = readControlAddress({ projectDir });
-  const result =
-    !address || typeof address.pid !== "number"
-      ? { ok: false, reason: "not_running" } as const
-      : await stopDaemonPid(address.pid, timeoutSec);
+  let result: DaemonOpsStopResult;
+  if (!address || typeof address.pid !== "number") {
+    result = { ok: false, reason: "not_running" };
+  } else {
+    result = await verifyLocalStopTarget(address) ?? await stopDaemonPid(address.pid, timeoutSec);
+  }
   if (!result.ok && result.reason !== "not_running") {
     recordDaemonStopAttempt({ projectDir, timeoutSec, result });
   }

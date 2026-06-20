@@ -1075,6 +1075,8 @@ const daemonModule: KotaModule = {
           printDaemonError("Daemon is not running.");
         } else if (result.reason === "stale") {
           printDaemonError("Daemon process is not running (stale control file).");
+        } else if (result.reason === "unavailable") {
+          printDaemonError("Daemon control endpoint could not be verified; refusing to signal the recorded pid.");
         } else if (result.reason === "timeout") {
           printDaemonError(`Daemon did not stop within ${timeoutSec}s.`);
         }

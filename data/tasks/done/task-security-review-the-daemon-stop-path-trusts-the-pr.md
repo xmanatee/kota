@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-daemon-stop-path-trusts-the-pr
 title: Security review: The daemon stop path trusts the project-local daemon-control.json pid and sends SIGTERM without first authenticating a live KOTA daemon, so tampered or stale project state can make the CLI terminate an unrelated same-user process.
-status: ready
+status: done
 priority: p2
 area: security
 summary: The daemon stop path trusts the project-local daemon-control.json pid and sends SIGTERM without first authenticating a live KOTA daemon, so tampered or stale project state can make the CLI terminate an unrelated same-user process.
 created_at: 2026-06-20T19:29:24.305Z
-updated_at: 2026-06-20T19:29:24.305Z
+updated_at: 2026-06-20T19:39:29.752Z
 ---
 
 ## Problem
@@ -124,3 +124,17 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Resolution
+
+The local daemon stop path now authenticates the control-file endpoint with the
+published bearer token, reads `GET /status`, and confirms the reported pid
+matches the control-file pid before sending `SIGTERM`. Unreachable,
+unauthenticated, malformed, or pid-mismatched endpoints return
+`reason: "unavailable"` and do not signal the recorded pid.
+
+## Verification
+
+- `pnpm exec vitest run src/modules/daemon-ops/daemon-ops-operations.test.ts src/modules/daemon-ops/daemon-ops-daemon-client.test.ts`
+- `pnpm typecheck`
+- `pnpm lint`

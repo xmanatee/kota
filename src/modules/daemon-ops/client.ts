@@ -117,6 +117,7 @@ export type DaemonOpsStopResult =
   | { ok: true }
   | { ok: false; reason: "not_running" }
   | { ok: false; reason: "stale"; pid: number }
+  | { ok: false; reason: "unavailable"; pid: number }
   | { ok: false; reason: "timeout"; pid: number };
 
 /** Result of `daemonOps.reload()`. */
