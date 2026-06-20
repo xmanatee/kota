@@ -1,0 +1,7 @@
+# Incomplete starter. It cleans and shifts, but does not use the rail layout
+# or checksum required by the route-key task.
+READ phrase
+CLEAN36
+SHIFT36 seed 1
+GROUP 4 .
+EMIT

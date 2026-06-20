@@ -1,12 +1,12 @@
 ---
 id: task-add-an-unfamiliar-language-strategy-construction-f
 title: Add an unfamiliar-language strategy-construction fixture to the eval harness
-status: ready
+status: blocked
 priority: p2
 area: modules
 summary: Seed an eval-harness fixture where the builder must learn a tiny unfamiliar language by writing and debugging helper code against local examples and hidden tests, so strategy construction is artifact-graded rather than treated as ordinary JavaScript patching.
 created_at: 2026-06-20T22:32:36.456Z
-updated_at: 2026-06-20T22:32:36.456Z
+updated_at: 2026-06-20T22:47:40.355Z
 ---
 
 ## Problem
@@ -104,6 +104,31 @@ The fixture should make unfamiliar-rule strategy construction observable:
   in the run artifact and aggregate output.
 - The fixture includes at least one regression check showing a shortcut
   candidate fails, then the shortcut is reverted before staging.
+
+## Unblock Precondition
+
+```
+kind: operator-capture
+path: .kota/runs/unfamiliar-language-strategy-construction-live-pass
+description: live eval-harness pass artifact — operator runs `pnpm kota eval run --fixture builder-unfamiliar-language-strategy-construction --repeats 1 --keep` in an environment where the nested builder harness has an active Codex login, then stores eval-run-transcript.txt, eval-set-report.json, the per-run fixture-run.json, and the produced strategy-result.json evidence under .kota/runs/unfamiliar-language-strategy-construction-live-pass/
+```
+
+## Status (2026-06-20 builder)
+
+The fixture files, minimal initial project, Spool verifier/interpreter,
+objective metric, verifier calibration, and shortcut-regression self-test have
+been implemented. Local validation passed for fixture loading,
+`src/modules/eval-harness/fixture.test.ts`,
+`src/modules/eval-harness/eval-set.test.ts`, golden calibration, and shortcut
+self-test evidence.
+
+The required live eval was attempted from run
+`.kota/runs/2026-06-20T22-35-03-761Z-builder-pscnqs/eval-run-transcript.txt`.
+It reached the nested builder workflow and failed before the agent turn because
+the `codex` harness reported `localAuth missing: Codex ChatGPT login not
+active; run codex login`. No `strategy-result.json` was produced by a nested
+builder run, so this task is blocked on the operator-captured live pass above
+rather than marked done.
 
 ## Source / Intent
 

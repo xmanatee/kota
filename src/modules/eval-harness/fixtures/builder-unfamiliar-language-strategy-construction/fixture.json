@@ -1,0 +1,144 @@
+{
+  "id": "builder-unfamiliar-language-strategy-construction",
+  "description": "Builder learns a tiny fixture-owned target language, produces a checked Spool program, and leaves machine-readable strategy provenance instead of hardcoding visible examples.",
+  "role": "builder",
+  "workflowName": "builder",
+  "budgetMs": 1800000,
+  "predicates": [
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-strategy.mjs",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-strategy.mjs --self-test-shortcuts",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "file-exists",
+      "path": "strategy-result.json"
+    },
+    {
+      "kind": "file-contains",
+      "path": "strategy-result.json",
+      "needle": "\"hiddenCasePassCount\": 6"
+    },
+    {
+      "kind": "file-contains",
+      "path": "strategy-result.json",
+      "needle": "\"shiftIndexBase\": 1"
+    },
+    {
+      "kind": "file-contains",
+      "path": "strategy-result.json",
+      "needle": "\"checksumModulus\": 1296"
+    },
+    {
+      "kind": "file-absent",
+      "path": "data/tasks/ready/task-write-spool-route-strategy.md"
+    },
+    {
+      "kind": "file-exists",
+      "path": "data/tasks/done/task-write-spool-route-strategy.md"
+    },
+    {
+      "kind": "file-contains",
+      "path": "data/tasks/done/task-write-spool-route-strategy.md",
+      "needle": "status: done"
+    },
+    {
+      "kind": "git-changes-within",
+      "allowedPaths": [
+        "programs/solution.spool",
+        "scripts/generate-solution.mjs",
+        "strategy-result.json",
+        "data/tasks/ready/task-write-spool-route-strategy.md",
+        "data/tasks/done/task-write-spool-route-strategy.md"
+      ]
+    }
+  ],
+  "objectiveMetrics": [
+    {
+      "name": "hidden_case_pass_count",
+      "unit": "cases",
+      "direction": "higher_is_better",
+      "source": {
+        "kind": "json-file",
+        "path": "strategy-result.json",
+        "pointer": "/hiddenCasePassCount"
+      }
+    }
+  ],
+  "verifierCalibration": {
+    "null": {},
+    "golden": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/programs/solution.spool",
+          "targetPath": "programs/solution.spool"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/strategy-result.json",
+          "targetPath": "strategy-result.json"
+        }
+      ]
+    },
+    "adversarial": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/programs/solution.spool",
+          "targetPath": "programs/solution.spool"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/strategy-result.json",
+          "targetPath": "strategy-result.json"
+        }
+      ]
+    }
+  },
+  "tags": [
+    "autonomy",
+    "builder-discipline",
+    "unfamiliar-language",
+    "strategy-construction",
+    "live-llm",
+    "objective-metric"
+  ],
+  "provenance": {
+    "kind": "smoke-fixture",
+    "justification": "Synthetic live-builder canary inspired by unfamiliar-language strategy construction research: the builder must learn a tiny local target language, debug against examples and hidden verifier cases, and leave an auditable strategy artifact. No past KOTA failure run exists for this exact measurement gap."
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-strategy.mjs",
+        "timeoutMs": 15000
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-strategy.mjs --self-test-shortcuts",
+        "timeoutMs": 15000
+      },
+      "expected": "pass"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/tasks/ready/task-write-spool-route-strategy.md"
+      },
+      "expected": "pass"
+    }
+  ],
+  "controlDecisions": [
+    "act"
+  ]
+}
