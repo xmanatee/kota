@@ -1,13 +1,13 @@
 ---
 id: task-refactor-channel-opportunity-matching
 title: refactor channel opportunity matching
-status: ready
+status: done
 priority: p3
 area: channel
 task_class: Platform
 summary: Split the oversized channel opportunity matching module while preserving behavior.
 created_at: 2026-06-19T16:17:20.357Z
-updated_at: 2026-06-19T16:17:20.357Z
+updated_at: 2026-06-20T02:05:14.766Z
 ---
 
 ## Problem
