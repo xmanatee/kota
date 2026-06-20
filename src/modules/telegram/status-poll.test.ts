@@ -2684,6 +2684,49 @@ describe("startTelegramStatusPoll", () => {
     expect(sendCall).toBeUndefined();
   });
 
+  it("preserves the unbound-project reply for unknown multi-project chat text", async () => {
+    const selection = {
+      resolveChat: vi.fn(async () => ({
+        ok: false as const,
+        message: "This Telegram chat is not bound to a KOTA project.",
+      })),
+      switchChat: vi.fn(),
+      renderProjectLabelPrefix: vi.fn(),
+    } as unknown as TelegramProjectSelection;
+    const client = { forProject: vi.fn() } as unknown as KotaClient;
+
+    mockedCallTelegramApi
+      .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "hello")])
+      .mockResolvedValue([]);
+    stop = startTelegramStatusPoll(
+      FAKE_TOKEN,
+      FAKE_CHAT_ID,
+      FAKE_PROJECT_DIR,
+      makeStatusInfo,
+      makeKnowledgeStub(),
+      makeMemoryStub(),
+      makeHistoryStub(),
+      makeTasksStub(),
+      makeRecallStub(),
+      makeAnswerStub(),
+      makeCaptureStub(),
+      makeRetractStub(),
+      undefined,
+      { client, selection },
+    );
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(selection.resolveChat).toHaveBeenCalledWith(Number(FAKE_CHAT_ID));
+    expect(client.forProject).not.toHaveBeenCalled();
+    expect(mockedCallTelegramApi).toHaveBeenCalledWith(
+      FAKE_TOKEN,
+      "sendMessage",
+      expect.objectContaining({
+        text: "This Telegram chat is not bound to a KOTA project.",
+      }),
+    );
+  });
+
   it("advances offset so already-seen updates are not reprocessed", async () => {
     mockedCallTelegramApi
       .mockResolvedValueOnce([makeUpdate(42, Number(FAKE_CHAT_ID), "/status")])
