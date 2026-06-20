@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import {
@@ -8,6 +9,7 @@ import {
   resolveEvidenceRetention,
 } from "#core/evidence/policy.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { createActiveRunHandle } from "./active-run-handle.js";
 import {
   projectWorkflowRunMetadataForStorage,
@@ -70,6 +72,36 @@ function isRecoverableRunMetadata(value: unknown): value is RecoverableRunMetada
     typeof value.runDir === "string" &&
     Array.isArray(value.steps)
   );
+}
+
+function toGitPath(path: string): string {
+  return path.split("\\").join("/");
+}
+
+function listTrackedRunIds(projectDir: string, runsDir: string): Set<string> {
+  const runsPath = toGitPath(relative(projectDir, runsDir));
+  if (!runsPath || runsPath.startsWith("..")) return new Set();
+
+  try {
+    const output = execFileSync("git", ["ls-files", "--", runsPath], {
+      cwd: projectDir,
+      env: withProtectedGitBareRepositoryEnv(),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+    if (!output) return new Set();
+
+    const prefix = `${runsPath.replace(/\/+$/, "")}/`;
+    const runIds = new Set<string>();
+    for (const line of output.split("\n")) {
+      if (!line.startsWith(prefix)) continue;
+      const runId = line.slice(prefix.length).split("/", 1)[0];
+      if (runId) runIds.add(runId);
+    }
+    return runIds;
+  } catch {
+    return new Set();
+  }
 }
 
 export class WorkflowRunStore {
@@ -229,6 +261,9 @@ export class WorkflowRunStore {
     const state = this.readState();
     const protectedIds = new Set<string>(opts?.protectedRunIds);
     for (const run of state.activeRuns ?? []) protectedIds.add(run.runId);
+    for (const runId of listTrackedRunIds(this.projectDir, this.runsDir)) {
+      protectedIds.add(runId);
+    }
 
     type RunEntry = {
       id: string;

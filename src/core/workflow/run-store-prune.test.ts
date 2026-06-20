@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -193,6 +194,30 @@ describe("WorkflowRunStore.pruneRuns", () => {
     for (let i = 0; i < 3; i++) {
       expect(existsSync(join(runsDir, `run-old-${i}`))).toBe(true);
     }
+  });
+
+  it("does not delete old run directories that contain git-tracked evidence", () => {
+    const runsDir = join(projectDir, ".kota", "runs");
+    const now = Date.now();
+    writeRun(runsDir, "run-old-tracked", "builder", now - 30 * DAY_MS);
+    writeRun(runsDir, "run-old-untracked", "builder", now - 31 * DAY_MS);
+    writeFileSync(
+      join(runsDir, "run-old-tracked", "evidence.txt"),
+      "durable evidence\n",
+    );
+
+    execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
+    execFileSync(
+      "git",
+      ["add", ".kota/runs/run-old-tracked/evidence.txt"],
+      { cwd: projectDir, stdio: "ignore" },
+    );
+
+    const deleted = store.pruneRuns({ retentionDays: 7, minKeepPerWorkflow: 0 });
+
+    expect(deleted).toEqual(["run-old-untracked"]);
+    expect(existsSync(join(runsDir, "run-old-tracked"))).toBe(true);
+    expect(existsSync(join(runsDir, "run-old-untracked"))).toBe(false);
   });
 });
 
