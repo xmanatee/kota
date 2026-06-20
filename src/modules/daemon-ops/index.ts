@@ -74,6 +74,7 @@ import type {
 import {
   buildInboxUiSurface,
   buildModulesAgentsUiSurface,
+  buildOperatorControlUiSurface,
   buildRuntimeUiSurface,
   buildScopeUiSurface,
   buildSetupUiSurface,
@@ -83,7 +84,6 @@ import {
   findUiAction,
   type SurfaceRead,
 } from "./operator-ui.js";
-import { buildOperatorControlUiSurface } from "./operator-ui-builders.js";
 import { buildUiCommand } from "./operator-ui-cli.js";
 import type { UiActionOperation } from "./operator-ui-types.js";
 import { buildProjectCommand } from "./projects-cli.js";

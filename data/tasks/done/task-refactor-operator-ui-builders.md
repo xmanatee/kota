@@ -1,13 +1,13 @@
 ---
 id: task-refactor-operator-ui-builders
 title: refactor operator-ui-builders
-status: ready
+status: done
 priority: p3
 area: modules
 task_class: Platform
 summary: Split the oversized operator UI builders module while preserving behavior.
 created_at: 2026-06-19T16:16:35.672Z
-updated_at: 2026-06-19T16:16:35.672Z
+updated_at: 2026-06-20T18:56:02.243Z
 ---
 
 ## Problem
@@ -45,3 +45,7 @@ N/A - scoped maintenance.
 - Include `wc -l` before/after for `src/modules/daemon-ops/operator-ui-builders.ts`.
 - Include `rg` output or another static query proving public exports/callers are preserved.
 - Include any focused fixture, transcript, or targeted check used to verify operator-facing behavior.
+
+## Result
+
+Completed in run `.kota/runs/2026-06-20T18-42-46-982Z-builder-laibg5/`. The builder file now re-exports the stable public surface from named helper/surface modules; line-count, caller/export queries, focused daemon-ops UI tests, typecheck, lint, task validation, and the bounded UI audit are recorded in the run artifacts.
