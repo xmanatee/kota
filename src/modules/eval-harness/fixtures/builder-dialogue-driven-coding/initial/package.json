@@ -1,0 +1,15 @@
+{
+  "name": "kota-builder-dialogue-driven-coding-fixture",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "true",
+    "typecheck": "true",
+    "lint": "true",
+    "lint:fix": "true",
+    "test": "node scripts/check-dialogue.mjs",
+    "dev": "node \"$KOTA_DIST_DIR/cli.js\"",
+    "validate-tasks": "node \"$KOTA_DIST_DIR/validate-queue.js\"",
+    "kota": "node \"$KOTA_DIST_DIR/cli.js\""
+  }
+}

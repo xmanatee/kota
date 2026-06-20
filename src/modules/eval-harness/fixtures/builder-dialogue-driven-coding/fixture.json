@@ -1,0 +1,155 @@
+{
+  "id": "builder-dialogue-driven-coding",
+  "description": "Replay-backed builder fixture for resolving an ambiguous coding task through a bounded deterministic user-simulator dialogue before patching.",
+  "role": "builder",
+  "workflowName": "builder",
+  "budgetMs": 1800000,
+  "predicates": [
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-dialogue.mjs",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-dialogue.mjs --self-test-negative-cases",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "file-exists",
+      "path": "dialogue-result.json"
+    },
+    {
+      "kind": "file-contains",
+      "path": "dialogue-result.json",
+      "needle": "\"dialogueQualityScore\": 1"
+    },
+    {
+      "kind": "file-contains",
+      "path": "dialogue-result.json",
+      "needle": "\"requirementId\": \"nova-launch-sms-v1\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "dialogue-result.json",
+      "needle": "\"channel\": \"sms\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "dialogue-result.json",
+      "needle": "\"verificationCommand\": \"node scripts/check-dialogue.mjs\""
+    },
+    {
+      "kind": "file-absent",
+      "path": "data/tasks/ready/task-resolve-nova-launch-notification-copy.md"
+    },
+    {
+      "kind": "file-exists",
+      "path": "data/tasks/done/task-resolve-nova-launch-notification-copy.md"
+    },
+    {
+      "kind": "file-contains",
+      "path": "data/tasks/done/task-resolve-nova-launch-notification-copy.md",
+      "needle": "status: done"
+    },
+    {
+      "kind": "git-changes-within",
+      "allowedPaths": [
+        "dialogue-result.json",
+        "src/notification-copy.mjs",
+        "data/tasks/ready/task-resolve-nova-launch-notification-copy.md",
+        "data/tasks/done/task-resolve-nova-launch-notification-copy.md"
+      ]
+    }
+  ],
+  "objectiveMetrics": [
+    {
+      "name": "dialogue_quality_score",
+      "unit": "ratio",
+      "direction": "higher_is_better",
+      "source": {
+        "kind": "json-file",
+        "path": "dialogue-result.json",
+        "pointer": "/dialogueQualityScore"
+      }
+    }
+  ],
+  "verifierCalibration": {
+    "null": {},
+    "golden": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/src/notification-copy.mjs",
+          "targetPath": "src/notification-copy.mjs"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/dialogue-simulator-transcript.json",
+          "targetPath": ".kota/dialogue-simulator/transcript.json"
+        }
+      ]
+    },
+    "adversarial": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/src/notification-copy.mjs",
+          "targetPath": "src/notification-copy.mjs"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/dialogue-simulator-transcript.json",
+          "targetPath": ".kota/dialogue-simulator/transcript.json"
+        }
+      ]
+    }
+  },
+  "tags": [
+    "autonomy",
+    "builder-discipline",
+    "dialogue-driven-coding",
+    "agent-call-replay",
+    "objective-metric"
+  ],
+  "provenance": {
+    "kind": "smoke-fixture",
+    "justification": "Synthetic replay-backed builder canary for Dialogue SWE-Bench-shaped interactive coding work: the builder must ask a bounded deterministic simulator for a missing implementation requirement, use the answer in code, and leave machine-readable dialogue plus implementation evidence. It uses the existing agent-step replay path so `pnpm kota eval run` remains deterministic and network-free. No past KOTA failure run exists for this exact dialogue-specific measurement gap."
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-dialogue.mjs",
+        "timeoutMs": 20000
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-dialogue.mjs --self-test-negative-cases",
+        "timeoutMs": 10000
+      },
+      "expected": "pass"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/tasks/ready/task-resolve-nova-launch-notification-copy.md"
+      },
+      "expected": "pass"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "dialogue-result.json"
+      },
+      "expected": "fail"
+    }
+  ],
+  "controlDecisions": [
+    "ask",
+    "act"
+  ]
+}

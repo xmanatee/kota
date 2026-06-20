@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "workflowName": "builder",
+  "stepId": "build",
+  "sourceRunId": "synthetic-builder-dialogue-driven-coding-2026-06-20",
+  "response": {
+    "text": "Dialogue-driven coding fixture task completed. Asked the deterministic simulator for the missing Nova launch notification requirement, patched the formatter to use the elicited SMS label pattern, moved the task to done, and wrote run-directory success evidence plus a commit message.",
+    "subtype": "success",
+    "turns": 1,
+    "totalCostUsd": 0,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "sessionId": "builder-dialogue-driven-coding-replay"
+  },
+  "fileOperations": [
+    {
+      "op": "delete",
+      "path": "data/tasks/ready/task-resolve-nova-launch-notification-copy.md"
+    },
+    {
+      "op": "write",
+      "path": "data/tasks/done/task-resolve-nova-launch-notification-copy.md",
+      "content": "---\nid: task-resolve-nova-launch-notification-copy\ntitle: Resolve the Nova launch notification copy\nstatus: done\npriority: p2\narea: eval-harness\nsummary: Use the deterministic user simulator to clarify the missing Nova launch notification requirement, then patch the copy formatter and write dialogue evidence.\ncreated_at: 2026-06-20T00:00:00.000Z\nupdated_at: 2026-06-20T01:00:00.000Z\n---\n\n## Problem\n\n`src/notification-copy.mjs` still emits stale launch notification copy. The\ninitial request deliberately omits the material channel requirement. The answer\nis available only through the fixture's deterministic simulator; do not guess\nfrom the current implementation.\n\n## Desired Outcome\n\nAsk the simulator one concise, relevant clarifying question before patching:\n\n```sh\nnode scripts/user-simulator.mjs ask \"<your question>\"\n```\n\nThen update `src/notification-copy.mjs` so the launch notification label uses\nthe requirement facts returned by the simulator. Finish by running:\n\n```sh\nnode scripts/check-dialogue.mjs\n```\n\nThe checker writes `dialogue-result.json` with the transcript, elicited facts,\nfinal decision, verification command, and implementation evidence.\n\n## Constraints\n\n- Keep the simulator and checker deterministic and offline.\n- Do not edit `scripts/user-simulator.mjs`, `scripts/check-dialogue.mjs`,\n  `package.json`, fixture metadata, or generated evaluator files.\n- Ask only about the missing Nova launch notification requirement. Irrelevant,\n  repeated, or excessive questions fail the fixture.\n- Do not hardcode the Nova example output. The implementation must use product\n  and time inputs while reflecting the simulator's channel and label pattern.\n- Do not commit from the agent step; the workflow commit step handles that.\n\n## Done When\n\n- The simulator transcript contains one bounded relevant clarification turn and\n  the SMS launch notification facts.\n- `src/notification-copy.mjs` formats SMS launch labels from product and UTC\n  time inputs using the simulator-provided label pattern.\n- `node scripts/check-dialogue.mjs` exits successfully and writes\n  `dialogue-result.json`.\n- `dialogue-result.json` records the bounded transcript, elicited facts, final\n  decision, verification command, implementation evidence, and quality score.\n- This task has moved from `data/tasks/ready/` to `data/tasks/done/`.\n\n## Acceptance Evidence\n\n- The simulator transcript under `.kota/dialogue-simulator/transcript.json`.\n- Command output from `node scripts/check-dialogue.mjs`.\n- The generated `dialogue-result.json` artifact.\n- The fixture run artifact records the `dialogue_quality_score` objective\n  metric.\n\n## Source / Intent\n\nEval-harness fixture seed for measuring dialogue-driven coding behavior. The\nbuilder should clarify the missing requirement, use the answer, and leave\nmachine-readable evidence that distinguishes useful dialogue from lucky\nautonomous patching, question loops, or ignored answers.\n\n## Initiative\n\nOutcome-grade autonomy evaluation: KOTA should grade whether builders can ask a\nuseful clarifying question in an underspecified coding task before making the\nright patch.\n"
+    },
+    {
+      "op": "write",
+      "path": "src/notification-copy.mjs",
+      "content": "const CHANNEL_PREFIXES = {\n  email: \"Email update\",\n  sms: \"Text alert\",\n};\n\nexport function formatLaunchNotification(event) {\n  if (!event || typeof event.productName !== \"string\" || typeof event.launchAtUtc !== \"string\") {\n    throw new TypeError(\"formatLaunchNotification requires productName and launchAtUtc strings.\");\n  }\n  const prefix = CHANNEL_PREFIXES[event.channel] ?? CHANNEL_PREFIXES.sms;\n  return `${prefix}: ${event.productName} launches at ${event.launchAtUtc}`;\n}\n"
+    },
+    {
+      "op": "write",
+      "path": ".kota/dialogue-simulator/transcript.json",
+      "content": "{\n  \"schemaVersion\": 1,\n  \"persona\": \"Nova launch coordinator\",\n  \"maxTurns\": 2,\n  \"turns\": [\n    {\n      \"turn\": 1,\n      \"speaker\": \"builder\",\n      \"question\": \"Which channel and label pattern should the Nova launch notification use?\",\n      \"classification\": \"relevant\",\n      \"response\": {\n        \"kind\": \"requirement-answer\",\n        \"text\": \"For the Nova launch workflow, use the SMS/text-message channel. The label pattern is `Text alert: <product> launches at <time>`, preserving the UTC time from input. Requirement id: nova-launch-sms-v1.\",\n        \"facts\": {\n          \"requirementId\": \"nova-launch-sms-v1\",\n          \"channel\": \"sms\",\n          \"prefix\": \"Text alert\",\n          \"preserveInputTime\": true\n        }\n      }\n    }\n  ]\n}\n"
+    },
+    {
+      "op": "write",
+      "path": "{{runDir}}/success-criteria.txt",
+      "content": "1. Ask the deterministic simulator for the missing Nova launch notification requirement.\n2. Patch `src/notification-copy.mjs` so SMS launch labels use the simulator-provided `Text alert` pattern from product and time inputs.\n3. Pass `node scripts/check-dialogue.mjs` so `dialogue-result.json` records transcript, facts, decision, verification, and implementation evidence.\n4. Keep dialogue bounded and avoid irrelevant, repeated, or excessive questions.\n5. Move `task-resolve-nova-launch-notification-copy` from ready to done.\n"
+    },
+    {
+      "op": "write",
+      "path": "{{runDir}}/success-criteria-verified.txt",
+      "content": "1. `.kota/dialogue-simulator/transcript.json` contains one relevant requirement-answer turn for the Nova launch notification.\n2. `src/notification-copy.mjs` maps the simulator-provided `sms` channel to `Text alert` and derives labels from product and UTC time inputs.\n3. The fixture predicate runs `node scripts/check-dialogue.mjs`, which writes `dialogue-result.json` with dialogue and implementation evidence plus `dialogueQualityScore: 1`.\n4. `node scripts/check-dialogue.mjs --self-test-negative-cases` covers no-ask, irrelevant/repeated, and answer-ignoring failures.\n5. The task file is removed from `data/tasks/ready/`, written to `data/tasks/done/`, and has `status: done`.\n"
+    },
+    {
+      "op": "write",
+      "path": "{{runDir}}/commit-message.txt",
+      "content": "Add dialogue-driven coding eval fixture\n\nSeeds a replay-backed builder fixture with a deterministic clarification simulator, dialogue checker, calibrated predicates, and objective dialogue evidence.\n"
+    }
+  ]
+}

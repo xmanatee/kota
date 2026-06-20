@@ -1,13 +1,13 @@
 ---
 id: task-add-a-dialogue-driven-coding-agent-fixture-to
 title: Add a dialogue-driven coding-agent fixture to the eval harness
-status: ready
+status: done
 priority: p2
 area: modules
 task_class: Meta
 summary: Seed an eval-harness fixture where a coding agent must use a bounded, scripted user dialogue to resolve an ambiguous task before patching, so dialogue quality is artifact-graded separately from autonomous patch success.
 created_at: 2026-06-20T20:54:53.314Z
-updated_at: 2026-06-20T20:54:53.314Z
+updated_at: 2026-06-20T21:40:03.000Z
 ---
 
 ## Problem

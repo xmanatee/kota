@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "persona": "Nova launch coordinator",
+  "maxTurns": 2,
+  "turns": [
+    {
+      "turn": 1,
+      "speaker": "builder",
+      "question": "Which channel and label pattern should the Nova launch notification use?",
+      "classification": "relevant",
+      "response": {
+        "kind": "requirement-answer",
+        "text": "For the Nova launch workflow, use the SMS/text-message channel. The label pattern is `Text alert: <product> launches at <time>`, preserving the UTC time from input. Requirement id: nova-launch-sms-v1.",
+        "facts": {
+          "requirementId": "nova-launch-sms-v1",
+          "channel": "sms",
+          "prefix": "Text alert",
+          "preserveInputTime": true
+        }
+      }
+    }
+  ]
+}
