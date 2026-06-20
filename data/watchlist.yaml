@@ -155,6 +155,10 @@ resources:
   - url: https://arxiv.org/abs/2606.10933
     added: "2026-06-20"
     notes: "Frontier Coding Agents Use Metaprogramming to Adapt to Unfamiliar Programming Languages evaluates coding agents on unfamiliar-language tasks where helper/generator strategies and local feedback matter. Monitor as an eval-harness signal for strategy construction under unfamiliar execution rules; do not import the benchmark tasks or add an esolang benchmark runner."
+    snapshot:
+      fingerprint: sha256:fa6f40a5fc6cc782088715b08433c9f9
+      summary: "Frontier Coding Agents Use Metaprogramming to Adapt to Unfamiliar Programming Languages is accessible; its unfamiliar-rule strategy-construction signal is already covered by the blocked Spool eval-harness fixture task, so no duplicate task is needed."
+      last_seen_at: "2026-06-20T23:08:31.596Z"
   - url: https://arxiv.org/abs/2605.18583
     added: "2026-05-19"
     notes: "Overeager Coding Agents / OverEager-Bench measures benign-task scope expansion across Claude Code, OpenHands, Codex CLI, and Gemini CLI. Monitor as a direct autonomy-eval signal for authorization-boundary and over-eager edit behavior, not as a replacement benchmark."
