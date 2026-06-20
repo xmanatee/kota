@@ -107,9 +107,48 @@ function agentEvidenceKindOrder(kind: ProgressReviewEvidenceRef["kind"]): number
   }
 }
 
+const HIGH_SIGNAL_ARTIFACTS = new Map<string, number>([
+  ["acceptance-evidence.txt", -40],
+  ["critic-review.json", -40],
+  ["evaluator-calibration.json", -35],
+  ["run-summary.json", -35],
+  ["success-criteria-verified.txt", -30],
+  ["success-criteria.txt", -30],
+  ["blocker-actions.json", -25],
+  ["promotion-rationale.json", -25],
+  ["exploration-rationale.json", -25],
+  ["error.txt", -25],
+  ["commit-message.txt", -10],
+]);
+
+function artifactFileFromEvidenceId(id: string): string | null {
+  const marker = ":artifact:";
+  const markerIndex = id.indexOf(marker);
+  const artifactRef = id.startsWith("artifact:")
+    ? id.slice("artifact:".length)
+    : markerIndex >= 0
+      ? id.slice(markerIndex + marker.length)
+      : null;
+  if (artifactRef === null) return null;
+  const fileSeparator = artifactRef.indexOf(":");
+  if (fileSeparator < 0) return null;
+  return artifactRef.slice(fileSeparator + 1);
+}
+
+function agentArtifactEvidencePriority(evidence: ProgressReviewEvidenceRef): number {
+  const file = artifactFileFromEvidenceId(evidence.id);
+  if (!file) return 0;
+  const highSignalPriority = HIGH_SIGNAL_ARTIFACTS.get(file);
+  if (highSignalPriority !== undefined) return highSignalPriority;
+  if (file.startsWith("steps/")) {
+    return file.endsWith(".input.md") ? 2 : 1;
+  }
+  return 0;
+}
+
 function agentEvidencePriority(evidence: ProgressReviewEvidenceRef): number {
   if (evidence.kind === "git" && evidence.id.includes(":file:")) return 1;
-  if (evidence.kind === "artifact" && evidence.id.endsWith(".input.md")) return 1;
+  if (evidence.kind === "artifact") return agentArtifactEvidencePriority(evidence);
   return 0;
 }
 

@@ -1279,6 +1279,77 @@ describe("progress-reviewer workflow", () => {
     ).toThrow(/unknown evidence id/);
   });
 
+  it("keeps high-signal run artifacts in the bounded review-agent packet", () => {
+    const projectDir = trackProjectDir("progress-reviewer-high-signal-artifacts");
+    const noiseRunId = "aaaa-blocked-promoter-run";
+    const builderRunId = "zzzz-builder-run";
+    writeRun(
+      projectDir,
+      noiseRunId,
+      "blocked-promoter",
+      "success",
+      "2026-06-04T10:59:00.000Z",
+    );
+    writeRun(
+      projectDir,
+      builderRunId,
+      "builder",
+      "success",
+      "2026-06-04T11:00:00.000Z",
+    );
+    const noiseArtifactCount = 24;
+    for (let index = 0; index < noiseArtifactCount; index += 1) {
+      writeRunArtifactFile(
+        projectDir,
+        noiseRunId,
+        `steps/noise-${String(index).padStart(2, "0")}.json`,
+        JSON.stringify({ index }),
+      );
+    }
+    for (const file of [
+      "acceptance-evidence.txt",
+      "critic-review.json",
+      "evaluator-calibration.json",
+    ]) {
+      writeRunArtifactFile(
+        projectDir,
+        builderRunId,
+        file,
+        JSON.stringify({ file }),
+      );
+    }
+    writeRunArtifactFile(
+      projectDir,
+      builderRunId,
+      "steps/build.json",
+      JSON.stringify({ id: "build", status: "success" }),
+    );
+
+    const evidence = collectProgressReviewEvidence({
+      projectDir,
+      trigger: {
+        event: WORKFLOW_BATCH_FLUSH_EVENT,
+        schemaRef: null,
+        payload: runCountBatchPayload(projectDir, builderRunId),
+      },
+      now: NOW,
+    });
+    const reviewInput = compactProgressReviewEvidenceForAgent(evidence);
+    const exposedIds = reviewInput.evidence.map((item) => item.id);
+
+    expect(exposedIds).toEqual(
+      expect.arrayContaining([
+        `artifact:${builderRunId}:acceptance-evidence.txt`,
+        `artifact:${builderRunId}:critic-review.json`,
+        `artifact:${builderRunId}:evaluator-calibration.json`,
+      ]),
+    );
+    expect(exposedIds).not.toContain(
+      `artifact:${noiseRunId}:steps/noise-${String(noiseArtifactCount - 1).padStart(2, "0")}.json`,
+    );
+    expect(evidence.evidence.length).toBeGreaterThan(reviewInput.evidence.length);
+  });
+
   it("reports task_class distribution and Product operator-journey risks", () => {
     const projectDir = trackProjectDir("progress-reviewer-task-class-risk");
     writeTask(projectDir, "done", "task-product-tests-only", {
