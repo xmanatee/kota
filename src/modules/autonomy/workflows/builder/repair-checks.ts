@@ -10,6 +10,7 @@ import { createCriticCheck } from "#modules/autonomy/critic.js";
 import { checkDocBloat } from "#modules/autonomy/doc-bloat-check.js";
 import { checkRepoHygiene } from "#modules/autonomy/hygiene-check.js";
 import { checkCommitMessageExists, checkNoScratchArtifacts, runCheck } from "#modules/autonomy/shared.js";
+import { checkSourceFileSize, SOURCE_FILE_SIZE_WARNING_TYPE } from "#modules/autonomy/source-size-check.js";
 import { findTaskReviewTarget } from "#modules/autonomy/task-review-target.js";
 
 const PACKAGE_PROJECT_MARKERS = [
@@ -343,6 +344,13 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       type: "code" as const,
       phase: 1,
       run: (ctx) => checkRepoHygiene(ctx.projectDir),
+    },
+    {
+      id: SOURCE_FILE_SIZE_WARNING_TYPE,
+      type: "code" as const,
+      severity: "warning" as const,
+      phase: 1,
+      run: (ctx) => checkSourceFileSize(ctx.projectDir),
     },
     {
       id: "commit-message-exists",

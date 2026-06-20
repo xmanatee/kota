@@ -1,13 +1,13 @@
 ---
 id: task-visible-changed-source-size-guard
 title: visible changed source size guard
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Meta
 summary: Warn on newly touched oversized source files without blocking legacy large files.
 created_at: 2026-06-19T16:16:28.369Z
-updated_at: 2026-06-19T16:16:28.369Z
+updated_at: 2026-06-20T00:08:37Z
 ---
 
 ## Problem
@@ -47,6 +47,6 @@ Autonomy maintainability and review hygiene.
 
 ## Acceptance Evidence
 
-- Include a fixture or simple script run proving changed large files warn and untouched large files do not.
-- Include an example run metadata or summary snippet containing `source-file-size`.
-- Include the generated/build exclusion list or the query proving excluded paths are skipped.
+- Run artifact: `.kota/runs/2026-06-20T00-00-51-800Z-builder-201tp5/source-file-size-evidence.json` records the warning shape, run-summary snippet, exclusion list, and verification commands.
+- `pnpm test src/modules/autonomy/source-size-check.test.ts src/modules/autonomy/workflows/builder/run-summary.test.ts src/modules/autonomy/workflows/builder/workflow.test.ts` passed: 3 files, 70 tests.
+- `pnpm run typecheck` passed.

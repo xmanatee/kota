@@ -1,10 +1,16 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { type WorkflowRunSummary, writeRunSummary } from "#modules/autonomy/run-summary.js";
+import {
+  extractSourceFileSizeWarningsFromBuildOutput,
+  type SourceFileSizeWarning,
+} from "#modules/autonomy/source-size-check.js";
 import { REPO_TASKS_DIR } from "#modules/repo-tasks/repo-tasks-domain.js";
 
-export type BuilderRunSummary = WorkflowRunSummary;
+export type BuilderRunSummary = WorkflowRunSummary & {
+  warnings?: SourceFileSizeWarning[];
+};
 
 /** Terminal states indicate the task the builder actually completed. */
 const TERMINAL_TASK_STATES = ["done", "blocked", "dropped"];
@@ -45,5 +51,19 @@ function findTaskInChangedFiles(
 }
 
 export function writeBuilderRunSummary(ctx: WorkflowStepContext): BuilderRunSummary {
-  return writeRunSummary(ctx, "build", findTaskInChangedFiles);
+  const summary = writeRunSummary(ctx, "build", findTaskInChangedFiles);
+  const warnings = extractSourceFileSizeWarningsFromBuildOutput(
+    ctx.stepOutputs.build as { repairWarnings?: readonly { id?: string; output?: string }[] } | undefined,
+  );
+  if (warnings.length === 0) return summary;
+
+  const builderSummary: BuilderRunSummary = {
+    ...summary,
+    warnings,
+  };
+  writeFileSync(
+    join(ctx.workflow.runDirPath, "run-summary.json"),
+    JSON.stringify(builderSummary, null, 2),
+  );
+  return builderSummary;
 }

@@ -6,6 +6,7 @@ const STAGED_DIFF_MAX_BUFFER = 50 * 1024 * 1024;
 export type FileDiff = {
   file: string;
   addedLines: string[];
+  deletedLines: string[];
 };
 
 export function parseAddedLinesByFile(diff: string): FileDiff[] {
@@ -14,7 +15,7 @@ export function parseAddedLinesByFile(diff: string): FileDiff[] {
   for (const rawLine of diff.split("\n")) {
     if (rawLine.startsWith("diff --git ")) {
       const match = rawLine.match(/diff --git a\/(.+?) b\/(.+)$/);
-      current = { file: match ? match[2] : "", addedLines: [] };
+      current = { file: match ? match[2] : "", addedLines: [], deletedLines: [] };
       result.push(current);
       continue;
     }
@@ -24,6 +25,8 @@ export function parseAddedLinesByFile(diff: string): FileDiff[] {
     }
     if (rawLine.startsWith("+") && !rawLine.startsWith("++")) {
       current.addedLines.push(rawLine.slice(1));
+    } else if (rawLine.startsWith("-") && !rawLine.startsWith("--")) {
+      current.deletedLines.push(rawLine.slice(1));
     }
   }
   return result;

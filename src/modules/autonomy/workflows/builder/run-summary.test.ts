@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { WorkflowStepContext, WorkflowStepResult } from "#core/workflow/run-types.js";
+import { SOURCE_FILE_SIZE_WARNING_TYPE } from "#modules/autonomy/source-size-check.js";
 import { writeBuilderRunSummary } from "./run-summary.js";
 import builderWorkflow from "./workflow.js";
 
@@ -185,6 +186,36 @@ describe("writeBuilderRunSummary", () => {
 
     const written = JSON.parse(readFileSync(join(runDirPath, "run-summary.json"), "utf-8"));
     expect(written).toEqual(summary);
+  });
+
+  it("includes source-file-size repair warnings in run-summary.json", () => {
+    writeFileSync(join(projectDir, "change.txt"), "hello\n");
+    execSync("git add -A && git commit -m 'test change'", { cwd: projectDir, shell: "/bin/sh" });
+
+    const sourceFileSizeWarning = {
+      type: SOURCE_FILE_SIZE_WARNING_TYPE,
+      file: "src/large.ts",
+      lines: 420,
+      threshold: 300,
+      changedLines: 180,
+      message: "Changed source file src/large.ts is 420 line(s), above the 300-line source-size guideline.",
+    };
+    const ctx = makeContext(projectDir, runDirPath, {}, {
+      build: {
+        repairWarnings: [
+          {
+            id: SOURCE_FILE_SIZE_WARNING_TYPE,
+            output: JSON.stringify([sourceFileSizeWarning]),
+          },
+        ],
+      },
+    });
+
+    const summary = writeBuilderRunSummary(ctx);
+    const written = JSON.parse(readFileSync(join(runDirPath, "run-summary.json"), "utf-8"));
+
+    expect(summary.warnings).toEqual([sourceFileSizeWarning]);
+    expect(written.warnings).toEqual([sourceFileSizeWarning]);
   });
 });
 

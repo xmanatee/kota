@@ -450,6 +450,17 @@ describe("builder workflow", () => {
     }
   });
 
+  it("registers source-file-size as a warning-level builder repair check", () => {
+    const check = builderRepairChecks().find((candidate) => candidate.id === "source-file-size");
+
+    expect(check).toMatchObject({
+      id: "source-file-size",
+      type: "code",
+      severity: "warning",
+      phase: 1,
+    });
+  });
+
   it("fails repair when ready work remains unclaimed", () => {
     const dir = join(tmpdir(), `kota-unclaimed-ready-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(join(dir, "data/tasks/ready"), { recursive: true });
