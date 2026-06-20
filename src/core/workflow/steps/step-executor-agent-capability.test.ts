@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -14,6 +15,7 @@ import {
   registerAgentHarness,
   resetHarnessHooks,
 } from "#core/agent-harness/index.js";
+import type { AgentDef } from "#core/agents/agent-types.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { executeWorkflowRun } from "../run-executor.js";
 import { WorkflowRunStore } from "../run-store.js";
@@ -28,6 +30,15 @@ const AGENT_OK_RESULT: AgentHarnessResult = {
   streamedText: "done",
   turns: 1,
   isError: false,
+};
+
+const RESTRICTED_AGENT: AgentDef = {
+  name: "restricted-reviewer",
+  role: "Review evidence without mutating source files.",
+  promptPath: "prompt.md",
+  model: "test-model",
+  effort: "low",
+  writeScope: [".kota/runs/"],
 };
 
 function makeProjectDir(): string {
@@ -224,6 +235,39 @@ describe("workflow agent-step harness capability artifacts", () => {
       (artifact.localReadiness as { localRuntime: Record<string, unknown> })
         .localRuntime,
     ).not.toHaveProperty("version");
+  });
+
+  it("passes restricted agent write scope into the runtime prompt", async () => {
+    execFileSync("git", ["init", "--quiet"], { cwd: projectDir });
+    let receivedPrompt = "";
+    const harnessName = "capability-write-scope-prompt";
+    registerAgentHarness(
+      makeHarness(harnessName, async (options: AgentHarnessRunOptions) => {
+        receivedPrompt = options.prompt;
+        return AGENT_OK_RESULT;
+      }),
+    );
+
+    const step = makeAgentStep(projectDir, harnessName, {
+      agentName: RESTRICTED_AGENT.name,
+    });
+    const { promise } = executeWorkflowRun(
+      makeDefinition(projectDir, step),
+      TRIGGER,
+      {
+        projectDir,
+        bus,
+        store,
+        log: () => {},
+        resolveAgentDef: (name) =>
+          name === RESTRICTED_AGENT.name ? RESTRICTED_AGENT : undefined,
+      },
+    );
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("success");
+    expect(receivedPrompt).toContain("Agent write scope: .kota/runs/");
+    expect(receivedPrompt).toContain("out-of-scope writes fail this step");
   });
 
   it("writes the artifact before unsupported native-harness options reject launch", async () => {

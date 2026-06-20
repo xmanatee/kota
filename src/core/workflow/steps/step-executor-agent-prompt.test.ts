@@ -11,6 +11,7 @@ import { buildAgentPrompt } from "./step-executor-agent-prompt.js";
 function buildPrompt(
   trigger: WorkflowRunTrigger,
   foreach?: { [key: string]: string | number | boolean | object },
+  agentWriteScope?: readonly string[],
 ): string {
   const moduleRoot = mkdtempSync(join(tmpdir(), "kota-agent-prompt-"));
   writeFileSync(join(moduleRoot, "prompt.md"), "prompt appendix", "utf-8");
@@ -55,6 +56,7 @@ function buildPrompt(
     {},
     null,
     foreach,
+    agentWriteScope,
   ).prompt;
 }
 
@@ -158,5 +160,20 @@ describe("buildAgentPrompt trigger payload trust boundary", () => {
     expect(prompt).toContain("trusted workflow-selected data");
     expect(prompt).toContain('"name": "Security"');
     expect(prompt).toContain('"body": "Review authentication changes."');
+  });
+
+  it("includes restricted agent write scope as a runtime fact", () => {
+    const prompt = buildPrompt(
+      {
+        event: "manual",
+        schemaRef: null,
+        payload: {},
+      },
+      undefined,
+      [".kota/runs/"],
+    );
+
+    expect(prompt).toContain("Agent write scope: .kota/runs/");
+    expect(prompt).toContain("out-of-scope writes fail this step");
   });
 });

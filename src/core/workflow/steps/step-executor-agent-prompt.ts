@@ -89,6 +89,7 @@ export function buildAgentPrompt(
   priorStepOutputs: Record<string, unknown>,
   askOwnerToolName: string | null,
   foreach?: WorkflowStepContext["foreach"],
+  agentWriteScope?: readonly string[],
 ): { systemPromptAppend: string; prompt: string } {
   const promptBody = readFileSync(
     resolve(step.moduleRoot, step.promptPath),
@@ -108,6 +109,12 @@ export function buildAgentPrompt(
     `Trigger event: ${trigger.event}`,
     "Only runtime-only workflow facts are injected here. Discover repository context yourself.",
   ];
+  if (agentWriteScope !== undefined && agentWriteScope.length > 0) {
+    lines.push(
+      `Agent write scope: ${agentWriteScope.join(", ")}`,
+      "If you mutate tracked files, every changed path must stay inside the agent write scope; out-of-scope writes fail this step.",
+    );
+  }
   if (triggerPayloadKeys.length > 0) {
     lines.push(...buildUntrustedTriggerPayloadBlock(trigger));
   }

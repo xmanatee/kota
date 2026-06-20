@@ -155,6 +155,12 @@ export async function executeAgentStep(
     );
   }
 
+  const agentDef = step.agentName && agentConfig.resolveAgentDef
+    ? agentConfig.resolveAgentDef(step.agentName)
+    : undefined;
+  const scopedAgent = agentDef && step.agentName
+    ? { agentName: step.agentName, writeScope: agentDef.writeScope }
+    : undefined;
   const agentPrompt = buildAgentPrompt(
     definition,
     step,
@@ -164,16 +170,11 @@ export async function executeAgentStep(
     priorStepOutputs,
     resolvedHarness.askOwnerToolName,
     foreach,
+    scopedAgent?.writeScope,
   );
   const promptDir = dirname(resolve(step.moduleRoot, step.promptPath));
   const contextStartDir = resolvePromptContextStartDir(promptDir, agentConfig.projectDir);
 
-  const agentDef = step.agentName && agentConfig.resolveAgentDef
-    ? agentConfig.resolveAgentDef(step.agentName)
-    : undefined;
-  const scopedAgent = agentDef && step.agentName
-    ? { agentName: step.agentName, writeScope: agentDef.writeScope }
-    : undefined;
   const skillsPrompt = agentDef?.skills && agentConfig.resolveSkillsPrompt
     ? agentConfig.resolveSkillsPrompt(agentDef.skills, step.agentName)
     : undefined;
