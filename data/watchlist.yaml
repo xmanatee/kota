@@ -145,6 +145,9 @@ resources:
       fingerprint: sha256:7a8177b66c7880e71f52c4ac5f774869
       summary: "SWE-bench still reinforces Docker-backed reproducible evaluation and explicit resource requirements; KOTA's eval-harness ResourceProfile isolation and preflight gap is now covered by completed executable-isolation work."
       last_seen_at: "2026-05-17T06:28:45.237Z"
+  - url: https://arxiv.org/abs/2606.13995
+    added: "2026-06-20"
+    notes: "Dialogue SWE-Bench evaluates coding agents on resolving software tasks through user dialogue with a persona-grounded user simulator. Monitor as an eval-harness signal for bounded clarification, answer-use evidence, and dialogue quality distinct from autonomous patch success; do not import the benchmark runner or add an LLM user simulator."
   - url: https://arxiv.org/abs/2605.18583
     added: "2026-05-19"
     notes: "Overeager Coding Agents / OverEager-Bench measures benign-task scope expansion across Claude Code, OpenHands, Codex CLI, and Gemini CLI. Monitor as a direct autonomy-eval signal for authorization-boundary and over-eager edit behavior, not as a replacement benchmark."
