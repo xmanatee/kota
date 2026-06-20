@@ -1,12 +1,12 @@
 ---
 id: task-review-owner-captured-automated-research-and-mimo-
 title: Review owner captured automated research and MiMo links
-status: backlog
-priority: p3
+status: ready
+priority: p2
 area: research
 summary: Read and disposition the owner-captured 2026-06-10 bare links on automated AI research, OpenAI ONA, and Xiaomi MiMo for KOTA relevance without inferring from unread sources.
 created_at: 2026-06-13T00:16:08.543Z
-updated_at: 2026-06-13T00:16:08.543Z
+updated_at: 2026-06-20T20:50:16.174Z
 ---
 
 ## Problem
