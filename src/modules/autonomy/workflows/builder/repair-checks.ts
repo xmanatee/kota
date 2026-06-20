@@ -1,261 +1,34 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import {
-  ROOT_CROSS_CUTTING_FIXTURES,
-  ROOT_ENTRYPOINT_SOURCES,
-} from "#core/root-layout.js";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
 import { checkCommitStageable } from "#modules/autonomy/commit.js";
 import { createCriticCheck } from "#modules/autonomy/critic.js";
 import { checkDocBloat } from "#modules/autonomy/doc-bloat-check.js";
 import { checkRepoHygiene } from "#modules/autonomy/hygiene-check.js";
-import { checkCommitMessageExists, checkNoScratchArtifacts, runCheck } from "#modules/autonomy/shared.js";
+import { checkCommitMessageExists, checkNoScratchArtifacts } from "#modules/autonomy/shared.js";
 import { checkSourceFileSize, SOURCE_FILE_SIZE_WARNING_TYPE } from "#modules/autonomy/source-size-check.js";
-import { findTaskReviewTarget } from "#modules/autonomy/task-review-target.js";
+import {
+  checkMacosSwiftBuild,
+  checkMobileTypecheck,
+  checkModuleBoundary,
+  checkPackageScript,
+} from "./project-repair-checks.js";
+import {
+  checkSuccessCriteriaDeclared,
+  checkSuccessCriteriaVerified,
+} from "./success-criteria-repair-checks.js";
+import {
+  checkActionableTaskClaimed,
+  checkActionableTaskResolved,
+} from "./task-state-repair-checks.js";
 
-const PACKAGE_PROJECT_MARKERS = [
-  "package.json",
-  "package.yaml",
-  "package.json5",
-  "pnpm-workspace.yaml",
-] as const;
-
-function countDoneWhenItems(taskContent: string): number {
-  const lines = taskContent.split(/\r?\n/);
-  const headingIndex = lines.findIndex((line) => /^## Done When\s*$/.test(line));
-  if (headingIndex < 0) return 0;
-
-  let count = 0;
-  for (const line of lines.slice(headingIndex + 1)) {
-    if (/^##\s+/.test(line) || /^---\s*$/.test(line)) break;
-    if (/^\s*-\s+\S/.test(line)) count += 1;
-  }
-  return count;
-}
-
-// A "top-level" criterion/evidence item is a numbered marker at column 0
-// (`1.`, `2)`). Bullets (`-`, `*`) are treated as prose/notes so agents can
-// add "Design notes" or "Known limitations" sections without inflating the
-// criterion count. Six failures in 7d (hjpmjs, vxjzg3, qno619, and three
-// earlier) all had the same shape: numbered criteria followed by a notes
-// section with column-0 dashes, which the prior regex counted as extra
-// criteria and forced evidence-file padding during repair.
-function countTopLevelItems(text: string): number {
-  return text.split("\n").filter((line) => /^\d+[.)]\s+\S/.test(line)).length;
-}
-
-function countNonEmptyLines(text: string): number {
-  return text.split("\n").filter((l) => l.trim().length > 0).length;
-}
-
-function taskFilesInState(projectDir: string, state: "ready" | "doing" | "done" | "blocked"): string[] {
-  const dir = join(projectDir, "data/tasks", state);
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir)
-    .filter((f) => f.endsWith(".md") && f !== "AGENTS.md")
-    .sort();
-}
-
-export function checkActionableTaskClaimed(projectDir: string): string {
-  const ready = taskFilesInState(projectDir, "ready");
-  if (ready.length === 0) return "OK: no unclaimed ready task";
-
-  const claimedCount =
-    taskFilesInState(projectDir, "doing").length +
-    taskFilesInState(projectDir, "done").length +
-    taskFilesInState(projectDir, "blocked").length;
-  if (claimedCount > 0) return `OK: task claimed (${claimedCount} active or terminal task file(s))`;
-
-  throw new Error(
-    `Builder has ${ready.length} ready task(s) but has not claimed one. ` +
-      'Move one ready task to doing with `node "$KOTA_DIST_DIR/cli.js" task move <id> doing` ' +
-      "or `pnpm kota task move <id> doing` in package projects, " +
-      "then complete it or block it according to the task's Done When section.",
-  );
-}
-
-export function checkActionableTaskResolved(projectDir: string): string {
-  const doing = taskFilesInState(projectDir, "doing");
-  if (doing.length === 0) return "OK: no in-progress task left open";
-
-  throw new Error(
-    `Builder still has ${doing.length} task(s) in doing: ${doing.join(", ")}. ` +
-      "Before completing the workflow, move finished work to done or honestly move blocked work to blocked.",
-  );
-}
-
-export function checkSuccessCriteriaDeclared(runDirPath: string, projectDir?: string): string {
-  const filePath = join(runDirPath, "success-criteria.txt");
-  if (!existsSync(filePath)) {
-    throw new Error(
-      "Missing success-criteria.txt in the run directory. " +
-        "Before implementing, write a short list of concrete, verifiable " +
-        "success conditions to <run-directory>/success-criteria.txt.",
-    );
-  }
-  const content = readFileSync(filePath, "utf8").trim();
-  const lines = content.split("\n").filter((l) => l.trim().length > 0);
-
-  let minCriteria = 2;
-  if (projectDir) {
-    const task = findTaskReviewTarget(projectDir);
-    if (task) {
-      const doneWhenCount = countDoneWhenItems(task.content);
-      if (doneWhenCount > 0) minCriteria = doneWhenCount;
-    }
-  }
-
-  if (lines.length < minCriteria) {
-    throw new Error(
-      `success-criteria.txt must contain at least ${minCriteria} concrete criteria ` +
-        `(matching the task's Done When items). Found ${lines.length} non-empty line(s).`,
-    );
-  }
-
-  return `OK: success-criteria.txt has ${lines.length} criteria (minimum ${minCriteria})`;
-}
-
-export function checkSuccessCriteriaVerified(runDirPath: string): string {
-  const criteriaPath = join(runDirPath, "success-criteria.txt");
-  const verifiedPath = join(runDirPath, "success-criteria-verified.txt");
-  if (!existsSync(criteriaPath)) {
-    throw new Error("Cannot verify criteria: success-criteria.txt does not exist.");
-  }
-  if (!existsSync(verifiedPath)) {
-    throw new Error(
-      "Missing success-criteria-verified.txt in the run directory. " +
-        "After implementation, write this file confirming each declared criterion " +
-        "is satisfied with evidence.",
-    );
-  }
-  const criteria = readFileSync(criteriaPath, "utf8");
-  const verified = readFileSync(verifiedPath, "utf8");
-
-  // When criteria are written as numbered items, compare numbered-item counts.
-  // Bullets and prose are treated as notes and do not count as criteria, so
-  // agents can freely add "Design notes" or "Known limitations" sections
-  // without padding evidence to match. Fall back to non-empty line counts
-  // only when neither file uses numbered items.
-  const criteriaItems = countTopLevelItems(criteria);
-  const verifiedItems = countTopLevelItems(verified);
-  const useStructured = criteriaItems > 0 || verifiedItems > 0;
-  const criteriaCount = useStructured ? criteriaItems : countNonEmptyLines(criteria);
-  const verifiedCount = useStructured ? verifiedItems : countNonEmptyLines(verified);
-  const unit = useStructured ? "numbered evidence item" : "evidence line";
-
-  if (verifiedCount < criteriaCount) {
-    const guidance = useStructured
-      ? "Each criterion must be addressed with one numbered evidence item " +
-        '(a line starting with "1.", "2.", etc. at column 0). Bullets and ' +
-        "prose under a criterion are treated as notes and do not count separately."
-      : "Each criterion must be addressed with a corresponding evidence line.";
-    throw new Error(
-      `success-criteria-verified.txt has ${verifiedCount} ${unit}(s) ` +
-        `but success-criteria.txt declares ${criteriaCount} criteria. ${guidance}`,
-    );
-  }
-  return `OK: success criteria verified (${verifiedCount} ${unit}s for ${criteriaCount} criteria)`;
-}
-
-export function checkModuleBoundary(projectDir: string): string {
-  const srcDir = join(projectDir, "src");
-  if (!existsSync(srcDir)) return "OK: no src/ directory";
-
-  // 1. Check for non-allowlisted production files in src/ root.
-  const rootFiles = readdirSync(srcDir).filter(
-    (f) =>
-      f.endsWith(".ts") &&
-      !f.includes(".test.") &&
-      !f.includes(".integration.") &&
-      !f.endsWith(".d.ts") &&
-      !ROOT_CROSS_CUTTING_FIXTURES.has(f),
-  );
-  const fileViolations = rootFiles.filter((f) => !ROOT_ENTRYPOINT_SOURCES.has(f));
-  if (fileViolations.length) {
-    throw new Error(
-      `Unexpected production files in src/ root: ${fileViolations.join(", ")}. ` +
-        `New capabilities belong in src/core/ or src/modules/. ` +
-        `If this file is intentional, add it to ROOT_ENTRYPOINT_SOURCES in src/core/root-layout.ts.`,
-    );
-  }
-
-  // 2. Check for #root/* imports targeting non-allowlisted modules.
-  const allowedImportTargets = new Set(
-    [...ROOT_ENTRYPOINT_SOURCES].map((f) => f.replace(/\.ts$/, ".js")),
-  );
-  const importViolations = findDisallowedRootImports(srcDir, allowedImportTargets);
-  if (importViolations.length) {
-    throw new Error(
-      `Disallowed #root/* imports found:\n${importViolations.map((v) => `  ${v.file}: import from "${v.specifier}"`).join("\n")}\n` +
-        `Only imports of approved root helpers are allowed. ` +
-        `Move the target into src/core/ or src/modules/ instead.`,
-    );
-  }
-
-  return "OK: no root helper drift detected";
-}
-
-type ImportViolation = { file: string; specifier: string };
-
-function findDisallowedRootImports(
-  dir: string,
-  allowedTargets: Set<string>,
-  baseDir?: string,
-): ImportViolation[] {
-  const root = baseDir ?? dir;
-  const violations: ImportViolation[] = [];
-  const rootImportRe = /from\s+["']#root\/([^"']+)["']/g;
-
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
-    const fullPath = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      violations.push(...findDisallowedRootImports(fullPath, allowedTargets, root));
-    } else if (
-      entry.name.endsWith(".ts") &&
-      !entry.name.endsWith(".d.ts") &&
-      !entry.name.includes(".test.") &&
-      !entry.name.includes(".integration.")
-    ) {
-      const content = readFileSync(fullPath, "utf8");
-      for (const match of content.matchAll(rootImportRe)) {
-        const target = match[1];
-        if (!allowedTargets.has(target)) {
-          const relPath = fullPath.slice(root.length + 1);
-          violations.push({ file: relPath, specifier: `#root/${target}` });
-        }
-      }
-    }
-  }
-  return violations;
-}
-
-function checkMobileTypecheck(projectDir: string): string {
-  const mobileDir = join(projectDir, "clients/mobile");
-  if (!existsSync(join(mobileDir, "package.json"))) {
-    return "OK: no mobile client present";
-  }
-  return runCheck("pnpm run typecheck", mobileDir, 60_000);
-}
-
-function checkMacosSwiftBuild(projectDir: string): string {
-  const appleDir = join(projectDir, "clients/apple");
-  if (!existsSync(join(appleDir, "Package.swift"))) {
-    return "OK: no Apple client present";
-  }
-  return runCheck("swift build", appleDir, 180_000);
-}
-
-function hasPackageProject(projectDir: string): boolean {
-  return PACKAGE_PROJECT_MARKERS.some((marker) => existsSync(join(projectDir, marker)));
-}
-
-function checkPackageScript(projectDir: string, command: string, timeoutMs?: number): string {
-  if (!hasPackageProject(projectDir)) {
-    return "OK: no package project present";
-  }
-  return runCheck(command, projectDir, timeoutMs);
-}
+export { checkModuleBoundary } from "./project-repair-checks.js";
+export {
+  checkSuccessCriteriaDeclared,
+  checkSuccessCriteriaVerified,
+} from "./success-criteria-repair-checks.js";
+export {
+  checkActionableTaskClaimed,
+  checkActionableTaskResolved,
+} from "./task-state-repair-checks.js";
 
 export function builderRepairChecks(): WorkflowRepairCheck[] {
   return [
