@@ -1,13 +1,13 @@
 ---
 id: task-refactor-workflow-graph-explain
 title: refactor workflow graph explain
-status: ready
+status: done
 priority: p3
 area: modules
 task_class: Platform
 summary: Split the oversized workflow graph explanation module while preserving behavior.
 created_at: 2026-06-19T16:16:59.869Z
-updated_at: 2026-06-19T16:16:59.869Z
+updated_at: 2026-06-20T16:20:50.444Z
 ---
 
 ## Problem
