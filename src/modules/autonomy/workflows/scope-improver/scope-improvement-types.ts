@@ -21,6 +21,7 @@ export const SCOPE_IMPROVEMENT_MAX_SIGNATURES = 80;
 export type ScopeImprovementTriggerKind =
   | "manual"
   | "schedule"
+  | "evidence"
   | "file"
   | "task"
   | "run";

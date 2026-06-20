@@ -5,6 +5,11 @@ import {
   isThinPullQueue,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { inspectResearchRetryAvailability } from "../research-retry/precondition.js";
+import { scopeImprovementEvidenceReady } from "../scope-improver/events.js";
+import {
+  inspectScopeImprovementEvidenceGate,
+  recordScopeImprovementEvidenceReady,
+} from "../scope-improver/evidence-gate.js";
 import {
   inspectSecurityReviewDue,
   SECURITY_REVIEW_DUE_EVENT,
@@ -33,6 +38,10 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
         const promotableBacklogCount = countRepoPromotableBacklogTasks(projectDir);
         const researchRetryAvailability = inspectResearchRetryAvailability(projectDir);
         const securityReviewDue = inspectSecurityReviewDue(projectDir);
+        const scopeImprovementEvidence = inspectScopeImprovementEvidenceGate({
+          projectDir,
+          now: new Date(),
+        });
         const queueEmpty = queue.inboxCount === 0 && queue.pullableCount === 0;
         const queueThin = isThinPullQueue(queue);
         // Builder runs only on actionable (ready+doing) work; backlog-only
@@ -81,6 +90,19 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
         if (securityReviewDue.due) {
           emit(SECURITY_REVIEW_DUE_EVENT, securityReviewDue);
         }
+        if (
+          scopeImprovementEvidence.shouldEmit &&
+          scopeImprovementEvidence.payload
+        ) {
+          recordScopeImprovementEvidenceReady({
+            projectDir,
+            payload: scopeImprovementEvidence.payload,
+          });
+          emit(
+            scopeImprovementEvidenceReady.name,
+            scopeImprovementEvidence.payload,
+          );
+        }
         if (queueThin) {
           emit("autonomy.queue.thin", {
             pullableCount: queue.pullableCount,
@@ -98,6 +120,14 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           researchRetryCandidateCount: researchRetryAvailability.candidateCount,
           researchRetryAttemptableCount: researchRetryAvailability.attemptableCount,
           securityReviewDue,
+          scopeImprovementEvidence: {
+            shouldEmit: scopeImprovementEvidence.shouldEmit,
+            reason: scopeImprovementEvidence.reason,
+            dedupeSignature:
+              scopeImprovementEvidence.payload?.dedupeSignature ?? null,
+            totalWeight: scopeImprovementEvidence.payload?.totalWeight ?? 0,
+            evidenceIds: scopeImprovementEvidence.payload?.evidenceIds ?? [],
+          },
           emitted: [
             queue.inboxCount > 0 && "autonomy.inbox.available",
             queueActionable && "autonomy.queue.available",
@@ -105,6 +135,8 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
             queueEmpty && "autonomy.queue.empty",
             blockedResearchAttemptable && "autonomy.blocked-research.attemptable",
             securityReviewDue.due && SECURITY_REVIEW_DUE_EVENT,
+            scopeImprovementEvidence.shouldEmit &&
+              scopeImprovementEvidenceReady.name,
             queueThin && "autonomy.queue.thin",
           ].filter(Boolean),
         };

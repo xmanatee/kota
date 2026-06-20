@@ -11,7 +11,10 @@ import {
   type WorkflowRunTrigger,
 } from "#core/workflow/trigger-types.js";
 import { getRepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
-import { scopeImprovementRequested } from "./events.js";
+import {
+  scopeImprovementEvidenceReady,
+  scopeImprovementRequested,
+} from "./events.js";
 import {
   failedRunCandidates,
   missingGuidanceCandidate,
@@ -40,6 +43,7 @@ function triggerKind(trigger: WorkflowRunTrigger): ScopeImprovementTriggerKind {
   if (event === "files.changed") return "file";
   if (event === "task.changed") return "task";
   if (event === "workflow.build.committed") return "run";
+  if (event === scopeImprovementEvidenceReady.name) return "evidence";
   if (event === SCOPE_IMPROVEMENT_SCHEDULE_EVENT || event === "schedule") {
     return "schedule";
   }

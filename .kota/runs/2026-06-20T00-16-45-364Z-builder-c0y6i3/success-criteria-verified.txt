@@ -1,0 +1,5 @@
+1. Verified by `src/modules/autonomy/workflows/scope-improver/triggers.ts` and workflow trigger validation: direct raw file, `task.changed`, and `workflow.build.committed` triggers were removed; manual, scheduled, evidence-ready, and recovery entry points remain.
+2. Verified by `src/modules/autonomy/workflows/scope-improver/events.ts` and autonomy module registration: `autonomy.scope-improvement.evidence-ready` is project-scoped and carries `evidenceIds`, source `weight`/`ref` values, `reason`, and `dedupeSignature`.
+3. Verified by `src/modules/autonomy/workflows/scope-improver/evidence-gate.test.ts`: `file-churn` and `task-churn` score zero; failed runs, open DLQ items, recovery runs, repeated warnings, and oversized source warnings score above zero.
+4. Verified by evidence-gate and dispatcher tests: evidence-ready signatures are recorded in `.kota/scope-improvement/evidence-ready.json` before repeat dispatch, and duplicate signatures do not re-emit the scope-improver trigger.
+5. Verified by focused Vitest coverage, Biome check, TypeScript typecheck, workflow-critical tests, `pnpm run validate-tasks`, and the task file moved to `done`.

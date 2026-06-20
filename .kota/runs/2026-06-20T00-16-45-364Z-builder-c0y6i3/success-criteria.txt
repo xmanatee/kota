@@ -1,0 +1,5 @@
+1. Scope-improver no longer has direct raw file, task.changed, or workflow.build.committed triggers, while manual, scheduled, evidence-ready, and recovery entry points remain.
+2. autonomy.scope-improvement.evidence-ready is a registered project-scoped event carrying evidence ids, weights, source references, reason, and dedupe signature.
+3. The pre-run evidence gate assigns zero weight to task-only and file-only churn, and assigns nonzero evidence to failed runs, open DLQ items, recovery runs, repeated warnings, and touched oversized files.
+4. The evidence gate records recent evidence-ready signatures before scope-improver runs so duplicate signatures do not enqueue repeated scope-improver run directories.
+5. Focused tests and validation prove the trigger and evidence-gate behavior, and the task queue is left valid with this task completed.

@@ -8,6 +8,7 @@ import {
   computeResourceFingerprint,
   renderRetryMarker,
 } from "../research-retry/precondition.js";
+import { scopeImprovementEvidenceReady } from "../scope-improver/events.js";
 import dispatcherWorkflow from "./workflow.js";
 
 function taskFixture(
@@ -122,6 +123,33 @@ describe("dispatcher workflow", () => {
     writeFileSync(
       join(runDir, "security-review-outcome.json"),
       `${JSON.stringify({ outcome: "no-op", reason: "test-review" }, null, 2)}\n`,
+      "utf-8",
+    );
+  }
+
+  function writeRunMetadata(args: {
+    runId: string;
+    workflow: string;
+    status: string;
+  }): void {
+    const runDir = join(projectDir, ".kota", "runs", args.runId);
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(
+      join(runDir, "metadata.json"),
+      `${JSON.stringify(
+        {
+          id: args.runId,
+          workflow: args.workflow,
+          status: args.status,
+          trigger: { event: "autonomy.queue.available", schemaRef: null, payload: {} },
+          startedAt: "2026-06-20T00:00:00.000Z",
+          completedAt: "2026-06-20T00:00:00.000Z",
+          runDir: `.kota/runs/${args.runId}`,
+          steps: [],
+        },
+        null,
+        2,
+      )}\n`,
       "utf-8",
     );
   }
@@ -381,6 +409,57 @@ describe("dispatcher workflow", () => {
       due: true,
       reason: "high-risk-security-sensitive-change",
     });
+  });
+
+  it("emits scope-improvement evidence-ready once for a weighted signature", async () => {
+    writeRunMetadata({
+      runId: "2026-06-20T00-00-00-000Z-builder-failed",
+      workflow: "builder",
+      status: "failed",
+    });
+
+    const first = await new WorkflowTestHarness(dispatcherWorkflow, {
+      projectDir,
+    }).run();
+
+    const evidenceEvent = first.emitted.find(
+      (event) => event.event === scopeImprovementEvidenceReady.name,
+    );
+    expect(evidenceEvent?.payload).toMatchObject({
+      totalWeight: 5,
+      evidenceIds: ["run:2026-06-20T00-00-00-000Z-builder-failed"],
+      sources: [
+        expect.objectContaining({
+          kind: "failed-run",
+          ref: ".kota/runs/2026-06-20T00-00-00-000Z-builder-failed/metadata.json",
+          weight: 5,
+        }),
+      ],
+    });
+    const firstOutput = first.steps["assess-and-dispatch"].output as {
+      scopeImprovementEvidence: { shouldEmit: boolean; totalWeight: number };
+    };
+    expect(firstOutput.scopeImprovementEvidence).toMatchObject({
+      shouldEmit: true,
+      totalWeight: 5,
+    });
+
+    const second = await new WorkflowTestHarness(dispatcherWorkflow, {
+      projectDir,
+    }).run();
+
+    expect(
+      second.emitted.some(
+        (event) => event.event === scopeImprovementEvidenceReady.name,
+      ),
+    ).toBe(false);
+    const secondOutput = second.steps["assess-and-dispatch"].output as {
+      scopeImprovementEvidence: { shouldEmit: boolean; reason: string };
+    };
+    expect(secondOutput.scopeImprovementEvidence.shouldEmit).toBe(false);
+    expect(secondOutput.scopeImprovementEvidence.reason).toContain(
+      "duplicate scope-improvement evidence signature",
+    );
   });
 
   it("does not emit blocked-research attemptable when capability is missing", async () => {

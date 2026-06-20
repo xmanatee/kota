@@ -197,6 +197,13 @@ deploy/telegram-assistant/.env
 !/.kota/runs/2026-06-19T14-35-59-398Z-builder-vk6yp3/success-criteria.txt
 !/.kota/runs/2026-06-19T14-35-59-398Z-builder-vk6yp3/transcript.txt
 !/.kota/runs/2026-06-19T14-35-59-398Z-builder-vk6yp3/validation-results.txt
+!/.kota/runs/2026-06-20T00-16-45-364Z-builder-c0y6i3/
+/.kota/runs/2026-06-20T00-16-45-364Z-builder-c0y6i3/*
+!/.kota/runs/2026-06-20T00-16-45-364Z-builder-c0y6i3/acceptance-evidence.md
+!/.kota/runs/2026-06-20T00-16-45-364Z-builder-c0y6i3/commit-message.txt
+!/.kota/runs/2026-06-20T00-16-45-364Z-builder-c0y6i3/success-criteria-verified.txt
+!/.kota/runs/2026-06-20T00-16-45-364Z-builder-c0y6i3/success-criteria.txt
+!/.kota/runs/2026-06-20T00-16-45-364Z-builder-c0y6i3/validation-results.txt
 !/.kota/runs/recall-consolidation-screens-20260615T160041Z/
 !/.kota/runs/recall-consolidation-screens-20260615T160041Z/**
 # Eval-harness fixtures legitimately seed prior run state; the runner copies

@@ -1,0 +1,17 @@
+pnpm exec vitest run src/modules/autonomy/workflows/scope-improver/evidence-gate.test.ts src/modules/autonomy/workflows/scope-improver/workflow.test.ts src/modules/autonomy/workflows/dispatcher/workflow.test.ts
+PASS: 3 test files, 35 tests.
+
+pnpm exec biome check src/modules/autonomy/index.ts src/modules/autonomy/workflows/dispatcher/workflow.ts src/modules/autonomy/workflows/dispatcher/workflow.test.ts src/modules/autonomy/workflows/scope-improver/events.ts src/modules/autonomy/workflows/scope-improver/evidence-gate.ts src/modules/autonomy/workflows/scope-improver/evidence-gate.test.ts src/modules/autonomy/workflows/scope-improver/scope-improvement-discovery.ts src/modules/autonomy/workflows/scope-improver/scope-improvement-types.ts src/modules/autonomy/workflows/scope-improver/triggers.ts src/modules/autonomy/workflows/scope-improver/workflow.test.ts
+PASS: checked 10 files, no fixes applied.
+
+pnpm run typecheck
+PASS: tsc --noEmit.
+
+pnpm run test:workflow-critical
+PASS: 8 test files, 414 tests.
+
+pnpm run validate-tasks
+PASS.
+
+pnpm test src/modules/autonomy/workflows/scope-improver/evidence-gate.test.ts src/strict-types-policy.integration.test.ts
+PASS: 2 test files, 4 tests.

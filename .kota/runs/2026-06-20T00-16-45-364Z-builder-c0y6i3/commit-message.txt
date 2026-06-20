@@ -1,0 +1,5 @@
+autonomy: gate scope-improver on evidence-ready events
+
+- replace raw scope-improver churn triggers with a semantic evidence-ready event
+- add weighted evidence gate and pre-run dedupe signature state
+- cover zero churn weight, nonzero durable evidence, and duplicate suppression

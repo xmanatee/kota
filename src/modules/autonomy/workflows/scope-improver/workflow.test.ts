@@ -24,6 +24,7 @@ import {
   registerWorkflowDefinition,
   validateWorkflowDefinitions,
 } from "#core/workflow/validation.js";
+import { scopeImprovementEvidenceReady } from "./events.js";
 import {
   applyScopeImprovementRecommendations,
   collectScopeImprovementInputs,
@@ -209,7 +210,7 @@ describe("scope-improver workflow", () => {
     return dir;
   }
 
-  it("declares manual, schedule, file, task, run, and recovery triggers", () => {
+  it("declares semantic evidence-ready triggers without raw churn triggers", () => {
     const registered = validateWorkflowDefinitions([
       registerWorkflowDefinition(
         "src/modules/autonomy/workflows/scope-improver/workflow.ts",
@@ -220,12 +221,18 @@ describe("scope-improver workflow", () => {
     expect(registered.triggers.map((item) => item.event)).toEqual([
       "autonomy.scope-improvement.requested",
       SCOPE_IMPROVEMENT_SCHEDULE_EVENT,
-      "files.changed",
-      "task.changed",
-      "workflow.build.committed",
+      scopeImprovementEvidenceReady.name,
       "runtime.recovered",
     ]);
-    expect(registered.triggers[2]?.watch).toContain("**/*.md");
+    expect(registered.triggers.some((item) => item.event === "files.changed")).toBe(
+      false,
+    );
+    expect(registered.triggers.some((item) => item.event === "task.changed")).toBe(
+      false,
+    );
+    expect(
+      registered.triggers.some((item) => item.event === "workflow.build.committed"),
+    ).toBe(false);
   });
 
   it("skips recent file-change evidence without a concrete scope gap", async () => {

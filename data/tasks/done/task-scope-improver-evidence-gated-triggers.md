@@ -1,13 +1,13 @@
 ---
 id: task-scope-improver-evidence-gated-triggers
 title: scope-improver evidence-gated triggers
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Meta
 summary: Gate scope-improver wakeups on weighted evidence instead of raw file churn.
 created_at: 2026-06-19T16:16:20.409Z
-updated_at: 2026-06-19T16:16:20.409Z
+updated_at: 2026-06-20T00:27:48.284Z
 ---
 
 ## Problem
