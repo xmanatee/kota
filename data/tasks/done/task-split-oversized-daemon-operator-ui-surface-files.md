@@ -1,12 +1,12 @@
 ---
 id: task-split-oversized-daemon-operator-ui-surface-files
 title: Split oversized daemon operator UI surface files
-status: ready
+status: done
 priority: p3
 area: modules
 summary: The operator UI builder refactor reduced the original 1,936-line builder file, but the builder run recorded source-file-size warnings for src/modules/daemon-ops/operator-ui-control-surface.ts, src/modules/daemon-ops/operator-ui-runtime-surface.ts, and src/modules/daemon-ops/operator-ui-setup-surface.ts. Split cohesive responsibilities further, or record a narrow justified exception, while preserving the public operator UI builder API and behavior.
 created_at: 2026-06-20T19:33:13.848Z
-updated_at: 2026-06-20T19:33:13.848Z
+updated_at: 2026-06-20T20:00:25.568Z
 ---
 
 ## Problem
@@ -48,3 +48,7 @@ Outcome-aware autonomy progress review.
 ## Acceptance Evidence
 
 - Record before/after line counts for the three cited daemon-ops operator UI surface files, keep extracted helpers co-located under src/modules/daemon-ops, preserve existing public exports and callers, and pass the focused daemon-ops operator UI tests plus pnpm typecheck.
+
+## Completion Evidence
+
+- `.kota/runs/2026-06-20T19-48-31-915Z-builder-dbmjlj/operator-ui-surface-split-evidence.txt` records the before/after line counts, helper extraction summary, public export/caller query, focused daemon-ops UI test result, typecheck result, and task validation caveat.
