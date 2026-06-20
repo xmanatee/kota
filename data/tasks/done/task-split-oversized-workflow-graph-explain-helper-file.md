@@ -1,12 +1,12 @@
 ---
 id: task-split-oversized-workflow-graph-explain-helper-file
 title: Split oversized workflow graph explain helper files
-status: ready
+status: done
 priority: p3
 area: modules
 summary: The workflow graph explain refactor reduced the entrypoint but introduced source-size warnings because explain-graph.ts and explain-match.ts remain around 475 lines each. Split those helpers further by responsibility while preserving graph explain behavior.
 created_at: 2026-06-20T16:45:39.760Z
-updated_at: 2026-06-20T16:45:39.760Z
+updated_at: 2026-06-20T17:15:11.156Z
 ---
 
 ## Problem
@@ -47,3 +47,11 @@ Outcome-aware autonomy progress review.
 ## Acceptance Evidence
 
 - Record before/after line counts for src/modules/workflow-ops/graph/explain-graph.ts and src/modules/workflow-ops/graph/explain-match.ts, keep extracted helpers co-located under src/modules/workflow-ops/graph/, and pass the focused graph explain tests plus pnpm typecheck.
+
+Completed in run `2026-06-20T17-06-36-197Z-builder-uaps62`.
+
+- Line counts: `explain-graph.ts` 475 -> 48; `explain-match.ts` 476 -> 192.
+- Extracted co-located helpers: `explain-events.ts`, `explain-effects.ts`, `explain-triggers.ts`, `explain-workflow.ts`, `explain-match-candidates.ts`, `explain-match-payload.ts`, and `explain-match-reasons.ts`.
+- Public export/caller query: `rg "assembleCompiledAutomationGraph|explainAutomation|from \"\\./explain-graph\\.js\"|from \"\\./explain-match\\.js\"" src/modules/workflow-ops -g '*.ts'` shows the existing exports in `graph/explain.ts` and `graph/index.ts`, with callers continuing through `graph/index.js` or `graph/explain.js`.
+- Focused test: `NODE_OPTIONS=--conditions=source pnpm exec vitest run src/modules/workflow-ops/graph/explain.test.ts` passed, 1 file / 10 tests.
+- Typecheck: `pnpm typecheck` passed.
