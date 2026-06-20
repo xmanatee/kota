@@ -59,10 +59,7 @@ export function queueMatchingEventFirst(
     .filter((run) => !queuedNames.has(run.workflowName));
   state.wfQueue.setRuns([
     ...queued.map(({ workflowName, trigger }) => {
-      const runId =
-        typeof trigger.payload._runId === "string" && trigger.payload._runId.trim().length > 0
-          ? trigger.payload._runId
-          : formatRunId(workflowName);
+      const runId = formatRunId(workflowName);
       return {
         runId,
         workflowName,

@@ -18,6 +18,8 @@ import {
 import {
   ensureDir,
   formatRunId,
+  validateWorkflowRunId,
+  workflowRunIdFromPayload,
   writeJsonFile,
   writeStrictJsonFile,
 } from "./run-io.js";
@@ -348,14 +350,14 @@ export class WorkflowRunStore {
     runId?: string,
   ) {
     const state = this.readState();
-    if (runId !== undefined && runId.trim().length === 0) {
-      throw new Error(`Workflow "${workflow.name}" queued run id must be non-empty`);
-    }
-    const id = runId ?? (
-      typeof trigger.payload._runId === "string" && trigger.payload._runId
-        ? trigger.payload._runId
-        : formatRunId(workflow.name)
-    );
+    const payloadRunId =
+      typeof trigger.payload._runId === "string" ? trigger.payload._runId : undefined;
+    const id = runId !== undefined
+      ? validateWorkflowRunId(runId, `Workflow "${workflow.name}" queued`)
+      : workflowRunIdFromPayload(
+        payloadRunId,
+        `Workflow "${workflow.name}" trigger`,
+      ) ?? formatRunId(workflow.name);
     const runDirPath = join(this.runsDir, id);
     ensureDir(runDirPath);
     ensureDir(join(runDirPath, "steps"));

@@ -1,12 +1,12 @@
 ---
 id: task-security-review-workflow-run-ids-accepted-from-que
 title: Security review: Workflow run IDs accepted from queued or event trigger payloads are not path-safe before being used as a directory name. A top-level `_runId` in a workflow-triggering event can become the queued run id, and `createRun` only rejects empty strings before joining it under `.kota/runs`, so path separators can redirect workflow artifact writes outside the run directory.
-status: ready
+status: done
 priority: p2
 area: security
 summary: Workflow run IDs accepted from queued or event trigger payloads are not path-safe before being used as a directory name. A top-level `_runId` in a workflow-triggering event can become the queued run id, and `createRun` only rejects empty strings before joining it under `.kota/runs`, so path separators can redirect workflow artifact writes outside the run directory.
 created_at: 2026-06-20T16:41:14.739Z
-updated_at: 2026-06-20T16:41:14.739Z
+updated_at: 2026-06-20T16:55:02.584Z
 ---
 
 ## Problem
@@ -152,3 +152,6 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Completed fix centralizes workflow run-id validation in `src/core/workflow/run-io.ts`, strips arbitrary event-payload `_runId` values before workflow queueing, and validates explicit and trigger-payload run ids before run directory creation.
+- Verification: `pnpm exec vitest run src/core/workflow/workflow-run-id-security.test.ts src/core/workflow/run-executor-utils.test.ts src/core/workflow/run-store-recover.test.ts` passed with 3 files / 23 tests.
+- Verification: `pnpm typecheck` passed.

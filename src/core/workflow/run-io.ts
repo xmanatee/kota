@@ -53,8 +53,45 @@ export function writeStrictJsonFile(path: string, value: unknown): void {
   writeJsonFileAtomic(path, value);
 }
 
+const PATH_SAFE_RUN_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+export function validateWorkflowRunId(runId: string, source: string): string {
+  const trimmed = runId.trim();
+  if (trimmed.length === 0) {
+    throw new Error(`${source} run id must be non-empty`);
+  }
+  if (trimmed !== runId) {
+    throw new Error(`${source} run id must not contain leading or trailing whitespace`);
+  }
+  if (
+    trimmed === "." ||
+    trimmed === ".." ||
+    !PATH_SAFE_RUN_ID_PATTERN.test(trimmed)
+  ) {
+    throw new Error(
+      `${source} run id "${runId}" must be a path-safe segment containing only letters, numbers, ".", "_", or "-"`,
+    );
+  }
+  return trimmed;
+}
+
+export function workflowRunIdFromPayload(
+  runId: string | undefined,
+  source: string,
+): string | undefined {
+  if (runId === undefined) return undefined;
+  return validateWorkflowRunId(runId, `${source} payload _runId`);
+}
+
+function workflowNameRunIdSegment(workflowName: string): string {
+  return workflowName.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "workflow";
+}
+
 export function formatRunId(workflowName: string): string {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const suffix = Math.random().toString(36).slice(2, 8);
-  return `${stamp}-${workflowName}-${suffix}`;
+  return validateWorkflowRunId(
+    `${stamp}-${workflowNameRunIdSegment(workflowName)}-${suffix}`,
+    `Generated workflow "${workflowName}"`,
+  );
 }

@@ -6,7 +6,7 @@ import {
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { validatePayloadSchema } from "./payload-validator.js";
 import { getEligibleAtMs } from "./run-executor-utils.js";
-import { formatRunId } from "./run-io.js";
+import { formatRunId, workflowRunIdFromPayload } from "./run-io.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowQueuedRun } from "./run-types.js";
 import {
@@ -133,9 +133,10 @@ export class WorkflowQueueManager {
     const state = this.config.store.readState();
     const existing = existingIndex >= 0 ? this.queue[existingIndex] : undefined;
     const providedRunId =
-      typeof trigger.payload._runId === "string" && trigger.payload._runId.trim().length > 0
-        ? trigger.payload._runId
-        : undefined;
+      workflowRunIdFromPayload(
+        typeof trigger.payload._runId === "string" ? trigger.payload._runId : undefined,
+        `Workflow "${definition.name}" trigger`,
+      );
     const queuedRun: WorkflowQueuedRun = {
       runId: existing?.runId ?? providedRunId ?? formatRunId(definition.name),
       workflowName: definition.name,

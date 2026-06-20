@@ -324,11 +324,13 @@ export function enqueueMatchingWorkflows(
       if (trigger.batch) continue;
       if (trigger.event !== envelope.type) continue;
       if (!matchesFilter(trigger.filter, envelope.payload)) continue;
+      const payload = cloneTriggerPayload(envelope.payload);
+      delete payload._runId;
       enqueue(definition, trigger, {
         event: envelope.type,
         schemaRef: envelope.schemaRef,
         ...(envelope.eventId !== undefined ? { eventId: envelope.eventId } : {}),
-        payload: cloneTriggerPayload(envelope.payload),
+        payload,
       });
     }
   }
