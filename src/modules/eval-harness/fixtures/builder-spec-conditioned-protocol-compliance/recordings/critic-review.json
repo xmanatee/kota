@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "workflowName": "builder",
+  "stepId": "critic-review",
+  "sourceRunId": "synthetic-builder-spec-conditioned-protocol-compliance",
+  "response": {
+    "text": "{\n  \"verdict\": \"pass\",\n  \"critical_issues\": [],\n  \"warnings\": [],\n  \"summary\": \"The replayed spec-conditioned protocol fixture satisfies the task: the handler applies the local WEP clauses, the verifier passes generic and spec-dependent cases, shortcut guards cover hardcoded sample and tampered evidence candidates, the compliance artifact exposes clause/count/provenance fields, the objective metric is available, and the task moved to done.\"\n}",
+    "subtype": "success",
+    "turns": 1,
+    "totalCostUsd": 0,
+    "inputTokens": 0,
+    "outputTokens": 0
+  },
+  "fileOperations": []
+}

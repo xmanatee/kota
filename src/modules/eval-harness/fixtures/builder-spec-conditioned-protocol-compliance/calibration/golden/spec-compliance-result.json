@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "spec": {
+    "id": "window-envelope-protocol-v1",
+    "path": "SPEC.md",
+    "sha256": "ac00243c726cb17607ba028decb53b9b9b7afc3fa4d7a99c0d72005c782d76aa",
+    "clauseIds": ["WEP-1", "WEP-2", "WEP-3", "WEP-4", "WEP-5"]
+  },
+  "verificationCommand": "node scripts/check-protocol.mjs",
+  "localVerificationCommands": [
+    "node test/protocol-generic.test.mjs",
+    "node scripts/check-protocol.mjs",
+    "node scripts/check-protocol.mjs --self-test-shortcuts"
+  ],
+  "genericCasesPassed": 3,
+  "genericCaseNames": [
+    "rejects malformed envelope",
+    "rejects invalid event shape",
+    "accepts simple in-window event"
+  ],
+  "specDependentCasesPassed": 4,
+  "specDependentCaseNames": [
+    "exclusive end boundary",
+    "canonical id and highest sequence wins",
+    "required extension gate",
+    "sequence tie keeps earliest in-window event"
+  ],
+  "clauseIdsExercised": ["WEP-1", "WEP-2", "WEP-3", "WEP-4", "WEP-5"],
+  "changedImplementationPaths": ["src/protocol-handler.mjs"],
+  "provenance": {
+    "specSource": "SPEC.md",
+    "localTests": [
+      "node test/protocol-generic.test.mjs",
+      "node scripts/check-protocol.mjs",
+      "node scripts/check-protocol.mjs --self-test-shortcuts"
+    ],
+    "generatedBy": "local-verifier"
+  }
+}

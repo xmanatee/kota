@@ -1,0 +1,163 @@
+{
+  "id": "builder-spec-conditioned-protocol-compliance",
+  "description": "Replay-backed builder fixture for applying a compact normative protocol spec to edge cases and writing structured compliance evidence.",
+  "role": "builder",
+  "workflowName": "builder",
+  "budgetMs": 1800000,
+  "predicates": [
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-protocol.mjs",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-protocol.mjs --self-test-shortcuts",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "file-exists",
+      "path": "spec-compliance-result.json"
+    },
+    {
+      "kind": "file-contains",
+      "path": "spec-compliance-result.json",
+      "needle": "\"specDependentCasesPassed\": 4"
+    },
+    {
+      "kind": "file-contains",
+      "path": "spec-compliance-result.json",
+      "needle": "\"clauseIdsExercised\": [\"WEP-1\", \"WEP-2\", \"WEP-3\", \"WEP-4\", \"WEP-5\"]"
+    },
+    {
+      "kind": "file-contains",
+      "path": "spec-compliance-result.json",
+      "needle": "\"changedImplementationPaths\": [\"src/protocol-handler.mjs\"]"
+    },
+    {
+      "kind": "file-contains",
+      "path": "spec-compliance-result.json",
+      "needle": "\"verificationCommand\": \"node scripts/check-protocol.mjs\""
+    },
+    {
+      "kind": "file-absent",
+      "path": "data/tasks/ready/task-implement-window-envelope-protocol.md"
+    },
+    {
+      "kind": "file-exists",
+      "path": "data/tasks/done/task-implement-window-envelope-protocol.md"
+    },
+    {
+      "kind": "file-contains",
+      "path": "data/tasks/done/task-implement-window-envelope-protocol.md",
+      "needle": "status: done"
+    },
+    {
+      "kind": "git-changes-within",
+      "allowedPaths": [
+        "src/protocol-handler.mjs",
+        "spec-compliance-result.json",
+        "data/tasks/ready/task-implement-window-envelope-protocol.md",
+        "data/tasks/done/task-implement-window-envelope-protocol.md"
+      ]
+    }
+  ],
+  "objectiveMetrics": [
+    {
+      "name": "spec_dependent_cases_passed",
+      "unit": "cases",
+      "direction": "higher_is_better",
+      "source": {
+        "kind": "json-file",
+        "path": "spec-compliance-result.json",
+        "pointer": "/specDependentCasesPassed"
+      }
+    }
+  ],
+  "verifierCalibration": {
+    "null": {},
+    "golden": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/src/protocol-handler.mjs",
+          "targetPath": "src/protocol-handler.mjs"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/spec-compliance-result.json",
+          "targetPath": "spec-compliance-result.json"
+        }
+      ]
+    },
+    "adversarial": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/src/protocol-handler.mjs",
+          "targetPath": "src/protocol-handler.mjs"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/spec-compliance-result.json",
+          "targetPath": "spec-compliance-result.json"
+        }
+      ]
+    }
+  },
+  "tags": [
+    "autonomy",
+    "builder-discipline",
+    "protocol",
+    "spec-conditioned",
+    "agent-call-replay",
+    "objective-metric"
+  ],
+  "provenance": {
+    "kind": "smoke-fixture",
+    "justification": "Synthetic replay-backed builder canary for KOTA-shaped protocol work: the builder receives a compact local normative spec, must repair spec-dependent edge cases, and must write structured compliance evidence that the scorer can validate. The fixture uses the existing replay path and local verifier so `pnpm kota eval run` remains deterministic and network-free while predicates and an objective metric grade spec-dependent behavior. No past KOTA failure run exists for this exact measurement gap."
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node test/protocol-generic.test.mjs",
+        "timeoutMs": 10000
+      },
+      "expected": "pass"
+    },
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-protocol.mjs",
+        "timeoutMs": 20000
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-protocol.mjs --self-test-shortcuts",
+        "timeoutMs": 10000
+      },
+      "expected": "pass"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/tasks/ready/task-implement-window-envelope-protocol.md"
+      },
+      "expected": "pass"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "spec-compliance-result.json"
+      },
+      "expected": "fail"
+    }
+  ],
+  "controlDecisions": [
+    "act"
+  ]
+}

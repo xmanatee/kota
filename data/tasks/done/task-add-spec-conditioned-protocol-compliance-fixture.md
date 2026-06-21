@@ -1,13 +1,13 @@
 ---
 id: task-add-spec-conditioned-protocol-compliance-fixture
 title: Add spec-conditioned protocol compliance fixture to eval harness
-status: ready
+status: done
 priority: p2
 area: modules
 task_class: Platform
 summary: Seed a replay-backed eval-harness fixture where the builder must fix protocol edge cases from a concise normative spec excerpt, so spec-dependent implementation quality is artifact-graded instead of blended into ordinary tests.
 created_at: 2026-06-21T03:52:34.000Z
-updated_at: 2026-06-21T03:52:34.000Z
+updated_at: 2026-06-21T04:14:01.000Z
 ---
 
 ## Problem
@@ -166,3 +166,22 @@ benchmarks or trusting self-reported reasoning.
 - Evidence of shortcut calibration or focused self-tests failing hardcoded,
   missing-clause, and spec/verifier-edit candidates, with temporary regressions
   reverted before staging.
+
+## Result
+
+Added the replay-backed
+`builder-spec-conditioned-protocol-compliance` eval fixture with a local Window
+Envelope Protocol spec, verifier calibration, replay recordings, shortcut
+self-tests, structured compliance artifact contract, and
+`spec_dependent_cases_passed` objective metric.
+
+## Evidence
+
+- `.kota/runs/2026-06-21T04-01-08-375Z-builder-gwz8i6/eval-list-transcript.txt`
+  shows `pnpm kota eval list` loading the fixture.
+- `.kota/runs/2026-06-21T04-01-08-375Z-builder-gwz8i6/eval-run-transcript.txt`
+  shows `pnpm kota eval run --fixture builder-spec-conditioned-protocol-compliance --repeats 1`
+  passing through replay with pass@k=100.0%, pass^k=100.0%, and
+  `spec_dependent_cases_passed mean=4.000`.
+- `.kota/eval-runs/2026-06-21T04-13-28-171Z` contains the run artifact,
+  predicate details, verifier calibration, and objective metric output.
