@@ -51,13 +51,19 @@ an optional runtime probe the critic runs before judging.
 - A probe is declared inside the task body as a `## Runtime Probe` section.
   The section body is `key: value` lines, optionally wrapped in a fenced
   code block. Recognized keys: `command` (required) and `timeoutMs`
-  (optional, defaults to 120000, capped at 30 minutes). Malformed
-  declarations fail loudly — the critic does not silently skip a broken
-  probe.
+  (optional, defaults to 120000, capped at 30 minutes). The command must be a
+  single constrained package-script invocation (`pnpm run <script>` or
+  `pnpm test`), not a shell pipeline. Malformed declarations fail
+  loudly — the critic does not silently skip a broken probe.
+- A builder run may not add or mutate the probe it is about to execute. The
+  critic only runs a probe whose parsed command and timeout match the task
+  file's declaration in `git HEAD`; otherwise it records a rejected
+  `runtime-probe.json` and fails before execution.
 - The critic runs the probe directly via `spawnSync` from its own step,
-  the same surface other critic-adjacent checks use. Probes do not route
-  through the agent tool loop, so they are not subject to the per-tool
-  approval queue. Authors own their commands.
+  using a non-shell process invocation and a minimal subprocess environment
+  rather than the workflow's full environment. Probes do not route through the
+  agent tool loop, so the constrained runner and pre-run provenance check are
+  the boundary for this surface. Authors own their commands.
 - The probe result lands as `runtime-probe.json` in the run directory and
   is threaded into the critic's prompt with instructions to treat failure
   as a critical issue unless the probe itself is miscalibrated.

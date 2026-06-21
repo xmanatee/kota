@@ -1,13 +1,30 @@
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { extractTaskProbe, runTaskProbe } from "./task-probe.js";
+import { extractTaskProbe, runTaskProbe, type TaskProbe } from "./task-probe.js";
 
 function makeTmpDir(): string {
   const dir = join(tmpdir(), `kota-task-probe-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   mkdirSync(dir, { recursive: true });
   return dir;
+}
+
+function writePackageJson(dir: string, scripts: Record<string, string>): void {
+  writeFileSync(
+    join(dir, "package.json"),
+    JSON.stringify({ name: "probe-fixture", version: "0.0.0", scripts }, null, 2),
+  );
+}
+
+function makeProbe(command: string): TaskProbe {
+  const probe = extractTaskProbe([
+    "## Runtime Probe",
+    `command: ${command}`,
+    "timeoutMs: 5000",
+  ].join("\n"));
+  if (!probe) throw new Error("expected probe");
+  return probe;
 }
 
 describe("extractTaskProbe", () => {
@@ -27,23 +44,33 @@ describe("extractTaskProbe", () => {
       "## Problem",
       "",
       "## Runtime Probe",
-      "command: pnpm check:types",
+      "command: pnpm run check:types",
       "timeoutMs: 60000",
       "",
       "## Done When",
       "",
     ].join("\n");
     const probe = extractTaskProbe(task);
-    expect(probe).toEqual({ command: "pnpm check:types", timeoutMs: 60000 });
+    expect(probe).toEqual({
+      command: "pnpm run check:types",
+      executable: "pnpm",
+      args: ["run", "check:types"],
+      timeoutMs: 60000,
+    });
   });
 
   it("defaults timeoutMs when only command is specified", () => {
     const task = [
       "## Runtime Probe",
-      "command: true",
+      "command: pnpm test",
     ].join("\n");
     const probe = extractTaskProbe(task);
-    expect(probe).toEqual({ command: "true", timeoutMs: 120_000 });
+    expect(probe).toEqual({
+      command: "pnpm test",
+      executable: "pnpm",
+      args: ["test"],
+      timeoutMs: 120_000,
+    });
   });
 
   it("accepts a fenced code block inside the section", () => {
@@ -58,7 +85,12 @@ describe("extractTaskProbe", () => {
       "## Done When",
     ].join("\n");
     const probe = extractTaskProbe(task);
-    expect(probe).toEqual({ command: "pnpm run probe", timeoutMs: 5000 });
+    expect(probe).toEqual({
+      command: "pnpm run probe",
+      executable: "pnpm",
+      args: ["run", "probe"],
+      timeoutMs: 5000,
+    });
   });
 
   it("throws when command is missing", () => {
@@ -80,7 +112,7 @@ describe("extractTaskProbe", () => {
   it("throws on unknown fields", () => {
     const task = [
       "## Runtime Probe",
-      "command: true",
+      "command: pnpm test",
       "retries: 3",
     ].join("\n");
     expect(() => extractTaskProbe(task)).toThrow(/unknown field "retries"/);
@@ -89,7 +121,7 @@ describe("extractTaskProbe", () => {
   it("throws on a non-positive timeoutMs", () => {
     const task = [
       "## Runtime Probe",
-      "command: true",
+      "command: pnpm test",
       "timeoutMs: 0",
     ].join("\n");
     expect(() => extractTaskProbe(task)).toThrow(/positive integer/);
@@ -98,7 +130,7 @@ describe("extractTaskProbe", () => {
   it("throws when timeoutMs exceeds the cap", () => {
     const task = [
       "## Runtime Probe",
-      "command: true",
+      "command: pnpm test",
       "timeoutMs: 99999999",
     ].join("\n");
     expect(() => extractTaskProbe(task)).toThrow(/exceeds the cap/);
@@ -107,37 +139,73 @@ describe("extractTaskProbe", () => {
   it("throws when the same key is declared twice", () => {
     const task = [
       "## Runtime Probe",
-      "command: one",
-      "command: two",
+      "command: pnpm test",
+      "command: pnpm run other",
     ].join("\n");
     expect(() => extractTaskProbe(task)).toThrow(/more than once/);
   });
 
-  it("preserves colons inside the command value", () => {
+  it("preserves colons inside constrained command arguments", () => {
     const task = [
       "## Runtime Probe",
-      "command: pnpm run check:types && pnpm run test:unit",
+      "command: pnpm run check:types -- --filter=a:b",
     ].join("\n");
     const probe = extractTaskProbe(task);
-    expect(probe?.command).toBe("pnpm run check:types && pnpm run test:unit");
+    expect(probe?.args).toEqual(["run", "check:types", "--", "--filter=a:b"]);
+  });
+
+  it("rejects shell control operators in command text", () => {
+    const task = [
+      "## Runtime Probe",
+      "command: pnpm run check && pnpm run test",
+    ].join("\n");
+    expect(() => extractTaskProbe(task)).toThrow(/shell metacharacter "&"/);
+  });
+
+  it("rejects leading environment assignments", () => {
+    const task = [
+      "## Runtime Probe",
+      "command: TOKEN=secret pnpm test",
+    ].join("\n");
+    expect(() => extractTaskProbe(task)).toThrow(/environment assignments/);
+  });
+
+  it("rejects unsupported executables", () => {
+    const task = [
+      "## Runtime Probe",
+      "command: curl http://127.0.0.1:3000/health",
+    ].join("\n");
+    expect(() => extractTaskProbe(task)).toThrow(/must start with "pnpm"/);
+  });
+
+  it("rejects pnpm exec because the binary would come from task text", () => {
+    const task = [
+      "## Runtime Probe",
+      "command: pnpm exec sh",
+    ].join("\n");
+    expect(() => extractTaskProbe(task)).toThrow(/subcommand "exec" is not allowed/);
   });
 });
 
 describe("runTaskProbe", () => {
   it("produces a pass verdict for exit code 0", () => {
     const dir = makeTmpDir();
-    const result = runTaskProbe({ command: "exit 0", timeoutMs: 5000 }, dir);
+    writePackageJson(dir, {
+      "probe:pass": "node -e \"process.exit(0)\"",
+    });
+    const result = runTaskProbe(makeProbe("pnpm run probe:pass"), dir);
     expect(result.verdict).toBe("pass");
     expect(result.exitCode).toBe(0);
+    expect(result.execution).toBe("constrained-direct-command");
     expect(typeof result.durationMs).toBe("number");
   });
 
   it("produces a fail verdict for a non-zero exit code and captures output", () => {
     const dir = makeTmpDir();
-    const result = runTaskProbe(
-      { command: "echo oops 1>&2; exit 3", timeoutMs: 5000 },
-      dir,
-    );
+    writePackageJson(dir, {
+      "probe:fail": "node -e \"console.error('oops'); process.exit(3)\"",
+    });
+    const result = runTaskProbe(makeProbe("pnpm run probe:fail"), dir);
     expect(result.verdict).toBe("fail");
     expect(result.exitCode).toBe(3);
     expect(result.output).toContain("oops");
@@ -145,11 +213,29 @@ describe("runTaskProbe", () => {
 
   it("captures stdout output on pass", () => {
     const dir = makeTmpDir();
-    const result = runTaskProbe(
-      { command: "echo hello-probe", timeoutMs: 5000 },
-      dir,
-    );
+    writePackageJson(dir, {
+      "probe:stdout": "node -e \"console.log('hello-probe')\"",
+    });
+    const result = runTaskProbe(makeProbe("pnpm run probe:stdout"), dir);
     expect(result.verdict).toBe("pass");
     expect(result.output).toContain("hello-probe");
+  });
+
+  it("does not inherit arbitrary workflow environment values", () => {
+    const dir = makeTmpDir();
+    writePackageJson(dir, {
+      "probe:env": "node -e \"console.log(process.env.KOTA_PROBE_SECRET ?? 'missing')\"",
+    });
+    const previous = process.env.KOTA_PROBE_SECRET;
+    process.env.KOTA_PROBE_SECRET = "probe-secret-value";
+    try {
+      const result = runTaskProbe(makeProbe("pnpm run probe:env"), dir);
+      expect(result.verdict).toBe("pass");
+      expect(result.output).toContain("missing");
+      expect(result.output).not.toContain("probe-secret-value");
+    } finally {
+      if (previous === undefined) delete process.env.KOTA_PROBE_SECRET;
+      else process.env.KOTA_PROBE_SECRET = previous;
+    }
   });
 });

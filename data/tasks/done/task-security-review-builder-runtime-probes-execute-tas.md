@@ -1,12 +1,12 @@
 ---
 id: task-security-review-builder-runtime-probes-execute-tas
 title: Security review: Builder runtime probes execute task-declared shell commands directly from task text before critic review, outside the agent tool approval boundary. Any task file that reaches builder review with a Runtime Probe section can trigger host command execution with the workflow environment.
-status: ready
+status: done
 priority: p2
 area: security
 summary: Builder runtime probes execute task-declared shell commands directly from task text before critic review, outside the agent tool approval boundary. Any task file that reaches builder review with a Runtime Probe section can trigger host command execution with the workflow environment.
 created_at: 2026-06-21T06:00:25.085Z
-updated_at: 2026-06-21T06:00:25.085Z
+updated_at: 2026-06-21T06:53:52.299Z
 ---
 
 ## Problem
@@ -138,3 +138,4 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Verification in builder run `2026-06-21T06-45-21-664Z-builder-f6gf4h`: `pnpm test src/modules/autonomy/task-probe.test.ts src/modules/autonomy/critic.test.ts`, `pnpm run typecheck`, `pnpm run lint`, and `pnpm run validate-tasks` passed after adding the constrained Runtime Probe runner and pre-run task provenance gate.

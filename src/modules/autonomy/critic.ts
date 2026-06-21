@@ -1,32 +1,36 @@
-import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
-import {
-  createWorkflowAgentGuards,
-  resolveAgentHarness,
-  routeKotaToolControlOptions,
-  runAgentHarness,
-} from "#core/agent-harness/index.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
-import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-retry.js";
-import { checkProductOperatorEvidence } from "./product-evidence.js";
-import { AUTONOMY_AGENT_DEFAULTS, AUTONOMY_DISALLOWED_TOOLS, sleep } from "./shared.js";
 import {
-  extractTaskProbe,
-  formatProbeBlock,
-  runTaskProbe,
-  type TaskProbeResult,
-} from "./task-probe.js";
+  type AgentJudgeConfig,
+  invokeAgentJudge,
+  isJudgeRunawayError,
+  judgeUnavailableResult,
+} from "./agent-judge.js";
+import {
+  getChangedFiles,
+  getStagedDiff,
+  getStagedDiffContent,
+} from "./critic-diff.js";
+import { runProbeIfDeclared } from "./critic-runtime-probe.js";
+import { handleVerdict, parseVerdict } from "./critic-verdict.js";
+import { checkProductOperatorEvidence } from "./product-evidence.js";
+import { AUTONOMY_AGENT_DEFAULTS } from "./shared.js";
+import { formatProbeBlock } from "./task-probe.js";
 import { findTaskReviewTarget } from "./task-review-target.js";
 
-export type CriticVerdict = {
-  verdict: "pass" | "fail" | "pass_with_warnings";
-  critical_issues: string[];
-  warnings: string[];
-  summary: string;
-};
+export type { AgentJudgeConfig } from "./agent-judge.js";
+export {
+  invokeAgentJudge,
+  isJudgeRunawayError,
+  judgeUnavailableResult,
+} from "./agent-judge.js";
+export {
+  getChangedFiles,
+  getStagedDiff,
+  getStagedDiffContent,
+} from "./critic-diff.js";
+export type { CriticVerdict } from "./critic-verdict.js";
+export { handleVerdict, parseVerdict } from "./critic-verdict.js";
 
 const CRITIC_SYSTEM_PROMPT = `You are a calibrated code review critic. Your job is to determine whether an agent's work genuinely and completely fulfills its assigned task.
 
@@ -104,274 +108,7 @@ export function getCriticPromptHash(): string {
   return createHash("sha256").update(CRITIC_SYSTEM_PROMPT).digest("hex").slice(0, 12);
 }
 
-const GIT_MAX_BUFFER = 5 * 1024 * 1024;
-const GIT_DIFF_MAX_BUFFER = 50 * 1024 * 1024;
-const DIFF_CHAR_LIMIT = 80_000;
-
-export function getStagedDiff(projectDir: string): string {
-  return execFileSync("git", ["diff", "--cached", "--stat"], {
-    cwd: projectDir,
-    env: withProtectedGitBareRepositoryEnv(),
-    encoding: "utf8",
-    maxBuffer: GIT_MAX_BUFFER,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-}
-
-export function getStagedDiffContent(projectDir: string): string {
-  let diff: string;
-  try {
-    diff = execFileSync("git", ["diff", "--cached"], {
-      cwd: projectDir,
-      env: withProtectedGitBareRepositoryEnv(),
-      encoding: "utf8",
-      maxBuffer: GIT_DIFF_MAX_BUFFER,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-  } catch {
-    return "[Staged diff too large to capture — review via changed files and stat only]";
-  }
-  if (diff.length > DIFF_CHAR_LIMIT) {
-    return `${diff.slice(0, DIFF_CHAR_LIMIT)}\n\n[... diff truncated at ${DIFF_CHAR_LIMIT / 1000}k chars ...]`;
-  }
-  return diff;
-}
-
-export function getChangedFiles(projectDir: string): string {
-  return execFileSync("git", ["diff", "--cached", "--name-only"], {
-    cwd: projectDir,
-    env: withProtectedGitBareRepositoryEnv(),
-    encoding: "utf8",
-    maxBuffer: GIT_MAX_BUFFER,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-}
-
-function tryParseJson(text: string): Record<string, unknown> | undefined {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return undefined;
-  }
-}
-
-function extractJson(text: string): Record<string, unknown> | undefined {
-  const jsonBlockMatch = text.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
-  if (jsonBlockMatch) {
-    const parsed = tryParseJson(jsonBlockMatch[1].trim());
-    if (parsed) return parsed;
-  }
-  const braceMatch = text.match(/\{[\s\S]*"verdict"[\s\S]*\}/);
-  if (braceMatch) {
-    const parsed = tryParseJson(braceMatch[0]);
-    if (parsed) return parsed;
-  }
-  return undefined;
-}
-
-export function parseVerdict(text: string): CriticVerdict {
-  const stripped = text.replace(/^```(?:json)?\s*\n?/m, "").replace(/\n?```\s*$/m, "").trim();
-  let parsed: Record<string, unknown> | undefined;
-  try {
-    parsed = JSON.parse(stripped);
-  } catch {
-    parsed = extractJson(text);
-  }
-  if (!parsed) {
-    throw new Error(
-      `Critic returned invalid JSON. Response (first 500 chars): ${stripped.slice(0, 500)}`,
-    );
-  }
-
-  if (!parsed.verdict || !["pass", "fail", "pass_with_warnings"].includes(parsed.verdict as string)) {
-    throw new Error(`Invalid verdict: ${parsed.verdict}`);
-  }
-  return {
-    verdict: parsed.verdict as CriticVerdict["verdict"],
-    critical_issues: Array.isArray(parsed.critical_issues) ? parsed.critical_issues : [],
-    warnings: Array.isArray(parsed.warnings) ? parsed.warnings : [],
-    summary: typeof parsed.summary === "string" ? parsed.summary : "",
-  };
-}
-
-export function handleVerdict(verdict: CriticVerdict, runDir?: string, artifactName = "critic-review.json"): string {
-  // Always persist the verdict so live-run calibration tracking can read it
-  // back later; operators inspecting a run that passed cleanly no longer need
-  // to infer the verdict from the step's repair-iteration output. Repeat
-  // critic invocations within one run overwrite the file so it reflects the
-  // final verdict.
-  if (runDir) {
-    writeFileSync(
-      join(runDir, artifactName),
-      JSON.stringify(verdict, null, 2),
-    );
-  }
-
-  if (verdict.verdict === "fail" && verdict.critical_issues.length > 0) {
-    throw new Error(
-      `Critic found ${verdict.critical_issues.length} critical issue(s):\n` +
-        verdict.critical_issues.map((issue, i) => `  ${i + 1}. ${issue}`).join("\n") +
-        (verdict.summary ? `\n\nSummary: ${verdict.summary}` : ""),
-    );
-  }
-
-  const parts = [`OK: critic verdict — ${verdict.verdict}`];
-  if (verdict.summary) parts.push(verdict.summary);
-  if (verdict.warnings.length > 0) {
-    parts.push(`(${verdict.warnings.length} warning(s) recorded in ${artifactName})`);
-  }
-  return parts.join(". ");
-}
-
-function runProbeIfDeclared(
-  taskContent: string,
-  projectDir: string,
-  runDir: string,
-): TaskProbeResult | null {
-  const probe = extractTaskProbe(taskContent);
-  if (!probe) return null;
-  const result = runTaskProbe(probe, projectDir);
-  writeFileSync(join(runDir, "runtime-probe.json"), JSON.stringify(result, null, 2));
-  return result;
-}
-
 const CRITIC_MAX_TURNS = 20;
-
-export type AgentJudgeConfig = {
-  label: string;
-  systemPrompt: string;
-  model: string;
-  maxTurns: number;
-  effort: "low" | "medium" | "high" | "xhigh" | "max";
-  /**
-   * Registered agent-harness name to dispatch this judge through. Required —
-   * judges stay harness-neutral, so every caller must pass the harness it
-   * resolved (normally the parent agent step's `step.harness`, which the
-   * validator filled from `config.defaultAgentHarness`).
-   */
-  harness: string;
-  maxRetries?: number;
-  retryBaseDelayMs?: number;
-};
-
-const DEFAULT_MAX_RETRIES = 3;
-const DEFAULT_RETRY_BASE_DELAY_MS = 2_000;
-
-const JSON_REMINDER =
-  "\n\n## Format reminder\n" +
-  "Your previous response did not contain valid JSON. Output exactly one JSON " +
-  "object matching the schema in the system prompt — no narrative, no " +
-  "checkmarks, no markdown, no code fences. The first character must be `{` " +
-  "and the last must be `}`.";
-
-export async function invokeAgentJudge(
-  userMessage: string,
-  cwd: string,
-  config: AgentJudgeConfig,
-): Promise<{ text: string; isError: boolean; subtype?: string }> {
-  const maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES;
-  const retryBaseDelayMs = config.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS;
-  const harness = resolveAgentHarness(config.harness);
-  let lastError: Error | undefined;
-  let needsFormatReminder = false;
-
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    if (attempt > 0) {
-      await sleep(retryBaseDelayMs * attempt);
-    }
-
-    const promptForAttempt = needsFormatReminder ? userMessage + JSON_REMINDER : userMessage;
-
-    let response: { text: string; isError: boolean; subtype?: string };
-    try {
-      response = await runAgentHarness(
-        harness,
-        {
-          prompt: promptForAttempt,
-          model: config.model,
-          cwd,
-          systemPrompt: config.systemPrompt,
-          maxTurns: config.maxTurns,
-          effort: config.effort,
-          ...routeKotaToolControlOptions(harness, {
-            disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
-            canUseTool: createWorkflowAgentGuards(),
-          }),
-          autonomyMode: "autonomous",
-        },
-        {
-          write: () => true,
-        },
-      );
-    } catch (thrown) {
-      const message = thrown instanceof Error ? thrown.message : String(thrown);
-      lastError = new Error(
-        `${config.label} threw (attempt ${attempt + 1}/${maxRetries}): ${message}`,
-      );
-      const code = thrown instanceof Error
-        ? (thrown as NodeJS.ErrnoException).code
-        : undefined;
-      const classification = classifyAgentRuntimeFailure({
-        message,
-        code,
-        errorName: thrown instanceof Error ? thrown.name : undefined,
-      });
-      if (!classification?.retryable) throw lastError;
-      needsFormatReminder = false;
-      continue;
-    }
-
-    if (!response.isError) {
-      try {
-        parseVerdict(response.text);
-        return response;
-      } catch (error) {
-        lastError = new Error(
-          `${config.label} returned unparseable response (attempt ${attempt + 1}/${maxRetries}): ${error instanceof Error ? error.message : String(error)}`,
-        );
-        needsFormatReminder = true;
-        continue;
-      }
-    }
-
-    // isError=true path. Prefer to recover a parseable verdict from any
-    // emitted text before deciding whether to retry — an agent that hit
-    // max_turns may still have produced a valid JSON verdict before bailing.
-    if (response.text.trim()) {
-      if (isParseableVerdict(response.text)) {
-        return response;
-      }
-    }
-
-    const failureDetail = response.text.trim() || response.subtype || "unknown error";
-    lastError = new Error(
-      `${config.label} failed (attempt ${attempt + 1}/${maxRetries}): ${failureDetail}`,
-    );
-
-    // Runaway subtypes (error_max_turns, error_max_tokens) are deterministic
-    // budget exhaustion, not transient provider problems. Retrying burns
-    // budget without changing the turn/token ceiling. Fail fast on anything
-    // the classifier does not explicitly mark retryable — same policy the
-    // workflow step-executor applies to agent steps.
-    const classification = classifyAgentRuntimeFailure({
-      message: response.text,
-      subtype: response.subtype,
-    });
-    if (!classification?.retryable) throw lastError;
-    needsFormatReminder = false;
-  }
-  throw lastError!;
-}
-
-function isParseableVerdict(text: string): boolean {
-  let parseable = true;
-  try {
-    parseVerdict(text);
-  } catch {
-    parseable = false;
-  }
-  return parseable;
-}
 
 type CriticBaseConfig = Omit<AgentJudgeConfig, "harness">;
 
@@ -382,30 +119,6 @@ const criticBaseConfig: CriticBaseConfig = {
   maxTurns: CRITIC_MAX_TURNS,
   effort: AUTONOMY_AGENT_DEFAULTS.effort,
 };
-
-/**
- * True when a thrown `invokeAgentJudge` error represents runaway budget
- * exhaustion (max turns / max tokens) rather than a defect in the diff
- * being reviewed. The repair-loop caller uses this to degrade the check
- * to a warning: a repair agent cannot shrink the judge's turn budget by
- * editing code, so iterating would be wasted work. Keyed on stable SDK
- * signals (result subtype and canonical CLI error phrase).
- */
-export function isJudgeRunawayError(err: unknown): boolean {
-  const message = err instanceof Error ? err.message : String(err);
-  if (/error_max_turns|error_max_tokens/i.test(message)) return true;
-  if (/Reached maximum number of (?:turns|tokens)/i.test(message)) return true;
-  return false;
-}
-
-export function judgeUnavailableResult(label: string, err: unknown): string {
-  const detail = err instanceof Error ? err.message : String(err);
-  return (
-    `WARN: ${label} unavailable (${detail}). ` +
-    `Skipping gate for this run; the diff proceeds on mechanical checks only. ` +
-    `See evaluator-calibration.json (verdict=absent).`
-  );
-}
 
 export function createCriticCheck(options?: {
   runDirPath?: string;
@@ -440,7 +153,7 @@ export function createCriticCheck(options?: {
       const changedFiles = getChangedFiles(ctx.projectDir);
       const runDir = options?.runDirPath ?? ctx.workflow.runDirPath;
 
-      const probeResult = runProbeIfDeclared(taskContent, ctx.projectDir, runDir);
+      const probeResult = runProbeIfDeclared(taskContent, target.path, ctx.projectDir, runDir);
       const productEvidence = checkProductOperatorEvidence({
         taskContent,
         taskState: target.state,
@@ -500,6 +213,7 @@ export function createCriticCheck(options?: {
       try {
         response = await invokeAgentJudge(userMessage, ctx.projectDir, resolvedConfig);
       } catch (err) {
+        const judgeError = err instanceof Error ? err : new Error(String(err));
         // Runaway judge (max turns / max tokens) is an evaluator-side
         // problem the agent cannot fix by editing code. Returning a
         // warning lets the build proceed on mechanical checks and
@@ -507,8 +221,8 @@ export function createCriticCheck(options?: {
         // 2026-04-20T14-30-41-306Z-builder-gb9pnn wasted 3 repair
         // iterations (~$3.73, ~45 min) on this exact path before the
         // critic finally returned a verdict on its own.
-        if (isJudgeRunawayError(err)) {
-          return judgeUnavailableResult("critic", err);
+        if (isJudgeRunawayError(judgeError)) {
+          return judgeUnavailableResult("critic", judgeError);
         }
         throw err;
       }

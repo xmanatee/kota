@@ -1,10 +1,25 @@
 import { spawnSync } from "node:child_process";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import { basename } from "node:path";
+import { buildRequiredInheritedSubprocessEnv } from "#core/modules/subprocess-env.js";
+import { parseConstrainedProbeCommand } from "./task-probe-command.js";
 
 export type TaskProbe = {
   command: string;
+  executable: "pnpm";
+  args: string[];
   timeoutMs: number;
 };
+
+export type TaskProbeProvenance =
+  | {
+      status: "trusted";
+      kind: "git-head";
+      sourcePath: string;
+    }
+  | {
+      status: "untrusted";
+      reason: string;
+    };
 
 export type TaskProbeResult = {
   verdict: "pass" | "fail";
@@ -12,6 +27,8 @@ export type TaskProbeResult = {
   durationMs: number;
   output: string;
   probe: TaskProbe;
+  execution: "constrained-direct-command";
+  provenance?: TaskProbeProvenance;
 };
 
 const PROBE_SECTION_RE = /(?:^|\n)## +Runtime Probe\s*\n([\s\S]*?)(?=\n## |\n?$)/;
@@ -20,6 +37,7 @@ const DEFAULT_PROBE_TIMEOUT_MS = 120_000;
 const MAX_PROBE_TIMEOUT_MS = 30 * 60 * 1000;
 const MAX_PROBE_OUTPUT_CHARS = 20_000;
 const PROBE_MAX_BUFFER = 10 * 1024 * 1024;
+const TRUSTED_PROBE_TASK_STATES = ["ready", "doing", "blocked", "done", "backlog"] as const;
 
 export function extractTaskProbe(taskContent: string): TaskProbe | null {
   const sectionMatch = taskContent.match(PROBE_SECTION_RE);
@@ -78,7 +96,14 @@ export function extractTaskProbe(taskContent: string): TaskProbe | null {
     }
   }
 
-  return { command, timeoutMs };
+  const parsed = parseConstrainedProbeCommand(command);
+
+  return {
+    command,
+    executable: parsed.executable,
+    args: parsed.args,
+    timeoutMs,
+  };
 }
 
 function stripCodeFence(section: string): string {
@@ -88,13 +113,13 @@ function stripCodeFence(section: string): string {
 
 export function runTaskProbe(probe: TaskProbe, projectDir: string): TaskProbeResult {
   const start = Date.now();
-  const result = spawnSync(probe.command, {
-    shell: true,
+  const result = spawnSync(probe.executable, probe.args, {
     cwd: projectDir,
-    env: withProtectedGitBareRepositoryEnv(),
+    env: buildTaskProbeEnv(),
     timeout: probe.timeoutMs,
     encoding: "utf-8",
     maxBuffer: PROBE_MAX_BUFFER,
+    stdio: ["ignore", "pipe", "pipe"],
   });
   const durationMs = Date.now() - start;
   const combined = [result.stdout ?? "", result.stderr ?? ""]
@@ -103,7 +128,98 @@ export function runTaskProbe(probe: TaskProbe, projectDir: string): TaskProbeRes
   const output = truncateTail(combined, MAX_PROBE_OUTPUT_CHARS);
   const exitCode = result.status ?? -1;
   const verdict: "pass" | "fail" = exitCode === 0 ? "pass" : "fail";
-  return { verdict, exitCode, durationMs, output, probe };
+  return {
+    verdict,
+    exitCode,
+    durationMs,
+    output,
+    probe,
+    execution: "constrained-direct-command",
+  };
+}
+
+export function verifyTaskProbeProvenance(args: {
+  projectDir: string;
+  taskPath: string;
+  probe: TaskProbe;
+}): TaskProbeProvenance {
+  const filename = basename(args.taskPath);
+  for (const state of TRUSTED_PROBE_TASK_STATES) {
+    const sourcePath = `data/tasks/${state}/${filename}`;
+    const sourceContent = readHeadFile(args.projectDir, sourcePath);
+    if (sourceContent === null) continue;
+
+    const sourceProbe = extractTaskProbe(sourceContent);
+    if (!sourceProbe) {
+      return {
+        status: "untrusted",
+        reason: `Runtime Probe is absent from trusted pre-run task source ${sourcePath}.`,
+      };
+    }
+    if (!sameProbeDeclaration(sourceProbe, args.probe)) {
+      return {
+        status: "untrusted",
+        reason: `Runtime Probe declaration differs from trusted pre-run task source ${sourcePath}.`,
+      };
+    }
+    return {
+      status: "trusted",
+      kind: "git-head",
+      sourcePath,
+    };
+  }
+
+  return {
+    status: "untrusted",
+    reason:
+      "Runtime Probe declaration has no matching task file in git HEAD; current-run task text is not trusted provenance.",
+  };
+}
+
+export function rejectedTaskProbeResult(
+  probe: TaskProbe,
+  reason: string,
+): TaskProbeResult {
+  return {
+    verdict: "fail",
+    exitCode: -1,
+    durationMs: 0,
+    output: `Runtime Probe not executed: ${reason}`,
+    probe,
+    execution: "constrained-direct-command",
+    provenance: {
+      status: "untrusted",
+      reason,
+    },
+  };
+}
+
+function readHeadFile(projectDir: string, relPath: string): string | null {
+  const result = spawnSync("git", ["show", `HEAD:${relPath}`], {
+    cwd: projectDir,
+    env: buildRequiredInheritedSubprocessEnv(),
+    encoding: "utf-8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  if (result.status !== 0) return null;
+  return result.stdout ?? "";
+}
+
+function sameProbeDeclaration(left: TaskProbe, right: TaskProbe): boolean {
+  return (
+    left.executable === right.executable &&
+    left.timeoutMs === right.timeoutMs &&
+    left.args.length === right.args.length &&
+    left.args.every((arg, index) => arg === right.args[index])
+  );
+}
+
+function buildTaskProbeEnv(): NodeJS.ProcessEnv {
+  return {
+    ...buildRequiredInheritedSubprocessEnv(),
+    NO_COLOR: "1",
+    KOTA_RUNTIME_PROBE: "1",
+  };
 }
 
 function truncateTail(text: string, limit: number): string {
@@ -115,9 +231,18 @@ export function formatProbeBlock(result: TaskProbeResult): string {
   const lines = [
     "## Runtime Probe Result",
     `Command: ${result.probe.command}`,
+    `Execution: ${result.execution}`,
     `Verdict: ${result.verdict}`,
     `Exit code: ${result.exitCode}`,
     `Duration: ${result.durationMs} ms`,
+    ...(result.provenance
+      ? [
+          `Provenance: ${result.provenance.status}` +
+            (result.provenance.status === "trusted"
+              ? ` (${result.provenance.sourcePath})`
+              : ` (${result.provenance.reason})`),
+        ]
+      : []),
     "",
     "Treat a failed probe as a critical issue unless the probe itself is miscalibrated",
     "(e.g., an environmental failure unrelated to the staged change). The probe is the",

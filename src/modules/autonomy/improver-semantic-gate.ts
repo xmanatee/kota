@@ -129,12 +129,13 @@ export function createImproverSemanticCheck(options?: {
       try {
         response = await invokeAgentJudge(userMessage, ctx.projectDir, gateConfig);
       } catch (err) {
+        const judgeError = err instanceof Error ? err : new Error(String(err));
         // Same semantics as the critic: a runaway judge is an evaluator
         // budget problem, not a defect in the improver's diff. Let the
         // run proceed with a warning rather than forcing the improver
         // agent to loop on a check it cannot repair.
-        if (isJudgeRunawayError(err)) {
-          return judgeUnavailableResult("semantic gate", err);
+        if (isJudgeRunawayError(judgeError)) {
+          return judgeUnavailableResult("semantic gate", judgeError);
         }
         throw err;
       }
