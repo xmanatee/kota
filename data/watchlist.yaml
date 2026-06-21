@@ -162,6 +162,10 @@ resources:
   - url: https://arxiv.org/abs/2606.17799
     added: "2026-06-20"
     notes: "Coding Benchmarks Are Misaligned with Agentic Software Engineering argues that coding-agent scores conflate model, harness, context, environment, and feedback components. Monitor as an eval-harness signal for component-level attribution and explainable score movement rather than importing a benchmark runner."
+    snapshot:
+      fingerprint: sha256:38f6a32c97ff8878966865985364b460
+      summary: "Coding Benchmarks Are Misaligned with Agentic Software Engineering is accessible; its component-attribution signal is already covered by completed KOTA work, and this run opened task-add-accepted-alternative-verifier-calibration-to-e for the remaining single-reference/valid-alternative scorer-calibration gap."
+      last_seen_at: "2026-06-21T00:35:01.592Z"
   - url: https://arxiv.org/abs/2605.18583
     added: "2026-05-19"
     notes: "Overeager Coding Agents / OverEager-Bench measures benign-task scope expansion across Claude Code, OpenHands, Codex CLI, and Gemini CLI. Monitor as a direct autonomy-eval signal for authorization-boundary and over-eager edit behavior, not as a replacement benchmark."
